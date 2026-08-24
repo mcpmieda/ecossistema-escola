@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { PlatformCapability } from '../../shared/platform-contract';
 import type { RuntimeEnv } from '../env';
 import { graphRequest } from '../graph/client';
+import { resolveRegisteredModules } from '../modules/registry';
 import { coreModules } from './manifest';
 
 export const EXPECTED_PLATFORM_LISTS = [
@@ -15,18 +16,6 @@ const listSchema = z.object({ id: z.string(), displayName: z.string() });
 const graphItemSchema = z.object({
   id: z.string(),
   fields: z.record(z.string(), z.unknown()).optional(),
-});
-
-const moduleFieldsSchema = z.object({
-  Chave: z.string().optional(),
-  Nome: z.string().optional(),
-  RotaBase: z.string().optional(),
-  Versao: z.string().optional(),
-  Status: z.string().optional(),
-  Ordem: z.union([z.number(), z.string()]).optional(),
-  RolesJson: z.string().optional(),
-  HealthEndpoint: z.string().optional(),
-  AtualizadoEmUTC: z.string().optional(),
 });
 
 const configurationFieldsSchema = z.object({
@@ -71,16 +60,6 @@ type SnapshotSource = {
 
 export type PlatformSnapshot = ReturnType<typeof buildPlatformSnapshot>;
 
-export function parseRolesJson(value: string | undefined): string[] {
-  if (!value) return [];
-  try {
-    const parsed = z.array(z.string()).safeParse(JSON.parse(value));
-    return parsed.success ? parsed.data : [];
-  } catch {
-    return [];
-  }
-}
-
 export function isFailureResult(value: string): boolean {
   const normalized = value
     .trim()
@@ -88,15 +67,6 @@ export function isFailureResult(value: string): boolean {
     .replace(/\p{Diacritic}/gu, '')
     .toLocaleLowerCase('pt-BR');
   return /^(erro|error|falha|falhou|failed|failure)(?:\b|[:_-])/u.test(normalized);
-}
-
-function numberOrZero(value: string | number | undefined): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
 }
 
 function hasCapability(
@@ -129,29 +99,7 @@ export function buildPlatformSnapshot(
 ) {
   const byName = new Map(source.lists.map((list) => [list.displayName, list.id]));
 
-  const allRegisteredModules = source.moduleItems
-    .flatMap((item) => {
-      const parsed = moduleFieldsSchema.safeParse(item.fields);
-      if (!parsed.success) return [];
-      const fields = parsed.data;
-      return [
-        {
-          id: item.id,
-          key: fields.Chave ?? item.id,
-          name: fields.Nome ?? fields.Chave ?? 'Módulo sem nome',
-          baseRoute: fields.RotaBase ?? '',
-          version: fields.Versao ?? '',
-          status: fields.Status ?? 'instalado',
-          order: numberOrZero(fields.Ordem),
-          roles: parseRolesJson(fields.RolesJson),
-          healthEndpoint: fields.HealthEndpoint ?? '',
-          updatedAt: fields.AtualizadoEmUTC ?? '',
-        },
-      ];
-    })
-    .sort(
-      (left, right) => left.order - right.order || left.name.localeCompare(right.name, 'pt-BR'),
-    );
+  const allRegisteredModules = resolveRegisteredModules(source.moduleItems, capabilities);
 
   const allConfigurations = source.configurationItems
     .flatMap((item) => {
@@ -227,7 +175,7 @@ export function buildPlatformSnapshot(
       : ('nominal' as const);
 
   return {
-    version: '0.6.0-validation',
+    version: '0.7.0-validation',
     releaseState: 'validation' as const,
     generatedAt: source.generatedAt ?? new Date().toISOString(),
     correlationId: source.correlationId,
@@ -288,7 +236,7 @@ export async function getPlatformSnapshot(
       ? readListItems(
           env,
           byName.get('PLATAFORMA_MODULOS'),
-          'Chave,Nome,RotaBase,Versao,Status,Ordem,RolesJson,HealthEndpoint,AtualizadoEmUTC',
+          'Chave,Nome,RotaBase,Versao,Status,Ordem,HealthEndpoint,AtualizadoEmUTC',
         )
       : Promise.resolve([]),
     readsSettings

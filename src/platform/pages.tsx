@@ -27,9 +27,30 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import type { PlatformRoute, PlatformSnapshotContract } from '../../shared/platform-contract';
+import type {
+  ModuleIntegrationState,
+  PlatformRoute,
+  PlatformSnapshotContract,
+} from '../../shared/platform-contract';
 import { OperationsPage } from './operations-page';
 import { EmptyState, formatDate, ModuleRow, PageHeader, shortCorrelation } from './presentation';
+
+function integrationStateLabel(state: ModuleIntegrationState): string {
+  switch (state) {
+    case 'ready':
+      return 'Pronto';
+    case 'registry-only':
+      return 'Somente registro';
+    case 'contract-mismatch':
+      return 'Contrato divergente';
+    case 'disabled':
+      return 'Desabilitado';
+    case 'deprecated':
+      return 'Depreciado';
+    default:
+      return 'Registro inválido';
+  }
+}
 
 function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
   const activeConfigurations = snapshot.configurations.filter(
@@ -47,7 +68,7 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
             <span className="absolute inline-flex size-full rounded-full bg-primary/25 motion-safe:animate-ping" />
             <span className="relative inline-flex size-2 rounded-full bg-primary" />
           </span>
-          <span className="font-medium">Centro v0.6 em validação controlada</span>
+          <span className="font-medium">Centro v0.7 em validação controlada</span>
         </div>
         <span className="text-xs text-muted-foreground">Acesso restrito a administradores</span>
       </div>
@@ -149,7 +170,7 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       <PageHeader
         eyebrow="Catálogo"
         title="Sistemas e módulos"
-        description="O núcleo é definido por contrato; sistemas incorporados aparecem no registro institucional."
+        description="O registro institucional é inventário; o Centro só considera um sistema integrado quando existe contrato versionado compatível e autorização suficiente."
       />
 
       <Card className="gap-0 py-0">
@@ -168,10 +189,10 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
 
       <Card className="mt-5 gap-0 py-0">
         <CardHeader className="border-b py-4">
-          <CardTitle>Registro institucional</CardTitle>
+          <CardTitle>Registro e integração</CardTitle>
           <CardDescription>
-            Sistemas independentes passam a aparecer aqui quando seus contratos de integração forem
-            registrados.
+            O estado abaixo compara o inventário SharePoint com o manifesto versionado reconhecido
+            pelo Centro. Registro isolado não concede acesso.
           </CardDescription>
         </CardHeader>
         {snapshot.registeredModules.length === 0 ? (
@@ -185,19 +206,71 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
               <TableHeader>
                 <TableRow>
                   <TableHead>Sistema</TableHead>
-                  <TableHead>Chave</TableHead>
                   <TableHead>Versão</TableHead>
-                  <TableHead>Estado</TableHead>
+                  <TableHead>Registro</TableHead>
+                  <TableHead>Integração</TableHead>
+                  <TableHead>Capabilities</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {snapshot.registeredModules.map((module) => (
                   <TableRow key={module.id}>
-                    <TableCell className="font-medium">{module.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{module.key}</TableCell>
-                    <TableCell>{module.version || '—'}</TableCell>
                     <TableCell>
-                      <Badge variant="outline">{module.status || 'sem estado'}</Badge>
+                      <div className="font-medium">{module.name}</div>
+                      <div className="mt-0.5 font-mono text-xs text-muted-foreground">
+                        {module.key}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {module.version || '—'}
+                      {module.contractVersion !== null && (
+                        <div className="mt-0.5 text-xs text-muted-foreground">
+                          contrato v{module.contractVersion}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{module.status}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col items-start gap-1.5">
+                        <Badge
+                          variant={
+                            module.integrationState === 'ready'
+                              ? 'outline'
+                              : module.integrationState === 'contract-mismatch' ||
+                                  module.integrationState === 'invalid-registry'
+                                ? 'destructive'
+                                : 'secondary'
+                          }
+                        >
+                          {integrationStateLabel(module.integrationState)}
+                        </Badge>
+                        {module.integrationIssues.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            Divergência: {module.integrationIssues.join(', ')}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="min-w-56">
+                      {module.requiredCapabilities.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {module.requiredCapabilities.map((capability) => (
+                            <Badge
+                              key={capability}
+                              variant="secondary"
+                              className="font-mono text-[0.68rem]"
+                            >
+                              {capability}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Sem manifesto integrado
+                        </span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
