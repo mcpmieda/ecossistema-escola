@@ -2,23 +2,22 @@
 
 ## Objetivo atual
 
-Evoluir o Centro de Administração em blocos grandes e completos, preservando integralmente a fundação existente e mantendo `releaseState = validation` até autorização humana explícita de produção.
+Concluir o núcleo do Centro de Administração em blocos grandes e completos, preservando integralmente a fundação existente e mantendo `releaseState = validation` até autorização humana explícita de produção.
 
 Ao final de cada bloco concluído, a candidata corrente deve ser publicada em `https://admin.escolaieda.com`, ainda restrita ao público autorizado, para inspeção contínua. Deploy de validação não equivale a liberação oficial.
 
 ## Estado corrente
 
-- fase publicada: `v0.6` — autorização por capabilities;
-- baseline runtime: `main@8632ae8eb420d2d2c2bd3c21ba33a53b8aea3d7a` via PR #19;
-- CI final do PR #19: workflow `32779427463` — **success**;
-- CI funcional anterior do mesmo PR: workflow `32779168279` — **success**;
-- smoke externo v0.6: workflow `32781606033`, job `97604681958` — **success**;
-- asset confirmado no domínio: `/assets/index-rmiV2Byp.js`;
-- v0.5: operação e saúde observável via PR #14;
-- v0.4: busca transversal + modularização via PR #12;
-- v0.3: fundação visual shadcn/ui via PR #11;
-- logout corrigido: `main@c87cbe8be7594a6d8e87f4d219d79de984c52599` via PR #8;
-- baseline seguro anterior ao Centro: `8d28f1d35384a12a7028e25e0ec2a126edfdfdab`;
+- baseline publicada e verificada: `v0.6`;
+- runtime publicado: `main@8632ae8eb420d2d2c2bd3c21ba33a53b8aea3d7a` via PR #19;
+- documentação v0.6 integrada até `main@d0c32d32844ec56037ddb46d7f93a386efc83aa5`;
+- candidata técnica atual: `v0.7` — contrato de integração modular;
+- branch final limpa: `feat/centro-admin-v0.7-module-integration-contract-clean`;
+- PR final: #23;
+- head funcional validado: `2d1089d6b256e836e76d083b7d581063df5d7834`;
+- CI limpo v0.7: workflow `32785823534` — **success**;
+- 13 arquivos de teste / **98 testes** — **pass**;
+- semantic fingerprint v0.7: `7c0175727cc706f64575b885750cbe264c558f0f05fd883a111e8425595bcf73`;
 - nível do sistema: `production-system`;
 - autenticação: Microsoft Entra ID + BFF + cookie HttpOnly selado;
 - fonte autoritativa administrativa: SharePoint `CENTROADMIN` pela integração Graph existente;
@@ -27,244 +26,228 @@ Ao final de cada bloco concluído, a candidata corrente deve ser publicada em `h
 
 ## Escopo de conclusão da fase atual
 
-Decisão de produto registrada em 24/08/2026:
+Decisão de produto registrada em 24/08/2026.
 
-Os itens abaixo ficam **explicitamente adiados** e não bloqueiam o marco de 100% desta fase:
+Os itens abaixo estão **explicitamente adiados** e não bloqueiam o marco de 100% desta fase:
 
-- integração funcional de verdade do primeiro sistema independente;
+- integração funcional do primeiro sistema independente;
 - construção do módulo `Publicações`;
 - construção do módulo `Páginas`.
 
-Esses itens continuam previstos na arquitetura, mas serão retomados posteriormente conforme estratégia de produto a ser definida separadamente.
+Eles continuam previstos na arquitetura e serão retomados conforme estratégia de produto posterior.
 
-O marco de **100% desta fase** só pode ser declarado quando todo o restante aplicável estiver concluído, incluindo:
+O marco de **100% desta fase** só pode ser declarado quando todo o restante aplicável estiver concluído:
 
-- contrato e infraestrutura de integração modular prontos e validados;
+- contrato e infraestrutura de integração modular validados;
 - autorização server-side por capabilities consolidada;
 - núcleo administrativo, navegação, busca, estados e responsividade consolidados;
 - operação, saúde e degradação observável consolidadas;
-- notificações/pendências somente quando houver fonte e regra institucional claras; ausência de regra não deve gerar funcionalidade inventada;
-- recuperação/restore executado e com evidência registrada;
-- higiene final de código, remoção de resíduos e documentação atualizada;
-- regressões técnicas, segurança, browser e validação final da candidata concluídas;
-- candidata corrente publicada e confirmada externamente no domínio de validação.
+- notificações/pendências somente se houver fonte e regra institucional claras;
+- recuperação/restore executado com evidência registrada;
+- higiene final de código e documentação;
+- regressões técnicas e segurança;
+- browser QA e validação final da candidata;
+- candidata final publicada e confirmada externamente no domínio.
 
-Somente depois de esse marco ser atingido o projeto deve informar ao responsável que chegou a **100% do escopo desta fase** e solicitar a decisão humana de aprovação. Não antecipar pedido de aprovação antes disso.
+Somente após esse marco o projeto deve informar: **“O Centro atingiu 100% do escopo desta fase e está pronto para sua decisão de aprovação.”**
 
-## v0.6 — autorização por capabilities
+## v0.7 — contrato de integração modular
 
-A v0.6 transforma capabilities de metadados declarativos em regra efetivamente aplicada pelo servidor.
+A v0.7 estabelece a fronteira que permitirá incorporar sistemas independentes ao Centro sem duplicar autenticação, autorização, navegação ou infraestrutura compartilhada.
 
-### Política server-side
+### Registro não significa integração
 
-O catálogo tipado de capabilities e a política central de papéis → grants ficam no código versionado.
+O SharePoint `PLATAFORMA_MODULOS` continua sendo inventário operacional.
 
-Capabilities atuais:
+A fonte de verdade do **contrato de integração** passa a ser o manifesto versionado em `server/modules/contracts.ts`.
 
-- `platform.snapshot.read`;
-- `platform.overview.read`;
-- `platform.health.read`;
-- `publications.read`;
-- `pages.read`;
-- `platform.modules.read`;
-- `platform.audit.read`;
-- `platform.settings.read`.
+Um item existir em `PLATAFORMA_MODULOS` não o torna automaticamente integrado ou disponível.
 
-Na validação atual:
+### Contrato versionado
 
-- `ADMINISTRADOR` recebe explicitamente todas as capabilities do Centro;
-- `PROFESSOR`, `ALUNO`, `APOIO` e `VISITANTE` continuam sem grants do Centro.
+O contrato exige:
 
-Os grupos e o mapeamento Entra → papéis não foram alterados. Papéis são entrada da política; a autorização final é a capability exigida no ponto de execução.
+- `contractVersion`;
+- chave estável;
+- nome;
+- rota base same-origin;
+- versão semântica;
+- estado do contrato;
+- ordem;
+- `requiredCapabilities`;
+- `healthEndpoint` sob `/api/`.
 
-### Resolução por requisição
+O contrato atual da `plataforma-base` usa `contractVersion = 1`.
 
-Capabilities não são gravadas no cookie de sessão. O cookie continua armazenando apenas a sessão institucional e seus papéis existentes.
+### Resolução fail closed
 
-O servidor recalcula as capabilities em cada requisição protegida. Isso evita usar o cliente ou uma capability antiga persistida na sessão como fonte de autorização.
+`server/modules/registry.ts` compara registro operacional e contrato versionado e produz um estado explícito:
 
-### Endpoints protegidos
+- `ready`;
+- `registry-only`;
+- `contract-mismatch`;
+- `disabled`;
+- `deprecated`;
+- `invalid-registry`.
 
-- `/api/me` retorna as capabilities resolvidas para a sessão;
-- `/api/platform/snapshot` exige `platform.snapshot.read`;
-- `/api/sharepoint/health` exige `platform.health.read`;
-- perfil autenticado sem a capability exigida recebe `403` server-side.
+`available = true` somente quando:
 
-### Snapshot permission-aware
+1. o registro está instalado;
+2. existe contrato versionado para a chave;
+3. rota, versão e health endpoint correspondem ao contrato;
+4. a sessão possui todas as capabilities exigidas.
 
-O snapshot é recortado pelas capabilities resolvidas:
+### `RolesJson` removido do caminho ativo
 
-- módulos do núcleo só aparecem quando suas capabilities estão presentes;
-- sistemas registrados exigem `platform.modules.read`;
-- configurações e migrações exigem `platform.settings.read`;
-- auditoria exige `platform.audit.read`;
-- sinais operacionais exigem `platform.health.read` e ficam `null` sem esse grant.
+`RolesJson` permanece apenas como campo legado da estrutura SharePoint existente nesta fase.
 
-As leituras Graph de listas específicas também são evitadas quando a capability não exige aqueles dados.
+Ele:
 
-A busca permanece permission-scoped sem segunda política: ela indexa somente o snapshot já filtrado pelo BFF.
+- não é solicitado pelo BFF na leitura Graph de módulos;
+- não integra o read model enviado ao navegador;
+- não participa da busca;
+- não concede autorização;
+- não prova integração.
 
-### Fail closed para evolução futura
+A autorização continua sendo feita exclusivamente pelas capabilities resolvidas server-side.
 
-`tests/capabilities.test.ts` verifica que todo requisito de capability declarado pelos manifests está coberto explicitamente pela política do papel exigido.
+### Interface administrativa
 
-Uma capability nova não deve se tornar utilizável apenas por ser adicionada ao manifesto; a política precisa ser atualizada conscientemente e o CI precisa continuar verde.
+A área `Sistemas` agora mostra o estado real da integração, versão do contrato e capabilities exigidas.
 
-## App Factory — contrato v0.6
+Não foi criado botão para abrir um sistema independente porque a primeira integração funcional foi adiada por decisão de produto.
 
-Artefatos semânticos:
+## App Factory — contrato v0.7
+
+Os artefatos semânticos foram atualizados:
 
 - `specs/semantic-contract.json`;
 - `specs/semantic-assurance.json`;
 - `specs/verification-plan.json`.
 
-Critério adicionado:
+Novos elementos:
 
-- `AC-012` — capabilities derivadas server-side, enforcement no endpoint e recorte do snapshot.
+- `INV-011` — registro operacional não concede autorização nem equivale a integração;
+- `AC-013` — integração só fica disponível com contrato versionado compatível e capabilities suficientes.
 
-Fingerprint corrente:
+Fingerprint confirmado pelo CI:
 
-`0df8838d07696ab8239a8890a2d1a07f31b745c1bf4c67141bc9b3ec8e23f277`
+`7c0175727cc706f64575b885750cbe264c558f0f05fd883a111e8425595bcf73`
 
-O `semantic:check` passou nos workflows do PR #19.
+## Verificação técnica v0.7
 
-## Verificação técnica v0.6
+PR limpo #23, workflow `32785823534`:
 
-PR #19:
-
+- `npm ci`: **pass**, 0 vulnerabilidades reportadas;
 - format: **pass**;
 - lint: **pass**;
 - typecheck: **pass**;
 - semantic check: **pass**;
-- 12 arquivos de teste / **87 testes**: **pass**;
+- 13 arquivos de teste / **98 testes**: **pass**;
 - build Vite: **pass**;
 - actionlint: **pass**;
 - zizmor pedantic: **pass**.
 
-Cobertura nova/expandida:
+Bundle gerado no CI:
 
-- grants explícitos de `ADMINISTRADOR`;
-- ausência de grants para os demais papéis durante a validação;
-- negação `403` sem capability;
-- capabilities retornadas por `/api/me`;
-- snapshot recortado sem coleções não autorizadas;
-- cobertura dos manifests pela política de capabilities.
+- CSS: `index-Cy_yw-W_.css`;
+- JS: `index-DDWNlGO3.js`.
 
-## Deploy e smoke externo v0.6
+## Higiene da v0.7
 
-A v0.6 foi integrada em `main@8632ae8eb420d2d2c2bd3c21ba33a53b8aea3d7a` e publicada no domínio de validação.
+O PR intermediário #22 contém o histórico do repair loop e um workflow temporário de formatação/verificação. Ele foi fechado **sem merge**.
 
-Smoke externo final:
+A candidata final foi reconstruída diretamente sobre `main@d0c32d32844ec56037ddb46d7f93a386efc83aa5`:
 
-- workflow `32781606033`;
-- job `97604681958`;
-- resultado: **success**;
-- bundle contém `Centro v0.6 em validação controlada`;
-- `/api/me` sem sessão = `401`;
-- `/api/platform/snapshot` sem sessão = `401`;
-- `/api/sharepoint/health` sem sessão = `401`;
-- `/api/health` público = `200`;
-- asset observado: `/assets/index-rmiV2Byp.js`.
-
-### Falso negativo do primeiro smoke
-
-A primeira versão do smoke procurava `platform.snapshot.read` e `platform.health.read` dentro do bundle do navegador. Essas strings pertencem à camada server-side e não são requisito do bundle cliente.
-
-Esse teste gerou falso negativo após 36 tentativas. O smoke foi corrigido para validar somente evidências externamente observáveis: versão do bundle e comportamento HTTP dos endpoints.
-
-Após a correção, o smoke passou imediatamente. Não houve alteração no runtime v0.6 para obter esse resultado.
-
-PR temporário #20 foi fechado sem merge e a branch `test/domain-smoke-v0.6` foi resetada para `main`.
-
-## Higiene da v0.6
-
-O PR intermediário #18 continha um workflow temporário usado para formatação/verificação e foi fechado sem merge.
-
-A candidata final foi reconstruída sobre `main` em uma branch limpa e o PR #19 entrou sem alterações permanentes em `.github/workflows`.
-
-Artefatos temporários de smoke também não foram integrados.
+- 1 commit funcional;
+- 15 arquivos definitivos;
+- zero alterações em `.github/workflows`;
+- nenhum formatter temporário na candidata final.
 
 ## Fundação preservada
 
-A v0.6 não altera:
+A v0.7 não altera:
 
 - Microsoft Entra ID;
 - grupos institucionais;
 - mapeamento de grupos para papéis;
-- estrutura do cookie de sessão;
-- segredo/selagem de sessão;
+- estrutura ou segredo do cookie de sessão;
 - Graph ou suas permissões;
 - SharePoint `CENTROADMIN` como fonte autoritativa;
 - Cloudflare Pages;
 - CI/CD permanente;
 - secrets e rotação automática de identidade técnica;
-- logout `POST` + validação de Origin + `303` + expiração do cookie;
+- logout corrigido;
 - automação cargo → grupos;
-- fronteira sem escrita da candidata.
+- fronteira somente leitura da candidata.
 
-## Funcionalidades disponíveis no domínio de validação
+Nenhuma migração SharePoint foi executada para a v0.7.
 
-- login institucional;
+## Capacidades já consolidadas no Centro
+
+- login institucional Entra/BFF;
 - shell administrativo shadcn/ui;
-- navegação restaurável por hash;
+- navegação restaurável;
 - busca transversal permission-scoped;
 - autorização server-side por capabilities;
+- snapshot server-side minimizado e permission-aware;
 - Visão geral;
-- Operação;
-- Sistemas;
+- Operação/saúde observável;
+- Sistemas e contrato modular;
 - Auditoria somente leitura;
 - Configurações somente leitura sem valores protegidos;
-- Publicações e Páginas planejadas e sem escrita;
 - estados loading, vazio, erro e permissão negada;
 - responsividade e reduced-motion;
 - logout com redirecionamento imediato.
+
+`Publicações` e `Páginas` permanecem apenas como áreas planejadas por decisão de produto.
 
 ## Regra de validação contínua
 
 Cada bloco deve terminar com:
 
-1. higiene e remoção/exclusão lógica de artefatos temporários;
+1. consolidação e remoção de artefatos temporários;
 2. format, lint, typecheck, semantic check, testes, build, actionlint e zizmor verdes;
 3. documentação de estado atualizada;
 4. integração em `main` quando os gates permitirem;
 5. deploy em `https://admin.escolaieda.com` ainda em `validation`;
-6. confirmação externa de que a candidata corrente está sendo servida e os endpoints anônimos continuam protegidos;
+6. confirmação externa de versão e proteção dos endpoints;
 7. `releaseState = validation` até autorização humana final.
 
-## Próximo trabalho após v0.6
+## Próximo trabalho após v0.7
 
-Prioridade técnica natural: avançar a integração progressiva de módulos independentes ao Centro usando contratos explícitos, rotas isoladas, capabilities próprias, health/degradação e registro versionado, sem copiar regras internas dos módulos para o núcleo.
+Após merge, deploy e smoke da v0.7, o próximo bloco prioritário é **recovery/restore e resiliência final do núcleo**.
 
-A primeira integração funcional de um sistema independente foi adiada por decisão de produto e não deve ser iniciada até nova orientação.
+A estratégia deverá distinguir:
 
-Publicações e Páginas também foram adiadas e devem permanecer apenas como áreas planejadas até nova orientação.
+- recuperação do código/deploy;
+- recuperação da configuração/estrutura;
+- recuperação dos dados autoritativos SharePoint.
 
-Notificações/pendências só devem avançar quando houver fonte e regra institucional claras.
+Ausência de falha não pode ser apresentada como restore testado. `recoveryStatus` só poderá sair de `not-verified` mediante evidência executada e registrada.
 
-Qualquer expansão futura de grants para Professor, Aluno, Apoio, Visitante ou papéis adicionais é mudança de política institucional e exige validação explícita antes de ser aplicada.
+Notificações/pendências não serão inventadas sem fonte e regra institucional definidas.
 
 ## Bloqueios para 100% desta fase
 
-- v0.7 — contrato de integração modular ainda em desenvolvimento;
-- recuperação/restore ainda não possui evidência registrada de teste;
-- acabamento e validação final da candidata ainda pendentes;
-- demais gates técnicos e de navegador aplicáveis ao escopo restante ainda precisam ser concluídos.
+- merge/deploy/smoke externo da v0.7;
+- recovery/restore com evidência executada;
+- acabamento e auditoria final de higiene;
+- browser QA e regressão final do escopo restante;
+- publicação e verificação da candidata final no domínio.
 
-Primeiro sistema integrado, Publicações e Páginas são **escopo adiado** e não entram nesta lista.
+Primeiro sistema integrado, Publicações e Páginas são **escopo adiado** e não entram nesses bloqueios.
 
-## Bloqueios para produção oficial
+## Produção oficial
 
-- o marco de 100% desta fase ainda não foi atingido;
-- validação visual/humana final continua pendente;
-- `APROVADO PARA PRODUÇÃO` não foi emitido.
+Atingir 100% desta fase não equivale a liberação oficial.
 
-## Regra de liberação
-
-O comando humano exato `APROVADO PARA PRODUÇÃO` continua sendo requisito separado para disponibilização regular aos usuários. Merge, CI, deploy técnico ou atingir 100% do escopo desta fase não substituem essa autorização.
+O comando humano exato `APROVADO PARA PRODUÇÃO` continua sendo obrigatório para disponibilização regular aos usuários.
 
 ## Links internos
 
 - arquitetura: `ARCHITECTURE.md`;
+- contrato modular: `docs/CONTRATO_MODULOS.md`;
 - auditoria visual v0.2: `docs/AUDITORIA_VISUAL_CENTRO_ADMIN_V0.2.md`;
 - contrato semântico: `specs/semantic-contract.json`;
 - semantic assurance: `specs/semantic-assurance.json`;
