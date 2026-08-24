@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { PlatformCapability } from '../../shared/platform-contract';
 import type { RuntimeEnv } from '../env';
 import { graphRequest } from '../graph/client';
 import { coreModules } from './manifest';
@@ -98,6 +99,13 @@ function numberOrZero(value: string | number | undefined): number {
   return 0;
 }
 
+function hasCapability(
+  capabilities: readonly PlatformCapability[],
+  capability: PlatformCapability,
+): boolean {
+  return capabilities.includes(capability);
+}
+
 async function readListItems(
   env: RuntimeEnv,
   listId: string | undefined,
@@ -115,10 +123,13 @@ async function readListItems(
   });
 }
 
-export function buildPlatformSnapshot(source: SnapshotSource) {
+export function buildPlatformSnapshot(
+  source: SnapshotSource,
+  capabilities: readonly PlatformCapability[],
+) {
   const byName = new Map(source.lists.map((list) => [list.displayName, list.id]));
 
-  const registeredModules = source.moduleItems
+  const allRegisteredModules = source.moduleItems
     .flatMap((item) => {
       const parsed = moduleFieldsSchema.safeParse(item.fields);
       if (!parsed.success) return [];
@@ -142,7 +153,7 @@ export function buildPlatformSnapshot(source: SnapshotSource) {
       (left, right) => left.order - right.order || left.name.localeCompare(right.name, 'pt-BR'),
     );
 
-  const configurations = source.configurationItems
+  const allConfigurations = source.configurationItems
     .flatMap((item) => {
       const parsed = configurationFieldsSchema.safeParse(item.fields);
       if (!parsed.success) return [];
@@ -162,7 +173,7 @@ export function buildPlatformSnapshot(source: SnapshotSource) {
     })
     .sort((left, right) => left.key.localeCompare(right.key, 'pt-BR'));
 
-  const recentAudit = source.auditItems
+  const allRecentAudit = source.auditItems
     .flatMap((item) => {
       const parsed = auditFieldsSchema.safeParse(item.fields);
       if (!parsed.success) return [];
@@ -183,7 +194,7 @@ export function buildPlatformSnapshot(source: SnapshotSource) {
     .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
     .slice(0, 20);
 
-  const migrations = source.migrationItems
+  const allMigrations = source.migrationItems
     .flatMap((item) => {
       const parsed = migrationFieldsSchema.safeParse(item.fields);
       if (!parsed.success) return [];
@@ -203,20 +214,20 @@ export function buildPlatformSnapshot(source: SnapshotSource) {
   const missingPlatformLists = EXPECTED_PLATFORM_LISTS.filter((name) => !byName.has(name));
   const foundationStatus =
     missingPlatformLists.length === 0 ? ('ok' as const) : ('degraded' as const);
-  const recentAuditFailureCount = recentAudit.filter((entry) =>
+  const recentAuditFailureCount = allRecentAudit.filter((entry) =>
     isFailureResult(entry.result),
   ).length;
-  const healthContractsConfigured = registeredModules.filter(
+  const healthContractsConfigured = allRegisteredModules.filter(
     (module) => module.healthEndpoint.trim().length > 0,
   ).length;
-  const healthContractsMissing = registeredModules.length - healthContractsConfigured;
+  const healthContractsMissing = allRegisteredModules.length - healthContractsConfigured;
   const operationalStatus =
     foundationStatus === 'degraded' || recentAuditFailureCount > 0
       ? ('attention' as const)
       : ('nominal' as const);
 
   return {
-    version: '0.5.0-validation',
+    version: '0.6.0-validation',
     releaseState: 'validation' as const,
     generatedAt: source.generatedAt ?? new Date().toISOString(),
     correlationId: source.correlationId,
@@ -226,23 +237,32 @@ export function buildPlatformSnapshot(source: SnapshotSource) {
       expectedPlatformListsPresent: missingPlatformLists.length === 0,
       missingPlatformLists,
     },
-    operational: {
-      status: operationalStatus,
-      recentAuditFailureCount,
-      healthContractsConfigured,
-      healthContractsMissing,
-      lastAuditAt: recentAudit[0]?.occurredAt ?? '',
-      recoveryStatus: 'not-verified' as const,
-    },
-    coreModules,
-    registeredModules,
-    configurations,
-    recentAudit,
-    migrations,
+    operational: hasCapability(capabilities, 'platform.health.read')
+      ? {
+          status: operationalStatus,
+          recentAuditFailureCount,
+          healthContractsConfigured,
+          healthContractsMissing,
+          lastAuditAt: allRecentAudit[0]?.occurredAt ?? '',
+          recoveryStatus: 'not-verified' as const,
+        }
+      : null,
+    coreModules: coreModules.filter((module) =>
+      module.capabilities.every((capability) => hasCapability(capabilities, capability)),
+    ),
+    registeredModules: hasCapability(capabilities, 'platform.modules.read')
+      ? allRegisteredModules
+      : [],
+    configurations: hasCapability(capabilities, 'platform.settings.read') ? allConfigurations : [],
+    recentAudit: hasCapability(capabilities, 'platform.audit.read') ? allRecentAudit : [],
+    migrations: hasCapability(capabilities, 'platform.settings.read') ? allMigrations : [],
   };
 }
 
-export async function getPlatformSnapshot(env: RuntimeEnv): Promise<PlatformSnapshot> {
+export async function getPlatformSnapshot(
+  env: RuntimeEnv,
+  capabilities: readonly PlatformCapability[],
+): Promise<PlatformSnapshot> {
   const correlationId = crypto.randomUUID();
   const listsResponse = await graphRequest<{ value: unknown[] }>({
     env,
@@ -255,32 +275,54 @@ export async function getPlatformSnapshot(env: RuntimeEnv): Promise<PlatformSnap
     return parsed.success ? [parsed.data] : [];
   });
   const byName = new Map(lists.map((list) => [list.displayName, list.id]));
+  const readsModules =
+    hasCapability(capabilities, 'platform.modules.read') ||
+    hasCapability(capabilities, 'platform.health.read');
+  const readsAudit =
+    hasCapability(capabilities, 'platform.audit.read') ||
+    hasCapability(capabilities, 'platform.health.read');
+  const readsSettings = hasCapability(capabilities, 'platform.settings.read');
 
   const [moduleItems, configurationItems, auditItems, migrationItems] = await Promise.all([
-    readListItems(
-      env,
-      byName.get('PLATAFORMA_MODULOS'),
-      'Chave,Nome,RotaBase,Versao,Status,Ordem,RolesJson,HealthEndpoint,AtualizadoEmUTC',
-    ),
-    readListItems(
-      env,
-      byName.get('PLATAFORMA_CONFIGURACOES'),
-      'Chave,Escopo,Versao,Ativo,VigenciaInicioUTC,VigenciaFimUTC,AtualizadoEmUTC',
-    ),
-    readListItems(
-      env,
-      byName.get('PLATAFORMA_AUDITORIA'),
-      'EventoId,DataHoraUTC,Modulo,Acao,EntidadeTipo,CorrelationId,Resultado',
-    ),
-    readListItems(env, byName.get('PLATAFORMA_MIGRACOES'), 'Versao,Modulo,AplicadaEmUTC,Resultado'),
+    readsModules
+      ? readListItems(
+          env,
+          byName.get('PLATAFORMA_MODULOS'),
+          'Chave,Nome,RotaBase,Versao,Status,Ordem,RolesJson,HealthEndpoint,AtualizadoEmUTC',
+        )
+      : Promise.resolve([]),
+    readsSettings
+      ? readListItems(
+          env,
+          byName.get('PLATAFORMA_CONFIGURACOES'),
+          'Chave,Escopo,Versao,Ativo,VigenciaInicioUTC,VigenciaFimUTC,AtualizadoEmUTC',
+        )
+      : Promise.resolve([]),
+    readsAudit
+      ? readListItems(
+          env,
+          byName.get('PLATAFORMA_AUDITORIA'),
+          'EventoId,DataHoraUTC,Modulo,Acao,EntidadeTipo,CorrelationId,Resultado',
+        )
+      : Promise.resolve([]),
+    readsSettings
+      ? readListItems(
+          env,
+          byName.get('PLATAFORMA_MIGRACOES'),
+          'Versao,Modulo,AplicadaEmUTC,Resultado',
+        )
+      : Promise.resolve([]),
   ]);
 
-  return buildPlatformSnapshot({
-    lists,
-    moduleItems,
-    configurationItems,
-    auditItems,
-    migrationItems,
-    correlationId,
-  });
+  return buildPlatformSnapshot(
+    {
+      lists,
+      moduleItems,
+      configurationItems,
+      auditItems,
+      migrationItems,
+      correlationId,
+    },
+    capabilities,
+  );
 }

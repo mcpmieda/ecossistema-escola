@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "spec_fingerprint": "67d5428e416ae83ddc42f6d8be36102b2c2716c26b09e353bccf2648309c9ec8",
+  "spec_fingerprint": "0df8838d07696ab8239a8890a2d1a07f31b745c1bf4c67141bc9b3ec8e23f277",
   "criteria": [
     {
       "id": "AC-001",
@@ -14,7 +14,7 @@
       "preferred_evidence": ["test"],
       "evidence": [
         { "kind": "test", "gate": "package:test", "ref": "tests/routes.test.ts" },
-        { "kind": "test", "gate": "package:test", "ref": "tests/roles.test.ts" }
+        { "kind": "test", "gate": "package:test", "ref": "tests/capabilities.test.ts" }
       ]
     },
     {
@@ -74,6 +74,7 @@
         { "kind": "gate", "gate": "package:format:check" },
         { "kind": "gate", "gate": "package:lint" },
         { "kind": "gate", "gate": "package:typecheck" },
+        { "kind": "gate", "gate": "package:semantic:check" },
         { "kind": "gate", "gate": "package:test" },
         { "kind": "gate", "gate": "package:build" }
       ]
@@ -84,6 +85,7 @@
       "preferred_evidence": ["test", "browser"],
       "evidence": [
         { "kind": "test", "gate": "package:test", "ref": "tests/platform-search.test.ts" },
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-snapshot.test.ts" },
         { "kind": "gate", "gate": "package:build" }
       ]
     },
@@ -95,6 +97,17 @@
         { "kind": "test", "gate": "package:test", "ref": "tests/platform-snapshot.test.ts" },
         { "kind": "test", "gate": "package:test", "ref": "tests/platform-contract.test.ts" },
         { "kind": "gate", "gate": "package:build" }
+      ]
+    },
+    {
+      "id": "AC-012",
+      "priority": "must",
+      "preferred_evidence": ["test", "gate"],
+      "evidence": [
+        { "kind": "test", "gate": "package:test", "ref": "tests/capabilities.test.ts" },
+        { "kind": "test", "gate": "package:test", "ref": "tests/routes.test.ts" },
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-snapshot.test.ts" },
+        { "kind": "gate", "gate": "package:typecheck" }
       ]
     }
   ]
