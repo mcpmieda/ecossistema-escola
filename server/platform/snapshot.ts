@@ -201,8 +201,11 @@ export function buildPlatformSnapshot(source: SnapshotSource) {
     .sort((left, right) => right.appliedAt.localeCompare(left.appliedAt));
 
   const missingPlatformLists = EXPECTED_PLATFORM_LISTS.filter((name) => !byName.has(name));
-  const foundationStatus = missingPlatformLists.length === 0 ? ('ok' as const) : ('degraded' as const);
-  const recentAuditFailureCount = recentAudit.filter((entry) => isFailureResult(entry.result)).length;
+  const foundationStatus =
+    missingPlatformLists.length === 0 ? ('ok' as const) : ('degraded' as const);
+  const recentAuditFailureCount = recentAudit.filter((entry) =>
+    isFailureResult(entry.result),
+  ).length;
   const healthContractsConfigured = registeredModules.filter(
     (module) => module.healthEndpoint.trim().length > 0,
   ).length;

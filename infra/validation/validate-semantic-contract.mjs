@@ -22,7 +22,9 @@ function canonicalize(value) {
 }
 
 function fingerprint(value) {
-  return createHash('sha256').update(JSON.stringify(canonicalize(value)), 'utf8').digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(canonicalize(value)), 'utf8')
+    .digest('hex');
 }
 
 function assert(condition, message) {
@@ -61,9 +63,15 @@ const planRows = new Map((plan.criteria ?? []).map((row) => [row.id, row]));
 for (const criterion of criteria) {
   const row = planRows.get(criterion.id);
   assert(row, `${criterion.id} has no verification-plan row`);
-  assert(row.priority === criterion.priority, `${criterion.id} priority differs from verification plan`);
+  assert(
+    row.priority === criterion.priority,
+    `${criterion.id} priority differs from verification plan`,
+  );
   if (criterion.priority === 'must') {
-    assert(Array.isArray(row.evidence) && row.evidence.length > 0, `${criterion.id} has no executable evidence`);
+    assert(
+      Array.isArray(row.evidence) && row.evidence.length > 0,
+      `${criterion.id} has no executable evidence`,
+    );
   }
 }
 for (const row of plan.criteria ?? []) {
@@ -80,7 +88,10 @@ const coveredCriteria = new Set();
 for (const requirement of assurance.requirements ?? []) {
   assert(/^REQ-\d{3,}$/.test(requirement.id), `invalid requirement id: ${requirement.id}`);
   for (const ref of requirement.acceptance_refs ?? []) {
-    assert(criterionIds.has(ref), `${requirement.id} references unknown acceptance criterion: ${ref}`);
+    assert(
+      criterionIds.has(ref),
+      `${requirement.id} references unknown acceptance criterion: ${ref}`,
+    );
     coveredCriteria.add(ref);
   }
   for (const ref of requirement.invariant_refs ?? []) {

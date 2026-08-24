@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlatformSnapshot, isFailureResult, parseRolesJson } from '../server/platform/snapshot';
+import {
+  buildPlatformSnapshot,
+  isFailureResult,
+  parseRolesJson,
+} from '../server/platform/snapshot';
 
 describe('platform snapshot parsing', () => {
   it('accepts a valid role allowlist', () => {

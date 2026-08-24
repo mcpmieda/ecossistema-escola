@@ -101,7 +101,9 @@
       "component": "Autenticação e entrada",
       "scope": ["candidata corrente"],
       "preconditions": [],
-      "response": ["Preservar o fluxo Entra ID/BFF existente e apresentar somente uma entrada institucional sem coleta de senha pelo Centro."],
+      "response": [
+        "Preservar o fluxo Entra ID/BFF existente e apresentar somente uma entrada institucional sem coleta de senha pelo Centro."
+      ],
       "timing": "",
       "concept_refs": ["TERM-001", "ENT-001", "ENT-002"],
       "acceptance_refs": ["AC-001"],
@@ -116,7 +118,9 @@
       "scope": ["snapshot administrativo", "shell de validação"],
       "preconditions": ["sessão institucional resolvida"],
       "trigger": "uma conta tenta acessar a superfície administrativa protegida",
-      "response": ["Permitir o snapshot somente quando o BFF confirmar o papel ADMINISTRADOR e manter outros perfis fora da candidata."],
+      "response": [
+        "Permitir o snapshot somente quando o BFF confirmar o papel ADMINISTRADOR e manter outros perfis fora da candidata."
+      ],
       "timing": "",
       "concept_refs": ["TERM-001", "TERM-004", "ENT-002", "ENT-004"],
       "acceptance_refs": ["AC-002"],
@@ -131,7 +135,9 @@
       "scope": ["visão geral administrativa", "Operação"],
       "preconditions": ["usuário ADMINISTRADOR", "fundação disponível"],
       "trigger": "o shell solicita o estado da plataforma",
-      "response": ["Compor no BFF um snapshot somente leitura a partir das fontes autoritativas existentes e informar o estado observado da estrutura."],
+      "response": [
+        "Compor no BFF um snapshot somente leitura a partir das fontes autoritativas existentes e informar o estado observado da estrutura."
+      ],
       "timing": "",
       "concept_refs": ["TERM-002", "TERM-004", "ENT-003", "ENT-004"],
       "acceptance_refs": ["AC-003"],
@@ -145,7 +151,9 @@
       "component": "Navegação",
       "scope": ["rotas do núcleo"],
       "preconditions": [],
-      "response": ["Manter rotas conhecidas endereçáveis e restauráveis e usar Visão geral como fallback seguro para rota desconhecida."],
+      "response": [
+        "Manter rotas conhecidas endereçáveis e restauráveis e usar Visão geral como fallback seguro para rota desconhecida."
+      ],
       "timing": "",
       "concept_refs": ["TERM-002", "ENT-003"],
       "acceptance_refs": ["AC-004"],
@@ -159,7 +167,9 @@
       "component": "Catálogo de sistemas",
       "scope": ["área Sistemas"],
       "preconditions": ["snapshot carregado"],
-      "response": ["Apresentar separadamente o manifesto versionado do núcleo e os módulos registrados sem absorver as regras internas desses módulos."],
+      "response": [
+        "Apresentar separadamente o manifesto versionado do núcleo e os módulos registrados sem absorver as regras internas desses módulos."
+      ],
       "timing": "",
       "concept_refs": ["TERM-002", "TERM-003", "ENT-003", "ENT-004"],
       "acceptance_refs": ["AC-005"],
@@ -174,7 +184,9 @@
       "scope": ["Auditoria", "Configurações", "Operação"],
       "preconditions": ["usuário ADMINISTRADOR"],
       "trigger": "o BFF compõe os metadados administrativos para o navegador",
-      "response": ["Excluir valores de configuração e campos de auditoria sensíveis ou desnecessários do contrato enviado ao cliente."],
+      "response": [
+        "Excluir valores de configuração e campos de auditoria sensíveis ou desnecessários do contrato enviado ao cliente."
+      ],
       "timing": "",
       "concept_refs": ["TERM-004", "ENT-004"],
       "acceptance_refs": ["AC-006"],
@@ -189,7 +201,9 @@
       "scope": ["Publicações", "Páginas", "domínios administrativos em validação"],
       "preconditions": [],
       "trigger": "um administrador navega pelas áreas sem escrita habilitada",
-      "response": ["Manter Publicações e Páginas como planejadas e não disponibilizar mutações reais na candidata."],
+      "response": [
+        "Manter Publicações e Páginas como planejadas e não disponibilizar mutações reais na candidata."
+      ],
       "timing": "",
       "concept_refs": ["TERM-001", "ENT-001"],
       "acceptance_refs": ["AC-007"],
@@ -203,7 +217,9 @@
       "component": "Experiência e acessibilidade",
       "scope": ["login", "shell administrativo", "desktop", "mobile"],
       "preconditions": [],
-      "response": ["Oferecer estados de loading, vazio, erro e permissão negada, foco visível, responsividade e redução de movimento não essencial quando solicitada pelo sistema."],
+      "response": [
+        "Oferecer estados de loading, vazio, erro e permissão negada, foco visível, responsividade e redução de movimento não essencial quando solicitada pelo sistema."
+      ],
       "timing": "",
       "concept_refs": ["TERM-001", "ENT-001"],
       "acceptance_refs": ["AC-008"],
@@ -218,7 +234,9 @@
       "scope": ["CI", "merge", "deploy", "liberação"],
       "preconditions": ["candidata tecnicamente integrável"],
       "trigger": "a candidata passa pelos gates de construção e segurança",
-      "response": ["Exigir os gates do repositório e preservar o estado de validação até o comando humano exato APROVADO PARA PRODUÇÃO."],
+      "response": [
+        "Exigir os gates do repositório e preservar o estado de validação até o comando humano exato APROVADO PARA PRODUÇÃO."
+      ],
       "timing": "",
       "concept_refs": ["TERM-001", "TERM-005", "STATE-001", "STATE-002", "ENT-001"],
       "acceptance_refs": ["AC-009"],
@@ -233,7 +251,9 @@
       "scope": ["áreas do núcleo", "módulos registrados", "metadados de configuração"],
       "preconditions": ["snapshot autorizado carregado"],
       "trigger": "um administrador pesquisa no Centro",
-      "response": ["Indexar somente metadados já presentes no snapshot autorizado e excluir auditoria e migrações do índice de busca."],
+      "response": [
+        "Indexar somente metadados já presentes no snapshot autorizado e excluir auditoria e migrações do índice de busca."
+      ],
       "timing": "",
       "concept_refs": ["TERM-004", "ENT-004"],
       "acceptance_refs": ["AC-010"],
