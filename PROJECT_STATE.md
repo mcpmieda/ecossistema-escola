@@ -2,68 +2,56 @@
 
 ## Objetivo atual
 
-Corrigir os achados do primeiro teste autenticado do Centro de Administração e preparar uma nova candidata visual antes de qualquer liberação oficial.
+Construir uma nova candidata visual do Centro de Administração com as referências da App Factory, mantendo a correção funcional do logout já implantada e sem autorizar liberação oficial.
 
 ## Estado
 
-- fase: `v0.2` integrada, em `validation`, com **repair loop aberto** após teste administrativo real;
-- runtime de referência antes deste repair loop: `main@7243d3647877334f7ccdeaedf0fc94ce339bffde`;
+- fase: `v0.2` integrada, em `validation`, com **gate visual reaberto** após o primeiro teste administrativo real;
+- runtime atual: `main@c87cbe8be7594a6d8e87f4d219d79de984c52599` via PR #8;
 - candidata funcional original: `main@6effd9e0ee8f8bbc0e5864398e3ce6e53777cbc0` via PR #4;
-- branch de correção atual: `fix/logout-visual-gate`;
 - baseline seguro anterior ao Centro: `8d28f1d35384a12a7028e25e0ec2a126edfdfdab`;
 - nível do sistema: `production-system`;
-- fonte autoritativa dos dados: Microsoft Entra ID para identidade/autenticação, grupos institucionais para papel e SharePoint `CENTROADMIN` para dados administrativos do núcleo;
-- autenticação/autorização: Entra ID + BFF + cookie HttpOnly selado; autorização administrativa validada server-side por `ADMINISTRADOR`;
-- persistência: listas/bibliotecas SharePoint já provisionadas; nenhuma migration destrutiva nesta candidata;
+- autenticação/autorização: Microsoft Entra ID + BFF + cookie HttpOnly selado; `ADMINISTRADOR` continua validado server-side;
+- fonte autoritativa de dados administrativos: SharePoint `CENTROADMIN` pela integração Graph existente;
 - release state: `validation`; **não é produção oficial**.
 
-## Achados do teste administrativo
+## Achados do primeiro teste administrativo
 
-### 1. Gate visual reaberto
+### 1. Interface v0.2 não aprovada visualmente
 
-A interface v0.2 não foi aceita como suficientemente moderna/lapidada em relação às referências da App Factory.
+A interface não atingiu o nível de acabamento moderno esperado a partir das referências da App Factory.
 
 A auditoria confirmou que:
 
 - a App Factory prefere `shadcn/ui` como base para admin/dashboard/CRUD;
 - `ReUI` é complemento seletivo para componentes administrativos avançados;
 - `professional-default` exige hierarquia, spacing, tipografia, superfícies, estados completos e browser QA real;
-- a v0.2 registrou `professional-default`, mas foi implementada com CSS/HTML nativos e sem shadcn, Tailwind ou ReUI;
-- houve melhoria de organização, responsividade e estados, porém não uma lapidação visual autenticada/comparativa suficiente para considerar o design aprovado.
-
-Documento de referência do achado: `docs/AUDITORIA_VISUAL_CENTRO_ADMIN_V0.2.md`.
+- a v0.2 registrou `professional-default`, mas foi implementada com CSS/HTML nativos e sem Tailwind, shadcn/ui ou ReUI;
+- houve organização, responsividade e estados, porém não uma lapidação visual autenticada/comparativa suficiente.
 
 Estado da UI v0.2: **reprovada como candidata visual final**.
 
-### 2. Logout com sessão apagada, mas shell antigo visível
+Documento: `docs/AUDITORIA_VISUAL_CENTRO_ADMIN_V0.2.md`.
 
-Comportamento observado:
+### 2. Logout — corrigido e validado externamente
 
-- clicar em `Sair` fazia a página piscar;
-- o shell autenticado permanecia visível;
-- a sessão só ficava perceptivelmente encerrada depois de recarga forçada do navegador.
+Problema observado:
 
-Causa confirmada:
+- clicar em `Sair` apagava a sessão no servidor, mas a resposta `204 No Content` deixava o shell React anterior visível até uma recarga forçada.
 
-- o formulário fazia `POST /auth/logout`;
-- o BFF limpava o cookie corretamente;
-- a resposta era `204 No Content`, portanto não havia documento de destino nem redirecionamento para reconstruir a interface pública.
+Correção integrada pelo PR #8:
 
-Correção no branch atual:
+- preservado `POST /auth/logout`;
+- preservada validação de `Origin` oficial;
+- preservada expiração do mesmo cookie de sessão;
+- resposta alterada para `303 See Other`;
+- `Location` aponta para `OFFICIAL_ORIGIN`, fazendo o navegador reconstruir a raiz sem sessão.
 
-- manter POST, `Origin` oficial e limpeza do mesmo cookie;
-- responder `303 See Other`;
-- enviar `Location: OFFICIAL_ORIGIN`;
-- fazer o navegador executar GET da raiz após o logout e reconstruir o estado sem sessão;
-- teste de rota passa a exigir cookie expirado + `303` + `Location` oficial.
+### Evidência do hotfix
 
-## Evidências anteriores preservadas
+Execução do PR #8 `32764734020`: **success**.
 
-### CI da candidata original
-
-Execução GitHub Actions `32762212762`: **success**.
-
-Passaram:
+Passaram novamente:
 
 - format;
 - lint;
@@ -73,19 +61,24 @@ Passaram:
 - actionlint;
 - zizmor.
 
-### Segurança
+Smoke externo descartável de logout: **success**.
 
-- proteção server-side de `/api/platform/snapshot` continua exigindo sessão + `ADMINISTRADOR`;
+No domínio oficial foi comprovado:
+
+- `POST https://admin.escolaieda.com/auth/logout` com `Origin` oficial retorna `303`;
+- `Location: https://admin.escolaieda.com`;
+- `Set-Cookie` expira `__Host-ecossistema_session` com `Max-Age=0`.
+
+O PR temporário #9 foi fechado sem merge e seu branch foi resetado para a `main`; o workflow descartável não faz parte do produto.
+
+## Evidências anteriores preservadas
+
+- CI da candidata original `32762212762`: **success**;
+- smoke público/anônimo `32763013640`: **success**;
+- `/api/platform/snapshot` continua exigindo sessão + `ADMINISTRADOR`;
 - `401` sem sessão e `403` para `PROFESSOR` permanecem testados;
-- logout continua protegido por `Origin` oficial;
-- `Referrer-Policy: same-origin` permanece necessário para o POST de formulário;
-- nenhuma mudança foi feita em Entra, Graph, SharePoint, grupos, OIDC, rotação de certificados ou secrets.
-
-### Smoke externo anterior
-
-Execução GitHub Actions `32763013640`: **success** para raiz pública e proteção anônima dos endpoints.
-
-Esse smoke não validou a experiência autenticada nem substitui browser QA visual.
+- snapshot continua somente leitura e minimizado;
+- nenhuma mudança foi feita em Entra, Graph, SharePoint, grupos, OIDC, secrets ou rotação automática.
 
 ## Funcionalidades preservadas
 
@@ -98,20 +91,23 @@ Esse smoke não validou a experiência autenticada nem substitui browser QA visu
 - Configurações somente leitura sem valores protegidos;
 - Publicações e Páginas ainda planejadas e sem escrita;
 - estados loading, vazio, erro e permissão negada;
-- reduced-motion e responsividade existentes.
+- reduced-motion e responsividade existentes;
+- logout com redirecionamento imediato implantado.
 
 ## Trabalho atual
 
-1. validar por CI a correção do logout;
-2. integrar a correção somente se todos os gates permanecerem verdes;
-3. confirmar o novo logout no domínio oficial;
-4. iniciar uma candidata visual posterior com referências explícitas da App Factory, usando linguagem shadcn como base e ReUI somente onde fizer sentido;
-5. executar browser QA real desktop/mobile e colher aprovação humana antes de considerar o visual lapidado.
+1. criar uma candidata visual separada do hotfix funcional;
+2. usar a linguagem administrativa shadcn como referência principal;
+3. usar ReUI somente onde houver ganho concreto em componente administrativo avançado;
+4. aplicar o `professional-default` de forma verificável, não apenas declarativa;
+5. executar browser QA real em desktop e mobile;
+6. testar navegação, estados, foco, teclado, reduced-motion e logout no fluxo autenticado;
+7. colher validação humana do administrador antes de declarar a interface visualmente lapidada.
 
 ## Bloqueios para produção oficial
 
 - UI v0.2 não aprovada visualmente;
-- correção de logout ainda precisa completar CI/deploy/validação real;
+- nova candidata visual ainda não construída/aprovada;
 - módulos de produto ainda incompletos;
 - `APROVADO PARA PRODUÇÃO` não foi emitido.
 

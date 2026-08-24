@@ -2,15 +2,9 @@
 
 ## Escopo
 
-Candidata de validação controlada do núcleo inicial do Centro de Administração. Esta matriz separa claramente gates técnicos, validação visual e liberação oficial.
+Candidata de validação controlada do núcleo inicial do Centro de Administração. Esta matriz separa gates técnicos, validação visual e liberação oficial.
 
-## Modo
-
-`independent`
-
-O sistema é `production-system` institucional com autenticação, autorização e dados compartilhados. A candidata continua somente leitura nos novos domínios administrativos.
-
-## Estado após o primeiro teste autenticado
+## Estado atual
 
 A v0.2 **não está visualmente aprovada**.
 
@@ -19,13 +13,9 @@ O primeiro teste administrativo real identificou:
 - acabamento visual abaixo do nível moderno esperado a partir das referências da App Factory;
 - logout que apagava a sessão no servidor, mas deixava o shell autenticado visível até recarga forçada.
 
-Portanto:
+O logout já foi corrigido, integrado e validado externamente. O gate visual permanece **aberto/fail** até uma nova candidata.
 
-- arquitetura/segurança da candidata original continuam válidas como baseline;
-- gate visual está **reaberto**;
-- logout entrou em repair loop;
-- release state permanece `validation`;
-- nenhuma condição autoriza produção oficial.
+Release state: `validation`. Nenhuma condição abaixo autoriza produção oficial.
 
 ## Evidência histórica da candidata original
 
@@ -41,7 +31,7 @@ Passaram:
 - actionlint;
 - zizmor em modo pedantic.
 
-Esses gates comprovam integridade técnica do código, não aprovação estética humana.
+Esses gates comprovam integridade técnica, não aprovação estética humana.
 
 ## Auditoria do processo visual
 
@@ -62,38 +52,57 @@ Conclusão do gate visual v0.2: **fail**.
 
 Detalhes: `docs/AUDITORIA_VISUAL_CENTRO_ADMIN_V0.2.md`.
 
-## Logout — causa e correção
+## Logout — correção concluída
 
 ### Comportamento anterior
 
-`POST /auth/logout`:
+`POST /auth/logout` validava a origem e limpava o cookie, mas retornava `204 No Content`. O navegador não recebia um documento de destino, permitindo que o shell React antigo permanecesse visualmente estático até recarga.
 
-1. validava `Origin` oficial;
-2. limpava `SESSION_COOKIE`;
-3. retornava `204 No Content`.
+### Contrato implantado
 
-O formulário de logout navegava para uma resposta sem documento de destino. O servidor encerrava a sessão, mas o navegador podia manter o shell React anterior visualmente estático até recarga.
+`POST /auth/logout` agora:
 
-### Correção da candidata atual
+1. mantém validação exata de `Origin`;
+2. limpa o mesmo cookie de sessão;
+3. retorna `303 See Other`;
+4. envia `Location: OFFICIAL_ORIGIN`;
+5. faz o navegador executar GET da raiz e reconstruir a interface sem sessão.
 
-`POST /auth/logout` agora deve:
+### CI do hotfix
 
-1. manter validação exata de `Origin`;
-2. limpar o mesmo cookie de sessão;
-3. retornar `303 See Other`;
-4. enviar `Location: OFFICIAL_ORIGIN`;
-5. fazer o navegador executar GET da raiz e reconstruir a interface sem sessão.
+PR #8, execução `32764734020`: **success**.
 
-### Teste de regressão obrigatório
+Passaram novamente:
 
-`tests/routes.test.ts` deve exigir, para POST same-origin:
+- format;
+- lint;
+- typecheck;
+- testes;
+- build;
+- actionlint;
+- zizmor.
 
-- status `303`;
+`tests/routes.test.ts` exige:
+
+- `303` no POST same-origin;
 - `Location` igual à origem oficial;
-- cookie de sessão expirado (`Max-Age=0`);
-- `Referrer-Policy: same-origin` preservado.
+- cookie de sessão expirado com `Max-Age=0`;
+- `Referrer-Policy: same-origin` preservado;
+- `403` para Origin ausente, `null` ou estrangeira.
 
-Origens ausente, `null` ou estrangeira continuam obrigatoriamente rejeitadas com `403`.
+### Smoke externo do logout
+
+Executado após o merge do PR #8 contra `https://admin.escolaieda.com`.
+
+Resultado: **success**.
+
+Foi comprovado externamente:
+
+- POST com `Origin: https://admin.escolaieda.com` retorna `303`;
+- `Location: https://admin.escolaieda.com`;
+- `Set-Cookie: __Host-ecossistema_session=...; Max-Age=0`.
+
+O PR temporário #9 foi fechado sem merge e seu branch foi resetado para a `main`; o workflow descartável não faz parte do produto.
 
 ## Autorização preservada
 
@@ -113,7 +122,7 @@ Origens ausente, `null` ou estrangeira continuam obrigatoriamente rejeitadas com
 
 ## Próximo gate visual
 
-Uma próxima candidata visual só pode ser chamada de lapidada quando houver evidência proporcional de:
+Uma nova candidata visual só pode ser chamada de lapidada quando houver evidência proporcional de:
 
 1. direção explícita baseada nas referências da App Factory;
 2. inventário real de componentes e arquétipos;
@@ -122,11 +131,11 @@ Uma próxima candidata visual só pode ser chamada de lapidada quando houver evi
 5. hierarquia, spacing, tipografia, superfícies e densidade coerentes;
 6. estados completos;
 7. browser QA desktop e mobile;
-8. foco/teclado/reduced-motion;
-9. logout e navegação testados no fluxo real;
+8. foco, teclado e reduced-motion;
+9. logout e navegação testados no fluxo autenticado;
 10. validação humana do administrador sobre aparência e usabilidade.
 
-## Smoke externo histórico
+## Smoke externo histórico da superfície pública
 
 Execução `32763013640`: **success** para raiz pública, headers de segurança e proteção anônima dos endpoints.
 
@@ -134,11 +143,10 @@ Esse smoke não comprovou UI autenticada e não deve ser usado como evidência d
 
 ## Critério atual
 
-Antes de integrar o repair loop do logout:
-
-- format, lint, typecheck, testes e build devem passar novamente;
-- actionlint e zizmor devem permanecer verdes;
-- nenhuma mudança em Entra, Graph, SharePoint, grupos, OIDC, secrets ou rotação automática é permitida;
-- após deploy técnico, o logout deve ser revalidado no domínio oficial.
+- hotfix de logout: **pass**;
+- segurança/autorização preservadas: **pass**;
+- gate visual v0.2: **fail / reaberto**;
+- candidata visual substituta: ainda não construída;
+- produção oficial: bloqueada.
 
 A produção oficial continua condicionada ao comando humano exato `APROVADO PARA PRODUÇÃO`.
