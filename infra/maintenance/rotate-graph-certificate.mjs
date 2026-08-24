@@ -358,7 +358,9 @@ try {
         );
         candidateStillPresent = verified.keyCredentials.some((key) => key.keyId === candidateKeyId);
       }
-      if (candidateStillPresent) throw new Error('Candidate cleanup could not be confirmed');
+      if (candidateStillPresent) {
+        throw new Error('Candidate cleanup could not be confirmed', { cause: error });
+      }
       audit.candidateCleaned = true;
       audit.functionalCredentialPreserved = true;
     } catch (cleanupError) {
