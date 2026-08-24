@@ -165,14 +165,20 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
                   : 'Nenhum evento recente foi carregado; não há evidência suficiente para inferir atividade.'
                 : `${snapshot.operational.recentAuditFailureCount} evento(s) recente(s) possuem resultado explicitamente iniciado por erro ou falha.`
             }
-            status={snapshot.operational.recentAuditFailureCount > 0 ? 'attention' : 'ok'}
+            status={
+              snapshot.recentAudit.length === 0
+                ? 'unknown'
+                : snapshot.operational.recentAuditFailureCount > 0
+                  ? 'attention'
+                  : 'ok'
+            }
           />
           <SignalRow
             icon={PlugZap}
             title="Contratos de saúde dos sistemas"
             description={healthCoverageDescription}
             status={
-              registeredCount > 0 && snapshot.operational.healthContractsMissing > 0
+              registeredCount === 0 || snapshot.operational.healthContractsMissing > 0
                 ? 'unknown'
                 : 'ok'
             }
@@ -219,7 +225,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
                       <Badge variant="outline">{module.status || 'sem estado'}</Badge>
                     </TableCell>
                     <TableCell>
-                      {module.healthEndpoint ? (
+                      {module.healthEndpoint.trim() ? (
                         <div className="flex items-center gap-2 text-sm">
                           <CheckCircle2 className="size-4 text-primary" />
                           Configurado
