@@ -79,10 +79,11 @@ async function readListItems(
     env,
     path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items?$expand=fields($select=${selectedFields})&$top=100`,
   });
-  return response.data.value
-    .map((item) => graphItemSchema.safeParse(item))
-    .filter((result) => result.success)
-    .map((result) => ({ id: result.data.id, fields: result.data.fields ?? {} }));
+  return response.data.value.flatMap((item) => {
+    const parsed = graphItemSchema.safeParse(item);
+    if (!parsed.success) return [];
+    return [{ id: parsed.data.id, fields: parsed.data.fields ?? {} }];
+  });
 }
 
 export async function getPlatformSnapshot(env: RuntimeEnv) {
@@ -93,10 +94,10 @@ export async function getPlatformSnapshot(env: RuntimeEnv) {
     correlationId,
   });
 
-  const lists = listsResponse.data.value
-    .map((value) => listSchema.safeParse(value))
-    .filter((result) => result.success)
-    .map((result) => result.data);
+  const lists = listsResponse.data.value.flatMap((value) => {
+    const parsed = listSchema.safeParse(value);
+    return parsed.success ? [parsed.data] : [];
+  });
   const byName = new Map(lists.map((list) => [list.displayName, list.id]));
 
   const [moduleItems, configurationItems, auditItems, migrationItems] = await Promise.all([
@@ -119,65 +120,85 @@ export async function getPlatformSnapshot(env: RuntimeEnv) {
   ]);
 
   const registeredModules = moduleItems
-    .map((item) => ({ item, parsed: moduleFieldsSchema.safeParse(item.fields) }))
-    .filter((entry) => entry.parsed.success)
-    .map(({ item, parsed }) => ({
-      id: item.id,
-      key: parsed.data.Chave ?? item.id,
-      name: parsed.data.Nome ?? parsed.data.Chave ?? 'Módulo sem nome',
-      baseRoute: parsed.data.RotaBase ?? '',
-      version: parsed.data.Versao ?? '',
-      status: parsed.data.Status ?? 'instalado',
-      order: numberOrZero(parsed.data.Ordem),
-      roles: parseRolesJson(parsed.data.RolesJson),
-      healthEndpoint: parsed.data.HealthEndpoint ?? '',
-      updatedAt: parsed.data.AtualizadoEmUTC ?? '',
-    }))
+    .flatMap((item) => {
+      const parsed = moduleFieldsSchema.safeParse(item.fields);
+      if (!parsed.success) return [];
+      const fields = parsed.data;
+      return [
+        {
+          id: item.id,
+          key: fields.Chave ?? item.id,
+          name: fields.Nome ?? fields.Chave ?? 'Módulo sem nome',
+          baseRoute: fields.RotaBase ?? '',
+          version: fields.Versao ?? '',
+          status: fields.Status ?? 'instalado',
+          order: numberOrZero(fields.Ordem),
+          roles: parseRolesJson(fields.RolesJson),
+          healthEndpoint: fields.HealthEndpoint ?? '',
+          updatedAt: fields.AtualizadoEmUTC ?? '',
+        },
+      ];
+    })
     .sort(
       (left, right) => left.order - right.order || left.name.localeCompare(right.name, 'pt-BR'),
     );
 
   const configurations = configurationItems
-    .map((item) => ({ item, parsed: configurationFieldsSchema.safeParse(item.fields) }))
-    .filter((entry) => entry.parsed.success)
-    .map(({ item, parsed }) => ({
-      id: item.id,
-      key: parsed.data.Chave ?? item.id,
-      scope: parsed.data.Escopo ?? 'global',
-      version: parsed.data.Versao ?? '',
-      active: parsed.data.Ativo ?? false,
-      effectiveFrom: parsed.data.VigenciaInicioUTC ?? '',
-      effectiveUntil: parsed.data.VigenciaFimUTC ?? '',
-      updatedAt: parsed.data.AtualizadoEmUTC ?? '',
-    }))
+    .flatMap((item) => {
+      const parsed = configurationFieldsSchema.safeParse(item.fields);
+      if (!parsed.success) return [];
+      const fields = parsed.data;
+      return [
+        {
+          id: item.id,
+          key: fields.Chave ?? item.id,
+          scope: fields.Escopo ?? 'global',
+          version: fields.Versao ?? '',
+          active: fields.Ativo ?? false,
+          effectiveFrom: fields.VigenciaInicioUTC ?? '',
+          effectiveUntil: fields.VigenciaFimUTC ?? '',
+          updatedAt: fields.AtualizadoEmUTC ?? '',
+        },
+      ];
+    })
     .sort((left, right) => left.key.localeCompare(right.key, 'pt-BR'));
 
   const recentAudit = auditItems
-    .map((item) => ({ item, parsed: auditFieldsSchema.safeParse(item.fields) }))
-    .filter((entry) => entry.parsed.success)
-    .map(({ item, parsed }) => ({
-      id: item.id,
-      eventId: parsed.data.EventoId ?? item.id,
-      occurredAt: parsed.data.DataHoraUTC ?? '',
-      module: parsed.data.Modulo ?? 'plataforma',
-      action: parsed.data.Acao ?? 'evento',
-      entityType: parsed.data.EntidadeTipo ?? '',
-      correlationId: parsed.data.CorrelationId ?? '',
-      result: parsed.data.Resultado ?? '',
-    }))
+    .flatMap((item) => {
+      const parsed = auditFieldsSchema.safeParse(item.fields);
+      if (!parsed.success) return [];
+      const fields = parsed.data;
+      return [
+        {
+          id: item.id,
+          eventId: fields.EventoId ?? item.id,
+          occurredAt: fields.DataHoraUTC ?? '',
+          module: fields.Modulo ?? 'plataforma',
+          action: fields.Acao ?? 'evento',
+          entityType: fields.EntidadeTipo ?? '',
+          correlationId: fields.CorrelationId ?? '',
+          result: fields.Resultado ?? '',
+        },
+      ];
+    })
     .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
     .slice(0, 20);
 
   const migrations = migrationItems
-    .map((item) => ({ item, parsed: migrationFieldsSchema.safeParse(item.fields) }))
-    .filter((entry) => entry.parsed.success)
-    .map(({ item, parsed }) => ({
-      id: item.id,
-      version: parsed.data.Versao ?? '',
-      module: parsed.data.Modulo ?? 'plataforma',
-      appliedAt: parsed.data.AplicadaEmUTC ?? '',
-      result: parsed.data.Resultado ?? '',
-    }))
+    .flatMap((item) => {
+      const parsed = migrationFieldsSchema.safeParse(item.fields);
+      if (!parsed.success) return [];
+      const fields = parsed.data;
+      return [
+        {
+          id: item.id,
+          version: fields.Versao ?? '',
+          module: fields.Modulo ?? 'plataforma',
+          appliedAt: fields.AplicadaEmUTC ?? '',
+          result: fields.Resultado ?? '',
+        },
+      ];
+    })
     .sort((left, right) => right.appliedAt.localeCompare(left.appliedAt));
 
   return {
