@@ -1,0 +1,75 @@
+{
+  "schema_version": 1,
+  "goal": "Restaurar o logout pelo formulário same-origin sem enfraquecer a proteção CSRF nem divulgar URLs internas como referrer para outros sites.",
+  "change_type": "bugfix",
+  "risk": "high",
+  "scope": {
+    "in": [
+      "política Referrer-Policy das respostas da aplicação",
+      "proteção Origin do POST /auth/logout",
+      "testes de regressão HTTP do logout"
+    ],
+    "out": [
+      "Microsoft Entra ID",
+      "formato e duração da sessão",
+      "mapeamento de papéis",
+      "demais endpoints e módulos de negócio"
+    ]
+  },
+  "assumptions": [
+    "O logout continua sendo uma navegação POST iniciada por formulário HTML no domínio oficial.",
+    "A política same-origin não envia Referer em navegações para origens externas.",
+    "Origin nula ou diferente da origem oficial continua não confiável para escrita."
+  ],
+  "invariants": [
+    {
+      "id": "INV-001",
+      "statement": "Somente uma escrita iniciada pela origem oficial pode limpar a sessão pelo endpoint de logout."
+    },
+    {
+      "id": "INV-002",
+      "statement": "A aplicação não envia a URL interna como referrer para origens externas."
+    }
+  ],
+  "data_contracts": [],
+  "interfaces": [
+    {
+      "name": "POST /auth/logout",
+      "success": "204 com expiração do cookie de sessão",
+      "rejection": "403 para Origin ausente, nula ou estrangeira"
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-001",
+      "priority": "must",
+      "given": "uma página servida pela origem oficial com a política de referrer da aplicação",
+      "when": "o usuário envia o formulário POST /auth/logout",
+      "then": [
+        "o navegador pode preservar a origem oficial no POST same-origin",
+        "o backend responde 204",
+        "o cookie de sessão é expirado"
+      ],
+      "verification": ["test", "browser"]
+    },
+    {
+      "id": "AC-002",
+      "priority": "must",
+      "given": "uma tentativa de POST /auth/logout sem Origin, com Origin nula ou estrangeira",
+      "when": "o backend valida a escrita",
+      "then": [
+        "a tentativa é rejeitada com 403",
+        "a sessão não é deliberadamente aceita como logout confiável"
+      ],
+      "verification": ["test"]
+    },
+    {
+      "id": "AC-003",
+      "priority": "must",
+      "given": "uma navegação da aplicação para uma origem externa",
+      "when": "o navegador aplica Referrer-Policy",
+      "then": ["a URL interna não é enviada no cabeçalho Referer"],
+      "verification": ["test"]
+    }
+  ]
+}
