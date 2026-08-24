@@ -116,3 +116,27 @@ describe('platform snapshot authorization', () => {
     await expect(response.json()).resolves.toMatchObject({ error: 'Forbidden' });
   });
 });
+
+describe('maintenance recovery route', () => {
+  it('rejects a POST without the GitHub production OIDC maintenance identity', async () => {
+    const response = await invoke(
+      new Request(`${testEnv.OFFICIAL_ORIGIN}/api/maintenance/recovery/verify`, {
+        method: 'POST',
+      }),
+    );
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({ error: 'Invalid maintenance identity' });
+  });
+
+  it('rejects non-POST methods before any recovery mutation is possible', async () => {
+    const response = await invoke(
+      new Request(`${testEnv.OFFICIAL_ORIGIN}/api/maintenance/recovery/verify`, {
+        method: 'GET',
+      }),
+    );
+
+    expect(response.status).toBe(405);
+    await expect(response.json()).resolves.toMatchObject({ error: 'Method not allowed' });
+  });
+});

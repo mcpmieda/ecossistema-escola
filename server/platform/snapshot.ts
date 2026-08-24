@@ -4,6 +4,7 @@ import type { RuntimeEnv } from '../env';
 import { graphRequest } from '../graph/client';
 import { resolveRegisteredModules } from '../modules/registry';
 import { coreModules } from './manifest';
+import { recoveryEvidence } from './recovery-evidence';
 
 export const EXPECTED_PLATFORM_LISTS = [
   'PLATAFORMA_CONFIGURACOES',
@@ -175,7 +176,7 @@ export function buildPlatformSnapshot(
       : ('nominal' as const);
 
   return {
-    version: '0.7.0-validation',
+    version: '0.8.0-validation',
     releaseState: 'validation' as const,
     generatedAt: source.generatedAt ?? new Date().toISOString(),
     correlationId: source.correlationId,
@@ -192,7 +193,10 @@ export function buildPlatformSnapshot(
           healthContractsConfigured,
           healthContractsMissing,
           lastAuditAt: allRecentAudit[0]?.occurredAt ?? '',
-          recoveryStatus: 'not-verified' as const,
+          recoveryStatus: recoveryEvidence.status,
+          recoveryVerifiedAt: recoveryEvidence.verifiedAt,
+          recoveryEvidenceRef: recoveryEvidence.evidenceRef,
+          recoveryScope: recoveryEvidence.scope,
         }
       : null,
     coreModules: coreModules.filter((module) =>
