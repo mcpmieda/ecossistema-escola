@@ -43,7 +43,7 @@ export type ModuleIntegrationIssue = (typeof MODULE_INTEGRATION_ISSUES)[number];
 export type ModuleState = 'validation' | 'planned';
 export type FoundationStatus = 'ok' | 'degraded';
 export type OperationalStatus = 'nominal' | 'attention';
-export type RecoveryStatus = 'not-verified';
+export type RecoveryStatus = 'not-verified' | 'verified';
 
 export type CoreModuleContract = {
   id: string;
@@ -109,6 +109,9 @@ export type OperationalSummary = {
   healthContractsMissing: number;
   lastAuditAt: string;
   recoveryStatus: RecoveryStatus;
+  recoveryVerifiedAt: string;
+  recoveryEvidenceRef: string;
+  recoveryScope: string;
 };
 
 export type PlatformSnapshotContract = {
