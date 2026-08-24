@@ -40,7 +40,6 @@ jobs:
           set -euo pipefail
           lab_ref='refs/remotes/origin/feat/centro-admin-v0.8-recovery-verification'
           final_branch='feat/centro-admin-v0.8-recovery-mechanism-clean'
-          git fetch origin main feat/centro-admin-v0.8-recovery-verification
           git checkout -B "$final_branch" origin/main
           git diff --binary origin/main..."$lab_ref" -- \
             '.github/workflows/verify-recovery.yml' \
