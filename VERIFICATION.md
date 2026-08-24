@@ -2,23 +2,32 @@
 
 ## Escopo
 
-Candidata de validação controlada do núcleo inicial do Centro de Administração. Esta matriz verifica a mudança sem transformar produção em laboratório destrutivo.
+Candidata de validação controlada do núcleo inicial do Centro de Administração. Esta matriz separa claramente gates técnicos, validação visual e liberação oficial.
 
 ## Modo
 
 `independent`
 
-Motivo: trata-se de um `production-system` institucional com autenticação, autorização e dados compartilhados. A candidata é somente leitura e não altera schema, portanto não há justificativa nesta fatia para DAST ativo, fuzz destrutivo, mutation testing amplo ou model checker formal.
+O sistema é `production-system` institucional com autenticação, autorização e dados compartilhados. A candidata continua somente leitura nos novos domínios administrativos.
 
-## Resultado da candidata
+## Estado após o primeiro teste autenticado
 
-Estado técnico: **PRONTA PARA TESTE ADMINISTRATIVO**.
+A v0.2 **não está visualmente aprovada**.
 
-Isso não significa produção oficial. O estado de release continua `validation` e a futura promoção permanece condicionada ao comando humano exato `APROVADO PARA PRODUÇÃO`.
+O primeiro teste administrativo real identificou:
 
-## Gates obrigatórios executados
+- acabamento visual abaixo do nível moderno esperado a partir das referências da App Factory;
+- logout que apagava a sessão no servidor, mas deixava o shell autenticado visível até recarga forçada.
 
-### CI da aplicação
+Portanto:
+
+- arquitetura/segurança da candidata original continuam válidas como baseline;
+- gate visual está **reaberto**;
+- logout entrou em repair loop;
+- release state permanece `validation`;
+- nenhuma condição autoriza produção oficial.
+
+## Evidência histórica da candidata original
 
 Execução GitHub Actions `32762212762`: **success**.
 
@@ -28,120 +37,108 @@ Passaram:
 - `npm run lint`;
 - `npm run typecheck`;
 - `npm test`;
-- `npm run build`.
-
-### Segurança da cadeia de entrega
-
-Na mesma candidata passaram:
-
+- `npm run build`;
 - actionlint;
-- zizmor em modo pedantic;
-- Actions externas permanecem pinadas por SHA;
-- o fluxo de deploy continua restrito à `main` após validação.
+- zizmor em modo pedantic.
 
-A correção de segurança de logout integrada na `main` pelo PR #5 foi absorvida pela candidata antes do merge, preservando `Referrer-Policy: same-origin`, validação de `Origin` e os testes de regressão correspondentes.
+Esses gates comprovam integridade técnica do código, não aprovação estética humana.
 
-## Autorização
+## Auditoria do processo visual
 
-Cobertura executada:
+A fonte normativa é a App Factory, especialmente `ui/PROFESSIONAL_UI_PROFILE.md`.
 
-- papel `ADMINISTRADOR` permitido pelas regras existentes;
-- papéis não administrativos não adquirem `ADMINISTRADOR` por mapeamento;
-- `/api/platform/snapshot` possui `requireAuth` + `requireRole(..., 'ADMINISTRADOR')` no BFF;
-- `tests/routes.test.ts` exige `401` sem sessão;
-- `tests/routes.test.ts` exige `403` para sessão `PROFESSOR` antes de qualquer leitura administrativa;
-- a UI restrita não é considerada barreira de segurança.
+Para interfaces administrativas, a Factory estabelece:
 
-## Dados e privacidade
+- shadcn/ui como base preferencial;
+- ReUI como complemento seletivo para componentes avançados quando houver ganho real;
+- `professional-default` como quality bar transversal;
+- browser QA real para UI material quando a capacidade estiver disponível.
 
-`tests/platform-snapshot.test.ts` valida a transformação pura do read model e exige que o resultado descarte dados que não devem chegar ao navegador:
+Na v0.2, a arquitetura registrou CSS/HTML nativos e nenhuma nova biblioteca visual. O `package.json` não contém Tailwind, shadcn/ui ou ReUI.
+
+A candidata implementou hierarquia, responsividade, estados, foco e reduced-motion, mas isso não constituiu uma comparação/lapidação visual autenticada suficiente para considerar o design aprovado.
+
+Conclusão do gate visual v0.2: **fail**.
+
+Detalhes: `docs/AUDITORIA_VISUAL_CENTRO_ADMIN_V0.2.md`.
+
+## Logout — causa e correção
+
+### Comportamento anterior
+
+`POST /auth/logout`:
+
+1. validava `Origin` oficial;
+2. limpava `SESSION_COOKIE`;
+3. retornava `204 No Content`.
+
+O formulário de logout navegava para uma resposta sem documento de destino. O servidor encerrava a sessão, mas o navegador podia manter o shell React anterior visualmente estático até recarga.
+
+### Correção da candidata atual
+
+`POST /auth/logout` agora deve:
+
+1. manter validação exata de `Origin`;
+2. limpar o mesmo cookie de sessão;
+3. retornar `303 See Other`;
+4. enviar `Location: OFFICIAL_ORIGIN`;
+5. fazer o navegador executar GET da raiz e reconstruir a interface sem sessão.
+
+### Teste de regressão obrigatório
+
+`tests/routes.test.ts` deve exigir, para POST same-origin:
+
+- status `303`;
+- `Location` igual à origem oficial;
+- cookie de sessão expirado (`Max-Age=0`);
+- `Referrer-Policy: same-origin` preservado.
+
+Origens ausente, `null` ou estrangeira continuam obrigatoriamente rejeitadas com `403`.
+
+## Autorização preservada
+
+- `/api/platform/snapshot` continua com `requireAuth` + `requireRole(..., 'ADMINISTRADOR')` no BFF;
+- `401` sem sessão permanece testado;
+- `403` para sessão `PROFESSOR` permanece testado;
+- UI não é considerada barreira de segurança.
+
+## Dados e privacidade preservados
+
+`tests/platform-snapshot.test.ts` continua exigindo que o read model não exponha:
 
 - `ValorJson`;
-- `AtualizadoPorObjectId` quando desnecessário para exposição;
+- `AtualizadoPorObjectId` desnecessário;
 - `UsuarioObjectId`;
 - `DetalhesJson`.
 
-O teste também confirma o estado `validation`, reconhecimento das listas essenciais e tratamento fechado de registros malformados.
+## Próximo gate visual
 
-## Contrato de módulos
+Uma próxima candidata visual só pode ser chamada de lapidada quando houver evidência proporcional de:
 
-`tests/platform-contract.test.ts` verifica:
+1. direção explícita baseada nas referências da App Factory;
+2. inventário real de componentes e arquétipos;
+3. linguagem administrativa coerente com shadcn como referência principal;
+4. ReUI apenas onde houver necessidade administrativa avançada real;
+5. hierarquia, spacing, tipografia, superfícies e densidade coerentes;
+6. estados completos;
+7. browser QA desktop e mobile;
+8. foco/teclado/reduced-motion;
+9. logout e navegação testados no fluxo real;
+10. validação humana do administrador sobre aparência e usabilidade.
 
-- IDs e rotas únicas;
-- uma área para cada rota declarada;
-- papel `ADMINISTRADOR` em toda a candidata;
-- capacidades explícitas;
-- Publicações/Páginas em estado `planned`;
-- fallback de rota desconhecida para Visão geral.
+## Smoke externo histórico
 
-## Smoke externo do domínio oficial
+Execução `32763013640`: **success** para raiz pública, headers de segurança e proteção anônima dos endpoints.
 
-Execução GitHub Actions `32763013640`: **success**.
+Esse smoke não comprovou UI autenticada e não deve ser usado como evidência de aprovação visual.
 
-Executada de um runner externo contra `https://admin.escolaieda.com` após o merge do PR #4.
+## Critério atual
 
-Evidência obtida:
+Antes de integrar o repair loop do logout:
 
-- raiz HTTPS respondeu com sucesso;
-- HTML apresentou `<title>Ecossistema Escolar</title>`;
-- resposta apresentou `Referrer-Policy: same-origin`;
-- resposta apresentou `X-Content-Type-Options: nosniff`;
-- `/api/me` sem sessão retornou `401` e `Unauthorized`;
-- `/api/platform/snapshot` sem sessão retornou `401` e `Unauthorized`.
+- format, lint, typecheck, testes e build devem passar novamente;
+- actionlint e zizmor devem permanecer verdes;
+- nenhuma mudança em Entra, Graph, SharePoint, grupos, OIDC, secrets ou rotação automática é permitida;
+- após deploy técnico, o logout deve ser revalidado no domínio oficial.
 
-O smoke foi materializado temporariamente apenas para obter evidência externa. O PR #6 foi fechado sem merge e seu branch foi resetado para a `main`; o workflow descartável não faz parte do produto.
-
-## Browser QA da etapa de usuário
-
-A candidata está pronta para o teste autenticado. Com uma conta institucional `ADMINISTRADOR`, conferir no navegador real:
-
-1. login institucional completa o fluxo sem pedir credenciais dentro do app;
-2. Visão geral carrega;
-3. Sistemas carrega o catálogo disponível;
-4. Auditoria permanece somente leitura;
-5. Configurações não expõe valores protegidos;
-6. rotas hash sobrevivem à navegação/refresh;
-7. Publicações e Páginas permanecem sem escrita;
-8. desktop não apresenta clipping/overflow material;
-9. viewport móvel mantém navegação e hierarquia utilizáveis;
-10. foco visível e teclado permanecem utilizáveis;
-11. reduced-motion mantém feedback funcional sem depender de animação;
-12. logout encerra a sessão pelo endpoint existente.
-
-A QA autenticada não deve registrar senha, token ou cookie em screenshot/log.
-
-## Checks não selecionados nesta fatia
-
-- OWASP ZAP ativo: não executar contra produção nesta candidata somente leitura;
-- Schemathesis/RESTler: endpoint interno `lightweight`, sem contrato REST público/governed;
-- Squawk: não há PostgreSQL nem migration SQL;
-- k6: não há SLO/workload novo definido que justifique gate de carga;
-- Toxiproxy: integração Graph já possui timeout/retry e esta fatia não modifica esse mecanismo;
-- cross-browser completo: ampliar antes da liberação oficial se o risco justificar;
-- mutation testing: reconsiderar quando regras de domínio de escrita forem implementadas.
-
-## Change Hygiene concluído
-
-Confirmado antes do merge:
-
-- o frontend não usa mais `/api/sharepoint/health` como caminho paralelo ao snapshot;
-- não existe segunda implementação ativa para a mesma responsabilidade;
-- CSS antigo de reduced-motion baseado em `!important` foi removido em vez de sobreposto;
-- nenhuma suppression nova foi introduzida para fazer gates passarem;
-- o workflow temporário de formatação foi removido;
-- o workflow temporário de smoke não foi mergeado;
-- a correção concorrente de segurança da `main` foi incorporada como ancestral real da candidata;
-- gates foram executados novamente após as correções finais.
-
-## Critério de “pronto para teste”
-
-Atendido:
-
-- PR #4 integrado à `main` no commit de candidata `6effd9e0ee8f8bbc0e5864398e3ce6e53777cbc0`;
-- CI da candidata verde;
-- segurança de workflows verde;
-- domínio oficial acessível externamente;
-- proteção sem sessão verificada externamente;
-- documentação atualizada para refletir o estado implantado.
-
-A próxima etapa é teste visual/funcional autenticado pelo administrador, seguido de repair loop para qualquer achado. Nenhuma dessas condições autoriza liberação oficial aos usuários finais.
+A produção oficial continua condicionada ao comando humano exato `APROVADO PARA PRODUÇÃO`.
