@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "spec_fingerprint": "e131bb37fe22dc3ace54364e18b843318daf554ebfc3c5eaf8e4db593a8a6e64",
+  "spec_fingerprint": "67d5428e416ae83ddc42f6d8be36102b2c2716c26b09e353bccf2648309c9ec8",
   "criteria": [
     {
       "id": "AC-001",
@@ -75,6 +75,25 @@
         { "kind": "gate", "gate": "package:lint" },
         { "kind": "gate", "gate": "package:typecheck" },
         { "kind": "gate", "gate": "package:test" },
+        { "kind": "gate", "gate": "package:build" }
+      ]
+    },
+    {
+      "id": "AC-010",
+      "priority": "must",
+      "preferred_evidence": ["test", "browser"],
+      "evidence": [
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-search.test.ts" },
+        { "kind": "gate", "gate": "package:build" }
+      ]
+    },
+    {
+      "id": "AC-011",
+      "priority": "must",
+      "preferred_evidence": ["test", "gate", "browser"],
+      "evidence": [
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-snapshot.test.ts" },
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-contract.test.ts" },
         { "kind": "gate", "gate": "package:build" }
       ]
     }
