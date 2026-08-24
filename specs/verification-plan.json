@@ -6,25 +6,25 @@
       "id": "AC-001",
       "priority": "must",
       "preferred_evidence": ["test", "browser"],
-      "evidence": [
-        {"kind":"gate","gate":"package:build"}
-      ]
+      "evidence": [{ "kind": "gate", "gate": "package:build" }]
     },
     {
       "id": "AC-002",
       "priority": "must",
       "preferred_evidence": ["test"],
-      "evidence": [
-        {"kind":"test","gate":"package:test","ref":"tests/roles.test.ts"}
-      ]
+      "evidence": [{ "kind": "test", "gate": "package:test", "ref": "tests/roles.test.ts" }]
     },
     {
       "id": "AC-003",
       "priority": "must",
       "preferred_evidence": ["test", "gate", "browser"],
       "evidence": [
-        {"kind":"test","gate":"package:test","ref":"tests/platform-snapshot.integration.test.ts"},
-        {"kind":"gate","gate":"package:typecheck"}
+        {
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/platform-snapshot.integration.test.ts"
+        },
+        { "kind": "gate", "gate": "package:typecheck" }
       ]
     },
     {
@@ -32,7 +32,7 @@
       "priority": "must",
       "preferred_evidence": ["test", "browser"],
       "evidence": [
-        {"kind":"test","gate":"package:test","ref":"tests/platform-contract.test.ts"}
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-contract.test.ts" }
       ]
     },
     {
@@ -40,8 +40,12 @@
       "priority": "must",
       "preferred_evidence": ["test", "gate"],
       "evidence": [
-        {"kind":"test","gate":"package:test","ref":"tests/platform-contract.test.ts"},
-        {"kind":"test","gate":"package:test","ref":"tests/platform-snapshot.integration.test.ts"}
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-contract.test.ts" },
+        {
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/platform-snapshot.integration.test.ts"
+        }
       ]
     },
     {
@@ -49,7 +53,11 @@
       "priority": "must",
       "preferred_evidence": ["test", "gate"],
       "evidence": [
-        {"kind":"test","gate":"package:test","ref":"tests/platform-snapshot.integration.test.ts"}
+        {
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/platform-snapshot.integration.test.ts"
+        }
       ]
     },
     {
@@ -57,28 +65,26 @@
       "priority": "must",
       "preferred_evidence": ["test", "gate"],
       "evidence": [
-        {"kind":"test","gate":"package:test","ref":"tests/platform-contract.test.ts"},
-        {"kind":"gate","gate":"package:build"}
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-contract.test.ts" },
+        { "kind": "gate", "gate": "package:build" }
       ]
     },
     {
       "id": "AC-008",
       "priority": "must",
       "preferred_evidence": ["gate", "browser", "visual"],
-      "evidence": [
-        {"kind":"gate","gate":"package:build"}
-      ]
+      "evidence": [{ "kind": "gate", "gate": "package:build" }]
     },
     {
       "id": "AC-009",
       "priority": "must",
       "preferred_evidence": ["gate"],
       "evidence": [
-        {"kind":"gate","gate":"package:format:check"},
-        {"kind":"gate","gate":"package:lint"},
-        {"kind":"gate","gate":"package:typecheck"},
-        {"kind":"gate","gate":"package:test"},
-        {"kind":"gate","gate":"package:build"}
+        { "kind": "gate", "gate": "package:format:check" },
+        { "kind": "gate", "gate": "package:lint" },
+        { "kind": "gate", "gate": "package:typecheck" },
+        { "kind": "gate", "gate": "package:test" },
+        { "kind": "gate", "gate": "package:build" }
       ]
     }
   ]

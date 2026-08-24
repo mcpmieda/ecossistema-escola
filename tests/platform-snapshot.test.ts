@@ -3,10 +3,7 @@ import { parseRolesJson } from '../server/platform/snapshot';
 
 describe('platform snapshot parsing', () => {
   it('accepts a valid role allowlist', () => {
-    expect(parseRolesJson('["ADMINISTRADOR","PROFESSOR"]')).toEqual([
-      'ADMINISTRADOR',
-      'PROFESSOR',
-    ]);
+    expect(parseRolesJson('["ADMINISTRADOR","PROFESSOR"]')).toEqual(['ADMINISTRADOR', 'PROFESSOR']);
   });
 
   it('fails closed for malformed or unexpected role data', () => {

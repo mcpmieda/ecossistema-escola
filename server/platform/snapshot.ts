@@ -4,7 +4,10 @@ import { graphRequest } from '../graph/client';
 import { coreModules } from './manifest';
 
 const listSchema = z.object({ id: z.string(), displayName: z.string() });
-const graphItemSchema = z.object({ id: z.string(), fields: z.record(z.string(), z.unknown()).optional() });
+const graphItemSchema = z.object({
+  id: z.string(),
+  fields: z.record(z.string(), z.unknown()).optional(),
+});
 
 const moduleFieldsSchema = z.object({
   Chave: z.string().optional(),
@@ -112,11 +115,7 @@ export async function getPlatformSnapshot(env: RuntimeEnv) {
       byName.get('PLATAFORMA_AUDITORIA'),
       'EventoId,DataHoraUTC,Modulo,Acao,EntidadeTipo,CorrelationId,Resultado',
     ),
-    readListItems(
-      env,
-      byName.get('PLATAFORMA_MIGRACOES'),
-      'Versao,Modulo,AplicadaEmUTC,Resultado',
-    ),
+    readListItems(env, byName.get('PLATAFORMA_MIGRACOES'), 'Versao,Modulo,AplicadaEmUTC,Resultado'),
   ]);
 
   const registeredModules = moduleItems
@@ -134,7 +133,9 @@ export async function getPlatformSnapshot(env: RuntimeEnv) {
       healthEndpoint: parsed.data.HealthEndpoint ?? '',
       updatedAt: parsed.data.AtualizadoEmUTC ?? '',
     }))
-    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, 'pt-BR'));
+    .sort(
+      (left, right) => left.order - right.order || left.name.localeCompare(right.name, 'pt-BR'),
+    );
 
   const configurations = configurationItems
     .map((item) => ({ item, parsed: configurationFieldsSchema.safeParse(item.fields) }))

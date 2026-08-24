@@ -3,34 +3,226 @@
   "depth": "domain",
   "source_contract_fingerprint": "e131bb37fe22dc3ace54364e18b843318daf554ebfc3c5eaf8e4db593a8a6e64",
   "glossary": [
-    {"id":"TERM-001","term":"Candidata","definition":"Versão implantável do Centro disponibilizada apenas para validação controlada, sem constituir liberação oficial.","aliases":["versão de validação"]},
-    {"id":"TERM-002","term":"Núcleo","definition":"Conjunto de capacidades compartilhadas do Centro de Administração, separado das regras internas dos módulos especializados.","aliases":["core"]},
-    {"id":"TERM-003","term":"Módulo registrado","definition":"Sistema incorporado ou administrável pela plataforma por meio do registro institucional e de seu contrato de integração.","aliases":["módulo integrado"]},
-    {"id":"TERM-004","term":"Snapshot administrativo","definition":"Composição somente leitura produzida pelo BFF com os metadados autorizados necessários à interface administrativa.","aliases":["platform snapshot"]},
-    {"id":"TERM-005","term":"Liberação oficial","definition":"Disponibilização da candidata aos públicos definitivos após aprovação humana explícita e gates técnicos.","aliases":["release oficial"]}
+    {
+      "id": "TERM-001",
+      "term": "Candidata",
+      "definition": "Versão implantável do Centro disponibilizada apenas para validação controlada, sem constituir liberação oficial.",
+      "aliases": ["versão de validação"]
+    },
+    {
+      "id": "TERM-002",
+      "term": "Núcleo",
+      "definition": "Conjunto de capacidades compartilhadas do Centro de Administração, separado das regras internas dos módulos especializados.",
+      "aliases": ["core"]
+    },
+    {
+      "id": "TERM-003",
+      "term": "Módulo registrado",
+      "definition": "Sistema incorporado ou administrável pela plataforma por meio do registro institucional e de seu contrato de integração.",
+      "aliases": ["módulo integrado"]
+    },
+    {
+      "id": "TERM-004",
+      "term": "Snapshot administrativo",
+      "definition": "Composição somente leitura produzida pelo BFF com os metadados autorizados necessários à interface administrativa.",
+      "aliases": ["platform snapshot"]
+    },
+    {
+      "id": "TERM-005",
+      "term": "Liberação oficial",
+      "definition": "Disponibilização da candidata aos públicos definitivos após aprovação humana explícita e gates técnicos.",
+      "aliases": ["release oficial"]
+    }
   ],
   "entities": [
-    {"id":"ENT-001","name":"CandidataCentro","definition":"Versão do Centro de Administração em validação controlada.","attributes":["version","releaseState"]},
-    {"id":"ENT-002","name":"UsuarioAutenticado","definition":"Pessoa com sessão institucional resolvida pelo BFF e papéis mapeados por grupos.","attributes":["name","roles"]},
-    {"id":"ENT-003","name":"ModuloNucleo","definition":"Área permanente do núcleo descrita por manifesto versionado.","attributes":["id","route","state","requiredRole","capabilities"]},
-    {"id":"ENT-004","name":"SnapshotPlataforma","definition":"Read model somente leitura composto pelo backend para o frontend administrativo.","attributes":["foundation","coreModules","registeredModules","configurations","recentAudit","migrations"]}
+    {
+      "id": "ENT-001",
+      "name": "CandidataCentro",
+      "definition": "Versão do Centro de Administração em validação controlada.",
+      "attributes": ["version", "releaseState"]
+    },
+    {
+      "id": "ENT-002",
+      "name": "UsuarioAutenticado",
+      "definition": "Pessoa com sessão institucional resolvida pelo BFF e papéis mapeados por grupos.",
+      "attributes": ["name", "roles"]
+    },
+    {
+      "id": "ENT-003",
+      "name": "ModuloNucleo",
+      "definition": "Área permanente do núcleo descrita por manifesto versionado.",
+      "attributes": ["id", "route", "state", "requiredRole", "capabilities"]
+    },
+    {
+      "id": "ENT-004",
+      "name": "SnapshotPlataforma",
+      "definition": "Read model somente leitura composto pelo backend para o frontend administrativo.",
+      "attributes": [
+        "foundation",
+        "coreModules",
+        "registeredModules",
+        "configurations",
+        "recentAudit",
+        "migrations"
+      ]
+    }
   ],
   "relations": [],
   "states": [
-    {"id":"STATE-001","name":"validation"},
-    {"id":"STATE-002","name":"officially-released"}
+    { "id": "STATE-001", "name": "validation" },
+    { "id": "STATE-002", "name": "officially-released" }
   ],
   "transitions": [],
   "requirements": [
-    {"id":"REQ-001","priority":"must","pattern":"ubiquitous","component":"Autenticação e entrada","scope":["candidata v0.2"],"preconditions":[],"response":["Preservar o fluxo Entra ID/BFF existente e apresentar somente uma entrada institucional sem coleta de senha pelo Centro."],"timing":"","concept_refs":["TERM-001","ENT-001","ENT-002"],"acceptance_refs":["AC-001"],"invariant_refs":["INV-001"],"formalization_refs":[]},
-    {"id":"REQ-002","priority":"must","pattern":"policy","component":"Autorização administrativa","scope":["snapshot administrativo","shell de validação"],"preconditions":["sessão institucional resolvida"],"trigger":"uma conta tenta acessar a superfície administrativa protegida","response":["Permitir o snapshot somente quando o BFF confirmar o papel ADMINISTRADOR e manter outros perfis fora da candidata."],"timing":"","concept_refs":["TERM-001","TERM-004","ENT-002","ENT-004"],"acceptance_refs":["AC-002"],"invariant_refs":["INV-002"],"formalization_refs":[]},
-    {"id":"REQ-003","priority":"must","pattern":"event","component":"Composição de dados","scope":["visão geral administrativa"],"preconditions":["usuário ADMINISTRADOR","fundação disponível"],"trigger":"o shell solicita o estado da plataforma","response":["Compor no BFF um snapshot somente leitura a partir das fontes autoritativas existentes e informar o estado da fundação."],"timing":"","concept_refs":["TERM-002","TERM-004","ENT-003","ENT-004"],"acceptance_refs":["AC-003"],"invariant_refs":["INV-004","INV-006"],"formalization_refs":[]},
-    {"id":"REQ-004","priority":"must","pattern":"ubiquitous","component":"Navegação","scope":["rotas do núcleo"],"preconditions":[],"response":["Manter rotas conhecidas endereçáveis e restauráveis e usar Visão geral como fallback seguro para rota desconhecida."],"timing":"","concept_refs":["TERM-002","ENT-003"],"acceptance_refs":["AC-004"],"invariant_refs":[],"formalization_refs":[]},
-    {"id":"REQ-005","priority":"must","pattern":"ubiquitous","component":"Catálogo de sistemas","scope":["área Sistemas"],"preconditions":["snapshot carregado"],"response":["Apresentar separadamente o manifesto versionado do núcleo e os módulos registrados no SharePoint sem absorver as regras internas desses módulos."],"timing":"","concept_refs":["TERM-002","TERM-003","ENT-003","ENT-004"],"acceptance_refs":["AC-005"],"invariant_refs":[],"formalization_refs":[]},
-    {"id":"REQ-006","priority":"must","pattern":"policy","component":"Minimização de dados","scope":["Auditoria","Configurações"],"preconditions":["usuário ADMINISTRADOR"],"trigger":"o BFF compõe os metadados administrativos para o navegador","response":["Excluir valores de configuração e campos de auditoria sensíveis ou desnecessários do contrato enviado ao cliente."],"timing":"","concept_refs":["TERM-004","ENT-004"],"acceptance_refs":["AC-006"],"invariant_refs":["INV-004"],"formalization_refs":[]},
-    {"id":"REQ-007","priority":"must","pattern":"policy","component":"Fronteira de escrita","scope":["Publicações","Páginas","novos domínios administrativos da v0.2"],"preconditions":[],"trigger":"um administrador navega pelas áreas ainda não construídas","response":["Marcar Publicações e Páginas como planejadas e não disponibilizar mutações reais nesta candidata."],"timing":"","concept_refs":["TERM-001","ENT-001"],"acceptance_refs":["AC-007"],"invariant_refs":["INV-003"],"formalization_refs":[]},
-    {"id":"REQ-008","priority":"must","pattern":"ubiquitous","component":"Experiência e acessibilidade","scope":["login","shell administrativo","desktop","mobile"],"preconditions":[],"response":["Oferecer estados de loading, vazio, erro e permissão negada, foco visível, responsividade e redução de movimento não essencial quando solicitada pelo sistema."],"timing":"","concept_refs":["TERM-001","ENT-001"],"acceptance_refs":["AC-008"],"invariant_refs":[],"formalization_refs":[]},
-    {"id":"REQ-009","priority":"must","pattern":"policy","component":"Validação e release","scope":["CI","merge","deploy","liberação"],"preconditions":["candidata tecnicamente integrável"],"trigger":"a candidata passa pelos gates de construção e segurança","response":["Exigir os gates do repositório e preservar o estado de validação até o comando humano exato APROVADO PARA PRODUÇÃO."],"timing":"","concept_refs":["TERM-001","TERM-005","STATE-001","STATE-002","ENT-001"],"acceptance_refs":["AC-009"],"invariant_refs":["INV-005"],"formalization_refs":[]}
+    {
+      "id": "REQ-001",
+      "priority": "must",
+      "pattern": "ubiquitous",
+      "component": "Autenticação e entrada",
+      "scope": ["candidata v0.2"],
+      "preconditions": [],
+      "response": [
+        "Preservar o fluxo Entra ID/BFF existente e apresentar somente uma entrada institucional sem coleta de senha pelo Centro."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-001", "ENT-001", "ENT-002"],
+      "acceptance_refs": ["AC-001"],
+      "invariant_refs": ["INV-001"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-002",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "Autorização administrativa",
+      "scope": ["snapshot administrativo", "shell de validação"],
+      "preconditions": ["sessão institucional resolvida"],
+      "trigger": "uma conta tenta acessar a superfície administrativa protegida",
+      "response": [
+        "Permitir o snapshot somente quando o BFF confirmar o papel ADMINISTRADOR e manter outros perfis fora da candidata."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-001", "TERM-004", "ENT-002", "ENT-004"],
+      "acceptance_refs": ["AC-002"],
+      "invariant_refs": ["INV-002"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-003",
+      "priority": "must",
+      "pattern": "event",
+      "component": "Composição de dados",
+      "scope": ["visão geral administrativa"],
+      "preconditions": ["usuário ADMINISTRADOR", "fundação disponível"],
+      "trigger": "o shell solicita o estado da plataforma",
+      "response": [
+        "Compor no BFF um snapshot somente leitura a partir das fontes autoritativas existentes e informar o estado da fundação."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-002", "TERM-004", "ENT-003", "ENT-004"],
+      "acceptance_refs": ["AC-003"],
+      "invariant_refs": ["INV-004", "INV-006"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-004",
+      "priority": "must",
+      "pattern": "ubiquitous",
+      "component": "Navegação",
+      "scope": ["rotas do núcleo"],
+      "preconditions": [],
+      "response": [
+        "Manter rotas conhecidas endereçáveis e restauráveis e usar Visão geral como fallback seguro para rota desconhecida."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-002", "ENT-003"],
+      "acceptance_refs": ["AC-004"],
+      "invariant_refs": [],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-005",
+      "priority": "must",
+      "pattern": "ubiquitous",
+      "component": "Catálogo de sistemas",
+      "scope": ["área Sistemas"],
+      "preconditions": ["snapshot carregado"],
+      "response": [
+        "Apresentar separadamente o manifesto versionado do núcleo e os módulos registrados no SharePoint sem absorver as regras internas desses módulos."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-002", "TERM-003", "ENT-003", "ENT-004"],
+      "acceptance_refs": ["AC-005"],
+      "invariant_refs": [],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-006",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "Minimização de dados",
+      "scope": ["Auditoria", "Configurações"],
+      "preconditions": ["usuário ADMINISTRADOR"],
+      "trigger": "o BFF compõe os metadados administrativos para o navegador",
+      "response": [
+        "Excluir valores de configuração e campos de auditoria sensíveis ou desnecessários do contrato enviado ao cliente."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-004", "ENT-004"],
+      "acceptance_refs": ["AC-006"],
+      "invariant_refs": ["INV-004"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-007",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "Fronteira de escrita",
+      "scope": ["Publicações", "Páginas", "novos domínios administrativos da v0.2"],
+      "preconditions": [],
+      "trigger": "um administrador navega pelas áreas ainda não construídas",
+      "response": [
+        "Marcar Publicações e Páginas como planejadas e não disponibilizar mutações reais nesta candidata."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-001", "ENT-001"],
+      "acceptance_refs": ["AC-007"],
+      "invariant_refs": ["INV-003"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-008",
+      "priority": "must",
+      "pattern": "ubiquitous",
+      "component": "Experiência e acessibilidade",
+      "scope": ["login", "shell administrativo", "desktop", "mobile"],
+      "preconditions": [],
+      "response": [
+        "Oferecer estados de loading, vazio, erro e permissão negada, foco visível, responsividade e redução de movimento não essencial quando solicitada pelo sistema."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-001", "ENT-001"],
+      "acceptance_refs": ["AC-008"],
+      "invariant_refs": [],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-009",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "Validação e release",
+      "scope": ["CI", "merge", "deploy", "liberação"],
+      "preconditions": ["candidata tecnicamente integrável"],
+      "trigger": "a candidata passa pelos gates de construção e segurança",
+      "response": [
+        "Exigir os gates do repositório e preservar o estado de validação até o comando humano exato APROVADO PARA PRODUÇÃO."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-001", "TERM-005", "STATE-001", "STATE-002", "ENT-001"],
+      "acceptance_refs": ["AC-009"],
+      "invariant_refs": ["INV-005"],
+      "formalization_refs": []
+    }
   ],
   "constraints": [],
   "formalizations": [],

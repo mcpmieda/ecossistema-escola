@@ -68,7 +68,8 @@ function LoginExperience({ loading }: { loading: boolean }) {
             <p className="section-label">ACESSO INSTITUCIONAL</p>
             <h2>{loading ? 'Verificando sua sessão' : 'Entrar no Centro'}</h2>
             <p className="muted">
-              Use sua conta institucional. A autenticação continua sendo realizada pelo Microsoft Entra ID.
+              Use sua conta institucional. A autenticação continua sendo realizada pelo Microsoft
+              Entra ID.
             </p>
             {loading ? (
               <div className="session-check" role="status">
@@ -86,7 +87,9 @@ function LoginExperience({ loading }: { loading: boolean }) {
                 Entrar com conta institucional
               </a>
             )}
-            <p className="security-note">O Centro não solicita nem armazena sua senha institucional.</p>
+            <p className="security-note">
+              O Centro não solicita nem armazena sua senha institucional.
+            </p>
           </div>
         </div>
       </section>
@@ -102,8 +105,8 @@ function RestrictedExperience({ name }: { name?: string }) {
         <p className="brand-kicker">CENTRO DE ADMINISTRAÇÃO</p>
         <h1 id="restricted-title">Esta candidata ainda não foi liberada para seu perfil</h1>
         <p>
-          {name ? `${name}, sua conta está autenticada.` : 'Sua conta está autenticada.'} Nesta fase,
-          somente administradores autorizados podem testar a nova plataforma.
+          {name ? `${name}, sua conta está autenticada.` : 'Sua conta está autenticada.'} Nesta
+          fase, somente administradores autorizados podem testar a nova plataforma.
         </p>
         <form method="post" action="/auth/logout">
           <button className="secondary-button" type="submit">
@@ -125,8 +128,12 @@ function EmptyState({ title, description }: { title: string; description: string
 }
 
 function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
-  const activeConfigurations = snapshot.configurations.filter((configuration) => configuration.active).length;
-  const validationModules = snapshot.coreModules.filter((module) => module.state === 'validation').length;
+  const activeConfigurations = snapshot.configurations.filter(
+    (configuration) => configuration.active,
+  ).length;
+  const validationModules = snapshot.coreModules.filter(
+    (module) => module.state === 'validation',
+  ).length;
 
   return (
     <>
@@ -136,8 +143,8 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           <strong>Candidata v0.2 em validação controlada</strong>
         </div>
         <p>
-          Implantação para teste administrativo. A liberação oficial continua bloqueada até o comando
-          explícito de aprovação.
+          Implantação para teste administrativo. A liberação oficial continua bloqueada até o
+          comando explícito de aprovação.
         </p>
       </section>
 
@@ -159,12 +166,16 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
         <article className="metric-card">
           <p>Núcleo em validação</p>
           <strong>{validationModules} áreas</strong>
-          <span>Visão geral, catálogo, auditoria e configurações já possuem leitura integrada.</span>
+          <span>
+            Visão geral, catálogo, auditoria e configurações já possuem leitura integrada.
+          </span>
         </article>
         <article className="metric-card">
           <p>Configurações ativas</p>
           <strong>{activeConfigurations}</strong>
-          <span>Somente metadados são exibidos nesta candidata; valores permanecem protegidos.</span>
+          <span>
+            Somente metadados são exibidos nesta candidata; valores permanecem protegidos.
+          </span>
         </article>
       </section>
 
@@ -174,7 +185,10 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
             <p className="section-label">PLATAFORMA</p>
             <h2 id="overview-modules-title">Estrutura funcional</h2>
           </div>
-          <p>Áreas entram progressivamente sem duplicar identidade, sessão ou persistência compartilhada.</p>
+          <p>
+            Áreas entram progressivamente sem duplicar identidade, sessão ou persistência
+            compartilhada.
+          </p>
         </div>
         <div className="module-grid">
           {snapshot.coreModules.map((module) => (
@@ -210,7 +224,9 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           <p className="section-label">CATÁLOGO</p>
           <h2 id="systems-title">Sistemas e módulos</h2>
         </div>
-        <p>O núcleo é definido por contrato; módulos integrados são lidos do registro institucional.</p>
+        <p>
+          O núcleo é definido por contrato; módulos integrados são lidos do registro institucional.
+        </p>
       </div>
 
       <div className="subsection">
@@ -261,7 +277,9 @@ function AuditPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           <p className="section-label">RASTREABILIDADE</p>
           <h2 id="audit-title">Auditoria</h2>
         </div>
-        <p>Leitura restrita dos eventos administrativos disponíveis, sem expor detalhes sensíveis.</p>
+        <p>
+          Leitura restrita dos eventos administrativos disponíveis, sem expor detalhes sensíveis.
+        </p>
       </div>
       {snapshot.recentAudit.length === 0 ? (
         <EmptyState
@@ -306,7 +324,10 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           <p className="section-label">GOVERNANÇA</p>
           <h2 id="settings-title">Configurações</h2>
         </div>
-        <p>Esta candidata mostra somente chave, escopo, versão e vigência. Valores não são enviados ao navegador.</p>
+        <p>
+          Esta candidata mostra somente chave, escopo, versão e vigência. Valores não são enviados
+          ao navegador.
+        </p>
       </div>
       {snapshot.configurations.length === 0 ? (
         <EmptyState
@@ -385,13 +406,21 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
       <p>{copy.description}</p>
       <div className="planned-guardrail">
         <strong>Nenhuma escrita foi ativada nesta candidata.</strong>
-        <span>O objetivo do teste atual é validar o núcleo, acesso, navegação e leitura institucional.</span>
+        <span>
+          O objetivo do teste atual é validar o núcleo, acesso, navegação e leitura institucional.
+        </span>
       </div>
     </section>
   );
 }
 
-function PageContent({ route, snapshot }: { route: PlatformRoute; snapshot: PlatformSnapshotContract }) {
+function PageContent({
+  route,
+  snapshot,
+}: {
+  route: PlatformRoute;
+  snapshot: PlatformSnapshotContract;
+}) {
   switch (route) {
     case 'sistemas':
       return <SystemsPage snapshot={snapshot} />;
@@ -436,9 +465,12 @@ function AdminShell({ identity }: { identity: Identity }) {
             error?: string;
             correlationId?: string;
           };
-          throw Object.assign(new Error(payload.error || 'Não foi possível carregar a plataforma.'), {
-            correlationId: payload.correlationId,
-          });
+          throw Object.assign(
+            new Error(payload.error || 'Não foi possível carregar a plataforma.'),
+            {
+              correlationId: payload.correlationId,
+            },
+          );
         }
         return (await response.json()) as PlatformSnapshotContract;
       })
@@ -454,7 +486,10 @@ function AdminShell({ identity }: { identity: Identity }) {
     return () => controller.abort();
   }, []);
 
-  const firstName = useMemo(() => identity.name?.trim().split(/\s+/u)[0] || 'Administrador', [identity]);
+  const firstName = useMemo(
+    () => identity.name?.trim().split(/\s+/u)[0] || 'Administrador',
+    [identity],
+  );
 
   return (
     <div className="admin-app">
@@ -482,7 +517,9 @@ function AdminShell({ identity }: { identity: Identity }) {
               {module.state === 'planned' && <small>Próxima fase</small>}
             </a>
           ))}
-          {loadState.status !== 'ready' && <span className="nav-loading">Carregando navegação…</span>}
+          {loadState.status !== 'ready' && (
+            <span className="nav-loading">Carregando navegação…</span>
+          )}
         </nav>
 
         <div className="sidebar-footer">
@@ -532,7 +569,11 @@ function AdminShell({ identity }: { identity: Identity }) {
             {loadState.correlationId && (
               <span className="mono">Correlação: {loadState.correlationId}</span>
             )}
-            <button className="secondary-button" type="button" onClick={() => window.location.reload()}>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => window.location.reload()}
+            >
               Tentar novamente
             </button>
           </section>
@@ -567,6 +608,7 @@ export function App() {
 
   if (identity === null) return <LoginExperience loading />;
   if (!identity.authenticated) return <LoginExperience loading={false} />;
-  if (!identity.roles?.includes('ADMINISTRADOR')) return <RestrictedExperience name={identity.name} />;
+  if (!identity.roles?.includes('ADMINISTRADOR'))
+    return <RestrictedExperience name={identity.name} />;
   return <AdminShell identity={identity} />;
 }
