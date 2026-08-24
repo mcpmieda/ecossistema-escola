@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "spec_fingerprint": "0df8838d07696ab8239a8890a2d1a07f31b745c1bf4c67141bc9b3ec8e23f277",
+  "spec_fingerprint": "7c0175727cc706f64575b885750cbe264c558f0f05fd883a111e8425595bcf73",
   "criteria": [
     {
       "id": "AC-001",
@@ -40,7 +40,8 @@
       "preferred_evidence": ["test", "gate"],
       "evidence": [
         { "kind": "test", "gate": "package:test", "ref": "tests/platform-contract.test.ts" },
-        { "kind": "test", "gate": "package:test", "ref": "tests/platform-snapshot.test.ts" }
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-snapshot.test.ts" },
+        { "kind": "test", "gate": "package:test", "ref": "tests/module-registry.test.ts" }
       ]
     },
     {
@@ -108,6 +109,19 @@
         { "kind": "test", "gate": "package:test", "ref": "tests/routes.test.ts" },
         { "kind": "test", "gate": "package:test", "ref": "tests/platform-snapshot.test.ts" },
         { "kind": "gate", "gate": "package:typecheck" }
+      ]
+    },
+    {
+      "id": "AC-013",
+      "priority": "must",
+      "preferred_evidence": ["test", "gate"],
+      "evidence": [
+        { "kind": "test", "gate": "package:test", "ref": "tests/contracts.test.ts" },
+        { "kind": "test", "gate": "package:test", "ref": "tests/module-registry.test.ts" },
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-snapshot.test.ts" },
+        { "kind": "test", "gate": "package:test", "ref": "tests/platform-search.test.ts" },
+        { "kind": "gate", "gate": "package:typecheck" },
+        { "kind": "gate", "gate": "package:build" }
       ]
     }
   ]

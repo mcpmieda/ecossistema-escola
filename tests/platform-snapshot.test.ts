@@ -1,24 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { PLATFORM_CAPABILITIES } from '../shared/platform-contract';
-import {
-  buildPlatformSnapshot,
-  isFailureResult,
-  parseRolesJson,
-} from '../server/platform/snapshot';
+import { buildPlatformSnapshot, isFailureResult } from '../server/platform/snapshot';
 
 const fullAccess = PLATFORM_CAPABILITIES;
 
 describe('platform snapshot parsing', () => {
-  it('accepts a valid role allowlist', () => {
-    expect(parseRolesJson('["ADMINISTRADOR","PROFESSOR"]')).toEqual(['ADMINISTRADOR', 'PROFESSOR']);
-  });
-
-  it('fails closed for malformed or unexpected role data', () => {
-    expect(parseRolesJson('{')).toEqual([]);
-    expect(parseRolesJson('{"role":"ADMINISTRADOR"}')).toEqual([]);
-    expect(parseRolesJson(undefined)).toEqual([]);
-  });
-
   it('classifies explicit failure results without treating benign text as a failure', () => {
     expect(isFailureResult('ERRO')).toBe(true);
     expect(isFailureResult('Falha: Graph indisponível')).toBe(true);
@@ -27,7 +13,7 @@ describe('platform snapshot parsing', () => {
     expect(isFailureResult('sem erro')).toBe(false);
   });
 
-  it('builds the validation read model without exposing protected values', () => {
+  it('builds the validation read model without exposing protected or legacy authorization values', () => {
     const snapshot = buildPlatformSnapshot(
       {
         lists: [
@@ -40,14 +26,14 @@ describe('platform snapshot parsing', () => {
           {
             id: 'module-1',
             fields: {
-              Chave: 'notas',
-              Nome: 'Banco de Notas',
-              RotaBase: '/notas',
-              Versao: '1.0',
+              Chave: 'plataforma-base',
+              Nome: 'Plataforma Base',
+              RotaBase: '/',
+              Versao: '1.0.0',
               Status: 'instalado',
-              Ordem: 2,
-              RolesJson: '["ADMINISTRADOR"]',
-              HealthEndpoint: '/health',
+              Ordem: 0,
+              RolesJson: '["LEGACY_ROLE_MUST_NOT_LEAK"]',
+              HealthEndpoint: '/api/health',
             },
           },
         ],
@@ -88,7 +74,7 @@ describe('platform snapshot parsing', () => {
     );
     const serialized = JSON.stringify(snapshot);
 
-    expect(snapshot.version).toBe('0.6.0-validation');
+    expect(snapshot.version).toBe('0.7.0-validation');
     expect(snapshot.releaseState).toBe('validation');
     expect(snapshot.foundation).toEqual({
       status: 'ok',
@@ -105,9 +91,14 @@ describe('platform snapshot parsing', () => {
       recoveryStatus: 'not-verified',
     });
     expect(snapshot.registeredModules[0]).toMatchObject({
-      key: 'notas',
-      name: 'Banco de Notas',
-      roles: ['ADMINISTRADOR'],
+      key: 'plataforma-base',
+      name: 'Plataforma Base',
+      status: 'installed',
+      contractVersion: 1,
+      requiredCapabilities: ['platform.overview.read'],
+      integrationState: 'ready',
+      integrationIssues: [],
+      available: true,
     });
     expect(snapshot.configurations[0]).toMatchObject({
       key: 'centro.validation',
@@ -115,6 +106,8 @@ describe('platform snapshot parsing', () => {
       active: true,
     });
     expect(snapshot.recentAudit[0]).toMatchObject({ eventId: 'evt-1', action: 'consulta' });
+    expect(serialized).not.toContain('LEGACY_ROLE_MUST_NOT_LEAK');
+    expect(serialized).not.toContain('RolesJson');
     expect(serialized).not.toContain('must-not-leak');
     expect(serialized).not.toContain('user-object-id-must-not-leak');
     expect(serialized).not.toContain('ValorJson');

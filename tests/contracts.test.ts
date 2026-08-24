@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { automationContract } from '../server/automations/contracts';
 import { featureFlag } from '../server/modules/feature-flags';
-import { moduleContract, platformBaseModule } from '../server/modules/contracts';
+import {
+  integratedModuleContracts,
+  moduleContract,
+  moduleContractForKey,
+  platformBaseModule,
+} from '../server/modules/contracts';
 
 const automation = {
   id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -17,10 +22,45 @@ const automation = {
 };
 
 describe('extension contracts', () => {
-  it('validates plataforma-base', () =>
-    expect(moduleContract.parse(platformBaseModule).key).toBe('plataforma-base'));
-  it('rejects an invalid module route', () =>
-    expect(() => moduleContract.parse({ ...platformBaseModule, baseRoute: 'relative' })).toThrow());
+  it('validates the versioned plataforma-base integration contract', () => {
+    const parsed = moduleContract.parse(platformBaseModule);
+    expect(parsed).toMatchObject({
+      contractVersion: 1,
+      key: 'plataforma-base',
+      requiredCapabilities: ['platform.overview.read'],
+    });
+  });
+
+  it('keeps integrated module keys unique and addressable', () => {
+    expect(new Set(integratedModuleContracts.map((contract) => contract.key)).size).toBe(
+      integratedModuleContracts.length,
+    );
+    expect(moduleContractForKey('plataforma-base')).toEqual(platformBaseModule);
+    expect(moduleContractForKey('nao-registrado')).toBeUndefined();
+  });
+
+  it.each(['relative', '//evil.test/path', '/\\evil.test'])(
+    'rejects unsafe module routes: %s',
+    (route) => {
+      expect(() => moduleContract.parse({ ...platformBaseModule, baseRoute: route })).toThrow();
+    },
+  );
+
+  it('rejects duplicated required capabilities', () => {
+    expect(() =>
+      moduleContract.parse({
+        ...platformBaseModule,
+        requiredCapabilities: ['platform.overview.read', 'platform.overview.read'],
+      }),
+    ).toThrow();
+  });
+
+  it('rejects health endpoints outside the same-origin API namespace', () => {
+    expect(() =>
+      moduleContract.parse({ ...platformBaseModule, healthEndpoint: '/health' }),
+    ).toThrow();
+  });
+
   it('resolves an active feature flag', () =>
     expect(featureFlag([{ key: 'feature.base.demo', active: true }], 'base', 'demo')).toBe(true));
   it('uses the safe feature-flag fallback', () =>

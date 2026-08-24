@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "goal": "Evoluir o núcleo do Centro de Administração em validação controlada, mantendo-o somente leitura, permission-aware e operacionalmente explicável, com capabilities aplicadas no servidor, snapshot recortado por autorização e preservação integral da fundação institucional existente.",
+  "goal": "Evoluir o núcleo do Centro de Administração em validação controlada, mantendo-o somente leitura, permission-aware e operacionalmente explicável, com capabilities aplicadas no servidor, snapshot recortado por autorização e contrato versionado para integração segura de módulos independentes, preservando integralmente a fundação institucional existente.",
   "change_type": "functional",
   "risk": "medium",
   "scope": {
@@ -9,6 +9,9 @@
       "política central de papéis para capabilities do Centro, resolvida no servidor a cada requisição",
       "autorização server-side por capability nos endpoints administrativos atuais",
       "snapshot BFF somente leitura recortado conforme capabilities resolvidas",
+      "contrato versionado de integração de módulos independentes, separado do registro operacional SharePoint",
+      "resolução explícita de estados ready, registry-only, contract-mismatch, disabled, deprecated e invalid-registry",
+      "remoção de RolesJson do caminho ativo de leitura, autorização e busca sem migrar destrutivamente a coluna existente",
       "navegação restaurável entre as áreas versionadas do núcleo",
       "busca transversal limitada aos metadados autorizados presentes no snapshot",
       "visão operacional com detecção de estrutura incompleta, falhas explícitas de auditoria e cobertura de contratos HealthEndpoint",
@@ -18,6 +21,8 @@
     "out": [
       "liberação oficial da candidata para professores, alunos, apoio, visitantes ou outros públicos",
       "alteração dos grupos existentes, do mapeamento Entra para papéis ou da composição do cookie de sessão",
+      "remoção física ou migração destrutiva da coluna RolesJson em PLATAFORMA_MODULOS",
+      "integração funcional de um primeiro sistema independente, montagem de sua interface ou criação de regras de negócio no núcleo",
       "mutações em Publicações, Páginas, Configurações, Auditoria, Operação ou registro de módulos",
       "execução automática de HealthEndpoint registrados ou monitoramento ativo de serviços externos",
       "declaração de recuperação ou restore como aprovado sem evidência registrada de teste",
@@ -28,8 +33,9 @@
   },
   "assumptions": [
     "A fundação documentada no repositório permanece a fonte técnica de verdade para autenticação, persistência e deploy.",
-    "Grupos institucionais continuam sendo convertidos em papéis no login, mas papéis passam a ser entrada da política e não a decisão final de autorização dos endpoints do Centro.",
-    "A lista PLATAFORMA_MODULOS representa módulos registrados; o manifesto em código representa as áreas permanentes do núcleo.",
+    "Grupos institucionais continuam sendo convertidos em papéis no login, mas papéis são entrada da política e não a decisão final de autorização dos endpoints do Centro.",
+    "PLATAFORMA_MODULOS é inventário operacional; o manifesto versionado em código é a autoridade sobre quais módulos o Centro sabe integrar.",
+    "A coluna histórica RolesJson pode continuar fisicamente presente até uma migration de schema separada, mas não participa de autorização, disponibilidade ou composição do read model.",
     "A ausência de um sinal de falha no snapshot não prova disponibilidade total de dependências externas.",
     "A validação no domínio oficial não equivale a liberação oficial enquanto não houver o comando exato APROVADO PARA PRODUÇÃO."
   ],
@@ -73,14 +79,18 @@
     {
       "id": "INV-010",
       "statement": "Papéis institucionais não autorizam diretamente operações do Centro; o BFF deriva capabilities por política e exige a capability correspondente no ponto de execução."
+    },
+    {
+      "id": "INV-011",
+      "statement": "Um registro em PLATAFORMA_MODULOS não concede integração nem autorização: disponibilidade exige manifesto versionado compatível e requiredCapabilities satisfeitas; RolesJson legado não participa dessa decisão."
     }
   ],
   "data_contracts": [
     {
       "name": "PlatformSnapshot",
-      "source": "SharePoint CENTROADMIN + manifesto versionado do núcleo + capabilities resolvidas",
+      "source": "SharePoint CENTROADMIN + manifestos versionados do núcleo/módulos + capabilities resolvidas",
       "direction": "BFF para frontend",
-      "privacy": "somente metadados necessários e autorizados; sem ValorJson, UsuarioObjectId ou DetalhesJson"
+      "privacy": "somente metadados necessários e autorizados; sem ValorJson, UsuarioObjectId, DetalhesJson ou RolesJson"
     },
     {
       "name": "OperationalSignals",
@@ -93,6 +103,12 @@
       "source": "papéis da sessão + política versionada em código",
       "direction": "BFF para frontend por /api/me e uso interno na autorização",
       "privacy": "identificadores técnicos de permissão, sem credenciais ou dados pessoais adicionais"
+    },
+    {
+      "name": "ModuleIntegrationState",
+      "source": "PLATAFORMA_MODULOS + manifesto versionado em código + capabilities resolvidas",
+      "direction": "BFF para frontend por PlatformSnapshot",
+      "privacy": "metadados de integração; RolesJson legado não é solicitado nem enviado"
     }
   ],
   "interfaces": [
@@ -114,7 +130,7 @@
     {
       "name": "/api/platform/snapshot",
       "mode": "existing-read-only-capability-scoped",
-      "purpose": "compor o estado administrativo autorizado, exigir platform.snapshot.read e omitir coleções sem capability correspondente"
+      "purpose": "compor o estado administrativo autorizado, exigir platform.snapshot.read, recortar coleções por capability e resolver o estado de integração dos módulos registrados"
     },
     {
       "name": "/api/sharepoint/health",
@@ -173,8 +189,8 @@
       "given": "uma sessão com platform.modules.read na área Sistemas",
       "when": "o snapshot foi carregado",
       "then": [
-        "o catálogo mostra o manifesto versionado do núcleo permitido pela sessão",
-        "módulos registrados são apresentados por metadados sem alterar seu domínio"
+        "o catálogo mostra o manifesto permitido e o estado de integração dos módulos registrados",
+        "módulos registrados são apresentados sem absorver suas regras internas"
       ],
       "verification": ["test", "gate"]
     },
@@ -260,6 +276,21 @@
         "platform.snapshot.read é exigida para o snapshot e platform.health.read é exigida para a saúde do SharePoint",
         "áreas e coleções sem a capability correspondente são omitidas do snapshot",
         "na validação atual somente ADMINISTRADOR recebe as capabilities do Centro"
+      ],
+      "verification": ["test", "gate"]
+    },
+    {
+      "id": "AC-013",
+      "priority": "must",
+      "given": "registros de módulos com e sem manifesto versionado, divergências de metadados, RolesJson legado e capabilities diferentes",
+      "when": "o BFF resolve o catálogo de módulos para o snapshot",
+      "then": [
+        "registro sem manifesto permanece registry-only e indisponível",
+        "módulo só fica ready quando status, baseRoute, version e healthEndpoint são compatíveis com o manifesto",
+        "módulo ready só fica available quando todas as requiredCapabilities estão presentes",
+        "disabled, deprecated, invalid-registry e contract-mismatch permanecem indisponíveis e explícitos",
+        "RolesJson não é solicitado ao Graph, não é enviado ao navegador e não concede integração ou autorização",
+        "manifestos rejeitam rotas inseguras e healthEndpoint fora do namespace same-origin /api/"
       ],
       "verification": ["test", "gate"]
     }
