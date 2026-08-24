@@ -102,9 +102,7 @@ function parseRoles(value: unknown): Role[] {
   );
 }
 
-function normalizeModuleStatus(
-  value: unknown,
-): 'installed' | 'disabled' | 'deprecated' {
+function normalizeModuleStatus(value: unknown): 'installed' | 'disabled' | 'deprecated' {
   switch (value) {
     case 'desabilitado':
     case 'disabled':
@@ -117,9 +115,7 @@ function normalizeModuleStatus(
   }
 }
 
-function normalizeAuditResult(
-  value: unknown,
-): 'success' | 'failure' | 'denied' | 'unknown' {
+function normalizeAuditResult(value: unknown): 'success' | 'failure' | 'denied' | 'unknown' {
   switch (value) {
     case 'sucesso':
     case 'success':
@@ -161,7 +157,9 @@ export function buildAdministrationCenterBootstrap(
       };
     })
     .filter((module) => module.roles.some((role) => roleSet.has(role)))
-    .sort((left, right) => left.order - right.order || left.name.localeCompare(right.name, 'pt-BR'));
+    .sort(
+      (left, right) => left.order - right.order || left.name.localeCompare(right.name, 'pt-BR'),
+    );
 
   const activeConfigurations = source.configurationItems.reduce(
     (total, item) => total + (enabled(item.fields?.Ativo) ? 1 : 0),
