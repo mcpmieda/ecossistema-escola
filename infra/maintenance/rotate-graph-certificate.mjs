@@ -213,8 +213,20 @@ try {
     `/applications/${graphApplicationObjectId}?$select=id,keyCredentials`,
   );
   const existing = application.keyCredentials ?? [];
+  const workingSlots = [];
+  for (const slot of ['A', 'B']) {
+    if (!existing.some((key) => key.displayName?.startsWith(`${rotationPrefix}${slot}-`))) continue;
+    try {
+      await validateCloudflareSlot(slot);
+      workingSlots.push(slot);
+    } catch {
+      // A registered public certificate is not functional unless the matching private slot works.
+    }
+  }
   const managed = existing
-    .filter((key) => key.displayName?.startsWith(rotationPrefix))
+    .filter((key) =>
+      workingSlots.some((slot) => key.displayName?.startsWith(`${rotationPrefix}${slot}-`)),
+    )
     .sort((left, right) => keyCreatedAt(right) - keyCreatedAt(left));
   const newestExpiry = managed[0]?.endDateTime ? Date.parse(managed[0].endDateTime) : 0;
   const daysRemaining = (newestExpiry - Date.now()) / 86_400_000;
@@ -295,11 +307,14 @@ try {
     'GET',
     `/applications/${graphApplicationObjectId}?$select=keyCredentials`,
   );
-  const byNewest = refreshed.keyCredentials
-    .filter((key) => key.keyId !== candidateKeyId)
-    .sort((left, right) => Date.parse(right.startDateTime) - Date.parse(left.startDateTime));
-  const retainedPrevious = managed[0]?.keyId ?? byNewest[0]?.keyId;
-  const retainedIds = new Set([candidateKeyId, retainedPrevious].filter(Boolean));
+  const candidate = refreshed.keyCredentials.find((key) => key.keyId === candidateKeyId);
+  if (!candidate) throw new Error('Validated candidate disappeared before promotion');
+  const initialFallback = existing
+    .filter((key) => !key.displayName?.startsWith(rotationPrefix))
+    .sort((left, right) => Date.parse(right.startDateTime) - Date.parse(left.startDateTime))[0];
+  const previous = managed[0] ?? initialFallback;
+  if (!previous) throw new Error('No functional previous credential available for overlap');
+  const retainedIds = new Set([candidate.keyId, previous.keyId]);
   const retained = refreshed.keyCredentials.filter((key) => retainedIds.has(key.keyId));
   const removed = refreshed.keyCredentials.filter((key) => !retainedIds.has(key.keyId));
   if (removed.length > 0) {
@@ -317,18 +332,33 @@ try {
 } catch (error) {
   if (candidateInstalled && maintenanceToken && candidateKeyId) {
     try {
-      const current = await graph(
-        maintenanceToken,
-        'GET',
-        `/applications/${graphApplicationObjectId}?$select=keyCredentials`,
-      );
-      const withoutCandidate = current.keyCredentials.filter((key) => key.keyId !== candidateKeyId);
-      if (withoutCandidate.length === 0) {
-        throw new Error('Refusing to remove the only credential', { cause: error });
+      let candidateStillPresent = true;
+      for (let attempt = 0; attempt < 4 && candidateStillPresent; attempt += 1) {
+        const current = await graph(
+          maintenanceToken,
+          'GET',
+          `/applications/${graphApplicationObjectId}?$select=keyCredentials`,
+        );
+        const withoutCandidate = current.keyCredentials.filter(
+          (key) => key.keyId !== candidateKeyId,
+        );
+        if (withoutCandidate.length === 0) {
+          throw new Error('Refusing to remove the only credential', { cause: error });
+        }
+        if (withoutCandidate.length !== current.keyCredentials.length) {
+          await graph(maintenanceToken, 'PATCH', `/applications/${graphApplicationObjectId}`, {
+            keyCredentials: withoutCandidate,
+          });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+        const verified = await graph(
+          maintenanceToken,
+          'GET',
+          `/applications/${graphApplicationObjectId}?$select=keyCredentials`,
+        );
+        candidateStillPresent = verified.keyCredentials.some((key) => key.keyId === candidateKeyId);
       }
-      await graph(maintenanceToken, 'PATCH', `/applications/${graphApplicationObjectId}`, {
-        keyCredentials: withoutCandidate,
-      });
+      if (candidateStillPresent) throw new Error('Candidate cleanup could not be confirmed');
       audit.candidateCleaned = true;
       audit.functionalCredentialPreserved = true;
     } catch (cleanupError) {
