@@ -42,7 +42,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p visual-qa
-          cat > /tmp/visual-qa.mjs <<'EOF'
+          cat > .visual-qa.mjs <<'EOF'
           import { chromium } from 'playwright';
 
           const baseUrl = 'http://127.0.0.1:4173';
@@ -171,13 +171,13 @@ jobs:
           npx vite preview --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1 &
           preview_pid=$!
           trap 'kill ${preview_pid} 2>/dev/null || true' EXIT
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl --silent --fail http://127.0.0.1:4173/ > /dev/null; then
               break
             fi
             sleep 1
           done
-          node /tmp/visual-qa.mjs
+          node .visual-qa.mjs
 
       - name: Upload screenshots
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
