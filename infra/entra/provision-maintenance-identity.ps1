@@ -3,6 +3,7 @@ param(
     [string] $TenantId = 'f04e0fa3-b8dc-4f77-be3c-7dfda0635188',
     [string] $OwnerObjectId = '5855a8db-ce2a-4cd6-b7a6-46d430bf359b',
     [string] $BackendApplicationObjectId = '2d04bd2b-3ef5-4ac6-bd2e-11885a5b3401',
+    [string] $WebApplicationObjectId = '0fcc9402-26bb-4c9d-9ccd-eb4f625cf278',
     [string] $Repository = 'mcpmieda@268288370/ecossistema-escola@1345061518',
     [string] $Environment = 'production'
 )
@@ -57,11 +58,13 @@ if ($owners.id -notcontains $OwnerObjectId) {
     } | Out-Null
 }
 
-$targetOwners = (Invoke-Graph GET "/applications/$BackendApplicationObjectId/owners?`$select=id").value
-if ($targetOwners.id -notcontains $servicePrincipal.id) {
-    Invoke-Graph POST "/applications/$BackendApplicationObjectId/owners/`$ref" @{
-        '@odata.id' = "$GraphRoot/directoryObjects/$($servicePrincipal.id)"
-    } | Out-Null
+foreach ($targetApplicationObjectId in @($BackendApplicationObjectId, $WebApplicationObjectId)) {
+    $targetOwners = (Invoke-Graph GET "/applications/$targetApplicationObjectId/owners?`$select=id").value
+    if ($targetOwners.id -notcontains $servicePrincipal.id) {
+        Invoke-Graph POST "/applications/$targetApplicationObjectId/owners/`$ref" @{
+            '@odata.id' = "$GraphRoot/directoryObjects/$($servicePrincipal.id)"
+        } | Out-Null
+    }
 }
 
 $credentialName = 'github-production-environment'
@@ -103,5 +106,5 @@ if ($assignments.appRoleId -notcontains $ApplicationReadWriteOwnedBy) {
     ServicePrincipalObjectId = $servicePrincipal.id
     FederatedSubject = $federatedSubject
     Permission = 'Application.ReadWrite.OwnedBy'
-    TargetOwned = $BackendApplicationObjectId
+    TargetsOwned = @($BackendApplicationObjectId, $WebApplicationObjectId)
 } | ConvertTo-Json -Compress

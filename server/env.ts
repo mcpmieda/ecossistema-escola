@@ -3,6 +3,8 @@ import { z } from 'zod';
 export type RuntimeSecrets = {
   WEB_PRIVATE_KEY_PKCS8: string;
   WEB_CERT_THUMBPRINT: string;
+  WEB_CREDENTIAL_A?: string;
+  WEB_CREDENTIAL_B?: string;
   GRAPH_PRIVATE_KEY_PKCS8: string;
   GRAPH_CERT_THUMBPRINT: string;
   GRAPH_CREDENTIAL_A?: string;
@@ -25,6 +27,8 @@ const envSchema = z.object({
   OFFICIAL_ORIGIN: z.literal('https://admin.escolaieda.com'),
   WEB_PRIVATE_KEY_PKCS8: z.string().min(256),
   WEB_CERT_THUMBPRINT: z.string().min(20),
+  WEB_CREDENTIAL_A: z.string().min(256).optional(),
+  WEB_CREDENTIAL_B: z.string().min(256).optional(),
   GRAPH_PRIVATE_KEY_PKCS8: z.string().min(256),
   GRAPH_CERT_THUMBPRINT: z.string().min(20),
   GRAPH_CREDENTIAL_A: z.string().min(256).optional(),

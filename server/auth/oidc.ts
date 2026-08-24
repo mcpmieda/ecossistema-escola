@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { RuntimeEnv } from '../env';
 import { decodeBase64Url, decodeJson, encodeBase64Url } from './base64url';
 import { createClientAssertion } from './client-assertion';
+import { webCredentials, type GraphCredentialSlot } from './technical-identity';
 
 export type AuthTransaction = { state: string; nonce: string; verifier: string; exp: number };
 
@@ -68,28 +69,60 @@ export async function exchangeCode(
   verifier: string,
 ): Promise<z.infer<typeof tokenSchema>> {
   const endpoint = `https://login.microsoftonline.com/${env.TENANT_ID}/oauth2/v2.0/token`;
+  let lastStatus = 0;
+  for (const credential of webCredentials(env)) {
+    const assertion = await createClientAssertion({
+      clientId: env.WEB_CLIENT_ID,
+      tenantId: env.TENANT_ID,
+      privateKeyPkcs8: credential.privateKeyPkcs8,
+      certificateThumbprint: credential.certificateThumbprint,
+    });
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: env.WEB_CLIENT_ID,
+        code,
+        redirect_uri: `${env.OFFICIAL_ORIGIN}/auth/callback`,
+        grant_type: 'authorization_code',
+        code_verifier: verifier,
+        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+        client_assertion: assertion,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    lastStatus = response.status;
+    if (response.ok) return tokenSchema.parse(await response.json());
+  }
+  throw new Error(`OIDC token exchange failed (${lastStatus})`);
+}
+
+export async function validateWebCredential(
+  env: RuntimeEnv,
+  slot: GraphCredentialSlot,
+): Promise<{ status: 'ok'; credentialKeyId: string }> {
+  const credential = webCredentials(env, slot)[0]!;
+  const endpoint = `https://login.microsoftonline.com/${env.TENANT_ID}/oauth2/v2.0/token`;
   const assertion = await createClientAssertion({
     clientId: env.WEB_CLIENT_ID,
     tenantId: env.TENANT_ID,
-    privateKeyPkcs8: env.WEB_PRIVATE_KEY_PKCS8,
-    certificateThumbprint: env.WEB_CERT_THUMBPRINT,
+    privateKeyPkcs8: credential.privateKeyPkcs8,
+    certificateThumbprint: credential.certificateThumbprint,
   });
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       client_id: env.WEB_CLIENT_ID,
-      code,
-      redirect_uri: `${env.OFFICIAL_ORIGIN}/auth/callback`,
-      grant_type: 'authorization_code',
-      code_verifier: verifier,
+      scope: 'https://graph.microsoft.com/.default',
+      grant_type: 'client_credentials',
       client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
       client_assertion: assertion,
     }),
     signal: AbortSignal.timeout(10_000),
   });
-  if (!response.ok) throw new Error(`OIDC token exchange failed (${response.status})`);
-  return tokenSchema.parse(await response.json());
+  if (!response.ok) throw new Error(`Web credential validation failed (${response.status})`);
+  return { status: 'ok', credentialKeyId: credential.keyId };
 }
 
 export async function verifyIdToken(

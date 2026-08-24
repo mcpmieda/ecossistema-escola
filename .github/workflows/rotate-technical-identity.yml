@@ -45,26 +45,48 @@ jobs:
       - name: Build immutable deployment payload
         run: npm run build
 
-      - name: Rotate with overlap and runtime validation
+      - name: Rotate Graph identity with overlap and runtime validation
         run: |
           set -o pipefail
-          node infra/maintenance/rotate-graph-certificate.mjs | tee rotation-audit.jsonl
+          node infra/maintenance/rotate-graph-certificate.mjs | tee rotation-graph-audit.jsonl
         env:
           ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
           ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
           GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
           GRAPH_CLIENT_ID: ${{ vars.GRAPH_CLIENT_ID }}
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          WEB_CLIENT_ID: ${{ vars.WEB_CLIENT_ID }}
           SHAREPOINT_SITE_ID: ${{ vars.SHAREPOINT_SITE_ID }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           FORCE_ROTATION: ${{ inputs.force_rotation || false }}
           SIMULATE_FAILURE: ${{ inputs.simulate_failure || false }}
+          TECHNICAL_TARGET: GRAPH
+
+      - name: Rotate Web identity with overlap and runtime validation
+        if: ${{ !inputs.simulate_failure }}
+        run: |
+          set -o pipefail
+          node infra/maintenance/rotate-graph-certificate.mjs | tee rotation-web-audit.jsonl
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+          GRAPH_CLIENT_ID: ${{ vars.GRAPH_CLIENT_ID }}
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          WEB_CLIENT_ID: ${{ vars.WEB_CLIENT_ID }}
+          SHAREPOINT_SITE_ID: ${{ vars.SHAREPOINT_SITE_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          FORCE_ROTATION: ${{ inputs.force_rotation || false }}
+          SIMULATE_FAILURE: false
+          TECHNICAL_TARGET: WEB
 
       - name: Publish redacted audit result
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: technical-identity-rotation-${{ github.run_id }}
-          path: rotation-audit.jsonl
+          path: rotation-*-audit.jsonl
           if-no-files-found: error
           retention-days: 90

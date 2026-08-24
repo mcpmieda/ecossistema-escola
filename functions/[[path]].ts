@@ -11,6 +11,7 @@ import {
   exchangeCode,
   newAuthTransaction,
   verifyIdToken,
+  validateWebCredential,
 } from '../server/auth/oidc';
 import { clearCookie, readCookie, secureCookie } from '../server/auth/cookies';
 import { seal, unseal } from '../server/auth/sealed';
@@ -52,10 +53,15 @@ async function route(context: Context): Promise<Response> {
       throw new HttpError(401, 'Invalid maintenance identity');
     }
     const requestedSlot = url.searchParams.get('slot');
+    const target = url.searchParams.get('target') ?? 'graph';
     if (requestedSlot !== 'LEGACY' && requestedSlot !== 'A' && requestedSlot !== 'B') {
       throw new HttpError(400, 'Invalid credential slot');
     }
+    if (target !== 'graph' && target !== 'web') throw new HttpError(400, 'Invalid target');
     try {
+      if (target === 'web') {
+        return json(await validateWebCredential(env, requestedSlot as GraphCredentialSlot));
+      }
       const result = await sharePointHealth(env, requestedSlot as GraphCredentialSlot);
       const credentialKeyId = graphCredentials(env, requestedSlot as GraphCredentialSlot)[0]?.keyId;
       return json({ ...result, credentialSlot: requestedSlot, credentialKeyId });

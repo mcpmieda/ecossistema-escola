@@ -13,6 +13,8 @@ const required = [
   'ENTRA_TENANT_ID',
   'GRAPH_APPLICATION_OBJECT_ID',
   'GRAPH_CLIENT_ID',
+  'WEB_APPLICATION_OBJECT_ID',
+  'WEB_CLIENT_ID',
   'SHAREPOINT_SITE_ID',
 ];
 for (const name of required) {
@@ -21,17 +23,22 @@ for (const name of required) {
 
 const tenantId = process.env.ENTRA_TENANT_ID;
 const maintenanceClientId = process.env.ENTRA_MAINTENANCE_CLIENT_ID;
-const graphApplicationObjectId = process.env.GRAPH_APPLICATION_OBJECT_ID;
-const graphClientId = process.env.GRAPH_CLIENT_ID;
+const target = process.env.TECHNICAL_TARGET === 'WEB' ? 'WEB' : 'GRAPH';
+const applicationObjectId =
+  target === 'GRAPH'
+    ? process.env.GRAPH_APPLICATION_OBJECT_ID
+    : process.env.WEB_APPLICATION_OBJECT_ID;
+const clientId = target === 'GRAPH' ? process.env.GRAPH_CLIENT_ID : process.env.WEB_CLIENT_ID;
 const siteId = process.env.SHAREPOINT_SITE_ID;
 const projectName = 'ecossistema-escola';
 const officialOrigin = 'https://admin.escolaieda.com';
 const maintenanceAudience = `${officialOrigin}/api/maintenance/rotation/validate`;
 const forceRotation = process.env.FORCE_ROTATION === 'true';
 const simulateFailure = process.env.SIMULATE_FAILURE === 'true';
-const rotationPrefix = 'automatic-graph-slot-';
+const rotationPrefix = `automatic-${target.toLowerCase()}-slot-`;
 const audit = {
   startedAt: new Date().toISOString(),
+  target,
   mode: simulateFailure ? 'failure-test' : 'rotation',
 };
 
@@ -96,8 +103,8 @@ function newClientAssertion(privateKeyPem, thumbprint) {
   const encodedPayload = base64url(
     JSON.stringify({
       aud: endpoint,
-      iss: graphClientId,
-      sub: graphClientId,
+      iss: clientId,
+      sub: clientId,
       jti: randomUUID(),
       nbf: now - 30,
       exp: now + 300,
@@ -116,7 +123,7 @@ async function validateCandidate(privateKeyPem, thumbprint) {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id: graphClientId,
+        client_id: clientId,
         scope: 'https://graph.microsoft.com/.default',
         grant_type: 'client_credentials',
         client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
@@ -129,6 +136,7 @@ async function validateCandidate(privateKeyPem, thumbprint) {
   if (!tokenResponse?.ok)
     throw new Error(`New certificate did not authenticate (${tokenResponse?.status})`);
   const token = (await tokenResponse.json()).access_token;
+  if (target === 'WEB') return { tokenIssued: true };
   const centro = await fetch(
     `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/lists?$select=id&$top=20`,
     { headers: { Authorization: `Bearer ${token}` } },
@@ -182,7 +190,7 @@ async function validateCloudflareSlot(slot) {
   const oidc = await githubOidcToken(maintenanceAudience);
   let response;
   for (let attempt = 0; attempt < 6; attempt += 1) {
-    response = await fetch(`${maintenanceAudience}?slot=${slot}`, {
+    response = await fetch(`${maintenanceAudience}?target=${target.toLowerCase()}&slot=${slot}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${oidc}` },
     });
@@ -197,7 +205,7 @@ async function validateCloudflareSlot(slot) {
 }
 
 function keyCreatedAt(key) {
-  const match = key.displayName?.match(/^automatic-graph-slot-[AB]-(.+)$/u);
+  const match = key.displayName?.match(/^automatic-(?:graph|web)-slot-[AB]-(.+)$/u);
   return match ? Date.parse(match[1]) : Number.NaN;
 }
 
@@ -210,7 +218,7 @@ try {
   const application = await graph(
     maintenanceToken,
     'GET',
-    `/applications/${graphApplicationObjectId}?$select=id,keyCredentials`,
+    `/applications/${applicationObjectId}?$select=id,keyCredentials`,
   );
   const existing = application.keyCredentials ?? [];
   const workingKeyIds = new Set();
@@ -258,7 +266,7 @@ try {
       '-out',
       certificatePath,
       '-subj',
-      `/CN=Ecossistema Escolar Graph ${candidateSlot}`,
+      `/CN=Ecossistema Escolar ${target} ${candidateSlot}`,
       '-days',
       '180',
     ],
@@ -282,7 +290,7 @@ try {
     usage: 'Verify',
   };
 
-  await graph(maintenanceToken, 'PATCH', `/applications/${graphApplicationObjectId}`, {
+  await graph(maintenanceToken, 'PATCH', `/applications/${applicationObjectId}`, {
     keyCredentials: [...existing, keyCredential],
   });
   candidateInstalled = true;
@@ -296,14 +304,14 @@ try {
     keyId: candidateKeyId,
     createdAt,
   });
-  putPagesSecret(`GRAPH_CREDENTIAL_${candidateSlot}`, serialized);
+  putPagesSecret(`${target}_CREDENTIAL_${candidateSlot}`, serialized);
   deployPages();
   const runtime = await validateCloudflareSlot(candidateSlot);
 
   const refreshed = await graph(
     maintenanceToken,
     'GET',
-    `/applications/${graphApplicationObjectId}?$select=keyCredentials`,
+    `/applications/${applicationObjectId}?$select=keyCredentials`,
   );
   const candidate = refreshed.keyCredentials.find((key) => key.keyId === candidateKeyId);
   if (!candidate) throw new Error('Validated candidate disappeared before promotion');
@@ -316,7 +324,7 @@ try {
   const retained = refreshed.keyCredentials.filter((key) => retainedIds.has(key.keyId));
   const removed = refreshed.keyCredentials.filter((key) => !retainedIds.has(key.keyId));
   if (removed.length > 0) {
-    await graph(maintenanceToken, 'PATCH', `/applications/${graphApplicationObjectId}`, {
+    await graph(maintenanceToken, 'PATCH', `/applications/${applicationObjectId}`, {
       keyCredentials: retained,
     });
   }
@@ -336,7 +344,7 @@ try {
         const current = await graph(
           maintenanceToken,
           'GET',
-          `/applications/${graphApplicationObjectId}?$select=keyCredentials`,
+          `/applications/${applicationObjectId}?$select=keyCredentials`,
         );
         const withoutCandidate = current.keyCredentials.filter(
           (key) => key.keyId !== candidateKeyId,
@@ -345,7 +353,7 @@ try {
           throw new Error('Refusing to remove the only credential', { cause: error });
         }
         if (withoutCandidate.length !== current.keyCredentials.length) {
-          await graph(maintenanceToken, 'PATCH', `/applications/${graphApplicationObjectId}`, {
+          await graph(maintenanceToken, 'PATCH', `/applications/${applicationObjectId}`, {
             keyCredentials: withoutCandidate,
           });
           consecutiveAbsentReads = 0;
@@ -354,7 +362,7 @@ try {
         const verified = await graph(
           maintenanceToken,
           'GET',
-          `/applications/${graphApplicationObjectId}?$select=keyCredentials`,
+          `/applications/${applicationObjectId}?$select=keyCredentials`,
         );
         candidateStillPresent = verified.keyCredentials.some((key) => key.keyId === candidateKeyId);
         consecutiveAbsentReads = candidateStillPresent ? 0 : consecutiveAbsentReads + 1;
