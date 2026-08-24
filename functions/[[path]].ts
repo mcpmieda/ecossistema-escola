@@ -15,7 +15,11 @@ import {
 } from '../server/auth/oidc';
 import { clearCookie, readCookie, secureCookie } from '../server/auth/cookies';
 import { seal, unseal } from '../server/auth/sealed';
-import { rolesForGroups, requireRole, AuthorizationError } from '../server/auth/roles';
+import { rolesForGroups, AuthorizationError } from '../server/auth/roles';
+import {
+  capabilitiesForRoles,
+  requireCapability,
+} from '../server/auth/capabilities';
 import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
@@ -147,19 +151,26 @@ async function route(context: Context): Promise<Response> {
   if (url.pathname === '/api/me') {
     method(request, ['GET']);
     const session = await requireAuth(request, env);
-    return json({ authenticated: true, name: session.name, roles: session.roles });
+    return json({
+      authenticated: true,
+      name: session.name,
+      roles: session.roles,
+      capabilities: capabilitiesForRoles(session.roles),
+    });
   }
   if (url.pathname === '/api/sharepoint/health') {
     method(request, ['GET']);
     const session = await requireAuth(request, env);
-    requireRole(session.roles, 'ADMINISTRADOR');
+    const capabilities = capabilitiesForRoles(session.roles);
+    requireCapability(capabilities, 'platform.health.read');
     return json(await sharePointHealth(env));
   }
   if (url.pathname === '/api/platform/snapshot') {
     method(request, ['GET']);
     const session = await requireAuth(request, env);
-    requireRole(session.roles, 'ADMINISTRADOR');
-    return json(await getPlatformSnapshot(env));
+    const capabilities = capabilitiesForRoles(session.roles);
+    requireCapability(capabilities, 'platform.snapshot.read');
+    return json(await getPlatformSnapshot(env, capabilities));
   }
   throw new HttpError(404, 'Not found');
 }
