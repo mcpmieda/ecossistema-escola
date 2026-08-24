@@ -55,9 +55,11 @@ function requiredCapabilitiesAvailable(
 
 function contractIssues(
   fields: z.infer<typeof moduleFieldsSchema>,
+  status: ModuleRegistryStatus,
   contract: ModuleContract,
 ): ModuleIntegrationIssue[] {
   const issues: ModuleIntegrationIssue[] = [];
+  if (status !== contract.status) issues.push('status');
   if ((fields.RotaBase ?? '') !== contract.baseRoute) issues.push('base-route');
   if ((fields.Versao ?? '') !== contract.version) issues.push('version');
   if ((fields.HealthEndpoint ?? '') !== contract.healthEndpoint) issues.push('health-endpoint');
@@ -89,7 +91,7 @@ export function resolveRegisteredModules(
       const key = fields.Chave ?? item.id;
       const contract = moduleContractForKey(key);
       const status = normalizeModuleRegistryStatus(fields.Status);
-      const integrationIssues = contract ? contractIssues(fields, contract) : [];
+      const integrationIssues = contract ? contractIssues(fields, status, contract) : [];
       const state = integrationState(status, contract, integrationIssues);
       const requiredCapabilities = contract?.requiredCapabilities ?? [];
 
