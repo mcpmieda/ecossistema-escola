@@ -8,12 +8,13 @@ Ao final de cada bloco concluído, a candidata corrente deve ser publicada em `h
 
 ## Estado corrente
 
-- fase em validação técnica: `v0.6` — autorização por capabilities;
-- candidata limpa: branch `feat/centro-admin-v0.6-capability-authorization-clean`, PR #19;
-- baseline publicada: `main@0e04f64e61619977d0f7579b0878cd8f400e727b` — runtime v0.5 via PR #14;
-- documentação v0.5 integrada em `main@effb6a02bf74a4532012c4f393695bd574b9c54d`;
-- CI inicial da candidata v0.6: workflow `32779168279` — **success**;
-- v0.5 smoke externo: workflow `32776751948`, job `97589445198` — **success**;
+- fase publicada: `v0.6` — autorização por capabilities;
+- baseline runtime: `main@8632ae8eb420d2d2c2bd3c21ba33a53b8aea3d7a` via PR #19;
+- CI final do PR #19: workflow `32779427463` — **success**;
+- CI funcional anterior do mesmo PR: workflow `32779168279` — **success**;
+- smoke externo v0.6: workflow `32781606033`, job `97604681958` — **success**;
+- asset confirmado no domínio: `/assets/index-rmiV2Byp.js`;
+- v0.5: operação e saúde observável via PR #14;
 - v0.4: busca transversal + modularização via PR #12;
 - v0.3: fundação visual shadcn/ui via PR #11;
 - logout corrigido: `main@c87cbe8be7594a6d8e87f4d219d79de984c52599` via PR #8;
@@ -24,26 +25,13 @@ Ao final de cada bloco concluído, a candidata corrente deve ser publicada em `h
 - release state: `validation`;
 - produção oficial: **não autorizada**.
 
-## v0.5 — baseline publicada
-
-A v0.5 permanece a versão atualmente publicada enquanto a v0.6 percorre os gates finais.
-
-Ela inclui:
-
-- área `Operação`;
-- detecção de lista estrutural obrigatória ausente;
-- `foundation.status = degraded` quando a estrutura está incompleta;
-- sinais conservadores de falha recente;
-- cobertura declarada de `HealthEndpoint` sem execução automática;
-- recuperação/restore explicitamente `not-verified` sem evidência própria.
-
 ## v0.6 — autorização por capabilities
 
 A v0.6 transforma capabilities de metadados declarativos em regra efetivamente aplicada pelo servidor.
 
 ### Política server-side
 
-Foi criado um catálogo tipado de capabilities e uma política central de papéis para grants.
+O catálogo tipado de capabilities e a política central de papéis → grants ficam no código versionado.
 
 Capabilities atuais:
 
@@ -61,25 +49,24 @@ Na validação atual:
 - `ADMINISTRADOR` recebe explicitamente todas as capabilities do Centro;
 - `PROFESSOR`, `ALUNO`, `APOIO` e `VISITANTE` continuam sem grants do Centro.
 
-Os grupos e o mapeamento Entra → papéis não foram alterados. Papéis passam a ser entrada da política; a decisão final é a capability exigida no ponto de execução.
+Os grupos e o mapeamento Entra → papéis não foram alterados. Papéis são entrada da política; a autorização final é a capability exigida no ponto de execução.
 
-### Capabilities não ficam congeladas na sessão
+### Resolução por requisição
 
-O cookie continua armazenando apenas a sessão institucional e seus papéis já existentes. As capabilities são derivadas novamente no servidor em cada requisição protegida.
+Capabilities não são gravadas no cookie de sessão. O cookie continua armazenando apenas a sessão institucional e seus papéis existentes.
 
-Consequência: mudança futura da política pode entrar em vigor sem exigir que a capability antiga permaneça gravada no cookie e sem transformar o cliente em fonte de autorização.
+O servidor recalcula as capabilities em cada requisição protegida. Isso evita usar o cliente ou uma capability antiga persistida na sessão como fonte de autorização.
 
 ### Endpoints protegidos
 
 - `/api/me` retorna as capabilities resolvidas para a sessão;
 - `/api/platform/snapshot` exige `platform.snapshot.read`;
-- `/api/sharepoint/health` exige `platform.health.read`.
-
-Perfil autenticado sem a capability necessária recebe `403` no servidor.
+- `/api/sharepoint/health` exige `platform.health.read`;
+- perfil autenticado sem a capability exigida recebe `403` server-side.
 
 ### Snapshot permission-aware
 
-O snapshot passa a ser recortado pelas capabilities resolvidas:
+O snapshot é recortado pelas capabilities resolvidas:
 
 - módulos do núcleo só aparecem quando suas capabilities estão presentes;
 - sistemas registrados exigem `platform.modules.read`;
@@ -89,23 +76,23 @@ O snapshot passa a ser recortado pelas capabilities resolvidas:
 
 As leituras Graph de listas específicas também são evitadas quando a capability não exige aqueles dados.
 
-A busca permanece permission-scoped sem criar segunda política: ela continua indexando apenas o snapshot que o BFF já filtrou.
+A busca permanece permission-scoped sem segunda política: ela indexa somente o snapshot já filtrado pelo BFF.
 
 ### Fail closed para evolução futura
 
 `tests/capabilities.test.ts` verifica que todo requisito de capability declarado pelos manifests está coberto explicitamente pela política do papel exigido.
 
-Isso impede que uma capability nova seja adicionada ao manifesto e se torne utilizável silenciosamente sem decisão explícita de autorização.
+Uma capability nova não deve se tornar utilizável apenas por ser adicionada ao manifesto; a política precisa ser atualizada conscientemente e o CI precisa continuar verde.
 
 ## App Factory — contrato v0.6
 
-Os artefatos semânticos foram atualizados para a autorização por capability:
+Artefatos semânticos:
 
 - `specs/semantic-contract.json`;
 - `specs/semantic-assurance.json`;
 - `specs/verification-plan.json`.
 
-Novo critério:
+Critério adicionado:
 
 - `AC-012` — capabilities derivadas server-side, enforcement no endpoint e recorte do snapshot.
 
@@ -113,11 +100,11 @@ Fingerprint corrente:
 
 `0df8838d07696ab8239a8890a2d1a07f31b745c1bf4c67141bc9b3ec8e23f277`
 
-O `semantic:check` do workflow `32779168279` confirmou o fingerprint e a cobertura semântica.
+O `semantic:check` passou nos workflows do PR #19.
 
 ## Verificação técnica v0.6
 
-PR limpo #19, workflow `32779168279`:
+PR #19:
 
 - format: **pass**;
 - lint: **pass**;
@@ -128,20 +115,48 @@ PR limpo #19, workflow `32779168279`:
 - actionlint: **pass**;
 - zizmor pedantic: **pass**.
 
-Testes novos/expandidos cobrem:
+Cobertura nova/expandida:
 
 - grants explícitos de `ADMINISTRADOR`;
 - ausência de grants para os demais papéis durante a validação;
 - negação `403` sem capability;
 - capabilities retornadas por `/api/me`;
-- snapshot recortado sem vazamento das coleções não autorizadas;
+- snapshot recortado sem coleções não autorizadas;
 - cobertura dos manifests pela política de capabilities.
+
+## Deploy e smoke externo v0.6
+
+A v0.6 foi integrada em `main@8632ae8eb420d2d2c2bd3c21ba33a53b8aea3d7a` e publicada no domínio de validação.
+
+Smoke externo final:
+
+- workflow `32781606033`;
+- job `97604681958`;
+- resultado: **success**;
+- bundle contém `Centro v0.6 em validação controlada`;
+- `/api/me` sem sessão = `401`;
+- `/api/platform/snapshot` sem sessão = `401`;
+- `/api/sharepoint/health` sem sessão = `401`;
+- `/api/health` público = `200`;
+- asset observado: `/assets/index-rmiV2Byp.js`.
+
+### Falso negativo do primeiro smoke
+
+A primeira versão do smoke procurava `platform.snapshot.read` e `platform.health.read` dentro do bundle do navegador. Essas strings pertencem à camada server-side e não são requisito do bundle cliente.
+
+Esse teste gerou falso negativo após 36 tentativas. O smoke foi corrigido para validar somente evidências externamente observáveis: versão do bundle e comportamento HTTP dos endpoints.
+
+Após a correção, o smoke passou imediatamente. Não houve alteração no runtime v0.6 para obter esse resultado.
+
+PR temporário #20 foi fechado sem merge e a branch `test/domain-smoke-v0.6` foi resetada para `main`.
 
 ## Higiene da v0.6
 
-Um workflow temporário foi usado apenas para formatar e executar `npm run verify` durante o desenvolvimento. Como a exclusão direta foi bloqueada pelo conector, a candidata final foi reconstruída sobre `main` em uma branch limpa, copiando somente os 14 arquivos funcionais/semânticos.
+O PR intermediário #18 continha um workflow temporário usado para formatação/verificação e foi fechado sem merge.
 
-O PR #19 contém **zero alterações em `.github/workflows`**. O PR intermediário #18 foi fechado sem merge.
+A candidata final foi reconstruída sobre `main` em uma branch limpa e o PR #19 entrou sem alterações permanentes em `.github/workflows`.
+
+Artefatos temporários de smoke também não foram integrados.
 
 ## Fundação preservada
 
@@ -161,6 +176,23 @@ A v0.6 não altera:
 - automação cargo → grupos;
 - fronteira sem escrita da candidata.
 
+## Funcionalidades disponíveis no domínio de validação
+
+- login institucional;
+- shell administrativo shadcn/ui;
+- navegação restaurável por hash;
+- busca transversal permission-scoped;
+- autorização server-side por capabilities;
+- Visão geral;
+- Operação;
+- Sistemas;
+- Auditoria somente leitura;
+- Configurações somente leitura sem valores protegidos;
+- Publicações e Páginas planejadas e sem escrita;
+- estados loading, vazio, erro e permissão negada;
+- responsividade e reduced-motion;
+- logout com redirecionamento imediato.
+
 ## Regra de validação contínua
 
 Cada bloco deve terminar com:
@@ -175,11 +207,14 @@ Cada bloco deve terminar com:
 
 ## Próximo trabalho após v0.6
 
-Depois da publicação e smoke da v0.6, continuar o núcleo transversal sem inventar regras institucionais ainda não definidas. A integração progressiva de módulos é prioridade natural; notificações/pendências só devem avançar quando houver fonte e regra institucional claras.
+Prioridade técnica natural: avançar a integração progressiva de módulos independentes ao Centro usando contratos explícitos, rotas isoladas, capabilities próprias, health/degradação e registro versionado, sem copiar regras internas dos módulos para o núcleo.
+
+Notificações/pendências só devem avançar quando houver fonte e regra institucional claras.
+
+Qualquer expansão futura de grants para Professor, Aluno, Apoio, Visitante ou papéis adicionais é mudança de política institucional e exige validação explícita antes de ser aplicada.
 
 ## Bloqueios para produção oficial
 
-- v0.6 ainda não foi integrada/publicada neste ponto da documentação;
 - validação visual humana final continua pendente;
 - recuperação/restore ainda não possui evidência registrada de teste;
 - módulos de produto ainda incompletos;
