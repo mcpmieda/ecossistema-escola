@@ -1,142 +1,176 @@
-# VERIFICATION — Centro de Administração v0.4
+# VERIFICATION — Centro de Administração v0.5
 
 ## Escopo
 
-Validação da candidata v0.4 do Centro de Administração, construída sobre a fundação visual shadcn/ui da v0.3. O bloco adiciona busca transversal permission-scoped e reduz o acoplamento do shell, sem criar escrita ou nova fonte de dados.
+Validação da candidata v0.5 do Centro de Administração. O bloco adiciona saúde operacional conservadora e torna os contratos semânticos da App Factory verificáveis no CI, preservando a candidata somente leitura e o `releaseState = validation`.
 
-Release state: `validation`. Nenhuma condição abaixo autoriza produção oficial.
+Nenhuma condição abaixo autoriza produção oficial.
 
-## Fundação preservada
+## Baseline publicado
 
-A v0.4 não altera:
+A v0.4 está integrada em `main@0c6bbee725e64aae0e5602ba07f817b3626c2684`.
 
-- Microsoft Entra ID;
-- BFF e cookie HttpOnly selado;
-- autorização server-side por `ADMINISTRADOR`;
-- Graph e SharePoint `CENTROADMIN`;
-- grupos e automações existentes;
-- contratos de rotas e snapshot;
-- logout corrigido em `303 See Other`;
-- estado de Publicações e Páginas, que continuam sem escrita.
+Smoke externo `32771055987`: **pass**.
 
-## Mudança estrutural
+Evidência no domínio `https://admin.escolaieda.com`:
 
-O shell foi dividido em responsabilidades menores:
+- bundle servido continha `Centro v0.4 em validação controlada`;
+- bundle servido continha `Buscar no Centro`;
+- `/api/me` sem sessão retornou `401`;
+- `/api/platform/snapshot` sem sessão retornou `401`.
 
-- rotas e apresentação;
-- navegação;
-- páginas;
-- modelo puro de busca;
-- interface de busca;
-- primitive de input.
+## Mudança funcional v0.5
 
-Objetivo verificado: não manter uma segunda implementação das telas ou uma camada nova por cima do `App.tsx` antigo. O arquivo central foi reduzido e passou a orquestrar identidade, sessão, snapshot e shell.
+Nova rota/área: `Operação`.
 
-## Busca transversal
+Capability declarada: `platform.health.read`.
 
-A busca é alimentada exclusivamente por `PlatformSnapshotContract`, recebido somente após autenticação e autorização server-side.
+O BFF continua usando o mesmo `/api/platform/snapshot`; nenhum endpoint paralelo de observabilidade foi criado.
 
-O índice contém apenas:
+### Fundação
 
-- `coreModules`;
-- `registeredModules`;
-- metadados de `configurations`.
+O snapshot agora deriva a saúde estrutural da presença real das quatro listas obrigatórias. Se uma delas estiver ausente, o estado deixa de ser `ok` e passa a `degraded`, com a lista ausente explicitada em `missingPlatformLists`.
 
-O índice não contém:
+Isso fecha o falso positivo anterior em que `foundation.status` era sempre `ok`.
 
-- `recentAudit`;
-- `migrations`;
-- valores protegidos de configuração;
-- dados externos ao snapshot.
+### Auditoria
 
-A busca suporta:
+O snapshot conta como falha apenas resultados recentes explicitamente iniciados por classificadores de erro/falha.
 
-- normalização de acentos e caixa;
-- múltiplos termos fora de sequência;
-- limite máximo de sete resultados;
-- atalhos desktop `Ctrl+K`/`Cmd+K`;
-- interface mobile em Sheet;
-- roteamento de áreas, sistemas e configurações para destinos já existentes.
+Cobertura de teste inclui:
 
-## Testes da busca
+- `ERRO` -> falha;
+- `Falha: ...` -> falha;
+- `failed_request` -> falha;
+- `sucesso` -> não falha;
+- `sem erro` -> não falha.
 
-`tests/platform-search.test.ts` adiciona quatro verificações semânticas:
+### HealthEndpoint
 
-1. normalização de acentos e caixa;
-2. escopo exato do índice, incluindo prova de que auditoria e migrações não são indexadas;
-3. busca por múltiplos termos e roteamento correto;
-4. limite de resultados.
+A candidata mede apenas **cobertura do contrato**:
 
-Durante o desenvolvimento, um teste revelou que a busca inicial exigia frase contínua (`banco notas` não encontrava `Banco de Notas`). O comportamento foi corrigido no produto para busca por termos, em vez de enfraquecer o teste.
+- quantos sistemas registrados possuem `HealthEndpoint` preenchido;
+- quantos ainda não possuem.
 
-## Higiene de dependências
+Nenhum HealthEndpoint é executado pelo navegador ou pelo BFF. Portanto, configuração não é apresentada como prova de disponibilidade.
 
-- Playwright usado exclusivamente no QA descartável da v0.3 foi removido de `package.json` e `package-lock.json`;
-- `shadcn` foi mantido porque `src/styles.css` importa `shadcn/tailwind.css`; removê-lo quebra o build e não seria uma limpeza válida;
-- workflow temporário de limpeza foi removido antes do baseline final.
+### Recuperação
 
-## Gates técnicos
+`recoveryStatus = not-verified` nesta candidata.
 
-No ciclo v0.4, após correções:
+A interface informa explicitamente que não existe no snapshot atual evidência de restore testado. A ausência dessa evidência não é mascarada como sucesso.
 
-- `npm run format:check`: **pass**;
-- `npm run lint`: **pass**;
-- `npm run typecheck`: **pass**;
-- `npm test`: **pass** após melhoria da busca por termos;
-- `npm run build`: **pass**;
-- actionlint: **pass**;
-- zizmor pedantic: **pass**.
+## Busca v0.4 preservada
 
-A suíte total passou de 68 para 72 testes.
+`tests/platform-search.test.ts` continua protegendo:
 
-Um último CI normal deve validar o head definitivo contendo também esta documentação antes do merge.
+- normalização de acentos/caixa;
+- busca por termos fora de sequência;
+- limite de resultados;
+- índice restrito a áreas, sistemas registrados e metadados de configuração;
+- exclusão de auditoria e migrações.
 
-## Logout
+A área Operação passa a ser pesquisável porque é uma área declarada no manifesto do núcleo.
 
-`POST /auth/logout` permanece com:
+## App Factory — gate semântico
 
-1. validação de `Origin`;
-2. expiração do cookie de sessão;
-3. `303 See Other`;
-4. `Location: OFFICIAL_ORIGIN`.
+Os três artefatos semânticos foram atualizados para o estado real do Centro:
 
-A correção foi validada externamente e confirmada manualmente pelo administrador.
+- `specs/semantic-contract.json`;
+- `specs/semantic-assurance.json`;
+- `specs/verification-plan.json`.
 
-## Autorização
+Critérios adicionados/regularizados:
 
-- `/api/platform/snapshot` continua com sessão + `ADMINISTRADOR` no BFF;
-- `401` sem sessão permanece esperado/testado;
-- `403` para sessão sem `ADMINISTRADOR` permanece testado;
-- a busca não é uma nova barreira de segurança: ela apenas pesquisa dados já autorizados pelo servidor.
+- `AC-010` — busca permission-scoped;
+- `AC-011` — degradação, sinais operacionais, HealthEndpoint e recuperação não verificada.
 
-## Dados e privacidade
+O novo script `infra/validation/validate-semantic-contract.mjs` usa fingerprint SHA-256 sobre JSON canônico com chaves ordenadas e valida:
 
-`tests/platform-snapshot.test.ts` continua protegendo o read model contra exposição de:
+- contrato, assurance e plano na mesma versão;
+- fingerprints atuais;
+- IDs de critérios;
+- prioridades;
+- evidência em critérios `must`;
+- referências a invariantes/conceitos;
+- cobertura dos critérios obrigatórios pelo assurance.
+
+Fingerprint validado:
+
+`67d5428e416ae83ddc42f6d8be36102b2c2716c26b09e353bccf2648309c9ec8`
+
+`npm run semantic:check` foi incorporado a `npm run verify` e ao workflow normal de CI.
+
+## Evidência técnica v0.5
+
+Workflow temporário de formatação `32776244752`, job `97587861851`: **success**.
+
+Depois da formatação, `npm run verify` passou integralmente:
+
+- `format:check`: **pass**;
+- lint: **pass**;
+- typecheck: **pass**;
+- semantic check: **pass**;
+- 11 arquivos de teste: **pass**;
+- **75 testes**: **pass**;
+- build Vite: **pass**.
+
+O workflow temporário foi removido antes do head final.
+
+O primeiro CI do PR #14 já havia confirmado actionlint + zizmor: **pass**. O CI normal do head definitivo, sem workflow temporário e contendo a documentação atualizada, é o gate final antes do merge.
+
+## Segurança e autorização preservadas
+
+- Microsoft Entra ID: inalterado;
+- BFF/cookie HttpOnly selado: inalterado;
+- `/api/platform/snapshot`: sessão + `ADMINISTRADOR` server-side;
+- `401` anônimo: preservado;
+- `403` para perfil sem `ADMINISTRADOR`: preservado/testado;
+- Graph/SharePoint: mesmos limites e fonte autoritativa;
+- HealthEndpoint: não executado;
+- nenhuma credencial ou permissão adicional foi adicionada.
+
+## Privacidade
+
+O teste do snapshot continua assegurando que o read model não expõe:
 
 - `ValorJson`;
 - `AtualizadoPorObjectId` desnecessário;
 - `UsuarioObjectId`;
 - `DetalhesJson`.
 
-A busca não reintroduz esses campos e seus testes demonstram que categorias não previstas no índice permanecem fora dos resultados.
+Os novos sinais operacionais são derivados de metadados já autorizados e não ampliam dados pessoais enviados ao navegador.
+
+## Fronteira de escrita
+
+A v0.5 não adiciona escrita.
+
+Continuam sem mutação:
+
+- Operação;
+- Sistemas;
+- Auditoria;
+- Configurações;
+- Publicações;
+- Páginas.
+
+Publicações e Páginas permanecem planejadas.
 
 ## Gate visual humano
 
 Estado: **pending**.
 
-A inspeção contínua deve ocorrer no domínio `https://admin.escolaieda.com`, restrito a `ADMINISTRADOR`, após cada bloco tecnicamente aprovado. O administrador pode avaliar login, shell, navegação, dashboard, busca, Sistemas, Auditoria, Configurações, mobile e logout.
+Após o merge, a v0.5 deve ser publicada no domínio restrito e confirmada externamente. A inspeção humana pode então cobrir também a nova área Operação, além de login, shell, busca, Sistemas, Auditoria, Configurações, mobile e logout.
 
-## Critério atual
+## Critério para encerrar o bloco v0.5
 
-- autenticação/autorização: **pass**;
-- dados minimizados: **pass**;
-- logout: **pass**;
-- fundação visual shadcn: **pass técnico / pending visual humano**;
-- modularização v0.4: **pass técnico**;
-- busca transversal: **pass técnico**;
-- workflow temporário: **removido**;
-- CI definitivo do head documentado: **próximo gate**;
-- deploy de validação: **após merge em main**;
+- higiene/formatter temporário removido: **pass**;
+- format/lint/typecheck/semantic/test/build: **pass no verify preparatório**;
+- actionlint/zizmor: **pass no primeiro CI**;
+- CI normal do head final: **pendente**;
+- merge em main: **pendente**;
+- deploy Cloudflare da main: **pendente**;
+- smoke externo específico da v0.5: **pendente**;
 - produção oficial: **bloqueada**.
 
 A produção oficial continua condicionada ao comando humano exato `APROVADO PARA PRODUÇÃO`.

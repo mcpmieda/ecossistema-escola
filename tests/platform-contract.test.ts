@@ -18,16 +18,23 @@ describe('Centro de Administração module contract', () => {
     for (const module of coreModules) expect(coreModuleSchema.parse(module)).toEqual(module);
   });
 
-  it('keeps write-heavy content domains planned in this candidate', () => {
+  it('keeps write-heavy content domains planned and platform observability in validation', () => {
     const states = new Map(coreModules.map((module) => [module.route, module.state]));
     expect(states.get('publicacoes')).toBe('planned');
     expect(states.get('paginas')).toBe('planned');
+    expect(states.get('operacao')).toBe('validation');
     expect(states.get('sistemas')).toBe('validation');
     expect(states.get('auditoria')).toBe('validation');
     expect(states.get('configuracoes')).toBe('validation');
   });
 
+  it('gives the operational area an explicit read capability', () => {
+    const operation = coreModules.find((module) => module.route === 'operacao');
+    expect(operation?.capabilities).toContain('platform.health.read');
+  });
+
   it('restores known routes and falls back safely', () => {
+    expect(normalizePlatformRoute('operacao')).toBe('operacao');
     expect(normalizePlatformRoute('auditoria')).toBe('auditoria');
     expect(normalizePlatformRoute('rota-inexistente')).toBe('visao-geral');
   });

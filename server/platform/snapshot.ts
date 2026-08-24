@@ -3,6 +3,13 @@ import type { RuntimeEnv } from '../env';
 import { graphRequest } from '../graph/client';
 import { coreModules } from './manifest';
 
+export const EXPECTED_PLATFORM_LISTS = [
+  'PLATAFORMA_CONFIGURACOES',
+  'PLATAFORMA_MODULOS',
+  'PLATAFORMA_AUDITORIA',
+  'PLATAFORMA_MIGRACOES',
+] as const;
+
 const listSchema = z.object({ id: z.string(), displayName: z.string() });
 const graphItemSchema = z.object({
   id: z.string(),
@@ -71,6 +78,15 @@ export function parseRolesJson(value: string | undefined): string[] {
   } catch {
     return [];
   }
+}
+
+export function isFailureResult(value: string): boolean {
+  const normalized = value
+    .trim()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLocaleLowerCase('pt-BR');
+  return /^(erro|error|falha|falhou|failed|failure)(?:\b|[:_-])/u.test(normalized);
 }
 
 function numberOrZero(value: string | number | undefined): number {
@@ -184,20 +200,39 @@ export function buildPlatformSnapshot(source: SnapshotSource) {
     })
     .sort((left, right) => right.appliedAt.localeCompare(left.appliedAt));
 
+  const missingPlatformLists = EXPECTED_PLATFORM_LISTS.filter((name) => !byName.has(name));
+  const foundationStatus =
+    missingPlatformLists.length === 0 ? ('ok' as const) : ('degraded' as const);
+  const recentAuditFailureCount = recentAudit.filter((entry) =>
+    isFailureResult(entry.result),
+  ).length;
+  const healthContractsConfigured = registeredModules.filter(
+    (module) => module.healthEndpoint.trim().length > 0,
+  ).length;
+  const healthContractsMissing = registeredModules.length - healthContractsConfigured;
+  const operationalStatus =
+    foundationStatus === 'degraded' || recentAuditFailureCount > 0
+      ? ('attention' as const)
+      : ('nominal' as const);
+
   return {
-    version: '0.2.0-validation',
+    version: '0.5.0-validation',
     releaseState: 'validation' as const,
     generatedAt: source.generatedAt ?? new Date().toISOString(),
     correlationId: source.correlationId,
     foundation: {
-      status: 'ok' as const,
+      status: foundationStatus,
       sharePointListCount: source.lists.length,
-      expectedPlatformListsPresent: [
-        'PLATAFORMA_CONFIGURACOES',
-        'PLATAFORMA_MODULOS',
-        'PLATAFORMA_AUDITORIA',
-        'PLATAFORMA_MIGRACOES',
-      ].every((name) => byName.has(name)),
+      expectedPlatformListsPresent: missingPlatformLists.length === 0,
+      missingPlatformLists,
+    },
+    operational: {
+      status: operationalStatus,
+      recentAuditFailureCount,
+      healthContractsConfigured,
+      healthContractsMissing,
+      lastAuditAt: recentAudit[0]?.occurredAt ?? '',
+      recoveryStatus: 'not-verified' as const,
     },
     coreModules,
     registeredModules,

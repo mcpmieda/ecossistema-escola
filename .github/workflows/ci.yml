@@ -43,6 +43,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Validate semantic contract
+        run: npm run semantic:check
+
       - name: Test
         run: npm test
 

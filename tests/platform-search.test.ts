@@ -3,7 +3,7 @@ import type { PlatformSnapshotContract } from '../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, normalizeSearch } from '../src/platform/search-model';
 
 const snapshot = {
-  version: '0.4.0-validation',
+  version: '0.5.0-validation',
   releaseState: 'validation',
   generatedAt: '2026-08-24T19:00:00.000Z',
   correlationId: 'corr-search-test',
@@ -11,6 +11,15 @@ const snapshot = {
     status: 'ok',
     sharePointListCount: 12,
     expectedPlatformListsPresent: true,
+    missingPlatformLists: [],
+  },
+  operational: {
+    status: 'nominal',
+    recentAuditFailureCount: 0,
+    healthContractsConfigured: 0,
+    healthContractsMissing: 1,
+    lastAuditAt: '2026-08-24T18:44:00.000Z',
+    recoveryStatus: 'not-verified',
   },
   coreModules: [
     {

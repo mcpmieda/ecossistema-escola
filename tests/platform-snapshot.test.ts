@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlatformSnapshot, parseRolesJson } from '../server/platform/snapshot';
+import {
+  buildPlatformSnapshot,
+  isFailureResult,
+  parseRolesJson,
+} from '../server/platform/snapshot';
 
 describe('platform snapshot parsing', () => {
   it('accepts a valid role allowlist', () => {
@@ -10,6 +14,14 @@ describe('platform snapshot parsing', () => {
     expect(parseRolesJson('{')).toEqual([]);
     expect(parseRolesJson('{"role":"ADMINISTRADOR"}')).toEqual([]);
     expect(parseRolesJson(undefined)).toEqual([]);
+  });
+
+  it('classifies explicit failure results without treating benign text as a failure', () => {
+    expect(isFailureResult('ERRO')).toBe(true);
+    expect(isFailureResult('Falha: Graph indisponível')).toBe(true);
+    expect(isFailureResult('failed_request')).toBe(true);
+    expect(isFailureResult('sucesso')).toBe(false);
+    expect(isFailureResult('sem erro')).toBe(false);
   });
 
   it('builds the validation read model without exposing protected values', () => {
@@ -70,11 +82,21 @@ describe('platform snapshot parsing', () => {
     });
     const serialized = JSON.stringify(snapshot);
 
+    expect(snapshot.version).toBe('0.5.0-validation');
     expect(snapshot.releaseState).toBe('validation');
     expect(snapshot.foundation).toEqual({
       status: 'ok',
       sharePointListCount: 4,
       expectedPlatformListsPresent: true,
+      missingPlatformLists: [],
+    });
+    expect(snapshot.operational).toEqual({
+      status: 'nominal',
+      recentAuditFailureCount: 0,
+      healthContractsConfigured: 1,
+      healthContractsMissing: 0,
+      lastAuditAt: '2026-08-24T17:00:00Z',
+      recoveryStatus: 'not-verified',
     });
     expect(snapshot.registeredModules[0]).toMatchObject({
       key: 'notas',
@@ -92,5 +114,52 @@ describe('platform snapshot parsing', () => {
     expect(serialized).not.toContain('ValorJson');
     expect(serialized).not.toContain('DetalhesJson');
     expect(serialized).not.toContain('UsuarioObjectId');
+  });
+
+  it('reports degradation instead of returning a false healthy status', () => {
+    const snapshot = buildPlatformSnapshot({
+      lists: [
+        { id: 'config-list', displayName: 'PLATAFORMA_CONFIGURACOES' },
+        { id: 'modules-list', displayName: 'PLATAFORMA_MODULOS' },
+        { id: 'audit-list', displayName: 'PLATAFORMA_AUDITORIA' },
+      ],
+      moduleItems: [
+        {
+          id: 'module-1',
+          fields: {
+            Chave: 'notas',
+            Nome: 'Banco de Notas',
+            Status: 'VALIDACAO',
+          },
+        },
+      ],
+      configurationItems: [],
+      auditItems: [
+        {
+          id: 'audit-error',
+          fields: {
+            EventoId: 'evt-error',
+            DataHoraUTC: '2026-08-24T19:00:00Z',
+            Modulo: 'plataforma',
+            Acao: 'leitura',
+            Resultado: 'ERRO: dependência indisponível',
+          },
+        },
+      ],
+      migrationItems: [],
+      correlationId: 'snapshot-degraded',
+      generatedAt: '2026-08-24T19:05:00Z',
+    });
+
+    expect(snapshot.foundation.status).toBe('degraded');
+    expect(snapshot.foundation.expectedPlatformListsPresent).toBe(false);
+    expect(snapshot.foundation.missingPlatformLists).toEqual(['PLATAFORMA_MIGRACOES']);
+    expect(snapshot.operational).toMatchObject({
+      status: 'attention',
+      recentAuditFailureCount: 1,
+      healthContractsConfigured: 0,
+      healthContractsMissing: 1,
+      recoveryStatus: 'not-verified',
+    });
   });
 });

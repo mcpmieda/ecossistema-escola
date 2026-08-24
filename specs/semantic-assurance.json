@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "depth": "domain",
-  "source_contract_fingerprint": "e131bb37fe22dc3ace54364e18b843318daf554ebfc3c5eaf8e4db593a8a6e64",
+  "source_contract_fingerprint": "67d5428e416ae83ddc42f6d8be36102b2c2716c26b09e353bccf2648309c9ec8",
   "glossary": [
     {
       "id": "TERM-001",
@@ -32,6 +32,12 @@
       "term": "Liberação oficial",
       "definition": "Disponibilização da candidata aos públicos definitivos após aprovação humana explícita e gates técnicos.",
       "aliases": ["release oficial"]
+    },
+    {
+      "id": "TERM-006",
+      "term": "Sinal operacional",
+      "definition": "Evidência derivada exclusivamente de dados observados no snapshot, sem equivaler a prova de disponibilidade total de dependências externas.",
+      "aliases": ["operational signal"]
     }
   ],
   "entities": [
@@ -59,11 +65,25 @@
       "definition": "Read model somente leitura composto pelo backend para o frontend administrativo.",
       "attributes": [
         "foundation",
+        "operational",
         "coreModules",
         "registeredModules",
         "configurations",
         "recentAudit",
         "migrations"
+      ]
+    },
+    {
+      "id": "ENT-005",
+      "name": "SinaisOperacionais",
+      "definition": "Estado derivado do snapshot para tornar degradações observáveis e lacunas de evidência explícitas.",
+      "attributes": [
+        "status",
+        "recentAuditFailureCount",
+        "healthContractsConfigured",
+        "healthContractsMissing",
+        "lastAuditAt",
+        "recoveryStatus"
       ]
     }
   ],
@@ -79,7 +99,7 @@
       "priority": "must",
       "pattern": "ubiquitous",
       "component": "Autenticação e entrada",
-      "scope": ["candidata v0.2"],
+      "scope": ["candidata corrente"],
       "preconditions": [],
       "response": [
         "Preservar o fluxo Entra ID/BFF existente e apresentar somente uma entrada institucional sem coleta de senha pelo Centro."
@@ -112,11 +132,11 @@
       "priority": "must",
       "pattern": "event",
       "component": "Composição de dados",
-      "scope": ["visão geral administrativa"],
+      "scope": ["visão geral administrativa", "Operação"],
       "preconditions": ["usuário ADMINISTRADOR", "fundação disponível"],
       "trigger": "o shell solicita o estado da plataforma",
       "response": [
-        "Compor no BFF um snapshot somente leitura a partir das fontes autoritativas existentes e informar o estado da fundação."
+        "Compor no BFF um snapshot somente leitura a partir das fontes autoritativas existentes e informar o estado observado da estrutura."
       ],
       "timing": "",
       "concept_refs": ["TERM-002", "TERM-004", "ENT-003", "ENT-004"],
@@ -148,7 +168,7 @@
       "scope": ["área Sistemas"],
       "preconditions": ["snapshot carregado"],
       "response": [
-        "Apresentar separadamente o manifesto versionado do núcleo e os módulos registrados no SharePoint sem absorver as regras internas desses módulos."
+        "Apresentar separadamente o manifesto versionado do núcleo e os módulos registrados sem absorver as regras internas desses módulos."
       ],
       "timing": "",
       "concept_refs": ["TERM-002", "TERM-003", "ENT-003", "ENT-004"],
@@ -161,7 +181,7 @@
       "priority": "must",
       "pattern": "policy",
       "component": "Minimização de dados",
-      "scope": ["Auditoria", "Configurações"],
+      "scope": ["Auditoria", "Configurações", "Operação"],
       "preconditions": ["usuário ADMINISTRADOR"],
       "trigger": "o BFF compõe os metadados administrativos para o navegador",
       "response": [
@@ -178,11 +198,11 @@
       "priority": "must",
       "pattern": "policy",
       "component": "Fronteira de escrita",
-      "scope": ["Publicações", "Páginas", "novos domínios administrativos da v0.2"],
+      "scope": ["Publicações", "Páginas", "domínios administrativos em validação"],
       "preconditions": [],
-      "trigger": "um administrador navega pelas áreas ainda não construídas",
+      "trigger": "um administrador navega pelas áreas sem escrita habilitada",
       "response": [
-        "Marcar Publicações e Páginas como planejadas e não disponibilizar mutações reais nesta candidata."
+        "Manter Publicações e Páginas como planejadas e não disponibilizar mutações reais na candidata."
       ],
       "timing": "",
       "concept_refs": ["TERM-001", "ENT-001"],
@@ -221,6 +241,42 @@
       "concept_refs": ["TERM-001", "TERM-005", "STATE-001", "STATE-002", "ENT-001"],
       "acceptance_refs": ["AC-009"],
       "invariant_refs": ["INV-005"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-010",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "Busca transversal",
+      "scope": ["áreas do núcleo", "módulos registrados", "metadados de configuração"],
+      "preconditions": ["snapshot autorizado carregado"],
+      "trigger": "um administrador pesquisa no Centro",
+      "response": [
+        "Indexar somente metadados já presentes no snapshot autorizado e excluir auditoria e migrações do índice de busca."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-004", "ENT-004"],
+      "acceptance_refs": ["AC-010"],
+      "invariant_refs": ["INV-009"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-011",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "Saúde operacional",
+      "scope": ["área Operação", "PlatformSnapshot", "módulos registrados"],
+      "preconditions": ["snapshot autorizado carregado"],
+      "trigger": "o Centro deriva sinais operacionais para apresentação",
+      "response": [
+        "Marcar a fundação como degradada quando faltar lista estrutural obrigatória.",
+        "Produzir atenção quando houver resultado recente explicitamente iniciado por erro ou falha.",
+        "Tratar HealthEndpoint apenas como cobertura de contrato e manter recuperação como não verificada sem evidência de restore."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-004", "TERM-006", "ENT-004", "ENT-005"],
+      "acceptance_refs": ["AC-011"],
+      "invariant_refs": ["INV-007", "INV-008"],
       "formalization_refs": []
     }
   ],
