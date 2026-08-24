@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  RECOVERY_SNAPSHOT_LIBRARY,
   RECOVERY_TEST_PREFIX,
   RECOVERY_TEST_SCOPE,
   type GraphCall,
@@ -16,36 +17,46 @@ type Call = {
 
 function successfulGraph(options: { corruptRestore?: boolean; failCleanup?: boolean } = {}) {
   const calls: Call[] = [];
-  let title = '';
+  let modulo = '';
   let patchCount = 0;
 
   const graph: GraphCall = async <T>(input: RecoveryGraphInput) => {
     const method = input.method ?? 'GET';
     calls.push({ path: input.path, method, body: input.body });
 
-    if (method === 'POST' && input.path.endsWith('/lists')) {
-      const body = input.body as { displayName: string };
+    if (method === 'GET' && input.path.includes('/lists?$filter=')) {
       return {
-        data: { id: 'list-1', displayName: body.displayName } as T,
+        data: {
+          value: [{ id: 'snapshots-list', displayName: RECOVERY_SNAPSHOT_LIBRARY }],
+        } as T,
         etag: null,
         correlationId: input.correlationId ?? 'test-correlation',
       };
     }
 
-    if (method === 'POST' && input.path.endsWith('/items')) {
-      const body = input.body as { fields: { Title: string } };
-      title = body.fields.Title;
+    if (method === 'GET' && input.path.includes('/lists/snapshots-list/drive?')) {
       return {
-        data: { id: 'item-1' } as T,
+        data: { id: 'snapshots-drive' } as T,
         etag: null,
         correlationId: input.correlationId ?? 'test-correlation',
       };
     }
 
-    if (method === 'PATCH' && input.path.endsWith('/fields')) {
+    if (method === 'POST' && input.path.endsWith('/drives/snapshots-drive/root/children')) {
+      const body = input.body as { name: string };
+      return {
+        data: { id: 'folder-1', name: body.name } as T,
+        etag: null,
+        correlationId: input.correlationId ?? 'test-correlation',
+      };
+    }
+
+    if (method === 'PATCH' && input.path.endsWith('/listItem/fields')) {
       patchCount += 1;
-      const body = input.body as { Title: string };
-      title = options.corruptRestore && patchCount === 2 ? 'unexpected-restored-value' : body.Title;
+      const body = input.body as { Modulo?: string };
+      if (body.Modulo !== undefined) {
+        modulo = options.corruptRestore && patchCount === 3 ? 'unexpected-restored-value' : body.Modulo;
+      }
       return {
         data: null as T,
         etag: null,
@@ -53,15 +64,15 @@ function successfulGraph(options: { corruptRestore?: boolean; failCleanup?: bool
       };
     }
 
-    if (method === 'GET' && input.path.includes('/items/item-1?')) {
+    if (method === 'GET' && input.path.includes('/items/folder-1/listItem?')) {
       return {
-        data: { id: 'item-1', fields: { Title: title } } as T,
+        data: { id: 'item-1', fields: { Modulo: modulo } } as T,
         etag: null,
         correlationId: input.correlationId ?? 'test-correlation',
       };
     }
 
-    if (method === 'DELETE' && input.path.endsWith('/lists/list-1')) {
+    if (method === 'DELETE' && input.path.endsWith('/drives/snapshots-drive/items/folder-1')) {
       if (options.failCleanup) throw new Error('cleanup failed');
       return {
         data: null as T,
@@ -77,7 +88,7 @@ function successfulGraph(options: { corruptRestore?: boolean; failCleanup?: bool
 }
 
 describe('recovery verification', () => {
-  it('backs up, corrupts, restores and deletes only the disposable resource', async () => {
+  it('backs up, corrupts, restores and deletes only the disposable snapshot folder', async () => {
     const { graph, calls } = successfulGraph();
     const verifiedAt = new Date('2026-08-24T23:00:00.000Z');
 
@@ -98,19 +109,26 @@ describe('recovery verification', () => {
     expect(result.backupChecksum).toBe(result.restoredChecksum);
     expect(result.backupChecksum).toMatch(/^[a-f0-9]{64}$/u);
 
-    const createList = calls[0]!;
-    expect(createList.method).toBe('POST');
-    expect(createList.path).toBe(`/sites/${testEnv.SHAREPOINT_SITE_ID}/lists`);
-    expect(createList.body).toMatchObject({
-      displayName: `${RECOVERY_TEST_PREFIX}abc123`,
-      list: { template: 'genericList' },
+    const createFolder = calls.find((call) => call.method === 'POST')!;
+    expect(createFolder.path).toBe('/drives/snapshots-drive/root/children');
+    expect(createFolder.body).toMatchObject({
+      name: `${RECOVERY_TEST_PREFIX}abc123`,
+      folder: {},
+      '@microsoft.graph.conflictBehavior': 'fail',
     });
 
-    expect(calls.filter((call) => call.method === 'PATCH')).toHaveLength(2);
+    expect(calls.filter((call) => call.method === 'PATCH')).toHaveLength(3);
     expect(calls.at(-1)).toMatchObject({
       method: 'DELETE',
-      path: `/sites/${testEnv.SHAREPOINT_SITE_ID}/lists/list-1`,
+      path: '/drives/snapshots-drive/items/folder-1',
     });
+    expect(
+      calls.some(
+        (call) =>
+          call.method === 'POST' &&
+          call.path === `/sites/${testEnv.SHAREPOINT_SITE_ID}/lists`,
+      ),
+    ).toBe(false);
   });
 
   it('fails closed when the restored value does not match the backup checksum and still cleans up', async () => {
@@ -127,11 +145,11 @@ describe('recovery verification', () => {
 
     expect(calls.at(-1)).toMatchObject({
       method: 'DELETE',
-      path: `/sites/${testEnv.SHAREPOINT_SITE_ID}/lists/list-1`,
+      path: '/drives/snapshots-drive/items/folder-1',
     });
   });
 
-  it('does not report verification when cleanup of the disposable list fails', async () => {
+  it('does not report verification when cleanup of the disposable folder fails', async () => {
     const { graph } = successfulGraph({ failCleanup: true });
 
     await expect(
