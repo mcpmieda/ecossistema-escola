@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   validate:
+    name: Validate application
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -49,6 +50,7 @@ jobs:
         run: npm run build
 
   workflow-security:
+    name: Validate GitHub Actions security
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -69,6 +71,7 @@ jobs:
           version: v1.29.0
 
   deploy-production:
+    name: Deploy production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [validate, workflow-security]
     runs-on: ubuntu-latest
@@ -97,7 +100,8 @@ jobs:
           npx wrangler pages deploy dist
           --project-name ecossistema-escola
           --branch main
-          --commit-hash "${{ github.sha }}"
+          --commit-hash "${DEPLOY_COMMIT_SHA}"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOY_COMMIT_SHA: ${{ github.sha }}

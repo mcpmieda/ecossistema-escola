@@ -18,7 +18,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: rotate-technical-identity-production
@@ -26,6 +25,10 @@ concurrency:
 
 jobs:
   rotate-graph-certificate:
+    name: Rotate Graph and Web certificates
+    permissions:
+      contents: read # required to checkout the versioned rotation implementation
+      id-token: write # required for GitHub OIDC federation with the Entra maintenance app
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
