@@ -18,7 +18,9 @@ const canonicalize = (value) => {
   return value;
 };
 const fingerprint = (value) =>
-  createHash('sha256').update(JSON.stringify(canonicalize(value)), 'utf8').digest('hex');
+  createHash('sha256')
+    .update(JSON.stringify(canonicalize(value)), 'utf8')
+    .digest('hex');
 const addUnique = (items, value) => {
   if (!items.includes(value)) items.push(value);
 };
@@ -45,7 +47,8 @@ addUnique(
   'evidência versionada de recovery no snapshot e na área Operação somente após execução real bem-sucedida e cleanup confirmado',
 );
 
-const oldRecoveryOut = 'declaração de recuperação ou restore como aprovado sem evidência registrada de teste';
+const oldRecoveryOut =
+  'declaração de recuperação ou restore como aprovado sem evidência registrada de teste';
 const outIndex = spec.scope.out.indexOf(oldRecoveryOut);
 if (outIndex >= 0) {
   spec.scope.out[outIndex] =
@@ -93,7 +96,8 @@ if (!spec.interfaces.some((item) => item.name === '/api/maintenance/recovery/ver
 const ac11 = spec.acceptance_criteria.find((item) => item.id === 'AC-011');
 if (ac11) {
   ac11.then = ac11.then.map((statement) =>
-    statement === 'recuperação permanece não verificada enquanto não existir evidência correspondente'
+    statement ===
+    'recuperação permanece não verificada enquanto não existir evidência correspondente'
       ? 'recuperação só aparece como verificada quando houver evidência versionada de uma execução real bem-sucedida dentro do escopo declarado'
       : statement,
   );

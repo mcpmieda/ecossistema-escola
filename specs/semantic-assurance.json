@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "depth": "domain",
-  "source_contract_fingerprint": "7c0175727cc706f64575b885750cbe264c558f0f05fd883a111e8425595bcf73",
+  "source_contract_fingerprint": "b4c254399b625658ac0a4bd33142e839d9e6b4e160367ce115d8624c5261e307",
   "glossary": [
     {
       "id": "TERM-001",
@@ -95,7 +95,10 @@
         "healthContractsConfigured",
         "healthContractsMissing",
         "lastAuditAt",
-        "recoveryStatus"
+        "recoveryStatus",
+        "recoveryVerifiedAt",
+        "recoveryEvidenceRef",
+        "recoveryScope"
       ]
     },
     {
@@ -127,8 +130,14 @@
   ],
   "relations": [],
   "states": [
-    { "id": "STATE-001", "name": "validation" },
-    { "id": "STATE-002", "name": "officially-released" }
+    {
+      "id": "STATE-001",
+      "name": "validation"
+    },
+    {
+      "id": "STATE-002",
+      "name": "officially-released"
+    }
   ],
   "transitions": [],
   "requirements": [
@@ -319,7 +328,7 @@
       "response": [
         "Marcar a fundação como degradada quando faltar lista estrutural obrigatória.",
         "Produzir atenção quando houver resultado recente explicitamente iniciado por erro ou falha.",
-        "Tratar HealthEndpoint apenas como cobertura de contrato e manter recuperação como não verificada sem evidência de restore."
+        "Tratar HealthEndpoint apenas como cobertura de contrato e mostrar recovery como verificado somente quando a evidência versionada corresponder a uma execução real bem-sucedida no escopo declarado."
       ],
       "timing": "",
       "concept_refs": ["TERM-004", "TERM-006", "TERM-007", "ENT-004", "ENT-005"],
@@ -371,6 +380,35 @@
       "concept_refs": ["TERM-003", "TERM-007", "TERM-008", "ENT-004", "ENT-007", "ENT-008"],
       "acceptance_refs": ["AC-013"],
       "invariant_refs": ["INV-002", "INV-010", "INV-011"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-014",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "Recovery verificável",
+      "scope": [
+        "/api/maintenance/recovery/verify",
+        "workflow Verify recovery",
+        "CENTROADMIN",
+        "RecoveryVerificationEvidence"
+      ],
+      "preconditions": [
+        "execução em main no environment production",
+        "GitHub OIDC válido para a audience específica de recovery"
+      ],
+      "trigger": "o workflow de recovery solicita a verificação da candidata implantada",
+      "response": [
+        "Criar somente uma lista descartável RECOVERY_VERIFY_ no CENTROADMIN.",
+        "Executar backup, sobrescrita e restore de um registro sentinela e comparar checksums SHA-256.",
+        "Remover a lista descartável antes de aceitar a execução como verificada.",
+        "Falhar fechado em erro de autorização, restore, checksum ou cleanup.",
+        "Publicar apenas evidência redigida e não inferir disaster recovery completo a partir deste teste."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-004", "TERM-006", "ENT-004", "ENT-005"],
+      "acceptance_refs": ["AC-014"],
+      "invariant_refs": ["INV-002", "INV-012"],
       "formalization_refs": []
     }
   ],
