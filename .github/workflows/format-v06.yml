@@ -1,0 +1,59 @@
+name: Temporary v0.6 formatter
+
+on:
+  push:
+    branches:
+      - feat/centro-admin-v0.6-capability-authorization
+
+permissions:
+  contents: write
+
+concurrency:
+  group: format-v06-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Format and verify v0.6
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout v0.6 branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/centro-admin-v0.6-capability-authorization
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Update visible candidate marker
+        run: >-
+          node -e "const fs=require('node:fs'); const p='src/platform/pages.tsx';
+          const s=fs.readFileSync(p,'utf8');
+          const n=s.replace('Centro v0.5 em validação controlada','Centro v0.6 em validação controlada');
+          if(n===s) throw new Error('v0.5 marker not found'); fs.writeFileSync(p,n);"
+
+      - name: Format sources
+        run: npm run format
+
+      - name: Verify application
+        run: npm run verify
+
+      - name: Commit verified formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Format and verify v0.6 capability changes'
+          git push origin HEAD:feat/centro-admin-v0.6-capability-authorization
