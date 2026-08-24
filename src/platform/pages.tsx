@@ -28,13 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { PlatformRoute, PlatformSnapshotContract } from '../../shared/platform-contract';
-import {
-  EmptyState,
-  formatDate,
-  ModuleRow,
-  PageHeader,
-  shortCorrelation,
-} from './presentation';
+import { EmptyState, formatDate, ModuleRow, PageHeader, shortCorrelation } from './presentation';
 
 function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
   const activeConfigurations = snapshot.configurations.filter(
