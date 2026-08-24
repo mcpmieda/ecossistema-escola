@@ -20,8 +20,13 @@ jobs:
         with:
           ref: feat/centro-admin-visual-v0.3
 
-      - name: Repair shellcheck finding
-        run: sed -i 's/for attempt in $(seq 1 30); do/for _ in $(seq 1 30); do/' .github/workflows/visual-qa-v03.yml
+      - name: Repair visual QA harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i 's/for attempt in $(seq 1 30); do/for _ in $(seq 1 30); do/' .github/workflows/visual-qa-v03.yml
+          sed -i 's#cat > /tmp/visual-qa.mjs#cat > .visual-qa.mjs#' .github/workflows/visual-qa-v03.yml
+          sed -i 's#node /tmp/visual-qa.mjs#node .visual-qa.mjs#' .github/workflows/visual-qa-v03.yml
 
       - name: Commit repair
         shell: bash
@@ -33,5 +38,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .github/workflows/visual-qa-v03.yml
-          git commit -m 'Fix visual QA workflow lint'
+          git commit -m 'Fix visual QA harness'
           git push origin HEAD:feat/centro-admin-visual-v0.3
