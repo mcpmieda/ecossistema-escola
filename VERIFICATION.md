@@ -1,135 +1,115 @@
-# VERIFICATION — Centro de Administração v0.3
+# VERIFICATION — Centro de Administração v0.4
 
 ## Escopo
 
-Candidata de validação controlada do Centro de Administração após substituição da camada visual v0.2 por uma base administrativa moderna em shadcn/ui. Esta matriz separa gates técnicos, validação visual humana e liberação oficial.
+Validação da candidata v0.4 do Centro de Administração, construída sobre a fundação visual shadcn/ui da v0.3. O bloco adiciona busca transversal permission-scoped e reduz o acoplamento do shell, sem criar escrita ou nova fonte de dados.
 
 Release state: `validation`. Nenhuma condição abaixo autoriza produção oficial.
 
-## Estado atual
+## Fundação preservada
 
-A v0.3 está implementada e tecnicamente validável, mas **ainda não recebeu aprovação visual humana**.
-
-A candidata preserva:
+A v0.4 não altera:
 
 - Microsoft Entra ID;
 - BFF e cookie HttpOnly selado;
 - autorização server-side por `ADMINISTRADOR`;
 - Graph e SharePoint `CENTROADMIN`;
 - grupos e automações existentes;
-- rotas e contratos da plataforma;
-- logout corrigido em `303 See Other`.
+- contratos de rotas e snapshot;
+- logout corrigido em `303 See Other`;
+- estado de Publicações e Páginas, que continuam sem escrita.
 
-## Fundação visual v0.3
+## Mudança estrutural
 
-A v0.3 usa shadcn/ui como base real do shell administrativo, com:
+O shell foi dividido em responsabilidades menores:
 
-- Tailwind CSS v4;
-- shadcn/ui;
-- Radix primitives;
-- Lucide icons;
-- Geist;
-- tokens, spacing, bordas, radius e estados consistentes;
-- login, sidebar, topbar, dashboard, tabelas, listas e drawer mobile refeitos;
-- foco visível, reduced-motion e responsividade.
+- rotas e apresentação;
+- navegação;
+- páginas;
+- modelo puro de busca;
+- interface de busca;
+- primitive de input.
 
-ReUI não foi introduzido porque as telas atuais não possuem necessidade concreta de Data Grid, filtros avançados, calendário, Kanban ou outro componente que justifique uma segunda biblioteca.
+Objetivo verificado: não manter uma segunda implementação das telas ou uma camada nova por cima do `App.tsx` antigo. O arquivo central foi reduzido e passou a orquestrar identidade, sessão, snapshot e shell.
 
-## Gates técnicos da v0.3
+## Busca transversal
 
-Antes do QA visual descartável, a candidata passou integralmente por:
+A busca é alimentada exclusivamente por `PlatformSnapshotContract`, recebido somente após autenticação e autorização server-side.
 
-- `npm run format:check`;
-- `npm run lint`;
-- `npm run typecheck`;
-- `npm test`;
-- `npm run build`;
-- actionlint;
-- zizmor em modo pedantic.
+O índice contém apenas:
 
-A execução `32768088899` do CI normal também terminou em **success** para o head anterior à limpeza do harness visual.
+- `coreModules`;
+- `registeredModules`;
+- metadados de `configurations`.
 
-O workflow visual temporário foi removido do produto. Um novo ciclo normal de CI é obrigatório no head final antes da integração.
+O índice não contém:
 
-## Achados técnicos corrigidos durante a v0.3
+- `recentAudit`;
+- `migrations`;
+- valores protegidos de configuração;
+- dados externos ao snapshot.
 
-### TypeScript 6
+A busca suporta:
 
-O bootstrap visual adicionou `baseUrl`, já tratado como obsoleto pelo TypeScript 6. A opção foi removida, sem uso de `ignoreDeprecations`.
+- normalização de acentos e caixa;
+- múltiplos termos fora de sequência;
+- limite máximo de sete resultados;
+- atalhos desktop `Ctrl+K`/`Cmd+K`;
+- interface mobile em Sheet;
+- roteamento de áreas, sistemas e configurações para destinos já existentes.
 
-### Vite 8
+## Testes da busca
 
-O build apontou uso de `__dirname` incompatível com o futuro loader nativo do Vite. O alias foi migrado para `import.meta.dirname`, eliminando o aviso sem supressão.
+`tests/platform-search.test.ts` adiciona quatro verificações semânticas:
 
-## QA visual automatizado descartável
+1. normalização de acentos e caixa;
+2. escopo exato do índice, incluindo prova de que auditoria e migrações não são indexadas;
+3. busca por múltiplos termos e roteamento correto;
+4. limite de resultados.
 
-Foi montado um QA em Chromium/Playwright para:
+Durante o desenvolvimento, um teste revelou que a busca inicial exigia frase contínua (`banco notas` não encontrava `Banco de Notas`). O comportamento foi corrigido no produto para busca por termos, em vez de enfraquecer o teste.
 
-1. Visão geral desktop;
-2. Sistemas desktop;
-3. Auditoria desktop;
-4. Configurações desktop;
-5. Visão geral mobile com reduced-motion;
-6. drawer de navegação mobile;
-7. login anônimo.
+## Higiene de dependências
 
-O harness também verificava overflow global e erros de console.
+- Playwright usado exclusivamente no QA descartável da v0.3 foi removido de `package.json` e `package-lock.json`;
+- `shadcn` foi mantido porque `src/styles.css` importa `shadcn/tailwind.css`; removê-lo quebra o build e não seria uma limpeza válida;
+- workflow temporário de limpeza foi removido antes do baseline final.
 
-O último ciclo parou porque o Chromium registra como erro de console o `401 Unauthorized` esperado de `/api/me` na tela anônima de login. O próprio teste havia configurado esse `401` para validar o estado não autenticado. Portanto, o resultado foi classificado como **falso positivo do harness**, e não como regressão da aplicação.
+## Gates técnicos
 
-A política de autenticação não foi alterada para satisfazer o teste. O workflow descartável foi removido do branch.
+No ciclo v0.4, após correções:
 
-## Gate visual humano
+- `npm run format:check`: **pass**;
+- `npm run lint`: **pass**;
+- `npm run typecheck`: **pass**;
+- `npm test`: **pass** após melhoria da busca por termos;
+- `npm run build`: **pass**;
+- actionlint: **pass**;
+- zizmor pedantic: **pass**.
 
-A v0.3 somente pode ser chamada de visualmente aprovada quando houver inspeção humana no domínio de validação cobrindo, pelo menos:
+A suíte total passou de 68 para 72 testes.
 
-- login;
-- shell desktop;
-- navegação e estado ativo;
-- dashboard;
-- Sistemas;
-- Auditoria;
-- Configurações;
-- comportamento mobile;
-- densidade, hierarquia, spacing e legibilidade;
-- logout no fluxo autenticado.
+Um último CI normal deve validar o head definitivo contendo também esta documentação antes do merge.
 
-Estado atual do gate visual humano: **pending**.
+## Logout
 
-## Regra de validação contínua no domínio
+`POST /auth/logout` permanece com:
 
-Cada bloco de desenvolvimento concluído deve terminar com a candidata corrente publicada em `https://admin.escolaieda.com`, ainda restrita a `ADMINISTRADOR`, desde que os gates técnicos do bloco estejam verdes.
+1. validação de `Origin`;
+2. expiração do cookie de sessão;
+3. `303 See Other`;
+4. `Location: OFFICIAL_ORIGIN`.
 
-Esse deploy tem finalidade de inspeção e teste administrativo contínuo. Ele não muda o `releaseState`, não amplia público e não equivale a liberação oficial.
+A correção foi validada externamente e confirmada manualmente pelo administrador.
 
-## Logout — correção preservada
+## Autorização
 
-`POST /auth/logout`:
-
-1. mantém validação exata de `Origin`;
-2. limpa o cookie de sessão;
-3. retorna `303 See Other`;
-4. envia `Location: OFFICIAL_ORIGIN`;
-5. faz o navegador reconstruir a aplicação sem sessão.
-
-PR #8, execução `32764734020`: **success**.
-
-Smoke externo comprovou:
-
-- `303`;
-- `Location: https://admin.escolaieda.com`;
-- cookie `__Host-ecossistema_session` expirado com `Max-Age=0`.
-
-O comportamento também foi confirmado manualmente pelo administrador.
-
-## Autorização preservada
-
-- `/api/platform/snapshot` continua com `requireAuth` + `requireRole(..., 'ADMINISTRADOR')` no BFF;
-- `401` sem sessão permanece comportamento esperado e testado;
+- `/api/platform/snapshot` continua com sessão + `ADMINISTRADOR` no BFF;
+- `401` sem sessão permanece esperado/testado;
 - `403` para sessão sem `ADMINISTRADOR` permanece testado;
-- UI nunca é tratada como barreira de segurança.
+- a busca não é uma nova barreira de segurança: ela apenas pesquisa dados já autorizados pelo servidor.
 
-## Dados e privacidade preservados
+## Dados e privacidade
 
 `tests/platform-snapshot.test.ts` continua protegendo o read model contra exposição de:
 
@@ -138,16 +118,25 @@ O comportamento também foi confirmado manualmente pelo administrador.
 - `UsuarioObjectId`;
 - `DetalhesJson`.
 
+A busca não reintroduz esses campos e seus testes demonstram que categorias não previstas no índice permanecem fora dos resultados.
+
+## Gate visual humano
+
+Estado: **pending**.
+
+A inspeção contínua deve ocorrer no domínio `https://admin.escolaieda.com`, restrito a `ADMINISTRADOR`, após cada bloco tecnicamente aprovado. O administrador pode avaliar login, shell, navegação, dashboard, busca, Sistemas, Auditoria, Configurações, mobile e logout.
+
 ## Critério atual
 
-- logout: **pass**;
 - autenticação/autorização: **pass**;
 - dados minimizados: **pass**;
-- fundação visual shadcn v0.3: **implementada**;
-- CI normal do head final: **em fechamento**;
-- QA visual automatizado descartável: **inconclusivo por falso positivo do estado 401 anônimo**;
-- gate visual humano: **pending**;
-- deploy de validação da v0.3 no domínio: **próximo passo após CI verde**;
+- logout: **pass**;
+- fundação visual shadcn: **pass técnico / pending visual humano**;
+- modularização v0.4: **pass técnico**;
+- busca transversal: **pass técnico**;
+- workflow temporário: **removido**;
+- CI definitivo do head documentado: **próximo gate**;
+- deploy de validação: **após merge em main**;
 - produção oficial: **bloqueada**.
 
 A produção oficial continua condicionada ao comando humano exato `APROVADO PARA PRODUÇÃO`.
