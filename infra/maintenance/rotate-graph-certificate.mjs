@@ -64,8 +64,13 @@ async function exchangeGitHubToken() {
       client_assertion: assertion,
     }),
   });
-  if (!response.ok) throw new Error(`Entra workload token exchange failed (${response.status})`);
-  return (await response.json()).access_token;
+  const body = await response.json();
+  if (!response.ok) {
+    throw new Error(
+      `Entra workload token exchange failed (${response.status}): ${body.error ?? 'unknown'}: ${body.error_description ?? 'no description'}`,
+    );
+  }
+  return body.access_token;
 }
 
 async function graph(token, method, path, body) {

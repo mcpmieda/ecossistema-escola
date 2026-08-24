@@ -43,7 +43,9 @@ jobs:
         run: npm ci
 
       - name: Rotate with overlap and runtime validation
-        run: node infra/maintenance/rotate-graph-certificate.mjs | tee rotation-audit.jsonl
+        run: |
+          set -o pipefail
+          node infra/maintenance/rotate-graph-certificate.mjs | tee rotation-audit.jsonl
         env:
           ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
           ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
