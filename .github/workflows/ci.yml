@@ -66,7 +66,6 @@ jobs:
           advanced-security: false
           online-audits: false
           persona: pedantic
-          token: ''
           version: v1.29.0
 
   deploy-production:
