@@ -39,9 +39,12 @@ describe('extension contracts', () => {
     expect(moduleContractForKey('nao-registrado')).toBeUndefined();
   });
 
-  it.each(['relative', '//evil.test/path', '/\\evil.test'])('rejects unsafe module routes: %s', (route) => {
-    expect(() => moduleContract.parse({ ...platformBaseModule, baseRoute: route })).toThrow();
-  });
+  it.each(['relative', '//evil.test/path', '/\\evil.test'])(
+    'rejects unsafe module routes: %s',
+    (route) => {
+      expect(() => moduleContract.parse({ ...platformBaseModule, baseRoute: route })).toThrow();
+    },
+  );
 
   it('rejects duplicated required capabilities', () => {
     expect(() =>

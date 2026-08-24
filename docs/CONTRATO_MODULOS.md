@@ -19,17 +19,17 @@ O Centro não copia regras internas do módulo para o núcleo.
 
 Todo módulo integrado deve declarar:
 
-| Campo | Regra |
-| --- | --- |
-| `contractVersion` | versão explícita do schema do manifesto; atualmente `1` |
-| `key` | minúsculo, estável, sem espaços |
-| `name` | nome legível |
-| `baseRoute` | caminho absoluto same-origin iniciado por `/`, nunca `//` ou barra invertida |
-| `version` | semver `x.y.z` |
-| `status` | `installed`, `disabled` ou `deprecated` |
-| `order` | inteiro não negativo |
-| `requiredCapabilities` | capabilities explícitas, válidas e sem duplicatas |
-| `healthEndpoint` | caminho same-origin sob `/api/` |
+| Campo                  | Regra                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `contractVersion`      | versão explícita do schema do manifesto; atualmente `1`                      |
+| `key`                  | minúsculo, estável, sem espaços                                              |
+| `name`                 | nome legível                                                                 |
+| `baseRoute`            | caminho absoluto same-origin iniciado por `/`, nunca `//` ou barra invertida |
+| `version`              | semver `x.y.z`                                                               |
+| `status`               | `installed`, `disabled` ou `deprecated`                                      |
+| `order`                | inteiro não negativo                                                         |
+| `requiredCapabilities` | capabilities explícitas, válidas e sem duplicatas                            |
+| `healthEndpoint`       | caminho same-origin sob `/api/`                                              |
 
 O único manifesto integrado atualmente é `plataforma-base` 1.0.0.
 

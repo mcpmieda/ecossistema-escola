@@ -210,7 +210,16 @@
         "Apresentar o manifesto permitido e o estado de integração dos módulos registrados somente quando a capability de módulos estiver presente, sem absorver regras internas desses módulos."
       ],
       "timing": "",
-      "concept_refs": ["TERM-002", "TERM-003", "TERM-007", "TERM-008", "ENT-003", "ENT-004", "ENT-007", "ENT-008"],
+      "concept_refs": [
+        "TERM-002",
+        "TERM-003",
+        "TERM-007",
+        "TERM-008",
+        "ENT-003",
+        "ENT-004",
+        "ENT-007",
+        "ENT-008"
+      ],
       "acceptance_refs": ["AC-005"],
       "invariant_refs": ["INV-002", "INV-010", "INV-011"],
       "formalization_refs": []
@@ -343,7 +352,12 @@
       "priority": "must",
       "pattern": "policy",
       "component": "Integração de módulos",
-      "scope": ["server/modules/contracts.ts", "PLATAFORMA_MODULOS", "PlatformSnapshot", "busca de sistemas"],
+      "scope": [
+        "server/modules/contracts.ts",
+        "PLATAFORMA_MODULOS",
+        "PlatformSnapshot",
+        "busca de sistemas"
+      ],
       "preconditions": ["platform.modules.read presente para exposição do catálogo"],
       "trigger": "o BFF resolve um registro de módulo para o snapshot",
       "response": [

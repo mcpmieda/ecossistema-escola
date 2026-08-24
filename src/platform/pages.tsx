@@ -257,7 +257,11 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                       {module.requiredCapabilities.length > 0 ? (
                         <div className="flex flex-wrap gap-1.5">
                           {module.requiredCapabilities.map((capability) => (
-                            <Badge key={capability} variant="secondary" className="font-mono text-[0.68rem]">
+                            <Badge
+                              key={capability}
+                              variant="secondary"
+                              className="font-mono text-[0.68rem]"
+                            >
                               {capability}
                             </Badge>
                           ))}

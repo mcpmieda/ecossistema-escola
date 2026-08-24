@@ -44,9 +44,9 @@ export const platformBaseModule: ModuleContract = moduleContract.parse({
   healthEndpoint: '/api/health',
 });
 
-export const integratedModuleContracts: ModuleContract[] = z.array(moduleContract).parse([
-  platformBaseModule,
-]);
+export const integratedModuleContracts: ModuleContract[] = z
+  .array(moduleContract)
+  .parse([platformBaseModule]);
 
 export function moduleContractForKey(key: string): ModuleContract | undefined {
   return integratedModuleContracts.find((contract) => contract.key === key);
