@@ -189,7 +189,10 @@ async function validateCloudflareSlot(slot) {
     if (response.ok) break;
     await new Promise((resolve) => setTimeout(resolve, 5_000));
   }
-  if (!response.ok) throw new Error(`Cloudflare runtime validation failed (${response.status})`);
+  if (!response.ok) {
+    const detail = (await response.text()).slice(0, 500);
+    throw new Error(`Cloudflare runtime validation failed (${response.status}): ${detail}`);
+  }
   return response.json();
 }
 

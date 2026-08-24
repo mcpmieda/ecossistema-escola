@@ -55,8 +55,15 @@ async function route(context: Context): Promise<Response> {
     if (requestedSlot !== 'LEGACY' && requestedSlot !== 'A' && requestedSlot !== 'B') {
       throw new HttpError(400, 'Invalid credential slot');
     }
-    const result = await sharePointHealth(env, requestedSlot as GraphCredentialSlot);
-    return json({ ...result, credentialSlot: requestedSlot });
+    try {
+      const result = await sharePointHealth(env, requestedSlot as GraphCredentialSlot);
+      return json({ ...result, credentialSlot: requestedSlot });
+    } catch (error) {
+      throw new HttpError(
+        502,
+        error instanceof Error ? error.message : 'Technical identity validation failed',
+      );
+    }
   }
   if (url.pathname === '/auth/login') {
     method(request, ['GET']);
