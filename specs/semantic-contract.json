@@ -17,7 +17,7 @@
       "visão operacional com detecção de estrutura incompleta, falhas explícitas de auditoria e cobertura de contratos HealthEndpoint",
       "visão geral, Operação, Sistemas, Auditoria e Configurações para validação",
       "estados de loading, vazio, erro, permissão negada, responsividade e reduced-motion",
-      "verificação de backup e restore de registro em lista SharePoint descartável criada exclusivamente pelo próprio teste de recovery",
+      "verificação de backup e restore de metadado em pasta descartável RECOVERY_VERIFY_ criada exclusivamente dentro da biblioteca técnica SNAPSHOTS_PLATAFORMA",
       "endpoint de manutenção de recovery autenticado por GitHub OIDC do environment production, sem ampliar o acesso SharePoint da identidade de manutenção",
       "evidência versionada de recovery no snapshot e na área Operação somente após execução real bem-sucedida e cleanup confirmado"
     ],
@@ -120,7 +120,7 @@
     },
     {
       "name": "RecoveryVerificationEvidence",
-      "source": "workflow GitHub Actions production + endpoint de manutenção + round-trip em lista RECOVERY_VERIFY_ descartável no CENTROADMIN",
+      "source": "workflow GitHub Actions production + endpoint de manutenção + round-trip de metadado em pasta RECOVERY_VERIFY_ descartável dentro de SNAPSHOTS_PLATAFORMA no CENTROADMIN",
       "direction": "evidência técnica redigida para estado versionado e PlatformSnapshot",
       "privacy": "somente status, escopo, timestamp, referência de evidência e checksums; sem conteúdo operacional, credenciais ou dados pessoais"
     }
@@ -320,9 +320,9 @@
       "when": "a verificação de recovery é executada pela identidade GitHub OIDC autorizada",
       "then": [
         "requisição sem a identidade de manutenção válida é negada antes de qualquer mutação",
-        "o teste cria somente uma lista descartável com prefixo RECOVERY_VERIFY_ no CENTROADMIN",
-        "um registro sentinela é lido como backup, sobrescrito de forma controlada e restaurado ao mesmo checksum SHA-256",
-        "a lista descartável é removida antes de a execução ser considerada verificada",
+        "o teste cria somente uma pasta descartável com prefixo RECOVERY_VERIFY_ dentro de SNAPSHOTS_PLATAFORMA no CENTROADMIN",
+        "um metadado sentinela da pasta técnica é lido como backup, sobrescrito de forma controlada e restaurado ao mesmo checksum SHA-256",
+        "a pasta descartável é removida antes de a execução ser considerada verificada",
         "falha de restore, checksum ou cleanup impede o estado verified",
         "a evidência publicada é redigida e não contém conteúdo operacional, credenciais ou dados pessoais",
         "a prova é descrita como round-trip descartável de registro e não como disaster recovery completo"

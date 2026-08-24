@@ -55,7 +55,8 @@ function successfulGraph(options: { corruptRestore?: boolean; failCleanup?: bool
       patchCount += 1;
       const body = input.body as { Modulo?: string };
       if (body.Modulo !== undefined) {
-        modulo = options.corruptRestore && patchCount === 3 ? 'unexpected-restored-value' : body.Modulo;
+        modulo =
+          options.corruptRestore && patchCount === 3 ? 'unexpected-restored-value' : body.Modulo;
       }
       return {
         data: null as T,
@@ -125,8 +126,7 @@ describe('recovery verification', () => {
     expect(
       calls.some(
         (call) =>
-          call.method === 'POST' &&
-          call.path === `/sites/${testEnv.SHAREPOINT_SITE_ID}/lists`,
+          call.method === 'POST' && call.path === `/sites/${testEnv.SHAREPOINT_SITE_ID}/lists`,
       ),
     ).toBe(false);
   });
