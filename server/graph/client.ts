@@ -9,7 +9,7 @@ export type GraphDependencies = {
   sleep: (milliseconds: number) => Promise<void>;
 };
 const defaults: GraphDependencies = {
-  fetch,
+  fetch: (input, init) => fetch(input, init),
   sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
 };
 

@@ -38,7 +38,7 @@ const claimsSchema = z.object({
 
 export async function verifyGitHubMaintenanceToken(
   authorization: string | null,
-  fetcher: typeof fetch = fetch,
+  fetcher: typeof fetch = (input, init) => fetch(input, init),
 ): Promise<void> {
   if (!authorization?.startsWith('Bearer ')) throw new Error('Missing maintenance token');
   const token = authorization.slice('Bearer '.length);
