@@ -1,0 +1,88 @@
+name: Temporary v0.8 clean consolidator
+
+on:
+  push:
+    branches:
+      - feat/centro-admin-v0.8-recovery-verification
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-v08-clean-consolidator
+  cancel-in-progress: true
+
+jobs:
+  consolidate:
+    name: Build clean v0.8 candidate from main
+    if: github.ref == 'refs/heads/feat/centro-admin-v0.8-recovery-verification'
+    permissions:
+      contents: write # required only to publish the reconstructed clean candidate branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout laboratory history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/centro-admin-v0.8-recovery-verification
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Reconstruct candidate from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          lab_ref='refs/remotes/origin/feat/centro-admin-v0.8-recovery-verification'
+          final_branch='feat/centro-admin-v0.8-recovery-mechanism-clean'
+          git fetch origin main feat/centro-admin-v0.8-recovery-verification
+          git checkout -B "$final_branch" origin/main
+          git diff --binary origin/main..."$lab_ref" -- \
+            '.github/workflows/verify-recovery.yml' \
+            'functions/[[path]].ts' \
+            'infra/maintenance/verify-recovery.mjs' \
+            'server/auth/github-oidc.ts' \
+            'server/platform/recovery-evidence.ts' \
+            'server/platform/recovery.ts' \
+            'server/platform/snapshot.ts' \
+            'shared/platform-contract.ts' \
+            'specs/semantic-assurance.json' \
+            'specs/semantic-contract.json' \
+            'specs/verification-plan.json' \
+            'tests/platform-search.test.ts' \
+            'tests/platform-snapshot.test.ts' \
+            'tests/recovery.test.ts' \
+            'tests/routes.test.ts' | git apply --index
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+          const path = 'src/platform/pages.tsx';
+          const current = await readFile(path, 'utf8');
+          const previous = 'Centro v0.7 em validação controlada';
+          const next = 'Centro v0.8 em validação controlada';
+          if (!current.includes(previous)) throw new Error('Expected v0.7 validation marker was not found');
+          await writeFile(path, current.replace(previous, next));
+          NODE
+          git add src/platform/pages.tsx
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify reconstructed candidate
+        run: npm run verify
+
+      - name: Publish single-commit clean branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: feat/centro-admin-v0.8-recovery-mechanism-clean
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Centro de Administração v0.8 — recovery mechanism'
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${TARGET_BRANCH}"
