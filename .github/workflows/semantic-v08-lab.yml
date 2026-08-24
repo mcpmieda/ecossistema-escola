@@ -1,0 +1,63 @@
+name: Temporary v0.8 semantic generator
+
+on:
+  push:
+    branches:
+      - feat/centro-admin-v0.8-recovery-verification
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-v08-semantic-generator
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    name: Generate and verify v0.8 semantic contract
+    if: github.ref == 'refs/heads/feat/centro-admin-v0.8-recovery-verification'
+    permissions:
+      contents: write # required only to commit generated semantic artifacts to this isolated laboratory branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout laboratory branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/centro-admin-v0.8-recovery-verification
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Generate v0.8 semantic artifacts
+        run: node infra/validation/apply-v08-semantic.mjs
+
+      - name: Format generated artifacts
+        run: npx prettier --write specs/semantic-contract.json specs/semantic-assurance.json specs/verification-plan.json
+
+      - name: Verify complete candidate
+        run: npm run verify
+
+      - name: Commit generated semantic artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: feat/centro-admin-v0.8-recovery-verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add specs/semantic-contract.json specs/semantic-assurance.json specs/verification-plan.json
+          if git diff --cached --quiet; then
+            echo 'Semantic artifacts are already current.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Update v0.8 semantic contract'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${TARGET_BRANCH}"
