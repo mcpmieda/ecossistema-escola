@@ -48,7 +48,20 @@ const migrationFieldsSchema = z.object({
   Resultado: z.string().optional(),
 });
 
-export type PlatformSnapshot = Awaited<ReturnType<typeof getPlatformSnapshot>>;
+type PlatformList = z.infer<typeof listSchema>;
+type PlatformItem = { id: string; fields: Record<string, unknown> };
+
+type SnapshotSource = {
+  lists: PlatformList[];
+  moduleItems: PlatformItem[];
+  configurationItems: PlatformItem[];
+  auditItems: PlatformItem[];
+  migrationItems: PlatformItem[];
+  correlationId: string;
+  generatedAt?: string;
+};
+
+export type PlatformSnapshot = ReturnType<typeof buildPlatformSnapshot>;
 
 export function parseRolesJson(value: string | undefined): string[] {
   if (!value) return [];
@@ -73,7 +86,7 @@ async function readListItems(
   env: RuntimeEnv,
   listId: string | undefined,
   selectedFields: string,
-): Promise<Array<{ id: string; fields: Record<string, unknown> }>> {
+): Promise<PlatformItem[]> {
   if (!listId) return [];
   const response = await graphRequest<{ value: unknown[] }>({
     env,
@@ -86,7 +99,115 @@ async function readListItems(
   });
 }
 
-export async function getPlatformSnapshot(env: RuntimeEnv) {
+export function buildPlatformSnapshot(source: SnapshotSource) {
+  const byName = new Map(source.lists.map((list) => [list.displayName, list.id]));
+
+  const registeredModules = source.moduleItems
+    .flatMap((item) => {
+      const parsed = moduleFieldsSchema.safeParse(item.fields);
+      if (!parsed.success) return [];
+      const fields = parsed.data;
+      return [
+        {
+          id: item.id,
+          key: fields.Chave ?? item.id,
+          name: fields.Nome ?? fields.Chave ?? 'Módulo sem nome',
+          baseRoute: fields.RotaBase ?? '',
+          version: fields.Versao ?? '',
+          status: fields.Status ?? 'instalado',
+          order: numberOrZero(fields.Ordem),
+          roles: parseRolesJson(fields.RolesJson),
+          healthEndpoint: fields.HealthEndpoint ?? '',
+          updatedAt: fields.AtualizadoEmUTC ?? '',
+        },
+      ];
+    })
+    .sort(
+      (left, right) => left.order - right.order || left.name.localeCompare(right.name, 'pt-BR'),
+    );
+
+  const configurations = source.configurationItems
+    .flatMap((item) => {
+      const parsed = configurationFieldsSchema.safeParse(item.fields);
+      if (!parsed.success) return [];
+      const fields = parsed.data;
+      return [
+        {
+          id: item.id,
+          key: fields.Chave ?? item.id,
+          scope: fields.Escopo ?? 'global',
+          version: fields.Versao ?? '',
+          active: fields.Ativo ?? false,
+          effectiveFrom: fields.VigenciaInicioUTC ?? '',
+          effectiveUntil: fields.VigenciaFimUTC ?? '',
+          updatedAt: fields.AtualizadoEmUTC ?? '',
+        },
+      ];
+    })
+    .sort((left, right) => left.key.localeCompare(right.key, 'pt-BR'));
+
+  const recentAudit = source.auditItems
+    .flatMap((item) => {
+      const parsed = auditFieldsSchema.safeParse(item.fields);
+      if (!parsed.success) return [];
+      const fields = parsed.data;
+      return [
+        {
+          id: item.id,
+          eventId: fields.EventoId ?? item.id,
+          occurredAt: fields.DataHoraUTC ?? '',
+          module: fields.Modulo ?? 'plataforma',
+          action: fields.Acao ?? 'evento',
+          entityType: fields.EntidadeTipo ?? '',
+          correlationId: fields.CorrelationId ?? '',
+          result: fields.Resultado ?? '',
+        },
+      ];
+    })
+    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+    .slice(0, 20);
+
+  const migrations = source.migrationItems
+    .flatMap((item) => {
+      const parsed = migrationFieldsSchema.safeParse(item.fields);
+      if (!parsed.success) return [];
+      const fields = parsed.data;
+      return [
+        {
+          id: item.id,
+          version: fields.Versao ?? '',
+          module: fields.Modulo ?? 'plataforma',
+          appliedAt: fields.AplicadaEmUTC ?? '',
+          result: fields.Resultado ?? '',
+        },
+      ];
+    })
+    .sort((left, right) => right.appliedAt.localeCompare(left.appliedAt));
+
+  return {
+    version: '0.2.0-validation',
+    releaseState: 'validation' as const,
+    generatedAt: source.generatedAt ?? new Date().toISOString(),
+    correlationId: source.correlationId,
+    foundation: {
+      status: 'ok' as const,
+      sharePointListCount: source.lists.length,
+      expectedPlatformListsPresent: [
+        'PLATAFORMA_CONFIGURACOES',
+        'PLATAFORMA_MODULOS',
+        'PLATAFORMA_AUDITORIA',
+        'PLATAFORMA_MIGRACOES',
+      ].every((name) => byName.has(name)),
+    },
+    coreModules,
+    registeredModules,
+    configurations,
+    recentAudit,
+    migrations,
+  };
+}
+
+export async function getPlatformSnapshot(env: RuntimeEnv): Promise<PlatformSnapshot> {
   const correlationId = crypto.randomUUID();
   const listsResponse = await graphRequest<{ value: unknown[] }>({
     env,
@@ -119,107 +240,12 @@ export async function getPlatformSnapshot(env: RuntimeEnv) {
     readListItems(env, byName.get('PLATAFORMA_MIGRACOES'), 'Versao,Modulo,AplicadaEmUTC,Resultado'),
   ]);
 
-  const registeredModules = moduleItems
-    .flatMap((item) => {
-      const parsed = moduleFieldsSchema.safeParse(item.fields);
-      if (!parsed.success) return [];
-      const fields = parsed.data;
-      return [
-        {
-          id: item.id,
-          key: fields.Chave ?? item.id,
-          name: fields.Nome ?? fields.Chave ?? 'Módulo sem nome',
-          baseRoute: fields.RotaBase ?? '',
-          version: fields.Versao ?? '',
-          status: fields.Status ?? 'instalado',
-          order: numberOrZero(fields.Ordem),
-          roles: parseRolesJson(fields.RolesJson),
-          healthEndpoint: fields.HealthEndpoint ?? '',
-          updatedAt: fields.AtualizadoEmUTC ?? '',
-        },
-      ];
-    })
-    .sort(
-      (left, right) => left.order - right.order || left.name.localeCompare(right.name, 'pt-BR'),
-    );
-
-  const configurations = configurationItems
-    .flatMap((item) => {
-      const parsed = configurationFieldsSchema.safeParse(item.fields);
-      if (!parsed.success) return [];
-      const fields = parsed.data;
-      return [
-        {
-          id: item.id,
-          key: fields.Chave ?? item.id,
-          scope: fields.Escopo ?? 'global',
-          version: fields.Versao ?? '',
-          active: fields.Ativo ?? false,
-          effectiveFrom: fields.VigenciaInicioUTC ?? '',
-          effectiveUntil: fields.VigenciaFimUTC ?? '',
-          updatedAt: fields.AtualizadoEmUTC ?? '',
-        },
-      ];
-    })
-    .sort((left, right) => left.key.localeCompare(right.key, 'pt-BR'));
-
-  const recentAudit = auditItems
-    .flatMap((item) => {
-      const parsed = auditFieldsSchema.safeParse(item.fields);
-      if (!parsed.success) return [];
-      const fields = parsed.data;
-      return [
-        {
-          id: item.id,
-          eventId: fields.EventoId ?? item.id,
-          occurredAt: fields.DataHoraUTC ?? '',
-          module: fields.Modulo ?? 'plataforma',
-          action: fields.Acao ?? 'evento',
-          entityType: fields.EntidadeTipo ?? '',
-          correlationId: fields.CorrelationId ?? '',
-          result: fields.Resultado ?? '',
-        },
-      ];
-    })
-    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
-    .slice(0, 20);
-
-  const migrations = migrationItems
-    .flatMap((item) => {
-      const parsed = migrationFieldsSchema.safeParse(item.fields);
-      if (!parsed.success) return [];
-      const fields = parsed.data;
-      return [
-        {
-          id: item.id,
-          version: fields.Versao ?? '',
-          module: fields.Modulo ?? 'plataforma',
-          appliedAt: fields.AplicadaEmUTC ?? '',
-          result: fields.Resultado ?? '',
-        },
-      ];
-    })
-    .sort((left, right) => right.appliedAt.localeCompare(left.appliedAt));
-
-  return {
-    version: '0.2.0-validation',
-    releaseState: 'validation' as const,
-    generatedAt: new Date().toISOString(),
+  return buildPlatformSnapshot({
+    lists,
+    moduleItems,
+    configurationItems,
+    auditItems,
+    migrationItems,
     correlationId,
-    foundation: {
-      status: 'ok' as const,
-      sharePointListCount: lists.length,
-      expectedPlatformListsPresent: [
-        'PLATAFORMA_CONFIGURACOES',
-        'PLATAFORMA_MODULOS',
-        'PLATAFORMA_AUDITORIA',
-        'PLATAFORMA_MIGRACOES',
-      ].every((name) => byName.has(name)),
-    },
-    coreModules,
-    registeredModules,
-    configurations,
-    recentAudit,
-    migrations,
-  };
+  });
 }
