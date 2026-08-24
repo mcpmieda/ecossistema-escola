@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "depth": "domain",
-  "source_contract_fingerprint": "b4c254399b625658ac0a4bd33142e839d9e6b4e160367ce115d8624c5261e307",
+  "source_contract_fingerprint": "3e4b132d5d2540347932cec4cd9a48f3016dbbf4ce1702dfd489cc1889563503",
   "glossary": [
     {
       "id": "TERM-001",
@@ -399,8 +399,8 @@
       ],
       "trigger": "o workflow de recovery solicita a verificação da candidata implantada",
       "response": [
-        "Criar somente uma lista descartável RECOVERY_VERIFY_ no CENTROADMIN.",
-        "Executar backup, sobrescrita e restore de um registro sentinela e comparar checksums SHA-256.",
+        "Criar somente uma pasta descartável RECOVERY_VERIFY_ dentro de SNAPSHOTS_PLATAFORMA no CENTROADMIN.",
+        "Executar backup, sobrescrita e restore de um metadado sentinela da pasta técnica e comparar checksums SHA-256.",
         "Remover a lista descartável antes de aceitar a execução como verificada.",
         "Falhar fechado em erro de autorização, restore, checksum ou cleanup.",
         "Publicar apenas evidência redigida e não inferir disaster recovery completo a partir deste teste."
