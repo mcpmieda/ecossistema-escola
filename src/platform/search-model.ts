@@ -63,8 +63,12 @@ export function filterSearchItems(
   limit = 7,
 ): PlatformSearchItem[] {
   const normalizedQuery = normalizeSearch(query.trim());
-  const matches = normalizedQuery
-    ? items.filter((item) => normalizeSearch(item.searchText).includes(normalizedQuery))
+  const queryTerms = normalizedQuery.split(/\s+/u).filter(Boolean);
+  const matches = queryTerms.length
+    ? items.filter((item) => {
+        const normalizedItem = normalizeSearch(item.searchText);
+        return queryTerms.every((term) => normalizedItem.includes(term));
+      })
     : items;
   return matches.slice(0, Math.max(0, limit));
 }
