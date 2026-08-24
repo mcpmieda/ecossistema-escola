@@ -2,15 +2,20 @@ import { z } from 'zod';
 import type { RuntimeEnv } from '../env';
 import { graphRequest } from '../graph/client';
 
-const createdListSchema = z.object({ id: z.string().min(1), displayName: z.string().optional() });
-const createdItemSchema = z.object({ id: z.string().min(1) });
-const readItemSchema = z.object({
-  id: z.string().min(1),
-  fields: z.object({ Title: z.string().optional() }).passthrough().optional(),
+const listCollectionSchema = z.object({
+  value: z.array(z.object({ id: z.string().min(1), displayName: z.string().optional() })),
+});
+const driveSchema = z.object({ id: z.string().min(1) });
+const folderSchema = z.object({ id: z.string().min(1), name: z.string().optional() });
+const driveListItemSchema = z.object({
+  id: z.string().optional(),
+  fields: z.object({ Modulo: z.string().optional() }).passthrough().optional(),
 });
 
 export const RECOVERY_TEST_PREFIX = 'RECOVERY_VERIFY_';
-export const RECOVERY_TEST_SCOPE = 'sharepoint-disposable-record-backup-restore-roundtrip' as const;
+export const RECOVERY_SNAPSHOT_LIBRARY = 'SNAPSHOTS_PLATAFORMA';
+export const RECOVERY_TEST_SCOPE =
+  'sharepoint-snapshots-disposable-metadata-backup-restore-roundtrip' as const;
 
 export type RecoveryGraphInput = {
   env: RuntimeEnv;
@@ -53,98 +58,121 @@ export async function verifyRecoveryRoundTrip(
     .slice(0, 16);
   if (!suffix) throw new Error('Recovery verification could not derive a safe resource suffix');
 
-  const listName = `${RECOVERY_TEST_PREFIX}${suffix}`;
+  const folderName = `${RECOVERY_TEST_PREFIX}${suffix}`;
   const sentinel = `recovery-sentinel-${suffix}`;
   const corrupted = `recovery-corrupted-${suffix}`;
-  let listId: string | undefined;
+  let driveId: string | undefined;
+  let folderId: string | undefined;
   let primaryError: unknown;
   let result: RecoveryVerificationResult | undefined;
 
   try {
-    const createdList = createdListSchema.parse(
+    const encodedFilter = encodeURIComponent(`displayName eq '${RECOVERY_SNAPSHOT_LIBRARY}'`);
+    const lists = listCollectionSchema.parse(
       (
         await graph<unknown>({
           env,
-          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists`,
+          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists?$filter=${encodedFilter}&$select=id,displayName`,
+          correlationId,
+        })
+      ).data,
+    );
+    const snapshotList = lists.value.find(
+      (candidate) => candidate.displayName === RECOVERY_SNAPSHOT_LIBRARY,
+    );
+    if (!snapshotList) throw new Error('Recovery snapshot library was not found');
+
+    const drive = driveSchema.parse(
+      (
+        await graph<unknown>({
+          env,
+          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${snapshotList.id}/drive?$select=id`,
+          correlationId,
+        })
+      ).data,
+    );
+    driveId = drive.id;
+
+    const folder = folderSchema.parse(
+      (
+        await graph<unknown>({
+          env,
+          path: `/drives/${driveId}/root/children`,
           method: 'POST',
           body: {
-            displayName: listName,
-            description: 'Disposable recovery verification resource. Safe to delete.',
-            list: { template: 'genericList' },
+            name: folderName,
+            folder: {},
+            '@microsoft.graph.conflictBehavior': 'fail',
           },
           correlationId,
         })
       ).data,
     );
-    listId = createdList.id;
+    folderId = folder.id;
 
-    const createdItem = createdItemSchema.parse(
+    await graph<unknown>({
+      env,
+      path: `/drives/${driveId}/items/${folderId}/listItem/fields`,
+      method: 'PATCH',
+      body: { Modulo: sentinel, CorrelationId: correlationId },
+      correlationId,
+    });
+
+    const before = driveListItemSchema.parse(
       (
         await graph<unknown>({
           env,
-          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items`,
-          method: 'POST',
-          body: { fields: { Title: sentinel } },
+          path: `/drives/${driveId}/items/${folderId}/listItem?$expand=fields($select=Modulo)`,
           correlationId,
         })
       ).data,
     );
-
-    const before = readItemSchema.parse(
-      (
-        await graph<unknown>({
-          env,
-          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items/${createdItem.id}?$expand=fields($select=Title)`,
-          correlationId,
-        })
-      ).data,
-    );
-    const backup = { Title: before.fields?.Title ?? '' };
-    if (backup.Title !== sentinel)
+    const backup = { Modulo: before.fields?.Modulo ?? '' };
+    if (backup.Modulo !== sentinel)
       throw new Error('Recovery sentinel was not persisted as expected');
     const backupChecksum = await checksum(backup);
 
     await graph<unknown>({
       env,
-      path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items/${createdItem.id}/fields`,
+      path: `/drives/${driveId}/items/${folderId}/listItem/fields`,
       method: 'PATCH',
-      body: { Title: corrupted },
+      body: { Modulo: corrupted },
       correlationId,
     });
 
-    const afterCorruption = readItemSchema.parse(
+    const afterCorruption = driveListItemSchema.parse(
       (
         await graph<unknown>({
           env,
-          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items/${createdItem.id}?$expand=fields($select=Title)`,
+          path: `/drives/${driveId}/items/${folderId}/listItem?$expand=fields($select=Modulo)`,
           correlationId,
         })
       ).data,
     );
-    if (afterCorruption.fields?.Title !== corrupted) {
+    if (afterCorruption.fields?.Modulo !== corrupted) {
       throw new Error('Recovery destructive-overwrite simulation did not take effect');
     }
 
     await graph<unknown>({
       env,
-      path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items/${createdItem.id}/fields`,
+      path: `/drives/${driveId}/items/${folderId}/listItem/fields`,
       method: 'PATCH',
       body: backup,
       correlationId,
     });
 
-    const restored = readItemSchema.parse(
+    const restored = driveListItemSchema.parse(
       (
         await graph<unknown>({
           env,
-          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items/${createdItem.id}?$expand=fields($select=Title)`,
+          path: `/drives/${driveId}/items/${folderId}/listItem?$expand=fields($select=Modulo)`,
           correlationId,
         })
       ).data,
     );
-    const restoredValue = { Title: restored.fields?.Title ?? '' };
+    const restoredValue = { Modulo: restored.fields?.Modulo ?? '' };
     const restoredChecksum = await checksum(restoredValue);
-    if (restoredChecksum !== backupChecksum || restoredValue.Title !== sentinel) {
+    if (restoredChecksum !== backupChecksum || restoredValue.Modulo !== sentinel) {
       throw new Error('Recovery restore checksum mismatch');
     }
 
@@ -163,11 +191,11 @@ export async function verifyRecoveryRoundTrip(
   }
 
   let cleanupError: unknown;
-  if (listId) {
+  if (driveId && folderId) {
     try {
       await graph<unknown>({
         env,
-        path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}`,
+        path: `/drives/${driveId}/items/${folderId}`,
         method: 'DELETE',
         correlationId,
       });
@@ -188,7 +216,8 @@ export async function verifyRecoveryRoundTrip(
     throw primaryError;
   }
   if (cleanupError) throw cleanupError;
-  if (!listId || !result) throw new Error('Recovery verification did not complete safely');
+  if (!driveId || !folderId || !result)
+    throw new Error('Recovery verification did not complete safely');
 
   return result;
 }
