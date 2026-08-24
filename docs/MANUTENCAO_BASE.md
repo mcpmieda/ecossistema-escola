@@ -43,3 +43,9 @@ Erros conhecidos já resolvidos:
 7. Arquivar/excluir o repo privado somente depois de preservar documentação.
 
 Nunca incluir no rollback os cinco grupos existentes nem o fluxo `AUTO | Grupos por Cargo | Microsoft 365`.
+
+## Manutenção das GitHub Actions
+
+Dependabot verifica Actions toda segunda-feira, após cooldown de sete dias, e abre PR sem automerge. Em cada PR, confirme a release oficial, o SHA completo, as notas da versão e os gates `Validate application` e `Validate GitHub Actions security`. Actionlint e zizmor devem permanecer bloqueantes para o deploy.
+
+Nunca troque pins completos por tags `@vX`. Não amplie `permissions`, não entregue secrets ao job de validação e não mova `id-token: write` para o workflow comum. A rotação deve continuar automática, serial, com `cancel-in-progress: false`, `environment: production` e sem aprovação humana periódica.
