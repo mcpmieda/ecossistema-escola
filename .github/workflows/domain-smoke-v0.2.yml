@@ -1,0 +1,45 @@
+name: Centro v0.2 domain smoke
+
+on:
+  push:
+    branches:
+      - test/domain-smoke-v0.2
+    paths:
+      - .github/workflows/domain-smoke-v0.2.yml
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Validate official domain anonymously
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify public shell and protected APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          root_body="$(mktemp)"
+          root_headers="$(mktemp)"
+          curl --fail --silent --show-error --location \
+            --dump-header "${root_headers}" \
+            --output "${root_body}" \
+            https://admin.escolaieda.com/
+
+          grep -F '<title>Ecossistema Escolar</title>' "${root_body}"
+          grep -Fi 'referrer-policy: same-origin' "${root_headers}"
+          grep -Fi 'x-content-type-options: nosniff' "${root_headers}"
+
+          me_body="$(mktemp)"
+          me_status="$(curl --silent --show-error --output "${me_body}" --write-out '%{http_code}' \
+            https://admin.escolaieda.com/api/me)"
+          test "${me_status}" = '401'
+          grep -F '"error":"Unauthorized"' "${me_body}"
+
+          snapshot_body="$(mktemp)"
+          snapshot_status="$(curl --silent --show-error --output "${snapshot_body}" --write-out '%{http_code}' \
+            https://admin.escolaieda.com/api/platform/snapshot)"
+          test "${snapshot_status}" = '401'
+          grep -F '"error":"Unauthorized"' "${snapshot_body}"
