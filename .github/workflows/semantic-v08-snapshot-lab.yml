@@ -1,0 +1,70 @@
+name: Temporary v0.8 snapshot recovery semantic generator
+
+on:
+  push:
+    branches:
+      - fix/v0.8-recovery-snapshots-least-privilege
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-v08-snapshot-semantic
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    name: Generate and verify snapshot recovery semantics
+    if: github.ref == 'refs/heads/fix/v0.8-recovery-snapshots-least-privilege'
+    permissions:
+      contents: write # required only to commit generated semantic artifacts to this isolated repair branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: fix/v0.8-recovery-snapshots-least-privilege
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Generate semantic artifacts
+        run: node infra/validation/apply-v08-snapshot-recovery.mjs
+
+      - name: Format changed files
+        run: >-
+          npx prettier --write
+          server/platform/recovery.ts
+          tests/recovery.test.ts
+          infra/validation/apply-v08-snapshot-recovery.mjs
+          specs/semantic-contract.json
+          specs/semantic-assurance.json
+          specs/verification-plan.json
+
+      - name: Verify complete repair candidate
+        run: npm run verify
+
+      - name: Commit generated artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: fix/v0.8-recovery-snapshots-least-privilege
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add server/platform/recovery.ts tests/recovery.test.ts specs/semantic-contract.json specs/semantic-assurance.json specs/verification-plan.json infra/validation/apply-v08-snapshot-recovery.mjs
+          if git diff --cached --quiet; then
+            echo 'No generated changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Align v0.8 recovery with snapshot least privilege'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${TARGET_BRANCH}"
