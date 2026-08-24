@@ -1,0 +1,147 @@
+{
+  "version": "1.0",
+  "semantic_depth": "domain",
+  "feature": "centro-administracao-validation-v0.1",
+  "status": "ready",
+  "glossary": [
+    {
+      "term": "Centro de Administração",
+      "definition": "Núcleo administrativo nativo do ecossistema-escola que incorpora módulos e capacidades compartilhadas."
+    },
+    {
+      "term": "candidata de validação",
+      "definition": "Versão implantada para testadores autorizados que ainda não foi liberada ao público definitivo."
+    },
+    {
+      "term": "capacidade",
+      "definition": "Permissão funcional derivada no servidor a partir dos papéis institucionais existentes."
+    },
+    {
+      "term": "read model",
+      "definition": "Resposta composta pelo backend para uma necessidade de tela sem tornar o navegador orquestrador do Graph."
+    }
+  ],
+  "entities": [
+    {
+      "id": "session",
+      "source_of_truth": "BFF session cookie sealed by existing authentication foundation"
+    },
+    {
+      "id": "institutional-role",
+      "source_of_truth": "existing Microsoft 365 group mapping in Entra claims"
+    },
+    {
+      "id": "platform-module",
+      "source_of_truth": "SharePoint CENTROADMIN / PLATAFORMA_MODULOS"
+    },
+    {
+      "id": "platform-configuration",
+      "source_of_truth": "SharePoint CENTROADMIN / PLATAFORMA_CONFIGURACOES"
+    },
+    {
+      "id": "audit-event",
+      "source_of_truth": "SharePoint CENTROADMIN / PLATAFORMA_AUDITORIA"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "authentication-ui",
+      "scope": "public entry",
+      "preconditions": [],
+      "trigger": "visit official origin without valid session",
+      "response": "show redesigned institutional login experience and preserve /auth/login flow",
+      "concept_refs": ["session"],
+      "acceptance_refs": ["AC-001"],
+      "invariant_refs": ["INV-001"]
+    },
+    {
+      "id": "REQ-002",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "server-authorization",
+      "scope": "validation candidate",
+      "preconditions": ["authenticated session"],
+      "trigger": "request administration bootstrap",
+      "response": "require platform validation and read capabilities on the server",
+      "concept_refs": ["session", "institutional-role"],
+      "acceptance_refs": ["AC-002"],
+      "invariant_refs": ["INV-002", "INV-003"]
+    },
+    {
+      "id": "REQ-003",
+      "priority": "must",
+      "pattern": "event",
+      "component": "administration-read-model",
+      "scope": "administrator dashboard",
+      "preconditions": ["authorized ADMINISTRADOR session"],
+      "trigger": "load dashboard",
+      "response": "compose the dashboard server-side from existing platform registries",
+      "concept_refs": ["platform-module", "platform-configuration", "audit-event"],
+      "acceptance_refs": ["AC-003"],
+      "invariant_refs": ["INV-004"]
+    },
+    {
+      "id": "REQ-004",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "module-catalog",
+      "scope": "module visibility",
+      "preconditions": ["module record exists"],
+      "trigger": "compose authorized module catalog",
+      "response": "return only modules whose declared roles intersect the session roles; malformed declarations fail closed",
+      "concept_refs": ["platform-module", "institutional-role"],
+      "acceptance_refs": ["AC-004"],
+      "invariant_refs": ["INV-003"]
+    },
+    {
+      "id": "REQ-005",
+      "priority": "must",
+      "pattern": "unwanted",
+      "component": "administration-read-model",
+      "scope": "partial provider failure",
+      "preconditions": ["at least one dashboard source fails"],
+      "trigger": "compose dashboard",
+      "response": "preserve valid sections and expose degraded state without fabricated values",
+      "concept_refs": ["platform-module", "platform-configuration", "audit-event"],
+      "acceptance_refs": ["AC-005"],
+      "invariant_refs": ["INV-005"]
+    },
+    {
+      "id": "REQ-006",
+      "priority": "must",
+      "pattern": "state",
+      "component": "release-governance",
+      "scope": "official domain",
+      "preconditions": ["candidate deployed"],
+      "trigger": "technical validation succeeds",
+      "response": "remain restricted until the exact production approval command is received and gates pass",
+      "concept_refs": [],
+      "acceptance_refs": ["AC-006"],
+      "invariant_refs": ["INV-006"]
+    },
+    {
+      "id": "REQ-007",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "user-interface",
+      "scope": "motion accessibility",
+      "preconditions": ["reduced motion preference enabled"],
+      "trigger": "render interface",
+      "response": "remove non-essential ambient motion while retaining functional state feedback",
+      "concept_refs": [],
+      "acceptance_refs": ["AC-007"],
+      "invariant_refs": []
+    }
+  ],
+  "constraints": [
+    "Do not add a new authentication provider.",
+    "Do not add a new persistence provider.",
+    "Do not expose Graph tokens, certificates, SESSION_SECRET or SharePoint access to the browser.",
+    "Do not make production release contingent only on CI success.",
+    "Do not create duplicate implementations for existing foundation responsibilities."
+  ],
+  "open_questions": []
+}
