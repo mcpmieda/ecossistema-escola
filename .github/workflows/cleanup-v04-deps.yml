@@ -34,8 +34,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Remove disposable packages
-        run: npm uninstall playwright shadcn
+      - name: Remove disposable Playwright dependency
+        run: npm uninstall playwright
 
       - name: Format v0.4 sources
         run: npm run format
