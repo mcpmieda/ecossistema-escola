@@ -25,6 +25,32 @@ Ao final de cada bloco concluído, a candidata corrente deve ser publicada em `h
 - release state: `validation`;
 - produção oficial: **não autorizada**.
 
+## Escopo de conclusão da fase atual
+
+Decisão de produto registrada em 24/08/2026:
+
+Os itens abaixo ficam **explicitamente adiados** e não bloqueiam o marco de 100% desta fase:
+
+- integração funcional de verdade do primeiro sistema independente;
+- construção do módulo `Publicações`;
+- construção do módulo `Páginas`.
+
+Esses itens continuam previstos na arquitetura, mas serão retomados posteriormente conforme estratégia de produto a ser definida separadamente.
+
+O marco de **100% desta fase** só pode ser declarado quando todo o restante aplicável estiver concluído, incluindo:
+
+- contrato e infraestrutura de integração modular prontos e validados;
+- autorização server-side por capabilities consolidada;
+- núcleo administrativo, navegação, busca, estados e responsividade consolidados;
+- operação, saúde e degradação observável consolidadas;
+- notificações/pendências somente quando houver fonte e regra institucional claras; ausência de regra não deve gerar funcionalidade inventada;
+- recuperação/restore executado e com evidência registrada;
+- higiene final de código, remoção de resíduos e documentação atualizada;
+- regressões técnicas, segurança, browser e validação final da candidata concluídas;
+- candidata corrente publicada e confirmada externamente no domínio de validação.
+
+Somente depois de esse marco ser atingido o projeto deve informar ao responsável que chegou a **100% do escopo desta fase** e solicitar a decisão humana de aprovação. Não antecipar pedido de aprovação antes disso.
+
 ## v0.6 — autorização por capabilities
 
 A v0.6 transforma capabilities de metadados declarativos em regra efetivamente aplicada pelo servidor.
@@ -209,21 +235,32 @@ Cada bloco deve terminar com:
 
 Prioridade técnica natural: avançar a integração progressiva de módulos independentes ao Centro usando contratos explícitos, rotas isoladas, capabilities próprias, health/degradação e registro versionado, sem copiar regras internas dos módulos para o núcleo.
 
+A primeira integração funcional de um sistema independente foi adiada por decisão de produto e não deve ser iniciada até nova orientação.
+
+Publicações e Páginas também foram adiadas e devem permanecer apenas como áreas planejadas até nova orientação.
+
 Notificações/pendências só devem avançar quando houver fonte e regra institucional claras.
 
 Qualquer expansão futura de grants para Professor, Aluno, Apoio, Visitante ou papéis adicionais é mudança de política institucional e exige validação explícita antes de ser aplicada.
 
+## Bloqueios para 100% desta fase
+
+- v0.7 — contrato de integração modular ainda em desenvolvimento;
+- recuperação/restore ainda não possui evidência registrada de teste;
+- acabamento e validação final da candidata ainda pendentes;
+- demais gates técnicos e de navegador aplicáveis ao escopo restante ainda precisam ser concluídos.
+
+Primeiro sistema integrado, Publicações e Páginas são **escopo adiado** e não entram nesta lista.
+
 ## Bloqueios para produção oficial
 
-- validação visual humana final continua pendente;
-- recuperação/restore ainda não possui evidência registrada de teste;
-- módulos de produto ainda incompletos;
-- Publicações e Páginas continuam planejadas;
+- o marco de 100% desta fase ainda não foi atingido;
+- validação visual/humana final continua pendente;
 - `APROVADO PARA PRODUÇÃO` não foi emitido.
 
 ## Regra de liberação
 
-O comando humano exato `APROVADO PARA PRODUÇÃO` continua sendo requisito separado para disponibilização regular aos usuários. Merge, CI e deploy técnico não substituem essa autorização.
+O comando humano exato `APROVADO PARA PRODUÇÃO` continua sendo requisito separado para disponibilização regular aos usuários. Merge, CI, deploy técnico ou atingir 100% do escopo desta fase não substituem essa autorização.
 
 ## Links internos
 
