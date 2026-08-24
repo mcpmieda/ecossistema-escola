@@ -19,11 +19,7 @@ export const capabilityGrantsByRole: Record<Role, readonly PlatformCapability[]>
 };
 
 export function capabilitiesForRoles(roles: readonly Role[]): PlatformCapability[] {
-  return [
-    ...new Set(
-      roles.flatMap((role) => capabilityGrantsByRole[role]),
-    ),
-  ];
+  return [...new Set(roles.flatMap((role) => capabilityGrantsByRole[role]))];
 }
 
 export function hasCapability(

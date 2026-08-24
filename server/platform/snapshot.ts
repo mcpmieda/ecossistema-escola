@@ -253,9 +253,7 @@ export function buildPlatformSnapshot(
     registeredModules: hasCapability(capabilities, 'platform.modules.read')
       ? allRegisteredModules
       : [],
-    configurations: hasCapability(capabilities, 'platform.settings.read')
-      ? allConfigurations
-      : [],
+    configurations: hasCapability(capabilities, 'platform.settings.read') ? allConfigurations : [],
     recentAudit: hasCapability(capabilities, 'platform.audit.read') ? allRecentAudit : [],
     migrations: hasCapability(capabilities, 'platform.settings.read') ? allMigrations : [],
   };

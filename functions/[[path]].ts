@@ -16,10 +16,7 @@ import {
 import { clearCookie, readCookie, secureCookie } from '../server/auth/cookies';
 import { seal, unseal } from '../server/auth/sealed';
 import { rolesForGroups, AuthorizationError } from '../server/auth/roles';
-import {
-  capabilitiesForRoles,
-  requireCapability,
-} from '../server/auth/capabilities';
+import { capabilitiesForRoles, requireCapability } from '../server/auth/capabilities';
 import {
   enforceOfficialOrigin,
   enforceWriteOrigin,

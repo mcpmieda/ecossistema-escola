@@ -132,10 +132,7 @@
         "a interface apresenta a entrada institucional e direciona o login para /auth/login",
         "a interface não solicita nem armazena senha institucional"
       ],
-      "verification": [
-        "test",
-        "browser"
-      ]
+      "verification": ["test", "browser"]
     },
     {
       "id": "AC-002",
@@ -146,9 +143,7 @@
         "o shell de validação não é apresentado como disponível ao perfil",
         "o endpoint administrativo retorna negação por autorização server-side"
       ],
-      "verification": [
-        "test"
-      ]
+      "verification": ["test"]
     },
     {
       "id": "AC-003",
@@ -159,11 +154,7 @@
         "o BFF retorna um snapshot somente leitura composto a partir das fontes autoritativas existentes",
         "a visão geral informa o estado observado da estrutura sem criar nova fonte de verdade"
       ],
-      "verification": [
-        "test",
-        "gate",
-        "browser"
-      ]
+      "verification": ["test", "gate", "browser"]
     },
     {
       "id": "AC-004",
@@ -174,10 +165,7 @@
         "rotas conhecidas restauram a área correspondente",
         "rota desconhecida cai de forma segura em Visão geral"
       ],
-      "verification": [
-        "test",
-        "browser"
-      ]
+      "verification": ["test", "browser"]
     },
     {
       "id": "AC-005",
@@ -188,10 +176,7 @@
         "o catálogo mostra o manifesto versionado do núcleo permitido pela sessão",
         "módulos registrados são apresentados por metadados sem alterar seu domínio"
       ],
-      "verification": [
-        "test",
-        "gate"
-      ]
+      "verification": ["test", "gate"]
     },
     {
       "id": "AC-006",
@@ -203,10 +188,7 @@
         "auditoria não expõe UsuarioObjectId nem DetalhesJson quando platform.audit.read estiver presente",
         "nenhum ValorJson de configuração é enviado ao frontend"
       ],
-      "verification": [
-        "test",
-        "gate"
-      ]
+      "verification": ["test", "gate"]
     },
     {
       "id": "AC-007",
@@ -217,10 +199,7 @@
         "a área é identificada como planejada",
         "nenhuma operação de escrita ou mutação real é oferecida"
       ],
-      "verification": [
-        "test",
-        "gate"
-      ]
+      "verification": ["test", "gate"]
     },
     {
       "id": "AC-008",
@@ -232,11 +211,7 @@
         "a navegação e o conteúdo permanecem utilizáveis em desktop e mobile",
         "movimento não essencial respeita prefers-reduced-motion"
       ],
-      "verification": [
-        "gate",
-        "browser",
-        "visual"
-      ]
+      "verification": ["gate", "browser", "visual"]
     },
     {
       "id": "AC-009",
@@ -248,9 +223,7 @@
         "as validações de segurança dos workflows continuam passando",
         "a candidata permanece marcada como validação e não como liberação oficial"
       ],
-      "verification": [
-        "gate"
-      ]
+      "verification": ["gate"]
     },
     {
       "id": "AC-010",
@@ -262,10 +235,7 @@
         "acentos e termos separados não impedem correspondências esperadas",
         "eventos de auditoria e migrações não entram no índice"
       ],
-      "verification": [
-        "test",
-        "browser"
-      ]
+      "verification": ["test", "browser"]
     },
     {
       "id": "AC-011",
@@ -278,11 +248,7 @@
         "HealthEndpoint configurado é apresentado apenas como cobertura de contrato",
         "recuperação permanece não verificada enquanto não existir evidência correspondente"
       ],
-      "verification": [
-        "test",
-        "gate",
-        "browser"
-      ]
+      "verification": ["test", "gate", "browser"]
     },
     {
       "id": "AC-012",
@@ -295,10 +261,7 @@
         "áreas e coleções sem a capability correspondente são omitidas do snapshot",
         "na validação atual somente ADMINISTRADOR recebe as capabilities do Centro"
       ],
-      "verification": [
-        "test",
-        "gate"
-      ]
+      "verification": ["test", "gate"]
     }
   ]
 }
