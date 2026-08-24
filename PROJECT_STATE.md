@@ -4,180 +4,183 @@
 
 Evoluir o Centro de Administração em blocos grandes e completos, preservando integralmente a fundação existente e mantendo `releaseState = validation` até autorização humana explícita de produção.
 
-Ao final de cada bloco concluído, a candidata corrente deve ser publicada em `https://admin.escolaieda.com`, ainda restrita a `ADMINISTRADOR`, para inspeção contínua. Deploy de validação não equivale a liberação oficial.
+Ao final de cada bloco concluído, a candidata corrente deve ser publicada em `https://admin.escolaieda.com`, ainda restrita ao público autorizado, para inspeção contínua. Deploy de validação não equivale a liberação oficial.
 
 ## Estado corrente
 
-- fase publicada: `v0.5` — operação e saúde observável;
-- baseline corrente: `main@0e04f64e61619977d0f7579b0878cd8f400e727b` — v0.5 via PR #14;
-- CI definitivo do PR #14: workflow `32776526342` — **success**;
-- smoke externo da v0.5: workflow `32776751948`, job `97589445198` — **success**;
+- fase em validação técnica: `v0.6` — autorização por capabilities;
+- candidata limpa: branch `feat/centro-admin-v0.6-capability-authorization-clean`, PR #19;
+- baseline publicada: `main@0e04f64e61619977d0f7579b0878cd8f400e727b` — runtime v0.5 via PR #14;
+- documentação v0.5 integrada em `main@effb6a02bf74a4532012c4f393695bd574b9c54d`;
+- CI inicial da candidata v0.6: workflow `32779168279` — **success**;
+- v0.5 smoke externo: workflow `32776751948`, job `97589445198` — **success**;
 - v0.4: busca transversal + modularização via PR #12;
 - v0.3: fundação visual shadcn/ui via PR #11;
 - logout corrigido: `main@c87cbe8be7594a6d8e87f4d219d79de984c52599` via PR #8;
 - baseline seguro anterior ao Centro: `8d28f1d35384a12a7028e25e0ec2a126edfdfdab`;
 - nível do sistema: `production-system`;
-- autenticação/autorização: Microsoft Entra ID + BFF + cookie HttpOnly selado; `ADMINISTRADOR` validado server-side;
+- autenticação: Microsoft Entra ID + BFF + cookie HttpOnly selado;
 - fonte autoritativa administrativa: SharePoint `CENTROADMIN` pela integração Graph existente;
 - release state: `validation`;
 - produção oficial: **não autorizada**.
 
-## v0.4 — busca transversal e modularização
+## v0.5 — baseline publicada
 
-A v0.4 modularizou o shell e adicionou busca transversal permission-scoped.
+A v0.5 permanece a versão atualmente publicada enquanto a v0.6 percorre os gates finais.
 
-A busca:
+Ela inclui:
 
-- usa somente o snapshot já autorizado pelo BFF;
-- indexa áreas do núcleo, sistemas registrados e metadados de configuração;
-- não indexa auditoria, migrações ou valores protegidos;
-- normaliza acentos e caixa;
-- aceita múltiplos termos fora de sequência;
-- limita resultados;
-- oferece `Ctrl+K`/`Cmd+K` no desktop e Sheet no mobile.
+- área `Operação`;
+- detecção de lista estrutural obrigatória ausente;
+- `foundation.status = degraded` quando a estrutura está incompleta;
+- sinais conservadores de falha recente;
+- cobertura declarada de `HealthEndpoint` sem execução automática;
+- recuperação/restore explicitamente `not-verified` sem evidência própria.
 
-A v0.4 foi confirmada externamente no domínio antes do início da v0.5.
+## v0.6 — autorização por capabilities
 
-## v0.5 — operação e saúde observável
+A v0.6 transforma capabilities de metadados declarativos em regra efetivamente aplicada pelo servidor.
 
-A v0.5 adiciona a área `Operação` com capability declarada `platform.health.read`, sem criar escrita ou endpoint paralelo.
+### Política server-side
 
-### Correção de falso positivo operacional
+Foi criado um catálogo tipado de capabilities e uma política central de papéis para grants.
 
-Antes da v0.5, `foundation.status` era sempre `ok`, mesmo quando uma lista estrutural obrigatória não existia. A v0.5 elimina esse falso positivo.
+Capabilities atuais:
 
-Listas esperadas:
+- `platform.snapshot.read`;
+- `platform.overview.read`;
+- `platform.health.read`;
+- `publications.read`;
+- `pages.read`;
+- `platform.modules.read`;
+- `platform.audit.read`;
+- `platform.settings.read`.
 
-- `PLATAFORMA_CONFIGURACOES`;
-- `PLATAFORMA_MODULOS`;
-- `PLATAFORMA_AUDITORIA`;
-- `PLATAFORMA_MIGRACOES`.
+Na validação atual:
 
-Se alguma estiver ausente:
+- `ADMINISTRADOR` recebe explicitamente todas as capabilities do Centro;
+- `PROFESSOR`, `ALUNO`, `APOIO` e `VISITANTE` continuam sem grants do Centro.
 
-- `foundation.status = degraded`;
-- `expectedPlatformListsPresent = false`;
-- `missingPlatformLists` informa as estruturas faltantes;
-- `operational.status = attention`.
+Os grupos e o mapeamento Entra → papéis não foram alterados. Papéis passam a ser entrada da política; a decisão final é a capability exigida no ponto de execução.
 
-### Sinais operacionais conservadores
+### Capabilities não ficam congeladas na sessão
 
-O snapshot autorizado informa:
+O cookie continua armazenando apenas a sessão institucional e seus papéis já existentes. As capabilities são derivadas novamente no servidor em cada requisição protegida.
 
-- quantidade de falhas explícitas nos eventos recentes de auditoria;
-- quantidade de sistemas registrados com `HealthEndpoint` configurado;
-- quantidade de sistemas sem contrato de health check;
-- data do último evento de auditoria disponível;
-- recuperação como `not-verified` enquanto não existir evidência real de restore testado.
+Consequência: mudança futura da política pode entrar em vigor sem exigir que a capability antiga permaneça gravada no cookie e sem transformar o cliente em fonte de autorização.
 
-A área Operação não transforma ausência de erro em garantia de saúde:
+### Endpoints protegidos
 
-- `HealthEndpoint` configurado significa **cobertura de contrato**, não disponibilidade comprovada;
-- nenhum HealthEndpoint é executado pelo navegador ou BFF nesta candidata;
-- ausência de eventos de auditoria aparece como evidência insuficiente;
-- recuperação/restore permanece `Não verificado` até existir evidência própria.
+- `/api/me` retorna as capabilities resolvidas para a sessão;
+- `/api/platform/snapshot` exige `platform.snapshot.read`;
+- `/api/sharepoint/health` exige `platform.health.read`.
 
-## App Factory — contratos executáveis no CI
+Perfil autenticado sem a capability necessária recebe `403` no servidor.
 
-Os artefatos semânticos foram atualizados até busca v0.4 e operação v0.5:
+### Snapshot permission-aware
+
+O snapshot passa a ser recortado pelas capabilities resolvidas:
+
+- módulos do núcleo só aparecem quando suas capabilities estão presentes;
+- sistemas registrados exigem `platform.modules.read`;
+- configurações e migrações exigem `platform.settings.read`;
+- auditoria exige `platform.audit.read`;
+- sinais operacionais exigem `platform.health.read` e ficam `null` sem esse grant.
+
+As leituras Graph de listas específicas também são evitadas quando a capability não exige aqueles dados.
+
+A busca permanece permission-scoped sem criar segunda política: ela continua indexando apenas o snapshot que o BFF já filtrou.
+
+### Fail closed para evolução futura
+
+`tests/capabilities.test.ts` verifica que todo requisito de capability declarado pelos manifests está coberto explicitamente pela política do papel exigido.
+
+Isso impede que uma capability nova seja adicionada ao manifesto e se torne utilizável silenciosamente sem decisão explícita de autorização.
+
+## App Factory — contrato v0.6
+
+Os artefatos semânticos foram atualizados para a autorização por capability:
 
 - `specs/semantic-contract.json`;
 - `specs/semantic-assurance.json`;
 - `specs/verification-plan.json`.
 
-O contrato inclui `AC-010` para busca e `AC-011` para saúde/degradação.
+Novo critério:
 
-`infra/validation/validate-semantic-contract.mjs` é executado por `npm run semantic:check` e pelo CI e valida fingerprint, sincronização dos artefatos, critérios, prioridades, referências e cobertura dos critérios `must`.
+- `AC-012` — capabilities derivadas server-side, enforcement no endpoint e recorte do snapshot.
 
 Fingerprint corrente:
 
-`67d5428e416ae83ddc42f6d8be36102b2c2716c26b09e353bccf2648309c9ec8`
+`0df8838d07696ab8239a8890a2d1a07f31b745c1bf4c67141bc9b3ec8e23f277`
 
-## Verificação técnica v0.5
+O `semantic:check` do workflow `32779168279` confirmou o fingerprint e a cobertura semântica.
 
-Workflow preparatório `32776244752`, job `97587861851`:
+## Verificação técnica v0.6
 
-- format: **pass**;
-- lint: **pass**;
-- typecheck: **pass**;
-- semantic freshness/coverage: **pass**;
-- 11 arquivos de teste / **75 testes**: **pass**;
-- build Vite: **pass**.
-
-CI definitivo `32776526342`:
+PR limpo #19, workflow `32779168279`:
 
 - format: **pass**;
 - lint: **pass**;
 - typecheck: **pass**;
 - semantic check: **pass**;
-- testes: **pass**;
-- build: **pass**;
+- 12 arquivos de teste / **87 testes**: **pass**;
+- build Vite: **pass**;
 - actionlint: **pass**;
 - zizmor pedantic: **pass**.
 
-## Deploy de validação v0.5
+Testes novos/expandidos cobrem:
 
-A v0.5 foi integrada em `main` e publicada no domínio.
+- grants explícitos de `ADMINISTRADOR`;
+- ausência de grants para os demais papéis durante a validação;
+- negação `403` sem capability;
+- capabilities retornadas por `/api/me`;
+- snapshot recortado sem vazamento das coleções não autorizadas;
+- cobertura dos manifests pela política de capabilities.
 
-Smoke externo `32776751948` / `97589445198`, concluído em 2026-08-24T20:57:37Z:
+## Higiene da v0.6
 
-- bundle servido contém `Centro v0.5 em validação controlada`;
-- bundle servido contém `Sem degradação observada no snapshot`;
-- bundle servido contém `Recuperação e restore`;
-- `/api/me` sem sessão retorna `401`;
-- `/api/platform/snapshot` sem sessão retorna `401`.
+Um workflow temporário foi usado apenas para formatar e executar `npm run verify` durante o desenvolvimento. Como a exclusão direta foi bloqueada pelo conector, a candidata final foi reconstruída sobre `main` em uma branch limpa, copiando somente os 14 arquivos funcionais/semânticos.
 
-O PR de smoke #15 foi fechado sem merge e a branch temporária foi resetada para o baseline da `main`.
+O PR #19 contém **zero alterações em `.github/workflows`**. O PR intermediário #18 foi fechado sem merge.
 
 ## Fundação preservada
 
-A v0.5 não altera:
+A v0.6 não altera:
 
 - Microsoft Entra ID;
-- BFF/cookie de sessão;
-- autorização server-side por `ADMINISTRADOR`;
-- Graph e permissões existentes;
+- grupos institucionais;
+- mapeamento de grupos para papéis;
+- estrutura do cookie de sessão;
+- segredo/selagem de sessão;
+- Graph ou suas permissões;
 - SharePoint `CENTROADMIN` como fonte autoritativa;
-- grupos e automações existentes;
-- Cloudflare Pages e CI/CD;
+- Cloudflare Pages;
+- CI/CD permanente;
 - secrets e rotação automática de identidade técnica;
-- logout `POST` + validação de Origin + `303` + expiração do cookie.
-
-## Funcionalidades disponíveis no domínio de validação
-
-- login institucional;
-- shell administrativo shadcn/ui;
-- navegação restaurável por hash;
-- busca transversal permission-scoped;
-- Visão geral;
-- Operação;
-- Sistemas;
-- Auditoria somente leitura;
-- Configurações somente leitura sem valores protegidos;
-- Publicações e Páginas planejadas e sem escrita;
-- estados loading, vazio, erro e permissão negada;
-- responsividade e reduced-motion;
-- logout com redirecionamento imediato.
+- logout `POST` + validação de Origin + `303` + expiração do cookie;
+- automação cargo → grupos;
+- fronteira sem escrita da candidata.
 
 ## Regra de validação contínua
 
 Cada bloco deve terminar com:
 
-1. higiene e remoção de artefatos temporários;
+1. higiene e remoção/exclusão lógica de artefatos temporários;
 2. format, lint, typecheck, semantic check, testes, build, actionlint e zizmor verdes;
 3. documentação de estado atualizada;
 4. integração em `main` quando os gates permitirem;
-5. deploy em `https://admin.escolaieda.com` restrito a `ADMINISTRADOR`;
-6. confirmação externa de que a candidata corrente está sendo servida;
+5. deploy em `https://admin.escolaieda.com` ainda em `validation`;
+6. confirmação externa de que a candidata corrente está sendo servida e os endpoints anônimos continuam protegidos;
 7. `releaseState = validation` até autorização humana final.
 
-## Próximo trabalho
+## Próximo trabalho após v0.6
 
-Continuar o núcleo transversal sem inventar regras institucionais ainda não definidas. Prioridades técnicas incluem autorização por capabilities efetivamente aplicada no servidor, integração progressiva de módulos e, somente quando houver fonte/regra clara, notificações e pendências.
+Depois da publicação e smoke da v0.6, continuar o núcleo transversal sem inventar regras institucionais ainda não definidas. A integração progressiva de módulos é prioridade natural; notificações/pendências só devem avançar quando houver fonte e regra institucional claras.
 
 ## Bloqueios para produção oficial
 
-- validação visual humana final ainda pendente;
+- v0.6 ainda não foi integrada/publicada neste ponto da documentação;
+- validação visual humana final continua pendente;
 - recuperação/restore ainda não possui evidência registrada de teste;
 - módulos de produto ainda incompletos;
 - Publicações e Páginas continuam planejadas;

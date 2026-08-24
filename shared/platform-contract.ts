@@ -8,7 +8,19 @@ export const PLATFORM_ROUTES = [
   'configuracoes',
 ] as const;
 
+export const PLATFORM_CAPABILITIES = [
+  'platform.snapshot.read',
+  'platform.overview.read',
+  'platform.health.read',
+  'publications.read',
+  'pages.read',
+  'platform.modules.read',
+  'platform.audit.read',
+  'platform.settings.read',
+] as const;
+
 export type PlatformRoute = (typeof PLATFORM_ROUTES)[number];
+export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
 export type ModuleState = 'validation' | 'planned';
 export type FoundationStatus = 'ok' | 'degraded';
 export type OperationalStatus = 'nominal' | 'attention';
@@ -21,7 +33,7 @@ export type CoreModuleContract = {
   route: PlatformRoute;
   state: ModuleState;
   requiredRole: 'ADMINISTRADOR';
-  capabilities: string[];
+  capabilities: PlatformCapability[];
 };
 
 export type RegisteredModule = {
@@ -67,6 +79,15 @@ export type MigrationEntry = {
   result: string;
 };
 
+export type OperationalSummary = {
+  status: OperationalStatus;
+  recentAuditFailureCount: number;
+  healthContractsConfigured: number;
+  healthContractsMissing: number;
+  lastAuditAt: string;
+  recoveryStatus: RecoveryStatus;
+};
+
 export type PlatformSnapshotContract = {
   version: string;
   releaseState: 'validation';
@@ -78,14 +99,7 @@ export type PlatformSnapshotContract = {
     expectedPlatformListsPresent: boolean;
     missingPlatformLists: string[];
   };
-  operational: {
-    status: OperationalStatus;
-    recentAuditFailureCount: number;
-    healthContractsConfigured: number;
-    healthContractsMissing: number;
-    lastAuditAt: string;
-    recoveryStatus: RecoveryStatus;
-  };
+  operational: OperationalSummary | null;
   coreModules: CoreModuleContract[];
   registeredModules: RegisteredModule[];
   configurations: PlatformConfiguration[];

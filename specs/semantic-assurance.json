@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "depth": "domain",
-  "source_contract_fingerprint": "67d5428e416ae83ddc42f6d8be36102b2c2716c26b09e353bccf2648309c9ec8",
+  "source_contract_fingerprint": "0df8838d07696ab8239a8890a2d1a07f31b745c1bf4c67141bc9b3ec8e23f277",
   "glossary": [
     {
       "id": "TERM-001",
@@ -38,6 +38,12 @@
       "term": "Sinal operacional",
       "definition": "Evidência derivada exclusivamente de dados observados no snapshot, sem equivaler a prova de disponibilidade total de dependências externas.",
       "aliases": ["operational signal"]
+    },
+    {
+      "id": "TERM-007",
+      "term": "Capability",
+      "definition": "Permissão técnica versionada que o BFF deriva dos papéis da sessão e exige no ponto de execução de uma operação do Centro.",
+      "aliases": ["capacidade autorizada", "grant"]
     }
   ],
   "entities": [
@@ -51,7 +57,7 @@
       "id": "ENT-002",
       "name": "UsuarioAutenticado",
       "definition": "Pessoa com sessão institucional resolvida pelo BFF e papéis mapeados por grupos.",
-      "attributes": ["name", "roles"]
+      "attributes": ["name", "roles", "capabilities"]
     },
     {
       "id": "ENT-003",
@@ -62,7 +68,7 @@
     {
       "id": "ENT-004",
       "name": "SnapshotPlataforma",
-      "definition": "Read model somente leitura composto pelo backend para o frontend administrativo.",
+      "definition": "Read model somente leitura composto pelo backend para o frontend administrativo e recortado pelas capabilities resolvidas.",
       "attributes": [
         "foundation",
         "operational",
@@ -85,6 +91,12 @@
         "lastAuditAt",
         "recoveryStatus"
       ]
+    },
+    {
+      "id": "ENT-006",
+      "name": "PoliticaCapabilities",
+      "definition": "Mapeamento versionado de papéis institucionais para capabilities do Centro, avaliado pelo BFF em cada requisição protegida.",
+      "attributes": ["role", "grants"]
     }
   ],
   "relations": [],
@@ -119,12 +131,12 @@
       "preconditions": ["sessão institucional resolvida"],
       "trigger": "uma conta tenta acessar a superfície administrativa protegida",
       "response": [
-        "Permitir o snapshot somente quando o BFF confirmar o papel ADMINISTRADOR e manter outros perfis fora da candidata."
+        "Derivar capabilities dos papéis da sessão no BFF e permitir o snapshot somente quando platform.snapshot.read estiver presente."
       ],
       "timing": "",
-      "concept_refs": ["TERM-001", "TERM-004", "ENT-002", "ENT-004"],
+      "concept_refs": ["TERM-001", "TERM-004", "TERM-007", "ENT-002", "ENT-004", "ENT-006"],
       "acceptance_refs": ["AC-002"],
-      "invariant_refs": ["INV-002"],
+      "invariant_refs": ["INV-002", "INV-010"],
       "formalization_refs": []
     },
     {
@@ -133,15 +145,15 @@
       "pattern": "event",
       "component": "Composição de dados",
       "scope": ["visão geral administrativa", "Operação"],
-      "preconditions": ["usuário ADMINISTRADOR", "fundação disponível"],
+      "preconditions": ["sessão com platform.snapshot.read", "fundação disponível"],
       "trigger": "o shell solicita o estado da plataforma",
       "response": [
-        "Compor no BFF um snapshot somente leitura a partir das fontes autoritativas existentes e informar o estado observado da estrutura."
+        "Compor no BFF um snapshot somente leitura a partir das fontes autoritativas existentes e recortar áreas e coleções conforme as capabilities resolvidas."
       ],
       "timing": "",
-      "concept_refs": ["TERM-002", "TERM-004", "ENT-003", "ENT-004"],
+      "concept_refs": ["TERM-002", "TERM-004", "TERM-007", "ENT-003", "ENT-004", "ENT-006"],
       "acceptance_refs": ["AC-003"],
-      "invariant_refs": ["INV-004", "INV-006"],
+      "invariant_refs": ["INV-002", "INV-004", "INV-006", "INV-010"],
       "formalization_refs": []
     },
     {
@@ -163,17 +175,18 @@
     {
       "id": "REQ-005",
       "priority": "must",
-      "pattern": "ubiquitous",
+      "pattern": "policy",
       "component": "Catálogo de sistemas",
       "scope": ["área Sistemas"],
-      "preconditions": ["snapshot carregado"],
+      "preconditions": ["snapshot carregado", "platform.modules.read presente"],
+      "trigger": "a sessão consulta a área Sistemas",
       "response": [
-        "Apresentar separadamente o manifesto versionado do núcleo e os módulos registrados sem absorver as regras internas desses módulos."
+        "Apresentar o manifesto permitido e módulos registrados somente quando a capability de módulos estiver presente, sem absorver regras internas desses módulos."
       ],
       "timing": "",
-      "concept_refs": ["TERM-002", "TERM-003", "ENT-003", "ENT-004"],
+      "concept_refs": ["TERM-002", "TERM-003", "TERM-007", "ENT-003", "ENT-004"],
       "acceptance_refs": ["AC-005"],
-      "invariant_refs": [],
+      "invariant_refs": ["INV-002", "INV-010"],
       "formalization_refs": []
     },
     {
@@ -182,15 +195,15 @@
       "pattern": "policy",
       "component": "Minimização de dados",
       "scope": ["Auditoria", "Configurações", "Operação"],
-      "preconditions": ["usuário ADMINISTRADOR"],
+      "preconditions": ["sessão autenticada"],
       "trigger": "o BFF compõe os metadados administrativos para o navegador",
       "response": [
-        "Excluir valores de configuração e campos de auditoria sensíveis ou desnecessários do contrato enviado ao cliente."
+        "Excluir valores de configuração e campos de auditoria sensíveis ou desnecessários e omitir coleções cuja capability não esteja presente."
       ],
       "timing": "",
-      "concept_refs": ["TERM-004", "ENT-004"],
+      "concept_refs": ["TERM-004", "TERM-007", "ENT-004"],
       "acceptance_refs": ["AC-006"],
-      "invariant_refs": ["INV-004"],
+      "invariant_refs": ["INV-002", "INV-004", "INV-010"],
       "formalization_refs": []
     },
     {
@@ -235,7 +248,7 @@
       "preconditions": ["candidata tecnicamente integrável"],
       "trigger": "a candidata passa pelos gates de construção e segurança",
       "response": [
-        "Exigir os gates do repositório e preservar o estado de validação até o comando humano exato APROVADO PARA PRODUÇÃO."
+        "Exigir os gates do repositório, incluindo semantic check, e preservar o estado de validação até o comando humano exato APROVADO PARA PRODUÇÃO."
       ],
       "timing": "",
       "concept_refs": ["TERM-001", "TERM-005", "STATE-001", "STATE-002", "ENT-001"],
@@ -249,15 +262,15 @@
       "pattern": "policy",
       "component": "Busca transversal",
       "scope": ["áreas do núcleo", "módulos registrados", "metadados de configuração"],
-      "preconditions": ["snapshot autorizado carregado"],
+      "preconditions": ["snapshot autorizado e recortado carregado"],
       "trigger": "um administrador pesquisa no Centro",
       "response": [
-        "Indexar somente metadados já presentes no snapshot autorizado e excluir auditoria e migrações do índice de busca."
+        "Indexar somente metadados presentes no snapshot recortado e excluir auditoria e migrações do índice de busca."
       ],
       "timing": "",
-      "concept_refs": ["TERM-004", "ENT-004"],
+      "concept_refs": ["TERM-004", "TERM-007", "ENT-004"],
       "acceptance_refs": ["AC-010"],
-      "invariant_refs": ["INV-009"],
+      "invariant_refs": ["INV-009", "INV-010"],
       "formalization_refs": []
     },
     {
@@ -266,7 +279,7 @@
       "pattern": "policy",
       "component": "Saúde operacional",
       "scope": ["área Operação", "PlatformSnapshot", "módulos registrados"],
-      "preconditions": ["snapshot autorizado carregado"],
+      "preconditions": ["platform.health.read presente"],
       "trigger": "o Centro deriva sinais operacionais para apresentação",
       "response": [
         "Marcar a fundação como degradada quando faltar lista estrutural obrigatória.",
@@ -274,9 +287,29 @@
         "Tratar HealthEndpoint apenas como cobertura de contrato e manter recuperação como não verificada sem evidência de restore."
       ],
       "timing": "",
-      "concept_refs": ["TERM-004", "TERM-006", "ENT-004", "ENT-005"],
+      "concept_refs": ["TERM-004", "TERM-006", "TERM-007", "ENT-004", "ENT-005"],
       "acceptance_refs": ["AC-011"],
-      "invariant_refs": ["INV-007", "INV-008"],
+      "invariant_refs": ["INV-007", "INV-008", "INV-010"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-012",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "Política de capabilities",
+      "scope": ["/api/me", "/api/platform/snapshot", "/api/sharepoint/health", "PlatformSnapshot"],
+      "preconditions": ["sessão institucional válida"],
+      "trigger": "o BFF processa uma operação administrativa",
+      "response": [
+        "Resolver capabilities a partir dos papéis usando a política versionada em código.",
+        "Exigir a capability específica do endpoint no servidor.",
+        "Omitir do snapshot módulos e coleções sem a capability correspondente.",
+        "Manter PROFESSOR, ALUNO, APOIO e VISITANTE sem grants do Centro durante a validação atual."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-007", "ENT-002", "ENT-004", "ENT-006"],
+      "acceptance_refs": ["AC-012"],
+      "invariant_refs": ["INV-002", "INV-010"],
       "formalization_refs": []
     }
   ],

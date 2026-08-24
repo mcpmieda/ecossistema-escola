@@ -1,7 +1,12 @@
 import { z } from 'zod';
-import { PLATFORM_ROUTES, type CoreModuleContract } from '../../shared/platform-contract';
+import {
+  PLATFORM_CAPABILITIES,
+  PLATFORM_ROUTES,
+  type CoreModuleContract,
+} from '../../shared/platform-contract';
 
 const platformRouteSchema = z.enum(PLATFORM_ROUTES);
+const platformCapabilitySchema = z.enum(PLATFORM_CAPABILITIES);
 const moduleStateSchema = z.enum(['validation', 'planned']);
 
 export const coreModuleSchema = z.object({
@@ -11,7 +16,7 @@ export const coreModuleSchema = z.object({
   route: platformRouteSchema,
   state: moduleStateSchema,
   requiredRole: z.literal('ADMINISTRADOR'),
-  capabilities: z.array(z.string().min(1)).min(1),
+  capabilities: z.array(platformCapabilitySchema).min(1),
 });
 
 export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse([
