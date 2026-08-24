@@ -64,12 +64,33 @@ function SignalRow({
 }
 
 export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
-  const attention = snapshot.operational.status === 'attention';
+  const operational = snapshot.operational;
+
+  if (!operational) {
+    return (
+      <>
+        <PageHeader
+          eyebrow="Confiabilidade"
+          title="Operação"
+          description="Sinais observáveis do núcleo, degradações detectáveis e lacunas que ainda não possuem evidência operacional."
+        />
+        <Card>
+          <EmptyState
+            icon={HeartPulse}
+            title="Sinais operacionais não disponíveis"
+            description="A sessão atual não recebeu a capability necessária para consultar os sinais operacionais desta área."
+          />
+        </Card>
+      </>
+    );
+  }
+
+  const attention = operational.status === 'attention';
   const registeredCount = snapshot.registeredModules.length;
   const healthCoverageDescription =
     registeredCount === 0
       ? 'Nenhum sistema independente está registrado; não há contrato de health check para avaliar.'
-      : `${snapshot.operational.healthContractsConfigured} de ${registeredCount} sistema(s) registrado(s) possuem HealthEndpoint configurado. A presença do endpoint não comprova disponibilidade.`;
+      : `${operational.healthContractsConfigured} de ${registeredCount} sistema(s) registrado(s) possuem HealthEndpoint configurado. A presença do endpoint não comprova disponibilidade.`;
 
   return (
     <>
@@ -116,22 +137,18 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
           </div>
           <div className="rounded-xl border bg-muted/20 p-4">
             <p className="text-xs text-muted-foreground">Falhas na auditoria recente</p>
-            <p className="mt-2 text-lg font-semibold">
-              {snapshot.operational.recentAuditFailureCount}
-            </p>
+            <p className="mt-2 text-lg font-semibold">{operational.recentAuditFailureCount}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Entre os {snapshot.recentAudit.length} eventos recentes carregados.
             </p>
           </div>
           <div className="rounded-xl border bg-muted/20 p-4">
             <p className="text-xs text-muted-foreground">Contratos de health check</p>
-            <p className="mt-2 text-lg font-semibold">
-              {snapshot.operational.healthContractsConfigured}
-            </p>
+            <p className="mt-2 text-lg font-semibold">{operational.healthContractsConfigured}</p>
             <p className="mt-1 text-xs text-muted-foreground">
               {registeredCount === 0
                 ? 'Nenhum sistema independente registrado.'
-                : `${snapshot.operational.healthContractsMissing} sistema(s) sem contrato configurado.`}
+                : `${operational.healthContractsMissing} sistema(s) sem contrato configurado.`}
             </p>
           </div>
         </CardContent>
@@ -159,16 +176,16 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
             icon={Activity}
             title="Auditoria recente"
             description={
-              snapshot.operational.recentAuditFailureCount === 0
-                ? snapshot.operational.lastAuditAt
-                  ? `Nenhum resultado explicitamente classificado como erro/falha nos eventos carregados. Último evento: ${formatDate(snapshot.operational.lastAuditAt)}.`
+              operational.recentAuditFailureCount === 0
+                ? operational.lastAuditAt
+                  ? `Nenhum resultado explicitamente classificado como erro/falha nos eventos carregados. Último evento: ${formatDate(operational.lastAuditAt)}.`
                   : 'Nenhum evento recente foi carregado; não há evidência suficiente para inferir atividade.'
-                : `${snapshot.operational.recentAuditFailureCount} evento(s) recente(s) possuem resultado explicitamente iniciado por erro ou falha.`
+                : `${operational.recentAuditFailureCount} evento(s) recente(s) possuem resultado explicitamente iniciado por erro ou falha.`
             }
             status={
-              snapshot.recentAudit.length === 0
+              operational.lastAuditAt === ''
                 ? 'unknown'
-                : snapshot.operational.recentAuditFailureCount > 0
+                : operational.recentAuditFailureCount > 0
                   ? 'attention'
                   : 'ok'
             }
@@ -178,9 +195,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
             title="Contratos de saúde dos sistemas"
             description={healthCoverageDescription}
             status={
-              registeredCount === 0 || snapshot.operational.healthContractsMissing > 0
-                ? 'unknown'
-                : 'ok'
+              registeredCount === 0 || operational.healthContractsMissing > 0 ? 'unknown' : 'ok'
             }
           />
           <SignalRow
