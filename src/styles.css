@@ -1,0 +1,89 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #17324d;
+  background: #f3f6fa;
+  font-synthesis: none;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+main {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+}
+.status-card {
+  width: min(680px, 100%);
+  background: white;
+  border: 1px solid #dce5ee;
+  border-radius: 18px;
+  padding: clamp(1.5rem, 5vw, 3rem);
+  box-shadow: 0 18px 50px rgb(23 63 99 / 9%);
+}
+.eyebrow {
+  color: #276287;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+h1 {
+  margin: 0.5rem 0;
+  font-size: clamp(2rem, 6vw, 3.3rem);
+  line-height: 1.02;
+}
+.summary {
+  color: #526b80;
+  font-size: 1.1rem;
+}
+dl {
+  margin: 2rem 0;
+  border-block: 1px solid #e4ebf1;
+}
+dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid #edf1f5;
+}
+dl div:last-child {
+  border: 0;
+}
+dt {
+  color: #64798b;
+}
+dd {
+  margin: 0;
+  font-weight: 700;
+  text-align: right;
+}
+.primary,
+.secondary {
+  display: inline-block;
+  border: 0;
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+  text-decoration: none;
+}
+.primary {
+  color: white;
+  background: #173f63;
+}
+.secondary {
+  color: #173f63;
+  background: #e7eef5;
+}
+.note {
+  margin-top: 2rem;
+  color: #718597;
+  font-size: 0.9rem;
+}
