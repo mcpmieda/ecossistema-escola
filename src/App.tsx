@@ -371,7 +371,9 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                 <Database className="size-4 text-muted-foreground" />
               </CardAction>
             </CardHeader>
-            <CardContent className="text-xs text-muted-foreground">listas institucionais</CardContent>
+            <CardContent className="text-xs text-muted-foreground">
+              listas institucionais
+            </CardContent>
           </Card>
           <Card size="sm">
             <CardHeader>
@@ -423,7 +425,9 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       <Card className="gap-0 py-0">
         <CardHeader className="border-b py-4">
           <CardTitle>Módulos do núcleo</CardTitle>
-          <CardDescription>{snapshot.coreModules.length} áreas definidas por contrato.</CardDescription>
+          <CardDescription>
+            {snapshot.coreModules.length} áreas definidas por contrato.
+          </CardDescription>
         </CardHeader>
         <div className="divide-y">
           {snapshot.coreModules.map((module) => (
@@ -508,7 +512,9 @@ function AuditPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
               <TableBody>
                 {snapshot.recentAudit.map((entry) => (
                   <TableRow key={entry.id}>
-                    <TableCell className="whitespace-nowrap">{formatDate(entry.occurredAt)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatDate(entry.occurredAt)}
+                    </TableCell>
                     <TableCell>{entry.module}</TableCell>
                     <TableCell>{entry.action}</TableCell>
                     <TableCell>
@@ -595,7 +601,9 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                 className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
-                  <p className="text-sm font-medium">{migration.version || 'Versão não informada'}</p>
+                  <p className="text-sm font-medium">
+                    {migration.version || 'Versão não informada'}
+                  </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">{migration.module}</p>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -644,7 +652,9 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
             Planejado
           </Badge>
           <h3 className="mt-4 text-lg font-semibold">{copy.title} será incorporado ao núcleo</h3>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{copy.description}</p>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+            {copy.description}
+          </p>
           <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
             <ShieldCheck className="size-3.5" />
             Nenhuma escrita foi ativada nesta candidata.
@@ -655,7 +665,13 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
   );
 }
 
-function PageContent({ route, snapshot }: { route: PlatformRoute; snapshot: PlatformSnapshotContract }) {
+function PageContent({
+  route,
+  snapshot,
+}: {
+  route: PlatformRoute;
+  snapshot: PlatformSnapshotContract;
+}) {
   switch (route) {
     case 'sistemas':
       return <SystemsPage snapshot={snapshot} />;
@@ -735,7 +751,10 @@ function Navigation({
             <Icon className={cn('size-4', active ? 'text-primary' : 'text-muted-foreground')} />
             <span className="min-w-0 flex-1 truncate">{module.name}</span>
             {module.state === 'planned' && (
-              <span className="size-1.5 rounded-full bg-muted-foreground/35" aria-label="Planejado" />
+              <span
+                className="size-1.5 rounded-full bg-muted-foreground/35"
+                aria-label="Planejado"
+              />
             )}
           </a>
         );
@@ -825,9 +844,12 @@ function AdminShell({ identity }: { identity: Identity }) {
             error?: string;
             correlationId?: string;
           };
-          throw Object.assign(new Error(payload.error || 'Não foi possível carregar a plataforma.'), {
-            correlationId: payload.correlationId,
-          });
+          throw Object.assign(
+            new Error(payload.error || 'Não foi possível carregar a plataforma.'),
+            {
+              correlationId: payload.correlationId,
+            },
+          );
         }
         return (await response.json()) as PlatformSnapshotContract;
       })
@@ -860,7 +882,12 @@ function AdminShell({ identity }: { identity: Identity }) {
           <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
             <Sheet open={mobileNavigationOpen} onOpenChange={setMobileNavigationOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="icon" className="lg:hidden" aria-label="Abrir navegação">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="lg:hidden"
+                  aria-label="Abrir navegação"
+                >
                   <Menu />
                 </Button>
               </SheetTrigger>
@@ -888,7 +915,9 @@ function AdminShell({ identity }: { identity: Identity }) {
 
             <div className="flex items-center gap-3">
               <div className="hidden text-right sm:block">
-                <p className="max-w-48 truncate text-sm font-medium">{identity.name || 'Administrador'}</p>
+                <p className="max-w-48 truncate text-sm font-medium">
+                  {identity.name || 'Administrador'}
+                </p>
                 <p className="text-xs text-muted-foreground">Administrador</p>
               </div>
               <Avatar className="size-8">
@@ -941,7 +970,9 @@ function AdminShell({ identity }: { identity: Identity }) {
               <footer className="mt-8 flex flex-col gap-1 border-t pt-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                 <span>Núcleo {loadState.snapshot.version}</span>
                 <span>Dados consultados em {formatDate(loadState.snapshot.generatedAt)}</span>
-                <span className="font-mono">{shortCorrelation(loadState.snapshot.correlationId)}</span>
+                <span className="font-mono">
+                  {shortCorrelation(loadState.snapshot.correlationId)}
+                </span>
               </footer>
             </>
           )}
