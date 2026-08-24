@@ -15,11 +15,19 @@ const platformBaseRegistryItem = {
   },
 };
 
+function expectResolvedModule(
+  items: Parameters<typeof resolveRegisteredModules>[0],
+  capabilities: Parameters<typeof resolveRegisteredModules>[1],
+) {
+  const [module] = resolveRegisteredModules(items, capabilities);
+  expect(module).toBeDefined();
+  if (!module) throw new Error('Expected one resolved module');
+  return module;
+}
+
 describe('module registry integration resolution', () => {
   it('marks a matching registered contract as ready and available when its capability is granted', () => {
-    const [module] = resolveRegisteredModules([platformBaseRegistryItem], [
-      'platform.overview.read',
-    ]);
+    const module = expectResolvedModule([platformBaseRegistryItem], ['platform.overview.read']);
 
     expect(module).toMatchObject({
       key: 'plataforma-base',
@@ -33,14 +41,14 @@ describe('module registry integration resolution', () => {
   });
 
   it('keeps a valid contract unavailable when its required capability is absent', () => {
-    const [module] = resolveRegisteredModules([platformBaseRegistryItem], []);
+    const module = expectResolvedModule([platformBaseRegistryItem], []);
 
     expect(module.integrationState).toBe('ready');
     expect(module.available).toBe(false);
   });
 
   it('does not treat legacy RolesJson as authorization or integration evidence', () => {
-    const [module] = resolveRegisteredModules(
+    const module = expectResolvedModule(
       [
         {
           id: 'module-legacy',
@@ -72,7 +80,7 @@ describe('module registry integration resolution', () => {
   });
 
   it('fails closed when registry metadata diverges from the versioned contract', () => {
-    const [module] = resolveRegisteredModules(
+    const module = expectResolvedModule(
       [
         {
           ...platformBaseRegistryItem,
@@ -92,7 +100,7 @@ describe('module registry integration resolution', () => {
     ['depreciado', 'deprecated'],
     ['VALIDACAO', 'invalid-registry'],
   ] as const)('normalizes registry state %s to %s', (status, expected) => {
-    const [module] = resolveRegisteredModules(
+    const module = expectResolvedModule(
       [
         {
           ...platformBaseRegistryItem,
