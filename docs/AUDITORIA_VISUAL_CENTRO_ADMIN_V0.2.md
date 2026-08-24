@@ -4,12 +4,12 @@
 
 A candidata v0.2 atingiu os gates técnicos de aplicação e segurança, mas **não deve ser considerada visualmente aprovada**.
 
-O teste autenticado do administrador encontrou dois achados materiais:
+O primeiro teste autenticado do administrador encontrou dois achados materiais:
 
 1. a interface não transmite o nível de acabamento moderno esperado a partir das referências adotadas pela App Factory;
 2. o logout apagava a sessão no servidor, porém deixava o shell autenticado visível até uma recarga forçada do navegador.
 
-O segundo ponto é defeito funcional e foi aberto para correção imediata. O primeiro reabre o gate de UI e exige uma nova candidata visual antes de qualquer promoção oficial.
+O segundo ponto foi corrigido e validado externamente. O primeiro continua reabrindo o gate de UI e exige uma nova candidata visual antes de qualquer promoção oficial.
 
 ## O que a App Factory prescreve
 
@@ -65,14 +65,28 @@ O gate técnico foi corretamente separado da liberação oficial, mas a express�
 
 Isso não estava comprovado.
 
-A própria `VERIFICATION.md` ainda tratava a QA autenticada de desktop/mobile, logout e acabamento como etapa a ser realizada pelo administrador. Portanto, a UI não havia recebido aprovação humana final.
+A própria `VERIFICATION.md` tratava a QA autenticada de desktop/mobile, logout e acabamento como etapa a ser realizada pelo administrador. Portanto, a UI não havia recebido aprovação humana final.
 
 A avaliação atual corrige esse entendimento:
 
 - arquitetura e segurança: aprovadas para continuar a validação;
 - UI v0.2: **reprovada como candidata visual final**;
-- logout v0.2: **reprovado funcionalmente** e em correção;
+- logout v0.2: **corrigido, integrado e validado externamente**;
 - release state: permanece `validation`.
+
+## Evidência do fechamento do logout
+
+O PR #8 alterou o contrato do logout de `204 No Content` para `303 See Other`, preservando a expiração do cookie e a validação de origem.
+
+A execução de CI `32764734020` passou por format, lint, typecheck, testes, build, actionlint e zizmor.
+
+Depois do deploy, um smoke externo descartável confirmou no domínio oficial:
+
+- `POST /auth/logout` com `Origin` oficial retorna `303`;
+- `Location` aponta para `https://admin.escolaieda.com`;
+- o cookie `__Host-ecossistema_session` é expirado com `Max-Age=0`.
+
+O PR temporário #9 foi fechado sem merge e seu branch foi resetado para a `main`.
 
 ## Direção obrigatória para a próxima candidata visual
 
