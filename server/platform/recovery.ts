@@ -12,13 +12,17 @@ const readItemSchema = z.object({
 export const RECOVERY_TEST_PREFIX = 'RECOVERY_VERIFY_';
 export const RECOVERY_TEST_SCOPE = 'sharepoint-disposable-record-backup-restore-roundtrip' as const;
 
-export type GraphCall = <T>(input: {
+export type RecoveryGraphInput = {
   env: RuntimeEnv;
   path: string;
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   correlationId?: string;
-}) => Promise<{ data: T; etag: string | null; correlationId: string }>;
+};
+
+export type GraphCall = <T>(
+  input: RecoveryGraphInput,
+) => Promise<{ data: T; etag: string | null; correlationId: string }>;
 
 export type RecoveryVerificationResult = {
   status: 'verified';
