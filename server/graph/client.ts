@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { RuntimeEnv } from '../env';
 import { createClientAssertion } from '../auth/client-assertion';
+import { graphCredentials, type GraphCredentialSlot } from '../auth/technical-identity';
 
 const tokenSchema = z.object({ access_token: z.string(), expires_in: z.number() });
 export type GraphDependencies = {
@@ -15,28 +16,33 @@ const defaults: GraphDependencies = {
 export async function getGraphToken(
   env: RuntimeEnv,
   dependencies: GraphDependencies = defaults,
+  slot?: GraphCredentialSlot,
 ): Promise<string> {
   const endpoint = `https://login.microsoftonline.com/${env.TENANT_ID}/oauth2/v2.0/token`;
-  const assertion = await createClientAssertion({
-    clientId: env.GRAPH_CLIENT_ID,
-    tenantId: env.TENANT_ID,
-    privateKeyPkcs8: env.GRAPH_PRIVATE_KEY_PKCS8,
-    certificateThumbprint: env.GRAPH_CERT_THUMBPRINT,
-  });
-  const response = await dependencies.fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: env.GRAPH_CLIENT_ID,
-      scope: 'https://graph.microsoft.com/.default',
-      grant_type: 'client_credentials',
-      client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
-      client_assertion: assertion,
-    }),
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) throw new Error(`Graph token request failed (${response.status})`);
-  return tokenSchema.parse(await response.json()).access_token;
+  let lastStatus = 0;
+  for (const credential of graphCredentials(env, slot)) {
+    const assertion = await createClientAssertion({
+      clientId: env.GRAPH_CLIENT_ID,
+      tenantId: env.TENANT_ID,
+      privateKeyPkcs8: credential.privateKeyPkcs8,
+      certificateThumbprint: credential.certificateThumbprint,
+    });
+    const response = await dependencies.fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id: env.GRAPH_CLIENT_ID,
+        scope: 'https://graph.microsoft.com/.default',
+        grant_type: 'client_credentials',
+        client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+        client_assertion: assertion,
+      }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    lastStatus = response.status;
+    if (response.ok) return tokenSchema.parse(await response.json()).access_token;
+  }
+  throw new Error(`Graph token request failed (${lastStatus})`);
 }
 
 export async function graphRequest<T>(input: {
@@ -48,9 +54,10 @@ export async function graphRequest<T>(input: {
   correlationId?: string;
   dependencies?: GraphDependencies;
   token?: string;
+  credentialSlot?: GraphCredentialSlot;
 }): Promise<{ data: T; etag: string | null; correlationId: string }> {
   const dependencies = input.dependencies ?? defaults;
-  const token = input.token ?? (await getGraphToken(input.env, dependencies));
+  const token = input.token ?? (await getGraphToken(input.env, dependencies, input.credentialSlot));
   const correlationId = input.correlationId ?? crypto.randomUUID();
   let lastStatus = 0;
   for (let attempt = 0; attempt < 5; attempt++) {

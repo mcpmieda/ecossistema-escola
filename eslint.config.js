@@ -7,6 +7,14 @@ export default [
   { ignores: ['dist/**', 'node_modules/**', 'worker-configuration.d.ts'] },
   js.configs.recommended,
   {
+    files: ['**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
+    },
+  },
+  {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parser: tsparser,

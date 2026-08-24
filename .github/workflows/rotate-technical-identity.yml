@@ -1,0 +1,65 @@
+name: Rotate technical identity
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      force_rotation:
+        description: Rotate even when the active certificate has more than 60 days remaining
+        required: false
+        default: false
+        type: boolean
+      simulate_failure:
+        description: Prove that a failed candidate does not remove the functional credential
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: rotate-technical-identity-production
+  cancel-in-progress: false
+
+jobs:
+  rotate-graph-certificate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Rotate with overlap and runtime validation
+        run: node infra/maintenance/rotate-graph-certificate.mjs | tee rotation-audit.jsonl
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+          GRAPH_CLIENT_ID: ${{ vars.GRAPH_CLIENT_ID }}
+          SHAREPOINT_SITE_ID: ${{ vars.SHAREPOINT_SITE_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          FORCE_ROTATION: ${{ inputs.force_rotation || false }}
+          SIMULATE_FAILURE: ${{ inputs.simulate_failure || false }}
+
+      - name: Publish redacted audit result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: technical-identity-rotation-${{ github.run_id }}
+          path: rotation-audit.jsonl
+          if-no-files-found: error
+          retention-days: 90

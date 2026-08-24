@@ -22,6 +22,8 @@ import {
   withSecurityHeaders,
 } from '../server/http/security';
 import { sharePointHealth } from '../server/graph/sharepoint';
+import { verifyGitHubMaintenanceToken } from '../server/auth/github-oidc';
+import type { GraphCredentialSlot } from '../server/auth/technical-identity';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -41,6 +43,20 @@ async function route(context: Context): Promise<Response> {
   if (url.pathname === '/api/health') {
     method(request, ['GET']);
     return json({ status: 'ok', service: 'ecossistema-escola', version: '1.0.0' });
+  }
+  if (url.pathname === '/api/maintenance/rotation/validate') {
+    method(request, ['POST']);
+    try {
+      await verifyGitHubMaintenanceToken(request.headers.get('Authorization'));
+    } catch {
+      throw new HttpError(401, 'Invalid maintenance identity');
+    }
+    const requestedSlot = url.searchParams.get('slot');
+    if (requestedSlot !== 'LEGACY' && requestedSlot !== 'A' && requestedSlot !== 'B') {
+      throw new HttpError(400, 'Invalid credential slot');
+    }
+    const result = await sharePointHealth(env, requestedSlot as GraphCredentialSlot);
+    return json({ ...result, credentialSlot: requestedSlot });
   }
   if (url.pathname === '/auth/login') {
     method(request, ['GET']);

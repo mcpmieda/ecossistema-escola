@@ -5,6 +5,8 @@ export type RuntimeSecrets = {
   WEB_CERT_THUMBPRINT: string;
   GRAPH_PRIVATE_KEY_PKCS8: string;
   GRAPH_CERT_THUMBPRINT: string;
+  GRAPH_CREDENTIAL_A?: string;
+  GRAPH_CREDENTIAL_B?: string;
   SESSION_SECRET: string;
 };
 
@@ -25,6 +27,8 @@ const envSchema = z.object({
   WEB_CERT_THUMBPRINT: z.string().min(20),
   GRAPH_PRIVATE_KEY_PKCS8: z.string().min(256),
   GRAPH_CERT_THUMBPRINT: z.string().min(20),
+  GRAPH_CREDENTIAL_A: z.string().min(256).optional(),
+  GRAPH_CREDENTIAL_B: z.string().min(256).optional(),
   SESSION_SECRET: z.string().min(43),
 });
 
