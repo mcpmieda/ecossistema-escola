@@ -10,9 +10,9 @@ const readItemSchema = z.object({
 });
 
 export const RECOVERY_TEST_PREFIX = 'RECOVERY_VERIFY_';
-export const RECOVERY_TEST_SCOPE = 'sharepoint-disposable-structure-and-record-roundtrip' as const;
+export const RECOVERY_TEST_SCOPE = 'sharepoint-disposable-record-backup-restore-roundtrip' as const;
 
-type GraphCall = <T>(input: {
+export type GraphCall = <T>(input: {
   env: RuntimeEnv;
   path: string;
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
@@ -45,6 +45,8 @@ export async function verifyRecoveryRoundTrip(
 ): Promise<RecoveryVerificationResult> {
   const correlationId = crypto.randomUUID();
   const suffix = randomId().replace(/[^a-zA-Z0-9]/gu, '').slice(0, 16);
+  if (!suffix) throw new Error('Recovery verification could not derive a safe resource suffix');
+
   const listName = `${RECOVERY_TEST_PREFIX}${suffix}`;
   const sentinel = `recovery-sentinel-${suffix}`;
   const corrupted = `recovery-corrupted-${suffix}`;
