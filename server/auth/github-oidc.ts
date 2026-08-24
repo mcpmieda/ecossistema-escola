@@ -39,8 +39,7 @@ const claimsSchema = z.object({
 });
 
 export type MaintenanceAudience =
-  | typeof MAINTENANCE_ROTATION_AUDIENCE
-  | typeof MAINTENANCE_RECOVERY_AUDIENCE;
+  typeof MAINTENANCE_ROTATION_AUDIENCE | typeof MAINTENANCE_RECOVERY_AUDIENCE;
 
 export async function verifyGitHubMaintenanceToken(
   authorization: string | null,

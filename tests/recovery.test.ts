@@ -116,7 +116,12 @@ describe('recovery verification', () => {
     const { graph, calls } = successfulGraph({ corruptRestore: true });
 
     await expect(
-      verifyRecoveryRoundTrip(testEnv, graph, () => new Date(), () => 'mismatch'),
+      verifyRecoveryRoundTrip(
+        testEnv,
+        graph,
+        () => new Date(),
+        () => 'mismatch',
+      ),
     ).rejects.toThrow('Recovery restore checksum mismatch');
 
     expect(calls.at(-1)).toMatchObject({
@@ -129,7 +134,12 @@ describe('recovery verification', () => {
     const { graph } = successfulGraph({ failCleanup: true });
 
     await expect(
-      verifyRecoveryRoundTrip(testEnv, graph, () => new Date(), () => 'cleanup'),
+      verifyRecoveryRoundTrip(
+        testEnv,
+        graph,
+        () => new Date(),
+        () => 'cleanup',
+      ),
     ).rejects.toThrow('cleanup failed');
   });
 
@@ -137,7 +147,12 @@ describe('recovery verification', () => {
     const { graph, calls } = successfulGraph();
 
     await expect(
-      verifyRecoveryRoundTrip(testEnv, graph, () => new Date(), () => '---'),
+      verifyRecoveryRoundTrip(
+        testEnv,
+        graph,
+        () => new Date(),
+        () => '---',
+      ),
     ).rejects.toThrow('safe resource suffix');
 
     expect(calls).toHaveLength(0);

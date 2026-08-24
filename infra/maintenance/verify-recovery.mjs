@@ -33,7 +33,9 @@ async function waitForRecoveryEndpoint() {
     }
     if (attempt < 36) await new Promise((resolve) => setTimeout(resolve, 10_000));
   }
-  throw new Error(`Recovery endpoint was not deployed before verification (last status ${lastStatus})`);
+  throw new Error(
+    `Recovery endpoint was not deployed before verification (last status ${lastStatus})`,
+  );
 }
 
 await waitForRecoveryEndpoint();
@@ -45,7 +47,9 @@ const response = await fetch(audience, {
 });
 const text = await response.text();
 if (!response.ok) {
-  throw new Error(`Recovery verification endpoint failed (${response.status}): ${text.slice(0, 500)}`);
+  throw new Error(
+    `Recovery verification endpoint failed (${response.status}): ${text.slice(0, 500)}`,
+  );
 }
 const result = JSON.parse(text);
 if (

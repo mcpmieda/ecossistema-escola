@@ -44,7 +44,9 @@ export async function verifyRecoveryRoundTrip(
   randomId: () => string = () => crypto.randomUUID(),
 ): Promise<RecoveryVerificationResult> {
   const correlationId = crypto.randomUUID();
-  const suffix = randomId().replace(/[^a-zA-Z0-9]/gu, '').slice(0, 16);
+  const suffix = randomId()
+    .replace(/[^a-zA-Z0-9]/gu, '')
+    .slice(0, 16);
   if (!suffix) throw new Error('Recovery verification could not derive a safe resource suffix');
 
   const listName = `${RECOVERY_TEST_PREFIX}${suffix}`;
@@ -94,7 +96,8 @@ export async function verifyRecoveryRoundTrip(
       ).data,
     );
     const backup = { Title: before.fields?.Title ?? '' };
-    if (backup.Title !== sentinel) throw new Error('Recovery sentinel was not persisted as expected');
+    if (backup.Title !== sentinel)
+      throw new Error('Recovery sentinel was not persisted as expected');
     const backupChecksum = await checksum(backup);
 
     await graph<unknown>({
