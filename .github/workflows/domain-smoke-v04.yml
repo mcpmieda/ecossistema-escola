@@ -1,0 +1,53 @@
+name: Centro v0.4 domain smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: domain-smoke-v04-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Verify deployed v0.4
+    if: github.head_ref == 'test/domain-smoke-v0.4'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify public shell and protected APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://admin.escolaieda.com'
+          found=0
+
+          for _ in $(seq 1 40); do
+            curl --silent --show-error --fail "${base}/" -o /tmp/root.html
+            asset_path="$(grep -oE 'src="/assets/[^\"]+\.js"' /tmp/root.html | head -n 1 | cut -d'"' -f2 || true)"
+            if [[ -n "${asset_path}" ]]; then
+              curl --silent --show-error --fail "${base}${asset_path}" -o /tmp/app.js
+              if grep --quiet --fixed-strings 'Centro v0.4 em validação controlada' /tmp/app.js && grep --quiet --fixed-strings 'Buscar no Centro' /tmp/app.js; then
+                found=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+
+          if [[ "${found}" != '1' ]]; then
+            echo 'The official validation domain did not serve the v0.4 bundle.' >&2
+            exit 1
+          fi
+
+          me_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${base}/api/me")"
+          snapshot_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${base}/api/platform/snapshot")"
+
+          test "${me_status}" = '401'
+          test "${snapshot_status}" = '401'
+          echo 'v0.4 bundle is live and protected APIs remain anonymous-denied.'
