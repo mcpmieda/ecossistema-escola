@@ -1,0 +1,53 @@
+name: Centro v0.6 domain smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Verify deployed v0.6
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify public shell and protected APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin='https://admin.escolaieda.com'
+
+          for attempt in $(seq 1 36); do
+            html="$(curl -fsS --max-time 15 "$origin/")"
+            asset="$(printf '%s' "$html" | grep -oE 'src="/assets/index-[^"]+\.js"' | head -n1 | sed -E 's/^src="([^"]+)"$/\1/')"
+
+            if [[ -n "$asset" ]]; then
+              bundle="$(curl -fsS --max-time 20 "$origin$asset")"
+              if grep -Fq 'Centro v0.6 em validação controlada' <<<"$bundle" \
+                && grep -Fq 'platform.snapshot.read' <<<"$bundle" \
+                && grep -Fq 'platform.health.read' <<<"$bundle"; then
+                me_status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$origin/api/me")"
+                snapshot_status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$origin/api/platform/snapshot")"
+                sharepoint_health_status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$origin/api/sharepoint/health")"
+                public_health_status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$origin/api/health")"
+
+                test "$me_status" = '401'
+                test "$snapshot_status" = '401'
+                test "$sharepoint_health_status" = '401'
+                test "$public_health_status" = '200'
+
+                echo 'v0.6 bundle is live and protected APIs remain anonymous-denied.'
+                echo "api_me=$me_status platform_snapshot=$snapshot_status sharepoint_health=$sharepoint_health_status public_health=$public_health_status asset=$asset"
+                exit 0
+              fi
+            fi
+
+            sleep 10
+          done
+
+          echo 'v0.6 markers were not observed on the validation domain.' >&2
+          exit 1
