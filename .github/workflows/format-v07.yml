@@ -6,7 +6,7 @@ on:
       - feat/centro-admin-v0.7-module-integration-contract
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: format-v07-${{ github.ref }}
@@ -17,11 +17,15 @@ jobs:
     name: Format and verify v0.7
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    permissions:
+      # Temporary write scope is limited to this formatter job so it can commit verified formatting.
+      contents: write
     steps:
       - name: Checkout v0.7 branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: feat/centro-admin-v0.7-module-integration-contract
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -40,6 +44,8 @@ jobs:
 
       - name: Commit verified formatting
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if git diff --quiet; then
@@ -49,4 +55,4 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           git commit -m 'Format and verify v0.7 module integration'
-          git push origin HEAD:feat/centro-admin-v0.7-module-integration-contract
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:feat/centro-admin-v0.7-module-integration-contract
