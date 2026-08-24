@@ -68,7 +68,7 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
             <span className="absolute inline-flex size-full rounded-full bg-primary/25 motion-safe:animate-ping" />
             <span className="relative inline-flex size-2 rounded-full bg-primary" />
           </span>
-          <span className="font-medium">Centro v0.7 em validação controlada</span>
+          <span className="font-medium">Centro v0.8 em validação controlada</span>
         </div>
         <span className="text-xs text-muted-foreground">Acesso restrito a administradores</span>
       </div>

@@ -3,7 +3,7 @@ import type { PlatformSnapshotContract } from '../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, normalizeSearch } from '../src/platform/search-model';
 
 const snapshot = {
-  version: '0.7.0-validation',
+  version: '0.8.0-validation',
   releaseState: 'validation',
   generatedAt: '2026-08-24T19:00:00.000Z',
   correlationId: 'corr-search-test',
@@ -20,6 +20,9 @@ const snapshot = {
     healthContractsMissing: 1,
     lastAuditAt: '2026-08-24T18:44:00.000Z',
     recoveryStatus: 'not-verified',
+    recoveryVerifiedAt: '',
+    recoveryEvidenceRef: '',
+    recoveryScope: 'sharepoint-disposable-record-backup-restore-roundtrip',
   },
   coreModules: [
     {

@@ -24,9 +24,13 @@ import {
   withSecurityHeaders,
 } from '../server/http/security';
 import { sharePointHealth } from '../server/graph/sharepoint';
-import { verifyGitHubMaintenanceToken } from '../server/auth/github-oidc';
+import {
+  MAINTENANCE_RECOVERY_AUDIENCE,
+  verifyGitHubMaintenanceToken,
+} from '../server/auth/github-oidc';
 import { graphCredentials, type GraphCredentialSlot } from '../server/auth/technical-identity';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
+import { verifyRecoveryRoundTrip } from '../server/platform/recovery';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -71,6 +75,25 @@ async function route(context: Context): Promise<Response> {
       throw new HttpError(
         502,
         error instanceof Error ? error.message : 'Technical identity validation failed',
+      );
+    }
+  }
+  if (url.pathname === '/api/maintenance/recovery/verify') {
+    method(request, ['POST']);
+    try {
+      await verifyGitHubMaintenanceToken(
+        request.headers.get('Authorization'),
+        MAINTENANCE_RECOVERY_AUDIENCE,
+      );
+    } catch {
+      throw new HttpError(401, 'Invalid maintenance identity');
+    }
+    try {
+      return json(await verifyRecoveryRoundTrip(env));
+    } catch (error) {
+      throw new HttpError(
+        502,
+        error instanceof Error ? error.message : 'Recovery verification failed',
       );
     }
   }

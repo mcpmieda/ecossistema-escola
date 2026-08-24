@@ -4,8 +4,10 @@ import { decodeBase64Url, decodeJson } from './base64url';
 const ISSUER = 'https://token.actions.githubusercontent.com';
 const EXPECTED_SUBJECT =
   'repo:mcpmieda@268288370/ecossistema-escola@1345061518:environment:production';
-export const MAINTENANCE_AUDIENCE =
+export const MAINTENANCE_ROTATION_AUDIENCE =
   'https://admin.escolaieda.com/api/maintenance/rotation/validate';
+export const MAINTENANCE_RECOVERY_AUDIENCE =
+  'https://admin.escolaieda.com/api/maintenance/recovery/verify';
 
 const discoverySchema = z.object({ issuer: z.string(), jwks_uri: z.string().url() });
 const jwksSchema = z.object({
@@ -28,7 +30,7 @@ const headerSchema = z.object({
 const claimsSchema = z.object({
   iss: z.literal(ISSUER),
   sub: z.literal(EXPECTED_SUBJECT),
-  aud: z.union([z.literal(MAINTENANCE_AUDIENCE), z.array(z.string())]),
+  aud: z.union([z.string(), z.array(z.string())]),
   exp: z.number().int(),
   nbf: z.number().int().optional(),
   iat: z.number().int().optional(),
@@ -36,8 +38,12 @@ const claimsSchema = z.object({
   environment: z.literal('production').optional(),
 });
 
+export type MaintenanceAudience =
+  typeof MAINTENANCE_ROTATION_AUDIENCE | typeof MAINTENANCE_RECOVERY_AUDIENCE;
+
 export async function verifyGitHubMaintenanceToken(
   authorization: string | null,
+  expectedAudience: MaintenanceAudience = MAINTENANCE_ROTATION_AUDIENCE,
   fetcher: typeof fetch = (input, init) => fetch(input, init),
 ): Promise<void> {
   if (!authorization?.startsWith('Bearer ')) throw new Error('Missing maintenance token');
@@ -47,8 +53,8 @@ export async function verifyGitHubMaintenanceToken(
   const header = headerSchema.parse(decodeJson(parts[0]!));
   const claims = claimsSchema.parse(decodeJson(parts[1]!));
   if (
-    (Array.isArray(claims.aud) && !claims.aud.includes(MAINTENANCE_AUDIENCE)) ||
-    (!Array.isArray(claims.aud) && claims.aud !== MAINTENANCE_AUDIENCE)
+    (Array.isArray(claims.aud) && !claims.aud.includes(expectedAudience)) ||
+    (!Array.isArray(claims.aud) && claims.aud !== expectedAudience)
   ) {
     throw new Error('Invalid maintenance audience');
   }
