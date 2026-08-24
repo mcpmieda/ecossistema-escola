@@ -1,0 +1,62 @@
+name: Temporary v0.8 formatter
+
+on:
+  push:
+    branches:
+      - feat/centro-admin-v0.8-recovery-verification
+
+permissions:
+  contents: read
+
+concurrency:
+  group: temporary-v08-formatter
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: Format v0.8 laboratory branch
+    if: github.ref == 'refs/heads/feat/centro-admin-v0.8-recovery-verification'
+    permissions:
+      contents: write # required only to commit formatter output back to this isolated laboratory branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout laboratory branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feat/centro-admin-v0.8-recovery-verification
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Format changed source
+        run: >-
+          npx prettier --write
+          infra/maintenance/verify-recovery.mjs
+          server/auth/github-oidc.ts
+          server/platform/recovery.ts
+          tests/recovery.test.ts
+
+      - name: Commit formatter output
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: feat/centro-admin-v0.8-recovery-verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add infra/maintenance/verify-recovery.mjs server/auth/github-oidc.ts server/platform/recovery.ts tests/recovery.test.ts
+          if git diff --cached --quiet; then
+            echo 'No formatter changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Format v0.8 recovery candidate'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/${TARGET_BRANCH}"
