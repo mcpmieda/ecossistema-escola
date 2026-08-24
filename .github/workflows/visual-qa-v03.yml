@@ -1,0 +1,188 @@
+name: Temporary visual QA v0.3
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  visual-qa:
+    if: github.head_ref == 'feat/centro-admin-visual-v0.3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout visual branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install application
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Install Playwright for disposable QA
+        run: |
+          npm install --no-save --package-lock=false playwright@1.62.1
+          npx playwright install --with-deps chromium
+
+      - name: Run browser visual QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p visual-qa
+          cat > /tmp/visual-qa.mjs <<'EOF'
+          import { chromium } from 'playwright';
+
+          const baseUrl = 'http://127.0.0.1:4173';
+          const snapshot = {
+            version: '0.3.0-visual-validation',
+            releaseState: 'validation',
+            generatedAt: '2026-08-24T19:00:00.000Z',
+            correlationId: 'visual-qa-1234567890',
+            foundation: {
+              status: 'ok',
+              sharePointListCount: 12,
+              expectedPlatformListsPresent: true,
+            },
+            coreModules: [
+              { id: 'core.overview', name: 'Visão geral', description: 'Resumo operacional da plataforma.', route: 'visao-geral', state: 'validation', requiredRole: 'ADMINISTRADOR', capabilities: ['platform.overview.read'] },
+              { id: 'content.publications', name: 'Publicações', description: 'Gestão editorial institucional.', route: 'publicacoes', state: 'planned', requiredRole: 'ADMINISTRADOR', capabilities: ['publications.read'] },
+              { id: 'content.pages', name: 'Páginas', description: 'Gestão controlada de páginas.', route: 'paginas', state: 'planned', requiredRole: 'ADMINISTRADOR', capabilities: ['pages.read'] },
+              { id: 'platform.systems', name: 'Sistemas', description: 'Catálogo dos sistemas integrados ao Centro.', route: 'sistemas', state: 'validation', requiredRole: 'ADMINISTRADOR', capabilities: ['platform.modules.read'] },
+              { id: 'platform.audit', name: 'Auditoria', description: 'Rastreabilidade das operações administrativas.', route: 'auditoria', state: 'validation', requiredRole: 'ADMINISTRADOR', capabilities: ['platform.audit.read'] },
+              { id: 'platform.settings', name: 'Configurações', description: 'Governança dos parâmetros da plataforma.', route: 'configuracoes', state: 'validation', requiredRole: 'ADMINISTRADOR', capabilities: ['platform.settings.read'] },
+            ],
+            registeredModules: [
+              { id: 'm1', key: 'banco-notas', name: 'Banco de Notas', baseRoute: '/banco-notas', version: '1.0.0', status: 'VALIDACAO', order: 1, roles: ['ADMINISTRADOR'], healthEndpoint: '', updatedAt: '2026-08-24T18:00:00Z' },
+              { id: 'm2', key: 'arquivo-digital', name: 'Arquivo Digital', baseRoute: '/arquivo-digital', version: '2.1.0', status: 'ATIVO', order: 2, roles: ['ADMINISTRADOR'], healthEndpoint: '', updatedAt: '2026-08-24T18:10:00Z' },
+            ],
+            configurations: [
+              { id: 'c1', key: 'PLATAFORMA.NAVEGACAO', scope: 'GLOBAL', version: '3', active: true, effectiveFrom: '', effectiveUntil: '', updatedAt: '2026-08-24T18:00:00Z' },
+              { id: 'c2', key: 'PLATAFORMA.EXPERIMENTAL', scope: 'ADMIN', version: '1', active: false, effectiveFrom: '', effectiveUntil: '', updatedAt: '2026-08-24T18:00:00Z' },
+            ],
+            recentAudit: [
+              { id: 'a1', eventId: 'evt-1', occurredAt: '2026-08-24T18:44:00Z', module: 'Centro', action: 'LOGIN', entityType: 'SESSION', correlationId: 'corr-111111111', result: 'OK' },
+              { id: 'a2', eventId: 'evt-2', occurredAt: '2026-08-24T18:40:00Z', module: 'Sistemas', action: 'CONSULTA', entityType: 'MODULE', correlationId: 'corr-222222222', result: 'OK' },
+              { id: 'a3', eventId: 'evt-3', occurredAt: '2026-08-24T18:32:00Z', module: 'Configurações', action: 'LEITURA', entityType: 'CONFIG', correlationId: 'corr-333333333', result: 'OK' },
+            ],
+            migrations: [
+              { id: 'g1', version: '0.2.0', module: 'platform', appliedAt: '2026-08-24T17:00:00Z', result: 'OK' },
+            ],
+          };
+
+          const failures = [];
+          const browser = await chromium.launch();
+
+          async function configuredPage(viewport, authenticated = true, reducedMotion = 'no-preference') {
+            const context = await browser.newContext({ viewport, reducedMotion });
+            const page = await context.newPage();
+            page.on('console', (message) => {
+              if (message.type() === 'error') failures.push(`console: ${message.text()}`);
+            });
+            page.on('pageerror', (error) => failures.push(`pageerror: ${error.message}`));
+            await page.route('**/api/me', async (route) => {
+              if (!authenticated) {
+                await route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'Unauthorized' }) });
+                return;
+              }
+              await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ authenticated: true, name: 'Administrador Teste', roles: ['ADMINISTRADOR'] }) });
+            });
+            await page.route('**/api/platform/snapshot', async (route) => {
+              await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(snapshot) });
+            });
+            return { context, page };
+          }
+
+          async function assertNoBodyOverflow(page, label) {
+            const dimensions = await page.evaluate(() => ({
+              scrollWidth: document.documentElement.scrollWidth,
+              clientWidth: document.documentElement.clientWidth,
+            }));
+            if (dimensions.scrollWidth > dimensions.clientWidth + 1) {
+              failures.push(`${label}: body overflow ${dimensions.scrollWidth}px > ${dimensions.clientWidth}px`);
+            }
+          }
+
+          {
+            const { context, page } = await configuredPage({ width: 1440, height: 1000 });
+            await page.goto(`${baseUrl}/#/visao-geral`, { waitUntil: 'networkidle' });
+            await page.getByText('Operação da plataforma').waitFor();
+            await assertNoBodyOverflow(page, 'desktop overview');
+            await page.screenshot({ path: 'visual-qa/01-desktop-overview.png', fullPage: true });
+
+            await page.goto(`${baseUrl}/#/sistemas`, { waitUntil: 'networkidle' });
+            await page.getByText('Sistemas e módulos', { exact: true }).waitFor();
+            await assertNoBodyOverflow(page, 'desktop systems');
+            await page.screenshot({ path: 'visual-qa/02-desktop-systems.png', fullPage: true });
+
+            await page.goto(`${baseUrl}/#/auditoria`, { waitUntil: 'networkidle' });
+            await page.getByText('Atividade recente').waitFor();
+            await assertNoBodyOverflow(page, 'desktop audit');
+            await page.screenshot({ path: 'visual-qa/03-desktop-audit.png', fullPage: true });
+
+            await page.goto(`${baseUrl}/#/configuracoes`, { waitUntil: 'networkidle' });
+            await page.getByText('Registro de configurações').waitFor();
+            await assertNoBodyOverflow(page, 'desktop settings');
+            await page.screenshot({ path: 'visual-qa/04-desktop-settings.png', fullPage: true });
+            await context.close();
+          }
+
+          {
+            const { context, page } = await configuredPage({ width: 390, height: 844 }, true, 'reduce');
+            await page.goto(`${baseUrl}/#/visao-geral`, { waitUntil: 'networkidle' });
+            await page.getByText('Operação da plataforma').waitFor();
+            await assertNoBodyOverflow(page, 'mobile overview');
+            await page.screenshot({ path: 'visual-qa/05-mobile-overview.png', fullPage: true });
+            await page.getByRole('button', { name: 'Abrir navegação' }).click();
+            await page.getByText('Centro de Administração', { exact: true }).last().waitFor();
+            await page.screenshot({ path: 'visual-qa/06-mobile-navigation.png', fullPage: true });
+            await context.close();
+          }
+
+          {
+            const { context, page } = await configuredPage({ width: 1280, height: 800 }, false);
+            await page.goto(baseUrl, { waitUntil: 'networkidle' });
+            await page.getByText('Entre para continuar').waitFor();
+            await assertNoBodyOverflow(page, 'login');
+            await page.screenshot({ path: 'visual-qa/07-login.png', fullPage: true });
+            await context.close();
+          }
+
+          await browser.close();
+          if (failures.length) {
+            console.error(failures.join('\n'));
+            process.exit(1);
+          }
+          console.log('Visual QA completed without console errors or body overflow.');
+          EOF
+
+          npx vite preview --host 127.0.0.1 --port 4173 > /tmp/vite-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill ${preview_pid} 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4173/ > /dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          node /tmp/visual-qa.mjs
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: centro-admin-v03-visual-qa
+          path: visual-qa/*.png
+          if-no-files-found: error
+          retention-days: 3
