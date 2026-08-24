@@ -28,6 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { PlatformRoute, PlatformSnapshotContract } from '../../shared/platform-contract';
+import { OperationsPage } from './operations-page';
 import { EmptyState, formatDate, ModuleRow, PageHeader, shortCorrelation } from './presentation';
 
 function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
@@ -46,7 +47,7 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
             <span className="absolute inline-flex size-full rounded-full bg-primary/25 motion-safe:animate-ping" />
             <span className="relative inline-flex size-2 rounded-full bg-primary" />
           </span>
-          <span className="font-medium">Centro v0.4 em validação controlada</span>
+          <span className="font-medium">Centro v0.5 em validação controlada</span>
         </div>
         <span className="text-xs text-muted-foreground">Acesso restrito a administradores</span>
       </div>
@@ -65,15 +66,21 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
               <span className="text-xs font-medium uppercase tracking-[0.14em]">Fundação</span>
             </div>
             <CardTitle className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-primary-foreground">
-              {snapshot.foundation.status === 'ok' ? 'Operacional' : 'Requer atenção'}
+              {snapshot.foundation.status === 'ok' ? 'Estrutura disponível' : 'Estrutura degradada'}
             </CardTitle>
             <CardDescription className="max-w-xl text-primary-foreground/70">
-              Autenticação, sessão, acesso institucional e leitura administrativa continuam usando a
-              fundação já implantada.
+              O estado agora deriva da presença real das estruturas obrigatórias. Sinais detalhados,
+              cobertura de health checks e lacunas de recuperação ficam na área de Operação.
             </CardDescription>
           </CardHeader>
           <CardContent className="mt-auto grid gap-2 sm:grid-cols-3">
-            {['Identidade protegida', 'Dados institucionais', 'Sessão validada'].map((item) => (
+            {[
+              'Sessão autenticada',
+              'Acesso administrativo',
+              snapshot.foundation.expectedPlatformListsPresent
+                ? 'Estrutura completa'
+                : 'Estrutura requer atenção',
+            ].map((item) => (
               <div
                 key={item}
                 className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.055] px-3 py-2.5 text-xs text-primary-foreground/80"
@@ -400,6 +407,8 @@ export function PageContent({
   snapshot: PlatformSnapshotContract;
 }) {
   switch (route) {
+    case 'operacao':
+      return <OperationsPage snapshot={snapshot} />;
     case 'sistemas':
       return <SystemsPage snapshot={snapshot} />;
     case 'auditoria':
