@@ -1,0 +1,89 @@
+{
+  "version": "1.0",
+  "feature": "centro-administracao-validation-v0.1",
+  "source": "Especificacao_Geral_Centro_de_Administracao_v2.0",
+  "invariants": [
+    {
+      "id": "INV-001",
+      "statement": "A autenticação continua sendo executada pelo fluxo Entra ID/BFF existente; o frontend não recebe tokens privilegiados."
+    },
+    {
+      "id": "INV-002",
+      "statement": "A candidata de validação do Centro só pode ser lida por sessão com capacidade platform.validation.access."
+    },
+    {
+      "id": "INV-003",
+      "statement": "Papéis institucionais continuam derivados exclusivamente dos grupos existentes e capacidades são derivadas no servidor."
+    },
+    {
+      "id": "INV-004",
+      "statement": "Dados institucionais do Centro são lidos do SharePoint CENTROADMIN exclusivamente pelo BFF."
+    },
+    {
+      "id": "INV-005",
+      "statement": "Falha parcial de uma fonte do dashboard não pode ser apresentada como sucesso nem exigir dados fictícios."
+    },
+    {
+      "id": "INV-006",
+      "statement": "Implantação para validação no domínio oficial não equivale à liberação definitiva aos demais usuários."
+    }
+  ],
+  "criteria": [
+    {
+      "id": "AC-001",
+      "priority": "must",
+      "requirement": "REQ-001",
+      "given": "uma pessoa sem sessão válida",
+      "when": "abre o domínio oficial",
+      "then": "nenhum dado administrativo é entregue e a experiência oferece somente o início do login institucional existente"
+    },
+    {
+      "id": "AC-002",
+      "priority": "must",
+      "requirement": "REQ-002",
+      "given": "uma sessão sem papel ADMINISTRADOR",
+      "when": "solicita /api/admin/bootstrap",
+      "then": "o servidor responde acesso negado sem consultar ou entregar o read model do Centro"
+    },
+    {
+      "id": "AC-003",
+      "priority": "must",
+      "requirement": "REQ-003",
+      "given": "uma sessão ADMINISTRADOR válida",
+      "when": "solicita /api/admin/bootstrap",
+      "then": "o servidor retorna identidade mínima, catálogo autorizado, resumo operacional, atividade e estado das fontes"
+    },
+    {
+      "id": "AC-004",
+      "priority": "must",
+      "requirement": "REQ-004",
+      "given": "um módulo cujo RolesJson não contém nenhum papel da sessão ou está malformado",
+      "when": "o catálogo é composto",
+      "then": "o módulo não é exposto ao cliente"
+    },
+    {
+      "id": "AC-005",
+      "priority": "must",
+      "requirement": "REQ-005",
+      "given": "uma fonte opcional do dashboard indisponível",
+      "when": "o read model é composto",
+      "then": "o Centro retorna os dados válidos restantes e marca o estado como degraded"
+    },
+    {
+      "id": "AC-006",
+      "priority": "must",
+      "requirement": "REQ-006",
+      "given": "a candidata implantada no domínio oficial",
+      "when": "os testes técnicos passam",
+      "then": "o acesso continua restrito e nenhuma liberação definitiva ocorre sem o comando exato APROVADO PARA PRODUÇÃO"
+    },
+    {
+      "id": "AC-007",
+      "priority": "must",
+      "requirement": "REQ-007",
+      "given": "preferência de movimento reduzido ativa",
+      "when": "a interface é exibida",
+      "then": "movimento ambiente não essencial é removido e o feedback funcional permanece compreensível"
+    }
+  ]
+}
