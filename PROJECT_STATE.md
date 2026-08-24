@@ -2,169 +2,175 @@
 
 ## Objetivo atual
 
-Evoluir o Centro de Administração em blocos grandes e completos, preservando integralmente a fundação existente e mantendo a plataforma em `validation` até autorização humana explícita de produção.
+Evoluir o Centro de Administração em blocos grandes e completos, preservando integralmente a fundação existente e mantendo `releaseState = validation` até autorização humana explícita de produção.
 
-Ao final de cada bloco concluído, a candidata corrente deve ser publicada em `https://admin.escolaieda.com`, mantendo acesso restrito a `ADMINISTRADOR`. O deploy serve para inspeção contínua e não equivale a liberação oficial.
+Ao final de cada bloco concluído, a candidata corrente deve ser publicada em `https://admin.escolaieda.com`, ainda restrita a `ADMINISTRADOR`, para inspeção contínua. Deploy de validação não equivale a liberação oficial.
 
-## Estado
+## Estado corrente
 
-- fase corrente: `v0.4` — busca transversal + modularização do shell;
-- candidata v0.4: branch `feat/centro-admin-v0.4-search-modularization`, PR #12;
-- baseline visual integrada: `main@4ed273771d77119300d1f638745e5e0a69081258` — v0.3 via PR #11;
-- runtime funcional do logout: `main@c87cbe8be7594a6d8e87f4d219d79de984c52599` via PR #8;
-- candidata funcional v0.2: `main@6effd9e0ee8f8bbc0e5864398e3ce6e53777cbc0` via PR #4;
+- fase: `v0.5` — operação e saúde observável;
+- candidata: branch `feat/centro-admin-v0.5-operational-health`, PR #14;
+- baseline publicada: `main@0c6bbee725e64aae0e5602ba07f817b3626c2684` — v0.4 via PR #12;
+- v0.4 confirmada externamente no domínio pelo workflow `32771055987`;
+- v0.3: fundação visual shadcn/ui integrada via PR #11;
+- logout corrigido: `main@c87cbe8be7594a6d8e87f4d219d79de984c52599` via PR #8;
 - baseline seguro anterior ao Centro: `8d28f1d35384a12a7028e25e0ec2a126edfdfdab`;
 - nível do sistema: `production-system`;
 - autenticação/autorização: Microsoft Entra ID + BFF + cookie HttpOnly selado; `ADMINISTRADOR` validado server-side;
-- fonte autoritativa de dados administrativos: SharePoint `CENTROADMIN` pela integração Graph existente;
-- release state: `validation`; **não é produção oficial**.
+- fonte autoritativa administrativa: SharePoint `CENTROADMIN` pela integração Graph existente;
+- produção oficial: **não autorizada**.
 
-## v0.3 — fundação visual integrada
+## v0.4 — publicada e verificada
 
-A v0.3 substituiu a camada visual v0.2 por uma base administrativa moderna com shadcn/ui real:
+A v0.4 modularizou o shell e adicionou busca transversal permission-scoped.
 
-- Tailwind CSS v4;
-- shadcn/ui;
-- Radix primitives;
-- Lucide icons;
-- Geist;
-- tokens, spacing, bordas, radius e estados consistentes;
-- login, sidebar, topbar, dashboard, Sistemas, Auditoria, Configurações, estados de carregamento/erro/vazio e navegação mobile refeitos.
+A busca:
 
-ReUI continua reservado para necessidade concreta de Data Grid, filtros avançados, calendário, Kanban ou outro componente complexo; não é adicionado apenas por estética.
+- usa somente o snapshot já autorizado pelo BFF;
+- indexa áreas do núcleo, sistemas registrados e metadados de configuração;
+- não indexa auditoria, migrações ou valores protegidos;
+- normaliza acentos e caixa;
+- aceita múltiplos termos fora de sequência;
+- limita resultados;
+- oferece `Ctrl+K`/`Cmd+K` no desktop e Sheet no mobile.
 
-A v0.3 preservou Entra, BFF, Graph, SharePoint, grupos, rotas, contratos, autorização e logout.
+O smoke externo da v0.4 encontrou no bundle efetivamente servido `Centro v0.4 em validação controlada` e `Buscar no Centro` e confirmou `401` anônimo em `/api/me` e `/api/platform/snapshot`. O PR temporário foi fechado e a branch de smoke foi resetada para `main`.
 
-## v0.4 — busca transversal e modularização
+## v0.5 — operação e saúde observável
 
-A v0.4 reduz o acoplamento do front-end e entrega a primeira função transversal real do Centro.
+A v0.5 cria a área `Operação`, capability `platform.health.read`, sem adicionar escrita ou endpoint paralelo.
 
-### Modularização
+### Correção de verdade operacional
 
-O antigo `src/App.tsx` concentrava login, shell, navegação e todas as páginas. A v0.4 separa responsabilidades em:
+Antes da v0.5, `foundation.status` era sempre `ok`, mesmo quando uma lista estrutural obrigatória não existia. A v0.5 elimina esse falso positivo.
 
-- `src/platform/routes.ts` — labels, ícones e hrefs;
-- `src/platform/presentation.tsx` — componentes e formatadores compartilhados;
-- `src/platform/navigation.tsx` — sidebar/navegação;
-- `src/platform/pages.tsx` — páginas do núcleo;
-- `src/platform/search-model.ts` — índice e filtro puros da busca;
-- `src/platform/search.tsx` — interface desktop/mobile da busca;
-- `src/components/ui/input.tsx` — primitive local coerente com shadcn.
+Listas estruturais esperadas:
 
-`src/App.tsx` passa a cuidar principalmente de identidade/sessão, carregamento do snapshot e composição do shell.
+- `PLATAFORMA_CONFIGURACOES`;
+- `PLATAFORMA_MODULOS`;
+- `PLATAFORMA_AUDITORIA`;
+- `PLATAFORMA_MIGRACOES`.
 
-### Busca interna
+Se alguma estiver ausente:
 
-A busca usa **somente o snapshot já autorizado pelo BFF**. Não cria endpoint paralelo, não consulta fonte alternativa e não amplia os dados entregues ao navegador.
+- `foundation.status = degraded`;
+- `expectedPlatformListsPresent = false`;
+- `missingPlatformLists` informa exatamente quais estruturas faltam;
+- `operational.status = attention`.
 
-Itens indexados:
+### Sinais operacionais derivados
 
-- áreas do núcleo já autorizadas;
-- sistemas registrados já presentes no snapshot;
-- metadados de configurações já presentes no snapshot.
+O mesmo snapshot autorizado agora informa:
 
-Itens deliberadamente não indexados:
+- quantidade de falhas explícitas nos eventos recentes de auditoria;
+- quantidade de sistemas registrados com `HealthEndpoint` configurado;
+- quantidade de sistemas sem contrato de health check;
+- data do último evento de auditoria disponível;
+- recuperação como `not-verified` enquanto não existir evidência real de restore testado.
 
-- eventos de auditoria;
-- migrações;
-- valores protegidos de configuração;
-- qualquer dado que não esteja no read model autorizado.
+Resultados de auditoria somente contam como falha quando começam explicitamente por termos como `erro`, `error`, `falha`, `failed` ou equivalentes definidos no classificador. Texto benigno como `sem erro` não é tratado como falha.
 
-Comportamento:
+### Regra conservadora de saúde
 
-- desktop: busca na topbar + atalho `Ctrl+K`/`Cmd+K`;
-- mobile: busca em painel lateral;
-- normalização de acentos e caixa;
-- busca por termos, sem exigir frase contínua (`banco notas` encontra `Banco de Notas`);
-- máximo de 7 resultados por consulta;
-- sistemas direcionam para `Sistemas` e configurações para `Configurações`.
+A área Operação não afirma disponibilidade que o sistema não mediu:
 
-## Higiene da v0.4
+- `HealthEndpoint` configurado significa **cobertura de contrato**, não disponibilidade comprovada;
+- nenhum HealthEndpoint é executado pelo navegador ou pelo BFF nesta candidata;
+- ausência de eventos de auditoria é exibida como evidência insuficiente, não como estado saudável;
+- recuperação/restore permanece `Não verificado` até existir evidência própria.
 
-- workflow temporário de limpeza removido antes do baseline final;
-- dependência Playwright usada apenas no QA descartável da v0.3 removida de `package.json` e `package-lock.json`;
-- `shadcn` preservado porque `src/styles.css` usa `shadcn/tailwind.css`, portanto é dependência real do build atual;
-- nenhuma camada antiga de busca ou navegação foi mantida em paralelo.
+Isso evita transformar ausência de erro em falsa garantia de saúde.
 
-## Verificação v0.4
+## App Factory — contratos agora executáveis no CI
 
-A candidata passou por:
+Os arquivos semânticos foram atualizados até a busca v0.4 e a operação v0.5:
 
-- format;
-- lint;
-- TypeScript;
-- testes unitários/contratuais existentes;
-- testes próprios da busca;
-- build;
-- actionlint;
-- zizmor.
+- `specs/semantic-contract.json`;
+- `specs/semantic-assurance.json`;
+- `specs/verification-plan.json`.
 
-A suíte passou de 68 para 72 testes com a inclusão de `tests/platform-search.test.ts`.
+O contrato inclui `AC-010` para busca e `AC-011` para saúde/degradação.
 
-O teste da busca protege explicitamente:
+Foi adicionado `infra/validation/validate-semantic-contract.mjs`, executado por `npm run semantic:check` e pelo CI. O gate valida:
 
-- normalização de acentos;
-- escopo exato do índice;
-- não indexação de auditoria/migrações;
-- roteamento de resultados;
-- limite de resultados;
-- busca por múltiplos termos.
+- fingerprint canônico do contrato;
+- sincronização do semantic assurance;
+- sincronização do verification plan;
+- critérios de aceitação e prioridades;
+- evidência para todos os critérios `must`;
+- referências de requisitos, invariantes e conceitos;
+- cobertura semântica dos critérios obrigatórios.
 
-## Logout — corrigido e preservado
+Fingerprint corrente:
 
-`POST /auth/logout` continua:
+`67d5428e416ae83ddc42f6d8be36102b2c2716c26b09e353bccf2648309c9ec8`
 
-- validando `Origin` oficial;
-- expirando o cookie de sessão;
-- retornando `303 See Other`;
-- redirecionando para `OFFICIAL_ORIGIN`.
+## Verificação técnica da v0.5 até este ponto
 
-O comportamento foi validado externamente e confirmado manualmente pelo administrador.
+O workflow temporário de formatação executou `npm run verify` com sucesso sobre a candidata formatada:
 
-## Funcionalidades disponíveis
+- format: **pass**;
+- lint: **pass**;
+- typecheck: **pass**;
+- semantic freshness/coverage: **pass**;
+- 11 arquivos de teste / **75 testes**: **pass**;
+- build Vite: **pass**.
 
-- login institucional Entra/BFF;
-- shell administrativo restrito a `ADMINISTRADOR`;
+O workflow temporário foi removido do branch. Falta apenas o CI normal do head definitivo, contendo também esta documentação, antes do merge.
+
+## Fundação preservada
+
+A v0.5 não altera:
+
+- Microsoft Entra ID;
+- BFF/cookie de sessão;
+- autorização server-side por `ADMINISTRADOR`;
+- Graph e permissões existentes;
+- SharePoint `CENTROADMIN` como fonte autoritativa;
+- grupos e automações existentes;
+- Cloudflare Pages e CI/CD;
+- secrets e rotação automática de identidade técnica;
+- logout `POST` + validação de Origin + `303` + expiração do cookie.
+
+## Funcionalidades disponíveis na candidata
+
+- login institucional;
+- shell administrativo shadcn/ui;
 - navegação restaurável por hash;
 - busca transversal permission-scoped;
 - Visão geral;
+- Operação;
 - Sistemas;
 - Auditoria somente leitura;
 - Configurações somente leitura sem valores protegidos;
-- Publicações e Páginas ainda planejadas e sem escrita;
+- Publicações e Páginas planejadas e sem escrita;
 - estados loading, vazio, erro e permissão negada;
-- reduced-motion e responsividade;
+- responsividade e reduced-motion;
 - logout com redirecionamento imediato.
 
-## Regra operacional de validação contínua
+## Regra de validação contínua
 
-Cada bloco de desenvolvimento deve terminar com:
+Cada bloco deve terminar com:
 
-1. higiene da mudança e remoção de artefatos temporários;
-2. format, lint, typecheck, testes, build, actionlint e zizmor verdes;
-3. atualização de `PROJECT_STATE.md` e `VERIFICATION.md` quando houver mudança material;
-4. integração da candidata validável em `main` quando os gates permitirem;
-5. deploy em `https://admin.escolaieda.com`, ainda protegido por `ADMINISTRADOR`;
-6. manutenção explícita do `releaseState = validation` até autorização humana final.
-
-## Próximos blocos
-
-- continuar funções transversais previstas na especificação, priorizando o que não exige nova regra institucional;
-- evoluir notificações/pendências, saúde/degradação e integração de módulos em fatias independentes;
-- manter Publicações e Páginas sem escrita até seus contratos de produto estarem definidos;
-- aplicar ReUI somente quando componente administrativo avançado trouxer ganho concreto;
-- manter validação visual humana contínua no domínio.
+1. higiene e remoção de artefatos temporários;
+2. format, lint, typecheck, semantic check, testes, build, actionlint e zizmor verdes;
+3. documentação de estado atualizada;
+4. integração em `main` quando os gates permitirem;
+5. deploy em `https://admin.escolaieda.com` restrito a `ADMINISTRADOR`;
+6. confirmação externa de que a candidata corrente está sendo servida;
+7. `releaseState = validation` até autorização humana final.
 
 ## Bloqueios para produção oficial
 
-- v0.3/v0.4 ainda não receberam aprovação visual humana final;
+- validação visual humana final ainda pendente;
+- recuperação/restore ainda não possui evidência registrada de teste;
 - módulos de produto ainda incompletos;
 - Publicações e Páginas continuam planejadas;
 - `APROVADO PARA PRODUÇÃO` não foi emitido.
 
 ## Regra de liberação
 
-Deploy técnico e teste no domínio oficial não equivalem a liberação oficial. O comando humano exato `APROVADO PARA PRODUÇÃO` continua sendo requisito separado para disponibilização regular aos usuários.
+O comando humano exato `APROVADO PARA PRODUÇÃO` continua sendo requisito separado para disponibilização regular aos usuários. Merge, CI e deploy técnico não substituem essa autorização.
 
 ## Links internos
 
