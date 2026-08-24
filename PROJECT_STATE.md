@@ -2,67 +2,120 @@
 
 ## Objetivo atual
 
-Entregar a primeira candidata funcional do Centro de Administração para teste real no domínio oficial, preservando integralmente a fundação já implantada e mantendo acesso restrito a administradores/testadores.
+Manter a candidata `v0.2` do Centro de Administração disponível para teste administrativo real no domínio oficial, sem convertê-la em liberação oficial.
 
 ## Estado
 
-- fase: construção e verificação da candidata `v0.2`;
-- branch/commit de referência: `test/centro-admin-v0.2`;
-- baseline seguro: `8d28f1d35384a12a7028e25e0ec2a126edfdfdab`;
+- fase: `v0.2` integrada e **PRONTA PARA TESTE ADMINISTRATIVO**;
+- candidata de runtime integrada: `main@6effd9e0ee8f8bbc0e5864398e3ce6e53777cbc0` via PR #4;
+- baseline seguro anterior ao Centro: `8d28f1d35384a12a7028e25e0ec2a126edfdfdab`;
 - baseline da candidata anterior: `d2fe89b2315e5cc2def634aa91f871f8f4290c15` (`v0.1`);
 - nível do sistema: `production-system`;
 - fonte autoritativa dos dados: Microsoft Entra ID para identidade/autenticação, grupos institucionais para papel e SharePoint `CENTROADMIN` para dados administrativos do núcleo;
 - autenticação/autorização: Entra ID + BFF + cookie HttpOnly selado; autorização administrativa validada server-side por `ADMINISTRADOR`;
-- persistência/migrations: listas/bibliotecas SharePoint já provisionadas; `PLATAFORMA_MIGRACOES` registra migrations quando necessárias;
-- recovery/backup: Git/Cloudflare para release; SharePoint versionado e procedimentos da fundação existente para dados; nenhuma migration destrutiva nesta candidata;
-- API/integracao: `lightweight` para `/api/platform/snapshot`, consumidor único interno;
+- persistência/migrations: listas/bibliotecas SharePoint já provisionadas; nenhuma migration destrutiva foi necessária nesta candidata;
+- recovery/backup: Git/Cloudflare para release e mecanismos existentes do SharePoint para dados;
+- API/integração: `lightweight` para `/api/platform/snapshot`, consumidor único interno;
 - contrato autoritativo da interface: `shared/platform-contract.ts` + comportamento do BFF;
-- baseline/compatibilidade da API: candidata v0.2; sem consumidores externos;
 - profundidade semântica: `domain`;
-- semantic assurance: `specs/semantic-assurance.json` da candidata v0.2;
-- formalizações semânticas: não aplicável nesta fatia somente leitura;
+- semantic assurance: `specs/semantic-assurance.json`;
 - Independent Verification: `independent`;
-- checks independentes obrigatórios: CI existente (`format`, `lint`, `typecheck`, `Vitest`, `build`, `actionlint`, `zizmor`) + validação de acesso permitido/negado existente para papéis e inspeção do diff;
-- checks independentes advisory/exceções: browser QA autenticado depende da sessão institucional real no domínio oficial; não usar DAST destrutivo em produção;
-- funcionalidades validadas em código: login preservado, gate de administrador, manifesto do núcleo, navegação restaurável, snapshot BFF, Sistemas/Auditoria/Configurações somente leitura, estados loading/empty/error;
-- limitações conhecidas: Publicações e Páginas permanecem planejadas e sem escrita; pesquisa global, notificações e preferências entram em fases posteriores do núcleo.
+- release state: `validation`; **não é produção oficial**.
+
+## Evidências concluídas
+
+### CI da candidata
+
+Execução GitHub Actions `32762212762`: **success**.
+
+Passaram:
+
+- format;
+- lint;
+- typecheck;
+- testes;
+- build;
+- actionlint;
+- zizmor.
+
+### Segurança e regressão
+
+- correção de logout/CSRF do PR #5 foi incorporada antes do merge da candidata;
+- `tests/routes.test.ts` exige 401 para `/api/platform/snapshot` sem sessão;
+- o mesmo teste exige 403 para sessão autenticada com papel `PROFESSOR`;
+- snapshot permanece somente leitura e minimiza dados antes de devolvê-los ao navegador;
+- Publicações e Páginas continuam sem operação de escrita nesta versão.
+
+### Smoke externo do domínio oficial
+
+Execução descartável GitHub Actions `32763013640`: **success**.
+
+Verificado externamente em `https://admin.escolaieda.com`:
+
+- raiz HTTPS acessível;
+- HTML contém `<title>Ecossistema Escolar</title>`;
+- `Referrer-Policy: same-origin` presente;
+- `X-Content-Type-Options: nosniff` presente;
+- `/api/me` sem sessão retorna `401 Unauthorized`;
+- `/api/platform/snapshot` sem sessão retorna `401 Unauthorized`.
+
+O smoke foi executado pelo PR temporário #6, que foi fechado sem merge. O branch de smoke foi resetado para a `main`, portanto o workflow descartável não faz parte da aplicação.
+
+## Funcionalidades da candidata
+
+- experiência institucional de login preservando o fluxo Entra/BFF existente;
+- shell administrativo restrito a `ADMINISTRADOR`;
+- navegação restaurável por hash;
+- Visão geral integrada;
+- catálogo Sistemas;
+- Auditoria somente leitura;
+- Configurações somente leitura sem expor valores protegidos;
+- estados loading, vazio, erro e permissão negada;
+- layout responsivo e `prefers-reduced-motion`;
+- Publicações e Páginas sinalizadas como próximas fases, sem escrita.
+
+## Limitações conhecidas
+
+- Publicações e Páginas ainda não implementam seus fluxos de negócio;
+- pesquisa global, notificações, pendências e preferências individuais ficam para fases posteriores;
+- a QA visual e funcional **autenticada** requer uma conta institucional real com `ADMINISTRADOR` e passa a ser a etapa de teste do usuário;
+- nenhuma senha, token ou cookie deve ser capturado como evidência durante esse teste.
 
 ## Trabalho atual
 
-- bloco funcional em andamento: concluir PR da candidata v0.2, corrigir qualquer gate de CI, integrar à `main`, validar deploy e disponibilizar para teste administrativo;
-- critério de conclusão: CI verde, nenhuma regressão de autenticação/segurança, deploy no domínio oficial, tela pública de login verificada e shell administrativo pronto para o usuário testar com conta `ADMINISTRADOR`;
-- impacto semântico conhecido: requisitos de acesso, navegação, composição de dados, minimização de dados e ausência de escrita da candidata;
-- o que não deve ser alterado: Cloudflare, Entra, Graph, `Sites.Selected`, SharePoint provisionado, grupos, sessão BFF, rotação automática, CI/CD e fluxo Power Automate existente.
+- bloco funcional: concluído para a candidata de teste `v0.2`;
+- critério técnico de pronto para teste: atendido;
+- próximo trabalho de produto: corrigir achados do teste administrativo ou iniciar a próxima fatia aprovada do Centro;
+- o que não deve ser alterado: Cloudflare, Entra, Graph, `Sites.Selected`, SharePoint provisionado, grupos, sessão BFF, rotação automática e CI/CD existentes.
 
 ## Últimas decisões que afetam execução
 
-- O Centro é parte nativa de `ecossistema-escola`, não um repositório/aplicação paralela.
-- A candidata pode ser implantada em `admin.escolaieda.com` antes da aprovação oficial desde que permaneça restrita a validadores.
-- `APROVADO PARA PRODUÇÃO` é o único comando humano que autoriza liberação oficial aos públicos definitivos.
-- A v0.2 permanece somente leitura nos domínios administrativos novos; escrita de Publicações/Páginas exige fatia própria com estados, versionamento, concorrência e rollback.
-- Navegação usa hash nesta fase para manter deep links sem alterar roteamento Cloudflare/BFF.
-- O frontend recebe um snapshot composto pelo BFF em vez de orquestrar múltiplas chamadas ao Graph/SharePoint.
-- A UI segue `professional-default`; motion `ambient` é restrito ao login e atenuado para `subtle` no workspace.
+- O Centro é parte nativa de `ecossistema-escola`.
+- Deploy técnico para validação no domínio oficial não equivale a liberação oficial.
+- `APROVADO PARA PRODUÇÃO` continua sendo o único comando humano que autoriza a futura liberação oficial.
+- A candidata `v0.2` continua somente leitura nos novos domínios administrativos.
+- O frontend usa um snapshot composto pelo BFF em vez de orquestrar chamadas diretas ao Graph/SharePoint.
+- A UI segue `professional-default`; motion `ambient` fica concentrado na entrada e é atenuado para `subtle` no workspace.
 
 ## Bloqueios
 
-- nenhum bloqueio de produto para concluir a candidata de teste;
-- a prova final do conteúdo autenticado no navegador requer uma conta institucional `ADMINISTRADOR`, portanto o usuário fará a validação visual autenticada quando a candidata estiver implantada.
+- nenhum bloqueio técnico para o teste administrativo;
+- liberação oficial permanece bloqueada por decisão humana e por etapas futuras de produto.
 
 ## Próxima ação
 
-Finalizar especificação/evidências, executar os gates no PR, corrigir o que falhar e integrar a candidata à `main` para deploy automático no domínio oficial.
+Abrir `https://admin.escolaieda.com` com uma conta institucional `ADMINISTRADOR` e executar a validação visual/funcional da candidata. Achados desse teste alimentam o próximo repair loop; não promover a candidata para usuários finais.
 
 ## Ambiente recomendado
 
-- GitHub CI para gates determinísticos e deploy;
-- navegador real para QA final da experiência pública e sessão autenticada;
+- navegador real para o teste autenticado;
+- GitHub CI para qualquer correção subsequente;
 - nenhuma nova infraestrutura necessária.
 
 ## Links internos
 
 - arquitetura: `ARCHITECTURE.md`;
-- especificação de produto externa: `Especificacao_Geral_Centro_de_Administracao_v2.0` na biblioteca do usuário;
+- especificação externa: `Especificacao_Geral_Centro_de_Administracao_v2.0`;
 - contrato semântico: `specs/semantic-contract.json`;
 - semantic assurance: `specs/semantic-assurance.json`;
 - plano de verificação: `specs/verification-plan.json`;
