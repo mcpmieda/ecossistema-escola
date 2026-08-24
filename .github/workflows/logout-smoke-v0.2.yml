@@ -1,0 +1,46 @@
+name: Centro v0.2 logout smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/logout-smoke-v0.2.yml
+
+permissions: {}
+
+jobs:
+  smoke:
+    name: Validate deployed logout redirect
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify logout response on official domain
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 30); do
+            headers="$(mktemp)"
+            status="$(curl --silent --show-error \
+              --output /dev/null \
+              --dump-header "${headers}" \
+              --write-out '%{http_code}' \
+              --request POST \
+              --header 'Origin: https://admin.escolaieda.com' \
+              https://admin.escolaieda.com/auth/logout)"
+
+            if [ "${status}" = '303' ] \
+              && grep -Fiq 'location: https://admin.escolaieda.com' "${headers}" \
+              && grep -Fiq '__Host-ecossistema_session=' "${headers}" \
+              && grep -Fiq 'Max-Age=0' "${headers}"; then
+              grep -Fi 'location: https://admin.escolaieda.com' "${headers}"
+              grep -Fi 'set-cookie: __Host-ecossistema_session=' "${headers}"
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          echo 'Deployed logout did not reach the expected 303 redirect contract.' >&2
+          exit 1
