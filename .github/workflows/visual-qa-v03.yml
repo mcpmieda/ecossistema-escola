@@ -9,8 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: visual-qa-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   visual-qa:
+    name: Browser visual QA
     if: github.head_ref == 'feat/centro-admin-visual-v0.3'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -32,10 +37,8 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Install Playwright for disposable QA
-        run: |
-          npm install --no-save --package-lock=false playwright@1.62.1
-          npx playwright install --with-deps chromium
+      - name: Install Chromium for disposable QA
+        run: npx playwright install --with-deps chromium
 
       - name: Run browser visual QA
         shell: bash
