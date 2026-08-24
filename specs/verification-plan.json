@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "spec_fingerprint": "e131bb37fe22dc3ace54364e18b843318daf554ebfc3c5eaf8e4db593a8a6e64",
+  "criteria": [
+    {
+      "id": "AC-001",
+      "priority": "must",
+      "preferred_evidence": ["test", "browser"],
+      "evidence": [
+        {"kind":"gate","gate":"package:build"}
+      ]
+    },
+    {
+      "id": "AC-002",
+      "priority": "must",
+      "preferred_evidence": ["test"],
+      "evidence": [
+        {"kind":"test","gate":"package:test","ref":"tests/roles.test.ts"}
+      ]
+    },
+    {
+      "id": "AC-003",
+      "priority": "must",
+      "preferred_evidence": ["test", "gate", "browser"],
+      "evidence": [
+        {"kind":"test","gate":"package:test","ref":"tests/platform-snapshot.integration.test.ts"},
+        {"kind":"gate","gate":"package:typecheck"}
+      ]
+    },
+    {
+      "id": "AC-004",
+      "priority": "must",
+      "preferred_evidence": ["test", "browser"],
+      "evidence": [
+        {"kind":"test","gate":"package:test","ref":"tests/platform-contract.test.ts"}
+      ]
+    },
+    {
+      "id": "AC-005",
+      "priority": "must",
+      "preferred_evidence": ["test", "gate"],
+      "evidence": [
+        {"kind":"test","gate":"package:test","ref":"tests/platform-contract.test.ts"},
+        {"kind":"test","gate":"package:test","ref":"tests/platform-snapshot.integration.test.ts"}
+      ]
+    },
+    {
+      "id": "AC-006",
+      "priority": "must",
+      "preferred_evidence": ["test", "gate"],
+      "evidence": [
+        {"kind":"test","gate":"package:test","ref":"tests/platform-snapshot.integration.test.ts"}
+      ]
+    },
+    {
+      "id": "AC-007",
+      "priority": "must",
+      "preferred_evidence": ["test", "gate"],
+      "evidence": [
+        {"kind":"test","gate":"package:test","ref":"tests/platform-contract.test.ts"},
+        {"kind":"gate","gate":"package:build"}
+      ]
+    },
+    {
+      "id": "AC-008",
+      "priority": "must",
+      "preferred_evidence": ["gate", "browser", "visual"],
+      "evidence": [
+        {"kind":"gate","gate":"package:build"}
+      ]
+    },
+    {
+      "id": "AC-009",
+      "priority": "must",
+      "preferred_evidence": ["gate"],
+      "evidence": [
+        {"kind":"gate","gate":"package:format:check"},
+        {"kind":"gate","gate":"package:lint"},
+        {"kind":"gate","gate":"package:typecheck"},
+        {"kind":"gate","gate":"package:test"},
+        {"kind":"gate","gate":"package:build"}
+      ]
+    }
+  ]
+}
