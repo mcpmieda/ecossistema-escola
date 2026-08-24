@@ -3,6 +3,7 @@ import {
   RECOVERY_TEST_PREFIX,
   RECOVERY_TEST_SCOPE,
   type GraphCall,
+  type RecoveryGraphInput,
   verifyRecoveryRoundTrip,
 } from '../server/platform/recovery';
 import { testEnv } from './fixtures';
@@ -18,7 +19,7 @@ function successfulGraph(options: { corruptRestore?: boolean; failCleanup?: bool
   let title = '';
   let patchCount = 0;
 
-  const graph: GraphCall = async <T>(input) => {
+  const graph: GraphCall = async <T>(input: RecoveryGraphInput) => {
     const method = input.method ?? 'GET';
     calls.push({ path: input.path, method, body: input.body });
 
