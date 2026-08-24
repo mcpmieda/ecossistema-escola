@@ -8,19 +8,21 @@ Ao final de cada bloco concluído, a candidata corrente deve ser publicada em `h
 
 ## Estado corrente
 
-- fase: `v0.5` — operação e saúde observável;
-- candidata: branch `feat/centro-admin-v0.5-operational-health`, PR #14;
-- baseline publicada: `main@0c6bbee725e64aae0e5602ba07f817b3626c2684` — v0.4 via PR #12;
-- v0.4 confirmada externamente no domínio pelo workflow `32771055987`;
-- v0.3: fundação visual shadcn/ui integrada via PR #11;
+- fase publicada: `v0.5` — operação e saúde observável;
+- baseline corrente: `main@0e04f64e61619977d0f7579b0878cd8f400e727b` — v0.5 via PR #14;
+- CI definitivo do PR #14: workflow `32776526342` — **success**;
+- smoke externo da v0.5: workflow `32776751948`, job `97589445198` — **success**;
+- v0.4: busca transversal + modularização via PR #12;
+- v0.3: fundação visual shadcn/ui via PR #11;
 - logout corrigido: `main@c87cbe8be7594a6d8e87f4d219d79de984c52599` via PR #8;
 - baseline seguro anterior ao Centro: `8d28f1d35384a12a7028e25e0ec2a126edfdfdab`;
 - nível do sistema: `production-system`;
 - autenticação/autorização: Microsoft Entra ID + BFF + cookie HttpOnly selado; `ADMINISTRADOR` validado server-side;
 - fonte autoritativa administrativa: SharePoint `CENTROADMIN` pela integração Graph existente;
+- release state: `validation`;
 - produção oficial: **não autorizada**.
 
-## v0.4 — publicada e verificada
+## v0.4 — busca transversal e modularização
 
 A v0.4 modularizou o shell e adicionou busca transversal permission-scoped.
 
@@ -34,17 +36,17 @@ A busca:
 - limita resultados;
 - oferece `Ctrl+K`/`Cmd+K` no desktop e Sheet no mobile.
 
-O smoke externo da v0.4 encontrou no bundle efetivamente servido `Centro v0.4 em validação controlada` e `Buscar no Centro` e confirmou `401` anônimo em `/api/me` e `/api/platform/snapshot`. O PR temporário foi fechado e a branch de smoke foi resetada para `main`.
+A v0.4 foi confirmada externamente no domínio antes do início da v0.5.
 
 ## v0.5 — operação e saúde observável
 
-A v0.5 cria a área `Operação`, capability `platform.health.read`, sem adicionar escrita ou endpoint paralelo.
+A v0.5 adiciona a área `Operação` com capability declarada `platform.health.read`, sem criar escrita ou endpoint paralelo.
 
-### Correção de verdade operacional
+### Correção de falso positivo operacional
 
 Antes da v0.5, `foundation.status` era sempre `ok`, mesmo quando uma lista estrutural obrigatória não existia. A v0.5 elimina esse falso positivo.
 
-Listas estruturais esperadas:
+Listas esperadas:
 
 - `PLATAFORMA_CONFIGURACOES`;
 - `PLATAFORMA_MODULOS`;
@@ -55,12 +57,12 @@ Se alguma estiver ausente:
 
 - `foundation.status = degraded`;
 - `expectedPlatformListsPresent = false`;
-- `missingPlatformLists` informa exatamente quais estruturas faltam;
+- `missingPlatformLists` informa as estruturas faltantes;
 - `operational.status = attention`.
 
-### Sinais operacionais derivados
+### Sinais operacionais conservadores
 
-O mesmo snapshot autorizado agora informa:
+O snapshot autorizado informa:
 
 - quantidade de falhas explícitas nos eventos recentes de auditoria;
 - quantidade de sistemas registrados com `HealthEndpoint` configurado;
@@ -68,22 +70,16 @@ O mesmo snapshot autorizado agora informa:
 - data do último evento de auditoria disponível;
 - recuperação como `not-verified` enquanto não existir evidência real de restore testado.
 
-Resultados de auditoria somente contam como falha quando começam explicitamente por termos como `erro`, `error`, `falha`, `failed` ou equivalentes definidos no classificador. Texto benigno como `sem erro` não é tratado como falha.
-
-### Regra conservadora de saúde
-
-A área Operação não afirma disponibilidade que o sistema não mediu:
+A área Operação não transforma ausência de erro em garantia de saúde:
 
 - `HealthEndpoint` configurado significa **cobertura de contrato**, não disponibilidade comprovada;
-- nenhum HealthEndpoint é executado pelo navegador ou pelo BFF nesta candidata;
-- ausência de eventos de auditoria é exibida como evidência insuficiente, não como estado saudável;
+- nenhum HealthEndpoint é executado pelo navegador ou BFF nesta candidata;
+- ausência de eventos de auditoria aparece como evidência insuficiente;
 - recuperação/restore permanece `Não verificado` até existir evidência própria.
 
-Isso evita transformar ausência de erro em falsa garantia de saúde.
+## App Factory — contratos executáveis no CI
 
-## App Factory — contratos agora executáveis no CI
-
-Os arquivos semânticos foram atualizados até a busca v0.4 e a operação v0.5:
+Os artefatos semânticos foram atualizados até busca v0.4 e operação v0.5:
 
 - `specs/semantic-contract.json`;
 - `specs/semantic-assurance.json`;
@@ -91,23 +87,15 @@ Os arquivos semânticos foram atualizados até a busca v0.4 e a operação v0.5:
 
 O contrato inclui `AC-010` para busca e `AC-011` para saúde/degradação.
 
-Foi adicionado `infra/validation/validate-semantic-contract.mjs`, executado por `npm run semantic:check` e pelo CI. O gate valida:
-
-- fingerprint canônico do contrato;
-- sincronização do semantic assurance;
-- sincronização do verification plan;
-- critérios de aceitação e prioridades;
-- evidência para todos os critérios `must`;
-- referências de requisitos, invariantes e conceitos;
-- cobertura semântica dos critérios obrigatórios.
+`infra/validation/validate-semantic-contract.mjs` é executado por `npm run semantic:check` e pelo CI e valida fingerprint, sincronização dos artefatos, critérios, prioridades, referências e cobertura dos critérios `must`.
 
 Fingerprint corrente:
 
 `67d5428e416ae83ddc42f6d8be36102b2c2716c26b09e353bccf2648309c9ec8`
 
-## Verificação técnica da v0.5 até este ponto
+## Verificação técnica v0.5
 
-O workflow temporário de formatação executou `npm run verify` com sucesso sobre a candidata formatada:
+Workflow preparatório `32776244752`, job `97587861851`:
 
 - format: **pass**;
 - lint: **pass**;
@@ -116,7 +104,30 @@ O workflow temporário de formatação executou `npm run verify` com sucesso sob
 - 11 arquivos de teste / **75 testes**: **pass**;
 - build Vite: **pass**.
 
-O workflow temporário foi removido do branch. Falta apenas o CI normal do head definitivo, contendo também esta documentação, antes do merge.
+CI definitivo `32776526342`:
+
+- format: **pass**;
+- lint: **pass**;
+- typecheck: **pass**;
+- semantic check: **pass**;
+- testes: **pass**;
+- build: **pass**;
+- actionlint: **pass**;
+- zizmor pedantic: **pass**.
+
+## Deploy de validação v0.5
+
+A v0.5 foi integrada em `main` e publicada no domínio.
+
+Smoke externo `32776751948` / `97589445198`, concluído em 2026-08-24T20:57:37Z:
+
+- bundle servido contém `Centro v0.5 em validação controlada`;
+- bundle servido contém `Sem degradação observada no snapshot`;
+- bundle servido contém `Recuperação e restore`;
+- `/api/me` sem sessão retorna `401`;
+- `/api/platform/snapshot` sem sessão retorna `401`.
+
+O PR de smoke #15 foi fechado sem merge e a branch temporária foi resetada para o baseline da `main`.
 
 ## Fundação preservada
 
@@ -132,7 +143,7 @@ A v0.5 não altera:
 - secrets e rotação automática de identidade técnica;
 - logout `POST` + validação de Origin + `303` + expiração do cookie.
 
-## Funcionalidades disponíveis na candidata
+## Funcionalidades disponíveis no domínio de validação
 
 - login institucional;
 - shell administrativo shadcn/ui;
@@ -159,6 +170,10 @@ Cada bloco deve terminar com:
 5. deploy em `https://admin.escolaieda.com` restrito a `ADMINISTRADOR`;
 6. confirmação externa de que a candidata corrente está sendo servida;
 7. `releaseState = validation` até autorização humana final.
+
+## Próximo trabalho
+
+Continuar o núcleo transversal sem inventar regras institucionais ainda não definidas. Prioridades técnicas incluem autorização por capabilities efetivamente aplicada no servidor, integração progressiva de módulos e, somente quando houver fonte/regra clara, notificações e pendências.
 
 ## Bloqueios para produção oficial
 

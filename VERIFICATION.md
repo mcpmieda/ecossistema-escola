@@ -6,18 +6,13 @@ Validação da candidata v0.5 do Centro de Administração. O bloco adiciona sa�
 
 Nenhuma condição abaixo autoriza produção oficial.
 
-## Baseline publicado
+## Baseline corrente
 
-A v0.4 está integrada em `main@0c6bbee725e64aae0e5602ba07f817b3626c2684`.
+A v0.5 está integrada em:
 
-Smoke externo `32771055987`: **pass**.
+`main@0e04f64e61619977d0f7579b0878cd8f400e727b`
 
-Evidência no domínio `https://admin.escolaieda.com`:
-
-- bundle servido continha `Centro v0.4 em validação controlada`;
-- bundle servido continha `Buscar no Centro`;
-- `/api/me` sem sessão retornou `401`;
-- `/api/platform/snapshot` sem sessão retornou `401`.
+PR #14: **merged**.
 
 ## Mudança funcional v0.5
 
@@ -29,7 +24,7 @@ O BFF continua usando o mesmo `/api/platform/snapshot`; nenhum endpoint paralelo
 
 ### Fundação
 
-O snapshot agora deriva a saúde estrutural da presença real das quatro listas obrigatórias. Se uma delas estiver ausente, o estado deixa de ser `ok` e passa a `degraded`, com a lista ausente explicitada em `missingPlatformLists`.
+O snapshot deriva a saúde estrutural da presença real das quatro listas obrigatórias. Se uma delas estiver ausente, o estado passa a `degraded` e `missingPlatformLists` informa a estrutura faltante.
 
 Isso fecha o falso positivo anterior em que `foundation.status` era sempre `ok`.
 
@@ -37,7 +32,7 @@ Isso fecha o falso positivo anterior em que `foundation.status` era sempre `ok`.
 
 O snapshot conta como falha apenas resultados recentes explicitamente iniciados por classificadores de erro/falha.
 
-Cobertura de teste inclui:
+Cobertura inclui:
 
 - `ERRO` -> falha;
 - `Falha: ...` -> falha;
@@ -47,16 +42,16 @@ Cobertura de teste inclui:
 
 ### HealthEndpoint
 
-A candidata mede apenas **cobertura do contrato**:
+A candidata mede apenas cobertura do contrato:
 
-- quantos sistemas registrados possuem `HealthEndpoint` preenchido;
-- quantos ainda não possuem.
+- sistemas registrados com `HealthEndpoint` preenchido;
+- sistemas sem contrato configurado.
 
-Nenhum HealthEndpoint é executado pelo navegador ou pelo BFF. Portanto, configuração não é apresentada como prova de disponibilidade.
+Nenhum HealthEndpoint é executado pelo navegador ou pelo BFF. Configuração não é apresentada como prova de disponibilidade.
 
 ### Recuperação
 
-`recoveryStatus = not-verified` nesta candidata.
+`recoveryStatus = not-verified`.
 
 A interface informa explicitamente que não existe no snapshot atual evidência de restore testado. A ausência dessa evidência não é mascarada como sucesso.
 
@@ -70,61 +65,80 @@ A interface informa explicitamente que não existe no snapshot atual evidência 
 - índice restrito a áreas, sistemas registrados e metadados de configuração;
 - exclusão de auditoria e migrações.
 
-A área Operação passa a ser pesquisável porque é uma área declarada no manifesto do núcleo.
+A área Operação é pesquisável porque integra o manifesto do núcleo.
 
 ## App Factory — gate semântico
 
-Os três artefatos semânticos foram atualizados para o estado real do Centro:
+Os artefatos atuais são:
 
 - `specs/semantic-contract.json`;
 - `specs/semantic-assurance.json`;
 - `specs/verification-plan.json`.
 
-Critérios adicionados/regularizados:
+Critérios atualizados:
 
 - `AC-010` — busca permission-scoped;
 - `AC-011` — degradação, sinais operacionais, HealthEndpoint e recuperação não verificada.
 
-O novo script `infra/validation/validate-semantic-contract.mjs` usa fingerprint SHA-256 sobre JSON canônico com chaves ordenadas e valida:
-
-- contrato, assurance e plano na mesma versão;
-- fingerprints atuais;
-- IDs de critérios;
-- prioridades;
-- evidência em critérios `must`;
-- referências a invariantes/conceitos;
-- cobertura dos critérios obrigatórios pelo assurance.
+`infra/validation/validate-semantic-contract.mjs` valida fingerprint SHA-256 canônico, sincronização entre contrato/assurance/plano, critérios e prioridades, evidência de critérios `must`, referências e cobertura semântica.
 
 Fingerprint validado:
 
 `67d5428e416ae83ddc42f6d8be36102b2c2716c26b09e353bccf2648309c9ec8`
 
-`npm run semantic:check` foi incorporado a `npm run verify` e ao workflow normal de CI.
+`npm run semantic:check` integra `npm run verify` e o workflow normal de CI.
 
-## Evidência técnica v0.5
+## Gates técnicos
 
-Workflow temporário de formatação `32776244752`, job `97587861851`: **success**.
+### Verify preparatório
 
-Depois da formatação, `npm run verify` passou integralmente:
+Workflow `32776244752`, job `97587861851`: **success**.
 
-- `format:check`: **pass**;
+- format: **pass**;
 - lint: **pass**;
 - typecheck: **pass**;
 - semantic check: **pass**;
 - 11 arquivos de teste: **pass**;
 - **75 testes**: **pass**;
-- build Vite: **pass**.
+- build: **pass**.
 
-O workflow temporário foi removido antes do head final.
+O formatter temporário foi removido antes do head final.
 
-O primeiro CI do PR #14 já havia confirmado actionlint + zizmor: **pass**. O CI normal do head definitivo, sem workflow temporário e contendo a documentação atualizada, é o gate final antes do merge.
+### CI definitivo do PR #14
+
+Workflow `32776526342`: **success**.
+
+- format: **pass**;
+- lint: **pass**;
+- typecheck: **pass**;
+- semantic check: **pass**;
+- testes: **pass**;
+- build: **pass**;
+- actionlint: **pass**;
+- zizmor pedantic: **pass**.
+
+## Deploy e smoke externo
+
+Workflow `32776751948`, job `97589445198`: **success**.
+
+Em 2026-08-24T20:57:37Z, o teste executado fora do Cloudflare confirmou no domínio `https://admin.escolaieda.com`:
+
+- bundle contém `Centro v0.5 em validação controlada`;
+- bundle contém `Sem degradação observada no snapshot`;
+- bundle contém `Recuperação e restore`;
+- `/api/me` sem sessão = `401`;
+- `/api/platform/snapshot` sem sessão = `401`.
+
+Asset observado no smoke: `/assets/index-c_WUWUVv.js`.
+
+PR temporário #15: fechado sem merge. Branch de smoke: resetada para `main`.
 
 ## Segurança e autorização preservadas
 
 - Microsoft Entra ID: inalterado;
 - BFF/cookie HttpOnly selado: inalterado;
 - `/api/platform/snapshot`: sessão + `ADMINISTRADOR` server-side;
-- `401` anônimo: preservado;
+- `401` anônimo: preservado e confirmado externamente;
 - `403` para perfil sem `ADMINISTRADOR`: preservado/testado;
 - Graph/SharePoint: mesmos limites e fonte autoritativa;
 - HealthEndpoint: não executado;
@@ -139,7 +153,7 @@ O teste do snapshot continua assegurando que o read model não expõe:
 - `UsuarioObjectId`;
 - `DetalhesJson`.
 
-Os novos sinais operacionais são derivados de metadados já autorizados e não ampliam dados pessoais enviados ao navegador.
+Os sinais operacionais são derivados de metadados já autorizados e não ampliam dados pessoais enviados ao navegador.
 
 ## Fronteira de escrita
 
@@ -160,17 +174,16 @@ Publicações e Páginas permanecem planejadas.
 
 Estado: **pending**.
 
-Após o merge, a v0.5 deve ser publicada no domínio restrito e confirmada externamente. A inspeção humana pode então cobrir também a nova área Operação, além de login, shell, busca, Sistemas, Auditoria, Configurações, mobile e logout.
+A v0.5 já está disponível no domínio de validação para inspeção humana. A avaliação pode cobrir a nova área Operação, além de login, shell, busca, Sistemas, Auditoria, Configurações, mobile e logout.
 
-## Critério para encerrar o bloco v0.5
+## Estado do bloco v0.5
 
-- higiene/formatter temporário removido: **pass**;
-- format/lint/typecheck/semantic/test/build: **pass no verify preparatório**;
-- actionlint/zizmor: **pass no primeiro CI**;
-- CI normal do head final: **pendente**;
-- merge em main: **pendente**;
-- deploy Cloudflare da main: **pendente**;
-- smoke externo específico da v0.5: **pendente**;
+- higiene: **pass**;
+- format/lint/typecheck/semantic/test/build: **pass**;
+- actionlint/zizmor: **pass**;
+- merge em main: **pass**;
+- deploy Cloudflare: **pass confirmado externamente**;
+- smoke externo específico da v0.5: **pass**;
 - produção oficial: **bloqueada**.
 
 A produção oficial continua condicionada ao comando humano exato `APROVADO PARA PRODUÇÃO`.
