@@ -2,15 +2,13 @@ name: Verify recovery
 
 on:
   workflow_dispatch:
-  push:
+  workflow_run:
+    workflows:
+      - CI and deploy
     branches:
       - main
-    paths:
-      - '.github/workflows/verify-recovery.yml'
-      - 'functions/**'
-      - 'infra/maintenance/verify-recovery.mjs'
-      - 'server/auth/github-oidc.ts'
-      - 'server/platform/recovery.ts'
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -22,7 +20,9 @@ concurrency:
 jobs:
   verify-recovery:
     name: Verify recovery without production data
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     permissions:
       contents: read
       id-token: write # required only to authenticate this production-environment recovery check with GitHub OIDC
@@ -30,9 +30,10 @@ jobs:
     timeout-minutes: 15
     environment: production
     steps:
-      - name: Checkout immutable source
+      - name: Checkout immutable deployed source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
 
       - name: Set up Node.js
@@ -44,7 +45,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Rebuild source as recovery evidence
+      - name: Rebuild deployed source as recovery evidence
         run: npm run build
 
       - name: Verify disposable SharePoint backup and restore round trip
