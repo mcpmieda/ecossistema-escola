@@ -35,21 +35,27 @@ function technicalCredentials(
     purpose === 'GRAPH' ? env.GRAPH_PRIVATE_KEY_PKCS8 : env.WEB_PRIVATE_KEY_PKCS8;
   const certificateThumbprint =
     purpose === 'GRAPH' ? env.GRAPH_CERT_THUMBPRINT : env.WEB_CERT_THUMBPRINT;
-  const legacy: GraphCredential = {
-    privateKeyPkcs8,
-    certificateThumbprint,
-    keyId: '00000000-0000-0000-0000-000000000000',
-    createdAt: '1970-01-01T00:00:00.000Z',
-    slot: 'LEGACY',
-  };
-  if (requestedSlot === 'LEGACY') return [legacy];
+  const legacy: GraphCredential | null =
+    privateKeyPkcs8 && certificateThumbprint
+      ? {
+          privateKeyPkcs8,
+          certificateThumbprint,
+          keyId: '00000000-0000-0000-0000-000000000000',
+          createdAt: '1970-01-01T00:00:00.000Z',
+          slot: 'LEGACY',
+        }
+      : null;
+  if (requestedSlot === 'LEGACY') {
+    if (!legacy) throw new Error(`${purpose} legacy credential is missing`);
+    return [legacy];
+  }
   if (requestedSlot === 'A' || requestedSlot === 'B')
     return [rotatedCredential(env, purpose, requestedSlot)];
   const rotated = (['A', 'B'] as const)
     .filter((slot) => Boolean(env[`${purpose}_CREDENTIAL_${slot}`]))
     .map((slot) => rotatedCredential(env, purpose, slot))
     .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-  return [...rotated, legacy];
+  return legacy ? [...rotated, legacy] : rotated;
 }
 
 export function graphCredentials(
