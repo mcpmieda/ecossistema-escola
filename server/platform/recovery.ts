@@ -1,0 +1,179 @@
+import { z } from 'zod';
+import type { RuntimeEnv } from '../env';
+import { graphRequest } from '../graph/client';
+
+const createdListSchema = z.object({ id: z.string().min(1), displayName: z.string().optional() });
+const createdItemSchema = z.object({ id: z.string().min(1) });
+const readItemSchema = z.object({
+  id: z.string().min(1),
+  fields: z.object({ Title: z.string().optional() }).passthrough().optional(),
+});
+
+export const RECOVERY_TEST_PREFIX = 'RECOVERY_VERIFY_';
+export const RECOVERY_TEST_SCOPE = 'sharepoint-disposable-structure-and-record-roundtrip' as const;
+
+type GraphCall = <T>(input: {
+  env: RuntimeEnv;
+  path: string;
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  body?: unknown;
+  correlationId?: string;
+}) => Promise<{ data: T; etag: string | null; correlationId: string }>;
+
+export type RecoveryVerificationResult = {
+  status: 'verified';
+  scope: typeof RECOVERY_TEST_SCOPE;
+  verifiedAt: string;
+  correlationId: string;
+  backupChecksum: string;
+  restoredChecksum: string;
+  restoreMatched: true;
+  cleanup: 'deleted';
+};
+
+async function checksum(value: unknown): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export async function verifyRecoveryRoundTrip(
+  env: RuntimeEnv,
+  graph: GraphCall = graphRequest,
+  now: () => Date = () => new Date(),
+  randomId: () => string = () => crypto.randomUUID(),
+): Promise<RecoveryVerificationResult> {
+  const correlationId = crypto.randomUUID();
+  const suffix = randomId().replace(/[^a-zA-Z0-9]/gu, '').slice(0, 16);
+  const listName = `${RECOVERY_TEST_PREFIX}${suffix}`;
+  const sentinel = `recovery-sentinel-${suffix}`;
+  const corrupted = `recovery-corrupted-${suffix}`;
+  let listId: string | undefined;
+  let cleanupCompleted = false;
+  let primaryError: unknown;
+
+  try {
+    const createdList = createdListSchema.parse(
+      (
+        await graph<unknown>({
+          env,
+          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists`,
+          method: 'POST',
+          body: {
+            displayName: listName,
+            description: 'Disposable recovery verification resource. Safe to delete.',
+            list: { template: 'genericList' },
+          },
+          correlationId,
+        })
+      ).data,
+    );
+    listId = createdList.id;
+
+    const createdItem = createdItemSchema.parse(
+      (
+        await graph<unknown>({
+          env,
+          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items`,
+          method: 'POST',
+          body: { fields: { Title: sentinel } },
+          correlationId,
+        })
+      ).data,
+    );
+
+    const before = readItemSchema.parse(
+      (
+        await graph<unknown>({
+          env,
+          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items/${createdItem.id}?$expand=fields($select=Title)`,
+          correlationId,
+        })
+      ).data,
+    );
+    const backup = { Title: before.fields?.Title ?? '' };
+    if (backup.Title !== sentinel) throw new Error('Recovery sentinel was not persisted as expected');
+    const backupChecksum = await checksum(backup);
+
+    await graph<unknown>({
+      env,
+      path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items/${createdItem.id}/fields`,
+      method: 'PATCH',
+      body: { Title: corrupted },
+      correlationId,
+    });
+
+    const afterCorruption = readItemSchema.parse(
+      (
+        await graph<unknown>({
+          env,
+          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items/${createdItem.id}?$expand=fields($select=Title)`,
+          correlationId,
+        })
+      ).data,
+    );
+    if (afterCorruption.fields?.Title !== corrupted) {
+      throw new Error('Recovery destructive-overwrite simulation did not take effect');
+    }
+
+    await graph<unknown>({
+      env,
+      path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items/${createdItem.id}/fields`,
+      method: 'PATCH',
+      body: backup,
+      correlationId,
+    });
+
+    const restored = readItemSchema.parse(
+      (
+        await graph<unknown>({
+          env,
+          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items/${createdItem.id}?$expand=fields($select=Title)`,
+          correlationId,
+        })
+      ).data,
+    );
+    const restoredValue = { Title: restored.fields?.Title ?? '' };
+    const restoredChecksum = await checksum(restoredValue);
+    if (restoredChecksum !== backupChecksum || restoredValue.Title !== sentinel) {
+      throw new Error('Recovery restore checksum mismatch');
+    }
+
+    return {
+      status: 'verified',
+      scope: RECOVERY_TEST_SCOPE,
+      verifiedAt: now().toISOString(),
+      correlationId,
+      backupChecksum,
+      restoredChecksum,
+      restoreMatched: true,
+      cleanup: 'deleted',
+    };
+  } catch (error) {
+    primaryError = error;
+    throw error;
+  } finally {
+    if (listId) {
+      try {
+        await graph<unknown>({
+          env,
+          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}`,
+          method: 'DELETE',
+          correlationId,
+        });
+        cleanupCompleted = true;
+      } catch (cleanupError) {
+        if (!primaryError) throw cleanupError;
+        console.error(
+          JSON.stringify({
+            message: 'recovery_verification_cleanup_failed',
+            correlationId,
+          }),
+        );
+      }
+    }
+    if (!cleanupCompleted && !primaryError && listId) {
+      throw new Error('Recovery verification resource cleanup did not complete');
+    }
+  }
+}
