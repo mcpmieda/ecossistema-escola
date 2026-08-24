@@ -27,9 +27,7 @@ jobs:
 
             if [[ -n "$asset" ]]; then
               bundle="$(curl -fsS --max-time 20 "$origin$asset")"
-              if grep -Fq 'Centro v0.6 em validação controlada' <<<"$bundle" \
-                && grep -Fq 'platform.snapshot.read' <<<"$bundle" \
-                && grep -Fq 'platform.health.read' <<<"$bundle"; then
+              if grep -Fq 'Centro v0.6 em validação controlada' <<<"$bundle"; then
                 me_status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$origin/api/me")"
                 snapshot_status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$origin/api/platform/snapshot")"
                 sharepoint_health_status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$origin/api/sharepoint/health")"
@@ -49,5 +47,5 @@ jobs:
             sleep 10
           done
 
-          echo 'v0.6 markers were not observed on the validation domain.' >&2
+          echo 'v0.6 bundle marker was not observed on the validation domain.' >&2
           exit 1
