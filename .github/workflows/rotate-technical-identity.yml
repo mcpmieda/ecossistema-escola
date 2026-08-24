@@ -42,6 +42,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Build immutable deployment payload
+        run: npm run build
+
       - name: Rotate with overlap and runtime validation
         run: |
           set -o pipefail

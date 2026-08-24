@@ -157,12 +157,38 @@ function putPagesSecret(name, value) {
   if (result.status !== 0) throw new Error(`Cloudflare rejected secret ${name}: ${result.stderr}`);
 }
 
+function deployPages() {
+  const executable = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+  const result = spawnSync(
+    executable,
+    [
+      'wrangler',
+      'pages',
+      'deploy',
+      'dist',
+      '--project-name',
+      projectName,
+      '--branch',
+      'main',
+      '--commit-hash',
+      process.env.GITHUB_SHA,
+    ],
+    { encoding: 'utf8', env: process.env, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  if (result.status !== 0) throw new Error(`Cloudflare Pages deployment failed: ${result.stderr}`);
+}
+
 async function validateCloudflareSlot(slot) {
   const oidc = await githubOidcToken(maintenanceAudience);
-  const response = await fetch(`${maintenanceAudience}?slot=${slot}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${oidc}` },
-  });
+  let response;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    response = await fetch(`${maintenanceAudience}?slot=${slot}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${oidc}` },
+    });
+    if (response.ok) break;
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
+  }
   if (!response.ok) throw new Error(`Cloudflare runtime validation failed (${response.status})`);
   return response.json();
 }
@@ -258,6 +284,7 @@ try {
     createdAt,
   });
   putPagesSecret(`GRAPH_CREDENTIAL_${candidateSlot}`, serialized);
+  deployPages();
   const runtime = await validateCloudflareSlot(candidateSlot);
 
   const refreshed = await graph(
