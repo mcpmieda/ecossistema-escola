@@ -9,7 +9,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . --max-warnings=0",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --write server/platform/admin-overview.ts src/App.tsx src/center/AdminCenter.tsx src/center/LoginExperience.tsx src/styles.css && git diff -- server/platform/admin-overview.ts src/App.tsx src/center/AdminCenter.tsx src/center/LoginExperience.tsx src/styles.css && exit 1",
     "format": "prettier --write .",
     "typecheck": "tsc -b --pretty false",
     "cf:types": "wrangler types",
