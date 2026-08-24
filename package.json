@@ -47,7 +47,6 @@
     "eslint-plugin-react-refresh": "latest",
     "globals": "latest",
     "jsdom": "latest",
-    "playwright": "1.62.1",
     "prettier": "latest",
     "tailwindcss": "^4.3.3",
     "typescript": "latest",
