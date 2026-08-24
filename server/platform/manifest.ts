@@ -25,6 +25,15 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
     capabilities: ['platform.overview.read'],
   },
   {
+    id: 'platform.operations',
+    name: 'Operação',
+    description: 'Saúde observável, degradação e lacunas de recuperação do núcleo.',
+    route: 'operacao',
+    state: 'validation',
+    requiredRole: 'ADMINISTRADOR',
+    capabilities: ['platform.health.read'],
+  },
+  {
     id: 'content.publications',
     name: 'Publicações',
     description: 'Conteúdo institucional com revisão, programação, histórico e rollback.',
