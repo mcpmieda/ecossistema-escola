@@ -19,8 +19,22 @@ export const PLATFORM_CAPABILITIES = [
   'platform.settings.read',
 ] as const;
 
+export const MODULE_REGISTRY_STATUSES = ['installed', 'disabled', 'deprecated', 'unknown'] as const;
+export const MODULE_INTEGRATION_STATES = [
+  'ready',
+  'registry-only',
+  'contract-mismatch',
+  'disabled',
+  'deprecated',
+  'invalid-registry',
+] as const;
+export const MODULE_INTEGRATION_ISSUES = ['base-route', 'version', 'health-endpoint'] as const;
+
 export type PlatformRoute = (typeof PLATFORM_ROUTES)[number];
 export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
+export type ModuleRegistryStatus = (typeof MODULE_REGISTRY_STATUSES)[number];
+export type ModuleIntegrationState = (typeof MODULE_INTEGRATION_STATES)[number];
+export type ModuleIntegrationIssue = (typeof MODULE_INTEGRATION_ISSUES)[number];
 export type ModuleState = 'validation' | 'planned';
 export type FoundationStatus = 'ok' | 'degraded';
 export type OperationalStatus = 'nominal' | 'attention';
@@ -42,11 +56,15 @@ export type RegisteredModule = {
   name: string;
   baseRoute: string;
   version: string;
-  status: string;
+  status: ModuleRegistryStatus;
   order: number;
-  roles: string[];
   healthEndpoint: string;
   updatedAt: string;
+  contractVersion: number | null;
+  requiredCapabilities: PlatformCapability[];
+  integrationState: ModuleIntegrationState;
+  integrationIssues: ModuleIntegrationIssue[];
+  available: boolean;
 };
 
 export type PlatformConfiguration = {
