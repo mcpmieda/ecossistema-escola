@@ -12,7 +12,7 @@
 - GitHub autentica-se no Entra por OIDC com issuer, audience e subject imutável exatos.
 - App de manutenção tem apenas `Application.ReadWrite.OwnedBy` e é owner somente dos dois apps que rotaciona.
 - Segredos Cloudflare: `GRAPH_CREDENTIAL_A/B`, `WEB_CREDENTIAL_A/B` e `SESSION_SECRET`; valores nunca entram no GitHub ou nos relatórios.
-- CSP sem `unsafe-eval`, HSTS, `nosniff`, `frame-ancestors 'none'`, `X-Frame-Options: DENY`, política de permissões e `Referrer-Policy: no-referrer`.
+- CSP sem `unsafe-eval`, HSTS, `nosniff`, `frame-ancestors 'none'`, `X-Frame-Options: DENY`, política de permissões e `Referrer-Policy: same-origin`. Essa política não envia a URL interna a sites externos e mantém o cabeçalho `Origin` utilizável no formulário POST de logout.
 - Escritas exigem Origin oficial; JSON é limitado; métodos não permitidos retornam 405.
 - Logs contêm apenas erro técnico, caminho e correlation ID; não registram Authorization, cookies, tokens ou payload Graph.
 - SharePoint externo e links anônimos estão desabilitados.
@@ -25,7 +25,7 @@
 | Login de tenant externo      | validação exata de issuer/tenant/audience                              |
 | Replay/troca de callback     | PKCE, state, nonce e cookie temporário selado                          |
 | Elevação por grupo inventado | allowlist por Object ID e 403 sem grupo conhecido                      |
-| CSRF em escrita              | Origin exata, SameSite e método POST                                   |
+| CSRF em escrita              | Origin exata, SameSite, método POST e regressão para Origin nula       |
 | Vazamento de credencial      | Cloudflare Secrets, GitHub Secrets e varredura do repo                 |
 | Falha durante rotação        | dois slots funcionais, validação antes da remoção e cleanup comprovado |
 | Acesso Graph lateral         | Sites.Selected + grant apenas CENTROADMIN; prova 403 externa           |
