@@ -26,6 +26,8 @@ concurrency:
 jobs:
   rotate-graph-certificate:
     name: Rotate Graph and Web certificates
+    # workflow_dispatch permits selecting a ref; production credentials must only reach main.
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: read # required to checkout the versioned rotation implementation
       id-token: write # required for GitHub OIDC federation with the Entra maintenance app
