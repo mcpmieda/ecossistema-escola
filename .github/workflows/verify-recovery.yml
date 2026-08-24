@@ -25,7 +25,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
-      id-token: write
+      id-token: write # required only to authenticate this production-environment recovery check with GitHub OIDC
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
