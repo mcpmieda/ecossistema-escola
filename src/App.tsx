@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/sheet';
 import {
   normalizePlatformRoute,
+  type PlatformCapability,
   type PlatformRoute,
   type PlatformSnapshotContract,
 } from '../shared/platform-contract';
@@ -32,7 +33,12 @@ import { BrandMark, formatDate, initials, shortCorrelation } from './platform/pr
 import { routeLabels } from './platform/routes';
 import { PlatformSearch } from './platform/search';
 
-type Identity = { authenticated: boolean; name?: string; roles?: string[] };
+type Identity = {
+  authenticated: boolean;
+  name?: string;
+  roles?: string[];
+  capabilities?: PlatformCapability[];
+};
 
 type LoadState =
   | { status: 'loading' }
@@ -165,8 +171,8 @@ function RestrictedExperience({ name }: { name?: string }) {
           </Badge>
           <CardTitle className="text-2xl tracking-tight">Acesso ainda não liberado</CardTitle>
           <CardDescription className="max-w-lg leading-6">
-            {name ? `${name}, sua conta está autenticada.` : 'Sua conta está autenticada.'} Nesta
-            fase, somente administradores autorizados podem testar a nova plataforma.
+            {name ? `${name}, sua conta está autenticada.` : 'Sua conta está autenticada.'} A sessão
+            atual não possui as capabilities administrativas necessárias para abrir esta candidata.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -355,7 +361,7 @@ export function App() {
 
   if (identity === null) return <LoginExperience loading />;
   if (!identity.authenticated) return <LoginExperience loading={false} />;
-  if (!identity.roles?.includes('ADMINISTRADOR')) {
+  if (!identity.capabilities?.includes('platform.snapshot.read')) {
     return <RestrictedExperience name={identity.name} />;
   }
   return <AdminShell identity={identity} />;
