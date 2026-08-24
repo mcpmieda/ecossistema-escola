@@ -74,7 +74,7 @@ describe('platform snapshot parsing', () => {
     );
     const serialized = JSON.stringify(snapshot);
 
-    expect(snapshot.version).toBe('0.7.0-validation');
+    expect(snapshot.version).toBe('0.8.0-validation');
     expect(snapshot.releaseState).toBe('validation');
     expect(snapshot.foundation).toEqual({
       status: 'ok',
@@ -89,6 +89,9 @@ describe('platform snapshot parsing', () => {
       healthContractsMissing: 0,
       lastAuditAt: '2026-08-24T17:00:00Z',
       recoveryStatus: 'not-verified',
+      recoveryVerifiedAt: '',
+      recoveryEvidenceRef: '',
+      recoveryScope: 'sharepoint-disposable-record-backup-restore-roundtrip',
     });
     expect(snapshot.registeredModules[0]).toMatchObject({
       key: 'plataforma-base',
@@ -162,6 +165,9 @@ describe('platform snapshot parsing', () => {
       healthContractsConfigured: 0,
       healthContractsMissing: 1,
       recoveryStatus: 'not-verified',
+      recoveryVerifiedAt: '',
+      recoveryEvidenceRef: '',
+      recoveryScope: 'sharepoint-disposable-record-backup-restore-roundtrip',
     });
   });
 
