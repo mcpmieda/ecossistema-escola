@@ -127,8 +127,9 @@ async function route(context: Context): Promise<Response> {
 export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
   const correlationId = crypto.randomUUID();
   try {
-    const protectedRoute = new URL(context.request.url).pathname !== '/api/health';
-    return withSecurityHeaders(await route(context as Context), protectedRoute);
+    const pathname = new URL(context.request.url).pathname;
+    const noStore = pathname.startsWith('/api/') || pathname.startsWith('/auth/');
+    return withSecurityHeaders(await route(context as Context), noStore);
   } catch (error) {
     const status =
       error instanceof HttpError ||
