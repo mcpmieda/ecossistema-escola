@@ -35,7 +35,10 @@ export function App() {
         });
 
         if (response.ok) {
-          setState({ kind: 'ready', data: (await response.json()) as AdministrationCenterBootstrap });
+          setState({
+            kind: 'ready',
+            data: (await response.json()) as AdministrationCenterBootstrap,
+          });
           return;
         }
         if (response.status === 401) {
@@ -48,7 +51,9 @@ export function App() {
             cache: 'no-store',
             signal: controller.signal,
           });
-          const identity = identityResponse.ok ? ((await identityResponse.json()) as Identity) : null;
+          const identity = identityResponse.ok
+            ? ((await identityResponse.json()) as Identity)
+            : null;
           setState({ kind: 'forbidden', identity });
           return;
         }
