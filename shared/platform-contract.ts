@@ -1,5 +1,6 @@
 export const PLATFORM_ROUTES = [
   'visao-geral',
+  'operacao',
   'publicacoes',
   'paginas',
   'sistemas',
@@ -9,6 +10,9 @@ export const PLATFORM_ROUTES = [
 
 export type PlatformRoute = (typeof PLATFORM_ROUTES)[number];
 export type ModuleState = 'validation' | 'planned';
+export type FoundationStatus = 'ok' | 'degraded';
+export type OperationalStatus = 'nominal' | 'attention';
+export type RecoveryStatus = 'not-verified';
 
 export type CoreModuleContract = {
   id: string;
@@ -69,9 +73,18 @@ export type PlatformSnapshotContract = {
   generatedAt: string;
   correlationId: string;
   foundation: {
-    status: 'ok';
+    status: FoundationStatus;
     sharePointListCount: number;
     expectedPlatformListsPresent: boolean;
+    missingPlatformLists: string[];
+  };
+  operational: {
+    status: OperationalStatus;
+    recentAuditFailureCount: number;
+    healthContractsConfigured: number;
+    healthContractsMissing: number;
+    lastAuditAt: string;
+    recoveryStatus: RecoveryStatus;
   };
   coreModules: CoreModuleContract[];
   registeredModules: RegisteredModule[];
