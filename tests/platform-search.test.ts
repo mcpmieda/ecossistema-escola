@@ -3,7 +3,7 @@ import type { PlatformSnapshotContract } from '../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, normalizeSearch } from '../src/platform/search-model';
 
 const snapshot = {
-  version: '0.5.0-validation',
+  version: '0.7.0-validation',
   releaseState: 'validation',
   generatedAt: '2026-08-24T19:00:00.000Z',
   correlationId: 'corr-search-test',
@@ -48,11 +48,15 @@ const snapshot = {
       name: 'Banco de Notas',
       baseRoute: '/banco-notas',
       version: '1.0.0',
-      status: 'VALIDACAO',
+      status: 'installed',
       order: 1,
-      roles: ['ADMINISTRADOR'],
-      healthEndpoint: '',
+      healthEndpoint: '/api/banco-notas/health',
       updatedAt: '2026-08-24T18:00:00.000Z',
+      contractVersion: null,
+      requiredCapabilities: [],
+      integrationState: 'registry-only',
+      integrationIssues: [],
+      available: false,
     },
   ],
   configurations: [
@@ -113,7 +117,7 @@ describe('platform search model', () => {
     const items = buildSearchItems(snapshot);
 
     expect(filterSearchItems(items, 'configuracoes')[0]?.href).toBe('#/configuracoes');
-    const system = filterSearchItems(items, 'banco notas')[0];
+    const system = filterSearchItems(items, 'banco notas registry only')[0];
     expect(system?.label).toBe('Banco de Notas');
     expect(system?.href).toBe('#/sistemas');
   });
