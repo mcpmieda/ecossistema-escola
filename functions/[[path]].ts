@@ -25,6 +25,7 @@ import {
 import { sharePointHealth } from '../server/graph/sharepoint';
 import { verifyGitHubMaintenanceToken } from '../server/auth/github-oidc';
 import { graphCredentials, type GraphCredentialSlot } from '../server/auth/technical-identity';
+import { getPlatformSnapshot } from '../server/platform/snapshot';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -150,6 +151,12 @@ async function route(context: Context): Promise<Response> {
     const session = await requireAuth(request, env);
     requireRole(session.roles, 'ADMINISTRADOR');
     return json(await sharePointHealth(env));
+  }
+  if (url.pathname === '/api/platform/snapshot') {
+    method(request, ['GET']);
+    const session = await requireAuth(request, env);
+    requireRole(session.roles, 'ADMINISTRADOR');
+    return json(await getPlatformSnapshot(env));
   }
   throw new HttpError(404, 'Not found');
 }

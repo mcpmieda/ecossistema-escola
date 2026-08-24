@@ -1,75 +1,188 @@
 {
   "schema_version": 1,
-  "goal": "Restaurar o logout pelo formulário same-origin sem enfraquecer a proteção CSRF nem divulgar URLs internas como referrer para outros sites.",
-  "change_type": "bugfix",
-  "risk": "high",
+  "goal": "Disponibilizar o núcleo inicial do Centro de Administração para validação controlada por administradores, preservando integralmente a fundação institucional existente e mantendo a candidata somente leitura.",
+  "change_type": "functional",
+  "risk": "medium",
   "scope": {
     "in": [
-      "política Referrer-Policy das respostas da aplicação",
-      "proteção Origin do POST /auth/logout",
-      "testes de regressão HTTP do logout"
+      "experiência de login do Centro sem alterar a autenticação Microsoft Entra ID/BFF existente",
+      "shell administrativo restrito ao papel ADMINISTRADOR",
+      "navegação restaurável entre as áreas iniciais do núcleo",
+      "snapshot BFF somente leitura composto a partir do SharePoint CENTROADMIN",
+      "visão geral e áreas de Sistemas, Auditoria e Configurações para validação",
+      "estados de loading, vazio, erro, permissão negada e responsividade"
     ],
     "out": [
-      "Microsoft Entra ID",
-      "formato e duração da sessão",
-      "mapeamento de papéis",
-      "demais endpoints e módulos de negócio"
+      "liberação oficial da candidata para professores, alunos, apoio, visitantes ou outros públicos",
+      "mutações em Publicações, Páginas, Configurações, Auditoria ou registro de módulos",
+      "reconstrução ou substituição de Cloudflare, Entra ID, Graph, SharePoint, grupos, sessão, CI/CD ou rotação automática",
+      "pesquisa global, notificações, pendências e preferências individuais",
+      "migrações destrutivas ou nova infraestrutura"
     ]
   },
   "assumptions": [
-    "O logout continua sendo uma navegação POST iniciada por formulário HTML no domínio oficial.",
-    "A política same-origin não envia Referer em navegações para origens externas.",
-    "Origin nula ou diferente da origem oficial continua não confiável para escrita."
+    "A fundação documentada no repositório permanece a fonte técnica de verdade para autenticação, autorização, persistência e deploy.",
+    "A lista PLATAFORMA_MODULOS representa módulos registrados; o manifesto em código representa as áreas permanentes do núcleo.",
+    "A validação no domínio oficial não equivale a liberação oficial enquanto não houver o comando exato APROVADO PARA PRODUÇÃO."
   ],
   "invariants": [
     {
       "id": "INV-001",
-      "statement": "Somente uma escrita iniciada pela origem oficial pode limpar a sessão pelo endpoint de logout."
+      "statement": "A autenticação continua usando o fluxo Microsoft Entra ID/BFF existente e o navegador não recebe credencial privilegiada nem solicita senha institucional."
     },
     {
       "id": "INV-002",
-      "statement": "A aplicação não envia a URL interna como referrer para origens externas."
+      "statement": "Dados da candidata protegida só podem ser retornados após validação server-side de sessão e papel ADMINISTRADOR."
+    },
+    {
+      "id": "INV-003",
+      "statement": "A candidata v0.2 não executa escrita nos novos domínios administrativos apresentados para validação."
+    },
+    {
+      "id": "INV-004",
+      "statement": "Valores de configuração e campos sensíveis ou desnecessários de auditoria não são enviados ao navegador pela composição de snapshot."
+    },
+    {
+      "id": "INV-005",
+      "statement": "CI verde, merge ou deploy técnico não alteram o estado de liberação oficial, que depende do comando exato APROVADO PARA PRODUÇÃO."
+    },
+    {
+      "id": "INV-006",
+      "statement": "Falha de leitura no SharePoint pode degradar a candidata, mas não deve modificar autenticação, sessão ou infraestrutura existente."
     }
   ],
-  "data_contracts": [],
+  "data_contracts": [
+    {
+      "name": "PlatformSnapshot",
+      "source": "SharePoint CENTROADMIN + manifesto versionado do núcleo",
+      "direction": "BFF para frontend",
+      "privacy": "somente metadados necessários; sem ValorJson, UsuarioObjectId ou DetalhesJson"
+    }
+  ],
   "interfaces": [
     {
-      "name": "POST /auth/logout",
-      "success": "204 com expiração do cookie de sessão",
-      "rejection": "403 para Origin ausente, nula ou estrangeira"
+      "name": "/api/me",
+      "mode": "existing",
+      "purpose": "resolver identidade de sessão para a interface"
+    },
+    {
+      "name": "/auth/login",
+      "mode": "existing",
+      "purpose": "iniciar o fluxo Entra ID/BFF"
+    },
+    {
+      "name": "/auth/logout",
+      "mode": "existing",
+      "purpose": "encerrar a sessão"
+    },
+    {
+      "name": "/api/platform/snapshot",
+      "mode": "new-read-only",
+      "purpose": "compor o estado administrativo autorizado para um único frontend"
     }
   ],
   "acceptance_criteria": [
     {
       "id": "AC-001",
       "priority": "must",
-      "given": "uma página servida pela origem oficial com a política de referrer da aplicação",
-      "when": "o usuário envia o formulário POST /auth/logout",
+      "given": "um visitante sem sessão institucional válida",
+      "when": "a raiz do Centro de Administração é aberta",
       "then": [
-        "o navegador pode preservar a origem oficial no POST same-origin",
-        "o backend responde 204",
-        "o cookie de sessão é expirado"
+        "a interface apresenta a entrada institucional e direciona o login para /auth/login",
+        "a interface não solicita nem armazena senha institucional"
       ],
       "verification": ["test", "browser"]
     },
     {
       "id": "AC-002",
       "priority": "must",
-      "given": "uma tentativa de POST /auth/logout sem Origin, com Origin nula ou estrangeira",
-      "when": "o backend valida a escrita",
+      "given": "um usuário autenticado sem o papel ADMINISTRADOR",
+      "when": "ele abre a candidata ou tenta obter o snapshot administrativo",
       "then": [
-        "a tentativa é rejeitada com 403",
-        "a sessão não é deliberadamente aceita como logout confiável"
+        "o shell de validação não é apresentado como disponível ao perfil",
+        "o endpoint administrativo permanece negado por autorização server-side"
       ],
       "verification": ["test"]
     },
     {
       "id": "AC-003",
       "priority": "must",
-      "given": "uma navegação da aplicação para uma origem externa",
-      "when": "o navegador aplica Referrer-Policy",
-      "then": ["a URL interna não é enviada no cabeçalho Referer"],
-      "verification": ["test"]
+      "given": "um usuário autenticado com o papel ADMINISTRADOR e a fundação disponível",
+      "when": "o shell carrega a candidata",
+      "then": [
+        "o BFF retorna um snapshot somente leitura composto a partir do SharePoint autorizado",
+        "a visão geral informa estado da fundação e do núcleo sem criar nova fonte de verdade"
+      ],
+      "verification": ["test", "gate", "browser"]
+    },
+    {
+      "id": "AC-004",
+      "priority": "must",
+      "given": "uma rota conhecida ou desconhecida na navegação do Centro",
+      "when": "a URL é aberta ou atualizada",
+      "then": [
+        "rotas conhecidas restauram a área correspondente",
+        "rota desconhecida cai de forma segura em Visão geral"
+      ],
+      "verification": ["test", "browser"]
+    },
+    {
+      "id": "AC-005",
+      "priority": "must",
+      "given": "um administrador na área Sistemas",
+      "when": "o snapshot foi carregado",
+      "then": [
+        "o catálogo mostra o manifesto versionado do núcleo",
+        "módulos registrados no SharePoint são apresentados por metadados sem alterar seu domínio"
+      ],
+      "verification": ["test", "gate"]
+    },
+    {
+      "id": "AC-006",
+      "priority": "must",
+      "given": "um administrador nas áreas Auditoria ou Configurações",
+      "when": "os dados institucionais são apresentados",
+      "then": [
+        "configurações exibem somente chave, escopo, versão, estado e vigência",
+        "auditoria não expõe UsuarioObjectId nem DetalhesJson",
+        "nenhum ValorJson de configuração é enviado ao frontend"
+      ],
+      "verification": ["test", "gate"]
+    },
+    {
+      "id": "AC-007",
+      "priority": "must",
+      "given": "um administrador abre Publicações ou Páginas na candidata v0.2",
+      "when": "a área é exibida",
+      "then": [
+        "a área é identificada como planejada",
+        "nenhuma operação de escrita ou mutação real é oferecida por esta candidata"
+      ],
+      "verification": ["test", "gate"]
+    },
+    {
+      "id": "AC-008",
+      "priority": "must",
+      "given": "o shell administrativo em diferentes estados e larguras de tela",
+      "when": "dados carregam, estão vazios, falham ou o usuário navega por teclado",
+      "then": [
+        "há feedback funcional de loading, vazio, erro e permissão negada quando aplicável",
+        "a navegação e o conteúdo permanecem utilizáveis em desktop e mobile",
+        "movimento não essencial respeita prefers-reduced-motion"
+      ],
+      "verification": ["gate", "browser", "visual"]
+    },
+    {
+      "id": "AC-009",
+      "priority": "must",
+      "given": "a candidata está pronta para integração técnica",
+      "when": "os gates obrigatórios do repositório são executados",
+      "then": [
+        "format, lint, typecheck, testes e build passam",
+        "as validações de segurança dos workflows continuam passando",
+        "a candidata permanece marcada como validação e não como liberação oficial"
+      ],
+      "verification": ["gate"]
     }
   ]
 }
