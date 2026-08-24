@@ -79,6 +79,15 @@ export type MigrationEntry = {
   result: string;
 };
 
+export type OperationalSummary = {
+  status: OperationalStatus;
+  recentAuditFailureCount: number;
+  healthContractsConfigured: number;
+  healthContractsMissing: number;
+  lastAuditAt: string;
+  recoveryStatus: RecoveryStatus;
+};
+
 export type PlatformSnapshotContract = {
   version: string;
   releaseState: 'validation';
@@ -90,14 +99,7 @@ export type PlatformSnapshotContract = {
     expectedPlatformListsPresent: boolean;
     missingPlatformLists: string[];
   };
-  operational: {
-    status: OperationalStatus;
-    recentAuditFailureCount: number;
-    healthContractsConfigured: number;
-    healthContractsMissing: number;
-    lastAuditAt: string;
-    recoveryStatus: RecoveryStatus;
-  };
+  operational: OperationalSummary | null;
   coreModules: CoreModuleContract[];
   registeredModules: RegisteredModule[];
   configurations: PlatformConfiguration[];
