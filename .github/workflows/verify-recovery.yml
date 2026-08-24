@@ -7,7 +7,7 @@ on:
       - main
     paths:
       - '.github/workflows/verify-recovery.yml'
-      - 'functions/[[path]].ts'
+      - 'functions/**'
       - 'infra/maintenance/verify-recovery.mjs'
       - 'server/auth/github-oidc.ts'
       - 'server/platform/recovery.ts'
