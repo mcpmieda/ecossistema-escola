@@ -39,10 +39,11 @@ async function platformRequest(roles?: Array<'ADMINISTRADOR' | 'PROFESSOR'>): Pr
 }
 
 describe('logout route', () => {
-  it('clears the session for an exact same-origin POST', async () => {
+  it('clears the session and redirects to a fresh public shell for an exact same-origin POST', async () => {
     const response = await invoke(logoutRequest(testEnv.OFFICIAL_ORIGIN));
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(303);
+    expect(response.headers.get('Location')).toBe(testEnv.OFFICIAL_ORIGIN);
     expect(response.headers.get('Set-Cookie')).toContain('__Host-ecossistema_session=');
     expect(response.headers.get('Set-Cookie')).toContain('Max-Age=0');
     expect(response.headers.get('Referrer-Policy')).toBe('same-origin');
