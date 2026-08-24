@@ -12,65 +12,15 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
-import { platformHref, routeIcons } from './routes';
-
-type SearchItem = {
-  id: string;
-  label: string;
-  description: string;
-  category: 'Área' | 'Sistema' | 'Configuração';
-  href: string;
-  searchText: string;
-  icon: typeof Search;
-};
-
-function normalizeSearch(value: string): string {
-  return value
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLocaleLowerCase('pt-BR');
-}
-
-function buildSearchItems(snapshot: PlatformSnapshotContract): SearchItem[] {
-  const core = snapshot.coreModules.map((module) => ({
-    id: `core:${module.id}`,
-    label: module.name,
-    description: module.description,
-    category: 'Área' as const,
-    href: platformHref(module.route),
-    searchText: `${module.name} ${module.description} ${module.route} ${module.capabilities.join(' ')}`,
-    icon: routeIcons[module.route],
-  }));
-
-  const systems = snapshot.registeredModules.map((module) => ({
-    id: `system:${module.id}`,
-    label: module.name,
-    description: `Sistema registrado · ${module.key}${module.version ? ` · v${module.version}` : ''}`,
-    category: 'Sistema' as const,
-    href: platformHref('sistemas'),
-    searchText: `${module.name} ${module.key} ${module.version} ${module.status} ${module.roles.join(' ')}`,
-    icon: Boxes,
-  }));
-
-  const configurations = snapshot.configurations.map((configuration) => ({
-    id: `config:${configuration.id}`,
-    label: configuration.key,
-    description: `Configuração ${configuration.scope}${configuration.version ? ` · v${configuration.version}` : ''}`,
-    category: 'Configuração' as const,
-    href: platformHref('configuracoes'),
-    searchText: `${configuration.key} ${configuration.scope} ${configuration.version} ${configuration.active ? 'ativa' : 'inativa'}`,
-    icon: Settings2,
-  }));
-
-  return [...core, ...systems, ...configurations];
-}
+import { buildSearchItems, filterSearchItems, type PlatformSearchItem } from './search-model';
+import { routeIcons } from './routes';
 
 function SearchResults({
   items,
   query,
   onSelect,
 }: {
-  items: SearchItem[];
+  items: PlatformSearchItem[];
   query: string;
   onSelect: () => void;
 }) {
@@ -93,7 +43,12 @@ function SearchResults({
   return (
     <div className="max-h-80 overflow-y-auto p-1.5">
       {items.map((item) => {
-        const Icon = item.icon;
+        const Icon =
+          item.iconKind === 'system'
+            ? Boxes
+            : item.iconKind === 'configuration'
+              ? Settings2
+              : routeIcons[item.route ?? 'visao-geral'];
         return (
           <a
             key={item.id}
@@ -129,13 +84,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
   const desktopInputRef = useRef<HTMLInputElement>(null);
 
   const items = useMemo(() => (snapshot ? buildSearchItems(snapshot) : []), [snapshot]);
-  const results = useMemo(() => {
-    const normalizedQuery = normalizeSearch(query.trim());
-    if (!normalizedQuery) return items.slice(0, 7);
-    return items
-      .filter((item) => normalizeSearch(item.searchText).includes(normalizedQuery))
-      .slice(0, 7);
-  }, [items, query]);
+  const results = useMemo(() => filterSearchItems(items, query), [items, query]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
