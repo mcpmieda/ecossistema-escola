@@ -30,9 +30,7 @@ export function LoginExperience({ checking = false }: LoginExperienceProps) {
         <div className="login-intro">
           <p className="section-kicker">Centro de Administração</p>
           <h1 id="login-title">Gestão escolar em um único ambiente.</h1>
-          <p>
-            Acesso institucional aos sistemas, rotinas e informações administrativas da escola.
-          </p>
+          <p>Acesso institucional aos sistemas, rotinas e informações administrativas da escola.</p>
           <div className="login-trust" aria-label="Características do acesso">
             <span>Conta institucional</span>
             <span>Sessão protegida</span>
