@@ -1,0 +1,48 @@
+name: Centro v0.5 domain smoke
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Verify deployed v0.5
+    if: github.head_ref == 'test/domain-smoke-v0.5'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify public shell and protected APIs
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin='https://admin.escolaieda.com'
+
+          for attempt in $(seq 1 30); do
+            html="$(curl -fsS --max-time 15 "$origin/")"
+            asset="$(printf '%s' "$html" | grep -oE 'src="/assets/index-[^"]+\.js"' | head -n1 | sed -E 's/^src="([^"]+)"$/\1/')"
+
+            if [[ -n "$asset" ]]; then
+              bundle="$(curl -fsS --max-time 20 "$origin$asset")"
+              if grep -Fq 'Centro v0.5 em validação controlada' <<<"$bundle" \
+                && grep -Fq 'Sem degradação observada no snapshot' <<<"$bundle" \
+                && grep -Fq 'Recuperação e restore' <<<"$bundle"; then
+                me_status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$origin/api/me")"
+                snapshot_status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$origin/api/platform/snapshot")"
+                test "$me_status" = '401'
+                test "$snapshot_status" = '401'
+                echo "v0.5 bundle is live and protected APIs remain anonymous-denied."
+                echo "api_me=$me_status platform_snapshot=$snapshot_status asset=$asset"
+                exit 0
+              fi
+            fi
+
+            sleep 10
+          done
+
+          echo 'v0.5 markers were not observed on the validation domain.' >&2
+          exit 1
