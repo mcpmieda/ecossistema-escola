@@ -37,10 +37,10 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
   const systems = snapshot.registeredModules.map((module) => ({
     id: `system:${module.id}`,
     label: module.name,
-    description: `Sistema registrado · ${module.key}${module.version ? ` · v${module.version}` : ''}`,
+    description: `${module.integrationState === 'ready' ? 'Sistema integrado' : 'Sistema registrado'} · ${module.key}${module.version ? ` · v${module.version}` : ''}`,
     category: 'Sistema' as const,
     href: platformHref('sistemas'),
-    searchText: `${module.name} ${module.key} ${module.version} ${module.status} ${module.roles.join(' ')}`,
+    searchText: `${module.name} ${module.key} ${module.version} ${module.status} ${module.integrationState} ${module.requiredCapabilities.join(' ')}`,
     iconKind: 'system' as const,
   }));
 
