@@ -2,15 +2,6 @@ name: Verify recovery
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/verify-recovery.yml'
-      - 'functions/**'
-      - 'infra/maintenance/verify-recovery.mjs'
-      - 'server/auth/github-oidc.ts'
-      - 'server/platform/recovery.ts'
 
 permissions:
   contents: read
@@ -33,6 +24,7 @@ jobs:
       - name: Checkout immutable source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
 
       - name: Set up Node.js
