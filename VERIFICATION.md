@@ -1,251 +1,230 @@
-# VERIFICATION — Centro de Administração v0.6
+# VERIFICATION — Centro de Administração v0.7
 
 ## Escopo
 
-Validação da v0.6 do Centro de Administração. O bloco transforma capabilities declaradas em autorização aplicada pelo BFF e torna o snapshot permission-aware, sem alterar a autenticação institucional, os grupos, a sessão ou a fronteira somente leitura.
+Validação da candidata v0.7 do Centro de Administração. O bloco cria o contrato versionado de integração modular e separa inventário operacional de integração efetivamente reconhecida pela plataforma.
 
-Release state: `validation`. Nenhuma condição abaixo autoriza produção oficial.
+Release state: `validation`. Nenhuma evidência abaixo autoriza produção oficial.
 
-## Baseline publicada
+Por decisão de produto de 24/08/2026, estes itens ficam fora do fechamento desta fase e serão retomados posteriormente:
 
-A v0.6 está integrada em:
+- integração funcional do primeiro sistema independente;
+- construção de Publicações;
+- construção de Páginas.
+
+## Baseline anterior
+
+Baseline publicada e externamente verificada antes da v0.7:
+
+`main@d0c32d32844ec56037ddb46d7f93a386efc83aa5`
+
+Runtime v0.6 correspondente:
 
 `main@8632ae8eb420d2d2c2bd3c21ba33a53b8aea3d7a`
 
-PR #19: **merged**.
-
-O domínio de validação confirmado é:
+Domínio de validação:
 
 `https://admin.escolaieda.com`
 
-## Mudança de autorização v0.6
+## Contrato de integração v0.7
 
-### Catálogo de capabilities
+### Fonte de verdade
 
-`shared/platform-contract.ts` mantém o catálogo tipado de capabilities do Centro.
+`server/modules/contracts.ts` é a fonte versionada do contrato que a plataforma conhece e pode integrar.
 
-A política server-side está em `server/auth/capabilities.ts`.
+`PLATAFORMA_MODULOS` no SharePoint continua sendo inventário operacional e não substitui o contrato.
 
-Na candidata atual:
+Um registro existente no SharePoint não recebe estado `ready` apenas por existir.
 
-- `ADMINISTRADOR` recebe explicitamente todas as capabilities do Centro;
-- `PROFESSOR`, `ALUNO`, `APOIO` e `VISITANTE` recebem conjunto vazio.
+### Campos obrigatórios
 
-Nenhum grupo Entra foi alterado.
+O manifesto exige:
 
-### Autorização no ponto de execução
+- `contractVersion`;
+- `key`;
+- `name`;
+- `baseRoute` same-origin;
+- `version` semântica;
+- `status`;
+- `order`;
+- `requiredCapabilities` sem duplicidade;
+- `healthEndpoint` same-origin sob `/api/`.
 
-O BFF não usa mais o papel `ADMINISTRADOR` como autorização final dos endpoints administrativos atuais.
+Rotas relativas, protocol-relative (`//host`) e com barra invertida são rejeitadas.
 
-Agora:
+### Estados de integração
 
-- `/api/platform/snapshot` exige `platform.snapshot.read`;
-- `/api/sharepoint/health` exige `platform.health.read`;
-- ausência da capability produz `403 Forbidden`.
+`server/modules/registry.ts` resolve cada item como:
 
-Os papéis permanecem na sessão, mas são entrada para a política de capabilities.
+- `ready`;
+- `registry-only`;
+- `contract-mismatch`;
+- `disabled`;
+- `deprecated`;
+- `invalid-registry`.
 
-### Resolução por requisição
+`available` só pode ser verdadeiro quando o estado é `ready` e todas as `requiredCapabilities` estão presentes na sessão.
 
-Capabilities não foram adicionadas ao cookie de sessão.
+### Legacy `RolesJson`
 
-`/api/me` deriva e retorna as capabilities atuais a partir dos papéis já armazenados. Os endpoints protegidos repetem a resolução no servidor antes de autorizar a operação.
+A v0.7 remove `RolesJson` do caminho de decisão:
 
-Isso evita usar o cliente ou uma capability antiga persistida no cookie como fonte de autorização.
+- o BFF não solicita o campo na leitura Graph de `PLATAFORMA_MODULOS`;
+- o resolvedor não o usa;
+- o read model cliente não expõe `roles`;
+- a busca não o indexa;
+- sua presença em um item legado não concede autorização nem integração.
 
-## Snapshot recortado por capability
+O campo físico pode permanecer temporariamente na lista SharePoint existente porque removê-lo não é requisito deste bloco e criaria migração desnecessária. A condição de remoção é uma futura manutenção da estrutura SharePoint em que nenhum consumidor legado dependa dele.
 
-`getPlatformSnapshot` recebe as capabilities resolvidas e reduz tanto as leituras quanto a resposta:
+## Snapshot e interface
 
-- `platform.modules.read` libera módulos registrados;
-- `platform.settings.read` libera configurações e migrações;
-- `platform.audit.read` libera eventos de auditoria;
-- `platform.health.read` libera o resumo operacional;
-- módulos do núcleo são filtrados por suas capabilities declaradas.
+O snapshot passa a identificar módulos registrados com:
 
-Sem `platform.health.read`, `operational = null`.
+- `contractVersion`;
+- `requiredCapabilities`;
+- `integrationState`;
+- `integrationIssues`;
+- `available`.
 
-Quando uma coleção não é autorizada, ela não é devolvida com dados internos. Os testes usam sentinelas e serialização do snapshot para verificar ausência dos valores restritos.
+A versão do snapshot é `0.7.0-validation`.
 
-A busca continua permission-scoped porque seu índice é construído apenas a partir do snapshot já recortado.
+A área `Sistemas` mostra o estado de integração e as capabilities exigidas, mas não oferece abertura de sistema independente nesta fase.
 
-## Leituras Graph reduzidas
+A busca continua permission-scoped e usa o novo estado/capabilities do read model.
 
-A composição evita consultas de listas específicas quando elas não são necessárias pelas capabilities da sessão:
+## App Factory — Semantic Assurance
 
-- módulos: somente para `platform.modules.read` ou `platform.health.read`;
-- auditoria: somente para `platform.audit.read` ou `platform.health.read`;
-- configurações/migrações: somente para `platform.settings.read`.
+Novos elementos obrigatórios:
 
-Não foi criado endpoint paralelo ou segunda fonte de dados.
+- `INV-011` — registro operacional não equivale a autorização nem integração;
+- `AC-013` — disponibilidade modular exige contrato versionado compatível e capabilities suficientes.
 
-## Manifests e fail closed
+Fingerprint realmente calculado e validado pelo CI:
 
-O schema dos manifests aceita apenas capabilities do catálogo versionado.
+`7c0175727cc706f64575b885750cbe264c558f0f05fd883a111e8425595bcf73`
 
-`tests/capabilities.test.ts` verifica que toda capability declarada por um módulo está explicitamente presente nos grants do papel exigido pelo manifesto.
+O valor acima substitui qualquer fingerprint intermediário calculado manualmente durante o desenvolvimento.
 
-Objetivo: uma capability futura não deve entrar em uso por simples adição textual ao manifesto; a política precisa ser atualizada conscientemente e os testes precisam continuar verdes.
+## Testes v0.7
 
-## Testes de autorização
+A suíte cobre, entre outros comportamentos:
 
-A suíte v0.6 adiciona/expande verificações para:
+- contrato da `plataforma-base` válido e versionado;
+- chaves de contratos integrados únicas;
+- rejeição de rotas inseguras;
+- rejeição de capabilities duplicadas;
+- health endpoint fora de `/api/` rejeitado;
+- registro compatível marcado `ready`;
+- contrato correto sem capability continua indisponível;
+- `RolesJson` legado ignorado;
+- módulo sem manifesto marcado `registry-only`;
+- divergência de versão marcada `contract-mismatch`;
+- estados disabled/deprecated/unknown fail closed;
+- ordenação determinística do registro;
+- snapshot sem exposição de campos protegidos;
+- busca sem retornar auditoria/migrações e sem depender de roles legadas.
 
-- grants de `ADMINISTRADOR` iguais ao catálogo atual;
-- nenhum grant do Centro para `PROFESSOR`, `ALUNO`, `APOIO` e `VISITANTE` nesta validação;
-- deduplicação de grants;
-- `requireCapability` fail closed;
-- `/api/me` com capabilities de administrador;
-- `/api/me` com conjunto vazio para professor;
-- `/api/platform/snapshot` sem sessão = `401`;
-- `/api/platform/snapshot` com professor = `403`;
-- `/api/sharepoint/health` com professor = `403`;
-- snapshot limitado sem dados de módulos, configurações, auditoria ou migração sem capabilities correspondentes.
+## Higiene do repair loop
 
-## App Factory — semantic assurance v0.6
+O desenvolvimento inicial ocorreu no PR #22, que também continha um formatter temporário.
 
-Critério obrigatório adicionado:
+O formatter foi endurecido antes de uso:
 
-- `AC-012` — capabilities derivadas server-side, enforcement nos endpoints e recorte do snapshot.
+- checkout com `persist-credentials: false`;
+- permissões default somente leitura;
+- escrita limitada ao job temporário;
+- push explícito com token do job.
 
-O contrato também atualiza `INV-002` e adiciona `INV-010`: papéis institucionais não são a decisão final de autorização; o BFF deriva capabilities e exige a capability no ponto de execução.
+Esse laboratório encontrou e permitiu corrigir uma falha real de typecheck nos testes: a possibilidade de o resolvedor retornar lista vazia não estava explicitamente provada antes de acessar o primeiro item.
 
-Fingerprint validado no CI:
+Após a correção, o workflow temporário executou `npm run verify` com sucesso.
 
-`0df8838d07696ab8239a8890a2d1a07f31b745c1bf4c67141bc9b3ec8e23f277`
+O PR #22 foi então fechado **sem merge**.
 
-## CI da candidata limpa
+A candidata final foi reconstruída a partir da `main` em:
 
-PR #19, workflow funcional `32779168279`: **success**.
+`feat/centro-admin-v0.7-module-integration-contract-clean`
 
-Job aplicação `97597142311`:
+Head funcional inicial:
 
-- `npm ci`: **pass**, 0 vulnerabilidades reportadas pelo npm audit executado no install;
+`2d1089d6b256e836e76d083b7d581063df5d7834`
+
+Comparação com a baseline:
+
+- 1 commit funcional;
+- 15 arquivos definitivos;
+- zero mudanças em `.github/workflows`;
+- nenhum artefato de formatter presente na candidata final.
+
+## CI limpo da candidata
+
+PR #23, workflow `32785823534`: **success**.
+
+Job de aplicação `97617431317`:
+
+- `npm ci`: **pass**;
+- npm audit do install: **0 vulnerabilidades**;
 - `format:check`: **pass**;
 - lint: **pass**;
 - typecheck: **pass**;
 - semantic check: **pass**;
-- 12 arquivos de teste: **pass**;
-- **87 testes**: **pass**;
+- 13 arquivos de teste: **pass**;
+- **98 testes**: **pass**;
 - build Vite: **pass**.
 
-Job de segurança:
+Job de segurança `97617431494`:
 
 - actionlint: **pass**;
 - zizmor pedantic: **pass**.
 
-Após a documentação da candidata, o head final do PR #19 passou novamente no workflow `32779427463`: **success** para aplicação e segurança.
+Build observado:
 
-Bundle produzido/confirmado:
+- Vite `8.2.2`;
+- 1926 módulos transformados;
+- CSS `index-Cy_yw-W_.css` — 66.43 kB, gzip 12.03 kB;
+- JS `index-DDWNlGO3.js` — 316.75 kB, gzip 96.74 kB.
 
-- CSS: `index-D3GHYVLl.css`;
-- JS: `index-rmiV2Byp.js`.
-
-## Merge e deploy
-
-PR #19 foi integrado em `main` no commit:
-
-`8632ae8eb420d2d2c2bd3c21ba33a53b8aea3d7a`
-
-A regra permanente de CI executa deploy Cloudflare Pages após validação bem-sucedida de push em `main`.
-
-## Smoke externo final
-
-Workflow `32781606033`, job `97604681958`: **success**.
-
-Em `2026-08-24T21:50:24Z`, um runner externo ao Cloudflare confirmou no domínio:
-
-- bundle contém `Centro v0.6 em validação controlada`;
-- `/api/me` sem sessão = `401`;
-- `/api/platform/snapshot` sem sessão = `401`;
-- `/api/sharepoint/health` sem sessão = `401`;
-- `/api/health` público = `200`;
-- asset observado: `/assets/index-rmiV2Byp.js`.
-
-### Correção do smoke
-
-A primeira versão do smoke exigia encontrar `platform.snapshot.read` e `platform.health.read` dentro do JavaScript cliente. Isso era uma premissa incorreta: as capabilities são enforcement server-side e suas strings não precisam integrar o bundle do navegador.
-
-Essa primeira execução gerou falso negativo após 36 tentativas e não chegou a testar os endpoints.
-
-O smoke foi corrigido para verificar apenas evidências externamente observáveis:
-
-1. versão v0.6 no bundle;
-2. `401` anônimo nos endpoints protegidos;
-3. `200` no health público.
-
-A execução corrigida passou imediatamente, sem alteração no runtime v0.6.
-
-PR temporário #20 foi fechado sem merge e a branch `test/domain-smoke-v0.6` foi resetada para `main`.
-
-## Higiene da mudança
-
-O PR intermediário #18 continha um workflow temporário de formatação/verificação e foi fechado sem merge.
-
-A candidata final foi reconstruída sobre `main` em `feat/centro-admin-v0.6-capability-authorization-clean` somente com os arquivos funcionais, testes e contratos necessários.
-
-O PR #19 não adicionou workflow temporário permanente.
-
-O smoke externo também foi executado em PR descartável e não foi integrado.
+Deploy foi corretamente ignorado nesse workflow porque se tratava de PR.
 
 ## Fundação preservada
 
-A v0.6 não altera:
+A v0.7 não altera:
 
-- Microsoft Entra ID;
+- Entra ID;
 - grupos institucionais;
+- política cargo → grupos;
 - `rolesForGroups`;
-- formato do cookie de sessão;
-- segredo/algoritmo de selagem;
+- formato/segredo do cookie de sessão;
 - fluxo OIDC;
-- Graph ou permissões;
+- Graph ou seus privilégios;
 - SharePoint `CENTROADMIN`;
 - Cloudflare Pages;
-- rotação automática de identidade técnica;
-- logout corrigido em `POST` + Origin + `303`;
-- automação cargo → grupos;
-- qualquer domínio de escrita.
+- CI/CD permanente;
+- rotação automática da identidade técnica;
+- logout corrigido;
+- fronteira somente leitura do Centro.
 
-## Privacidade
+Não houve migração SharePoint nem escrita de dados institucionais neste bloco.
 
-Os testes de minimização continuam impedindo exposição de:
+## Estado antes do merge
 
-- `ValorJson`;
-- `AtualizadoPorObjectId` desnecessário;
-- `UsuarioObjectId`;
-- `DetalhesJson`.
+No momento desta documentação:
 
-A v0.6 adiciona outra camada: mesmo metadados não sensíveis de uma coleção administrativa são omitidos quando a sessão não possui a capability correspondente.
-
-## Fronteira de escrita
-
-A v0.6 permanece somente leitura.
-
-Não foram adicionadas mutações em:
-
-- Operação;
-- Sistemas;
-- Auditoria;
-- Configurações;
-- Publicações;
-- Páginas.
-
-## Estado do bloco v0.6
-
-- higiene: **pass**;
+- implementação: **pass**;
+- higiene da candidata: **pass**;
 - format/lint/typecheck/semantic/test/build: **pass**;
-- 87 testes: **pass**;
+- 98 testes: **pass**;
 - actionlint/zizmor: **pass**;
-- merge em `main`: **pass**;
-- deploy no domínio de validação: **pass confirmado externamente**;
-- smoke externo específico da v0.6: **pass**;
-- validação autenticada/humana final: **pending**;
+- merge em `main`: **pendente**;
+- deploy v0.7: **pendente**;
+- smoke externo v0.7: **pendente**;
+- browser QA final da fase: **pendente**;
+- recovery/restore com evidência: **pendente**;
 - produção oficial: **bloqueada**.
 
-## Gate humano
+## Próximo gate
 
-A v0.6 não altera a regra institucional de quem recebe acesso nesta validação: somente `ADMINISTRADOR` recebe capabilities do Centro.
-
-Qualquer expansão futura de grants para Professor, Aluno, Apoio, Visitante ou papéis adicionais é mudança de política institucional e deve ser validada explicitamente antes de ser aplicada.
+Depois deste documento, o head definitivo deve passar novamente pelo CI normal. Se permanecer verde, o PR #23 pode ser integrado em `main`, publicado no domínio de validação e submetido a smoke externo específico da v0.7.
 
 A produção oficial continua condicionada ao comando humano exato `APROVADO PARA PRODUÇÃO`.
