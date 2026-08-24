@@ -53,8 +53,8 @@ export async function verifyRecoveryRoundTrip(
   const sentinel = `recovery-sentinel-${suffix}`;
   const corrupted = `recovery-corrupted-${suffix}`;
   let listId: string | undefined;
-  let cleanupCompleted = false;
   let primaryError: unknown;
+  let result: RecoveryVerificationResult | undefined;
 
   try {
     const createdList = createdListSchema.parse(
@@ -144,7 +144,7 @@ export async function verifyRecoveryRoundTrip(
       throw new Error('Recovery restore checksum mismatch');
     }
 
-    return {
+    result = {
       status: 'verified',
       scope: RECOVERY_TEST_SCOPE,
       verifiedAt: now().toISOString(),
@@ -156,29 +156,35 @@ export async function verifyRecoveryRoundTrip(
     };
   } catch (error) {
     primaryError = error;
-    throw error;
-  } finally {
-    if (listId) {
-      try {
-        await graph<unknown>({
-          env,
-          path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}`,
-          method: 'DELETE',
-          correlationId,
-        });
-        cleanupCompleted = true;
-      } catch (cleanupError) {
-        if (!primaryError) throw cleanupError;
-        console.error(
-          JSON.stringify({
-            message: 'recovery_verification_cleanup_failed',
-            correlationId,
-          }),
-        );
-      }
-    }
-    if (!cleanupCompleted && !primaryError && listId) {
-      throw new Error('Recovery verification resource cleanup did not complete');
+  }
+
+  let cleanupError: unknown;
+  if (listId) {
+    try {
+      await graph<unknown>({
+        env,
+        path: `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}`,
+        method: 'DELETE',
+        correlationId,
+      });
+    } catch (error) {
+      cleanupError = error;
     }
   }
+
+  if (primaryError) {
+    if (cleanupError) {
+      console.error(
+        JSON.stringify({
+          message: 'recovery_verification_cleanup_failed',
+          correlationId,
+        }),
+      );
+    }
+    throw primaryError;
+  }
+  if (cleanupError) throw cleanupError;
+  if (!listId || !result) throw new Error('Recovery verification did not complete safely');
+
+  return result;
 }
