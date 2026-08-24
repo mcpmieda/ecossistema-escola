@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { AdministrationCenterBootstrap } from './types';
 
 type AdminCenterProps = {
@@ -9,7 +10,7 @@ type AdminCenterProps = {
 type IconName = 'overview' | 'systems' | 'activity' | 'shield' | 'logout';
 
 function Icon({ name }: { name: IconName }) {
-  const paths: Record<IconName, React.ReactNode> = {
+  const paths: Record<IconName, ReactNode> = {
     overview: <path d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z" />,
     systems: <path d="M5 5.5h14v4H5v-4Zm0 9h14v4H5v-4Zm2-7h2m-2 9h2" />,
     activity: <path d="M4 12h3l2-5 4 10 2-5h5" />,
@@ -217,7 +218,11 @@ export function AdminCenter({ data, signingOut, onSignOut }: AdminCenterProps) {
                   <span className="status-dot" />
                 </span>
                 <div>
-                  <strong>{platformHealthy ? 'Serviços essenciais disponíveis' : 'Dados parcialmente disponíveis'}</strong>
+                  <strong>
+                    {platformHealthy
+                      ? 'Serviços essenciais disponíveis'
+                      : 'Dados parcialmente disponíveis'}
+                  </strong>
                   <span>
                     Identidade, sessão e acesso a dados permanecem protegidos pela fundação existente.
                   </span>
