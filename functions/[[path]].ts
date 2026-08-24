@@ -16,6 +16,7 @@ import {
 import { clearCookie, readCookie, secureCookie } from '../server/auth/cookies';
 import { seal, unseal } from '../server/auth/sealed';
 import { rolesForGroups, requireRole, AuthorizationError } from '../server/auth/roles';
+import { capabilitiesForRoles, requireCapability } from '../server/auth/capabilities';
 import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
@@ -25,6 +26,7 @@ import {
 import { sharePointHealth } from '../server/graph/sharepoint';
 import { verifyGitHubMaintenanceToken } from '../server/auth/github-oidc';
 import { graphCredentials, type GraphCredentialSlot } from '../server/auth/technical-identity';
+import { loadAdministrationCenterBootstrap } from '../server/platform/admin-overview';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -144,6 +146,22 @@ async function route(context: Context): Promise<Response> {
     method(request, ['GET']);
     const session = await requireAuth(request, env);
     return json({ authenticated: true, name: session.name, roles: session.roles });
+  }
+  if (url.pathname === '/api/admin/bootstrap') {
+    method(request, ['GET']);
+    const session = await requireAuth(request, env);
+    const userCapabilities = capabilitiesForRoles(session.roles);
+    requireCapability(userCapabilities, 'platform.validation.access');
+    requireCapability(userCapabilities, 'platform.overview.read');
+    requireCapability(userCapabilities, 'platform.modules.read');
+    requireCapability(userCapabilities, 'platform.audit.read');
+    return json(
+      await loadAdministrationCenterBootstrap(
+        env,
+        { name: session.name, roles: session.roles },
+        userCapabilities,
+      ),
+    );
   }
   if (url.pathname === '/api/sharepoint/health') {
     method(request, ['GET']);
