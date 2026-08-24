@@ -1,9 +1,7 @@
 name: Centro v0.2 domain smoke
 
 on:
-  push:
-    branches:
-      - test/domain-smoke-v0.2
+  pull_request:
     paths:
       - .github/workflows/domain-smoke-v0.2.yml
 
