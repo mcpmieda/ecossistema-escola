@@ -53,7 +53,8 @@ function LoginExperience({ loading }: { loading: boolean }) {
             <p className="brand-kicker">ESCOLA IÊDA ALVES DE OLIVEIRA MCPM</p>
             <h1 id="login-title">Centro de Administração</h1>
             <p className="login-lead">
-              Ambiente institucional único para operação, gestão e integração dos sistemas da escola.
+              Ambiente institucional único para operação, gestão e integração dos sistemas da
+              escola.
             </p>
           </div>
           <div className="login-principles" aria-label="Características da plataforma">
@@ -137,7 +138,10 @@ function AdminShell({ identity }: { identity: Identity }) {
       .catch(() => setHealthError(true));
   }, []);
 
-  const firstName = useMemo(() => identity.name?.trim().split(/\s+/)[0] || 'Administrador', [identity]);
+  const firstName = useMemo(
+    () => identity.name?.trim().split(/\s+/)[0] || 'Administrador',
+    [identity],
+  );
 
   return (
     <div className="admin-app">
@@ -234,8 +238,8 @@ function AdminShell({ identity }: { identity: Identity }) {
               <h2 id="module-title">Núcleo inicial do Centro</h2>
             </div>
             <p>
-              Os módulos entram progressivamente e permanecem independentes por domínio, sem duplicar
-              autenticação, navegação ou auditoria.
+              Os módulos entram progressivamente e permanecem independentes por domínio, sem
+              duplicar autenticação, navegação ou auditoria.
             </p>
           </div>
 
@@ -275,6 +279,7 @@ export function App() {
 
   if (identity === null) return <LoginExperience loading />;
   if (!identity.authenticated) return <LoginExperience loading={false} />;
-  if (!identity.roles?.includes('ADMINISTRADOR')) return <RestrictedExperience name={identity.name} />;
+  if (!identity.roles?.includes('ADMINISTRADOR'))
+    return <RestrictedExperience name={identity.name} />;
   return <AdminShell identity={identity} />;
 }

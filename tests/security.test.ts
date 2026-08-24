@@ -31,6 +31,16 @@ describe('HTTP security', () => {
         testEnv,
       ),
     ).toThrow(HttpError));
+  it('rejects a null write Origin instead of weakening CSRF protection', () =>
+    expect(() =>
+      enforceWriteOrigin(
+        new Request(`${testEnv.OFFICIAL_ORIGIN}/x`, {
+          method: 'POST',
+          headers: { Origin: 'null' },
+        }),
+        testEnv,
+      ),
+    ).toThrow(HttpError));
   it('accepts the exact write Origin', () =>
     expect(() =>
       enforceWriteOrigin(
@@ -45,6 +55,7 @@ describe('HTTP security', () => {
     const response = withSecurityHeaders(new Response('ok'));
     expect(response.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'");
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(response.headers.get('Referrer-Policy')).toBe('same-origin');
   });
   it('marks protected responses no-store', () =>
     expect(withSecurityHeaders(new Response('ok'), true).headers.get('Cache-Control')).toContain(

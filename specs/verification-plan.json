@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "spec_fingerprint": "edc685f30eaa2f9910f73e305371c54c7aeba650c85439c2b49380b84759b7db",
+  "criteria": [
+    {
+      "id": "AC-001",
+      "priority": "must",
+      "preferred_evidence": ["test", "browser"],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "tests/routes.test.ts",
+          "gate": "npm:test"
+        },
+        {
+          "kind": "browser",
+          "ref": "https://admin.escolaieda.com/auth/logout",
+          "gate": "production-smoke"
+        }
+      ]
+    },
+    {
+      "id": "AC-002",
+      "priority": "must",
+      "preferred_evidence": ["test"],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "tests/security.test.ts",
+          "gate": "npm:test"
+        }
+      ]
+    },
+    {
+      "id": "AC-003",
+      "priority": "must",
+      "preferred_evidence": ["test"],
+      "evidence": [
+        {
+          "kind": "test",
+          "ref": "tests/security.test.ts",
+          "gate": "npm:test"
+        }
+      ]
+    }
+  ]
+}
