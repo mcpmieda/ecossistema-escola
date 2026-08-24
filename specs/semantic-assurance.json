@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "depth": "domain",
-  "source_contract_fingerprint": "0df8838d07696ab8239a8890a2d1a07f31b745c1bf4c67141bc9b3ec8e23f277",
+  "source_contract_fingerprint": "7c0175727cc706f64575b885750cbe264c558f0f05fd883a111e8425595bcf73",
   "glossary": [
     {
       "id": "TERM-001",
@@ -18,8 +18,8 @@
     {
       "id": "TERM-003",
       "term": "Módulo registrado",
-      "definition": "Sistema incorporado ou administrável pela plataforma por meio do registro institucional e de seu contrato de integração.",
-      "aliases": ["módulo integrado"]
+      "definition": "Item presente no inventário operacional PLATAFORMA_MODULOS. Registro, sozinho, não comprova integração nem autorização.",
+      "aliases": ["registro de módulo"]
     },
     {
       "id": "TERM-004",
@@ -44,6 +44,12 @@
       "term": "Capability",
       "definition": "Permissão técnica versionada que o BFF deriva dos papéis da sessão e exige no ponto de execução de uma operação do Centro.",
       "aliases": ["capacidade autorizada", "grant"]
+    },
+    {
+      "id": "TERM-008",
+      "term": "Módulo integrado",
+      "definition": "Módulo registrado que possui manifesto versionado reconhecido pelo Centro, metadados operacionais compatíveis e capabilities necessárias para a sessão corrente.",
+      "aliases": ["integração de módulo"]
     }
   ],
   "entities": [
@@ -97,6 +103,26 @@
       "name": "PoliticaCapabilities",
       "definition": "Mapeamento versionado de papéis institucionais para capabilities do Centro, avaliado pelo BFF em cada requisição protegida.",
       "attributes": ["role", "grants"]
+    },
+    {
+      "id": "ENT-007",
+      "name": "ContratoIntegracaoModulo",
+      "definition": "Manifesto versionado em código que declara a interface mínima que o Centro reconhece para integrar um módulo.",
+      "attributes": [
+        "contractVersion",
+        "key",
+        "baseRoute",
+        "version",
+        "status",
+        "requiredCapabilities",
+        "healthEndpoint"
+      ]
+    },
+    {
+      "id": "ENT-008",
+      "name": "EstadoIntegracaoModulo",
+      "definition": "Resultado fail-closed da comparação entre registro operacional, manifesto versionado e capabilities da sessão.",
+      "attributes": ["integrationState", "integrationIssues", "available"]
     }
   ],
   "relations": [],
@@ -181,12 +207,12 @@
       "preconditions": ["snapshot carregado", "platform.modules.read presente"],
       "trigger": "a sessão consulta a área Sistemas",
       "response": [
-        "Apresentar o manifesto permitido e módulos registrados somente quando a capability de módulos estiver presente, sem absorver regras internas desses módulos."
+        "Apresentar o manifesto permitido e o estado de integração dos módulos registrados somente quando a capability de módulos estiver presente, sem absorver regras internas desses módulos."
       ],
       "timing": "",
-      "concept_refs": ["TERM-002", "TERM-003", "TERM-007", "ENT-003", "ENT-004"],
+      "concept_refs": ["TERM-002", "TERM-003", "TERM-007", "TERM-008", "ENT-003", "ENT-004", "ENT-007", "ENT-008"],
       "acceptance_refs": ["AC-005"],
-      "invariant_refs": ["INV-002", "INV-010"],
+      "invariant_refs": ["INV-002", "INV-010", "INV-011"],
       "formalization_refs": []
     },
     {
@@ -194,16 +220,16 @@
       "priority": "must",
       "pattern": "policy",
       "component": "Minimização de dados",
-      "scope": ["Auditoria", "Configurações", "Operação"],
+      "scope": ["Auditoria", "Configurações", "Operação", "Sistemas"],
       "preconditions": ["sessão autenticada"],
       "trigger": "o BFF compõe os metadados administrativos para o navegador",
       "response": [
-        "Excluir valores de configuração e campos de auditoria sensíveis ou desnecessários e omitir coleções cuja capability não esteja presente."
+        "Excluir valores de configuração e campos de auditoria sensíveis ou desnecessários, omitir coleções sem capability e não enviar RolesJson legado."
       ],
       "timing": "",
       "concept_refs": ["TERM-004", "TERM-007", "ENT-004"],
       "acceptance_refs": ["AC-006"],
-      "invariant_refs": ["INV-002", "INV-004", "INV-010"],
+      "invariant_refs": ["INV-002", "INV-004", "INV-010", "INV-011"],
       "formalization_refs": []
     },
     {
@@ -265,12 +291,12 @@
       "preconditions": ["snapshot autorizado e recortado carregado"],
       "trigger": "um administrador pesquisa no Centro",
       "response": [
-        "Indexar somente metadados presentes no snapshot recortado e excluir auditoria e migrações do índice de busca."
+        "Indexar somente metadados presentes no snapshot recortado, usar estado/capabilities atuais dos módulos e excluir auditoria, migrações e papéis legados do índice."
       ],
       "timing": "",
-      "concept_refs": ["TERM-004", "TERM-007", "ENT-004"],
+      "concept_refs": ["TERM-004", "TERM-007", "ENT-004", "ENT-008"],
       "acceptance_refs": ["AC-010"],
-      "invariant_refs": ["INV-009", "INV-010"],
+      "invariant_refs": ["INV-009", "INV-010", "INV-011"],
       "formalization_refs": []
     },
     {
@@ -310,6 +336,27 @@
       "concept_refs": ["TERM-007", "ENT-002", "ENT-004", "ENT-006"],
       "acceptance_refs": ["AC-012"],
       "invariant_refs": ["INV-002", "INV-010"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-013",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "Integração de módulos",
+      "scope": ["server/modules/contracts.ts", "PLATAFORMA_MODULOS", "PlatformSnapshot", "busca de sistemas"],
+      "preconditions": ["platform.modules.read presente para exposição do catálogo"],
+      "trigger": "o BFF resolve um registro de módulo para o snapshot",
+      "response": [
+        "Separar registro operacional de manifesto de integração.",
+        "Resolver estado de integração fail-closed comparando status, rota, versão e health endpoint com o manifesto versionado.",
+        "Marcar available somente para módulo ready cujas requiredCapabilities estejam presentes.",
+        "Ignorar RolesJson como autorização ou evidência de integração e não enviá-lo ao cliente.",
+        "Aceitar apenas rotas e health endpoints same-origin compatíveis com o contrato."
+      ],
+      "timing": "",
+      "concept_refs": ["TERM-003", "TERM-007", "TERM-008", "ENT-004", "ENT-007", "ENT-008"],
+      "acceptance_refs": ["AC-013"],
+      "invariant_refs": ["INV-002", "INV-010", "INV-011"],
       "formalization_refs": []
     }
   ],
