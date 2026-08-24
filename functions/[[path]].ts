@@ -137,8 +137,11 @@ async function route(context: Context): Promise<Response> {
     method(request, ['POST']);
     enforceWriteOrigin(request, env);
     return new Response(null, {
-      status: 204,
-      headers: { 'Set-Cookie': clearCookie(SESSION_COOKIE) },
+      status: 303,
+      headers: {
+        Location: env.OFFICIAL_ORIGIN,
+        'Set-Cookie': clearCookie(SESSION_COOKIE),
+      },
     });
   }
   if (url.pathname === '/api/me') {
