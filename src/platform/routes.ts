@@ -2,6 +2,7 @@ import {
   BookOpenText,
   Boxes,
   FileText,
+  HeartPulse,
   LayoutDashboard,
   Settings2,
   ShieldCheck,
@@ -11,6 +12,7 @@ import type { PlatformRoute } from '../../shared/platform-contract';
 
 export const routeLabels: Record<PlatformRoute, string> = {
   'visao-geral': 'Visão geral',
+  operacao: 'Operação',
   publicacoes: 'Publicações',
   paginas: 'Páginas',
   sistemas: 'Sistemas',
@@ -20,6 +22,7 @@ export const routeLabels: Record<PlatformRoute, string> = {
 
 export const routeIcons: Record<PlatformRoute, LucideIcon> = {
   'visao-geral': LayoutDashboard,
+  operacao: HeartPulse,
   publicacoes: BookOpenText,
   paginas: FileText,
   sistemas: Boxes,
