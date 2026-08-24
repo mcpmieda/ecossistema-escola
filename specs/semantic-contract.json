@@ -1,28 +1,32 @@
 {
   "schema_version": 1,
-  "goal": "Disponibilizar o núcleo inicial do Centro de Administração para validação controlada por administradores, preservando integralmente a fundação institucional existente e mantendo a candidata somente leitura.",
+  "goal": "Evoluir o núcleo do Centro de Administração em validação controlada, mantendo-o somente leitura, permission-aware e operacionalmente explicável, com busca transversal e sinais conservadores de degradação sem alterar a fundação institucional existente.",
   "change_type": "functional",
   "risk": "medium",
   "scope": {
     "in": [
-      "experiência de login do Centro sem alterar a autenticação Microsoft Entra ID/BFF existente",
-      "shell administrativo restrito ao papel ADMINISTRADOR",
-      "navegação restaurável entre as áreas iniciais do núcleo",
+      "experiência de login e shell administrativo sem alterar a autenticação Microsoft Entra ID/BFF existente",
+      "navegação restaurável entre as áreas versionadas do núcleo",
       "snapshot BFF somente leitura composto a partir do SharePoint CENTROADMIN",
-      "visão geral e áreas de Sistemas, Auditoria e Configurações para validação",
-      "estados de loading, vazio, erro, permissão negada e responsividade"
+      "busca transversal limitada aos metadados já autorizados presentes no snapshot",
+      "visão operacional com detecção de estrutura incompleta, falhas explícitas de auditoria e cobertura de contratos HealthEndpoint",
+      "visão geral, Operação, Sistemas, Auditoria e Configurações para validação",
+      "estados de loading, vazio, erro, permissão negada, responsividade e reduced-motion"
     ],
     "out": [
       "liberação oficial da candidata para professores, alunos, apoio, visitantes ou outros públicos",
-      "mutações em Publicações, Páginas, Configurações, Auditoria ou registro de módulos",
+      "mutações em Publicações, Páginas, Configurações, Auditoria, Operação ou registro de módulos",
+      "execução automática de HealthEndpoint registrados ou monitoramento ativo de serviços externos",
+      "declaração de recuperação ou restore como aprovado sem evidência registrada de teste",
+      "notificações, pendências institucionais e preferências individuais",
       "reconstrução ou substituição de Cloudflare, Entra ID, Graph, SharePoint, grupos, sessão, CI/CD ou rotação automática",
-      "pesquisa global, notificações, pendências e preferências individuais",
       "migrações destrutivas ou nova infraestrutura"
     ]
   },
   "assumptions": [
     "A fundação documentada no repositório permanece a fonte técnica de verdade para autenticação, autorização, persistência e deploy.",
     "A lista PLATAFORMA_MODULOS representa módulos registrados; o manifesto em código representa as áreas permanentes do núcleo.",
+    "A ausência de um sinal de falha no snapshot não prova disponibilidade total de dependências externas.",
     "A validação no domínio oficial não equivale a liberação oficial enquanto não houver o comando exato APROVADO PARA PRODUÇÃO."
   ],
   "invariants": [
@@ -36,7 +40,7 @@
     },
     {
       "id": "INV-003",
-      "statement": "A candidata v0.2 não executa escrita nos novos domínios administrativos apresentados para validação."
+      "statement": "A candidata não executa escrita nos domínios administrativos ainda em validação."
     },
     {
       "id": "INV-004",
@@ -49,6 +53,18 @@
     {
       "id": "INV-006",
       "statement": "Falha de leitura no SharePoint pode degradar a candidata, mas não deve modificar autenticação, sessão ou infraestrutura existente."
+    },
+    {
+      "id": "INV-007",
+      "statement": "Lista estrutural obrigatória ausente não pode ser apresentada como fundação saudável ou completa."
+    },
+    {
+      "id": "INV-008",
+      "statement": "HealthEndpoint configurado representa cobertura de contrato, não prova disponibilidade; a candidata não executa esses endpoints automaticamente."
+    },
+    {
+      "id": "INV-009",
+      "statement": "A busca transversal indexa apenas áreas do núcleo, módulos registrados e metadados de configuração já presentes no snapshot autorizado, sem indexar auditoria ou migrações."
     }
   ],
   "data_contracts": [
@@ -57,6 +73,12 @@
       "source": "SharePoint CENTROADMIN + manifesto versionado do núcleo",
       "direction": "BFF para frontend",
       "privacy": "somente metadados necessários; sem ValorJson, UsuarioObjectId ou DetalhesJson"
+    },
+    {
+      "name": "OperationalSignals",
+      "source": "campos já presentes no PlatformSnapshot",
+      "direction": "BFF para frontend",
+      "privacy": "estado derivado sem executar endpoints externos e sem ampliar dados do usuário"
     }
   ],
   "interfaces": [
@@ -73,12 +95,12 @@
     {
       "name": "/auth/logout",
       "mode": "existing",
-      "purpose": "encerrar a sessão"
+      "purpose": "encerrar a sessão e redirecionar para a raiz sem sessão"
     },
     {
       "name": "/api/platform/snapshot",
-      "mode": "new-read-only",
-      "purpose": "compor o estado administrativo autorizado para um único frontend"
+      "mode": "existing-read-only",
+      "purpose": "compor o estado administrativo autorizado para um único frontend, incluindo sinais operacionais derivados"
     }
   ],
   "acceptance_criteria": [
@@ -108,10 +130,10 @@
       "id": "AC-003",
       "priority": "must",
       "given": "um usuário autenticado com o papel ADMINISTRADOR e a fundação disponível",
-      "when": "o shell carrega a candidata",
+      "when": "o shell solicita o estado da plataforma",
       "then": [
-        "o BFF retorna um snapshot somente leitura composto a partir do SharePoint autorizado",
-        "a visão geral informa estado da fundação e do núcleo sem criar nova fonte de verdade"
+        "o BFF retorna um snapshot somente leitura composto a partir das fontes autoritativas existentes",
+        "a visão geral informa o estado observado da estrutura sem criar nova fonte de verdade"
       ],
       "verification": ["test", "gate", "browser"]
     },
@@ -133,7 +155,7 @@
       "when": "o snapshot foi carregado",
       "then": [
         "o catálogo mostra o manifesto versionado do núcleo",
-        "módulos registrados no SharePoint são apresentados por metadados sem alterar seu domínio"
+        "módulos registrados são apresentados por metadados sem alterar seu domínio"
       ],
       "verification": ["test", "gate"]
     },
@@ -143,7 +165,7 @@
       "given": "um administrador nas áreas Auditoria ou Configurações",
       "when": "os dados institucionais são apresentados",
       "then": [
-        "configurações exibem somente chave, escopo, versão, estado e vigência",
+        "configurações exibem somente metadados permitidos",
         "auditoria não expõe UsuarioObjectId nem DetalhesJson",
         "nenhum ValorJson de configuração é enviado ao frontend"
       ],
@@ -152,11 +174,11 @@
     {
       "id": "AC-007",
       "priority": "must",
-      "given": "um administrador abre Publicações ou Páginas na candidata v0.2",
+      "given": "um administrador abre Publicações ou Páginas",
       "when": "a área é exibida",
       "then": [
         "a área é identificada como planejada",
-        "nenhuma operação de escrita ou mutação real é oferecida por esta candidata"
+        "nenhuma operação de escrita ou mutação real é oferecida"
       ],
       "verification": ["test", "gate"]
     },
@@ -183,6 +205,31 @@
         "a candidata permanece marcada como validação e não como liberação oficial"
       ],
       "verification": ["gate"]
+    },
+    {
+      "id": "AC-010",
+      "priority": "must",
+      "given": "um administrador usa a busca transversal",
+      "when": "ele pesquisa áreas, sistemas ou configurações",
+      "then": [
+        "a pesquisa considera somente itens já presentes no snapshot autorizado",
+        "acentos e termos separados não impedem correspondências esperadas",
+        "eventos de auditoria e migrações não entram no índice"
+      ],
+      "verification": ["test", "browser"]
+    },
+    {
+      "id": "AC-011",
+      "priority": "must",
+      "given": "um administrador abre a área Operação",
+      "when": "o snapshot contém ou não sinais de degradação",
+      "then": [
+        "lista estrutural obrigatória ausente resulta em estado degradado",
+        "resultados recentes explicitamente iniciados por erro ou falha produzem sinal de atenção",
+        "HealthEndpoint configurado é apresentado apenas como cobertura de contrato",
+        "recuperação permanece não verificada enquanto não existir evidência correspondente"
+      ],
+      "verification": ["test", "gate", "browser"]
     }
   ]
 }
