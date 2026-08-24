@@ -28,7 +28,12 @@ export const MODULE_INTEGRATION_STATES = [
   'deprecated',
   'invalid-registry',
 ] as const;
-export const MODULE_INTEGRATION_ISSUES = ['base-route', 'version', 'health-endpoint'] as const;
+export const MODULE_INTEGRATION_ISSUES = [
+  'status',
+  'base-route',
+  'version',
+  'health-endpoint',
+] as const;
 
 export type PlatformRoute = (typeof PLATFORM_ROUTES)[number];
 export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
