@@ -5,7 +5,6 @@ for (const name of required) {
 
 const origin = 'https://admin.escolaieda.com';
 const audience = `${origin}/api/maintenance/recovery/verify`;
-const expectedMarker = 'Centro v0.8 em validação controlada';
 
 async function githubOidcToken() {
   const url = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
@@ -20,31 +19,34 @@ async function githubOidcToken() {
   return body.value;
 }
 
-async function waitForDeployedCandidate() {
+async function waitForRecoveryEndpoint() {
+  let lastStatus = 0;
   for (let attempt = 1; attempt <= 36; attempt += 1) {
-    const htmlResponse = await fetch(`${origin}/`, { signal: AbortSignal.timeout(20_000) });
-    if (htmlResponse.ok) {
-      const html = await htmlResponse.text();
-      const asset = html.match(/\/assets\/index-[A-Za-z0-9_-]+\.js/u)?.[0];
-      if (asset) {
-        const bundleResponse = await fetch(`${origin}${asset}`, { signal: AbortSignal.timeout(20_000) });
-        if (bundleResponse.ok && (await bundleResponse.text()).includes(expectedMarker)) return asset;
-      }
+    const response = await fetch(audience, {
+      method: 'POST',
+      signal: AbortSignal.timeout(20_000),
+    });
+    lastStatus = response.status;
+    if (lastStatus === 401) return;
+    if (lastStatus !== 404) {
+      throw new Error(`Unexpected recovery readiness status (${lastStatus})`);
     }
     if (attempt < 36) await new Promise((resolve) => setTimeout(resolve, 10_000));
   }
-  throw new Error('Deployed v0.8 candidate was not observed before recovery verification');
+  throw new Error(`Recovery endpoint was not deployed before verification (last status ${lastStatus})`);
 }
 
-const asset = await waitForDeployedCandidate();
+await waitForRecoveryEndpoint();
 const token = await githubOidcToken();
 const response = await fetch(audience, {
   method: 'POST',
   headers: { Authorization: `Bearer ${token}` },
-  signal: AbortSignal.timeout(45_000),
+  signal: AbortSignal.timeout(60_000),
 });
 const text = await response.text();
-if (!response.ok) throw new Error(`Recovery verification endpoint failed (${response.status}): ${text.slice(0, 500)}`);
+if (!response.ok) {
+  throw new Error(`Recovery verification endpoint failed (${response.status}): ${text.slice(0, 500)}`);
+}
 const result = JSON.parse(text);
 if (
   result.status !== 'verified' ||
@@ -65,7 +67,6 @@ console.log(
     restoredChecksum: result.restoredChecksum,
     restoreMatched: result.restoreMatched,
     cleanup: result.cleanup,
-    deployedAsset: asset,
     sourceCommit: process.env.GITHUB_SHA ?? '',
   }),
 );
