@@ -29,6 +29,8 @@ O workflow existente continua executando:
 - Actions externas pinadas por SHA;
 - deploy somente da `main` após os jobs de validação.
 
+A correção de segurança de logout integrada na `main` pelo PR #5 foi absorvida pela candidata antes do merge, preservando `Referrer-Policy: same-origin`, validação de `Origin` e os testes de regressão correspondentes.
+
 ### Autorização
 
 Cobertura obrigatória:
@@ -36,18 +38,19 @@ Cobertura obrigatória:
 - papel `ADMINISTRADOR` permitido pelas regras existentes;
 - papéis não administrativos não adquirem `ADMINISTRADOR` por mapeamento;
 - `/api/platform/snapshot` possui `requireAuth` + `requireRole(..., 'ADMINISTRADOR')` no BFF;
+- `tests/routes.test.ts` exige 401 sem sessão e 403 para sessão `PROFESSOR` antes de qualquer leitura administrativa;
 - a UI restrita não é considerada barreira de segurança.
 
 ### Dados e privacidade
 
-`tests/platform-snapshot.integration.test.ts` injeta campos que não devem chegar ao navegador e exige que o read model descarte:
+`tests/platform-snapshot.test.ts` valida a transformação pura do read model e injeta campos que não devem chegar ao navegador. O resultado deve descartar:
 
 - `ValorJson`;
 - `AtualizadoPorObjectId` como dado de exposição desnecessária;
 - `UsuarioObjectId`;
 - `DetalhesJson`.
 
-O teste também confirma que o snapshot permanece no estado `validation` e que as listas essenciais são reconhecidas.
+O teste também confirma que o snapshot permanece no estado `validation`, que as listas essenciais são reconhecidas e que registros malformados são tratados de forma fechada.
 
 ### Contrato de módulos
 
@@ -86,7 +89,7 @@ A verificação autenticada exige uma sessão institucional real e não deve cap
 - Squawk: não há PostgreSQL nem migration SQL;
 - k6: não há SLO/workload novo definido que justifique gate de carga;
 - Toxiproxy: integração Graph já possui timeout/retry e esta fatia não modifica esse mecanismo;
-- cross-browser completo: não há promessa nova multi-engine nesta candidata; QA Chromium é suficiente para o primeiro teste, podendo ampliar antes da liberação oficial;
+- cross-browser completo: QA Chromium é suficiente para o primeiro teste, podendo ampliar antes da liberação oficial;
 - mutation testing: custo desproporcional ao read model inicial; reconsiderar quando regras de domínio de escrita forem implementadas.
 
 ## Change Hygiene
@@ -94,9 +97,10 @@ A verificação autenticada exige uma sessão institucional real e não deve cap
 Antes do merge:
 
 - confirmar que a antiga leitura separada de `/api/sharepoint/health` não continua como caminho ativo do frontend;
-- confirmar ausência de `old/new/fixed/final/v2` paralelos sem fronteira real;
+- confirmar que não existe implementação paralela para a mesma responsabilidade;
 - confirmar ausência de CSS criado apenas para neutralizar CSS anterior;
 - confirmar ausência de `!important`, suppressions novas, arquivos temporários ou conflito;
+- confirmar que o workflow temporário de formatação usado durante o repair loop foi removido;
 - rerodar os gates após qualquer correção.
 
 ## Critério para “pronto para teste”
