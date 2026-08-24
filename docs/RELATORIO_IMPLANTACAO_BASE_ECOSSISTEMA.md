@@ -234,6 +234,8 @@ Pendências reais: nenhuma de fundação. O teste de conta pessoal foi automatiz
 
 Em 2026-08-24, todas as Actions externas foram fixadas em commits completos verificados: checkout v7.0.1, setup-node v7.0.0, upload-artifact v7.0.1 e zizmor-action v0.6.2. Checkout deixou de persistir credenciais. O deploy passou a depender também de actionlint 1.7.12 e zizmor 1.29.0; os oito achados iniciais do zizmor foram corrigidos sem suppression. Dependabot semanal tem cooldown de sete dias e não faz automerge.
 
+Além dos pins no YAML, o repositório foi configurado com `sha_pinning_required: true` e `allowed_actions: selected`: Actions GitHub-owned são permitidas e o único padrão externo permitido é `zizmorcore/zizmor-action@*`.
+
 O CI normal continua com `contents: read`; `id-token: write` foi reduzido ao job de rotação. PRs executam testes/scanners sem `environment: production` e sem referência aos secrets Cloudflare. Deploy continua restrito por condição a push em `main`; rotação continua semanal/manual, serial e automática. FIC Entra permanece issuer, audience e subject imutável originais.
 
 Auditoria revelou que os dois secrets Cloudflare estão no escopo do repositório, e não no environment. GitHub confirma somente um colaborador, a conta administradora; PRs de forks e Dependabot não recebem repository secrets. Branch protection e deployment branch policies para repositório privado não estão disponíveis no plano atual. Nenhum valor foi lido, copiado, substituído ou ampliado.
