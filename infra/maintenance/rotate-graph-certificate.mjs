@@ -213,20 +213,18 @@ try {
     `/applications/${graphApplicationObjectId}?$select=id,keyCredentials`,
   );
   const existing = application.keyCredentials ?? [];
-  const workingSlots = [];
+  const workingKeyIds = new Set();
   for (const slot of ['A', 'B']) {
     if (!existing.some((key) => key.displayName?.startsWith(`${rotationPrefix}${slot}-`))) continue;
     try {
-      await validateCloudflareSlot(slot);
-      workingSlots.push(slot);
+      const validation = await validateCloudflareSlot(slot);
+      if (validation.credentialKeyId) workingKeyIds.add(validation.credentialKeyId);
     } catch {
       // A registered public certificate is not functional unless the matching private slot works.
     }
   }
   const managed = existing
-    .filter((key) =>
-      workingSlots.some((slot) => key.displayName?.startsWith(`${rotationPrefix}${slot}-`)),
-    )
+    .filter((key) => workingKeyIds.has(key.keyId))
     .sort((left, right) => keyCreatedAt(right) - keyCreatedAt(left));
   const newestExpiry = managed[0]?.endDateTime ? Date.parse(managed[0].endDateTime) : 0;
   const daysRemaining = (newestExpiry - Date.now()) / 86_400_000;
@@ -333,7 +331,8 @@ try {
   if (candidateInstalled && maintenanceToken && candidateKeyId) {
     try {
       let candidateStillPresent = true;
-      for (let attempt = 0; attempt < 4 && candidateStillPresent; attempt += 1) {
+      let consecutiveAbsentReads = 0;
+      for (let attempt = 0; attempt < 12 && consecutiveAbsentReads < 3; attempt += 1) {
         const current = await graph(
           maintenanceToken,
           'GET',
@@ -349,16 +348,18 @@ try {
           await graph(maintenanceToken, 'PATCH', `/applications/${graphApplicationObjectId}`, {
             keyCredentials: withoutCandidate,
           });
+          consecutiveAbsentReads = 0;
         }
-        await new Promise((resolve) => setTimeout(resolve, 2_000));
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
         const verified = await graph(
           maintenanceToken,
           'GET',
           `/applications/${graphApplicationObjectId}?$select=keyCredentials`,
         );
         candidateStillPresent = verified.keyCredentials.some((key) => key.keyId === candidateKeyId);
+        consecutiveAbsentReads = candidateStillPresent ? 0 : consecutiveAbsentReads + 1;
       }
-      if (candidateStillPresent) {
+      if (candidateStillPresent || consecutiveAbsentReads < 3) {
         throw new Error('Candidate cleanup could not be confirmed', { cause: error });
       }
       audit.candidateCleaned = true;

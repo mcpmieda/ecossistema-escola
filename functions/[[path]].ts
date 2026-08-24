@@ -23,7 +23,7 @@ import {
 } from '../server/http/security';
 import { sharePointHealth } from '../server/graph/sharepoint';
 import { verifyGitHubMaintenanceToken } from '../server/auth/github-oidc';
-import type { GraphCredentialSlot } from '../server/auth/technical-identity';
+import { graphCredentials, type GraphCredentialSlot } from '../server/auth/technical-identity';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -57,7 +57,8 @@ async function route(context: Context): Promise<Response> {
     }
     try {
       const result = await sharePointHealth(env, requestedSlot as GraphCredentialSlot);
-      return json({ ...result, credentialSlot: requestedSlot });
+      const credentialKeyId = graphCredentials(env, requestedSlot as GraphCredentialSlot)[0]?.keyId;
+      return json({ ...result, credentialSlot: requestedSlot, credentialKeyId });
     } catch (error) {
       throw new HttpError(
         502,
