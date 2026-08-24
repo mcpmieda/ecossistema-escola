@@ -28,3 +28,9 @@
 26. Runtime usa certificados em slots A/B, com sobreposição, validação real e rollback antes de remover a chave anterior.
 27. `PLATAFORMA_CREDENCIAIS` é inventário sem valores secretos, não agenda de lembretes.
 28. O token CI Cloudflare é account-owned, Pages Write, sem expiração; não foi criado um autorrotator de API tokens com privilégio amplo.
+29. GitHub Actions externas são pinadas por SHA completo verificado, com comentário de release humana; tags mutáveis não são aceitas em CI/produção.
+30. Dependabot monitora somente `github-actions`, semanalmente, com cooldown de sete dias e sem automerge.
+31. Actionlint e zizmor formam um gate sem secrets antes do deploy; o deploy depende também do gate funcional.
+32. `id-token: write` pertence somente ao job de rotação; CI comum mantém apenas `contents: read`.
+33. Checkout usa `persist-credentials: false`; SHA do commit de deploy chega ao shell por variável de ambiente, não por interpolação direta.
+34. Deploy e rotação permanecem automáticos em `environment: production`; não foi adicionada aprovação periódica.

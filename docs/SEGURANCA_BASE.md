@@ -42,3 +42,13 @@ O token Cloudflare usado pelo CI é account-owned, com apenas Pages Write, escop
 ## O que “Inspecionar página” mostra
 
 É normal ver HTML, CSS, JavaScript, Client ID público, Tenant ID, nomes de endpoints e status técnico. Não é possível obter por essa via as chaves privadas, certificados completos com chave, `SESSION_SECRET`, tokens Graph, cookie HttpOnly ou conteúdo SharePoint protegido.
+
+## GitHub Actions Supply Chain Hardening
+
+Todas as Actions externas são referenciadas por SHA completo e imutável; o comentário ao lado preserva a release humana. `checkout` não persiste credenciais Git. O job normal de CI possui somente `contents: read`; apenas o job de rotação possui `id-token: write`, documentado e necessário para GitHub OIDC → Entra. O deploy e a rotação usam `environment: production`; nenhum job de PR usa esse environment ou referencia secrets de produção.
+
+O gate `workflow-security`, sem secrets de produção, executa actionlint 1.7.12 e zizmor 1.29.0 antes do deploy. O arquivo do actionlint vem da release oficial e é aceito somente após SHA-256 exato. Dependabot monitora `github-actions` semanalmente, com cooldown de sete dias e sem automerge.
+
+Os dois valores Cloudflare estão realmente em GitHub repository Actions Secrets, não em environment secrets. No estado atual, somente a conta administradora `mcpmieda` possui acesso ao repositório; PRs externos, Dependabot e o job `validate` não recebem esses valores. O plano GitHub atual não disponibiliza branch protection/deployment branch policies para este repositório privado. Migrar os secrets para outro escopo exigiria conhecer ou substituir seus valores, o que este hardening deliberadamente não fez.
+
+Guardrails para futuros agentes: não substituir SHA por `@vX`; não adicionar `id-token: write` ao CI normal; não referenciar production secrets em PR; não remover `environment: production`; não mudar o subject OIDC sem revisar a FIC do Entra; não habilitar automerge cego; não adicionar aprovação humana periódica à rotação autônoma.

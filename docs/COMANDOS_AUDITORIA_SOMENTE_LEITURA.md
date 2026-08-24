@@ -84,3 +84,31 @@ git grep -nEi '(client_secret|private_key|password|bearer[[:space:]])' -- ':!pac
 ```
 
 Confirma árvore limpa, qualidade e ausência de padrões óbvios de segredo no código versionado; revise falsos positivos, sem imprimir arquivos de configuração local.
+
+## GitHub Actions supply chain
+
+```powershell
+rg -n '^\s*uses:' .github/workflows
+rg -n '^\s*(permissions:|environment:)|id-token|secrets\.' .github/workflows
+```
+
+Confirma pins completos, permissões, environments e referências a secrets sem exibir valores.
+
+```powershell
+gh api repos/mcpmieda/ecossistema-escola/actions/permissions
+gh api repos/mcpmieda/ecossistema-escola/actions/permissions/workflow
+gh api repos/mcpmieda/ecossistema-escola/environments/production
+gh secret list --repo mcpmieda/ecossistema-escola
+gh secret list --repo mcpmieda/ecossistema-escola --env production
+```
+
+Lê a política Actions, o environment e somente nomes/escopos de secrets.
+
+```powershell
+gh run list --repo mcpmieda/ecossistema-escola --workflow 'CI and deploy' --limit 10
+gh pr list --repo mcpmieda/ecossistema-escola --author 'app/dependabot'
+```
+
+Mostra os gates recentes e PRs de atualização; não modifica workflows.
+
+O actionlint reproduzível fica em `infra/validation/run-actionlint.sh`. O zizmor 1.29.0 executa no gate Linux `Validate GitHub Actions security`, porque a política de controle de aplicativos deste Windows bloqueia seu binário local.

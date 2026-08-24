@@ -16,6 +16,7 @@ Navegador institucional
 
 GitHub main → CI (format/lint/typecheck/test/build) → Wrangler → Pages
 GitHub Actions OIDC → Entra Maintenance → rotação Web/Graph → slots A/B Cloudflare
+PR/main → actionlint + zizmor → gate de supply chain → deploy somente se ambos os gates passarem
 ```
 
 O frontend recebe somente nome e papéis mínimos de `/api/me`. Tokens Graph, chaves privadas e `SESSION_SECRET` permanecem no runtime. O backend valida host oficial, issuer, tenant, audience, nonce, state, método, Origin e papéis.
@@ -32,6 +33,8 @@ O frontend recebe somente nome e papéis mínimos de `/api/me`. Tokens Graph, ch
 | Manutenção          | Entra Maintenance + GitHub OIDC | Rotação sem client secret                         |
 | Persistência        | SharePoint CENTROADMIN          | Metadados institucionais e arquivos da plataforma |
 | Código/CI           | GitHub privado                  | Fonte, testes, deploy e auditoria de rotação      |
+
+Actions externas são imutáveis por SHA completo e mantidas por PRs do Dependabot. O job de validação executa código de PR sem secrets de produção. O job de deploy só existe para push em `main`, depende dos gates funcional e de segurança e recebe os dois valores Cloudflare somente no passo Wrangler. O OIDC não existe no CI normal; está limitado ao único job de rotação com environment `production`.
 
 ## Rotas e consumo
 
