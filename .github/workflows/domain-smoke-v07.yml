@@ -1,0 +1,59 @@
+name: Temporary v0.7 domain smoke
+
+on:
+  push:
+    branches:
+      - test/domain-smoke-v0.7
+
+permissions:
+  contents: read
+
+concurrency:
+  group: domain-smoke-v07
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Verify deployed v0.7
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify external domain
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin='https://admin.escolaieda.com'
+          marker='Centro v0.7 em validação controlada'
+
+          found=''
+          for _ in $(seq 1 36); do
+            html="$(curl --fail --silent --show-error --location --max-time 20 "$origin/")"
+            asset="$(printf '%s' "$html" | grep -oE '/assets/index-[A-Za-z0-9_-]+\.js' | head -n 1 || true)"
+            if [ -n "$asset" ]; then
+              bundle="$(curl --fail --silent --show-error --location --max-time 20 "$origin$asset")"
+              if printf '%s' "$bundle" | grep -Fq "$marker"; then
+                found="$asset"
+                break
+              fi
+            fi
+            sleep 10
+          done
+
+          if [ -z "$found" ]; then
+            echo 'v0.7 marker not observed in deployed bundle' >&2
+            exit 1
+          fi
+
+          check_status() {
+            path="$1"
+            expected="$2"
+            actual="$(curl --silent --output /dev/null --write-out '%{http_code}' --max-time 20 "$origin$path")"
+            echo "$path=$actual"
+            test "$actual" = "$expected"
+          }
+
+          echo "asset=$found"
+          check_status '/api/me' '401'
+          check_status '/api/platform/snapshot' '401'
+          check_status '/api/sharepoint/health' '401'
+          check_status '/api/health' '200'
