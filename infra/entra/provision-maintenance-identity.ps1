@@ -3,7 +3,7 @@ param(
     [string] $TenantId = 'f04e0fa3-b8dc-4f77-be3c-7dfda0635188',
     [string] $OwnerObjectId = '5855a8db-ce2a-4cd6-b7a6-46d430bf359b',
     [string] $BackendApplicationObjectId = '2d04bd2b-3ef5-4ac6-bd2e-11885a5b3401',
-    [string] $Repository = 'mcpmieda/ecossistema-escola',
+    [string] $Repository = 'mcpmieda@268288370/ecossistema-escola@1345061518',
     [string] $Environment = 'production'
 )
 
@@ -66,12 +66,22 @@ if ($targetOwners.id -notcontains $servicePrincipal.id) {
 
 $credentialName = 'github-production-environment'
 $credentials = (Invoke-Graph GET "/applications/$($application.id)/federatedIdentityCredentials").value
-if ($credentials.name -notcontains $credentialName) {
+$credential = $credentials | Where-Object name -eq $credentialName | Select-Object -First 1
+$federatedSubject = "repo:${Repository}:environment:${Environment}"
+if (-not $credential) {
     Invoke-Graph POST "/applications/$($application.id)/federatedIdentityCredentials" @{
         name = $credentialName
         description = 'GitHub Actions production environment; secretless maintenance identity'
         issuer = 'https://token.actions.githubusercontent.com'
-        subject = "repo:${Repository}:environment:${Environment}"
+        subject = $federatedSubject
+        audiences = @('api://AzureADTokenExchange')
+    } | Out-Null
+} elseif ($credential.subject -ne $federatedSubject) {
+    Invoke-Graph PATCH "/applications/$($application.id)/federatedIdentityCredentials/$($credential.id)" @{
+        name = $credentialName
+        description = 'GitHub Actions production environment; immutable secretless maintenance identity'
+        issuer = 'https://token.actions.githubusercontent.com'
+        subject = $federatedSubject
         audiences = @('api://AzureADTokenExchange')
     } | Out-Null
 }
@@ -91,7 +101,7 @@ if ($assignments.appRoleId -notcontains $ApplicationReadWriteOwnedBy) {
     ApplicationObjectId = $application.id
     ClientId = $application.appId
     ServicePrincipalObjectId = $servicePrincipal.id
-    FederatedSubject = "repo:${Repository}:environment:${Environment}"
+    FederatedSubject = $federatedSubject
     Permission = 'Application.ReadWrite.OwnedBy'
     TargetOwned = $BackendApplicationObjectId
 } | ConvertTo-Json -Compress

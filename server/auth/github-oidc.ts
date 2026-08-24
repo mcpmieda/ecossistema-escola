@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { decodeBase64Url, decodeJson } from './base64url';
 
 const ISSUER = 'https://token.actions.githubusercontent.com';
-const EXPECTED_SUBJECT = 'repo:mcpmieda/ecossistema-escola:environment:production';
+const EXPECTED_SUBJECT =
+  'repo:mcpmieda@268288370/ecossistema-escola@1345061518:environment:production';
 export const MAINTENANCE_AUDIENCE =
   'https://admin.escolaieda.com/api/maintenance/rotation/validate';
 
