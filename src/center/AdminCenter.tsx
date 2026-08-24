@@ -123,9 +123,7 @@ export function AdminCenter({ data, signingOut, onSignOut }: AdminCenterProps) {
             <div>
               <p className="section-kicker">Visão geral</p>
               <h1>Centro de Administração</h1>
-              <p>
-                Acompanhe a fundação da plataforma e os sistemas já registrados no ecossistema.
-              </p>
+              <p>Acompanhe a fundação da plataforma e os sistemas já registrados no ecossistema.</p>
             </div>
             <div className={`health-pill ${platformHealthy ? 'healthy' : 'degraded'}`}>
               <span className="status-dot" />
@@ -214,7 +212,9 @@ export function AdminCenter({ data, signingOut, onSignOut }: AdminCenterProps) {
                 <Icon name="shield" />
               </div>
               <div className="foundation-status">
-                <span className={`foundation-indicator ${platformHealthy ? 'healthy' : 'degraded'}`}>
+                <span
+                  className={`foundation-indicator ${platformHealthy ? 'healthy' : 'degraded'}`}
+                >
                   <span className="status-dot" />
                 </span>
                 <div>
@@ -224,7 +224,8 @@ export function AdminCenter({ data, signingOut, onSignOut }: AdminCenterProps) {
                       : 'Dados parcialmente disponíveis'}
                   </strong>
                   <span>
-                    Identidade, sessão e acesso a dados permanecem protegidos pela fundação existente.
+                    Identidade, sessão e acesso a dados permanecem protegidos pela fundação
+                    existente.
                   </span>
                 </div>
               </div>
@@ -244,7 +245,11 @@ export function AdminCenter({ data, signingOut, onSignOut }: AdminCenterProps) {
               </dl>
             </section>
 
-            <section className="panel activity-panel" id="activity" aria-labelledby="activity-title">
+            <section
+              className="panel activity-panel"
+              id="activity"
+              aria-labelledby="activity-title"
+            >
               <div className="panel-heading">
                 <div>
                   <p className="section-kicker">Auditoria</p>
