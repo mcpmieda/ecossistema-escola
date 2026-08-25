@@ -1,5 +1,5 @@
-import { Chip, Link, Surface } from '@heroui/react';
-import { ArrowRight, Boxes, type LucideIcon } from 'lucide-react';
+import { Chip, Description, Label, ListBox, Surface } from '@heroui/react';
+import { Boxes, type LucideIcon } from 'lucide-react';
 import { AmbientConstellation } from '@/components/ambient-constellation';
 import { cn } from '@/lib/utils';
 import type { CoreModuleContract } from '../../shared/platform-contract';
@@ -33,7 +33,7 @@ export function EmptyState({
       variant="transparent"
       className="living-empty-state flex flex-col items-center justify-center px-5 py-12 text-center"
     >
-      <AmbientConstellation intensity="medium" placement="center" />
+      <AmbientConstellation intensity="strong" placement="center" />
       <div className="living-aura living-aura--right" />
       <div className="living-icon">
         <Icon className="size-4 text-accent" />
@@ -57,14 +57,16 @@ export function PageHeader({
   description: string;
 }) {
   return (
-    <Surface variant="transparent" className="living-page-header">
-      <AmbientConstellation intensity="medium" placement="right" />
+    <Surface variant="transparent" className="living-page-header pro-spectrum">
+      <AmbientConstellation intensity="strong" placement="right" />
       <div className="living-page-header__content">
         <Chip color="accent" variant="soft" size="sm">
           {eyebrow}
         </Chip>
-        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.045em] sm:text-3xl">{title}</h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{description}</p>
+        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.045em] text-[#203856] sm:text-3xl">
+          {title}
+        </h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#4E75A5]">{description}</p>
       </div>
     </Surface>
   );
@@ -78,28 +80,46 @@ export function ModuleStatus({ state }: { state: CoreModuleContract['state'] }) 
   );
 }
 
-export function ModuleRow({ module }: { module: CoreModuleContract }) {
-  const Icon = routeIcons[module.route];
+export function ModuleList({ modules }: { modules: CoreModuleContract[] }) {
   return (
-    <Link
-      href={platformHref(module.route)}
-      className="group flex w-full items-center gap-4 px-4 py-4 text-foreground no-underline transition-[background-color,transform] hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 active:translate-y-px motion-reduce:transform-none sm:px-5"
+    <ListBox
+      aria-label="Áreas do Centro"
+      selectionMode="none"
+      className="module-list"
+      onAction={(key) => {
+        const module = modules.find((candidate) => candidate.id === String(key));
+        if (module) window.location.assign(platformHref(module.route));
+      }}
     >
-      <Surface
-        variant="secondary"
-        className="grid size-10 shrink-0 place-items-center rounded-2xl border border-border/70"
-      >
-        <Icon className="size-4 text-muted transition-colors group-hover:text-accent" />
-      </Surface>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-semibold">{module.name}</h3>
-          <ModuleStatus state={module.state} />
-        </div>
-        <p className="mt-1 line-clamp-2 text-sm text-muted">{module.description}</p>
-      </div>
-      <ArrowRight className="size-4 shrink-0 text-muted transition-[transform,color] group-hover:translate-x-1 group-hover:text-accent motion-reduce:transform-none" />
-    </Link>
+      {modules.map((module) => {
+        const Icon = routeIcons[module.route];
+        return (
+          <ListBox.Item
+            id={module.id}
+            key={module.id}
+            textValue={module.name}
+            className="module-list__item"
+          >
+            <Surface
+              variant="secondary"
+              className="grid size-10 shrink-0 place-items-center rounded-2xl"
+            >
+              <Icon className="size-4 text-muted" />
+            </Surface>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <Label className="text-sm font-semibold">{module.name}</Label>
+                <ModuleStatus state={module.state} />
+              </div>
+              <Description className="mt-1 line-clamp-2">{module.description}</Description>
+            </div>
+            <span aria-hidden="true" className="module-list__chevron">
+              →
+            </span>
+          </ListBox.Item>
+        );
+      })}
+    </ListBox>
   );
 }
 
