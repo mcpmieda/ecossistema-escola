@@ -5,14 +5,14 @@
 html {
   min-width: 320px;
   min-height: 100%;
-  background: var(--background);
+  background: #f4f4f5;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: var(--background);
+  background: #f4f4f5;
   color: var(--foreground);
 }
 
@@ -40,274 +40,74 @@ body {
 }
 
 :root {
-  --ambient-base-1: #e8f3ff;
-  --ambient-base-2: #cce5f1;
-  --ambient-glow-1: #5dd0e7;
-  --ambient-glow-2: #4a8dff;
-  --pro-text-strong: #203856;
-  --pro-text-copy: #365b86;
-  --platform-outline: color-mix(in oklab, var(--border) 72%, transparent);
-  --platform-shadow: 0 26px 76px -44px color-mix(in oklab, var(--foreground) 20%, transparent);
-  --living-ease: cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.dark,
-[data-theme='dark'] {
-  --ambient-base-1: oklch(0.22 0.05 244);
-  --ambient-base-2: oklch(0.18 0.06 236);
-  --ambient-glow-1: oklch(0.6 0.16 218);
-  --ambient-glow-2: oklch(0.58 0.17 248);
-  --pro-text-strong: oklch(0.95 0.025 240);
-  --pro-text-copy: oklch(0.82 0.07 242);
+  --platform-page-background: #f4f4f5;
+  --platform-shadow: 0 24px 64px -46px color-mix(in oklab, var(--foreground) 18%, transparent);
+  --platform-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .platform-shell {
   position: relative;
-  isolation: isolate;
   min-height: 100vh;
-  overflow: clip;
-  background:
-    radial-gradient(circle at 8% 0%, rgb(93 208 231 / 0.16), transparent 34rem),
-    radial-gradient(circle at 100% 10%, rgb(74 141 255 / 0.11), transparent 38rem),
-    linear-gradient(
-      138deg,
-      color-mix(in srgb, var(--ambient-base-2) 26%, var(--background)),
-      var(--background) 45%,
-      color-mix(in srgb, var(--ambient-base-1) 18%, var(--background))
-    );
+  background: var(--platform-page-background);
 }
 
-.platform-shell::before {
-  position: fixed;
-  inset: 0;
-  z-index: -3;
-  pointer-events: none;
-  content: '';
-  background: linear-gradient(
-    135deg,
-    rgb(204 229 241 / 0.14),
-    transparent 46%,
-    rgb(232 243 255 / 0.15)
-  );
-}
-
-.platform-shell::after {
-  position: fixed;
-  inset: -8%;
-  z-index: -2;
-  pointer-events: none;
-  content: '';
-  background:
-    radial-gradient(circle at 28% 34%, rgb(93 208 231 / 0.1), transparent 28rem),
-    radial-gradient(circle at 80% 60%, rgb(74 141 255 / 0.08), transparent 31rem);
-  opacity: 0.64;
-}
-
-.pro-spectrum {
-  color: var(--pro-text-strong);
-  background:
-    radial-gradient(circle at 78% 82%, rgb(74 141 255 / 0.17), transparent 40%),
-    radial-gradient(circle at 64% 74%, rgb(93 208 231 / 0.28), transparent 50%),
-    linear-gradient(180deg, #e8f3ff 0%, #cce5f1 100%);
-}
-
-.pro-spectrum :where(p) {
-  color: var(--pro-text-copy);
-}
-
-.pro-spectrum :where(.text-\[\#4E75A5\]) {
-  color: var(--pro-text-copy);
-}
-
-.login-stage {
+.login-stage,
+.platform-card-surface {
+  border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
   background: var(--surface);
-}
-
-.living-surface {
-  position: relative;
-  isolation: isolate;
-  overflow: clip;
-  border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
   box-shadow: var(--platform-shadow);
 }
 
-.living-surface > :not(.ambient-constellation):not(.living-aura) {
-  position: relative;
-  z-index: 2;
+.login-intro {
+  background: color-mix(in oklab, var(--surface-secondary) 82%, #f4f4f5);
 }
 
-.living-surface::after,
-.living-page-header::before {
-  position: absolute;
-  z-index: 1;
-  pointer-events: none;
-  content: '';
-}
-
-.living-surface::after {
-  inset: -30% -18%;
-  background: linear-gradient(
-    112deg,
-    transparent 28%,
-    rgb(93 208 231 / 0.08) 44%,
-    rgb(74 141 255 / 0.06) 57%,
-    transparent 72%
-  );
-  opacity: 0.42;
-  transform: translate3d(-4%, 1%, 0) rotate(-2deg);
-}
-
-.living-aura {
-  position: absolute;
-  z-index: 1;
-  width: min(48vw, 32rem);
-  aspect-ratio: 1;
-  border-radius: 9999px;
-  background: radial-gradient(
-    circle,
-    rgb(93 208 231 / 0.28) 0%,
-    rgb(74 141 255 / 0.14) 42%,
-    transparent 72%
-  );
-  opacity: 0.36;
-  pointer-events: none;
-}
-
-.living-aura--right {
-  top: -42%;
-  right: -14%;
-}
-
-.living-aura--left {
-  bottom: -50%;
-  left: -16%;
-}
-
-.living-page-header {
-  position: relative;
-  isolation: isolate;
+.platform-page-header {
   min-height: 164px;
   margin-bottom: 1.5rem;
-  overflow: clip;
-  border: 1px solid color-mix(in oklab, var(--border) 58%, transparent);
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--border) 66%, transparent);
   border-radius: 1.85rem;
-  background:
-    radial-gradient(circle at 80% 80%, rgb(74 141 255 / 0.08), transparent 36%),
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, #cce5f1 54%, var(--surface-secondary)),
-      color-mix(in srgb, #e8f3ff 48%, var(--surface))
-    );
-  box-shadow: 0 20px 64px -50px color-mix(in oklab, var(--accent) 34%, transparent);
+  background: var(--surface);
+  box-shadow: 0 18px 52px -48px color-mix(in oklab, var(--foreground) 20%, transparent);
 }
 
-.living-page-header::before {
-  inset: -44% -18%;
-  background: linear-gradient(
-    118deg,
-    transparent 31%,
-    rgb(93 208 231 / 0.09) 46%,
-    rgb(74 141 255 / 0.06) 58%,
-    transparent 73%
-  );
-  transform: translate3d(-4%, 0, 0) rotate(-1deg);
-}
-
-.living-page-header__content {
-  position: relative;
-  z-index: 2;
+.platform-page-header__content {
   max-width: 55rem;
   padding: 1.65rem 1.75rem 1.75rem;
 }
 
-.living-page-header::after {
-  position: absolute;
-  right: 7%;
-  bottom: -62%;
-  width: 19rem;
-  aspect-ratio: 1;
-  border-radius: 9999px;
-  content: '';
-  background: radial-gradient(circle, rgb(93 208 231 / 0.18), transparent 70%);
-  animation: living-header-breathe 28s ease-in-out infinite;
-}
-
-.living-empty-state {
-  position: relative;
-  isolation: isolate;
+.platform-empty-state {
   min-height: 19rem;
-  overflow: clip;
 }
 
-.living-empty-state > :not(.ambient-constellation) {
-  position: relative;
-  z-index: 2;
-}
-
-.living-icon {
-  position: relative;
+.platform-icon {
   display: grid;
   width: 3.25rem;
   height: 3.25rem;
   place-items: center;
   border: 1px solid color-mix(in oklab, var(--border) 74%, transparent);
   border-radius: 1.1rem;
-  background: color-mix(in oklab, var(--surface) 92%, transparent);
-  box-shadow: 0 10px 28px -22px color-mix(in oklab, var(--accent) 40%, transparent);
+  background: var(--surface-secondary);
 }
 
-.living-icon::before,
-.living-icon::after {
-  position: absolute;
-  inset: -0.55rem;
-  border: 1px solid color-mix(in oklab, var(--accent) 20%, transparent);
-  border-radius: 1.45rem;
-  content: '';
-  pointer-events: none;
-  animation: living-orbit-pulse 8s ease-in-out infinite;
-}
-
-.living-icon::after {
-  inset: -1rem;
-  opacity: 0.34;
-  animation-delay: -3.4s;
-}
-
-.living-loading-panel {
+.platform-loading-panel {
   min-height: 33rem;
 }
 
 .loading-orbit {
-  position: relative;
   display: grid;
   width: 4.5rem;
   height: 4.5rem;
   place-items: center;
 }
 
-.loading-orbit::before,
-.loading-orbit::after {
-  position: absolute;
-  inset: 0;
-  border: 1px solid color-mix(in oklab, var(--accent) 22%, transparent);
-  border-radius: 9999px;
-  content: '';
-  animation: loading-orbit 12s linear infinite;
-}
-
-.loading-orbit::after {
-  inset: 0.5rem;
-  border-style: dashed;
-  animation-duration: 18s;
-  animation-direction: reverse;
-}
-
 .route-stage {
-  animation: route-reveal 240ms var(--living-ease) both;
+  animation: route-reveal 240ms var(--platform-ease) both;
 }
 
 .stagger-item {
-  animation: stagger-reveal 280ms var(--living-ease) both;
+  animation: stagger-reveal 280ms var(--platform-ease) both;
 }
 
 .stagger-item:nth-child(2) {
@@ -322,14 +122,14 @@ body {
   animation-delay: 120ms;
 }
 
-.glass-bar {
-  border-bottom: 1px solid color-mix(in oklab, var(--border) 62%, transparent);
-  background: color-mix(in oklab, var(--surface) 96%, var(--background));
-  box-shadow: 0 10px 38px -34px color-mix(in oklab, var(--foreground) 26%, transparent);
+.platform-topbar {
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+  background: var(--surface);
+  box-shadow: 0 8px 30px -30px color-mix(in oklab, var(--foreground) 22%, transparent);
 }
 
 .sidebar-surface {
-  background: color-mix(in oklab, var(--surface) 98%, var(--background));
+  background: var(--surface);
 }
 
 .platform-nav.list-box {
@@ -385,21 +185,6 @@ body {
   font-size: 0.62rem;
 }
 
-.platform-search-field {
-  min-height: 2.6rem;
-  border-color: color-mix(in oklab, var(--border) 72%, transparent);
-  background: var(--surface-secondary);
-  transition:
-    background-color 90ms ease,
-    border-color 90ms ease;
-}
-
-.platform-search-field:hover,
-.platform-search-field[data-focus-within='true'] {
-  border-color: color-mix(in oklab, var(--accent) 28%, var(--border));
-  background: color-mix(in oklab, var(--accent-soft) 46%, var(--surface-secondary));
-}
-
 .platform-search-results {
   max-height: 21rem;
   margin: 0;
@@ -443,17 +228,24 @@ body {
 }
 
 .profile-menu-trigger {
-  border: 1px solid transparent;
-  border-radius: 1rem;
-  transition:
-    background-color 90ms ease,
-    border-color 90ms ease;
+  min-height: 3rem;
 }
 
-.profile-menu-trigger:hover,
-.profile-menu-trigger[data-pressed='true'] {
-  border-color: color-mix(in oklab, var(--border) 75%, transparent);
-  background: var(--surface-secondary);
+.profile-menu-identity[data-disabled='true'] {
+  opacity: 1;
+}
+
+.profile-menu-item-content {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.profile-menu-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.125rem;
 }
 
 .table__scroll-container {
@@ -484,7 +276,7 @@ body {
 }
 
 .search-field__group {
-  min-height: 2.6rem;
+  min-height: 2.75rem;
 }
 
 .attention-pulse {
@@ -499,41 +291,6 @@ body {
   content: '';
   animation: attention-ring 3.2s ease-out 2;
   pointer-events: none;
-}
-
-@keyframes living-header-breathe {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(0.96);
-    opacity: 0.2;
-  }
-
-  50% {
-    transform: translate3d(-4%, -3%, 0) scale(1.04);
-    opacity: 0.32;
-  }
-}
-
-@keyframes living-orbit-pulse {
-  0%,
-  100% {
-    opacity: 0.22;
-    transform: scale(0.96) rotate(0deg);
-  }
-
-  50% {
-    opacity: 0.44;
-    transform: scale(1.03) rotate(2deg);
-  }
-}
-
-@keyframes loading-orbit {
-  from {
-    transform: rotate(0deg) scale(0.99);
-  }
-  to {
-    transform: rotate(360deg) scale(1.01);
-  }
 }
 
 @keyframes route-reveal {
@@ -570,11 +327,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .living-page-header::after,
-  .living-icon::before,
-  .living-icon::after,
-  .loading-orbit::before,
-  .loading-orbit::after,
   .route-stage,
   .stagger-item,
   .attention-pulse::after {
@@ -584,9 +336,7 @@ body {
   .platform-nav .list-box-item,
   .platform-nav__item,
   .platform-search-results .list-box-item,
-  .platform-search-results__item,
-  .profile-menu-trigger,
-  .platform-search-field {
+  .platform-search-results__item {
     transition: none !important;
   }
 }
