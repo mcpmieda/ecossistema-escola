@@ -19,6 +19,7 @@ concurrency:
 
 jobs:
   visual-qa:
+    name: Validate ambient constellation visually
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
