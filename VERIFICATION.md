@@ -2,261 +2,226 @@
 
 ## Estado da verificação
 
-O hardening HeroUI Native v2 foi integrado em `main`, implantado no domínio oficial de validação e verificado após o deploy.
+A candidata atual do Centro de Administração foi integrada em `main`, implantada no domínio oficial de validação e verificada pelo pipeline permanente após o deploy.
 
 `releaseState = validation`.
 
 Produção oficial não está autorizada.
 
-## Integração técnica
+## Candidata atual
 
 PR:
 
-`#43 — HeroUI Native v2 — hardening de interação, performance e acessibilidade`
+`#45 — HeroUI — hardening final de autenticação, busca e mobile`
 
 Commit integrado em `main`:
 
-`f79939c55021a021da23d55ce49d1357923f892a`
+`f59cf4bcf6815ef57edc9eb4558e09a08f93aedd`
 
 Domínio de validação:
 
 `https://admin.escolaieda.com`
 
+Workflow pós-merge:
+
+`32877197391` — **success**.
+
+## Classificação de risco e contrato
+
+O PR #45 atualizou o contrato semântico da candidata para risco **alto**, porque endurece fluxos browser-facing de autenticação e comportamento observável de sessão, além da camada de apresentação.
+
+A candidata adiciona critérios de aceite explícitos para:
+
+- reentrada, múltiplas abas, expiração e callbacks inválidos do fluxo OIDC;
+- recuperação amigável de autenticação sem JSON cru ou material sensível;
+- token exchange exclusivamente server-side e por POST;
+- limpeza de sessão e transações temporárias no logout;
+- busca inline desktop/mobile no header;
+- perfil HeroUI com Avatar/Dropdown;
+- breadcrumbs, tabelas e rodapé responsivos;
+- Ambient Constellation restrita ao background geral;
+- ausência de overflow crítico, clipping e regressões de reduced-motion.
+
 ## Fundação preservada
 
-O hardening permaneceu concentrado em apresentação e estilo. Não houve mudança intencional em:
+O PR #45 não reconstruiu nem substituiu:
 
-- Entra ID;
-- sessão/BFF;
+- Microsoft Entra ID;
+- BFF e cookie HttpOnly selado;
 - capabilities e grants server-side;
-- grupos/roles;
+- grupos/roles institucionais;
 - Graph;
 - SharePoint;
-- Cloudflare;
-- recovery;
-- contratos de dados;
-- regras de negócio.
+- Cloudflare Pages;
+- pipeline CI/CD;
+- recovery técnico;
+- rotação automática;
+- contratos de dados e regras de negócio existentes.
 
-## Correções funcionais verificadas
+## Verificação de autenticação
 
-### Navegação
+### Início de login
 
-- sidebar usa links semânticos `a[href="#/..."]`;
-- não existe reload completo para mudar área da plataforma;
-- seleção usa background/foreground, sem barra vertical residual;
-- Drawer mobile fecha no próprio clique do link;
-- listener global de `hashchange` foi removido de `SidebarContent` como caminho primário de fechamento.
+A cobertura automatizada confirma que:
+
+- cada `/auth/login` cria uma transação nova;
+- cada transação mantém `state`, `nonce`, PKCE verifier e expiração;
+- múltiplas tentativas independentes podem coexistir;
+- o envelope temporário mantém no máximo quatro transações vivas;
+- transações expiradas são removidas antes de persistir nova tentativa;
+- o navegador é enviado ao endpoint de autorização, nunca ao endpoint de token.
+
+### Callback e recuperação
+
+A cobertura automatizada confirma que callbacks rejeitados, incompletos, divergentes ou expirados:
+
+- não estabelecem sessão;
+- removem a tentativa inválida sem destruir transações independentes ainda válidas;
+- redirecionam para a origem oficial com sinalização de recuperação;
+- apresentam ao usuário uma tela amigável com ação `Entrar novamente`;
+- não retornam JSON cru no browser;
+- não expõem authorization code, token, state, nonce, verifier, cookie ou segredo;
+- preservam correlation ID para diagnóstico sem material sensível.
+
+### Token exchange
+
+A implementação e os testes mantêm o token exchange:
+
+- exclusivamente no BFF;
+- por `POST`;
+- com `grant_type=authorization_code`;
+- usando PKCE verifier server-side;
+- sem uso de APIs de browser para a troca de token.
+
+### Logout e cache
+
+O logout:
+
+- permanece `POST` e protegido por origem;
+- limpa cookie de sessão;
+- limpa cookie temporário de autenticação;
+- redireciona para a origem oficial;
+- aplica `Cache-Control: no-store, no-cache, must-revalidate, private`;
+- aplica `Pragma: no-cache` e `Expires: 0` nas rotas protegidas.
+
+## Verificação de UI e interação
+
+### Perfil
+
+- perfil usa componentes HeroUI nativos `Avatar`, `Dropdown` e `Button`;
+- menu concentra a ação de logout;
+- nome, cargo e descrição usam truncamento para evitar quebra em viewports estreitas.
 
 ### Busca
 
-- resultados usam `Button` HeroUI real em lista semântica;
-- clique desktop navega e fecha o Popover;
-- clique mobile navega e fecha o Drawer;
-- `Ctrl/Cmd + K` abre a busca desktop;
-- `Escape` fecha a busca;
-- fechamento explícito ocorre na mesma interação de navegação.
+- desktop e mobile usam `SearchField` no próprio header;
+- o mobile não usa Drawer para pesquisa;
+- `Ctrl/Cmd + K` abre/foca a busca;
+- `Escape` fecha o estado ativo;
+- resultados são ações semânticas e fecham a busca na mesma interação que navega;
+- não existe listener global de `hashchange` como mecanismo concorrente de fechamento.
 
-### Overlays
+### Responsividade
 
-- Drawers usam uma única fonte de estado com `useOverlayState` no root;
-- não há combinação concorrente de trigger interno + `onPress` + `isOpen/onOpenChange` para o mesmo overlay;
-- diagnóstico final não registra recuperação React `#520` nem console error.
+- breadcrumbs usam contenção para evitar overflow;
+- tabelas estruturadas usam `Table.ScrollContainer`;
+- scroll horizontal mobile é preservado quando necessário;
+- rodapé usa grid/empilhamento para data e correlation ID sem truncamento destrutivo;
+- busca mobile ocupa linha própria no header quando aberta.
 
-## QA final em Chrome real antes do merge
+### Ambient Constellation
+
+- não existe dentro de cards, surfaces, tabelas, page headers ou blocos internos;
+- permanece somente como background geral dos estados principais;
+- reduced-motion continua suportado.
+
+## Gates automatizados pós-merge
 
 Workflow:
 
-`32853049680` — **success**
-
-Artifact:
-
-- id: `9565058830`;
-- nome: `ui-hardening-browser-qa-v5`;
-- SHA-256: `cb61407ade0d1556f419ac075aa39699d45d16477f9a0a87d9865226a5fb8aab`.
-
-O teste usa o bundle real da branch e clique físico via Chrome DevTools Protocol. Somente `/api/me` e `/api/platform/snapshot` locais recebem fixture descartável. Não existe autenticação artificial no domínio publicado.
-
-### Rotas desktop
-
-Medianas de três ciclos:
-
-- Operação: `104 ms`;
-- Publicações: `151 ms`;
-- Páginas: `105 ms`;
-- Sistemas: `110 ms`;
-- Auditoria: `116 ms`;
-- Configurações: `63 ms`;
-- Visão geral: `87 ms`.
-
-Maior mediana observada: `151 ms`.
-
-O threshold usado nesta rodada pertence ao harness e ao ambiente dessa candidata; não deve ser tratado como número universal para outros produtos/runners.
-
-### Busca desktop
-
-- abertura: `151 ms`;
-- navegação: `145 ms`;
-- Ctrl/Cmd+K: **pass**;
-- Escape: **pass**;
-- fechamento após navegação: **pass**.
-
-### Mobile
-
-- navegação oculta antes do Drawer: **pass**;
-- Drawer abriu: **pass**;
-- clique físico em Operação + mudança de rota + fechamento: `217 ms`;
-- Drawer fechou: **pass**;
-- busca mobile até Configurações: `145 ms`.
-
-## Performance
-
-Medido durante a bateria final:
-
-- partículas ambientais simultâneas: máximo `384`;
-- animações ambientais contínuas: máximo `6`;
-- nós DOM nas amostras de rota: máximo `759`;
-- long tasks: `79 ms`, `56 ms`, `59 ms`;
-- maior long task: `79 ms`;
-- filtros nos filhos da constelação: `0`;
-- backdrop-filter da topbar: `none`;
-- backdrop-filter da sidebar: `none`;
-- transição da navegação: `90 ms`;
-- heap JS final: `13,162,048` bytes.
-
-Todos os gates definidos pelo harness da candidata passaram.
-
-O Vite ainda emite warning de chunk JS acima de `500 kB` minificado. Esse warning não bloqueou a rodada porque as interações medidas passaram com margem. Code splitting deve ser avaliado separadamente com métrica de carregamento inicial.
-
-## Acessibilidade
-
-- contraste `#365B86` sobre azul-claro: `5.35:1`;
-- contraste `#365B86` sobre azul-gelo: `6.24:1`;
-- antigo tom de baixo contraste detectado no DOM: `0` nós;
-- animações ambientais com reduced-motion: `0`.
-
-Gate WCAG AA para texto normal: **pass** nos pares medidos.
-
-## Runtime e concorrência
-
-O diagnóstico anterior reproduziu React minificado `#520` durante fechamento do Drawer por `hashchange` concorrente com atualização da rota.
-
-Após a correção, workflow:
-
-`32853049698` — **success**
-
-Artifact:
-
-- id: `9565051694`;
-- nome: `mobile-overlay-runtime-diagnostic`;
-- SHA-256: `234f5ccd1bc2ae330638905f3e6e96cca71a7ace74e8eae8eb59487a3e862d8c`.
-
-Resultado final após abrir Drawer → clicar Operação → estabilizar:
-
-- rota `#/operacao`;
-- shell presente;
-- eventos de runtime: `[]`;
-- eventos de console: `[]`.
-
-## CI limpo, merge, deploy e recovery
-
-O diff final do PR #43 não manteve os workflows temporários de QA.
-
-CI limpo do PR: `32854113320` — **success**.
-
-O PR foi integrado por squash em `main` no commit `f79939c55021a021da23d55ce49d1357923f892a`.
-
-Workflow da nova `main`:
-
-`32854416111` — **success**
+`32877197391` — **success**.
 
 Jobs concluídos com sucesso:
 
 - `Validate GitHub Actions security` — actionlint + zizmor;
-- `Validate application` — formatting, lint, typecheck, contrato semântico, testes e build;
+- `Validate application` — install, formatting, lint, typecheck, contrato semântico, testes e build;
 - `Deploy production` — Cloudflare Pages;
-- `Verify recovery after deploy` — rebuild do source publicado + round trip descartável de backup/restore SharePoint.
+- `Verify recovery after deploy` — rebuild do source publicado + round trip descartável de backup/restore SharePoint + publicação de evidência redigida.
 
-## Smoke anônimo do domínio publicado
+### Validate application
 
-Workflow definitivo:
+O job concluiu com sucesso os passos:
 
-`32855103697` — **success**
+- instalação locked de dependências;
+- formatação;
+- lint;
+- typecheck;
+- validação do contrato semântico;
+- testes;
+- build.
 
-Artifact:
+### Deploy production
 
-- id: `9565851123`;
-- nome: `heroui-native-v2-hardening-domain-smoke`;
-- SHA-256: `d9d7117a488b726f1866feea9bbc0e4b0b0fdfec601a5949ff5c8d6af314df32`.
+O deploy da candidata foi concluído pelo pipeline permanente no Cloudflare Pages.
 
-Resultados:
+Nesta fase, o nome do job não significa liberação oficial; o domínio continua sendo ambiente controlado de validação até o comando humano previsto no protocolo.
 
-- bundle JS publicado = bundle JS do build da `main`;
-- bundle CSS publicado = bundle CSS do build da `main`;
-- `/api/me` sem sessão: HTTP `401`;
-- `/api/platform/snapshot` sem sessão: HTTP `401`;
-- desktop `1440×900`: login presente, UI administrativa ausente, sem overflow horizontal;
-- mobile `390×844`: login presente, UI administrativa ausente, sem overflow horizontal;
-- `#/sistemas` sem sessão: continua no login, sem `.platform-nav` e sem menu de perfil;
-- browser errors: `[]`.
+### Verify recovery after deploy
 
-### Falso negativo do primeiro smoke
+O job pós-deploy concluiu:
 
-O run `32854876204` falhou porque o harness procurava `a[href*="/auth/login"]`. A aplicação real usa `Button` HeroUI com `onPress={() => window.location.assign('/auth/login')}` e a classe `.platform-shell` também é legítima no login.
+- rebuild da mesma fonte publicada como evidência de recovery;
+- round trip descartável de backup/restore no SharePoint;
+- cleanup do recurso descartável;
+- publicação de evidência redigida.
 
-O diagnóstico confirmou que o bundle publicado e os `401` já estavam corretos. O harness foi então corrigido para verificar a ação real `Entrar com conta institucional` e usar `.platform-nav`/menu de perfil como sinais de UI administrativa protegida. O run definitivo `32855103697` passou sem qualquer alteração de runtime.
+Essa prova continua sendo um self-test técnico de recovery e não deve ser interpretada como declaração de disaster recovery completo.
 
-Isso fica registrado como regra de evidência: antes de alterar o produto por falha automatizada, confirmar que o harness modela a anatomia real da interface.
+## Baseline anterior preservado
 
-## Inspeção visual final
+O PR #43 permanece como baseline histórica da Native v2 anterior ao hardening final. Evidências anteriores, como os workflows `32853049680`, `32853049698`, `32854416111` e o smoke `32855103697`, continuam úteis para comparação histórica, mas não representam a candidata atual.
 
-Capturas verificadas manualmente:
+A candidata atual é exclusivamente o commit:
 
-### QA autenticado isolado
+`f59cf4bcf6815ef57edc9eb4558e09a08f93aedd`.
 
-- item ativo sem barra vertical;
-- paleta azul/ciano, sem roxo legado;
-- Ambient Constellation discreto;
-- hierarquia e conteúdo preservados;
-- mobile sem sobreposição.
+## Performance e otimização futura
 
-### Domínio real anônimo
+O Vite ainda pode emitir warning para chunk JavaScript acima de `500 kB` minificado.
 
-- desktop: login íntegro e proporcional;
-- mobile: login íntegro, sem overflow;
-- partículas permanecem em microescala;
-- nenhuma UI administrativa protegida aparece sem sessão.
+Esse warning não é tratado como bloqueador nesta candidata porque:
 
-## App Factory
+- os gates obrigatórios passaram;
+- não há falha funcional registrada no pipeline atual;
+- a decisão de code splitting deve usar métricas específicas de carregamento inicial, não apenas o limite estático do bundler.
 
-As lições reutilizáveis foram transferidas para `mcpmieda/app-factory` no PR `#57 — HeroUI — endurecer overlays, navegação e QA de interação`, integrado no commit:
+## Estado de pendências técnicas
 
-`21d12063b1064bb5f9ccefd8b0f450f318ab9af4`
+Na sincronização pré-liberação:
 
-O contrato da Factory agora exige, quando aplicável:
+- não há issues abertas registradas para o repositório;
+- não há job obrigatório falhando no workflow pós-merge da candidata;
+- não há migração destrutiva pendente;
+- não há alteração de tenant, app registration, redirect URI, grupos, roles ou permissões Entra autorizada ou necessária nesta rodada;
+- a documentação de estado/verificação foi sincronizada para o PR #45 antes da aprovação oficial.
 
-- semântica correta de link/ação/seleção;
-- fonte única de estado por overlay;
-- fechamento na mesma interação que navega;
-- ponteiro real + hit-testing para overlays animados;
-- gate browser-neutral para erros de runtime não tratados, usando CDP apenas como adaptador;
-- medição de performance por múltiplas amostras e mediana, com thresholds derivados do SLO/baseline e protocolo reproduzível;
-- diagnóstico do harness antes de mudar o produto;
-- smoke oficial sem autenticação artificial.
+## Gate humano
 
-Os oito workflows do head final do PR #57 passaram antes do merge.
+Todos os gates técnicos documentados da candidata atual estão concluídos.
 
-## Gate humano e aprovação
-
-Todos os gates técnicos desta rodada estão concluídos. Ainda assim, a produção oficial permanece bloqueada.
-
-A autorização de produção exige o comando humano exato:
+A produção oficial permanece bloqueada até o comando humano exato:
 
 `APROVADO PARA PRODUÇÃO`
 
-Deploy de validação, merge técnico ou smoke não substituem esse comando.
+Deploy, merge técnico, CI verde ou validação parcial não substituem esse comando.
 
-## Evidência detalhada
+Qualquer mudança material posterior em regra, fluxo, dados, autorização, segurança, integração ou comportamento observável exige nova validação proporcional antes da liberação.
 
-Ver:
+## Referências
 
-`docs/HEROUI_NATIVE_V2_HARDENING_2026-08-25.md`
+- estado atual: `PROJECT_STATE.md`;
+- contrato semântico: `specs/semantic-contract.json`;
+- assurance semântico: `specs/semantic-assurance.json`;
+- plano de verificação: `specs/verification-plan.json`;
+- protocolo de liberação: `docs/PROTOCOLO_VALIDACAO_E_LIBERACAO.md`;
+- histórico Native v2: `docs/HEROUI_NATIVE_V2_HARDENING_2026-08-25.md`.
