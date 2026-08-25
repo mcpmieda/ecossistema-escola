@@ -1,8 +1,8 @@
-# VERIFICATION — Centro de Administração v0.9
+# VERIFICATION — Centro de Administração HeroUI Native v1
 
 ## Resultado da fase
 
-**100% do escopo técnico definido para esta fase foi concluído e revalidado após a migração HeroUI v0.9 e a calibração do Ambient Constellation.**
+**100% do escopo técnico definido para esta fase foi concluído e revalidado após a reconstrução HeroUI Native v1.**
 
 A candidata continua com `releaseState = validation`. Este fechamento técnico não autoriza produção oficial.
 
@@ -14,9 +14,9 @@ Itens explicitamente adiados e fora do cálculo desta fase:
 
 ## Candidata e domínio
 
-Candidata final:
+Commit executável da candidata HeroUI Native v1:
 
-`main@dd665205d0bbc37bcfbc6f423de02ec5e0e03527`
+`0746241f385db158dfaaa36102d0a662e6488262`
 
 Domínio de validação:
 
@@ -27,136 +27,216 @@ Design system validado:
 - HeroUI React v3;
 - `@heroui/react 3.2.4`;
 - `@heroui/styles 3.2.4`;
+- Motion Profile: `expressive`;
 - Ambient Surface Profile: `ambient-constellation`;
-- Constellation Intensity: `strong` por densidade/profundidade, com partículas em microescala.
+- Constellation Intensity: `strong`;
+- Living states: ativos;
+- partículas em microescala de screen-space;
+- `prefers-reduced-motion` com fallback estático.
 
-## Migração HeroUI
+## Reconstrução nativa
 
-PR #35 implantou a migração visual transversal.
+A revisão da v0.9 encontrou uma camada de compatibilidade que preservava APIs e anatomia shadcn/Radix em cima do HeroUI.
 
-Commit inicial HeroUI em `main`:
+PR #39 eliminou essa camada e reconstruiu a apresentação diretamente com HeroUI v3.
 
-`ff4dba8b22e3c4ef8f42d8968872ee0d98d3ba65`
+Verificações de limpeza:
 
-Workflow `32826760272`:
+- diretório `src/components/ui` removido;
+- oito facades antigos removidos;
+- zero imports `@/components/ui/` na apresentação;
+- `Card.*` e `Table.*` compound usados diretamente;
+- `Surface`, `Alert`, `Chip`, `Avatar`, `Button`, `Drawer`, `Spinner`, `Skeleton` e `ScrollShadow` usados diretamente quando aplicáveis;
+- nenhuma mudança material em BFF, Entra, Graph, SharePoint, capabilities ou contratos funcionais.
 
-- Validate GitHub Actions security: **success**;
-- Validate application: **success**;
-- Deploy production: **success**;
-- Verify recovery after deploy: **success**.
+## Living UI
 
-A migração não alterou BFF, Entra ID, sessão, capabilities, Graph, SharePoint, recovery ou contratos funcionais.
+Foram validados:
 
-## Ambient Constellation — correção validada
+- entrada de rotas com fade/deslocamento curto;
+- stagger de superfícies;
+- navegação ativa animada;
+- page headers vivos;
+- aurora e glows lentos no shell e superfícies adequadas;
+- loading com Spinner, halo/órbita e skeletons;
+- estados empty/planned com atmosfera contínua;
+- conteúdo denso isolado em superfícies limpas;
+- reduced-motion removendo loops espaciais.
 
-A primeira implementação ampliava partículas junto com a viewport. A causa raiz foi eliminada no PR #36.
+## Ambient Constellation
 
-Implementação final:
+Implementação final por primitive:
 
-- duas camadas de 28 micro-partículas;
-- aproximadamente `0.6–1.3px` no desktop;
-- redução adicional mobile;
-- overscan aproximado `1.36× × 1.78×`;
-- drift `12s` e `15s` em direções opostas;
-- amplitude aproximada `20px` desktop e `12px` mobile;
-- glow estático;
-- `prefers-reduced-motion` com composição estática.
+- camada A: `48` microestrelas;
+- camada B: `48` microestrelas;
+- total: `96`;
+- maior dimensão medida: `1.34375px`;
+- ciclos aproximados de `12s` e `15s`;
+- drift relativo/proporcional à superfície;
+- estrelas azul/violeta no tema claro derivadas do tema;
+- glints pontuais sem flashing;
+- aurora global e deriva luminosa lenta separadas do conteúdo denso.
 
-A App Factory foi atualizada separadamente pelo PR #54 para tornar essa calibração uma regra reutilizável e impedir recorrência do erro de escala.
+No login publicado há três instâncias simultâneas, totalizando `288` partículas renderizadas.
 
-## CI, segurança, deploy e recovery da candidata final
+## Prova temporal — integridade corrigida
 
-Workflow `32829296147` sobre `main@dd665205d0bbc37bcfbc6f423de02ec5e0e03527`:
+O primeiro harness de comparação temporal foi rejeitado após a identificação de um falso-positivo possível: ele comparava strings completas de atributos cujos próprios nomes eram diferentes.
+
+A evidência válida usa Chrome DevTools Protocol e mede a primitive real em dois instantes separados por ~3,5 s reais.
+
+Run: `32836354978` — **success**.
+
+Artifact:
+
+- id: `9558774401`;
+- nome: `heroui-native-temporal-proof-32836354978`;
+- SHA-256: `3c1136d945fdd0162d2db7fe078eac4f4fcebfe432383ecd0847877b23728ab3`.
+
+### Movimento normal
+
+Primeira leitura:
+
+- `currentTime ≈ 150.061ms`;
+- `transform = matrix(1, 0, 0, 1, -31.7448, 15.5067)`;
+- `playState = running`.
+
+Segunda leitura:
+
+- `currentTime ≈ 3666.423ms`;
+- `transform = matrix(1, 0, 0, 1, 13.2702, -13.2426)`;
+- `playState = running`.
+
+A diferença comprova execução natural do loop, não apenas presença de CSS.
+
+### Reduced motion
+
+- `animationName = none`;
+- `currentTime = null`;
+- matriz computada permaneceu estática;
+- partículas continuaram presentes;
+- maior partícula permaneceu `1.34375px`.
+
+A App Factory recebeu `ui/heroui/TEMPORAL_MOTION_QA.md` para tornar essa integridade de evidência reutilizável.
+
+## CI da branch limpa
+
+Workflow `32836490110`:
 
 - Validate GitHub Actions security: **success**;
 - actionlint: **pass**;
 - zizmor persona `pedantic`: **pass**;
-- Validate application: **success**;
 - `npm ci`: **pass**;
 - format: **pass**;
 - lint: **pass**;
 - typecheck: **pass**;
 - semantic contract: **pass**;
 - testes: **pass**;
+- build Vite: **pass**.
+
+## Integração, CI, deploy e recovery
+
+PR #39 foi integrado por squash no commit executável:
+
+`0746241f385db158dfaaa36102d0a662e6488262`
+
+Workflow de `main`: `32836667012`.
+
+Resultado:
+
+- Validate GitHub Actions security: **success**;
+- Validate application: **success**;
+- format: **pass**;
+- lint: **pass**;
+- typecheck: **pass**;
+- semantic contract: **pass**;
+- testes: **pass**;
 - build Vite: **pass**;
-- Deploy production: **success**;
-- Verify recovery after deploy: **success**.
+- Deploy Cloudflare Pages: **success**;
+- Verify recovery after deploy: **success**;
+- rebuild da fonte implantada: **success**;
+- backup/restore descartável SharePoint: **success**;
+- publicação de evidência redigida: **success**.
 
-Artifact de recovery:
+O recovery continua limitado ao round trip técnico documentado da área SharePoint e não declara disaster recovery integral do Microsoft 365.
 
-- id: `9556184489`;
-- nome: `recovery-verification-32829296147`;
-- SHA-256: `d11dc3f9b82d1598251a942065458ff22b176a0b2e96a1c6129d9bb8a8cf10a7`;
-- source commit: `dd665205d0bbc37bcfbc6f423de02ec5e0e03527`.
+## QA visual da candidata
 
-O recovery continua limitado ao round-trip descartável documentado da área técnica do SharePoint. Não declara restore integral do tenant Microsoft 365 ou de todos os serviços externos.
+Foram capturadas em Chrome real, usando os próprios componentes da candidata:
 
-## QA visual real da build
-
-Workflow temporário de browser QA: `32828658258` — **success**.
-
-Artifact:
-
-- id: `9555899769`;
-- SHA-256: `1ed2260d306b141d903c707809f24d60b1e4031b14cc35923ec847f532afee66`.
-
-Chrome real capturou e validou:
-
-- login desktop `1440×900`;
-- login mobile `390×844`;
-- overview desktop com fixture administrativa isolada;
+- login desktop;
+- login mobile;
+- overview desktop;
 - overview mobile;
-- overview desktop com `prefers-reduced-motion`.
+- Sistemas;
+- página planejada;
+- loading;
+- reduced-motion.
 
-O DOM renderizado confirmou:
+A inspeção confirmou:
 
-- campo com as duas camadas esperadas;
-- maior dimensão de partícula `≤ 1.3px` no desktop;
-- nenhuma dependência de raio proporcional à viewport.
+- linguagem visual distinta da v0.9 adaptada;
+- ausência dos facades antigos;
+- microestrelas visíveis sem virar círculos grandes;
+- maior presença no tema claro;
+- living surfaces perceptíveis;
+- loading/empty/planned não permanecendo visualmente mortos;
+- mobile com atmosfera controlada;
+- conteúdo denso dominante e legível.
 
-Inspeção visual das capturas:
+Os harnesses usados para QA foram removidos antes da integração da candidata.
 
-- círculos grandes eliminados;
-- partículas passam a ler como microestrelas/poeira luminosa;
-- conteúdo continua dominante;
-- áreas densas permanecem limpas;
-- mobile não amplia partículas;
-- reduced-motion preserva identidade visual sem drift.
+## Smoke externo da versão implantada
 
-O harness foi removido antes da integração em `main`.
+O smoke foi executado em branch descartável e depois o branch foi realinhado ao `main`.
 
-## Smoke externo após deploy da candidata final
-
-Harness descartável PR #37: fechado **sem merge**.
-
-Run `32829585427`: **success**.
+Run válido: `32837232635` — **success**.
 
 Artifact:
 
-- id: `9556213823`;
-- SHA-256: `61b3161328b95407a2a677a7d31ef34ff5ba748e5378d021d1b66f92efcca221`.
+- id: `9559084801`;
+- nome: `heroui-native-domain-smoke-32837232635`;
+- SHA-256: `b4c1cb2ff3d9c2ea7495f4d1da04cfceba4c68eb83ac35aab4c2656a62f2aa76`.
 
-HTTP real confirmou:
+### HTTP
 
-- raiz do domínio disponível;
-- candidata atual servida;
-- `/api/me` = `401` sem sessão;
-- `/api/platform/snapshot` = `401` sem sessão.
+- raiz: `200`;
+- `/api/me`: `401` sem sessão;
+- `/api/platform/snapshot`: `401` sem sessão.
 
-Chrome real no domínio confirmou:
+### Chrome no domínio oficial
 
-- login institucional desktop `1440×900`;
-- login institucional mobile `390×844`;
-- CTA institucional aponta para `/auth/login`;
-- `/#/sistemas` sem sessão permanece bloqueado pelo login;
-- nenhuma regressão para círculos grandes na constelação servida pelo Cloudflare Pages.
+Confirmados:
+
+- login institucional renderizado;
+- desktop e mobile capturados;
+- bloqueio anônimo preservado;
+- `288` partículas nas três primitives do login;
+- maior partícula: `1.34375px`;
+- motion realmente executando no bundle publicado.
+
+Prova temporal do domínio:
+
+Primeira leitura:
+
+- `currentTime = 0`;
+- `transform = matrix(1, 0, 0, 1, -31.2113, 23.5669)`;
+- `playState = running`.
+
+Segunda leitura:
+
+- `currentTime ≈ 3483.181ms`;
+- `transform = matrix(1, 0, 0, 1, 9.85039, -16.9392)`;
+- `playState = running`.
+
+Portanto, o movimento medido na fixture também está presente na versão efetivamente publicada para validação.
 
 ## Autorização e fronteiras
 
 A fase mantém:
 
 - Entra ID como identidade institucional;
-- grupos/roles apenas como entrada de identidade;
+- groups/roles como entrada de identidade;
 - capabilities como autorização efetiva do Centro;
 - grants administrativos fail closed;
 - recorte server-side do snapshot;
@@ -166,12 +246,12 @@ A fase mantém:
 
 ## Higiene final
 
-- nenhum workflow temporário de browser QA foi incorporado à `main`;
-- PR #37 foi encerrado sem merge;
-- branches recentes de HeroUI/smoke foram realinhadas à candidata válida após uso;
-- branch de correção da App Factory foi realinhada à `main` após o merge do PR #54;
-- nenhuma alteração material ficou fora dos três arquivos da correção final antes do squash do PR #36;
-- `main` permanece a única fonte técnica de verdade.
+- nenhum workflow temporário de browser/temporal QA permanece na árvore da candidata;
+- branch de smoke realinhado ao `main` após uso;
+- `src/components/ui` removido;
+- imports legados removidos;
+- `main` continua fonte técnica de verdade;
+- documentação v0.9 permanece somente como histórico.
 
 ## Fundação preservada
 
@@ -191,11 +271,16 @@ Permanecem intactos:
 
 ## Gate humano e aprovação
 
-Não existe mais trabalho de desenvolvimento obrigatório pendente dentro do escopo técnico desta fase.
+Não existe trabalho de desenvolvimento obrigatório pendente dentro do escopo técnico desta candidata.
 
-O que permanece deliberadamente humano é a inspeção **autenticada** das telas internas usando uma sessão real de `ADMINISTRADOR`. Não será criado bypass, cookie falso ou redução de segurança para automatizá-la.
+Permanece deliberadamente humano:
 
-Após essa inspeção, a produção oficial permanece bloqueada até o comando exato:
+- inspeção autenticada das telas internas usando sessão real de `ADMINISTRADOR`;
+- decisão de aceitação da experiência apresentada.
+
+Não será criado bypass, cookie falso ou redução de segurança para automatizar esse gate.
+
+A produção oficial permanece bloqueada até o comando exato:
 
 `APROVADO PARA PRODUÇÃO`
 
