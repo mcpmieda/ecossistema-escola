@@ -1,0 +1,57 @@
+name: Temporary HeroUI visual lab
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  migrate-and-verify:
+    if: github.head_ref == 'feat/centro-admin-heroui-visual-v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      # Temporary same-repository migration job; removed before the final candidate.
+      contents: write
+    steps:
+      - name: Checkout candidate without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feat/centro-admin-heroui-visual-v1
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Refresh lockfile for HeroUI v3
+        run: npm install --package-lock-only
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Format candidate
+        run: npm run format
+
+      - name: Verify complete candidate
+        run: npm run verify
+
+      - name: Commit deterministic migration output
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo 'No generated changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package-lock.json package.json src .github/workflows/heroui-visual-lab.yml
+          git commit -m 'Format and lock HeroUI visual candidate'
+          git push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:feat/centro-admin-heroui-visual-v1
