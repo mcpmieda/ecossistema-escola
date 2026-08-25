@@ -1,0 +1,214 @@
+name: Visual QA HeroUI native candidate
+
+on:
+  push:
+    branches:
+      - redesign/heroui-native-v1
+    paths:
+      - .github/workflows/visual-qa-heroui-native.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visual-qa-heroui-native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-qa:
+    name: Validate native HeroUI and Living UI visually
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install and build
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run build
+          test ! -d src/components/ui
+          if grep -R --line-number --fixed-strings '@/components/ui/' src; then
+            echo 'Legacy UI facade import detected.' >&2
+            exit 1
+          fi
+
+      - name: Create isolated visual fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > visual-fixture.html <<'HTML'
+          <!doctype html>
+          <html lang="pt-BR">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>HeroUI visual fixture</title>
+            </head>
+            <body>
+              <div id="root"></div>
+              <script type="module" src="/src/visual-fixture.tsx"></script>
+              <script>
+                (() => {
+                  const sample = () => {
+                    const layer = document.querySelector('.ambient-constellation__layer--a');
+                    const particles = [...document.querySelectorAll('.ambient-constellation__particle')];
+                    if (!layer || particles.length === 0) {
+                      setTimeout(sample, 100);
+                      return;
+                    }
+                    document.body.dataset.motionStart = getComputedStyle(layer).transform;
+                    document.body.dataset.particleCount = String(particles.length);
+                    const maxParticle = particles.reduce((max, node) => {
+                      const rect = node.getBoundingClientRect();
+                      return Math.max(max, rect.width, rect.height);
+                    }, 0);
+                    document.body.dataset.maxParticle = maxParticle.toFixed(3);
+                    setTimeout(() => {
+                      document.body.dataset.motionLater = getComputedStyle(layer).transform;
+                      document.body.dataset.motionReady = 'true';
+                    }, 3200);
+                  };
+                  sample();
+                })();
+              </script>
+            </body>
+          </html>
+          HTML
+
+          cat > src/visual-fixture.tsx <<'TSX'
+          import React from 'react';
+          import { createRoot } from 'react-dom/client';
+          import { Surface } from '@heroui/react';
+          import './styles.css';
+          import { AmbientConstellation } from './components/ambient-constellation';
+          import { SidebarContent } from './platform/navigation';
+          import { LoadingWorkspace, PageContent } from './platform/pages';
+          import type { PlatformRoute, PlatformSnapshotContract } from '../shared/platform-contract';
+
+          const modules: PlatformSnapshotContract['coreModules'] = [
+            { id: 'overview', name: 'Visão geral', description: 'Resumo operacional', route: 'visao-geral', state: 'validation', requiredRole: 'ADMINISTRADOR', capabilities: ['platform.overview.read'] },
+            { id: 'operation', name: 'Operação', description: 'Saúde e confiabilidade', route: 'operacao', state: 'validation', requiredRole: 'ADMINISTRADOR', capabilities: ['platform.health.read'] },
+            { id: 'systems', name: 'Sistemas', description: 'Catálogo modular', route: 'sistemas', state: 'validation', requiredRole: 'ADMINISTRADOR', capabilities: ['platform.modules.read'] },
+            { id: 'audit', name: 'Auditoria', description: 'Rastreabilidade', route: 'auditoria', state: 'validation', requiredRole: 'ADMINISTRADOR', capabilities: ['platform.audit.read'] },
+            { id: 'settings', name: 'Configurações', description: 'Governança', route: 'configuracoes', state: 'validation', requiredRole: 'ADMINISTRADOR', capabilities: ['platform.settings.read'] },
+            { id: 'publications', name: 'Publicações', description: 'Próxima fase', route: 'publicacoes', state: 'planned', requiredRole: 'ADMINISTRADOR', capabilities: ['publications.read'] },
+            { id: 'pages', name: 'Páginas', description: 'Próxima fase', route: 'paginas', state: 'planned', requiredRole: 'ADMINISTRADOR', capabilities: ['pages.read'] },
+          ];
+
+          const snapshot: PlatformSnapshotContract = {
+            version: 'native-visual-fixture',
+            releaseState: 'validation',
+            generatedAt: '2026-08-25T09:00:00.000Z',
+            correlationId: 'fixture-native-heroui-visual-qa',
+            foundation: { status: 'ok', sharePointListCount: 4, expectedPlatformListsPresent: true, missingPlatformLists: [] },
+            operational: { status: 'nominal', recentAuditFailureCount: 0, healthContractsConfigured: 1, healthContractsMissing: 0, lastAuditAt: '2026-08-25T08:55:00.000Z', recoveryStatus: 'verified', recoveryVerifiedAt: '2026-08-25T08:56:00.000Z', recoveryEvidenceRef: 'fixture', recoveryScope: 'fixture-only' },
+            coreModules: modules,
+            registeredModules: [{ id: 'mod-1', key: 'notas', name: 'Banco de Notas', baseRoute: '/notas', version: '2.0', status: 'installed', order: 1, healthEndpoint: '/health', updatedAt: '2026-08-25T08:30:00.000Z', contractVersion: 2, requiredCapabilities: ['platform.modules.read'], integrationState: 'ready', integrationIssues: [], available: true }],
+            configurations: [{ id: 'cfg-1', key: 'ano-letivo', scope: 'global', version: '2026', active: true, effectiveFrom: '2026-01-01', effectiveUntil: '', updatedAt: '2026-08-20T12:00:00.000Z' }],
+            recentAudit: [{ id: 'audit-1', eventId: 'evt-1', occurredAt: '2026-08-25T08:55:00.000Z', module: 'Centro', action: 'snapshot.read', entityType: 'platform', correlationId: 'fixture-correlation', result: 'success' }],
+            migrations: [{ id: 'mig-1', version: '2', module: 'Centro', appliedAt: '2026-08-20T12:00:00.000Z', result: 'success' }],
+          };
+
+          const params = new URLSearchParams(window.location.search);
+          const mode = params.get('mode') || 'overview';
+          const route = (params.get('route') || 'visao-geral') as PlatformRoute;
+
+          function Fixture() {
+            if (mode === 'loading') {
+              return <div className="platform-shell min-h-svh p-8"><AmbientConstellation className="fixed" intensity="medium" placement="right" /><div className="relative z-10 mx-auto max-w-[1180px]"><LoadingWorkspace /></div></div>;
+            }
+            return (
+              <div className="platform-shell min-h-svh lg:grid lg:grid-cols-[292px_minmax(0,1fr)]">
+                <AmbientConstellation className="fixed" intensity="medium" placement="right" />
+                <aside className="hidden h-svh border-r border-border/60 lg:block"><SidebarContent route={route} modules={modules} loading={false} /></aside>
+                <div className="relative z-10 min-w-0">
+                  <Surface variant="transparent" className="glass-bar border-b border-border/65"><div className="flex h-16 items-center px-8 text-sm font-medium">Centro / QA visual HeroUI nativo</div></Surface>
+                  <main className="mx-auto max-w-[1320px] p-6 lg:p-8"><div className="route-stage"><PageContent route={route} snapshot={snapshot} /></div></main>
+                </div>
+              </div>
+            );
+          }
+
+          createRoot(document.getElementById('root')!).render(<Fixture />);
+          TSX
+
+      - name: Capture and validate real Chrome evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p visual-evidence
+          npm run dev -- --host 127.0.0.1 > /tmp/vite-visual.log 2>&1 &
+          vite_pid=$!
+          trap 'kill ${vite_pid} 2>/dev/null || true' EXIT
+          for _ in $(seq 1 40); do
+            if curl --silent --fail http://127.0.0.1:5173/ > /dev/null; then break; fi
+            sleep 0.25
+          done
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          test -n "${chrome}"
+
+          capture() {
+            name="$1"
+            url="$2"
+            size="$3"
+            "${chrome}" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --window-size="${size}" --virtual-time-budget=5200 --screenshot="visual-evidence/${name}.png" --dump-dom "${url}" > "visual-evidence/${name}.html"
+            test -s "visual-evidence/${name}.png"
+          }
+
+          capture login-desktop 'http://127.0.0.1:5173/' '1440,900'
+          capture login-mobile 'http://127.0.0.1:5173/' '390,844'
+          capture overview-desktop 'http://127.0.0.1:5173/visual-fixture.html?route=visao-geral' '1440,900'
+          capture systems-desktop 'http://127.0.0.1:5173/visual-fixture.html?route=sistemas' '1440,900'
+          capture planned-desktop 'http://127.0.0.1:5173/visual-fixture.html?route=publicacoes' '1440,900'
+          capture loading-desktop 'http://127.0.0.1:5173/visual-fixture.html?mode=loading' '1440,900'
+          capture overview-mobile 'http://127.0.0.1:5173/visual-fixture.html?route=visao-geral' '390,844'
+
+          grep --quiet 'data-motion-ready="true"' visual-evidence/overview-desktop.html
+          start="$(grep -o 'data-motion-start="[^"]*"' visual-evidence/overview-desktop.html | head -1)"
+          later="$(grep -o 'data-motion-later="[^"]*"' visual-evidence/overview-desktop.html | head -1)"
+          test -n "${start}" && test -n "${later}" && test "${start}" != "${later}"
+          max_particle="$(grep -o 'data-max-particle="[^"]*"' visual-evidence/overview-desktop.html | head -1 | cut -d'"' -f2)"
+          particle_count="$(grep -o 'data-particle-count="[^"]*"' visual-evidence/overview-desktop.html | head -1 | cut -d'"' -f2)"
+          python3 - "${max_particle}" "${particle_count}" <<'PY'
+          import sys
+          max_particle = float(sys.argv[1])
+          count = int(sys.argv[2])
+          assert max_particle <= 1.5, max_particle
+          assert count >= 96, count
+          print(f'max_particle={max_particle:.3f}px particle_count={count}')
+          PY
+          printf 'motion_start=%s\nmotion_later=%s\n' "${start}" "${later}" > visual-evidence/motion-proof.txt
+          grep --quiet 'Centro de Administração' visual-evidence/login-desktop.html
+          grep --quiet 'Publicações será incorporado ao núcleo' visual-evidence/planned-desktop.html
+          grep --quiet 'Carregando dados institucionais' visual-evidence/loading-desktop.html
+
+      - name: Capture reduced-motion evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/reduced-motion.js <<'JS'
+          const http = require('http');
+          JS
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          "${chrome}" --headless=new --no-sandbox --disable-gpu --hide-scrollbars --force-prefers-reduced-motion --window-size=1440,900 --virtual-time-budget=3500 --screenshot=visual-evidence/overview-reduced-motion.png 'http://127.0.0.1:5173/visual-fixture.html?route=visao-geral'
+          test -s visual-evidence/overview-reduced-motion.png
+
+      - name: Publish visual evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: heroui-native-visual-qa-${{ github.run_id }}
+          path: visual-evidence
+          if-no-files-found: warn
+          retention-days: 14
