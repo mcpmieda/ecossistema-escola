@@ -1,0 +1,491 @@
+name: Temporary browser QA UI hardening
+
+on:
+  push:
+    branches:
+      - fix/heroui-native-v2-performance-accessibility
+
+permissions:
+  contents: read
+
+jobs:
+  browser-qa:
+    name: Browser interaction and performance QA
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate source-level UI performance rules
+        run: |
+          if grep -RniE '#7300ff|#7c3aed|#8b5cf6|115 0 255|rgb\(115[[:space:]]+0[[:space:]]+255' src; then
+            echo 'Purple runtime token found in src.' >&2
+            exit 1
+          fi
+          if grep -RniE 'backdrop-filter:[[:space:]]*blur\((2[0-9]|[3-9][0-9])px' src; then
+            echo 'Heavy backdrop filter found in src.' >&2
+            exit 1
+          fi
+          if grep -Rni 'window.location.assign(platformHref' src; then
+            echo 'Imperative platform route navigation found.' >&2
+            exit 1
+          fi
+
+      - name: Build candidate
+        run: npm run build
+
+      - name: Start isolated authenticated fixture server
+        run: |
+          cat > /tmp/ui-qa-server.py <<'PY'
+          import json
+          from functools import partial
+          from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+          core = [
+              ('overview', 'Visão geral', 'visao-geral', 'validation'),
+              ('operations', 'Operação', 'operacao', 'validation'),
+              ('publications', 'Publicações', 'publicacoes', 'planned'),
+              ('pages', 'Páginas', 'paginas', 'planned'),
+              ('systems', 'Sistemas', 'sistemas', 'validation'),
+              ('audit', 'Auditoria', 'auditoria', 'validation'),
+              ('settings', 'Configurações', 'configuracoes', 'validation'),
+          ]
+          snapshot = {
+              'version': 'qa-ui-hardening',
+              'releaseState': 'validation',
+              'generatedAt': '2026-08-25T12:35:00.000Z',
+              'correlationId': 'qa-browser-hardening',
+              'foundation': {
+                  'status': 'ok', 'sharePointListCount': 12,
+                  'expectedPlatformListsPresent': True, 'missingPlatformLists': []
+              },
+              'operational': {
+                  'status': 'nominal', 'recentAuditFailureCount': 0,
+                  'healthContractsConfigured': 1, 'healthContractsMissing': 0,
+                  'lastAuditAt': '2026-08-25T12:30:00.000Z',
+                  'recoveryStatus': 'verified',
+                  'recoveryVerifiedAt': '2026-08-25T12:20:00.000Z',
+                  'recoveryEvidenceRef': 'qa-only',
+                  'recoveryScope': 'isolated-browser-fixture'
+              },
+              'coreModules': [
+                  {
+                      'id': f'platform.{item[0]}', 'name': item[1],
+                      'description': f'Área de {item[1]} para auditoria de navegador.',
+                      'route': item[2], 'state': item[3], 'requiredRole': 'ADMINISTRADOR',
+                      'capabilities': ['platform.snapshot.read']
+                  } for item in core
+              ],
+              'registeredModules': [{
+                  'id': 'qa-module', 'key': 'qa-module', 'name': 'Módulo QA',
+                  'baseRoute': '/qa', 'version': '1.0.0', 'status': 'installed',
+                  'order': 1, 'healthEndpoint': '/api/qa/health',
+                  'updatedAt': '2026-08-25T12:20:00.000Z', 'contractVersion': 1,
+                  'requiredCapabilities': ['platform.snapshot.read'],
+                  'integrationState': 'ready', 'integrationIssues': [], 'available': True
+              }],
+              'configurations': [{
+                  'id': 'qa-config', 'key': 'PLATAFORMA.QA', 'scope': 'GLOBAL',
+                  'version': '1', 'active': True, 'effectiveFrom': '',
+                  'effectiveUntil': '', 'updatedAt': '2026-08-25T12:20:00.000Z'
+              }],
+              'recentAudit': [{
+                  'id': 'qa-audit', 'eventId': 'qa-event',
+                  'occurredAt': '2026-08-25T12:30:00.000Z', 'module': 'Centro',
+                  'action': 'QA_READ', 'entityType': 'QA',
+                  'correlationId': 'qa-correlation', 'result': 'OK'
+              }],
+              'migrations': [{
+                  'id': 'qa-migration', 'version': '1', 'module': 'Centro',
+                  'appliedAt': '2026-08-25T12:00:00.000Z', 'result': 'OK'
+              }]
+          }
+
+          class Handler(SimpleHTTPRequestHandler):
+              def _json(self, payload, status=200):
+                  body = json.dumps(payload).encode()
+                  self.send_response(status)
+                  self.send_header('Content-Type', 'application/json; charset=utf-8')
+                  self.send_header('Content-Length', str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+
+              def do_GET(self):
+                  path = self.path.split('?', 1)[0]
+                  if path == '/api/me':
+                      return self._json({
+                          'authenticated': True, 'name': 'Administrador QA',
+                          'roles': ['ADMINISTRADOR'],
+                          'capabilities': ['platform.snapshot.read']
+                      })
+                  if path == '/api/platform/snapshot':
+                      return self._json(snapshot)
+                  return super().do_GET()
+
+              def log_message(self, format, *args):
+                  return
+
+          handler = partial(Handler, directory='dist')
+          ThreadingHTTPServer(('127.0.0.1', 4173), handler).serve_forever()
+          PY
+          python3 /tmp/ui-qa-server.py >/tmp/ui-qa-server.log 2>&1 &
+          echo $! > /tmp/ui-qa-server.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/api/me >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/ui-qa-server.log
+          exit 1
+
+      - name: Start real Chrome with DevTools protocol
+        run: |
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          test -n "$CHROME_BIN"
+          "$CHROME_BIN" \
+            --headless=new \
+            --no-sandbox \
+            --disable-dev-shm-usage \
+            --disable-background-networking \
+            --remote-debugging-port=9222 \
+            --user-data-dir=/tmp/chrome-ui-hardening \
+            --window-size=1440,900 \
+            http://127.0.0.1:4173/#/visao-geral \
+            >/tmp/chrome-ui-hardening.log 2>&1 &
+          echo $! > /tmp/chrome-ui-hardening.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9222/json/version >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/chrome-ui-hardening.log
+          exit 1
+
+      - name: Audit interactions, paint cost and accessibility in Chrome
+        run: |
+          mkdir -p qa-artifacts
+          cat > /tmp/ui-hardening-qa.mjs <<'NODE'
+          import fs from 'node:fs';
+
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+          const targets = await fetch('http://127.0.0.1:9222/json/list').then((response) => response.json());
+          const target = targets.find((item) => item.type === 'page');
+          if (!target) throw new Error('Chrome page target not found.');
+
+          const WS = globalThis.WebSocket || (await import('ws')).default;
+          const socket = new WS(target.webSocketDebuggerUrl);
+          await new Promise((resolve, reject) => {
+            socket.addEventListener?.('open', resolve, { once: true });
+            socket.addEventListener?.('error', reject, { once: true });
+            if ('on' in socket) {
+              socket.on('open', resolve);
+              socket.on('error', reject);
+            }
+          });
+
+          let sequence = 0;
+          const pending = new Map();
+          const browserErrors = [];
+          const send = (method, params = {}) => new Promise((resolve, reject) => {
+            const id = ++sequence;
+            pending.set(id, { resolve, reject });
+            socket.send(JSON.stringify({ id, method, params }));
+          });
+
+          const onMessage = (raw) => {
+            const message = JSON.parse(typeof raw.data === 'string' ? raw.data : raw.toString());
+            if (message.id && pending.has(message.id)) {
+              const entry = pending.get(message.id);
+              pending.delete(message.id);
+              if (message.error) entry.reject(new Error(JSON.stringify(message.error)));
+              else entry.resolve(message.result);
+              return;
+            }
+            if (message.method === 'Runtime.exceptionThrown') {
+              browserErrors.push(message.params.exceptionDetails?.text || 'Runtime exception');
+            }
+            if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') {
+              browserErrors.push('console.error');
+            }
+          };
+          socket.addEventListener?.('message', onMessage);
+          if ('on' in socket) socket.on('message', (data) => onMessage({ data }));
+
+          await send('Page.enable');
+          await send('Runtime.enable');
+          await send('Performance.enable');
+          await send('Log.enable');
+
+          async function evaluate(expression) {
+            const result = await send('Runtime.evaluate', {
+              expression,
+              returnByValue: true,
+              awaitPromise: true,
+            });
+            if (result.exceptionDetails) throw new Error(result.exceptionDetails.text || 'Evaluation failed');
+            return result.result.value;
+          }
+
+          async function waitFor(expression, timeout = 5000) {
+            const started = Date.now();
+            while (Date.now() - started < timeout) {
+              if (await evaluate(`Boolean(${expression})`)) return;
+              await sleep(25);
+            }
+            throw new Error(`Timed out waiting for: ${expression}`);
+          }
+
+          async function visibleRect(expression) {
+            return evaluate(`(() => {
+              const nodes = [...document.querySelectorAll(${JSON.stringify(expression)})];
+              const element = nodes.find((node) => {
+                const rect = node.getBoundingClientRect();
+                const style = getComputedStyle(node);
+                return rect.width > 2 && rect.height > 2 && style.display !== 'none' && style.visibility !== 'hidden';
+              });
+              if (!element) return null;
+              const rect = element.getBoundingClientRect();
+              return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            })()`);
+          }
+
+          async function pointerClick(selector) {
+            const rect = await visibleRect(selector);
+            if (!rect) throw new Error(`No visible element for ${selector}`);
+            await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: rect.x, y: rect.y });
+            await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
+            await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: rect.x, y: rect.y, button: 'left', clickCount: 1 });
+          }
+
+          async function screenshot(name) {
+            const image = await send('Page.captureScreenshot', { format: 'png', fromSurface: true });
+            fs.writeFileSync(`qa-artifacts/${name}.png`, Buffer.from(image.data, 'base64'));
+          }
+
+          function ratio(hexA, hexB) {
+            const lum = (hex) => {
+              const rgb = hex.match(/[a-f\d]{2}/gi).map((value) => parseInt(value, 16) / 255);
+              const linear = rgb.map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
+              return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+            };
+            const a = lum(hexA);
+            const b = lum(hexB);
+            return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+          }
+
+          await waitFor(`document.querySelectorAll('.platform-nav a[href^="#/"]').length === 7`, 8000);
+          await sleep(350);
+          await evaluate(`(() => {
+            window.__qaLongTasks = [];
+            if ('PerformanceObserver' in window && PerformanceObserver.supportedEntryTypes?.includes('longtask')) {
+              const observer = new PerformanceObserver((list) => {
+                for (const entry of list.getEntries()) window.__qaLongTasks.push(entry.duration);
+              });
+              observer.observe({ type: 'longtask', buffered: false });
+              window.__qaLongTaskObserver = observer;
+            }
+          })()`);
+
+          const report = {
+            routeLatencyMs: {},
+            search: {},
+            mobile: {},
+            paint: {},
+            accessibility: {},
+            errors: browserErrors,
+          };
+
+          const routes = await evaluate(`[...document.querySelectorAll('.platform-nav a[href^="#/"]')].map((node) => node.getAttribute('href'))`);
+          const uniqueRoutes = [...new Set(routes)];
+          if (uniqueRoutes.length !== 7) throw new Error(`Expected 7 routes, got ${uniqueRoutes.length}`);
+
+          let maxDomNodes = 0;
+          let maxParticles = 0;
+          let maxAmbientAnimations = 0;
+          for (const href of uniqueRoutes) {
+            const selector = `.platform-nav a[href="${href}"]`;
+            const before = await evaluate('performance.now()');
+            await pointerClick(selector);
+            await waitFor(`location.hash === ${JSON.stringify(href)}`, 2000);
+            await waitFor(`document.querySelector(${JSON.stringify(selector)})?.getAttribute('data-selected') === 'true'`, 2000);
+            const after = await evaluate('performance.now()');
+            report.routeLatencyMs[href] = Math.round((after - before) * 10) / 10;
+            await sleep(300);
+            const sample = await evaluate(`({
+              nodes: document.getElementsByTagName('*').length,
+              particles: document.querySelectorAll('.ambient-constellation__particle').length,
+              animations: document.getAnimations().filter((animation) => {
+                const target = animation.effect?.target;
+                return target instanceof Element && target.closest('.ambient-constellation') && animation.playState === 'running';
+              }).length,
+            })`);
+            maxDomNodes = Math.max(maxDomNodes, sample.nodes);
+            maxParticles = Math.max(maxParticles, sample.particles);
+            maxAmbientAnimations = Math.max(maxAmbientAnimations, sample.animations);
+          }
+
+          const selectedIndicator = await evaluate(`(() => {
+            const selected = document.querySelector('.platform-nav a[data-selected="true"]');
+            if (!selected) return null;
+            const pseudo = getComputedStyle(selected, '::before');
+            return { content: pseudo.content, width: pseudo.width, background: pseudo.backgroundColor };
+          })()`);
+          report.paint.maxDomNodes = maxDomNodes;
+          report.paint.maxParticles = maxParticles;
+          report.paint.maxAmbientAnimations = maxAmbientAnimations;
+          report.paint.selectedIndicator = selectedIndicator;
+
+          const hover = await evaluate(`(() => {
+            const nav = document.querySelector('.platform-nav a');
+            const style = getComputedStyle(nav);
+            return { duration: style.transitionDuration, transform: style.transform };
+          })()`);
+          report.paint.navTransition = hover;
+
+          await pointerClick('.platform-search-trigger');
+          const searchOpenStarted = await evaluate('performance.now()');
+          await waitFor(`document.querySelector('input[aria-label="Buscar áreas, sistemas e configurações"]')`, 1500);
+          const searchOpenEnded = await evaluate('performance.now()');
+          report.search.openLatencyMs = Math.round((searchOpenEnded - searchOpenStarted) * 10) / 10;
+          await send('Input.insertText', { text: 'auditoria' });
+          await waitFor(`document.querySelector('.platform-search-results a[href="#/auditoria"]')`, 1500);
+          const searchRouteStarted = await evaluate('performance.now()');
+          await pointerClick('.platform-search-results a[href="#/auditoria"]');
+          await waitFor(`location.hash === '#/auditoria'`, 1500);
+          await waitFor(`!document.querySelector('.platform-search-results')`, 1500);
+          const searchRouteEnded = await evaluate('performance.now()');
+          report.search.routeLatencyMs = Math.round((searchRouteEnded - searchRouteStarted) * 10) / 10;
+
+          await send('Input.dispatchKeyEvent', { type: 'keyDown', modifiers: 2, key: 'k', code: 'KeyK', windowsVirtualKeyCode: 75 });
+          await send('Input.dispatchKeyEvent', { type: 'keyUp', modifiers: 2, key: 'k', code: 'KeyK', windowsVirtualKeyCode: 75 });
+          await waitFor(`document.querySelector('input[aria-label="Buscar áreas, sistemas e configurações"]')`, 1500);
+          report.search.ctrlK = true;
+          await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+          await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+          await waitFor(`!document.querySelector('.platform-search-results')`, 1500);
+          report.search.escape = true;
+
+          await evaluate(`location.hash = '#/visao-geral'`);
+          await waitFor(`location.hash === '#/visao-geral'`);
+          await sleep(300);
+          await screenshot('desktop-overview');
+
+          const glassCost = await evaluate(`(() => {
+            const top = getComputedStyle(document.querySelector('.glass-bar'));
+            const side = getComputedStyle(document.querySelector('.sidebar-surface'));
+            const filteredAmbient = [...document.querySelectorAll('.ambient-constellation *')].filter((node) => getComputedStyle(node).filter !== 'none').length;
+            return {
+              topBackdrop: top.backdropFilter || top.webkitBackdropFilter || 'none',
+              sideBackdrop: side.backdropFilter || side.webkitBackdropFilter || 'none',
+              filteredAmbient,
+            };
+          })()`);
+          report.paint.compositor = glassCost;
+
+          await send('Emulation.setDeviceMetricsOverride', {
+            width: 390, height: 844, deviceScaleFactor: 1, mobile: true,
+          });
+          await sleep(250);
+          await pointerClick('button[aria-label="Abrir navegação"]');
+          await waitFor(`document.querySelector('[aria-label="Navegação do Centro"]')`, 1500);
+          const mobileNavStarted = await evaluate('performance.now()');
+          await pointerClick('[aria-label="Navegação do Centro"] .platform-nav a[href="#/operacao"]');
+          await waitFor(`location.hash === '#/operacao'`, 1500);
+          await sleep(250);
+          const mobileNavEnded = await evaluate('performance.now()');
+          report.mobile.navigationLatencyMs = Math.round((mobileNavEnded - mobileNavStarted) * 10) / 10;
+          report.mobile.drawerClosedAfterNavigation = !(await evaluate(`(() => {
+            const node = document.querySelector('[aria-label="Navegação do Centro"]');
+            if (!node) return false;
+            const rect = node.getBoundingClientRect();
+            return rect.width > 2 && rect.height > 2 && getComputedStyle(node).visibility !== 'hidden';
+          })()`));
+
+          await pointerClick('button[aria-label="Buscar no Centro"]');
+          await waitFor(`document.querySelector('input[aria-label="Buscar áreas, sistemas e configurações"]')`, 1500);
+          await send('Input.insertText', { text: 'configuracoes' });
+          await waitFor(`document.querySelector('.platform-search-results a[href="#/configuracoes"]')`, 1500);
+          const mobileSearchStarted = await evaluate('performance.now()');
+          await pointerClick('.platform-search-results a[href="#/configuracoes"]');
+          await waitFor(`location.hash === '#/configuracoes'`, 1500);
+          await sleep(250);
+          const mobileSearchEnded = await evaluate('performance.now()');
+          report.mobile.searchLatencyMs = Math.round((mobileSearchEnded - mobileSearchStarted) * 10) / 10;
+          await screenshot('mobile-configuracoes');
+
+          await send('Emulation.setEmulatedMedia', {
+            features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+          });
+          await evaluate(`location.hash = '#/visao-geral'`);
+          await waitFor(`location.hash === '#/visao-geral'`);
+          await sleep(350);
+          report.accessibility.runningAmbientAnimationsReducedMotion = await evaluate(`document.getAnimations().filter((animation) => {
+            const target = animation.effect?.target;
+            return target instanceof Element && target.closest('.ambient-constellation') && animation.playState === 'running';
+          }).length`);
+
+          report.accessibility.contrastOnLightBlue = Math.round(ratio('365b86', 'cce5f1') * 100) / 100;
+          report.accessibility.contrastOnIceBlue = Math.round(ratio('365b86', 'e8f3ff') * 100) / 100;
+          report.accessibility.oldLowContrastColorNodes = await evaluate(`[...document.querySelectorAll('*')].filter((node) => getComputedStyle(node).color === 'rgb(78, 117, 165)').length`);
+
+          report.paint.longTasksMs = await evaluate(`window.__qaLongTasks || []`);
+          const metrics = await send('Performance.getMetrics');
+          report.paint.performanceMetrics = Object.fromEntries(metrics.metrics
+            .filter((item) => ['JSHeapUsedSize', 'Nodes', 'LayoutCount', 'RecalcStyleCount', 'TaskDuration'].includes(item.name))
+            .map((item) => [item.name, item.value]));
+          report.errors = browserErrors;
+
+          const routeValues = Object.values(report.routeLatencyMs);
+          const maxRouteLatency = Math.max(...routeValues);
+          const maxLongTask = Math.max(0, ...report.paint.longTasksMs);
+          const failures = [];
+          if (maxRouteLatency > 350) failures.push(`route latency ${maxRouteLatency}ms > 350ms`);
+          if (report.search.openLatencyMs > 350) failures.push(`search open latency ${report.search.openLatencyMs}ms > 350ms`);
+          if (report.search.routeLatencyMs > 350) failures.push(`search route latency ${report.search.routeLatencyMs}ms > 350ms`);
+          if (report.mobile.navigationLatencyMs > 500) failures.push(`mobile navigation latency ${report.mobile.navigationLatencyMs}ms > 500ms`);
+          if (report.mobile.searchLatencyMs > 500) failures.push(`mobile search latency ${report.mobile.searchLatencyMs}ms > 500ms`);
+          if (!report.mobile.drawerClosedAfterNavigation) failures.push('mobile navigation drawer remained visibly open');
+          if (maxParticles > 384) failures.push(`particle count ${maxParticles} > 384`);
+          if (maxAmbientAnimations > 6) failures.push(`ambient animations ${maxAmbientAnimations} > 6`);
+          if (maxDomNodes > 2600) failures.push(`DOM nodes ${maxDomNodes} > 2600`);
+          if (maxLongTask > 200) failures.push(`long task ${maxLongTask}ms > 200ms`);
+          if (report.paint.compositor.topBackdrop !== 'none') failures.push(`top bar backdrop-filter ${report.paint.compositor.topBackdrop}`);
+          if (report.paint.compositor.sideBackdrop !== 'none') failures.push(`sidebar backdrop-filter ${report.paint.compositor.sideBackdrop}`);
+          if (report.paint.compositor.filteredAmbient !== 0) failures.push(`${report.paint.compositor.filteredAmbient} ambient nodes use filter`);
+          if (report.accessibility.runningAmbientAnimationsReducedMotion !== 0) failures.push('ambient animation runs under reduced motion');
+          if (report.accessibility.contrastOnLightBlue < 4.5 || report.accessibility.contrastOnIceBlue < 4.5) failures.push('contrast below WCAG AA');
+          if (report.accessibility.oldLowContrastColorNodes !== 0) failures.push('old low-contrast #4E75A5 remains rendered');
+          if (browserErrors.length) failures.push(`browser errors: ${browserErrors.join(', ')}`);
+          if (selectedIndicator && selectedIndicator.content !== 'none' && selectedIndicator.content !== 'normal' && selectedIndicator.width !== '0px') failures.push('selected sidebar indicator pseudo-element remains');
+
+          report.status = failures.length ? 'FAIL' : 'PASS';
+          report.failures = failures;
+          fs.writeFileSync('qa-artifacts/report.json', JSON.stringify(report, null, 2));
+          console.log(JSON.stringify(report, null, 2));
+          socket.close();
+          if (failures.length) process.exit(1);
+          NODE
+          node /tmp/ui-hardening-qa.mjs
+
+      - name: Upload browser QA evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-hardening-browser-qa
+          path: qa-artifacts
+          if-no-files-found: error
+          retention-days: 7
