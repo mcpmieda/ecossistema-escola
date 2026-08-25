@@ -51,6 +51,7 @@ Evidência local deste bloco em 25/08/2026:
 - `npm run verify`: concluído com format, lint, typecheck, semantic check, 121/121 testes e build aprovados;
 - `change_hygiene.py --root .`: PASS;
 - Project Adoption Gate: checklist documental satisfeita, com falha residual conhecida do validador da App Factory porque ele não considera `ui.deviation` ao exigir Ambient Constellation para HeroUI. A exceção de produto continua explícita e não foi enfraquecida para satisfazer o script.
+- CI do PR #52, run `32901823483`: `Validate application` e `Validate GitHub Actions security` concluídos com sucesso; deploy de produção e recovery pós-deploy permaneceram corretamente ignorados no PR.
 
 O build manteve o warning histórico de chunk JavaScript acima de 500 kB; não houve nova regressão funcional associada.
 
