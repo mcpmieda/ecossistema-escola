@@ -22,12 +22,7 @@ export class GradeEventForbiddenError extends Error {
 }
 
 export function validateIdempotencyKey(value: string | null): string {
-  if (
-    !value ||
-    value.length < 16 ||
-    value.length > 128 ||
-    !/^[A-Za-z0-9._:-]+$/u.test(value)
-  ) {
+  if (!value || value.length < 16 || value.length > 128 || !/^[A-Za-z0-9._:-]+$/u.test(value)) {
     throw new Error('invalid_idempotency_key');
   }
   return value;
@@ -46,9 +41,7 @@ function canonical(value: unknown): string {
 export async function gradeEventPayloadHash(input: GradeEventInput): Promise<string> {
   const bytes = new TextEncoder().encode(canonical(input));
   const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)]
-    .map((value) => value.toString(16).padStart(2, '0'))
-    .join('');
+  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
 }
 
 function receipt(
@@ -131,7 +124,8 @@ export async function ingestGradeEvent(args: {
     event.status === 'stale' ? { event, snapshot: null } : { event, snapshot },
     provenanceJson,
   );
-  const committedSnapshot = committed.snapshot ?? (await args.store.getSnapshot(input.gradeKey, input.field));
+  const committedSnapshot =
+    committed.snapshot ?? (await args.store.getSnapshot(input.gradeKey, input.field));
   return receipt(
     committed.event,
     committed.event.status === 'stale' ? 'stale' : 'applied',
