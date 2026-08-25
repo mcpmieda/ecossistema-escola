@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { routeBancoNotasApi } from '../server/banco-notas/api';
-import {
-  assignmentPatchSchema,
-  type BancoNotasRepository,
-} from '../shared/banco-notas-contract';
+import { assignmentPatchSchema, type BancoNotasRepository } from '../shared/banco-notas-contract';
 
 describe('Banco de Notas assignment editing', () => {
   it('treats an empty effectiveTo from the current UI as unchanged', () => {
