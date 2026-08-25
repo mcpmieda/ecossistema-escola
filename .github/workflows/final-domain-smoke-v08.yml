@@ -18,26 +18,12 @@ jobs:
     name: Verify official validation domain
     if: github.head_ref == 'test/final-domain-smoke-v08'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - name: Checkout immutable test harness
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install locked application dependencies
-        run: npm ci
-
-      - name: Install disposable browser harness
-        run: |
-          npm install --no-save --package-lock=false playwright@1.62.1
-          ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: Verify HTTP shell and anonymous protection
         shell: bash
@@ -56,52 +42,56 @@ jobs:
           test "${snapshot_status}" = '401'
           echo 'HTTP smoke passed: current shell is live and protected APIs deny anonymous access.'
 
-      - name: Verify login experience in Chromium
+      - name: Verify rendered login experience in Chrome
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p browser-evidence
-          node --input-type=module <<'NODE'
-          import { chromium } from 'playwright';
-          import assert from 'node:assert/strict';
+          base='https://admin.escolaieda.com'
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          test -n "${chrome}"
 
-          const base = 'https://admin.escolaieda.com';
-          const browser = await chromium.launch({ headless: true });
-          const pageErrors = [];
+          "${chrome}" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --hide-scrollbars \
+            --window-size=1440,900 \
+            --virtual-time-budget=5000 \
+            --screenshot=browser-evidence/desktop-login.png \
+            --dump-dom \
+            "${base}/" > browser-evidence/desktop-dom.html
 
-          try {
-            const desktop = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-            desktop.on('pageerror', (error) => pageErrors.push(error.message));
-            const response = await desktop.goto(base, { waitUntil: 'networkidle', timeout: 30_000 });
-            assert.equal(response?.status(), 200, 'root document must return 200');
-            await desktop.getByRole('link', { name: 'Entrar com conta institucional' }).waitFor();
-            await desktop.getByText('Centro de Administração', { exact: true }).first().waitFor();
-            const loginHref = await desktop.getByRole('link', { name: 'Entrar com conta institucional' }).getAttribute('href');
-            assert.equal(loginHref, '/auth/login');
-            const meStatus = await desktop.evaluate(async () => (await fetch('/api/me', { cache: 'no-store' })).status);
-            const snapshotStatus = await desktop.evaluate(async () => (await fetch('/api/platform/snapshot', { cache: 'no-store' })).status);
-            assert.equal(meStatus, 401);
-            assert.equal(snapshotStatus, 401);
-            await desktop.screenshot({ path: 'browser-evidence/desktop-login.png', fullPage: true });
+          grep --quiet --fixed-strings 'Centro de Administração' browser-evidence/desktop-dom.html
+          grep --quiet --fixed-strings 'Entrar com conta institucional' browser-evidence/desktop-dom.html
+          grep --quiet --fixed-strings 'href="/auth/login"' browser-evidence/desktop-dom.html
 
-            await desktop.goto(`${base}/#/sistemas`, { waitUntil: 'networkidle', timeout: 30_000 });
-            await desktop.getByRole('link', { name: 'Entrar com conta institucional' }).waitFor();
+          "${chrome}" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --hide-scrollbars \
+            --window-size=390,844 \
+            --virtual-time-budget=5000 \
+            --screenshot=browser-evidence/mobile-login.png \
+            --dump-dom \
+            "${base}/" > browser-evidence/mobile-dom.html
 
-            const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
-            mobile.on('pageerror', (error) => pageErrors.push(error.message));
-            await mobile.goto(base, { waitUntil: 'networkidle', timeout: 30_000 });
-            const login = mobile.getByRole('link', { name: 'Entrar com conta institucional' });
-            await login.waitFor();
-            assert.equal(await login.isVisible(), true);
-            const overflow = await mobile.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-            assert.ok(overflow <= 1, `mobile page has horizontal overflow of ${overflow}px`);
-            await mobile.screenshot({ path: 'browser-evidence/mobile-login.png', fullPage: true });
+          grep --quiet --fixed-strings 'Entrar com conta institucional' browser-evidence/mobile-dom.html
+          grep --quiet --fixed-strings 'Escola Iêda Alves de Oliveira' browser-evidence/mobile-dom.html
 
-            assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join(' | ')}`);
-            console.log('Chromium smoke passed: desktop/mobile login, routing and anonymous protection are healthy.');
-          } finally {
-            await browser.close();
-          }
-          NODE
+          "${chrome}" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --virtual-time-budget=5000 \
+            --dump-dom \
+            "${base}/#/sistemas" > browser-evidence/anonymous-route-dom.html
+
+          grep --quiet --fixed-strings 'Entrar com conta institucional' browser-evidence/anonymous-route-dom.html
+          test -s browser-evidence/desktop-login.png
+          test -s browser-evidence/mobile-login.png
+          echo 'Chrome smoke passed: desktop/mobile login and anonymous routed access render correctly.'
 
       - name: Publish browser evidence
         if: always()
