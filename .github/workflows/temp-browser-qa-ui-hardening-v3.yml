@@ -1,0 +1,107 @@
+name: Temporary browser QA UI hardening v3
+
+on:
+  push:
+    branches:
+      - fix/heroui-native-v2-performance-accessibility
+
+permissions:
+  contents: read
+
+jobs:
+  browser-qa:
+    name: Validate interaction performance accessibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build and source gates
+        run: |
+          npm ci
+          npm run build
+          ! grep -RniE '#7300ff|#7c3aed|#8b5cf6|115 0 255' src
+          ! grep -Rni 'window.location.assign(platformHref' src
+          ! grep -RniE 'backdrop-filter:[[:space:]]*blur\((2[0-9]|[3-9][0-9])px' src
+      - name: Start isolated QA fixture
+        run: |
+          cat > /tmp/server.py <<'PY'
+          import json
+          from functools import partial
+          from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+          definitions=[('overview','Visão geral','visao-geral','validation'),('operations','Operação','operacao','validation'),('publications','Publicações','publicacoes','planned'),('pages','Páginas','paginas','planned'),('systems','Sistemas','sistemas','validation'),('audit','Auditoria','auditoria','validation'),('settings','Configurações','configuracoes','validation')]
+          snapshot={'version':'qa-hardening','releaseState':'validation','generatedAt':'2026-08-25T12:35:00.000Z','correlationId':'qa-hardening','foundation':{'status':'ok','sharePointListCount':12,'expectedPlatformListsPresent':True,'missingPlatformLists':[]},'operational':{'status':'nominal','recentAuditFailureCount':0,'healthContractsConfigured':1,'healthContractsMissing':0,'lastAuditAt':'2026-08-25T12:30:00.000Z','recoveryStatus':'verified','recoveryVerifiedAt':'2026-08-25T12:20:00.000Z','recoveryEvidenceRef':'qa','recoveryScope':'isolated-fixture'},'coreModules':[{'id':f'platform.{d[0]}','name':d[1],'description':f'Área {d[1]} para QA.','route':d[2],'state':d[3],'requiredRole':'ADMINISTRADOR','capabilities':['platform.snapshot.read']} for d in definitions],'registeredModules':[{'id':'qa-system','key':'qa-system','name':'Sistema QA','baseRoute':'/qa','version':'1.0.0','status':'installed','order':1,'healthEndpoint':'/api/qa','updatedAt':'2026-08-25T12:20:00.000Z','contractVersion':1,'requiredCapabilities':['platform.snapshot.read'],'integrationState':'ready','integrationIssues':[],'available':True}],'configurations':[{'id':'qa-config','key':'PLATAFORMA.QA','scope':'GLOBAL','version':'1','active':True,'effectiveFrom':'','effectiveUntil':'','updatedAt':'2026-08-25T12:20:00.000Z'}],'recentAudit':[{'id':'qa-audit','eventId':'qa-event','occurredAt':'2026-08-25T12:30:00.000Z','module':'Centro','action':'QA_READ','entityType':'QA','correlationId':'qa-correlation','result':'OK'}],'migrations':[{'id':'qa-migration','version':'1','module':'Centro','appliedAt':'2026-08-25T12:00:00.000Z','result':'OK'}]}
+          class H(SimpleHTTPRequestHandler):
+              def j(self,p):
+                  b=json.dumps(p).encode();self.send_response(200);self.send_header('Content-Type','application/json');self.send_header('Content-Length',str(len(b)));self.end_headers();self.wfile.write(b)
+              def do_GET(self):
+                  p=self.path.split('?',1)[0]
+                  if p=='/api/me': return self.j({'authenticated':True,'name':'Administrador QA','roles':['ADMINISTRADOR'],'capabilities':['platform.snapshot.read']})
+                  if p=='/api/platform/snapshot': return self.j(snapshot)
+                  return super().do_GET()
+              def log_message(self,*args): pass
+          ThreadingHTTPServer(('127.0.0.1',4173),partial(H,directory='dist')).serve_forever()
+          PY
+          python3 /tmp/server.py >/tmp/server.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:4173/api/me >/dev/null && exit 0; sleep 1; done
+          cat /tmp/server.log; exit 1
+      - name: Start Chrome
+        run: |
+          CHROME="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          "$CHROME" --headless=new --no-sandbox --disable-dev-shm-usage --disable-background-networking --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-hardening --window-size=1440,900 http://127.0.0.1:4173/#/visao-geral >/tmp/chrome.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:9222/json/version >/dev/null && exit 0; sleep 1; done
+          cat /tmp/chrome.log; exit 1
+      - name: Run real browser gates
+        run: |
+          mkdir -p qa-artifacts
+          cat > /tmp/qa.mjs <<'NODE'
+          import fs from 'node:fs';
+          const report={status:'RUNNING',routes:{},search:{},mobile:{},performance:{},accessibility:{},failures:[]};
+          let ws,seq=0;const pending=new Map();const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+          const save=()=>fs.writeFileSync('qa-artifacts/report.json',JSON.stringify(report,null,2));
+          try{
+            const targets=await fetch('http://127.0.0.1:9222/json/list').then(r=>r.json());const target=targets.find(t=>t.type==='page');if(!target)throw new Error('page target ausente');
+            ws=new WebSocket(target.webSocketDebuggerUrl);await new Promise((res,rej)=>{ws.addEventListener('open',res,{once:true});ws.addEventListener('error',rej,{once:true})});
+            ws.addEventListener('message',e=>{const m=JSON.parse(e.data),p=pending.get(m.id);if(!p)return;pending.delete(m.id);m.error?p.reject(new Error(JSON.stringify(m.error))):p.resolve(m.result)});
+            const send=(method,params={})=>new Promise((resolve,reject)=>{const id=++seq;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params}))});
+            const ev=async expression=>{const r=await send('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw new Error(r.exceptionDetails.text||'evaluate');return r.result.value};
+            const wait=async(expression,timeout=3000)=>{const s=Date.now();while(Date.now()-s<timeout){if(await ev(`Boolean(${expression})`))return;await sleep(20)}throw new Error(`timeout: ${expression}`)};
+            const click=async selector=>{const p=await ev(`(()=>{const n=[...document.querySelectorAll(${JSON.stringify(selector)})].find(x=>{const r=x.getBoundingClientRect(),s=getComputedStyle(x);return r.width>2&&r.height>2&&s.display!=='none'&&s.visibility!=='hidden'});if(!n)return null;const r=n.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2}})()`);if(!p)throw new Error(`elemento invisível: ${selector}`);await send('Input.dispatchMouseEvent',{type:'mouseMoved',x:p.x,y:p.y});await send('Input.dispatchMouseEvent',{type:'mousePressed',x:p.x,y:p.y,button:'left',clickCount:1});await send('Input.dispatchMouseEvent',{type:'mouseReleased',x:p.x,y:p.y,button:'left',clickCount:1})};
+            const shot=async name=>{const r=await send('Page.captureScreenshot',{format:'png',fromSurface:true});fs.writeFileSync(`qa-artifacts/${name}.png`,Buffer.from(r.data,'base64'))};
+            const visibleNav=`[...document.querySelectorAll('.platform-nav')].filter(n=>{const r=n.getBoundingClientRect(),s=getComputedStyle(n);return r.width>2&&r.height>2&&s.display!=='none'&&s.visibility!=='hidden'}).length`;
+            await send('Runtime.enable');await send('Page.enable');await send('Performance.enable');
+            await wait(`document.querySelectorAll('.platform-nav a[href^="#/"]').length===7`,8000);
+            await ev(`window.__qaLong=[];if(PerformanceObserver.supportedEntryTypes?.includes('longtask')){window.__qaObs=new PerformanceObserver(l=>l.getEntries().forEach(e=>window.__qaLong.push(e.duration)));window.__qaObs.observe({type:'longtask'})}`);
+            const order=['#/operacao','#/publicacoes','#/paginas','#/sistemas','#/auditoria','#/configuracoes','#/visao-geral'];let maxParticles=0,maxAnimations=0,maxDom=0;
+            for(const href of order){const sel=`.platform-nav a[href="${href}"]`,start=performance.now();await click(sel);await wait(`location.hash===${JSON.stringify(href)}`);await wait(`document.querySelector(${JSON.stringify(sel)})?.getAttribute('data-selected')==='true'`);report.routes[href]=Math.round((performance.now()-start)*10)/10;await sleep(160);const x=await ev(`({dom:document.getElementsByTagName('*').length,particles:document.querySelectorAll('.ambient-constellation__particle').length,animations:document.getAnimations().filter(a=>{const t=a.effect?.target;return t instanceof Element&&t.closest('.ambient-constellation')&&a.playState==='running'}).length})`);maxDom=Math.max(maxDom,x.dom);maxParticles=Math.max(maxParticles,x.particles);maxAnimations=Math.max(maxAnimations,x.animations)}
+            const searchStart=performance.now();await click('.platform-search-trigger');await wait(`document.querySelector('input[aria-label="Buscar áreas, sistemas e configurações"]')`);report.search.openMs=Math.round((performance.now()-searchStart)*10)/10;await send('Input.insertText',{text:'auditoria'});await wait(`document.querySelector('[data-search-href="#/auditoria"]')`);const navStart=performance.now();await click('[data-search-href="#/auditoria"]');await wait(`location.hash==='#/auditoria'`);await wait(`!document.querySelector('[data-search-href]')`);report.search.navigateMs=Math.round((performance.now()-navStart)*10)/10;
+            await send('Input.dispatchKeyEvent',{type:'keyDown',modifiers:2,key:'k',code:'KeyK',windowsVirtualKeyCode:75});await send('Input.dispatchKeyEvent',{type:'keyUp',modifiers:2,key:'k',code:'KeyK',windowsVirtualKeyCode:75});await wait(`document.querySelector('input[aria-label="Buscar áreas, sistemas e configurações"]')`);report.search.ctrlK=true;await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});await sleep(150);report.search.escapeClosed=!(await ev(`Boolean(document.querySelector('[data-search-href]'))`));
+            await ev(`location.hash='#/visao-geral'`);await wait(`location.hash==='#/visao-geral'`);await sleep(180);await shot('desktop-overview');
+            const visual=await ev(`(()=>{const top=getComputedStyle(document.querySelector('.glass-bar')),side=getComputedStyle(document.querySelector('.sidebar-surface')),selected=document.querySelector('.platform-nav a[data-selected="true"]'),p=selected?getComputedStyle(selected,'::before'):null;return{topBackdrop:top.backdropFilter||'none',sideBackdrop:side.backdropFilter||'none',ambientFilters:[...document.querySelectorAll('.ambient-constellation *')].filter(n=>getComputedStyle(n).filter!=='none').length,selectedBefore:p?{content:p.content,width:p.width}:null,navTransition:getComputedStyle(document.querySelector('.platform-nav a')).transitionDuration}})()`);
+            await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await sleep(220);report.mobile.visibleNavBefore=await ev(visibleNav);await click('button[aria-label="Abrir navegação"]');await wait(`${visibleNav}===1`);report.mobile.drawerOpened=true;const mobileStart=performance.now();await click('.platform-nav a[href="#/operacao"]');await wait(`location.hash==='#/operacao'`);await wait(`${visibleNav}===0`,1500);report.mobile.navigationMs=Math.round((performance.now()-mobileStart)*10)/10;report.mobile.drawerClosed=true;
+            await click('button[aria-label="Buscar no Centro"]');await wait(`document.querySelector('input[aria-label="Buscar áreas, sistemas e configurações"]')`);await send('Input.insertText',{text:'configuracoes'});await wait(`document.querySelector('[data-search-href="#/configuracoes"]')`);const ms=performance.now();await click('[data-search-href="#/configuracoes"]');await wait(`location.hash==='#/configuracoes'`);await wait(`!document.querySelector('[data-search-href]')`);report.mobile.searchMs=Math.round((performance.now()-ms)*10)/10;await shot('mobile-configuracoes');
+            await send('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});await ev(`location.hash='#/visao-geral'`);await wait(`location.hash==='#/visao-geral'`);await sleep(220);const reduced=await ev(`document.getAnimations().filter(a=>{const t=a.effect?.target;return t instanceof Element&&t.closest('.ambient-constellation')&&a.playState==='running'}).length`);
+            const contrast=(fg,bg)=>{const l=h=>{const c=h.match(/[a-f\d]{2}/gi).map(x=>parseInt(x,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return c[0]*.2126+c[1]*.7152+c[2]*.0722};const a=l(fg),b=l(bg);return(Math.max(a,b)+.05)/(Math.min(a,b)+.05)};
+            report.accessibility.contrastLight=Math.round(contrast('365b86','cce5f1')*100)/100;report.accessibility.contrastIce=Math.round(contrast('365b86','e8f3ff')*100)/100;report.accessibility.oldColorNodes=await ev(`[...document.querySelectorAll('*')].filter(n=>getComputedStyle(n).color==='rgb(78, 117, 165)').length`);report.accessibility.reducedMotionAmbientAnimations=reduced;
+            report.performance.maxParticles=maxParticles;report.performance.maxAmbientAnimations=maxAnimations;report.performance.maxDomNodes=maxDom;report.performance.longTasksMs=await ev(`window.__qaLong||[]`);report.performance.visual=visual;const metrics=await send('Performance.getMetrics');report.performance.metrics=Object.fromEntries(metrics.metrics.filter(m=>['JSHeapUsedSize','Nodes','LayoutCount','RecalcStyleCount','TaskDuration'].includes(m.name)).map(m=>[m.name,m.value]));
+            const routeMax=Math.max(...Object.values(report.routes)),longMax=Math.max(0,...report.performance.longTasksMs);if(routeMax>350)report.failures.push(`route ${routeMax}ms`);if(report.search.openMs>350)report.failures.push(`search open ${report.search.openMs}ms`);if(report.search.navigateMs>350)report.failures.push(`search nav ${report.search.navigateMs}ms`);if(!report.search.ctrlK||!report.search.escapeClosed)report.failures.push('search keyboard');if(report.mobile.visibleNavBefore!==0||!report.mobile.drawerOpened||!report.mobile.drawerClosed||report.mobile.navigationMs>500)report.failures.push('mobile drawer/navigation');if(report.mobile.searchMs>500)report.failures.push(`mobile search ${report.mobile.searchMs}ms`);if(maxParticles>384)report.failures.push(`particles ${maxParticles}`);if(maxAnimations>6)report.failures.push(`animations ${maxAnimations}`);if(maxDom>2600)report.failures.push(`DOM ${maxDom}`);if(longMax>200)report.failures.push(`long task ${longMax}ms`);if(visual.topBackdrop!=='none'||visual.sideBackdrop!=='none')report.failures.push('sticky backdrop');if(visual.ambientFilters!==0)report.failures.push(`ambient filters ${visual.ambientFilters}`);if(visual.selectedBefore&&!['none','normal'].includes(visual.selectedBefore.content)&&visual.selectedBefore.width!=='0px')report.failures.push('sidebar bar');if(reduced!==0)report.failures.push(`reduced motion ${reduced}`);if(report.accessibility.contrastLight<4.5||report.accessibility.contrastIce<4.5)report.failures.push('contrast');if(report.accessibility.oldColorNodes!==0)report.failures.push(`old color ${report.accessibility.oldColorNodes}`);report.status=report.failures.length?'FAIL':'PASS';
+          }catch(error){report.status='FAIL';report.failures.push(error instanceof Error?error.message:String(error));try{if(ws?.readyState===WebSocket.OPEN){const id=++seq;const x=await new Promise((resolve,reject)=>{pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method:'Page.captureScreenshot',params:{format:'png',fromSurface:true}}))});fs.writeFileSync('qa-artifacts/failure.png',Buffer.from(x.data,'base64'))}}catch{}}
+          finally{save();console.log(JSON.stringify(report,null,2));ws?.close()}
+          if(report.status!=='PASS')process.exit(1);
+          NODE
+          node /tmp/qa.mjs
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-hardening-browser-qa-v3
+          path: qa-artifacts
+          if-no-files-found: error
+          retention-days: 7
