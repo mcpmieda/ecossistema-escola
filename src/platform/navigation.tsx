@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   Alert,
   Chip,
@@ -75,11 +76,17 @@ export function SidebarContent({
   route,
   modules,
   loading,
+  onNavigate,
 }: {
   route: PlatformRoute;
   modules: CoreModuleContract[];
   loading: boolean;
+  onNavigate?: () => void;
 }) {
+  useEffect(() => {
+    onNavigate?.();
+  }, [route, onNavigate]);
+
   return (
     <Surface
       variant="default"
