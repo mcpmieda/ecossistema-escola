@@ -4,144 +4,137 @@ Data: 25/08/2026
 
 Branch: `feat/banco-de-notas-foundation`
 
+PR: `#52`
+
+Estado: **Fase 1 implementada e submetida a hardening pós-review; permanece draft, sem merge e sem produção.**
+
 ## Comece por aqui
 
 1. Leia `AGENTS.md`.
 2. Leia `.app-factory.json`.
 3. Leia `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`.
 4. Leia `docs/BANCO_NOTAS_ARCHITECTURE_V1.md`.
-5. Leia `specs/banco-notas/semantic-contract.json`.
-6. Leia `specs/banco-notas/semantic-assurance.json`.
-7. Leia `specs/banco-notas/verification-plan.json`.
-8. Leia `docs/CONTRATO_MODULOS.md`, `ARCHITECTURE.md` e o `PROJECT_STATE.md` global.
+5. Leia `docs/BANCO_NOTAS_MODELO_GENERICO_E_GOLDEN_MASTERS.md`.
+6. Leia `specs/banco-notas/semantic-contract.json`.
+7. Leia `specs/banco-notas/semantic-assurance.json`.
+8. Leia `specs/banco-notas/verification-plan.json`.
+9. Leia `docs/CONTRATO_MODULOS.md`, `ARCHITECTURE.md`, `VERIFICATION.md` e `PROJECT_STATE.md`.
 
-## Contexto externo que já foi auditado
+## Fontes de produto já auditadas
 
-### App Factory
+- `Relatorio_Completo_Banco_de_Notas_v1.6_consolidado.docx` — funcionamento pedagógico/funcional.
+- `Dossie_Tecnico_Modelo_Professor_Integracao_Banco_de_Notas_v1.0.docx` — integração vinculada, add-in, eventos, compartilhamento e reconciliação; prevalece sobre a hipótese antiga de importação isolada.
+- `Plano_Mestre_antigo_antes_do_dossie.Reconstrucao_Planilha_Banco_de_Notas_v0.3.docx` — histórico técnico e regressão.
+- `mcpmieda/escolaieda` no baseline `211251908efe078a8b75396e71e94827293da860` — POC/conversor/add-in/contratos a aproveitar seletivamente, nunca como local definitivo do produto.
 
-Repositório: `mcpmieda/app-factory`.
+## Golden masters privados
 
-Aplicar V1.4, Project Adoption Gate, HeroUI Native Contract, Change Hygiene e Semantic/Independent Verification.
+`NOTAS NINA 2026.xlsb`, `NOTAS ALANNA 2026.xlsb` e `Modelo_Professor_Nina_2026_Homologado.xlsx` são apenas golden masters privados externos.
 
-Exceção explícita: o Banco de Notas usa HeroUI em toda a interface, mas **não usa Ambient Constellation**.
+Eles:
 
-### Terreno anterior do Banco
+- não são templates oficiais;
+- não entram no Git, D1, bundle, migrations, fixtures públicas, runtime, SharePoint definitivo ou distribuição;
+- não podem induzir branches, regras, abas, turmas, componentes ou células específicas no produto;
+- só podem ser usados posteriormente como regressão privada complementar.
 
-Repositório: `mcpmieda/escolaieda`.
+O produto deve converter qualquer planilha docente legada para uma nova instância de um **modelo genérico limpo**, inicialmente com `SyncEnabled=false`.
 
-Baseline auditada: `211251908efe078a8b75396e71e94827293da860`.
+## Decisões duráveis
 
-Arquivos relevantes:
+- repositório definitivo: `mcpmieda/ecossistema-escola`;
+- rota: `/banco-de-notas` e subrotas path-based;
+- API: `/api/banco-notas/v1/*`;
+- UI: HeroUI React v3 nativo em 100% do Banco;
+- proibidos: shadcn, ReUI, facades e Ambient Constellation;
+- D1: estado transacional estruturado, snapshots, configuração e auditoria;
+- SharePoint/OneDrive: arquivos e versões;
+- Graph: somente backend;
+- Add-in Office.js: futuro emissor de baixa latência;
+- GitHub: build/versionamento/manutenção, nunca runtime;
+- fonte: `legacy_import` ou `linked_teacher_model`, com default por ano e override por professor;
+- sem merge silencioso de fontes;
+- `SyncEnabled=false` por padrão;
+- ausência de lançamento não é zero.
 
-- `notas-integracao/README.md`
-- `API_NOTAS_SYNC.md`
-- `api/notas-sync-v1.openapi.yaml`
-- `api/modelos-professor-v1.openapi.yaml`
-- `api/notas-sync-events-v1.asyncapi.yaml`
-- `notas-integracao/addin/manifest.xml`
-- `notas-integracao/js/sync-client.js`
-- `scripts/gerar-modelo-professor-v3.ps1`
-- `scripts/assistente-importacao-modelos.ps1`
-- `scripts/testes-modelo-professor-v3.mjs`
-- `scripts/testes-notas-integracao.mjs`
+## Fase 1 implementada
 
-Não continue construindo o Banco definitivo nesse repositório. Migre o que for válido para `ecossistema-escola` e preserve o antigo como evidência/POC.
+O PR #52 contém:
 
-## Documentos privados de produto e golden masters de homologação
+- specs globais atualizadas para aceitar o primeiro módulo especializado;
+- capabilities `grades.*` e autorização server-side;
+- manifesto `banco-de-notas` 0.1.0;
+- registro SharePoint idempotente preparado;
+- migrations D1 `0001` e `0002`;
+- domínio/repositório/API de anos, fontes, vigências e autoridade efetiva;
+- rota `/banco-de-notas` com React Router;
+- shell e `Configurações > Fonte` em HeroUI;
+- edição de ambiente, migração, status, autoridade, sync e vigência;
+- justificativa obrigatória e before/after auditável em patches administrativos;
+- proteção de Origin;
+- testes de domínio, API, UI, módulo, golden masters, deep-link e SQL executável.
 
-- `Relatorio_Completo_Banco_de_Notas_v1.6_consolidado.docx`
-- `Dossie_Tecnico_Modelo_Professor_Integracao_Banco_de_Notas_v1.0.docx`
-- `Plano_Mestre_antigo_antes_do_dossie.Reconstrucao_Planilha_Banco_de_Notas_v0.3.docx`
-- `Modelo_Professor_Nina_2026_Homologado.xlsx`
-- `NOTAS NINA 2026.xlsb`
-- `NOTAS ALANNA 2026.xlsb`
-- `RELAÇÃO 2026.xlsb`
+## Hardening pós-review concluído
 
-Nenhum desses arquivos reais deve ser copiado para o Git.
+A revisão detectou e corrigiu no próprio PR:
 
-### Regra crítica de uso
+- controles HTML manuais substituídos por HeroUI `TextField`, `Input`, `Select`, `ListBox` e `Switch`;
+- CSS de simulação dos controles removido;
+- integridade cross-year aplicada no storage para fontes, vínculos docentes, snapshots relacionais e import jobs;
+- mutações de fonte/vigência exigem justificativa e registram before/after;
+- ambiente/status/migração de fonte passaram a ser realmente editáveis;
+- estado de reconciliação não é mais representado por texto fictício;
+- migrations são executadas em SQLite real por processo Node isolado, em vez de somente procurar strings no SQL;
+- Origin inválido é testado como bloqueado;
+- deep-links do Banco possuem regressão estrutural dedicada.
 
-`NOTAS NINA 2026.xlsb`, `NOTAS ALANNA 2026.xlsb` e `Modelo_Professor_Nina_2026_Homologado.xlsx` são exclusivamente golden masters privados externos. Não são templates oficiais e não podem entrar no runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição.
+Evidência de código antes da atualização documental: head `de19c4e5774f4f4eca5009e8fd9e93640226e524`, workflow `32908018584` / run `#449` — **success** para security, format, lint, typecheck, semantic check, testes e build.
 
-O produto deve gerar uma instância nova de um modelo genérico limpo para qualquer professor. Nina e Alanna servem apenas para provar regressão privada e generalização complementar. Nenhuma regra de produção pode depender de nomes, número/ordem de abas, turmas, disciplinas, células ou outras particularidades desses arquivos.
+## O que a evidência ainda NÃO prova
 
-Leia e preserve `docs/BANCO_NOTAS_MODELO_GENERICO_E_GOLDEN_MASTERS.md` antes de tocar em conversor, importador, gerador, fixtures, migrations, D1 ou SharePoint do Banco.
+Não ampliar a interpretação dos testes atuais:
 
-## Decisão de rota
+- SQLite real comprova execução e invariantes do SQL compatível, mas não substitui teste em D1 remoto;
+- o teste de deep-link é estrutural e não substitui browser QA real;
+- não existe D1 de homologação provisionado neste branch;
+- o registro SharePoint ainda não foi aplicado ao tenant;
+- não houve deploy de produção;
+- add-in definitivo, grade-events transacional, conversor genérico e reconciliação Graph ainda pertencem ao próximo bloco.
 
-Definitivo: `/banco-de-notas` e subrotas path-based.
+## Provisionamento D1 de homologação
 
-Não usar `#bancodenotas` como rota definitiva. O shell antigo pode manter os hashes atuais até refatoração independente.
-
-## Decisão de fonte
-
-Configuração por ano letivo com override por professor:
-
-- `legacy_import`
-- `linked_teacher_model`
-
-Sem merge silencioso. `SourceAssignment` define autoridade e vigência.
-
-## Decisão de persistência
-
-- D1: dados transacionais estruturados e auditoria do Banco.
-- SharePoint/OneDrive: arquivos e versões.
-- Graph: operações Microsoft pelo backend.
-- Queues: jobs pesados/assíncronos.
-- Add-in: baixa latência do novo modelo.
-
-Não promover `NOTAS_POC_*` a banco oficial.
-
-## Primeiro bloco de implementação
-
-> Estado em 25/08/2026: este bloco foi implementado no PR #52. A única pendência operacional é provisionar os recursos externos de homologação; nenhum deploy de produção foi feito.
-
-Faça em uma única fatia grande:
-
-1. Atualize specs globais do Centro para retirar a integração do primeiro sistema da lista `out` e incorporar o Banco de forma explícita, sem enfraquecer invariantes atuais.
-2. Adicione bindings D1 em ambiente local/homologação e migrations iniciais para `data_sources`, `source_assignments`, `school_years`, `teachers`, `teacher_assignments`, `import_jobs`, `teacher_models`, `cell_mappings`, `grade_events`, `grade_snapshots`, `rulesets`, `relationship_snapshots`, `share_audit`, `reconciliation_runs`, `audit_events`.
-3. Modele constraints de idempotência/sequence/source authority antes de UI.
-4. Adicione capabilities `grades.*` na política atual e testes allow/deny.
-5. Adicione manifesto `banco-de-notas` em `server/modules/contracts.ts`, `baseRoute=/banco-de-notas`, health `/api/banco-notas/health`.
-6. Crie registro idempotente para `PLATAFORMA_MODULOS` somente por mecanismo de infra seguro; não faça a lista ser fonte da autorização.
-7. Implemente `GET /api/banco-notas/health` e APIs iniciais de Fonte/ano.
-8. Implemente roteamento path-based do módulo e shell HeroUI nativo.
-9. Implemente `Configurações > Fonte` de ponta a ponta com D1, inclusive overrides por professor e SourceAuthority.
-10. Garanta loading/empty/error/permission-denied/mobile/reduced-motion.
-11. Proíba por teste imports shadcn/ReUI e qualquer retorno de Ambient Constellation.
-12. Execute `npm run verify`, CI e browser QA.
-13. Atualize `BANCO_NOTAS_IMPLEMENTATION_STATE.md`, este handoff e `VERIFICATION.md`.
-
-### Comando único de provisionamento D1 de homologação
+Quando houver autorização para o recurso externo e sessão Wrangler disponível:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File infra/banco-notas/cloudflare/provision-homologation.ps1
 ```
 
-O comando autentica o Wrangler quando necessário, cria `banco-notas-homologation`, grava o binding somente em configuração local ignorada e aplica as migrations. Não cria recurso de produção nem seleciona plano pago.
+O script prepara somente homologação, gera configuração local ignorada pelo Git e aplica as migrations. Não autoriza custo, produção ou promoção de dados reais.
 
-## Bloco seguinte
+## Próximo marco
 
-Depois da base Fonte estar funcional:
+Antes de piloto institucional:
 
-- migrar OpenAPI/AsyncAPI;
-- implementar grade-events transacional;
-- migrar/adaptar add-in;
-- implementar storage/share/reconcile Graph;
-- homologar uma instância do modelo genérico com `SyncEnabled=false`;
-- executar regressão Nina/Alanna apenas como entrada privada externa, sem incorporá-las ao produto;
-- testar ida, stale, reversão, reconciliação e concorrência;
-- só depois preparar piloto.
+1. provisionar D1 de homologação e executar `0001` + `0002` no D1 real;
+2. testar health/API/Configurações > Fonte contra esse ambiente;
+3. executar browser QA real desktop/mobile/deep-link/refresh;
+4. migrar OpenAPI/AsyncAPI válidos do POC;
+5. implementar pipeline de importação e contrato intermediário do modelo genérico;
+6. implementar `grade-events` transacional/idempotente e snapshots;
+7. adaptar add-in sem client secret e com audience/scope Entra apropriado;
+8. implementar storage/share/reconcile via Graph no backend;
+9. executar regressão privada Nina/Alanna apenas como entrada externa;
+10. só então preparar piloto individual com `SyncEnabled=false` até reconciliação.
 
 ## Regras para não regredir
 
-- não reconstruir autenticação/BFF;
+- não reconstruir autenticação/BFF/Cloudflare/Entra/Graph/SharePoint existentes;
 - não criar segundo design system;
 - não reintroduzir Ambient;
-- não colocar dados reais no Git;
+- não colocar PII ou arquivos docentes reais no Git;
 - não usar SharePoint como event store definitivo;
 - não usar GitHub no runtime;
-- não acumular wrappers/facades/código de tentativa;
+- não acumular wrappers, CSS de compatibilidade, funções duplicadas ou código morto;
 - não ativar sync em massa;
-- não apagar o caminho legado antes de provar regressão equivalente.
+- não apagar o caminho legado antes de provar equivalência;
 - não transformar golden master privado em template, fixture, seed, migration, fallback ou dependência de runtime.
