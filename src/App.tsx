@@ -95,7 +95,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
               <h1 className="mt-6 max-w-xl text-5xl font-semibold tracking-[-0.055em]">
                 Centro de Administração
               </h1>
-              <p className="mt-5 max-w-xl text-base leading-7 text-[#4E75A5]">
+              <p className="mt-5 max-w-xl text-base leading-7 text-[#365B86]">
                 Uma plataforma administrativa viva, modular e protegida para operar os sistemas da
                 escola em uma única experiência.
               </p>
@@ -112,7 +112,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
                   <Surface
                     key={label as string}
                     variant="transparent"
-                    className="stagger-item flex items-center gap-3 rounded-2xl border border-white/45 bg-white/28 px-4 py-3 backdrop-blur-md"
+                    className="stagger-item flex items-center gap-3 rounded-2xl border border-white/45 bg-white/72 px-4 py-3"
                   >
                     <FeatureIcon className="size-4" />
                     <span>{label as string}</span>
