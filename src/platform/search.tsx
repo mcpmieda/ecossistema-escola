@@ -8,6 +8,7 @@ import {
   Popover,
   SearchField,
   Surface,
+  useOverlayState,
 } from '@heroui/react';
 import { Boxes, Search, Settings2 } from 'lucide-react';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
@@ -157,7 +158,7 @@ function DesktopSearch({
 export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContract | null }) {
   const [query, setQuery] = useState('');
   const [desktopOpen, setDesktopOpen] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileState = useOverlayState();
 
   const items = useMemo(() => (snapshot ? buildSearchItems(snapshot) : []), [snapshot]);
   const results = useMemo(() => filterSearchItems(items, query), [items, query]);
@@ -165,7 +166,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
   const closeSearch = () => {
     setQuery('');
     setDesktopOpen(false);
-    setMobileOpen(false);
+    mobileState.close();
   };
 
   const navigateFromSearch = (href: string) => {
@@ -180,11 +181,11 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
     const closeAfterNavigation = () => {
       setQuery('');
       setDesktopOpen(false);
-      setMobileOpen(false);
+      mobileState.close();
     };
     window.addEventListener('hashchange', closeAfterNavigation);
     return () => window.removeEventListener('hashchange', closeAfterNavigation);
-  }, []);
+  }, [mobileState]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -210,7 +211,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
         onNavigate={navigateFromSearch}
       />
 
-      <Drawer>
+      <Drawer state={mobileState}>
         <Button
           variant="outline"
           size="md"
@@ -218,11 +219,10 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
           className="md:hidden"
           aria-label="Buscar no Centro"
           isDisabled={!snapshot}
-          onPress={() => setMobileOpen(true)}
         >
           <Search />
         </Button>
-        <Drawer.Backdrop variant="blur" isOpen={mobileOpen} onOpenChange={setMobileOpen}>
+        <Drawer.Backdrop variant="blur">
           <Drawer.Content placement="right" className="max-w-[440px]">
             <Drawer.Dialog aria-label="Buscar no Centro">
               <Drawer.CloseTrigger />
