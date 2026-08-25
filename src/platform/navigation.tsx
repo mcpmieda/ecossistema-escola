@@ -76,7 +76,7 @@ export function SidebarContent({
       variant="default"
       className="sidebar-surface flex h-full min-h-0 flex-col rounded-none border-0 text-foreground"
     >
-      <div className="flex min-h-24 items-center gap-3 px-5 py-5">
+      <div className="flex h-[72px] min-h-[72px] items-center gap-3 px-5">
         <BrandMark compact />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold tracking-[-0.025em]">
@@ -89,13 +89,10 @@ export function SidebarContent({
       <Separator />
 
       <ScrollShadow className="flex-1 py-5">
-        <div className="mb-3 flex items-center justify-between px-6">
+        <div className="mb-3 px-6">
           <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted">
             Plataforma
           </p>
-          <Chip color="accent" variant="soft" size="sm">
-            v1
-          </Chip>
         </div>
         <Navigation route={route} modules={modules} loading={loading} onNavigate={onNavigate} />
       </ScrollShadow>
