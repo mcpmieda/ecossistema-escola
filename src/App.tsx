@@ -1,6 +1,28 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Avatar, Button, Chip, Drawer, Spinner, Surface } from '@heroui/react';
-import { Activity, Boxes, LockKeyhole, LogOut, Menu, ShieldCheck, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert,
+  Avatar,
+  Breadcrumbs,
+  Button,
+  Chip,
+  Description,
+  Drawer,
+  Dropdown,
+  Label,
+  Separator,
+  Spinner,
+  Surface,
+} from '@heroui/react';
+import {
+  Activity,
+  Boxes,
+  ChevronDown,
+  LockKeyhole,
+  LogOut,
+  Menu,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
 import { AmbientConstellation } from '@/components/ambient-constellation';
 import {
   normalizePlatformRoute,
@@ -59,28 +81,27 @@ function LoginExperience({ loading }: { loading: boolean }) {
     <main className="platform-shell min-h-svh px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
       <AmbientConstellation className="fixed" intensity="strong" placement="center" />
       <div className="relative z-10 mx-auto flex min-h-[calc(100svh-2.5rem)] max-w-7xl items-center justify-center lg:min-h-[calc(100svh-3.5rem)]">
-        <div className="grid w-full max-w-6xl overflow-hidden rounded-[2rem] border border-border/65 shadow-2xl lg:grid-cols-[1.16fr_.84fr]">
+        <Surface className="login-stage grid w-full max-w-6xl overflow-hidden rounded-[2rem] border border-border/65 shadow-2xl lg:grid-cols-[1.16fr_.84fr]">
           <Surface
             variant="transparent"
-            className="living-surface relative hidden min-h-[660px] flex-col justify-between bg-accent p-12 text-accent-foreground lg:flex"
+            className="living-surface pro-spectrum relative hidden min-h-[660px] flex-col justify-between rounded-none border-0 p-12 text-[#203856] shadow-none lg:flex"
           >
             <AmbientConstellation intensity="strong" placement="center" />
-            <div className="living-aura living-aura--right opacity-60" />
             <div className="relative z-10">
               <BrandMark />
-              <Chip className="mt-10" variant="soft" color="default" size="sm">
+              <Chip className="mt-10" variant="soft" color="accent" size="sm">
                 Escola Iêda Alves de Oliveira MCPM
               </Chip>
               <h1 className="mt-6 max-w-xl text-5xl font-semibold tracking-[-0.055em]">
                 Centro de Administração
               </h1>
-              <p className="mt-5 max-w-xl text-base leading-7 text-accent-foreground/78">
+              <p className="mt-5 max-w-xl text-base leading-7 text-[#4E75A5]">
                 Uma plataforma administrativa viva, modular e protegida para operar os sistemas da
                 escola em uma única experiência.
               </p>
             </div>
 
-            <div className="relative z-10 grid max-w-xl gap-3 text-sm text-accent-foreground/85">
+            <div className="relative z-10 grid max-w-xl gap-3 text-sm text-[#365b86]">
               {[
                 [ShieldCheck, 'Acesso institucional protegido'],
                 [Boxes, 'Módulos integrados à mesma experiência'],
@@ -91,7 +112,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
                   <Surface
                     key={label as string}
                     variant="transparent"
-                    className="stagger-item flex items-center gap-3 rounded-2xl border border-white/15 bg-white/9 px-4 py-3 backdrop-blur-md"
+                    className="stagger-item flex items-center gap-3 rounded-2xl border border-white/45 bg-white/28 px-4 py-3 backdrop-blur-md"
                   >
                     <FeatureIcon className="size-4" />
                     <span>{label as string}</span>
@@ -103,7 +124,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
 
           <Surface
             variant="default"
-            className="relative flex min-h-[620px] items-center overflow-hidden px-6 py-12 sm:px-12 lg:min-h-[660px]"
+            className="relative flex min-h-[620px] items-center overflow-hidden rounded-none border-0 px-6 py-12 shadow-none sm:px-12 lg:min-h-[660px]"
           >
             <AmbientConstellation intensity="medium" placement="right" />
             <div className="relative z-10 mx-auto w-full max-w-sm">
@@ -142,7 +163,8 @@ function LoginExperience({ loading }: { loading: boolean }) {
                 <Button
                   variant="primary"
                   size="lg"
-                  className="mt-8 w-full"
+                  fullWidth
+                  className="mt-8"
                   onPress={() => window.location.assign('/auth/login')}
                 >
                   <MicrosoftMark />
@@ -152,14 +174,14 @@ function LoginExperience({ loading }: { loading: boolean }) {
 
               <Surface
                 variant="secondary"
-                className="mt-8 flex items-start gap-3 rounded-2xl border border-border/65 p-4 text-xs leading-5 text-muted"
+                className="mt-8 flex items-start gap-3 rounded-2xl p-4 text-xs leading-5 text-muted"
               >
                 <LockKeyhole className="mt-0.5 size-4 shrink-0 text-foreground/70" />
                 <p>O Centro não solicita nem armazena sua senha institucional.</p>
               </Surface>
             </div>
           </Surface>
-        </div>
+        </Surface>
       </div>
     </main>
   );
@@ -173,8 +195,7 @@ function RestrictedExperience({ name }: { name?: string }) {
         variant="default"
         className="living-surface relative z-10 w-full max-w-2xl rounded-[2rem] p-6 sm:p-8"
       >
-        <AmbientConstellation intensity="medium" placement="right" />
-        <div className="living-aura living-aura--right" />
+        <AmbientConstellation intensity="strong" placement="right" />
         <Chip color="warning" variant="soft" size="sm">
           Validação restrita
         </Chip>
@@ -204,6 +225,7 @@ function AdminShell({ identity }: { identity: Identity }) {
   const route = usePlatformRoute();
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
   const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const logoutFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -247,19 +269,16 @@ function AdminShell({ identity }: { identity: Identity }) {
   const snapshot = loadState.status === 'ready' ? loadState.snapshot : null;
 
   return (
-    <div className="platform-shell min-h-svh lg:grid lg:grid-cols-[292px_minmax(0,1fr)]">
-      <AmbientConstellation className="fixed" intensity="medium" placement="right" />
+    <div className="platform-shell min-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+      <AmbientConstellation className="fixed" intensity="strong" placement="right" />
 
       <aside className="sticky top-0 z-20 hidden h-svh border-r border-border/60 lg:block">
         <SidebarContent route={route} modules={modules} loading={loadState.status === 'loading'} />
       </aside>
 
       <div className="relative z-10 min-w-0">
-        <Surface
-          variant="transparent"
-          className="glass-bar sticky top-0 z-30 border-b border-border/65"
-        >
-          <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
+        <Surface variant="transparent" className="glass-bar sticky top-0 z-30 rounded-none">
+          <div className="flex min-h-17 items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
             <Drawer>
               <Button
                 variant="outline"
@@ -295,35 +314,65 @@ function AdminShell({ identity }: { identity: Identity }) {
               </Drawer.Backdrop>
             </Drawer>
 
-            <div className="min-w-0 flex-1 md:max-w-52">
-              <div className="flex items-center gap-2 text-xs text-muted">
-                <span>Centro</span>
-                <span>/</span>
-                <span className="truncate text-foreground">{routeLabels[route]}</span>
-              </div>
-            </div>
+            <Breadcrumbs className="min-w-0 flex-1">
+              <Breadcrumbs.Item href="#/visao-geral">Centro</Breadcrumbs.Item>
+              <Breadcrumbs.Item>{routeLabels[route]}</Breadcrumbs.Item>
+            </Breadcrumbs>
 
             <PlatformSearch snapshot={snapshot} />
 
-            <div className="flex shrink-0 items-center gap-3">
-              <div className="hidden text-right xl:block">
-                <p className="max-w-48 truncate text-sm font-medium">
-                  {identity.name || 'Administrador'}
-                </p>
-                <p className="text-xs text-muted">Administrador</p>
-              </div>
-              <Avatar size="sm" color="accent" variant="soft">
-                <Avatar.Fallback className="text-xs font-medium">
-                  {initials(identity.name)}
-                </Avatar.Fallback>
-              </Avatar>
-              <form method="post" action="/auth/logout">
-                <Button variant="outline" size="sm" type="submit">
-                  <LogOut />
-                  <span className="hidden sm:inline">Sair</span>
+            <form ref={logoutFormRef} method="post" action="/auth/logout" className="hidden" />
+            <Dropdown>
+              <Dropdown.Trigger>
+                <Button
+                  variant="ghost"
+                  size="md"
+                  className="profile-menu-trigger shrink-0 px-2 sm:px-3"
+                  aria-label="Abrir menu do perfil"
+                >
+                  <Avatar size="sm" color="accent" variant="soft">
+                    <Avatar.Fallback className="text-xs font-medium">
+                      {initials(identity.name)}
+                    </Avatar.Fallback>
+                  </Avatar>
+                  <span className="hidden min-w-0 text-left lg:block">
+                    <span className="block max-w-40 truncate text-sm font-medium">
+                      {identity.name || 'Administrador'}
+                    </span>
+                    <span className="block text-xs font-normal text-muted">Administrador</span>
+                  </span>
+                  <ChevronDown className="hidden size-4 text-muted sm:block" />
                 </Button>
-              </form>
-            </div>
+              </Dropdown.Trigger>
+              <Dropdown.Popover>
+                <Dropdown.Menu
+                  aria-label="Conta e sessão"
+                  onAction={(key) => {
+                    if (key === 'logout') logoutFormRef.current?.requestSubmit();
+                  }}
+                >
+                  <Dropdown.Item id="identity" textValue="Perfil atual" isDisabled>
+                    <Avatar size="sm" color="accent" variant="soft">
+                      <Avatar.Fallback>{initials(identity.name)}</Avatar.Fallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <Label className="max-w-52 truncate">
+                        {identity.name || 'Administrador'}
+                      </Label>
+                      <Description>Administrador · sessão institucional</Description>
+                    </div>
+                  </Dropdown.Item>
+                  <Separator />
+                  <Dropdown.Item id="logout" textValue="Sair" variant="danger">
+                    <LogOut className="size-4" />
+                    <div>
+                      <Label>Sair</Label>
+                      <Description>Encerrar a sessão institucional</Description>
+                    </div>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
           </div>
         </Surface>
 
@@ -335,8 +384,7 @@ function AdminShell({ identity }: { identity: Identity }) {
               variant="secondary"
               className="living-surface max-w-3xl rounded-[2rem] p-5 sm:p-7"
             >
-              <AmbientConstellation intensity="medium" placement="right" />
-              <div className="living-aura living-aura--right" />
+              <AmbientConstellation intensity="strong" placement="right" />
               <Alert status="danger">
                 <Alert.Indicator />
                 <Alert.Content>
@@ -360,13 +408,14 @@ function AdminShell({ identity }: { identity: Identity }) {
           {loadState.status === 'ready' && (
             <div key={route} className="route-stage">
               {route === 'visao-geral' && (
-                <div className="mb-5 flex items-center gap-2 text-sm text-muted">
-                  <Sparkles className="size-4 text-accent" />
-                  <span>Olá, {firstName}. O núcleo administrativo está ativo em validação.</span>
-                </div>
+                <Chip color="accent" variant="soft" className="mb-5">
+                  <Sparkles className="size-4" />
+                  Olá, {firstName}. O núcleo administrativo está ativo em validação.
+                </Chip>
               )}
               <PageContent route={route} snapshot={loadState.snapshot} />
-              <footer className="mt-8 flex flex-col gap-1 border-t border-border/60 pt-5 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+              <Separator className="mt-8" />
+              <footer className="flex flex-col gap-1 pt-5 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
                 <span>Núcleo {loadState.snapshot.version}</span>
                 <span>Dados consultados em {formatDate(loadState.snapshot.generatedAt)}</span>
                 <span className="font-mono">
