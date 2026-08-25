@@ -21,7 +21,7 @@ describe('Banco de Notas shell', () => {
   });
 
   it('does not activate synchronization implicitly', () => {
-    expect(source).toContain("useState(false)");
+    expect(source).toContain('useState(false)');
     expect(source).toContain('setSyncEnabled(false)');
     expect(source).toContain('isSelected={syncEnabled}');
   });
