@@ -6,6 +6,7 @@ import {
   moduleContract,
   moduleContractForKey,
   platformBaseModule,
+  bancoNotasModule,
 } from '../server/modules/contracts';
 
 const automation = {
@@ -36,6 +37,7 @@ describe('extension contracts', () => {
       integratedModuleContracts.length,
     );
     expect(moduleContractForKey('plataforma-base')).toEqual(platformBaseModule);
+    expect(moduleContractForKey('banco-de-notas')).toEqual(bancoNotasModule);
     expect(moduleContractForKey('nao-registrado')).toBeUndefined();
   });
 

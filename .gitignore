@@ -19,5 +19,6 @@ playwright-report/
 **/NOTAS NINA 2026.xlsb
 **/NOTAS ALANNA 2026.xlsb
 **/Modelo_Professor_Nina_2026_Homologado.xlsx
+wrangler.banco-notas.homologation.jsonc
 .DS_Store
 Thumbs.db

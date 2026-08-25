@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "depth": "domain",
-  "source_contract_fingerprint": "d363edbc202a646a98c078cc3aee9fc69eec87aec5c8d61802258864a5186c89",
+  "source_contract_fingerprint": "e77757202c42fe597eaa82b17f871fd25bbc0bfae8d8d4176d6357ee31e4295e",
   "glossary": [
     {
       "id": "TERM-001",
@@ -62,6 +62,12 @@
       "term": "Recuperação de autenticação",
       "definition": "Encerramento seguro de uma tentativa inválida com limpeza do estado temporário e retorno do usuário a uma nova entrada sem loop ou exposição de detalhes internos.",
       "aliases": ["auth recovery"]
+    },
+    {
+      "id": "TERM-011",
+      "term": "Banco de Notas",
+      "definition": "Primeiro módulo especializado integrado ao Centro por contrato, rota, API e capabilities, mantendo regras de negócio na própria fronteira.",
+      "aliases": ["banco-de-notas"]
     }
   ],
   "entities": [
@@ -150,6 +156,12 @@
       "name": "FalhaAutenticacao",
       "definition": "Evento browser-facing recuperável identificado por categoria, etapa, status e correlation ID, sem carregar material sensível da transação.",
       "attributes": ["category", "step", "status", "correlationId"]
+    },
+    {
+      "id": "ENT-011",
+      "name": "ModuloBancoNotas",
+      "definition": "Módulo especializado same-origin integrado ao Centro sem tornar o inventário SharePoint fonte de autorização.",
+      "attributes": ["key", "baseRoute", "version", "healthEndpoint", "requiredCapabilities"]
     }
   ],
   "relations": [],
@@ -511,6 +523,39 @@
       "concept_refs": ["TERM-001", "ENT-001"],
       "acceptance_refs": ["AC-017"],
       "invariant_refs": ["INV-015"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-018",
+      "priority": "must",
+      "pattern": "policy",
+      "component": "Integração do Banco de Notas",
+      "scope": [
+        "/banco-de-notas",
+        "/api/banco-notas/health",
+        "/api/banco-notas/v1/*",
+        "server/modules/contracts.ts"
+      ],
+      "preconditions": ["manifesto versionado e registro operacional compatível"],
+      "trigger": "uma sessão tenta montar ou operar o Banco de Notas",
+      "response": [
+        "Restaurar rota e deep link path-based same-origin.",
+        "Exigir no servidor a capability grades.* específica da operação.",
+        "Manter PLATAFORMA_MODULOS como inventário e regras de fontes, modelos e notas dentro do módulo.",
+        "Preservar autenticação, sessão, Graph, SharePoint, CI/CD e recovery existentes."
+      ],
+      "timing": "antes de retornar dados ou executar mutação",
+      "concept_refs": [
+        "TERM-002",
+        "TERM-007",
+        "TERM-008",
+        "TERM-011",
+        "ENT-007",
+        "ENT-008",
+        "ENT-011"
+      ],
+      "acceptance_refs": ["AC-018"],
+      "invariant_refs": ["INV-002", "INV-010", "INV-011", "INV-016"],
       "formalization_refs": []
     }
   ],

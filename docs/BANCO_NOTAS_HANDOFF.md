@@ -94,6 +94,8 @@ Não promover `NOTAS_POC_*` a banco oficial.
 
 ## Primeiro bloco de implementação
 
+> Estado em 25/08/2026: este bloco foi implementado no PR #52. A única pendência operacional é provisionar os recursos externos de homologação; nenhum deploy de produção foi feito.
+
 Faça em uma única fatia grande:
 
 1. Atualize specs globais do Centro para retirar a integração do primeiro sistema da lista `out` e incorporar o Banco de forma explícita, sem enfraquecer invariantes atuais.
@@ -109,6 +111,14 @@ Faça em uma única fatia grande:
 11. Proíba por teste imports shadcn/ReUI e qualquer retorno de Ambient Constellation.
 12. Execute `npm run verify`, CI e browser QA.
 13. Atualize `BANCO_NOTAS_IMPLEMENTATION_STATE.md`, este handoff e `VERIFICATION.md`.
+
+### Comando único de provisionamento D1 de homologação
+
+```powershell
+powershell -ExecutionPolicy Bypass -File infra/banco-notas/cloudflare/provision-homologation.ps1
+```
+
+O comando autentica o Wrangler quando necessário, cria `banco-notas-homologation`, grava o binding somente em configuração local ignorada e aplica as migrations. Não cria recurso de produção nem seleciona plano pago.
 
 ## Bloco seguinte
 

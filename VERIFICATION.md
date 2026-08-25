@@ -329,6 +329,12 @@ Ele permanece não bloqueador porque os gates, testes, build, deploy e recovery 
 
 Qualquer mudança futura material em regra, fluxo, dados, autorização, segurança ou comportamento observável deve entrar por novo PR e receber regressão proporcional.
 
+## Banco de Notas — Fase 1 no PR #52
+
+A fundação executável é verificada por testes dedicados de migration SQLite/D1, autoridade temporal, ausência versus zero, idempotência/sequence, contrato do módulo, API allow/deny, shell path-based e isolamento dos golden masters privados. O gate completo continua sendo `npm run verify`.
+
+O provisionamento e o browser QA contra D1 remoto permanecem externos até autenticação do Wrangler. A ausência do binding produz health `degraded` e não ativa fallback ou armazenamento alternativo. Nenhum deploy de produção está autorizado por este handoff.
+
 ## Referências
 
 - estado atual: `PROJECT_STATE.md`;
