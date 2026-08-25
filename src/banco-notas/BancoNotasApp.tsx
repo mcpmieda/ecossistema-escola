@@ -1,130 +1,143 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Alert,
   Avatar,
   Breadcrumbs,
   Button,
-  Chip,
   Description,
   Drawer,
   Input,
   Label,
   ListBox,
-  SearchField,
   Select,
-  Separator,
   Spinner,
   Surface,
   Switch,
   TextField,
+  Chip,
   useOverlayState,
 } from '@heroui/react';
 import {
+  BarChart3,
   BookOpenCheck,
-  CalendarRange,
+  ClipboardList,
   Database,
-  FileUp,
-  History,
+  FileText,
   Home,
-  LogOut,
   Menu,
+  Search,
   Settings,
   Users,
 } from 'lucide-react';
-import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type PropsWithChildren,
+} from 'react';
+import {
+  BrowserRouter,
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
 import type {
   DataSource,
   SchoolYear,
   SourceAssignment,
   Teacher,
 } from '../../shared/banco-notas-contract';
+import type { PlatformIdentity } from '../../shared/platform-contract';
 
-type Props = { identity: { name?: string } };
+type Props = { identity: PlatformIdentity };
 const navigation = [
   ['/', 'Visão geral', Home],
-  ['/turmas', 'Turmas', CalendarRange],
+  ['/acompanhamento', 'Acompanhamento', BarChart3],
   ['/alunos', 'Alunos', Users],
+  ['/turmas', 'Turmas', BookOpenCheck],
   ['/professores', 'Professores', Users],
-  ['/componentes', 'Componentes', BookOpenCheck],
-  ['/conselho', 'Conselho de Classe', History],
-  ['/boletins', 'Boletins', BookOpenCheck],
-  ['/importacoes', 'Importações', FileUp],
-  ['/modelos', 'Modelos dos professores', BookOpenCheck],
-  ['/auditoria', 'Auditoria', History],
-  ['/configuracoes/fonte', 'Configurações · Fonte', Settings],
+  ['/conselho', 'Conselho de classe', ClipboardList],
+  ['/boletins', 'Boletins', FileText],
+  ['/pesquisa', 'Pesquisa', Search],
+  ['/configuracoes/fonte', 'Configurações', Settings],
 ] as const;
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api/banco-notas${path}`, {
     credentials: 'same-origin',
-    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
   });
-  const payload = (await response.json().catch(() => ({}))) as { error?: string };
-  if (!response.ok) throw new Error(payload.error ?? 'Não foi possível concluir a operação.');
-  return payload as T;
+  const payload = (await response.json().catch(() => ({}))) as { message?: string } & T;
+  if (!response.ok) throw new Error(payload.message ?? 'Falha ao acessar o Banco de Notas.');
+  return payload;
+}
+
+function Page({
+  title,
+  description,
+  children,
+}: PropsWithChildren<{ title: string; description: string }>) {
+  return (
+    <main className="bn-main">
+      <Breadcrumbs className="mb-5">
+        <Breadcrumbs.Item href="/#sistemas">Centro de Administração</Breadcrumbs.Item>
+        <Breadcrumbs.Item href="/banco-de-notas">Banco de Notas</Breadcrumbs.Item>
+        <Breadcrumbs.Item>{title}</Breadcrumbs.Item>
+      </Breadcrumbs>
+      <header className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <p className="mt-2 max-w-3xl text-sm text-muted">{description}</p>
+      </header>
+      {children}
+    </main>
+  );
+}
+
+function Planned({ title }: { title: string }) {
+  return (
+    <Page title={title} description="Área prevista no contrato funcional do Banco de Notas.">
+      <Surface className="bn-card">
+        <p className="text-sm text-muted">
+          Esta área será habilitada quando o respectivo backend estiver conectado. Nenhum dado fictício é
+          exibido.
+        </p>
+      </Surface>
+    </Page>
+  );
 }
 
 function Overview() {
   return (
     <Page
       title="Visão geral"
-      description="Fundação operacional para fontes, modelos, importações e conciliação de notas."
+      description="Acompanhe o estado operacional do Banco de Notas sem misturar fontes ou resultados simulados."
     >
       <div className="bn-grid">
-        {['Fontes de dados', 'Importações', 'Modelos docentes', 'Conciliações'].map((label) => (
-          <Surface key={label} className="bn-card">
-            <p className="text-sm text-muted">{label}</p>
-            <p className="mt-2 text-2xl font-semibold">Preparado</p>
-            <Chip className="mt-4" size="sm" color="accent" variant="soft">
-              Fase 1
-            </Chip>
-          </Surface>
-        ))}
+        <Surface className="bn-card">
+          <strong>Fonte acadêmica</strong>
+          <p className="mt-2 text-sm text-muted">
+            A autoridade é definida por ano letivo e pode ter substituição explícita por professor.
+          </p>
+        </Surface>
+        <Surface className="bn-card">
+          <strong>Sincronização</strong>
+          <p className="mt-2 text-sm text-muted">Desligada por padrão e ativada apenas por vigência.</p>
+        </Surface>
+        <Surface className="bn-card">
+          <strong>Proveniência</strong>
+          <p className="mt-2 text-sm text-muted">
+            Importações e eventos conectados mantêm origem e histórico auditável.
+          </p>
+        </Surface>
       </div>
     </Page>
   );
 }
-function Planned({ title }: { title: string }) {
-  return (
-    <Page title={title} description="Área planejada no contrato da Fase 1.">
-      <Alert status="accent">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>Estrutura pronta</Alert.Title>
-          <Alert.Description>
-            Os dados e permissões desta área já têm contratos; o fluxo operacional será ativado na
-            fase correspondente.
-          </Alert.Description>
-        </Alert.Content>
-      </Alert>
-    </Page>
-  );
-}
-function Page({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <header className="mb-6">
-        <Chip color="accent" variant="soft" size="sm">
-          Banco de Notas
-        </Chip>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-2 text-sm text-muted">{description}</p>
-      </header>
-      {children}
-    </div>
-  );
-}
 
+type SelectItem = { id: string; label: string };
 function SourceSelect({
   label,
   value,
@@ -136,16 +149,17 @@ function SourceSelect({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  items: Array<{ id: string; label: string }>;
+  items: SelectItem[];
   placeholder: string;
   isDisabled?: boolean;
 }) {
   return (
     <Select
-      value={value || null}
-      onChange={(next) => onChange(next === null ? '' : String(next))}
+      aria-label={label}
       placeholder={placeholder}
       isDisabled={isDisabled}
+      selectedKey={value || null}
+      onSelectionChange={(key) => onChange(key ? String(key) : '')}
     >
       <Label>{label}</Label>
       <Select.Trigger>
@@ -153,20 +167,20 @@ function SourceSelect({
         <Select.Indicator />
       </Select.Trigger>
       <Select.Popover>
-        <ListBox>
-          {items.map((item) => (
-            <ListBox.Item key={item.id} id={item.id} textValue={item.label}>
+        <ListBox items={items}>
+          {(item) => (
+            <ListBox.Item id={item.id} textValue={item.label}>
               {item.label}
               <ListBox.ItemIndicator />
             </ListBox.Item>
-          ))}
+          )}
         </ListBox>
       </Select.Popover>
     </Select>
   );
 }
 
-function SourceConfiguration() {
+function SourceSettings() {
   const [years, setYears] = useState<SchoolYear[]>([]);
   const [sources, setSources] = useState<DataSource[]>([]);
   const [assignments, setAssignments] = useState<SourceAssignment[]>([]);
@@ -185,6 +199,7 @@ function SourceConfiguration() {
   const [assignmentEditAuthority, setAssignmentEditAuthority] = useState('authoritative');
   const [assignmentEditStatus, setAssignmentEditStatus] = useState('active');
   const [assignmentEditSync, setAssignmentEditSync] = useState(false);
+  const [assignmentEditClearEffectiveTo, setAssignmentEditClearEffectiveTo] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -195,6 +210,10 @@ function SourceConfiguration() {
   const assignmentsForYear = useMemo(
     () => assignments.filter((item) => item.schoolYearId === yearId),
     [assignments, yearId],
+  );
+  const selectedAssignment = useMemo(
+    () => assignments.find((item) => item.id === assignmentEditId) ?? null,
+    [assignmentEditId, assignments],
   );
 
   const load = async () => {
@@ -230,6 +249,7 @@ function SourceConfiguration() {
     if (!sourcesForYear.some((item) => item.id === sourceEditId)) setSourceEditId('');
     if (!assignmentsForYear.some((item) => item.id === assignmentEditId)) {
       setAssignmentEditId('');
+      setAssignmentEditClearEffectiveTo(false);
     }
   }, [assignmentEditId, assignmentSourceId, assignmentsForYear, sourceEditId, sourcesForYear]);
 
@@ -244,6 +264,7 @@ function SourceConfiguration() {
 
   function selectAssignmentForEdit(id: string) {
     setAssignmentEditId(id);
+    setAssignmentEditClearEffectiveTo(false);
     const selected = assignments.find((item) => item.id === id);
     if (!selected) return;
     setAssignmentEditAuthority(selected.authorityMode);
@@ -357,10 +378,14 @@ function SourceConfiguration() {
           status: assignmentEditStatus,
           syncEnabled: assignmentEditSync,
           effectiveFrom: data.get('effectiveFrom') || undefined,
-          effectiveTo: data.get('effectiveTo') || null,
+          effectiveTo: assignmentEditClearEffectiveTo
+            ? undefined
+            : data.get('effectiveTo') || undefined,
+          clearEffectiveTo: assignmentEditClearEffectiveTo || undefined,
           reason: data.get('reason'),
         }),
       });
+      setAssignmentEditClearEffectiveTo(false);
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Falha.');
@@ -609,13 +634,37 @@ function SourceConfiguration() {
                 </Switch.Content>
               </Switch>
               <TextField name="effectiveFrom">
-                <Label>Nova vigência inicial</Label>
-                <Input variant="secondary" type="date" />
+                <Label>Vigência inicial</Label>
+                <Input
+                  key={`${assignmentEditId}-effective-from`}
+                  variant="secondary"
+                  type="date"
+                  defaultValue={selectedAssignment?.effectiveFrom ?? ''}
+                />
               </TextField>
               <TextField name="effectiveTo">
-                <Label>Nova vigência final</Label>
-                <Input variant="secondary" type="date" />
+                <Label>Vigência final</Label>
+                <Input
+                  key={`${assignmentEditId}-effective-to`}
+                  variant="secondary"
+                  type="date"
+                  defaultValue={selectedAssignment?.effectiveTo ?? ''}
+                  isDisabled={assignmentEditClearEffectiveTo}
+                />
               </TextField>
+              <Switch
+                isSelected={assignmentEditClearEffectiveTo}
+                onChange={setAssignmentEditClearEffectiveTo}
+                isDisabled={!assignmentEditId || !selectedAssignment?.effectiveTo}
+              >
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <Switch.Content>
+                  <Label>Remover vigência final</Label>
+                  <Description>Use somente para reabrir uma vigência já encerrada.</Description>
+                </Switch.Content>
+              </Switch>
               <TextField name="reason" isRequired>
                 <Label>Motivo da alteração</Label>
                 <Input variant="secondary" minLength={3} />
@@ -718,74 +767,49 @@ function Shell({ identity }: Props) {
         <Surface className="bn-topbar">
           <Drawer state={mobileNavigation}>
             <Button isIconOnly variant="outline" className="lg:hidden" aria-label="Abrir navegação">
-              <Menu />
+              <Menu className="size-4" />
             </Button>
-            <Drawer.Backdrop variant="blur">
-              <Drawer.Content placement="left" className="max-w-[300px]">
-                <Drawer.Dialog
-                  aria-label="Navegação do Banco de Notas"
-                  className="h-full rounded-none p-0"
-                >
-                  <Drawer.CloseTrigger />
-                  <Drawer.Body className="p-6">{navigationContent}</Drawer.Body>
-                </Drawer.Dialog>
+            <Drawer.Backdrop>
+              <Drawer.Content placement="left" className="w-72 p-5">
+                {navigationContent}
               </Drawer.Content>
             </Drawer.Backdrop>
           </Drawer>
-          <Breadcrumbs>
-            <Breadcrumbs.Item href="/banco-de-notas">Banco de Notas</Breadcrumbs.Item>
-            <Breadcrumbs.Item>
-              {navigation.find(([to]) => to === location.pathname)?.[1] ?? 'Área'}
-            </Breadcrumbs.Item>
-          </Breadcrumbs>
-          <div className="hidden items-center gap-2 xl:flex">
-            <Chip size="sm" variant="soft">
-              Ano selecionado em Configurações
-            </Chip>
-            <Chip size="sm" variant="soft" color="warning">
-              Autoridade por vigência
-            </Chip>
-            <SearchField name="banco-notas-search" className="w-56">
-              <Label className="sr-only">Pesquisar no Banco de Notas</Label>
-              <SearchField.Group>
-                <SearchField.SearchIcon />
-                <SearchField.Input placeholder="Pesquisar" />
-                <SearchField.ClearButton />
-              </SearchField.Group>
-            </SearchField>
+          <div>
+            <strong>Banco de Notas</strong>
+            <p className="text-xs text-muted">Ano e fonte governados</p>
           </div>
           <div className="flex items-center gap-3">
             <Avatar size="sm">
-              <Avatar.Fallback>{identity.name?.slice(0, 1) ?? 'A'}</Avatar.Fallback>
+              <Avatar.Fallback>{identity.displayName.slice(0, 2).toUpperCase()}</Avatar.Fallback>
             </Avatar>
-            <span className="hidden text-sm sm:block">{identity.name}</span>
-            <form method="post" action="/auth/logout">
-              <Button isIconOnly size="sm" variant="ghost" type="submit" aria-label="Sair">
-                <LogOut />
-              </Button>
-            </form>
+            <div className="hidden text-right sm:block">
+              <p className="text-sm font-medium">{identity.displayName}</p>
+              <p className="text-xs text-muted">{identity.jobTitle ?? 'Conta institucional'}</p>
+            </div>
           </div>
         </Surface>
-        <main className="bn-main">
-          <Routes>
-            <Route path="/" element={<Overview />} />
-            <Route path="/configuracoes/fonte" element={<SourceConfiguration />} />
-            {navigation.slice(1, -1).map(([path, title]) => (
-              <Route key={path} path={path} element={<Planned title={title} />} />
-            ))}
-            <Route path="*" element={<Planned title="Área não encontrada" />} />
-          </Routes>
-          <Separator className="mt-10" />
-          <p className="pt-5 text-xs text-muted">Banco de Notas · modelo genérico e auditável</p>
-        </main>
+        <Routes location={location}>
+          <Route index element={<Overview />} />
+          <Route path="acompanhamento" element={<Planned title="Acompanhamento" />} />
+          <Route path="alunos" element={<Planned title="Alunos" />} />
+          <Route path="turmas" element={<Planned title="Turmas" />} />
+          <Route path="professores" element={<Planned title="Professores" />} />
+          <Route path="conselho" element={<Planned title="Conselho de classe" />} />
+          <Route path="boletins" element={<Planned title="Boletins" />} />
+          <Route path="pesquisa" element={<Planned title="Pesquisa" />} />
+          <Route path="configuracoes/fonte" element={<SourceSettings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </div>
     </div>
   );
 }
-export function BancoNotasApp(props: Props) {
+
+export function BancoNotasApp({ identity }: Props) {
   return (
     <BrowserRouter basename="/banco-de-notas">
-      <Shell {...props} />
+      <Shell identity={identity} />
     </BrowserRouter>
   );
 }
