@@ -8,7 +8,7 @@ export function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
     <div
       className={cn(
-        'grid shrink-0 place-items-center rounded-xl bg-primary font-semibold tracking-tight text-primary-foreground shadow-sm',
+        'grid shrink-0 place-items-center rounded-2xl bg-accent font-semibold tracking-tight text-accent-foreground shadow-sm',
         compact ? 'size-9 text-xs' : 'size-11 text-sm',
       )}
       aria-hidden="true"
@@ -29,11 +29,11 @@ export function EmptyState({
 }) {
   return (
     <div className="flex min-h-56 flex-col items-center justify-center px-5 py-10 text-center">
-      <div className="grid size-10 place-items-center rounded-xl border bg-muted/35">
-        <Icon className="size-4 text-muted-foreground" />
+      <div className="grid size-10 place-items-center rounded-2xl border border-border bg-surface-secondary">
+        <Icon className="size-4 text-muted" />
       </div>
       <h3 className="mt-4 text-sm font-semibold">{title}</h3>
-      <p className="mt-1.5 max-w-md text-sm leading-6 text-muted-foreground">{description}</p>
+      <p className="mt-1.5 max-w-md text-sm leading-6 text-muted">{description}</p>
     </div>
   );
 }
@@ -49,11 +49,9 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-6">
-      <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {eyebrow}
-      </p>
-      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">{title}</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted">{eyebrow}</p>
+      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">{title}</h2>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{description}</p>
     </div>
   );
 }
@@ -71,19 +69,19 @@ export function ModuleRow({ module }: { module: CoreModuleContract }) {
   return (
     <a
       href={platformHref(module.route)}
-      className="group flex items-center gap-4 px-4 py-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 sm:px-5"
+      className="group flex items-center gap-4 px-4 py-4 transition-[background-color,transform] hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 active:translate-y-px motion-reduce:transform-none sm:px-5"
     >
-      <div className="grid size-10 shrink-0 place-items-center rounded-xl border bg-background shadow-xs">
-        <Icon className="size-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+      <div className="grid size-10 shrink-0 place-items-center rounded-2xl border border-border bg-surface shadow-sm">
+        <Icon className="size-4 text-muted transition-colors group-hover:text-foreground" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-sm font-semibold">{module.name}</h3>
           <ModuleStatus state={module.state} />
         </div>
-        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{module.description}</p>
+        <p className="mt-1 line-clamp-2 text-sm text-muted">{module.description}</p>
       </div>
-      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground motion-reduce:transform-none" />
+      <ArrowRight className="size-4 shrink-0 text-muted transition-[transform,color] group-hover:translate-x-0.5 group-hover:text-foreground motion-reduce:transform-none" />
     </a>
   );
 }
