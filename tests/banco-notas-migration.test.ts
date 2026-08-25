@@ -53,7 +53,9 @@ describe('Banco de Notas D1 migration compatibility', () => {
   it('enforces grade identity, absence semantics and append-only history', () => {
     expect(evidence.zeroIsValidValue).toBe(true);
     expect(evidence.idempotencyRejected).toBe(true);
-    expect(evidence.sequenceCollisionRejected).toBe(true);
+    expect(evidence.appliedSequenceCollisionRejected).toBe(true);
+    expect(evidence.staleSequenceAuditAllowed).toBe(true);
+    expect(evidence.snapshotCompositeIdentity).toBe(true);
     expect(evidence.absenceWithValueRejected).toBe(true);
     expect(evidence.gradeEventsAppendOnly).toBe(true);
     expect(evidence.auditEventsAppendOnly).toBe(true);
