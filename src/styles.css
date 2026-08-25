@@ -332,10 +332,6 @@ body {
   background: color-mix(in oklab, var(--surface) 98%, var(--background));
 }
 
-.sidebar-validation-alert {
-  box-shadow: none;
-}
-
 .platform-nav.list-box {
   gap: 0.3rem;
   border: 0;

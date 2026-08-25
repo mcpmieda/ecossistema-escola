@@ -53,14 +53,14 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
         <PageHeader
           eyebrow="Confiabilidade"
           title="Operação"
-          description="Sinais observáveis do núcleo, degradações detectáveis e lacunas que ainda não possuem evidência operacional."
+          description="Acompanhe a disponibilidade do núcleo, pontos de atenção e informações de recuperação."
         />
         <Card variant="default">
           <Card.Content className="p-0">
             <EmptyState
               icon={HeartPulse}
               title="Sinais operacionais não disponíveis"
-              description="A sessão atual não recebeu a capability necessária para consultar os sinais operacionais desta área."
+              description="Seu perfil não possui a permissão necessária para consultar esta área."
             />
           </Card.Content>
         </Card>
@@ -76,8 +76,8 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
       : Math.round((operational.healthContractsConfigured / registeredCount) * 100);
   const healthCoverageDescription =
     registeredCount === 0
-      ? 'Nenhum sistema independente está registrado; não há contrato de health check para avaliar.'
-      : `${operational.healthContractsConfigured} de ${registeredCount} sistema(s) registrado(s) possuem HealthEndpoint configurado. A presença do endpoint não comprova disponibilidade.`;
+      ? 'Nenhum sistema independente está registrado para monitoramento.'
+      : `${operational.healthContractsConfigured} de ${registeredCount} sistema(s) registrado(s) possuem monitoramento configurado.`;
 
   const signals: OperationalSignal[] = [
     {
@@ -85,7 +85,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
       icon: Database,
       title: 'Estrutura da plataforma',
       description: snapshot.foundation.expectedPlatformListsPresent
-        ? 'As quatro listas estruturais esperadas pelo núcleo foram localizadas no site institucional.'
+        ? 'As estruturas de dados necessárias ao Centro foram localizadas.'
         : `Ausentes: ${snapshot.foundation.missingPlatformLists.join(', ')}.`,
       status: snapshot.foundation.status === 'ok' ? 'ok' : 'attention',
     },
@@ -109,7 +109,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
     {
       id: 'health',
       icon: PlugZap,
-      title: 'Contratos de saúde dos sistemas',
+      title: 'Monitoramento dos sistemas',
       description: healthCoverageDescription,
       status: registeredCount === 0 || operational.healthContractsMissing > 0 ? 'unknown' : 'ok',
     },
@@ -118,7 +118,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
       icon: RotateCcw,
       title: 'Recuperação e restore',
       description:
-        'O snapshot atual não contém evidência de teste de restauração. A ausência dessa evidência não é tratada como falha ativa, mas permanece uma lacuna explícita de governança.',
+        'O estado atual não contém evidência de teste de restauração. A ausência dessa evidência não é tratada como falha ativa, mas permanece um ponto de atenção.',
       status: 'unknown',
     },
   ];
@@ -128,7 +128,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
       <PageHeader
         eyebrow="Confiabilidade"
         title="Operação"
-        description="Sinais observáveis do núcleo, degradações detectáveis e lacunas que ainda não possuem evidência operacional."
+        description="Acompanhe a disponibilidade do núcleo, pontos de atenção e informações de recuperação."
       />
 
       <Surface
@@ -149,12 +149,12 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
               <h3 className="mt-4 max-w-3xl text-2xl font-semibold tracking-[-0.04em] text-[#203856] sm:text-3xl">
                 {attention
                   ? 'Há sinais que exigem atenção'
-                  : 'Sem degradação observada no snapshot'}
+                  : 'Sem degradação observada no estado atual'}
               </h3>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-[#365B86]">
-                Este estado deriva somente das evidências disponíveis no read model autorizado. Ele
-                não substitui monitoramento ativo de serviços externos nem prova recuperação
-                testada.
+                Este estado considera somente as informações disponíveis e autorizadas. Ele não
+                substitui verificações específicas dos sistemas externos nem os testes de
+                recuperação.
               </p>
             </div>
             <Chip color={attention ? 'danger' : 'success'} variant="soft" size="sm">
@@ -187,13 +187,13 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
             </Card>
             <Card variant="default" className="stagger-item bg-surface/96">
               <Card.Header>
-                <Card.Description>Contratos de health check</Card.Description>
+                <Card.Description>Monitoramento configurado</Card.Description>
                 <Card.Title className="text-xl">{operational.healthContractsConfigured}</Card.Title>
               </Card.Header>
               <Card.Content className="text-xs leading-5 text-muted">
                 {registeredCount === 0
                   ? 'Nenhum sistema independente registrado.'
-                  : `${operational.healthContractsMissing} sistema(s) sem contrato configurado.`}
+                  : `${operational.healthContractsMissing} sistema(s) sem monitoramento configurado.`}
               </Card.Content>
             </Card>
           </div>
@@ -202,10 +202,10 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
             <ProgressBar
               value={healthCoverage}
               color={healthCoverage === 100 ? 'success' : 'accent'}
-              aria-label="Cobertura dos contratos de health check"
+              aria-label="Cobertura de monitoramento"
             >
               <div className="mb-2 flex items-center justify-between gap-3">
-                <Label className="text-xs font-medium">Cobertura de health check</Label>
+                <Label className="text-xs font-medium">Cobertura de monitoramento</Label>
                 <ProgressBar.Output className="text-xs font-semibold" />
               </div>
               <ProgressBar.Track>
@@ -268,8 +268,8 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
         <Card.Header className="border-b border-border/60">
           <Card.Title>Cobertura dos sistemas registrados</Card.Title>
           <Card.Description>
-            Metadados de integração; nenhum HealthEndpoint é executado pelo navegador ou pelo BFF
-            nesta candidata.
+            Acompanhamento das informações de integração e monitoramento cadastradas para cada
+            sistema.
           </Card.Description>
         </Card.Header>
         <Card.Content className="p-0">
@@ -286,7 +286,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
                   <Table.Header>
                     <Table.Column id="system">Sistema</Table.Column>
                     <Table.Column id="state">Estado declarado</Table.Column>
-                    <Table.Column id="health">HealthEndpoint</Table.Column>
+                    <Table.Column id="health">Monitoramento</Table.Column>
                     <Table.Column id="updated">Atualização</Table.Column>
                   </Table.Header>
                   <Table.Body>

@@ -3,8 +3,8 @@ import type { PlatformSnapshotContract } from '../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, normalizeSearch } from '../src/platform/search-model';
 
 const snapshot = {
-  version: '0.8.0-validation',
-  releaseState: 'validation',
+  version: '1.0.0',
+  releaseState: 'production',
   generatedAt: '2026-08-24T19:00:00.000Z',
   correlationId: 'corr-search-test',
   foundation: {
@@ -30,7 +30,7 @@ const snapshot = {
       name: 'Configurações',
       description: 'Governança dos parâmetros da plataforma.',
       route: 'configuracoes',
-      state: 'validation',
+      state: 'ready',
       requiredRole: 'ADMINISTRADOR',
       capabilities: ['platform.settings.read'],
     },
@@ -39,7 +39,7 @@ const snapshot = {
       name: 'Auditoria',
       description: 'Rastreabilidade das operações administrativas.',
       route: 'auditoria',
-      state: 'validation',
+      state: 'ready',
       requiredRole: 'ADMINISTRADOR',
       capabilities: ['platform.audit.read'],
     },

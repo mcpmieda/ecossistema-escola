@@ -33,7 +33,7 @@ import {
 } from '../shared/platform-contract';
 import { SidebarContent } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
-import { BrandMark, formatDate, initials, shortCorrelation } from './platform/presentation';
+import { BrandMark, formatDate, initials } from './platform/presentation';
 import { routeLabels } from './platform/routes';
 import { PlatformSearch } from './platform/search';
 
@@ -151,8 +151,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
                 {loading ? 'Preparando seu acesso' : 'Entre para continuar'}
               </h2>
               <p className="mt-3 text-sm leading-6 text-muted">
-                Use sua conta institucional. A autenticação continua sendo realizada pelo Microsoft
-                Entra ID.
+                Use sua conta institucional da escola para continuar.
               </p>
 
               {loading ? (
@@ -245,16 +244,15 @@ function RestrictedExperience({ name }: { name?: string }) {
         className="living-surface relative z-10 w-full max-w-2xl rounded-[2rem] p-6 sm:p-8"
       >
         <Chip color="warning" variant="soft" size="sm">
-          Validação restrita
+          Acesso restrito
         </Chip>
         <Alert status="warning" className="mt-5">
           <Alert.Indicator />
           <Alert.Content>
-            <Alert.Title>Acesso ainda não liberado</Alert.Title>
+            <Alert.Title>Você não tem acesso a esta área</Alert.Title>
             <Alert.Description>
-              {name ? `${name}, sua conta está autenticada.` : 'Sua conta está autenticada.'} A
-              sessão atual não possui as capabilities administrativas necessárias para abrir esta
-              candidata.
+              {name ? `${name}, sua conta está autenticada.` : 'Sua conta está autenticada.'} Seu
+              perfil não possui as permissões necessárias para acessar o Centro de Administração.
             </Alert.Description>
           </Alert.Content>
         </Alert>
@@ -454,18 +452,15 @@ function AdminShell({ identity }: { identity: Identity }) {
               {route === 'visao-geral' && (
                 <Chip color="accent" variant="soft" className="mb-5">
                   <Sparkles className="size-4" />
-                  Olá, {firstName}. O núcleo administrativo está ativo em validação.
+                  Olá, {firstName}. O Centro de Administração está disponível.
                 </Chip>
               )}
               <PageContent route={route} snapshot={loadState.snapshot} />
               <Separator className="mt-8" />
-              <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center lg:grid-cols-[auto_minmax(0,1fr)_auto]">
-                <span className="whitespace-nowrap">Núcleo {loadState.snapshot.version}</span>
-                <span className="min-w-0 sm:text-right lg:text-center">
-                  Dados consultados em {formatDate(loadState.snapshot.generatedAt)}
-                </span>
-                <span className="break-all font-mono sm:col-span-2 sm:text-right lg:col-span-1">
-                  Correlação: {shortCorrelation(loadState.snapshot.correlationId)}
+              <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center">
+                <span>Centro de Administração · Escola Iêda Alves de Oliveira</span>
+                <span className="sm:text-right">
+                  Atualizado em {formatDate(loadState.snapshot.generatedAt)}
                 </span>
               </footer>
             </div>

@@ -40,7 +40,7 @@ export type PlatformCapability = (typeof PLATFORM_CAPABILITIES)[number];
 export type ModuleRegistryStatus = (typeof MODULE_REGISTRY_STATUSES)[number];
 export type ModuleIntegrationState = (typeof MODULE_INTEGRATION_STATES)[number];
 export type ModuleIntegrationIssue = (typeof MODULE_INTEGRATION_ISSUES)[number];
-export type ModuleState = 'validation' | 'planned';
+export type ModuleState = 'ready' | 'planned';
 export type FoundationStatus = 'ok' | 'degraded';
 export type OperationalStatus = 'nominal' | 'attention';
 export type RecoveryStatus = 'not-verified' | 'verified';
@@ -116,7 +116,7 @@ export type OperationalSummary = {
 
 export type PlatformSnapshotContract = {
   version: string;
-  releaseState: 'validation';
+  releaseState: 'production';
   generatedAt: string;
   correlationId: string;
   foundation: {
