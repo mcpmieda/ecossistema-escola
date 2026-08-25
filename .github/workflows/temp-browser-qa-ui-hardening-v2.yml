@@ -1,0 +1,327 @@
+name: Temporary browser QA UI hardening v2
+
+on:
+  push:
+    branches:
+      - fix/heroui-native-v2-performance-accessibility
+
+permissions:
+  contents: read
+
+jobs:
+  browser-qa:
+    name: Audit UI in real Chrome
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install and validate source rules
+        run: |
+          npm ci
+          if grep -RniE '#7300ff|#7c3aed|#8b5cf6|115 0 255|rgb\(115[[:space:]]+0[[:space:]]+255' src; then
+            echo 'Purple runtime token found.' >&2
+            exit 1
+          fi
+          if grep -RniE 'backdrop-filter:[[:space:]]*blur\((2[0-9]|[3-9][0-9])px' src; then
+            echo 'Heavy backdrop filter found.' >&2
+            exit 1
+          fi
+          if grep -Rni 'window.location.assign(platformHref' src; then
+            echo 'Full reload platform navigation found.' >&2
+            exit 1
+          fi
+          npm run build
+
+      - name: Start isolated authenticated fixture
+        run: |
+          cat > /tmp/qa-server.py <<'PY'
+          import json
+          from functools import partial
+          from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+          modules = [
+              ('overview', 'Visão geral', 'visao-geral', 'validation'),
+              ('operations', 'Operação', 'operacao', 'validation'),
+              ('publications', 'Publicações', 'publicacoes', 'planned'),
+              ('pages', 'Páginas', 'paginas', 'planned'),
+              ('systems', 'Sistemas', 'sistemas', 'validation'),
+              ('audit', 'Auditoria', 'auditoria', 'validation'),
+              ('settings', 'Configurações', 'configuracoes', 'validation'),
+          ]
+          snapshot = {
+              'version': 'qa-hardening', 'releaseState': 'validation',
+              'generatedAt': '2026-08-25T12:35:00.000Z', 'correlationId': 'qa-hardening',
+              'foundation': {'status': 'ok', 'sharePointListCount': 12, 'expectedPlatformListsPresent': True, 'missingPlatformLists': []},
+              'operational': {'status': 'nominal', 'recentAuditFailureCount': 0, 'healthContractsConfigured': 1, 'healthContractsMissing': 0, 'lastAuditAt': '2026-08-25T12:30:00.000Z', 'recoveryStatus': 'verified', 'recoveryVerifiedAt': '2026-08-25T12:20:00.000Z', 'recoveryEvidenceRef': 'qa', 'recoveryScope': 'isolated-fixture'},
+              'coreModules': [{'id': f'platform.{m[0]}', 'name': m[1], 'description': f'Área {m[1]} para QA.', 'route': m[2], 'state': m[3], 'requiredRole': 'ADMINISTRADOR', 'capabilities': ['platform.snapshot.read']} for m in modules],
+              'registeredModules': [{'id': 'qa-system', 'key': 'qa-system', 'name': 'Sistema QA', 'baseRoute': '/qa', 'version': '1.0.0', 'status': 'installed', 'order': 1, 'healthEndpoint': '/api/qa', 'updatedAt': '2026-08-25T12:20:00.000Z', 'contractVersion': 1, 'requiredCapabilities': ['platform.snapshot.read'], 'integrationState': 'ready', 'integrationIssues': [], 'available': True}],
+              'configurations': [{'id': 'qa-config', 'key': 'PLATAFORMA.QA', 'scope': 'GLOBAL', 'version': '1', 'active': True, 'effectiveFrom': '', 'effectiveUntil': '', 'updatedAt': '2026-08-25T12:20:00.000Z'}],
+              'recentAudit': [{'id': 'qa-audit', 'eventId': 'qa-event', 'occurredAt': '2026-08-25T12:30:00.000Z', 'module': 'Centro', 'action': 'QA_READ', 'entityType': 'QA', 'correlationId': 'qa-correlation', 'result': 'OK'}],
+              'migrations': [{'id': 'qa-migration', 'version': '1', 'module': 'Centro', 'appliedAt': '2026-08-25T12:00:00.000Z', 'result': 'OK'}],
+          }
+
+          class Handler(SimpleHTTPRequestHandler):
+              def send_json(self, payload):
+                  body = json.dumps(payload).encode()
+                  self.send_response(200)
+                  self.send_header('Content-Type', 'application/json; charset=utf-8')
+                  self.send_header('Content-Length', str(len(body)))
+                  self.end_headers()
+                  self.wfile.write(body)
+
+              def do_GET(self):
+                  path = self.path.split('?', 1)[0]
+                  if path == '/api/me':
+                      return self.send_json({'authenticated': True, 'name': 'Administrador QA', 'roles': ['ADMINISTRADOR'], 'capabilities': ['platform.snapshot.read']})
+                  if path == '/api/platform/snapshot':
+                      return self.send_json(snapshot)
+                  return super().do_GET()
+
+              def log_message(self, *args):
+                  pass
+
+          ThreadingHTTPServer(('127.0.0.1', 4173), partial(Handler, directory='dist')).serve_forever()
+          PY
+          python3 /tmp/qa-server.py >/tmp/qa-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:4173/api/me >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/qa-server.log
+          exit 1
+
+      - name: Start Chrome
+        run: |
+          CHROME_BIN="$(command -v google-chrome || command -v chromium || command -v chromium-browser)"
+          "$CHROME_BIN" --headless=new --no-sandbox --disable-dev-shm-usage --disable-background-networking --remote-debugging-port=9222 --user-data-dir=/tmp/chrome-qa --window-size=1440,900 http://127.0.0.1:4173/#/visao-geral >/tmp/chrome-qa.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl --fail --silent http://127.0.0.1:9222/json/version >/dev/null && exit 0
+            sleep 1
+          done
+          cat /tmp/chrome-qa.log
+          exit 1
+
+      - name: Run interaction performance and accessibility audit
+        run: |
+          mkdir -p qa-artifacts
+          cat > /tmp/browser-qa.mjs <<'NODE'
+          import fs from 'node:fs';
+
+          const report = { status: 'RUNNING', routes: {}, search: {}, mobile: {}, performance: {}, accessibility: {}, failures: [] };
+          let socket;
+          let seq = 0;
+          const pending = new Map();
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          function save() {
+            fs.writeFileSync('qa-artifacts/report.json', JSON.stringify(report, null, 2));
+          }
+
+          try {
+            const targets = await fetch('http://127.0.0.1:9222/json/list').then((r) => r.json());
+            const target = targets.find((item) => item.type === 'page');
+            if (!target) throw new Error('Chrome page target not found');
+            socket = new WebSocket(target.webSocketDebuggerUrl);
+            await new Promise((resolve, reject) => {
+              socket.addEventListener('open', resolve, { once: true });
+              socket.addEventListener('error', reject, { once: true });
+            });
+            socket.addEventListener('message', (event) => {
+              const message = JSON.parse(event.data);
+              const item = pending.get(message.id);
+              if (!item) return;
+              pending.delete(message.id);
+              message.error ? item.reject(new Error(JSON.stringify(message.error))) : item.resolve(message.result);
+            });
+            const send = (method, params = {}) => new Promise((resolve, reject) => {
+              const id = ++seq;
+              pending.set(id, { resolve, reject });
+              socket.send(JSON.stringify({ id, method, params }));
+            });
+            const evaluate = async (expression) => {
+              const value = await send('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+              if (value.exceptionDetails) throw new Error(value.exceptionDetails.text || 'Evaluation failed');
+              return value.result.value;
+            };
+            const waitFor = async (expression, timeout = 2500) => {
+              const start = Date.now();
+              while (Date.now() - start < timeout) {
+                if (await evaluate(`Boolean(${expression})`)) return;
+                await sleep(20);
+              }
+              throw new Error(`Timed out: ${expression}`);
+            };
+            const click = async (selector) => {
+              const point = await evaluate(`(() => {
+                const nodes = [...document.querySelectorAll(${JSON.stringify(selector)})];
+                const node = nodes.find((el) => { const r=el.getBoundingClientRect(); const s=getComputedStyle(el); return r.width>2 && r.height>2 && s.display!=='none' && s.visibility!=='hidden'; });
+                if (!node) return null;
+                const r=node.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2};
+              })()`);
+              if (!point) throw new Error(`No visible element: ${selector}`);
+              await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y });
+              await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+              await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', clickCount: 1 });
+            };
+            const screenshot = async (name) => {
+              const result = await send('Page.captureScreenshot', { format: 'png', fromSurface: true });
+              fs.writeFileSync(`qa-artifacts/${name}.png`, Buffer.from(result.data, 'base64'));
+            };
+
+            await send('Runtime.enable');
+            await send('Page.enable');
+            await send('Performance.enable');
+            await waitFor(`document.querySelectorAll('.platform-nav a[href^="#/"]').length === 7`, 8000);
+            await evaluate(`window.__qaLong=[]; if(PerformanceObserver.supportedEntryTypes?.includes('longtask')){window.__qaObs=new PerformanceObserver(l=>l.getEntries().forEach(e=>window.__qaLong.push(e.duration)));window.__qaObs.observe({type:'longtask'})}`);
+
+            const routes = await evaluate(`[...new Set([...document.querySelectorAll('.platform-nav a[href^="#/"]')].map(n=>n.getAttribute('href')))]`);
+            let maxParticles = 0;
+            let maxAnimations = 0;
+            let maxDom = 0;
+            for (const href of routes) {
+              const selector = `.platform-nav a[href="${href}"]`;
+              const start = performance.now();
+              await click(selector);
+              await waitFor(`location.hash===${JSON.stringify(href)}`);
+              await waitFor(`document.querySelector(${JSON.stringify(selector)})?.getAttribute('data-selected')==='true'`);
+              report.routes[href] = Math.round((performance.now() - start) * 10) / 10;
+              await sleep(180);
+              const sample = await evaluate(`({dom:document.getElementsByTagName('*').length,particles:document.querySelectorAll('.ambient-constellation__particle').length,animations:document.getAnimations().filter(a=>{const t=a.effect?.target;return t instanceof Element&&t.closest('.ambient-constellation')&&a.playState==='running'}).length})`);
+              maxParticles = Math.max(maxParticles, sample.particles);
+              maxAnimations = Math.max(maxAnimations, sample.animations);
+              maxDom = Math.max(maxDom, sample.dom);
+            }
+
+            await click('.platform-search-trigger');
+            const searchOpen = performance.now();
+            await waitFor(`document.querySelector('input[aria-label="Buscar áreas, sistemas e configurações"]')`);
+            report.search.openMs = Math.round((performance.now() - searchOpen) * 10) / 10;
+            await send('Input.insertText', { text: 'auditoria' });
+            await waitFor(`document.querySelector('[data-search-href="#/auditoria"]')`);
+            const searchRoute = performance.now();
+            await click('[data-search-href="#/auditoria"]');
+            await waitFor(`location.hash==='#/auditoria'`);
+            await waitFor(`!document.querySelector('[data-search-href]')`);
+            report.search.navigateMs = Math.round((performance.now() - searchRoute) * 10) / 10;
+
+            await send('Input.dispatchKeyEvent', { type: 'keyDown', modifiers: 2, key: 'k', code: 'KeyK', windowsVirtualKeyCode: 75 });
+            await send('Input.dispatchKeyEvent', { type: 'keyUp', modifiers: 2, key: 'k', code: 'KeyK', windowsVirtualKeyCode: 75 });
+            await waitFor(`document.querySelector('input[aria-label="Buscar áreas, sistemas e configurações"]')`);
+            report.search.ctrlK = true;
+            await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+            await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+            await sleep(120);
+            report.search.escapeClosed = !(await evaluate(`Boolean(document.querySelector('[data-search-href]'))`));
+
+            await evaluate(`location.hash='#/visao-geral'`);
+            await waitFor(`location.hash==='#/visao-geral'`);
+            await sleep(220);
+            await screenshot('desktop-overview');
+
+            const visualCost = await evaluate(`(() => {const top=getComputedStyle(document.querySelector('.glass-bar'));const side=getComputedStyle(document.querySelector('.sidebar-surface'));const selected=document.querySelector('.platform-nav a[data-selected="true"]');const pseudo=selected?getComputedStyle(selected,'::before'):null;return{topBackdrop:top.backdropFilter||'none',sideBackdrop:side.backdropFilter||'none',ambientFilters:[...document.querySelectorAll('.ambient-constellation *')].filter(n=>getComputedStyle(n).filter!=='none').length,selectedBefore:pseudo?{content:pseudo.content,width:pseudo.width}:null}})()`);
+
+            await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+            await sleep(180);
+            await click('button[aria-label="Abrir navegação"]');
+            await waitFor(`document.querySelector('[aria-label="Navegação do Centro"]')`);
+            const mobileNav = performance.now();
+            await click('[aria-label="Navegação do Centro"] .platform-nav a[href="#/operacao"]');
+            await waitFor(`location.hash==='#/operacao'`);
+            await sleep(180);
+            report.mobile.navigationMs = Math.round((performance.now() - mobileNav) * 10) / 10;
+            report.mobile.drawerClosed = !(await evaluate(`(() => {const n=document.querySelector('[aria-label="Navegação do Centro"]');if(!n)return false;const r=n.getBoundingClientRect();return r.width>2&&r.height>2&&getComputedStyle(n).visibility!=='hidden'})()`));
+
+            await click('button[aria-label="Buscar no Centro"]');
+            await waitFor(`document.querySelector('input[aria-label="Buscar áreas, sistemas e configurações"]')`);
+            await send('Input.insertText', { text: 'configuracoes' });
+            await waitFor(`document.querySelector('[data-search-href="#/configuracoes"]')`);
+            const mobileSearch = performance.now();
+            await click('[data-search-href="#/configuracoes"]');
+            await waitFor(`location.hash==='#/configuracoes'`);
+            await sleep(180);
+            report.mobile.searchMs = Math.round((performance.now() - mobileSearch) * 10) / 10;
+            await screenshot('mobile-configuracoes');
+
+            await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+            await evaluate(`location.hash='#/visao-geral'`);
+            await waitFor(`location.hash==='#/visao-geral'`);
+            await sleep(220);
+            const reducedAnimations = await evaluate(`document.getAnimations().filter(a=>{const t=a.effect?.target;return t instanceof Element&&t.closest('.ambient-constellation')&&a.playState==='running'}).length`);
+
+            const contrast = (fg, bg) => {
+              const lum = (hex) => { const c=hex.match(/[a-f\d]{2}/gi).map(x=>parseInt(x,16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4); return c[0]*.2126+c[1]*.7152+c[2]*.0722; };
+              const a=lum(fg),b=lum(bg); return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+            };
+            report.accessibility.contrastOnLightBlue = Math.round(contrast('365b86','cce5f1')*100)/100;
+            report.accessibility.contrastOnIceBlue = Math.round(contrast('365b86','e8f3ff')*100)/100;
+            report.accessibility.oldColorNodes = await evaluate(`[...document.querySelectorAll('*')].filter(n=>getComputedStyle(n).color==='rgb(78, 117, 165)').length`);
+            report.accessibility.reducedMotionAmbientAnimations = reducedAnimations;
+
+            report.performance.maxParticles = maxParticles;
+            report.performance.maxAmbientAnimations = maxAnimations;
+            report.performance.maxDomNodes = maxDom;
+            report.performance.longTasksMs = await evaluate(`window.__qaLong||[]`);
+            report.performance.visualCost = visualCost;
+            const metrics = await send('Performance.getMetrics');
+            report.performance.metrics = Object.fromEntries(metrics.metrics.filter(m=>['JSHeapUsedSize','Nodes','LayoutCount','RecalcStyleCount','TaskDuration'].includes(m.name)).map(m=>[m.name,m.value]));
+
+            const routeMax = Math.max(...Object.values(report.routes));
+            const longMax = Math.max(0, ...report.performance.longTasksMs);
+            if (routeMax > 350) report.failures.push(`route latency ${routeMax}ms`);
+            if (report.search.openMs > 350) report.failures.push(`search open ${report.search.openMs}ms`);
+            if (report.search.navigateMs > 350) report.failures.push(`search navigation ${report.search.navigateMs}ms`);
+            if (!report.search.ctrlK || !report.search.escapeClosed) report.failures.push('search keyboard interaction');
+            if (report.mobile.navigationMs > 500 || !report.mobile.drawerClosed) report.failures.push('mobile navigation');
+            if (report.mobile.searchMs > 500) report.failures.push(`mobile search ${report.mobile.searchMs}ms`);
+            if (maxParticles > 384) report.failures.push(`particles ${maxParticles}`);
+            if (maxAnimations > 6) report.failures.push(`ambient animations ${maxAnimations}`);
+            if (maxDom > 2600) report.failures.push(`DOM nodes ${maxDom}`);
+            if (longMax > 200) report.failures.push(`long task ${longMax}ms`);
+            if (visualCost.topBackdrop !== 'none' || visualCost.sideBackdrop !== 'none') report.failures.push('heavy sticky backdrop');
+            if (visualCost.ambientFilters !== 0) report.failures.push(`ambient filters ${visualCost.ambientFilters}`);
+            if (visualCost.selectedBefore && !['none','normal'].includes(visualCost.selectedBefore.content) && visualCost.selectedBefore.width !== '0px') report.failures.push('selected sidebar bar');
+            if (reducedAnimations !== 0) report.failures.push(`reduced-motion animations ${reducedAnimations}`);
+            if (report.accessibility.contrastOnLightBlue < 4.5 || report.accessibility.contrastOnIceBlue < 4.5) report.failures.push('contrast');
+            if (report.accessibility.oldColorNodes !== 0) report.failures.push(`old contrast color nodes ${report.accessibility.oldColorNodes}`);
+
+            report.status = report.failures.length ? 'FAIL' : 'PASS';
+          } catch (error) {
+            report.status = 'FAIL';
+            report.failures.push(error instanceof Error ? error.message : String(error));
+            try {
+              if (socket?.readyState === WebSocket.OPEN) {
+                const id = ++seq;
+                const shot = await new Promise((resolve, reject) => {
+                  pending.set(id, { resolve, reject });
+                  socket.send(JSON.stringify({ id, method: 'Page.captureScreenshot', params: { format: 'png', fromSurface: true } }));
+                });
+                fs.writeFileSync('qa-artifacts/failure.png', Buffer.from(shot.data, 'base64'));
+              }
+            } catch {}
+          } finally {
+            save();
+            console.log(JSON.stringify(report, null, 2));
+            socket?.close();
+          }
+          if (report.status !== 'PASS') process.exit(1);
+          NODE
+          node /tmp/browser-qa.mjs
+
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ui-hardening-browser-qa-v2
+          path: qa-artifacts
+          if-no-files-found: error
+          retention-days: 7
