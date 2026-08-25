@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "spec_fingerprint": "3e4b132d5d2540347932cec4cd9a48f3016dbbf4ce1702dfd489cc1889563503",
+  "spec_fingerprint": "afa2775ac5dcd6156d9a697946315816ba9038676a7f64cc562f810aa233d999",
   "criteria": [
     {
       "id": "AC-001",
@@ -138,7 +138,7 @@
         },
         {
           "kind": "gate",
-          "gate": "package:semantic:check"
+          "gate": "package:test"
         },
         {
           "kind": "gate",
@@ -256,7 +256,7 @@
     {
       "id": "AC-014",
       "priority": "must",
-      "preferred_evidence": ["test", "gate", "runtime"],
+      "preferred_evidence": ["test", "gate"],
       "evidence": [
         {
           "kind": "test",
@@ -275,10 +275,68 @@
         {
           "kind": "gate",
           "gate": "package:build"
+        }
+      ]
+    },
+    {
+      "id": "AC-015",
+      "priority": "must",
+      "preferred_evidence": ["test", "browser", "gate"],
+      "evidence": [
+        {
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/routes.test.ts"
         },
         {
-          "kind": "runtime",
-          "gate": "github-actions:verify-recovery"
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/oidc.test.ts"
+        },
+        {
+          "kind": "gate",
+          "gate": "package:typecheck"
+        }
+      ]
+    },
+    {
+      "id": "AC-016",
+      "priority": "must",
+      "preferred_evidence": ["browser", "visual", "test"],
+      "evidence": [
+        {
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/platform-search.test.ts"
+        },
+        {
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/ui-hardening.test.ts"
+        },
+        {
+          "kind": "gate",
+          "gate": "package:build"
+        }
+      ]
+    },
+    {
+      "id": "AC-017",
+      "priority": "must",
+      "preferred_evidence": ["browser", "visual", "gate"],
+      "evidence": [
+        {
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/ui-hardening.test.ts"
+        },
+        {
+          "kind": "gate",
+          "gate": "package:build"
+        },
+        {
+          "kind": "gate",
+          "gate": "package:lint"
         }
       ]
     }

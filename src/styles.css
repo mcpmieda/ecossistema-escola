@@ -389,7 +389,7 @@ body {
   font-size: 0.62rem;
 }
 
-.platform-search-trigger {
+.platform-search-field {
   min-height: 2.6rem;
   border-color: color-mix(in oklab, var(--border) 72%, transparent);
   background: var(--surface-secondary);
@@ -398,23 +398,37 @@ body {
     border-color 90ms ease;
 }
 
-.platform-search-trigger:hover,
-.platform-search-trigger[data-pressed='true'] {
+.platform-search-field:hover,
+.platform-search-field[data-focus-within='true'] {
   border-color: color-mix(in oklab, var(--accent) 28%, var(--border));
   background: color-mix(in oklab, var(--accent-soft) 46%, var(--surface-secondary));
 }
 
-.platform-search-results.list-box {
+.platform-search-results {
   max-height: 21rem;
+  margin: 0;
   gap: 0.25rem;
   overflow-y: auto;
   border: 0;
   background: transparent;
+  list-style: none;
   padding: 0;
   box-shadow: none;
 }
 
-.platform-search-results .list-box-item,
+.platform-search-popover {
+  min-width: min(28rem, calc(100vw - 2rem));
+}
+
+.platform-search-mobile-panel {
+  width: 100%;
+  padding-block: 0.25rem 0.5rem;
+}
+
+.platform-search-shortcut {
+  white-space: nowrap;
+}
+
 .platform-search-results__item {
   gap: 0.7rem;
   border-radius: 1rem;
@@ -422,14 +436,11 @@ body {
   transition: background-color 90ms ease;
 }
 
-.platform-search-results .list-box-item:hover,
 .platform-search-results__item:hover {
   background: var(--surface-secondary);
 }
 
-.platform-search-results .list-box-item:focus-visible,
 .platform-search-results__item:focus-visible,
-.platform-search-results .list-box-item[data-focus-visible='true'],
 .platform-search-results__item[data-focus-visible='true'] {
   outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
   outline-offset: -2px;
@@ -447,6 +458,20 @@ body {
 .profile-menu-trigger[data-pressed='true'] {
   border-color: color-mix(in oklab, var(--border) 75%, transparent);
   background: var(--surface-secondary);
+}
+
+.table__scroll-container {
+  overscroll-behavior-inline: contain;
+  scrollbar-color: color-mix(in oklab, var(--accent) 38%, var(--border)) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+@media (max-width: 767px) {
+  .table__scroll-container {
+    padding-bottom: 0.35rem;
+    box-shadow: inset -14px 0 14px -16px color-mix(in oklab, var(--foreground) 38%, transparent);
+  }
 }
 
 .breadcrumbs {
@@ -565,7 +590,7 @@ body {
   .platform-search-results .list-box-item,
   .platform-search-results__item,
   .profile-menu-trigger,
-  .platform-search-trigger {
+  .platform-search-field {
     transition: none !important;
   }
 }

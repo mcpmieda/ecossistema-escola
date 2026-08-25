@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "depth": "domain",
-  "source_contract_fingerprint": "3e4b132d5d2540347932cec4cd9a48f3016dbbf4ce1702dfd489cc1889563503",
+  "source_contract_fingerprint": "afa2775ac5dcd6156d9a697946315816ba9038676a7f64cc562f810aa233d999",
   "glossary": [
     {
       "id": "TERM-001",
@@ -50,6 +50,18 @@
       "term": "Módulo integrado",
       "definition": "Módulo registrado que possui manifesto versionado reconhecido pelo Centro, metadados operacionais compatíveis e capabilities necessárias para a sessão corrente.",
       "aliases": ["integração de módulo"]
+    },
+    {
+      "id": "TERM-009",
+      "term": "Transação de autenticação",
+      "definition": "Estado temporário selado que liga uma tentativa de entrada ao callback por state, nonce, PKCE verifier e expiração, sem se tornar sessão do usuário.",
+      "aliases": ["auth transaction", "transação OIDC"]
+    },
+    {
+      "id": "TERM-010",
+      "term": "Recuperação de autenticação",
+      "definition": "Encerramento seguro de uma tentativa inválida com limpeza do estado temporário e retorno do usuário a uma nova entrada sem loop ou exposição de detalhes internos.",
+      "aliases": ["auth recovery"]
     }
   ],
   "entities": [
@@ -126,6 +138,18 @@
       "name": "EstadoIntegracaoModulo",
       "definition": "Resultado fail-closed da comparação entre registro operacional, manifesto versionado e capabilities da sessão.",
       "attributes": ["integrationState", "integrationIssues", "available"]
+    },
+    {
+      "id": "ENT-009",
+      "name": "TransacaoAutenticacao",
+      "definition": "Envelope temporário HttpOnly e selado usado para validar exatamente uma tentativa de authorization code flow com PKCE.",
+      "attributes": ["state", "nonce", "verifier", "exp"]
+    },
+    {
+      "id": "ENT-010",
+      "name": "FalhaAutenticacao",
+      "definition": "Evento browser-facing recuperável identificado por categoria, etapa, status e correlation ID, sem carregar material sensível da transação.",
+      "attributes": ["category", "step", "status", "correlationId"]
     }
   ],
   "relations": [],
@@ -137,6 +161,18 @@
     {
       "id": "STATE-002",
       "name": "officially-released"
+    },
+    {
+      "id": "STATE-003",
+      "name": "auth-transaction-active"
+    },
+    {
+      "id": "STATE-004",
+      "name": "auth-recovery-required"
+    },
+    {
+      "id": "STATE-005",
+      "name": "auth-session-established"
     }
   ],
   "transitions": [],
@@ -409,6 +445,72 @@
       "concept_refs": ["TERM-004", "TERM-006", "ENT-004", "ENT-005"],
       "acceptance_refs": ["AC-014"],
       "invariant_refs": ["INV-002", "INV-012"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-015",
+      "priority": "must",
+      "pattern": "unwanted",
+      "component": "Fluxo OIDC browser-facing",
+      "scope": ["/auth/login", "/auth/callback", "mobile", "desktop", "desktop mode mobile"],
+      "preconditions": ["fundação Microsoft Entra ID/BFF preservada"],
+      "trigger": "uma transação é iniciada, repetida, expira, é cancelada ou retorna incompleta",
+      "response": [
+        "Criar uma transação nova no login e manter o token exchange exclusivamente como POST server-side.",
+        "Validar state, nonce, PKCE e expiração antes de estabelecer sessão.",
+        "Limpar o cookie temporário e redirecionar falhas para a tela do Centro com a mensagem Não foi possível concluir sua entrada, correlation ID secundário e ação Entrar novamente.",
+        "Registrar somente categoria, etapa, status e correlation ID, sem tokens, códigos, state, nonce, verifier, cookie ou secret."
+      ],
+      "timing": "antes de qualquer nova tentativa ou exposição de resposta ao navegador",
+      "concept_refs": [
+        "TERM-009",
+        "TERM-010",
+        "ENT-009",
+        "ENT-010",
+        "STATE-003",
+        "STATE-004",
+        "STATE-005"
+      ],
+      "acceptance_refs": ["AC-015"],
+      "invariant_refs": ["INV-001", "INV-013", "INV-014"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-016",
+      "priority": "must",
+      "pattern": "ubiquitous",
+      "component": "Header HeroUI e sessão",
+      "scope": ["perfil", "busca", "breadcrumb", "logout", "desktop", "mobile"],
+      "preconditions": ["shell administrativo autenticado"],
+      "response": [
+        "Compor perfil com Avatar e Dropdown HeroUI e truncar nome/cargo.",
+        "Manter a digitação no SearchField do próprio header, sem Drawer de pesquisa no mobile.",
+        "Navegar e fechar resultados na mesma interação, preservando foco, teclado e Escape.",
+        "Limpar sessão e transação temporária no logout com resposta sem cache."
+      ],
+      "timing": "durante toda interação do header",
+      "concept_refs": ["TERM-009", "ENT-002", "ENT-009"],
+      "acceptance_refs": ["AC-016"],
+      "invariant_refs": ["INV-013", "INV-014"],
+      "formalization_refs": []
+    },
+    {
+      "id": "REQ-017",
+      "priority": "must",
+      "pattern": "ubiquitous",
+      "component": "Apresentação responsiva HeroUI",
+      "scope": ["todas as páginas", "tabelas", "rodapé", "loading", "empty", "erro", "login"],
+      "preconditions": [],
+      "response": [
+        "Usar Breadcrumbs e Table.ScrollContainer HeroUI com estratégia mobile utilizável.",
+        "Empilhar o rodapé sem truncamento destrutivo.",
+        "Manter Ambient Constellation somente no background geral e estática em reduced-motion.",
+        "Preservar contraste, foco e ausência de overflow crítico em viewports estreitas."
+      ],
+      "timing": "em desktop, mobile, zoom e preferências de movimento reduzido",
+      "concept_refs": ["TERM-001", "ENT-001"],
+      "acceptance_refs": ["AC-017"],
+      "invariant_refs": ["INV-015"],
       "formalization_refs": []
     }
   ],

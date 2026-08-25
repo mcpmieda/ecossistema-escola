@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { authorizationUrl, newAuthTransaction } from '../server/auth/oidc';
 import { testEnv } from './fixtures';
@@ -29,5 +31,12 @@ describe('OIDC transaction', () => {
     const url = new URL(authorizationUrl(testEnv, await newAuthTransaction()));
     expect(url.searchParams.get('response_type')).toBe('code');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+  });
+  it('keeps the token exchange server-side and POST-only', () => {
+    const oidcSource = readFileSync(join(process.cwd(), 'server/auth/oidc.ts'), 'utf8');
+    expect(oidcSource).toContain("method: 'POST'");
+    expect(oidcSource).toContain("grant_type: 'authorization_code'");
+    expect(oidcSource).toContain('code_verifier: verifier');
+    expect(oidcSource).not.toMatch(/window\.location|document\./u);
   });
 });
