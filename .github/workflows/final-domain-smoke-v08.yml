@@ -31,7 +31,7 @@ jobs:
           set -euo pipefail
           base='https://admin.escolaieda.com'
           curl --silent --show-error --fail "${base}/" -o /tmp/root.html
-          asset_path="$(grep -oE 'src=\"/assets/[^\"]+\.js\"' /tmp/root.html | head -n 1 | cut -d'\"' -f2)"
+          asset_path="$(sed -n 's/.*src="\([^"]*\/assets\/[^"]*\.js\)".*/\1/p' /tmp/root.html | head -n 1)"
           test -n "${asset_path}"
           curl --silent --show-error --fail "${base}${asset_path}" -o /tmp/app.js
           grep --quiet --fixed-strings 'Centro de Administração' /tmp/app.js
