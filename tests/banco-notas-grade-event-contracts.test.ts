@@ -4,10 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const root = process.cwd();
 const openapi = readFileSync(join(root, 'api/banco-notas-grade-events-v1.openapi.yaml'), 'utf8');
-const asyncapi = readFileSync(
-  join(root, 'api/banco-notas-grade-events-v1.asyncapi.yaml'),
-  'utf8',
-);
+const asyncapi = readFileSync(join(root, 'api/banco-notas-grade-events-v1.asyncapi.yaml'), 'utf8');
 
 describe('Banco de Notas grade-event contracts', () => {
   it('uses the definitive same-origin Banco API instead of the POC host', () => {
