@@ -17,7 +17,7 @@ describe('Banco de Notas shell', () => {
     expect(source).toMatch(/\bSelect\b/u);
     expect(source).toMatch(/\bSwitch\b/u);
     expect(source).toMatch(/\bListBox\b/u);
-    expect(source).not.toMatch(/<(?:input|select|option)\b/iu);
+    expect(source).not.toMatch(/<(?:input|select|option)\b/u);
   });
 
   it('does not activate synchronization implicitly', () => {
