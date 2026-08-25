@@ -119,5 +119,5 @@ export type GradeEventStore = {
   findByIdempotencyKey(idempotencyKey: string): Promise<StoredGradeEvent | null>;
   getSnapshot(gradeKey: string, field: GradeField): Promise<GradeSnapshot | null>;
   assertIngestionAllowed(input: GradeEventInput): Promise<void>;
-  commit(command: GradeEventCommit, provenanceJson: string): Promise<void>;
+  commit(command: GradeEventCommit, provenanceJson: string): Promise<GradeEventCommit>;
 };
