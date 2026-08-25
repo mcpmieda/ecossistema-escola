@@ -1,3 +1,4 @@
+import { Alert, Card, Chip, Skeleton, Spinner, Surface, Table } from '@heroui/react';
 import {
   Activity,
   BookOpenText,
@@ -10,24 +11,6 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { AmbientConstellation } from '@/components/ambient-constellation';
-import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import type {
   ModuleIntegrationState,
   PlatformRoute,
@@ -53,6 +36,14 @@ function integrationStateLabel(state: ModuleIntegrationState): string {
   }
 }
 
+function integrationChip(state: ModuleIntegrationState) {
+  if (state === 'ready') return { color: 'success' as const, variant: 'soft' as const };
+  if (state === 'contract-mismatch' || state === 'invalid-registry') {
+    return { color: 'danger' as const, variant: 'soft' as const };
+  }
+  return { color: 'default' as const, variant: 'soft' as const };
+}
+
 function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
   const activeConfigurations = snapshot.configurations.filter(
     (configuration) => configuration.active,
@@ -63,16 +54,15 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
 
   return (
     <>
-      <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-warning/20 bg-warning-soft px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="relative flex size-2">
-            <span className="absolute inline-flex size-full rounded-full bg-warning/25 motion-safe:animate-ping" />
-            <span className="relative inline-flex size-2 rounded-full bg-warning" />
-          </span>
-          <span className="font-semibold">Centro v0.9 em validação controlada</span>
-        </div>
-        <span className="text-xs text-muted">Acesso restrito a administradores</span>
-      </div>
+      <Alert status="warning" className="mb-5">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Centro em validação controlada</Alert.Title>
+          <Alert.Description>
+            Acesso restrito às capabilities administrativas existentes.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
 
       <PageHeader
         eyebrow="Visão geral"
@@ -81,84 +71,90 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.55fr)]">
-        <Card className="hero-surface hero-surface--strong min-h-72 overflow-hidden">
-          <AmbientConstellation intensity="medium" placement="right" />
-          <CardHeader>
+        <Surface variant="secondary" className="living-surface min-h-80 rounded-[2rem] p-6 sm:p-7">
+          <AmbientConstellation intensity="strong" placement="right" />
+          <div className="living-aura living-aura--right" />
+          <div className="relative z-10 flex min-h-[19rem] flex-col">
             <div className="flex items-center gap-2 text-accent">
               <CircleGauge className="size-4" />
               <span className="text-xs font-semibold uppercase tracking-[0.14em]">Fundação</span>
             </div>
-            <CardTitle className="mt-4 text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
+            <h3 className="mt-5 max-w-xl text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
               {snapshot.foundation.status === 'ok' ? 'Estrutura disponível' : 'Estrutura degradada'}
-            </CardTitle>
-            <CardDescription className="max-w-xl">
+            </h3>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
               O estado deriva da presença real das estruturas obrigatórias. Sinais detalhados,
               cobertura de health checks e lacunas de recuperação ficam na área de Operação.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="mt-auto grid gap-2 sm:grid-cols-3">
-            {[
-              'Sessão autenticada',
-              'Acesso administrativo',
-              snapshot.foundation.expectedPlatformListsPresent
-                ? 'Estrutura completa'
-                : 'Estrutura requer atenção',
-            ].map((item) => (
-              <div
-                key={item}
-                className="flex items-center gap-2 rounded-2xl border border-border/75 bg-surface/75 px-3 py-2.5 text-xs text-foreground backdrop-blur-sm"
-              >
-                <CheckCircle2 className="size-3.5 text-success" />
-                {item}
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+            </p>
+            <div className="mt-auto grid gap-2 pt-7 sm:grid-cols-3">
+              {[
+                'Sessão autenticada',
+                'Acesso administrativo',
+                snapshot.foundation.expectedPlatformListsPresent
+                  ? 'Estrutura completa'
+                  : 'Estrutura requer atenção',
+              ].map((item) => (
+                <Surface
+                  key={item}
+                  variant="default"
+                  className="stagger-item flex items-center gap-2 rounded-2xl border border-border/65 px-3 py-2.5 text-xs"
+                >
+                  <CheckCircle2 className="size-3.5 text-success" />
+                  {item}
+                </Surface>
+              ))}
+            </div>
+          </div>
+        </Surface>
 
         <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-          <Card size="sm">
-            <CardHeader>
-              <CardDescription>Persistência</CardDescription>
-              <CardTitle className="text-2xl">{snapshot.foundation.sharePointListCount}</CardTitle>
-              <CardAction>
-                <Database className="size-4 text-muted" />
-              </CardAction>
-            </CardHeader>
-            <CardContent className="text-xs text-muted">listas institucionais</CardContent>
+          <Card variant="default" className="stagger-item">
+            <Card.Header className="flex-row items-start justify-between">
+              <div>
+                <Card.Description>Persistência</Card.Description>
+                <Card.Title className="mt-1 text-2xl">
+                  {snapshot.foundation.sharePointListCount}
+                </Card.Title>
+              </div>
+              <Database className="size-4 text-muted" />
+            </Card.Header>
+            <Card.Content className="text-xs text-muted">listas institucionais</Card.Content>
           </Card>
-          <Card size="sm">
-            <CardHeader>
-              <CardDescription>Núcleo disponível</CardDescription>
-              <CardTitle className="text-2xl">{validationModules}</CardTitle>
-              <CardAction>
-                <Boxes className="size-4 text-muted" />
-              </CardAction>
-            </CardHeader>
-            <CardContent className="text-xs text-muted">áreas em validação</CardContent>
+          <Card variant="default" className="stagger-item">
+            <Card.Header className="flex-row items-start justify-between">
+              <div>
+                <Card.Description>Núcleo disponível</Card.Description>
+                <Card.Title className="mt-1 text-2xl">{validationModules}</Card.Title>
+              </div>
+              <Boxes className="size-4 text-muted" />
+            </Card.Header>
+            <Card.Content className="text-xs text-muted">áreas em validação</Card.Content>
           </Card>
-          <Card size="sm">
-            <CardHeader>
-              <CardDescription>Configurações</CardDescription>
-              <CardTitle className="text-2xl">{activeConfigurations}</CardTitle>
-              <CardAction>
-                <Settings2 className="size-4 text-muted" />
-              </CardAction>
-            </CardHeader>
-            <CardContent className="text-xs text-muted">ativas no registro</CardContent>
+          <Card variant="default" className="stagger-item">
+            <Card.Header className="flex-row items-start justify-between">
+              <div>
+                <Card.Description>Configurações</Card.Description>
+                <Card.Title className="mt-1 text-2xl">{activeConfigurations}</Card.Title>
+              </div>
+              <Settings2 className="size-4 text-muted" />
+            </Card.Header>
+            <Card.Content className="text-xs text-muted">ativas no registro</Card.Content>
           </Card>
         </div>
       </div>
 
-      <Card className="mt-5 gap-0 overflow-hidden py-0">
-        <CardHeader className="border-b border-border/70 py-4">
-          <CardTitle>Áreas do Centro</CardTitle>
-          <CardDescription>Acesse o núcleo e acompanhe o estado de cada área.</CardDescription>
-        </CardHeader>
-        <div className="divide-y divide-border/70">
-          {snapshot.coreModules.map((module) => (
-            <ModuleRow key={module.id} module={module} />
-          ))}
-        </div>
+      <Card variant="default" className="mt-5 overflow-hidden">
+        <Card.Header className="border-b border-border/60">
+          <Card.Title>Áreas do Centro</Card.Title>
+          <Card.Description>Acesse o núcleo e acompanhe o estado de cada área.</Card.Description>
+        </Card.Header>
+        <Card.Content className="p-0">
+          <div className="divide-y divide-border/60">
+            {snapshot.coreModules.map((module) => (
+              <ModuleRow key={module.id} module={module} />
+            ))}
+          </div>
+        </Card.Content>
       </Card>
     </>
   );
@@ -173,107 +169,108 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
         description="O registro institucional é inventário; o Centro só considera um sistema integrado quando existe contrato versionado compatível e autorização suficiente."
       />
 
-      <Card className="gap-0 overflow-hidden py-0">
-        <CardHeader className="border-b border-border/70 py-4">
-          <CardTitle>Módulos do núcleo</CardTitle>
-          <CardDescription>
+      <Card variant="default" className="overflow-hidden">
+        <Card.Header className="border-b border-border/60">
+          <Card.Title>Módulos do núcleo</Card.Title>
+          <Card.Description>
             {snapshot.coreModules.length} áreas definidas por contrato.
-          </CardDescription>
-        </CardHeader>
-        <div className="divide-y divide-border/70">
-          {snapshot.coreModules.map((module) => (
-            <ModuleRow key={module.id} module={module} />
-          ))}
-        </div>
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="p-0">
+          <div className="divide-y divide-border/60">
+            {snapshot.coreModules.map((module) => (
+              <ModuleRow key={module.id} module={module} />
+            ))}
+          </div>
+        </Card.Content>
       </Card>
 
-      <Card className="mt-5 gap-0 overflow-hidden py-0">
-        <CardHeader className="border-b border-border/70 py-4">
-          <CardTitle>Registro e integração</CardTitle>
-          <CardDescription>
-            O estado abaixo compara o inventário SharePoint com o manifesto versionado reconhecido
-            pelo Centro. Registro isolado não concede acesso.
-          </CardDescription>
-        </CardHeader>
-        {snapshot.registeredModules.length === 0 ? (
-          <EmptyState
-            title="Nenhum sistema independente registrado"
-            description="O catálogo está preparado para receber novos sistemas sem duplicar autenticação, sessão ou infraestrutura compartilhada."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Sistema</TableHead>
-                  <TableHead>Versão</TableHead>
-                  <TableHead>Registro</TableHead>
-                  <TableHead>Integração</TableHead>
-                  <TableHead>Capabilities</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {snapshot.registeredModules.map((module) => (
-                  <TableRow key={module.id}>
-                    <TableCell>
-                      <div className="font-medium">{module.name}</div>
-                      <div className="mt-0.5 font-mono text-xs text-muted">{module.key}</div>
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {module.version || '—'}
-                      {module.contractVersion !== null && (
-                        <div className="mt-0.5 text-xs text-muted">
-                          contrato v{module.contractVersion}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{module.status}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col items-start gap-1.5">
-                        <Badge
-                          variant={
-                            module.integrationState === 'ready'
-                              ? 'outline'
-                              : module.integrationState === 'contract-mismatch' ||
-                                  module.integrationState === 'invalid-registry'
-                                ? 'destructive'
-                                : 'secondary'
-                          }
-                        >
-                          {integrationStateLabel(module.integrationState)}
-                        </Badge>
-                        {module.integrationIssues.length > 0 && (
-                          <span className="text-xs text-muted">
-                            Divergência: {module.integrationIssues.join(', ')}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="min-w-56">
-                      {module.requiredCapabilities.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {module.requiredCapabilities.map((capability) => (
-                            <Badge
-                              key={capability}
-                              variant="secondary"
-                              className="font-mono text-[0.68rem]"
-                            >
-                              {capability}
-                            </Badge>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted">Sem manifesto integrado</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+      <Card variant="default" className="mt-5 overflow-hidden">
+        <Card.Header className="border-b border-border/60">
+          <Card.Title>Registro e integração</Card.Title>
+          <Card.Description>
+            O estado compara o inventário SharePoint com o manifesto versionado reconhecido pelo
+            Centro. Registro isolado não concede acesso.
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="p-0">
+          {snapshot.registeredModules.length === 0 ? (
+            <EmptyState
+              title="Nenhum sistema independente registrado"
+              description="O catálogo está preparado para receber novos sistemas sem duplicar autenticação, sessão ou infraestrutura compartilhada."
+            />
+          ) : (
+            <Table variant="secondary">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Registro e integração dos sistemas">
+                  <Table.Header>
+                    <Table.Column id="system">Sistema</Table.Column>
+                    <Table.Column id="version">Versão</Table.Column>
+                    <Table.Column id="registry">Registro</Table.Column>
+                    <Table.Column id="integration">Integração</Table.Column>
+                    <Table.Column id="capabilities">Capabilities</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {snapshot.registeredModules.map((module) => {
+                      const stateChip = integrationChip(module.integrationState);
+                      return (
+                        <Table.Row id={module.id} key={module.id}>
+                          <Table.Cell>
+                            <div className="font-medium">{module.name}</div>
+                            <div className="mt-0.5 font-mono text-xs text-muted">{module.key}</div>
+                          </Table.Cell>
+                          <Table.Cell className="whitespace-nowrap">
+                            {module.version || '—'}
+                            {module.contractVersion !== null && (
+                              <div className="mt-0.5 text-xs text-muted">
+                                contrato v{module.contractVersion}
+                              </div>
+                            )}
+                          </Table.Cell>
+                          <Table.Cell>
+                            <Chip variant="soft" size="sm">
+                              {module.status}
+                            </Chip>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <div className="flex flex-col items-start gap-1.5">
+                              <Chip color={stateChip.color} variant={stateChip.variant} size="sm">
+                                {integrationStateLabel(module.integrationState)}
+                              </Chip>
+                              {module.integrationIssues.length > 0 && (
+                                <span className="text-xs text-muted">
+                                  Divergência: {module.integrationIssues.join(', ')}
+                                </span>
+                              )}
+                            </div>
+                          </Table.Cell>
+                          <Table.Cell className="min-w-56">
+                            {module.requiredCapabilities.length > 0 ? (
+                              <div className="flex flex-wrap gap-1.5">
+                                {module.requiredCapabilities.map((capability) => (
+                                  <Chip
+                                    key={capability}
+                                    variant="soft"
+                                    size="sm"
+                                    className="font-mono text-[0.68rem]"
+                                  >
+                                    {capability}
+                                  </Chip>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted">Sem manifesto integrado</span>
+                            )}
+                          </Table.Cell>
+                        </Table.Row>
+                      );
+                    })}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
-          </div>
-        )}
+          )}
+        </Card.Content>
       </Card>
     </>
   );
@@ -287,49 +284,53 @@ function AuditPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
         title="Auditoria"
         description="Eventos administrativos disponíveis para consulta, sem expor detalhes sensíveis no navegador."
       />
-      <Card className="gap-0 overflow-hidden py-0">
-        <CardHeader className="border-b border-border/70 py-4">
-          <CardTitle>Atividade recente</CardTitle>
-          <CardDescription>Somente leitura nesta candidata.</CardDescription>
-        </CardHeader>
-        {snapshot.recentAudit.length === 0 ? (
-          <EmptyState
-            icon={Activity}
-            title="Nenhum evento administrativo registrado"
-            description="A estrutura de auditoria está pronta; novos eventos aparecerão quando operações auditáveis forem ativadas."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Quando</TableHead>
-                  <TableHead>Módulo</TableHead>
-                  <TableHead>Ação</TableHead>
-                  <TableHead>Resultado</TableHead>
-                  <TableHead>Correlação</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {snapshot.recentAudit.map((entry) => (
-                  <TableRow key={entry.id}>
-                    <TableCell className="whitespace-nowrap">
-                      {formatDate(entry.occurredAt)}
-                    </TableCell>
-                    <TableCell>{entry.module}</TableCell>
-                    <TableCell>{entry.action}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{entry.result || '—'}</Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted">
-                      {shortCorrelation(entry.correlationId)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+      <Card variant="default" className="overflow-hidden">
+        <Card.Header className="border-b border-border/60">
+          <Card.Title>Atividade recente</Card.Title>
+          <Card.Description>Somente leitura nesta candidata.</Card.Description>
+        </Card.Header>
+        <Card.Content className="p-0">
+          {snapshot.recentAudit.length === 0 ? (
+            <EmptyState
+              icon={Activity}
+              title="Nenhum evento administrativo registrado"
+              description="A estrutura de auditoria está pronta; novos eventos aparecerão quando operações auditáveis forem ativadas."
+            />
+          ) : (
+            <Table variant="secondary">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Atividade administrativa recente">
+                  <Table.Header>
+                    <Table.Column id="when">Quando</Table.Column>
+                    <Table.Column id="module">Módulo</Table.Column>
+                    <Table.Column id="action">Ação</Table.Column>
+                    <Table.Column id="result">Resultado</Table.Column>
+                    <Table.Column id="correlation">Correlação</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {snapshot.recentAudit.map((entry) => (
+                      <Table.Row id={entry.id} key={entry.id}>
+                        <Table.Cell className="whitespace-nowrap">
+                          {formatDate(entry.occurredAt)}
+                        </Table.Cell>
+                        <Table.Cell>{entry.module}</Table.Cell>
+                        <Table.Cell>{entry.action}</Table.Cell>
+                        <Table.Cell>
+                          <Chip variant="soft" size="sm">
+                            {entry.result || '—'}
+                          </Chip>
+                        </Table.Cell>
+                        <Table.Cell className="font-mono text-xs text-muted">
+                          {shortCorrelation(entry.correlationId)}
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
-          </div>
-        )}
+          )}
+        </Card.Content>
       </Card>
     </>
   );
@@ -344,79 +345,91 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
         description="A interface mostra somente metadados de configuração. Valores protegidos não são enviados ao navegador."
       />
 
-      <Card className="gap-0 overflow-hidden py-0">
-        <CardHeader className="border-b border-border/70 py-4">
-          <CardTitle>Registro de configurações</CardTitle>
-          <CardDescription>Chave, escopo, versão e estado de vigência.</CardDescription>
-        </CardHeader>
-        {snapshot.configurations.length === 0 ? (
-          <EmptyState
-            icon={Settings2}
-            title="Nenhuma configuração cadastrada"
-            description="O registro institucional está disponível para receber parâmetros versionados quando suas regras forem definidas."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Chave</TableHead>
-                  <TableHead>Escopo</TableHead>
-                  <TableHead>Versão</TableHead>
-                  <TableHead>Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {snapshot.configurations.map((configuration) => (
-                  <TableRow key={configuration.id}>
-                    <TableCell className="font-medium">{configuration.key}</TableCell>
-                    <TableCell className="text-muted">{configuration.scope}</TableCell>
-                    <TableCell>{configuration.version || '—'}</TableCell>
-                    <TableCell>
-                      <Badge variant={configuration.active ? 'outline' : 'secondary'}>
-                        {configuration.active ? 'Ativa' : 'Inativa'}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+      <Card variant="default" className="overflow-hidden">
+        <Card.Header className="border-b border-border/60">
+          <Card.Title>Registro de configurações</Card.Title>
+          <Card.Description>Chave, escopo, versão e estado de vigência.</Card.Description>
+        </Card.Header>
+        <Card.Content className="p-0">
+          {snapshot.configurations.length === 0 ? (
+            <EmptyState
+              icon={Settings2}
+              title="Nenhuma configuração cadastrada"
+              description="O registro institucional está disponível para receber parâmetros versionados quando suas regras forem definidas."
+            />
+          ) : (
+            <Table variant="secondary">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Configurações institucionais">
+                  <Table.Header>
+                    <Table.Column id="key">Chave</Table.Column>
+                    <Table.Column id="scope">Escopo</Table.Column>
+                    <Table.Column id="version">Versão</Table.Column>
+                    <Table.Column id="state">Estado</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {snapshot.configurations.map((configuration) => (
+                      <Table.Row id={configuration.id} key={configuration.id}>
+                        <Table.Cell className="font-medium">{configuration.key}</Table.Cell>
+                        <Table.Cell className="text-muted">{configuration.scope}</Table.Cell>
+                        <Table.Cell>{configuration.version || '—'}</Table.Cell>
+                        <Table.Cell>
+                          <Chip
+                            color={configuration.active ? 'success' : 'default'}
+                            variant="soft"
+                            size="sm"
+                          >
+                            {configuration.active ? 'Ativa' : 'Inativa'}
+                          </Chip>
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
-          </div>
-        )}
+          )}
+        </Card.Content>
       </Card>
 
-      <Card className="mt-5 gap-0 overflow-hidden py-0">
-        <CardHeader className="border-b border-border/70 py-4">
-          <CardTitle>Migrações registradas</CardTitle>
-          <CardDescription>{snapshot.migrations.length} registro(s) encontrado(s).</CardDescription>
-        </CardHeader>
-        {snapshot.migrations.length === 0 ? (
-          <EmptyState
-            icon={Database}
-            title="Nenhuma migração registrada"
-            description="Esta candidata somente leitura não exigiu migração de módulo."
-          />
-        ) : (
-          <div className="divide-y divide-border/70">
-            {snapshot.migrations.map((migration) => (
-              <div
-                key={migration.id}
-                className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div>
-                  <p className="text-sm font-medium">
-                    {migration.version || 'Versão não informada'}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted">{migration.module}</p>
+      <Card variant="default" className="mt-5 overflow-hidden">
+        <Card.Header className="border-b border-border/60">
+          <Card.Title>Migrações registradas</Card.Title>
+          <Card.Description>
+            {snapshot.migrations.length} registro(s) encontrado(s).
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="p-0">
+          {snapshot.migrations.length === 0 ? (
+            <EmptyState
+              icon={Database}
+              title="Nenhuma migração registrada"
+              description="Esta candidata somente leitura não exigiu migração de módulo."
+            />
+          ) : (
+            <div className="divide-y divide-border/60">
+              {snapshot.migrations.map((migration) => (
+                <div
+                  key={migration.id}
+                  className="stagger-item flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-medium">
+                      {migration.version || 'Versão não informada'}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted">{migration.module}</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted">
+                    <span>{formatDate(migration.appliedAt)}</span>
+                    <Chip variant="soft" size="sm">
+                      {migration.result || '—'}
+                    </Chip>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-muted">
-                  <span>{formatDate(migration.appliedAt)}</span>
-                  <Badge variant="outline">{migration.result || '—'}</Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </Card.Content>
       </Card>
     </>
   );
@@ -446,23 +459,31 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
         title={copy.title}
         description="Esta área já possui lugar definido no Centro, mas ainda não realiza operações de negócio."
       />
-      <Card className="hero-surface hero-surface--strong">
-        <AmbientConstellation intensity="medium" placement="right" />
-        <CardContent className="flex min-h-[360px] flex-col items-center justify-center py-12 text-center">
-          <div className="grid size-12 place-items-center rounded-2xl border border-border bg-surface/80 backdrop-blur-sm">
-            <Icon className="size-5 text-muted" />
-          </div>
-          <Badge variant="secondary" className="mt-5">
-            Planejado
-          </Badge>
-          <h3 className="mt-4 text-lg font-semibold">{copy.title} será incorporado ao núcleo</h3>
-          <p className="mt-2 max-w-xl text-sm leading-6 text-muted">{copy.description}</p>
-          <div className="mt-6 flex items-center gap-2 text-xs text-muted">
-            <ShieldCheck className="size-3.5" />
-            Nenhuma escrita foi ativada nesta candidata.
-          </div>
-        </CardContent>
-      </Card>
+      <Surface
+        variant="secondary"
+        className="living-surface flex min-h-[430px] flex-col items-center justify-center rounded-[2rem] px-6 py-14 text-center"
+      >
+        <AmbientConstellation intensity="strong" placement="center" />
+        <div className="living-aura living-aura--right" />
+        <div className="living-aura living-aura--left" />
+        <div className="living-icon">
+          <Icon className="size-5 text-accent" />
+        </div>
+        <Chip color="accent" variant="soft" size="sm" className="mt-6">
+          Planejado
+        </Chip>
+        <h3 className="mt-5 max-w-xl text-2xl font-semibold tracking-[-0.04em]">
+          {copy.title} será incorporado ao núcleo
+        </h3>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-muted">{copy.description}</p>
+        <Surface
+          variant="default"
+          className="mt-7 flex items-center gap-2 rounded-2xl border border-border/60 px-4 py-3 text-xs text-muted"
+        >
+          <ShieldCheck className="size-3.5 text-accent" />
+          Nenhuma escrita foi ativada nesta candidata.
+        </Surface>
+      </Surface>
     </>
   );
 }
@@ -493,21 +514,37 @@ export function PageContent({
 
 export function LoadingWorkspace() {
   return (
-    <div className="space-y-5" role="status" aria-label="Carregando dados institucionais">
-      <div className="space-y-2">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-8 w-72 max-w-full" />
-        <Skeleton className="h-4 w-[28rem] max-w-full" />
+    <Surface
+      variant="secondary"
+      className="living-surface living-loading-panel rounded-[2rem] p-5 sm:p-7"
+      role="status"
+      aria-label="Carregando dados institucionais"
+    >
+      <AmbientConstellation intensity="strong" placement="center" />
+      <div className="living-aura living-aura--right" />
+      <div className="relative z-10 flex flex-col items-center py-8 text-center">
+        <div className="loading-orbit">
+          <Spinner color="accent" size="lg" />
+        </div>
+        <Chip color="accent" variant="soft" size="sm" className="mt-5">
+          Preparando o Centro
+        </Chip>
+        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em]">
+          Carregando dados institucionais
+        </h2>
+        <p className="mt-2 max-w-md text-sm leading-6 text-muted">
+          O shell já está disponível enquanto o snapshot autorizado é preparado.
+        </p>
       </div>
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.55fr)]">
-        <Skeleton className="min-h-72 rounded-3xl" />
+      <div className="relative z-10 mt-3 grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.55fr)]">
+        <Skeleton className="stagger-item min-h-64 rounded-3xl" />
         <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
-          <Skeleton className="h-24 rounded-3xl" />
-          <Skeleton className="h-24 rounded-3xl" />
-          <Skeleton className="h-24 rounded-3xl" />
+          <Skeleton className="stagger-item h-24 rounded-3xl" />
+          <Skeleton className="stagger-item h-24 rounded-3xl" />
+          <Skeleton className="stagger-item h-24 rounded-3xl" />
         </div>
       </div>
-      <Skeleton className="h-72 rounded-3xl" />
-    </div>
+      <Skeleton className="stagger-item relative z-10 mt-4 h-60 rounded-3xl" />
+    </Surface>
   );
 }
