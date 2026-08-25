@@ -68,7 +68,6 @@
     color-mix(in srgb, var(--heroui-pro-glow-cyan) 52%, transparent) 0%,
     transparent 70%
   );
-  animation: ambient-glow-cyan 42s ease-in-out infinite;
 }
 
 .ambient-constellation__glow--blue {
@@ -81,7 +80,6 @@
     transparent 72%
   );
   opacity: 0.24;
-  animation: ambient-glow-blue 48s ease-in-out infinite;
 }
 
 .ambient-constellation[data-placement='right'] .ambient-constellation__glow--cyan {
@@ -132,7 +130,6 @@
 .ambient-constellation__particle[data-glint='true'] {
   border-radius: 40%;
   box-shadow: 0 0 5px color-mix(in oklab, currentColor 42%, transparent);
-  animation: ambient-glint 9s ease-in-out infinite;
 }
 
 .ambient-constellation__particle[data-glint='true']::before,
@@ -191,44 +188,6 @@
   }
 }
 
-@keyframes ambient-glint {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-
-  48%,
-  52% {
-    opacity: 0.9;
-  }
-}
-
-@keyframes ambient-glow-cyan {
-  0%,
-  100% {
-    opacity: 0.2;
-    transform: translate3d(-2%, 1%, 0) scale(0.98);
-  }
-
-  50% {
-    opacity: 0.3;
-    transform: translate3d(4%, -2%, 0) scale(1.03);
-  }
-}
-
-@keyframes ambient-glow-blue {
-  0%,
-  100% {
-    opacity: 0.18;
-    transform: translate3d(2%, 0, 0) scale(0.99);
-  }
-
-  50% {
-    opacity: 0.28;
-    transform: translate3d(-4%, -3%, 0) scale(1.04);
-  }
-}
-
 @media (max-width: 640px) {
   .ambient-constellation__layer {
     inset: -34% -28%;
@@ -244,9 +203,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ambient-constellation__layer,
-  .ambient-constellation__glow,
-  .ambient-constellation__particle[data-glint='true'] {
+  .ambient-constellation__layer {
     animation: none !important;
   }
 
