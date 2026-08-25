@@ -34,6 +34,30 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Show semantic contract fingerprint
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { readFileSync } from 'node:fs';
+          const canonicalize = (value) => {
+            if (Array.isArray(value)) return value.map(canonicalize);
+            if (value && typeof value === 'object') {
+              return Object.fromEntries(
+                Object.keys(value)
+                  .sort()
+                  .map((key) => [key, canonicalize(value[key])]),
+              );
+            }
+            return value;
+          };
+          const spec = JSON.parse(readFileSync('specs/semantic-contract.json', 'utf8'));
+          const fingerprint = createHash('sha256')
+            .update(JSON.stringify(canonicalize(spec)), 'utf8')
+            .digest('hex');
+          console.log(`SEMANTIC_CONTRACT_FINGERPRINT=${fingerprint}`);
+          NODE
+
       - name: Check formatting
         run: npm run format:check
 
