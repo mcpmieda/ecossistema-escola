@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Chip, Kbd, SearchField, Surface } from '@heroui/react';
+import { Button, Chip, Kbd, Label, SearchField, Surface } from '@heroui/react';
 import { Boxes, Search, Settings2, X } from 'lucide-react';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, type PlatformSearchItem } from './search-model';
@@ -95,21 +95,21 @@ function InlineSearchField({
 }) {
   return (
     <SearchField
-      aria-label="Buscar áreas, sistemas e configurações"
-      variant="secondary"
+      name="platform-search"
       fullWidth
       value={query}
       onChange={setQuery}
       onClear={() => setQuery('')}
       isDisabled={isDisabled}
     >
-      <SearchField.Group className="platform-search-field">
+      <Label className="sr-only">Buscar no Centro</Label>
+      <SearchField.Group>
         <SearchField.SearchIcon />
         <SearchField.Input ref={inputRef} placeholder="Buscar no Centro" onFocus={onFocus} />
         <SearchField.ClearButton />
         {showShortcut && (
           <Kbd variant="light" className="platform-search-shortcut shrink-0">
-            <Kbd.Content>Ctrl + K</Kbd.Content>
+            <Kbd.Content>Ctrl K</Kbd.Content>
           </Kbd>
         )}
       </SearchField.Group>
