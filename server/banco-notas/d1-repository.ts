@@ -236,8 +236,9 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
       syncEnabled:
         input.syncEnabled === undefined ? Boolean(current.sync_enabled) : input.syncEnabled,
       effectiveFrom: input.effectiveFrom ?? String(current.effective_from),
-      effectiveTo:
-        input.effectiveTo === undefined
+      effectiveTo: input.clearEffectiveTo
+        ? null
+        : input.effectiveTo === undefined
           ? current.effective_to
             ? String(current.effective_to)
             : null
@@ -245,6 +246,9 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
       status: input.status ?? String(current.status),
       reason: input.reason,
     };
+    if (next.effectiveTo && next.effectiveFrom > next.effectiveTo) {
+      throw new Error('invalid_effective_period');
+    }
     await this.db.batch([
       this.db
         .prepare(
