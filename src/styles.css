@@ -150,6 +150,24 @@ body {
   animation: constellation-drift-b 15s ease-in-out infinite;
 }
 
+.platform-shell > .ambient-constellation > .ambient-constellation__layer--a {
+  color: color-mix(in oklab, var(--accent) 34%, var(--ambient-star));
+}
+
+.platform-shell > .ambient-constellation > .ambient-constellation__layer--b {
+  color: color-mix(in oklab, var(--accent) 25%, var(--ambient-star-muted));
+}
+
+.dark .platform-shell > .ambient-constellation > .ambient-constellation__layer--a,
+[data-theme='dark'] .platform-shell > .ambient-constellation > .ambient-constellation__layer--a {
+  color: var(--ambient-star);
+}
+
+.dark .platform-shell > .ambient-constellation > .ambient-constellation__layer--b,
+[data-theme='dark'] .platform-shell > .ambient-constellation > .ambient-constellation__layer--b {
+  color: var(--ambient-star-muted);
+}
+
 .ambient-constellation[data-intensity='subtle'] {
   opacity: 0.52;
 }
