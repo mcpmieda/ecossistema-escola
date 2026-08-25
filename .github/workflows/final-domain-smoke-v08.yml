@@ -1,0 +1,113 @@
+name: Final domain smoke v0.8
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: final-domain-smoke-v08-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Verify official validation domain
+    if: github.head_ref == 'test/final-domain-smoke-v08'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout immutable test harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked application dependencies
+        run: npm ci
+
+      - name: Install disposable browser harness
+        run: |
+          npm install --no-save --package-lock=false playwright@1.62.1
+          ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Verify HTTP shell and anonymous protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://admin.escolaieda.com'
+          curl --silent --show-error --fail "${base}/" -o /tmp/root.html
+          asset_path="$(grep -oE 'src=\"/assets/[^\"]+\.js\"' /tmp/root.html | head -n 1 | cut -d'\"' -f2)"
+          test -n "${asset_path}"
+          curl --silent --show-error --fail "${base}${asset_path}" -o /tmp/app.js
+          grep --quiet --fixed-strings 'Centro de Administração' /tmp/app.js
+          grep --quiet --fixed-strings 'Entrar com conta institucional' /tmp/app.js
+          me_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${base}/api/me")"
+          snapshot_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${base}/api/platform/snapshot")"
+          test "${me_status}" = '401'
+          test "${snapshot_status}" = '401'
+          echo 'HTTP smoke passed: current shell is live and protected APIs deny anonymous access.'
+
+      - name: Verify login experience in Chromium
+        shell: bash
+        run: |
+          mkdir -p browser-evidence
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+          import assert from 'node:assert/strict';
+
+          const base = 'https://admin.escolaieda.com';
+          const browser = await chromium.launch({ headless: true });
+          const pageErrors = [];
+
+          try {
+            const desktop = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+            desktop.on('pageerror', (error) => pageErrors.push(error.message));
+            const response = await desktop.goto(base, { waitUntil: 'networkidle', timeout: 30_000 });
+            assert.equal(response?.status(), 200, 'root document must return 200');
+            await desktop.getByRole('link', { name: 'Entrar com conta institucional' }).waitFor();
+            await desktop.getByText('Centro de Administração', { exact: true }).first().waitFor();
+            const loginHref = await desktop.getByRole('link', { name: 'Entrar com conta institucional' }).getAttribute('href');
+            assert.equal(loginHref, '/auth/login');
+            const meStatus = await desktop.evaluate(async () => (await fetch('/api/me', { cache: 'no-store' })).status);
+            const snapshotStatus = await desktop.evaluate(async () => (await fetch('/api/platform/snapshot', { cache: 'no-store' })).status);
+            assert.equal(meStatus, 401);
+            assert.equal(snapshotStatus, 401);
+            await desktop.screenshot({ path: 'browser-evidence/desktop-login.png', fullPage: true });
+
+            await desktop.goto(`${base}/#/sistemas`, { waitUntil: 'networkidle', timeout: 30_000 });
+            await desktop.getByRole('link', { name: 'Entrar com conta institucional' }).waitFor();
+
+            const mobile = await browser.newPage({ viewport: { width: 390, height: 844 } });
+            mobile.on('pageerror', (error) => pageErrors.push(error.message));
+            await mobile.goto(base, { waitUntil: 'networkidle', timeout: 30_000 });
+            const login = mobile.getByRole('link', { name: 'Entrar com conta institucional' });
+            await login.waitFor();
+            assert.equal(await login.isVisible(), true);
+            const overflow = await mobile.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            assert.ok(overflow <= 1, `mobile page has horizontal overflow of ${overflow}px`);
+            await mobile.screenshot({ path: 'browser-evidence/mobile-login.png', fullPage: true });
+
+            assert.deepEqual(pageErrors, [], `unexpected page errors: ${pageErrors.join(' | ')}`);
+            console.log('Chromium smoke passed: desktop/mobile login, routing and anonymous protection are healthy.');
+          } finally {
+            await browser.close();
+          }
+          NODE
+
+      - name: Publish browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: final-domain-smoke-v08-${{ github.run_id }}
+          path: browser-evidence
+          if-no-files-found: warn
+          retention-days: 30
