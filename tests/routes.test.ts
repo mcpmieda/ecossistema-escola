@@ -101,6 +101,60 @@ describe('browser-facing authentication recovery', () => {
     expect(second.headers.get('Cache-Control')).toContain('no-store');
   });
 
+  it('keeps at most four live authentication transactions', async () => {
+    let cookie: string | undefined;
+
+    for (let index = 0; index < 6; index += 1) {
+      const response = await invoke(loginRequest(cookie));
+      cookie = responseCookie(response, AUTH_COOKIE);
+    }
+
+    const envelope = await unseal<{
+      transactions: Array<{ state: string; nonce: string; verifier: string; exp: number }>;
+    }>(cookie!, testEnv.SESSION_SECRET);
+
+    expect(envelope?.transactions).toHaveLength(4);
+    expect(new Set(envelope?.transactions.map((transaction) => transaction.state)).size).toBe(4);
+  });
+
+  it('prunes expired authentication transactions before storing a new login attempt', async () => {
+    const now = Math.floor(Date.now() / 1000);
+
+    const existing = await seal(
+      {
+        transactions: [
+          {
+            state: 'expired-state',
+            nonce: 'expired-nonce',
+            verifier: 'expired-verifier',
+            exp: now - 1,
+          },
+          {
+            state: 'live-state',
+            nonce: 'live-nonce',
+            verifier: 'live-verifier',
+            exp: now + 300,
+          },
+        ],
+      },
+      testEnv.SESSION_SECRET,
+    );
+
+    const response = await invoke(loginRequest(existing));
+    const envelope = await unseal<{
+      transactions: Array<{ state: string; exp: number }>;
+    }>(responseCookie(response, AUTH_COOKIE), testEnv.SESSION_SECRET);
+
+    expect(envelope?.transactions).toHaveLength(2);
+    expect(
+      envelope?.transactions.some((transaction) => transaction.state === 'expired-state'),
+    ).toBe(false);
+    expect(envelope?.transactions.some((transaction) => transaction.state === 'live-state')).toBe(
+      true,
+    );
+    expect(envelope?.transactions.every((transaction) => transaction.exp > now)).toBe(true);
+  });
+
   it('recovers an incomplete callback without JSON and preserves an independent live transaction', async () => {
     const first = await invoke(loginRequest());
     const second = await invoke(loginRequest(responseCookie(first, AUTH_COOKIE)));

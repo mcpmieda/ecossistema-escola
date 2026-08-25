@@ -491,10 +491,10 @@ export function App() {
       .catch(() => setIdentity({ authenticated: false }));
   }, []);
 
-  if (authFailure && !identity?.authenticated) {
+  if (identity === null) return <LoginExperience loading />;
+  if (authFailure && !identity.authenticated) {
     return <AuthErrorExperience correlationId={authFailure.correlationId} />;
   }
-  if (identity === null) return <LoginExperience loading />;
   if (!identity.authenticated) return <LoginExperience loading={false} />;
   if (!identity.capabilities?.includes('platform.snapshot.read')) {
     return <RestrictedExperience name={identity.name} />;

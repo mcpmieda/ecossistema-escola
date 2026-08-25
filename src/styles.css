@@ -429,7 +429,6 @@ body {
   white-space: nowrap;
 }
 
-.platform-search-results .list-box-item,
 .platform-search-results__item {
   gap: 0.7rem;
   border-radius: 1rem;
@@ -437,14 +436,11 @@ body {
   transition: background-color 90ms ease;
 }
 
-.platform-search-results .list-box-item:hover,
 .platform-search-results__item:hover {
   background: var(--surface-secondary);
 }
 
-.platform-search-results .list-box-item:focus-visible,
 .platform-search-results__item:focus-visible,
-.platform-search-results .list-box-item[data-focus-visible='true'],
 .platform-search-results__item[data-focus-visible='true'] {
   outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
   outline-offset: -2px;
