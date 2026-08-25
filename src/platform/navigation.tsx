@@ -16,12 +16,10 @@ function Navigation({
   route,
   modules,
   loading,
-  onNavigate,
 }: {
   route: PlatformRoute;
   modules: CoreModuleContract[];
   loading: boolean;
-  onNavigate?: () => void;
 }) {
   if (loading) {
     return (
@@ -39,7 +37,6 @@ function Navigation({
       className="platform-nav px-3"
       selectionMode="single"
       selectedKeys={new Set([route])}
-      onAction={() => onNavigate?.()}
     >
       {modules.map((module) => {
         const Icon = routeIcons[module.route];
@@ -78,12 +75,10 @@ export function SidebarContent({
   route,
   modules,
   loading,
-  onNavigate,
 }: {
   route: PlatformRoute;
   modules: CoreModuleContract[];
   loading: boolean;
-  onNavigate?: () => void;
 }) {
   return (
     <Surface
@@ -111,7 +106,7 @@ export function SidebarContent({
             v1
           </Chip>
         </div>
-        <Navigation route={route} modules={modules} loading={loading} onNavigate={onNavigate} />
+        <Navigation route={route} modules={modules} loading={loading} />
       </ScrollShadow>
 
       <div className="p-4 pt-2">
