@@ -565,7 +565,10 @@ function SourceConfiguration() {
 
           <Surface className="bn-card xl:col-span-3">
             <h2 className="font-semibold">Editar vigência existente</h2>
-            <form className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={updateAssignment}>
+            <form
+              className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+              onSubmit={updateAssignment}
+            >
               <SourceSelect
                 label="Vigência"
                 value={assignmentEditId}
