@@ -30,10 +30,9 @@ export function EmptyState({
   return (
     <Surface
       variant="transparent"
-      className="living-empty-state flex flex-col items-center justify-center px-5 py-12 text-center"
+      className="platform-empty-state flex flex-col items-center justify-center px-5 py-12 text-center"
     >
-      <div className="living-aura living-aura--right" />
-      <div className="living-icon">
+      <div className="platform-icon">
         <Icon className="size-4 text-accent" />
       </div>
       <Chip color="accent" variant="soft" size="sm" className="mt-5">
@@ -55,15 +54,13 @@ export function PageHeader({
   description: string;
 }) {
   return (
-    <Surface variant="transparent" className="living-page-header pro-spectrum">
-      <div className="living-page-header__content">
+    <Surface variant="default" className="platform-page-header">
+      <div className="platform-page-header__content">
         <Chip color="accent" variant="soft" size="sm">
           {eyebrow}
         </Chip>
-        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.045em] text-[#203856] sm:text-3xl">
-          {title}
-        </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#365B86]">{description}</p>
+        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.045em] sm:text-3xl">{title}</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{description}</p>
       </div>
     </Surface>
   );

@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -9,41 +9,65 @@ function source(path: string): string {
 }
 
 describe('HeroUI final hardening contract', () => {
-  it('keeps search inline in the header on desktop and mobile', () => {
+  it('uses the native HeroUI SearchField composition in the header on desktop and mobile', () => {
     const search = source('src/platform/search.tsx');
 
+    expect(search).toContain('<SearchField');
+    expect(search).toContain('<Label className="sr-only">Buscar no Centro</Label>');
+    expect(search).toContain('<SearchField.Group>');
+    expect(search).toContain('<SearchField.SearchIcon />');
     expect(search).toContain('<SearchField.Input');
-    expect(search).toContain('<Kbd.Content>Ctrl + K</Kbd.Content>');
+    expect(search).toContain('<SearchField.ClearButton />');
+    expect(search).toContain('<Kbd.Content>Ctrl K</Kbd.Content>');
     expect(search).toContain('platform-search-mobile-panel');
+    expect(search).not.toContain('platform-search-field');
     expect(search).not.toMatch(/\bDrawer\b/u);
     expect(search).not.toMatch(/\bPopover\b/u);
     expect(search).not.toContain('hashchange');
   });
 
-  it('uses a native HeroUI profile dropdown and friendly authentication recovery screen', () => {
+  it('uses native HeroUI Avatar composition and keeps profile menu content separated', () => {
     const app = source('src/App.tsx');
 
     expect(app).toMatch(/<Dropdown>\s*<Button[\s\S]*?aria-label="Abrir menu do perfil"/u);
     expect(app).not.toContain('<Dropdown.Trigger>');
     expect(app).toContain('<Avatar');
+    expect(app).toContain('<Avatar.Fallback');
+    expect(app).toContain('profile-menu-item-content');
+    expect(app).toContain('profile-menu-copy');
     expect(app).toContain('<Dropdown.Item id="logout"');
     expect(app).toContain('Não foi possível concluir sua entrada.');
     expect(app).toContain('Entrar novamente');
     expect(app).toContain('<Breadcrumbs');
   });
 
-  it('mounts Ambient Constellation only as one fixed page background per shell state', () => {
-    const app = source('src/App.tsx');
-    const platformSources = readdirSync(join(root, 'src/platform'))
-      .filter((name) => name.endsWith('.tsx'))
-      .map((name) => source(`src/platform/${name}`))
-      .join('\n');
-    const appConstellations = app.match(/<AmbientConstellation\b/gu) ?? [];
-    const fixedConstellations = app.match(/<AmbientConstellation className="fixed"/gu) ?? [];
+  it('removes Ambient Constellation and all active ambient presentation hooks', () => {
+    const presentation = [
+      source('src/App.tsx'),
+      source('src/platform/navigation.tsx'),
+      source('src/platform/pages.tsx'),
+      source('src/platform/operations-page.tsx'),
+      source('src/platform/presentation.tsx'),
+      source('src/styles.css'),
+    ].join('\n');
 
-    expect(appConstellations).toHaveLength(4);
-    expect(fixedConstellations).toHaveLength(4);
-    expect(platformSources).not.toContain('AmbientConstellation');
+    expect(existsSync(join(root, 'src/components/ambient-constellation.tsx'))).toBe(false);
+    expect(existsSync(join(root, 'src/components/ambient-constellation.css'))).toBe(false);
+    expect(presentation).not.toMatch(
+      /AmbientConstellation|ambient-constellation|pro-spectrum|living-aura|living-surface|living-page-header/u,
+    );
+    expect(presentation).not.toMatch(/#cce5f1|#e8f3ff|#5dd0e7|#4a8dff/iu);
+  });
+
+  it('keeps the requested neutral page background and removes the visible v1 badge', () => {
+    const styles = source('src/styles.css');
+    const navigation = source('src/platform/navigation.tsx');
+
+    expect(styles).toContain('--platform-page-background: #f4f4f5;');
+    expect(styles).toContain('background: #f4f4f5;');
+    expect(navigation).not.toMatch(/>\s*v1\s*</u);
+    expect(navigation).toContain('h-[72px] min-h-[72px]');
+    expect(source('src/App.tsx')).toContain('lg:h-[72px]');
   });
 
   it('uses HeroUI table scroll containers for every structured table', () => {

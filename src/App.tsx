@@ -14,17 +14,7 @@ import {
   Surface,
   useOverlayState,
 } from '@heroui/react';
-import {
-  Activity,
-  Boxes,
-  ChevronDown,
-  LockKeyhole,
-  LogOut,
-  Menu,
-  ShieldCheck,
-  Sparkles,
-} from 'lucide-react';
-import { AmbientConstellation } from '@/components/ambient-constellation';
+import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import {
   normalizePlatformRoute,
   type PlatformCapability,
@@ -88,108 +78,105 @@ function MicrosoftMark() {
 
 function LoginExperience({ loading }: { loading: boolean }) {
   return (
-    <main className="platform-shell min-h-svh px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-      <AmbientConstellation className="fixed" intensity="strong" placement="center" />
-      <div className="relative z-10 mx-auto flex min-h-[calc(100svh-2.5rem)] max-w-7xl items-center justify-center lg:min-h-[calc(100svh-3.5rem)]">
-        <Surface className="login-stage grid w-full max-w-6xl overflow-hidden rounded-[2rem] border border-border/65 shadow-2xl lg:grid-cols-[1.16fr_.84fr]">
-          <Surface
-            variant="transparent"
-            className="living-surface pro-spectrum relative hidden min-h-[660px] flex-col justify-between rounded-none border-0 p-12 text-[#203856] shadow-none lg:flex"
-          >
-            <div className="relative z-10">
-              <BrandMark />
-              <Chip className="mt-10" variant="soft" color="accent" size="sm">
-                Escola Iêda Alves de Oliveira MCPM
-              </Chip>
-              <h1 className="mt-6 max-w-xl text-5xl font-semibold tracking-[-0.055em]">
-                Centro de Administração
-              </h1>
-              <p className="mt-5 max-w-xl text-base leading-7 text-[#365B86]">
-                Uma plataforma administrativa viva, modular e protegida para operar os sistemas da
-                escola em uma única experiência.
-              </p>
-            </div>
+    <main className="platform-shell grid min-h-svh place-items-center px-4 py-6 sm:px-6 lg:px-8">
+      <Surface className="login-stage grid w-full max-w-5xl overflow-hidden rounded-[2rem] border border-border/70 lg:grid-cols-[1.08fr_.92fr]">
+        <Surface
+          variant="secondary"
+          className="login-intro hidden min-h-[600px] flex-col justify-between rounded-none border-0 p-10 shadow-none lg:flex"
+        >
+          <div>
+            <BrandMark />
+            <Chip className="mt-10" variant="soft" color="accent" size="sm">
+              Escola Iêda Alves de Oliveira MCPM
+            </Chip>
+            <h1 className="mt-6 max-w-xl text-4xl font-semibold tracking-[-0.05em]">
+              Centro de Administração
+            </h1>
+            <p className="mt-4 max-w-xl text-base leading-7 text-muted">
+              Uma plataforma administrativa modular e protegida para operar os sistemas da escola em
+              uma única experiência.
+            </p>
+          </div>
 
-            <div className="relative z-10 grid max-w-xl gap-3 text-sm text-[#365b86]">
-              {[
-                [ShieldCheck, 'Acesso institucional protegido'],
-                [Boxes, 'Módulos integrados à mesma experiência'],
-                [Activity, 'Operação rastreável e evolutiva'],
-              ].map(([Icon, label]) => {
-                const FeatureIcon = Icon as typeof ShieldCheck;
-                return (
-                  <Surface
-                    key={label as string}
-                    variant="transparent"
-                    className="stagger-item flex items-center gap-3 rounded-2xl border border-white/45 bg-white/72 px-4 py-3"
-                  >
-                    <FeatureIcon className="size-4" />
-                    <span>{label as string}</span>
-                  </Surface>
-                );
-              })}
-            </div>
-          </Surface>
-
-          <Surface
-            variant="default"
-            className="relative flex min-h-[620px] items-center overflow-hidden rounded-none border-0 px-6 py-12 shadow-none sm:px-12 lg:min-h-[660px]"
-          >
-            <div className="relative z-10 mx-auto w-full max-w-sm">
-              <div className="mb-10 flex items-center gap-3 lg:hidden">
-                <BrandMark compact />
-                <div>
-                  <p className="text-sm font-semibold">Centro de Administração</p>
-                  <p className="text-xs text-muted">Escola Iêda Alves de Oliveira</p>
-                </div>
-              </div>
-
-              <Chip color="accent" variant="soft" size="sm">
-                Acesso institucional
-              </Chip>
-              <h2 className="mt-5 text-3xl font-semibold tracking-[-0.045em]">
-                {loading ? 'Preparando seu acesso' : 'Entre para continuar'}
-              </h2>
-              <p className="mt-3 text-sm leading-6 text-muted">
-                Use sua conta institucional da escola para continuar.
-              </p>
-
-              {loading ? (
-                <Alert status="accent" className="mt-8">
-                  <Alert.Indicator>
-                    <Spinner size="sm" color="accent" />
-                  </Alert.Indicator>
-                  <Alert.Content>
-                    <Alert.Title>Verificando sua sessão</Alert.Title>
-                    <Alert.Description>
-                      Estamos confirmando identidade e permissões administrativas.
-                    </Alert.Description>
-                  </Alert.Content>
-                </Alert>
-              ) : (
-                <Button
-                  variant="primary"
-                  size="lg"
-                  fullWidth
-                  className="mt-8"
-                  onPress={() => window.location.assign('/auth/login')}
+          <div className="grid max-w-xl gap-3 text-sm">
+            {[
+              [ShieldCheck, 'Acesso institucional protegido'],
+              [Boxes, 'Módulos integrados à mesma experiência'],
+              [Activity, 'Operação rastreável e evolutiva'],
+            ].map(([Icon, label]) => {
+              const FeatureIcon = Icon as typeof ShieldCheck;
+              return (
+                <Surface
+                  key={label as string}
+                  variant="default"
+                  className="stagger-item flex items-center gap-3 rounded-2xl border border-border/70 px-4 py-3"
                 >
-                  <MicrosoftMark />
-                  Entrar com conta institucional
-                </Button>
-              )}
-
-              <Surface
-                variant="secondary"
-                className="mt-8 flex items-start gap-3 rounded-2xl p-4 text-xs leading-5 text-muted"
-              >
-                <LockKeyhole className="mt-0.5 size-4 shrink-0 text-foreground/70" />
-                <p>O Centro não solicita nem armazena sua senha institucional.</p>
-              </Surface>
-            </div>
-          </Surface>
+                  <FeatureIcon className="size-4 text-muted" />
+                  <span>{label as string}</span>
+                </Surface>
+              );
+            })}
+          </div>
         </Surface>
-      </div>
+
+        <Surface
+          variant="default"
+          className="flex min-h-[560px] items-center rounded-none border-0 px-6 py-12 shadow-none sm:px-12 lg:min-h-[600px]"
+        >
+          <div className="mx-auto w-full max-w-sm">
+            <div className="mb-10 flex items-center gap-3 lg:hidden">
+              <BrandMark compact />
+              <div>
+                <p className="text-sm font-semibold">Centro de Administração</p>
+                <p className="text-xs text-muted">Escola Iêda Alves de Oliveira</p>
+              </div>
+            </div>
+
+            <Chip color="accent" variant="soft" size="sm">
+              Acesso institucional
+            </Chip>
+            <h2 className="mt-5 text-3xl font-semibold tracking-[-0.045em]">
+              {loading ? 'Preparando seu acesso' : 'Entre para continuar'}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted">
+              Use sua conta institucional da escola para continuar.
+            </p>
+
+            {loading ? (
+              <Alert status="accent" className="mt-8">
+                <Alert.Indicator>
+                  <Spinner size="sm" color="accent" />
+                </Alert.Indicator>
+                <Alert.Content>
+                  <Alert.Title>Verificando sua sessão</Alert.Title>
+                  <Alert.Description>
+                    Estamos confirmando identidade e permissões administrativas.
+                  </Alert.Description>
+                </Alert.Content>
+              </Alert>
+            ) : (
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                className="mt-8"
+                onPress={() => window.location.assign('/auth/login')}
+              >
+                <MicrosoftMark />
+                Entrar com conta institucional
+              </Button>
+            )}
+
+            <Surface
+              variant="secondary"
+              className="mt-8 flex items-start gap-3 rounded-2xl p-4 text-xs leading-5 text-muted"
+            >
+              <LockKeyhole className="mt-0.5 size-4 shrink-0 text-foreground/70" />
+              <p>O Centro não solicita nem armazena sua senha institucional.</p>
+            </Surface>
+          </div>
+        </Surface>
+      </Surface>
     </main>
   );
 }
@@ -197,10 +184,9 @@ function LoginExperience({ loading }: { loading: boolean }) {
 function AuthErrorExperience({ correlationId }: AuthFailure) {
   return (
     <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
-      <AmbientConstellation className="fixed" intensity="strong" placement="center" />
       <Surface
         variant="default"
-        className="relative z-10 w-full max-w-xl rounded-[2rem] border border-border/70 p-6 shadow-2xl sm:p-8"
+        className="platform-card-surface w-full max-w-xl rounded-[2rem] p-6 sm:p-8"
       >
         <Chip color="danger" variant="soft" size="sm">
           Entrada não concluída
@@ -238,10 +224,9 @@ function AuthErrorExperience({ correlationId }: AuthFailure) {
 function RestrictedExperience({ name }: { name?: string }) {
   return (
     <main className="platform-shell grid min-h-svh place-items-center p-4">
-      <AmbientConstellation className="fixed" intensity="strong" placement="center" />
       <Surface
         variant="default"
-        className="living-surface relative z-10 w-full max-w-2xl rounded-[2rem] p-6 sm:p-8"
+        className="platform-card-surface w-full max-w-2xl rounded-[2rem] p-6 sm:p-8"
       >
         <Chip color="warning" variant="soft" size="sm">
           Acesso restrito
@@ -316,15 +301,13 @@ function AdminShell({ identity }: { identity: Identity }) {
 
   return (
     <div className="platform-shell min-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
-      <AmbientConstellation className="fixed" intensity="strong" placement="right" />
-
       <aside className="sticky top-0 z-20 hidden h-svh border-r border-border/60 lg:block">
         <SidebarContent route={route} modules={modules} loading={loadState.status === 'loading'} />
       </aside>
 
-      <div className="relative z-10 min-w-0">
-        <Surface variant="transparent" className="glass-bar sticky top-0 z-30 rounded-none">
-          <div className="flex min-h-17 flex-wrap items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
+      <div className="min-w-0">
+        <Surface variant="default" className="platform-topbar sticky top-0 z-30 rounded-none">
+          <div className="flex min-h-[72px] flex-wrap items-center gap-3 px-4 py-2 sm:px-6 lg:h-[72px] lg:px-8 lg:py-0">
             <Drawer state={mobileNavigationState}>
               <Button
                 variant="outline"
@@ -367,7 +350,7 @@ function AdminShell({ identity }: { identity: Identity }) {
               <Button
                 variant="ghost"
                 size="md"
-                className="profile-menu-trigger shrink-0 px-2 sm:px-3"
+                className="profile-menu-trigger shrink-0 gap-2 px-2.5"
                 aria-label="Abrir menu do perfil"
               >
                 <Avatar size="sm" color="accent" variant="soft">
@@ -385,32 +368,41 @@ function AdminShell({ identity }: { identity: Identity }) {
                 </span>
                 <ChevronDown className="hidden size-4 text-muted sm:block" />
               </Button>
-              <Dropdown.Popover>
+              <Dropdown.Popover className="min-w-72">
                 <Dropdown.Menu
                   aria-label="Conta e sessão"
                   onAction={(key) => {
                     if (key === 'logout') logoutFormRef.current?.requestSubmit();
                   }}
                 >
-                  <Dropdown.Item id="identity" textValue="Perfil atual" isDisabled>
-                    <Avatar size="sm" color="accent" variant="soft">
-                      <Avatar.Fallback>{initials(identity.name)}</Avatar.Fallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <Label className="max-w-52 truncate">
-                        {identity.name || 'Administrador'}
-                      </Label>
-                      <Description className="max-w-52 truncate">
-                        Administrador · sessão institucional
-                      </Description>
+                  <Dropdown.Item
+                    id="identity"
+                    textValue="Perfil atual"
+                    isDisabled
+                    className="profile-menu-identity"
+                  >
+                    <div className="profile-menu-item-content">
+                      <Avatar size="sm" color="accent" variant="soft">
+                        <Avatar.Fallback>{initials(identity.name)}</Avatar.Fallback>
+                      </Avatar>
+                      <div className="profile-menu-copy">
+                        <Label className="max-w-52 truncate">
+                          {identity.name || 'Administrador'}
+                        </Label>
+                        <Description className="max-w-52 truncate">
+                          Administrador · sessão institucional
+                        </Description>
+                      </div>
                     </div>
                   </Dropdown.Item>
                   <Separator />
                   <Dropdown.Item id="logout" textValue="Sair" variant="danger">
-                    <LogOut className="size-4" />
-                    <div>
-                      <Label>Sair</Label>
-                      <Description>Encerrar a sessão institucional</Description>
+                    <div className="profile-menu-item-content">
+                      <LogOut className="size-4 shrink-0" />
+                      <div className="profile-menu-copy">
+                        <Label>Sair</Label>
+                        <Description>Encerrar a sessão institucional</Description>
+                      </div>
                     </div>
                   </Dropdown.Item>
                 </Dropdown.Menu>
@@ -424,8 +416,8 @@ function AdminShell({ identity }: { identity: Identity }) {
 
           {loadState.status === 'error' && (
             <Surface
-              variant="secondary"
-              className="living-surface max-w-3xl rounded-[2rem] p-5 sm:p-7"
+              variant="default"
+              className="platform-card-surface max-w-3xl rounded-[2rem] p-5 sm:p-7"
             >
               <Alert status="danger">
                 <Alert.Indicator />
@@ -451,7 +443,7 @@ function AdminShell({ identity }: { identity: Identity }) {
             <div key={route} className="route-stage">
               {route === 'visao-geral' && (
                 <Chip color="accent" variant="soft" className="mb-5">
-                  <Sparkles className="size-4" />
+                  <ShieldCheck className="size-4" />
                   Olá, {firstName}. O Centro de Administração está disponível.
                 </Chip>
               )}

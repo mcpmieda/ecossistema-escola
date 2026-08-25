@@ -20,7 +20,7 @@
       "hardening de /auth/login, /auth/callback e /auth/logout para reentrada, expiração, callback inválido, múltiplas abas e recuperação mobile",
       "tratamento browser-facing amigável para falhas de autenticação, com correlation ID e sem JSON cru ou dados sensíveis",
       "perfil HeroUI v3 com Avatar e Dropdown, busca inline no header, breadcrumbs nativos, tabelas mobile e rodapé responsivo",
-      "Ambient Constellation restrita ao background geral do login, shell e estados de acesso, sem partículas dentro de cards, surfaces ou page headers",
+      "shell e superfícies visuais neutras, sem Ambient Constellation, partículas, brilhos ou gradientes decorativos residuais no login, shell, cards, surfaces ou page headers",
       "verificação de backup e restore de metadado em pasta descartável RECOVERY_VERIFY_ criada exclusivamente dentro da biblioteca técnica SNAPSHOTS_PLATAFORMA",
       "endpoint de manutenção de recovery autenticado por GitHub OIDC do environment production, sem ampliar o acesso SharePoint da identidade de manutenção",
       "evidência versionada de recovery no snapshot e na área Operação somente após execução real bem-sucedida e cleanup confirmado"
@@ -108,7 +108,7 @@
     },
     {
       "id": "INV-015",
-      "statement": "Ambient Constellation existe somente no background geral e não é montada dentro de Card, Surface, page header, tabela ou bloco de conteúdo."
+      "statement": "Ambient Constellation e seus hooks visuais não existem na interface ativa; backgrounds, cards, surfaces, page headers, tabelas e blocos de conteúdo permanecem sem partículas ou efeitos ambient."
     }
   ],
   "data_contracts": [
@@ -389,7 +389,7 @@
       "then": [
         "Breadcrumbs e Table.ScrollContainer HeroUI permanecem utilizáveis sem conteúdo inacessível",
         "o rodapé empilha sem truncamento destrutivo de data ou correlation ID",
-        "Ambient Constellation existe somente no background geral, fica estática em reduced-motion e não atravessa superfícies de conteúdo",
+        "Ambient Constellation e seus hooks visuais permanecem ausentes, com fundo geral neutro e sem partículas ou efeitos ambient atravessando superfícies de conteúdo",
         "não há overflow crítico, clipping, sobreposição ou contraste abaixo de WCAG AA para texto normal"
       ],
       "verification": ["browser", "visual", "gate"]
