@@ -177,7 +177,11 @@ describe('D1GradeEventStore with real SQLite', () => {
     expect(stale.status).toBe('stale');
     expect(stale.snapshot).toMatchObject({ sequence: 2, value: 8 });
     expect(
-      runtime.database.prepare("SELECT status FROM grade_events WHERE id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'").get(),
+      runtime.database
+        .prepare(
+          "SELECT status FROM grade_events WHERE id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'",
+        )
+        .get(),
     ).toMatchObject({ status: 'stale' });
     expect(
       runtime.database.prepare('SELECT sequence, value_numeric FROM grade_snapshots').get(),
