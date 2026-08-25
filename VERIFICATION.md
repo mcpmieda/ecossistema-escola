@@ -2,7 +2,7 @@
 
 ## Estado da verificação
 
-O Centro de Administração v1 está oficialmente liberado em produção.
+O Centro de Administração v1 está oficialmente liberado e atualizado em produção.
 
 `releaseState = production`
 
@@ -14,31 +14,27 @@ Domínio oficial:
 
 `https://admin.escolaieda.com`
 
-A autorização humana formal ocorreu pelo comando exato:
+A autorização humana formal da release ocorreu pelo comando exato:
 
 `APROVADO PARA PRODUÇÃO`
 
-## Release oficial
+## Estado corrente
 
-PR:
+Release original:
 
-`#48 — Release — Centro de Administração v1 para produção`
+- PR: `#48 — Release — Centro de Administração v1 para produção`;
+- commit: `c605089d024d584a85ef81dab986a31bee5e4a22`;
+- workflow pós-merge: `32885417365` — run `#404` — **success**.
 
-Commit integrado em `main`:
+Atualização visual corrente:
 
-`c605089d024d584a85ef81dab986a31bee5e4a22`
-
-Workflow pós-merge:
-
-`32885417365` — run `#404` — **success**.
-
-Revisão Cloudflare Pages criada pelo deploy:
-
-`https://6dc1c75e.ecossistema-escola.pages.dev`
+- PR: `#50 — Visual — limpar Ambient e padronizar shell HeroUI`;
+- commit corrente em `main`: `9ae6c49bbfe5f57577537ff480dfc833bddaad8a`;
+- workflow pós-merge: `32892663858` — run `#417` — **success**.
 
 ## Escopo verificado
 
-A release oficial promoveu para `ready`:
+Permanecem liberadas como `ready`:
 
 - Visão geral;
 - Operação;
@@ -51,11 +47,11 @@ Continuam `planned`:
 - Publicações;
 - Páginas.
 
-A promoção não introduziu operações de escrita nessas áreas futuras e não integrou artificialmente nenhum sistema independente.
+A atualização visual não introduziu operações de escrita, não integrou artificialmente nenhum sistema independente e não alterou regras de negócio.
 
 ## Fundação preservada
 
-A release não reconstruiu nem substituiu:
+A release e a atualização visual não reconstruíram nem substituíram:
 
 - Microsoft Entra ID;
 - BFF e cookie HttpOnly selado;
@@ -69,116 +65,133 @@ A release não reconstruiu nem substituiu:
 - rotação automática;
 - contratos de dados e regras de negócio existentes.
 
-Não houve alteração de tenant, app registration, redirect URI, grupos, roles ou permissões Microsoft nesta liberação.
+Não houve alteração de tenant, app registration, redirect URI, grupos, roles ou permissões Microsoft.
 
-## Verificação do PR #48
+## Verificação da release original — PR #48
 
 Workflow do PR:
 
 `32885247605` — **success**.
 
-### Validate application
-
 Concluído com sucesso:
 
 - instalação locked de dependências;
-- verificação de formatação;
+- formatação;
 - lint;
 - typecheck;
-- validação do contrato semântico existente;
+- contrato semântico;
 - testes;
-- build.
+- build;
+- segurança dos workflows com actionlint e zizmor.
 
-### Validate GitHub Actions security
+`Deploy production` e `Verify recovery after deploy` permaneceram `skipped` no PR, como projetado.
 
-Concluído com sucesso:
-
-- actionlint;
-- zizmor.
-
-### Deploy/recovery no PR
-
-`Deploy production` e `Verify recovery after deploy` permaneceram `skipped`, como projetado para eventos de pull request.
-
-Isso evita exigir jobs de pós-merge como gate pré-merge.
-
-## Verificação pós-merge em main
-
-Workflow:
+Workflow pós-merge:
 
 `32885417365` — **success**.
 
-Todos os quatro jobs concluíram com sucesso.
+Todos os quatro jobs concluíram com sucesso:
 
-### Validate GitHub Actions security
+- `Validate GitHub Actions security`;
+- `Validate application`;
+- `Deploy production`;
+- `Verify recovery after deploy`.
 
-Job ID:
-
-`97924594797`
-
-Resultado:
-
-**success**.
-
-### Validate application
-
-Job ID:
-
-`97924595070`
-
-Resultado:
-
-**success**.
-
-O pipeline confirmou novamente formatting, lint, typecheck, contrato semântico, testes e build no commit exato de produção.
-
-### Deploy production
-
-Job ID:
-
-`97924849730`
-
-Resultado:
-
-**success**.
-
-O Cloudflare Pages recebeu o commit:
-
-`c605089d024d584a85ef81dab986a31bee5e4a22`
-
-O log do Wrangler registrou:
-
-`Deployment complete`
-
-URL da revisão publicada:
-
-`https://6dc1c75e.ecossistema-escola.pages.dev`
-
-O mapeamento institucional existente para `https://admin.escolaieda.com` não foi alterado pela release.
-
-### Verify recovery after deploy
-
-Job ID:
-
-`97925036928`
-
-Resultado:
-
-**success**.
-
-Etapas confirmadas:
-
-- rebuild da mesma fonte publicada;
-- round trip descartável de backup/restore SharePoint;
-- publicação de evidência redigida;
-- cleanup do recurso temporário.
-
-Artefato de evidência:
+Artefato de recovery da release original:
 
 - nome: `recovery-verification-32885417365`;
 - ID: `9577448564`;
+- digest: `sha256:8a4d5bb690da10021aff5880456dc7155f6e41a53bfde7ee5a5e1abd7c94cd5c`.
+
+## Verificação da atualização visual — PR #50
+
+### Mudanças verificadas
+
+O PR #50 realizou substituição e remoção de código visual antigo, sem empilhar camadas de compatibilidade.
+
+Foi confirmado:
+
+- remoção física de `src/components/ambient-constellation.tsx`;
+- remoção física de `src/components/ambient-constellation.css`;
+- ausência de `AmbientConstellation` e `ambient-constellation` no código ativo;
+- remoção dos hooks visuais `pro-spectrum` e `living-aura` do shell ativo;
+- fundo geral `#F4F4F5`;
+- login e superfícies principais neutros;
+- busca usando composição `SearchField` HeroUI;
+- remoção do `v1` visual da navegação;
+- sidebar e topbar alinhadas em 72 px;
+- perfil usando `Avatar` e `Avatar.Fallback` HeroUI;
+- autenticação, autorização e integrações preservadas.
+
+### Contrato semântico
+
+Durante o review foi detectado que os artefatos semânticos antigos ainda exigiam o Ambient como background. A inconsistência foi corrigida antes do merge.
+
+Foram atualizados:
+
+- `specs/semantic-contract.json`;
+- `specs/semantic-assurance.json`;
+- `specs/verification-plan.json`.
+
+Fingerprint corrente:
+
+`d363edbc202a646a98c078cc3aee9fc69eec87aec5c8d61802258864a5186c89`
+
+As regras vivas `INV-015`, `AC-017` e `REQ-017` agora exigem que Ambient Constellation e seus hooks visuais permaneçam ausentes da interface ativa.
+
+### CI final do PR #50
+
+Workflow:
+
+`32892522700` — run `#416` — **success**.
+
+Resultados:
+
+- `Validate application` — **success**;
+- `Validate GitHub Actions security` — **success**;
+- formatting — **success**;
+- lint — **success**;
+- typecheck — **success**;
+- semantic check — **success**;
+- testes — **success**;
+- build — **success**.
+
+O review que apontou a inconsistência semântica foi respondido e resolvido somente depois da correção e do CI verde.
+
+### Pós-merge do PR #50
+
+Commit integrado:
+
+`9ae6c49bbfe5f57577537ff480dfc833bddaad8a`
+
+Workflow:
+
+`32892663858` — run `#417` — **success**.
+
+Jobs:
+
+- `Validate application` — **success**;
+- `Validate GitHub Actions security` — **success**;
+- `Deploy production` — **success**;
+- `Verify recovery after deploy` — **success**.
+
+O deploy Cloudflare Pages recebeu o commit exato `9ae6c49bbfe5f57577537ff480dfc833bddaad8a`.
+
+### Recovery do PR #50
+
+O job pós-deploy confirmou:
+
+- rebuild da fonte implantada;
+- round trip descartável de backup/restore SharePoint;
+- cleanup do recurso temporário;
+- publicação de evidência redigida.
+
+Artefato:
+
+- nome: `recovery-verification-32892663858`;
+- ID: `9580090126`;
 - tamanho: `429 bytes`;
-- digest: `sha256:8a4d5bb690da10021aff5880456dc7155f6e41a53bfde7ee5a5e1abd7c94cd5c`;
+- digest: `sha256:1e9aec7d3bc7f6fa51590c3c56b17953f7907ac1f701797b919ea6b39d52b552`;
 - expiração prevista: `2026-11-23`.
 
 O self-test comprova o mecanismo técnico previsto de recovery em recurso descartável. Ele não deve ser descrito como disaster recovery completo de todos os dados operacionais.
@@ -197,49 +210,45 @@ A cobertura existente continua confirmando que:
 - logout limpa sessão e estado temporário;
 - rotas protegidas continuam `no-store/no-cache`;
 - usuários sem `platform.snapshot.read` recebem negação server-side;
-- a promoção para produção não ampliou capabilities para professores ou outros perfis não administrativos.
+- a atualização visual não ampliou capabilities para professores ou outros perfis não administrativos.
 
 ## Verificação de acabamento de produção
 
-O PR #48 removeu da experiência comum:
+O PR #48 removeu linguagem e artefatos de candidata/validação da experiência comum.
 
-- banner `Ambiente de validação`;
-- aviso `Centro em validação controlada`;
-- chip `Validação restrita`;
-- texto `ativo em validação`;
-- linguagem de `capabilities administrativas` na tela de acesso negado;
-- exposição direta de `HealthEndpoint`, `BFF` e `read model` na área de Operação;
-- IDs internos de módulo e versão de contrato na tabela de Sistemas;
-- correlation ID e versão técnica no rodapé comum;
-- CSS morto do banner de validação.
+O PR #50 completou a limpeza visual removendo o Ambient Constellation e padronizando o shell HeroUI neutro.
 
-Permanece preservado o correlation ID em contextos onde ele tem função operacional real, como erro, auditoria e suporte.
+Testes de regressão relevantes:
 
-Foi adicionado o teste:
+- `tests/production-release.test.ts`;
+- `tests/ui-hardening.test.ts`.
 
-`tests/production-release.test.ts`
-
-Esse teste protege:
+Eles protegem, entre outros pontos:
 
 - `releaseState = production`;
 - versão `1.0.0`;
 - áreas liberadas em `ready`;
 - Publicações/Páginas em `planned`;
-- ausência de linguagem de validação/desenvolvimento definida como proibida na interface de produção.
+- ausência de linguagem de validação/desenvolvimento proibida;
+- ausência dos arquivos e hooks ativos do Ambient;
+- fundo neutro previsto;
+- ausência do `v1` visual;
+- SearchField e Avatar HeroUI previstos.
 
-## Verificação de UI e interação preservada
+## Verificação de UI e interação corrente
 
-As garantias do hardening final continuam válidas:
+As garantias correntes são:
 
 - perfil HeroUI com `Avatar`, `Dropdown` e logout;
-- busca inline desktop/mobile;
+- busca inline desktop/mobile com `SearchField`;
 - `Ctrl/Cmd + K` para foco da busca;
 - `Escape` para fechamento;
 - navegação e fechamento do resultado na mesma interação;
 - breadcrumbs e tabelas responsivas;
 - `Table.ScrollContainer` nas tabelas estruturadas;
-- Ambient Constellation apenas como background geral;
-- reduced-motion respeitado.
+- fundo geral neutro `#F4F4F5`;
+- Ambient Constellation ausente da interface ativa;
+- reduced-motion respeitado para movimentos não essenciais restantes.
 
 ## Governança da main
 
@@ -250,7 +259,7 @@ Checks obrigatórios:
 - `Validate application`;
 - `Validate GitHub Actions security`.
 
-O PR #48 foi integrado somente depois desses gates passarem.
+O PR #50 foi integrado somente depois desses gates passarem e de todos os threads de review estarem resolvidos.
 
 ## Baseline histórica
 
@@ -261,49 +270,38 @@ Hardening funcional final antes da promoção:
 - commit: `f59cf4bcf6815ef57edc9eb4558e09a08f93aedd`;
 - workflow: `32877197391` — **success**.
 
+O Ambient fazia parte daquela composição visual histórica, mas foi removido pelo PR #50 sem desfazer as garantias funcionais do hardening.
+
 ### PR #46
 
 Sincronização documental pré-release:
 
 - commit: `6660ce1960c7dbeb8cef7a1f073a9c3d8e832e6b`.
 
-### Specs da fase de hardening
+### Specs semânticas
 
-Os arquivos `specs/semantic-contract.json`, `specs/semantic-assurance.json` e `specs/verification-plan.json` continuam preservados como contrato/evidência da fase de hardening que antecedeu a autorização de produção.
-
-A condição viva de release passou a ser registrada por:
-
-- `PROJECT_STATE.md`;
-- este `VERIFICATION.md`;
-- contrato de runtime;
-- `tests/production-release.test.ts`;
-- evidência do workflow pós-merge.
+Os arquivos `specs/semantic-contract.json`, `specs/semantic-assurance.json` e `specs/verification-plan.json` são contratos versionados vivos. Eles foram evoluídos explicitamente no PR #50 para refletir a nova regra de ausência do Ambient, em vez de deixar o código contradizer a garantia declarada.
 
 ## Performance e otimização futura
 
-O build ainda emite warning de chunk JavaScript acima de `500 kB` minificado.
+O build ainda pode emitir warning de chunk JavaScript acima de `500 kB` minificado.
 
-Na release v1 ele não é bloqueador porque:
-
-- `Validate application` passou;
-- testes passaram;
-- build passou;
-- deploy passou;
-- recovery passou.
-
-A futura decisão de code splitting deve usar métricas de carregamento inicial e não apenas o limite estático do bundler.
+Ele permanece não bloqueador porque os gates, testes, build, deploy e recovery passam. Uma futura decisão de code splitting deve usar métricas de carregamento inicial e não apenas o limite estático do bundler.
 
 ## Resultado final
 
-**RELEASE APROVADA E IMPLANTADA.**
+**CENTRO V1 EM PRODUÇÃO E ATUALIZAÇÃO VISUAL PR #50 IMPLANTADA.**
 
 - estado: `production`;
 - versão: `1.0.0`;
-- PR: `#48`;
-- commit: `c605089d024d584a85ef81dab986a31bee5e4a22`;
-- workflow: `32885417365` — **success**;
+- release original: PR `#48`;
+- atualização visual: PR `#50`;
+- commit corrente: `9ae6c49bbfe5f57577537ff480dfc833bddaad8a`;
+- workflow corrente: `32892663858` — **success**;
+- deploy: **success**;
 - recovery: **verified**;
 - autorização administrativa: preservada e fail closed;
+- Ambient Constellation: **removido da interface ativa**;
 - Publicações/Páginas: não liberadas.
 
 Qualquer mudança futura material em regra, fluxo, dados, autorização, segurança ou comportamento observável deve entrar por novo PR e receber regressão proporcional.
@@ -311,6 +309,7 @@ Qualquer mudança futura material em regra, fluxo, dados, autorização, seguran
 ## Referências
 
 - estado atual: `PROJECT_STATE.md`;
-- evidência de release: `docs/RELEASE_CENTRO_ADMIN_V1_2026-08-25.md`;
+- evidência da release: `docs/RELEASE_CENTRO_ADMIN_V1_2026-08-25.md`;
+- evidência da atualização visual: `docs/PRODUCTION_VISUAL_CLEANUP_PR50_2026-08-25.md`;
 - protocolo de liberação: `docs/PROTOCOLO_VALIDACAO_E_LIBERACAO.md`;
 - hardening Native v2: `docs/HEROUI_NATIVE_V2_HARDENING_2026-08-25.md`.
