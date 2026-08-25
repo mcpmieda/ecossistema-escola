@@ -4,7 +4,7 @@
 
 Branch: `feat/banco-de-notas-foundation`
 
-Fase: **1 — fundação executável + hardening pós-review**
+Fase: **1 consolidada + início do núcleo transacional de grade-events**
 
 ## Entregue no PR #52
 
@@ -20,49 +20,60 @@ Fase: **1 — fundação executável + hardening pós-review**
 - `Configurações > Fonte` funcional, incluindo padrão anual, override por professor e `SyncEnabled=false`;
 - edição de ambiente, estado da migração, status da fonte e vigências existentes com justificativa obrigatória;
 - auditoria de mutações administrativas com ator, motivo e estado anterior/posterior;
-- edição de vigência protegida contra limpeza acidental de `effectiveTo`; remoção deliberada exige `clearEffectiveTo=true`;
+- edição de vigência com pré-carga das datas atuais e proteção contra limpeza acidental de `effectiveTo`; remoção deliberada exige `clearEffectiveTo=true`;
 - período resultante inválido é rejeitado antes da escrita e mapeado como erro de entrada;
-- testes de domínio, migration, API, contrato, UI, autorização, Origin, deep-link estrutural, edição segura de vigência e isolamento dos golden masters.
+- contratos definitivos OpenAPI e AsyncAPI de grade-events migrados para `api/banco-notas-grade-events-v1.*`, sem hostname da POC, tenant hardcoded, client secret ou audience/scope inventados;
+- contrato tipado de `GradeEvent`, `GradeSnapshot`, idempotência, stale e ausência diferente de zero;
+- identidade do snapshot corrigida para `(gradeKey, field)` antes de qualquer D1 remoto ser provisionado;
+- hash canônico do payload associado à chave de idempotência para detectar reutilização incompatível;
+- núcleo de ingestão classifica `applied`, `duplicate` e `stale` sem regredir snapshot mais novo;
+- store D1 valida fonte vinculada/ativa, ano e ambiente compatíveis, modelo conectado, `SyncEnabled`, autoridade vigente e mapeamento da célula antes de aceitar ingestão;
+- persistência de evento e avanço de snapshot preparados no mesmo batch transacional, com reclassificação de stale no storage para reduzir risco de corrida;
+- testes de domínio, migration, API, contrato, UI, autorização, Origin, deep-link estrutural, edição segura de vigência, grade-events, store D1 em SQLite real e isolamento dos golden masters.
 
 ## Hardening pós-review
 
 A revisão independente da primeira implementação encontrou pontos que não seriam aceitos para merge. Eles foram tratados no mesmo PR:
 
 1. **HeroUI nativo:** os controles HTML manuais de `Configurações > Fonte` foram substituídos por `TextField`, `Input`, `Select`, `ListBox` e `Switch` do HeroUI. O CSS específico que simulava controles do design system foi removido.
-2. **Integridade por ano letivo:** a camada de persistência agora rejeita `source_assignments`, `teacher_assignments`, `relationship_snapshots` e `import_jobs` quando as entidades relacionadas pertencem a outro ano letivo.
+2. **Integridade por ano letivo:** a camada de persistência rejeita `source_assignments`, `teacher_assignments`, `relationship_snapshots` e `import_jobs` quando as entidades relacionadas pertencem a outro ano letivo.
 3. **Auditoria de patches:** alteração de fonte ou vigência exige motivo; o repositório registra ator, motivo e before/after no evento de auditoria.
 4. **Fonte editável:** ambiente, estado da migração e status deixaram de ser somente informativos e passaram a possuir fluxo de atualização.
 5. **Sem reconciliação fictícia:** a interface não exibe uma data/resultado inventado antes da implementação real de reconciliação.
 6. **SQL executável:** os testes deixaram de depender apenas de inspeção textual. Um processo Node separado executa as migrations em SQLite real e prova schema, defaults, conflitos de autoridade, integridade cross-year, idempotência, sequence, ausência versus zero, append-only e rollback transacional.
 7. **Proteção de Origin:** mutações cross-origin são testadas como bloqueadas antes do acesso ao storage.
 8. **Deep-link:** existe regressão estrutural específica para `/banco-de-notas` e `/banco-de-notas/configuracoes/fonte`, garantindo path routing sem hash e preservando o fallback SPA do Cloudflare Pages.
-9. **Edição segura de vigência:** `effectiveTo=null` vindo do campo opcional vazio é normalizado para “sem alteração”. Limpar a data final passou a exigir `clearEffectiveTo=true`; o período final completo também é validado antes da persistência.
+9. **Edição segura de vigência:** o campo final vazio significa “sem alteração”; limpar a data final exige ação explícita `clearEffectiveTo=true`, as datas existentes são pré-carregadas e o período final completo é validado antes da persistência.
+10. **Grade-event concorrente:** snapshots passaram a ser identificados por `gradeKey + field`; eventos stale permanecem auditáveis sem impedir a existência do evento aplicado de mesma sequência.
+11. **Store transacional testável:** a implementação D1 é exercitada por adaptador de SQLite real em suíte Node dedicada, incluindo evento aplicado, stale sem regressão, bloqueio de sync desabilitado e rejeição de célula não mapeada.
 
-## Evidência de CI do hardening
+## Evidência de CI corrente
 
-Baseline funcional verificada antes do complemento de edição segura: `de19c4e5774f4f4eca5009e8fd9e93640226e524`.
+Head funcional consolidado antes desta atualização documental: `94ccceff31d6355b8ce6eaa396eba16e2ecd1932`.
 
-Workflow `32908018584` — run `#449` — **success**:
+Workflow `32911996770` — run `#495` — **success**:
 
 - `Validate GitHub Actions security` — success;
 - formatação — success;
 - lint — success;
 - typecheck — success;
 - semantic contract — success;
-- testes — success;
+- testes — **167/167 success em 28 arquivos**;
 - build — success.
 
-O complemento de edição segura adiciona `tests/banco-notas-assignment-edit.test.ts`. O head corrente só deve ser tratado como verificado depois de sua própria CI verde.
+A suíte `tests/banco-notas-d1-grade-event-store.test.ts` executou **4/4** cenários com SQLite real e passou integralmente.
 
-O PR continua em `draft`. Não houve deploy de produção nem merge.
+`Deploy production` e `Verify recovery after deploy` permaneceram `skipped`, como esperado para PR. O PR continua em `draft`; não houve merge nem alteração da produção.
+
+A atualização documental feita depois desse head exige a própria CI verde antes de ser considerada a nova evidência final do branch.
 
 ## Limite da evidência atual
 
-O executor SQL utiliza SQLite real no Node para validar o dialeto e os invariantes implementados nas migrations. Isso é evidência executável muito superior à inspeção de strings, porém **não substitui a homologação contra uma instância Cloudflare D1 remota**.
+SQLite real comprova execução das migrations compatíveis e o comportamento do store sob o adaptador de teste, porém **não substitui homologação contra uma instância Cloudflare D1 remota**.
 
-Da mesma forma, o teste de deep-link atual prova a composição path-based e a configuração de fallback do repositório, mas **não deve ser descrito como browser QA real**. Browser QA desktop/mobile e refresh contra homologação continuam pendentes de ambiente executável apropriado.
+O teste de deep-link comprova a composição path-based e a configuração de fallback do repositório, mas **não é browser QA real**. Browser QA desktop/mobile, refresh e navegação direta continuam pendentes de ambiente de homologação.
 
-A edição segura de vigência já evita limpeza silenciosa da data final no servidor, mas a tela ainda não pré-carrega visualmente `effectiveFrom` e `effectiveTo` ao selecionar uma vigência existente. Isso permanece como acabamento de UX antes de promoção do módulo.
+O núcleo de grade-events está implementado e testado internamente, mas **o endpoint público para o add-in ainda não foi conectado**. A exposição permanece bloqueada até existir audience/scope Microsoft Entra apropriado e validação bearer própria para o consumidor independente; o cookie administrativo do Centro não será reutilizado como autenticação improvisada do add-in.
 
 ## Estado externo
 
@@ -73,30 +84,31 @@ O registro SharePoint está implementado no provisionador idempotente, mas não 
 ## Segurança e defaults
 
 - navegador não acessa Graph/SharePoint diretamente;
-- mutations exigem sessão, capability específica e Origin oficial;
+- mutations administrativas exigem sessão, capability específica e Origin oficial;
 - health degrada de forma explícita se o binding D1 não existir;
 - sincronização nasce desligada;
-- `effectiveTo=null` não limpa mais uma vigência existente silenciosamente;
+- `effectiveTo` não é apagado silenciosamente;
+- grade-event só é ingerido pelo núcleo quando fonte, modelo, autoridade, sync e mapeamento são coerentes;
 - nenhum dado real ou arquivo docente está no Git;
 - Ambient Constellation, shadcn e ReUI não fazem parte do módulo;
 - Nina e Alanna continuam exclusivamente como golden masters privados externos.
 
 ## Pendências antes do piloto
 
-- pré-carregar visualmente as datas atuais ao selecionar uma vigência existente;
-- provisionar D1 de homologação e executar as migrations no D1 real;
+- provisionar D1 de homologação e executar `0001` + `0002` no D1 real;
 - aplicar o registro idempotente do módulo no SharePoint de homologação quando autorizado;
 - executar browser QA real de desktop/mobile/deep-link/refresh;
-- migrar OpenAPI/AsyncAPI;
-- implementar jobs/importação e `grade-events` transacional;
-- adaptar o add-in Office.js para a API definitiva;
-- materializar o modelo genérico limpo;
+- definir/provisionar audience e delegated scope Entra próprios para o add-in;
+- conectar endpoint autenticado de `grade-events` ao roteamento público somente depois do gate Entra;
+- adaptar o add-in Office.js para a API definitiva, sem client secret;
+- implementar jobs/importação e pipeline cloud de transformação para o modelo genérico limpo;
+- implementar armazenamento, compartilhamento e reconciliação Graph definitivos pelo backend;
 - executar regressão privada externa com Nina/Alanna sem incorporar os arquivos ao produto;
-- definir/provisionar audience/scope Entra próprio para o add-in antes do piloto.
+- preparar piloto individual mantendo `SyncEnabled=false` até reconciliação.
 
 ## Próximo bloco funcional
 
-Depois da homologação da fundação, avançar para contratos OpenAPI/AsyncAPI, pipeline de importação/modelo genérico, `grade-events`, add-in e reconciliação Microsoft. A promoção deve continuar gradual, com `SyncEnabled=false` até validação individual.
+Depois da homologação da fundação no D1 real, avançar em paralelo controlado para pipeline de importação/modelo genérico, autenticação Entra do add-in, exposição governada de `grade-events` e reconciliação Microsoft. A promoção deve continuar gradual, com `SyncEnabled=false` até validação individual.
 
 ## Regra crítica permanente
 
