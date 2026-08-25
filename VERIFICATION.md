@@ -2,25 +2,21 @@
 
 ## Estado da verificação
 
-A baseline HeroUI Native v2 permanece publicada em validação controlada. O PR #43 adiciona hardening de interação, performance e acessibilidade e foi validado em Chrome real antes da integração em `main`.
+O hardening HeroUI Native v2 foi integrado em `main`, implantado no domínio oficial de validação e verificado após o deploy.
 
 `releaseState = validation`.
 
 Produção oficial não está autorizada.
 
-## Candidata de hardening
+## Integração técnica
 
 PR:
 
 `#43 — HeroUI Native v2 — hardening de interação, performance e acessibilidade`
 
-Baseline de `main` antes do merge do hardening:
+Commit integrado em `main`:
 
-`d852007ea12ee9a0c55328103e39bc67e888009a`
-
-Commit funcional que eliminou a última exceção do Drawer mobile:
-
-`8c790be33614d297cd557aa5aaccd36d334b4003`
+`f79939c55021a021da23d55ce49d1357923f892a`
 
 Domínio de validação:
 
@@ -28,7 +24,7 @@ Domínio de validação:
 
 ## Fundação preservada
 
-O diff do hardening permanece concentrado em apresentação e estilo. Não há mudança intencional em:
+O hardening permaneceu concentrado em apresentação e estilo. Não houve mudança intencional em:
 
 - Entra ID;
 - sessão/BFF;
@@ -49,7 +45,7 @@ O diff do hardening permanece concentrado em apresentação e estilo. Não há m
 - não existe reload completo para mudar área da plataforma;
 - seleção usa background/foreground, sem barra vertical residual;
 - Drawer mobile fecha no próprio clique do link;
-- listener global de `hashchange` foi removido de `SidebarContent`.
+- listener global de `hashchange` foi removido de `SidebarContent` como caminho primário de fechamento.
 
 ### Busca
 
@@ -63,10 +59,10 @@ O diff do hardening permanece concentrado em apresentação e estilo. Não há m
 ### Overlays
 
 - Drawers usam uma única fonte de estado com `useOverlayState` no root;
-- não há combinação de trigger interno + `onPress` + `isOpen/onOpenChange` concorrentes;
+- não há combinação concorrente de trigger interno + `onPress` + `isOpen/onOpenChange` para o mesmo overlay;
 - diagnóstico final não registra recuperação React `#520` nem console error.
 
-## QA final em Chrome real
+## QA final em Chrome real antes do merge
 
 Workflow:
 
@@ -92,9 +88,9 @@ Medianas de três ciclos:
 - Configurações: `63 ms`;
 - Visão geral: `87 ms`.
 
-Maior mediana: `151 ms`.
+Maior mediana observada: `151 ms`.
 
-Gate: `≤ 350 ms` — **pass**.
+O threshold usado nesta rodada pertence ao harness e ao ambiente dessa candidata; não deve ser tratado como número universal para outros produtos/runners.
 
 ### Busca desktop
 
@@ -112,8 +108,6 @@ Gate: `≤ 350 ms` — **pass**.
 - Drawer fechou: **pass**;
 - busca mobile até Configurações: `145 ms`.
 
-Gate de interação mobile: `≤ 500 ms` — **pass**.
-
 ## Performance
 
 Medido durante a bateria final:
@@ -129,9 +123,9 @@ Medido durante a bateria final:
 - transição da navegação: `90 ms`;
 - heap JS final: `13,162,048` bytes.
 
-Todos os gates definidos pelo harness final passaram.
+Todos os gates definidos pelo harness da candidata passaram.
 
-O Vite ainda emite warning de chunk JS acima de `500 kB` minificado. Esse warning não bloqueia a rodada porque as interações montadas passaram com margem. Code splitting deve ser avaliado separadamente com métrica de carregamento inicial.
+O Vite ainda emite warning de chunk JS acima de `500 kB` minificado. Esse warning não bloqueou a rodada porque as interações medidas passaram com margem. Code splitting deve ser avaliado separadamente com métrica de carregamento inicial.
 
 ## Acessibilidade
 
@@ -163,41 +157,97 @@ Resultado final após abrir Drawer → clicar Operação → estabilizar:
 - eventos de runtime: `[]`;
 - eventos de console: `[]`.
 
+## CI limpo, merge, deploy e recovery
+
+O diff final do PR #43 não manteve os workflows temporários de QA.
+
+CI limpo do PR: `32854113320` — **success**.
+
+O PR foi integrado por squash em `main` no commit `f79939c55021a021da23d55ce49d1357923f892a`.
+
+Workflow da nova `main`:
+
+`32854416111` — **success**
+
+Jobs concluídos com sucesso:
+
+- `Validate GitHub Actions security` — actionlint + zizmor;
+- `Validate application` — formatting, lint, typecheck, contrato semântico, testes e build;
+- `Deploy production` — Cloudflare Pages;
+- `Verify recovery after deploy` — rebuild do source publicado + round trip descartável de backup/restore SharePoint.
+
+## Smoke anônimo do domínio publicado
+
+Workflow definitivo:
+
+`32855103697` — **success**
+
+Artifact:
+
+- id: `9565851123`;
+- nome: `heroui-native-v2-hardening-domain-smoke`;
+- SHA-256: `d9d7117a488b726f1866feea9bbc0e4b0b0fdfec601a5949ff5c8d6af314df32`.
+
+Resultados:
+
+- bundle JS publicado = bundle JS do build da `main`;
+- bundle CSS publicado = bundle CSS do build da `main`;
+- `/api/me` sem sessão: HTTP `401`;
+- `/api/platform/snapshot` sem sessão: HTTP `401`;
+- desktop `1440×900`: login presente, UI administrativa ausente, sem overflow horizontal;
+- mobile `390×844`: login presente, UI administrativa ausente, sem overflow horizontal;
+- `#/sistemas` sem sessão: continua no login, sem `.platform-nav` e sem menu de perfil;
+- browser errors: `[]`.
+
+### Falso negativo do primeiro smoke
+
+O run `32854876204` falhou porque o harness procurava `a[href*="/auth/login"]`. A aplicação real usa `Button` HeroUI com `onPress={() => window.location.assign('/auth/login')}` e a classe `.platform-shell` também é legítima no login.
+
+O diagnóstico confirmou que o bundle publicado e os `401` já estavam corretos. O harness foi então corrigido para verificar a ação real `Entrar com conta institucional` e usar `.platform-nav`/menu de perfil como sinais de UI administrativa protegida. O run definitivo `32855103697` passou sem qualquer alteração de runtime.
+
+Isso fica registrado como regra de evidência: antes de alterar o produto por falha automatizada, confirmar que o harness modela a anatomia real da interface.
+
 ## Inspeção visual final
 
-Capturas verificadas manualmente no artifact `9565058830`:
+Capturas verificadas manualmente:
 
-### Desktop
+### QA autenticado isolado
 
 - item ativo sem barra vertical;
 - paleta azul/ciano, sem roxo legado;
 - Ambient Constellation discreto;
-- hierarquia e conteúdo preservados.
+- hierarquia e conteúdo preservados;
+- mobile sem sobreposição.
 
-### Mobile
+### Domínio real anônimo
 
-- cabeçalho e controles sem sobreposição;
-- Configurações legível;
-- tabelas mantêm rolagem interna quando necessária;
-- nenhum defeito visual evidente decorrente do hardening.
+- desktop: login íntegro e proporcional;
+- mobile: login íntegro, sem overflow;
+- partículas permanecem em microescala;
+- nenhuma UI administrativa protegida aparece sem sessão.
 
-## Higiene antes do merge
+## App Factory
 
-Os workflows temporários usados para QA/diagnóstico devem estar ausentes do diff final do PR. O CI definitivo precisa ser executado novamente após documentação e limpeza.
+As lições reutilizáveis foram transferidas para `mcpmieda/app-factory` no PR `#57 — HeroUI — endurecer overlays, navegação e QA de interação`, integrado no commit:
 
-O merge técnico só é aceitável se:
+`21d12063b1064bb5f9ccefd8b0f450f318ab9af4`
 
-- application validation estiver verde;
-- actionlint estiver verde;
-- zizmor estiver verde;
-- não houver review thread bloqueante;
-- PR estiver mergeável.
+O contrato da Factory agora exige, quando aplicável:
 
-Após merge, a nova `main` ainda precisa de deploy/recovery e smoke anônimo do domínio publicado.
+- semântica correta de link/ação/seleção;
+- fonte única de estado por overlay;
+- fechamento na mesma interação que navega;
+- ponteiro real + hit-testing para overlays animados;
+- gate browser-neutral para erros de runtime não tratados, usando CDP apenas como adaptador;
+- medição de performance por múltiplas amostras e mediana, com thresholds derivados do SLO/baseline e protocolo reproduzível;
+- diagnóstico do harness antes de mudar o produto;
+- smoke oficial sem autenticação artificial.
+
+Os oito workflows do head final do PR #57 passaram antes do merge.
 
 ## Gate humano e aprovação
 
-Mesmo com os gates técnicos aprovados, a produção oficial permanece bloqueada.
+Todos os gates técnicos desta rodada estão concluídos. Ainda assim, a produção oficial permanece bloqueada.
 
 A autorização de produção exige o comando humano exato:
 

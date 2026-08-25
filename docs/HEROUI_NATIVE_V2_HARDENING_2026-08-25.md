@@ -2,9 +2,25 @@
 
 Data: 2026-08-25
 
+## Estado final da rodada
+
+O hardening foi **integrado tecnicamente em `main`**, implantado no domínio oficial de validação e verificado após o deploy.
+
+Commit integrado:
+
+`f79939c55021a021da23d55ce49d1357923f892a`
+
+PR:
+
+`#43 — HeroUI Native v2 — hardening de interação, performance e acessibilidade`
+
+`releaseState` permanece `validation`.
+
+A integração e o deploy descritos neste documento não constituem liberação oficial para usuários.
+
 ## Objetivo
 
-Esta rodada corrige regressões de interação e reduz custo visual contínuo da candidata HeroUI Native v2 sem alterar autenticação, autorização, dados, integrações ou regras de negócio.
+Esta rodada corrigiu regressões de interação e reduziu custo visual contínuo da HeroUI Native v2 sem alterar autenticação, autorização, dados, integrações ou regras de negócio.
 
 Escopo técnico restrito à apresentação:
 
@@ -14,8 +30,6 @@ Escopo técnico restrito à apresentação:
 - Ambient Constellation;
 - contraste;
 - transições e filtros de superfície.
-
-`releaseState` permanece `validation`.
 
 ## Causas encontradas
 
@@ -45,7 +59,7 @@ A rota mudava corretamente, mas o Popover podia permanecer visível durante a tr
 Correção:
 
 - `navigateFromSearch` altera a hash e fecha a busca explicitamente na mesma interação;
-- `hashchange` permanece apenas como proteção secundária.
+- listener de rota deixa de ser o mecanismo primário para concluir a interação.
 
 ### 4. Drawer mobile fechado por hashchange durante troca de rota
 
@@ -62,13 +76,15 @@ Correção:
 - barra vertical residual do item selecionado removida;
 - roxo legado removido da interface em favor da família azul/ciano;
 - contraste textual recalibrado;
-- partículas ambientais reduzidas para o gate atual de `384` simultâneas no cenário mais denso testado;
+- partículas ambientais reduzidas para `384` simultâneas no cenário mais denso medido;
 - no máximo `6` animações ambientais contínuas simultâneas no cenário medido;
 - glow e glints deixaram de manter loops independentes;
 - filtros contínuos nos filhos da constelação: `0`;
 - `backdrop-filter` da topbar/sidebar: `none`;
 - transição da navegação: `90ms`;
 - reduced-motion remove todas as animações ambientais contínuas.
+
+Os thresholds de latência desta rodada pertencem ao harness e ao ambiente dessa candidata. Não devem ser reutilizados como números universais sem baseline/SLO e protocolo reproduzível no projeto de destino.
 
 ## QA final em Chrome real
 
@@ -98,7 +114,7 @@ Mediana de três cliques físicos por rota:
 | Configurações |   63 ms |
 | Visão geral   |   87 ms |
 
-Maior mediana: `151 ms`, abaixo do gate de `350 ms`.
+Maior mediana: `151 ms`.
 
 ### Busca desktop
 
@@ -138,9 +154,12 @@ Maior mediana: `151 ms`, abaixo do gate de `350 ms`.
 
 ### Runtime
 
-- `browserErrors`: `[]`;
-- `failures`: `[]`;
+- erros de browser não tratados: `[]`;
+- `console.error`: `[]`;
+- failures do harness: `[]`;
 - status final: `PASS`.
+
+O uso de `Runtime.exceptionThrown` via CDP foi apenas o adaptador Chromium utilizado nessa rodada. A regra reutilizável transferida para a App Factory foi generalizada para **erros de runtime/página não tratados**, com hooks equivalentes em outros browsers/harnesses.
 
 ## Diagnóstico específico do Drawer mobile
 
@@ -165,16 +184,124 @@ Após abrir o Drawer, clicar fisicamente em Operação e aguardar a estabilizaç
 
 Isso confirma a eliminação da recuperação React `#520` observada antes da correção.
 
+## CI limpo e integração
+
+Depois de remover os workflows temporários de QA/diagnóstico do diff final, o CI definitivo do PR passou:
+
+`32854113320` — **success**
+
+O PR #43 foi então integrado por squash em `main` no commit:
+
+`f79939c55021a021da23d55ce49d1357923f892a`
+
+## Deploy e recovery da nova main
+
+Workflow:
+
+`32854416111` — **success**
+
+Jobs aprovados:
+
+- `Validate GitHub Actions security` — actionlint + zizmor;
+- `Validate application` — install, formatting, lint, typecheck, contrato semântico, testes e build;
+- `Deploy production` — Cloudflare Pages;
+- `Verify recovery after deploy` — rebuild do source publicado e round trip descartável de backup/restore SharePoint.
+
+A nomenclatura do job `Deploy production` pertence ao pipeline técnico. Pelo protocolo do projeto, esse deploy continua sendo uma implantação controlada para validação até autorização humana explícita.
+
+## Smoke externo no domínio oficial
+
+### Primeira tentativa: falso negativo do harness
+
+Run:
+
+`32854876204` — failure no passo de inspeção do login em Chrome.
+
+Antes da falha, o mesmo run já confirmou:
+
+- bundle publicado igual ao build da `main`;
+- `/api/me = 401` sem sessão;
+- `/api/platform/snapshot = 401` sem sessão.
+
+A causa do failure não estava no produto. O harness procurava `a[href*="/auth/login"]`, mas a aplicação usa `Button` HeroUI com `onPress={() => window.location.assign('/auth/login')}`. Além disso, `.platform-shell` também é usada legitimamente no login e não serve como sinal de shell autenticado.
+
+O harness foi corrigido antes de qualquer alteração no runtime.
+
+### Smoke definitivo
+
+Workflow:
+
+`32855103697` — **success**
+
+Artifact:
+
+- id: `9565851123`;
+- nome: `heroui-native-v2-hardening-domain-smoke`;
+- SHA-256: `d9d7117a488b726f1866feea9bbc0e4b0b0fdfec601a5949ff5c8d6af314df32`.
+
+Resultados:
+
+- JS/CSS publicados correspondem ao build do hardening em `main`;
+- `/api/me = 401` sem sessão;
+- `/api/platform/snapshot = 401` sem sessão;
+- desktop `1440×900`: login presente, sem navegação administrativa, sem menu de perfil e sem overflow horizontal;
+- mobile `390×844`: login presente, sem navegação administrativa, sem menu de perfil e sem overflow horizontal;
+- `#/sistemas` sem sessão continua preso ao login;
+- browser errors: `[]`.
+
+As screenshots `desktop-login.png` e `mobile-login.png` do artifact foram inspecionadas e não mostraram regressão visual evidente.
+
+## Regra aprendida sobre QA
+
+O falso negativo do primeiro smoke gerou uma regra formal que agora também está na App Factory:
+
+- o harness deve modelar o elemento real da aplicação;
+- `Button` com navegação por handler não deve ser testado como se fosse necessariamente `<a>`;
+- classes compartilhadas entre login e shell autenticado não servem como prova de autorização;
+- overlays animados devem ser testados por hit-testing/ponteiro real, não apenas por presença no DOM;
+- antes de alterar o produto por falha automatizada, diagnosticar se o próprio harness é a causa.
+
+## App Factory — transferência das lições
+
+PR:
+
+`mcpmieda/app-factory#57 — HeroUI — endurecer overlays, navegação e QA de interação`
+
+Commit integrado:
+
+`21d12063b1064bb5f9ccefd8b0f450f318ab9af4`
+
+O contrato novo da Factory consolidou:
+
+- semântica de link/ação/seleção em overlays;
+- uma única fonte de estado por overlay controlado;
+- fechamento na mesma interação que navega;
+- QA com ponteiro real + hit-testing após animações;
+- erros de runtime não tratados como gate browser-neutral;
+- CDP como adaptador opcional, não requisito universal;
+- múltiplas amostras e mediana com thresholds derivados de SLO/baseline e protocolo reproduzível;
+- diagnóstico de falso positivo do harness;
+- smoke oficial sem autenticação artificial.
+
+Os oito workflows do head final do PR #57 passaram antes do squash merge. Duas observações da revisão independente foram incorporadas antes da integração: portabilidade browser-neutral dos runtime gates e remoção de thresholds universais de performance.
+
 ## Inspeção visual das evidências finais
 
-As capturas do artifact final foram inspecionadas:
+As capturas do QA autenticado e do smoke real foram inspecionadas:
 
-- `desktop-overview.png`: sem barra vertical residual, sem roxo, partículas discretas, hierarquia visual preservada;
-- `mobile-configuracoes.png`: controles sem sobreposição, cabeçalho e conteúdo legíveis, sem regressão visível de layout.
+- sem barra vertical residual;
+- sem roxo legado;
+- Ambient Constellation discreto, com partículas em microescala;
+- hierarquia visual preservada;
+- controles mobile sem sobreposição;
+- login real desktop/mobile sem overflow;
+- nenhuma UI administrativa protegida exposta sem sessão.
 
 ## Limites e observações
 
-O build Vite ainda emite aviso de chunk JavaScript acima de `500 kB` minificado. Na bateria de interação já montada, as medianas de rota ficaram entre `63–151 ms`, portanto o aviso não representa um bloqueio desta rodada. Code splitting deve ser tratado como otimização de carregamento inicial em uma etapa própria, com métrica de first load antes/depois.
+O build Vite ainda emite aviso de chunk JavaScript acima de `500 kB` minificado. Na bateria de interação montada, as medianas de rota ficaram entre `63–151 ms`, portanto o aviso não foi bloqueante nesta rodada.
+
+Code splitting deve ser tratado como otimização de carregamento inicial em uma etapa própria, com métrica de first load antes/depois.
 
 ## Segurança e fundação preservadas
 
@@ -193,8 +320,10 @@ Nenhuma alteração desta rodada modifica:
 
 ## Gate de liberação
 
-A integração técnica deste hardening em `main` pode ser usada para validação controlada no domínio oficial. Isso não equivale a liberação oficial.
+Todos os gates técnicos desta rodada estão concluídos.
 
 A produção oficial continua condicionada ao comando humano exato:
 
 `APROVADO PARA PRODUÇÃO`
+
+Sem esse comando, `https://admin.escolaieda.com` permanece como candidata publicada para validação controlada.
