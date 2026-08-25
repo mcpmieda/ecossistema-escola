@@ -5,8 +5,6 @@ import {
   Description,
   Drawer,
   Kbd,
-  Label,
-  ListBox,
   Popover,
   SearchField,
   Surface,
@@ -47,7 +45,7 @@ function SearchResults({
   }
 
   return (
-    <ListBox aria-label="Resultados da busca" selectionMode="none" className="platform-search-results">
+    <ul aria-label="Resultados da busca" className="platform-search-results">
       {items.map((item) => {
         const Icon =
           item.iconKind === 'system'
@@ -56,33 +54,36 @@ function SearchResults({
               ? Settings2
               : routeIcons[item.route ?? 'visao-geral'];
         return (
-          <ListBox.Item
-            id={item.id}
-            key={item.id}
-            href={item.href}
-            textValue={item.label}
-            className="platform-search-results__item"
-            onPress={() => onNavigate(item.href)}
-          >
-            <Surface
-              variant="secondary"
-              className="grid size-9 shrink-0 place-items-center rounded-xl"
+          <li key={item.id}>
+            <Button
+              variant="ghost"
+              fullWidth
+              className="platform-search-results__item h-auto justify-start text-left"
+              data-search-href={item.href}
+              onPress={() => onNavigate(item.href)}
             >
-              <Icon className="size-4 text-muted" />
-            </Surface>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <Label className="truncate">{item.label}</Label>
-                <Chip variant="soft" size="sm" className="shrink-0">
-                  {item.category}
-                </Chip>
-              </div>
-              <Description className="mt-0.5 line-clamp-2">{item.description}</Description>
-            </div>
-          </ListBox.Item>
+              <Surface
+                variant="secondary"
+                className="grid size-9 shrink-0 place-items-center rounded-xl"
+              >
+                <Icon className="size-4 text-muted" />
+              </Surface>
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium">{item.label}</span>
+                  <Chip variant="soft" size="sm" className="shrink-0">
+                    {item.category}
+                  </Chip>
+                </span>
+                <span className="mt-0.5 block line-clamp-2 text-xs text-muted">
+                  {item.description}
+                </span>
+              </span>
+            </Button>
+          </li>
         );
       })}
-    </ListBox>
+    </ul>
   );
 }
 
