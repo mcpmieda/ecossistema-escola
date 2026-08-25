@@ -14,7 +14,8 @@ describe('Banco de Notas path-based deep links', () => {
   it('dispatches the module from the real pathname instead of a hash route', () => {
     expect(app).toContain("window.location.pathname.startsWith('/banco-de-notas')");
     expect(banco).toContain('<BrowserRouter basename="/banco-de-notas">');
-    expect(banco).toContain('<Route path="/configuracoes/fonte"');
+    expect(banco).toContain('<Route path="configuracoes/fonte"');
+    expect(banco).toContain("['/configuracoes/fonte', 'Configurações', Settings]");
     expect(banco).not.toMatch(/#bancodenotas|#\/banco-de-notas/iu);
   });
 
