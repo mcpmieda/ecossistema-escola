@@ -78,14 +78,14 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           <AmbientConstellation intensity="strong" placement="right" />
           <div className="living-aura living-aura--right" />
           <div className="relative z-10 flex min-h-[19rem] flex-col">
-            <div className="flex items-center gap-2 text-[#4E75A5]">
+            <div className="flex items-center gap-2 text-[#365B86]">
               <CircleGauge className="size-4" />
               <span className="text-xs font-semibold uppercase tracking-[0.14em]">Fundação</span>
             </div>
             <h3 className="mt-5 max-w-xl text-3xl font-semibold tracking-[-0.045em] text-[#203856] sm:text-4xl">
               {snapshot.foundation.status === 'ok' ? 'Estrutura disponível' : 'Estrutura degradada'}
             </h3>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#4E75A5]">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#365B86]">
               O estado deriva da presença real das estruturas obrigatórias. Sinais detalhados,
               cobertura de health checks e lacunas de recuperação ficam na área de Operação.
             </p>
@@ -100,7 +100,7 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                 <Surface
                   key={item}
                   variant="default"
-                  className="stagger-item flex items-center gap-2 rounded-2xl bg-surface/88 px-3 py-2.5 text-xs backdrop-blur-sm"
+                  className="stagger-item flex items-center gap-2 rounded-2xl bg-surface/96 px-3 py-2.5 text-xs"
                 >
                   <CheckCircle2 className="size-3.5 text-success" />
                   {item}
@@ -479,10 +479,10 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
         <h3 className="mt-5 max-w-xl text-2xl font-semibold tracking-[-0.04em] text-[#203856]">
           {copy.title} será incorporado ao núcleo
         </h3>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-[#4E75A5]">{copy.description}</p>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-[#365B86]">{copy.description}</p>
         <Surface
           variant="default"
-          className="mt-7 flex items-center gap-2 rounded-2xl bg-surface/86 px-4 py-3 text-xs text-muted backdrop-blur-sm"
+          className="mt-7 flex items-center gap-2 rounded-2xl bg-surface/96 px-4 py-3 text-xs text-muted"
         >
           <ShieldCheck className="size-3.5 text-accent" />
           Nenhuma escrita foi ativada nesta candidata.
@@ -536,7 +536,7 @@ export function LoadingWorkspace() {
         <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-[#203856]">
           Carregando dados institucionais
         </h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-[#4E75A5]">
+        <p className="mt-2 max-w-md text-sm leading-6 text-[#365B86]">
           O shell já está disponível enquanto o snapshot autorizado é preparado.
         </p>
       </div>

@@ -12,6 +12,7 @@ import {
   Separator,
   Spinner,
   Surface,
+  useOverlayState,
 } from '@heroui/react';
 import {
   Activity,
@@ -95,7 +96,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
               <h1 className="mt-6 max-w-xl text-5xl font-semibold tracking-[-0.055em]">
                 Centro de Administração
               </h1>
-              <p className="mt-5 max-w-xl text-base leading-7 text-[#4E75A5]">
+              <p className="mt-5 max-w-xl text-base leading-7 text-[#365B86]">
                 Uma plataforma administrativa viva, modular e protegida para operar os sistemas da
                 escola em uma única experiência.
               </p>
@@ -112,7 +113,7 @@ function LoginExperience({ loading }: { loading: boolean }) {
                   <Surface
                     key={label as string}
                     variant="transparent"
-                    className="stagger-item flex items-center gap-3 rounded-2xl border border-white/45 bg-white/28 px-4 py-3 backdrop-blur-md"
+                    className="stagger-item flex items-center gap-3 rounded-2xl border border-white/45 bg-white/72 px-4 py-3"
                   >
                     <FeatureIcon className="size-4" />
                     <span>{label as string}</span>
@@ -224,7 +225,7 @@ function RestrictedExperience({ name }: { name?: string }) {
 function AdminShell({ identity }: { identity: Identity }) {
   const route = usePlatformRoute();
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
-  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const mobileNavigationState = useOverlayState();
   const logoutFormRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -279,22 +280,17 @@ function AdminShell({ identity }: { identity: Identity }) {
       <div className="relative z-10 min-w-0">
         <Surface variant="transparent" className="glass-bar sticky top-0 z-30 rounded-none">
           <div className="flex min-h-17 items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
-            <Drawer>
+            <Drawer state={mobileNavigationState}>
               <Button
                 variant="outline"
                 size="md"
                 isIconOnly
                 className="lg:hidden"
                 aria-label="Abrir navegação"
-                onPress={() => setMobileNavigationOpen(true)}
               >
                 <Menu />
               </Button>
-              <Drawer.Backdrop
-                variant="blur"
-                isOpen={mobileNavigationOpen}
-                onOpenChange={setMobileNavigationOpen}
-              >
+              <Drawer.Backdrop variant="blur">
                 <Drawer.Content placement="left" className="max-w-[320px]">
                   <Drawer.Dialog
                     aria-label="Navegação do Centro"
@@ -306,7 +302,7 @@ function AdminShell({ identity }: { identity: Identity }) {
                         route={route}
                         modules={modules}
                         loading={loadState.status === 'loading'}
-                        onNavigate={() => setMobileNavigationOpen(false)}
+                        onNavigate={mobileNavigationState.close}
                       />
                     </Drawer.Body>
                   </Drawer.Dialog>

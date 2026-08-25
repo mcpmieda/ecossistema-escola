@@ -1,15 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Chip,
   Description,
   Drawer,
   Kbd,
-  Label,
-  ListBox,
   Popover,
   SearchField,
   Surface,
+  useOverlayState,
 } from '@heroui/react';
 import { Boxes, Search, Settings2 } from 'lucide-react';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
@@ -19,11 +18,11 @@ import { routeIcons } from './routes';
 function SearchResults({
   items,
   query,
-  onSelect,
+  onNavigate,
 }: {
   items: PlatformSearchItem[];
   query: string;
-  onSelect: () => void;
+  onNavigate: (href: string) => void;
 }) {
   if (!query.trim()) {
     return (
@@ -47,17 +46,7 @@ function SearchResults({
   }
 
   return (
-    <ListBox
-      aria-label="Resultados da busca"
-      selectionMode="none"
-      className="platform-search-results"
-      onAction={(key) => {
-        const item = items.find((candidate) => candidate.id === String(key));
-        if (!item) return;
-        window.location.assign(item.href);
-        onSelect();
-      }}
-    >
+    <ul aria-label="Resultados da busca" className="platform-search-results">
       {items.map((item) => {
         const Icon =
           item.iconKind === 'system'
@@ -66,115 +55,160 @@ function SearchResults({
               ? Settings2
               : routeIcons[item.route ?? 'visao-geral'];
         return (
-          <ListBox.Item
-            id={item.id}
-            key={item.id}
-            textValue={item.label}
-            className="platform-search-results__item"
-          >
-            <Surface
-              variant="secondary"
-              className="grid size-9 shrink-0 place-items-center rounded-xl"
+          <li key={item.id}>
+            <Button
+              variant="ghost"
+              fullWidth
+              className="platform-search-results__item h-auto justify-start text-left"
+              data-search-href={item.href}
+              onPress={() => onNavigate(item.href)}
             >
-              <Icon className="size-4 text-muted" />
-            </Surface>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <Label className="truncate">{item.label}</Label>
-                <Chip variant="soft" size="sm" className="shrink-0">
-                  {item.category}
-                </Chip>
-              </div>
-              <Description className="mt-0.5 line-clamp-2">{item.description}</Description>
-            </div>
-          </ListBox.Item>
+              <Surface
+                variant="secondary"
+                className="grid size-9 shrink-0 place-items-center rounded-xl"
+              >
+                <Icon className="size-4 text-muted" />
+              </Surface>
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate font-medium">{item.label}</span>
+                  <Chip variant="soft" size="sm" className="shrink-0">
+                    {item.category}
+                  </Chip>
+                </span>
+                <span className="mt-0.5 block line-clamp-2 text-xs text-muted">
+                  {item.description}
+                </span>
+              </span>
+            </Button>
+          </li>
         );
       })}
-    </ListBox>
+    </ul>
+  );
+}
+
+function DesktopSearch({
+  snapshot,
+  query,
+  setQuery,
+  results,
+  open,
+  setOpen,
+  onNavigate,
+}: {
+  snapshot: PlatformSnapshotContract | null;
+  query: string;
+  setQuery: (value: string) => void;
+  results: PlatformSearchItem[];
+  open: boolean;
+  setOpen: (value: boolean) => void;
+  onNavigate: (href: string) => void;
+}) {
+  return (
+    <div className="hidden w-full max-w-md md:block">
+      <Popover
+        isOpen={open && Boolean(snapshot)}
+        onOpenChange={(value) => setOpen(value && Boolean(snapshot))}
+      >
+        <Popover.Trigger>
+          <Button
+            variant="outline"
+            size="md"
+            fullWidth
+            className="platform-search-trigger justify-start"
+            isDisabled={!snapshot}
+            aria-label="Buscar no Centro"
+          >
+            <Search className="size-4 shrink-0 text-muted" />
+            <span className="min-w-0 flex-1 truncate text-left text-muted">Buscar no Centro</span>
+            <Kbd variant="light" className="shrink-0">
+              <Kbd.Abbr keyValue="ctrl" />
+              <Kbd.Content>K</Kbd.Content>
+            </Kbd>
+          </Button>
+        </Popover.Trigger>
+        <Popover.Content placement="bottom" offset={8} className="w-[min(28rem,calc(100vw-2rem))]">
+          <Popover.Dialog className="p-2">
+            <SearchField
+              aria-label="Buscar áreas, sistemas e configurações"
+              variant="secondary"
+              fullWidth
+              value={query}
+              onChange={setQuery}
+              onClear={() => setQuery('')}
+              autoFocus
+            >
+              <SearchField.Group>
+                <SearchField.SearchIcon />
+                <SearchField.Input placeholder="Digite para buscar" />
+                <SearchField.ClearButton />
+              </SearchField.Group>
+            </SearchField>
+            <div className="mt-2">
+              <SearchResults items={results} query={query} onNavigate={onNavigate} />
+            </div>
+          </Popover.Dialog>
+        </Popover.Content>
+      </Popover>
+    </div>
   );
 }
 
 export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContract | null }) {
   const [query, setQuery] = useState('');
   const [desktopOpen, setDesktopOpen] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const desktopInputRef = useRef<HTMLInputElement>(null);
+  const mobileState = useOverlayState();
 
   const items = useMemo(() => (snapshot ? buildSearchItems(snapshot) : []), [snapshot]);
   const results = useMemo(() => filterSearchItems(items, query), [items, query]);
 
+  const closeSearch = () => {
+    setQuery('');
+    setDesktopOpen(false);
+    mobileState.close();
+  };
+
+  const navigateFromSearch = (href: string) => {
+    if (window.location.hash !== href) window.location.hash = href;
+    closeSearch();
+  };
+
+  useEffect(() => {
+    const closeAfterNavigation = () => {
+      setQuery('');
+      setDesktopOpen(false);
+      mobileState.close();
+    };
+    window.addEventListener('hashchange', closeAfterNavigation);
+    return () => window.removeEventListener('hashchange', closeAfterNavigation);
+  }, [mobileState]);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLocaleLowerCase('pt-BR') === 'k') {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        desktopInputRef.current?.focus();
-        setDesktopOpen(true);
+        setDesktopOpen(Boolean(snapshot));
       }
       if (event.key === 'Escape') setDesktopOpen(false);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  const selectResult = () => {
-    setQuery('');
-    setDesktopOpen(false);
-    setMobileOpen(false);
-  };
+  }, [snapshot]);
 
   return (
     <>
-      <div className="hidden w-full max-w-md md:block">
-        <Popover
-          isOpen={desktopOpen && Boolean(snapshot)}
-          onOpenChange={(open) => setDesktopOpen(open && Boolean(snapshot))}
-        >
-          <Popover.Trigger>
-            <div className="relative">
-              <SearchField
-                aria-label="Buscar no Centro"
-                variant="secondary"
-                fullWidth
-                value={query}
-                onChange={(value) => {
-                  setQuery(value);
-                  setDesktopOpen(true);
-                }}
-                onClear={() => setQuery('')}
-                isDisabled={!snapshot}
-              >
-                <SearchField.Group>
-                  <SearchField.SearchIcon />
-                  <SearchField.Input
-                    ref={desktopInputRef}
-                    placeholder="Buscar no Centro"
-                    onFocus={() => setDesktopOpen(true)}
-                  />
-                  <SearchField.ClearButton />
-                </SearchField.Group>
-              </SearchField>
-              <Kbd
-                variant="light"
-                className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2"
-              >
-                <Kbd.Abbr keyValue="ctrl" />
-                <Kbd.Content>K</Kbd.Content>
-              </Kbd>
-            </div>
-          </Popover.Trigger>
-          <Popover.Content
-            placement="bottom"
-            offset={8}
-            className="w-[min(28rem,calc(100vw-2rem))]"
-          >
-            <Popover.Dialog className="p-1.5">
-              <SearchResults items={results} query={query} onSelect={selectResult} />
-            </Popover.Dialog>
-          </Popover.Content>
-        </Popover>
-      </div>
+      <DesktopSearch
+        snapshot={snapshot}
+        query={query}
+        setQuery={setQuery}
+        results={results}
+        open={desktopOpen}
+        setOpen={setDesktopOpen}
+        onNavigate={navigateFromSearch}
+      />
 
-      <Drawer>
+      <Drawer state={mobileState}>
         <Button
           variant="outline"
           size="md"
@@ -182,11 +216,10 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
           className="md:hidden"
           aria-label="Buscar no Centro"
           isDisabled={!snapshot}
-          onPress={() => setMobileOpen(true)}
         >
           <Search />
         </Button>
-        <Drawer.Backdrop variant="blur" isOpen={mobileOpen} onOpenChange={setMobileOpen}>
+        <Drawer.Backdrop variant="blur">
           <Drawer.Content placement="right" className="max-w-[440px]">
             <Drawer.Dialog aria-label="Buscar no Centro">
               <Drawer.CloseTrigger />
@@ -213,7 +246,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
                   </SearchField.Group>
                 </SearchField>
                 <Surface variant="secondary" className="mt-4 overflow-hidden rounded-3xl p-1">
-                  <SearchResults items={results} query={query} onSelect={selectResult} />
+                  <SearchResults items={results} query={query} onNavigate={navigateFromSearch} />
                 </Surface>
               </Drawer.Body>
             </Drawer.Dialog>

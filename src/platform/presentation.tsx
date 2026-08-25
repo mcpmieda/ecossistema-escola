@@ -66,7 +66,7 @@ export function PageHeader({
         <h2 className="mt-4 text-2xl font-semibold tracking-[-0.045em] text-[#203856] sm:text-3xl">
           {title}
         </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#4E75A5]">{description}</p>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#365B86]">{description}</p>
       </div>
     </Surface>
   );
@@ -82,21 +82,14 @@ export function ModuleStatus({ state }: { state: CoreModuleContract['state'] }) 
 
 export function ModuleList({ modules }: { modules: CoreModuleContract[] }) {
   return (
-    <ListBox
-      aria-label="Áreas do Centro"
-      selectionMode="none"
-      className="module-list"
-      onAction={(key) => {
-        const module = modules.find((candidate) => candidate.id === String(key));
-        if (module) window.location.assign(platformHref(module.route));
-      }}
-    >
+    <ListBox aria-label="Áreas do Centro" selectionMode="none" className="module-list">
       {modules.map((module) => {
         const Icon = routeIcons[module.route];
         return (
           <ListBox.Item
             id={module.id}
             key={module.id}
+            href={platformHref(module.route)}
             textValue={module.name}
             className="module-list__item"
           >

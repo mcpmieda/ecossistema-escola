@@ -29,7 +29,9 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     description: module.description,
     category: 'Área' as const,
     href: platformHref(module.route),
-    searchText: `${module.name} ${module.description} ${module.route} ${module.capabilities.join(' ')}`,
+    searchText: normalizeSearch(
+      `${module.name} ${module.description} ${module.route} ${module.capabilities.join(' ')}`,
+    ),
     iconKind: 'route' as const,
     route: module.route,
   }));
@@ -40,8 +42,11 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     description: `${module.integrationState === 'ready' ? 'Sistema integrado' : 'Sistema registrado'} · ${module.key}${module.version ? ` · v${module.version}` : ''}`,
     category: 'Sistema' as const,
     href: platformHref('sistemas'),
-    searchText: `${module.name} ${module.key} ${module.version} ${module.status} ${module.integrationState} ${module.requiredCapabilities.join(' ')}`,
+    searchText: normalizeSearch(
+      `${module.name} ${module.key} ${module.version} ${module.status} ${module.integrationState} ${module.requiredCapabilities.join(' ')}`,
+    ),
     iconKind: 'system' as const,
+    route: 'sistemas' as const,
   }));
 
   const configurations = snapshot.configurations.map((configuration) => ({
@@ -50,8 +55,11 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     description: `Configuração ${configuration.scope}${configuration.version ? ` · v${configuration.version}` : ''}`,
     category: 'Configuração' as const,
     href: platformHref('configuracoes'),
-    searchText: `${configuration.key} ${configuration.scope} ${configuration.version} ${configuration.active ? 'ativa' : 'inativa'}`,
+    searchText: normalizeSearch(
+      `${configuration.key} ${configuration.scope} ${configuration.version} ${configuration.active ? 'ativa' : 'inativa'}`,
+    ),
     iconKind: 'configuration' as const,
+    route: 'configuracoes' as const,
   }));
 
   return [...core, ...systems, ...configurations];
@@ -65,10 +73,7 @@ export function filterSearchItems(
   const normalizedQuery = normalizeSearch(query.trim());
   const queryTerms = normalizedQuery.split(/\s+/u).filter(Boolean);
   const matches = queryTerms.length
-    ? items.filter((item) => {
-        const normalizedItem = normalizeSearch(item.searchText);
-        return queryTerms.every((term) => normalizedItem.includes(term));
-      })
+    ? items.filter((item) => queryTerms.every((term) => item.searchText.includes(term)))
     : items;
   return matches.slice(0, Math.max(0, limit));
 }
