@@ -47,7 +47,7 @@ Arquivos relevantes:
 
 Não continue construindo o Banco definitivo nesse repositório. Migre o que for válido para `ecossistema-escola` e preserve o antigo como evidência/POC.
 
-## Documentos privados necessários para entendimento/regressão
+## Documentos privados de produto e golden masters de homologação
 
 - `Relatorio_Completo_Banco_de_Notas_v1.6_consolidado.docx`
 - `Dossie_Tecnico_Modelo_Professor_Integracao_Banco_de_Notas_v1.0.docx`
@@ -58,6 +58,14 @@ Não continue construindo o Banco definitivo nesse repositório. Migre o que for
 - `RELAÇÃO 2026.xlsb`
 
 Nenhum desses arquivos reais deve ser copiado para o Git.
+
+### Regra crítica de uso
+
+`NOTAS NINA 2026.xlsb`, `NOTAS ALANNA 2026.xlsb` e `Modelo_Professor_Nina_2026_Homologado.xlsx` são exclusivamente golden masters privados externos. Não são templates oficiais e não podem entrar no runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição.
+
+O produto deve gerar uma instância nova de um modelo genérico limpo para qualquer professor. Nina e Alanna servem apenas para provar regressão privada e generalização complementar. Nenhuma regra de produção pode depender de nomes, número/ordem de abas, turmas, disciplinas, células ou outras particularidades desses arquivos.
+
+Leia e preserve `docs/BANCO_NOTAS_MODELO_GENERICO_E_GOLDEN_MASTERS.md` antes de tocar em conversor, importador, gerador, fixtures, migrations, D1 ou SharePoint do Banco.
 
 ## Decisão de rota
 
@@ -110,7 +118,8 @@ Depois da base Fonte estar funcional:
 - implementar grade-events transacional;
 - migrar/adaptar add-in;
 - implementar storage/share/reconcile Graph;
-- homologar Nina com SyncEnabled=false;
+- homologar uma instância do modelo genérico com `SyncEnabled=false`;
+- executar regressão Nina/Alanna apenas como entrada privada externa, sem incorporá-las ao produto;
 - testar ida, stale, reversão, reconciliação e concorrência;
 - só depois preparar piloto.
 
@@ -125,3 +134,4 @@ Depois da base Fonte estar funcional:
 - não acumular wrappers/facades/código de tentativa;
 - não ativar sync em massa;
 - não apagar o caminho legado antes de provar regressão equivalente.
+- não transformar golden master privado em template, fixture, seed, migration, fallback ou dependência de runtime.

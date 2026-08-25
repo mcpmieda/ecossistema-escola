@@ -6,6 +6,8 @@ Este repositório é a fonte técnica de verdade do Centro de Administração e 
 
 O projeto está explicitamente governado pela App Factory V1.4. Antes de implementação material, aplicar o Project Adoption Gate e manter `.app-factory.json`, `PROJECT_STATE.md`, especificações semânticas, plano de verificação e documentação de continuidade coerentes.
 
+Entrada obrigatória de evolução: `factory-router`, seguindo `core/PROJECT_ADOPTION_GATE.md` da App Factory antes de alteração funcional ou visual material.
+
 Referência da App Factory usada na adoção: `mcpmieda/app-factory`, baseline V1.4 e hardening HeroUI disponível no `main` auditado em 25/08/2026.
 
 ## Banco de Notas — trabalho ativo
@@ -21,6 +23,14 @@ Fontes de produto e integração, em ordem de uso:
 5. Este repositório — fonte de verdade para infraestrutura, autenticação, autorização, contrato modular, Cloudflare, Entra, Graph, SharePoint e estado de produção.
 
 Nenhum arquivo real de professor, nome/nota de estudante, token, secret ou exportação institucional deve entrar no Git.
+
+### Regra crítica dos golden masters privados
+
+- `NOTAS NINA 2026.xlsb`, `NOTAS ALANNA 2026.xlsb` e `Modelo_Professor_Nina_2026_Homologado.xlsx` são exclusivamente golden masters privados de homologação.
+- Esses arquivos não são produto, template oficial ou fonte de configuração. Não podem entrar em runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição.
+- O produto deve possuir um modelo genérico limpo e um processo geral que transforme planilhas legadas de qualquer professor em uma nova instância desse modelo, pronta para conexão com o Banco.
+- Nina e Alanna provam apenas regressão privada e generalização. Nenhuma regra de produção pode depender de nomes, quantidade de abas, turmas, disciplinas, endereços de célula ou qualquer particularidade desses arquivos.
+- A decisão completa e seus gates estão em `docs/BANCO_NOTAS_MODELO_GENERICO_E_GOLDEN_MASTERS.md`.
 
 ## Decisões obrigatórias do Banco de Notas
 

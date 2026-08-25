@@ -94,6 +94,12 @@
       "name": "Security and privacy",
       "method": "secrets scan, least privilege review, no PII in Git/logs, origin/CORS/token validation and browser security headers",
       "required": true
+    },
+    {
+      "id": "BN-V-016",
+      "name": "Generic model and private golden-master isolation",
+      "method": "fixtures sintéticas estruturalmente variadas + inspeção de dependências nominais + regressão privada externa Nina/Alanna sem publicação dos arquivos",
+      "required": true
     }
   ],
   "scenario_matrix": [
@@ -118,11 +124,15 @@
     "usuário sem capability",
     "usuário com capability parcial",
     "reduced-motion",
-    "viewport móvel"
+    "viewport móvel",
+    "duas origens sintéticas com nomes, ordem e quantidade de abas diferentes geram instâncias do mesmo modelo genérico",
+    "origem incompleta produz finding explícito em vez de fallback Nina/Alanna",
+    "golden masters privados ausentes do Git, bundle, D1, migrations, fixtures públicas e SharePoint definitivo"
   ],
   "data_policy": {
     "git": "somente fixtures sintéticas e contratos; nenhum nome/nota real",
-    "real_regression": "arquivos Nina/Alanna permanecem privados e são usados apenas em ambiente autorizado",
+    "real_regression": "arquivos Nina/Alanna permanecem privados, externos ao produto e são usados apenas como entradas de regressão em ambiente autorizado",
+    "golden_master_isolation": "golden masters privados não são templates oficiais e não entram em runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição",
     "logs": "IDs técnicos/correlação e métricas; evitar valores e nomes de estudantes em logs técnicos"
   },
   "release_blockers": [
@@ -138,6 +148,8 @@
     "qualquer página do Banco fora da linguagem HeroUI",
     "Ambient Constellation presente",
     "migração massiva sem piloto e reconciliação",
-    "recovery não comprovado para o novo store antes da produção"
+    "recovery não comprovado para o novo store antes da produção",
+    "modelo ou transformador de produção especializado por nome, abas, turmas, disciplinas, células ou particularidades de Nina/Alanna",
+    "golden master privado incorporado ao produto, runtime, persistência, migration, fixture pública, SharePoint definitivo ou distribuição"
   ]
 }

@@ -20,12 +20,40 @@ Decisões duráveis já registradas:
 - add-in Office.js como fonte primária de baixa latência do novo modelo vinculado;
 - `SyncEnabled=false` por padrão até reconciliação individual;
 - GitHub é fonte técnica de construção/continuidade, nunca dependência de runtime.
+- o produto usará um modelo genérico limpo; os arquivos privados de Nina e Alanna são somente golden masters de homologação e nunca integram runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição;
+- a transformação de legado deve ser geral para qualquer professor e não pode depender de nomes, quantidade de abas, turmas, disciplinas ou particularidades dos golden masters privados.
 
 Fontes privadas de produto e integração auditadas: `Relatorio_Completo_Banco_de_Notas_v1.6_consolidado`, `Dossie_Tecnico_Modelo_Professor_Integracao_Banco_de_Notas_v1.0` e `Plano_Mestre_antigo_antes_do_dossie.Reconstrucao_Planilha_Banco_de_Notas_v0.3`. O terreno de POC em `mcpmieda/escolaieda` foi auditado no commit `211251908efe078a8b75396e71e94827293da860`; código/contratos válidos serão migrados, mas o Banco definitivo continuará neste repositório.
 
 Continuidade: `AGENTS.md`, `.app-factory.json`, `docs/BANCO_NOTAS_ARCHITECTURE_V1.md`, `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`, `docs/BANCO_NOTAS_HANDOFF.md` e `specs/banco-notas/`.
 
 Esta abertura de trabalho **não altera a release atual em `main` nem libera o Banco de Notas em produção**.
+
+<!-- APP-FACTORY:ADOPTION:START -->
+
+## App Factory Adoption
+
+- governance: `app-factory`;
+- factory baseline: `v1.4.0`;
+- adoption mode: `existing`;
+- scale: `L`;
+- risk: `high`;
+- system level: `production-system`;
+- profile: `web-admin`;
+- API mode: `governed`;
+- Semantic Verification: `required` / depth `domain`;
+- Independent Verification: `release`;
+- authoritative data: Cloudflare D1 para dados transacionais estruturados, snapshots, configuração versionada e auditoria do Banco; SharePoint/OneDrive para arquivos mestre genéricos e instâncias; Entra ID para identidade;
+- identity: Microsoft Entra ID pela autenticação/BFF existente; add-in com audience/scope próprio antes do piloto;
+- authorization: capabilities aplicadas no servidor; navegador sem acesso direto a SharePoint/Graph para dados de negócio;
+- recovery: migrations e Time Travel D1, versões SharePoint das instâncias, hashes das origens e reconciliação;
+- design system: `HeroUI React v3`;
+- Professional UI Profile: `professional-default`;
+- Motion Profile: `ambient`;
+- UI deviation: Ambient Constellation é proibido por decisão explícita de produto; motion limita-se a transições e microinterações sem superfície ambient.
+
+A implementação material exige o Project Adoption Gate de pré-implementação verde ou checklist equivalente comprovada quando o validador não representar uma exceção explícita aceita pelo contrato.
+<!-- APP-FACTORY:ADOPTION:END -->
 
 ## Estado atual
 

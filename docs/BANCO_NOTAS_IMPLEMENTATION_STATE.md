@@ -76,6 +76,9 @@ Confirmado:
 - shadcn/ReUI não entram no módulo.
 - Ambient Constellation proibido.
 - GitHub nunca participa do runtime.
+- O produto possui um modelo genérico limpo; arquivos de Nina e Alanna são somente golden masters privados externos de homologação.
+- A transformação de planilhas legadas deve funcionar para qualquer professor sem branch, regra, aba, turma, disciplina ou mapeamento fixo derivado desses golden masters.
+- Golden masters privados não entram em runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição.
 
 ## Artefatos criados neste branch
 
@@ -101,8 +104,8 @@ Confirmado:
 - portar/adaptar add-in da POC para a API definitiva;
 - migrar contratos OpenAPI/AsyncAPI válidos do repositório antigo para este repositório;
 - implementar storage/Graph definitivo;
-- executar modelo Nina em homologação e reconciliação;
-- testar Alanna como generalização;
+- implementar e versionar o modelo genérico limpo e o contrato intermediário de transformação;
+- provar generalização com fixtures sintéticas estruturalmente variadas e, adicionalmente, executar regressão Nina/Alanna somente em homologação privada externa;
 - resolver fonte institucional estável de AlunoId/turma;
 - substituir a dependência COM do caminho legado antes de declarar importação cloud totalmente autônoma.
 

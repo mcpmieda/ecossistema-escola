@@ -17,6 +17,7 @@
       "eventos grade.changed, grade.recalculated, grade.reverted e stale com idempotência e sequência",
       "importação legada auditável e idempotente",
       "modelo do professor com SyncEnabled=false por padrão e ativação individual após reconciliação",
+      "modelo genérico limpo e transformação de planilhas legadas de qualquer professor sem especialização por golden master",
       "configurações versionadas para regras pedagógicas e dúvidas operacionais legítimas",
       "integração futura de acompanhamento, conselho, boletins, pesquisa, entidades e análises conforme Relatório v1.6"
     ],
@@ -24,6 +25,8 @@
       "substituir Cloudflare, Microsoft Entra ID, BFF, grupos, sessão, Graph, SharePoint CENTROADMIN, CI/CD ou recovery existentes",
       "usar GitHub como banco, API, fila, storage operacional ou fonte de runtime",
       "publicar dados reais de estudante ou professor no Git",
+      "incorporar os golden masters privados Nina/Alanna ao runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição",
+      "usar nome de professor, quantidade ou ordem de abas, turmas, disciplinas, células ou particularidades dos golden masters como regra de produção",
       "transformar as listas NOTAS_POC_* em banco transacional definitivo",
       "misturar shadcn, ReUI ou outro design system ao módulo",
       "reintroduzir Ambient Constellation",
@@ -91,6 +94,14 @@
     {
       "id": "BN-INV-015",
       "statement": "Alteração reversível de nota preserva histórico; reversão é evento, não exclusão do passado."
+    },
+    {
+      "id": "BN-INV-016",
+      "statement": "O produto instancia um modelo genérico limpo; golden masters privados de Nina e Alanna são apenas entradas externas de homologação e nunca integram produto, runtime, persistência, migrations, fixtures públicas, SharePoint definitivo ou distribuição."
+    },
+    {
+      "id": "BN-INV-017",
+      "statement": "A transformação de legado é geral para qualquer professor e nenhuma regra de produção depende de nomes, número ou ordem de abas, turmas, disciplinas, endereços de célula ou particularidades dos golden masters privados."
     }
   ],
   "data_contracts": [
@@ -212,10 +223,7 @@
       "priority": "must",
       "given": "um evento com sequência antiga",
       "when": "ele chega após um snapshot mais novo",
-      "then": [
-        "o evento permanece auditável como stale",
-        "o snapshot corrente não regride"
-      ],
+      "then": ["o evento permanece auditável como stale", "o snapshot corrente não regride"],
       "verification": ["test", "integration"]
     },
     {
@@ -223,10 +231,7 @@
       "priority": "must",
       "given": "um modelo novo foi gerado e armazenado",
       "when": "ele ainda não passou reconciliação",
-      "then": [
-        "SyncEnabled permanece false",
-        "nenhuma promoção automática em massa ocorre"
-      ],
+      "then": ["SyncEnabled permanece false", "nenhuma promoção automática em massa ocorre"],
       "verification": ["test", "integration"]
     },
     {
@@ -274,6 +279,19 @@
         "ausência e zero permanecem semanticamente distintos"
       ],
       "verification": ["test", "browser"]
+    },
+    {
+      "id": "BN-AC-011",
+      "priority": "must",
+      "given": "planilhas legadas sintéticas de professores com estruturas, nomes, abas, turmas e componentes diferentes",
+      "when": "o processo de transformação cria novas instâncias conectáveis ao Banco",
+      "then": [
+        "todas as saídas partem do mesmo modelo genérico limpo e de contratos gerais",
+        "a implementação não possui branch, fallback, fixture ou configuração de produção específica para Nina ou Alanna",
+        "os golden masters privados permanecem externos ao produto e podem ser usados somente como regressão adicional em homologação autorizada",
+        "cada nova instância inicia SyncEnabled=false até reconciliação individual"
+      ],
+      "verification": ["test", "integration", "security"]
     }
   ]
 }

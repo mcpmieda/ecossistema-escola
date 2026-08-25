@@ -96,7 +96,15 @@ Princípios:
 - promoção do lote para fonte válida é explícita;
 - resultados já consolidados pela planilha podem permanecer autoridade conforme o perfil daquele ano.
 
-Arquivos XLSB antigos continuam sendo suportados como legado. O conversor COM já comprovado em `mcpmieda/escolaieda` é **oráculo de regressão e ponte de migração**, não arquitetura final do runtime. A implementação definitiva deverá substituir dependência de Excel COM por processamento remoto seguro ou por conversão administrativa controlada que grave o resultado no Banco via API. Até essa substituição passar regressão real com Nina/Alanna, não eliminar o conversor homologado.
+Arquivos XLSB antigos continuam sendo suportados como legado. O conversor COM já comprovado em `mcpmieda/escolaieda` é **oráculo de regressão e ponte de migração**, não arquitetura final do runtime. A implementação definitiva deverá substituir dependência de Excel COM por processamento remoto seguro ou por conversão administrativa controlada que grave o resultado no Banco via API. Até essa substituição passar casos sintéticos estruturalmente diversos e regressão privada nos golden masters externos, não eliminar o conversor homologado.
+
+### 4.1.1 Modelo genérico e golden masters privados
+
+O resultado da transformação é sempre uma nova instância de um **modelo genérico limpo** do produto. Nenhum workbook de professor é template oficial ou base de runtime.
+
+Os arquivos privados `NOTAS NINA 2026.xlsb`, `NOTAS ALANNA 2026.xlsb` e `Modelo_Professor_Nina_2026_Homologado.xlsx` são entradas externas exclusivas de homologação. Eles não entram no Git, runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição. Nina e Alanna servem apenas para regressão privada e generalização complementar; regra de produção não pode depender de seus nomes, abas, turmas, disciplinas, células ou estrutura.
+
+O contrato completo está em `docs/BANCO_NOTAS_MODELO_GENERICO_E_GOLDEN_MASTERS.md`.
 
 ### 4.2 `linked_teacher_model`
 
@@ -164,7 +172,7 @@ Motivo: o próprio Dossiê proíbe promover o adaptador SharePoint/Graph da POC 
 
 Responsabilidades:
 
-- arquivo mestre homologado;
+- modelo genérico limpo e versionado do produto;
 - instâncias XLSX dos professores;
 - versionamento do arquivo;
 - origens legadas em área restrita;
@@ -360,7 +368,7 @@ As entidades funcionais adicionais do Relatório v1.6 entram por fatias própria
 - Graph share/reconcile;
 - endpoint transacional `grade-events`;
 - adaptação do add-in da POC para API definitiva;
-- modelo Nina em homologação com `SyncEnabled=false`;
+- instância gerada do modelo genérico em homologação com `SyncEnabled=false`;
 - teste ida/reversão/reconciliação.
 
 ### Fase 3 — produto funcional completo
@@ -406,3 +414,4 @@ Continuam exigindo decisão humana quando aplicável: mudança jurídica/pedagó
 - Não adicionar outro design system.
 - Não reintroduzir Ambient Constellation.
 - Não migrar todos os professores antes do piloto e da reconciliação individual.
+- Não incorporar golden masters privados ou particularidades de Nina/Alanna a runtime, persistência, fixtures, templates, SharePoint definitivo ou distribuição.

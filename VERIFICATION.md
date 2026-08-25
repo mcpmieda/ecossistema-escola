@@ -32,6 +32,28 @@ Atualização visual corrente:
 - commit corrente em `main`: `9ae6c49bbfe5f57577537ff480dfc833bddaad8a`;
 - workflow pós-merge: `32892663858` — run `#417` — **success**.
 
+## Banco de Notas — decisão de verificação dos modelos
+
+No branch `feat/banco-de-notas-foundation`, foi registrada a separação obrigatória entre produto e homologação privada:
+
+- o produto usará um modelo genérico limpo;
+- golden masters Nina/Alanna permanecem externos e privados;
+- esses arquivos não podem entrar em runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição;
+- regressão privada nesses dois casos é evidência complementar, não permissão para especializar o produto;
+- generalização exige fixtures sintéticas variadas e ausência de dependências por professor/abas/turmas/disciplinas.
+
+Esta seção registra o gate decidido; não declara que o transformador ou o modelo genérico já foram implementados ou homologados. A fonte detalhada é `docs/BANCO_NOTAS_MODELO_GENERICO_E_GOLDEN_MASTERS.md`.
+
+Evidência local deste bloco em 25/08/2026:
+
+- `npm install`: concluído, 0 vulnerabilidades reportadas;
+- regressão dedicada `tests/banco-notas-golden-masters.test.ts`: 3/3 testes aprovados;
+- `npm run verify`: concluído com format, lint, typecheck, semantic check, 121/121 testes e build aprovados;
+- `change_hygiene.py --root .`: PASS;
+- Project Adoption Gate: checklist documental satisfeita, com falha residual conhecida do validador da App Factory porque ele não considera `ui.deviation` ao exigir Ambient Constellation para HeroUI. A exceção de produto continua explícita e não foi enfraquecida para satisfazer o script.
+
+O build manteve o warning histórico de chunk JavaScript acima de 500 kB; não houve nova regressão funcional associada.
+
 ## Escopo verificado
 
 Permanecem liberadas como `ready`:
