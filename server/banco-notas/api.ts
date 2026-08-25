@@ -47,6 +47,9 @@ async function sourceAuthorityMutation<T>(operation: () => Promise<T>): Promise<
       if (error.message.includes('data_source_not_found')) {
         throw new HttpError(404, 'Data source not found');
       }
+      if (error.message.includes('invalid_effective_period')) {
+        throw new HttpError(400, 'Effective period is invalid');
+      }
     }
     throw error;
   }
