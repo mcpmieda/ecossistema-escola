@@ -2,34 +2,34 @@
 
 ## Estado atual
 
-O Centro de Administração atingiu **100% do escopo técnico definido para esta fase** e a candidata visual vigente foi reconstruída como **HeroUI Native v1**.
+O Centro de Administração atingiu **100% do escopo técnico definido para esta fase** e a candidata visual vigente foi promovida como **HeroUI Native v2**.
 
 - fonte técnica de verdade: `main`;
-- commit executável da candidata HeroUI Native v1: `0746241f385db158dfaaa36102d0a662e6488262`;
+- commit executável da candidata HeroUI Native v2: `d852007ea12ee9a0c55328103e39bc67e888009a`;
 - domínio de validação: `https://admin.escolaieda.com`;
 - design system: HeroUI React v3 (`@heroui/react 3.2.4` + `@heroui/styles 3.2.4`);
 - Motion Profile: `expressive`;
 - Ambient Surface Profile: `ambient-constellation`;
 - Constellation Intensity: `strong`;
-- acesso da candidata: restrito às capabilities administrativas existentes;
+- acesso: restrito às capabilities administrativas existentes;
 - release state: `validation`;
 - produção oficial: **não autorizada**.
 
-O deploy no ambiente oficial de validação não equivale à liberação oficial. A inspeção autenticada do administrador e a decisão de aprovação continuam sendo gates humanos.
+O deploy no domínio oficial continua sendo **ambiente de validação**. Implantação técnica não equivale à liberação oficial para usuários.
 
 ## Escopo fechado desta fase
 
-Por decisão de produto, permanecem adiados e fora do cálculo de 100% desta fase:
+Por decisão de produto, permanecem adiados e fora do cálculo de 100%:
 
 - integração funcional do primeiro sistema independente;
 - módulo `Publicações`;
 - módulo `Páginas`.
 
-Notificações/pendências também não receberam implementação artificial: ainda não existe fonte autoritativa e regra institucional suficientes para criar comportamento real sem inventar produto.
+Não foi criado comportamento artificial para fontes de dados ou regras institucionais ainda inexistentes.
 
 ## Fundação funcional preservada
 
-A reconstrução HeroUI Native v1 não substituiu nem reduziu:
+A reconstrução HeroUI Native v2 ficou restrita à camada de apresentação e não substituiu nem reduziu:
 
 - Microsoft Entra ID;
 - BFF e cookie HttpOnly selado;
@@ -46,189 +46,214 @@ A reconstrução HeroUI Native v1 não substituiu nem reduziu:
 - contratos modulares e semânticos;
 - regras institucionais e fontes de dados existentes.
 
-## HeroUI Native v1
+O diff final do PR #41 contém somente 9 arquivos em `src/`, todos de apresentação/estilo. Não houve alteração em `functions`, `infra`, `shared`, autenticação, Graph ou SharePoint.
 
-A revisão da candidata HeroUI v0.9 identificou que a apresentação ainda preservava a anatomia do design system anterior por meio de oito facades em `src/components/ui`.
+## HeroUI Native v2
 
-O PR #39 reconstruiu a camada visual em vez de adicionar outra camada por cima dela.
+A Native v1 removeu os facades de shadcn/Radix. A revisão seguinte identificou um segundo nível de legado: **anatomias manuais que ainda reproduziam padrões da interface anterior**, mesmo usando tokens HeroUI.
 
-### Limpeza estrutural
+O PR #41 reconstruiu essas estruturas diretamente com componentes HeroUI v3.
 
-Foram removidos integralmente:
+### Substituições estruturais
 
-- `src/components/ui/avatar.tsx`;
-- `src/components/ui/badge.tsx`;
-- `src/components/ui/button.tsx`;
-- `src/components/ui/card.tsx`;
-- `src/components/ui/input.tsx`;
-- `src/components/ui/separator.tsx`;
-- `src/components/ui/skeleton.tsx`;
-- `src/components/ui/table.tsx`.
+- breadcrumb manual → `Breadcrumbs` HeroUI;
+- sidebar baseada em links/classes próprias → `ListBox` + `ScrollShadow` + `Surface` + `Alert` + `Chip`;
+- busca manual → `SearchField` + `Kbd` + `Popover` + `ListBox`;
+- perfil e logout separados → `Avatar` + `Dropdown` HeroUI;
+- coleções de módulos → `ListBox`;
+- sinais operacionais → `Table` compound;
+- cobertura de health check → `ProgressBar`;
+- migrações → `Table` compound;
+- mobile continua usando `Drawer` HeroUI.
 
-Não existem imports residuais `@/components/ui/` na camada de apresentação.
+O TypeScript, build e browser QA validaram essas APIs diretamente. Não são wrappers ou classes com nomes simulando HeroUI.
 
-`App`, navegação, busca, apresentação, páginas e Operação usam diretamente primitives/compound components do HeroUI v3, incluindo `Surface`, `Alert`, `Chip`, `Avatar`, `Button`, `Drawer`, `Spinner`, `Skeleton`, `ScrollShadow`, `Card.*` e `Table.*`.
+### Gate de limpeza
 
-### Living UI
+Confirmado na candidata:
 
-A candidata passou a usar motion como parte nativa da experiência:
+- `src/components/ui` inexistente;
+- zero imports `@/components/ui/`;
+- zero `@radix-ui/`;
+- zero classe residual `nav-link-living`;
+- zero `<kbd>` manual;
+- componentes compound HeroUI presentes diretamente na árvore de apresentação.
+
+## Ambient Constellation Native v2
+
+A referência foi recalibrada contra o código público atual do modal HeroUI Pro.
+
+Características da referência preservadas por proporção percebida:
+
+- gradiente base `#E9E9FF → #CCE5F1`;
+- glow `#5DD0E7 → #7300FF`;
+- duas camadas independentes;
+- ciclos aproximados de `12s` e `15s`;
+- deslocamento em sentidos opostos;
+- partículas de microescala;
+- movimento proporcional ao campo, sem ampliar o diâmetro das partículas.
+
+A implementação local **não copia o SVG oficial**. As partículas são geradas deterministicamente pelo Centro.
+
+Implementação atual por primitive:
+
+- `192` microestrelas;
+- maior tamanho nominal limitado a aproximadamente `1.45px`;
+- glints raros;
+- dois planos de movimento;
+- glow/aurora separados das partículas;
+- reduced-motion remove os loops e mantém a composição estática.
+
+No QA isolado da rota Operação foram medidas `576` partículas simultaneamente e maior partícula de `1.375px`.
+
+## Living UI
+
+O perfil `expressive` permanece obrigatório e foi reforçado em:
 
 - transição de entrada entre rotas;
-- stagger curto em superfícies e cards;
-- navegação com estado ativo animado;
-- page headers vivos;
-- auroras/glows lentos em superfícies com espaço visual;
-- loading com Spinner HeroUI, halo, órbita e skeletons;
-- empty/planned/onboarding com atmosfera contínua;
-- feedback de interação sem alterar layout;
+- estados ativos da navegação;
+- overlays e drawers HeroUI;
+- page headers com constelação e luz ambiente;
+- loading com Spinner/Skeleton e atmosfera contínua;
+- empty/planned states vivos;
+- superfícies operacionais com profundidade;
+- feedback de interação sem deslocar conteúdo;
 - conteúdo denso mantido em ilhas limpas;
-- `prefers-reduced-motion` remove loops espaciais e preserva a composição estática.
+- `prefers-reduced-motion` com fallback estático.
 
-## Ambient Constellation final
+## CI da candidata limpa
 
-A primitive atual usa **96 microestrelas por instância**, distribuídas em duas camadas de 48.
+Commit final da branch antes da promoção:
 
-Características validadas:
+`c6bd78076c6cbf6605578dbcf96517b8b62e77af`
 
-- maior partícula medida: `1.34375px`;
-- partículas limitadas em screen-space, sem blobs/círculos proporcionais à viewport;
-- camadas assíncronas com ciclos aproximados de `12s` e `15s`;
-- drift proporcional à superfície, em vez de amplitude fixa de ~20px em telas grandes;
-- tema claro com estrelas azul/violeta derivadas dos tokens HeroUI;
-- glints pontuais de baixa dominância;
-- aurora global lenta no shell e deriva luminosa em living surfaces;
-- reduced-motion com campo estático e loops removidos.
+Workflow `32843050061` — **success**:
 
-No login publicado existem três instâncias constelares simultâneas, por isso o smoke do domínio mede `288` partículas no DOM.
+- actionlint: pass;
+- zizmor persona `pedantic`: pass;
+- `npm ci`: pass;
+- format: pass;
+- lint: pass;
+- typecheck: pass;
+- semantic contract: pass;
+- testes: pass;
+- build Vite: pass.
 
-## Prova temporal real
+## QA visual e temporal isolado
 
-Um falso-positivo foi encontrado no primeiro harness temporal: ele comparava strings que incluíam nomes diferentes de atributos, o que poderia indicar diferença mesmo com matrizes iguais.
+Workflow `32842682376` — **success**.
 
-O gate foi descartado e substituído por leitura real do Chrome via DevTools Protocol, usando `getAnimations()`, `animation.currentTime` e `getComputedStyle(...).transform` sobre a primitive real.
+O Chrome executou o próprio App da candidata com interceptação apenas dos endpoints locais `/api/me` e `/api/platform/snapshot`, usando dados descartáveis. Nenhuma sessão do domínio, cookie falso ou bypass de segurança foi criado.
 
-Workflow temporal corrigido: `32836354978` — **success**.
+Foram validados:
 
-Artifact:
+- Operação desktop;
+- Visão geral desktop;
+- página planejada;
+- Operação mobile;
+- login desktop/mobile;
+- `Dropdown` de perfil aberto de fato;
+- Breadcrumbs/ListBox/SearchField/Kbd/Table/ProgressBar renderizados;
+- movimento real do Ambient Constellation por `getAnimations()` + transform computado;
+- reduced-motion estático;
+- ausência da navegação visual antiga.
 
-- id: `9558774401`;
-- nome: `heroui-native-temporal-proof-32836354978`;
-- SHA-256: `3c1136d945fdd0162d2db7fe078eac4f4fcebfe432383ecd0847877b23728ab3`.
+Artifact visual:
 
-Medição normal em ~3,5 s reais:
-
-- `currentTime`: ~`150ms` → ~`3666ms`;
-- `transform`: `matrix(... -31.7448, 15.5067)` → `matrix(... 13.2702, -13.2426)`;
-- `playState`: `running` nos dois instantes;
-- partículas: `96`;
-- maior partícula: `1.34375px`.
-
-Medição com reduced-motion:
-
-- `animationName = none`;
-- `currentTime = null`;
-- matriz permaneceu estática;
-- composição constelar continuou presente.
-
-A App Factory também recebeu `ui/heroui/TEMPORAL_MOTION_QA.md` para impedir recorrência desse tipo de falso-positivo.
-
-## Gates técnicos da branch limpa
-
-Workflow `32836490110`:
-
-- Validate GitHub Actions security: **success**;
-- actionlint: **pass**;
-- zizmor persona `pedantic`: **pass**;
-- `npm ci`: **pass**;
-- format: **pass**;
-- lint: **pass**;
-- typecheck: **pass**;
-- semantic contract: **pass**;
-- testes: **pass**;
-- build Vite: **pass**.
-
-O diff final ficou restrito à apresentação/estilos e à remoção dos facades antigos; não houve mudança em BFF, Entra, Graph, SharePoint, capabilities ou contratos funcionais.
+- id: `9561122170`;
+- nome: `heroui-native-v2-visual-32842682376`;
+- SHA-256: `11bcd69212921edcd5c65b22921747aa3946c47252cba9bf4f103ecfc9aeab6d`.
 
 ## Integração, deploy e recovery
 
-PR #39 foi integrado por squash.
+PR #41 foi promovido por squash para `main`.
 
-Commit executável da candidata:
+Commit executável:
 
-`0746241f385db158dfaaa36102d0a662e6488262`
+`d852007ea12ee9a0c55328103e39bc67e888009a`
 
-Workflow de `main`: `32836667012`.
+Workflow de `main`: `32843374875` — **success**.
 
 Resultado:
 
-- Validate GitHub Actions security: **success**;
-- Validate application: **success**;
-- Deploy Cloudflare Pages: **success**;
-- Verify recovery after deploy: **success**;
-- rebuild da fonte implantada: **success**;
-- round trip descartável de backup/restore SharePoint: **success**;
-- evidência redigida de recovery publicada: **success**.
+- Validate GitHub Actions security: success;
+- Validate application: success;
+- Deploy Cloudflare Pages: success;
+- Verify recovery after deploy: success;
+- rebuild da fonte implantada: success;
+- backup/restore descartável SharePoint: success;
+- evidência redigida de recovery: success.
 
-O recovery permanece limitado ao escopo técnico documentado e não é apresentado como disaster recovery integral do tenant Microsoft 365.
+O recovery permanece limitado ao round trip técnico documentado da área SharePoint e não declara disaster recovery integral do tenant Microsoft 365.
 
-## Smoke do domínio oficial
+## Smoke do domínio publicado
 
-O smoke pós-deploy foi executado em branch descartável, sem incorporar o harness à `main`.
+O smoke foi executado em branch descartável contra `https://admin.escolaieda.com`, sem autenticação artificial.
 
-Run válido: `32837232635` — **success**.
+Run `32843679300` — **success**.
 
 Artifact:
 
-- id: `9559084801`;
-- nome: `heroui-native-domain-smoke-32837232635`;
-- SHA-256: `b4c1cb2ff3d9c2ea7495f4d1da04cfceba4c68eb83ac35aab4c2656a62f2aa76`.
+- id: `9561473735`;
+- nome: `heroui-native-v2-domain-smoke-32843679300`;
+- SHA-256: `f8bd31d68d8d3ac73ac681250318d062f37f67bb54a21dcddd5c8f1afee6527c`.
 
-No domínio real foram confirmados:
+Confirmado no domínio efetivamente publicado:
 
 - raiz = `200`;
 - `/api/me` = `401` sem sessão;
 - `/api/platform/snapshot` = `401` sem sessão;
 - login renderizado em Chrome real desktop e mobile;
-- bloqueio anônimo preservado;
-- `288` microestrelas nas três instâncias do login;
-- maior partícula = `1.34375px`;
-- movimento publicado executando em tempo real.
+- ausência de overflow horizontal no mobile;
+- densidade constelar publicada acima do gate mínimo de `384` partículas;
+- nenhuma partícula acima de `1.5px`;
+- movimento do campo comprovado em dois instantes separados por ~3.5s;
+- `playState = running` no modo normal;
+- reduced-motion publicado com `animationName = none` e transform estático.
 
-Prova temporal no domínio:
+## App Factory
 
-- `currentTime`: `0` → ~`3483ms`;
-- `transform`: `matrix(... -31.2113, 23.5669)` → `matrix(... 9.85039, -16.9392)`;
-- `playState = running`.
+O aprendizado desta revisão foi incorporado à App Factory pelo PR #56, integrado no commit:
 
-O branch de smoke foi realinhado novamente ao `main` após a coleta das evidências.
+`c03960e694f46c4fb1bfb2a604c232c6e2817358`
+
+O contrato HeroUI agora exige também auditoria de **anatomias manuais equivalentes ao design anterior**, não apenas remoção de dependências e facades. Também registra a referência pública do modal Pro e a obrigação de prova temporal real.
 
 ## Higiene
 
-- nenhum workflow temporário de visual QA permanece na árvore efetiva da candidata;
-- `src/components/ui` foi removido;
-- não há imports residuais da facade anterior;
-- o branch de smoke foi limpo após uso;
-- o estado executável continua derivado de `main`;
-- a App Factory agora contém contrato de redesign HeroUI nativo e política de integridade da prova temporal.
+- nenhum workflow temporário de QA integra `main`;
+- nenhum arquivo de smoke integra `main`;
+- `src/components/ui` continua removido;
+- não há dependência Radix/shadcn;
+- o estado executável deriva de `main`;
+- documentos v0.9 e Native v1 permanecem como histórico;
+- a App Factory contém os gates reutilizáveis da Native v2.
 
 ## Marco atual
 
-**A candidata HeroUI Native v1 está tecnicamente implantada e validada para inspeção autenticada.**
+**A candidata HeroUI Native v2 está tecnicamente implantada, recuperável dentro do escopo testado e validada para inspeção autenticada.**
 
-Isso não significa publicação regular para usuários nem aprovação oficial de produção. `releaseState` continua `validation`.
+Isso não significa liberação oficial para usuários. `releaseState` continua `validation`.
 
-A inspeção das rotas internas deve ser feita com uma sessão real de `ADMINISTRADOR`; não será criado bypass, cookie falso ou redução de segurança para automatizar esse gate.
+O único gate obrigatório restante para esta candidata é humano:
 
-A liberação oficial continua condicionada ao comando humano exato:
+1. abrir `https://admin.escolaieda.com` com uma sessão real de `ADMINISTRADOR`;
+2. inspecionar as rotas internas e a experiência visual;
+3. decidir se a candidata está aprovada.
+
+Não será criado bypass ou redução de segurança para automatizar essa inspeção.
+
+A liberação oficial permanece condicionada ao comando humano exato:
 
 `APROVADO PARA PRODUÇÃO`
 
-Qualquer alteração material posterior à candidata exige nova validação e torna uma aprovação anterior obsoleta.
+Qualquer alteração material posterior exige nova validação e invalida uma aprovação anterior.
 
 ## Referências internas
 
 - arquitetura: `ARCHITECTURE.md`;
-- redesign atual: `docs/REDESIGN_HEROUI_NATIVE_V1.md`;
+- redesign atual: `docs/REDESIGN_HEROUI_NATIVE_V2.md`;
+- histórico Native v1: `docs/REDESIGN_HEROUI_NATIVE_V1.md`;
 - histórico v0.9: `docs/REDESIGN_HEROUI_V0.9.md`;
 - contrato modular: `docs/CONTRATO_MODULOS.md`;
 - verificação: `VERIFICATION.md`;
