@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Drawer } from '@heroui/react';
+import { Button, Chip, Drawer, Input, Link, Surface } from '@heroui/react';
 import { Boxes, Search, Settings2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, type PlatformSearchItem } from './search-model';
 import { routeIcons } from './routes';
@@ -19,16 +16,14 @@ function SearchResults({
 }) {
   if (!query.trim()) {
     return (
-      <div className="px-4 py-6 text-center text-xs leading-5 text-muted">
+      <div className="px-4 py-7 text-center text-xs leading-5 text-muted">
         Pesquise áreas, sistemas registrados e configurações disponíveis no seu acesso.
       </div>
     );
   }
 
   if (items.length === 0) {
-    return (
-      <div className="px-4 py-6 text-center text-sm text-muted">Nenhum resultado encontrado.</div>
-    );
+    return <div className="px-4 py-7 text-center text-sm text-muted">Nenhum resultado encontrado.</div>;
   }
 
   return (
@@ -41,25 +36,28 @@ function SearchResults({
               ? Settings2
               : routeIcons[item.route ?? 'visao-geral'];
         return (
-          <a
+          <Link
             key={item.id}
             href={item.href}
-            onClick={onSelect}
-            className="group flex items-start gap-3 rounded-2xl px-3 py-2.5 transition-[background-color,transform] hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 active:translate-y-px motion-reduce:transform-none"
+            onPress={onSelect}
+            className="group flex w-full items-start gap-3 rounded-2xl px-3 py-2.5 text-foreground no-underline transition-[background-color,transform] hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 active:translate-y-px motion-reduce:transform-none"
           >
-            <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-xl border border-border bg-surface">
-              <Icon className="size-3.5 text-muted transition-colors group-hover:text-foreground" />
-            </div>
+            <Surface
+              variant="secondary"
+              className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-xl border border-border/60"
+            >
+              <Icon className="size-3.5 text-muted transition-colors group-hover:text-accent" />
+            </Surface>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="truncate text-sm font-medium">{item.label}</span>
-                <Badge variant="secondary" className="h-5 px-1.5 text-[0.65rem]">
+                <Chip variant="soft" size="sm">
                   {item.category}
-                </Badge>
+                </Chip>
               </div>
               <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted">{item.description}</p>
             </div>
-          </a>
+          </Link>
         );
       })}
     </div>
@@ -108,6 +106,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
         <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted" />
         <Input
           ref={desktopInputRef}
+          variant="secondary"
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -120,23 +119,27 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
           className="pl-9 pr-14"
           disabled={!snapshot}
         />
-        <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface px-1.5 py-0.5 font-sans text-[0.65rem] text-muted shadow-sm">
+        <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-border/70 bg-surface px-1.5 py-0.5 font-sans text-[0.65rem] text-muted shadow-sm">
           Ctrl K
         </kbd>
         {desktopOpen && snapshot && (
-          <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-3xl border border-border bg-overlay text-foreground shadow-overlay">
+          <Surface
+            variant="tertiary"
+            className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-3xl border border-border/70 text-foreground shadow-overlay"
+          >
             <SearchResults items={results} query={query} onSelect={selectResult} />
-          </div>
+          </Surface>
         )}
       </div>
 
       <Drawer>
         <Button
           variant="outline"
-          size="icon"
+          size="md"
+          isIconOnly
           className="md:hidden"
           aria-label="Buscar no Centro"
-          disabled={!snapshot}
+          isDisabled={!snapshot}
           onPress={() => setMobileOpen(true)}
         >
           <Search />
@@ -156,6 +159,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted" />
                     <Input
+                      variant="secondary"
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
                       autoFocus
@@ -164,9 +168,9 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
                       className="pl-9"
                     />
                   </div>
-                  <div className="mt-3 overflow-hidden rounded-3xl border border-border bg-surface">
+                  <Surface variant="secondary" className="mt-3 overflow-hidden rounded-3xl border border-border/60">
                     <SearchResults items={results} query={query} onSelect={selectResult} />
-                  </div>
+                  </Surface>
                 </div>
               </Drawer.Body>
             </Drawer.Dialog>
