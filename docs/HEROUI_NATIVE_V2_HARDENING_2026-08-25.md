@@ -88,15 +88,15 @@ Artifact:
 
 Mediana de três cliques físicos por rota:
 
-| Rota | Mediana |
-| --- | ---: |
-| Operação | 104 ms |
-| Publicações | 151 ms |
-| Páginas | 105 ms |
-| Sistemas | 110 ms |
-| Auditoria | 116 ms |
-| Configurações | 63 ms |
-| Visão geral | 87 ms |
+| Rota          | Mediana |
+| ------------- | ------: |
+| Operação      |  104 ms |
+| Publicações   |  151 ms |
+| Páginas       |  105 ms |
+| Sistemas      |  110 ms |
+| Auditoria     |  116 ms |
+| Configurações |   63 ms |
+| Visão geral   |   87 ms |
 
 Maior mediana: `151 ms`, abaixo do gate de `350 ms`.
 
