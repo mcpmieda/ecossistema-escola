@@ -110,6 +110,28 @@ export class D1GradeEventStore implements GradeEventStore {
       throw new GradeEventForbiddenError('source_model_environment_mismatch');
     }
 
+    const mapping = await this.db
+      .prepare(
+        `SELECT cm.cell_address
+         FROM teacher_model_versions tmv
+         JOIN cell_mappings cm ON cm.teacher_model_version_id = tmv.id
+         WHERE tmv.teacher_model_id = ?
+           AND tmv.version = (
+             SELECT MAX(current.version)
+             FROM teacher_model_versions current
+             WHERE current.teacher_model_id = tmv.teacher_model_id
+           )
+           AND cm.grade_key = ?
+           AND cm.field = ?
+         LIMIT 1`,
+      )
+      .bind(input.teacherModelId, input.gradeKey, input.field)
+      .first<Row>();
+    if (!mapping) throw new GradeEventForbiddenError('grade_key_not_mapped_to_model');
+    if (String(mapping.cell_address).toUpperCase() !== input.source.cellAddress.toUpperCase()) {
+      throw new GradeEventForbiddenError('grade_event_cell_mismatch');
+    }
+
     const effectiveDate = input.clientSentAt.slice(0, 10);
     const authority = await this.db
       .prepare(
