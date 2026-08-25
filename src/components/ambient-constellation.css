@@ -1,16 +1,16 @@
 :root {
-  --heroui-pro-gradient-start: #e9e9ff;
+  --heroui-pro-gradient-start: #e8f3ff;
   --heroui-pro-gradient-end: #cce5f1;
   --heroui-pro-glow-cyan: #5dd0e7;
-  --heroui-pro-glow-violet: #7300ff;
-  --ambient-star: oklch(0.62 0.18 247 / 0.98);
-  --ambient-star-muted: oklch(0.65 0.17 291 / 0.9);
+  --heroui-pro-glow-blue: #4a8dff;
+  --ambient-star: oklch(0.62 0.18 247 / 0.96);
+  --ambient-star-muted: oklch(0.66 0.14 238 / 0.86);
 }
 
 .dark,
 [data-theme='dark'] {
-  --ambient-star: oklch(0.985 0.018 250 / 0.98);
-  --ambient-star-muted: oklch(0.86 0.08 265 / 0.88);
+  --ambient-star: oklch(0.985 0.018 250 / 0.96);
+  --ambient-star-muted: oklch(0.88 0.065 242 / 0.84);
 }
 
 .ambient-constellation {
@@ -24,15 +24,15 @@
 }
 
 .ambient-constellation[data-intensity='subtle'] {
-  opacity: 0.52;
+  opacity: 0.44;
 }
 
 .ambient-constellation[data-intensity='medium'] {
-  opacity: 0.78;
+  opacity: 0.66;
 }
 
 .ambient-constellation[data-intensity='strong'] {
-  opacity: 1;
+  opacity: 0.88;
 }
 
 .ambient-constellation__wash {
@@ -40,58 +40,56 @@
   inset: 0;
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--heroui-pro-gradient-start) 58%, transparent),
-    color-mix(in srgb, var(--heroui-pro-gradient-end) 68%, transparent)
+    color-mix(in srgb, var(--heroui-pro-gradient-start) 54%, transparent),
+    color-mix(in srgb, var(--heroui-pro-gradient-end) 62%, transparent)
   );
-  opacity: 0.34;
+  opacity: 0.2;
 }
 
 .pro-spectrum > .ambient-constellation .ambient-constellation__wash,
 .living-page-header > .ambient-constellation .ambient-constellation__wash {
-  opacity: 0.82;
+  opacity: 0.5;
 }
 
 .ambient-constellation__glow {
   position: absolute;
   aspect-ratio: 1;
   border-radius: 9999px;
-  filter: blur(64px);
-  opacity: 0.38;
+  opacity: 0.28;
   transform: translate3d(0, 0, 0);
-  will-change: transform, opacity;
 }
 
 .ambient-constellation__glow--cyan {
-  top: -26%;
-  left: -14%;
-  width: min(72vw, 54rem);
-  background: var(--heroui-pro-glow-cyan);
-  animation: ambient-glow-cyan 18s ease-in-out infinite;
+  top: -28%;
+  left: -16%;
+  width: min(68vw, 48rem);
+  background: radial-gradient(circle, color-mix(in srgb, var(--heroui-pro-glow-cyan) 52%, transparent) 0%, transparent 70%);
+  animation: ambient-glow-cyan 42s ease-in-out infinite;
 }
 
-.ambient-constellation__glow--violet {
-  right: -20%;
-  bottom: -38%;
-  width: min(64vw, 48rem);
-  background: var(--heroui-pro-glow-violet);
-  opacity: 0.3;
-  animation: ambient-glow-violet 21s ease-in-out infinite;
+.ambient-constellation__glow--blue {
+  right: -22%;
+  bottom: -40%;
+  width: min(60vw, 44rem);
+  background: radial-gradient(circle, color-mix(in srgb, var(--heroui-pro-glow-blue) 42%, transparent) 0%, transparent 72%);
+  opacity: 0.24;
+  animation: ambient-glow-blue 48s ease-in-out infinite;
 }
 
 .ambient-constellation[data-placement='right'] .ambient-constellation__glow--cyan {
-  left: 34%;
+  left: 36%;
 }
 
-.ambient-constellation[data-placement='left'] .ambient-constellation__glow--violet {
-  right: 42%;
+.ambient-constellation[data-placement='left'] .ambient-constellation__glow--blue {
+  right: 44%;
 }
 
 .ambient-constellation[data-placement='center'] .ambient-constellation__glow--cyan {
-  left: 8%;
+  left: 10%;
 }
 
-.ambient-constellation[data-placement='center'] .ambient-constellation__glow--violet {
-  right: 4%;
+.ambient-constellation[data-placement='center'] .ambient-constellation__glow--blue {
+  right: 6%;
 }
 
 .ambient-constellation__layer {
@@ -99,36 +97,34 @@
   inset: -42% -20%;
   overflow: visible;
   color: var(--ambient-star);
-  will-change: transform;
   transform: translate3d(0, 0, 0);
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 .ambient-constellation__layer--a {
-  animation: ambient-stars-forward 12s ease-in-out infinite;
+  animation: ambient-stars-forward 30s ease-in-out infinite;
 }
 
 .ambient-constellation__layer--b {
   color: var(--ambient-star-muted);
-  animation: ambient-stars-reverse 15s ease-in-out infinite;
+  animation: ambient-stars-reverse 36s ease-in-out infinite;
 }
 
 .ambient-constellation__particle {
   position: absolute;
   display: block;
-  min-width: 0.45px;
-  min-height: 0.45px;
+  min-width: 0.5px;
+  min-height: 0.5px;
   border-radius: 9999px;
   background: currentColor;
-  box-shadow: 0 0 2.5px color-mix(in oklab, currentColor 48%, transparent);
   transform: translate(-50%, -50%);
 }
 
 .ambient-constellation__particle[data-glint='true'] {
   border-radius: 40%;
-  box-shadow:
-    0 0 3px color-mix(in oklab, currentColor 88%, transparent),
-    0 0 8px color-mix(in oklab, currentColor 52%, transparent);
-  animation: ambient-glint 4.8s ease-in-out infinite;
+  box-shadow: 0 0 5px color-mix(in oklab, currentColor 42%, transparent);
+  animation: ambient-glint 9s ease-in-out infinite;
 }
 
 .ambient-constellation__particle[data-glint='true']::before,
@@ -143,91 +139,85 @@
 }
 
 .ambient-constellation__particle[data-glint='true']::before {
-  width: 4.8px;
-  height: 0.55px;
+  width: 4px;
+  height: 0.5px;
 }
 
 .ambient-constellation__particle[data-glint='true']::after {
-  width: 0.55px;
-  height: 4.8px;
+  width: 0.5px;
+  height: 4px;
 }
 
 .pro-spectrum > .ambient-constellation .ambient-constellation__layer,
 .pro-spectrum > .ambient-constellation .ambient-constellation__layer--b {
-  color: rgb(255 255 255 / 0.94);
-}
-
-.pro-spectrum > .ambient-constellation .ambient-constellation__particle {
-  box-shadow: 0 0 3px rgb(255 255 255 / 0.58);
+  color: rgb(255 255 255 / 0.9);
 }
 
 .platform-shell > .ambient-constellation > .ambient-constellation__layer--a {
-  color: color-mix(in oklab, var(--accent) 70%, var(--ambient-star));
+  color: color-mix(in oklab, var(--accent) 76%, var(--ambient-star));
 }
 
 .platform-shell > .ambient-constellation > .ambient-constellation__layer--b {
-  color: color-mix(in oklab, var(--heroui-pro-glow-violet) 34%, var(--ambient-star-muted));
+  color: color-mix(in oklab, var(--heroui-pro-glow-blue) 38%, var(--ambient-star-muted));
 }
 
 @keyframes ambient-stars-forward {
   0%,
   100% {
-    transform: translate3d(-5.4%, 4.7%, 0);
+    transform: translate3d(-4.8%, 4.1%, 0);
   }
 
   50% {
-    transform: translate3d(5.8%, -5.6%, 0);
+    transform: translate3d(5.1%, -4.8%, 0);
   }
 }
 
 @keyframes ambient-stars-reverse {
   0%,
   100% {
-    transform: translate3d(5%, -4.4%, 0);
+    transform: translate3d(4.6%, -4%, 0);
   }
 
   50% {
-    transform: translate3d(-5.7%, 5.2%, 0);
+    transform: translate3d(-5%, 4.5%, 0);
   }
 }
 
 @keyframes ambient-glint {
   0%,
   100% {
-    filter: brightness(0.9);
-    opacity: 0.48;
+    opacity: 0.5;
   }
 
-  46%,
-  54% {
-    filter: brightness(1.35);
-    opacity: 0.98;
+  48%,
+  52% {
+    opacity: 0.9;
   }
 }
 
 @keyframes ambient-glow-cyan {
   0%,
   100% {
-    opacity: 0.28;
-    transform: translate3d(-2%, 1%, 0) scale(0.96);
+    opacity: 0.2;
+    transform: translate3d(-2%, 1%, 0) scale(0.98);
   }
 
   50% {
-    opacity: 0.46;
-    transform: translate3d(5%, -3%, 0) scale(1.05);
+    opacity: 0.3;
+    transform: translate3d(4%, -2%, 0) scale(1.03);
   }
 }
 
-@keyframes ambient-glow-violet {
+@keyframes ambient-glow-blue {
   0%,
   100% {
-    opacity: 0.22;
-    transform: translate3d(2%, 0, 0) scale(0.98);
+    opacity: 0.18;
+    transform: translate3d(2%, 0, 0) scale(0.99);
   }
 
   50% {
-    opacity: 0.38;
-    transform: translate3d(-5%, -4%, 0) scale(1.07);
+    opacity: 0.28;
+    transform: translate3d(-4%, -3%, 0) scale(1.04);
   }
 }
 
@@ -237,11 +227,11 @@
   }
 
   .ambient-constellation__particle[data-glint='true']::before {
-    width: 3.8px;
+    width: 3.4px;
   }
 
   .ambient-constellation__particle[data-glint='true']::after {
-    height: 3.8px;
+    height: 3.4px;
   }
 }
 
@@ -253,10 +243,10 @@
   }
 
   .ambient-constellation__layer--a {
-    transform: translate3d(-1.5%, 1%, 0);
+    transform: translate3d(-1.2%, 0.8%, 0);
   }
 
   .ambient-constellation__layer--b {
-    transform: translate3d(1.5%, -1%, 0);
+    transform: translate3d(1.2%, -0.8%, 0);
   }
 }
