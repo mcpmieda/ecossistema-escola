@@ -1,5 +1,32 @@
 # PROJECT_STATE — Ecossistema Escolar
 
+## Adoção App Factory e novo marco — Banco de Notas
+
+Em 25/08/2026 foi aberto o branch `feat/banco-de-notas-foundation`, a partir de `b2f743543f7365e591120b2363b5f274bf314cb0`, para iniciar o primeiro sistema especializado integrado ao Centro: **Banco de Notas**.
+
+Estado deste trabalho: **pre-implementation ready**. Adoção da App Factory V1.4, arquitetura, contrato semântico do módulo, semantic assurance, plano de verificação e handoff foram materializados antes de código funcional novo.
+
+Decisões duráveis já registradas:
+
+- repositório definitivo: `mcpmieda/ecossistema-escola`;
+- módulo same-origin em `/banco-de-notas` e API `/api/banco-notas/v1/*`;
+- HeroUI React v3 como design system de 100% do Banco de Notas;
+- shadcn/ReUI não entram no módulo;
+- Ambient Constellation permanece proibido, em coerência com a limpeza visual de produção do PR #50;
+- fontes configuráveis: `legacy_import` e `linked_teacher_model`, com autoridade explícita por professor/ano durante migração;
+- Cloudflare D1 como persistência transacional estruturada do Banco;
+- SharePoint/OneDrive para arquivos mestre/modelos e Microsoft Graph pelo backend;
+- Cloudflare Queues somente para trabalho assíncrono real;
+- add-in Office.js como fonte primária de baixa latência do novo modelo vinculado;
+- `SyncEnabled=false` por padrão até reconciliação individual;
+- GitHub é fonte técnica de construção/continuidade, nunca dependência de runtime.
+
+Fontes privadas de produto e integração auditadas: `Relatorio_Completo_Banco_de_Notas_v1.6_consolidado`, `Dossie_Tecnico_Modelo_Professor_Integracao_Banco_de_Notas_v1.0` e `Plano_Mestre_antigo_antes_do_dossie.Reconstrucao_Planilha_Banco_de_Notas_v0.3`. O terreno de POC em `mcpmieda/escolaieda` foi auditado no commit `211251908efe078a8b75396e71e94827293da860`; código/contratos válidos serão migrados, mas o Banco definitivo continuará neste repositório.
+
+Continuidade: `AGENTS.md`, `.app-factory.json`, `docs/BANCO_NOTAS_ARCHITECTURE_V1.md`, `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`, `docs/BANCO_NOTAS_HANDOFF.md` e `specs/banco-notas/`.
+
+Esta abertura de trabalho **não altera a release atual em `main` nem libera o Banco de Notas em produção**.
+
 ## Estado atual
 
 O Centro de Administração v1 está **oficialmente em produção** no domínio:
