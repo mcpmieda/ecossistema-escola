@@ -1,16 +1,22 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Alert,
   Avatar,
   Breadcrumbs,
   Button,
   Chip,
+  Description,
   Drawer,
+  Input,
   Label,
+  ListBox,
   SearchField,
+  Select,
   Separator,
   Spinner,
   Surface,
+  Switch,
+  TextField,
   useOverlayState,
 } from '@heroui/react';
 import {
@@ -119,14 +125,78 @@ function Page({
   );
 }
 
+function SourceSelect({
+  label,
+  value,
+  onChange,
+  items,
+  placeholder,
+  isDisabled = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  items: Array<{ id: string; label: string }>;
+  placeholder: string;
+  isDisabled?: boolean;
+}) {
+  return (
+    <Select
+      value={value || null}
+      onChange={(next) => onChange(next === null ? '' : String(next))}
+      placeholder={placeholder}
+      isDisabled={isDisabled}
+    >
+      <Label>{label}</Label>
+      <Select.Trigger>
+        <Select.Value />
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover>
+        <ListBox>
+          {items.map((item) => (
+            <ListBox.Item key={item.id} id={item.id} textValue={item.label}>
+              {item.label}
+              <ListBox.ItemIndicator />
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select.Popover>
+    </Select>
+  );
+}
+
 function SourceConfiguration() {
   const [years, setYears] = useState<SchoolYear[]>([]);
   const [sources, setSources] = useState<DataSource[]>([]);
   const [assignments, setAssignments] = useState<SourceAssignment[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [yearId, setYearId] = useState('');
+  const [sourceType, setSourceType] = useState('legacy_import');
+  const [assignmentSourceId, setAssignmentSourceId] = useState('');
+  const [assignmentTeacherId, setAssignmentTeacherId] = useState('__default__');
+  const [authorityMode, setAuthorityMode] = useState('authoritative');
+  const [syncEnabled, setSyncEnabled] = useState(false);
+  const [sourceEditId, setSourceEditId] = useState('');
+  const [sourceEnvironment, setSourceEnvironment] = useState('homologation');
+  const [sourceMigrationState, setSourceMigrationState] = useState('not_started');
+  const [sourceStatus, setSourceStatus] = useState('active');
+  const [assignmentEditId, setAssignmentEditId] = useState('');
+  const [assignmentEditAuthority, setAssignmentEditAuthority] = useState('authoritative');
+  const [assignmentEditStatus, setAssignmentEditStatus] = useState('active');
+  const [assignmentEditSync, setAssignmentEditSync] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const sourcesForYear = useMemo(
+    () => sources.filter((item) => item.schoolYearId === yearId),
+    [sources, yearId],
+  );
+  const assignmentsForYear = useMemo(
+    () => assignments.filter((item) => item.schoolYearId === yearId),
+    [assignments, yearId],
+  );
+
   const load = async () => {
     setLoading(true);
     try {
@@ -148,12 +218,43 @@ function SourceConfiguration() {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     void load();
   }, []);
+
+  useEffect(() => {
+    if (!sourcesForYear.some((item) => item.id === assignmentSourceId)) {
+      setAssignmentSourceId('');
+    }
+    if (!sourcesForYear.some((item) => item.id === sourceEditId)) setSourceEditId('');
+    if (!assignmentsForYear.some((item) => item.id === assignmentEditId)) {
+      setAssignmentEditId('');
+    }
+  }, [assignmentEditId, assignmentSourceId, assignmentsForYear, sourceEditId, sourcesForYear]);
+
+  function selectSourceForEdit(id: string) {
+    setSourceEditId(id);
+    const selected = sources.find((item) => item.id === id);
+    if (!selected) return;
+    setSourceEnvironment(selected.environment);
+    setSourceMigrationState(selected.migrationState);
+    setSourceStatus(selected.status);
+  }
+
+  function selectAssignmentForEdit(id: string) {
+    setAssignmentEditId(id);
+    const selected = assignments.find((item) => item.id === id);
+    if (!selected) return;
+    setAssignmentEditAuthority(selected.authorityMode);
+    setAssignmentEditStatus(selected.status);
+    setAssignmentEditSync(selected.syncEnabled);
+  }
+
   async function createYear(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = new FormData(form);
     try {
       await api('/v1/school-years', {
         method: 'POST',
@@ -164,47 +265,77 @@ function SourceConfiguration() {
           endsOn: data.get('endsOn'),
         }),
       });
-      event.currentTarget.reset();
+      form.reset();
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Falha.');
     }
   }
+
   async function createSource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const data = new FormData(form);
     try {
       await api('/v1/data-sources', {
         method: 'POST',
         body: JSON.stringify({
           schoolYearId: yearId,
-          type: data.get('type'),
+          type: sourceType,
           name: data.get('name'),
           description: data.get('description') || '',
         }),
       });
-      event.currentTarget.reset();
+      form.reset();
+      setSourceType('legacy_import');
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Falha.');
     }
   }
+
   async function assign(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const teacherId = String(data.get('teacherId') || '');
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const teacherId = assignmentTeacherId === '__default__' ? null : assignmentTeacherId;
     try {
       await api('/v1/source-assignments', {
         method: 'POST',
         body: JSON.stringify({
           schoolYearId: yearId,
-          sourceId: data.get('sourceId'),
+          sourceId: assignmentSourceId,
           scope: teacherId ? 'teacher_override' : 'school_year_default',
-          teacherId: teacherId || null,
-          authorityMode: data.get('authorityMode'),
+          teacherId,
+          authorityMode,
           effectiveFrom: data.get('effectiveFrom'),
-          effectiveTo: null,
-          syncEnabled: data.get('syncEnabled') === 'on',
+          effectiveTo: data.get('effectiveTo') || null,
+          syncEnabled,
+          reason: data.get('reason'),
+        }),
+      });
+      form.reset();
+      setAssignmentSourceId('');
+      setAssignmentTeacherId('__default__');
+      setAuthorityMode('authoritative');
+      setSyncEnabled(false);
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Falha.');
+    }
+  }
+
+  async function updateSource(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!sourceEditId) return;
+    const data = new FormData(event.currentTarget);
+    try {
+      await api(`/v1/data-sources/${sourceEditId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          environment: sourceEnvironment,
+          migrationState: sourceMigrationState,
+          status: sourceStatus,
           reason: data.get('reason'),
         }),
       });
@@ -213,6 +344,29 @@ function SourceConfiguration() {
       setMessage(error instanceof Error ? error.message : 'Falha.');
     }
   }
+
+  async function updateAssignment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!assignmentEditId) return;
+    const data = new FormData(event.currentTarget);
+    try {
+      await api(`/v1/source-assignments/${assignmentEditId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          authorityMode: assignmentEditAuthority,
+          status: assignmentEditStatus,
+          syncEnabled: assignmentEditSync,
+          effectiveFrom: data.get('effectiveFrom') || undefined,
+          effectiveTo: data.get('effectiveTo') || null,
+          reason: data.get('reason'),
+        }),
+      });
+      await load();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Falha.');
+    }
+  }
+
   return (
     <Page
       title="Configurações · Fonte"
@@ -234,104 +388,274 @@ function SourceConfiguration() {
           <Surface className="bn-card">
             <h2 className="font-semibold">Novo ano letivo</h2>
             <form className="bn-form" onSubmit={createYear}>
-              <input name="year" type="number" min="2000" max="2200" required placeholder="Ano" />
-              <input name="name" required placeholder="Nome" />
-              <input name="startsOn" type="date" required />
-              <input name="endsOn" type="date" required />
+              <TextField name="year" isRequired>
+                <Label>Ano</Label>
+                <Input variant="secondary" type="number" min={2000} max={2200} placeholder="2026" />
+              </TextField>
+              <TextField name="name" isRequired>
+                <Label>Nome</Label>
+                <Input variant="secondary" placeholder="Ano letivo 2026" />
+              </TextField>
+              <TextField name="startsOn" isRequired>
+                <Label>Início</Label>
+                <Input variant="secondary" type="date" />
+              </TextField>
+              <TextField name="endsOn" isRequired>
+                <Label>Fim</Label>
+                <Input variant="secondary" type="date" />
+              </TextField>
               <Button type="submit" variant="primary">
                 Criar ano
               </Button>
             </form>
           </Surface>
+
           <Surface className="bn-card">
             <h2 className="font-semibold">Nova fonte</h2>
-            <select value={yearId} onChange={(e) => setYearId(e.target.value)}>
-              {years.map((year) => (
-                <option key={year.id} value={year.id}>
-                  {year.name}
-                </option>
-              ))}
-            </select>
+            <div className="bn-form">
+              <SourceSelect
+                label="Ano letivo"
+                value={yearId}
+                onChange={setYearId}
+                placeholder="Selecione o ano"
+                items={years.map((year) => ({ id: year.id, label: year.name }))}
+              />
+            </div>
             <form className="bn-form" onSubmit={createSource}>
-              <input name="name" required placeholder="Nome da fonte" />
-              <select name="type">
-                <option value="legacy_import">Importação legada</option>
-                <option value="linked_teacher_model">Modelo docente conectado</option>
-              </select>
-              <input name="description" placeholder="Descrição" />
+              <TextField name="name" isRequired>
+                <Label>Nome da fonte</Label>
+                <Input variant="secondary" placeholder="Ex.: Modelo conectado" />
+              </TextField>
+              <SourceSelect
+                label="Tipo"
+                value={sourceType}
+                onChange={setSourceType}
+                placeholder="Selecione o tipo"
+                items={[
+                  { id: 'legacy_import', label: 'Importação legada' },
+                  { id: 'linked_teacher_model', label: 'Modelo docente conectado' },
+                ]}
+              />
+              <TextField name="description">
+                <Label>Descrição</Label>
+                <Input variant="secondary" placeholder="Descrição opcional" />
+              </TextField>
               <Button isDisabled={!yearId} type="submit" variant="primary">
                 Adicionar fonte
               </Button>
             </form>
           </Surface>
+
           <Surface className="bn-card">
             <h2 className="font-semibold">Autoridade da fonte</h2>
             <form className="bn-form" onSubmit={assign}>
-              <select name="sourceId" required>
-                <option value="">Selecione a fonte</option>
-                {sources
-                  .filter((s) => s.schoolYearId === yearId)
-                  .map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-              </select>
-              <select name="teacherId">
-                <option value="">Padrão do ano</option>
-                {teachers.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    Substituir para {t.displayName}
-                  </option>
-                ))}
-              </select>
-              <select name="authorityMode">
-                <option value="authoritative">Autoritativa</option>
-                <option value="reference_only">Somente referência</option>
-              </select>
-              <input name="effectiveFrom" type="date" required />
-              <input name="reason" required minLength={3} placeholder="Motivo da configuração" />
-              <label className="flex items-center gap-2 text-sm text-muted">
-                <input name="syncEnabled" type="checkbox" className="size-4" />
-                Ativar sincronização para esta vigência
-              </label>
-              <Button isDisabled={!yearId} type="submit" variant="primary">
+              <SourceSelect
+                label="Fonte"
+                value={assignmentSourceId}
+                onChange={setAssignmentSourceId}
+                placeholder="Selecione a fonte"
+                isDisabled={!yearId}
+                items={sourcesForYear.map((item) => ({ id: item.id, label: item.name }))}
+              />
+              <SourceSelect
+                label="Escopo"
+                value={assignmentTeacherId}
+                onChange={setAssignmentTeacherId}
+                placeholder="Padrão do ano"
+                items={[
+                  { id: '__default__', label: 'Padrão do ano' },
+                  ...teachers.map((teacher) => ({
+                    id: teacher.id,
+                    label: `Substituir para ${teacher.displayName}`,
+                  })),
+                ]}
+              />
+              <SourceSelect
+                label="Autoridade"
+                value={authorityMode}
+                onChange={setAuthorityMode}
+                placeholder="Selecione"
+                items={[
+                  { id: 'authoritative', label: 'Autoritativa' },
+                  { id: 'reference_only', label: 'Somente referência' },
+                ]}
+              />
+              <TextField name="effectiveFrom" isRequired>
+                <Label>Vigência inicial</Label>
+                <Input variant="secondary" type="date" />
+              </TextField>
+              <TextField name="effectiveTo">
+                <Label>Vigência final</Label>
+                <Input variant="secondary" type="date" />
+              </TextField>
+              <TextField name="reason" isRequired>
+                <Label>Motivo</Label>
+                <Input variant="secondary" minLength={3} placeholder="Motivo da configuração" />
+              </TextField>
+              <Switch isSelected={syncEnabled} onChange={setSyncEnabled}>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <Switch.Content>
+                  <Label>Ativar sincronização para esta vigência</Label>
+                  <Description>Permanece desligada por padrão.</Description>
+                </Switch.Content>
+              </Switch>
+              <Button isDisabled={!yearId || !assignmentSourceId} type="submit" variant="primary">
                 Salvar vigência
               </Button>
             </form>
           </Surface>
+
+          <Surface className="bn-card xl:col-span-3">
+            <h2 className="font-semibold">Editar fonte existente</h2>
+            <form className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5" onSubmit={updateSource}>
+              <SourceSelect
+                label="Fonte"
+                value={sourceEditId}
+                onChange={selectSourceForEdit}
+                placeholder="Selecione a fonte"
+                items={sourcesForYear.map((item) => ({ id: item.id, label: item.name }))}
+              />
+              <SourceSelect
+                label="Ambiente"
+                value={sourceEnvironment}
+                onChange={setSourceEnvironment}
+                placeholder="Ambiente"
+                items={[
+                  { id: 'homologation', label: 'Homologação' },
+                  { id: 'production', label: 'Produção' },
+                ]}
+              />
+              <SourceSelect
+                label="Migração"
+                value={sourceMigrationState}
+                onChange={setSourceMigrationState}
+                placeholder="Estado"
+                items={[
+                  { id: 'not_started', label: 'Não iniciada' },
+                  { id: 'preparing', label: 'Preparando' },
+                  { id: 'reconciling', label: 'Reconciliando' },
+                  { id: 'ready', label: 'Pronta' },
+                  { id: 'blocked', label: 'Bloqueada' },
+                ]}
+              />
+              <SourceSelect
+                label="Status"
+                value={sourceStatus}
+                onChange={setSourceStatus}
+                placeholder="Status"
+                items={[
+                  { id: 'active', label: 'Ativa' },
+                  { id: 'inactive', label: 'Inativa' },
+                  { id: 'archived', label: 'Arquivada' },
+                ]}
+              />
+              <div className="grid gap-3">
+                <TextField name="reason" isRequired>
+                  <Label>Motivo da alteração</Label>
+                  <Input variant="secondary" minLength={3} />
+                </TextField>
+                <Button isDisabled={!sourceEditId} type="submit" variant="primary">
+                  Atualizar fonte
+                </Button>
+              </div>
+            </form>
+          </Surface>
+
+          <Surface className="bn-card xl:col-span-3">
+            <h2 className="font-semibold">Editar vigência existente</h2>
+            <form className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4" onSubmit={updateAssignment}>
+              <SourceSelect
+                label="Vigência"
+                value={assignmentEditId}
+                onChange={selectAssignmentForEdit}
+                placeholder="Selecione a vigência"
+                items={assignmentsForYear.map((item) => ({
+                  id: item.id,
+                  label: `${item.scope === 'school_year_default' ? 'Padrão anual' : 'Exceção docente'} · ${sources.find((source) => source.id === item.sourceId)?.name ?? item.sourceId}`,
+                }))}
+              />
+              <SourceSelect
+                label="Autoridade"
+                value={assignmentEditAuthority}
+                onChange={setAssignmentEditAuthority}
+                placeholder="Autoridade"
+                items={[
+                  { id: 'authoritative', label: 'Autoritativa' },
+                  { id: 'reference_only', label: 'Somente referência' },
+                ]}
+              />
+              <SourceSelect
+                label="Status"
+                value={assignmentEditStatus}
+                onChange={setAssignmentEditStatus}
+                placeholder="Status"
+                items={[
+                  { id: 'active', label: 'Ativa' },
+                  { id: 'inactive', label: 'Inativa' },
+                ]}
+              />
+              <Switch isSelected={assignmentEditSync} onChange={setAssignmentEditSync}>
+                <Switch.Control>
+                  <Switch.Thumb />
+                </Switch.Control>
+                <Switch.Content>
+                  <Label>Sincronização</Label>
+                  <Description>Alteração exige justificativa.</Description>
+                </Switch.Content>
+              </Switch>
+              <TextField name="effectiveFrom">
+                <Label>Nova vigência inicial</Label>
+                <Input variant="secondary" type="date" />
+              </TextField>
+              <TextField name="effectiveTo">
+                <Label>Nova vigência final</Label>
+                <Input variant="secondary" type="date" />
+              </TextField>
+              <TextField name="reason" isRequired>
+                <Label>Motivo da alteração</Label>
+                <Input variant="secondary" minLength={3} />
+              </TextField>
+              <Button isDisabled={!assignmentEditId} type="submit" variant="primary">
+                Atualizar vigência
+              </Button>
+            </form>
+          </Surface>
+
           <Surface className="bn-card xl:col-span-3">
             <h2 className="font-semibold">Vigências configuradas</h2>
             <div className="mt-4 grid gap-2">
-              {assignments.length ? (
-                assignments.map((a) => (
+              {assignmentsForYear.length ? (
+                assignmentsForYear.map((item) => (
                   <div
-                    key={a.id}
+                    key={item.id}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3 text-sm"
                   >
                     <span>
-                      {a.scope === 'school_year_default' ? 'Padrão anual' : 'Exceção docente'} ·{' '}
-                      {sources.find((s) => s.id === a.sourceId)?.name ?? a.sourceId}
+                      {item.scope === 'school_year_default' ? 'Padrão anual' : 'Exceção docente'} ·{' '}
+                      {sources.find((source) => source.id === item.sourceId)?.name ?? item.sourceId}
                     </span>
                     <Chip
                       size="sm"
                       variant="soft"
-                      color={a.authorityMode === 'authoritative' ? 'accent' : 'default'}
+                      color={item.authorityMode === 'authoritative' ? 'accent' : 'default'}
                     >
-                      {a.authorityMode} · sync {a.syncEnabled ? 'ligada' : 'desligada'}
+                      {item.authorityMode} · sync {item.syncEnabled ? 'ligada' : 'desligada'}
                     </Chip>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted">Nenhuma vigência cadastrada.</p>
+                <p className="text-sm text-muted">Nenhuma vigência cadastrada para este ano.</p>
               )}
             </div>
           </Surface>
+
           <Surface className="bn-card xl:col-span-3">
             <h2 className="font-semibold">Estado das fontes</h2>
             <div className="mt-4 grid gap-2 md:grid-cols-2">
-              {sources.length ? (
-                sources.map((item) => (
+              {sourcesForYear.length ? (
+                sourcesForYear.map((item) => (
                   <div key={item.id} className="rounded-xl border border-border p-3 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <strong>{item.name}</strong>
@@ -340,17 +664,16 @@ function SourceConfiguration() {
                       </Chip>
                     </div>
                     <p className="mt-2 text-muted">
-                      Migração: {item.migrationState} · Última reconciliação: não executada
+                      Migração: {item.migrationState} · Status: {item.status}
                     </p>
                     <p className="mt-1 text-muted">
-                      Conflitos aceitos: nenhum; sobreposições autoritativas são rejeitadas.
+                      Reconciliação detalhada será exposta quando o fluxo de reconciliação da Fase 2
+                      estiver conectado; nenhum resultado fictício é apresentado aqui.
                     </p>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted">
-                  Nenhuma fonte cadastrada; não há reconciliações ou conflitos.
-                </p>
+                <p className="text-sm text-muted">Nenhuma fonte cadastrada para este ano.</p>
               )}
             </div>
           </Surface>
@@ -414,10 +737,10 @@ function Shell({ identity }: Props) {
           </Breadcrumbs>
           <div className="hidden items-center gap-2 xl:flex">
             <Chip size="sm" variant="soft">
-              Ano não selecionado
+              Ano selecionado em Configurações
             </Chip>
             <Chip size="sm" variant="soft" color="warning">
-              Fonte não configurada
+              Autoridade por vigência
             </Chip>
             <SearchField name="banco-notas-search" className="w-56">
               <Label className="sr-only">Pesquisar no Banco de Notas</Label>
