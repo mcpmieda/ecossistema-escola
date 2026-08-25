@@ -1,32 +1,23 @@
+import { Avatar, Button, Card, Chip, Drawer, Spinner, useOverlayState } from '@heroui/react';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   Boxes,
-  LoaderCircle,
+  Command,
   LockKeyhole,
   LogOut,
   Menu,
+  Orbit,
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
 import {
   normalizePlatformRoute,
   type PlatformCapability,
   type PlatformRoute,
   type PlatformSnapshotContract,
 } from '../shared/platform-contract';
+import { AmbientConstellation, LivingSurface } from './platform/ambient';
 import { SidebarContent } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials, shortCorrelation } from './platform/presentation';
@@ -75,87 +66,106 @@ function MicrosoftMark() {
 
 function LoginExperience({ loading }: { loading: boolean }) {
   return (
-    <main className="relative min-h-svh overflow-hidden bg-muted/35 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,color-mix(in_oklch,var(--primary)_9%,transparent),transparent_28rem)]" />
-      <div className="relative mx-auto flex min-h-[calc(100svh-4rem)] max-w-6xl items-center justify-center">
-        <Card className="w-full max-w-5xl gap-0 overflow-hidden p-0 shadow-2xl shadow-primary/5 ring-foreground/10 lg:grid lg:grid-cols-[1.05fr_.95fr]">
-          <section className="relative hidden min-h-[640px] overflow-hidden bg-primary p-12 text-primary-foreground lg:flex lg:flex-col lg:justify-between">
-            <div className="absolute -right-28 -top-28 size-80 rounded-full border border-white/10" />
-            <div className="absolute -right-10 -top-10 size-44 rounded-full border border-white/10" />
-            <div className="relative">
-              <BrandMark />
-              <p className="mt-10 text-xs font-medium uppercase tracking-[0.18em] text-primary-foreground/65">
-                Escola Iêda Alves de Oliveira MCPM
-              </p>
-              <h1 className="mt-5 max-w-md text-5xl font-semibold tracking-[-0.045em]">
-                Centro de Administração
-              </h1>
-              <p className="mt-5 max-w-lg text-base leading-7 text-primary-foreground/72">
-                Um único ambiente para operar, acompanhar e integrar os sistemas administrativos da
-                escola.
-              </p>
+    <main className="hero-shell relative min-h-svh overflow-hidden px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+      <AmbientConstellation intensity="strong" parallax />
+      <div className="pointer-events-none absolute left-[8%] top-[18%] size-52 rounded-full border border-accent/10 sm:size-72" />
+      <div className="pointer-events-none absolute bottom-[8%] right-[5%] size-72 rounded-full border border-white/5 sm:size-[28rem]" />
+
+      <div className="relative z-10 mx-auto flex min-h-[calc(100svh-2.5rem)] max-w-7xl items-center justify-center lg:min-h-[calc(100svh-4rem)]">
+        <div className="hero-glass hero-page-enter grid w-full max-w-6xl overflow-hidden rounded-[2rem] lg:grid-cols-[1.15fr_.85fr]">
+          <section className="relative hidden min-h-[690px] overflow-hidden border-r border-border/70 p-12 lg:flex lg:flex-col lg:justify-between xl:p-14">
+            <AmbientConstellation intensity="strong" parallax />
+            <div className="relative z-10">
+              <div className="flex items-center gap-3">
+                <BrandMark />
+                <div>
+                  <p className="text-sm font-semibold tracking-[-0.02em]">Escola Iêda Alves</p>
+                  <p className="text-xs text-muted-foreground">Ecossistema administrativo</p>
+                </div>
+              </div>
+
+              <div className="mt-16 max-w-2xl">
+                <Chip variant="soft" color="accent" size="sm" className="mb-5">
+                  <Sparkles className="mr-1 size-3" />
+                  Centro de Administração
+                </Chip>
+                <h1 className="hero-gradient-text text-6xl font-semibold leading-[0.96] tracking-[-0.065em] xl:text-7xl">
+                  Gestão com presença. Controle com clareza.
+                </h1>
+                <p className="mt-7 max-w-xl text-base leading-7 text-muted-foreground">
+                  Uma experiência institucional única para operar, acompanhar e evoluir o núcleo
+                  administrativo da escola.
+                </p>
+              </div>
             </div>
 
-            <div className="relative grid gap-3 text-sm text-primary-foreground/80">
-              <div className="flex items-center gap-3">
-                <ShieldCheck className="size-4" />
-                <span>Acesso institucional protegido</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Boxes className="size-4" />
-                <span>Módulos integrados em uma única plataforma</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Activity className="size-4" />
-                <span>Operações rastreáveis e evolutivas</span>
-              </div>
+            <div className="relative z-10 grid grid-cols-3 gap-3">
+              {[
+                { icon: ShieldCheck, label: 'Protegido', detail: 'Entra + BFF' },
+                { icon: Boxes, label: 'Modular', detail: 'Contratos versionados' },
+                { icon: Activity, label: 'Observável', detail: 'Operação rastreável' },
+              ].map(({ icon: Icon, label, detail }) => (
+                <div key={label} className="hero-glass--quiet living-card rounded-2xl p-4">
+                  <Icon className="size-4 text-accent" />
+                  <p className="mt-5 text-sm font-semibold">{label}</p>
+                  <p className="mt-1 text-[0.7rem] text-muted-foreground">{detail}</p>
+                </div>
+              ))}
             </div>
           </section>
 
-          <section className="flex min-h-[560px] items-center bg-card px-6 py-12 sm:px-12 lg:min-h-[640px]">
-            <div className="mx-auto w-full max-w-sm">
+          <section className="relative flex min-h-[620px] items-center overflow-hidden px-6 py-10 sm:px-12 lg:min-h-[690px]">
+            <AmbientConstellation intensity="soft" />
+            <div className="relative z-10 mx-auto w-full max-w-sm">
               <div className="mb-10 flex items-center gap-3 lg:hidden">
-                <BrandMark compact />
+                <BrandMark />
                 <div>
                   <p className="text-sm font-semibold">Centro de Administração</p>
                   <p className="text-xs text-muted-foreground">Escola Iêda Alves de Oliveira</p>
                 </div>
               </div>
 
-              <Badge variant="secondary" className="mb-5">
+              <div className="hero-kicker">
+                <Orbit className="size-3.5" />
                 Acesso institucional
-              </Badge>
-              <h2 className="text-3xl font-semibold tracking-[-0.035em]">
-                {loading ? 'Verificando sua sessão' : 'Entre para continuar'}
+              </div>
+              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.05em]">
+                {loading ? 'Sincronizando sua sessão' : 'Entre no seu espaço'}
               </h2>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Use sua conta institucional. A autenticação é realizada pelo Microsoft Entra ID.
+                Sua conta institucional abre o Centro com as capabilities atribuídas à sua sessão.
               </p>
 
               {loading ? (
                 <div
-                  className="mt-8 flex h-11 items-center justify-center gap-2 rounded-lg border bg-muted/35 text-sm font-medium text-muted-foreground"
+                  className="hero-glass--quiet hero-loading-bar mt-8 flex h-12 items-center justify-center gap-2 rounded-xl text-sm font-medium text-muted-foreground"
                   role="status"
                 >
-                  <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" />
+                  <Spinner size="sm" />
                   Verificando acesso…
                 </div>
               ) : (
-                <Button asChild size="lg" className="mt-8 h-11 w-full">
-                  <a href="/auth/login">
-                    <MicrosoftMark />
-                    Entrar com conta institucional
-                  </a>
-                </Button>
+                <a
+                  href="/auth/login"
+                  className="button button--primary button--lg mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-xl no-underline"
+                >
+                  <MicrosoftMark />
+                  Entrar com conta institucional
+                </a>
               )}
 
-              <div className="mt-8 flex items-start gap-3 rounded-xl border bg-muted/25 p-4 text-xs leading-5 text-muted-foreground">
-                <LockKeyhole className="mt-0.5 size-4 shrink-0 text-foreground/65" />
+              <div className="hero-glass--quiet mt-6 flex items-start gap-3 rounded-2xl p-4 text-xs leading-5 text-muted-foreground">
+                <LockKeyhole className="mt-0.5 size-4 shrink-0 text-accent" />
                 <p>O Centro não solicita nem armazena sua senha institucional.</p>
+              </div>
+
+              <div className="mt-8 flex items-center gap-2 text-[0.68rem] text-muted-foreground">
+                <span className="hero-status-orb" />
+                Ambiente de validação protegido
               </div>
             </div>
           </section>
-        </Card>
+        </div>
       </div>
     </main>
   );
@@ -163,26 +173,27 @@ function LoginExperience({ loading }: { loading: boolean }) {
 
 function RestrictedExperience({ name }: { name?: string }) {
   return (
-    <main className="grid min-h-svh place-items-center bg-muted/35 p-4">
-      <Card className="w-full max-w-xl">
-        <CardHeader>
-          <Badge variant="outline" className="mb-3">
+    <main className="hero-shell relative grid min-h-svh place-items-center overflow-hidden p-4">
+      <AmbientConstellation intensity="strong" parallax />
+      <Card variant="secondary" className="hero-glass hero-page-enter relative z-10 w-full max-w-xl rounded-[1.8rem]">
+        <Card.Header className="p-7 pb-3 sm:p-8 sm:pb-3">
+          <Chip variant="soft" color="warning" size="sm" className="mb-4 w-fit">
             Validação restrita
-          </Badge>
-          <CardTitle className="text-2xl tracking-tight">Acesso ainda não liberado</CardTitle>
-          <CardDescription className="max-w-lg leading-6">
+          </Chip>
+          <Card.Title className="text-3xl tracking-[-0.045em]">Acesso ainda não liberado</Card.Title>
+          <Card.Description className="mt-3 max-w-lg leading-6">
             {name ? `${name}, sua conta está autenticada.` : 'Sua conta está autenticada.'} A sessão
             atual não possui as capabilities administrativas necessárias para abrir esta candidata.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="px-7 pb-7 pt-4 sm:px-8 sm:pb-8">
           <form method="post" action="/auth/logout">
             <Button variant="outline" type="submit">
-              <LogOut />
+              <LogOut className="size-4" />
               Sair
             </Button>
           </form>
-        </CardContent>
+        </Card.Content>
       </Card>
     </main>
   );
@@ -191,7 +202,7 @@ function RestrictedExperience({ name }: { name?: string }) {
 function AdminShell({ identity }: { identity: Identity }) {
   const route = usePlatformRoute();
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
-  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const mobileNavigation = useOverlayState();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -208,9 +219,7 @@ function AdminShell({ identity }: { identity: Identity }) {
           };
           throw Object.assign(
             new Error(payload.error || 'Não foi possível carregar a plataforma.'),
-            {
-              correlationId: payload.correlationId,
-            },
+            { correlationId: payload.correlationId },
           );
         }
         return (await response.json()) as PlatformSnapshotContract;
@@ -235,62 +244,69 @@ function AdminShell({ identity }: { identity: Identity }) {
   const snapshot = loadState.status === 'ready' ? loadState.snapshot : null;
 
   return (
-    <div className="min-h-svh bg-muted/25 lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-      <aside className="sticky top-0 hidden h-svh border-r lg:block">
+    <div className="hero-shell min-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+      <AmbientConstellation intensity="soft" parallax />
+
+      <aside className="sticky top-0 z-20 hidden h-svh lg:block">
         <SidebarContent route={route} modules={modules} loading={loadState.status === 'loading'} />
       </aside>
 
-      <div className="min-w-0">
-        <header className="sticky top-0 z-30 border-b bg-background/92 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-          <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
-            <Sheet open={mobileNavigationOpen} onOpenChange={setMobileNavigationOpen}>
-              <SheetTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="lg:hidden"
-                  aria-label="Abrir navegação"
-                >
-                  <Menu />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-[290px] p-0 sm:max-w-[290px]">
-                <SheetHeader className="sr-only">
-                  <SheetTitle>Navegação</SheetTitle>
-                  <SheetDescription>Áreas do Centro de Administração</SheetDescription>
-                </SheetHeader>
-                <SidebarContent
-                  route={route}
-                  modules={modules}
-                  loading={loadState.status === 'loading'}
-                  onNavigate={() => setMobileNavigationOpen(false)}
-                />
-              </SheetContent>
-            </Sheet>
+      <div className="relative z-10 min-w-0">
+        <header className="hero-topbar sticky top-0 z-30">
+          <div className="flex h-[76px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+            <Drawer state={mobileNavigation}>
+              <Button
+                variant="outline"
+                isIconOnly
+                className="lg:hidden"
+                aria-label="Abrir navegação"
+              >
+                <Menu className="size-4" />
+              </Button>
+              <Drawer.Backdrop variant="blur">
+                <Drawer.Content placement="left">
+                  <Drawer.Dialog className="h-full w-[min(88vw,320px)] overflow-hidden rounded-r-[1.8rem] border-r border-border bg-background p-0">
+                    <Drawer.CloseTrigger />
+                    <Drawer.Header className="sr-only">
+                      <Drawer.Heading>Navegação</Drawer.Heading>
+                    </Drawer.Header>
+                    <Drawer.Body className="h-full p-0">
+                      <SidebarContent
+                        route={route}
+                        modules={modules}
+                        loading={loadState.status === 'loading'}
+                        onNavigate={() => mobileNavigation.close()}
+                      />
+                    </Drawer.Body>
+                  </Drawer.Dialog>
+                </Drawer.Content>
+              </Drawer.Backdrop>
+            </Drawer>
 
-            <div className="min-w-0 flex-1 md:max-w-48">
+            <div className="min-w-0 flex-1 md:max-w-52">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Command className="size-3.5 text-accent" />
                 <span>Centro</span>
-                <span>/</span>
-                <span className="truncate text-foreground">{routeLabels[route]}</span>
+                <span className="text-border">/</span>
+                <span className="truncate font-medium text-foreground">{routeLabels[route]}</span>
               </div>
             </div>
 
             <PlatformSearch snapshot={snapshot} />
 
-            <div className="flex shrink-0 items-center gap-3">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
               <div className="hidden text-right xl:block">
-                <p className="max-w-48 truncate text-sm font-medium">
+                <p className="max-w-48 truncate text-sm font-semibold tracking-[-0.02em]">
                   {identity.name || 'Administrador'}
                 </p>
-                <p className="text-xs text-muted-foreground">Administrador</p>
+                <p className="text-[0.68rem] text-muted-foreground">Administrador</p>
               </div>
-              <Avatar className="size-8">
-                <AvatarFallback className="text-xs">{initials(identity.name)}</AvatarFallback>
+              <Avatar size="sm" variant="soft" color="accent" className="ring-1 ring-accent/20">
+                <Avatar.Fallback className="text-[0.68rem] font-bold">{initials(identity.name)}</Avatar.Fallback>
               </Avatar>
               <form method="post" action="/auth/logout">
-                <Button variant="outline" size="sm" type="submit">
-                  <LogOut />
+                <Button variant="ghost" size="sm" type="submit" aria-label="Sair">
+                  <LogOut className="size-4" />
                   <span className="hidden sm:inline">Sair</span>
                 </Button>
               </form>
@@ -298,20 +314,20 @@ function AdminShell({ identity }: { identity: Identity }) {
           </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1440px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {loadState.status === 'loading' && <LoadingWorkspace />}
 
           {loadState.status === 'error' && (
-            <Card className="max-w-2xl">
-              <CardHeader>
-                <div className="mb-3 grid size-10 place-items-center rounded-xl border bg-muted/35">
-                  <Activity className="size-4 text-muted-foreground" />
+            <Card variant="secondary" className="hero-glass hero-page-enter max-w-2xl rounded-[1.7rem]">
+              <Card.Header className="p-7 pb-3">
+                <div className="hero-glass--quiet mb-4 grid size-11 place-items-center rounded-2xl">
+                  <Activity className="size-4 text-danger" />
                 </div>
-                <CardTitle>Não foi possível carregar o Centro</CardTitle>
-                <CardDescription className="leading-6">{loadState.message}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-wrap items-center gap-3">
-                <Button variant="outline" onClick={() => window.location.reload()}>
+                <Card.Title className="text-2xl tracking-[-0.035em]">Não foi possível carregar o Centro</Card.Title>
+                <Card.Description className="mt-2 leading-6">{loadState.message}</Card.Description>
+              </Card.Header>
+              <Card.Content className="flex flex-wrap items-center gap-3 px-7 pb-7 pt-3">
+                <Button variant="outline" onPress={() => window.location.reload()}>
                   Tentar novamente
                 </Button>
                 {loadState.correlationId && (
@@ -319,27 +335,38 @@ function AdminShell({ identity }: { identity: Identity }) {
                     Correlação: {loadState.correlationId}
                   </span>
                 )}
-              </CardContent>
+              </Card.Content>
             </Card>
           )}
 
           {loadState.status === 'ready' && (
-            <>
+            <div key={route} className="hero-page-enter">
               {route === 'visao-geral' && (
-                <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
-                  <Sparkles className="size-4 text-primary" />
-                  <span>Olá, {firstName}. Este é o núcleo administrativo em validação.</span>
-                </div>
+                <LivingSurface className="mb-6 rounded-2xl px-4 py-3.5" parallax>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Sparkles className="size-4 text-accent" />
+                      <span>
+                        Olá, <strong className="font-semibold text-foreground">{firstName}</strong>. O
+                        núcleo administrativo está em validação.
+                      </span>
+                    </div>
+                    <Chip variant="soft" color="success" size="sm">
+                      <span className="mr-1.5 hero-status-orb" />
+                      Núcleo disponível
+                    </Chip>
+                  </div>
+                </LivingSurface>
               )}
+
               <PageContent route={route} snapshot={loadState.snapshot} />
-              <footer className="mt-8 flex flex-col gap-1 border-t pt-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+
+              <footer className="mt-9 flex flex-col gap-2 border-t border-border/70 pt-5 text-[0.68rem] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                 <span>Núcleo {loadState.snapshot.version}</span>
                 <span>Dados consultados em {formatDate(loadState.snapshot.generatedAt)}</span>
-                <span className="font-mono">
-                  {shortCorrelation(loadState.snapshot.correlationId)}
-                </span>
+                <span className="font-mono">{shortCorrelation(loadState.snapshot.correlationId)}</span>
               </footer>
-            </>
+            </div>
           )}
         </main>
       </div>
