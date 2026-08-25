@@ -122,10 +122,19 @@ export async function ingestGradeEvent(args: {
         sourceId: input.dataSourceId,
         updatedAt: receivedAt,
       };
-
-  await args.store.commit(
+  const provenanceJson = JSON.stringify({
+    source: input.source,
+    sourceRevision: input.sourceRevision ?? null,
+    derivedValues: input.derivedValues ?? null,
+  });
+  const committed = await args.store.commit(
     event.status === 'stale' ? { event, snapshot: null } : { event, snapshot },
-    JSON.stringify(input.source),
+    provenanceJson,
   );
-  return receipt(event, isStale ? 'stale' : 'applied', snapshot ?? current);
+  const committedSnapshot = committed.snapshot ?? (await args.store.getSnapshot(input.gradeKey, input.field));
+  return receipt(
+    committed.event,
+    committed.event.status === 'stale' ? 'stale' : 'applied',
+    committedSnapshot,
+  );
 }
