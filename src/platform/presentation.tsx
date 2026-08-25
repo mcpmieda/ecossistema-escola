@@ -1,19 +1,16 @@
-import { ArrowRight, Boxes, type LucideIcon } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { Chip, Link } from '@heroui/react';
+import { ArrowRight, Boxes, Sparkles, type LucideIcon } from 'lucide-react';
 import type { CoreModuleContract } from '../../shared/platform-contract';
+import { AmbientConstellation } from './ambient';
 import { platformHref, routeIcons } from './routes';
 
 export function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
     <div
-      className={cn(
-        'grid shrink-0 place-items-center rounded-xl bg-primary font-semibold tracking-tight text-primary-foreground shadow-sm',
-        compact ? 'size-9 text-xs' : 'size-11 text-sm',
-      )}
+      className={`hero-brand-mark shrink-0 ${compact ? 'size-9 rounded-xl text-[0.68rem]' : 'size-12 rounded-2xl text-sm'}`}
       aria-hidden="true"
     >
-      IA
+      <span className="relative z-10 font-black tracking-[-0.08em]">IA</span>
     </div>
   );
 }
@@ -28,12 +25,15 @@ export function EmptyState({
   description: string;
 }) {
   return (
-    <div className="flex min-h-56 flex-col items-center justify-center px-5 py-10 text-center">
-      <div className="grid size-10 place-items-center rounded-xl border bg-muted/35">
-        <Icon className="size-4 text-muted-foreground" />
+    <div className="relative flex min-h-64 flex-col items-center justify-center overflow-hidden px-6 py-12 text-center">
+      <AmbientConstellation intensity="soft" />
+      <div className="relative z-10 flex max-w-md flex-col items-center">
+        <div className="hero-glass grid size-12 place-items-center rounded-2xl">
+          <Icon className="size-5 text-accent" />
+        </div>
+        <h3 className="mt-5 text-base font-semibold tracking-[-0.02em]">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
       </div>
-      <h3 className="mt-4 text-sm font-semibold">{title}</h3>
-      <p className="mt-1.5 max-w-md text-sm leading-6 text-muted-foreground">{description}</p>
     </div>
   );
 }
@@ -48,43 +48,58 @@ export function PageHeader({
   description: string;
 }) {
   return (
-    <div className="mb-6">
-      <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-        {eyebrow}
-      </p>
-      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">{title}</h2>
-      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{description}</p>
-    </div>
+    <section className="living-surface hero-page-enter mb-7 rounded-[1.7rem] px-6 py-7 sm:px-8 sm:py-8">
+      <AmbientConstellation intensity="strong" parallax />
+      <div className="living-surface__content max-w-3xl">
+        <div className="hero-kicker">
+          <Sparkles className="size-3.5" />
+          {eyebrow}
+        </div>
+        <h2 className="hero-gradient-text mt-3 text-3xl font-semibold tracking-[-0.045em] sm:text-[2.5rem] sm:leading-[1.05]">
+          {title}
+        </h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-[0.95rem]">
+          {description}
+        </p>
+      </div>
+    </section>
   );
 }
 
 export function ModuleStatus({ state }: { state: CoreModuleContract['state'] }) {
   return (
-    <Badge variant={state === 'validation' ? 'outline' : 'secondary'}>
+    <Chip
+      size="sm"
+      color={state === 'validation' ? 'accent' : 'default'}
+      variant={state === 'validation' ? 'soft' : 'tertiary'}
+      className="font-medium"
+    >
       {state === 'validation' ? 'Em validação' : 'Planejado'}
-    </Badge>
+    </Chip>
   );
 }
 
 export function ModuleRow({ module }: { module: CoreModuleContract }) {
   const Icon = routeIcons[module.route];
   return (
-    <a
+    <Link
       href={platformHref(module.route)}
-      className="group flex items-center gap-4 px-4 py-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 sm:px-5"
+      className="group flex w-full items-center gap-4 px-5 py-4 text-foreground no-underline transition-colors hover:bg-accent/5 sm:px-6"
     >
-      <div className="grid size-10 shrink-0 place-items-center rounded-xl border bg-background shadow-xs">
-        <Icon className="size-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+      <div className="hero-glass--quiet grid size-11 shrink-0 place-items-center rounded-2xl transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-[1.03] motion-reduce:transform-none">
+        <Icon className="size-4.5 text-accent" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-sm font-semibold">{module.name}</h3>
+          <h3 className="text-sm font-semibold tracking-[-0.015em]">{module.name}</h3>
           <ModuleStatus state={module.state} />
         </div>
-        <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{module.description}</p>
+        <p className="mt-1 line-clamp-2 text-sm leading-5 text-muted-foreground">
+          {module.description}
+        </p>
       </div>
-      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground motion-reduce:transform-none" />
-    </a>
+      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-all duration-300 group-hover:translate-x-1 group-hover:text-accent motion-reduce:transform-none" />
+    </Link>
   );
 }
 
