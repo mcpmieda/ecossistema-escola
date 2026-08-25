@@ -109,7 +109,10 @@ function DesktopSearch({
 }) {
   return (
     <div className="hidden w-full max-w-md md:block">
-      <Popover isOpen={open && Boolean(snapshot)} onOpenChange={(value) => setOpen(value && Boolean(snapshot))}>
+      <Popover
+        isOpen={open && Boolean(snapshot)}
+        onOpenChange={(value) => setOpen(value && Boolean(snapshot))}
+      >
         <Popover.Trigger>
           <Button
             variant="outline"

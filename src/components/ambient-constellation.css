@@ -63,7 +63,11 @@
   top: -28%;
   left: -16%;
   width: min(68vw, 48rem);
-  background: radial-gradient(circle, color-mix(in srgb, var(--heroui-pro-glow-cyan) 52%, transparent) 0%, transparent 70%);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--heroui-pro-glow-cyan) 52%, transparent) 0%,
+    transparent 70%
+  );
   animation: ambient-glow-cyan 42s ease-in-out infinite;
 }
 
@@ -71,7 +75,11 @@
   right: -22%;
   bottom: -40%;
   width: min(60vw, 44rem);
-  background: radial-gradient(circle, color-mix(in srgb, var(--heroui-pro-glow-blue) 42%, transparent) 0%, transparent 72%);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--heroui-pro-glow-blue) 42%, transparent) 0%,
+    transparent 72%
+  );
   opacity: 0.24;
   animation: ambient-glow-blue 48s ease-in-out infinite;
 }
