@@ -39,12 +39,7 @@ function Navigation({
       className="platform-nav px-3"
       selectionMode="single"
       selectedKeys={new Set([route])}
-      onAction={(key) => {
-        const target = modules.find((module) => module.route === String(key));
-        if (!target) return;
-        window.location.assign(platformHref(target.route));
-        onNavigate?.();
-      }}
+      onAction={() => onNavigate?.()}
     >
       {modules.map((module) => {
         const Icon = routeIcons[module.route];
@@ -52,6 +47,7 @@ function Navigation({
           <ListBox.Item
             id={module.route}
             key={module.id}
+            href={platformHref(module.route)}
             textValue={module.name}
             className="platform-nav__item"
           >
