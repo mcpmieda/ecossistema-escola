@@ -69,8 +69,16 @@ body {
   min-height: 100vh;
   overflow: clip;
   background:
-    radial-gradient(circle at 16% -8%, color-mix(in oklab, var(--ambient-glow-1) 34%, transparent), transparent 34rem),
-    radial-gradient(circle at 94% 18%, color-mix(in oklab, var(--ambient-glow-2) 28%, transparent), transparent 32rem),
+    radial-gradient(
+      circle at 16% -8%,
+      color-mix(in oklab, var(--ambient-glow-1) 34%, transparent),
+      transparent 34rem
+    ),
+    radial-gradient(
+      circle at 94% 18%,
+      color-mix(in oklab, var(--ambient-glow-2) 28%, transparent),
+      transparent 32rem
+    ),
     var(--background);
 }
 
@@ -80,7 +88,12 @@ body {
   z-index: -3;
   pointer-events: none;
   content: '';
-  background: linear-gradient(135deg, color-mix(in oklab, var(--ambient-base-1) 38%, transparent), transparent 52%, color-mix(in oklab, var(--ambient-base-2) 30%, transparent));
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--ambient-base-1) 38%, transparent),
+    transparent 52%,
+    color-mix(in oklab, var(--ambient-base-2) 30%, transparent)
+  );
   opacity: 0.62;
 }
 
@@ -151,8 +164,11 @@ body {
 }
 
 .hero-surface--strong {
-  background:
-    linear-gradient(135deg, color-mix(in oklab, var(--ambient-base-1) 78%, var(--background)), color-mix(in oklab, var(--ambient-base-2) 68%, var(--background)));
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--ambient-base-1) 78%, var(--background)),
+    color-mix(in oklab, var(--ambient-base-2) 68%, var(--background))
+  );
 }
 
 .glass-bar {

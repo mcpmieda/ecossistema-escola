@@ -200,9 +200,12 @@ function AdminShell({ identity }: { identity: Identity }) {
             error?: string;
             correlationId?: string;
           };
-          throw Object.assign(new Error(payload.error || 'Não foi possível carregar a plataforma.'), {
-            correlationId: payload.correlationId,
-          });
+          throw Object.assign(
+            new Error(payload.error || 'Não foi possível carregar a plataforma.'),
+            {
+              correlationId: payload.correlationId,
+            },
+          );
         }
         return (await response.json()) as PlatformSnapshotContract;
       })
@@ -252,7 +255,10 @@ function AdminShell({ identity }: { identity: Identity }) {
                 onOpenChange={setMobileNavigationOpen}
               >
                 <Drawer.Content placement="left" className="max-w-[300px]">
-                  <Drawer.Dialog aria-label="Navegação do Centro" className="h-full rounded-none p-0">
+                  <Drawer.Dialog
+                    aria-label="Navegação do Centro"
+                    className="h-full rounded-none p-0"
+                  >
                     <Drawer.CloseTrigger />
                     <Drawer.Body className="p-0">
                       <SidebarContent
@@ -334,7 +340,9 @@ function AdminShell({ identity }: { identity: Identity }) {
               <footer className="mt-8 flex flex-col gap-1 border-t border-border/70 pt-5 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
                 <span>Núcleo {loadState.snapshot.version}</span>
                 <span>Dados consultados em {formatDate(loadState.snapshot.generatedAt)}</span>
-                <span className="font-mono">{shortCorrelation(loadState.snapshot.correlationId)}</span>
+                <span className="font-mono">
+                  {shortCorrelation(loadState.snapshot.correlationId)}
+                </span>
               </footer>
             </>
           )}

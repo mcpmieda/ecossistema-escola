@@ -2,22 +2,8 @@ import * as React from 'react';
 import { Button as HeroButton } from '@heroui/react';
 import { cn } from '@/lib/utils';
 
-type LegacyButtonVariant =
-  | 'default'
-  | 'outline'
-  | 'secondary'
-  | 'ghost'
-  | 'destructive'
-  | 'link';
-type LegacyButtonSize =
-  | 'default'
-  | 'xs'
-  | 'sm'
-  | 'lg'
-  | 'icon'
-  | 'icon-xs'
-  | 'icon-sm'
-  | 'icon-lg';
+type LegacyButtonVariant = 'default' | 'outline' | 'secondary' | 'ghost' | 'destructive' | 'link';
+type LegacyButtonSize = 'default' | 'xs' | 'sm' | 'lg' | 'icon' | 'icon-xs' | 'icon-sm' | 'icon-lg';
 
 function heroVariant(variant: LegacyButtonVariant) {
   switch (variant) {
@@ -70,7 +56,10 @@ function buttonVariants({
   );
 }
 
-type ButtonProps = Omit<React.ComponentProps<typeof HeroButton>, 'variant' | 'size' | 'isDisabled'> & {
+type ButtonProps = Omit<
+  React.ComponentProps<typeof HeroButton>,
+  'variant' | 'size' | 'isDisabled'
+> & {
   variant?: LegacyButtonVariant;
   size?: LegacyButtonSize;
   asChild?: boolean;

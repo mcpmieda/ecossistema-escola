@@ -34,13 +34,19 @@ function CardTitle({ className, ...props }: React.ComponentProps<typeof HeroCard
   return (
     <HeroCard.Title
       data-slot="card-title"
-      className={cn('font-heading text-base font-semibold leading-snug tracking-[-0.015em]', className)}
+      className={cn(
+        'font-heading text-base font-semibold leading-snug tracking-[-0.015em]',
+        className,
+      )}
       {...props}
     />
   );
 }
 
-function CardDescription({ className, ...props }: React.ComponentProps<typeof HeroCard.Description>) {
+function CardDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof HeroCard.Description>) {
   return (
     <HeroCard.Description
       data-slot="card-description"

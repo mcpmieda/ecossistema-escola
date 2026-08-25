@@ -176,7 +176,9 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       <Card className="gap-0 overflow-hidden py-0">
         <CardHeader className="border-b border-border/70 py-4">
           <CardTitle>Módulos do núcleo</CardTitle>
-          <CardDescription>{snapshot.coreModules.length} áreas definidas por contrato.</CardDescription>
+          <CardDescription>
+            {snapshot.coreModules.length} áreas definidas por contrato.
+          </CardDescription>
         </CardHeader>
         <div className="divide-y divide-border/70">
           {snapshot.coreModules.map((module) => (
@@ -311,7 +313,9 @@ function AuditPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
               <TableBody>
                 {snapshot.recentAudit.map((entry) => (
                   <TableRow key={entry.id}>
-                    <TableCell className="whitespace-nowrap">{formatDate(entry.occurredAt)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatDate(entry.occurredAt)}
+                    </TableCell>
                     <TableCell>{entry.module}</TableCell>
                     <TableCell>{entry.action}</TableCell>
                     <TableCell>

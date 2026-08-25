@@ -79,7 +79,9 @@ export function SidebarContent({
       <div className="flex h-20 items-center gap-3 px-5">
         <BrandMark compact />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-[-0.015em]">Centro de Administração</p>
+          <p className="truncate text-sm font-semibold tracking-[-0.015em]">
+            Centro de Administração
+          </p>
           <p className="truncate text-xs text-muted">Escola Iêda Alves de Oliveira</p>
         </div>
       </div>
