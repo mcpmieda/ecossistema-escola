@@ -34,11 +34,19 @@ async function sourceAuthorityMutation<T>(operation: () => Promise<T>): Promise<
   try {
     return await operation();
   } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes('authoritative source assignment overlap')
-    ) {
-      throw new HttpError(409, 'Authoritative source period overlaps an existing assignment');
+    if (error instanceof Error) {
+      if (error.message.includes('authoritative source assignment overlap')) {
+        throw new HttpError(409, 'Authoritative source period overlaps an existing assignment');
+      }
+      if (
+        error.message.includes('source assignment year mismatch') ||
+        error.message.includes('source_assignment_year_mismatch')
+      ) {
+        throw new HttpError(409, 'Data source and assignment must belong to the same school year');
+      }
+      if (error.message.includes('data_source_not_found')) {
+        throw new HttpError(404, 'Data source not found');
+      }
     }
     throw error;
   }
