@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import {
   Alert,
   Chip,
@@ -83,15 +83,12 @@ export function SidebarContent({
   loading: boolean;
   onNavigate?: () => void;
 }) {
-  const onNavigateRef = useRef(onNavigate);
-
   useEffect(() => {
-    onNavigateRef.current = onNavigate;
+    if (!onNavigate) return;
+    const closeAfterNavigation = () => onNavigate();
+    window.addEventListener('hashchange', closeAfterNavigation);
+    return () => window.removeEventListener('hashchange', closeAfterNavigation);
   }, [onNavigate]);
-
-  useEffect(() => {
-    onNavigateRef.current?.();
-  }, [route]);
 
   return (
     <Surface
