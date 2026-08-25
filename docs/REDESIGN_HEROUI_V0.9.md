@@ -9,7 +9,7 @@ A escolha explícita de HeroUI substitui o default administrativo anterior basea
 ## Perfil visual registrado
 
 - Design system: `HeroUI React v3`
-- Versão validada nesta candidata: `@heroui/react 3.2.4` + `@heroui/styles 3.2.4`
+- Versão validada: `@heroui/react 3.2.4` + `@heroui/styles 3.2.4`
 - Professional UI Profile: `professional-default`
 - Density: `comfortable`
 - Surface: `layered + immersive`
@@ -17,41 +17,118 @@ A escolha explícita de HeroUI substitui o default administrativo anterior basea
 - Motion Profile: `expressive`
 - Ambient Surface Profile: `ambient-constellation`
 - Constellation Intensity: `strong`
+- Particle scale: `micro, screen-space bounded`
 - Dense content: clean islands; constellation remains in shell/header/perimeter
 - Reduced motion: static constellation fallback
 
-## Implementação concluída na candidata
+## Implementação HeroUI v0.9
 
-Candidata técnica:
+A migração transversal foi implantada em `main` por meio do PR #35, commit:
 
-`test/heroui-v0.9@3988533c07e485063ad32c22e21a25d664db2a22`
+`ff4dba8b22e3c4ef8f42d8968872ee0d98d3ba65`
 
-Alterações consolidadas:
+Workflow de implantação: `32826760272`.
 
-- HeroUI v3 instalado e lockfile regenerado;
-- camada shadcn/Radix removida das dependências da aplicação;
-- `components.json` e `Sheet` legado removidos;
-- shell administrativo reconstruído com a linguagem HeroUI;
-- login redesenhado como superfície HeroUI imersiva;
-- navegação móvel e busca móvel migradas para `Drawer` HeroUI;
-- cards, botões, chips, avatar, inputs, separator e skeleton migrados para HeroUI;
-- tabelas mantêm HTML semântico e adotam a anatomia/classes oficiais HeroUI para conteúdo denso;
-- primitive local `ambient-constellation` criada com duas camadas, glow difuso e drift assíncrono;
-- constelação aplicada no shell, login, overview, erro/restrição e superfícies planejadas;
-- `prefers-reduced-motion` congela a constelação em composição estática;
-- `prefers-reduced-transparency` remove blur/transparência quando solicitado;
-- tokens antigos `primary/content/muted-foreground/destructive` substituídos pela semântica HeroUI v3 (`accent`, `surface`, `muted`, `danger`);
-- BFF, Entra ID, sessão, capabilities, Graph, SharePoint, recovery e contratos funcionais preservados.
+Nesse run ficaram verdes:
 
-## Evidência técnica
+- Validate GitHub Actions security;
+- Validate application;
+- deploy Cloudflare Pages;
+- recovery pós-deploy.
 
-Workflow da candidata: `32826309667`.
+A aplicação preservou BFF, Entra ID, sessão, capabilities, Graph, SharePoint, recovery e contratos funcionais.
+
+## Correção proporcional do Ambient Constellation
+
+### Problema encontrado na inspeção visual
+
+A primeira primitive usava SVG `viewBox="0 0 100 100"` preenchendo superfícies grandes, com círculos de raio entre aproximadamente `0.8` e `1.8` unidades. Como a geometria preenchida escalava com a superfície, os pontos se transformavam visualmente em círculos grandes e claramente perceptíveis.
+
+O problema era de **escala**, não de intensidade ou velocidade.
+
+### Referência oficial auditada
+
+Foi auditada a implementação pública atual do banner/modal HeroUI Pro no repositório oficial `heroui-inc/heroui`.
+
+Parâmetros usados como referência proporcional:
+
+- card: `288px` de largura;
+- área visual: `180px` de altura;
+- `FloatingStars`: aproximadamente `760.706 × 637.702px`;
+- campo centralizado em `scale-50` antes do recorte;
+- overscan efetivo aproximado: `1.32×` largura e `1.77×` altura;
+- partículas majoritariamente minúsculas e de baixa opacidade;
+- duas camadas assíncronas;
+- drift A: `12s`;
+- drift B: `15s`;
+- deslocamento percebido próximo de `20px` após a escala.
+
+Nenhum SVG, asset ou template proprietário foi copiado para o Centro. A primitive continua própria.
+
+### Implementação corrigida
+
+Branch de calibração:
+
+`test/heroui-v0.9-constellation-scale`
+
+A correção substituiu o SVG proporcional à viewport por grupos de micro-partículas com tamanho final controlado em CSS pixels:
+
+- 28 partículas na camada A;
+- 28 partículas na camada B;
+- tamanhos entre `0.6px` e `1.3px` no desktop;
+- redução adicional no mobile;
+- opacidades variadas, com predominância de baixa intensidade;
+- overscan aproximado de `1.36×` em largura e `1.78×` em altura;
+- drift `12s` e `15s` em sentidos opostos;
+- amplitude visual `20px` desktop e `12px` mobile;
+- somente os grupos são animados;
+- glow permanece estático;
+- shell claro usa leve tonalização dos micro-pontos para que a assinatura não desapareça sobre o fundo claro;
+- `prefers-reduced-motion` congela o campo em composição estática.
+
+## QA visual da calibração
+
+Workflow temporário de inspeção: `32828658258`.
+
+Resultado: **success**.
+
+Artifact de evidência:
+
+- id: `9555899769`;
+- nome: `visual-qa-constellation-32828658258`;
+- SHA-256: `1ed2260d306b141d903c707809f24d60b1e4031b14cc35923ec847f532afee66`.
+
+Chrome real capturou:
+
+- login desktop `1440×900`;
+- login mobile `390×844`;
+- overview desktop com fixture administrativa isolada;
+- overview mobile;
+- overview desktop com `prefers-reduced-motion`.
+
+O DOM renderizado também foi verificado para confirmar:
+
+- pelo menos 56 partículas por primitive analisada;
+- maior dimensão de partícula `≤ 1.3px` no desktop;
+- nenhum retorno ao modelo proporcional à viewport.
+
+A inspeção das capturas confirmou:
+
+- nenhum círculo grande/bolha decorativa permanece;
+- os pontos do painel visual do login leem como microestrelas/poeira luminosa;
+- o shell mantém assinatura discreta sem competir com conteúdo;
+- tabelas/cards e áreas densas permanecem limpos;
+- o mobile não amplia as partículas;
+- reduced motion mantém a composição e remove o drift.
+
+## Revalidação técnica da correção
+
+Workflow da branch após a calibração: `32828659178`.
 
 Gates concluídos com sucesso:
 
-- Validate GitHub Actions security: **success**;
 - actionlint: **pass**;
-- zizmor: **pass**;
+- zizmor persona `pedantic`: **pass**;
 - `npm ci`: **pass**;
 - format: **pass**;
 - lint: **pass**;
@@ -60,22 +137,21 @@ Gates concluídos com sucesso:
 - testes: **pass**;
 - build Vite: **pass**.
 
-O diff `main...test/heroui-v0.9` permanece limitado a dependências e camada visual. Nenhum arquivo de infraestrutura, autenticação, autorização, BFF, SharePoint, Graph, recovery ou contrato compartilhado foi alterado.
+O workflow temporário de QA visual deve ser removido antes do merge para não permanecer como código operacional sem função contínua.
 
 ## Regras do redesign
 
 1. HeroUI deve dominar shell, cards, botões, chips, avatar, drawer, inputs, skeleton/loading, tabelas e superfícies.
 2. Não misturar shadcn/ReUI para estética ou conveniência.
-3. Remover a camada shadcn anterior quando a migração estiver comprovada e sem consumidores.
-4. Preservar integralmente BFF, Entra ID, sessão, capabilities, Graph, SharePoint, recovery e contratos funcionais.
-5. Nenhum efeito visual pode ampliar privilégios, alterar regras institucionais ou criar escrita nova.
-6. `ambient-constellation` deve ser visível no shell, login, cabeçalhos, overview, espera/vazio/erro e painéis especiais.
-7. Tabelas e leitura densa ficam em ilhas limpas, com a assinatura constelar mantida no perímetro/cabeçalho.
-8. Transições de rota, hover/press, loading e mudanças de estado devem comunicar continuidade e resposta.
-9. Paralaxe deve ser leve e contextual, nunca requisito para compreender ou operar a interface.
-10. `prefers-reduced-motion` deve desligar drift/parallax e preservar composição estática.
-11. Não usar flashing/strobe; não animar blur continuamente; priorizar `transform` e `opacity`.
-12. O redesign só fecha após browser QA real em desktop/mobile, teclado/foco, reduced motion, console e smoke externo do domínio.
+3. Preservar integralmente BFF, Entra ID, sessão, capabilities, Graph, SharePoint, recovery e contratos funcionais.
+4. Nenhum efeito visual pode ampliar privilégios, alterar regras institucionais ou criar escrita nova.
+5. `ambient-constellation` deve ser visível no shell, login, cabeçalhos, overview, espera/vazio/erro e painéis especiais.
+6. Intensidade `strong` vem de densidade, área, profundidade e glow — nunca de círculos grandes.
+7. Partículas devem permanecer em microescala controlada em screen-space.
+8. Tabelas e leitura densa ficam em ilhas limpas, com a assinatura constelar no perímetro/cabeçalho.
+9. `prefers-reduced-motion` deve desligar drift/parallax e preservar composição estática.
+10. Não usar flashing/strobe; não animar blur continuamente; priorizar `transform` e `opacity`.
+11. Browser QA real continua obrigatório em alterações visuais materiais.
 
 ## Referências da App Factory aplicadas
 
@@ -86,6 +162,8 @@ O diff `main...test/heroui-v0.9` permanece limitado a dependências e camada vis
 - `ui/heroui/README.md`
 - `skills/ui-builder/SKILL.md`
 
+A App Factory foi atualizada pelo PR #54 para registrar a calibração proporcional e impedir a recorrência do erro de escala.
+
 ## Escopo preservado
 
 Continuam adiados e fora do bloqueio desta fase:
@@ -94,22 +172,18 @@ Continuam adiados e fora do bloqueio desta fase:
 - construção de Publicações;
 - construção de Páginas.
 
-O redesign alcança essas rotas apenas como superfícies planejadas/estados estáticos coerentes com a nova linguagem visual.
-
 ## Gate restante para produção oficial
 
-A implementação e os gates técnicos da branch estão concluídos. Ainda faltam os gates que exigem a candidata servida e uma sessão real:
+A candidata continua com `releaseState = validation`.
 
-- browser QA no domínio de validação em desktop e mobile;
-- inspeção autenticada do shell e das rotas internas;
-- teclado/foco em navegação, busca e drawers;
-- reduced motion com a composição constelar estática;
-- console sem erros relevantes;
-- smoke externo após deploy da candidata;
+Após o merge da correção e o deploy da mesma `main`, ainda devem ser confirmados no domínio oficial:
+
+- smoke externo;
+- login desktop/mobile servido pelo domínio;
+- proteção anônima de `/api/me` e `/api/platform/snapshot`;
+- inspeção autenticada do responsável;
 - decisão humana sobre a experiência apresentada.
 
-`releaseState` permanece `validation`.
-
-A produção oficial continua condicionada ao protocolo do repositório e ao comando humano exato:
+A liberação oficial continua condicionada ao comando humano exato:
 
 `APROVADO PARA PRODUÇÃO`
