@@ -209,13 +209,15 @@ CREATE TABLE IF NOT EXISTS ruleset_versions (
 CREATE TABLE IF NOT EXISTS grade_events (
   id TEXT PRIMARY KEY,
   idempotency_key TEXT NOT NULL UNIQUE,
+  payload_hash TEXT NOT NULL,
   correlation_id TEXT NOT NULL,
   event_type TEXT NOT NULL CHECK (event_type IN ('grade.changed', 'grade.recalculated', 'grade.reverted')),
-  status TEXT NOT NULL CHECK (status IN ('accepted', 'stale', 'recalculated', 'reverted', 'rejected')),
+  status TEXT NOT NULL CHECK (status IN ('applied', 'stale', 'rejected')),
   grade_key TEXT NOT NULL,
+  field TEXT NOT NULL CHECK (field IN ('NotaT1', 'NotaT2', 'NotaT3', 'RecT1', 'RecT2', 'RecT3', 'Total', 'TotalRec', 'NotaFinal')),
   source_id TEXT NOT NULL REFERENCES data_sources(id),
   teacher_model_id TEXT REFERENCES teacher_models(id),
-  sequence INTEGER NOT NULL CHECK (sequence >= 0),
+  sequence INTEGER NOT NULL CHECK (sequence >= 1),
   value_numeric REAL,
   value_text TEXT,
   is_absent INTEGER NOT NULL DEFAULT 0 CHECK (is_absent IN (0, 1)),
@@ -226,20 +228,21 @@ CREATE TABLE IF NOT EXISTS grade_events (
   CHECK (
     (is_absent = 1 AND value_numeric IS NULL AND value_text IS NULL) OR
     (is_absent = 0 AND NOT (value_numeric IS NOT NULL AND value_text IS NOT NULL))
-  ),
-  UNIQUE (source_id, grade_key, sequence)
+  )
 );
 
 CREATE TABLE IF NOT EXISTS grade_snapshots (
-  grade_key TEXT PRIMARY KEY,
+  grade_key TEXT NOT NULL,
+  field TEXT NOT NULL CHECK (field IN ('NotaT1', 'NotaT2', 'NotaT3', 'RecT1', 'RecT2', 'RecT3', 'Total', 'TotalRec', 'NotaFinal')),
   event_id TEXT NOT NULL REFERENCES grade_events(id),
   source_id TEXT NOT NULL REFERENCES data_sources(id),
-  sequence INTEGER NOT NULL CHECK (sequence >= 0),
+  sequence INTEGER NOT NULL CHECK (sequence >= 1),
   value_numeric REAL,
   value_text TEXT,
   is_absent INTEGER NOT NULL CHECK (is_absent IN (0, 1)),
   ruleset_version_id TEXT REFERENCES ruleset_versions(id),
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (grade_key, field),
   CHECK (
     (is_absent = 1 AND value_numeric IS NULL AND value_text IS NULL) OR
     (is_absent = 0 AND NOT (value_numeric IS NOT NULL AND value_text IS NOT NULL))
@@ -288,7 +291,8 @@ CREATE INDEX IF NOT EXISTS idx_teacher_assignments_lookup ON teacher_assignments
 CREATE INDEX IF NOT EXISTS idx_students_external ON students(external_id);
 CREATE INDEX IF NOT EXISTS idx_import_findings_job ON import_findings(import_job_id, severity);
 CREATE INDEX IF NOT EXISTS idx_teacher_models_year ON teacher_models(school_year_id, state);
-CREATE INDEX IF NOT EXISTS idx_grade_events_key ON grade_events(grade_key, sequence DESC);
+CREATE INDEX IF NOT EXISTS idx_grade_events_key ON grade_events(grade_key, field, sequence DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_grade_events_applied_sequence ON grade_events(source_id, grade_key, field, sequence) WHERE status = 'applied';
 CREATE INDEX IF NOT EXISTS idx_grade_events_correlation ON grade_events(correlation_id);
 CREATE INDEX IF NOT EXISTS idx_audit_events_entity ON audit_events(entity_type, entity_id, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_reconciliation_model ON reconciliation_runs(teacher_model_id, started_at DESC);
