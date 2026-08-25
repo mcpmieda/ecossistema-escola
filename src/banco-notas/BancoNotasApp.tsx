@@ -29,7 +29,15 @@ import {
   Users,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent, type PropsWithChildren } from 'react';
-import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Link,
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+} from 'react-router-dom';
 import type {
   DataSource,
   SchoolYear,
