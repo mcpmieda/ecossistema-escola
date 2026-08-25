@@ -16,7 +16,15 @@ import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, type PlatformSearchItem } from './search-model';
 import { routeIcons } from './routes';
 
-function SearchResults({ items, query }: { items: PlatformSearchItem[]; query: string }) {
+function SearchResults({
+  items,
+  query,
+  onNavigate,
+}: {
+  items: PlatformSearchItem[];
+  query: string;
+  onNavigate: (href: string) => void;
+}) {
   if (!query.trim()) {
     return (
       <Surface variant="transparent" className="px-5 py-8 text-center">
@@ -43,6 +51,10 @@ function SearchResults({ items, query }: { items: PlatformSearchItem[]; query: s
       aria-label="Resultados da busca"
       selectionMode="none"
       className="platform-search-results"
+      onAction={(key) => {
+        const item = items.find((candidate) => candidate.id === String(key));
+        if (item) onNavigate(item.href);
+      }}
     >
       {items.map((item) => {
         const Icon =
@@ -88,6 +100,7 @@ function DesktopSearch({
   results,
   open,
   setOpen,
+  onNavigate,
 }: {
   snapshot: PlatformSnapshotContract | null;
   query: string;
@@ -95,6 +108,7 @@ function DesktopSearch({
   results: PlatformSearchItem[];
   open: boolean;
   setOpen: (value: boolean) => void;
+  onNavigate: (href: string) => void;
 }) {
   return (
     <div className="hidden w-full max-w-md md:block">
@@ -137,7 +151,7 @@ function DesktopSearch({
               </SearchField.Group>
             </SearchField>
             <div className="mt-2">
-              <SearchResults items={results} query={query} />
+              <SearchResults items={results} query={query} onNavigate={onNavigate} />
             </div>
           </Popover.Dialog>
         </Popover.Content>
@@ -154,12 +168,22 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
   const items = useMemo(() => (snapshot ? buildSearchItems(snapshot) : []), [snapshot]);
   const results = useMemo(() => filterSearchItems(items, query), [items, query]);
 
+  const closeSearch = () => {
+    setQuery('');
+    setDesktopOpen(false);
+    setMobileOpen(false);
+  };
+
+  const navigateFromSearch = (href: string) => {
+    if (window.location.hash === href) {
+      closeSearch();
+      return;
+    }
+    window.location.hash = href;
+  };
+
   useEffect(() => {
-    const closeAfterNavigation = () => {
-      setQuery('');
-      setDesktopOpen(false);
-      setMobileOpen(false);
-    };
+    const closeAfterNavigation = () => closeSearch();
     window.addEventListener('hashchange', closeAfterNavigation);
     return () => window.removeEventListener('hashchange', closeAfterNavigation);
   }, []);
@@ -185,6 +209,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
         results={results}
         open={desktopOpen}
         setOpen={setDesktopOpen}
+        onNavigate={navigateFromSearch}
       />
 
       <Drawer>
@@ -226,7 +251,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
                   </SearchField.Group>
                 </SearchField>
                 <Surface variant="secondary" className="mt-4 overflow-hidden rounded-3xl p-1">
-                  <SearchResults items={results} query={query} />
+                  <SearchResults items={results} query={query} onNavigate={navigateFromSearch} />
                 </Surface>
               </Drawer.Body>
             </Drawer.Dialog>
