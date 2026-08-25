@@ -44,6 +44,11 @@ function rejects(operation, pattern) {
   }
 }
 
+function numeric(db, sql, column) {
+  const row = db.prepare(sql).get();
+  return Number(row?.[column]);
+}
+
 const results = {};
 
 {
@@ -88,9 +93,10 @@ const results = {};
       ('assignment-a', 'year-2026', 'source-a', 'school_year_default', 'authoritative', '2026-01-01', 'actor', 'configuração inicial');
   `);
   results.syncDefaultOff =
-    Number(
-      db.prepare("SELECT sync_enabled FROM source_assignments WHERE id = 'assignment-a'").get()
-        ?.sync_enabled,
+    numeric(
+      db,
+      "SELECT sync_enabled FROM source_assignments WHERE id = 'assignment-a'",
+      'sync_enabled',
     ) === 0;
   results.crossYearSourceRejected = rejects(
     () =>
@@ -122,7 +128,10 @@ const results = {};
       `),
     /.*/u,
   );
-  db.exec("INSERT INTO teachers (id, display_name) VALUES ('teacher-a', 'Professor sintético');");
+  db.exec(`
+    INSERT INTO teachers (id, display_name)
+    VALUES ('teacher-a', 'Professor sintético');
+  `);
   results.teacherOverrideAllowed = !rejects(
     () =>
       db.exec(`
@@ -177,8 +186,11 @@ const results = {};
       ('event-1', 'idem-1', 'corr-1', 'grade.changed', 'accepted', 'grade-a', 'source-a', 1, 0, 0, '{}', '2026-08-25T12:00:00Z');
   `);
   results.zeroIsValidValue =
-    Number(db.prepare("SELECT value_numeric FROM grade_events WHERE id = 'event-1'").get()?.value_numeric) ===
-    0;
+    numeric(
+      db,
+      "SELECT value_numeric FROM grade_events WHERE id = 'event-1'",
+      'value_numeric',
+    ) === 0;
   results.idempotencyRejected = rejects(
     () =>
       db.exec(`
@@ -251,9 +263,10 @@ const results = {};
   }
   results.transactionRollback =
     failed &&
-    Number(
-      db.prepare("SELECT COUNT(*) AS total FROM source_assignments WHERE id = 'transaction-valid'").get()
-        ?.total,
+    numeric(
+      db,
+      "SELECT COUNT(*) AS total FROM source_assignments WHERE id = 'transaction-valid'",
+      'total',
     ) === 0;
   db.close();
 }
