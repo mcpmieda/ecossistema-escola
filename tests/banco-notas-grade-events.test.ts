@@ -7,10 +7,7 @@ import type {
   GradeSnapshot,
   StoredGradeEvent,
 } from '../shared/banco-notas-grade-events';
-import {
-  GradeEventConflictError,
-  ingestGradeEvent,
-} from '../server/banco-notas/grade-events';
+import { GradeEventConflictError, ingestGradeEvent } from '../server/banco-notas/grade-events';
 
 const SOURCE_ID = '11111111-1111-4111-8111-111111111111';
 const MODEL_ID = '22222222-2222-4222-8222-222222222222';
