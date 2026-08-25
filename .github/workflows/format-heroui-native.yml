@@ -6,15 +6,9 @@ on:
       - redesign/heroui-native-v1
     paths:
       - .github/workflows/format-heroui-native.yml
-      - src/App.tsx
-      - src/platform/navigation.tsx
-      - src/platform/operations-page.tsx
-      - src/platform/pages.tsx
-      - src/platform/presentation.tsx
-      - src/platform/search.tsx
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: format-heroui-native-${{ github.ref }}
@@ -22,13 +16,14 @@ concurrency:
 
 jobs:
   format-candidate:
-    name: Format native HeroUI candidate
+    name: Format and commit native HeroUI candidate
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout candidate
+      - name: Checkout candidate branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: redesign/heroui-native-v1
           persist-credentials: false
 
       - name: Set up Node.js
@@ -46,16 +41,19 @@ jobs:
       - name: Verify formatted result
         run: npm run format:check
 
-      - name: Publish formatted sources
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: heroui-native-formatted-${{ github.run_id }}
-          path: |
-            src/App.tsx
-            src/platform/navigation.tsx
-            src/platform/operations-page.tsx
-            src/platform/pages.tsx
-            src/platform/presentation.tsx
-            src/platform/search.tsx
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit formatted sources
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add src/App.tsx src/platform/navigation.tsx src/platform/operations-page.tsx src/platform/pages.tsx src/platform/presentation.tsx src/platform/search.tsx
+          if git diff --cached --quiet; then
+            echo 'No formatting changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'style(ui): formatar redesign HeroUI nativo'
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/mcpmieda/ecossistema-escola.git"
+          git push origin HEAD:redesign/heroui-native-v1
