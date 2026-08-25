@@ -34,11 +34,6 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Show temporary Prettier correction
-        run: |
-          npx prettier --write src/App.tsx src/platform/operations-page.tsx
-          git diff -- src/App.tsx src/platform/operations-page.tsx
-
       - name: Check formatting
         run: npm run format:check
 
