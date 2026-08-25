@@ -47,15 +47,7 @@ function SearchResults({
   }
 
   return (
-    <ListBox
-      aria-label="Resultados da busca"
-      selectionMode="none"
-      className="platform-search-results"
-      onAction={(key) => {
-        const item = items.find((candidate) => candidate.id === String(key));
-        if (item) onNavigate(item.href);
-      }}
-    >
+    <ListBox aria-label="Resultados da busca" selectionMode="none" className="platform-search-results">
       {items.map((item) => {
         const Icon =
           item.iconKind === 'system'
@@ -70,6 +62,7 @@ function SearchResults({
             href={item.href}
             textValue={item.label}
             className="platform-search-results__item"
+            onPress={() => onNavigate(item.href)}
           >
             <Surface
               variant="secondary"
@@ -183,7 +176,11 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
   };
 
   useEffect(() => {
-    const closeAfterNavigation = () => closeSearch();
+    const closeAfterNavigation = () => {
+      setQuery('');
+      setDesktopOpen(false);
+      setMobileOpen(false);
+    };
     window.addEventListener('hashchange', closeAfterNavigation);
     return () => window.removeEventListener('hashchange', closeAfterNavigation);
   }, []);
