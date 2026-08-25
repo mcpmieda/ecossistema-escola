@@ -14,15 +14,7 @@ import {
   Surface,
   useOverlayState,
 } from '@heroui/react';
-import {
-  Activity,
-  Boxes,
-  ChevronDown,
-  LockKeyhole,
-  LogOut,
-  Menu,
-  ShieldCheck,
-} from 'lucide-react';
+import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import {
   normalizePlatformRoute,
   type PlatformCapability,
@@ -101,8 +93,8 @@ function LoginExperience({ loading }: { loading: boolean }) {
               Centro de Administração
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-muted">
-              Uma plataforma administrativa modular e protegida para operar os sistemas da escola
-              em uma única experiência.
+              Uma plataforma administrativa modular e protegida para operar os sistemas da escola em
+              uma única experiência.
             </p>
           </div>
 
