@@ -170,11 +170,8 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
   };
 
   const navigateFromSearch = (href: string) => {
-    if (window.location.hash === href) {
-      closeSearch();
-      return;
-    }
-    window.location.hash = href;
+    if (window.location.hash !== href) window.location.hash = href;
+    closeSearch();
   };
 
   useEffect(() => {
