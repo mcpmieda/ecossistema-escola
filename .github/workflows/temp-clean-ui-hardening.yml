@@ -1,0 +1,60 @@
+name: Temporary clean UI hardening
+
+on:
+  push:
+    branches:
+      - fix/heroui-native-v2-performance-accessibility
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    name: Clean residual contrast and blur
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Remove residual low-contrast and backdrop blur classes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ['src/App.tsx', 'src/platform/pages.tsx']:
+              path = Path(name)
+              text = path.read_text()
+              text = text.replace('#4E75A5', '#365B86')
+              text = text.replace(' backdrop-blur-md', '')
+              text = text.replace(' backdrop-blur-sm', '')
+              text = text.replace('bg-white/28', 'bg-white/72')
+              text = text.replace('bg-surface/88', 'bg-surface/96')
+              text = text.replace('bg-surface/86', 'bg-surface/96')
+              path.write_text(text)
+          PY
+          npm run format -- --write src/App.tsx src/platform/pages.tsx
+
+      - name: Commit cleanup when needed
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/App.tsx src/platform/pages.tsx
+          git commit -m "fix(ui): limpar contraste e blur residuais"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/mcpmieda/ecossistema-escola.git" HEAD:refs/heads/fix/heroui-native-v2-performance-accessibility
