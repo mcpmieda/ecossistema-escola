@@ -1,31 +1,28 @@
 import * as React from 'react';
-
+import { Card as HeroCard } from '@heroui/react';
 import { cn } from '@/lib/utils';
 
-function Card({
-  className,
-  size = 'default',
-  ...props
-}: React.ComponentProps<'div'> & { size?: 'default' | 'sm' }) {
+type CardProps = Omit<React.ComponentProps<typeof HeroCard>, 'variant'> & {
+  size?: 'default' | 'sm';
+};
+
+function Card({ className, size = 'default', ...props }: CardProps) {
   return (
-    <div
+    <HeroCard
       data-slot="card"
       data-size={size}
-      className={cn(
-        'group/card flex flex-col gap-(--card-spacing) overflow-hidden rounded-xl bg-card py-(--card-spacing) text-sm text-card-foreground ring-1 ring-foreground/10 [--card-spacing:--spacing(4)] has-data-[slot=card-footer]:pb-0 has-[>img:first-child]:pt-0 data-[size=sm]:[--card-spacing:--spacing(3)] data-[size=sm]:has-data-[slot=card-footer]:pb-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl',
-        className,
-      )}
+      className={cn('dense-island', size === 'sm' && 'gap-2', className)}
       {...props}
     />
   );
 }
 
-function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
+function CardHeader({ className, ...props }: React.ComponentProps<typeof HeroCard.Header>) {
   return (
-    <div
+    <HeroCard.Header
       data-slot="card-header"
       className={cn(
-        'group/card-header @container/card-header grid auto-rows-min items-start gap-1 rounded-t-xl px-(--card-spacing) has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] [.border-b]:pb-(--card-spacing)',
+        'relative grid auto-rows-min items-start gap-1 px-5 pt-5 has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto] data-[size=sm]:px-4 data-[size=sm]:pt-4',
         className,
       )}
       {...props}
@@ -33,12 +30,12 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
+function CardTitle({ className, ...props }: React.ComponentProps<typeof HeroCard.Title>) {
   return (
-    <div
+    <HeroCard.Title
       data-slot="card-title"
       className={cn(
-        'font-heading text-base leading-snug font-medium group-data-[size=sm]/card:text-sm',
+        'font-heading text-base font-semibold leading-snug tracking-[-0.015em]',
         className,
       )}
       {...props}
@@ -46,11 +43,14 @@ function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function CardDescription({ className, ...props }: React.ComponentProps<'div'>) {
+function CardDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof HeroCard.Description>) {
   return (
-    <div
+    <HeroCard.Description
       data-slot="card-description"
-      className={cn('text-sm text-muted-foreground', className)}
+      className={cn('text-sm leading-6 text-muted', className)}
       {...props}
     />
   );
@@ -66,20 +66,17 @@ function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
-function CardContent({ className, ...props }: React.ComponentProps<'div'>) {
+function CardContent({ className, ...props }: React.ComponentProps<typeof HeroCard.Content>) {
   return (
-    <div data-slot="card-content" className={cn('px-(--card-spacing)', className)} {...props} />
+    <HeroCard.Content data-slot="card-content" className={cn('px-5 pb-5', className)} {...props} />
   );
 }
 
-function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
+function CardFooter({ className, ...props }: React.ComponentProps<typeof HeroCard.Footer>) {
   return (
-    <div
+    <HeroCard.Footer
       data-slot="card-footer"
-      className={cn(
-        'flex items-center rounded-b-xl border-t bg-muted/50 p-(--card-spacing)',
-        className,
-      )}
+      className={cn('border-t border-border/70 px-5 py-4', className)}
       {...props}
     />
   );

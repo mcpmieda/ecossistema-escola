@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Drawer } from '@heroui/react';
 import {
   Activity,
   Boxes,
@@ -9,18 +10,11 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
+import { AmbientConstellation } from '@/components/ambient-constellation';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
 import {
   normalizePlatformRoute,
   type PlatformCapability,
@@ -75,73 +69,72 @@ function MicrosoftMark() {
 
 function LoginExperience({ loading }: { loading: boolean }) {
   return (
-    <main className="relative min-h-svh overflow-hidden bg-muted/35 px-4 py-8 sm:px-6 lg:px-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,color-mix(in_oklch,var(--primary)_9%,transparent),transparent_28rem)]" />
-      <div className="relative mx-auto flex min-h-[calc(100svh-4rem)] max-w-6xl items-center justify-center">
-        <Card className="w-full max-w-5xl gap-0 overflow-hidden p-0 shadow-2xl shadow-primary/5 ring-foreground/10 lg:grid lg:grid-cols-[1.05fr_.95fr]">
-          <section className="relative hidden min-h-[640px] overflow-hidden bg-primary p-12 text-primary-foreground lg:flex lg:flex-col lg:justify-between">
-            <div className="absolute -right-28 -top-28 size-80 rounded-full border border-white/10" />
-            <div className="absolute -right-10 -top-10 size-44 rounded-full border border-white/10" />
-            <div className="relative">
+    <main className="platform-shell min-h-svh px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <AmbientConstellation className="fixed" intensity="strong" placement="right" />
+      <div className="relative z-10 mx-auto flex min-h-[calc(100svh-3rem)] max-w-6xl items-center justify-center lg:min-h-[calc(100svh-4rem)]">
+        <Card className="hero-surface w-full max-w-5xl gap-0 overflow-hidden p-0 lg:grid lg:grid-cols-[1.08fr_.92fr]">
+          <section className="relative hidden min-h-[640px] overflow-hidden bg-accent p-12 text-accent-foreground lg:flex lg:flex-col lg:justify-between">
+            <AmbientConstellation intensity="medium" placement="right" />
+            <div className="relative z-10">
               <BrandMark />
-              <p className="mt-10 text-xs font-medium uppercase tracking-[0.18em] text-primary-foreground/65">
+              <p className="mt-10 text-xs font-semibold uppercase tracking-[0.18em] text-accent-foreground/65">
                 Escola Iêda Alves de Oliveira MCPM
               </p>
-              <h1 className="mt-5 max-w-md text-5xl font-semibold tracking-[-0.045em]">
+              <h1 className="mt-5 max-w-md text-5xl font-semibold tracking-[-0.05em]">
                 Centro de Administração
               </h1>
-              <p className="mt-5 max-w-lg text-base leading-7 text-primary-foreground/72">
+              <p className="mt-5 max-w-lg text-base leading-7 text-accent-foreground/76">
                 Um único ambiente para operar, acompanhar e integrar os sistemas administrativos da
                 escola.
               </p>
             </div>
 
-            <div className="relative grid gap-3 text-sm text-primary-foreground/80">
-              <div className="flex items-center gap-3">
+            <div className="relative z-10 grid gap-3 text-sm text-accent-foreground/82">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/8 px-4 py-3 backdrop-blur-sm">
                 <ShieldCheck className="size-4" />
                 <span>Acesso institucional protegido</span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/8 px-4 py-3 backdrop-blur-sm">
                 <Boxes className="size-4" />
                 <span>Módulos integrados em uma única plataforma</span>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/8 px-4 py-3 backdrop-blur-sm">
                 <Activity className="size-4" />
                 <span>Operações rastreáveis e evolutivas</span>
               </div>
             </div>
           </section>
 
-          <section className="flex min-h-[560px] items-center bg-card px-6 py-12 sm:px-12 lg:min-h-[640px]">
+          <section className="flex min-h-[560px] items-center bg-surface/95 px-6 py-12 sm:px-12 lg:min-h-[640px]">
             <div className="mx-auto w-full max-w-sm">
               <div className="mb-10 flex items-center gap-3 lg:hidden">
                 <BrandMark compact />
                 <div>
                   <p className="text-sm font-semibold">Centro de Administração</p>
-                  <p className="text-xs text-muted-foreground">Escola Iêda Alves de Oliveira</p>
+                  <p className="text-xs text-muted">Escola Iêda Alves de Oliveira</p>
                 </div>
               </div>
 
               <Badge variant="secondary" className="mb-5">
                 Acesso institucional
               </Badge>
-              <h2 className="text-3xl font-semibold tracking-[-0.035em]">
+              <h2 className="text-3xl font-semibold tracking-[-0.04em]">
                 {loading ? 'Verificando sua sessão' : 'Entre para continuar'}
               </h2>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              <p className="mt-3 text-sm leading-6 text-muted">
                 Use sua conta institucional. A autenticação é realizada pelo Microsoft Entra ID.
               </p>
 
               {loading ? (
                 <div
-                  className="mt-8 flex h-11 items-center justify-center gap-2 rounded-lg border bg-muted/35 text-sm font-medium text-muted-foreground"
+                  className="mt-8 flex h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-surface-secondary text-sm font-medium text-muted"
                   role="status"
                 >
                   <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" />
                   Verificando acesso…
                 </div>
               ) : (
-                <Button asChild size="lg" className="mt-8 h-11 w-full">
+                <Button asChild size="lg" className="mt-8 h-12 w-full">
                   <a href="/auth/login">
                     <MicrosoftMark />
                     Entrar com conta institucional
@@ -149,8 +142,8 @@ function LoginExperience({ loading }: { loading: boolean }) {
                 </Button>
               )}
 
-              <div className="mt-8 flex items-start gap-3 rounded-xl border bg-muted/25 p-4 text-xs leading-5 text-muted-foreground">
-                <LockKeyhole className="mt-0.5 size-4 shrink-0 text-foreground/65" />
+              <div className="mt-8 flex items-start gap-3 rounded-2xl border border-border bg-surface-secondary p-4 text-xs leading-5 text-muted">
+                <LockKeyhole className="mt-0.5 size-4 shrink-0 text-foreground/70" />
                 <p>O Centro não solicita nem armazena sua senha institucional.</p>
               </div>
             </div>
@@ -163,8 +156,9 @@ function LoginExperience({ loading }: { loading: boolean }) {
 
 function RestrictedExperience({ name }: { name?: string }) {
   return (
-    <main className="grid min-h-svh place-items-center bg-muted/35 p-4">
-      <Card className="w-full max-w-xl">
+    <main className="platform-shell grid min-h-svh place-items-center p-4">
+      <AmbientConstellation className="fixed" intensity="medium" placement="right" />
+      <Card className="hero-surface relative z-10 w-full max-w-xl">
         <CardHeader>
           <Badge variant="outline" className="mb-3">
             Validação restrita
@@ -235,41 +229,52 @@ function AdminShell({ identity }: { identity: Identity }) {
   const snapshot = loadState.status === 'ready' ? loadState.snapshot : null;
 
   return (
-    <div className="min-h-svh bg-muted/25 lg:grid lg:grid-cols-[264px_minmax(0,1fr)]">
-      <aside className="sticky top-0 hidden h-svh border-r lg:block">
+    <div className="platform-shell min-h-svh lg:grid lg:grid-cols-[276px_minmax(0,1fr)]">
+      <AmbientConstellation className="fixed" intensity="subtle" placement="right" />
+
+      <aside className="dense-island sticky top-0 z-20 hidden h-svh border-y-0 border-l-0 bg-surface/94 lg:block">
         <SidebarContent route={route} modules={modules} loading={loadState.status === 'loading'} />
       </aside>
 
-      <div className="min-w-0">
-        <header className="sticky top-0 z-30 border-b bg-background/92 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className="relative z-10 min-w-0">
+        <header className="glass-bar sticky top-0 z-30 border-b border-border/70">
           <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
-            <Sheet open={mobileNavigationOpen} onOpenChange={setMobileNavigationOpen}>
-              <SheetTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="lg:hidden"
-                  aria-label="Abrir navegação"
-                >
-                  <Menu />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-[290px] p-0 sm:max-w-[290px]">
-                <SheetHeader className="sr-only">
-                  <SheetTitle>Navegação</SheetTitle>
-                  <SheetDescription>Áreas do Centro de Administração</SheetDescription>
-                </SheetHeader>
-                <SidebarContent
-                  route={route}
-                  modules={modules}
-                  loading={loadState.status === 'loading'}
-                  onNavigate={() => setMobileNavigationOpen(false)}
-                />
-              </SheetContent>
-            </Sheet>
+            <Drawer>
+              <Button
+                variant="outline"
+                size="icon"
+                className="lg:hidden"
+                aria-label="Abrir navegação"
+                onPress={() => setMobileNavigationOpen(true)}
+              >
+                <Menu />
+              </Button>
+              <Drawer.Backdrop
+                variant="blur"
+                isOpen={mobileNavigationOpen}
+                onOpenChange={setMobileNavigationOpen}
+              >
+                <Drawer.Content placement="left" className="max-w-[300px]">
+                  <Drawer.Dialog
+                    aria-label="Navegação do Centro"
+                    className="h-full rounded-none p-0"
+                  >
+                    <Drawer.CloseTrigger />
+                    <Drawer.Body className="p-0">
+                      <SidebarContent
+                        route={route}
+                        modules={modules}
+                        loading={loadState.status === 'loading'}
+                        onNavigate={() => setMobileNavigationOpen(false)}
+                      />
+                    </Drawer.Body>
+                  </Drawer.Dialog>
+                </Drawer.Content>
+              </Drawer.Backdrop>
+            </Drawer>
 
-            <div className="min-w-0 flex-1 md:max-w-48">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="min-w-0 flex-1 md:max-w-52">
+              <div className="flex items-center gap-2 text-xs text-muted">
                 <span>Centro</span>
                 <span>/</span>
                 <span className="truncate text-foreground">{routeLabels[route]}</span>
@@ -283,9 +288,9 @@ function AdminShell({ identity }: { identity: Identity }) {
                 <p className="max-w-48 truncate text-sm font-medium">
                   {identity.name || 'Administrador'}
                 </p>
-                <p className="text-xs text-muted-foreground">Administrador</p>
+                <p className="text-xs text-muted">Administrador</p>
               </div>
-              <Avatar className="size-8">
+              <Avatar className="size-8" color="accent" variant="soft">
                 <AvatarFallback className="text-xs">{initials(identity.name)}</AvatarFallback>
               </Avatar>
               <form method="post" action="/auth/logout">
@@ -302,20 +307,20 @@ function AdminShell({ identity }: { identity: Identity }) {
           {loadState.status === 'loading' && <LoadingWorkspace />}
 
           {loadState.status === 'error' && (
-            <Card className="max-w-2xl">
+            <Card className="hero-surface max-w-2xl">
               <CardHeader>
-                <div className="mb-3 grid size-10 place-items-center rounded-xl border bg-muted/35">
-                  <Activity className="size-4 text-muted-foreground" />
+                <div className="mb-3 grid size-10 place-items-center rounded-2xl border border-border bg-surface-secondary">
+                  <Activity className="size-4 text-muted" />
                 </div>
                 <CardTitle>Não foi possível carregar o Centro</CardTitle>
                 <CardDescription className="leading-6">{loadState.message}</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap items-center gap-3">
-                <Button variant="outline" onClick={() => window.location.reload()}>
+                <Button variant="outline" onPress={() => window.location.reload()}>
                   Tentar novamente
                 </Button>
                 {loadState.correlationId && (
-                  <span className="font-mono text-xs text-muted-foreground">
+                  <span className="font-mono text-xs text-muted">
                     Correlação: {loadState.correlationId}
                   </span>
                 )}
@@ -326,13 +331,13 @@ function AdminShell({ identity }: { identity: Identity }) {
           {loadState.status === 'ready' && (
             <>
               {route === 'visao-geral' && (
-                <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
-                  <Sparkles className="size-4 text-primary" />
+                <div className="mb-6 flex items-center gap-2 text-sm text-muted">
+                  <Sparkles className="size-4 text-accent" />
                   <span>Olá, {firstName}. Este é o núcleo administrativo em validação.</span>
                 </div>
               )}
               <PageContent route={route} snapshot={loadState.snapshot} />
-              <footer className="mt-8 flex flex-col gap-1 border-t pt-5 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+              <footer className="mt-8 flex flex-col gap-1 border-t border-border/70 pt-5 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
                 <span>Núcleo {loadState.snapshot.version}</span>
                 <span>Dados consultados em {formatDate(loadState.snapshot.generatedAt)}</span>
                 <span className="font-mono">

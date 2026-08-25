@@ -18,16 +18,16 @@ function Navigation({
 }) {
   if (loading) {
     return (
-      <div className="grid gap-2 px-2">
+      <div className="grid gap-2 px-3">
         {Array.from({ length: 6 }).map((_, index) => (
-          <Skeleton className="h-9 w-full" key={index} />
+          <Skeleton className="h-10 w-full rounded-2xl" key={index} />
         ))}
       </div>
     );
   }
 
   return (
-    <nav className="grid gap-1 px-2" aria-label="Navegação principal">
+    <nav className="grid gap-1.5 px-3" aria-label="Navegação principal">
       {modules.map((module) => {
         const Icon = routeIcons[module.route];
         const active = route === module.route;
@@ -38,19 +38,23 @@ function Navigation({
             onClick={onNavigate}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'group flex min-h-9 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+              'group flex min-h-10 items-center gap-3 rounded-2xl px-3 text-sm font-medium transition-[background-color,color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 active:translate-y-px motion-reduce:transform-none',
               active
-                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground',
+                ? 'bg-accent-soft text-accent shadow-sm'
+                : 'text-muted hover:bg-surface-secondary hover:text-foreground',
             )}
           >
-            <Icon className={cn('size-4', active ? 'text-primary' : 'text-muted-foreground')} />
+            <span
+              className={cn(
+                'grid size-7 shrink-0 place-items-center rounded-xl transition-colors',
+                active ? 'bg-accent text-accent-foreground' : 'bg-surface-secondary text-muted',
+              )}
+            >
+              <Icon className="size-3.5" />
+            </span>
             <span className="min-w-0 flex-1 truncate">{module.name}</span>
             {module.state === 'planned' && (
-              <span
-                className="size-1.5 rounded-full bg-muted-foreground/35"
-                aria-label="Planejado"
-              />
+              <span className="size-1.5 rounded-full bg-muted/40" aria-label="Planejado" />
             )}
           </a>
         );
@@ -71,28 +75,30 @@ export function SidebarContent({
   onNavigate?: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-16 items-center gap-3 px-4">
+    <div className="flex h-full min-h-0 flex-col bg-surface/94 text-foreground">
+      <div className="flex h-20 items-center gap-3 px-5">
         <BrandMark compact />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">Centro de Administração</p>
-          <p className="truncate text-xs text-muted-foreground">Escola Iêda Alves de Oliveira</p>
+          <p className="truncate text-sm font-semibold tracking-[-0.015em]">
+            Centro de Administração
+          </p>
+          <p className="truncate text-xs text-muted">Escola Iêda Alves de Oliveira</p>
         </div>
       </div>
       <Separator />
-      <div className="flex-1 py-4">
-        <p className="mb-2 px-5 text-[0.68rem] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+      <div className="flex-1 overflow-y-auto py-5">
+        <p className="mb-3 px-6 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted">
           Plataforma
         </p>
         <Navigation route={route} modules={modules} loading={loading} onNavigate={onNavigate} />
       </div>
       <div className="p-4">
-        <div className="rounded-xl border bg-background/65 p-3">
+        <div className="rounded-3xl border border-border bg-surface-secondary p-4">
           <div className="flex items-center gap-2">
-            <span className="size-2 rounded-full bg-primary" />
-            <span className="text-xs font-medium">Ambiente de validação</span>
+            <span className="size-2 rounded-full bg-warning" />
+            <span className="text-xs font-semibold">Ambiente de validação</span>
           </div>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+          <p className="mt-2 text-xs leading-5 text-muted">
             Acesso controlado. A liberação oficial permanece bloqueada.
           </p>
         </div>
