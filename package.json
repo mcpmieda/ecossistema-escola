@@ -9,7 +9,7 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
-    "format:check": "prettier --write src/banco-notas/BancoNotasApp.tsx && git diff --unified=0 -- src/banco-notas/BancoNotasApp.tsx && exit 1",
+    "format:check": "prettier --check .",
     "typecheck": "tsc -b --pretty false",
     "semantic:check": "node infra/validation/validate-semantic-contract.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run semantic:check && npm test && npm run build"
