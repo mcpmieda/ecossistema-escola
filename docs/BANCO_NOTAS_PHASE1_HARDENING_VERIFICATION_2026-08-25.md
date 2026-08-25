@@ -21,7 +21,10 @@ Foram tratados:
 - eliminação de resultado fictício de reconciliação;
 - execução real das migrations em SQLite por processo Node isolado;
 - testes de Origin para mutações;
-- regressão estrutural de deep-link path-based.
+- regressão estrutural de deep-link path-based;
+- proteção contra limpeza acidental de `effectiveTo` ao editar uma vigência existente;
+- limpeza de `effectiveTo` somente por intenção explícita (`clearEffectiveTo=true`);
+- validação do período resultante antes da escrita, com erro de entrada em vez de falha interna.
 
 ## Persistência
 
@@ -70,6 +73,12 @@ A edição administrativa agora cobre:
 - período de vigência;
 - motivo obrigatório da alteração.
 
+### Segurança específica da edição de vigência
+
+A tela corrente envia `effectiveTo=null` quando o campo opcional fica vazio. O contrato agora normaliza esse `null` para **sem alteração**, evitando encerrar/abrir uma vigência por acidente. Remover deliberadamente uma data final exige `clearEffectiveTo=true` no contrato. O repositório também calcula o período final completo e rejeita `effectiveFrom > effectiveTo` antes da escrita.
+
+A pré-carga visual das datas da vigência selecionada ainda não foi implementada; isso permanece como acabamento de UX antes de promoção do módulo. A proteção de servidor impede que essa limitação provoque limpeza silenciosa da data final.
+
 ## Segurança
 
 A cobertura confirma:
@@ -79,7 +88,10 @@ A cobertura confirma:
 - mutation sem `grades.sources.manage` é rejeitada;
 - patches sem motivo são rejeitados;
 - Origin cross-site é rejeitado antes do storage;
-- Origin oficial passa o gate e, sem D1, o sistema falha fechado com storage indisponível.
+- Origin oficial passa o gate e, sem D1, o sistema falha fechado com storage indisponível;
+- `effectiveTo` não é limpo por campo vazio;
+- limpeza de `effectiveTo` exige intenção explícita;
+- período resultante inválido é tratado como entrada inválida.
 
 ## Deep-link
 
@@ -98,7 +110,7 @@ Essa regressão é estrutural. Não equivale a browser QA real com navegação, 
 
 ## CI
 
-Head funcional verificada antes das atualizações documentais:
+Baseline funcional já verde antes deste complemento:
 
 `de19c4e5774f4f4eca5009e8fd9e93640226e524`
 
@@ -116,7 +128,9 @@ Resultados:
 - testes — success;
 - build — success.
 
-O PR permaneceu em draft. `Deploy production` e verificação pós-deploy não foram executados como liberação da Fase 1.
+O complemento de edição segura de vigência acrescenta `tests/banco-notas-assignment-edit.test.ts`. O head final deste complemento deve ser considerado verificado somente quando sua própria CI terminar verde.
+
+O PR permanece em draft. `Deploy production` e verificação pós-deploy não são executados como liberação da Fase 1.
 
 ## Pendências externas
 
