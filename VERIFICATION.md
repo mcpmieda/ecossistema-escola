@@ -1,36 +1,49 @@
 # VERIFICATION — Centro de Administração v0.8
 
-## Escopo
+## Resultado da fase
 
-Registro dos gates finais da candidata v0.8 do Centro de Administração.
+**100% do escopo técnico definido para esta fase foi concluído.**
 
-Release state: `validation`. Nenhuma evidência deste documento autoriza produção oficial.
+A candidata continua com `releaseState = validation`. Este fechamento técnico não autoriza produção oficial.
 
-## Candidata publicada
+Itens explicitamente adiados por decisão de produto e fora do cálculo desta fase:
+
+- integração funcional do primeiro sistema independente;
+- módulo `Publicações`;
+- módulo `Páginas`.
+
+Notificações/pendências não foram artificialmente implementadas porque ainda não existe fonte autoritativa e regra institucional suficientes para produzir comportamento real sem inventar produto.
+
+## Candidata e domínio
+
+Implementação funcional consolidada:
 
 `main@03d6a9ca3107174af63d84a638301aebcdf6bfe4`
 
-Domínio:
+Consolidação técnica/documental posteriormente revalidada:
+
+`main@eeb2a6827edc5c09d38684e3165f38649a6ce81e`
+
+Domínio de validação:
 
 `https://admin.escolaieda.com`
 
-## Pipeline final da main
+## CI, segurança, deploy e recovery
 
-Workflow `CI and deploy`, run `32792263791`:
+### Candidata funcional
+
+Workflow `32792263791`:
 
 - Validate GitHub Actions security: **success**;
 - Validate application: **success**;
 - Deploy production: **success**;
-- Verify recovery after deploy: **success**.
-
-Gates observados:
-
+- Verify recovery after deploy: **success**;
 - `npm ci`: **pass**, 0 vulnerabilidades reportadas no install;
 - format: **pass**;
 - lint: **pass**;
 - typecheck: **pass**;
 - semantic check: **pass**;
-- 14 arquivos de teste / **104 testes**: **pass**;
+- 14 arquivos / **104 testes**: **pass**;
 - build Vite: **pass**;
 - actionlint: **pass**;
 - zizmor persona `pedantic`: **pass**.
@@ -39,15 +52,39 @@ Fingerprint semântico:
 
 `3e4b132d5d2540347932cec4cd9a48f3016dbbf4ce1702dfd489cc1889563503`
 
-## Recovery pós-deploy
+### Consolidação final revalidada
+
+Workflow `32793959939` sobre `main@eeb2a6827edc5c09d38684e3165f38649a6ce81e`:
+
+- Validate GitHub Actions security: **success**;
+- Validate application: **success**;
+- Deploy production: **success**;
+- Verify recovery after deploy: **success**.
+
+Jobs observados:
+
+- segurança: `97641263329`;
+- aplicação: `97641263502`;
+- deploy: `97641489188`;
+- recovery pós-deploy: `97641635821`.
+
+Evidência de recovery dessa revalidação:
+
+- artifact: `9544190526`;
+- artifact SHA-256: `682f84ac2ca6476b2ddf089ec5732557f31f95603df4491d84c2923187ed4f13`;
+- artifact não expirado no momento da validação;
+- source commit do run: `eeb2a6827edc5c09d38684e3165f38649a6ce81e`.
+
+Isso confirma que a consolidação documental não ficou à frente de uma versão não implantada ou não submetida ao recovery.
+
+## Recovery comprovado
 
 A prova automática só executa depois do deploy bem-sucedido da mesma `main`.
 
-Execução final:
+O self-test usa exclusivamente recurso `RECOVERY_VERIFY_*` dentro da biblioteca técnica `SNAPSHOTS_PLATAFORMA` e executa backup, alteração destrutiva controlada, restore, checksum e cleanup.
 
-- run: `32792263791`;
-- job: `97636412171`;
-- sourceCommit: `03d6a9ca3107174af63d84a638301aebcdf6bfe4`;
+Prova funcional detalhada em `32792263791` / job `97636412171`:
+
 - status: `verified`;
 - scope: `sharepoint-snapshots-disposable-metadata-backup-restore-roundtrip`;
 - verifiedAt: `2026-08-25T00:08:57.882Z`;
@@ -57,27 +94,19 @@ Execução final:
 - cleanup: `deleted`;
 - artifact: `9543575179`.
 
-A primeira evidência versionada no snapshot continua apontando para a prova anterior igualmente válida, run `32791663369`, artifact `9543382224`.
+A prova não significa disaster recovery completo. Não declara como testados restore integral do site SharePoint, todas as listas institucionais, tenant Microsoft 365 ou todos os serviços externos.
 
-## Limite da prova de recovery
+Nenhuma permissão Graph adicional foi concedida. O backend permanece em `Sites.Selected`/`write` no `CENTROADMIN`.
 
-O self-test usa exclusivamente recurso descartável `RECOVERY_VERIFY_*` dentro da biblioteca técnica `SNAPSHOTS_PLATAFORMA`.
+## Smoke externo e Chrome real
 
-Ele não prova:
+Harness descartável externo ao pipeline:
 
-- restauração integral do site SharePoint;
-- restauração de todas as listas institucionais;
-- recuperação de dados operacionais reais;
-- recuperação do tenant Microsoft 365;
-- continuidade integral de todos os serviços externos.
-
-Nenhum privilégio Graph adicional foi concedido. O backend permanece em `Sites.Selected`/`write` no `CENTROADMIN`.
-
-## Smoke externo independente
-
-PR temporário #31, fechado sem merge.
-
-Run `32793171050`, job `97638865311`: **success**.
+- PR #31: fechado sem merge;
+- run `32793171050`;
+- job `97638865311`: **success**;
+- artifact `9543850730`;
+- SHA-256 `19859a60f1f6e6c9005536979c3af7a3ef003ddb3c1474e54b0839d64e2d4fdf`.
 
 HTTP real confirmou:
 
@@ -88,30 +117,38 @@ HTTP real confirmou:
 
 Chrome real do runner confirmou:
 
-- login institucional renderizado em desktop `1440×900`;
-- login institucional renderizado em mobile `390×844`;
-- link `Entrar com conta institucional` aponta para `/auth/login`;
-- acesso anônimo a `/#/sistemas` continua apresentando login em vez do shell protegido.
+- login institucional desktop `1440×900`;
+- login institucional mobile `390×844`;
+- `Entrar com conta institucional` aponta para `/auth/login`;
+- `/#/sistemas` sem sessão permanece no login e não vaza shell protegido;
+- screenshots desktop/mobile sem cortes ou quebras visuais evidentes.
 
-Evidência:
+O harness não permaneceu na `main`.
 
-- artifact: `9543850730`;
-- SHA-256: `19859a60f1f6e6c9005536979c3af7a3ef003ddb3c1474e54b0839d64e2d4fdf`;
-- contém DOMs renderizados e screenshots desktop/mobile.
+## Autorização e fronteiras
 
-As duas capturas foram inspecionadas e não mostraram cortes ou quebras visuais evidentes.
+A fase mantém:
+
+- Entra ID como identidade institucional;
+- grupos/roles apenas como entrada de identidade;
+- capabilities como autorização efetiva do Centro;
+- grants administrativos fail closed;
+- recorte server-side do snapshot;
+- endpoints administrativos negados anonimamente;
+- módulos integrados disponíveis apenas com contrato compatível e capabilities suficientes;
+- `RolesJson` legado fora do caminho de autorização.
 
 ## Higiene final
 
-Auditoria da `main` encontrou:
+Auditoria da fonte ativa:
 
-- zero ocorrências pesquisadas de `TODO`, `FIXME`, `HACK` ou `TEMPORARY`;
-- zero resíduo pesquisado de Playwright;
-- zero harness temporário pesquisado de `domain-smoke`, `cleanup`, `formatter` ou repair-loop na fonte ativa;
-- nenhum PR aberto após encerramento do PR histórico #3;
-- PR #31 de browser/smoke fechado sem merge;
-- branch do smoke final resetado para `main`;
-- branches históricos identificados de desenvolvimento/teste/documentação convergidos para a `main` atual.
+- zero `TODO`, `FIXME`, `HACK` e `TEMPORARY` residuais pesquisados;
+- zero Playwright permanente na aplicação;
+- zero workflow temporário de smoke/formatter/cleanup/repair na `main`;
+- nenhum PR de desenvolvimento aberto;
+- PR histórico #3 encerrado sem merge por estar superado;
+- harnesses temporários encerrados sem merge;
+- branches históricas sem código divergente da candidata válida.
 
 ## Fundação preservada
 
@@ -120,22 +157,25 @@ Permanecem intactos:
 - Microsoft Entra ID;
 - BFF e sessão;
 - grupos e roles institucionais;
+- automação cargo → grupos;
 - SharePoint `CENTROADMIN`;
 - permissões Graph existentes;
 - Cloudflare Pages;
+- CI/CD permanente;
 - rotação automática de identidade técnica;
-- automação cargo → grupos;
-- contrato modular;
+- contratos modulares e semânticos;
 - `releaseState = validation`.
 
-## Gate humano
+## Gate humano e aprovação
 
-A validação externa automatizada cobre o domínio, o login anônimo e as fronteiras de autorização sem sessão.
+Não existe mais trabalho de desenvolvimento obrigatório pendente dentro do escopo técnico desta fase.
 
-A inspeção visual autenticada das telas internas com uma sessão real de `ADMINISTRADOR` continua sendo um gate humano. Não será criado bypass, sessão falsa ou enfraquecimento de autenticação para automatizá-lo.
+A inspeção autenticada das telas internas com uma sessão real de `ADMINISTRADOR` é agora o **gate humano de aceitação**, não um motivo para continuar alterando código. Não será criado bypass, sessão falsa ou redução de segurança para automatizá-lo.
 
-Consequentemente, a frase de fechamento de 100% desta fase só deve ser registrada depois dessa inspeção humana satisfatória.
+A candidata está pronta para o responsável inspecionar no domínio e decidir se aprova.
 
-A produção oficial continua bloqueada até o comando exato:
+A produção oficial permanece bloqueada até o comando exato:
 
 `APROVADO PARA PRODUÇÃO`
+
+Uma mudança material após este fechamento exige nova rodada de validação e torna qualquer aprovação anterior obsoleta.
