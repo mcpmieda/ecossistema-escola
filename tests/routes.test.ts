@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PLATFORM_CAPABILITIES } from '../shared/platform-contract';
 import { onRequest } from '../functions/[[path]]';
-import { SESSION_COOKIE } from '../server/auth/session';
-import { seal } from '../server/auth/sealed';
+import { AUTH_COOKIE, SESSION_COOKIE } from '../server/auth/session';
+import { seal, unseal } from '../server/auth/sealed';
 import { testEnv } from './fixtures';
 
 type TestRole = 'ADMINISTRADOR' | 'PROFESSOR';
@@ -18,6 +18,19 @@ function logoutRequest(origin?: string): Request {
 
 async function invoke(request: Request): Promise<Response> {
   return await onRequest({ request, env: testEnv } as never);
+}
+
+function responseCookie(response: Response, name: string): string {
+  const header = response.headers.get('Set-Cookie') ?? '';
+  const match = header.match(new RegExp(`${name}=([^;,]*)`, 'u'));
+  if (!match?.[1]) throw new Error(`Missing ${name} response cookie`);
+  return match[1];
+}
+
+function loginRequest(cookie?: string): Request {
+  const headers = new Headers();
+  if (cookie) headers.set('Cookie', `${AUTH_COOKIE}=${cookie}`);
+  return new Request(`${testEnv.OFFICIAL_ORIGIN}/auth/login`, { headers });
 }
 
 async function sessionHeaders(roles?: TestRole[]): Promise<Headers> {
@@ -51,7 +64,11 @@ describe('logout route', () => {
     expect(response.status).toBe(303);
     expect(response.headers.get('Location')).toBe(testEnv.OFFICIAL_ORIGIN);
     expect(response.headers.get('Set-Cookie')).toContain('__Host-ecossistema_session=');
+    expect(response.headers.get('Set-Cookie')).toContain('__Host-ecossistema_auth=');
     expect(response.headers.get('Set-Cookie')).toContain('Max-Age=0');
+    expect(response.headers.get('Cache-Control')).toContain('no-store');
+    expect(response.headers.get('Pragma')).toBe('no-cache');
+    expect(response.headers.get('Expires')).toBe('0');
     expect(response.headers.get('Referrer-Policy')).toBe('same-origin');
   });
 
@@ -64,6 +81,73 @@ describe('logout route', () => {
       await expect(response.json()).resolves.toMatchObject({ error: 'Invalid origin' });
     },
   );
+});
+
+describe('browser-facing authentication recovery', () => {
+  it('starts every login at the authorize endpoint with a fresh parallel-safe transaction', async () => {
+    const first = await invoke(loginRequest());
+    const firstCookie = responseCookie(first, AUTH_COOKIE);
+    const second = await invoke(loginRequest(firstCookie));
+    const secondCookie = responseCookie(second, AUTH_COOKIE);
+    const envelope = await unseal<{
+      transactions: Array<{ state: string; nonce: string; verifier: string; exp: number }>;
+    }>(secondCookie, testEnv.SESSION_SECRET);
+
+    expect(first.status).toBe(302);
+    expect(new URL(first.headers.get('Location')!).pathname).toContain('/oauth2/v2.0/authorize');
+    expect(first.headers.get('Location')).not.toContain('/oauth2/v2.0/token');
+    expect(envelope?.transactions).toHaveLength(2);
+    expect(envelope?.transactions[0]?.state).not.toBe(envelope?.transactions[1]?.state);
+    expect(second.headers.get('Cache-Control')).toContain('no-store');
+  });
+
+  it('recovers an incomplete callback without JSON and preserves an independent live transaction', async () => {
+    const first = await invoke(loginRequest());
+    const second = await invoke(loginRequest(responseCookie(first, AUTH_COOKIE)));
+    const envelope = await unseal<{
+      transactions: Array<{ state: string; nonce: string; verifier: string; exp: number }>;
+    }>(responseCookie(second, AUTH_COOKIE), testEnv.SESSION_SECRET);
+    const [interrupted, independent] = envelope?.transactions ?? [];
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const response = await invoke(
+      new Request(
+        `${testEnv.OFFICIAL_ORIGIN}/auth/callback?state=${encodeURIComponent(interrupted!.state)}`,
+        { headers: { Cookie: `${AUTH_COOKIE}=${responseCookie(second, AUTH_COOKIE)}` } },
+      ),
+    );
+    const remaining = await unseal<{
+      transactions: Array<{ state: string }>;
+    }>(responseCookie(response, AUTH_COOKIE), testEnv.SESSION_SECRET);
+
+    expect(response.status).toBe(303);
+    const location = new URL(response.headers.get('Location')!);
+    expect(location.origin).toBe(testEnv.OFFICIAL_ORIGIN);
+    expect(location.searchParams.get('authError')).toBe('1');
+    expect(location.searchParams.get('correlationId')).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(await response.text()).toBe('');
+    expect(remaining?.transactions.map((transaction) => transaction.state)).toEqual([
+      independent!.state,
+    ]);
+    expect(warning).toHaveBeenCalledWith(
+      expect.not.stringMatching(/state|nonce|verifier|authorization.?code|token|cookie|secret/iu),
+    );
+    warning.mockRestore();
+  });
+
+  it('recovers a provider rejection with a clean retry screen redirect', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const response = await invoke(
+      new Request(`${testEnv.OFFICIAL_ORIGIN}/auth/callback?error=access_denied`),
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get('Location')).toContain('authError=1');
+    expect(response.headers.get('Set-Cookie')).toContain(`${AUTH_COOKIE}=`);
+    expect(response.headers.get('Set-Cookie')).toContain('Max-Age=0');
+    expect(response.headers.get('Content-Type')).toBeNull();
+    warning.mockRestore();
+  });
 });
 
 describe('identity capability resolution', () => {

@@ -1,6 +1,5 @@
 import { Chip, Description, Label, ListBox, Surface } from '@heroui/react';
 import { Boxes, type LucideIcon } from 'lucide-react';
-import { AmbientConstellation } from '@/components/ambient-constellation';
 import { cn } from '@/lib/utils';
 import type { CoreModuleContract } from '../../shared/platform-contract';
 import { platformHref, routeIcons } from './routes';
@@ -33,7 +32,6 @@ export function EmptyState({
       variant="transparent"
       className="living-empty-state flex flex-col items-center justify-center px-5 py-12 text-center"
     >
-      <AmbientConstellation intensity="strong" placement="center" />
       <div className="living-aura living-aura--right" />
       <div className="living-icon">
         <Icon className="size-4 text-accent" />
@@ -58,7 +56,6 @@ export function PageHeader({
 }) {
   return (
     <Surface variant="transparent" className="living-page-header pro-spectrum">
-      <AmbientConstellation intensity="strong" placement="right" />
       <div className="living-page-header__content">
         <Chip color="accent" variant="soft" size="sm">
           {eyebrow}

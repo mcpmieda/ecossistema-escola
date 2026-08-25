@@ -9,7 +9,6 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
-import { AmbientConstellation } from '@/components/ambient-constellation';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { EmptyState, formatDate, PageHeader } from './presentation';
 
@@ -136,7 +135,6 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
         variant="secondary"
         className="living-surface pro-spectrum rounded-[2rem] p-6 sm:p-7"
       >
-        <AmbientConstellation intensity="strong" placement="right" />
         <div className="relative z-10 flex flex-col gap-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>

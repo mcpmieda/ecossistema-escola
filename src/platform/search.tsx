@@ -1,16 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import {
-  Button,
-  Chip,
-  Description,
-  Drawer,
-  Kbd,
-  Popover,
-  SearchField,
-  Surface,
-  useOverlayState,
-} from '@heroui/react';
-import { Boxes, Search, Settings2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Chip, Kbd, SearchField, Surface } from '@heroui/react';
+import { Boxes, Search, Settings2, X } from 'lucide-react';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, type PlatformSearchItem } from './search-model';
 import { routeIcons } from './routes';
@@ -88,109 +78,85 @@ function SearchResults({
   );
 }
 
-function DesktopSearch({
-  snapshot,
+function InlineSearchField({
+  inputRef,
   query,
   setQuery,
-  results,
-  open,
-  setOpen,
-  onNavigate,
+  isDisabled,
+  onFocus,
+  showShortcut = false,
 }: {
-  snapshot: PlatformSnapshotContract | null;
+  inputRef: React.RefObject<HTMLInputElement | null>;
   query: string;
   setQuery: (value: string) => void;
-  results: PlatformSearchItem[];
-  open: boolean;
-  setOpen: (value: boolean) => void;
-  onNavigate: (href: string) => void;
+  isDisabled: boolean;
+  onFocus: () => void;
+  showShortcut?: boolean;
 }) {
   return (
-    <div className="hidden w-full max-w-md md:block">
-      <Popover
-        isOpen={open && Boolean(snapshot)}
-        onOpenChange={(value) => setOpen(value && Boolean(snapshot))}
-      >
-        <Popover.Trigger>
-          <Button
-            variant="outline"
-            size="md"
-            fullWidth
-            className="platform-search-trigger justify-start"
-            isDisabled={!snapshot}
-            aria-label="Buscar no Centro"
-          >
-            <Search className="size-4 shrink-0 text-muted" />
-            <span className="min-w-0 flex-1 truncate text-left text-muted">Buscar no Centro</span>
-            <Kbd variant="light" className="shrink-0">
-              <Kbd.Abbr keyValue="ctrl" />
-              <Kbd.Content>K</Kbd.Content>
-            </Kbd>
-          </Button>
-        </Popover.Trigger>
-        <Popover.Content placement="bottom" offset={8} className="w-[min(28rem,calc(100vw-2rem))]">
-          <Popover.Dialog className="p-2">
-            <SearchField
-              aria-label="Buscar áreas, sistemas e configurações"
-              variant="secondary"
-              fullWidth
-              value={query}
-              onChange={setQuery}
-              onClear={() => setQuery('')}
-              autoFocus
-            >
-              <SearchField.Group>
-                <SearchField.SearchIcon />
-                <SearchField.Input placeholder="Digite para buscar" />
-                <SearchField.ClearButton />
-              </SearchField.Group>
-            </SearchField>
-            <div className="mt-2">
-              <SearchResults items={results} query={query} onNavigate={onNavigate} />
-            </div>
-          </Popover.Dialog>
-        </Popover.Content>
-      </Popover>
-    </div>
+    <SearchField
+      aria-label="Buscar áreas, sistemas e configurações"
+      variant="secondary"
+      fullWidth
+      value={query}
+      onChange={setQuery}
+      onClear={() => setQuery('')}
+      isDisabled={isDisabled}
+    >
+      <SearchField.Group className="platform-search-field">
+        <SearchField.SearchIcon />
+        <SearchField.Input ref={inputRef} placeholder="Buscar no Centro" onFocus={onFocus} />
+        <SearchField.ClearButton />
+        {showShortcut && (
+          <Kbd variant="light" className="platform-search-shortcut shrink-0">
+            <Kbd.Content>Ctrl + K</Kbd.Content>
+          </Kbd>
+        )}
+      </SearchField.Group>
+    </SearchField>
   );
 }
 
 export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContract | null }) {
   const [query, setQuery] = useState('');
   const [desktopOpen, setDesktopOpen] = useState(false);
-  const mobileState = useOverlayState();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const desktopInputRef = useRef<HTMLInputElement>(null);
+  const mobileInputRef = useRef<HTMLInputElement>(null);
 
   const items = useMemo(() => (snapshot ? buildSearchItems(snapshot) : []), [snapshot]);
   const results = useMemo(() => filterSearchItems(items, query), [items, query]);
 
-  const closeSearch = () => {
-    setQuery('');
+  const closeSearch = (reset = true) => {
+    if (reset) setQuery('');
     setDesktopOpen(false);
-    mobileState.close();
+    setMobileOpen(false);
   };
 
   const navigateFromSearch = (href: string) => {
-    if (window.location.hash !== href) window.location.hash = href;
     closeSearch();
+    if (window.location.hash !== href) window.location.hash = href;
   };
 
   useEffect(() => {
-    const closeAfterNavigation = () => {
-      setQuery('');
-      setDesktopOpen(false);
-      mobileState.close();
-    };
-    window.addEventListener('hashchange', closeAfterNavigation);
-    return () => window.removeEventListener('hashchange', closeAfterNavigation);
-  }, [mobileState]);
+    if (!mobileOpen) return;
+    const frame = window.requestAnimationFrame(() => mobileInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [mobileOpen]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
-        setDesktopOpen(Boolean(snapshot));
+        if (!snapshot) return;
+        if (window.matchMedia('(min-width: 768px)').matches) {
+          setDesktopOpen(true);
+          desktopInputRef.current?.focus();
+        } else {
+          setMobileOpen(true);
+        }
       }
-      if (event.key === 'Escape') setDesktopOpen(false);
+      if (event.key === 'Escape') closeSearch(false);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -198,61 +164,64 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
 
   return (
     <>
-      <DesktopSearch
-        snapshot={snapshot}
-        query={query}
-        setQuery={setQuery}
-        results={results}
-        open={desktopOpen}
-        setOpen={setDesktopOpen}
-        onNavigate={navigateFromSearch}
-      />
-
-      <Drawer state={mobileState}>
-        <Button
-          variant="outline"
-          size="md"
-          isIconOnly
-          className="md:hidden"
-          aria-label="Buscar no Centro"
+      <div
+        className="platform-search-desktop relative hidden w-full max-w-md md:block"
+        onBlurCapture={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setDesktopOpen(false);
+        }}
+      >
+        <InlineSearchField
+          inputRef={desktopInputRef}
+          query={query}
+          setQuery={setQuery}
           isDisabled={!snapshot}
-        >
-          <Search />
-        </Button>
-        <Drawer.Backdrop variant="blur">
-          <Drawer.Content placement="right" className="max-w-[440px]">
-            <Drawer.Dialog aria-label="Buscar no Centro">
-              <Drawer.CloseTrigger />
-              <Drawer.Header>
-                <Drawer.Heading>Buscar no Centro</Drawer.Heading>
-                <Description className="mt-1">
-                  Resultados limitados aos dados disponíveis para seu acesso.
-                </Description>
-              </Drawer.Header>
-              <Drawer.Body>
-                <SearchField
-                  aria-label="Buscar áreas, sistemas e configurações"
-                  variant="secondary"
-                  fullWidth
-                  value={query}
-                  onChange={setQuery}
-                  onClear={() => setQuery('')}
-                  autoFocus
-                >
-                  <SearchField.Group>
-                    <SearchField.SearchIcon />
-                    <SearchField.Input placeholder="Digite para buscar" />
-                    <SearchField.ClearButton />
-                  </SearchField.Group>
-                </SearchField>
-                <Surface variant="secondary" className="mt-4 overflow-hidden rounded-3xl p-1">
-                  <SearchResults items={results} query={query} onNavigate={navigateFromSearch} />
-                </Surface>
-              </Drawer.Body>
-            </Drawer.Dialog>
-          </Drawer.Content>
-        </Drawer.Backdrop>
-      </Drawer>
+          onFocus={() => setDesktopOpen(Boolean(snapshot))}
+          showShortcut
+        />
+        {desktopOpen && snapshot && (
+          <Surface
+            variant="default"
+            className="platform-search-popover absolute right-0 top-[calc(100%+.5rem)] z-50 w-full overflow-hidden rounded-2xl border border-border p-2 shadow-xl"
+          >
+            <SearchResults items={results} query={query} onNavigate={navigateFromSearch} />
+          </Surface>
+        )}
+      </div>
+
+      <Button
+        variant="outline"
+        size="md"
+        isIconOnly
+        className="md:hidden"
+        aria-label={mobileOpen ? 'Fechar busca' : 'Buscar no Centro'}
+        isDisabled={!snapshot}
+        onPress={() => setMobileOpen((value) => !value)}
+      >
+        {mobileOpen ? <X /> : <Search />}
+      </Button>
+
+      {mobileOpen && snapshot && (
+        <div className="platform-search-mobile-panel order-last basis-full md:hidden">
+          <div className="flex items-center gap-2">
+            <InlineSearchField
+              inputRef={mobileInputRef}
+              query={query}
+              setQuery={setQuery}
+              isDisabled={false}
+              onFocus={() => setMobileOpen(true)}
+            />
+            <Button variant="ghost" size="sm" onPress={() => closeSearch()}>
+              Cancelar
+            </Button>
+          </div>
+          <Surface
+            variant="default"
+            className="mt-2 max-h-[min(60svh,28rem)] overflow-y-auto rounded-2xl border border-border p-2 shadow-xl"
+          >
+            <SearchResults items={results} query={query} onNavigate={navigateFromSearch} />
+          </Surface>
+        </div>
+      )}
     </>
   );
 }

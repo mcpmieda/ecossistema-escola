@@ -49,6 +49,15 @@ type LoadState =
   | { status: 'ready'; snapshot: PlatformSnapshotContract }
   | { status: 'error'; message: string; correlationId?: string };
 
+type AuthFailure = { correlationId?: string };
+
+function authFailureFromUrl(): AuthFailure | null {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('authError') !== '1') return null;
+  const correlationId = params.get('correlationId')?.trim();
+  return { correlationId: correlationId || undefined };
+}
+
 function routeFromHash(): PlatformRoute {
   return normalizePlatformRoute(window.location.hash.replace(/^#\/?/u, ''));
 }
@@ -87,7 +96,6 @@ function LoginExperience({ loading }: { loading: boolean }) {
             variant="transparent"
             className="living-surface pro-spectrum relative hidden min-h-[660px] flex-col justify-between rounded-none border-0 p-12 text-[#203856] shadow-none lg:flex"
           >
-            <AmbientConstellation intensity="strong" placement="center" />
             <div className="relative z-10">
               <BrandMark />
               <Chip className="mt-10" variant="soft" color="accent" size="sm">
@@ -127,7 +135,6 @@ function LoginExperience({ loading }: { loading: boolean }) {
             variant="default"
             className="relative flex min-h-[620px] items-center overflow-hidden rounded-none border-0 px-6 py-12 shadow-none sm:px-12 lg:min-h-[660px]"
           >
-            <AmbientConstellation intensity="medium" placement="right" />
             <div className="relative z-10 mx-auto w-full max-w-sm">
               <div className="mb-10 flex items-center gap-3 lg:hidden">
                 <BrandMark compact />
@@ -188,6 +195,47 @@ function LoginExperience({ loading }: { loading: boolean }) {
   );
 }
 
+function AuthErrorExperience({ correlationId }: AuthFailure) {
+  return (
+    <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
+      <AmbientConstellation className="fixed" intensity="strong" placement="center" />
+      <Surface
+        variant="default"
+        className="relative z-10 w-full max-w-xl rounded-[2rem] border border-border/70 p-6 shadow-2xl sm:p-8"
+      >
+        <Chip color="danger" variant="soft" size="sm">
+          Entrada não concluída
+        </Chip>
+        <Alert status="danger" className="mt-5">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Não foi possível concluir sua entrada.</Alert.Title>
+            <Alert.Description>
+              A tentativa anterior foi encerrada com segurança. Inicie uma nova entrada para
+              continuar.
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
+          className="mt-6"
+          onPress={() => window.location.assign('/auth/login')}
+        >
+          <MicrosoftMark />
+          Entrar novamente
+        </Button>
+        {correlationId && (
+          <p className="mt-5 break-all text-xs leading-5 text-muted">
+            Correlação: <span className="font-mono">{correlationId}</span>
+          </p>
+        )}
+      </Surface>
+    </main>
+  );
+}
+
 function RestrictedExperience({ name }: { name?: string }) {
   return (
     <main className="platform-shell grid min-h-svh place-items-center p-4">
@@ -196,7 +244,6 @@ function RestrictedExperience({ name }: { name?: string }) {
         variant="default"
         className="living-surface relative z-10 w-full max-w-2xl rounded-[2rem] p-6 sm:p-8"
       >
-        <AmbientConstellation intensity="strong" placement="right" />
         <Chip color="warning" variant="soft" size="sm">
           Validação restrita
         </Chip>
@@ -279,7 +326,7 @@ function AdminShell({ identity }: { identity: Identity }) {
 
       <div className="relative z-10 min-w-0">
         <Surface variant="transparent" className="glass-bar sticky top-0 z-30 rounded-none">
-          <div className="flex min-h-17 items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
+          <div className="flex min-h-17 flex-wrap items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
             <Drawer state={mobileNavigationState}>
               <Button
                 variant="outline"
@@ -310,7 +357,7 @@ function AdminShell({ identity }: { identity: Identity }) {
               </Drawer.Backdrop>
             </Drawer>
 
-            <Breadcrumbs className="min-w-0 flex-1">
+            <Breadcrumbs className="min-w-0 flex-1 overflow-hidden">
               <Breadcrumbs.Item href="#/visao-geral">Centro</Breadcrumbs.Item>
               <Breadcrumbs.Item>{routeLabels[route]}</Breadcrumbs.Item>
             </Breadcrumbs>
@@ -335,7 +382,9 @@ function AdminShell({ identity }: { identity: Identity }) {
                     <span className="block max-w-40 truncate text-sm font-medium">
                       {identity.name || 'Administrador'}
                     </span>
-                    <span className="block text-xs font-normal text-muted">Administrador</span>
+                    <span className="block max-w-40 truncate text-xs font-normal text-muted">
+                      Administrador
+                    </span>
                   </span>
                   <ChevronDown className="hidden size-4 text-muted sm:block" />
                 </Button>
@@ -355,7 +404,9 @@ function AdminShell({ identity }: { identity: Identity }) {
                       <Label className="max-w-52 truncate">
                         {identity.name || 'Administrador'}
                       </Label>
-                      <Description>Administrador · sessão institucional</Description>
+                      <Description className="max-w-52 truncate">
+                        Administrador · sessão institucional
+                      </Description>
                     </div>
                   </Dropdown.Item>
                   <Separator />
@@ -380,7 +431,6 @@ function AdminShell({ identity }: { identity: Identity }) {
               variant="secondary"
               className="living-surface max-w-3xl rounded-[2rem] p-5 sm:p-7"
             >
-              <AmbientConstellation intensity="strong" placement="right" />
               <Alert status="danger">
                 <Alert.Indicator />
                 <Alert.Content>
@@ -411,11 +461,13 @@ function AdminShell({ identity }: { identity: Identity }) {
               )}
               <PageContent route={route} snapshot={loadState.snapshot} />
               <Separator className="mt-8" />
-              <footer className="flex flex-col gap-1 pt-5 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
-                <span>Núcleo {loadState.snapshot.version}</span>
-                <span>Dados consultados em {formatDate(loadState.snapshot.generatedAt)}</span>
-                <span className="font-mono">
-                  {shortCorrelation(loadState.snapshot.correlationId)}
+              <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center lg:grid-cols-[auto_minmax(0,1fr)_auto]">
+                <span className="whitespace-nowrap">Núcleo {loadState.snapshot.version}</span>
+                <span className="min-w-0 sm:text-right lg:text-center">
+                  Dados consultados em {formatDate(loadState.snapshot.generatedAt)}
+                </span>
+                <span className="break-all font-mono sm:col-span-2 sm:text-right lg:col-span-1">
+                  Correlação: {shortCorrelation(loadState.snapshot.correlationId)}
                 </span>
               </footer>
             </div>
@@ -428,6 +480,7 @@ function AdminShell({ identity }: { identity: Identity }) {
 
 export function App() {
   const [identity, setIdentity] = useState<Identity | null>(null);
+  const authFailure = authFailureFromUrl();
 
   useEffect(() => {
     fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' })
@@ -438,6 +491,9 @@ export function App() {
       .catch(() => setIdentity({ authenticated: false }));
   }, []);
 
+  if (authFailure && !identity?.authenticated) {
+    return <AuthErrorExperience correlationId={authFailure.correlationId} />;
+  }
   if (identity === null) return <LoginExperience loading />;
   if (!identity.authenticated) return <LoginExperience loading={false} />;
   if (!identity.capabilities?.includes('platform.snapshot.read')) {

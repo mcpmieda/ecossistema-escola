@@ -13,7 +13,11 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
 export function withSecurityHeaders(response: Response, protectedRoute = false): Response {
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);
-  if (protectedRoute) headers.set('Cache-Control', 'no-store, private');
+  if (protectedRoute) {
+    headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    headers.set('Pragma', 'no-cache');
+    headers.set('Expires', '0');
+  }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

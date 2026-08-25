@@ -10,7 +10,6 @@ import {
   Settings2,
   ShieldCheck,
 } from 'lucide-react';
-import { AmbientConstellation } from '@/components/ambient-constellation';
 import type {
   ModuleIntegrationState,
   PlatformRoute,
@@ -75,7 +74,6 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           variant="secondary"
           className="living-surface pro-spectrum min-h-80 rounded-[2rem] p-6 sm:p-7"
         >
-          <AmbientConstellation intensity="strong" placement="right" />
           <div className="living-aura living-aura--right" />
           <div className="relative z-10 flex min-h-[19rem] flex-col">
             <div className="flex items-center gap-2 text-[#365B86]">
@@ -467,7 +465,6 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
         variant="secondary"
         className="living-surface pro-spectrum flex min-h-[430px] flex-col items-center justify-center rounded-[2rem] px-6 py-14 text-center"
       >
-        <AmbientConstellation intensity="strong" placement="center" />
         <div className="living-aura living-aura--right" />
         <div className="living-aura living-aura--left" />
         <div className="living-icon">
@@ -524,7 +521,6 @@ export function LoadingWorkspace() {
       role="status"
       aria-label="Carregando dados institucionais"
     >
-      <AmbientConstellation intensity="strong" placement="center" />
       <div className="living-aura living-aura--right" />
       <div className="relative z-10 flex flex-col items-center py-8 text-center">
         <div className="loading-orbit">
