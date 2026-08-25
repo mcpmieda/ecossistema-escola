@@ -28,21 +28,8 @@ import {
   Settings,
   Users,
 } from 'lucide-react';
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-  type PropsWithChildren,
-} from 'react';
-import {
-  BrowserRouter,
-  Navigate,
-  NavLink,
-  Route,
-  Routes,
-  useLocation,
-} from 'react-router-dom';
+import { useEffect, useMemo, useState, type FormEvent, type PropsWithChildren } from 'react';
+import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import type {
   DataSource,
   SchoolYear,
@@ -101,8 +88,8 @@ function Planned({ title }: { title: string }) {
     <Page title={title} description="Área prevista no contrato funcional do Banco de Notas.">
       <Surface className="bn-card">
         <p className="text-sm text-muted">
-          Esta área será habilitada quando o respectivo backend estiver conectado. Nenhum dado fictício é
-          exibido.
+          Esta área será habilitada quando o respectivo backend estiver conectado. Nenhum dado
+          fictício é exibido.
         </p>
       </Surface>
     </Page>
@@ -124,7 +111,9 @@ function Overview() {
         </Surface>
         <Surface className="bn-card">
           <strong>Sincronização</strong>
-          <p className="mt-2 text-sm text-muted">Desligada por padrão e ativada apenas por vigência.</p>
+          <p className="mt-2 text-sm text-muted">
+            Desligada por padrão e ativada apenas por vigência.
+          </p>
         </Surface>
         <Surface className="bn-card">
           <strong>Proveniência</strong>
