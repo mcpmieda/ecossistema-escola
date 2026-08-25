@@ -181,9 +181,11 @@ const results = {};
   seedYearsAndSources(db);
   db.exec(`
     INSERT INTO grade_events
-      (id, idempotency_key, correlation_id, event_type, status, grade_key, source_id, sequence, value_numeric, is_absent, provenance_json, occurred_at)
+      (id, idempotency_key, payload_hash, correlation_id, event_type, status, grade_key, field,
+       source_id, sequence, value_numeric, is_absent, provenance_json, occurred_at)
     VALUES
-      ('event-1', 'idem-1', 'corr-1', 'grade.changed', 'accepted', 'grade-a', 'source-a', 1, 0, 0, '{}', '2026-08-25T12:00:00Z');
+      ('event-1', 'idem-1', 'hash-1', 'corr-1', 'grade.changed', 'applied', 'grade-a', 'NotaT1',
+       'source-a', 1, 0, 0, '{}', '2026-08-25T12:00:00Z');
   `);
   results.zeroIsValidValue =
     numeric(db, "SELECT value_numeric FROM grade_events WHERE id = 'event-1'", 'value_numeric') ===
@@ -192,32 +194,70 @@ const results = {};
     () =>
       db.exec(`
         INSERT INTO grade_events
-          (id, idempotency_key, correlation_id, event_type, status, grade_key, source_id, sequence, value_numeric, is_absent, provenance_json, occurred_at)
+          (id, idempotency_key, payload_hash, correlation_id, event_type, status, grade_key, field,
+           source_id, sequence, value_numeric, is_absent, provenance_json, occurred_at)
         VALUES
-          ('event-2', 'idem-1', 'corr-2', 'grade.changed', 'accepted', 'grade-a', 'source-a', 2, 1, 0, '{}', '2026-08-25T12:01:00Z');
+          ('event-2', 'idem-1', 'hash-2', 'corr-2', 'grade.changed', 'applied', 'grade-a', 'NotaT1',
+           'source-a', 2, 1, 0, '{}', '2026-08-25T12:01:00Z');
       `),
     /UNIQUE constraint failed/iu,
   );
-  results.sequenceCollisionRejected = rejects(
+  results.appliedSequenceCollisionRejected = rejects(
     () =>
       db.exec(`
         INSERT INTO grade_events
-          (id, idempotency_key, correlation_id, event_type, status, grade_key, source_id, sequence, value_numeric, is_absent, provenance_json, occurred_at)
+          (id, idempotency_key, payload_hash, correlation_id, event_type, status, grade_key, field,
+           source_id, sequence, value_numeric, is_absent, provenance_json, occurred_at)
         VALUES
-          ('event-sequence', 'idem-sequence', 'corr-sequence', 'grade.changed', 'accepted', 'grade-a', 'source-a', 1, 2, 0, '{}', '2026-08-25T12:01:30Z');
+          ('event-sequence-applied', 'idem-sequence-applied', 'hash-seq-a', 'corr-sequence-a',
+           'grade.changed', 'applied', 'grade-a', 'NotaT1', 'source-a', 1, 2, 0, '{}',
+           '2026-08-25T12:01:30Z');
       `),
     /UNIQUE constraint failed/iu,
+  );
+  results.staleSequenceAuditAllowed = !rejects(
+    () =>
+      db.exec(`
+        INSERT INTO grade_events
+          (id, idempotency_key, payload_hash, correlation_id, event_type, status, grade_key, field,
+           source_id, sequence, value_numeric, is_absent, provenance_json, occurred_at)
+        VALUES
+          ('event-sequence-stale', 'idem-sequence-stale', 'hash-seq-s', 'corr-sequence-s',
+           'grade.changed', 'stale', 'grade-a', 'NotaT1', 'source-a', 1, 2, 0, '{}',
+           '2026-08-25T12:01:45Z');
+      `),
+    /.*/u,
   );
   results.absenceWithValueRejected = rejects(
     () =>
       db.exec(`
         INSERT INTO grade_events
-          (id, idempotency_key, correlation_id, event_type, status, grade_key, source_id, sequence, value_numeric, is_absent, provenance_json, occurred_at)
+          (id, idempotency_key, payload_hash, correlation_id, event_type, status, grade_key, field,
+           source_id, sequence, value_numeric, is_absent, provenance_json, occurred_at)
         VALUES
-          ('event-invalid-absence', 'idem-absence', 'corr-3', 'grade.changed', 'accepted', 'grade-b', 'source-a', 1, 0, 1, '{}', '2026-08-25T12:02:00Z');
+          ('event-invalid-absence', 'idem-absence', 'hash-absence', 'corr-3', 'grade.changed',
+           'applied', 'grade-b', 'NotaT1', 'source-a', 1, 0, 1, '{}',
+           '2026-08-25T12:02:00Z');
       `),
     /CHECK constraint failed/iu,
   );
+  db.exec(`
+    INSERT INTO grade_events
+      (id, idempotency_key, payload_hash, correlation_id, event_type, status, grade_key, field,
+       source_id, sequence, value_numeric, is_absent, provenance_json, occurred_at)
+    VALUES
+      ('event-field-2', 'idem-field-2', 'hash-field-2', 'corr-field-2', 'grade.changed', 'applied',
+       'grade-a', 'NotaT2', 'source-a', 1, 4, 0, '{}', '2026-08-25T12:02:10Z');
+
+    INSERT INTO grade_snapshots
+      (grade_key, field, event_id, source_id, sequence, value_numeric, is_absent)
+    VALUES
+      ('grade-a', 'NotaT1', 'event-1', 'source-a', 1, 0, 0),
+      ('grade-a', 'NotaT2', 'event-field-2', 'source-a', 1, 4, 0);
+  `);
+  results.snapshotCompositeIdentity =
+    numeric(db, "SELECT COUNT(*) AS total FROM grade_snapshots WHERE grade_key = 'grade-a'", 'total') ===
+    2;
   results.gradeEventsAppendOnly = rejects(
     () => db.exec("UPDATE grade_events SET status = 'rejected' WHERE id = 'event-1';"),
     /grade_events are append-only/iu,
