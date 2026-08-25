@@ -1,14 +1,5 @@
 import { useEffect } from 'react';
-import {
-  Alert,
-  Chip,
-  Label,
-  ListBox,
-  ScrollShadow,
-  Separator,
-  Skeleton,
-  Surface,
-} from '@heroui/react';
+import { Alert, Chip, ScrollShadow, Separator, Skeleton, Surface } from '@heroui/react';
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
 import { BrandMark } from './presentation';
 import { platformHref, routeIcons } from './routes';
@@ -33,42 +24,37 @@ function Navigation({
   }
 
   return (
-    <ListBox
-      aria-label="Navegação principal"
-      className="platform-nav px-3"
-      selectionMode="single"
-      selectedKeys={new Set([route])}
-    >
-      {modules.map((module) => {
-        const Icon = routeIcons[module.route];
-        return (
-          <ListBox.Item
-            id={module.route}
-            key={module.id}
-            href={platformHref(module.route)}
-            textValue={module.name}
-            className="platform-nav__item"
-          >
-            {({ isSelected }) => (
-              <>
+    <nav aria-label="Navegação principal" className="platform-nav px-3">
+      <ul className="grid gap-[0.3rem]">
+        {modules.map((module) => {
+          const Icon = routeIcons[module.route];
+          const isSelected = route === module.route;
+          return (
+            <li key={module.id}>
+              <a
+                href={platformHref(module.route)}
+                aria-current={isSelected ? 'page' : undefined}
+                data-selected={isSelected ? 'true' : undefined}
+                className="platform-nav__item flex w-full items-center no-underline"
+              >
                 <Surface
                   variant={isSelected ? 'tertiary' : 'transparent'}
                   className="platform-nav__icon grid size-9 shrink-0 place-items-center rounded-xl"
                 >
                   <Icon className="size-4" />
                 </Surface>
-                <Label className="min-w-0 flex-1 truncate">{module.name}</Label>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{module.name}</span>
                 {module.state === 'planned' ? (
                   <Chip variant="soft" size="sm" className="platform-nav__planned">
                     Em breve
                   </Chip>
                 ) : null}
-              </>
-            )}
-          </ListBox.Item>
-        );
-      })}
-    </ListBox>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }
 
