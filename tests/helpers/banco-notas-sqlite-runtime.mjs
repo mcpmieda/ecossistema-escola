@@ -256,8 +256,11 @@ const results = {};
       ('grade-a', 'NotaT2', 'event-field-2', 'source-a', 1, 4, 0);
   `);
   results.snapshotCompositeIdentity =
-    numeric(db, "SELECT COUNT(*) AS total FROM grade_snapshots WHERE grade_key = 'grade-a'", 'total') ===
-    2;
+    numeric(
+      db,
+      "SELECT COUNT(*) AS total FROM grade_snapshots WHERE grade_key = 'grade-a'",
+      'total',
+    ) === 2;
   results.gradeEventsAppendOnly = rejects(
     () => db.exec("UPDATE grade_events SET status = 'rejected' WHERE id = 'event-1';"),
     /grade_events are append-only/iu,
