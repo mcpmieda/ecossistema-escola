@@ -1,16 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Drawer } from '@heroui/react';
 import { Boxes, Search, Settings2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, type PlatformSearchItem } from './search-model';
 import { routeIcons } from './routes';
@@ -26,18 +19,14 @@ function SearchResults({
 }) {
   if (!query.trim()) {
     return (
-      <div className="px-4 py-6 text-center text-xs leading-5 text-muted-foreground">
+      <div className="px-4 py-6 text-center text-xs leading-5 text-muted">
         Pesquise áreas, sistemas registrados e configurações disponíveis no seu acesso.
       </div>
     );
   }
 
   if (items.length === 0) {
-    return (
-      <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-        Nenhum resultado encontrado.
-      </div>
-    );
+    return <div className="px-4 py-6 text-center text-sm text-muted">Nenhum resultado encontrado.</div>;
   }
 
   return (
@@ -54,10 +43,10 @@ function SearchResults({
             key={item.id}
             href={item.href}
             onClick={onSelect}
-            className="group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+            className="group flex items-start gap-3 rounded-2xl px-3 py-2.5 transition-[background-color,transform] hover:bg-surface-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/35 active:translate-y-px motion-reduce:transform-none"
           >
-            <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg border bg-background">
-              <Icon className="size-3.5 text-muted-foreground group-hover:text-foreground" />
+            <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-xl border border-border bg-surface">
+              <Icon className="size-3.5 text-muted transition-colors group-hover:text-foreground" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
@@ -66,9 +55,7 @@ function SearchResults({
                   {item.category}
                 </Badge>
               </div>
-              <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                {item.description}
-              </p>
+              <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-muted">{item.description}</p>
             </div>
           </a>
         );
@@ -116,7 +103,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
           }
         }}
       >
-        <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted" />
         <Input
           ref={desktopInputRef}
           value={query}
@@ -128,56 +115,62 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
           aria-label="Buscar no Centro"
           aria-expanded={desktopOpen}
           placeholder="Buscar no Centro"
-          className="bg-muted/35 pl-9 pr-14"
+          className="pl-9 pr-14"
           disabled={!snapshot}
         />
-        <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border bg-background px-1.5 py-0.5 font-sans text-[0.65rem] text-muted-foreground shadow-xs">
+        <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-lg border border-border bg-surface px-1.5 py-0.5 font-sans text-[0.65rem] text-muted shadow-sm">
           Ctrl K
         </kbd>
         {desktopOpen && snapshot && (
-          <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-xl">
+          <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-3xl border border-border bg-overlay text-foreground shadow-overlay">
             <SearchResults items={results} query={query} onSelect={selectResult} />
           </div>
         )}
       </div>
 
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon"
-            className="md:hidden"
-            aria-label="Buscar no Centro"
-            disabled={!snapshot}
-          >
-            <Search />
-          </Button>
-        </SheetTrigger>
-        <SheetContent side="right" className="w-[min(92vw,420px)] p-0 sm:max-w-[420px]">
-          <SheetHeader className="border-b p-5 pr-14">
-            <SheetTitle>Buscar no Centro</SheetTitle>
-            <SheetDescription>
-              Resultados limitados aos dados já disponíveis para seu acesso.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="p-4" role="search">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                autoFocus
-                aria-label="Buscar áreas, sistemas e configurações"
-                placeholder="Digite para buscar"
-                className="pl-9"
-              />
-            </div>
-            <div className="mt-3 overflow-hidden rounded-xl border">
-              <SearchResults items={results} query={query} onSelect={selectResult} />
-            </div>
-          </div>
-        </SheetContent>
-      </Sheet>
+      <Drawer>
+        <Button
+          variant="outline"
+          size="icon"
+          className="md:hidden"
+          aria-label="Buscar no Centro"
+          disabled={!snapshot}
+          onPress={() => setMobileOpen(true)}
+        >
+          <Search />
+        </Button>
+        <Drawer.Backdrop variant="blur" isOpen={mobileOpen} onOpenChange={setMobileOpen}>
+          <Drawer.Content placement="right" className="max-w-[440px]">
+            <Drawer.Dialog aria-label="Buscar no Centro">
+              <Drawer.CloseTrigger />
+              <Drawer.Header>
+                <Drawer.Heading>Buscar no Centro</Drawer.Heading>
+                <p className="mt-1 text-sm leading-6 text-muted">
+                  Resultados limitados aos dados já disponíveis para seu acesso.
+                </p>
+              </Drawer.Header>
+              <Drawer.Body>
+                <div role="search">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 z-10 size-4 -translate-y-1/2 text-muted" />
+                    <Input
+                      value={query}
+                      onChange={(event) => setQuery(event.target.value)}
+                      autoFocus
+                      aria-label="Buscar áreas, sistemas e configurações"
+                      placeholder="Digite para buscar"
+                      className="pl-9"
+                    />
+                  </div>
+                  <div className="mt-3 overflow-hidden rounded-3xl border border-border bg-surface">
+                    <SearchResults items={results} query={query} onSelect={selectResult} />
+                  </div>
+                </div>
+              </Drawer.Body>
+            </Drawer.Dialog>
+          </Drawer.Content>
+        </Drawer.Backdrop>
+      </Drawer>
     </>
   );
 }
