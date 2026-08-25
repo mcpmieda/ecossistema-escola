@@ -71,16 +71,31 @@ export const assignmentPatchSchema = z
   .object({
     authorityMode: authorityModeSchema.optional(),
     effectiveFrom: z.string().date().optional(),
-    effectiveTo: z.string().date().nullable().optional(),
+    effectiveTo: z
+      .string()
+      .date()
+      .nullable()
+      .optional()
+      .transform((value) => value ?? undefined),
+    clearEffectiveTo: z.literal(true).optional(),
     syncEnabled: z.boolean().optional(),
     status: z.enum(['active', 'inactive']).optional(),
     reason: z.string().trim().min(3).max(500),
+  })
+  .superRefine((value, context) => {
+    if (value.clearEffectiveTo && value.effectiveTo !== undefined) {
+      context.addIssue({
+        code: 'custom',
+        message: 'effectiveTo and clearEffectiveTo cannot be sent together',
+      });
+    }
   })
   .refine(
     (value) =>
       value.authorityMode !== undefined ||
       value.effectiveFrom !== undefined ||
       value.effectiveTo !== undefined ||
+      value.clearEffectiveTo === true ||
       value.syncEnabled !== undefined ||
       value.status !== undefined,
     { message: 'at least one assignment field must change' },
