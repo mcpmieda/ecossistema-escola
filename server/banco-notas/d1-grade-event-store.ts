@@ -12,7 +12,8 @@ import { GradeEventConflictError, GradeEventForbiddenError } from './grade-event
 type Row = Record<string, string | number | null>;
 
 function valueFromRow(row: Row): GradeValue {
-  if (row.value_numeric !== null && row.value_numeric !== undefined) return Number(row.value_numeric);
+  if (row.value_numeric !== null && row.value_numeric !== undefined)
+    return Number(row.value_numeric);
   if (row.value_text !== null && row.value_text !== undefined) return String(row.value_text);
   return null;
 }
@@ -205,8 +206,9 @@ export class D1GradeEventStore implements GradeEventStore {
             event.clientSentAt,
             event.receivedAt,
           ),
-        this.db.prepare(
-          `INSERT INTO grade_snapshots
+        this.db
+          .prepare(
+            `INSERT INTO grade_snapshots
              (grade_key, field, event_id, source_id, sequence, value_numeric, value_text, is_absent,
               ruleset_version_id, updated_at)
            SELECT grade_key, field, id, source_id, sequence, value_numeric, value_text, is_absent,
@@ -223,7 +225,8 @@ export class D1GradeEventStore implements GradeEventStore {
              ruleset_version_id = excluded.ruleset_version_id,
              updated_at = excluded.updated_at
            WHERE excluded.sequence > grade_snapshots.sequence`,
-        ).bind(event.eventId),
+          )
+          .bind(event.eventId),
       ]);
     } catch (error) {
       const existing = await this.findByIdempotencyKey(event.idempotencyKey);
