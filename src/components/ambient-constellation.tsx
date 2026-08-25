@@ -19,15 +19,15 @@ function createLayer(seed: number, count: number): readonly ParticlePoint[] {
   return Array.from({ length: count }, (_, index) => {
     const x = 0.5 + next() * 99;
     const y = 0.5 + next() * 99;
-    const glint = index % 29 === 0;
-    const size = glint ? 1.15 + next() * 0.3 : 0.46 + next() * 0.66;
-    const opacity = glint ? 0.78 + next() * 0.18 : 0.22 + next() * 0.58;
-    return [x, y, Math.min(size, 1.45), Math.min(opacity, 0.96)] as const;
+    const glint = index % 31 === 0;
+    const size = glint ? 1.1 + next() * 0.25 : 0.5 + next() * 0.62;
+    const opacity = glint ? 0.72 + next() * 0.16 : 0.28 + next() * 0.48;
+    return [x, y, Math.min(size, 1.35), Math.min(opacity, 0.9)] as const;
   });
 }
 
-const layerA = createLayer(0x18c4a7, 96);
-const layerB = createLayer(0x6f2bd1, 96);
+const layerA = createLayer(0x18c4a7, 64);
+const layerB = createLayer(0x6f2bd1, 64);
 
 function ParticleLayer({
   points,
@@ -42,14 +42,14 @@ function ParticleLayer({
         <span
           key={`${x.toFixed(2)}-${y.toFixed(2)}-${index}`}
           className="ambient-constellation__particle"
-          data-glint={index % 29 === 0 ? 'true' : undefined}
+          data-glint={index % 31 === 0 ? 'true' : undefined}
           style={{
             left: `${x}%`,
             top: `${y}%`,
             width: `${size}px`,
             height: `${size}px`,
             opacity,
-            animationDelay: index % 29 === 0 ? `${-(index % 7) * 0.63}s` : undefined,
+            animationDelay: index % 31 === 0 ? `${-(index % 5) * 1.1}s` : undefined,
           }}
         />
       ))}
@@ -71,7 +71,7 @@ export function AmbientConstellation({
     >
       <div className="ambient-constellation__wash" />
       <div className="ambient-constellation__glow ambient-constellation__glow--cyan" />
-      <div className="ambient-constellation__glow ambient-constellation__glow--violet" />
+      <div className="ambient-constellation__glow ambient-constellation__glow--blue" />
       <ParticleLayer
         points={layerA}
         className="ambient-constellation__layer ambient-constellation__layer--a"
