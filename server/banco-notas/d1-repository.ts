@@ -51,12 +51,13 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
     entityType: string,
     entityId: string,
     actor: string,
+    details: unknown = {},
   ): D1PreparedStatement {
     return this.db
       .prepare(
         `INSERT INTO audit_events
-      (id, action, entity_type, entity_id, actor_id, correlation_id, occurred_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      (id, action, entity_type, entity_id, actor_id, correlation_id, details_json, occurred_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         crypto.randomUUID(),
@@ -65,6 +66,7 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
         entityId,
         actor,
         crypto.randomUUID(),
+        JSON.stringify(details),
         new Date().toISOString(),
       );
   }
@@ -89,7 +91,7 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
           'INSERT INTO school_years (id, year, name, starts_on, ends_on) VALUES (?, ?, ?, ?, ?)',
         )
         .bind(id, input.year, input.name, input.startsOn, input.endsOn),
-      this.audit('school_year.created', 'school_year', id, actor),
+      this.audit('school_year.created', 'school_year', id, actor, { after: input }),
     ]);
     return { id, ...input, status: 'planning' };
   }
@@ -120,7 +122,7 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
         VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .bind(id, input.schoolYearId, input.type, input.name, input.description, actor),
-      this.audit('source.created', 'data_source', id, actor),
+      this.audit('source.created', 'data_source', id, actor, { after: input }),
     ]);
     return {
       id,
@@ -136,24 +138,41 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
       .bind(id)
       .first<Row>();
     if (!current) return null;
+    const next = {
+      name: input.name ?? String(current.name),
+      description: input.description ?? String(current.description ?? ''),
+      status: input.status ?? String(current.status),
+      environment: input.environment ?? String(current.environment),
+      migrationState: input.migrationState ?? String(current.migration_state),
+    };
     await this.db.batch([
       this.db
         .prepare(
-          `UPDATE data_sources SET name = ?, description = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          `UPDATE data_sources
+           SET name = ?, description = ?, status = ?, environment = ?, migration_state = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
         )
         .bind(
-          input.name ?? current.name,
-          input.description ?? current.description,
-          input.status ?? current.status,
+          next.name,
+          next.description,
+          next.status,
+          next.environment,
+          next.migrationState,
           id,
         ),
-      this.audit('source.updated', 'data_source', id, actor),
+      this.audit('source.updated', 'data_source', id, actor, {
+        reason: input.reason,
+        before: source(current),
+        after: { ...source(current), ...next },
+      }),
     ]);
     return source({
       ...current,
-      name: input.name ?? current.name ?? null,
-      description: input.description ?? current.description ?? null,
-      status: input.status ?? current.status ?? null,
+      name: next.name,
+      description: next.description,
+      status: next.status,
+      environment: next.environment,
+      migration_state: next.migrationState,
     });
   }
   async listAssignments(schoolYearId?: string): Promise<SourceAssignment[]> {
@@ -167,6 +186,15 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
     return (await statement.all<Row>()).results.map(assignment);
   }
   async createAssignment(input: AssignmentInput, actor: string): Promise<SourceAssignment> {
+    const assignedSource = await this.db
+      .prepare('SELECT school_year_id FROM data_sources WHERE id = ?')
+      .bind(input.sourceId)
+      .first<Row>();
+    if (!assignedSource) throw new Error('data_source_not_found');
+    if (String(assignedSource.school_year_id) !== input.schoolYearId) {
+      throw new Error('source_assignment_year_mismatch');
+    }
+
     const id = crypto.randomUUID();
     await this.db.batch([
       this.db
@@ -188,7 +216,7 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
           actor,
           input.reason,
         ),
-      this.audit('source_assignment.created', 'source_assignment', id, actor),
+      this.audit('source_assignment.created', 'source_assignment', id, actor, { after: input }),
     ]);
     const now = new Date().toISOString();
     return {
@@ -210,30 +238,52 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
       .bind(id)
       .first<Row>();
     if (!current) return null;
+    const next = {
+      authorityMode: input.authorityMode ?? String(current.authority),
+      syncEnabled:
+        input.syncEnabled === undefined ? Boolean(current.sync_enabled) : input.syncEnabled,
+      effectiveFrom: input.effectiveFrom ?? String(current.effective_from),
+      effectiveTo:
+        input.effectiveTo === undefined
+          ? current.effective_to
+            ? String(current.effective_to)
+            : null
+          : input.effectiveTo,
+      status: input.status ?? String(current.status),
+      reason: input.reason,
+    };
     await this.db.batch([
       this.db
         .prepare(
-          `UPDATE source_assignments SET authority = ?, sync_enabled = ?, effective_from = ?, effective_to = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          `UPDATE source_assignments
+           SET authority = ?, sync_enabled = ?, effective_from = ?, effective_to = ?, status = ?, operator_id = ?, reason = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
         )
         .bind(
-          input.authorityMode ?? current.authority,
-          input.syncEnabled === undefined ? current.sync_enabled : input.syncEnabled ? 1 : 0,
-          input.effectiveFrom ?? current.effective_from,
-          input.effectiveTo === undefined ? current.effective_to : input.effectiveTo,
-          input.status ?? current.status,
+          next.authorityMode,
+          next.syncEnabled ? 1 : 0,
+          next.effectiveFrom,
+          next.effectiveTo,
+          next.status,
+          actor,
+          next.reason,
           id,
         ),
-      this.audit('source_assignment.updated', 'source_assignment', id, actor),
+      this.audit('source_assignment.updated', 'source_assignment', id, actor, {
+        reason: input.reason,
+        before: assignment(current),
+        after: { ...assignment(current), ...next, operatorId: actor },
+      }),
     ]);
     return assignment({
       ...current,
-      authority: input.authorityMode ?? current.authority ?? null,
-      sync_enabled:
-        input.syncEnabled === undefined ? (current.sync_enabled ?? 0) : input.syncEnabled ? 1 : 0,
-      effective_from: input.effectiveFrom ?? current.effective_from ?? null,
-      effective_to:
-        input.effectiveTo === undefined ? (current.effective_to ?? null) : input.effectiveTo,
-      status: input.status ?? current.status ?? null,
+      authority: next.authorityMode,
+      sync_enabled: next.syncEnabled ? 1 : 0,
+      effective_from: next.effectiveFrom,
+      effective_to: next.effectiveTo,
+      status: next.status,
+      reason: next.reason,
+      operator_id: actor,
     });
   }
 }
