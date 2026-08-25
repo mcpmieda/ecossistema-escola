@@ -1,0 +1,228 @@
+name: Temporary visual QA HeroUI Native v2
+
+on:
+  push:
+    branches:
+      - redesign/heroui-native-v2
+    paths:
+      - .github/workflows/temp-visual-qa-heroui-native-v2.yml
+
+permissions:
+  contents: read
+
+jobs:
+  visual-qa:
+    name: Validate native HeroUI shell and living motion
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Audit native component replacement
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -d src/components/ui
+          ! grep -R --line-number --fixed-strings '@/components/ui/' src
+          ! grep -R --line-number --fixed-strings '@radix-ui/' src package.json
+          ! grep -R --line-number --fixed-strings 'nav-link-living' src
+          ! grep -R --line-number --fixed-strings '<kbd' src
+          grep --quiet 'Breadcrumbs' src/App.tsx
+          grep --quiet 'Dropdown' src/App.tsx
+          grep --quiet 'SearchField' src/platform/search.tsx
+          grep --quiet 'Kbd' src/platform/search.tsx
+          grep --quiet 'ListBox' src/platform/navigation.tsx
+          grep --quiet 'ProgressBar' src/platform/operations-page.tsx
+
+      - name: Start candidate Vite server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run dev -- --host 127.0.0.1 --port 4173 > /tmp/native-v2-vite.log 2>&1 &
+          echo $! > /tmp/native-v2-vite.pid
+          for _ in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:4173/ >/dev/null; then
+              exit 0
+            fi
+            sleep 0.25
+          done
+          cat /tmp/native-v2-vite.log
+          exit 1
+
+      - name: Run Chrome visual and temporal QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p qa-evidence
+          chrome="$(command -v google-chrome || command -v google-chrome-stable)"
+          "${chrome}" --headless=new --no-sandbox --disable-gpu --remote-debugging-port=9222 --user-data-dir=/tmp/native-v2-chrome about:blank > /tmp/native-v2-chrome.log 2>&1 &
+          echo $! > /tmp/native-v2-chrome.pid
+
+          for _ in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:9222/json/list > /tmp/native-v2-tabs.json; then
+              break
+            fi
+            sleep 0.25
+          done
+
+          cat > /tmp/native-v2-qa.mjs <<'JS'
+          import fs from 'node:fs/promises';
+
+          const modules = [
+            ['overview','Visão geral','Resumo do núcleo administrativo.','visao-geral','validation'],
+            ['operations','Operação','Saúde e sinais operacionais.','operacao','validation'],
+            ['publications','Publicações','Gestão editorial.','publicacoes','planned'],
+            ['pages','Páginas','Edição controlada de páginas.','paginas','planned'],
+            ['systems','Sistemas','Catálogo modular.','sistemas','validation'],
+            ['audit','Auditoria','Rastreabilidade.','auditoria','validation'],
+            ['settings','Configurações','Governança.','configuracoes','validation'],
+          ].map(([id,name,description,route,state]) => ({
+            id,name,description,route,state,requiredRole:'ADMINISTRADOR',capabilities:['platform.snapshot.read']
+          }));
+
+          const snapshot = {
+            version:'native-v2-qa', releaseState:'validation', generatedAt:'2026-08-25T11:00:00Z', correlationId:'qa-native-v2-12345678',
+            foundation:{status:'ok',sharePointListCount:4,expectedPlatformListsPresent:true,missingPlatformLists:[]},
+            operational:{status:'nominal',recentAuditFailureCount:0,healthContractsConfigured:1,healthContractsMissing:0,lastAuditAt:'2026-08-25T10:30:00Z',recoveryStatus:'verified',recoveryVerifiedAt:'2026-08-25T10:00:00Z',recoveryEvidenceRef:'qa',recoveryScope:'disposable'},
+            coreModules:modules,
+            registeredModules:[{id:'bank',key:'banco-notas',name:'Banco de Notas',baseRoute:'/banco-notas',version:'1.0.0',status:'installed',order:1,healthEndpoint:'/health',updatedAt:'2026-08-25T10:00:00Z',contractVersion:1,requiredCapabilities:['platform.snapshot.read'],integrationState:'ready',integrationIssues:[],available:true}],
+            configurations:[{id:'cfg',key:'release.mode',scope:'platform',version:'1',active:true,effectiveFrom:'',effectiveUntil:'',updatedAt:'2026-08-25T10:00:00Z'}],
+            recentAudit:[{id:'audit1',eventId:'evt1',occurredAt:'2026-08-25T10:30:00Z',module:'Centro',action:'snapshot.read',entityType:'platform',correlationId:'qa-native-v2-12345678',result:'success'}],
+            migrations:[{id:'mig1',version:'1.0.0',module:'Centro',appliedAt:'2026-08-24T10:00:00Z',result:'success'}]
+          };
+
+          const tabs = JSON.parse(await fs.readFile('/tmp/native-v2-tabs.json','utf8'));
+          const target = tabs.find((entry) => entry.type === 'page');
+          if (!target?.webSocketDebuggerUrl) throw new Error('Chrome page target unavailable');
+          const ws = new WebSocket(target.webSocketDebuggerUrl);
+          await new Promise((resolve,reject)=>{ws.addEventListener('open',resolve,{once:true});ws.addEventListener('error',reject,{once:true});});
+
+          let id = 0;
+          const pending = new Map();
+          let authenticated = true;
+          ws.addEventListener('message', async (event) => {
+            const message = JSON.parse(event.data);
+            if (message.id && pending.has(message.id)) {
+              const task = pending.get(message.id); pending.delete(message.id);
+              if (message.error) task.reject(new Error(JSON.stringify(message.error))); else task.resolve(message.result);
+              return;
+            }
+            if (message.method !== 'Fetch.requestPaused') return;
+            const {requestId, request} = message.params;
+            const respond = (status, body) => command('Fetch.fulfillRequest', {
+              requestId, responseCode: status,
+              responseHeaders:[{name:'Content-Type',value:'application/json'}],
+              body: Buffer.from(JSON.stringify(body)).toString('base64')
+            });
+            if (request.url.endsWith('/api/me')) {
+              await respond(authenticated ? 200 : 401, authenticated ? {authenticated:true,name:'SECRETARIA',roles:['ADMINISTRADOR'],capabilities:['platform.snapshot.read']} : {authenticated:false});
+            } else if (request.url.endsWith('/api/platform/snapshot')) {
+              await respond(authenticated ? 200 : 401, authenticated ? snapshot : {error:'Unauthorized'});
+            } else {
+              await command('Fetch.continueRequest',{requestId});
+            }
+          });
+
+          const command = (method, params={}) => new Promise((resolve,reject)=>{
+            const callId=++id; pending.set(callId,{resolve,reject}); ws.send(JSON.stringify({id:callId,method,params}));
+          });
+          const evaluate = async (expression) => {
+            const result=await command('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});
+            if(result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
+            return result.result.value;
+          };
+          const sleep=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms));
+          const waitFor=async(expression,label)=>{
+            const deadline=Date.now()+12000;
+            while(Date.now()<deadline){if(await evaluate(expression)) return; await sleep(100);}
+            throw new Error(`timeout: ${label}`);
+          };
+          const screenshot=async(name)=>{
+            const result=await command('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+            await fs.writeFile(`qa-evidence/${name}.png`,Buffer.from(result.data,'base64'));
+          };
+          const navigate=async(hash,width=1440,height=900)=>{
+            await command('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<600});
+            await command('Page.navigate',{url:`http://127.0.0.1:4173/${hash}`});
+            await waitFor(`document.querySelector('.living-page-header') !== null || document.body.innerText.includes('Entre para continuar')`,'app render');
+            await sleep(700);
+          };
+
+          await command('Page.enable'); await command('Runtime.enable');
+          await command('Fetch.enable',{patterns:[{urlPattern:'*://127.0.0.1:4173/api/*'}]});
+
+          authenticated=true;
+          await navigate('#/operacao');
+          const native = await evaluate(`(() => ({
+            breadcrumbs: document.querySelectorAll('.breadcrumbs').length,
+            listBoxes: document.querySelectorAll('.list-box').length,
+            searchFields: document.querySelectorAll('.search-field').length,
+            dropdowns: document.querySelectorAll('.dropdown').length,
+            tables: document.querySelectorAll('.table-root').length,
+            progress: document.querySelectorAll('.progress-bar').length,
+            legacyNav: document.querySelectorAll('.nav-link-living').length,
+            particles: document.querySelectorAll('.ambient-constellation__particle').length,
+            maxParticle: Math.max(...[...document.querySelectorAll('.ambient-constellation__particle')].map(n=>n.getBoundingClientRect().width))
+          }))()`);
+          await fs.writeFile('qa-evidence/native-components.json',JSON.stringify(native,null,2));
+          if(native.breadcrumbs<1||native.listBoxes<1||native.searchFields<1||native.dropdowns<1||native.tables<1||native.progress<1) throw new Error(`native component gate: ${JSON.stringify(native)}`);
+          if(native.legacyNav!==0) throw new Error('legacy nav class rendered');
+          if(native.particles<384) throw new Error(`particle density too low: ${native.particles}`);
+          if(native.maxParticle>1.5) throw new Error(`particle too large: ${native.maxParticle}`);
+          await screenshot('operation-desktop');
+
+          const first=await evaluate(`(() => {const l=document.querySelector('.ambient-constellation__layer--a');const a=l?.getAnimations()[0];return {time:a?.currentTime??null,transform:l?getComputedStyle(l).transform:null}})()`);
+          await sleep(3500);
+          const second=await evaluate(`(() => {const l=document.querySelector('.ambient-constellation__layer--a');const a=l?.getAnimations()[0];return {time:a?.currentTime??null,transform:l?getComputedStyle(l).transform:null}})()`);
+          await fs.writeFile('qa-evidence/motion.json',JSON.stringify({first,second},null,2));
+          if(first.time===null||second.time===null||second.time-first.time<2500||first.transform===second.transform) throw new Error('real-time constellation motion not proven');
+
+          await navigate('#/visao-geral'); await screenshot('overview-desktop');
+          await navigate('#/publicacoes'); await screenshot('planned-desktop');
+          await navigate('#/operacao',390,844); await screenshot('operation-mobile');
+
+          await command('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+          await navigate('#/operacao');
+          const reduced1=await evaluate(`(() => {const l=document.querySelector('.ambient-constellation__layer--a');const a=l?.getAnimations()[0];return {animationName:l?getComputedStyle(l).animationName:null,time:a?.currentTime??null,transform:l?getComputedStyle(l).transform:null}})()`);
+          await sleep(1000);
+          const reduced2=await evaluate(`(() => {const l=document.querySelector('.ambient-constellation__layer--a');const a=l?.getAnimations()[0];return {animationName:l?getComputedStyle(l).animationName:null,time:a?.currentTime??null,transform:l?getComputedStyle(l).transform:null}})()`);
+          await fs.writeFile('qa-evidence/reduced-motion.json',JSON.stringify({reduced1,reduced2},null,2));
+          if(reduced1.animationName!=='none'||reduced1.transform!==reduced2.transform) throw new Error('reduced motion is not static');
+          await screenshot('operation-reduced-motion');
+
+          authenticated=false;
+          await command('Emulation.setEmulatedMedia',{features:[]});
+          await navigate('',1440,900); await screenshot('login-desktop');
+          await navigate('',390,844); await screenshot('login-mobile');
+
+          ws.close();
+          JS
+          node /tmp/native-v2-qa.mjs
+
+      - name: Publish visual evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: heroui-native-v2-visual-${{ github.run_id }}
+          path: qa-evidence
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop local processes
+        if: always()
+        shell: bash
+        run: |
+          kill "$(cat /tmp/native-v2-chrome.pid 2>/dev/null)" 2>/dev/null || true
+          kill "$(cat /tmp/native-v2-vite.pid 2>/dev/null)" 2>/dev/null || true
