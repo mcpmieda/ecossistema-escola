@@ -1,129 +1,155 @@
-# VERIFICATION — Centro de Administração v0.8
+# VERIFICATION — Centro de Administração v0.9
 
 ## Resultado da fase
 
-**100% do escopo técnico definido para esta fase foi concluído.**
+**100% do escopo técnico definido para esta fase foi concluído e revalidado após a migração HeroUI v0.9 e a calibração do Ambient Constellation.**
 
 A candidata continua com `releaseState = validation`. Este fechamento técnico não autoriza produção oficial.
 
-Itens explicitamente adiados por decisão de produto e fora do cálculo desta fase:
+Itens explicitamente adiados e fora do cálculo desta fase:
 
 - integração funcional do primeiro sistema independente;
 - módulo `Publicações`;
 - módulo `Páginas`.
 
-Notificações/pendências não foram artificialmente implementadas porque ainda não existe fonte autoritativa e regra institucional suficientes para produzir comportamento real sem inventar produto.
-
 ## Candidata e domínio
 
-Implementação funcional consolidada:
+Candidata final:
 
-`main@03d6a9ca3107174af63d84a638301aebcdf6bfe4`
-
-Consolidação técnica/documental posteriormente revalidada:
-
-`main@eeb2a6827edc5c09d38684e3165f38649a6ce81e`
+`main@dd665205d0bbc37bcfbc6f423de02ec5e0e03527`
 
 Domínio de validação:
 
 `https://admin.escolaieda.com`
 
-## CI, segurança, deploy e recovery
+Design system validado:
 
-### Candidata funcional
+- HeroUI React v3;
+- `@heroui/react 3.2.4`;
+- `@heroui/styles 3.2.4`;
+- Ambient Surface Profile: `ambient-constellation`;
+- Constellation Intensity: `strong` por densidade/profundidade, com partículas em microescala.
 
-Workflow `32792263791`:
+## Migração HeroUI
 
-- Validate GitHub Actions security: **success**;
-- Validate application: **success**;
-- Deploy production: **success**;
-- Verify recovery after deploy: **success**;
-- `npm ci`: **pass**, 0 vulnerabilidades reportadas no install;
-- format: **pass**;
-- lint: **pass**;
-- typecheck: **pass**;
-- semantic check: **pass**;
-- 14 arquivos / **104 testes**: **pass**;
-- build Vite: **pass**;
-- actionlint: **pass**;
-- zizmor persona `pedantic`: **pass**.
+PR #35 implantou a migração visual transversal.
 
-Fingerprint semântico:
+Commit inicial HeroUI em `main`:
 
-`3e4b132d5d2540347932cec4cd9a48f3016dbbf4ce1702dfd489cc1889563503`
+`ff4dba8b22e3c4ef8f42d8968872ee0d98d3ba65`
 
-### Consolidação final revalidada
-
-Workflow `32793959939` sobre `main@eeb2a6827edc5c09d38684e3165f38649a6ce81e`:
+Workflow `32826760272`:
 
 - Validate GitHub Actions security: **success**;
 - Validate application: **success**;
 - Deploy production: **success**;
 - Verify recovery after deploy: **success**.
 
-Jobs observados:
+A migração não alterou BFF, Entra ID, sessão, capabilities, Graph, SharePoint, recovery ou contratos funcionais.
 
-- segurança: `97641263329`;
-- aplicação: `97641263502`;
-- deploy: `97641489188`;
-- recovery pós-deploy: `97641635821`.
+## Ambient Constellation — correção validada
 
-Evidência de recovery dessa revalidação:
+A primeira implementação ampliava partículas junto com a viewport. A causa raiz foi eliminada no PR #36.
 
-- artifact: `9544190526`;
-- artifact SHA-256: `682f84ac2ca6476b2ddf089ec5732557f31f95603df4491d84c2923187ed4f13`;
-- artifact não expirado no momento da validação;
-- source commit do run: `eeb2a6827edc5c09d38684e3165f38649a6ce81e`.
+Implementação final:
 
-Isso confirma que a consolidação documental não ficou à frente de uma versão não implantada ou não submetida ao recovery.
+- duas camadas de 28 micro-partículas;
+- aproximadamente `0.6–1.3px` no desktop;
+- redução adicional mobile;
+- overscan aproximado `1.36× × 1.78×`;
+- drift `12s` e `15s` em direções opostas;
+- amplitude aproximada `20px` desktop e `12px` mobile;
+- glow estático;
+- `prefers-reduced-motion` com composição estática.
 
-## Recovery comprovado
+A App Factory foi atualizada separadamente pelo PR #54 para tornar essa calibração uma regra reutilizável e impedir recorrência do erro de escala.
 
-A prova automática só executa depois do deploy bem-sucedido da mesma `main`.
+## CI, segurança, deploy e recovery da candidata final
 
-O self-test usa exclusivamente recurso `RECOVERY_VERIFY_*` dentro da biblioteca técnica `SNAPSHOTS_PLATAFORMA` e executa backup, alteração destrutiva controlada, restore, checksum e cleanup.
+Workflow `32829296147` sobre `main@dd665205d0bbc37bcfbc6f423de02ec5e0e03527`:
 
-Prova funcional detalhada em `32792263791` / job `97636412171`:
+- Validate GitHub Actions security: **success**;
+- actionlint: **pass**;
+- zizmor persona `pedantic`: **pass**;
+- Validate application: **success**;
+- `npm ci`: **pass**;
+- format: **pass**;
+- lint: **pass**;
+- typecheck: **pass**;
+- semantic contract: **pass**;
+- testes: **pass**;
+- build Vite: **pass**;
+- Deploy production: **success**;
+- Verify recovery after deploy: **success**.
 
-- status: `verified`;
-- scope: `sharepoint-snapshots-disposable-metadata-backup-restore-roundtrip`;
-- verifiedAt: `2026-08-25T00:08:57.882Z`;
-- backupChecksum: `097386b0c0fee7dd65a07902979416ac4fb4e104018666a32afef34abd8692f3`;
-- restoredChecksum: `097386b0c0fee7dd65a07902979416ac4fb4e104018666a32afef34abd8692f3`;
-- restoreMatched: `true`;
-- cleanup: `deleted`;
-- artifact: `9543575179`.
+Artifact de recovery:
 
-A prova não significa disaster recovery completo. Não declara como testados restore integral do site SharePoint, todas as listas institucionais, tenant Microsoft 365 ou todos os serviços externos.
+- id: `9556184489`;
+- nome: `recovery-verification-32829296147`;
+- SHA-256: `d11dc3f9b82d1598251a942065458ff22b176a0b2e96a1c6129d9bb8a8cf10a7`;
+- source commit: `dd665205d0bbc37bcfbc6f423de02ec5e0e03527`.
 
-Nenhuma permissão Graph adicional foi concedida. O backend permanece em `Sites.Selected`/`write` no `CENTROADMIN`.
+O recovery continua limitado ao round-trip descartável documentado da área técnica do SharePoint. Não declara restore integral do tenant Microsoft 365 ou de todos os serviços externos.
 
-## Smoke externo e Chrome real
+## QA visual real da build
 
-Harness descartável externo ao pipeline:
+Workflow temporário de browser QA: `32828658258` — **success**.
 
-- PR #31: fechado sem merge;
-- run `32793171050`;
-- job `97638865311`: **success**;
-- artifact `9543850730`;
-- SHA-256 `19859a60f1f6e6c9005536979c3af7a3ef003ddb3c1474e54b0839d64e2d4fdf`.
+Artifact:
+
+- id: `9555899769`;
+- SHA-256: `1ed2260d306b141d903c707809f24d60b1e4031b14cc35923ec847f532afee66`.
+
+Chrome real capturou e validou:
+
+- login desktop `1440×900`;
+- login mobile `390×844`;
+- overview desktop com fixture administrativa isolada;
+- overview mobile;
+- overview desktop com `prefers-reduced-motion`.
+
+O DOM renderizado confirmou:
+
+- campo com as duas camadas esperadas;
+- maior dimensão de partícula `≤ 1.3px` no desktop;
+- nenhuma dependência de raio proporcional à viewport.
+
+Inspeção visual das capturas:
+
+- círculos grandes eliminados;
+- partículas passam a ler como microestrelas/poeira luminosa;
+- conteúdo continua dominante;
+- áreas densas permanecem limpas;
+- mobile não amplia partículas;
+- reduced-motion preserva identidade visual sem drift.
+
+O harness foi removido antes da integração em `main`.
+
+## Smoke externo após deploy da candidata final
+
+Harness descartável PR #37: fechado **sem merge**.
+
+Run `32829585427`: **success**.
+
+Artifact:
+
+- id: `9556213823`;
+- SHA-256: `61b3161328b95407a2a677a7d31ef34ff5ba748e5378d021d1b66f92efcca221`.
 
 HTTP real confirmou:
 
 - raiz do domínio disponível;
-- bundle atual do Centro servido;
+- candidata atual servida;
 - `/api/me` = `401` sem sessão;
 - `/api/platform/snapshot` = `401` sem sessão.
 
-Chrome real do runner confirmou:
+Chrome real no domínio confirmou:
 
 - login institucional desktop `1440×900`;
 - login institucional mobile `390×844`;
-- `Entrar com conta institucional` aponta para `/auth/login`;
-- `/#/sistemas` sem sessão permanece no login e não vaza shell protegido;
-- screenshots desktop/mobile sem cortes ou quebras visuais evidentes.
-
-O harness não permaneceu na `main`.
+- CTA institucional aponta para `/auth/login`;
+- `/#/sistemas` sem sessão permanece bloqueado pelo login;
+- nenhuma regressão para círculos grandes na constelação servida pelo Cloudflare Pages.
 
 ## Autorização e fronteiras
 
@@ -136,19 +162,16 @@ A fase mantém:
 - recorte server-side do snapshot;
 - endpoints administrativos negados anonimamente;
 - módulos integrados disponíveis apenas com contrato compatível e capabilities suficientes;
-- `RolesJson` legado fora do caminho de autorização.
+- nenhuma sessão falsa ou bypass introduzidos para QA.
 
 ## Higiene final
 
-Auditoria da fonte ativa:
-
-- zero `TODO`, `FIXME`, `HACK` e `TEMPORARY` residuais pesquisados;
-- zero Playwright permanente na aplicação;
-- zero workflow temporário de smoke/formatter/cleanup/repair na `main`;
-- nenhum PR de desenvolvimento aberto;
-- PR histórico #3 encerrado sem merge por estar superado;
-- harnesses temporários encerrados sem merge;
-- branches históricas sem código divergente da candidata válida.
+- nenhum workflow temporário de browser QA foi incorporado à `main`;
+- PR #37 foi encerrado sem merge;
+- branches recentes de HeroUI/smoke foram realinhadas à candidata válida após uso;
+- branch de correção da App Factory foi realinhada à `main` após o merge do PR #54;
+- nenhuma alteração material ficou fora dos três arquivos da correção final antes do squash do PR #36;
+- `main` permanece a única fonte técnica de verdade.
 
 ## Fundação preservada
 
@@ -170,11 +193,9 @@ Permanecem intactos:
 
 Não existe mais trabalho de desenvolvimento obrigatório pendente dentro do escopo técnico desta fase.
 
-A inspeção autenticada das telas internas com uma sessão real de `ADMINISTRADOR` é agora o **gate humano de aceitação**, não um motivo para continuar alterando código. Não será criado bypass, sessão falsa ou redução de segurança para automatizá-lo.
+O que permanece deliberadamente humano é a inspeção **autenticada** das telas internas usando uma sessão real de `ADMINISTRADOR`. Não será criado bypass, cookie falso ou redução de segurança para automatizá-la.
 
-A candidata está pronta para o responsável inspecionar no domínio e decidir se aprova.
-
-A produção oficial permanece bloqueada até o comando exato:
+Após essa inspeção, a produção oficial permanece bloqueada até o comando exato:
 
 `APROVADO PARA PRODUÇÃO`
 
