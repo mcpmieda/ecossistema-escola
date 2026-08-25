@@ -16,15 +16,7 @@ import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { buildSearchItems, filterSearchItems, type PlatformSearchItem } from './search-model';
 import { routeIcons } from './routes';
 
-function SearchResults({
-  items,
-  query,
-  onSelect,
-}: {
-  items: PlatformSearchItem[];
-  query: string;
-  onSelect: () => void;
-}) {
+function SearchResults({ items, query }: { items: PlatformSearchItem[]; query: string }) {
   if (!query.trim()) {
     return (
       <Surface variant="transparent" className="px-5 py-8 text-center">
@@ -47,12 +39,7 @@ function SearchResults({
   }
 
   return (
-    <ListBox
-      aria-label="Resultados da busca"
-      selectionMode="none"
-      className="platform-search-results"
-      onAction={() => onSelect()}
-    >
+    <ListBox aria-label="Resultados da busca" selectionMode="none" className="platform-search-results">
       {items.map((item) => {
         const Icon =
           item.iconKind === 'system'
@@ -97,7 +84,6 @@ function DesktopSearch({
   results,
   open,
   setOpen,
-  onSelect,
 }: {
   snapshot: PlatformSnapshotContract | null;
   query: string;
@@ -105,7 +91,6 @@ function DesktopSearch({
   results: PlatformSearchItem[];
   open: boolean;
   setOpen: (value: boolean) => void;
-  onSelect: () => void;
 }) {
   return (
     <div className="hidden w-full max-w-md md:block">
@@ -130,7 +115,11 @@ function DesktopSearch({
             </Kbd>
           </Button>
         </Popover.Trigger>
-        <Popover.Content placement="bottom" offset={8} className="w-[min(28rem,calc(100vw-2rem))]">
+        <Popover.Content
+          placement="bottom"
+          offset={8}
+          className="w-[min(28rem,calc(100vw-2rem))]"
+        >
           <Popover.Dialog className="p-2">
             <SearchField
               aria-label="Buscar áreas, sistemas e configurações"
@@ -148,7 +137,7 @@ function DesktopSearch({
               </SearchField.Group>
             </SearchField>
             <div className="mt-2">
-              <SearchResults items={results} query={query} onSelect={onSelect} />
+              <SearchResults items={results} query={query} />
             </div>
           </Popover.Dialog>
         </Popover.Content>
@@ -166,6 +155,16 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
   const results = useMemo(() => filterSearchItems(items, query), [items, query]);
 
   useEffect(() => {
+    const closeAfterNavigation = () => {
+      setQuery('');
+      setDesktopOpen(false);
+      setMobileOpen(false);
+    };
+    window.addEventListener('hashchange', closeAfterNavigation);
+    return () => window.removeEventListener('hashchange', closeAfterNavigation);
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
@@ -177,12 +176,6 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [snapshot]);
 
-  const selectResult = () => {
-    setQuery('');
-    setDesktopOpen(false);
-    setMobileOpen(false);
-  };
-
   return (
     <>
       <DesktopSearch
@@ -192,7 +185,6 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
         results={results}
         open={desktopOpen}
         setOpen={setDesktopOpen}
-        onSelect={selectResult}
       />
 
       <Drawer>
@@ -234,7 +226,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
                   </SearchField.Group>
                 </SearchField>
                 <Surface variant="secondary" className="mt-4 overflow-hidden rounded-3xl p-1">
-                  <SearchResults items={results} query={query} onSelect={selectResult} />
+                  <SearchResults items={results} query={query} />
                 </Surface>
               </Drawer.Body>
             </Drawer.Dialog>
