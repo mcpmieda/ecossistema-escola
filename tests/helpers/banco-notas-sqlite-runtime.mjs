@@ -186,11 +186,8 @@ const results = {};
       ('event-1', 'idem-1', 'corr-1', 'grade.changed', 'accepted', 'grade-a', 'source-a', 1, 0, 0, '{}', '2026-08-25T12:00:00Z');
   `);
   results.zeroIsValidValue =
-    numeric(
-      db,
-      "SELECT value_numeric FROM grade_events WHERE id = 'event-1'",
-      'value_numeric',
-    ) === 0;
+    numeric(db, "SELECT value_numeric FROM grade_events WHERE id = 'event-1'", 'value_numeric') ===
+    0;
   results.idempotencyRejected = rejects(
     () =>
       db.exec(`
