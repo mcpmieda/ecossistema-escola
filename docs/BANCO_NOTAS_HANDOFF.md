@@ -6,7 +6,7 @@ Branch: `feat/banco-de-notas-foundation`
 
 PR: `#52`
 
-Estado: **Fase 1 implementada e submetida a hardening pós-review; permanece draft, sem merge e sem produção.**
+Estado: **Fase 1 consolidada e núcleo transacional de grade-events iniciado; permanece draft, sem merge e sem produção.**
 
 ## Comece por aqui
 
@@ -19,6 +19,7 @@ Estado: **Fase 1 implementada e submetida a hardening pós-review; permanece dra
 7. Leia `specs/banco-notas/semantic-assurance.json`.
 8. Leia `specs/banco-notas/verification-plan.json`.
 9. Leia `docs/CONTRATO_MODULOS.md`, `ARCHITECTURE.md`, `VERIFICATION.md` e `PROJECT_STATE.md`.
+10. Leia `api/banco-notas-grade-events-v1.openapi.yaml` e `api/banco-notas-grade-events-v1.asyncapi.yaml` antes de alterar eventos do add-in.
 
 ## Fontes de produto já auditadas
 
@@ -55,9 +56,13 @@ O produto deve converter qualquer planilha docente legada para uma nova instânc
 - fonte: `legacy_import` ou `linked_teacher_model`, com default por ano e override por professor;
 - sem merge silencioso de fontes;
 - `SyncEnabled=false` por padrão;
-- ausência de lançamento não é zero.
+- ausência de lançamento não é zero;
+- snapshot de nota é identificado por `gradeKey + field`, não somente por `gradeKey`;
+- chave de idempotência reapresentada com payload diferente é conflito;
+- evento stale permanece auditável e nunca regride snapshot mais novo;
+- endpoint do add-in só pode ser exposto com bearer Entra/audience/scope próprios; não usar o cookie administrativo como atalho.
 
-## Fase 1 implementada
+## Fase 1 consolidada
 
 O PR #52 contém:
 
@@ -70,9 +75,25 @@ O PR #52 contém:
 - rota `/banco-de-notas` com React Router;
 - shell e `Configurações > Fonte` em HeroUI;
 - edição de ambiente, migração, status, autoridade, sync e vigência;
+- pré-carga das datas da vigência e remoção explícita de `effectiveTo`;
 - justificativa obrigatória e before/after auditável em patches administrativos;
 - proteção de Origin;
 - testes de domínio, API, UI, módulo, golden masters, deep-link e SQL executável.
+
+## Núcleo de grade-events iniciado
+
+Também já estão no mesmo PR:
+
+- OpenAPI e AsyncAPI definitivos em `api/banco-notas-grade-events-v1.*`;
+- contrato tipado de evento/receipt/snapshot;
+- hash canônico de payload para idempotência;
+- snapshots por `(gradeKey, field)`;
+- retenção auditável de stale sem regressão do snapshot;
+- store D1 que valida fonte ativa/vinculada, ano, ambiente, modelo conectado, sync, autoridade vigente e mapeamento da célula;
+- persistência de evento + avanço de snapshot no mesmo batch;
+- suíte Node/SQLite real para o store D1 e suíte unitária do núcleo de ingestão.
+
+A ingestão pública do add-in permanece propositalmente desconectada até o gate Microsoft Entra.
 
 ## Hardening pós-review concluído
 
@@ -86,20 +107,26 @@ A revisão detectou e corrigiu no próprio PR:
 - estado de reconciliação não é mais representado por texto fictício;
 - migrations são executadas em SQLite real por processo Node isolado, em vez de somente procurar strings no SQL;
 - Origin inválido é testado como bloqueado;
-- deep-links do Banco possuem regressão estrutural dedicada.
+- deep-links do Banco possuem regressão estrutural dedicada;
+- datas existentes são pré-carregadas ao editar vigência e a remoção da data final exige comando explícito;
+- o teste de deep-link foi alinhado ao comportamento correto do `BrowserRouter basename`, sem forçar rota absoluta inválida.
 
-Evidência de código antes da atualização documental: head `de19c4e5774f4f4eca5009e8fd9e93640226e524`, workflow `32908018584` / run `#449` — **success** para security, format, lint, typecheck, semantic check, testes e build.
+Evidência funcional consolidada antes desta atualização documental: head `94ccceff31d6355b8ce6eaa396eba16e2ecd1932`, workflow `32911996770` / run `#495` — **success** para security, format, lint, typecheck, semantic check, **167/167 testes em 28 arquivos** e build. A suíte D1/SQLite do store passou 4/4.
+
+A documentação adicionada após esse head precisa de sua própria CI verde antes de substituir essa evidência como head final do branch.
 
 ## O que a evidência ainda NÃO prova
 
 Não ampliar a interpretação dos testes atuais:
 
-- SQLite real comprova execução e invariantes do SQL compatível, mas não substitui teste em D1 remoto;
+- SQLite real comprova execução e invariantes compatíveis, mas não substitui teste em D1 remoto;
 - o teste de deep-link é estrutural e não substitui browser QA real;
 - não existe D1 de homologação provisionado neste branch;
 - o registro SharePoint ainda não foi aplicado ao tenant;
 - não houve deploy de produção;
-- add-in definitivo, grade-events transacional, conversor genérico e reconciliação Graph ainda pertencem ao próximo bloco.
+- o endpoint público autenticado do add-in ainda não existe;
+- audience/scope Entra do add-in ainda não foram provisionados;
+- conversor/modelo genérico cloud, compartilhamento e reconciliação Graph continuam no próximo bloco.
 
 ## Provisionamento D1 de homologação
 
@@ -118,10 +145,10 @@ Antes de piloto institucional:
 1. provisionar D1 de homologação e executar `0001` + `0002` no D1 real;
 2. testar health/API/Configurações > Fonte contra esse ambiente;
 3. executar browser QA real desktop/mobile/deep-link/refresh;
-4. migrar OpenAPI/AsyncAPI válidos do POC;
-5. implementar pipeline de importação e contrato intermediário do modelo genérico;
-6. implementar `grade-events` transacional/idempotente e snapshots;
-7. adaptar add-in sem client secret e com audience/scope Entra apropriado;
+4. definir e provisionar audience/delegated scope Entra próprios para o add-in;
+5. conectar o endpoint público de grade-events com validação bearer somente depois do gate Entra;
+6. implementar pipeline de importação e transformação para o modelo genérico limpo;
+7. adaptar add-in sem client secret e com retry/idempotência conforme os contratos já migrados;
 8. implementar storage/share/reconcile via Graph no backend;
 9. executar regressão privada Nina/Alanna apenas como entrada externa;
 10. só então preparar piloto individual com `SyncEnabled=false` até reconciliação.
@@ -137,4 +164,5 @@ Antes de piloto institucional:
 - não acumular wrappers, CSS de compatibilidade, funções duplicadas ou código morto;
 - não ativar sync em massa;
 - não apagar o caminho legado antes de provar equivalência;
-- não transformar golden master privado em template, fixture, seed, migration, fallback ou dependência de runtime.
+- não transformar golden master privado em template, fixture, seed, migration, fallback ou dependência de runtime;
+- não expor grade-events do add-in sem autenticação Entra independente adequada.
