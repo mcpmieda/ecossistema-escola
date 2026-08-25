@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Alert, Chip, ScrollShadow, Separator, Skeleton, Surface } from '@heroui/react';
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
 import { BrandMark } from './presentation';
@@ -8,10 +7,12 @@ function Navigation({
   route,
   modules,
   loading,
+  onNavigate,
 }: {
   route: PlatformRoute;
   modules: CoreModuleContract[];
   loading: boolean;
+  onNavigate?: () => void;
 }) {
   if (loading) {
     return (
@@ -36,6 +37,7 @@ function Navigation({
                 aria-current={isSelected ? 'page' : undefined}
                 data-selected={isSelected ? 'true' : undefined}
                 className="platform-nav__item flex w-full items-center no-underline"
+                onClick={onNavigate}
               >
                 <Surface
                   variant={isSelected ? 'tertiary' : 'transparent'}
@@ -69,13 +71,6 @@ export function SidebarContent({
   loading: boolean;
   onNavigate?: () => void;
 }) {
-  useEffect(() => {
-    if (!onNavigate) return;
-    const closeAfterNavigation = () => onNavigate();
-    window.addEventListener('hashchange', closeAfterNavigation);
-    return () => window.removeEventListener('hashchange', closeAfterNavigation);
-  }, [onNavigate]);
-
   return (
     <Surface
       variant="default"
@@ -102,7 +97,7 @@ export function SidebarContent({
             v1
           </Chip>
         </div>
-        <Navigation route={route} modules={modules} loading={loading} />
+        <Navigation route={route} modules={modules} loading={loading} onNavigate={onNavigate} />
       </ScrollShadow>
 
       <div className="p-4 pt-2">
