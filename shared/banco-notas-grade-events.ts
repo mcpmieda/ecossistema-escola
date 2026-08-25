@@ -18,7 +18,13 @@ export const gradeEventTypeSchema = z.enum([
   'grade.reverted',
 ]);
 
-export const gradeEventStatusSchema = z.enum(['applied', 'stale', 'duplicate', 'queued', 'rejected']);
+export const gradeEventStatusSchema = z.enum([
+  'applied',
+  'stale',
+  'duplicate',
+  'queued',
+  'rejected',
+]);
 export const gradeValueSchema = z.union([z.number(), z.string().max(120), z.null()]);
 
 export const eventSourceSchema = z.object({
