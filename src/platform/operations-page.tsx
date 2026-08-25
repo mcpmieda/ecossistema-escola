@@ -17,12 +17,24 @@ type SignalStatus = 'ok' | 'attention' | 'unknown';
 
 function SignalChip({ status }: { status: SignalStatus }) {
   if (status === 'attention') {
-    return <Chip color="danger" variant="soft" size="sm">Atenção</Chip>;
+    return (
+      <Chip color="danger" variant="soft" size="sm">
+        Atenção
+      </Chip>
+    );
   }
   if (status === 'unknown') {
-    return <Chip variant="soft" size="sm">Não verificado</Chip>;
+    return (
+      <Chip variant="soft" size="sm">
+        Não verificado
+      </Chip>
+    );
   }
-  return <Chip color="success" variant="soft" size="sm">Sem sinal de falha</Chip>;
+  return (
+    <Chip color="success" variant="soft" size="sm">
+      Sem sinal de falha
+    </Chip>
+  );
 }
 
 function SignalRow({
@@ -94,10 +106,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
         description="Sinais observáveis do núcleo, degradações detectáveis e lacunas que ainda não possuem evidência operacional."
       />
 
-      <Surface
-        variant="secondary"
-        className="living-surface rounded-[2rem] p-6 sm:p-7"
-      >
+      <Surface variant="secondary" className="living-surface rounded-[2rem] p-6 sm:p-7">
         <AmbientConstellation intensity={attention ? 'medium' : 'strong'} placement="right" />
         <div className="living-aura living-aura--right" />
         <div className="relative z-10 flex flex-col gap-5">
@@ -112,11 +121,14 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
                 Estado observado
               </div>
               <h3 className="mt-4 max-w-3xl text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">
-                {attention ? 'Há sinais que exigem atenção' : 'Sem degradação observada no snapshot'}
+                {attention
+                  ? 'Há sinais que exigem atenção'
+                  : 'Sem degradação observada no snapshot'}
               </h3>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
-                Este estado deriva somente das evidências disponíveis no read model autorizado. Ele não
-                substitui monitoramento ativo de serviços externos nem prova recuperação testada.
+                Este estado deriva somente das evidências disponíveis no read model autorizado. Ele
+                não substitui monitoramento ativo de serviços externos nem prova recuperação
+                testada.
               </p>
             </div>
             <Chip color={attention ? 'danger' : 'success'} variant="soft" size="sm">
@@ -203,7 +215,9 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
               icon={PlugZap}
               title="Contratos de saúde dos sistemas"
               description={healthCoverageDescription}
-              status={registeredCount === 0 || operational.healthContractsMissing > 0 ? 'unknown' : 'ok'}
+              status={
+                registeredCount === 0 || operational.healthContractsMissing > 0 ? 'unknown' : 'ok'
+              }
             />
             <SignalRow
               icon={RotateCcw}
@@ -219,7 +233,8 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
         <Card.Header className="border-b border-border/60">
           <Card.Title>Cobertura dos sistemas registrados</Card.Title>
           <Card.Description>
-            Metadados de integração; nenhum HealthEndpoint é executado pelo navegador ou pelo BFF nesta candidata.
+            Metadados de integração; nenhum HealthEndpoint é executado pelo navegador ou pelo BFF
+            nesta candidata.
           </Card.Description>
         </Card.Header>
         <Card.Content className="p-0">
@@ -244,7 +259,9 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
                       <Table.Row id={module.id} key={module.id}>
                         <Table.Cell className="font-medium">{module.name}</Table.Cell>
                         <Table.Cell>
-                          <Chip variant="soft" size="sm">{module.status || 'sem estado'}</Chip>
+                          <Chip variant="soft" size="sm">
+                            {module.status || 'sem estado'}
+                          </Chip>
                         </Table.Cell>
                         <Table.Cell>
                           {module.healthEndpoint.trim() ? (

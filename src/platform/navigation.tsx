@@ -75,11 +75,16 @@ export function SidebarContent({
   onNavigate?: () => void;
 }) {
   return (
-    <Surface variant="transparent" className="sidebar-surface flex h-full min-h-0 flex-col text-foreground">
+    <Surface
+      variant="transparent"
+      className="sidebar-surface flex h-full min-h-0 flex-col text-foreground"
+    >
       <div className="flex h-20 items-center gap-3 px-5">
         <BrandMark compact />
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold tracking-[-0.02em]">Centro de Administração</p>
+          <p className="truncate text-sm font-semibold tracking-[-0.02em]">
+            Centro de Administração
+          </p>
           <p className="truncate text-xs text-muted">Escola Iêda Alves de Oliveira</p>
         </div>
       </div>

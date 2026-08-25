@@ -1,14 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Avatar, Button, Chip, Drawer, Spinner, Surface } from '@heroui/react';
-import {
-  Activity,
-  Boxes,
-  LockKeyhole,
-  LogOut,
-  Menu,
-  ShieldCheck,
-  Sparkles,
-} from 'lucide-react';
+import { Activity, Boxes, LockKeyhole, LogOut, Menu, ShieldCheck, Sparkles } from 'lucide-react';
 import { AmbientConstellation } from '@/components/ambient-constellation';
 import {
   normalizePlatformRoute,
@@ -226,9 +218,12 @@ function AdminShell({ identity }: { identity: Identity }) {
             error?: string;
             correlationId?: string;
           };
-          throw Object.assign(new Error(payload.error || 'Não foi possível carregar a plataforma.'), {
-            correlationId: payload.correlationId,
-          });
+          throw Object.assign(
+            new Error(payload.error || 'Não foi possível carregar a plataforma.'),
+            {
+              correlationId: payload.correlationId,
+            },
+          );
         }
         return (await response.json()) as PlatformSnapshotContract;
       })
@@ -260,7 +255,10 @@ function AdminShell({ identity }: { identity: Identity }) {
       </aside>
 
       <div className="relative z-10 min-w-0">
-        <Surface variant="transparent" className="glass-bar sticky top-0 z-30 border-b border-border/65">
+        <Surface
+          variant="transparent"
+          className="glass-bar sticky top-0 z-30 border-b border-border/65"
+        >
           <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
             <Drawer>
               <Button
@@ -279,7 +277,10 @@ function AdminShell({ identity }: { identity: Identity }) {
                 onOpenChange={setMobileNavigationOpen}
               >
                 <Drawer.Content placement="left" className="max-w-[320px]">
-                  <Drawer.Dialog aria-label="Navegação do Centro" className="h-full rounded-none p-0">
+                  <Drawer.Dialog
+                    aria-label="Navegação do Centro"
+                    className="h-full rounded-none p-0"
+                  >
                     <Drawer.CloseTrigger />
                     <Drawer.Body className="p-0">
                       <SidebarContent
@@ -306,11 +307,15 @@ function AdminShell({ identity }: { identity: Identity }) {
 
             <div className="flex shrink-0 items-center gap-3">
               <div className="hidden text-right xl:block">
-                <p className="max-w-48 truncate text-sm font-medium">{identity.name || 'Administrador'}</p>
+                <p className="max-w-48 truncate text-sm font-medium">
+                  {identity.name || 'Administrador'}
+                </p>
                 <p className="text-xs text-muted">Administrador</p>
               </div>
               <Avatar size="sm" color="accent" variant="soft">
-                <Avatar.Fallback className="text-xs font-medium">{initials(identity.name)}</Avatar.Fallback>
+                <Avatar.Fallback className="text-xs font-medium">
+                  {initials(identity.name)}
+                </Avatar.Fallback>
               </Avatar>
               <form method="post" action="/auth/logout">
                 <Button variant="outline" size="sm" type="submit">
@@ -364,7 +369,9 @@ function AdminShell({ identity }: { identity: Identity }) {
               <footer className="mt-8 flex flex-col gap-1 border-t border-border/60 pt-5 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
                 <span>Núcleo {loadState.snapshot.version}</span>
                 <span>Dados consultados em {formatDate(loadState.snapshot.generatedAt)}</span>
-                <span className="font-mono">{shortCorrelation(loadState.snapshot.correlationId)}</span>
+                <span className="font-mono">
+                  {shortCorrelation(loadState.snapshot.correlationId)}
+                </span>
               </footer>
             </div>
           )}

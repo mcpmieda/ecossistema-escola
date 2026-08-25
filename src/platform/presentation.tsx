@@ -29,7 +29,10 @@ export function EmptyState({
   description: string;
 }) {
   return (
-    <Surface variant="transparent" className="living-empty-state flex flex-col items-center justify-center px-5 py-12 text-center">
+    <Surface
+      variant="transparent"
+      className="living-empty-state flex flex-col items-center justify-center px-5 py-12 text-center"
+    >
       <AmbientConstellation intensity="medium" placement="center" />
       <div className="living-aura living-aura--right" />
       <div className="living-icon">
@@ -69,11 +72,7 @@ export function PageHeader({
 
 export function ModuleStatus({ state }: { state: CoreModuleContract['state'] }) {
   return (
-    <Chip
-      color={state === 'validation' ? 'accent' : 'default'}
-      variant="soft"
-      size="sm"
-    >
+    <Chip color={state === 'validation' ? 'accent' : 'default'} variant="soft" size="sm">
       {state === 'validation' ? 'Em validação' : 'Planejado'}
     </Chip>
   );

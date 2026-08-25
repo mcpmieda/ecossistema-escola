@@ -23,7 +23,9 @@ function SearchResults({
   }
 
   if (items.length === 0) {
-    return <div className="px-4 py-7 text-center text-sm text-muted">Nenhum resultado encontrado.</div>;
+    return (
+      <div className="px-4 py-7 text-center text-sm text-muted">Nenhum resultado encontrado.</div>
+    );
   }
 
   return (
@@ -168,7 +170,10 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
                       className="pl-9"
                     />
                   </div>
-                  <Surface variant="secondary" className="mt-3 overflow-hidden rounded-3xl border border-border/60">
+                  <Surface
+                    variant="secondary"
+                    className="mt-3 overflow-hidden rounded-3xl border border-border/60"
+                  >
                     <SearchResults items={results} query={query} onSelect={selectResult} />
                   </Surface>
                 </div>

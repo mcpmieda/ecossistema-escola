@@ -1,12 +1,4 @@
-import {
-  Alert,
-  Card,
-  Chip,
-  Skeleton,
-  Spinner,
-  Surface,
-  Table,
-} from '@heroui/react';
+import { Alert, Card, Chip, Skeleton, Spinner, Surface, Table } from '@heroui/react';
 import {
   Activity,
   BookOpenText,
@@ -66,7 +58,9 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Title>Centro em validação controlada</Alert.Title>
-          <Alert.Description>Acesso restrito às capabilities administrativas existentes.</Alert.Description>
+          <Alert.Description>
+            Acesso restrito às capabilities administrativas existentes.
+          </Alert.Description>
         </Alert.Content>
       </Alert>
 
@@ -77,10 +71,7 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.55fr)]">
-        <Surface
-          variant="secondary"
-          className="living-surface min-h-80 rounded-[2rem] p-6 sm:p-7"
-        >
+        <Surface variant="secondary" className="living-surface min-h-80 rounded-[2rem] p-6 sm:p-7">
           <AmbientConstellation intensity="strong" placement="right" />
           <div className="living-aura living-aura--right" />
           <div className="relative z-10 flex min-h-[19rem] flex-col">
@@ -121,7 +112,9 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
             <Card.Header className="flex-row items-start justify-between">
               <div>
                 <Card.Description>Persistência</Card.Description>
-                <Card.Title className="mt-1 text-2xl">{snapshot.foundation.sharePointListCount}</Card.Title>
+                <Card.Title className="mt-1 text-2xl">
+                  {snapshot.foundation.sharePointListCount}
+                </Card.Title>
               </div>
               <Database className="size-4 text-muted" />
             </Card.Header>
@@ -179,7 +172,9 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       <Card variant="default" className="overflow-hidden">
         <Card.Header className="border-b border-border/60">
           <Card.Title>Módulos do núcleo</Card.Title>
-          <Card.Description>{snapshot.coreModules.length} áreas definidas por contrato.</Card.Description>
+          <Card.Description>
+            {snapshot.coreModules.length} áreas definidas por contrato.
+          </Card.Description>
         </Card.Header>
         <Card.Content className="p-0">
           <div className="divide-y divide-border/60">
@@ -194,8 +189,8 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
         <Card.Header className="border-b border-border/60">
           <Card.Title>Registro e integração</Card.Title>
           <Card.Description>
-            O estado compara o inventário SharePoint com o manifesto versionado reconhecido pelo Centro.
-            Registro isolado não concede acesso.
+            O estado compara o inventário SharePoint com o manifesto versionado reconhecido pelo
+            Centro. Registro isolado não concede acesso.
           </Card.Description>
         </Card.Header>
         <Card.Content className="p-0">
@@ -227,11 +222,15 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                           <Table.Cell className="whitespace-nowrap">
                             {module.version || '—'}
                             {module.contractVersion !== null && (
-                              <div className="mt-0.5 text-xs text-muted">contrato v{module.contractVersion}</div>
+                              <div className="mt-0.5 text-xs text-muted">
+                                contrato v{module.contractVersion}
+                              </div>
                             )}
                           </Table.Cell>
                           <Table.Cell>
-                            <Chip variant="soft" size="sm">{module.status}</Chip>
+                            <Chip variant="soft" size="sm">
+                              {module.status}
+                            </Chip>
                           </Table.Cell>
                           <Table.Cell>
                             <div className="flex flex-col items-start gap-1.5">
@@ -249,7 +248,12 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                             {module.requiredCapabilities.length > 0 ? (
                               <div className="flex flex-wrap gap-1.5">
                                 {module.requiredCapabilities.map((capability) => (
-                                  <Chip key={capability} variant="soft" size="sm" className="font-mono text-[0.68rem]">
+                                  <Chip
+                                    key={capability}
+                                    variant="soft"
+                                    size="sm"
+                                    className="font-mono text-[0.68rem]"
+                                  >
                                     {capability}
                                   </Chip>
                                 ))}
@@ -306,11 +310,15 @@ function AuditPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                   <Table.Body>
                     {snapshot.recentAudit.map((entry) => (
                       <Table.Row id={entry.id} key={entry.id}>
-                        <Table.Cell className="whitespace-nowrap">{formatDate(entry.occurredAt)}</Table.Cell>
+                        <Table.Cell className="whitespace-nowrap">
+                          {formatDate(entry.occurredAt)}
+                        </Table.Cell>
                         <Table.Cell>{entry.module}</Table.Cell>
                         <Table.Cell>{entry.action}</Table.Cell>
                         <Table.Cell>
-                          <Chip variant="soft" size="sm">{entry.result || '—'}</Chip>
+                          <Chip variant="soft" size="sm">
+                            {entry.result || '—'}
+                          </Chip>
                         </Table.Cell>
                         <Table.Cell className="font-mono text-xs text-muted">
                           {shortCorrelation(entry.correlationId)}
@@ -387,7 +395,9 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       <Card variant="default" className="mt-5 overflow-hidden">
         <Card.Header className="border-b border-border/60">
           <Card.Title>Migrações registradas</Card.Title>
-          <Card.Description>{snapshot.migrations.length} registro(s) encontrado(s).</Card.Description>
+          <Card.Description>
+            {snapshot.migrations.length} registro(s) encontrado(s).
+          </Card.Description>
         </Card.Header>
         <Card.Content className="p-0">
           {snapshot.migrations.length === 0 ? (
@@ -404,12 +414,16 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                   className="stagger-item flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <p className="text-sm font-medium">{migration.version || 'Versão não informada'}</p>
+                    <p className="text-sm font-medium">
+                      {migration.version || 'Versão não informada'}
+                    </p>
                     <p className="mt-0.5 text-xs text-muted">{migration.module}</p>
                   </div>
                   <div className="flex items-center gap-3 text-xs text-muted">
                     <span>{formatDate(migration.appliedAt)}</span>
-                    <Chip variant="soft" size="sm">{migration.result || '—'}</Chip>
+                    <Chip variant="soft" size="sm">
+                      {migration.result || '—'}
+                    </Chip>
                   </div>
                 </div>
               ))}
@@ -515,7 +529,9 @@ export function LoadingWorkspace() {
         <Chip color="accent" variant="soft" size="sm" className="mt-5">
           Preparando o Centro
         </Chip>
-        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em]">Carregando dados institucionais</h2>
+        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em]">
+          Carregando dados institucionais
+        </h2>
         <p className="mt-2 max-w-md text-sm leading-6 text-muted">
           O shell já está disponível enquanto o snapshot autorizado é preparado.
         </p>
