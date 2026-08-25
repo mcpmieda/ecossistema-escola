@@ -1,230 +1,180 @@
-# VERIFICATION — Centro de Administração v0.7
+# VERIFICATION — Centro de Administração v0.8
 
 ## Escopo
 
-Validação da candidata v0.7 do Centro de Administração. O bloco cria o contrato versionado de integração modular e separa inventário operacional de integração efetivamente reconhecida pela plataforma.
+Validação da v0.8 do Centro de Administração, com foco em recovery verificável, least privilege, orquestração pós-deploy e evidência técnica reproduzível.
 
-Release state: `validation`. Nenhuma evidência abaixo autoriza produção oficial.
+Release state: `validation`. Nenhuma evidência deste documento autoriza produção oficial.
 
-Por decisão de produto de 24/08/2026, estes itens ficam fora do fechamento desta fase e serão retomados posteriormente:
+## Runtime verificado
 
-- integração funcional do primeiro sistema independente;
-- construção de Publicações;
-- construção de Páginas.
+SHA submetido à prova real:
 
-## Baseline anterior
-
-Baseline publicada e externamente verificada antes da v0.7:
-
-`main@d0c32d32844ec56037ddb46d7f93a386efc83aa5`
-
-Runtime v0.6 correspondente:
-
-`main@8632ae8eb420d2d2c2bd3c21ba33a53b8aea3d7a`
+`main@f369f05b0aa3a8fc4409295662907f04df886968`
 
 Domínio de validação:
 
 `https://admin.escolaieda.com`
 
-## Contrato de integração v0.7
+Workflow:
 
-### Fonte de verdade
+- `CI and deploy` run `32791663369`;
+- deploy job `97634486719`: **success**;
+- recovery pós-deploy job `97634653780`: **success**.
 
-`server/modules/contracts.ts` é a fonte versionada do contrato que a plataforma conhece e pode integrar.
+A execução de recovery iniciou somente depois da conclusão bem-sucedida do deploy da mesma `main`.
 
-`PLATAFORMA_MODULOS` no SharePoint continua sendo inventário operacional e não substitui o contrato.
+## Evidência de recovery
 
-Um registro existente no SharePoint não recebe estado `ready` apenas por existir.
+Resultado emitido pelo runtime:
 
-### Campos obrigatórios
+- status: `verified`;
+- scope: `sharepoint-snapshots-disposable-metadata-backup-restore-roundtrip`;
+- verifiedAt: `2026-08-25T00:00:45.362Z`;
+- correlationId: `48625797-572c-484f-b456-fd7d197a2e5d`;
+- backupChecksum: `c09b29ef863003f67c400efa5dd0dd5f88af7fc5a67392527c2e2004567bfe04`;
+- restoredChecksum: `c09b29ef863003f67c400efa5dd0dd5f88af7fc5a67392527c2e2004567bfe04`;
+- restoreMatched: `true`;
+- cleanup: `deleted`;
+- sourceCommit: `f369f05b0aa3a8fc4409295662907f04df886968`.
 
-O manifesto exige:
+Artifact GitHub Actions:
 
-- `contractVersion`;
-- `key`;
-- `name`;
-- `baseRoute` same-origin;
-- `version` semântica;
-- `status`;
-- `order`;
-- `requiredCapabilities` sem duplicidade;
-- `healthEndpoint` same-origin sob `/api/`.
+- nome: `recovery-verification-32791663369`;
+- artifact ID: `9543382224`;
+- SHA-256 do artifact: `84138929ff74a6779c4388d2aca506e42b936328d2b573614eee2f7509e11824`;
+- retenção configurada: 90 dias.
 
-Rotas relativas, protocol-relative (`//host`) e com barra invertida são rejeitadas.
+A evidência contém somente metadados técnicos redigidos. Não contém conteúdo institucional, credenciais ou dados pessoais.
 
-### Estados de integração
+## Procedimento realmente executado
 
-`server/modules/registry.ts` resolve cada item como:
+O endpoint de manutenção autenticado por GitHub OIDC operou no `CENTROADMIN` usando a identidade Graph já existente e limitada por `Sites.Selected`/`write`.
 
-- `ready`;
-- `registry-only`;
-- `contract-mismatch`;
-- `disabled`;
-- `deprecated`;
-- `invalid-registry`.
+O self-test:
 
-`available` só pode ser verdadeiro quando o estado é `ready` e todas as `requiredCapabilities` estão presentes na sessão.
+1. localizou `SNAPSHOTS_PLATAFORMA`;
+2. resolveu o drive da biblioteca;
+3. criou somente uma pasta descartável `RECOVERY_VERIFY_*`;
+4. gravou metadado sentinela;
+5. leu o sentinela como backup;
+6. calculou checksum SHA-256;
+7. sobrescreveu o metadado com valor controladamente divergente;
+8. confirmou a sobrescrita;
+9. restaurou o backup;
+10. releu o valor restaurado;
+11. confirmou checksum idêntico;
+12. removeu a pasta descartável;
+13. somente então retornou `verified`.
 
-### Legacy `RolesJson`
+## Least privilege
 
-A v0.7 remove `RolesJson` do caminho de decisão:
+A primeira tentativa, run `32790670588`, chegou ao Graph mas recebeu `403` ao tentar criar uma nova lista SharePoint.
 
-- o BFF não solicita o campo na leitura Graph de `PLATAFORMA_MODULOS`;
-- o resolvedor não o usa;
-- o read model cliente não expõe `roles`;
-- a busca não o indexa;
-- sua presença em um item legado não concede autorização nem integração.
+A fundação foi auditada e confirmou que a identidade backend possui deliberadamente papel `write` no site, não privilégio de gerenciamento estrutural mais amplo.
 
-O campo físico pode permanecer temporariamente na lista SharePoint existente porque removê-lo não é requisito deste bloco e criaria migração desnecessária. A condição de remoção é uma futura manutenção da estrutura SharePoint em que nenhum consumidor legado dependa dele.
+A correção adotada foi **reduzir a exigência do teste**, e não elevar a identidade:
 
-## Snapshot e interface
+- nenhuma nova permissão Graph foi concedida;
+- nenhuma lista operacional foi criada ou removida;
+- nenhum dado real foi usado como sentinela;
+- `SNAPSHOTS_PLATAFORMA` foi reutilizada por ser a área técnica apropriada;
+- o teste prova restore dentro desse escopo e nada além dele.
 
-O snapshot passa a identificar módulos registrados com:
+## Orquestração pós-deploy
 
-- `contractVersion`;
-- `requiredCapabilities`;
-- `integrationState`;
-- `integrationIssues`;
-- `available`.
+Uma segunda execução, run `32791253942`, demonstrou que disparar o recovery no mesmo `push` permitia corrida com o deploy. O endpoint ainda servia a versão anterior quando foi chamado.
 
-A versão do snapshot é `0.7.0-validation`.
+Uma tentativa de usar `workflow_run` foi rejeitada pelo `zizmor` com `dangerous-triggers`. A política não foi suprimida.
 
-A área `Sistemas` mostra o estado de integração e as capabilities exigidas, mas não oferece abertura de sistema independente nesta fase.
+Arquitetura final:
 
-A busca continua permission-scoped e usa o novo estado/capabilities do read model.
+- `validate` e `workflow-security` rodam primeiro;
+- `deploy-production` depende dos dois;
+- `verify-recovery` fica no mesmo `ci.yml` e depende de `deploy-production`;
+- o job automático só existe para push em `main`;
+- `id-token: write` é concedido apenas ao job de recovery;
+- o checkout do recovery usa o mesmo `${{ github.sha }}` implantado;
+- `.github/workflows/verify-recovery.yml` fica manual-only via `workflow_dispatch` para repetição controlada em `main`.
 
-## App Factory — Semantic Assurance
+Esse desenho passou `actionlint` e `zizmor` persona `pedantic`.
 
-Novos elementos obrigatórios:
+## Testes e gates
 
-- `INV-011` — registro operacional não equivale a autorização nem integração;
-- `AC-013` — disponibilidade modular exige contrato versionado compatível e capabilities suficientes.
+Candidata least-privilege antes do merge:
 
-Fingerprint realmente calculado e validado pelo CI:
-
-`7c0175727cc706f64575b885750cbe264c558f0f05fd883a111e8425595bcf73`
-
-O valor acima substitui qualquer fingerprint intermediário calculado manualmente durante o desenvolvimento.
-
-## Testes v0.7
-
-A suíte cobre, entre outros comportamentos:
-
-- contrato da `plataforma-base` válido e versionado;
-- chaves de contratos integrados únicas;
-- rejeição de rotas inseguras;
-- rejeição de capabilities duplicadas;
-- health endpoint fora de `/api/` rejeitado;
-- registro compatível marcado `ready`;
-- contrato correto sem capability continua indisponível;
-- `RolesJson` legado ignorado;
-- módulo sem manifesto marcado `registry-only`;
-- divergência de versão marcada `contract-mismatch`;
-- estados disabled/deprecated/unknown fail closed;
-- ordenação determinística do registro;
-- snapshot sem exposição de campos protegidos;
-- busca sem retornar auditoria/migrações e sem depender de roles legadas.
-
-## Higiene do repair loop
-
-O desenvolvimento inicial ocorreu no PR #22, que também continha um formatter temporário.
-
-O formatter foi endurecido antes de uso:
-
-- checkout com `persist-credentials: false`;
-- permissões default somente leitura;
-- escrita limitada ao job temporário;
-- push explícito com token do job.
-
-Esse laboratório encontrou e permitiu corrigir uma falha real de typecheck nos testes: a possibilidade de o resolvedor retornar lista vazia não estava explicitamente provada antes de acessar o primeiro item.
-
-Após a correção, o workflow temporário executou `npm run verify` com sucesso.
-
-O PR #22 foi então fechado **sem merge**.
-
-A candidata final foi reconstruída a partir da `main` em:
-
-`feat/centro-admin-v0.7-module-integration-contract-clean`
-
-Head funcional inicial:
-
-`2d1089d6b256e836e76d083b7d581063df5d7834`
-
-Comparação com a baseline:
-
-- 1 commit funcional;
-- 15 arquivos definitivos;
-- zero mudanças em `.github/workflows`;
-- nenhum artefato de formatter presente na candidata final.
-
-## CI limpo da candidata
-
-PR #23, workflow `32785823534`: **success**.
-
-Job de aplicação `97617431317`:
-
-- `npm ci`: **pass**;
-- npm audit do install: **0 vulnerabilidades**;
-- `format:check`: **pass**;
+- format: **pass**;
 - lint: **pass**;
 - typecheck: **pass**;
 - semantic check: **pass**;
-- 13 arquivos de teste: **pass**;
-- **98 testes**: **pass**;
-- build Vite: **pass**.
-
-Job de segurança `97617431494`:
-
+- 14 arquivos de teste: **pass**;
+- **104 testes**: **pass**;
+- build Vite: **pass**;
 - actionlint: **pass**;
 - zizmor pedantic: **pass**.
 
-Build observado:
+Os testes de recovery cobrem:
 
-- Vite `8.2.2`;
-- 1926 módulos transformados;
-- CSS `index-Cy_yw-W_.css` — 66.43 kB, gzip 12.03 kB;
-- JS `index-DDWNlGO3.js` — 316.75 kB, gzip 96.74 kB.
+- round-trip bem-sucedido;
+- ausência de tentativa de criar lista SharePoint;
+- checksum divergente bloqueando `verified`;
+- cleanup obrigatório mesmo após falha de restore;
+- falha de cleanup bloqueando `verified`;
+- identificador descartável inválido impedindo qualquer mutação Graph.
 
-Deploy foi corretamente ignorado nesse workflow porque se tratava de PR.
+## Contrato semântico v0.8
+
+Fingerprint vigente:
+
+`3e4b132d5d2540347932cec4cd9a48f3016dbbf4ce1702dfd489cc1889563503`
+
+O contrato registra explicitamente que a prova é um round-trip descartável de metadado na biblioteca técnica de snapshots e **não** equivale a disaster recovery completo.
+
+## Limites da evidência
+
+Não estão sendo declarados como testados:
+
+- restore integral do SharePoint site;
+- restore completo das listas institucionais;
+- recuperação de dados operacionais reais;
+- recuperação do tenant Microsoft 365;
+- continuidade integral de serviços externos.
+
+Esses limites são deliberados para impedir uma conclusão mais ampla que a evidência disponível.
 
 ## Fundação preservada
 
-A v0.7 não altera:
+A v0.8 preserva:
 
-- Entra ID;
-- grupos institucionais;
-- política cargo → grupos;
-- `rolesForGroups`;
-- formato/segredo do cookie de sessão;
-- fluxo OIDC;
-- Graph ou seus privilégios;
+- Microsoft Entra ID;
+- BFF/session cookie;
+- grupos e mapeamentos existentes;
 - SharePoint `CENTROADMIN`;
+- papel Graph `Sites.Selected`/`write` existente;
 - Cloudflare Pages;
-- CI/CD permanente;
-- rotação automática da identidade técnica;
-- logout corrigido;
-- fronteira somente leitura do Centro.
+- rotação automática de identidade técnica;
+- política cargo → grupos;
+- autenticação e autorização por capabilities;
+- contrato modular v0.7;
+- `releaseState = validation`.
 
-Não houve migração SharePoint nem escrita de dados institucionais neste bloco.
+## Estado dos gates
 
-## Estado antes do merge
-
-No momento desta documentação:
-
-- implementação: **pass**;
-- higiene da candidata: **pass**;
-- format/lint/typecheck/semantic/test/build: **pass**;
-- 98 testes: **pass**;
-- actionlint/zizmor: **pass**;
-- merge em `main`: **pendente**;
-- deploy v0.7: **pendente**;
-- smoke externo v0.7: **pendente**;
-- browser QA final da fase: **pendente**;
-- recovery/restore com evidência: **pendente**;
+- implementação recovery: **pass**;
+- testes unitários/contrato: **pass**;
+- segurança dos workflows: **pass**;
+- deploy da versão provada: **pass**;
+- round-trip SharePoint real: **pass**;
+- checksum backup/restore: **pass**;
+- cleanup: **pass**;
+- evidência artifact: **pass**;
+- registro versionado da evidência: em integração neste bloco;
+- smoke externo final do domínio: pendente após integração do registro;
+- browser QA final da fase: pendente;
 - produção oficial: **bloqueada**.
 
 ## Próximo gate
 
-Depois deste documento, o head definitivo deve passar novamente pelo CI normal. Se permanecer verde, o PR #23 pode ser integrado em `main`, publicado no domínio de validação e submetido a smoke externo específico da v0.7.
+Após integrar este registro de evidência em `main`, o pipeline deve publicar novamente o domínio e repetir automaticamente o recovery pós-deploy. Em seguida deve ser feito smoke externo da v0.8 e auditoria/browser QA final do escopo restante.
 
 A produção oficial continua condicionada ao comando humano exato `APROVADO PARA PRODUÇÃO`.

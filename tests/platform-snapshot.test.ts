@@ -3,6 +3,12 @@ import { PLATFORM_CAPABILITIES } from '../shared/platform-contract';
 import { buildPlatformSnapshot, isFailureResult } from '../server/platform/snapshot';
 
 const fullAccess = PLATFORM_CAPABILITIES;
+const verifiedRecoveryEvidence = {
+  recoveryStatus: 'verified',
+  recoveryVerifiedAt: '2026-08-25T00:00:45.362Z',
+  recoveryEvidenceRef: 'github-actions:32791663369:job:97634653780:artifact:9543382224',
+  recoveryScope: 'sharepoint-snapshots-disposable-metadata-backup-restore-roundtrip',
+};
 
 describe('platform snapshot parsing', () => {
   it('classifies explicit failure results without treating benign text as a failure', () => {
@@ -88,10 +94,7 @@ describe('platform snapshot parsing', () => {
       healthContractsConfigured: 1,
       healthContractsMissing: 0,
       lastAuditAt: '2026-08-24T17:00:00Z',
-      recoveryStatus: 'not-verified',
-      recoveryVerifiedAt: '',
-      recoveryEvidenceRef: '',
-      recoveryScope: 'sharepoint-disposable-record-backup-restore-roundtrip',
+      ...verifiedRecoveryEvidence,
     });
     expect(snapshot.registeredModules[0]).toMatchObject({
       key: 'plataforma-base',
@@ -164,10 +167,7 @@ describe('platform snapshot parsing', () => {
       recentAuditFailureCount: 1,
       healthContractsConfigured: 0,
       healthContractsMissing: 1,
-      recoveryStatus: 'not-verified',
-      recoveryVerifiedAt: '',
-      recoveryEvidenceRef: '',
-      recoveryScope: 'sharepoint-disposable-record-backup-restore-roundtrip',
+      ...verifiedRecoveryEvidence,
     });
   });
 
