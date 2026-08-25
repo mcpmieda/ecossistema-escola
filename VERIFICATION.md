@@ -44,16 +44,25 @@ No branch `feat/banco-de-notas-foundation`, foi registrada a separação obrigat
 
 Esta seção registra o gate decidido; não declara que o transformador ou o modelo genérico já foram implementados ou homologados. A fonte detalhada é `docs/BANCO_NOTAS_MODELO_GENERICO_E_GOLDEN_MASTERS.md`.
 
-Evidência local deste bloco em 25/08/2026:
+Evidência funcional consolidada do PR #52 antes da atualização documental corrente:
 
-- `npm install`: concluído, 0 vulnerabilidades reportadas;
-- regressão dedicada `tests/banco-notas-golden-masters.test.ts`: 3/3 testes aprovados;
-- `npm run verify`: concluído com format, lint, typecheck, semantic check, 121/121 testes e build aprovados;
-- `change_hygiene.py --root .`: PASS;
-- Project Adoption Gate: checklist documental satisfeita, com falha residual conhecida do validador da App Factory porque ele não considera `ui.deviation` ao exigir Ambient Constellation para HeroUI. A exceção de produto continua explícita e não foi enfraquecida para satisfazer o script.
-- CI do PR #52, run `32901823483`: `Validate application` e `Validate GitHub Actions security` concluídos com sucesso; deploy de produção e recovery pós-deploy permaneceram corretamente ignorados no PR.
+- head: `94ccceff31d6355b8ce6eaa396eba16e2ecd1932`;
+- workflow: `32911996770` — run `#495` — **success**;
+- `Validate application` — success;
+- `Validate GitHub Actions security` — success;
+- formatação — success;
+- lint — success;
+- typecheck — success;
+- semantic check — success;
+- testes — **167/167 aprovados em 28 arquivos**;
+- build — success;
+- suíte `tests/banco-notas-d1-grade-event-store.test.ts` — **4/4** cenários aprovados com SQLite real;
+- deploy de produção — skipped;
+- recovery pós-deploy — skipped.
 
-O build manteve o warning histórico de chunk JavaScript acima de 500 kB; não houve nova regressão funcional associada.
+O build continua emitindo o warning histórico de chunk JavaScript acima de 500 kB; não houve falha de build associada.
+
+A atualização documental posterior a esse head precisa de CI própria verde antes de substituir essa evidência como head final do branch.
 
 ## Escopo verificado
 
@@ -309,9 +318,9 @@ Os arquivos `specs/semantic-contract.json`, `specs/semantic-assurance.json` e `s
 
 O build ainda pode emitir warning de chunk JavaScript acima de `500 kB` minificado.
 
-Ele permanece não bloqueador porque os gates, testes, build, deploy e recovery passam. Uma futura decisão de code splitting deve usar métricas de carregamento inicial e não apenas o limite estático do bundler.
+Ele permanece não bloqueador porque os gates, testes e build passam no PR; em produção existente, deploy e recovery já foram comprovados pelas releases anteriores. Uma futura decisão de code splitting deve usar métricas de carregamento inicial e não apenas o limite estático do bundler.
 
-## Resultado final
+## Resultado final do Centro em produção
 
 **CENTRO V1 EM PRODUÇÃO E ATUALIZAÇÃO VISUAL PR #50 IMPLANTADA.**
 
@@ -319,8 +328,8 @@ Ele permanece não bloqueador porque os gates, testes, build, deploy e recovery 
 - versão: `1.0.0`;
 - release original: PR `#48`;
 - atualização visual: PR `#50`;
-- commit corrente: `9ae6c49bbfe5f57577537ff480dfc833bddaad8a`;
-- workflow corrente: `32892663858` — **success**;
+- commit corrente de produção: `9ae6c49bbfe5f57577537ff480dfc833bddaad8a`;
+- workflow corrente de produção: `32892663858` — **success**;
 - deploy: **success**;
 - recovery: **verified**;
 - autorização administrativa: preservada e fail closed;
@@ -329,15 +338,40 @@ Ele permanece não bloqueador porque os gates, testes, build, deploy e recovery 
 
 Qualquer mudança futura material em regra, fluxo, dados, autorização, segurança ou comportamento observável deve entrar por novo PR e receber regressão proporcional.
 
-## Banco de Notas — Fase 1 no PR #52
+## Banco de Notas — Fase 1 + grade-events no PR #52
 
-A fundação executável é verificada por testes dedicados de migration SQLite/D1, autoridade temporal, ausência versus zero, idempotência/sequence, contrato do módulo, API allow/deny, shell path-based e isolamento dos golden masters privados. O gate completo continua sendo `npm run verify`.
+A fundação executável e o hardening estão cobertos por testes dedicados de migration SQLite/D1, autoridade temporal, integridade cross-year, ausência versus zero, idempotência/sequence, contrato do módulo, API allow/deny, Origin, shell path-based, edição segura de vigência e isolamento dos golden masters privados.
 
-O provisionamento e o browser QA contra D1 remoto permanecem externos até autenticação do Wrangler. A ausência do binding produz health `degraded` e não ativa fallback ou armazenamento alternativo. Nenhum deploy de produção está autorizado por este handoff.
+O bloco de grade-events acrescentou:
+
+- OpenAPI/AsyncAPI definitivos no mesmo origin do Centro;
+- contrato tipado de eventos, receipts e snapshots;
+- hash de payload associado à idempotência;
+- snapshot por `(gradeKey, field)`;
+- stale auditável sem regressão de snapshot;
+- store D1 com validação de fonte, modelo, ambiente, autoridade, sync e mapeamento de célula;
+- batch transacional evento + snapshot;
+- regressão Node/SQLite real do store.
+
+No head funcional `94ccceff31d6355b8ce6eaa396eba16e2ecd1932`, run `32911996770` / `#495`, o pipeline passou security, format, lint, typecheck, semantic check, **167/167 testes** e build. `Deploy production` e `Verify recovery after deploy` ficaram corretamente `skipped`.
+
+Limites explícitos dessa evidência:
+
+- SQLite real não substitui Cloudflare D1 remoto;
+- regressão estrutural de deep-link não substitui browser QA real;
+- D1 de homologação ainda não foi provisionado;
+- registro SharePoint ainda não foi aplicado ao tenant;
+- endpoint do add-in ainda não foi exposto;
+- audience/scope Entra do add-in ainda não foram provisionados;
+- não houve merge ou deploy de produção do Banco.
+
+O endpoint de grade-events deve continuar fechado ao add-in até existir autenticação bearer Entra própria. Não reutilizar cookie administrativo do Centro nem inventar audience, scope ou client secret.
 
 ## Referências
 
 - estado atual: `PROJECT_STATE.md`;
+- estado do Banco: `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
+- handoff do Banco: `docs/BANCO_NOTAS_HANDOFF.md`;
 - evidência da release: `docs/RELEASE_CENTRO_ADMIN_V1_2026-08-25.md`;
 - evidência da atualização visual: `docs/PRODUCTION_VISUAL_CLEANUP_PR50_2026-08-25.md`;
 - protocolo de liberação: `docs/PROTOCOLO_VALIDACAO_E_LIBERACAO.md`;
