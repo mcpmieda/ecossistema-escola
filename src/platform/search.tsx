@@ -39,7 +39,11 @@ function SearchResults({ items, query }: { items: PlatformSearchItem[]; query: s
   }
 
   return (
-    <ListBox aria-label="Resultados da busca" selectionMode="none" className="platform-search-results">
+    <ListBox
+      aria-label="Resultados da busca"
+      selectionMode="none"
+      className="platform-search-results"
+    >
       {items.map((item) => {
         const Icon =
           item.iconKind === 'system'
@@ -115,11 +119,7 @@ function DesktopSearch({
             </Kbd>
           </Button>
         </Popover.Trigger>
-        <Popover.Content
-          placement="bottom"
-          offset={8}
-          className="w-[min(28rem,calc(100vw-2rem))]"
-        >
+        <Popover.Content placement="bottom" offset={8} className="w-[min(28rem,calc(100vw-2rem))]">
           <Popover.Dialog className="p-2">
             <SearchField
               aria-label="Buscar áreas, sistemas e configurações"
