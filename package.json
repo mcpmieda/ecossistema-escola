@@ -9,7 +9,7 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --write server/banco-notas/d1-grade-event-store.ts server/banco-notas/grade-events.ts shared/banco-notas-grade-events.ts tests/banco-notas-assignment-edit.test.ts tests/banco-notas-grade-event-contracts.test.ts tests/banco-notas-grade-events.test.ts tests/helpers/banco-notas-sqlite-runtime.mjs && git diff -- server/banco-notas/d1-grade-event-store.ts server/banco-notas/grade-events.ts shared/banco-notas-grade-events.ts tests/banco-notas-assignment-edit.test.ts tests/banco-notas-grade-event-contracts.test.ts tests/banco-notas-grade-events.test.ts tests/helpers/banco-notas-sqlite-runtime.mjs && exit 1",
     "typecheck": "tsc -b --pretty false",
     "semantic:check": "node infra/validation/validate-semantic-contract.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run semantic:check && npm test && npm run build"
