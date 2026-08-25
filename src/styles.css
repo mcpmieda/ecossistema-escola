@@ -43,10 +43,10 @@ body {
 :root {
   --ambient-base-1: oklch(0.965 0.025 245);
   --ambient-base-2: oklch(0.95 0.035 285);
-  --ambient-glow-1: oklch(0.78 0.12 220 / 0.58);
-  --ambient-glow-2: oklch(0.68 0.18 290 / 0.42);
-  --ambient-star: oklch(0.99 0.01 250 / 0.82);
-  --ambient-star-muted: oklch(0.82 0.08 250 / 0.5);
+  --ambient-glow-1: oklch(0.78 0.12 220 / 0.55);
+  --ambient-glow-2: oklch(0.68 0.18 290 / 0.38);
+  --ambient-star: oklch(0.995 0.006 250 / 0.9);
+  --ambient-star-muted: oklch(0.88 0.05 250 / 0.6);
   --platform-outline: color-mix(in oklab, var(--border) 78%, transparent);
   --platform-shadow: 0 24px 72px -32px color-mix(in oklab, var(--foreground) 20%, transparent);
   --skeleton-animation: shimmer;
@@ -56,10 +56,10 @@ body {
 [data-theme='dark'] {
   --ambient-base-1: oklch(0.22 0.045 250);
   --ambient-base-2: oklch(0.18 0.055 290);
-  --ambient-glow-1: oklch(0.58 0.16 220 / 0.48);
-  --ambient-glow-2: oklch(0.52 0.2 295 / 0.42);
-  --ambient-star: oklch(0.94 0.025 250 / 0.78);
-  --ambient-star-muted: oklch(0.76 0.08 255 / 0.48);
+  --ambient-glow-1: oklch(0.58 0.16 220 / 0.46);
+  --ambient-glow-2: oklch(0.52 0.2 295 / 0.4);
+  --ambient-star: oklch(0.96 0.02 250 / 0.86);
+  --ambient-star-muted: oklch(0.8 0.07 255 / 0.54);
   --skeleton-animation: pulse;
 }
 
@@ -71,12 +71,12 @@ body {
   background:
     radial-gradient(
       circle at 16% -8%,
-      color-mix(in oklab, var(--ambient-glow-1) 34%, transparent),
+      color-mix(in oklab, var(--ambient-glow-1) 31%, transparent),
       transparent 34rem
     ),
     radial-gradient(
       circle at 94% 18%,
-      color-mix(in oklab, var(--ambient-glow-2) 28%, transparent),
+      color-mix(in oklab, var(--ambient-glow-2) 25%, transparent),
       transparent 32rem
     ),
     var(--background);
@@ -108,46 +108,72 @@ body {
 
 .ambient-constellation__glow {
   position: absolute;
-  width: min(72vw, 56rem);
+  width: min(64vw, 48rem);
   aspect-ratio: 1;
   border-radius: 9999px;
   background: linear-gradient(135deg, var(--ambient-glow-1), var(--ambient-glow-2));
-  filter: blur(72px);
-  opacity: 0.72;
-  transform: translate3d(-20%, -34%, 0);
+  filter: blur(76px);
+  opacity: 0.64;
+  transform: translate3d(-24%, -38%, 0);
 }
 
 .ambient-constellation[data-placement='right'] .ambient-constellation__glow {
-  right: -20%;
+  right: -18%;
   left: auto;
-  transform: translate3d(10%, -30%, 0);
+  transform: translate3d(14%, -34%, 0);
 }
 
 .ambient-constellation__layer {
   position: absolute;
-  inset: -12%;
-  width: 124%;
-  height: 124%;
+  inset: -39% -18%;
   overflow: visible;
   color: var(--ambient-star);
   will-change: transform;
 }
 
+.ambient-constellation__particle {
+  position: absolute;
+  display: block;
+  min-width: 0.5px;
+  min-height: 0.5px;
+  border-radius: 9999px;
+  background: currentColor;
+  transform: translate(-50%, -50%);
+}
+
 .ambient-constellation__layer--a {
-  animation: constellation-drift-a 16s ease-in-out infinite alternate;
+  animation: constellation-drift-a 12s ease-in-out infinite;
 }
 
 .ambient-constellation__layer--b {
   color: var(--ambient-star-muted);
-  animation: constellation-drift-b 21s ease-in-out infinite alternate;
+  animation: constellation-drift-b 15s ease-in-out infinite;
+}
+
+.platform-shell > .ambient-constellation > .ambient-constellation__layer--a {
+  color: color-mix(in oklab, var(--accent) 34%, var(--ambient-star));
+}
+
+.platform-shell > .ambient-constellation > .ambient-constellation__layer--b {
+  color: color-mix(in oklab, var(--accent) 25%, var(--ambient-star-muted));
+}
+
+.dark .platform-shell > .ambient-constellation > .ambient-constellation__layer--a,
+[data-theme='dark'] .platform-shell > .ambient-constellation > .ambient-constellation__layer--a {
+  color: var(--ambient-star);
+}
+
+.dark .platform-shell > .ambient-constellation > .ambient-constellation__layer--b,
+[data-theme='dark'] .platform-shell > .ambient-constellation > .ambient-constellation__layer--b {
+  color: var(--ambient-star-muted);
 }
 
 .ambient-constellation[data-intensity='subtle'] {
-  opacity: 0.55;
+  opacity: 0.52;
 }
 
 .ambient-constellation[data-intensity='medium'] {
-  opacity: 0.78;
+  opacity: 0.76;
 }
 
 .hero-surface {
@@ -197,20 +223,22 @@ body {
 }
 
 @keyframes constellation-drift-a {
-  from {
-    transform: translate3d(-18px, -10px, 0);
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
   }
-  to {
-    transform: translate3d(28px, 24px, 0);
+  50% {
+    transform: translate3d(20px, -20px, 0);
   }
 }
 
 @keyframes constellation-drift-b {
-  from {
-    transform: translate3d(22px, -18px, 0);
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
   }
-  to {
-    transform: translate3d(-24px, 20px, 0);
+  50% {
+    transform: translate3d(-20px, 20px, 0);
   }
 }
 
@@ -228,26 +256,30 @@ body {
 
 @media (max-width: 640px) {
   .ambient-constellation__layer {
-    inset: -7%;
-    width: 114%;
-    height: 114%;
+    inset: -34% -16%;
+  }
+
+  .ambient-constellation__particle {
+    transform: translate(-50%, -50%) scale(0.88);
   }
 
   @keyframes constellation-drift-a {
-    from {
-      transform: translate3d(-10px, -7px, 0);
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0);
     }
-    to {
-      transform: translate3d(15px, 13px, 0);
+    50% {
+      transform: translate3d(12px, -12px, 0);
     }
   }
 
   @keyframes constellation-drift-b {
-    from {
-      transform: translate3d(12px, -9px, 0);
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0);
     }
-    to {
-      transform: translate3d(-14px, 11px, 0);
+    50% {
+      transform: translate3d(-12px, 12px, 0);
     }
   }
 }
@@ -270,7 +302,7 @@ body {
   }
 
   .ambient-constellation__layer--b {
-    transform: translate3d(10px, -6px, 0);
+    transform: translate3d(8px, -5px, 0);
   }
 
   :root {
