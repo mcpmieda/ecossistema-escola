@@ -22,7 +22,12 @@ export class GradeEventForbiddenError extends Error {
 }
 
 export function validateIdempotencyKey(value: string | null): string {
-  if (!value || value.length < 16 || value.length > 128 || !/^[A-Za-z0-9._:-]+$/u.test(value)) {
+  if (
+    !value ||
+    value.length < 16 ||
+    value.length > 128 ||
+    !/^[A-Za-z0-9._:-]+$/u.test(value)
+  ) {
     throw new Error('invalid_idempotency_key');
   }
   return value;
@@ -41,7 +46,9 @@ function canonical(value: unknown): string {
 export async function gradeEventPayloadHash(input: GradeEventInput): Promise<string> {
   const bytes = new TextEncoder().encode(canonical(input));
   const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
+  return [...new Uint8Array(digest)]
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 function receipt(
@@ -75,11 +82,15 @@ export async function ingestGradeEvent(args: {
     if (duplicate.payloadHash !== payloadHash) {
       throw new GradeEventConflictError('idempotency_payload_conflict');
     }
-    return receipt(duplicate, 'duplicate', await args.store.getSnapshot(duplicate.gradeKey));
+    return receipt(
+      duplicate,
+      'duplicate',
+      await args.store.getSnapshot(duplicate.gradeKey, duplicate.field),
+    );
   }
 
   await args.store.assertIngestionAllowed(input);
-  const current = await args.store.getSnapshot(input.gradeKey);
+  const current = await args.store.getSnapshot(input.gradeKey, input.field);
   const isStale = current !== null && input.sequence <= current.sequence;
   const receivedAt = args.receivedAt ?? new Date().toISOString();
   const event: StoredGradeEvent = {
@@ -112,6 +123,9 @@ export async function ingestGradeEvent(args: {
         updatedAt: receivedAt,
       };
 
-  await args.store.commit(event.status === 'stale' ? { event, snapshot: null } : { event, snapshot }, JSON.stringify(input.source));
+  await args.store.commit(
+    event.status === 'stale' ? { event, snapshot: null } : { event, snapshot },
+    JSON.stringify(input.source),
+  );
   return receipt(event, isStale ? 'stale' : 'applied', snapshot ?? current);
 }
