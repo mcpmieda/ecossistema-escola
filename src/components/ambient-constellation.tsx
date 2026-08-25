@@ -19,8 +19,8 @@ function createLayer(seed: number, count: number): readonly ParticlePoint[] {
     const x = 1 + next() * 98;
     const y = 1 + next() * 98;
     const sizeBand = index % 17 === 0 ? 0.95 + next() * 0.4 : 0.52 + next() * 0.62;
-    const opacity = index % 13 === 0 ? 0.52 + next() * 0.26 : 0.12 + next() * 0.4;
-    return [x, y, Math.min(sizeBand, 1.35), opacity] as const;
+    const opacity = index % 13 === 0 ? 0.72 + next() * 0.22 : 0.24 + next() * 0.44;
+    return [x, y, Math.min(sizeBand, 1.35), Math.min(opacity, 0.96)] as const;
   });
 }
 
