@@ -140,7 +140,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
         <div className="relative z-10 flex flex-col gap-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#4E75A5]">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-[#365B86]">
                 {attention ? (
                   <TriangleAlert className="size-4 text-danger" />
                 ) : (
@@ -153,7 +153,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
                   ? 'Há sinais que exigem atenção'
                   : 'Sem degradação observada no snapshot'}
               </h3>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-[#4E75A5]">
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-[#365B86]">
                 Este estado deriva somente das evidências disponíveis no read model autorizado. Ele
                 não substitui monitoramento ativo de serviços externos nem prova recuperação
                 testada.
@@ -165,7 +165,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <Card variant="default" className="stagger-item bg-surface/92 backdrop-blur-sm">
+            <Card variant="default" className="stagger-item bg-surface/96">
               <Card.Header>
                 <Card.Description>Estrutura obrigatória</Card.Description>
                 <Card.Title className="text-xl">
@@ -178,7 +178,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
                   : `${snapshot.foundation.missingPlatformLists.length} lista(s) obrigatória(s) ausente(s).`}
               </Card.Content>
             </Card>
-            <Card variant="default" className="stagger-item bg-surface/92 backdrop-blur-sm">
+            <Card variant="default" className="stagger-item bg-surface/96">
               <Card.Header>
                 <Card.Description>Falhas na auditoria recente</Card.Description>
                 <Card.Title className="text-xl">{operational.recentAuditFailureCount}</Card.Title>
@@ -187,7 +187,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
                 Entre os {snapshot.recentAudit.length} eventos recentes carregados.
               </Card.Content>
             </Card>
-            <Card variant="default" className="stagger-item bg-surface/92 backdrop-blur-sm">
+            <Card variant="default" className="stagger-item bg-surface/96">
               <Card.Header>
                 <Card.Description>Contratos de health check</Card.Description>
                 <Card.Title className="text-xl">{operational.healthContractsConfigured}</Card.Title>
@@ -200,7 +200,7 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
             </Card>
           </div>
 
-          <Surface variant="default" className="rounded-2xl bg-surface/84 p-4 backdrop-blur-md">
+          <Surface variant="default" className="rounded-2xl bg-surface/96 p-4">
             <ProgressBar
               value={healthCoverage}
               color={healthCoverage === 100 ? 'success' : 'accent'}
