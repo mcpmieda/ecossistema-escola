@@ -190,9 +190,9 @@ describe('Banco de Notas D1 migrations', () => {
       `),
     ).toThrow(/CHECK constraint failed/iu);
 
-    expect(() => db.exec("UPDATE grade_events SET status = 'rejected' WHERE id = 'event-1';")).toThrow(
-      /grade_events are append-only/iu,
-    );
+    expect(() =>
+      db.exec("UPDATE grade_events SET status = 'rejected' WHERE id = 'event-1';"),
+    ).toThrow(/grade_events are append-only/iu);
 
     db.exec(`
       INSERT INTO audit_events
