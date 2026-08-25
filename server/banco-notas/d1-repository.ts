@@ -152,14 +152,7 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
            SET name = ?, description = ?, status = ?, environment = ?, migration_state = ?, updated_at = CURRENT_TIMESTAMP
            WHERE id = ?`,
         )
-        .bind(
-          next.name,
-          next.description,
-          next.status,
-          next.environment,
-          next.migrationState,
-          id,
-        ),
+        .bind(next.name, next.description, next.status, next.environment, next.migrationState, id),
       this.audit('source.updated', 'data_source', id, actor, {
         reason: input.reason,
         before: source(current),
