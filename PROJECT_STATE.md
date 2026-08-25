@@ -2,34 +2,34 @@
 
 ## Estado atual
 
-O Centro de Administração atingiu **100% do escopo técnico definido para esta fase**.
+O Centro de Administração atingiu **100% do escopo técnico definido para esta fase** e está consolidado em **HeroUI v0.9**.
 
 - fonte técnica de verdade: `main`;
-- implementação funcional consolidada: `main@03d6a9ca3107174af63d84a638301aebcdf6bfe4`;
-- consolidação técnica/documental já publicada: `main@eeb2a6827edc5c09d38684e3165f38649a6ce81e`;
+- candidata atual: `main@dd665205d0bbc37bcfbc6f423de02ec5e0e03527`;
 - domínio de validação: `https://admin.escolaieda.com`;
+- design system: HeroUI React v3 (`@heroui/react 3.2.4` + `@heroui/styles 3.2.4`);
 - acesso da candidata: restrito às capabilities administrativas existentes;
 - release state: `validation`;
 - produção oficial: **não autorizada**.
 
-A inspeção autenticada do administrador e a decisão de aprovação são agora **gates humanos posteriores ao término do desenvolvimento desta fase**, e não trabalho técnico pendente.
+A inspeção autenticada do administrador e a decisão de aprovação são gates humanos posteriores ao término do desenvolvimento técnico desta fase.
 
 ## Escopo fechado desta fase
 
-Por decisão de produto, estes itens permanecem adiados e não entram no cálculo de 100% desta fase:
+Por decisão de produto, permanecem adiados e fora do cálculo de 100% desta fase:
 
 - integração funcional do primeiro sistema independente;
 - módulo `Publicações`;
 - módulo `Páginas`.
 
-Notificações/pendências também não receberam implementação artificial: não existe nesta fase uma fonte autoritativa e uma regra institucional suficientes para criar comportamento real sem inventar regra de produto. A infraestrutura futura continua compatível com esse recurso, mas sua definição fica para o momento em que houver fonte e regra explícitas.
+Notificações/pendências também não receberam implementação artificial: não existe nesta fase uma fonte autoritativa e regra institucional suficientes para criar comportamento real sem inventar produto.
 
 ## Núcleo entregue
 
 - Microsoft Entra ID + BFF + cookie HttpOnly selado;
 - autorização server-side por capabilities;
 - grants administrativos fail closed;
-- shell administrativo shadcn/ui;
+- shell administrativo HeroUI React v3;
 - navegação restaurável;
 - busca transversal permission-scoped;
 - snapshot server-side minimizado e recortado por capability;
@@ -42,109 +42,124 @@ Notificações/pendências também não receberam implementação artificial: n�
 - responsividade, foco e reduced-motion;
 - logout com redirecionamento imediato;
 - recovery técnico pós-deploy com evidência real;
-- CI/CD, segurança de workflows e semantic assurance ativos.
+- CI/CD, segurança de workflows e semantic assurance ativos;
+- `ambient-constellation` como assinatura visual HeroUI, calibrado em microescala proporcional.
 
-## Gates técnicos finais
+## HeroUI v0.9
 
-### Pipeline da candidata funcional
+A migração transversal para HeroUI foi incorporada pelo PR #35 e implantada inicialmente em:
 
-`main@03d6a9ca3107174af63d84a638301aebcdf6bfe4`, workflow `32792263791`:
+`main@ff4dba8b22e3c4ef8f42d8968872ee0d98d3ba65`
+
+Workflow `32826760272`:
 
 - Validate GitHub Actions security: **success**;
 - Validate application: **success**;
 - deploy Cloudflare Pages: **success**;
-- recovery pós-deploy: **success**;
+- recovery pós-deploy: **success**.
+
+A implementação visual preservou BFF, Entra ID, sessão, capabilities, Graph, SharePoint, recovery e contratos funcionais.
+
+## Calibração final do Ambient Constellation
+
+A inspeção visual identificou que a primeira primitive usava geometria proporcional à viewport e transformava partículas em círculos grandes.
+
+A App Factory foi corrigida pelo PR #54 para registrar microescala em screen-space, overscan/crop, drift proporcional e o anti-padrão que causou a regressão.
+
+No Centro, o PR #36 substituiu o modelo anterior por:
+
+- 2 camadas de 28 micro-partículas;
+- tamanho final entre aproximadamente `0.6px` e `1.3px` no desktop;
+- redução adicional no mobile;
+- overscan aproximado de `1.36×` por `1.78×`;
+- ciclos de `12s` e `15s` em direções opostas;
+- amplitude aproximada de `20px` desktop e `12px` mobile;
+- glow estático;
+- fallback estático em `prefers-reduced-motion`.
+
+Candidata final após essa correção:
+
+`main@dd665205d0bbc37bcfbc6f423de02ec5e0e03527`
+
+## Gates técnicos finais
+
+Workflow definitivo da candidata HeroUI v0.9: `32829296147`.
+
+Resultado:
+
+- Validate GitHub Actions security: **success**;
+- actionlint: **pass**;
+- zizmor persona `pedantic`: **pass**;
+- Validate application: **success**;
+- `npm ci`: **pass**;
 - format: **pass**;
 - lint: **pass**;
 - typecheck: **pass**;
-- semantic check: **pass**;
-- 14 arquivos / **104 testes**: **pass**;
+- semantic contract: **pass**;
+- testes: **pass**;
 - build Vite: **pass**;
-- actionlint: **pass**;
-- zizmor persona `pedantic`: **pass**.
-
-Fingerprint semântico vigente:
-
-`3e4b132d5d2540347932cec4cd9a48f3016dbbf4ce1702dfd489cc1889563503`
-
-### Revalidação da consolidação final
-
-A consolidação documental `main@eeb2a6827edc5c09d38684e3165f38649a6ce81e` também percorreu integralmente o pipeline:
-
-- workflow `32793959939`: **success**;
-- segurança: **success**;
-- aplicação: **success**;
 - deploy Cloudflare Pages: **success**;
-- recovery pós-deploy: **success**;
-- artifact de recovery: `9544190526`;
-- artifact SHA-256: `682f84ac2ca6476b2ddf089ec5732557f31f95603df4491d84c2923187ed4f13`.
+- Verify recovery after deploy: **success**.
 
-Portanto a documentação final não ficou um commit à frente de uma versão não validada.
+Evidência de recovery da candidata final:
 
-## Recovery real
+- artifact: `9556184489`;
+- nome: `recovery-verification-32829296147`;
+- SHA-256: `d11dc3f9b82d1598251a942065458ff22b176a0b2e96a1c6129d9bb8a8cf10a7`.
 
-O self-test utiliza exclusivamente recurso descartável `RECOVERY_VERIFY_*` dentro da biblioteca técnica `SNAPSHOTS_PLATAFORMA`.
+O recovery continua limitado ao escopo documentado de backup/restore descartável da área técnica do SharePoint. Não é apresentado como disaster recovery integral do Microsoft 365.
 
-O round-trip executa:
+## QA visual real
 
-1. criação do recurso técnico descartável;
-2. gravação de sentinela;
-3. leitura do backup;
-4. checksum SHA-256;
-5. sobrescrita destrutiva controlada;
-6. restore;
-7. nova leitura e checksum;
-8. comparação do backup com o restaurado;
-9. cleanup obrigatório.
+### QA da build calibrada
 
-A candidata funcional foi comprovada no run `32792263791`, job `97636412171`, com `restoreMatched = true` e `cleanup = deleted`.
+Workflow temporário: `32828658258` — **success**.
 
-A consolidação final foi novamente comprovada no run `32793959939`, job `97641635821`, também com conclusão **success** e artifact `9544190526`.
+Artifact:
 
-Esse gate prova somente `sharepoint-snapshots-disposable-metadata-backup-restore-roundtrip`. Ele não é apresentado como disaster recovery integral do Microsoft 365 ou do SharePoint.
+- `9555899769`;
+- SHA-256 `1ed2260d306b141d903c707809f24d60b1e4031b14cc35923ec847f532afee66`.
 
-## Least privilege preservado
+Chrome real validou:
 
-- backend permanece em `Sites.Selected` com papel `write` no `CENTROADMIN`;
-- nenhuma permissão Graph adicional foi concedida para o recovery;
-- a tentativa inicial de criar lista nova recebeu `403`;
-- o teste foi redesenhado para usar a área técnica já existente, em vez de ampliar privilégios.
+- login desktop `1440×900`;
+- login mobile `390×844`;
+- overview desktop com fixture administrativa isolada;
+- overview mobile;
+- overview desktop com `prefers-reduced-motion`.
 
-## Smoke externo e browser QA
+O DOM renderizado confirmou maior partícula `≤ 1.3px`. A inspeção das capturas confirmou ausência dos círculos grandes e manutenção da assinatura constelar em microescala.
 
-Harness descartável executado fora do pipeline de deploy:
+### Smoke do domínio oficial após deploy
 
-- PR temporário #31: fechado **sem merge**;
-- run `32793171050`;
-- job `97638865311`: **success**;
-- artifact `9543850730`;
-- SHA-256 `19859a60f1f6e6c9005536979c3af7a3ef003ddb3c1474e54b0839d64e2d4fdf`.
+Harness descartável PR #37: fechado **sem merge**.
 
-Foram confirmados:
+Run `32829585427`: **success**.
 
-- documento raiz servido pelo domínio oficial;
-- bundle atual do Centro servido;
+Artifact:
+
+- `9556213823`;
+- SHA-256 `61b3161328b95407a2a677a7d31ef34ff5ba748e5378d021d1b66f92efcca221`.
+
+Foram confirmados no domínio real:
+
+- documento raiz servido;
+- candidata atual servida pelo Cloudflare Pages;
 - `/api/me` = `401` sem sessão;
 - `/api/platform/snapshot` = `401` sem sessão;
-- login institucional renderizado em Chrome desktop `1440×900`;
-- login institucional renderizado em Chrome mobile `390×844`;
-- `/#/sistemas` sem sessão continua bloqueado pelo login;
+- login desktop e mobile renderizados em Chrome real;
 - link institucional continua apontando para `/auth/login`;
-- capturas desktop/mobile sem cortes ou quebras visuais evidentes.
-
-A inspeção autenticada das telas internas permanece deliberadamente humana porque não será criado bypass, cookie falso ou redução de segurança para automatizá-la.
+- `/#/sistemas` sem sessão continua bloqueado pelo login;
+- constelação servida no domínio sem retorno dos círculos grandes.
 
 ## Higiene final
 
-Na fonte ativa foram verificados:
-
-- nenhum `TODO`, `FIXME`, `HACK` ou `TEMPORARY` residual;
-- nenhum Playwright permanente deixado na aplicação;
-- nenhum workflow temporário de `domain-smoke`, `cleanup`, `formatter` ou repair-loop na `main`;
-- nenhum PR de desenvolvimento permanece aberto;
-- PR histórico #3 encerrado sem merge por estar superado;
-- PRs/harnesses descartáveis encerrados sem merge;
-- branches históricas de desenvolvimento/teste/documentação sem código divergente da candidata válida.
+- nenhum harness visual temporário foi incorporado à `main`;
+- PR #37 foi fechado sem merge;
+- branches `test/heroui-v0.9`, `test/heroui-v0.9-constellation-scale` e `test/final-domain-smoke-v09-constellation` foram alinhadas novamente à candidata válida;
+- branch de correção da App Factory foi alinhada à `main` após o merge do PR #54;
+- o diff operacional da correção do Ambient Constellation ficou restrito à camada visual e documentação;
+- nenhuma alteração foi feita em BFF, Entra, Graph, SharePoint, capabilities, contratos funcionais ou regras institucionais.
 
 ## Fundação preservada
 
@@ -161,11 +176,13 @@ Não foram reconstruídos nem substituídos:
 - rotação automática da identidade técnica;
 - certificados, secrets e protocolos existentes.
 
-## Marco de 100%
+## Marco atual
 
-**O Centro atingiu 100% do escopo técnico desta fase e está pronto para a inspeção e decisão de aprovação do responsável.**
+**O Centro está tecnicamente pronto para a inspeção autenticada e decisão de aprovação do responsável.**
 
 Isso não significa publicação regular para os usuários. A candidata continua em `validation` e restrita ao público administrativo já autorizado.
+
+A inspeção autenticada das rotas internas deve usar uma sessão real de `ADMINISTRADOR`; não será criado bypass ou sessão falsa para automatizar esse gate.
 
 A liberação oficial continua condicionada ao comando humano exato:
 
@@ -176,6 +193,7 @@ Qualquer alteração material posterior a este marco invalida a aprovação da c
 ## Referências internas
 
 - arquitetura: `ARCHITECTURE.md`;
+- redesign HeroUI: `docs/REDESIGN_HEROUI_V0.9.md`;
 - contrato modular: `docs/CONTRATO_MODULOS.md`;
 - verificação: `VERIFICATION.md`;
 - contrato semântico: `specs/semantic-contract.json`;
