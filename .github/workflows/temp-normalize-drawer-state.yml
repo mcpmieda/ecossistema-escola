@@ -1,61 +1,15 @@
-name: Temporary normalize Drawer state
+name: Temporary normalize Drawer state - retired
 
 on:
-  push:
-    branches:
-      - fix/heroui-native-v2-performance-accessibility
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  normalize:
-    name: Normalize mobile Drawer state
-    if: github.actor != 'github-actions[bot]'
+  retired:
+    name: Retired temporary helper
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - name: Checkout candidate
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install locked dependencies
-        run: npm ci
-      - name: Normalize Drawer composition in App
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('src/App.tsx')
-          text = path.read_text()
-          replacements = [
-              ("  Surface,\n} from '@heroui/react';", "  Surface,\n  useOverlayState,\n} from '@heroui/react';"),
-              ("  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);", "  const mobileNavigationState = useOverlayState();"),
-              ("            <Drawer>\n", "            <Drawer state={mobileNavigationState}>\n"),
-              ("                aria-label=\"Abrir navegação\"\n                onPress={() => setMobileNavigationOpen(true)}\n", "                aria-label=\"Abrir navegação\"\n"),
-              ("              <Drawer.Backdrop\n                variant=\"blur\"\n                isOpen={mobileNavigationOpen}\n                onOpenChange={setMobileNavigationOpen}\n              >", "              <Drawer.Backdrop variant=\"blur\">"),
-              ("                        onNavigate={() => setMobileNavigationOpen(false)}", "                        onNavigate={mobileNavigationState.close}"),
-          ]
-          for old, new in replacements:
-              if old not in text:
-                  raise SystemExit(f'Expected App.tsx fragment not found: {old[:80]!r}')
-              text = text.replace(old, new, 1)
-          path.write_text(text)
-          PY
-          npm run format -- --write src/App.tsx src/platform/search.tsx
-      - name: Commit normalization
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          if git diff --quiet; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/App.tsx src/platform/search.tsx
-          git commit -m "fix(ui): unificar estado dos drawers mobile"
-          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/mcpmieda/ecossistema-escola.git" HEAD:refs/heads/fix/heroui-native-v2-performance-accessibility
+      - name: No operation
+        run: echo "Temporary normalization already applied; this helper is retired."
