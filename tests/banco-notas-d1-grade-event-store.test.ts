@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DatabaseSync, type StatementSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { D1GradeEventStore } from '../server/banco-notas/d1-grade-event-store';
 import { GradeEventForbiddenError, ingestGradeEvent } from '../server/banco-notas/grade-events';
@@ -17,11 +17,11 @@ const migration2 = readFileSync(
 );
 
 class SqlitePrepared {
-  private values: unknown[] = [];
+  private values: SQLInputValue[] = [];
 
   constructor(private readonly statement: StatementSync) {}
 
-  bind(...values: unknown[]): SqlitePrepared {
+  bind(...values: SQLInputValue[]): SqlitePrepared {
     this.values = values;
     return this;
   }
