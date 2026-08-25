@@ -1,3 +1,4 @@
+import { Card, Chip, Surface, Table } from '@heroui/react';
 import {
   Activity,
   CheckCircle2,
@@ -8,32 +9,20 @@ import {
   TriangleAlert,
   type LucideIcon,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { AmbientConstellation } from '@/components/ambient-constellation';
 import type { PlatformSnapshotContract } from '../../shared/platform-contract';
 import { EmptyState, formatDate, PageHeader } from './presentation';
 
 type SignalStatus = 'ok' | 'attention' | 'unknown';
 
-function SignalBadge({ status }: { status: SignalStatus }) {
-  if (status === 'attention') return <Badge variant="destructive">Atenção</Badge>;
-  if (status === 'unknown') return <Badge variant="secondary">Não verificado</Badge>;
-  return <Badge variant="outline">Sem sinal de falha</Badge>;
+function SignalChip({ status }: { status: SignalStatus }) {
+  if (status === 'attention') {
+    return <Chip color="danger" variant="soft" size="sm">Atenção</Chip>;
+  }
+  if (status === 'unknown') {
+    return <Chip variant="soft" size="sm">Não verificado</Chip>;
+  }
+  return <Chip color="success" variant="soft" size="sm">Sem sinal de falha</Chip>;
 }
 
 function SignalRow({
@@ -48,17 +37,20 @@ function SignalRow({
   status: SignalStatus;
 }) {
   return (
-    <div className="flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-surface-secondary sm:flex-row sm:items-center">
+    <div className="stagger-item flex flex-col gap-3 px-5 py-4 transition-colors hover:bg-surface-secondary sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-start gap-3">
-        <div className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-2xl border border-border bg-surface-secondary">
+        <Surface
+          variant="secondary"
+          className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-2xl border border-border/60"
+        >
           <Icon className="size-4 text-muted" />
-        </div>
+        </Surface>
         <div className="min-w-0">
           <p className="text-sm font-medium">{title}</p>
           <p className="mt-1 text-xs leading-5 text-muted">{description}</p>
         </div>
       </div>
-      <SignalBadge status={status} />
+      <SignalChip status={status} />
     </div>
   );
 }
@@ -74,12 +66,14 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
           title="Operação"
           description="Sinais observáveis do núcleo, degradações detectáveis e lacunas que ainda não possuem evidência operacional."
         />
-        <Card>
-          <EmptyState
-            icon={HeartPulse}
-            title="Sinais operacionais não disponíveis"
-            description="A sessão atual não recebeu a capability necessária para consultar os sinais operacionais desta área."
-          />
+        <Card variant="default">
+          <Card.Content className="p-0">
+            <EmptyState
+              icon={HeartPulse}
+              title="Sinais operacionais não disponíveis"
+              description="A sessão atual não recebeu a capability necessária para consultar os sinais operacionais desta área."
+            />
+          </Card.Content>
         </Card>
       </>
     );
@@ -100,164 +94,179 @@ export function OperationsPage({ snapshot }: { snapshot: PlatformSnapshotContrac
         description="Sinais observáveis do núcleo, degradações detectáveis e lacunas que ainda não possuem evidência operacional."
       />
 
-      <Card className={attention ? 'border-danger/30' : ''}>
-        <CardHeader>
-          <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-            {attention ? (
-              <TriangleAlert className="size-4 text-danger" />
-            ) : (
-              <HeartPulse className="size-4 text-success" />
-            )}
-            Estado observado
-          </div>
-          <CardTitle className="text-2xl tracking-tight">
-            {attention ? 'Há sinais que exigem atenção' : 'Sem degradação observada no snapshot'}
-          </CardTitle>
-          <CardDescription className="max-w-3xl leading-6">
-            Este estado é derivado somente de evidências disponíveis no read model autorizado. Ele
-            não substitui monitoramento ativo de serviços externos nem prova recuperação testada.
-          </CardDescription>
-          <CardAction>
-            <Badge variant={attention ? 'destructive' : 'outline'}>
+      <Surface
+        variant="secondary"
+        className="living-surface rounded-[2rem] p-6 sm:p-7"
+      >
+        <AmbientConstellation intensity={attention ? 'medium' : 'strong'} placement="right" />
+        <div className="living-aura living-aura--right" />
+        <div className="relative z-10 flex flex-col gap-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+                {attention ? (
+                  <TriangleAlert className="size-4 text-danger" />
+                ) : (
+                  <HeartPulse className="size-4 text-success" />
+                )}
+                Estado observado
+              </div>
+              <h3 className="mt-4 max-w-3xl text-2xl font-semibold tracking-[-0.04em] sm:text-3xl">
+                {attention ? 'Há sinais que exigem atenção' : 'Sem degradação observada no snapshot'}
+              </h3>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-muted">
+                Este estado deriva somente das evidências disponíveis no read model autorizado. Ele não
+                substitui monitoramento ativo de serviços externos nem prova recuperação testada.
+              </p>
+            </div>
+            <Chip color={attention ? 'danger' : 'success'} variant="soft" size="sm">
               {attention ? 'Atenção' : 'Nominal'}
-            </Badge>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-border bg-surface-secondary p-4">
-            <p className="text-xs text-muted">Estrutura obrigatória</p>
-            <p className="mt-2 text-lg font-semibold">
-              {snapshot.foundation.expectedPlatformListsPresent ? 'Completa' : 'Incompleta'}
-            </p>
-            <p className="mt-1 text-xs text-muted">
-              {snapshot.foundation.expectedPlatformListsPresent
-                ? 'Todas as listas estruturais foram encontradas.'
-                : `${snapshot.foundation.missingPlatformLists.length} lista(s) obrigatória(s) ausente(s).`}
-            </p>
+            </Chip>
           </div>
-          <div className="rounded-2xl border border-border bg-surface-secondary p-4">
-            <p className="text-xs text-muted">Falhas na auditoria recente</p>
-            <p className="mt-2 text-lg font-semibold">{operational.recentAuditFailureCount}</p>
-            <p className="mt-1 text-xs text-muted">
-              Entre os {snapshot.recentAudit.length} eventos recentes carregados.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-border bg-surface-secondary p-4">
-            <p className="text-xs text-muted">Contratos de health check</p>
-            <p className="mt-2 text-lg font-semibold">{operational.healthContractsConfigured}</p>
-            <p className="mt-1 text-xs text-muted">
-              {registeredCount === 0
-                ? 'Nenhum sistema independente registrado.'
-                : `${operational.healthContractsMissing} sistema(s) sem contrato configurado.`}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
 
-      <Card className="mt-5 gap-0 overflow-hidden py-0">
-        <CardHeader className="border-b border-border/70 py-4">
-          <CardTitle>Sinais observados</CardTitle>
-          <CardDescription>
-            O painel separa falha detectada, cobertura configurada e evidência ainda ausente.
-          </CardDescription>
-        </CardHeader>
-        <div className="divide-y divide-border/70">
-          <SignalRow
-            icon={Database}
-            title="Estrutura da plataforma"
-            description={
-              snapshot.foundation.expectedPlatformListsPresent
-                ? 'As quatro listas estruturais esperadas pelo núcleo foram localizadas no site institucional.'
-                : `Ausentes: ${snapshot.foundation.missingPlatformLists.join(', ')}.`
-            }
-            status={snapshot.foundation.status === 'ok' ? 'ok' : 'attention'}
-          />
-          <SignalRow
-            icon={Activity}
-            title="Auditoria recente"
-            description={
-              operational.recentAuditFailureCount === 0
-                ? operational.lastAuditAt
-                  ? `Nenhum resultado explicitamente classificado como erro/falha nos eventos carregados. Último evento: ${formatDate(operational.lastAuditAt)}.`
-                  : 'Nenhum evento recente foi carregado; não há evidência suficiente para inferir atividade.'
-                : `${operational.recentAuditFailureCount} evento(s) recente(s) possuem resultado explicitamente iniciado por erro ou falha.`
-            }
-            status={
-              operational.lastAuditAt === ''
-                ? 'unknown'
-                : operational.recentAuditFailureCount > 0
-                  ? 'attention'
-                  : 'ok'
-            }
-          />
-          <SignalRow
-            icon={PlugZap}
-            title="Contratos de saúde dos sistemas"
-            description={healthCoverageDescription}
-            status={
-              registeredCount === 0 || operational.healthContractsMissing > 0 ? 'unknown' : 'ok'
-            }
-          />
-          <SignalRow
-            icon={RotateCcw}
-            title="Recuperação e restore"
-            description="O snapshot atual não contém evidência de teste de restauração. A ausência dessa evidência não é tratada como falha ativa, mas permanece uma lacuna explícita de governança."
-            status="unknown"
-          />
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Card variant="default" className="stagger-item">
+              <Card.Header>
+                <Card.Description>Estrutura obrigatória</Card.Description>
+                <Card.Title className="text-xl">
+                  {snapshot.foundation.expectedPlatformListsPresent ? 'Completa' : 'Incompleta'}
+                </Card.Title>
+              </Card.Header>
+              <Card.Content className="text-xs leading-5 text-muted">
+                {snapshot.foundation.expectedPlatformListsPresent
+                  ? 'Todas as listas estruturais foram encontradas.'
+                  : `${snapshot.foundation.missingPlatformLists.length} lista(s) obrigatória(s) ausente(s).`}
+              </Card.Content>
+            </Card>
+            <Card variant="default" className="stagger-item">
+              <Card.Header>
+                <Card.Description>Falhas na auditoria recente</Card.Description>
+                <Card.Title className="text-xl">{operational.recentAuditFailureCount}</Card.Title>
+              </Card.Header>
+              <Card.Content className="text-xs leading-5 text-muted">
+                Entre os {snapshot.recentAudit.length} eventos recentes carregados.
+              </Card.Content>
+            </Card>
+            <Card variant="default" className="stagger-item">
+              <Card.Header>
+                <Card.Description>Contratos de health check</Card.Description>
+                <Card.Title className="text-xl">{operational.healthContractsConfigured}</Card.Title>
+              </Card.Header>
+              <Card.Content className="text-xs leading-5 text-muted">
+                {registeredCount === 0
+                  ? 'Nenhum sistema independente registrado.'
+                  : `${operational.healthContractsMissing} sistema(s) sem contrato configurado.`}
+              </Card.Content>
+            </Card>
+          </div>
         </div>
+      </Surface>
+
+      <Card variant="default" className="mt-5 overflow-hidden">
+        <Card.Header className="border-b border-border/60">
+          <Card.Title>Sinais observados</Card.Title>
+          <Card.Description>
+            O painel separa falha detectada, cobertura configurada e evidência ainda ausente.
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="p-0">
+          <div className="divide-y divide-border/60">
+            <SignalRow
+              icon={Database}
+              title="Estrutura da plataforma"
+              description={
+                snapshot.foundation.expectedPlatformListsPresent
+                  ? 'As quatro listas estruturais esperadas pelo núcleo foram localizadas no site institucional.'
+                  : `Ausentes: ${snapshot.foundation.missingPlatformLists.join(', ')}.`
+              }
+              status={snapshot.foundation.status === 'ok' ? 'ok' : 'attention'}
+            />
+            <SignalRow
+              icon={Activity}
+              title="Auditoria recente"
+              description={
+                operational.recentAuditFailureCount === 0
+                  ? operational.lastAuditAt
+                    ? `Nenhum resultado explicitamente classificado como erro/falha nos eventos carregados. Último evento: ${formatDate(operational.lastAuditAt)}.`
+                    : 'Nenhum evento recente foi carregado; não há evidência suficiente para inferir atividade.'
+                  : `${operational.recentAuditFailureCount} evento(s) recente(s) possuem resultado explicitamente iniciado por erro ou falha.`
+              }
+              status={
+                operational.lastAuditAt === ''
+                  ? 'unknown'
+                  : operational.recentAuditFailureCount > 0
+                    ? 'attention'
+                    : 'ok'
+              }
+            />
+            <SignalRow
+              icon={PlugZap}
+              title="Contratos de saúde dos sistemas"
+              description={healthCoverageDescription}
+              status={registeredCount === 0 || operational.healthContractsMissing > 0 ? 'unknown' : 'ok'}
+            />
+            <SignalRow
+              icon={RotateCcw}
+              title="Recuperação e restore"
+              description="O snapshot atual não contém evidência de teste de restauração. A ausência dessa evidência não é tratada como falha ativa, mas permanece uma lacuna explícita de governança."
+              status="unknown"
+            />
+          </div>
+        </Card.Content>
       </Card>
 
-      <Card className="mt-5 gap-0 overflow-hidden py-0">
-        <CardHeader className="border-b border-border/70 py-4">
-          <CardTitle>Cobertura dos sistemas registrados</CardTitle>
-          <CardDescription>
-            Metadados de integração; nenhum HealthEndpoint é executado pelo navegador ou pelo BFF
-            nesta candidata.
-          </CardDescription>
-        </CardHeader>
-        {snapshot.registeredModules.length === 0 ? (
-          <EmptyState
-            icon={PlugZap}
-            title="Nenhum sistema independente registrado"
-            description="Quando sistemas forem incorporados ao Centro, a cobertura dos contratos de saúde aparecerá aqui sem transformar configuração em falsa prova de disponibilidade."
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Sistema</TableHead>
-                  <TableHead>Estado declarado</TableHead>
-                  <TableHead>HealthEndpoint</TableHead>
-                  <TableHead>Atualização</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {snapshot.registeredModules.map((module) => (
-                  <TableRow key={module.id}>
-                    <TableCell className="font-medium">{module.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{module.status || 'sem estado'}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      {module.healthEndpoint.trim() ? (
-                        <div className="flex items-center gap-2 text-sm">
-                          <CheckCircle2 className="size-4 text-success" />
-                          Configurado
-                        </div>
-                      ) : (
-                        <span className="text-sm text-muted">Não configurado</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap text-muted">
-                      {formatDate(module.updatedAt)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
+      <Card variant="default" className="mt-5 overflow-hidden">
+        <Card.Header className="border-b border-border/60">
+          <Card.Title>Cobertura dos sistemas registrados</Card.Title>
+          <Card.Description>
+            Metadados de integração; nenhum HealthEndpoint é executado pelo navegador ou pelo BFF nesta candidata.
+          </Card.Description>
+        </Card.Header>
+        <Card.Content className="p-0">
+          {snapshot.registeredModules.length === 0 ? (
+            <EmptyState
+              icon={PlugZap}
+              title="Nenhum sistema independente registrado"
+              description="Quando sistemas forem incorporados ao Centro, a cobertura dos contratos de saúde aparecerá aqui sem transformar configuração em falsa prova de disponibilidade."
+            />
+          ) : (
+            <Table variant="secondary">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Cobertura operacional dos sistemas registrados">
+                  <Table.Header>
+                    <Table.Column id="system">Sistema</Table.Column>
+                    <Table.Column id="state">Estado declarado</Table.Column>
+                    <Table.Column id="health">HealthEndpoint</Table.Column>
+                    <Table.Column id="updated">Atualização</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {snapshot.registeredModules.map((module) => (
+                      <Table.Row id={module.id} key={module.id}>
+                        <Table.Cell className="font-medium">{module.name}</Table.Cell>
+                        <Table.Cell>
+                          <Chip variant="soft" size="sm">{module.status || 'sem estado'}</Chip>
+                        </Table.Cell>
+                        <Table.Cell>
+                          {module.healthEndpoint.trim() ? (
+                            <div className="flex items-center gap-2 text-sm">
+                              <CheckCircle2 className="size-4 text-success" />
+                              Configurado
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted">Não configurado</span>
+                          )}
+                        </Table.Cell>
+                        <Table.Cell className="whitespace-nowrap text-muted">
+                          {formatDate(module.updatedAt)}
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
-          </div>
-        )}
+          )}
+        </Card.Content>
       </Card>
     </>
   );
