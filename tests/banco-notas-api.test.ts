@@ -138,7 +138,9 @@ describe('Banco de Notas API', () => {
 
   it('maps a cross-year source assignment to a conflict', async () => {
     const repo = repository();
-    vi.mocked(repo.createAssignment).mockRejectedValueOnce(new Error('source_assignment_year_mismatch'));
+    vi.mocked(repo.createAssignment).mockRejectedValueOnce(
+      new Error('source_assignment_year_mismatch'),
+    );
 
     await expect(
       routeBancoNotasApi({
