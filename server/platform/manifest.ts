@@ -7,7 +7,7 @@ import {
 
 const platformRouteSchema = z.enum(PLATFORM_ROUTES);
 const platformCapabilitySchema = z.enum(PLATFORM_CAPABILITIES);
-const moduleStateSchema = z.enum(['validation', 'planned']);
+const moduleStateSchema = z.enum(['ready', 'planned']);
 
 export const coreModuleSchema = z.object({
   id: z.string().min(1),
@@ -25,7 +25,7 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
     name: 'Visão geral',
     description: 'Resumo operacional, integrações e próximos pontos de atenção.',
     route: 'visao-geral',
-    state: 'validation',
+    state: 'ready',
     requiredRole: 'ADMINISTRADOR',
     capabilities: ['platform.overview.read'],
   },
@@ -34,7 +34,7 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
     name: 'Operação',
     description: 'Saúde observável, degradação e lacunas de recuperação do núcleo.',
     route: 'operacao',
-    state: 'validation',
+    state: 'ready',
     requiredRole: 'ADMINISTRADOR',
     capabilities: ['platform.health.read'],
   },
@@ -61,7 +61,7 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
     name: 'Sistemas',
     description: 'Catálogo dos módulos do núcleo e dos sistemas registrados no SharePoint.',
     route: 'sistemas',
-    state: 'validation',
+    state: 'ready',
     requiredRole: 'ADMINISTRADOR',
     capabilities: ['platform.modules.read'],
   },
@@ -70,7 +70,7 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
     name: 'Auditoria',
     description: 'Consulta autorizada da trilha administrativa já preparada na fundação.',
     route: 'auditoria',
-    state: 'validation',
+    state: 'ready',
     requiredRole: 'ADMINISTRADOR',
     capabilities: ['platform.audit.read'],
   },
@@ -79,7 +79,7 @@ export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse
     name: 'Configurações',
     description: 'Leitura segura das chaves e metadados de configuração da plataforma.',
     route: 'configuracoes',
-    state: 'validation',
+    state: 'ready',
     requiredRole: 'ADMINISTRADOR',
     capabilities: ['platform.settings.read'],
   },

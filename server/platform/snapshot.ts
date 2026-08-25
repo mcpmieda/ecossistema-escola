@@ -176,8 +176,8 @@ export function buildPlatformSnapshot(
       : ('nominal' as const);
 
   return {
-    version: '0.8.0-validation',
-    releaseState: 'validation' as const,
+    version: '1.0.0',
+    releaseState: 'production' as const,
     generatedAt: source.generatedAt ?? new Date().toISOString(),
     correlationId: source.correlationId,
     foundation: {

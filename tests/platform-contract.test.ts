@@ -9,7 +9,7 @@ describe('Centro de Administração module contract', () => {
     expect(new Set(coreModules.map((module) => module.route))).toEqual(new Set(PLATFORM_ROUTES));
   });
 
-  it('keeps the validation candidate restricted to administrators', () => {
+  it('keeps the production platform restricted to administrators', () => {
     expect(coreModules.every((module) => module.requiredRole === 'ADMINISTRADOR')).toBe(true);
   });
 
@@ -18,14 +18,15 @@ describe('Centro de Administração module contract', () => {
     for (const module of coreModules) expect(coreModuleSchema.parse(module)).toEqual(module);
   });
 
-  it('keeps write-heavy content domains planned and platform observability in validation', () => {
+  it('keeps future content domains planned and the released administrative core ready', () => {
     const states = new Map(coreModules.map((module) => [module.route, module.state]));
     expect(states.get('publicacoes')).toBe('planned');
     expect(states.get('paginas')).toBe('planned');
-    expect(states.get('operacao')).toBe('validation');
-    expect(states.get('sistemas')).toBe('validation');
-    expect(states.get('auditoria')).toBe('validation');
-    expect(states.get('configuracoes')).toBe('validation');
+    expect(states.get('visao-geral')).toBe('ready');
+    expect(states.get('operacao')).toBe('ready');
+    expect(states.get('sistemas')).toBe('ready');
+    expect(states.get('auditoria')).toBe('ready');
+    expect(states.get('configuracoes')).toBe('ready');
   });
 
   it('gives the operational area an explicit read capability', () => {

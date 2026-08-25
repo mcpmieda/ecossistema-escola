@@ -19,7 +19,7 @@ describe('platform snapshot parsing', () => {
     expect(isFailureResult('sem erro')).toBe(false);
   });
 
-  it('builds the validation read model without exposing protected or legacy authorization values', () => {
+  it('builds the production snapshot without exposing protected or legacy authorization values', () => {
     const snapshot = buildPlatformSnapshot(
       {
         lists: [
@@ -80,8 +80,8 @@ describe('platform snapshot parsing', () => {
     );
     const serialized = JSON.stringify(snapshot);
 
-    expect(snapshot.version).toBe('0.8.0-validation');
-    expect(snapshot.releaseState).toBe('validation');
+    expect(snapshot.version).toBe('1.0.0');
+    expect(snapshot.releaseState).toBe('production');
     expect(snapshot.foundation).toEqual({
       status: 'ok',
       sharePointListCount: 4,

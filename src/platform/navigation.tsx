@@ -1,4 +1,4 @@
-import { Alert, Chip, ScrollShadow, Separator, Skeleton, Surface } from '@heroui/react';
+import { Chip, ScrollShadow, Separator, Skeleton, Surface } from '@heroui/react';
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
 import { BrandMark } from './presentation';
 import { platformHref, routeIcons } from './routes';
@@ -99,18 +99,6 @@ export function SidebarContent({
         </div>
         <Navigation route={route} modules={modules} loading={loading} onNavigate={onNavigate} />
       </ScrollShadow>
-
-      <div className="p-4 pt-2">
-        <Alert status="warning" className="sidebar-validation-alert">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>Ambiente de validação</Alert.Title>
-            <Alert.Description>
-              Acesso controlado. A liberação oficial permanece bloqueada.
-            </Alert.Description>
-          </Alert.Content>
-        </Alert>
-      </div>
     </Surface>
   );
 }

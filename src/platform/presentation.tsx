@@ -70,9 +70,11 @@ export function PageHeader({
 }
 
 export function ModuleStatus({ state }: { state: CoreModuleContract['state'] }) {
+  const available = state === 'ready';
+
   return (
-    <Chip color={state === 'validation' ? 'accent' : 'default'} variant="soft" size="sm">
-      {state === 'validation' ? 'Em validação' : 'Planejado'}
+    <Chip color={available ? 'success' : 'default'} variant="soft" size="sm">
+      {available ? 'Disponível' : 'Planejado'}
     </Chip>
   );
 }

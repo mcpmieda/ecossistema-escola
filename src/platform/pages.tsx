@@ -1,4 +1,4 @@
-import { Alert, Card, Chip, Skeleton, Spinner, Surface, Table } from '@heroui/react';
+import { Card, Chip, Skeleton, Spinner, Surface, Table } from '@heroui/react';
 import {
   Activity,
   BookOpenText,
@@ -23,15 +23,30 @@ function integrationStateLabel(state: ModuleIntegrationState): string {
     case 'ready':
       return 'Pronto';
     case 'registry-only':
-      return 'Somente registro';
+      return 'Cadastrado';
     case 'contract-mismatch':
-      return 'Contrato divergente';
+      return 'Requer atualização';
     case 'disabled':
       return 'Desabilitado';
     case 'deprecated':
-      return 'Depreciado';
+      return 'Descontinuado';
     default:
-      return 'Registro inválido';
+      return 'Cadastro inválido';
+  }
+}
+
+function registryStatusLabel(
+  status: PlatformSnapshotContract['registeredModules'][number]['status'],
+): string {
+  switch (status) {
+    case 'installed':
+      return 'Instalado';
+    case 'disabled':
+      return 'Desabilitado';
+    case 'deprecated':
+      return 'Descontinuado';
+    default:
+      return 'Não identificado';
   }
 }
 
@@ -47,22 +62,10 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
   const activeConfigurations = snapshot.configurations.filter(
     (configuration) => configuration.active,
   ).length;
-  const validationModules = snapshot.coreModules.filter(
-    (module) => module.state === 'validation',
-  ).length;
+  const availableModules = snapshot.coreModules.filter((module) => module.state === 'ready').length;
 
   return (
     <>
-      <Alert status="warning" className="mb-5">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>Centro em validação controlada</Alert.Title>
-          <Alert.Description>
-            Acesso restrito às capabilities administrativas existentes.
-          </Alert.Description>
-        </Alert.Content>
-      </Alert>
-
       <PageHeader
         eyebrow="Visão geral"
         title="Operação da plataforma"
@@ -84,8 +87,8 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
               {snapshot.foundation.status === 'ok' ? 'Estrutura disponível' : 'Estrutura degradada'}
             </h3>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[#365B86]">
-              O estado deriva da presença real das estruturas obrigatórias. Sinais detalhados,
-              cobertura de health checks e lacunas de recuperação ficam na área de Operação.
+              O estado considera as estruturas necessárias ao Centro. Informações de
+              disponibilidade, monitoramento e recuperação ficam na área de Operação.
             </p>
             <div className="mt-auto grid gap-2 pt-7 sm:grid-cols-3">
               {[
@@ -112,24 +115,24 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           <Card variant="default" className="stagger-item">
             <Card.Header className="flex-row items-start justify-between">
               <div>
-                <Card.Description>Persistência</Card.Description>
+                <Card.Description>Dados institucionais</Card.Description>
                 <Card.Title className="mt-1 text-2xl">
                   {snapshot.foundation.sharePointListCount}
                 </Card.Title>
               </div>
               <Database className="size-4 text-muted" />
             </Card.Header>
-            <Card.Content className="text-xs text-muted">listas institucionais</Card.Content>
+            <Card.Content className="text-xs text-muted">estruturas disponíveis</Card.Content>
           </Card>
           <Card variant="default" className="stagger-item">
             <Card.Header className="flex-row items-start justify-between">
               <div>
-                <Card.Description>Núcleo disponível</Card.Description>
-                <Card.Title className="mt-1 text-2xl">{validationModules}</Card.Title>
+                <Card.Description>Áreas disponíveis</Card.Description>
+                <Card.Title className="mt-1 text-2xl">{availableModules}</Card.Title>
               </div>
               <Boxes className="size-4 text-muted" />
             </Card.Header>
-            <Card.Content className="text-xs text-muted">áreas em validação</Card.Content>
+            <Card.Content className="text-xs text-muted">prontas para uso</Card.Content>
           </Card>
           <Card variant="default" className="stagger-item">
             <Card.Header className="flex-row items-start justify-between">
@@ -139,7 +142,7 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
               </div>
               <Settings2 className="size-4 text-muted" />
             </Card.Header>
-            <Card.Content className="text-xs text-muted">ativas no registro</Card.Content>
+            <Card.Content className="text-xs text-muted">ativas</Card.Content>
           </Card>
         </div>
       </div>
@@ -163,14 +166,14 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       <PageHeader
         eyebrow="Catálogo"
         title="Sistemas e módulos"
-        description="O registro institucional é inventário; o Centro só considera um sistema integrado quando existe contrato versionado compatível e autorização suficiente."
+        description="Acompanhe os sistemas cadastrados e a situação de integração de cada um com o Centro."
       />
 
       <Card variant="default" className="overflow-hidden">
         <Card.Header className="border-b border-border/60">
           <Card.Title>Módulos do núcleo</Card.Title>
           <Card.Description>
-            {snapshot.coreModules.length} áreas definidas por contrato.
+            {snapshot.coreModules.length} áreas cadastradas no Centro.
           </Card.Description>
         </Card.Header>
         <Card.Content className="p-2">
@@ -182,8 +185,8 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
         <Card.Header className="border-b border-border/60">
           <Card.Title>Registro e integração</Card.Title>
           <Card.Description>
-            O estado compara o inventário SharePoint com o manifesto versionado reconhecido pelo
-            Centro. Registro isolado não concede acesso.
+            A situação indica se o sistema está cadastrado, compatível e disponível para uso no
+            Centro.
           </Card.Description>
         </Card.Header>
         <Card.Content className="p-0">
@@ -201,7 +204,7 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                     <Table.Column id="version">Versão</Table.Column>
                     <Table.Column id="registry">Registro</Table.Column>
                     <Table.Column id="integration">Integração</Table.Column>
-                    <Table.Column id="capabilities">Capabilities</Table.Column>
+                    <Table.Column id="capabilities">Permissões</Table.Column>
                   </Table.Header>
                   <Table.Body>
                     {snapshot.registeredModules.map((module) => {
@@ -210,19 +213,13 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                         <Table.Row id={module.id} key={module.id}>
                           <Table.Cell>
                             <div className="font-medium">{module.name}</div>
-                            <div className="mt-0.5 font-mono text-xs text-muted">{module.key}</div>
                           </Table.Cell>
                           <Table.Cell className="whitespace-nowrap">
                             {module.version || '—'}
-                            {module.contractVersion !== null && (
-                              <div className="mt-0.5 text-xs text-muted">
-                                contrato v{module.contractVersion}
-                              </div>
-                            )}
                           </Table.Cell>
                           <Table.Cell>
                             <Chip variant="soft" size="sm">
-                              {module.status}
+                              {registryStatusLabel(module.status)}
                             </Chip>
                           </Table.Cell>
                           <Table.Cell>
@@ -232,27 +229,18 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                               </Chip>
                               {module.integrationIssues.length > 0 && (
                                 <span className="text-xs text-muted">
-                                  Divergência: {module.integrationIssues.join(', ')}
+                                  Requer revisão da integração
                                 </span>
                               )}
                             </div>
                           </Table.Cell>
                           <Table.Cell className="min-w-56">
                             {module.requiredCapabilities.length > 0 ? (
-                              <div className="flex flex-wrap gap-1.5">
-                                {module.requiredCapabilities.map((capability) => (
-                                  <Chip
-                                    key={capability}
-                                    variant="soft"
-                                    size="sm"
-                                    className="font-mono text-[0.68rem]"
-                                  >
-                                    {capability}
-                                  </Chip>
-                                ))}
-                              </div>
+                              <Chip color="success" variant="soft" size="sm">
+                                Configuradas
+                              </Chip>
                             ) : (
-                              <span className="text-xs text-muted">Sem manifesto integrado</span>
+                              <span className="text-xs text-muted">Não definidas</span>
                             )}
                           </Table.Cell>
                         </Table.Row>
@@ -280,7 +268,7 @@ function AuditPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       <Card variant="default" className="overflow-hidden">
         <Card.Header className="border-b border-border/60">
           <Card.Title>Atividade recente</Card.Title>
-          <Card.Description>Somente leitura nesta candidata.</Card.Description>
+          <Card.Description>Consulta somente leitura.</Card.Description>
         </Card.Header>
         <Card.Content className="p-0">
           {snapshot.recentAudit.length === 0 ? (
@@ -335,7 +323,7 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       <PageHeader
         eyebrow="Governança"
         title="Configurações"
-        description="A interface mostra somente metadados de configuração. Valores protegidos não são enviados ao navegador."
+        description="Consulte as configurações administrativas e seu estado de vigência."
       />
 
       <Card variant="default" className="overflow-hidden">
@@ -397,7 +385,7 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
             <EmptyState
               icon={Database}
               title="Nenhuma migração registrada"
-              description="Esta candidata somente leitura não exigiu migração de módulo."
+              description="Nenhuma migração de módulo foi necessária até o momento."
             />
           ) : (
             <Table variant="secondary">
@@ -443,13 +431,13 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
       ? {
           title: 'Publicações',
           description:
-            'A gestão editorial será construída como uma fatia própria, com revisão, programação, publicação e rollback.',
+            'A gestão de publicações será disponibilizada em uma próxima etapa, com revisão, programação e histórico.',
           icon: BookOpenText,
         }
       : {
           title: 'Páginas',
           description:
-            'A edição controlada de páginas será incorporada ao Centro sem transportar código legado ou criar caminhos paralelos.',
+            'A edição de páginas será disponibilizada em uma próxima etapa, com controle de alterações e versões.',
           icon: FileText,
         };
   const Icon = copy.icon;
@@ -459,7 +447,7 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
       <PageHeader
         eyebrow="Próxima fase"
         title={copy.title}
-        description="Esta área já possui lugar definido no Centro, mas ainda não realiza operações de negócio."
+        description="Esta área está reservada para uma próxima etapa e ainda não está disponível para uso."
       />
       <Surface
         variant="secondary"
@@ -482,7 +470,7 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
           className="mt-7 flex items-center gap-2 rounded-2xl bg-surface/96 px-4 py-3 text-xs text-muted"
         >
           <ShieldCheck className="size-3.5 text-accent" />
-          Nenhuma escrita foi ativada nesta candidata.
+          Recurso ainda não disponível para edição.
         </Surface>
       </Surface>
     </>
