@@ -23,7 +23,8 @@ describe('HeroUI final hardening contract', () => {
   it('uses a native HeroUI profile dropdown and friendly authentication recovery screen', () => {
     const app = source('src/App.tsx');
 
-    expect(app).toContain('<Dropdown.Trigger>');
+    expect(app).toMatch(/<Dropdown>\s*<Button[\s\S]*?aria-label="Abrir menu do perfil"/u);
+    expect(app).not.toContain('<Dropdown.Trigger>');
     expect(app).toContain('<Avatar');
     expect(app).toContain('<Dropdown.Item id="logout"');
     expect(app).toContain('Não foi possível concluir sua entrada.');

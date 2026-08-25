@@ -366,29 +366,27 @@ function AdminShell({ identity }: { identity: Identity }) {
 
             <form ref={logoutFormRef} method="post" action="/auth/logout" className="hidden" />
             <Dropdown>
-              <Dropdown.Trigger>
-                <Button
-                  variant="ghost"
-                  size="md"
-                  className="profile-menu-trigger shrink-0 px-2 sm:px-3"
-                  aria-label="Abrir menu do perfil"
-                >
-                  <Avatar size="sm" color="accent" variant="soft">
-                    <Avatar.Fallback className="text-xs font-medium">
-                      {initials(identity.name)}
-                    </Avatar.Fallback>
-                  </Avatar>
-                  <span className="hidden min-w-0 text-left lg:block">
-                    <span className="block max-w-40 truncate text-sm font-medium">
-                      {identity.name || 'Administrador'}
-                    </span>
-                    <span className="block max-w-40 truncate text-xs font-normal text-muted">
-                      Administrador
-                    </span>
+              <Button
+                variant="ghost"
+                size="md"
+                className="profile-menu-trigger shrink-0 px-2 sm:px-3"
+                aria-label="Abrir menu do perfil"
+              >
+                <Avatar size="sm" color="accent" variant="soft">
+                  <Avatar.Fallback className="text-xs font-medium">
+                    {initials(identity.name)}
+                  </Avatar.Fallback>
+                </Avatar>
+                <span className="hidden min-w-0 text-left lg:block">
+                  <span className="block max-w-40 truncate text-sm font-medium">
+                    {identity.name || 'Administrador'}
                   </span>
-                  <ChevronDown className="hidden size-4 text-muted sm:block" />
-                </Button>
-              </Dropdown.Trigger>
+                  <span className="block max-w-40 truncate text-xs font-normal text-muted">
+                    Administrador
+                  </span>
+                </span>
+                <ChevronDown className="hidden size-4 text-muted sm:block" />
+              </Button>
               <Dropdown.Popover>
                 <Dropdown.Menu
                   aria-label="Conta e sessão"
