@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import './ambient-constellation.css';
 
 type AmbientConstellationProps = {
   className?: string;
