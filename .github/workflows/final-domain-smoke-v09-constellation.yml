@@ -1,0 +1,103 @@
+name: Final domain smoke v0.9 constellation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: final-domain-smoke-v09-constellation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Verify official validation domain after constellation calibration
+    if: github.head_ref == 'test/final-domain-smoke-v09-constellation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout immutable test harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Verify HTTP shell and anonymous protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://admin.escolaieda.com'
+          curl --silent --show-error --fail "${base}/" -o /tmp/root.html
+          asset_path="$(sed -n 's/.*src="\([^"]*\/assets\/[^"]*\.js\)".*/\1/p' /tmp/root.html | head -n 1)"
+          test -n "${asset_path}"
+          curl --silent --show-error --fail "${base}${asset_path}" -o /tmp/app.js
+          grep --quiet --fixed-strings 'Centro de Administração' /tmp/app.js
+          grep --quiet --fixed-strings 'Entrar com conta institucional' /tmp/app.js
+          me_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${base}/api/me")"
+          snapshot_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${base}/api/platform/snapshot")"
+          test "${me_status}" = '401'
+          test "${snapshot_status}" = '401'
+          echo 'HTTP smoke passed: current shell is live and protected APIs deny anonymous access.'
+
+      - name: Verify rendered login experience in Chrome
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p browser-evidence
+          base='https://admin.escolaieda.com'
+          chrome="$(command -v google-chrome || command -v google-chrome-stable || true)"
+          test -n "${chrome}"
+
+          "${chrome}" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --hide-scrollbars \
+            --window-size=1440,900 \
+            --virtual-time-budget=5000 \
+            --screenshot=browser-evidence/desktop-login.png \
+            --dump-dom \
+            "${base}/" > browser-evidence/desktop-dom.html
+
+          grep --quiet --fixed-strings 'Centro de Administração' browser-evidence/desktop-dom.html
+          grep --quiet --fixed-strings 'Entrar com conta institucional' browser-evidence/desktop-dom.html
+          grep --quiet --fixed-strings 'href="/auth/login"' browser-evidence/desktop-dom.html
+
+          "${chrome}" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --hide-scrollbars \
+            --window-size=390,844 \
+            --virtual-time-budget=5000 \
+            --screenshot=browser-evidence/mobile-login.png \
+            --dump-dom \
+            "${base}/" > browser-evidence/mobile-dom.html
+
+          grep --quiet --fixed-strings 'Entrar com conta institucional' browser-evidence/mobile-dom.html
+          grep --quiet --fixed-strings 'Escola Iêda Alves de Oliveira' browser-evidence/mobile-dom.html
+
+          "${chrome}" \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --virtual-time-budget=5000 \
+            --dump-dom \
+            "${base}/#/sistemas" > browser-evidence/anonymous-route-dom.html
+
+          grep --quiet --fixed-strings 'Entrar com conta institucional' browser-evidence/anonymous-route-dom.html
+          test -s browser-evidence/desktop-login.png
+          test -s browser-evidence/mobile-login.png
+          echo 'Chrome smoke passed: desktop/mobile login and anonymous routed access render correctly.'
+
+      - name: Publish browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: final-domain-smoke-v09-constellation-${{ github.run_id }}
+          path: browser-evidence
+          if-no-files-found: warn
+          retention-days: 30
