@@ -29,16 +29,21 @@ import {
   Users,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent, type PropsWithChildren } from 'react';
-import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import type {
   DataSource,
   SchoolYear,
   SourceAssignment,
   Teacher,
 } from '../../shared/banco-notas-contract';
-import type { PlatformIdentity } from '../../shared/platform-contract';
+import type { PlatformCapability } from '../../shared/platform-contract';
 
-type Props = { identity: PlatformIdentity };
+type BancoNotasIdentity = {
+  name?: string;
+  roles?: string[];
+  capabilities?: PlatformCapability[];
+};
+type Props = { identity: BancoNotasIdentity };
 const navigation = [
   ['/', 'Visão geral', Home],
   ['/acompanhamento', 'Acompanhamento', BarChart3],
@@ -638,7 +643,7 @@ function SourceSettings() {
                   variant="secondary"
                   type="date"
                   defaultValue={selectedAssignment?.effectiveTo ?? ''}
-                  isDisabled={assignmentEditClearEffectiveTo}
+                  disabled={assignmentEditClearEffectiveTo}
                 />
               </TextField>
               <Switch
@@ -727,6 +732,8 @@ function SourceSettings() {
 function Shell({ identity }: Props) {
   const location = useLocation();
   const mobileNavigation = useOverlayState();
+  const displayName = identity.name || 'Administrador';
+  const identityContext = identity.roles?.[0] ?? 'Conta institucional';
   const navigationContent = (
     <>
       <Link to="/" className="flex items-center gap-3 font-semibold">
@@ -770,11 +777,11 @@ function Shell({ identity }: Props) {
           </div>
           <div className="flex items-center gap-3">
             <Avatar size="sm">
-              <Avatar.Fallback>{identity.displayName.slice(0, 2).toUpperCase()}</Avatar.Fallback>
+              <Avatar.Fallback>{displayName.slice(0, 2).toUpperCase()}</Avatar.Fallback>
             </Avatar>
             <div className="hidden text-right sm:block">
-              <p className="text-sm font-medium">{identity.displayName}</p>
-              <p className="text-xs text-muted">{identity.jobTitle ?? 'Conta institucional'}</p>
+              <p className="text-sm font-medium">{displayName}</p>
+              <p className="text-xs text-muted">{identityContext}</p>
             </div>
           </div>
         </Surface>
