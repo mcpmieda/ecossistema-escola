@@ -20,7 +20,9 @@ Fase: **1 — fundação executável + hardening pós-review**
 - `Configurações > Fonte` funcional, incluindo padrão anual, override por professor e `SyncEnabled=false`;
 - edição de ambiente, estado da migração, status da fonte e vigências existentes com justificativa obrigatória;
 - auditoria de mutações administrativas com ator, motivo e estado anterior/posterior;
-- testes de domínio, migration, API, contrato, UI, autorização, Origin, deep-link estrutural e isolamento dos golden masters.
+- edição de vigência protegida contra limpeza acidental de `effectiveTo`; remoção deliberada exige `clearEffectiveTo=true`;
+- período resultante inválido é rejeitado antes da escrita e mapeado como erro de entrada;
+- testes de domínio, migration, API, contrato, UI, autorização, Origin, deep-link estrutural, edição segura de vigência e isolamento dos golden masters.
 
 ## Hardening pós-review
 
@@ -34,10 +36,11 @@ A revisão independente da primeira implementação encontrou pontos que não se
 6. **SQL executável:** os testes deixaram de depender apenas de inspeção textual. Um processo Node separado executa as migrations em SQLite real e prova schema, defaults, conflitos de autoridade, integridade cross-year, idempotência, sequence, ausência versus zero, append-only e rollback transacional.
 7. **Proteção de Origin:** mutações cross-origin são testadas como bloqueadas antes do acesso ao storage.
 8. **Deep-link:** existe regressão estrutural específica para `/banco-de-notas` e `/banco-de-notas/configuracoes/fonte`, garantindo path routing sem hash e preservando o fallback SPA do Cloudflare Pages.
+9. **Edição segura de vigência:** `effectiveTo=null` vindo do campo opcional vazio é normalizado para “sem alteração”. Limpar a data final passou a exigir `clearEffectiveTo=true`; o período final completo também é validado antes da persistência.
 
 ## Evidência de CI do hardening
 
-Head verificada antes desta atualização documental: `de19c4e5774f4f4eca5009e8fd9e93640226e524`.
+Baseline funcional verificada antes do complemento de edição segura: `de19c4e5774f4f4eca5009e8fd9e93640226e524`.
 
 Workflow `32908018584` — run `#449` — **success**:
 
@@ -49,6 +52,8 @@ Workflow `32908018584` — run `#449` — **success**:
 - testes — success;
 - build — success.
 
+O complemento de edição segura adiciona `tests/banco-notas-assignment-edit.test.ts`. O head corrente só deve ser tratado como verificado depois de sua própria CI verde.
+
 O PR continua em `draft`. Não houve deploy de produção nem merge.
 
 ## Limite da evidência atual
@@ -56,6 +61,8 @@ O PR continua em `draft`. Não houve deploy de produção nem merge.
 O executor SQL utiliza SQLite real no Node para validar o dialeto e os invariantes implementados nas migrations. Isso é evidência executável muito superior à inspeção de strings, porém **não substitui a homologação contra uma instância Cloudflare D1 remota**.
 
 Da mesma forma, o teste de deep-link atual prova a composição path-based e a configuração de fallback do repositório, mas **não deve ser descrito como browser QA real**. Browser QA desktop/mobile e refresh contra homologação continuam pendentes de ambiente executável apropriado.
+
+A edição segura de vigência já evita limpeza silenciosa da data final no servidor, mas a tela ainda não pré-carrega visualmente `effectiveFrom` e `effectiveTo` ao selecionar uma vigência existente. Isso permanece como acabamento de UX antes de promoção do módulo.
 
 ## Estado externo
 
@@ -69,12 +76,14 @@ O registro SharePoint está implementado no provisionador idempotente, mas não 
 - mutations exigem sessão, capability específica e Origin oficial;
 - health degrada de forma explícita se o binding D1 não existir;
 - sincronização nasce desligada;
+- `effectiveTo=null` não limpa mais uma vigência existente silenciosamente;
 - nenhum dado real ou arquivo docente está no Git;
 - Ambient Constellation, shadcn e ReUI não fazem parte do módulo;
 - Nina e Alanna continuam exclusivamente como golden masters privados externos.
 
 ## Pendências antes do piloto
 
+- pré-carregar visualmente as datas atuais ao selecionar uma vigência existente;
 - provisionar D1 de homologação e executar as migrations no D1 real;
 - aplicar o registro idempotente do módulo no SharePoint de homologação quando autorizado;
 - executar browser QA real de desktop/mobile/deep-link/refresh;
