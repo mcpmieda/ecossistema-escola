@@ -74,19 +74,18 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.55fr)]">
         <Surface
-          variant="secondary"
-          className="living-surface pro-spectrum min-h-80 rounded-[2rem] p-6 sm:p-7"
+          variant="default"
+          className="platform-card-surface min-h-80 rounded-[2rem] p-6 sm:p-7"
         >
-          <div className="living-aura living-aura--right" />
-          <div className="relative z-10 flex min-h-[19rem] flex-col">
-            <div className="flex items-center gap-2 text-[#365B86]">
+          <div className="flex min-h-[19rem] flex-col">
+            <div className="flex items-center gap-2 text-muted">
               <CircleGauge className="size-4" />
               <span className="text-xs font-semibold uppercase tracking-[0.14em]">Fundação</span>
             </div>
-            <h3 className="mt-5 max-w-xl text-3xl font-semibold tracking-[-0.045em] text-[#203856] sm:text-4xl">
+            <h3 className="mt-5 max-w-xl text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
               {snapshot.foundation.status === 'ok' ? 'Estrutura disponível' : 'Estrutura degradada'}
             </h3>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#365B86]">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
               O estado considera as estruturas necessárias ao Centro. Informações de
               disponibilidade, monitoramento e recuperação ficam na área de Operação.
             </p>
@@ -100,8 +99,8 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
               ].map((item) => (
                 <Surface
                   key={item}
-                  variant="default"
-                  className="stagger-item flex items-center gap-2 rounded-2xl bg-surface/96 px-3 py-2.5 text-xs"
+                  variant="secondary"
+                  className="stagger-item flex items-center gap-2 rounded-2xl px-3 py-2.5 text-xs"
                 >
                   <CheckCircle2 className="size-3.5 text-success" />
                   {item}
@@ -450,24 +449,22 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
         description="Esta área está reservada para uma próxima etapa e ainda não está disponível para uso."
       />
       <Surface
-        variant="secondary"
-        className="living-surface pro-spectrum flex min-h-[430px] flex-col items-center justify-center rounded-[2rem] px-6 py-14 text-center"
+        variant="default"
+        className="platform-card-surface flex min-h-[430px] flex-col items-center justify-center rounded-[2rem] px-6 py-14 text-center"
       >
-        <div className="living-aura living-aura--right" />
-        <div className="living-aura living-aura--left" />
-        <div className="living-icon">
+        <div className="platform-icon">
           <Icon className="size-5 text-accent" />
         </div>
         <Chip color="accent" variant="soft" size="sm" className="mt-6">
           Planejado
         </Chip>
-        <h3 className="mt-5 max-w-xl text-2xl font-semibold tracking-[-0.04em] text-[#203856]">
+        <h3 className="mt-5 max-w-xl text-2xl font-semibold tracking-[-0.04em]">
           {copy.title} será incorporado ao núcleo
         </h3>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-[#365B86]">{copy.description}</p>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-muted">{copy.description}</p>
         <Surface
-          variant="default"
-          className="mt-7 flex items-center gap-2 rounded-2xl bg-surface/96 px-4 py-3 text-xs text-muted"
+          variant="secondary"
+          className="mt-7 flex items-center gap-2 rounded-2xl px-4 py-3 text-xs text-muted"
         >
           <ShieldCheck className="size-3.5 text-accent" />
           Recurso ainda não disponível para edição.
@@ -504,27 +501,26 @@ export function PageContent({
 export function LoadingWorkspace() {
   return (
     <Surface
-      variant="secondary"
-      className="living-surface living-loading-panel pro-spectrum rounded-[2rem] p-5 sm:p-7"
+      variant="default"
+      className="platform-card-surface platform-loading-panel rounded-[2rem] p-5 sm:p-7"
       role="status"
       aria-label="Carregando dados institucionais"
     >
-      <div className="living-aura living-aura--right" />
-      <div className="relative z-10 flex flex-col items-center py-8 text-center">
+      <div className="flex flex-col items-center py-8 text-center">
         <div className="loading-orbit">
           <Spinner color="accent" size="lg" />
         </div>
         <Chip color="accent" variant="soft" size="sm" className="mt-5">
           Preparando o Centro
         </Chip>
-        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-[#203856]">
+        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em]">
           Carregando dados institucionais
         </h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-[#365B86]">
+        <p className="mt-2 max-w-md text-sm leading-6 text-muted">
           O shell já está disponível enquanto o snapshot autorizado é preparado.
         </p>
       </div>
-      <div className="relative z-10 mt-3 grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.55fr)]">
+      <div className="mt-3 grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.55fr)]">
         <Skeleton className="stagger-item min-h-64 rounded-3xl" />
         <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-1">
           <Skeleton className="stagger-item h-24 rounded-3xl" />
@@ -532,7 +528,7 @@ export function LoadingWorkspace() {
           <Skeleton className="stagger-item h-24 rounded-3xl" />
         </div>
       </div>
-      <Skeleton className="stagger-item relative z-10 mt-4 h-60 rounded-3xl" />
+      <Skeleton className="stagger-item mt-4 h-60 rounded-3xl" />
     </Surface>
   );
 }
