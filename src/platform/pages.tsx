@@ -17,7 +17,7 @@ import type {
   PlatformSnapshotContract,
 } from '../../shared/platform-contract';
 import { OperationsPage } from './operations-page';
-import { EmptyState, formatDate, ModuleRow, PageHeader, shortCorrelation } from './presentation';
+import { EmptyState, formatDate, ModuleList, PageHeader, shortCorrelation } from './presentation';
 
 function integrationStateLabel(state: ModuleIntegrationState): string {
   switch (state) {
@@ -71,18 +71,21 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
       />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,.55fr)]">
-        <Surface variant="secondary" className="living-surface min-h-80 rounded-[2rem] p-6 sm:p-7">
+        <Surface
+          variant="secondary"
+          className="living-surface pro-spectrum min-h-80 rounded-[2rem] p-6 sm:p-7"
+        >
           <AmbientConstellation intensity="strong" placement="right" />
           <div className="living-aura living-aura--right" />
           <div className="relative z-10 flex min-h-[19rem] flex-col">
-            <div className="flex items-center gap-2 text-accent">
+            <div className="flex items-center gap-2 text-[#4E75A5]">
               <CircleGauge className="size-4" />
               <span className="text-xs font-semibold uppercase tracking-[0.14em]">Fundação</span>
             </div>
-            <h3 className="mt-5 max-w-xl text-3xl font-semibold tracking-[-0.045em] sm:text-4xl">
+            <h3 className="mt-5 max-w-xl text-3xl font-semibold tracking-[-0.045em] text-[#203856] sm:text-4xl">
               {snapshot.foundation.status === 'ok' ? 'Estrutura disponível' : 'Estrutura degradada'}
             </h3>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#4E75A5]">
               O estado deriva da presença real das estruturas obrigatórias. Sinais detalhados,
               cobertura de health checks e lacunas de recuperação ficam na área de Operação.
             </p>
@@ -97,7 +100,7 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                 <Surface
                   key={item}
                   variant="default"
-                  className="stagger-item flex items-center gap-2 rounded-2xl border border-border/65 px-3 py-2.5 text-xs"
+                  className="stagger-item flex items-center gap-2 rounded-2xl bg-surface/88 px-3 py-2.5 text-xs backdrop-blur-sm"
                 >
                   <CheckCircle2 className="size-3.5 text-success" />
                   {item}
@@ -148,12 +151,8 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           <Card.Title>Áreas do Centro</Card.Title>
           <Card.Description>Acesse o núcleo e acompanhe o estado de cada área.</Card.Description>
         </Card.Header>
-        <Card.Content className="p-0">
-          <div className="divide-y divide-border/60">
-            {snapshot.coreModules.map((module) => (
-              <ModuleRow key={module.id} module={module} />
-            ))}
-          </div>
+        <Card.Content className="p-2">
+          <ModuleList modules={snapshot.coreModules} />
         </Card.Content>
       </Card>
     </>
@@ -176,12 +175,8 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
             {snapshot.coreModules.length} áreas definidas por contrato.
           </Card.Description>
         </Card.Header>
-        <Card.Content className="p-0">
-          <div className="divide-y divide-border/60">
-            {snapshot.coreModules.map((module) => (
-              <ModuleRow key={module.id} module={module} />
-            ))}
-          </div>
+        <Card.Content className="p-2">
+          <ModuleList modules={snapshot.coreModules} />
         </Card.Content>
       </Card>
 
@@ -407,27 +402,36 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
               description="Esta candidata somente leitura não exigiu migração de módulo."
             />
           ) : (
-            <div className="divide-y divide-border/60">
-              {snapshot.migrations.map((migration) => (
-                <div
-                  key={migration.id}
-                  className="stagger-item flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <p className="text-sm font-medium">
-                      {migration.version || 'Versão não informada'}
-                    </p>
-                    <p className="mt-0.5 text-xs text-muted">{migration.module}</p>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted">
-                    <span>{formatDate(migration.appliedAt)}</span>
-                    <Chip variant="soft" size="sm">
-                      {migration.result || '—'}
-                    </Chip>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <Table variant="secondary">
+              <Table.ScrollContainer>
+                <Table.Content aria-label="Migrações registradas">
+                  <Table.Header>
+                    <Table.Column id="version">Versão</Table.Column>
+                    <Table.Column id="module">Módulo</Table.Column>
+                    <Table.Column id="applied">Aplicada em</Table.Column>
+                    <Table.Column id="result">Resultado</Table.Column>
+                  </Table.Header>
+                  <Table.Body>
+                    {snapshot.migrations.map((migration) => (
+                      <Table.Row id={migration.id} key={migration.id}>
+                        <Table.Cell className="font-medium">
+                          {migration.version || 'Versão não informada'}
+                        </Table.Cell>
+                        <Table.Cell className="text-muted">{migration.module}</Table.Cell>
+                        <Table.Cell className="whitespace-nowrap">
+                          {formatDate(migration.appliedAt)}
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Chip variant="soft" size="sm">
+                            {migration.result || '—'}
+                          </Chip>
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
+            </Table>
           )}
         </Card.Content>
       </Card>
@@ -461,7 +465,7 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
       />
       <Surface
         variant="secondary"
-        className="living-surface flex min-h-[430px] flex-col items-center justify-center rounded-[2rem] px-6 py-14 text-center"
+        className="living-surface pro-spectrum flex min-h-[430px] flex-col items-center justify-center rounded-[2rem] px-6 py-14 text-center"
       >
         <AmbientConstellation intensity="strong" placement="center" />
         <div className="living-aura living-aura--right" />
@@ -472,13 +476,13 @@ function PlannedPage({ route }: { route: 'publicacoes' | 'paginas' }) {
         <Chip color="accent" variant="soft" size="sm" className="mt-6">
           Planejado
         </Chip>
-        <h3 className="mt-5 max-w-xl text-2xl font-semibold tracking-[-0.04em]">
+        <h3 className="mt-5 max-w-xl text-2xl font-semibold tracking-[-0.04em] text-[#203856]">
           {copy.title} será incorporado ao núcleo
         </h3>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-muted">{copy.description}</p>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-[#4E75A5]">{copy.description}</p>
         <Surface
           variant="default"
-          className="mt-7 flex items-center gap-2 rounded-2xl border border-border/60 px-4 py-3 text-xs text-muted"
+          className="mt-7 flex items-center gap-2 rounded-2xl bg-surface/86 px-4 py-3 text-xs text-muted backdrop-blur-sm"
         >
           <ShieldCheck className="size-3.5 text-accent" />
           Nenhuma escrita foi ativada nesta candidata.
@@ -516,7 +520,7 @@ export function LoadingWorkspace() {
   return (
     <Surface
       variant="secondary"
-      className="living-surface living-loading-panel rounded-[2rem] p-5 sm:p-7"
+      className="living-surface living-loading-panel pro-spectrum rounded-[2rem] p-5 sm:p-7"
       role="status"
       aria-label="Carregando dados institucionais"
     >
@@ -529,10 +533,10 @@ export function LoadingWorkspace() {
         <Chip color="accent" variant="soft" size="sm" className="mt-5">
           Preparando o Centro
         </Chip>
-        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em]">
+        <h2 className="mt-4 text-2xl font-semibold tracking-[-0.04em] text-[#203856]">
           Carregando dados institucionais
         </h2>
-        <p className="mt-2 max-w-md text-sm leading-6 text-muted">
+        <p className="mt-2 max-w-md text-sm leading-6 text-[#4E75A5]">
           O shell já está disponível enquanto o snapshot autorizado é preparado.
         </p>
       </div>
