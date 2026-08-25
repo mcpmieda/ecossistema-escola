@@ -2,6 +2,14 @@ import { z } from 'zod';
 
 export const sourceTypeSchema = z.enum(['legacy_import', 'linked_teacher_model']);
 export const sourceStatusSchema = z.enum(['active', 'inactive', 'archived']);
+export const sourceEnvironmentSchema = z.enum(['homologation', 'production']);
+export const migrationStateSchema = z.enum([
+  'not_started',
+  'preparing',
+  'reconciling',
+  'ready',
+  'blocked',
+]);
 export const authorityModeSchema = z.enum(['authoritative', 'reference_only']);
 export const assignmentScopeSchema = z.enum(['school_year_default', 'teacher_override']);
 
@@ -19,11 +27,24 @@ export const sourceInputSchema = z.object({
   description: z.string().trim().max(500).default(''),
 });
 
-export const sourcePatchSchema = z.object({
-  name: z.string().trim().min(1).max(160).optional(),
-  description: z.string().trim().max(500).optional(),
-  status: sourceStatusSchema.optional(),
-});
+export const sourcePatchSchema = z
+  .object({
+    name: z.string().trim().min(1).max(160).optional(),
+    description: z.string().trim().max(500).optional(),
+    status: sourceStatusSchema.optional(),
+    environment: sourceEnvironmentSchema.optional(),
+    migrationState: migrationStateSchema.optional(),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.description !== undefined ||
+      value.status !== undefined ||
+      value.environment !== undefined ||
+      value.migrationState !== undefined,
+    { message: 'at least one source field must change' },
+  );
 
 export const assignmentInputSchema = z
   .object({
@@ -46,13 +67,24 @@ export const assignmentInputSchema = z
     }
   });
 
-export const assignmentPatchSchema = z.object({
-  authorityMode: authorityModeSchema.optional(),
-  effectiveFrom: z.string().date().optional(),
-  effectiveTo: z.string().date().nullable().optional(),
-  syncEnabled: z.boolean().optional(),
-  status: z.enum(['active', 'inactive']).optional(),
-});
+export const assignmentPatchSchema = z
+  .object({
+    authorityMode: authorityModeSchema.optional(),
+    effectiveFrom: z.string().date().optional(),
+    effectiveTo: z.string().date().nullable().optional(),
+    syncEnabled: z.boolean().optional(),
+    status: z.enum(['active', 'inactive']).optional(),
+    reason: z.string().trim().min(3).max(500),
+  })
+  .refine(
+    (value) =>
+      value.authorityMode !== undefined ||
+      value.effectiveFrom !== undefined ||
+      value.effectiveTo !== undefined ||
+      value.syncEnabled !== undefined ||
+      value.status !== undefined,
+    { message: 'at least one assignment field must change' },
+  );
 
 export type SchoolYearInput = z.infer<typeof schoolYearInputSchema>;
 export type SourceInput = z.infer<typeof sourceInputSchema>;
