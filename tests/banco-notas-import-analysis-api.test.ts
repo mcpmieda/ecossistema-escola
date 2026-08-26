@@ -18,7 +18,9 @@ async function hash(value: Uint8Array): Promise<string> {
   const stable = new Uint8Array(value.byteLength);
   stable.set(value);
   const digest = await crypto.subtle.digest('SHA-256', stable);
-  return Array.from(new Uint8Array(digest), (item) => item.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(digest), (item) =>
+    item.toString(16).padStart(2, '0'),
+  ).join('');
 }
 
 function year(): SchoolYear {
@@ -142,14 +144,17 @@ async function setup(sourceHash = await hash(bytes)) {
 }
 
 function uploadRequest(body = bytes): Request {
-  return new Request(`https://example.test/api/banco-notas/v1/import-jobs/${importJobId}/analysis`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'X-Import-Reason': 'análise sintética verificada',
+  return new Request(
+    `https://example.test/api/banco-notas/v1/import-jobs/${importJobId}/analysis`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'X-Import-Reason': 'análise sintética verificada',
+      },
+      body,
     },
-    body,
-  });
+  );
 }
 
 describe('Banco de Notas import analysis API', () => {
