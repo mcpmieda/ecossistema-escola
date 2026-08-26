@@ -91,8 +91,7 @@ function normalizePartTarget(target: string): string {
   const normalized: string[] = [];
   for (const part of parts) {
     if (!part || part === '.') continue;
-    if (part === '..')
-      throw new XlsxLegacyAnalyzerError('xlsx_relationship_parent_path_rejected');
+    if (part === '..') throw new XlsxLegacyAnalyzerError('xlsx_relationship_parent_path_rejected');
     normalized.push(part);
   }
   const path = normalized.join('/');
@@ -116,8 +115,7 @@ function parseWorkbookSheets(entries: Map<string, Uint8Array>): WorkbookSheet[] 
       throw new XlsxLegacyAnalyzerError('xlsx_external_worksheet_relationship_rejected');
     }
     const target = attribute(tag, 'Target');
-    if (!target)
-      throw new XlsxLegacyAnalyzerError('xlsx_worksheet_relationship_target_missing');
+    if (!target) throw new XlsxLegacyAnalyzerError('xlsx_worksheet_relationship_target_missing');
     if (relationTargets.has(id)) {
       throw new XlsxLegacyAnalyzerError('xlsx_duplicate_worksheet_relationship');
     }
@@ -142,8 +140,7 @@ function parseWorkbookSheets(entries: Map<string, Uint8Array>): WorkbookSheet[] 
     relationshipIds.add(relationshipId);
     const path = relationTargets.get(relationshipId);
     if (!path) throw new XlsxLegacyAnalyzerError('xlsx_worksheet_relationship_missing');
-    if (!entries.has(path))
-      throw new XlsxLegacyAnalyzerError(`xlsx_required_part_missing:${path}`);
+    if (!entries.has(path)) throw new XlsxLegacyAnalyzerError(`xlsx_required_part_missing:${path}`);
     sheets.push({
       name,
       sheetId,
@@ -337,10 +334,7 @@ async function analyzeXlsx(
       matched.rule.studentNameColumn,
       ...matched.rule.gradeColumns.map((item) => item.column),
     ]);
-    const lastStudentRow = studentRows.reduce(
-      (maximum, item) => Math.max(maximum, item.row),
-      0,
-    );
+    const lastStudentRow = studentRows.reduce((maximum, item) => Math.max(maximum, item.row), 0);
     const rangeAddress = `${matched.rule.studentNameColumn}${matched.rule.firstStudentRow}:${rangeEndColumn}${lastStudentRow}`;
 
     if (!classes.has(sourceClassId)) {
@@ -405,8 +399,7 @@ async function analyzeXlsx(
     }
   }
 
-  if (matchedSheetCount === 0)
-    throw new XlsxLegacyAnalyzerError('xlsx_no_worksheet_rule_matched');
+  if (matchedSheetCount === 0) throw new XlsxLegacyAnalyzerError('xlsx_no_worksheet_rule_matched');
   if (students.size === 0) throw new XlsxLegacyAnalyzerError('xlsx_no_students_found');
   if (gradeSlots.length === 0) throw new XlsxLegacyAnalyzerError('xlsx_no_grade_slots_found');
 
