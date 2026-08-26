@@ -4,7 +4,10 @@ import { genericWorkbookPresentationSchema } from '../shared/banco-notas-workboo
 import { xlsxLegacyAnalysisProfileSchema } from '../shared/banco-notas-xlsx-analysis-profile';
 import { createGenericXlsxLegacyAnalyzer } from '../server/banco-notas/xlsx-legacy-analyzer';
 import { createGenericXlsxWorkbookSerializer } from '../server/banco-notas/xlsx-workbook-serializer';
-import { analyzeLegacyWorkbook, serializeGenericWorkbook } from '../server/banco-notas/workbook-pipeline';
+import {
+  analyzeLegacyWorkbook,
+  serializeGenericWorkbook,
+} from '../server/banco-notas/workbook-pipeline';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
