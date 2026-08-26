@@ -22,12 +22,7 @@ type CentralEntry = {
   localHeaderOffset: number;
 };
 
-function assertRange(
-  bytes: Uint8Array,
-  offset: number,
-  length: number,
-  code: string,
-): void {
+function assertRange(bytes: Uint8Array, offset: number, length: number, code: string): void {
   if (offset < 0 || length < 0 || offset + length > bytes.byteLength) {
     throw new OoxmlZipError(code);
   }
