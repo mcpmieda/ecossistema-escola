@@ -75,7 +75,8 @@ async function failTask(owner, repo, issueNumber, message) {
 
 export function taskFromManifest(run, taskId) {
   const task = run.tasks.find((item) => item.id === taskId);
-  if (!task) throw new Error(`Materialized task ${taskId} is absent from immutable parent manifest.`);
+  if (!task)
+    throw new Error(`Materialized task ${taskId} is absent from immutable parent manifest.`);
   return task;
 }
 
