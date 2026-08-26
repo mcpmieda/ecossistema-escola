@@ -18,9 +18,7 @@ async function hash(value: Uint8Array): Promise<string> {
   const stable = new Uint8Array(value.byteLength);
   stable.set(value);
   const digest = await crypto.subtle.digest('SHA-256', stable);
-  return Array.from(new Uint8Array(digest), (item) =>
-    item.toString(16).padStart(2, '0'),
-  ).join('');
+  return Array.from(new Uint8Array(digest), (item) => item.toString(16).padStart(2, '0')).join('');
 }
 
 function year(): SchoolYear {
