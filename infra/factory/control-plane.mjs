@@ -11,12 +11,7 @@ const ALLOWED_HUMAN_GATES = new Set([
   'privilege_change',
   'legal_or_organizational_decision',
 ]);
-const ALLOWED_PROVIDERS = new Set([
-  'jules',
-  'antigravity',
-  'opencode_ollama',
-  'manual',
-]);
+const ALLOWED_PROVIDERS = new Set(['jules', 'antigravity', 'opencode_ollama', 'manual']);
 const SAFE_LABELS = {
   parent: 'factory:run',
   task: 'factory:task',
@@ -64,16 +59,20 @@ export function parseManifest(body) {
   } catch (error) {
     fail(`Factory Run JSON is invalid: ${error.message}`);
   }
-  if (!value || typeof value !== 'object' || Array.isArray(value)) fail('Factory Run must be a JSON object.');
-  if ((value.schema_version ?? 1) !== 1) fail(`Unsupported schema_version: ${value.schema_version}`);
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    fail('Factory Run must be a JSON object.');
+  if ((value.schema_version ?? 1) !== 1)
+    fail(`Unsupported schema_version: ${value.schema_version}`);
   const runId = cleanText(value.run_id, 'run_id', 120);
   const goal = cleanText(value.goal, 'goal', 1000);
-  if (!Array.isArray(value.tasks) || value.tasks.length === 0) fail('Factory Run requires a non-empty tasks array.');
+  if (!Array.isArray(value.tasks) || value.tasks.length === 0)
+    fail('Factory Run requires a non-empty tasks array.');
   if (value.tasks.length > 20) fail('Factory Run is limited to 20 tasks per parent issue.');
 
   const ids = new Set();
   const tasks = value.tasks.map((rawTask, index) => {
-    if (!rawTask || typeof rawTask !== 'object' || Array.isArray(rawTask)) fail(`Task #${index + 1} must be an object.`);
+    if (!rawTask || typeof rawTask !== 'object' || Array.isArray(rawTask))
+      fail(`Task #${index + 1} must be an object.`);
     const id = cleanText(rawTask.id, `task #${index + 1} id`, 120);
     if (ids.has(id)) fail(`Duplicate task id: ${id}`);
     ids.add(id);
@@ -81,8 +80,14 @@ export function parseManifest(body) {
     const role = cleanText(rawTask.role ?? 'implementation', `role for ${id}`, 80);
     const dependsOn = stringArray(rawTask.depends_on, `depends_on for ${id}`);
     const paths = stringArray(rawTask.paths, `paths for ${id}`);
-    const requiredCapabilities = stringArray(rawTask.required_capabilities, `required_capabilities for ${id}`);
-    const preferredProviders = stringArray(rawTask.preferred_providers, `preferred_providers for ${id}`);
+    const requiredCapabilities = stringArray(
+      rawTask.required_capabilities,
+      `required_capabilities for ${id}`,
+    );
+    const preferredProviders = stringArray(
+      rawTask.preferred_providers,
+      `preferred_providers for ${id}`,
+    );
     for (const provider of preferredProviders) {
       if (!ALLOWED_PROVIDERS.has(provider)) fail(`Unknown provider '${provider}' in task ${id}.`);
     }
@@ -90,7 +95,16 @@ export function parseManifest(body) {
     for (const gate of humanGates) {
       if (!ALLOWED_HUMAN_GATES.has(gate)) fail(`Unknown human gate '${gate}' in task ${id}.`);
     }
-    return { id, title, role, dependsOn, paths, requiredCapabilities, preferredProviders, humanGates };
+    return {
+      id,
+      title,
+      role,
+      dependsOn,
+      paths,
+      requiredCapabilities,
+      preferredProviders,
+      humanGates,
+    };
   });
 
   for (const task of tasks) {
@@ -131,7 +145,9 @@ async function github(path, options = {}) {
   const text = await response.text();
   const payload = text ? JSON.parse(text) : null;
   if (!response.ok) {
-    fail(`GitHub API ${options.method ?? 'GET'} ${path} failed (${response.status}): ${payload?.message ?? text}`);
+    fail(
+      `GitHub API ${options.method ?? 'GET'} ${path} failed (${response.status}): ${payload?.message ?? text}`,
+    );
   }
   return payload;
 }
@@ -162,7 +178,8 @@ function taskBody(parentIssue, manifest, task) {
   const dependencies = task.dependsOn.length ? task.dependsOn.join(', ') : 'none';
   const scopes = task.paths.length ? task.paths.join(', ') : 'unknown/conservative';
   const gates = task.humanGates.length ? task.humanGates.join(', ') : 'none';
-  return `${taskMarker(manifest.runId, task.id)}\n\n` +
+  return (
+    `${taskMarker(manifest.runId, task.id)}\n\n` +
     `Parent Factory Run: #${parentIssue}\n\n` +
     `Goal: ${manifest.goal}\n\n` +
     `Task ID: \`${task.id}\`\n` +
@@ -178,7 +195,8 @@ function taskBody(parentIssue, manifest, task) {
     `- Do not merge or deploy production from this task.\n` +
     `- Do not enable Banco de Notas sync.\n` +
     `- Do not broaden permissions or credentials.\n` +
-    `- Preserve repository contracts and run required CI/review gates.\n`;
+    `- Preserve repository contracts and run required CI/review gates.\n`
+  );
 }
 
 async function existingTaskIssues(owner, repo, runId) {
@@ -192,16 +210,29 @@ async function materialize() {
   const [owner, repo] = repository.split('/');
   if (!owner || !repo) fail('GITHUB_REPOSITORY must be owner/repo.');
   const issueNumber = Number(env('FACTORY_PARENT_ISSUE'));
-  if (!Number.isInteger(issueNumber) || issueNumber <= 0) fail('FACTORY_PARENT_ISSUE must be a positive integer.');
+  if (!Number.isInteger(issueNumber) || issueNumber <= 0)
+    fail('FACTORY_PARENT_ISSUE must be a positive integer.');
 
   const issue = await github(`/repos/${owner}/${repo}/issues/${issueNumber}`);
   const manifest = parseManifest(issue.body ?? '');
 
-  await ensureLabel(owner, repo, SAFE_LABELS.parent, 'Parent orchestration issue for a Factory Run.');
+  await ensureLabel(
+    owner,
+    repo,
+    SAFE_LABELS.parent,
+    'Parent orchestration issue for a Factory Run.',
+  );
   await ensureLabel(owner, repo, SAFE_LABELS.task, 'Materialized child task from a Factory Run.');
-  await ensureLabel(owner, repo, SAFE_LABELS.blocked, 'Factory task requires explicit human decision before execution.');
+  await ensureLabel(
+    owner,
+    repo,
+    SAFE_LABELS.blocked,
+    'Factory task requires explicit human decision before execution.',
+  );
 
-  const labels = new Set((issue.labels ?? []).map((item) => typeof item === 'string' ? item : item.name));
+  const labels = new Set(
+    (issue.labels ?? []).map((item) => (typeof item === 'string' ? item : item.name)),
+  );
   if (!labels.has(SAFE_LABELS.parent)) {
     labels.add(SAFE_LABELS.parent);
     await github(`/repos/${owner}/${repo}/issues/${issueNumber}`, {
@@ -257,12 +288,16 @@ async function materialize() {
 
 function validateFile(path) {
   const manifest = parseManifest(readFileSync(path, 'utf8'));
-  process.stdout.write(`${JSON.stringify({
-    status: 'valid',
-    run_id: manifest.runId,
-    task_count: manifest.tasks.length,
-    human_gate_tasks: manifest.tasks.filter((task) => task.humanGates.length > 0).map((task) => task.id),
-  })}\n`);
+  process.stdout.write(
+    `${JSON.stringify({
+      status: 'valid',
+      run_id: manifest.runId,
+      task_count: manifest.tasks.length,
+      human_gate_tasks: manifest.tasks
+        .filter((task) => task.humanGates.length > 0)
+        .map((task) => task.id),
+    })}\n`,
+  );
 }
 
 const command = process.argv[2];
