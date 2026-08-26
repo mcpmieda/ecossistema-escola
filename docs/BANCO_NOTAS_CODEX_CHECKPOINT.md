@@ -4,19 +4,21 @@
 Branch: `feat/banco-de-notas-foundation`
 PR: `#52` — open, draft, sem merge
 
-## Checkpoint congelado
+## Estado essencial
 
-A reconstrução do bloco interrompido está publicada. Não criar novos commits antes de fechar a CI do HEAD corrente.
-
-- D1 `0001`–`0007`: homologado remotamente.
+- D1 `banco-notas-homologation`: migrations `0001`–`0007` homologadas.
 - Run D1 final: `32981705701` — success.
 - Sync final: off.
-- Graph backend-only: download + SHA-256 local + reanálise + compensação.
+- Graph backend-only: upload/share por OID/metadata/download/SHA-256 local/reanálise/revoke/delete/compensação.
 - Target Graph: fail-closed.
-- Round-trip XLSX sintético no boundary Graph: implementado.
-- Microsoft real: ainda não homologado.
+- Round-trip sintético XLSX: `serializer → Graph boundary → download → SHA-256 → analyzer`.
+- Microsoft real: ainda não homologado externamente.
 - Produção: intocada.
 
 ## Próxima ação
 
-Confirmar HEAD → localizar CI desse HEAD → corrigir até verde → atualizar corpo do PR sem alterar arquivos → manter draft/no merge/sync off.
+1. confirmar HEAD do PR;
+2. localizar a CI desse HEAD;
+3. corrigir até verde;
+4. atualizar o corpo do PR sem alterar arquivos;
+5. manter draft, no merge e sync off.
