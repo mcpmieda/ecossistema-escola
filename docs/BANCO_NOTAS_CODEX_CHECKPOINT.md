@@ -4,22 +4,19 @@
 Branch: `feat/banco-de-notas-foundation`
 PR: `#52` — open, draft, sem merge
 
-## Estado
+## Estado preservado
 
-Reconstrução do bloco Graph concluída e publicada.
+A reconstrução do trabalho interrompido está no GitHub. Não editar novamente este checkpoint antes da CI final.
 
-- D1 migrations `0001`–`0007`: homologadas remotamente.
-- Run D1 final: `32981705701` — success.
-- Sync final: off.
-- Graph: backend-only, download + SHA-256 local + reanálise + compensação.
-- Round-trip XLSX sintético no boundary Graph: implementado.
-- Microsoft real: não homologado.
-- Produção: intocada.
+- migrations D1 `0001`–`0007` homologadas;
+- run D1 `32981705701` — success;
+- sync final off;
+- Graph backend-only com download/hash local/reanálise/compensação;
+- target Graph fail-closed;
+- round-trip XLSX sintético no boundary Graph implementado;
+- Microsoft real ainda não homologado;
+- produção intocada.
 
-## Pendente
+## Próximo passo
 
-CI verde do HEAD atual e atualização do corpo do PR.
-
-## Próxima ação
-
-Somente leituras até a CI aparecer. Não criar novo commit documental.
+Somente verificar CI do HEAD corrente, corrigir se necessário e então atualizar o corpo do PR sem novo commit.
