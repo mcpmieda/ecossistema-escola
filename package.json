@@ -9,7 +9,7 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
-    "format:check": "prettier --write server/banco-notas/ooxml-zip.ts server/banco-notas/xlsx-legacy-analyzer.ts tests/banco-notas-xlsx-legacy-analyzer.test.ts && echo FORMAT_OOXML_START && cat server/banco-notas/ooxml-zip.ts && echo FORMAT_OOXML_END && echo FORMAT_ANALYZER_START && cat server/banco-notas/xlsx-legacy-analyzer.ts && echo FORMAT_ANALYZER_END && echo FORMAT_TEST_START && cat tests/banco-notas-xlsx-legacy-analyzer.test.ts && echo FORMAT_TEST_END && false",
+    "format:check": "prettier --check .",
     "typecheck": "tsc -b --pretty false",
     "semantic:check": "node infra/validation/validate-semantic-contract.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run semantic:check && npm test && npm run build"
