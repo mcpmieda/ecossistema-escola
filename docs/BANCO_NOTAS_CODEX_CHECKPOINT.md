@@ -2,9 +2,9 @@
 
 Última atualização: 26/08/2026 20:50 BRT
 Branch: `feat/banco-de-notas-foundation`
-HEAD: `5ee994e` (merge local de `origin/main`; próximo commit atualizará o hash)
+HEAD: `c8ae770b9b91a8f8761e32e8bdfa81ff16264fd4`
 PR: `#52` — open, draft, sem merge
-CI: gate local completo verde; run remoto do novo HEAD ainda não iniciado
+CI: run `33024306664` — validação e segurança verdes; storage M365 falhou com transformação de bytes
 D1 homologation: run `32981705701` — success, migrations `0001`–`0007`, sync final `0`
 M365 operation: run `33003875460` — success, readiness read-only
 
@@ -21,21 +21,25 @@ M365 operation: run `33003875460` — success, readiness read-only
 - [x] `no-unsafe-finally` corrigido sem desabilitar lint, remover cleanup ou mascarar o erro principal.
 - [x] Os 6 commits mais recentes de `origin/main` foram incorporados por merge limpo.
 - [x] Gate local completo aprovado: Prettier, lint, typecheck, semantic contract, 294/294 testes ativos, build, actionlint, sintaxe PowerShell e policy do Control Plane.
+- [x] CI remota interna aprovada no run `33024306664`; deploy e recovery de produção skipped.
+- [x] Round-trip real executou upload, metadata, download e cleanup no boundary dedicado.
+- [x] Arquivo sintético removido com sucesso; pasta dedicada retida; nenhum share executado.
+- [x] Divergência reproduzida: original `9588` bytes, metadata/download `21329` bytes e hash baixado diferente.
 
 ## Em andamento
 
-- [ ] Publicar os commits e obter CI remota verde antes de qualquer escrita Microsoft real.
+- [ ] Capturar o XLSX baixado e diagnóstico OOXML para determinar a transformação Microsoft antes de alterar o gate de integridade.
 
 ## Próxima ação exata
 
-Commitar esta atualização, publicar o branch e acompanhar a CI até os jobs de validação, segurança e storage M365 concluírem.
+Publicar a instrumentação diagnóstica, executar novamente o storage M365, baixar o artefato sintético temporário, comparar o OOXML e remover o artefato diagnóstico do GitHub após a análise.
 
 ## Estado Microsoft
 
 - GitHub OIDC → Entra e `Sites.Selected` já comprovados em modo read-only.
 - Site `CENTROADMIN` e library `ARQUIVOS_PLATAFORMA` confirmados.
-- Pasta prevista: `ARQUIVOS_PLATAFORMA/BANCO_NOTAS_HOMOLOGACAO`.
-- Nenhuma escrita Graph/SharePoint executada nesta retomada.
+- Pasta confirmada: `ARQUIVOS_PLATAFORMA/BANCO_NOTAS_HOMOLOGACAO`.
+- Upload/download/delete Graph real executado no run `33024306664` somente no boundary dedicado.
 - Nenhum compartilhamento realizado; `gui@escolaieda.com` ainda não foi resolvido nesta retomada.
 - Nenhuma credencial, token, cookie ou MFA registrado.
 
@@ -48,11 +52,11 @@ Commitar esta atualização, publicar o branch e acompanhar a CI até os jobs de
 ## Recursos temporários existentes
 
 - Stash local recuperável: `stash@{0}` — `safety-before-recover-pr52-2026-08-26`.
-- Pasta M365 `BANCO_NOTAS_HOMOLOGACAO`: existência ainda será confirmada no round-trip; pode permanecer ao final.
+- Pasta M365 `BANCO_NOTAS_HOMOLOGACAO`: confirmada e retida conforme autorizado.
 
 ## Recursos já limpos
 
-- Nenhum XLSX sintético criado nesta retomada.
+- XLSX sintético do run `33024306664` removido do SharePoint com sucesso.
 - Nenhuma permissão Graph criada nesta retomada.
 
 ## Commits
@@ -66,19 +70,20 @@ Commitar esta atualização, publicar o branch e acompanhar a CI até os jobs de
 ## Runs
 
 - `33008170523` — CI and deploy — failure no lint; storage M365 e produção skipped.
+- `33024306664` — validação/segurança success; storage M365 failure por diferença de tamanho/hash; arquivo removido; produção skipped.
 - `32981705701` — Banco de Notas D1 homologation — success.
 - `33003875460` — M365 operations/readiness — success.
 - `33006204505` — CI and deploy — último baseline anterior verde após incorporar o Control Plane M365 então vigente.
 
 ## Bloqueios
 
-- CI remota do novo HEAD ainda precisa ser executada antes da escrita Microsoft.
+- A transformação do XLSX pelo boundary M365 precisa ser entendida antes de definir o critério de integridade.
 - Credencial/MFA no navegador interno somente se a Microsoft solicitar durante a validação visual posterior.
 
 ## Como retomar
 
-1. Confirmar branch/HEAD e que apenas este checkpoint está modificado.
-2. Corrigir a propagação de erro após `finally` no teste de homologação.
-3. Executar Prettier, lint, typecheck, semantic contract, testes, build, segurança de Actions, sintaxe PowerShell e policy do Control Plane.
-4. Incorporar `origin/main`, resolver conflitos pela causa e repetir todos os gates.
-5. Commitar/push, acompanhar a CI até verde e só então iniciar o round-trip Graph real.
+1. Confirmar branch/HEAD e revisar a instrumentação diagnóstica.
+2. Publicar a instrumentação e acompanhar o novo run M365.
+3. Baixar o XLSX sintético temporário, comparar pacote/partes OOXML e registrar a causa.
+4. Excluir o artefato XLSX diagnóstico do GitHub após a análise.
+5. Corrigir nosso transporte ou adotar critério estrutural comprovado, repetir o storage até verde e somente então iniciar share.
