@@ -3,6 +3,7 @@ import { encodeBase64Url, encodeJson } from '../server/auth/base64url';
 import {
   BearerAuthenticationError,
   BearerAuthorizationError,
+  BearerVerificationUnavailableError,
   verifyMicrosoftEntraAccessToken,
 } from '../server/auth/entra-access-token';
 
@@ -57,14 +58,14 @@ const fetcher: typeof fetch = async () =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-function verify(authorization: string | null) {
+function verify(authorization: string | null, customFetcher: typeof fetch = fetcher) {
   return verifyMicrosoftEntraAccessToken({
     authorization,
     tenantId,
     audience,
     requiredScope,
     now,
-    fetcher,
+    fetcher: customFetcher,
   });
 }
 
@@ -93,5 +94,28 @@ describe('Banco de Notas add-in Microsoft Entra bearer', () => {
     );
     await expect(verify('Basic abc')).rejects.toBeInstanceOf(BearerAuthenticationError);
     await expect(verify(null)).rejects.toBeInstanceOf(BearerAuthenticationError);
+  });
+
+  it('treats JWKS transport and provider failures as temporarily unavailable, not bad credentials', async () => {
+    const validToken = `Bearer ${await token()}`;
+    const networkFailure: typeof fetch = async () => {
+      throw new Error('network unavailable');
+    };
+    const providerFailure: typeof fetch = async () => new Response('unavailable', { status: 503 });
+    const invalidProviderBody: typeof fetch = async () =>
+      new Response(JSON.stringify({ unexpected: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+    await expect(verify(validToken, networkFailure)).rejects.toBeInstanceOf(
+      BearerVerificationUnavailableError,
+    );
+    await expect(verify(validToken, providerFailure)).rejects.toBeInstanceOf(
+      BearerVerificationUnavailableError,
+    );
+    await expect(verify(validToken, invalidProviderBody)).rejects.toBeInstanceOf(
+      BearerVerificationUnavailableError,
+    );
   });
 });
