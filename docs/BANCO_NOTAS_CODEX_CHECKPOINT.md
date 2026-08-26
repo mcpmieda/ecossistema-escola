@@ -3,9 +3,10 @@
 Última atualização: 26/08/2026 — retomada após interrupção do Codex
 Branch: `feat/banco-de-notas-foundation`
 PR: `#52` — open, draft, sem merge
-HEAD técnico antes deste checkpoint: `dc59860e729ef222c1aa8fecc203025125859109`
+HEAD técnico validado para CI antes deste checkpoint: `042fd368bcf44811c2dfb1c1275c4a8f5587bdbd`
+CI final Graph: `32985538704` / run `#709` — queued no momento deste registro
 Última baseline D1 comprovada: run `32981705701` — success no HEAD `2467240`
-Última CI verde anterior ao bloco Graph: run `32981711631` — success no HEAD `2467240`
+Última CI verde comprovada: `32981711631` — success no HEAD `2467240`
 
 ## Objetivo do bloco atual
 
@@ -14,35 +15,33 @@ Fechar a fundação técnica corrente, preservar a homologação remota das migr
 ## Concluído
 
 - [x] PR #52 confirmado open + draft + sem merge.
-- [x] CI normal verde no bloco D1.
 - [x] D1 `banco-notas-homologation` reutilizado, sem banco paralelo.
 - [x] Migrations `0001`–`0007` validadas no D1 remoto.
 - [x] Migration `0007` comprovou bloqueio de sync sem Entra OID e unicidade do OID.
-- [x] Smoke remoto ampliado comprovou lock de troca de OID e de inativação durante sync temporário.
-- [x] Estado final do smoke remoto comprovado com `sync_enabled=0`.
-- [x] Gateway Graph backend-only existente recuperado do remoto após a interrupção do Codex.
+- [x] Smoke remoto comprovou lock de troca de OID e de inativação durante sync temporário.
+- [x] Estado final remoto comprovado com `sync_enabled=0`.
 - [x] Diff local perdido do bloco Graph reconstruído canonicamente no GitHub.
-- [x] Metadata e download Graph separados em operações distintas.
-- [x] SHA-256 movido para a orquestração e calculado localmente sobre os bytes realmente baixados.
-- [x] Reanálise do workbook baixado tornou-se gate obrigatório antes da auditoria de sucesso.
+- [x] Metadata e download Graph separados.
+- [x] SHA-256 calculado localmente sobre os bytes realmente baixados.
+- [x] Reanálise OOXML tornou-se gate obrigatório antes da auditoria de sucesso.
 - [x] Compensação cobre falha de metadata, tamanho baixado, hash e reanálise.
-- [x] Target Graph preparado por `BANCO_NOTAS_GRAPH_DRIVE_ID` + `BANCO_NOTAS_GRAPH_PARENT_ITEM_ID`, sem IDs fictícios e com resolução fail-closed.
-- [x] `.env.example` contém somente os nomes das novas configurações, sem valores reais.
-- [x] Teste integrado criado para `serializer → Graph boundary → download → SHA-256 → analyzer` usando workbook genérico sintético real.
-- [x] Nenhuma chamada Graph real, alteração SharePoint, alteração Entra ou deploy de produção foi executada na retomada.
+- [x] Target Graph preparado por `BANCO_NOTAS_GRAPH_DRIVE_ID` + `BANCO_NOTAS_GRAPH_PARENT_ITEM_ID`, sem IDs fictícios e fail-closed.
+- [x] Teste integrado criado para `serializer → Graph boundary → download → SHA-256 → analyzer` usando XLSX genérico real.
+- [x] `BANCO_NOTAS_IMPLEMENTATION_STATE.md`, `BANCO_NOTAS_HANDOFF.md` e evidência D1 atualizados para migrations `0001`–`0007` e estado Graph corrente.
+- [x] Nenhuma chamada Graph real, alteração SharePoint, alteração Entra, merge ou deploy de produção foi executado.
 
 ## Em andamento
 
-- [ ] Fechar a CI normal correspondente ao bloco Graph reconstruído.
-- [ ] Corrigir qualquer falha real da baseline sem enfraquecer regras.
-- [ ] Atualizar `BANCO_NOTAS_IMPLEMENTATION_STATE.md`, `BANCO_NOTAS_HANDOFF.md`, evidência D1, `PROJECT_STATE.md`, `VERIFICATION.md` e corpo do PR #52 com os dados correntes.
+- [ ] CI `32985538704` / #709 do HEAD `042fd368...`.
+- [ ] Se a CI falhar, corrigir a causa sem enfraquecer regras e repetir.
+- [ ] Atualizar corpo do PR #52 com resultado final e contagem real de testes.
 
 ## Próxima ação exata
 
-1. localizar a CI disparada após este checkpoint;
+1. acompanhar o run `32985538704`;
 2. exigir formatting, lint, typecheck, semantic contract, testes e build verdes;
-3. se houver falha, corrigir a causa e repetir até verde;
-4. consolidar documentação e corpo do PR;
+3. corrigir qualquer falha real;
+4. atualizar o corpo do PR com HEAD/run/contagem final;
 5. manter PR draft, sync off e produção untouched;
 6. Microsoft externo só retoma quando existir sessão/credencial administrativa de homologação apropriada.
 
@@ -53,14 +52,12 @@ Fechar a fundação técnica corrente, preservar a homologação remota das migr
 - Repositório: `mcpmieda/ecossistema-escola`.
 - Branch: `feat/banco-de-notas-foundation`.
 - PR #52: open, draft, base `main`.
-- Baseline D1/CI comprovada antes do Graph: `2467240b53bf3bbc5996905ba940b544cb35f266`.
-- Run D1 final do bloco de identidade: `32981705701` — success.
-- CI correspondente ao bloco D1: `32981711631` — success; produção skipped.
-- Execução intermediária Graph `32985041877` / run #708 falhou em typecheck porque o mock antigo ainda não possuía `download`; isso ocorreu antes da atualização do teste e foi corrigido nos commits posteriores.
+- Run intermediário `32985041877` / #708 falhou em typecheck porque um mock antigo ainda não possuía `download`; corrigido nos commits posteriores.
+- Run final corrente: `32985538704` / #709 no HEAD `042fd368...`.
 
 ### Cloudflare
 
-- D1 de homologação: `banco-notas-homologation`.
+- D1: `banco-notas-homologation`.
 - Migrations remotas: `0001`–`0007` comprovadas.
 - Run `32981705701`: success.
 - Sync final: desligado.
@@ -68,7 +65,7 @@ Fechar a fundação técnica corrente, preservar a homologação remota das migr
 
 ### Microsoft / Entra
 
-- A sessão anterior auditada pelo Codex não possuía CLI/credencial/sessão administrativa Microsoft disponível.
+- Na sessão anterior do Codex não havia CLI/credencial/sessão administrativa Microsoft disponível.
 - Nenhum app registration, scope, audience, permissão ou tenant foi alterado.
 - Audience/scope reais continuam bloqueio para exposição do add-in.
 
@@ -79,29 +76,24 @@ Fechar a fundação técnica corrente, preservar a homologação remota das migr
 - Targets Graph permanecem sem valores no repositório e resolvem fail-closed.
 - Nenhuma chamada Graph real nem alteração SharePoint foi realizada.
 
-## Recursos criados ou alterados nesta retomada
+## Recursos alterados na retomada
 
-| Recurso | Ambiente | Estado |
-| --- | --- | --- |
-| `server/banco-notas/teacher-model-graph.ts` | Git/branch | download/hash/reanálise e compensação reconstruídos |
-| `server/banco-notas/teacher-model-graph-gateway.ts` | Git/branch | metadata/download separados + target fail-closed |
-| `server/env.ts` | Git/branch | target Graph opcional declarado |
-| `.env.example` | Git/branch | nomes das configs Graph sem valores |
-| `tests/banco-notas-teacher-model-graph.test.ts` | Git/branch | falhas e compensações ampliadas |
-| `tests/banco-notas-teacher-model-graph-gateway.test.ts` | Git/branch | lifecycle separado + target fail-closed |
-| `tests/banco-notas-teacher-model-graph-roundtrip.test.ts` | Git/branch | round-trip XLSX sintético integrado |
+| Recurso | Estado |
+| --- | --- |
+| `server/banco-notas/teacher-model-graph.ts` | download/hash/reanálise + compensação |
+| `server/banco-notas/teacher-model-graph-gateway.ts` | metadata/download separados + target fail-closed |
+| `server/env.ts` | target Graph opcional |
+| `.env.example` | nomes das configs Graph sem valores |
+| `tests/banco-notas-teacher-model-graph.test.ts` | compensações ampliadas |
+| `tests/banco-notas-teacher-model-graph-gateway.test.ts` | lifecycle e target fail-closed |
+| `tests/banco-notas-teacher-model-graph-roundtrip.test.ts` | round-trip XLSX integrado |
+| `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md` | atualizado |
+| `docs/BANCO_NOTAS_HANDOFF.md` | atualizado |
+| `docs/BANCO_NOTAS_D1_HOMOLOGATION_VERIFICATION_2026-08-26.md` | atualizado para 0007 |
 
 Nunca registrar secrets.
 
-## Commits relevantes
-
-### Bloco anterior preservado
-
-- `2bb0750` — fechar baseline da CI do Banco de Notas e criar checkpoint persistente.
-- `a516fae` — registrar CI verde antes da operação D1.
-- `2467240` — fechar invariantes Entra no D1 remoto.
-
-### Retomada após interrupção
+## Commits relevantes da retomada
 
 - `7bd1929` — exigir download/hash/reanálise na orquestração Graph.
 - `c77c599` — separar metadata e download no gateway Graph.
@@ -110,6 +102,10 @@ Nunca registrar secrets.
 - `979f063` — atualizar lifecycle/teste do gateway.
 - `74bc4d6` — atualizar orquestração e compensações nos testes.
 - `dc59860` — adicionar round-trip XLSX integrado ao boundary Graph.
+- `3bf54f0` — consolidar retomada do checkpoint.
+- `e35c447` — atualizar implementation state.
+- `d30229e` — atualizar handoff.
+- `042fd36` — registrar homologação remota da migration 0007.
 
 ## CIs / workflows
 
@@ -117,29 +113,14 @@ Nunca registrar secrets.
 - `32981239012` — success — D1 remoto com migrations `0001`–`0007` e smokes.
 - `32981705701` — success — locks de OID/status e estado final sync off.
 - `32981711631` — success — CI do bloco D1; produção skipped.
-- `32985041877` — failure intermediária — typecheck em mock antigo sem `download`; corrigido depois.
-
-## Problemas encontrados
-
-- A interrupção ocorreu depois de alterações Graph/docs locais e antes do commit/push; essas alterações não existiam no HEAD remoto `2467240`.
-- O checkpoint fornecido permitiu reconstruir a intenção sem inventar estado Microsoft externo.
-- Uma CI intermediária executou antes da atualização do teste e detectou corretamente a ausência do novo método `download` no mock antigo.
-
-## Decisões técnicas preservadas
-
-- Graph continua backend-only.
-- SharePoint/OneDrive continuam destinados a arquivos/modelos e versões, não ao estado transacional.
-- Hash do workbook é calculado localmente sobre o conteúdo efetivamente baixado.
-- Sucesso de compartilhamento não é auditado antes da reanálise OOXML do arquivo recuperado.
-- Falha após upload/share exige compensação explícita.
-- Configuração Graph sem drive/pasta real falha fechado.
-- Sync continua desligado até gate end-to-end completo.
+- `32985041877` — failure intermediária — mock antigo sem `download`; corrigido depois.
+- `32985538704` — queued — CI final do bloco Graph no HEAD `042fd368...` no momento deste checkpoint.
 
 ## Bloqueios externos
 
-- Microsoft/Entra/Graph/SharePoint real continua bloqueado até existir sessão/credencial de homologação apropriada neste ambiente.
-- Atomicidade remota por `D1Database` binding ainda requer runtime Cloudflare de homologação autorizado; não ampliar permissões apenas para fabricar a prova.
-- Browser QA requer ambiente navegável apropriado.
+- Microsoft/Entra/Graph/SharePoint real: requer sessão/credencial administrativa de homologação apropriada.
+- Atomicidade remota por `D1Database` binding: requer runtime Cloudflare de homologação autorizado.
+- Browser QA: requer ambiente navegável apropriado.
 
 ## Não fazer ao retomar
 
@@ -151,12 +132,12 @@ Nunca registrar secrets.
 - não registrar ou persistir tokens/secrets;
 - não usar golden masters privados como produto ou fixture;
 - não ampliar permissões sem necessidade comprovada;
-- não declarar Graph/SharePoint real homologado enquanto não houver execução externa comprovada.
+- não declarar Graph/SharePoint real homologado sem execução externa comprovada.
 
 ## Como retomar
 
-1. Confirmar HEAD do PR e a CI mais recente.
-2. Fechar qualquer falha da CI do bloco Graph.
-3. Atualizar documentação/evidências e corpo do PR com os números finais.
-4. Se Microsoft continuar indisponível, avançar em trabalho independente seguro em vez de simular integração externa.
-5. Para Microsoft real, autenticar ambiente administrativo de homologação com menor privilégio e então executar upload/share/download/reanálise real.
+1. Confirmar HEAD do PR e o run #709.
+2. Fechar qualquer falha da CI.
+3. Atualizar o corpo do PR com a baseline final.
+4. Se Microsoft continuar indisponível, avançar em trabalho funcional independente seguro em vez de simular integração externa.
+5. Para Microsoft real, autenticar ambiente administrativo de homologação com menor privilégio e executar upload/share/download/reanálise real.
