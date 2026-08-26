@@ -2,12 +2,16 @@ import { z } from 'zod';
 import { gradeFieldSchema } from './banco-notas-grade-events';
 
 const excelColumnSchema = z.string().regex(/^[A-Z]{1,3}$/u, 'expected an Excel column');
+const invalidSheetNameCharacters = new Set(['\\', '/', '*', '?', ':', '[', ']']);
 const safeSheetNameSchema = z
   .string()
   .trim()
   .min(1)
   .max(31)
-  .refine((value) => !/[\\/*?:\[\]]/u.test(value), 'sheet name contains an invalid Excel character')
+  .refine(
+    (value) => ![...value].some((character) => invalidSheetNameCharacters.has(character)),
+    'sheet name contains an invalid Excel character',
+  )
   .refine((value) => value.toLocaleLowerCase('en-US') !== '_banconotas', 'sheet name is reserved');
 
 export const genericWorkbookPresentationSchema = z
