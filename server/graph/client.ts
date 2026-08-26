@@ -109,12 +109,12 @@ export async function graphContentRequest(input: {
   if (input.method === 'PUT' && !input.contentType) {
     throw new Error('Graph binary PUT requires contentType');
   }
-  const body =
-    input.body === undefined
-      ? undefined
-      : new Blob([new Uint8Array(input.body)], {
-          type: input.contentType ?? 'application/octet-stream',
-        });
+  let body: ArrayBuffer | undefined;
+  if (input.body !== undefined) {
+    const stable = new Uint8Array(input.body.byteLength);
+    stable.set(input.body);
+    body = stable.buffer;
+  }
   let lastStatus = 0;
   for (let attempt = 0; attempt < 5; attempt++) {
     const headers = new Headers({
