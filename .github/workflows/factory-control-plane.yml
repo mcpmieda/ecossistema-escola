@@ -9,8 +9,15 @@ on:
   issues:
     types: [opened, edited, reopened]
 
+permissions: {}
+
+concurrency:
+  group: factory-control-plane-${{ github.event_name }}-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
 jobs:
   validate:
+    name: Validate Factory Control Plane
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
@@ -19,12 +26,23 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Show canonical Prettier output
+        run: |
+          npx prettier --write .github/workflows/factory-control-plane.yml infra/factory/control-plane.mjs infra/factory/examples/banco-notas-pilot-issue.md
+          git diff -- .github/workflows/factory-control-plane.yml infra/factory/control-plane.mjs infra/factory/examples/banco-notas-pilot-issue.md
       - name: Check Factory Control Plane syntax
         run: node --check infra/factory/control-plane.mjs
       - name: Validate Banco de Notas Factory Run fixture
         run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.md
 
   materialize:
+    name: Materialize Factory Run tasks
     if: >-
       github.event_name == 'issues' &&
       startsWith(github.event.issue.title, '[Factory Run]') &&
@@ -33,7 +51,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      issues: write
+      issues: write # Required only to label the parent and create/comment child Factory tasks.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
