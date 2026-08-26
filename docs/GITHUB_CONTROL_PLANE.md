@@ -18,6 +18,8 @@ Não utilizar a estação administrativa como executor permanente de tarefas cr�
 - validação completa
 - verificação de recuperação
 - rotação de identidade técnica
+- bootstrap da identidade operacional Microsoft 365
+- operações Microsoft 365 tipadas e allowlisted
 - consulta de logs
 - recuperação de artifacts
 
@@ -47,11 +49,23 @@ Jobs que precisam de token OIDC devem:
 
 A identidade de manutenção existente continua dedicada a Application.ReadWrite.OwnedBy.
 
-Acesso futuro do GitHub a SharePoint deve usar Sites.Selected e site explicitamente autorizado.
+Acesso do GitHub a SharePoint usa uma identidade operacional dedicada com `Sites.Selected` e site explicitamente autorizado.
 
 Operações futuras de grupos, usuários, Banco de Notas ou outros módulos devem receber identidades separadas quando a necessidade real existir.
 
 Não conceder Directory.ReadWrite.All como permissão genérica para o plano de controle.
+
+## Microsoft 365 sem autenticação pelo Codex
+
+Operações rotineiras do Microsoft 365 não dependem do Codex para autenticação.
+
+O fluxo é:
+
+PowerShell -> GitHub Actions -> GitHub OIDC -> Entra -> identidade operacional -> Graph -> recurso explicitamente permitido.
+
+A identidade `Ecossistema Escola - GitHub M365 Operations` é separada da identidade de manutenção. O bootstrap pode ser feito pela identidade de manutenção porque ela possui apenas `Application.ReadWrite.OwnedBy`, mas a execução normal usa a identidade operacional.
+
+A configuração e os limites completos estão em `docs/M365_CONTROL_PLANE.md`.
 
 ## Proibição de executor arbitrário
 
@@ -118,6 +132,22 @@ Rotação forçada:
 Teste controlado de falha:
 
     pwsh ./infra/ops/ecossistema.ps1 -Acao rotacionar -SimularFalha
+
+Bootstrap da identidade operacional Microsoft 365:
+
+    pwsh ./infra/ops/ecossistema.ps1 -Acao m365-bootstrap
+
+Teste de autenticação Microsoft 365:
+
+    pwsh ./infra/ops/ecossistema.ps1 -Acao m365 -OperacaoM365 identity-check
+
+Saúde do SharePoint:
+
+    pwsh ./infra/ops/ecossistema.ps1 -Acao m365 -OperacaoM365 sharepoint-health
+
+Prontidão do Banco de Notas para armazenamento Microsoft 365:
+
+    pwsh ./infra/ops/ecossistema.ps1 -Acao m365 -OperacaoM365 banco-notas-readiness
 
 Logs:
 

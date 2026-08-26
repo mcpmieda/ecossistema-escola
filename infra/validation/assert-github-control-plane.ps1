@@ -10,7 +10,9 @@ $WorkflowRoot = [IO.Path]::GetFullPath($WorkflowRoot)
 $AllowedIdTokenFiles = @(
     'ci.yml',
     'verify-recovery.yml',
-    'rotate-technical-identity.yml'
+    'rotate-technical-identity.yml',
+    'bootstrap-m365-operations-identity.yml',
+    'm365-operations.yml'
 )
 
 $Errors = [System.Collections.Generic.List[string]]::new()
