@@ -127,12 +127,13 @@ function Get-Sha256Hex {
 Write-Host "Validando D1 remoto: $expectedDatabaseName"
 
 $tables = Get-D1Rows -Sql "SELECT COUNT(*) AS total FROM sqlite_master WHERE type = 'table' AND name IN ('school_years','data_sources','source_assignments','import_jobs','import_analyses','import_finding_resolutions');"
-Assert-True -Condition ([int]$tables[0].total -eq 6) -Message 'Tabelas esperadas das migrations 0001-0005 não estão completas.'
+Assert-True -Condition ([int]$tables[0].total -eq 6) -Message 'Tabelas esperadas das migrations base não estão completas.'
 
-$migrations = Get-D1Rows -Sql "SELECT COUNT(*) AS total FROM d1_migrations WHERE name LIKE '000%'; SELECT COUNT(*) AS analysis_migration FROM d1_migrations WHERE name LIKE '0005_banco_notas_import_analysis%';"
-Assert-True -Condition ([int]$migrations[0].total -ge 5) -Message 'Menos de cinco migrations Banco de Notas constam como aplicadas.'
+$migrations = Get-D1Rows -Sql "SELECT COUNT(*) AS total FROM d1_migrations WHERE name LIKE '000%'; SELECT COUNT(*) AS analysis_migration FROM d1_migrations WHERE name LIKE '0005_banco_notas_import_analysis%'; SELECT COUNT(*) AS identity_migration FROM d1_migrations WHERE name LIKE '0007_banco_notas_teacher_entra_identity%';"
+Assert-True -Condition ([int]$migrations[0].total -ge 7) -Message 'Menos de sete migrations Banco de Notas constam como aplicadas.'
 Assert-True -Condition ([int]$migrations[1].analysis_migration -eq 1) -Message 'Migration 0005 não consta como aplicada.'
-Write-Host 'PASS: schema e migrations 0001-0005'
+Assert-True -Condition ([int]$migrations[2].identity_migration -eq 1) -Message 'Migration 0007 não consta como aplicada.'
+Write-Host 'PASS: schema e migrations 0001-0007'
 
 $availableYears = Get-D1Rows -Sql "WITH RECURSIVE years(year) AS (SELECT 2200 UNION ALL SELECT year - 1 FROM years WHERE year > 2000) SELECT year FROM years WHERE NOT EXISTS (SELECT 1 FROM school_years current WHERE current.year = years.year) LIMIT 2;"
 Assert-True -Condition ($availableYears.Count -eq 2) -Message 'Não há dois anos sintéticos livres para o smoke.'
@@ -144,6 +145,9 @@ $prefix = "smoke-$runToken"
 $primaryYearId = "$prefix-year-primary"
 $secondaryYearId = "$prefix-year-secondary"
 $teacherId = "$prefix-teacher"
+$otherTeacherId = "$prefix-teacher-other"
+$teacherModelId = "$prefix-teacher-model"
+$entraObjectId = [guid]::NewGuid().ToString()
 $sourceId = "$prefix-source"
 $assignmentId = "$prefix-authority"
 $referenceAssignmentId = "$prefix-reference"
@@ -159,6 +163,19 @@ $wrongHash = Get-Sha256Hex -Value "$prefix-wrong-workbook"
 Invoke-D1 -Sql "INSERT INTO school_years (id, year, name, starts_on, ends_on) VALUES ('$primaryYearId', $primaryYear, 'SMOKE $runToken', '$primaryYear-01-01', '$primaryYear-12-31');" | Out-Null
 Invoke-D1 -Sql "INSERT INTO school_years (id, year, name, starts_on, ends_on) VALUES ('$secondaryYearId', $secondaryYear, 'SMOKE secondary $runToken', '$secondaryYear-01-01', '$secondaryYear-12-31');" | Out-Null
 Invoke-D1 -Sql "INSERT INTO teachers (id, display_name) VALUES ('$teacherId', 'Pessoa sintética smoke $runToken');" | Out-Null
+Invoke-D1 -Sql "INSERT INTO teachers (id, display_name) VALUES ('$otherTeacherId', 'Outra pessoa sintética smoke $runToken');" | Out-Null
+Invoke-D1 -Sql "INSERT INTO teacher_models (id, school_year_id, teacher_id, state, sync_enabled, environment) VALUES ('$teacherModelId', '$primaryYearId', '$teacherId', 'connected', 0, 'homologation');" | Out-Null
+
+Assert-D1Failure -Label 'teacher model sync without Entra identity' -ExpectedMessage 'teacher model entra identity required for sync' -Sql "UPDATE teacher_models SET sync_enabled = 1 WHERE id = '$teacherModelId';"
+$modelSync = Get-D1Rows -Sql "SELECT sync_enabled FROM teacher_models WHERE id = '$teacherModelId';"
+Assert-True -Condition ([int]$modelSync[0].sync_enabled -eq 0) -Message 'Falha de identidade não pode deixar sync habilitado.'
+
+Invoke-D1 -Sql "UPDATE teachers SET entra_object_id = '$entraObjectId' WHERE id = '$teacherId';" | Out-Null
+$identity = Get-D1Rows -Sql "SELECT entra_object_id FROM teachers WHERE id = '$teacherId';"
+Assert-True -Condition ($identity[0].entra_object_id -eq $entraObjectId) -Message 'Identidade Entra sintética não foi persistida.'
+Assert-D1Failure -Label 'duplicate teacher Entra identity' -ExpectedMessage 'UNIQUE constraint failed' -Sql "UPDATE teachers SET entra_object_id = '$entraObjectId' WHERE id = '$otherTeacherId';"
+Write-Host 'PASS: identidade Entra é única e necessária antes de sync'
+
 Invoke-D1 -Sql "INSERT INTO data_sources (id, school_year_id, type, name, description, created_by) VALUES ('$sourceId', '$primaryYearId', 'legacy_import', 'SMOKE source $runToken', 'Dado sintético de homologação', 'smoke-remote');" | Out-Null
 
 $defaults = Get-D1Rows -Sql "SELECT environment, migration_state, status FROM data_sources WHERE id = '$sourceId';"
@@ -211,4 +228,4 @@ Write-Host ''
 Write-Host 'SMOKE REMOTO CONCLUÍDO.'
 Write-Host "Run token: $runToken"
 Write-Host "Job sintético preservado como evidência append-only: $jobId"
-Write-Host 'Este script não provisiona D1, não aplica migrations, não toca produção e não testa/ativa sync.'
+Write-Host 'Este script não provisiona D1, não aplica migrations, não toca produção e não habilita sync.'
