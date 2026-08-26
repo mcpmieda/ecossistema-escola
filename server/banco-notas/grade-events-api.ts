@@ -1,8 +1,5 @@
 import { z, ZodError } from 'zod';
-import {
-  gradeFieldSchema,
-  type GradeEventStore,
-} from '../../shared/banco-notas-grade-events';
+import { gradeFieldSchema, type GradeEventStore } from '../../shared/banco-notas-grade-events';
 import { HttpError, readBoundedJson } from '../http/security';
 import {
   getGradeEventReceipt,
@@ -93,9 +90,7 @@ export async function routeGradeEventsApi(args: {
     const field = parse(() => gradeFieldSchema.parse(url.searchParams.get('field')));
     const snapshot = await store.getSnapshot(gradeKey, field);
     if (!snapshot) throw new HttpError(404, 'Grade snapshot not found');
-    return json(snapshot, 200, {
-      ETag: `"${snapshot.sequence}-${snapshot.lastEventId}"`,
-    });
+    return json(snapshot, 200, { ETag: `"${snapshot.sequence}-${snapshot.lastEventId}"` });
   }
 
   throw new HttpError(404, 'Not found');
