@@ -219,4 +219,34 @@ describe('Banco de Notas API', () => {
     });
     expect(repo.createImportJob).toHaveBeenCalledOnce();
   });
+
+  it('rejects a manual analyzed transition and reserves it for verified analysis', async () => {
+    const repo = repository();
+
+    await expect(
+      routeBancoNotasApi({
+        request: new Request(
+          'https://example.test/api/banco-notas/v1/import-jobs/33333333-3333-4333-8333-333333333333',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              targetState: 'analyzed',
+              reason: 'tentativa manual',
+              findings: [],
+              resolvedFindingIds: [],
+              provenance: {},
+            }),
+          },
+        ),
+        repository: repo,
+        capabilities: capabilities('grades.import.run'),
+        actor: 'actor',
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'Import job analysis must use the verified analysis pipeline',
+    });
+    expect(repo.transitionImportJob).not.toHaveBeenCalled();
+  });
 });
