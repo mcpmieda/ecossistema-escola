@@ -2,7 +2,11 @@ import { z } from 'zod';
 import { gradeFieldSchema } from './banco-notas-grade-events';
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u, 'expected lowercase SHA-256');
-const opaqueIdSchema = z.string().min(1).max(180).regex(/^[A-Za-z0-9._:-]+$/u);
+const opaqueIdSchema = z
+  .string()
+  .min(1)
+  .max(180)
+  .regex(/^[A-Za-z0-9._:-]+$/u);
 const canonicalIdSchema = z.string().uuid();
 
 export const genericModelDefinitionSchema = z
@@ -99,10 +103,22 @@ export const legacyIntermediateModelSchema = z
         });
       }
     };
-    unique(value.classes.map((item) => item.sourceClassId), 'classes');
-    unique(value.components.map((item) => item.sourceComponentId), 'components');
-    unique(value.students.map((item) => item.sourceStudentId), 'students');
-    unique(value.gradeSlots.map((item) => item.sourceGradeSlotId), 'gradeSlots');
+    unique(
+      value.classes.map((item) => item.sourceClassId),
+      'classes',
+    );
+    unique(
+      value.components.map((item) => item.sourceComponentId),
+      'components',
+    );
+    unique(
+      value.students.map((item) => item.sourceStudentId),
+      'students',
+    );
+    unique(
+      value.gradeSlots.map((item) => item.sourceGradeSlotId),
+      'gradeSlots',
+    );
 
     const classIds = new Set(value.classes.map((item) => item.sourceClassId));
     const componentIds = new Set(value.components.map((item) => item.sourceComponentId));
