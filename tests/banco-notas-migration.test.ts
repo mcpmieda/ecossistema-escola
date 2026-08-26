@@ -12,6 +12,10 @@ const migration2 = readFileSync(
   join(root, 'infra/banco-notas/d1/migrations/0002_banco_notas_cross_year_integrity.sql'),
   'utf8',
 );
+const migration3 = readFileSync(
+  join(root, 'infra/banco-notas/d1/migrations/0003_banco_notas_import_job_state_machine.sql'),
+  'utf8',
+);
 
 type RuntimeEvidence = Record<string, boolean>;
 
@@ -34,6 +38,7 @@ describe('Banco de Notas D1 migration compatibility', () => {
   it('keeps migration files free of product seed data', () => {
     expect(migration1).not.toMatch(/INSERT\s+INTO/iu);
     expect(migration2).not.toMatch(/INSERT\s+INTO/iu);
+    expect(migration3).not.toMatch(/INSERT\s+INTO/iu);
   });
 
   it('executes both migrations in a real SQLite runtime', () => {
@@ -63,5 +68,11 @@ describe('Banco de Notas D1 migration compatibility', () => {
 
   it('proves rollback semantics for a failed multi-statement transaction', () => {
     expect(evidence.transactionRollback).toBe(true);
+  });
+
+  it('enforces import job gates and append-only findings in SQLite', () => {
+    expect(evidence.importStateSkipRejected).toBe(true);
+    expect(evidence.importStateForwardAllowed).toBe(true);
+    expect(evidence.importFindingsAppendOnly).toBe(true);
   });
 });

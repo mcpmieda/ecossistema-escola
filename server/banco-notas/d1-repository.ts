@@ -10,6 +10,14 @@ import type {
   SourcePatch,
   Teacher,
 } from '../../shared/banco-notas-contract';
+import type {
+  ImportFinding,
+  ImportJob,
+  ImportJobCreate,
+  ImportJobState,
+  ImportJobTransition,
+} from '../../shared/banco-notas-import-jobs';
+import { assertImportJobGate, assertImportJobTransition } from './import-jobs';
 
 type Row = Record<string, string | number | null>;
 
@@ -41,6 +49,23 @@ function assignment(row: Row): SourceAssignment {
     operatorId: String(row.operator_id),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
+  };
+}
+
+function importJob(row: Row, findings: ImportFinding[] = []): ImportJob {
+  return {
+    id: String(row.id),
+    schoolYearId: String(row.school_year_id),
+    teacherId: String(row.teacher_id),
+    dataSourceId: String(row.data_source_id),
+    idempotencyKey: String(row.idempotency_key),
+    sourceHash: String(row.source_hash),
+    state: String(row.state) as ImportJobState,
+    provenance: JSON.parse(String(row.provenance_json)) as Record<string, unknown>,
+    requestedBy: String(row.requested_by),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
+    findings,
   };
 }
 
@@ -282,5 +307,167 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
       reason: next.reason,
       operator_id: actor,
     });
+  }
+
+  private async importFindings(jobId: string): Promise<ImportFinding[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT severity, code, location_json, details_json
+         FROM import_findings WHERE import_job_id = ? ORDER BY created_at, id`,
+      )
+      .bind(jobId)
+      .all<Row>();
+    return results.map((row) => ({
+      severity: String(row.severity) as ImportFinding['severity'],
+      code: String(row.code),
+      location: JSON.parse(String(row.location_json)) as Record<string, unknown>,
+      details: JSON.parse(String(row.details_json)) as Record<string, unknown>,
+    }));
+  }
+
+  async listImportJobs(schoolYearId?: string): Promise<ImportJob[]> {
+    const statement = schoolYearId
+      ? this.db
+          .prepare('SELECT * FROM import_jobs WHERE school_year_id = ? ORDER BY created_at DESC')
+          .bind(schoolYearId)
+      : this.db.prepare('SELECT * FROM import_jobs ORDER BY created_at DESC');
+    const rows = (await statement.all<Row>()).results;
+    return Promise.all(
+      rows.map(async (row) => importJob(row, await this.importFindings(String(row.id)))),
+    );
+  }
+
+  async findImportJob(id: string): Promise<ImportJob | null> {
+    const row = await this.db
+      .prepare('SELECT * FROM import_jobs WHERE id = ?')
+      .bind(id)
+      .first<Row>();
+    return row ? importJob(row, await this.importFindings(id)) : null;
+  }
+
+  async createImportJob(input: ImportJobCreate, actor: string): Promise<ImportJob> {
+    const existing = await this.db
+      .prepare(
+        `SELECT * FROM import_jobs
+         WHERE idempotency_key = ? OR (data_source_id = ? AND source_hash = ?)
+         ORDER BY CASE WHEN idempotency_key = ? THEN 0 ELSE 1 END LIMIT 1`,
+      )
+      .bind(input.idempotencyKey, input.dataSourceId, input.sourceHash, input.idempotencyKey)
+      .first<Row>();
+    if (existing) {
+      if (
+        String(existing.source_hash) !== input.sourceHash ||
+        String(existing.school_year_id) !== input.schoolYearId ||
+        String(existing.teacher_id) !== input.teacherId ||
+        String(existing.data_source_id) !== input.dataSourceId
+      ) {
+        throw new Error('import_job_idempotency_conflict');
+      }
+      return importJob(existing, await this.importFindings(String(existing.id)));
+    }
+
+    const id = crypto.randomUUID();
+    const provenance = { ...input.provenance, sourceFormat: input.sourceFormat };
+    await this.db.batch([
+      this.db
+        .prepare(
+          `INSERT INTO import_jobs
+           (id, school_year_id, teacher_id, data_source_id, idempotency_key, source_hash, provenance_json, requested_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          id,
+          input.schoolYearId,
+          input.teacherId,
+          input.dataSourceId,
+          input.idempotencyKey,
+          input.sourceHash,
+          JSON.stringify(provenance),
+          actor,
+        ),
+      this.audit('import_job.created', 'import_job', id, actor, {
+        sourceHash: input.sourceHash,
+        sourceFormat: input.sourceFormat,
+      }),
+    ]);
+    const now = new Date().toISOString();
+    return {
+      id,
+      schoolYearId: input.schoolYearId,
+      teacherId: input.teacherId,
+      dataSourceId: input.dataSourceId,
+      idempotencyKey: input.idempotencyKey,
+      sourceHash: input.sourceHash,
+      state: 'draft',
+      provenance,
+      requestedBy: actor,
+      createdAt: now,
+      updatedAt: now,
+      findings: [],
+    };
+  }
+
+  async transitionImportJob(
+    id: string,
+    input: ImportJobTransition,
+    actor: string,
+  ): Promise<ImportJob | null> {
+    const current = await this.db
+      .prepare('SELECT * FROM import_jobs WHERE id = ?')
+      .bind(id)
+      .first<Row>();
+    if (!current) return null;
+    const currentState = String(current.state) as ImportJobState;
+    assertImportJobTransition(currentState, input.targetState);
+    const allFindings = [...(await this.importFindings(id)), ...input.findings];
+    assertImportJobGate({
+      targetState: input.targetState,
+      errorFindingCount: allFindings.filter((finding) => finding.severity === 'error').length,
+    });
+
+    const provenance = {
+      ...(JSON.parse(String(current.provenance_json)) as Record<string, unknown>),
+      ...input.provenance,
+    };
+    const findingStatements = input.findings.map((finding) =>
+      this.db
+        .prepare(
+          `INSERT INTO import_findings
+           (id, import_job_id, severity, code, location_json, details_json)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          id,
+          finding.severity,
+          finding.code,
+          JSON.stringify(finding.location),
+          JSON.stringify(finding.details),
+        ),
+    );
+    const updatedAt = new Date().toISOString();
+    await this.db.batch([
+      this.db
+        .prepare(
+          `UPDATE import_jobs SET state = ?, provenance_json = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+        )
+        .bind(input.targetState, JSON.stringify(provenance), id),
+      ...findingStatements,
+      this.audit('import_job.transitioned', 'import_job', id, actor, {
+        reason: input.reason,
+        before: currentState,
+        after: input.targetState,
+      }),
+    ]);
+    return importJob(
+      {
+        ...current,
+        state: input.targetState,
+        provenance_json: JSON.stringify(provenance),
+        updated_at: updatedAt,
+      },
+      allFindings,
+    );
   }
 }

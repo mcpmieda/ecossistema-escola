@@ -34,6 +34,22 @@ Atualização visual corrente:
 
 ## Banco de Notas — decisão de verificação dos modelos
 
+### Avanço local de importação/modelo genérico — 25/08/2026
+
+No branch do PR #52, `npm run verify` concluiu localmente com:
+
+- formatting — success;
+- lint — success;
+- typecheck — success;
+- semantic check — success;
+- testes — **196/196 em 34 arquivos**;
+- build — success;
+- warning histórico de chunk acima de 500 kB, sem falha.
+
+Novas provas comportamentais cobrem o bearer Entra fail closed, geração determinística do modelo genérico, bloqueio de plano incompleto, state machine de import jobs, migration SQLite real com transição protegida/findings append-only, API de jobs e orquestração segura de store/share/reconcile. Esta é evidência local; a CI do head publicado será registrada após conclusão.
+
+Limites comprovados por inspeção do ambiente: Wrangler sem autenticação; tokens Cloudflare ausentes; CLIs e configuração administrativa Microsoft ausentes. Portanto, não houve D1 remoto, Entra provisionado, chamada SharePoint/Graph real, browser QA em preview, deploy ou sync.
+
 No branch `feat/banco-de-notas-foundation`, foi registrada a separação obrigatória entre produto e homologação privada:
 
 - o produto usará um modelo genérico limpo;

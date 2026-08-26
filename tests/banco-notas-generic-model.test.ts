@@ -5,7 +5,10 @@ import {
   legacyIntermediateModelSchema,
   type RelationshipResolution,
 } from '../shared/banco-notas-generic-model';
-import { buildGenericTransformationPlan } from '../server/banco-notas/generic-model';
+import {
+  buildGenericTransformationPlan,
+  generateGenericModelInstance,
+} from '../server/banco-notas/generic-model';
 
 const definition = genericModelDefinitionSchema.parse({
   schemaVersion: 1,
@@ -212,5 +215,53 @@ describe('Banco de Notas generic model transformation contract', () => {
     expect(() =>
       genericModelInstanceSchema.parse({ ...valid, environment: 'production' }),
     ).toThrow();
+  });
+
+  it('generates a deterministic instance that can be validated without reopening the source', () => {
+    const plan = buildGenericTransformationPlan({
+      legacy: legacyOne(),
+      definition,
+      relationshipSnapshotId: '44444444-4444-4444-8444-444444444444',
+      resolutions: [resolution()],
+    });
+    const instance = generateGenericModelInstance({
+      plan,
+      modelId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      teacherEntraObjectId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      mappingVersion: 1,
+    });
+
+    expect(instance).toMatchObject({
+      environment: 'homologation',
+      syncEnabled: false,
+      sourceHash: 'a'.repeat(64),
+      relationshipSnapshotId: '44444444-4444-4444-8444-444444444444',
+    });
+    expect(instance.mappings).toEqual([
+      expect.objectContaining({
+        field: 'NotaT1',
+        cellAddress: 'B2',
+        sheetKey:
+          'generated:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222',
+      }),
+    ]);
+    expect(JSON.stringify(instance)).not.toContain('Planilha Principal');
+  });
+
+  it('refuses generation when relationship blockers remain', () => {
+    const plan = buildGenericTransformationPlan({
+      legacy: legacyOne(),
+      definition,
+      relationshipSnapshotId: '88888888-8888-4888-8888-888888888888',
+      resolutions: [],
+    });
+    expect(() =>
+      generateGenericModelInstance({
+        plan,
+        modelId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        teacherEntraObjectId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        mappingVersion: 1,
+      }),
+    ).toThrow('transformation_plan_not_ready');
   });
 });

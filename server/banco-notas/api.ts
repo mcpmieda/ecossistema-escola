@@ -8,6 +8,10 @@ import {
   sourcePatchSchema,
   type BancoNotasRepository,
 } from '../../shared/banco-notas-contract';
+import {
+  importJobCreateSchema,
+  importJobTransitionSchema,
+} from '../../shared/banco-notas-import-jobs';
 import { requireCapability } from '../auth/capabilities';
 import { HttpError, readBoundedJson } from '../http/security';
 import { effectiveAuthority } from './domain';
@@ -55,6 +59,34 @@ async function sourceAuthorityMutation<T>(operation: () => Promise<T>): Promise<
   }
 }
 
+async function importJobMutation<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes('import_job_idempotency_conflict')) {
+        throw new HttpError(409, 'Idempotency key already belongs to another import');
+      }
+      if (
+        error.message.includes('invalid_import_job_transition') ||
+        error.message.includes('invalid import job state transition')
+      ) {
+        throw new HttpError(409, 'Import job transition is not allowed');
+      }
+      if (error.message.includes('import_job_has_unresolved_error_findings')) {
+        throw new HttpError(422, 'Import job has unresolved error findings');
+      }
+      if (
+        error.message.includes('import_job_year_mismatch') ||
+        error.message.includes('import job source year mismatch')
+      ) {
+        throw new HttpError(409, 'Import job relationships must belong to the same school year');
+      }
+    }
+    throw error;
+  }
+}
+
 export async function routeBancoNotasApi(args: {
   request: Request;
   repository: BancoNotasRepository;
@@ -91,6 +123,43 @@ export async function routeBancoNotasApi(args: {
     allowed(request, ['GET']);
     requireCapability(capabilities, 'grades.sources.read');
     return response(await repository.listTeachers());
+  }
+  if (path === '/v1/import-jobs') {
+    allowed(request, ['GET', 'POST']);
+    requireCapability(capabilities, 'grades.import.run');
+    if (request.method === 'GET') {
+      return response(
+        await repository.listImportJobs(url.searchParams.get('schoolYearId') ?? undefined),
+      );
+    }
+    return response(
+      await importJobMutation(() =>
+        repository.createImportJob(
+          parsed(() => importJobCreateSchema.parse(requestBody)),
+          actor,
+        ),
+      ),
+      201,
+    );
+  }
+  const importJobMatch = path.match(/^\/v1\/import-jobs\/([0-9a-f-]+)$/iu);
+  if (importJobMatch?.[1]) {
+    allowed(request, ['GET', 'POST']);
+    requireCapability(capabilities, 'grades.import.run');
+    if (request.method === 'GET') {
+      const result = await repository.findImportJob(importJobMatch[1]);
+      if (!result) throw new HttpError(404, 'Import job not found');
+      return response(result);
+    }
+    const result = await importJobMutation(() =>
+      repository.transitionImportJob(
+        importJobMatch[1]!,
+        parsed(() => importJobTransitionSchema.parse(requestBody)),
+        actor,
+      ),
+    );
+    if (!result) throw new HttpError(404, 'Import job not found');
+    return response(result);
   }
   if (path === '/v1/data-sources') {
     allowed(request, ['GET', 'POST']);

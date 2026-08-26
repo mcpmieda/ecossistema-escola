@@ -1,13 +1,27 @@
 import {
   genericModelDefinitionSchema,
+  genericModelInstanceSchema,
   legacyIntermediateModelSchema,
   relationshipResolutionSchema,
   transformationPlanSchema,
   type GenericModelDefinition,
+  type GenericModelInstance,
   type LegacyIntermediateModel,
   type RelationshipResolution,
   type TransformationPlan,
 } from '../../shared/banco-notas-generic-model';
+
+const gradeColumns = {
+  NotaT1: 'B',
+  NotaT2: 'C',
+  NotaT3: 'D',
+  RecT1: 'E',
+  RecT2: 'F',
+  RecT3: 'G',
+  Total: 'H',
+  TotalRec: 'I',
+  NotaFinal: 'J',
+} as const;
 
 function buildResolutionMap(
   resolutions: RelationshipResolution[],
@@ -100,5 +114,49 @@ export function buildGenericTransformationPlan(args: {
     findings: [...new Set(findings)],
     blockers: uniqueBlockers,
     readyToGenerate: uniqueBlockers.length === 0,
+  });
+}
+
+export function generateGenericModelInstance(args: {
+  plan: TransformationPlan;
+  modelId: string;
+  teacherEntraObjectId: string;
+  mappingVersion: number;
+}): GenericModelInstance {
+  const plan = transformationPlanSchema.parse(args.plan);
+  if (!plan.readyToGenerate || plan.blockers.length > 0) {
+    throw new Error('transformation_plan_not_ready');
+  }
+
+  const studentsBySheet = new Map<string, string[]>();
+  for (const mapping of plan.mappings) {
+    const sheetKey = `generated:${mapping.classGroupId}:${mapping.componentId}`;
+    const students = studentsBySheet.get(sheetKey) ?? [];
+    if (!students.includes(mapping.studentId)) students.push(mapping.studentId);
+    studentsBySheet.set(sheetKey, students.sort());
+  }
+
+  return genericModelInstanceSchema.parse({
+    schemaVersion: 1,
+    modelId: args.modelId,
+    teacherEntraObjectId: args.teacherEntraObjectId,
+    schoolYear: plan.schoolYear,
+    definitionVersion: plan.definitionVersion,
+    sourceHash: plan.sourceHash,
+    relationshipSnapshotId: plan.relationshipSnapshotId,
+    environment: 'homologation',
+    syncEnabled: false,
+    mappingVersion: args.mappingVersion,
+    mappings: plan.mappings.map((mapping) => {
+      const sheetKey = `generated:${mapping.classGroupId}:${mapping.componentId}`;
+      const row = (studentsBySheet.get(sheetKey)?.indexOf(mapping.studentId) ?? -1) + 2;
+      if (row < 2) throw new Error('generated_student_row_missing');
+      return {
+        gradeKey: mapping.gradeKey,
+        field: mapping.field,
+        sheetKey,
+        cellAddress: `${gradeColumns[mapping.field]}${row}`,
+      };
+    }),
   });
 }

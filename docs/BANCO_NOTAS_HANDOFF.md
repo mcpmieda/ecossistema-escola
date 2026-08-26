@@ -6,7 +6,18 @@ Branch: `feat/banco-de-notas-foundation`
 
 PR: `#52`
 
-Estado: **Fase 1 consolidada e núcleo transacional de grade-events iniciado; permanece draft, sem merge e sem produção.**
+Estado: **Fase 1 consolidada, grade-events interno e núcleo de importação/modelo genérico; permanece draft, sem merge e sem produção.**
+
+## Avanço mais recente
+
+- bearer Entra coberto nos cenários fail-closed requeridos, sem conectar o router enquanto faltam audience/scope reais;
+- geração determinística de `GenericModelInstance` a partir do plano pronto, independente do workbook original e sempre com `environment=homologation` e `syncEnabled=false`;
+- import jobs persistentes/API com hash, idempotência, findings, proveniência, operador e state machine protegida também pela migration `0003`;
+- OpenAPI de importação/modelos em `api/banco-notas-models-v1.openapi.yaml`, distinguindo endpoints conectados e futuros;
+- orquestração backend de store/share/metadata/audit para modelo docente, sem adapter Graph real ou sucesso externo inventado;
+- regressão local verde: **196 testes em 34 arquivos** e todos os demais gates de `npm run verify`.
+
+Bloqueios confirmados no ambiente: Wrangler não autenticado e sem token/account Cloudflare; `az` e `m365` ausentes; variáveis Entra/SharePoint/add-in ausentes. Assim, D1 remoto, app registration/scope, SharePoint, Graph real e browser QA de homologação permanecem pendentes.
 
 ## Comece por aqui
 
@@ -147,9 +158,9 @@ Antes de piloto institucional:
 3. executar browser QA real desktop/mobile/deep-link/refresh;
 4. definir e provisionar audience/delegated scope Entra próprios para o add-in;
 5. conectar o endpoint público de grade-events com validação bearer somente depois do gate Entra;
-6. implementar pipeline de importação e transformação para o modelo genérico limpo;
+6. conectar análise/serialização XLSX cloud ao pipeline e aos import jobs já implementados;
 7. adaptar add-in sem client secret e com retry/idempotência conforme os contratos já migrados;
-8. implementar storage/share/reconcile via Graph no backend;
+8. conectar um adapter Graph real à orquestração backend já implementada e homologá-lo;
 9. executar regressão privada Nina/Alanna apenas como entrada externa;
 10. só então preparar piloto individual com `SyncEnabled=false` até reconciliação.
 

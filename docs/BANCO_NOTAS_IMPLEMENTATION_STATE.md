@@ -4,7 +4,19 @@
 
 Branch: `feat/banco-de-notas-foundation`
 
-Fase: **1 consolidada + início do núcleo transacional de grade-events**
+Fase: **1 consolidada + grade-events interno + núcleo de importação/modelo genérico**
+
+## Avanço de 25/08/2026 — importação e modelo genérico
+
+- o bearer Entra fail closed ganhou cobertura para audience em array, `kid` desconhecido, issuer/tenant inválidos, `nbf` futuro, assinatura inválida e configuração ausente, preservando a distinção 401/403/503;
+- o endpoint público do add-in continua deliberadamente desconectado porque audience/scope reais não existem no ambiente;
+- o plano de transformação agora gera uma instância determinística e autovalidável do modelo genérico, sem nomes ou coordenadas da origem, sempre em homologação e com sync desligado;
+- import jobs possuem contrato tipado, idempotência por chave/hash, proveniência, findings, API autenticada, transições sequenciais e auditoria;
+- a migration `0003_banco_notas_import_job_state_machine.sql` aplica o gate de estados no storage e torna findings append-only;
+- `api/banco-notas-models-v1.openapi.yaml` identifica import jobs como conectados e endpoints de teacher model/Graph como futuros e não roteados;
+- a orquestração backend de modelo docente exige um único destinatário Entra/UPN, compartilhamento autenticado, verificação de tamanho/hash e share audit; o adapter Graph real não foi conectado sem credenciais e recurso homologado.
+
+Verificação local deste avanço: `npm run verify` verde, com **196/196 testes em 34 arquivos**, além de formatting, lint, typecheck, semantic check e build. O warning histórico de chunk acima de 500 kB permanece sem falha associada. A CI GitHub do head publicado deve substituir esta evidência local quando concluída.
 
 ## Entregue no PR #52
 
@@ -77,9 +89,9 @@ O núcleo de grade-events está implementado e testado internamente, mas **o end
 
 ## Estado externo
 
-O D1 de homologação não foi criado porque o Wrangler local não possui sessão autenticada. Não há ID fictício no repositório e não houve deploy. O script `infra/banco-notas/cloudflare/provision-homologation.ps1` faz login, cria `banco-notas-homologation`, gera uma configuração local ignorada pelo Git e aplica as migrations em um único comando.
+O D1 de homologação não foi criado porque `npx wrangler whoami` confirmou ausência de sessão e não há `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` no processo. Não há ID fictício no repositório e não houve deploy. O script `infra/banco-notas/cloudflare/provision-homologation.ps1` foi auditado; ele cria/reutiliza somente `banco-notas-homologation`, gera configuração local ignorada e aplica as migrations, mas não foi executado por depender de login humano.
 
-O registro SharePoint está implementado no provisionador idempotente, mas não foi aplicado ao tenant nesta fase.
+Os CLIs administrativos Microsoft (`az`/`m365`) e variáveis Entra/SharePoint do módulo não estão disponíveis no processo. Por isso, app registration, delegated scope, registro SharePoint e chamadas Graph reais não foram executados.
 
 ## Segurança e defaults
 
@@ -101,8 +113,8 @@ O registro SharePoint está implementado no provisionador idempotente, mas não 
 - definir/provisionar audience e delegated scope Entra próprios para o add-in;
 - conectar endpoint autenticado de `grade-events` ao roteamento público somente depois do gate Entra;
 - adaptar o add-in Office.js para a API definitiva, sem client secret;
-- implementar jobs/importação e pipeline cloud de transformação para o modelo genérico limpo;
-- implementar armazenamento, compartilhamento e reconciliação Graph definitivos pelo backend;
+- conectar analisador/serializador XLSX cloud ao núcleo de jobs e ao gerador genérico já implementados;
+- implementar o adapter Graph real para a orquestração de armazenamento, compartilhamento e reconciliação já testada;
 - executar regressão privada externa com Nina/Alanna sem incorporar os arquivos ao produto;
 - preparar piloto individual mantendo `SyncEnabled=false` até reconciliação.
 

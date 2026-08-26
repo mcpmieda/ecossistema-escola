@@ -3,7 +3,9 @@ import { encodeBase64Url, encodeJson } from '../server/auth/base64url';
 import {
   BearerAuthenticationError,
   BearerAuthorizationError,
+  BearerConfigurationError,
   BearerVerificationUnavailableError,
+  verifyBancoNotasAddinToken,
   verifyMicrosoftEntraAccessToken,
 } from '../server/auth/entra-access-token';
 
@@ -82,6 +84,18 @@ describe('Banco de Notas add-in Microsoft Entra bearer', () => {
     );
   });
 
+  it('supports an audience array and rejects incorrect issuer or tenant', async () => {
+    await expect(
+      verify(`Bearer ${await token({ aud: ['api://other', audience] })}`),
+    ).resolves.toBeDefined();
+    await expect(
+      verify(`Bearer ${await token({ iss: 'https://issuer.invalid/example' })}`),
+    ).rejects.toBeInstanceOf(BearerAuthenticationError);
+    await expect(
+      verify(`Bearer ${await token({ tid: '33333333-3333-4333-8333-333333333333' })}`),
+    ).rejects.toBeInstanceOf(BearerAuthenticationError);
+  });
+
   it('rejects a valid identity without the delegated sync scope', async () => {
     await expect(verify(`Bearer ${await token({ scp: 'openid profile' })}`)).rejects.toBeInstanceOf(
       BearerAuthorizationError,
@@ -94,6 +108,23 @@ describe('Banco de Notas add-in Microsoft Entra bearer', () => {
     );
     await expect(verify('Basic abc')).rejects.toBeInstanceOf(BearerAuthenticationError);
     await expect(verify(null)).rejects.toBeInstanceOf(BearerAuthenticationError);
+  });
+
+  it('rejects future nbf, unknown kid and invalid signatures as authentication failures', async () => {
+    await expect(verify(`Bearer ${await token({ nbf: now + 61 })}`)).rejects.toBeInstanceOf(
+      BearerAuthenticationError,
+    );
+    const unknownKidFetcher: typeof fetch = async () =>
+      new Response(JSON.stringify({ keys: [{ ...publicJwk, kid: 'another-key' }] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    await expect(verify(`Bearer ${await token()}`, unknownKidFetcher)).rejects.toBeInstanceOf(
+      BearerAuthenticationError,
+    );
+    const validToken = await token();
+    const tampered = `${validToken.slice(0, -2)}aa`;
+    await expect(verify(`Bearer ${tampered}`)).rejects.toBeInstanceOf(BearerAuthenticationError);
   });
 
   it('treats JWKS transport and provider failures as temporarily unavailable, not bad credentials', async () => {
@@ -117,5 +148,24 @@ describe('Banco de Notas add-in Microsoft Entra bearer', () => {
     await expect(verify(validToken, invalidProviderBody)).rejects.toBeInstanceOf(
       BearerVerificationUnavailableError,
     );
+  });
+
+  it('fails closed with 503 semantics when audience or scope is not configured', async () => {
+    await expect(
+      verifyBancoNotasAddinToken({
+        authorization: `Bearer ${await token()}`,
+        env: { TENANT_ID: tenantId } as never,
+        now,
+        fetcher,
+      }),
+    ).rejects.toMatchObject({ status: 503 });
+    await expect(
+      verifyBancoNotasAddinToken({
+        authorization: `Bearer ${await token()}`,
+        env: { TENANT_ID: tenantId } as never,
+        now,
+        fetcher,
+      }),
+    ).rejects.toBeInstanceOf(BearerConfigurationError);
   });
 });

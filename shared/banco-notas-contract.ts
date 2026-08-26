@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ImportJobRepository } from './banco-notas-import-jobs';
 
 export const sourceTypeSchema = z.enum(['legacy_import', 'linked_teacher_model']);
 export const sourceStatusSchema = z.enum(['active', 'inactive', 'archived']);
@@ -123,7 +124,7 @@ export type SourceAssignment = AssignmentInput & {
   updatedAt: string;
 };
 
-export type BancoNotasRepository = {
+export type BancoNotasRepository = ImportJobRepository & {
   listSchoolYears(): Promise<SchoolYear[]>;
   createSchoolYear(input: SchoolYearInput, actor: string): Promise<SchoolYear>;
   listTeachers(): Promise<Teacher[]>;

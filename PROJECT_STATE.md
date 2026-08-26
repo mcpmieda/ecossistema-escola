@@ -4,7 +4,7 @@
 
 Em 25/08/2026 foi aberto o branch `feat/banco-de-notas-foundation`, a partir de `b2f743543f7365e591120b2363b5f274bf314cb0`, para iniciar o primeiro sistema especializado integrado ao Centro: **Banco de Notas**.
 
-Estado deste trabalho no PR #52: **Fase 1 — fundação executável implementada, sem merge ou deploy**. Além da adoção App Factory V1.4 e dos contratos prévios, o branch possui manifesto/capabilities, migration e repositório D1, APIs iniciais, autoridade temporal de fontes, rota `/banco-de-notas`, shell HeroUI e `Configurações > Fonte` funcional. O D1 e o registro SharePoint de homologação ainda não foram aplicados externamente; a produção corrente do Centro permanece inalterada.
+Estado deste trabalho no PR #52: **Fase 1 consolidada e avanço do núcleo de importação/modelo genérico, sem merge ou deploy**. Além da adoção App Factory V1.4 e dos contratos prévios, o branch possui manifesto/capabilities, migrations e repositório D1, APIs iniciais, autoridade temporal de fontes, rota `/banco-de-notas`, shell HeroUI, `Configurações > Fonte`, grade-events interno, gate bearer fail closed, import jobs auditáveis e geração determinística de instância genérica em homologação com sync desligado. O D1 e o registro SharePoint de homologação não foram aplicados externamente; Entra/Graph reais e browser QA permanecem bloqueados por credenciais/ambiente, e a produção corrente do Centro permanece inalterada.
 
 Decisões duráveis já registradas:
 

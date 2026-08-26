@@ -27,6 +27,19 @@ function repository(): BancoNotasRepository {
       updatedAt: '2026-08-25T12:00:00Z',
     })),
     patchAssignment: vi.fn(async () => null),
+    listImportJobs: vi.fn(async () => []),
+    findImportJob: vi.fn(async () => null),
+    createImportJob: vi.fn(async (input, actor) => ({
+      id: '33333333-3333-4333-8333-333333333333',
+      ...input,
+      state: 'draft' as const,
+      provenance: { ...input.provenance, sourceFormat: input.sourceFormat },
+      requestedBy: actor,
+      createdAt: '2026-08-25T12:00:00Z',
+      updatedAt: '2026-08-25T12:00:00Z',
+      findings: [],
+    })),
+    transitionImportJob: vi.fn(async () => null),
   } as BancoNotasRepository;
 }
 
@@ -175,5 +188,35 @@ describe('Banco de Notas API', () => {
         actor: 'actor',
       }),
     ).rejects.toMatchObject({ status: 403 });
+  });
+
+  it('creates an import job only with the import capability and preserves provenance', async () => {
+    const repo = repository();
+    const response = await routeBancoNotasApi({
+      request: new Request('https://example.test/api/banco-notas/v1/import-jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          schoolYearId: '11111111-1111-4111-8111-111111111111',
+          teacherId: '22222222-2222-4222-8222-222222222222',
+          dataSourceId: '33333333-3333-4333-8333-333333333333',
+          idempotencyKey: 'synthetic-import-key',
+          sourceHash: 'a'.repeat(64),
+          sourceFormat: 'xlsb',
+          provenance: { bridge: 'legacy-com-regression-only' },
+        }),
+      }),
+      repository: repo,
+      capabilities: capabilities('grades.import.run'),
+      actor: 'actor',
+    });
+
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      state: 'draft',
+      sourceHash: 'a'.repeat(64),
+      provenance: { bridge: 'legacy-com-regression-only', sourceFormat: 'xlsb' },
+    });
+    expect(repo.createImportJob).toHaveBeenCalledOnce();
   });
 });

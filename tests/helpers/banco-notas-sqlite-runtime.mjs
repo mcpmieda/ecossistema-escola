@@ -11,11 +11,16 @@ const migration2 = readFileSync(
   join(root, 'infra/banco-notas/d1/migrations/0002_banco_notas_cross_year_integrity.sql'),
   'utf8',
 );
+const migration3 = readFileSync(
+  join(root, 'infra/banco-notas/d1/migrations/0003_banco_notas_import_job_state_machine.sql'),
+  'utf8',
+);
 
 function database() {
   const db = new DatabaseSync(':memory:');
   db.exec(migration1);
   db.exec(migration2);
+  db.exec(migration3);
   return db;
 }
 
@@ -50,6 +55,38 @@ function numeric(db, sql, column) {
 }
 
 const results = {};
+
+{
+  const db = database();
+  seedYearsAndSources(db);
+  db.exec(`
+    INSERT INTO teachers (id, display_name) VALUES ('teacher-import', 'Pessoa sintética');
+    INSERT INTO import_jobs
+      (id, school_year_id, teacher_id, data_source_id, idempotency_key, source_hash,
+       provenance_json, requested_by)
+    VALUES
+      ('import-state', 'year-2026', 'teacher-import', 'source-a', 'import-state-key',
+       '${'a'.repeat(64)}', '{}', 'actor');
+  `);
+  results.importStateSkipRejected = rejects(
+    () => db.exec("UPDATE import_jobs SET state = 'generated' WHERE id = 'import-state';"),
+    /invalid import job state transition/iu,
+  );
+  db.exec("UPDATE import_jobs SET state = 'analyzed' WHERE id = 'import-state';");
+  results.importStateForwardAllowed =
+    String(db.prepare("SELECT state FROM import_jobs WHERE id = 'import-state'").get()?.state) ===
+    'analyzed';
+  db.exec(`
+    INSERT INTO import_findings
+      (id, import_job_id, severity, code, location_json, details_json)
+    VALUES ('finding-state', 'import-state', 'warning', 'synthetic', '{}', '{}');
+  `);
+  results.importFindingsAppendOnly = rejects(
+    () => db.exec("DELETE FROM import_findings WHERE id = 'finding-state';"),
+    /import_findings are append-only/iu,
+  );
+  db.close();
+}
 
 {
   const db = database();

@@ -1,0 +1,221 @@
+openapi: 3.1.0
+info:
+  title: Banco de Notas — importação e modelos genéricos
+  version: 0.1.0
+  description: >-
+    Contrato do pipeline de importação auditável e do ciclo de modelos docentes.
+    Somente os endpoints de import-jobs estão conectados nesta versão. Operações de
+    modelo marcadas como future permanecem fora do roteamento até storage Graph e
+    gates externos serem homologados.
+servers:
+  - url: https://admin.escolaieda.com/api/banco-notas
+security:
+  - administrativeSession: []
+paths:
+  /v1/import-jobs:
+    get:
+      operationId: listImportJobs
+      x-implementation-status: connected
+      parameters:
+        - in: query
+          name: schoolYearId
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Jobs visíveis ao operador autorizado.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ImportJob' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      operationId: createImportJob
+      x-implementation-status: connected
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImportJobCreate' }
+      responses:
+        '201':
+          description: Job criado ou resultado idempotente compatível.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportJob' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /v1/import-jobs/{jobId}:
+    parameters:
+      - in: path
+        name: jobId
+        required: true
+        schema: { type: string, format: uuid }
+      - $ref: '#/components/parameters/CorrelationId'
+    get:
+      operationId: getImportJob
+      x-implementation-status: connected
+      responses:
+        '200':
+          description: Estado, proveniência e findings do job.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportJob' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      operationId: transitionImportJob
+      x-implementation-status: connected
+      description: >-
+        Avança exatamente um gate permitido. Não executa nem alega conversão XLSB
+        cloud; o bridge COM, quando usado externamente, deve permanecer registrado
+        na proveniência como ponte de migração/regressão.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImportJobTransition' }
+      responses:
+        '200':
+          description: Transição persistida e auditada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportJob' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /v1/teacher-models:
+    get:
+      operationId: listTeacherModels
+      x-implementation-status: future-not-routed
+      responses:
+        '501': { description: Contrato futuro, deliberadamente não conectado. }
+  /v1/teacher-models/{modelId}/share:
+    post:
+      operationId: shareTeacherModel
+      x-implementation-status: future-not-routed
+      description: Compartilhamento individual autenticado; link anônimo e massa são proibidos.
+      parameters:
+        - in: path
+          name: modelId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '501': { description: Contrato futuro, deliberadamente não conectado. }
+  /v1/teacher-models/{modelId}/reconcile:
+    post:
+      operationId: reconcileTeacherModel
+      x-implementation-status: future-not-routed
+      parameters:
+        - in: path
+          name: modelId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '501': { description: Contrato futuro, deliberadamente não conectado. }
+components:
+  securitySchemes:
+    administrativeSession:
+      type: apiKey
+      in: cookie
+      name: __Host-session
+  parameters:
+    CorrelationId:
+      in: header
+      name: X-Correlation-ID
+      required: false
+      schema: { type: string, format: uuid }
+  schemas:
+    ImportJobCreate:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          schoolYearId,
+          teacherId,
+          dataSourceId,
+          idempotencyKey,
+          sourceHash,
+          sourceFormat,
+          provenance,
+        ]
+      properties:
+        schoolYearId: { type: string, format: uuid }
+        teacherId: { type: string, format: uuid }
+        dataSourceId: { type: string, format: uuid }
+        idempotencyKey: { type: string, minLength: 8, maxLength: 180 }
+        sourceHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        sourceFormat: { type: string, enum: [xlsb, xlsx] }
+        provenance: { type: object, additionalProperties: true }
+    ImportFinding:
+      type: object
+      additionalProperties: false
+      required: [severity, code, location, details]
+      properties:
+        severity: { type: string, enum: [info, warning, error] }
+        code: { type: string }
+        location: { type: object, additionalProperties: true }
+        details: { type: object, additionalProperties: true }
+    ImportJobTransition:
+      type: object
+      additionalProperties: false
+      required: [targetState, reason]
+      properties:
+        targetState: { $ref: '#/components/schemas/ImportJobState' }
+        reason: { type: string, minLength: 3, maxLength: 500 }
+        findings: { type: array, items: { $ref: '#/components/schemas/ImportFinding' } }
+        provenance: { type: object, additionalProperties: true }
+    ImportJobState:
+      type: string
+      enum: [draft, analyzed, generated, validated, ready_to_share, shared, connected, failed]
+    ImportJob:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          schoolYearId,
+          teacherId,
+          dataSourceId,
+          idempotencyKey,
+          sourceHash,
+          state,
+          provenance,
+          requestedBy,
+          createdAt,
+          updatedAt,
+          findings,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        schoolYearId: { type: string, format: uuid }
+        teacherId: { type: string, format: uuid }
+        dataSourceId: { type: string, format: uuid }
+        idempotencyKey: { type: string }
+        sourceHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        state: { $ref: '#/components/schemas/ImportJobState' }
+        provenance: { type: object, additionalProperties: true }
+        requestedBy: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        findings: { type: array, items: { $ref: '#/components/schemas/ImportFinding' } }
+    Problem:
+      type: object
+      required: [error, correlationId]
+      properties:
+        error: { type: string }
+        correlationId: { type: string, format: uuid }
+  responses:
+    Unauthorized:
+      description: Sessão ausente ou inválida.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Forbidden:
+      description: Capability grades.import.run ausente.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    NotFound:
+      description: Recurso não encontrado.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Conflict:
+      description: Idempotência incompatível, cross-year ou transição inválida.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+    Unprocessable:
+      description: Findings bloqueadores impedem o próximo gate.
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }

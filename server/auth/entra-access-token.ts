@@ -138,12 +138,17 @@ export async function verifyMicrosoftEntraAccessToken(args: {
     throw new BearerAuthenticationError('Invalid signing key');
   }
 
-  const valid = await crypto.subtle.verify(
-    'RSASSA-PKCS1-v1_5',
-    key,
-    Uint8Array.from(decodeBase64Url(parts[2])).buffer,
-    new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
-  );
+  let valid: boolean;
+  try {
+    valid = await crypto.subtle.verify(
+      'RSASSA-PKCS1-v1_5',
+      key,
+      Uint8Array.from(decodeBase64Url(parts[2])).buffer,
+      new TextEncoder().encode(`${parts[0]}.${parts[1]}`),
+    );
+  } catch {
+    throw new BearerAuthenticationError('Invalid access token signature');
+  }
   if (!valid) throw new BearerAuthenticationError('Invalid access token signature');
 
   const now = args.now ?? Math.floor(Date.now() / 1000);
