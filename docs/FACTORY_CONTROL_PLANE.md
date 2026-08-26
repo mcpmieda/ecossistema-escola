@@ -17,11 +17,33 @@ ChatGPT / PowerShell
   -> integração controlada
 ```
 
-## Estado inicial
+## Estado atual
 
-A primeira fase do Control Plane é provider-neutral. Ela prepara contratos e gatilhos do GitHub antes de conectar Jules, Antigravity ou OpenCode/Ollama.
+O Control Plane materializa Factory Runs em issues-filho e possui o primeiro adaptador remoto: Jules via integração oficial do GitHub por label.
 
 O Banco de Notas continua em sua branch/PR atual. Esta fundação não escreve em `feat/banco-de-notas-foundation`, não retira draft, não ativa sync e não faz deploy de produção.
+
+## Jules — primeira wave remota
+
+O Control Plane não armazena API key do Jules. Para uma tarefa elegível, aplica a label exata `jules`, que funciona como solicitação ao GitHub App do Jules quando o repositório já está autorizado no serviço.
+
+Uma tarefa recebe o trigger `jules` somente quando todas as condições abaixo são verdadeiras:
+
+- não possui `human_gates`;
+- não depende de outra tarefa (`depends_on` vazio);
+- lista `jules` explicitamente em `preferred_providers`.
+
+As labels usadas são:
+
+- `factory:task`: issue-filho da Factory Run;
+- `factory:provider:jules`: seleção interna do provider;
+- `jules`: trigger externo oficial;
+- `factory:waiting`: tarefa que possui dependências e ainda não pode ser enviada a provider;
+- `factory:human-required`: tarefa que depende de decisão humana.
+
+Aplicar a label é registrado como `trigger-requested`, não como execução concluída. O Jules ainda precisa ter acesso ao repositório pelo seu GitHub App. Ausência dessa autorização não provoca fallback inseguro nem uso automático de Codex.
+
+Nesta fase somente a primeira wave pronta é enviada. A liberação automática das tarefas dependentes ficará para a fase de reconciliation, depois que houver evidência verificável de conclusão das predecessoras.
 
 ## Regras permanentes
 
@@ -33,6 +55,7 @@ O Banco de Notas continua em sua branch/PR atual. Esta fundação não escreve e
 - Providers externos são adaptadores substituíveis.
 - Secrets de providers ficam em mecanismo próprio e nunca no manifesto da Factory Run, issue body, logs ou artifacts.
 - Nenhuma operação aceita `command`, `script`, `shell`, URL/endpoint arbitrário ou outro executor livre.
+- Um trigger de provider nunca concede autoridade para merge, deploy ou ativação de produção.
 
 ## Continuidade entre computadores
 
@@ -42,10 +65,10 @@ Workers locais são capacidade oportunística. Workers remotos e GitHub Actions 
 
 ## Fases
 
-1. contrato e validação de Factory Run;
-2. criação segura de parent/child issues;
-3. provider Jules;
-4. provider Antigravity;
-5. provider OpenCode/Ollama local;
-6. reconciliation/merge train;
-7. status e telemetria de execução.
+1. contrato e validação de Factory Run — concluído;
+2. criação segura de parent/child issues — concluído;
+3. provider Jules, primeira wave — implementado nesta fase;
+4. reconciliation de dependências e resultados;
+5. provider Antigravity;
+6. provider OpenCode/Ollama local;
+7. merge train, status e telemetria de execução.
