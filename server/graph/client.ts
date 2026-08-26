@@ -92,6 +92,58 @@ export async function graphRequest<T>(input: {
   throw new GraphError(lastStatus, correlationId);
 }
 
+export async function graphContentRequest(input: {
+  env: RuntimeEnv;
+  path: string;
+  method: 'GET' | 'PUT';
+  body?: Uint8Array;
+  contentType?: string;
+  correlationId?: string;
+  dependencies?: GraphDependencies;
+  token?: string;
+  credentialSlot?: GraphCredentialSlot;
+}): Promise<{ response: Response; correlationId: string }> {
+  const dependencies = input.dependencies ?? defaults;
+  const token = input.token ?? (await getGraphToken(input.env, dependencies, input.credentialSlot));
+  const correlationId = input.correlationId ?? crypto.randomUUID();
+  if (input.method === 'PUT' && !input.contentType) {
+    throw new Error('Graph binary PUT requires contentType');
+  }
+  const body =
+    input.body === undefined
+      ? undefined
+      : new Blob([new Uint8Array(input.body)], {
+          type: input.contentType ?? 'application/octet-stream',
+        });
+  let lastStatus = 0;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const headers = new Headers({
+      Authorization: `Bearer ${token}`,
+      'client-request-id': correlationId,
+      'return-client-request-id': 'true',
+    });
+    if (input.contentType) headers.set('Content-Type', input.contentType);
+    const response = await dependencies.fetch(`https://graph.microsoft.com/v1.0${input.path}`, {
+      method: input.method,
+      headers,
+      body,
+      signal: AbortSignal.timeout(30_000),
+    });
+    lastStatus = response.status;
+    if (response.ok) return { response, correlationId };
+    if (response.status !== 429 && response.status < 500) {
+      throw new GraphError(response.status, correlationId);
+    }
+    if (attempt === 4) break;
+    const retryHeader = response.headers.get('Retry-After');
+    const retrySeconds =
+      retryHeader && /^\d+$/u.test(retryHeader) ? Number(retryHeader) : Math.min(8, 2 ** attempt);
+    const jitter = crypto.getRandomValues(new Uint8Array(1))[0]! / 255;
+    await dependencies.sleep(Math.min(10_000, retrySeconds * 1000 + Math.floor(jitter * 250)));
+  }
+  throw new GraphError(lastStatus, correlationId);
+}
+
 export async function graphAllPages<T>(
   env: RuntimeEnv,
   initialPath: string,
