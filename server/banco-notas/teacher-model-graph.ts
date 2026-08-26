@@ -38,7 +38,8 @@ export type TeacherModelGraphGateway = {
   metadata(input: {
     driveItemId: string;
     correlationId: string;
-  }): Promise<{ etag: string; size: number; sha256?: string }>;
+  }): Promise<{ etag: string; size: number }>;
+  download(input: { driveItemId: string; correlationId: string }): Promise<Uint8Array>;
   revokeShare(input: {
     driveItemId: string;
     permissionId: string;
@@ -66,8 +67,23 @@ export type TeacherModelShareAudit = {
   }): Promise<void>;
 };
 
+export type TeacherModelDownloadedWorkbookVerifier = (input: {
+  content: Uint8Array;
+  teacherModelId: string;
+  definitionVersion: string;
+  mappingVersion: number;
+  correlationId: string;
+}) => Promise<void>;
+
 function safeError(error: unknown): string {
   return error instanceof Error ? error.message.slice(0, 180) : 'unknown_error';
+}
+
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const stable = new Uint8Array(bytes.byteLength);
+  stable.set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', stable);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 export async function storeShareAndVerifyTeacherModel(args: {
@@ -75,6 +91,7 @@ export async function storeShareAndVerifyTeacherModel(args: {
   recipient: z.input<typeof recipientSchema>;
   gateway: TeacherModelGraphGateway;
   audit: TeacherModelShareAudit;
+  verifyDownloadedWorkbook: TeacherModelDownloadedWorkbookVerifier;
   correlationId?: string;
 }): Promise<{
   driveItemId: string;
@@ -102,11 +119,26 @@ export async function storeShareAndVerifyTeacherModel(args: {
       requireSignIn: true,
     });
     permissionId = shared.permissionId;
+
     const metadata = await args.gateway.metadata({ driveItemId, correlationId });
     if (metadata.size !== model.content.byteLength) throw new Error('stored_model_size_mismatch');
-    if (metadata.sha256 && metadata.sha256 !== model.modelHash) {
+
+    const downloaded = await args.gateway.download({ driveItemId, correlationId });
+    if (downloaded.byteLength !== metadata.size) {
+      throw new Error('stored_model_download_size_mismatch');
+    }
+    if ((await sha256Hex(downloaded)) !== model.modelHash) {
       throw new Error('stored_model_hash_mismatch');
     }
+
+    await args.verifyDownloadedWorkbook({
+      content: downloaded,
+      teacherModelId: model.teacherModelId,
+      definitionVersion: model.definitionVersion,
+      mappingVersion: model.mappingVersion,
+      correlationId,
+    });
+
     await args.audit.record({
       teacherModelId: model.teacherModelId,
       recipientEntraObjectId: recipient.entraObjectId,
