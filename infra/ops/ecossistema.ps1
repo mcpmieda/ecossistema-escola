@@ -6,10 +6,19 @@ param(
         'validar',
         'recuperacao',
         'rotacionar',
+        'm365-bootstrap',
+        'm365',
         'logs',
         'artefatos'
     )]
     [string] $Acao,
+
+    [ValidateSet(
+        'identity-check',
+        'sharepoint-health',
+        'banco-notas-readiness'
+    )]
+    [string] $OperacaoM365 = 'identity-check',
 
     [long] $RunId,
 
@@ -170,6 +179,23 @@ switch ($Acao) {
 
         Invoke-GitHubWorkflow `
             -Workflow 'rotate-technical-identity.yml' `
+            -Fields $fields `
+            -Ref $MainRef
+    }
+
+    'm365-bootstrap' {
+        Invoke-GitHubWorkflow `
+            -Workflow 'bootstrap-m365-operations-identity.yml' `
+            -Ref $MainRef
+    }
+
+    'm365' {
+        $fields = @{
+            operation = $OperacaoM365
+        }
+
+        Invoke-GitHubWorkflow `
+            -Workflow 'm365-operations.yml' `
             -Fields $fields `
             -Ref $MainRef
     }
