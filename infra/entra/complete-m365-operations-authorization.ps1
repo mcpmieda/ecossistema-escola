@@ -400,12 +400,12 @@ try {
     $encodedSiteId = [Uri]::EscapeDataString($SiteId)
     $site = Invoke-Graph `
         -Method GET `
-        -Path "/sites/$encodedSiteId?`$select=id,displayName,webUrl"
+        -Path "/sites/${encodedSiteId}?`$select=id,displayName,webUrl"
 
     $sitePermissions = @(
         (Invoke-Graph `
             -Method GET `
-            -Path "/sites/$encodedSiteId/permissions").value
+            -Path "/sites/${encodedSiteId}/permissions").value
     )
 
     $existingSitePermission = $sitePermissions |
@@ -428,7 +428,7 @@ try {
     else {
         Invoke-Graph `
             -Method POST `
-            -Path "/sites/$encodedSiteId/permissions" `
+            -Path "/sites/${encodedSiteId}/permissions" `
             -Body @{
                 roles = @('write')
                 grantedToIdentities = @(
