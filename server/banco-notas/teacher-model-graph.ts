@@ -39,6 +39,18 @@ export type TeacherModelGraphGateway = {
     driveItemId: string;
     correlationId: string;
   }): Promise<{ etag: string; size: number; sha256?: string }>;
+  revokeShare(input: {
+    driveItemId: string;
+    permissionId: string;
+    correlationId: string;
+  }): Promise<void>;
+  remove(input: { driveItemId: string; correlationId: string }): Promise<void>;
+};
+
+export type TeacherModelCompensation = {
+  shareRevoked: boolean;
+  storedFileRemoved: boolean;
+  errors: string[];
 };
 
 export type TeacherModelShareAudit = {
@@ -50,8 +62,13 @@ export type TeacherModelShareAudit = {
     result: 'succeeded' | 'failed';
     correlationId: string;
     safeError?: string;
+    compensation?: TeacherModelCompensation;
   }): Promise<void>;
 };
+
+function safeError(error: unknown): string {
+  return error instanceof Error ? error.message.slice(0, 180) : 'unknown_error';
+}
 
 export async function storeShareAndVerifyTeacherModel(args: {
   model: z.input<typeof storedModelSchema>;
@@ -69,6 +86,7 @@ export async function storeShareAndVerifyTeacherModel(args: {
   const recipient = recipientSchema.parse(args.recipient);
   const correlationId = args.correlationId ?? crypto.randomUUID();
   let driveItemId: string | undefined;
+  let permissionId: string | undefined;
   try {
     const stored = await args.gateway.store({
       fileName: model.fileName,
@@ -83,6 +101,7 @@ export async function storeShareAndVerifyTeacherModel(args: {
       correlationId,
       requireSignIn: true,
     });
+    permissionId = shared.permissionId;
     const metadata = await args.gateway.metadata({ driveItemId, correlationId });
     if (metadata.size !== model.content.byteLength) throw new Error('stored_model_size_mismatch');
     if (metadata.sha256 && metadata.sha256 !== model.modelHash) {
@@ -98,11 +117,33 @@ export async function storeShareAndVerifyTeacherModel(args: {
     });
     return {
       driveItemId,
-      permissionId: shared.permissionId,
+      permissionId,
       etag: metadata.etag,
       correlationId,
     };
   } catch (error) {
+    const compensation: TeacherModelCompensation = {
+      shareRevoked: false,
+      storedFileRemoved: false,
+      errors: [],
+    };
+    if (driveItemId && permissionId) {
+      try {
+        await args.gateway.revokeShare({ driveItemId, permissionId, correlationId });
+        compensation.shareRevoked = true;
+      } catch (compensationError) {
+        compensation.errors.push(`revoke:${safeError(compensationError)}`);
+      }
+    }
+    if (driveItemId) {
+      try {
+        await args.gateway.remove({ driveItemId, correlationId });
+        compensation.storedFileRemoved = true;
+      } catch (compensationError) {
+        compensation.errors.push(`remove:${safeError(compensationError)}`);
+      }
+    }
+    const originalError = safeError(error);
     await args.audit.record({
       teacherModelId: model.teacherModelId,
       recipientEntraObjectId: recipient.entraObjectId,
@@ -110,8 +151,12 @@ export async function storeShareAndVerifyTeacherModel(args: {
       driveItemId,
       result: 'failed',
       correlationId,
-      safeError: error instanceof Error ? error.message.slice(0, 180) : 'unknown_error',
+      safeError: originalError,
+      compensation,
     });
+    if (compensation.errors.length > 0) {
+      throw new Error(`teacher_model_compensation_failed:${originalError}`);
+    }
     throw error;
   }
 }
