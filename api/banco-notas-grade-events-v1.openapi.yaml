@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Banco de Notas — API de eventos de notas
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Contrato definitivo do Ecossistema Escolar para recepção idempotente, consulta e
     reconciliação de eventos de notas. Migra a semântica validada na POC sem promover
@@ -81,9 +81,11 @@ paths:
   /v1/grade-snapshots/{gradeKey}:
     get:
       operationId: getGradeSnapshot
-      summary: Consulta o último estado confirmado de um lançamento
+      summary: Consulta o último estado confirmado de um campo de lançamento
+      description: O snapshot é identificado pelo par gradeKey + field; gradeKey isolado não é uma chave única.
       parameters:
         - $ref: '#/components/parameters/GradeKey'
+        - $ref: '#/components/parameters/GradeFieldQuery'
       responses:
         '200':
           description: Snapshot encontrado.
@@ -95,6 +97,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GradeSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -158,6 +162,12 @@ components:
         type: string
         minLength: 7
         maxLength: 180
+    GradeFieldQuery:
+      name: field
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/GradeField'
   responses:
     BadRequest:
       description: Entrada inválida.
