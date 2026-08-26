@@ -9,7 +9,7 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
-    "format:check": "prettier --check . || (prettier --write server/banco-notas/d1-teacher-model-repository.ts tests/banco-notas-teacher-model-share-service.test.ts && git diff -- server/banco-notas/d1-teacher-model-repository.ts tests/banco-notas-teacher-model-share-service.test.ts && exit 1)",
+    "format:check": "prettier --check .",
     "typecheck": "tsc -b --pretty false",
     "semantic:check": "node infra/validation/validate-semantic-contract.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run semantic:check && npm test && npm run build"
