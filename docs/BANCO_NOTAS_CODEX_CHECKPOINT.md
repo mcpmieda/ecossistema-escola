@@ -1,10 +1,10 @@
 # Banco de Notas — Codex Checkpoint
 
-Última atualização: 26/08/2026 11:34 BRT
+Última atualização: 26/08/2026 11:36 BRT
 Branch: `feat/banco-de-notas-foundation`
-HEAD: `c41e04f42c6db866d4df41d94bb9790c9b6f0668`
+HEAD: `2bb0750e2192a31621b86685ce610b2388509d37`
 PR: `#52` — open, draft, sem merge
-CI mais recente: `32978280552` — failure em lint no HEAD `c41e04f`
+CI mais recente: `32981035469` — success no HEAD `2bb0750`
 D1 homologation run mais recente: `32977813303` — success no HEAD `5f52839`
 
 ## Objetivo do bloco atual
@@ -25,15 +25,16 @@ Fechar a CI corrente, validar a migration `0007` no D1 remoto de homologação e
 - [x] Ferramentas e autenticação locais auditadas sem revelar secrets.
 - [x] Wrangler `4.125.0` confirmado via dependência do projeto, sem autenticação local.
 - [x] Sessão do portal Microsoft verificada e confirmada como não autenticada.
+- [x] Correção da CI commitada e publicada no commit `2bb0750`.
+- [x] CI normal verde no run `32981035469`; deploy e recovery de produção skipped.
 
 ## Em andamento
 
-- [ ] Commitar e publicar a correção da CI para obter evidência verde no GitHub Actions.
 - [ ] Executar novamente a homologação D1 e confirmar migration `0007` e seu smoke remoto.
 
 ## Próxima ação exata
 
-Revisar o diff, formatar o checkpoint, criar commit da correção da CI e fazer push para a branch do PR; depois acompanhar CI normal e homologação D1.
+Commitar este checkpoint pré-operação e disparar `Banco de Notas D1 homologation` por `workflow_dispatch` na branch `feat/banco-de-notas-foundation`; acompanhar até a conclusão e inspecionar os logs redigidos.
 
 ## Estado dos ambientes
 
@@ -43,7 +44,8 @@ Revisar o diff, formatar o checkpoint, criar commit da correção da CI e fazer 
 - Branch: `feat/banco-de-notas-foundation`.
 - PR #52: open, draft, base `main`.
 - HEAD remoto inicial desta sessão: `c41e04f42c6db866d4df41d94bb9790c9b6f0668`.
-- Última CI: run `32978280552`, failure exclusivamente observada em lint; deploy/recovery de produção skipped.
+- CI anterior: run `32978280552`, failure em lint no HEAD `c41e04f`.
+- CI corrente: run `32981035469`, success no HEAD `2bb0750`; deploy/recovery de produção skipped.
 
 ### Cloudflare
 
@@ -79,12 +81,13 @@ Nunca registrar secrets.
 
 ## Commits desta sessão
 
-- Nenhum commit criado até este checkpoint.
+- `2bb0750` — fechar baseline da CI do Banco de Notas e criar checkpoint persistente.
 
 ## CIs / workflows
 
 - `32978280552` — failure — lint `no-control-regex` no HEAD inicial.
 - `32977813303` — success — D1 homologation no commit `5f52839`.
+- `32981035469` — success — CI normal completa no commit `2bb0750`; jobs de produção skipped.
 - Gate local pós-correção — success — formatting, lint, typecheck, semantic contract, 283/283 testes e build.
 
 ## Problemas encontrados
@@ -118,7 +121,5 @@ Nunca registrar secrets.
 
 1. Confirmar `git status --short --branch` e o HEAD registrado acima.
 2. Revisar o diff local e repetir `npm run verify` se qualquer arquivo de código tiver mudado.
-3. Commitar e publicar a correção da CI na branch do PR #52.
-4. Aguardar CI normal verde.
-5. Disparar/acompanhar `Banco de Notas D1 homologation` e consolidar a prova remota da migration `0007`.
-6. Para retomar Microsoft externo, autenticar uma sessão administrativa apropriada ou disponibilizar um fluxo de homologação com credencial de menor privilégio; não reutilizar produção por conveniência.
+3. Disparar/acompanhar `Banco de Notas D1 homologation` e consolidar a prova remota da migration `0007`.
+4. Para retomar Microsoft externo, autenticar uma sessão administrativa apropriada ou disponibilizar um fluxo de homologação com credencial de menor privilégio; não reutilizar produção por conveniência.
