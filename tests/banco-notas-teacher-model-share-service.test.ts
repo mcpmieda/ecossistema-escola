@@ -104,7 +104,20 @@ function workbookBytes(): Uint8Array<ArrayBuffer> {
 
 async function sha256(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  const hex = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  );
+  return hex.join('');
+}
+
+function count(db: DatabaseSync, table: string): number {
+  const row = db.prepare(`SELECT COUNT(*) AS total FROM ${table}`).get();
+  return Number(row?.total);
+}
+
+function shareResults(db: DatabaseSync): unknown[] {
+  const rows = db.prepare('SELECT result FROM share_audit ORDER BY created_at, rowid').all();
+  return rows.map((row) => row.result);
 }
 
 async function persist(repo: D1TeacherModelRepository, modelHash: string) {
@@ -146,7 +159,7 @@ function gateway(bytes: Uint8Array<ArrayBuffer>) {
 }
 
 describe('Banco de Notas teacher model D1 + Graph share service', () => {
-  it('atomically persists a validated version and prepares it for authenticated sharing', async () => {
+  it('atomically persists a validated version and prepares it for sharing', async () => {
     const db = database();
     const repo = repository(db);
     const modelHash = await sha256(workbookBytes());
@@ -160,10 +173,8 @@ describe('Banco de Notas teacher model D1 + Graph share service', () => {
       mappingVersion: 1,
     });
     expect(db.prepare('SELECT state FROM teacher_models').get()?.state).toBe('validated');
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM teacher_model_versions').get()?.total)).toBe(
-      1,
-    );
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM cell_mappings').get()?.total)).toBe(1);
+    expect(count(db, 'teacher_model_versions')).toBe(1);
+    expect(count(db, 'cell_mappings')).toBe(1);
 
     const ready = await repo.prepareShare(persisted.teacherModelId, 'admin@example.test');
     expect(ready).toMatchObject({
@@ -185,10 +196,8 @@ describe('Banco de Notas teacher model D1 + Graph share service', () => {
     const second = await persist(repo, modelHash);
 
     expect(second).toEqual(first);
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM teacher_model_versions').get()?.total)).toBe(
-      1,
-    );
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM cell_mappings').get()?.total)).toBe(1);
+    expect(count(db, 'teacher_model_versions')).toBe(1);
+    expect(count(db, 'cell_mappings')).toBe(1);
   });
 
   it('blocks ready-to-share without the canonical Entra identity', async () => {
@@ -202,7 +211,7 @@ describe('Banco de Notas teacher model D1 + Graph share service', () => {
     expect(db.prepare('SELECT state FROM teacher_models').get()?.state).toBe('validated');
   });
 
-  it('moves to shared only after Graph download, hash and workbook verification succeed', async () => {
+  it('moves to shared only after Graph verification succeeds', async () => {
     const db = database();
     const repo = repository(db);
     const bytes = workbookBytes();
@@ -233,14 +242,12 @@ describe('Banco de Notas teacher model D1 + Graph share service', () => {
     expect(db.prepare('SELECT drive_item_id FROM teacher_models').get()?.drive_item_id).toBe(
       'drive-item-1',
     );
-    expect(
-      db.prepare('SELECT result FROM share_audit ORDER BY created_at, rowid').all().map((row) => row.result),
-    ).toEqual(['requested', 'succeeded']);
+    expect(shareResults(db)).toEqual(['requested', 'succeeded']);
     expect(graph.revokeShare).not.toHaveBeenCalled();
     expect(graph.remove).not.toHaveBeenCalled();
   });
 
-  it('compensates Graph and keeps the model ready when downloaded verification fails', async () => {
+  it('compensates Graph and keeps the model ready when verification fails', async () => {
     const db = database();
     const repo = repository(db);
     const bytes = workbookBytes();
@@ -271,9 +278,7 @@ describe('Banco de Notas teacher model D1 + Graph share service', () => {
 
     expect(db.prepare('SELECT state FROM teacher_models').get()?.state).toBe('ready_to_share');
     expect(db.prepare('SELECT drive_item_id FROM teacher_models').get()?.drive_item_id).toBeNull();
-    expect(
-      db.prepare('SELECT result FROM share_audit ORDER BY created_at, rowid').all().map((row) => row.result),
-    ).toEqual(['requested', 'failed']);
+    expect(shareResults(db)).toEqual(['requested', 'failed']);
     expect(graph.revokeShare).toHaveBeenCalledOnce();
     expect(graph.remove).toHaveBeenCalledOnce();
   });
