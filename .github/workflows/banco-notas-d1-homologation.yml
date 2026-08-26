@@ -6,6 +6,8 @@ on:
       - feat/banco-de-notas-foundation
     paths:
       - '.github/workflows/banco-notas-d1-homologation.yml'
+      - 'infra/banco-notas/cloudflare/**'
+      - 'infra/banco-notas/d1/migrations/**'
   workflow_dispatch:
 
 permissions:
