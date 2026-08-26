@@ -4,42 +4,29 @@
 Branch: `feat/banco-de-notas-foundation`
 PR: `#52` — open, draft, sem merge
 
-## Ponto de retomada
+## Estado estabilizado
 
-A reconstrução do bloco interrompido foi publicada. Não criar novos commits de documentação antes de fechar a CI do HEAD corrente.
+Reconstrução do bloco Codex publicada. **Não alterar este arquivo novamente antes de fechar a CI do HEAD corrente.**
 
-### Concluído
+- D1 homologation: migrations `0001`–`0007` comprovadas.
+- Run D1 final: `32981705701` — success.
+- Sync final: off.
+- Graph backend-only: upload/share OID/metadata/download/SHA-256 local/reanálise/revoke/delete/compensação.
+- Graph target: fail-closed, sem IDs fictícios.
+- Round-trip sintético XLSX no boundary Graph: implementado.
+- Microsoft real: não homologado externamente.
+- Produção: intocada.
 
-- migrations D1 `0001`–`0007` homologadas em `banco-notas-homologation`;
-- run D1 final `32981705701` — success;
-- sync final desligado;
-- adapter Graph backend-only com download, SHA-256 local e reanálise OOXML;
-- compensação Graph por revoke/delete;
-- target Graph fail-closed sem IDs fictícios;
-- round-trip sintético `serializer → Graph boundary → download → SHA-256 → analyzer`;
-- implementation state, handoff e evidência D1 atualizados;
-- produção intocada, PR draft, sem merge.
+## Próxima ação
 
-### Próxima ação exata
+1. confirmar HEAD do PR;
+2. localizar a CI correspondente;
+3. corrigir qualquer falha até verde;
+4. atualizar o corpo do PR sem mover o HEAD;
+5. manter draft, no merge, sync off e produção untouched.
 
-1. consultar HEAD atual do PR #52;
-2. localizar a CI desse HEAD;
-3. corrigir falhas até formatting/lint/typecheck/semantic/test/build verdes;
-4. atualizar apenas o corpo do PR com a baseline final, sem novo commit documental;
-5. manter sync off e produção untouched.
+## Bloqueios externos
 
-### Bloqueios externos
-
-- Microsoft/Entra/Graph/SharePoint real requer autenticação administrativa de homologação apropriada;
-- binding D1 real requer runtime Cloudflare de homologação autorizado;
-- browser QA requer ambiente navegável.
-
-### Proibições
-
-- não fazer merge;
-- não tirar draft;
-- não tocar produção;
-- não habilitar sync;
-- não registrar secrets;
-- não usar compartilhamento anônimo;
-- não declarar integração Microsoft real sem prova externa.
+- autenticação Microsoft de homologação;
+- runtime Cloudflare de homologação para prova por binding D1;
+- ambiente navegável para browser QA.
