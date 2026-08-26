@@ -15,10 +15,7 @@ export type ImportAnalysisResult = {
   analysis: ImportAnalysis;
 };
 
-type ImportAnalysisJobRepository = Pick<
-  BancoNotasRepository,
-  'findImportJob' | 'listSchoolYears'
->;
+type ImportAnalysisJobRepository = Pick<BancoNotasRepository, 'findImportJob' | 'listSchoolYears'>;
 
 function analysisFindings(messages: readonly string[]): ImportFindingInput[] {
   return messages.map((message, index) => ({
