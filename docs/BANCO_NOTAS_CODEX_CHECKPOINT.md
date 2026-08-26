@@ -1,45 +1,50 @@
 # Banco de Notas — Codex Checkpoint
 
-Última atualização: 26/08/2026 11:40 BRT
+Última atualização: 26/08/2026 — retomada após interrupção do Codex
 Branch: `feat/banco-de-notas-foundation`
-HEAD: `a516fae567cf6ff7ab8a15a70471d1455693e5db`
 PR: `#52` — open, draft, sem merge
-CI mais recente: `32981035469` — success no HEAD `2bb0750`
-D1 homologation run mais recente: `32981239012` — success no HEAD `a516fae`
+HEAD técnico antes deste checkpoint: `dc59860e729ef222c1aa8fecc203025125859109`
+Última baseline D1 comprovada: run `32981705701` — success no HEAD `2467240`
+Última CI verde anterior ao bloco Graph: run `32981711631` — success no HEAD `2467240`
 
 ## Objetivo do bloco atual
 
-Fechar a CI corrente, validar a migration `0007` no D1 remoto de homologação e avançar com segurança na integração backend-only Graph/SharePoint e na preparação Entra/add-in, sem tocar produção e mantendo sync desligado.
+Fechar a fundação técnica corrente, preservar a homologação remota das migrations `0001`–`0007` e concluir a preparação backend-only Graph/SharePoint com round-trip XLSX verificável, sem tocar produção e mantendo sync desligado.
 
-## Concluído nesta sessão
+## Concluído
 
-- [x] Checkout local confirmado no repositório `mcpmieda/ecossistema-escola`.
-- [x] Branch atualizada por fast-forward até o HEAD remoto real `c41e04f`.
-- [x] PR #52 confirmado aberto e draft; corpo, checks, comentários e ausência de reviews/review comments auditados.
-- [x] Falha mais recente da CI confirmada como `no-control-regex` em `teacher-model-graph-gateway.ts`.
-- [x] Validação de nome Graph corrigida sem `eslint-disable` e sem enfraquecer o bloqueio de barras/caracteres ASCII de controle.
-- [x] Incompatibilidade de tipo do matcher Vitest corrigida.
-- [x] Comparação do corpo XLSX estabilizada como igualdade byte a byte independente de realm.
-- [x] Gate local completo aprovado: formatting, lint, typecheck, semantic contract, 52 arquivos/283 testes, build.
-- [x] Documentação técnica obrigatória e workflow D1 corrente revisados.
-- [x] Ferramentas e autenticação locais auditadas sem revelar secrets.
-- [x] Wrangler `4.125.0` confirmado via dependência do projeto, sem autenticação local.
-- [x] Sessão do portal Microsoft verificada e confirmada como não autenticada.
-- [x] Correção da CI commitada e publicada no commit `2bb0750`.
-- [x] CI normal verde no run `32981035469`; deploy e recovery de produção skipped.
-- [x] Workflow D1 `32981239012` executado com sucesso e database `banco-notas-homologation` reutilizado.
-- [x] Run `32981239012` confirmou migrations `0001`–`0007`, sync bloqueado sem OID, unicidade do OID e smokes existentes.
-- [x] Lacuna de evidência identificada: o smoke remoto não exercitava troca de OID/inativação durante sync.
-- [x] Smoke ampliado localmente para testar ambos os locks com sync temporário e provar estado final `sync_enabled=0`.
-- [x] Regressão do smoke atualizada; parser PowerShell e gate local completo aprovados.
+- [x] PR #52 confirmado open + draft + sem merge.
+- [x] CI normal verde no bloco D1.
+- [x] D1 `banco-notas-homologation` reutilizado, sem banco paralelo.
+- [x] Migrations `0001`–`0007` validadas no D1 remoto.
+- [x] Migration `0007` comprovou bloqueio de sync sem Entra OID e unicidade do OID.
+- [x] Smoke remoto ampliado comprovou lock de troca de OID e de inativação durante sync temporário.
+- [x] Estado final do smoke remoto comprovado com `sync_enabled=0`.
+- [x] Gateway Graph backend-only existente recuperado do remoto após a interrupção do Codex.
+- [x] Diff local perdido do bloco Graph reconstruído canonicamente no GitHub.
+- [x] Metadata e download Graph separados em operações distintas.
+- [x] SHA-256 movido para a orquestração e calculado localmente sobre os bytes realmente baixados.
+- [x] Reanálise do workbook baixado tornou-se gate obrigatório antes da auditoria de sucesso.
+- [x] Compensação cobre falha de metadata, tamanho baixado, hash e reanálise.
+- [x] Target Graph preparado por `BANCO_NOTAS_GRAPH_DRIVE_ID` + `BANCO_NOTAS_GRAPH_PARENT_ITEM_ID`, sem IDs fictícios e com resolução fail-closed.
+- [x] `.env.example` contém somente os nomes das novas configurações, sem valores reais.
+- [x] Teste integrado criado para `serializer → Graph boundary → download → SHA-256 → analyzer` usando workbook genérico sintético real.
+- [x] Nenhuma chamada Graph real, alteração SharePoint, alteração Entra ou deploy de produção foi executada na retomada.
 
 ## Em andamento
 
-- [ ] Publicar o smoke ampliado e executar novamente a homologação D1 para fechar todos os invariantes remotos da migration `0007`.
+- [ ] Fechar a CI normal correspondente ao bloco Graph reconstruído.
+- [ ] Corrigir qualquer falha real da baseline sem enfraquecer regras.
+- [ ] Atualizar `BANCO_NOTAS_IMPLEMENTATION_STATE.md`, `BANCO_NOTAS_HANDOFF.md`, evidência D1, `PROJECT_STATE.md`, `VERIFICATION.md` e corpo do PR #52 com os dados correntes.
 
 ## Próxima ação exata
 
-Commitar e publicar o smoke ampliado; acompanhar CI normal e o workflow D1 acionado pelo push até provar remotamente os locks de identidade/status e o estado final `sync_enabled=0`.
+1. localizar a CI disparada após este checkpoint;
+2. exigir formatting, lint, typecheck, semantic contract, testes e build verdes;
+3. se houver falha, corrigir a causa e repetir até verde;
+4. consolidar documentação e corpo do PR;
+5. manter PR draft, sync off e produção untouched;
+6. Microsoft externo só retoma quando existir sessão/credencial administrativa de homologação apropriada.
 
 ## Estado dos ambientes
 
@@ -48,72 +53,93 @@ Commitar e publicar o smoke ampliado; acompanhar CI normal e o workflow D1 acion
 - Repositório: `mcpmieda/ecossistema-escola`.
 - Branch: `feat/banco-de-notas-foundation`.
 - PR #52: open, draft, base `main`.
-- HEAD remoto inicial desta sessão: `c41e04f42c6db866d4df41d94bb9790c9b6f0668`.
-- CI anterior: run `32978280552`, failure em lint no HEAD `c41e04f`.
-- CI corrente: run `32981035469`, success no HEAD `2bb0750`; deploy/recovery de produção skipped.
+- Baseline D1/CI comprovada antes do Graph: `2467240b53bf3bbc5996905ba940b544cb35f266`.
+- Run D1 final do bloco de identidade: `32981705701` — success.
+- CI correspondente ao bloco D1: `32981711631` — success; produção skipped.
+- Execução intermediária Graph `32985041877` / run #708 falhou em typecheck porque o mock antigo ainda não possuía `download`; isso ocorreu antes da atualização do teste e foi corrigido nos commits posteriores.
 
 ### Cloudflare
 
-- D1 conhecido: `banco-notas-homologation`.
-- Workflow `32981239012`: success no HEAD `a516fae`; reutilizou o banco existente, sem migrations pendentes, e executou os smokes com dados sintéticos.
-- Wrangler local: `4.125.0`, não autenticado.
-- Variáveis `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_D1_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`: ausentes do processo local.
-- Secrets GitHub existentes por nome: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_D1_API_TOKEN`.
-- Nenhuma alteração de recurso Cloudflare executada nesta sessão até este checkpoint.
+- D1 de homologação: `banco-notas-homologation`.
+- Migrations remotas: `0001`–`0007` comprovadas.
+- Run `32981705701`: success.
+- Sync final: desligado.
+- Nenhum D1/Pages de produção alterado.
 
 ### Microsoft / Entra
 
-- Azure CLI, Microsoft 365 CLI e Graph CLI: indisponíveis localmente.
-- Portal Entra: redireciona para login; não existe sessão administrativa autenticada disponível no navegador selecionado.
-- IDs públicos conhecidos permanecem disponíveis apenas nas GitHub variables existentes; nenhum segredo Microsoft está disponível no terminal.
-- Nenhum app registration, scope, audience, permissão ou tenant foi alterado nesta sessão.
+- A sessão anterior auditada pelo Codex não possuía CLI/credencial/sessão administrativa Microsoft disponível.
+- Nenhum app registration, scope, audience, permissão ou tenant foi alterado.
+- Audience/scope reais continuam bloqueio para exposição do add-in.
 
 ### Graph / SharePoint
 
-- Adapter backend-only existente revisado no contexto da falha de CI.
-- Nenhuma chamada Graph real nem alteração SharePoint executada nesta sessão.
+- Adapter concreto backend-only cobre upload XLSX, share individual autenticado por OID, metadata, download, revoke e delete.
+- Orquestração calcula SHA-256 localmente após download e exige reanálise antes de sucesso.
+- Targets Graph permanecem sem valores no repositório e resolvem fail-closed.
+- Nenhuma chamada Graph real nem alteração SharePoint foi realizada.
 
-## Recursos criados ou alterados
+## Recursos criados ou alterados nesta retomada
 
-| Recurso                   | Ambiente   | ID/nome seguro                                          | Estado                              |
-| ------------------------- | ---------- | ------------------------------------------------------- | ----------------------------------- |
-| Arquivo de checkpoint     | Git/branch | `docs/BANCO_NOTAS_CODEX_CHECKPOINT.md`                  | criado                              |
-| Gateway Graph             | Git/branch | `server/banco-notas/teacher-model-graph-gateway.ts`     | correção local, gate verde          |
-| Teste de ownership add-in | Git/branch | `tests/banco-notas-addin-authorizer.test.ts`            | correção local, gate verde          |
-| Teste do gateway Graph    | Git/branch | `tests/banco-notas-teacher-model-graph-gateway.test.ts` | comparação byte a byte estabilizada |
+| Recurso | Ambiente | Estado |
+| --- | --- | --- |
+| `server/banco-notas/teacher-model-graph.ts` | Git/branch | download/hash/reanálise e compensação reconstruídos |
+| `server/banco-notas/teacher-model-graph-gateway.ts` | Git/branch | metadata/download separados + target fail-closed |
+| `server/env.ts` | Git/branch | target Graph opcional declarado |
+| `.env.example` | Git/branch | nomes das configs Graph sem valores |
+| `tests/banco-notas-teacher-model-graph.test.ts` | Git/branch | falhas e compensações ampliadas |
+| `tests/banco-notas-teacher-model-graph-gateway.test.ts` | Git/branch | lifecycle separado + target fail-closed |
+| `tests/banco-notas-teacher-model-graph-roundtrip.test.ts` | Git/branch | round-trip XLSX sintético integrado |
 
 Nunca registrar secrets.
 
-## Commits desta sessão
+## Commits relevantes
+
+### Bloco anterior preservado
 
 - `2bb0750` — fechar baseline da CI do Banco de Notas e criar checkpoint persistente.
 - `a516fae` — registrar CI verde antes da operação D1.
+- `2467240` — fechar invariantes Entra no D1 remoto.
+
+### Retomada após interrupção
+
+- `7bd1929` — exigir download/hash/reanálise na orquestração Graph.
+- `c77c599` — separar metadata e download no gateway Graph.
+- `dee0d54` — adicionar target Graph fail-closed ao RuntimeEnv.
+- `e6efc07` — declarar nomes das configurações Graph no `.env.example`.
+- `979f063` — atualizar lifecycle/teste do gateway.
+- `74bc4d6` — atualizar orquestração e compensações nos testes.
+- `dc59860` — adicionar round-trip XLSX integrado ao boundary Graph.
 
 ## CIs / workflows
 
-- `32978280552` — failure — lint `no-control-regex` no HEAD inicial.
-- `32977813303` — success — D1 homologation no commit `5f52839`.
-- `32981035469` — success — CI normal completa no commit `2bb0750`; jobs de produção skipped.
-- `32981239012` — success — D1 remoto reutilizado; migrations `0001`–`0007` e smokes correntes aprovados.
-- Gate local pós-correção — success — formatting, lint, typecheck, semantic contract, 283/283 testes e build.
+- `32981035469` — success — CI completa no commit `2bb0750`; produção skipped.
+- `32981239012` — success — D1 remoto com migrations `0001`–`0007` e smokes.
+- `32981705701` — success — locks de OID/status e estado final sync off.
+- `32981711631` — success — CI do bloco D1; produção skipped.
+- `32985041877` — failure intermediária — typecheck em mock antigo sem `download`; corrigido depois.
 
 ## Problemas encontrados
 
-- Regex de caracteres de controle violava `no-control-regex`.
-- Vitest atual não aceita argumento genérico em `toMatchObject` naquele matcher.
-- Igualdade direta entre typed arrays visualmente idênticos falhava por identidade/protótipo de realm; a asserção agora compara os mesmos bytes como arrays numéricos.
-- O smoke D1 remoto inicial da migration `0007` não cobria os triggers de lock de OID e status durante sync; a cobertura foi ampliada antes de declarar o bloco completo.
+- A interrupção ocorreu depois de alterações Graph/docs locais e antes do commit/push; essas alterações não existiam no HEAD remoto `2467240`.
+- O checkpoint fornecido permitiu reconstruir a intenção sem inventar estado Microsoft externo.
+- Uma CI intermediária executou antes da atualização do teste e detectou corretamente a ausência do novo método `download` no mock antigo.
 
-## Decisões técnicas tomadas
+## Decisões técnicas preservadas
 
-- Validar nomes de arquivo por iteração explícita de caracteres, preservando fail-closed para barras e ASCII `0x00`–`0x1f`.
-- Manter o teste de upload estritamente byte a byte, removendo apenas a dependência de realm da representação `Uint8Array`.
-- Permitir sync somente de forma temporária no smoke sintético para exercitar os locks e desligá-lo explicitamente antes do fim, com asserção remota de `sync_enabled=0`.
+- Graph continua backend-only.
+- SharePoint/OneDrive continuam destinados a arquivos/modelos e versões, não ao estado transacional.
+- Hash do workbook é calculado localmente sobre o conteúdo efetivamente baixado.
+- Sucesso de compartilhamento não é auditado antes da reanálise OOXML do arquivo recuperado.
+- Falha após upload/share exige compensação explícita.
+- Configuração Graph sem drive/pasta real falha fechado.
+- Sync continua desligado até gate end-to-end completo.
 
 ## Bloqueios externos
 
-- Microsoft/Entra/Graph/SharePoint real: bloqueado por ausência de CLI/credencial/sessão autenticada neste ambiente.
-- Cloudflare local: sem token/login; a homologação D1 ainda pode avançar pelo workflow GitHub Actions já autorizado e dedicado.
+- Microsoft/Entra/Graph/SharePoint real continua bloqueado até existir sessão/credencial de homologação apropriada neste ambiente.
+- Atomicidade remota por `D1Database` binding ainda requer runtime Cloudflare de homologação autorizado; não ampliar permissões apenas para fabricar a prova.
+- Browser QA requer ambiente navegável apropriado.
 
 ## Não fazer ao retomar
 
@@ -124,12 +150,13 @@ Nunca registrar secrets.
 - não usar compartilhamento anônimo;
 - não registrar ou persistir tokens/secrets;
 - não usar golden masters privados como produto ou fixture;
-- não ampliar permissões sem necessidade comprovada.
+- não ampliar permissões sem necessidade comprovada;
+- não declarar Graph/SharePoint real homologado enquanto não houver execução externa comprovada.
 
 ## Como retomar
 
-1. Confirmar `git status --short --branch` e o HEAD registrado acima.
-2. Revisar o diff local e repetir `npm run verify` se qualquer arquivo de código tiver mudado.
-3. Commitar/push do smoke ampliado e acompanhar CI + D1 homologation.
-4. Consolidar a prova remota da migration `0007` nos documentos obrigatórios e no corpo do PR.
-5. Para retomar Microsoft externo, autenticar uma sessão administrativa apropriada ou disponibilizar um fluxo de homologação com credencial de menor privilégio; não reutilizar produção por conveniência.
+1. Confirmar HEAD do PR e a CI mais recente.
+2. Fechar qualquer falha da CI do bloco Graph.
+3. Atualizar documentação/evidências e corpo do PR com os números finais.
+4. Se Microsoft continuar indisponível, avançar em trabalho independente seguro em vez de simular integração externa.
+5. Para Microsoft real, autenticar ambiente administrativo de homologação com menor privilégio e então executar upload/share/download/reanálise real.
