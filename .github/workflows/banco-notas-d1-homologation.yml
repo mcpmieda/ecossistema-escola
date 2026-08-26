@@ -36,100 +36,36 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Verify Cloudflare bootstrap credentials
+      - name: Require dedicated D1 homologation credentials
         shell: pwsh
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_D1_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) {
-            throw 'CLOUDFLARE_API_TOKEN não está disponível para este workflow.'
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_D1_API_TOKEN)) {
+            throw 'CLOUDFLARE_D1_API_TOKEN não está configurado. Use um token Cloudflare dedicado com Account > D1 > Write, restrito à conta do Ecossistema.'
           }
           if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
             throw 'CLOUDFLARE_ACCOUNT_ID não está disponível para este workflow.'
           }
-          npx wrangler whoami
-          if ($LASTEXITCODE -ne 0) { throw 'Wrangler não autenticou com as credenciais disponíveis.' }
-
-      - name: Mint short-lived D1 homologation token
-        shell: pwsh
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          $headers = @{
-            Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN"
-            'Content-Type' = 'application/json'
-          }
-          $accountId = $env:CLOUDFLARE_ACCOUNT_ID
-          try {
-            $permissions = Invoke-RestMethod -Method Get -Uri "https://api.cloudflare.com/client/v4/accounts/$accountId/tokens/permission_groups?name=D1%20Write" -Headers $headers
-          }
-          catch {
-            throw 'O token de bootstrap não possui Account API Tokens Read/Write. Crie um token D1 dedicado ou conceda temporariamente Account API Tokens Write ao bootstrap.'
-          }
-          $permission = @($permissions.result) |
-            Where-Object { $_.name -in @('D1 Write', 'D1 Edit') } |
-            Select-Object -First 1
-          if (-not $permission) {
-            throw 'Permission group D1 Write não foi localizado para o account token.'
-          }
-          $expiresOn = (Get-Date).ToUniversalTime().AddHours(1).ToString('yyyy-MM-ddTHH:mm:ssZ')
-          $body = @{
-            name = "Banco de Notas D1 homologation $env:GITHUB_RUN_ID"
-            policies = @(
-              @{
-                effect = 'allow'
-                permission_groups = @(@{ id = $permission.id })
-                resources = @{ "com.cloudflare.api.account.$accountId" = '*' }
-              }
-            )
-            expires_on = $expiresOn
-          } | ConvertTo-Json -Depth 8
-          $created = Invoke-RestMethod -Method Post -Uri "https://api.cloudflare.com/client/v4/accounts/$accountId/tokens" -Headers $headers -Body $body
-          if (-not $created.success -or [string]::IsNullOrWhiteSpace([string]$created.result.value)) {
-            throw 'Cloudflare não retornou um token D1 efêmero utilizável.'
-          }
-          $tokenValue = [string]$created.result.value
-          $tokenId = [string]$created.result.id
-          Write-Output "::add-mask::$tokenValue"
-          Add-Content -LiteralPath $env:GITHUB_ENV -Value "BANCO_D1_API_TOKEN=$tokenValue"
-          Add-Content -LiteralPath $env:GITHUB_ENV -Value "BANCO_D1_TOKEN_ID=$tokenId"
-          Write-Host "Token D1 efêmero criado com expiração em $expiresOn."
 
       - name: Provision homologation D1 and apply migrations
         shell: pwsh
         env:
-          CLOUDFLARE_API_TOKEN: ${{ env.BANCO_D1_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: ./infra/banco-notas/cloudflare/provision-homologation.ps1
 
       - name: Run core remote D1 smoke
         shell: pwsh
         env:
-          CLOUDFLARE_API_TOKEN: ${{ env.BANCO_D1_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: ./infra/banco-notas/cloudflare/smoke-homologation.ps1 -ConfirmSyntheticWrites
 
       - name: Run XLSX analysis-profile remote D1 smoke
         shell: pwsh
         env:
-          CLOUDFLARE_API_TOKEN: ${{ env.BANCO_D1_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: ./infra/banco-notas/cloudflare/smoke-import-analysis-profiles-homologation.ps1 -ConfirmSyntheticWrites
-
-      - name: Revoke short-lived D1 token
-        if: always()
-        shell: pwsh
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          BANCO_D1_TOKEN_ID: ${{ env.BANCO_D1_TOKEN_ID }}
-        run: |
-          if ([string]::IsNullOrWhiteSpace($env:BANCO_D1_TOKEN_ID)) {
-            Write-Host 'Nenhum token D1 efêmero foi criado; nada a revogar.'
-            exit 0
-          }
-          $headers = @{ Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN" }
-          Invoke-RestMethod -Method Delete -Uri "https://api.cloudflare.com/client/v4/accounts/$env:CLOUDFLARE_ACCOUNT_ID/tokens/$env:BANCO_D1_TOKEN_ID" -Headers $headers | Out-Null
-          Write-Host 'Token D1 efêmero revogado.'
