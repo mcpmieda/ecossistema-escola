@@ -8,51 +8,40 @@ PR: `#52` — **open, draft, sem merge e sem produção**.
 
 ## Ponto exato de retomada
 
-A fundação App Factory está consolidada e a homologação D1 remota deixou de ser bloqueio.
+A fundação está consolidada. O D1 remoto de homologação está validado até a migration `0007`; o adapter Graph backend-only foi preparado e possui round-trip XLSX sintético real até download/hash/reanálise, mas Microsoft/Graph/SharePoint externos ainda não foram homologados por ausência de sessão/credencial administrativa apropriada no ambiente anterior.
 
-Evidência D1:
+Checkpoint operacional: `docs/BANCO_NOTAS_CODEX_CHECKPOINT.md`.
 
-- database exclusivo: `banco-notas-homologation`;
+## D1 remoto
+
+Database exclusivo: `banco-notas-homologation`.
+
+Evidência mais recente do bloco de identidade:
+
 - workflow `Banco de Notas D1 homologation`;
-- run `32973613431` / execução `#12` — **success**;
-- commit validado remotamente: `7f13d6b85c18296ae0fa005dadb4000ec63515e5`;
-- Wrangler `4.125.0`;
-- provisionamento/migrations — success;
-- smoke principal — success;
-- smoke migration `0006`/analysis profiles — success.
+- run `32981705701` — **success**;
+- commit validado: `2467240b53bf3bbc5996905ba940b544cb35f266`;
+- CI correspondente `32981711631` — **success**;
+- produção skipped;
+- sync final desligado.
 
-Leia a evidência completa em `docs/BANCO_NOTAS_D1_HOMOLOGATION_VERIFICATION_2026-08-26.md`.
-
-## D1
-
-Migrations aplicadas e validadas remotamente:
+Migrations comprovadas:
 
 1. `0001_banco_notas_foundation.sql`;
 2. `0002_banco_notas_cross_year_integrity.sql`;
 3. `0003_banco_notas_import_job_state_machine.sql`;
 4. `0004_banco_notas_import_finding_resolution.sql`;
 5. `0005_banco_notas_import_analysis.sql`;
-6. `0006_banco_notas_import_analysis_profiles.sql`.
+6. `0006_banco_notas_import_analysis_profiles.sql`;
+7. `0007_banco_notas_teacher_entra_identity.sql`.
 
-O provisionador usa Wrangler atual: `d1 list --json`, criação sem `--json`, nome exato `banco-notas-homologation`, UUID validado e conjunto de migrations travado em `0001`–`0006`.
+A `0007` protege o futuro sync com identidade institucional. O smoke remoto comprovou falta de OID, unicidade, lock de troca de OID e lock de inativação durante sync temporário, retornando ao final para `sync_enabled=0`.
 
-O smoke principal comprovou no D1 real defaults seguros, `sync_enabled=0`, autoridade, cross-year, state machine, análise obrigatória, provenance e históricos append-only. O smoke de profiles comprovou a migration `0006` e as regras de persistência/compatibilidade dos analysis profiles.
+## Importação XLSX e modelo genérico
 
-## Importação XLSX
+O analyzer e o serializer OOXML XLSX são concretos. Não retomar a partir da hipótese antiga de que faltam.
 
-O analyzer XLSX concreto já está implementado. Não retomar a partir da premissa antiga de que ele falta.
-
-Componentes centrais:
-
-- `server/banco-notas/ooxml-zip.ts`;
-- `server/banco-notas/xlsx-legacy-analyzer.ts`;
-- `server/banco-notas/import-analysis.ts`;
-- `server/banco-notas/d1-import-analysis-repository.ts`;
-- `server/banco-notas/d1-import-analysis-profile-repository.ts`;
-- `server/banco-notas/workbook-pipeline.ts`;
-- `server/banco-notas/xlsx-workbook-serializer.ts`.
-
-Pipeline atual:
+Fluxo de produto:
 
 ```text
 XLSX legado
@@ -67,51 +56,82 @@ XLSX legado
 
 O produto definitivo continua sendo um **modelo genérico limpo**, independente de professor, turma, aba, disciplina ou célula privada.
 
-### XLSB
-
-XLSB permanece fail-closed. Não existe parser XLSB cloud comprovado e não deve ser improvisado.
+XLSB permanece fail-closed.
 
 ## Golden masters
 
-Nina/Alanna permanecem **golden masters privados externos**. São somente evidência privada de homologação/regressão e nunca entram no produto final. Nunca usar como:
+Os **golden masters privados externos** continuam somente como evidência privada de homologação/regressão. Não são template oficial, seed, fixture pública, fallback, runtime, dado D1 ou arquivo de distribuição.
 
-- template oficial;
-- seed/migration;
-- fixture pública;
-- fallback de runtime;
-- dado D1;
-- regra especial de parser/serializer;
-- arquivo distribuído no produto final.
-
-## Grade-events
-
-`server/banco-notas/d1-grade-event-store.ts` já usa `db.batch()` para gravar evento + snapshot e contém validações de fonte/modelo/ano/ambiente/sync/autoridade/mapping.
-
-Próximo bloco prioritário: **provar atomicidade usando binding D1 real/compatível**, incluindo o caso em que a segunda statement falha e a primeira não pode permanecer parcialmente gravada.
-
-O add-in público continua bloqueado.
-
-## Round-trip XLSX
-
-Analyzer e serializer OOXML reais já existem e possuem testes independentes. O próximo avanço deve reforçar o round-trip completo e provar preservação das invariantes canônicas entre análise, transformação, apresentação e serialização.
-
-Compatibilidade operacional com Excel/Graph/SharePoint real ainda não foi homologada.
+Nunca introduzir regra de produção dependente de arquivo/pessoa específica.
 
 ## Graph / SharePoint
 
-- D1 continua sendo a fonte estruturada/transacional;
-- SharePoint/OneDrive ficam para arquivos/modelos/versões;
-- Graph permanece backend-only;
-- `TeacherModelGraphGateway` continua abstrato;
-- nenhuma conexão Graph/SharePoint real deve ser ativada nesta retomada sem o bloco específico de integração.
+O adapter concreto está em `server/banco-notas/teacher-model-graph-gateway.ts` e continua backend-only.
 
-É seguro preparar tipos, contratos, configuração, validação fail-closed e testes sintéticos.
+Estado atual:
+
+- upload XLSX binário;
+- compartilhamento individual autenticado;
+- verificação do destinatário por Entra OID;
+- metadata separada do download;
+- download binário do arquivo armazenado;
+- SHA-256 local calculado sobre os bytes realmente baixados;
+- reanálise OOXML como gate antes de auditar sucesso;
+- compensação com revoke/delete após falhas;
+- target resolvido por `BANCO_NOTAS_GRAPH_DRIVE_ID` e `BANCO_NOTAS_GRAPH_PARENT_ITEM_ID`, ambos fail-closed se ausentes.
+
+Existe teste integrado sintético:
+
+```text
+serializer XLSX real
+→ boundary Graph
+→ download
+→ SHA-256
+→ analyzer XLSX real
+```
+
+Isso comprova o contrato interno; **não equivale a homologação real do tenant Microsoft**.
+
+Nenhuma chamada Graph/SharePoint real foi realizada neste bloco reconstruído.
 
 ## Entra / add-in
 
-O validador bearer Entra já existe e é fail-closed.
+O validador bearer Entra já é fail-closed para assinatura, issuer, tenant, audience, scope e lifetime.
 
-O endpoint público continua bloqueado enquanto não existirem audience e delegated scope reais. Não preencher valores fictícios e não liberar o endpoint apenas para avançar testes.
+A migration `0007` e o authorizer D1 exigem ownership `teacherModelId ↔ teacher ↔ entraObjectId`.
+
+O endpoint público continua bloqueado enquanto `BANCO_NOTAS_ADDIN_AUDIENCE` e `BANCO_NOTAS_ADDIN_SCOPE` não possuírem valores reais e homologados. Não inventar valores para avançar teste.
+
+## Grade-events
+
+`D1GradeEventStore` usa um único `D1Database.batch()` para evento + snapshot e possui prova local de rollback quando a segunda operação falha.
+
+A prova remota por binding D1 real ainda depende de runtime Worker/Pages de homologação autorizado. Não ampliar permissões ou criar runtime temporário inseguro só para produzir evidência.
+
+## CI
+
+Última baseline completamente verde anterior ao diff Graph reconstruído:
+
+- run `32981711631` — success no commit `2467240`;
+- formatting, lint, typecheck, semantic contract, testes e build aprovados;
+- deploy/recovery de produção skipped.
+
+A execução intermediária Graph `32985041877` falhou em typecheck porque um mock ainda não implementava o método novo `download`. Esse mock foi atualizado nos commits posteriores.
+
+Antes de declarar o bloco Graph encerrado, exigir CI final no HEAD atual.
+
+## Ordem recomendada de leitura
+
+1. `AGENTS.md` e `.app-factory.json`;
+2. `docs/BANCO_NOTAS_CODEX_CHECKPOINT.md`;
+3. `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
+4. `docs/BANCO_NOTAS_D1_HOMOLOGATION_VERIFICATION_2026-08-26.md`;
+5. `server/banco-notas/teacher-model-graph.ts`;
+6. `server/banco-notas/teacher-model-graph-gateway.ts`;
+7. `tests/banco-notas-teacher-model-graph-roundtrip.test.ts`;
+8. `server/banco-notas/d1-addin-authorizer.ts`;
+9. `server/banco-notas/d1-grade-event-store.ts`;
+10. migrations `0001`–`0007`.
 
 ## Decisões que não podem regredir
 
@@ -128,25 +148,13 @@ O endpoint público continua bloqueado enquanto não existirem audience e delega
 - XLSB continua fail-closed;
 - golden masters privados não entram no produto;
 - PR #52 permanece open + draft;
-- não fazer merge ou deploy de produção.
-
-## Ordem recomendada de leitura
-
-1. `AGENTS.md` e `.app-factory.json`;
-2. `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
-3. `docs/BANCO_NOTAS_D1_HOMOLOGATION_VERIFICATION_2026-08-26.md`;
-4. `server/banco-notas/d1-grade-event-store.ts`;
-5. `server/banco-notas/xlsx-legacy-analyzer.ts`;
-6. `server/banco-notas/xlsx-workbook-serializer.ts`;
-7. `server/banco-notas/workbook-pipeline.ts`;
-8. `server/banco-notas/import-analysis.ts`;
-9. migrations `0001`–`0006`;
-10. OpenAPI/AsyncAPI + semantic/verification specs.
+- não fazer merge ou deploy de produção sem autorização humana explícita.
 
 ## Próxima sequência segura
 
-1. atomicidade real via binding D1;
-2. round-trip XLSX;
-3. preparação Graph/SharePoint sem ativação externa;
-4. preparação Entra/add-in sem liberar endpoint;
-5. browser QA somente quando houver ambiente navegável e automação estiver autorizada.
+1. fechar CI do HEAD Graph reconstruído;
+2. atualizar PR/evidências com a baseline final;
+3. homologar Graph/SharePoint real somente quando houver autenticação Microsoft de homologação adequada;
+4. preparar audience/scope Entra reais sem liberar add-in prematuramente;
+5. comprovar binding D1 real quando houver runtime homologado;
+6. avançar para os módulos funcionais do Banco de Notas e QA em ambiente navegável.
