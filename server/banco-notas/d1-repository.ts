@@ -312,16 +312,23 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
   private async importFindings(jobId: string): Promise<ImportFinding[]> {
     const { results } = await this.db
       .prepare(
-        `SELECT severity, code, location_json, details_json
-         FROM import_findings WHERE import_job_id = ? ORDER BY created_at, id`,
+        `SELECT finding.id, finding.severity, finding.code, finding.location_json,
+                finding.details_json, resolution.resolved_at
+         FROM import_findings finding
+         LEFT JOIN import_finding_resolutions resolution
+           ON resolution.import_finding_id = finding.id
+         WHERE finding.import_job_id = ?
+         ORDER BY finding.created_at, finding.id`,
       )
       .bind(jobId)
       .all<Row>();
     return results.map((row) => ({
+      id: String(row.id),
       severity: String(row.severity) as ImportFinding['severity'],
       code: String(row.code),
       location: JSON.parse(String(row.location_json)) as Record<string, unknown>,
       details: JSON.parse(String(row.details_json)) as Record<string, unknown>,
+      resolvedAt: row.resolved_at ? String(row.resolved_at) : null,
     }));
   }
 
@@ -419,17 +426,40 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
     if (!current) return null;
     const currentState = String(current.state) as ImportJobState;
     assertImportJobTransition(currentState, input.targetState);
-    const allFindings = [...(await this.importFindings(id)), ...input.findings];
+
+    const currentFindings = await this.importFindings(id);
+    const unresolvedFindingIds = new Set(
+      currentFindings.filter((finding) => !finding.resolvedAt).map((finding) => finding.id),
+    );
+    for (const findingId of input.resolvedFindingIds) {
+      if (!unresolvedFindingIds.has(findingId)) {
+        throw new Error('import_finding_not_resolvable');
+      }
+    }
+
+    const resolvedAt = new Date().toISOString();
+    const resolvedIds = new Set(input.resolvedFindingIds);
+    const existingAfterResolution = currentFindings.map((finding) =>
+      resolvedIds.has(finding.id) ? { ...finding, resolvedAt } : finding,
+    );
+    const newFindings: ImportFinding[] = input.findings.map((finding) => ({
+      id: crypto.randomUUID(),
+      ...finding,
+      resolvedAt: null,
+    }));
+    const allFindings = [...existingAfterResolution, ...newFindings];
     assertImportJobGate({
       targetState: input.targetState,
-      errorFindingCount: allFindings.filter((finding) => finding.severity === 'error').length,
+      unresolvedErrorFindingCount: allFindings.filter(
+        (finding) => finding.severity === 'error' && !finding.resolvedAt,
+      ).length,
     });
 
     const provenance = {
       ...(JSON.parse(String(current.provenance_json)) as Record<string, unknown>),
       ...input.provenance,
     };
-    const findingStatements = input.findings.map((finding) =>
+    const findingStatements = newFindings.map((finding) =>
       this.db
         .prepare(
           `INSERT INTO import_findings
@@ -437,13 +467,22 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .bind(
-          crypto.randomUUID(),
+          finding.id,
           id,
           finding.severity,
           finding.code,
           JSON.stringify(finding.location),
           JSON.stringify(finding.details),
         ),
+    );
+    const resolutionStatements = input.resolvedFindingIds.map((findingId) =>
+      this.db
+        .prepare(
+          `INSERT INTO import_finding_resolutions
+           (id, import_finding_id, resolved_by, reason, resolved_at)
+           VALUES (?, ?, ?, ?, ?)`,
+        )
+        .bind(crypto.randomUUID(), findingId, actor, input.reason, resolvedAt),
     );
     const updatedAt = new Date().toISOString();
     await this.db.batch([
@@ -454,10 +493,12 @@ export class D1BancoNotasRepository implements BancoNotasRepository {
         )
         .bind(input.targetState, JSON.stringify(provenance), id),
       ...findingStatements,
+      ...resolutionStatements,
       this.audit('import_job.transitioned', 'import_job', id, actor, {
         reason: input.reason,
         before: currentState,
         after: input.targetState,
+        resolvedFindingIds: input.resolvedFindingIds,
       }),
     ]);
     return importJob(
