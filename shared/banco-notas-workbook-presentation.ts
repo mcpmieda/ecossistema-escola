@@ -82,7 +82,9 @@ export const genericWorkbookPresentationSchema = z
       });
     }
 
-    const normalizedNames = value.sheets.map((sheet) => sheet.displayName.toLocaleLowerCase('en-US'));
+    const normalizedNames = value.sheets.map((sheet) =>
+      sheet.displayName.toLocaleLowerCase('en-US'),
+    );
     if (new Set(normalizedNames).size !== normalizedNames.length) {
       context.addIssue({
         code: 'custom',
