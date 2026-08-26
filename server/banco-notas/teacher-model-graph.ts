@@ -105,6 +105,10 @@ export async function storeShareAndVerifyTeacherModel(args: {
   let driveItemId: string | undefined;
   let permissionId: string | undefined;
   try {
+    if ((await sha256Hex(model.content)) !== model.modelHash) {
+      throw new Error('teacher_model_content_hash_mismatch');
+    }
+
     const stored = await args.gateway.store({
       fileName: model.fileName,
       content: model.content,
