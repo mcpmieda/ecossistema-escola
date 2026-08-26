@@ -44,7 +44,9 @@ export async function analyzeImportJob(args: {
     throw new Error(`invalid_import_job_transition:${job.state}:analyzed`);
   }
 
-  const schoolYear = (await args.jobs.listSchoolYears()).find((item) => item.id === job.schoolYearId);
+  const schoolYear = (await args.jobs.listSchoolYears()).find(
+    (item) => item.id === job.schoolYearId,
+  );
   if (!schoolYear) throw new Error('import_job_school_year_not_found');
 
   const jobSourceFormat = job.provenance.sourceFormat;
