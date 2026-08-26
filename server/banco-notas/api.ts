@@ -21,8 +21,7 @@ import {
   type ImportAnalysisRuntime,
 } from './import-analysis-upload';
 
-const XLSX_CONTENT_TYPE =
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const XLSB_CONTENT_TYPE = 'application/vnd.ms-excel.sheet.binary.macroenabled.12';
 const MAX_IMPORT_WORKBOOK_BYTES = 32 * 1024 * 1024;
 
@@ -215,8 +214,7 @@ export async function routeBancoNotasApi(args: {
   if (importAnalysisMatch?.[1]) {
     allowed(request, ['GET', 'POST']);
     requireCapability(capabilities, 'grades.import.run');
-    if (!args.importAnalysis)
-      throw new HttpError(503, 'Import analysis storage is unavailable');
+    if (!args.importAnalysis) throw new HttpError(503, 'Import analysis storage is unavailable');
     if (request.method === 'GET') {
       const result = await findImportAnalysis({
         repository: args.importAnalysis.repository,
