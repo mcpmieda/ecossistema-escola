@@ -41,4 +41,4 @@ Nesta fase nenhum provider externo é disparado automaticamente.
 
 ## Exemplo
 
-Consulte `infra/factory/examples/banco-notas-pilot-issue.md`.
+Consulte `infra/factory/examples/banco-notas-pilot-issue.txt`.
