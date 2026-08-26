@@ -64,9 +64,10 @@ export async function routeGradeEventsApi(args: {
 
   if (path === '/v1/grade-events') {
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
+    const input = await readBoundedJson(request);
     const receipt = await gradeEventOperation(() =>
       ingestGradeEvent({
-        input: readBoundedJson(request),
+        input,
         idempotencyKey: request.headers.get('Idempotency-Key'),
         store,
       }),
@@ -86,7 +87,9 @@ export async function routeGradeEventsApi(args: {
   const snapshotMatch = path.match(/^\/v1\/grade-snapshots\/([^/]+)$/u);
   if (snapshotMatch?.[1]) {
     if (request.method !== 'GET') throw new HttpError(405, 'Method not allowed');
-    const gradeKey = parse(() => z.string().min(7).max(180).parse(decodePathSegment(snapshotMatch[1]!)));
+    const gradeKey = parse(() =>
+      z.string().min(7).max(180).parse(decodePathSegment(snapshotMatch[1]!)),
+    );
     const field = parse(() => gradeFieldSchema.parse(url.searchParams.get('field')));
     const snapshot = await store.getSnapshot(gradeKey, field);
     if (!snapshot) throw new HttpError(404, 'Grade snapshot not found');
