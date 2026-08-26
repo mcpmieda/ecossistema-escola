@@ -92,25 +92,17 @@ export const legacyIntermediateModelSchema = z
   .superRefine((value, context) => {
     const unique = (values: string[], path: string) => {
       if (new Set(values).size !== values.length) {
-        context.addIssue({ code: 'custom', path: [path], message: `${path} identifiers must be unique` });
+        context.addIssue({
+          code: 'custom',
+          path: [path],
+          message: `${path} identifiers must be unique`,
+        });
       }
     };
-    unique(
-      value.classes.map((item) => item.sourceClassId),
-      'classes',
-    );
-    unique(
-      value.components.map((item) => item.sourceComponentId),
-      'components',
-    );
-    unique(
-      value.students.map((item) => item.sourceStudentId),
-      'students',
-    );
-    unique(
-      value.gradeSlots.map((item) => item.sourceGradeSlotId),
-      'gradeSlots',
-    );
+    unique(value.classes.map((item) => item.sourceClassId), 'classes');
+    unique(value.components.map((item) => item.sourceComponentId), 'components');
+    unique(value.students.map((item) => item.sourceStudentId), 'students');
+    unique(value.gradeSlots.map((item) => item.sourceGradeSlotId), 'gradeSlots');
 
     const classIds = new Set(value.classes.map((item) => item.sourceClassId));
     const componentIds = new Set(value.components.map((item) => item.sourceComponentId));
