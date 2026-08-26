@@ -85,6 +85,9 @@ export function buildGenericTransformationPlan(args: {
       blockers.push(`unresolved_grade_slot:${slot.sourceGradeSlotId}:${missing.join(',')}`);
       return [];
     }
+    if (!classGroupId || !componentId || !studentId || studentPosition === undefined) {
+      throw new Error('resolved_grade_slot_invariant_failed');
+    }
 
     return [
       {
