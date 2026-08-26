@@ -82,7 +82,10 @@ const token = await exchangeGitHubToken();
 const claims = tokenClaims(token);
 const roles = Array.isArray(claims.roles) ? [...claims.roles].sort() : [];
 
-if (claims.aud !== '00000003-0000-0000-c000-000000000000' && claims.aud !== 'https://graph.microsoft.com') {
+if (
+  claims.aud !== '00000003-0000-0000-c000-000000000000' &&
+  claims.aud !== 'https://graph.microsoft.com'
+) {
   throw new Error('Unexpected Microsoft Graph token audience');
 }
 
@@ -106,7 +109,10 @@ if (operation === 'sharepoint-health' || operation === 'banco-notas-readiness') 
   const encodedSiteId = encodeURIComponent(siteId);
   const site = await graph(token, `/sites/${encodedSiteId}?$select=id,displayName,webUrl`);
   const lists = await graph(token, `/sites/${encodedSiteId}/lists?$select=id,displayName&$top=200`);
-  const drives = await graph(token, `/sites/${encodedSiteId}/drives?$select=id,name,driveType&$top=200`);
+  const drives = await graph(
+    token,
+    `/sites/${encodedSiteId}/drives?$select=id,name,driveType&$top=200`,
+  );
 
   audit.siteAccess = Boolean(site?.id);
   audit.listCount = Array.isArray(lists?.value) ? lists.value.length : 0;
