@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { genericModelInstanceSchema } from '../shared/banco-notas-generic-model';
@@ -17,7 +19,8 @@ const homologationEnabled = process.env.BANCO_NOTAS_M365_HOMOLOGATION === '1';
 const homologation = homologationEnabled ? describe : describe.skip;
 const driveName = 'ARQUIVOS_PLATAFORMA';
 const folderName = 'BANCO_NOTAS_HOMOLOGACAO';
-const fileName = 'banco-notas-roundtrip-sintetico.xlsx';
+const runSuffix = (process.env.GITHUB_RUN_ID ?? 'local').replace(/[^a-zA-Z0-9_-]/gu, '') || 'local';
+const fileName = `banco-notas-roundtrip-sintetico-${runSuffix}.xlsx`;
 
 const modelId = '71111111-1111-4111-8111-111111111111';
 const teacherId = '72222222-2222-4222-8222-222222222222';
@@ -106,6 +109,10 @@ function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`m365_homologation_missing_env:${name}`);
   return value;
+}
+
+function safeError(error: unknown): string {
+  return error instanceof Error ? error.message.slice(0, 180) : 'unknown_error';
 }
 
 async function githubOidcGraphToken(): Promise<string> {
@@ -221,7 +228,11 @@ homologation('Banco de Notas M365 storage homologation', () => {
 
     let driveItemId: string | undefined;
     let cleanupSucceeded = false;
+    let cleanupError = '';
     let analysisSucceeded = false;
+    let failure = '';
+    let metadataByteLength: number | undefined;
+    let downloadedByteLength: number | undefined;
     let downloadedHash = '';
     try {
       const stored = await gateway.store({
@@ -235,41 +246,55 @@ homologation('Banco de Notas M365 storage homologation', () => {
         driveItemId,
         correlationId: 'banco-notas-m365-metadata',
       });
-      expect(metadata.size).toBe(content.byteLength);
+      metadataByteLength = metadata.size;
 
       const downloaded = await gateway.download({
         driveItemId,
         correlationId: 'banco-notas-m365-download',
       });
+      downloadedByteLength = downloaded.byteLength;
       downloadedHash = await sha256(downloaded);
-      expect(downloadedHash).toBe(artifact.metadata.sha256);
 
-      const analysis = await analyzeLegacyWorkbook({
-        source: {
-          metadata: {
-            sourceFormat: 'xlsx',
-            sourceHash: downloadedHash,
-            byteLength: downloaded.byteLength,
-            schoolYear: 2026,
+      if (downloadedHash === artifact.metadata.sha256) {
+        const analysis = await analyzeLegacyWorkbook({
+          source: {
+            metadata: {
+              sourceFormat: 'xlsx',
+              sourceHash: downloadedHash,
+              byteLength: downloaded.byteLength,
+              schoolYear: 2026,
+            },
+            bytes: downloaded,
           },
-          bytes: downloaded,
-        },
-        analyzer: createGenericXlsxLegacyAnalyzer(profile),
-      });
-      expect(analysis.model.classes.map((item) => item.displayName)).toEqual(['Turma Sintética']);
-      expect(analysis.model.components.map((item) => item.displayName)).toEqual(['Matemática']);
-      expect(analysis.model.students.map((item) => item.displayName)).toEqual([
-        'Estudante Sintético',
-      ]);
-      expect(analysis.model.findings).toEqual([]);
-      analysisSucceeded = true;
+          analyzer: createGenericXlsxLegacyAnalyzer(profile),
+        });
+        expect(analysis.model.classes.map((item) => item.displayName)).toEqual(['Turma Sintética']);
+        expect(analysis.model.components.map((item) => item.displayName)).toEqual(['Matemática']);
+        expect(analysis.model.students.map((item) => item.displayName)).toEqual([
+          'Estudante Sintético',
+        ]);
+        expect(analysis.model.findings).toEqual([]);
+        analysisSucceeded = true;
+      }
+
+      expect(metadataByteLength).toBe(content.byteLength);
+      expect(downloadedByteLength).toBe(content.byteLength);
+      expect(downloadedHash).toBe(artifact.metadata.sha256);
+      expect(analysisSucceeded).toBe(true);
+    } catch (error) {
+      failure = safeError(error);
+      throw error;
     } finally {
       if (driveItemId) {
-        await gateway.remove({
-          driveItemId,
-          correlationId: 'banco-notas-m365-cleanup',
-        });
-        cleanupSucceeded = true;
+        try {
+          await gateway.remove({
+            driveItemId,
+            correlationId: 'banco-notas-m365-cleanup',
+          });
+          cleanupSucceeded = true;
+        } catch (error) {
+          cleanupError = safeError(error);
+        }
       }
       await writeFile(
         'banco-notas-m365-homologation-audit.json',
@@ -278,13 +303,19 @@ homologation('Banco de Notas M365 storage homologation', () => {
             status: analysisSucceeded && cleanupSucceeded ? 'success' : 'failed',
             storageBoundary: 'ARQUIVOS_PLATAFORMA/BANCO_NOTAS_HOMOLOGACAO',
             source: 'synthetic-generic-xlsx',
+            executionEnvironment: 'node',
             syncEnabled: false,
             sharing: 'not-performed-no-designated-test-recipient',
             uploadPerformed: Boolean(driveItemId),
-            metadataVerified: analysisSucceeded,
+            expectedByteLength: content.byteLength,
+            metadataByteLength,
+            downloadedByteLength,
+            metadataVerified: metadataByteLength === content.byteLength,
             downloadedHashVerified: downloadedHash === artifact.metadata.sha256,
             ooxmlReanalysis: analysisSucceeded,
             uploadedFileRemoved: cleanupSucceeded,
+            cleanupError: cleanupError || undefined,
+            failure: failure || undefined,
             dedicatedFolderRetained: true,
           },
           null,
@@ -292,6 +323,7 @@ homologation('Banco de Notas M365 storage homologation', () => {
         )}\n`,
         'utf8',
       );
+      if (cleanupError) throw new Error(`m365_homologation_cleanup_failed:${cleanupError}`);
     }
   }, 60_000);
 });
