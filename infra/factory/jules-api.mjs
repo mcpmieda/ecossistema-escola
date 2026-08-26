@@ -3,6 +3,8 @@ import process from 'node:process';
 const API_ROOT = 'https://jules.googleapis.com/v1alpha';
 const SESSION_MARKER = /<!-- factory-jules-session:([^ ]+) -->/;
 const TRUSTED_FACTORY_LOGIN = 'github-actions[bot]';
+const SOURCE_POLL_MS = 5_000;
+const SOURCE_POLL_ATTEMPTS = 12;
 
 function fail(message) {
   throw new Error(message);
@@ -32,6 +34,10 @@ async function request(path, options = {}) {
   return payload;
 }
 
+async function sleep(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function julesSessionMarker(sessionName) {
   const value = String(sessionName ?? '').trim();
   if (!/^sessions\/[^\s/]+$/.test(value)) fail('Invalid Jules session resource name.');
@@ -54,6 +60,13 @@ export function pullRequestUrlsFromSession(session) {
     if (typeof url === 'string' && url.startsWith('https://github.com/')) urls.add(url);
   }
   return [...urls];
+}
+
+export function sourceHasBranch(source, branch) {
+  const repo = source?.githubRepo;
+  if (!repo) return false;
+  if (repo.defaultBranch?.displayName === branch) return true;
+  return (repo.branches ?? []).some((item) => item?.displayName === branch);
 }
 
 export function buildJulesPrompt({
@@ -106,8 +119,19 @@ export async function findGithubSource(owner, repo) {
   fail(`Jules source not found for ${owner}/${repo}.`);
 }
 
+export async function waitForJulesSourceBranch(sourceName, branch) {
+  if (!/^sources\/.+/.test(sourceName)) fail('Invalid Jules source resource name.');
+  for (let attempt = 0; attempt < SOURCE_POLL_ATTEMPTS; attempt += 1) {
+    const source = await request(`/${sourceName}`);
+    if (sourceHasBranch(source, branch)) return source;
+    await sleep(SOURCE_POLL_MS);
+  }
+  fail(`Jules source did not expose branch '${branch}' within the bounded synchronization window.`);
+}
+
 export async function createJulesSession({ sourceName, startingBranch, title, prompt }) {
   if (!/^sources\/.+/.test(sourceName)) fail('Invalid Jules source resource name.');
+  await waitForJulesSourceBranch(sourceName, startingBranch);
   const payload = await request('/sessions', {
     method: 'POST',
     body: JSON.stringify({
