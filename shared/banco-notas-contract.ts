@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ImportAnalysisRepository } from './banco-notas-import-analysis';
 import type { ImportJobRepository } from './banco-notas-import-jobs';
 
 export const sourceTypeSchema = z.enum(['legacy_import', 'linked_teacher_model']);
@@ -124,18 +125,19 @@ export type SourceAssignment = AssignmentInput & {
   updatedAt: string;
 };
 
-export type BancoNotasRepository = ImportJobRepository & {
-  listSchoolYears(): Promise<SchoolYear[]>;
-  createSchoolYear(input: SchoolYearInput, actor: string): Promise<SchoolYear>;
-  listTeachers(): Promise<Teacher[]>;
-  listSources(schoolYearId?: string): Promise<DataSource[]>;
-  createSource(input: SourceInput, actor: string): Promise<DataSource>;
-  patchSource(id: string, input: SourcePatch, actor: string): Promise<DataSource | null>;
-  listAssignments(schoolYearId?: string): Promise<SourceAssignment[]>;
-  createAssignment(input: AssignmentInput, actor: string): Promise<SourceAssignment>;
-  patchAssignment(
-    id: string,
-    input: AssignmentPatch,
-    actor: string,
-  ): Promise<SourceAssignment | null>;
-};
+export type BancoNotasRepository = ImportJobRepository &
+  ImportAnalysisRepository & {
+    listSchoolYears(): Promise<SchoolYear[]>;
+    createSchoolYear(input: SchoolYearInput, actor: string): Promise<SchoolYear>;
+    listTeachers(): Promise<Teacher[]>;
+    listSources(schoolYearId?: string): Promise<DataSource[]>;
+    createSource(input: SourceInput, actor: string): Promise<DataSource>;
+    patchSource(id: string, input: SourcePatch, actor: string): Promise<DataSource | null>;
+    listAssignments(schoolYearId?: string): Promise<SourceAssignment[]>;
+    createAssignment(input: AssignmentInput, actor: string): Promise<SourceAssignment>;
+    patchAssignment(
+      id: string,
+      input: AssignmentPatch,
+      actor: string,
+    ): Promise<SourceAssignment | null>;
+  };
