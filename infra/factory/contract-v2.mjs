@@ -12,7 +12,7 @@ const ALLOWED_HUMAN_GATES = new Set([
 const ALLOWED_PROVIDERS = new Set(['jules', 'antigravity', 'opencode_ollama', 'manual']);
 const ACTIVE_REMOTE_PROVIDERS = new Set(['jules']);
 const SAFE_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
-const SAFE_BRANCH = /^(?!\/)(?!.*(?:\.\.|@\{|\\|[~^:?*\[]))(?!.*\/$)[A-Za-z0-9._\/-]+$/;
+const SAFE_BRANCH = /^[A-Za-z0-9._/-]+$/;
 const RESERVED_AUTOMATION_SCOPES = ['.github', 'infra/factory', 'infra/validation'];
 
 function fail(message) {
@@ -39,15 +39,28 @@ function stringArray(value, label) {
 
 function cleanBranch(value, label) {
   const branch = cleanText(value, label, 200);
-  if (!SAFE_BRANCH.test(branch) || branch.endsWith('.lock') || branch.startsWith('.')) {
+  if (
+    !SAFE_BRANCH.test(branch) ||
+    branch.startsWith('/') ||
+    branch.endsWith('/') ||
+    branch.includes('..') ||
+    branch.includes('@{') ||
+    branch.includes('\\') ||
+    branch.endsWith('.lock') ||
+    branch.startsWith('.')
+  ) {
     fail(`${label} is not a safe Git branch name.`);
   }
   return branch;
 }
 
+function hasControlCharacter(value) {
+  return [...value].some((character) => character.charCodeAt(0) < 32);
+}
+
 function cleanPathScope(value, label) {
   const scope = cleanText(value, label, 300);
-  if (scope.startsWith('/') || scope.includes('\\') || /[\u0000-\u001f]/.test(scope)) {
+  if (scope.startsWith('/') || scope.includes('\\') || hasControlCharacter(scope)) {
     fail(`${label} is not a safe repository-relative path scope.`);
   }
   const withoutGlob = scope.endsWith('/**') ? scope.slice(0, -3) : scope;
@@ -174,8 +187,9 @@ export function parseFactoryRunV2(body) {
     }
 
     if (humanGates.length === 0) {
-      if (paths.length === 0)
+      if (paths.length === 0) {
         fail(`Automated task ${id} requires at least one declared path scope.`);
+      }
       if (paths.some(scopeIsReserved)) {
         fail(
           `Automated task ${id} targets a reserved Control Plane/GitHub scope. Use a human-gated change instead.`,
@@ -270,9 +284,7 @@ function canonicalRun(run) {
 }
 
 export function manifestFingerprint(run) {
-  return createHash('sha256')
-    .update(JSON.stringify(canonicalRun(run)))
-    .digest('hex');
+  return createHash('sha256').update(JSON.stringify(canonicalRun(run))).digest('hex');
 }
 
 export function manifestMarker(run) {
