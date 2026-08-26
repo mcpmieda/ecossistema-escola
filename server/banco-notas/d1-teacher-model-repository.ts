@@ -72,6 +72,14 @@ function assertText(value: string, code: string): void {
   if (!value.trim()) throw new Error(code);
 }
 
+function assertHomologation(environment: string): void {
+  if (environment !== 'homologation') throw new Error('teacher_model_homologation_required');
+}
+
+function assertSyncDisabled(syncEnabled: boolean): void {
+  if (syncEnabled) throw new Error('teacher_model_sync_must_be_disabled');
+}
+
 function assertValidatedModelInput(input: PersistValidatedTeacherModelInput): void {
   assertText(input.schoolYearId, 'teacher_model_school_year_required');
   assertText(input.teacherId, 'teacher_model_teacher_required');
@@ -83,12 +91,18 @@ function assertValidatedModelInput(input: PersistValidatedTeacherModelInput): vo
   }
   if (input.mappings.length === 0) throw new Error('teacher_model_mappings_required');
 
-  const targets = input.mappings.map(
-    (mapping) => `${mapping.gradeKey}::${mapping.field}::${mapping.sheetKey}::${mapping.cellAddress}`,
-  );
-  if (new Set(targets).size !== targets.length) {
-    throw new Error('teacher_model_mapping_duplicate');
+  const gradeTargets = input.mappings.map((mapping) => `${mapping.gradeKey}::${mapping.field}`);
+  if (new Set(gradeTargets).size !== gradeTargets.length) {
+    throw new Error('teacher_model_grade_mapping_duplicate');
   }
+
+  const cellTargets = input.mappings.map(
+    (mapping) => `${mapping.sheetKey}::${mapping.cellAddress}`,
+  );
+  if (new Set(cellTargets).size !== cellTargets.length) {
+    throw new Error('teacher_model_cell_mapping_duplicate');
+  }
+
   for (const mapping of input.mappings) {
     assertText(mapping.gradeKey, 'teacher_model_grade_key_required');
     assertText(mapping.sheetKey, 'teacher_model_sheet_key_required');
@@ -190,12 +204,12 @@ export class D1TeacherModelRepository {
     if (!teacher) throw new Error('teacher_model_teacher_not_found');
 
     const existing = await this.existingModel(input.schoolYearId, input.teacherId);
-    if (existing?.environment !== undefined && existing.environment !== 'homologation') {
-      throw new Error('teacher_model_homologation_required');
-    }
-    if (existing?.syncEnabled) throw new Error('teacher_model_sync_must_be_disabled');
-    if (existing && !['draft', 'validated'].includes(existing.state)) {
-      throw new Error('teacher_model_version_locked_by_state');
+    if (existing) {
+      assertHomologation(existing.environment);
+      assertSyncDisabled(existing.syncEnabled);
+      if (!['draft', 'validated'].includes(existing.state)) {
+        throw new Error('teacher_model_version_locked_by_state');
+      }
     }
 
     const teacherModelId = existing?.id ?? crypto.randomUUID();
@@ -240,72 +254,73 @@ export class D1TeacherModelRepository {
     const statements: D1PreparedStatement[] = [];
 
     if (!existing) {
-      statements.push(
-        this.db
-          .prepare(
-            `INSERT INTO teacher_models
-              (id, school_year_id, teacher_id, state, sync_enabled, environment)
-             VALUES (?, ?, ?, 'validated', 0, 'homologation')`,
-          )
-          .bind(teacherModelId, input.schoolYearId, input.teacherId),
-      );
+      const createModel = this.db
+        .prepare(
+          `INSERT INTO teacher_models
+            (id, school_year_id, teacher_id, state, sync_enabled, environment)
+           VALUES (?, ?, ?, 'validated', 0, 'homologation')`,
+        )
+        .bind(teacherModelId, input.schoolYearId, input.teacherId);
+      statements.push(createModel);
     } else if (existing.state === 'draft') {
-      statements.push(
-        this.db
-          .prepare(
-            `UPDATE teacher_models
-             SET state = 'validated', updated_at = CURRENT_TIMESTAMP
-             WHERE id = ? AND state = 'draft'`,
-          )
-          .bind(teacherModelId),
-      );
+      const validateModel = this.db
+        .prepare(
+          `UPDATE teacher_models
+           SET state = 'validated', updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND state = 'draft'`,
+        )
+        .bind(teacherModelId);
+      statements.push(validateModel);
     }
 
-    statements.push(
-      this.db
+    const createVersion = this.db
+      .prepare(
+        `INSERT INTO teacher_model_versions
+          (id, teacher_model_id, version, model_hash, mapping_version, provenance_json)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .bind(
+        teacherModelVersionId,
+        teacherModelId,
+        version,
+        input.modelHash,
+        input.mappingVersion,
+        JSON.stringify(provenance),
+      );
+    statements.push(createVersion);
+
+    for (const mapping of input.mappings) {
+      const createMapping = this.db
         .prepare(
-          `INSERT INTO teacher_model_versions
-            (id, teacher_model_id, version, model_hash, mapping_version, provenance_json)
+          `INSERT INTO cell_mappings
+            (id, teacher_model_version_id, grade_key, sheet_key, cell_address, field)
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .bind(
+          crypto.randomUUID(),
           teacherModelVersionId,
-          teacherModelId,
-          version,
-          input.modelHash,
-          input.mappingVersion,
-          JSON.stringify(provenance),
-        ),
-    );
-
-    for (const mapping of input.mappings) {
-      statements.push(
-        this.db
-          .prepare(
-            `INSERT INTO cell_mappings
-              (id, teacher_model_version_id, grade_key, sheet_key, cell_address, field)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-          )
-          .bind(
-            crypto.randomUUID(),
-            teacherModelVersionId,
-            mapping.gradeKey,
-            mapping.sheetKey,
-            mapping.cellAddress,
-            mapping.field,
-          ),
-      );
+          mapping.gradeKey,
+          mapping.sheetKey,
+          mapping.cellAddress,
+          mapping.field,
+        );
+      statements.push(createMapping);
     }
 
-    statements.push(
-      this.audit('teacher_model.version_validated', teacherModelId, input.actor, correlationId, {
+    const audit = this.audit(
+      'teacher_model.version_validated',
+      teacherModelId,
+      input.actor,
+      correlationId,
+      {
         teacherModelVersionId,
         version,
         modelHash: input.modelHash,
         mappingVersion: input.mappingVersion,
         definitionVersion: input.definitionVersion,
-      }),
+      },
     );
+    statements.push(audit);
     await this.db.batch(statements);
 
     return {
@@ -344,9 +359,12 @@ export class D1TeacherModelRepository {
       .bind(teacherModelId)
       .first<Row>();
     if (!row) throw new Error('teacher_model_not_found');
-    if (String(row.environment) !== 'homologation') throw new Error('teacher_model_homologation_required');
-    if (Boolean(row.sync_enabled)) throw new Error('teacher_model_sync_must_be_disabled');
-    if (String(row.teacher_status) !== 'active') throw new Error('teacher_model_active_teacher_required');
+
+    assertHomologation(String(row.environment));
+    assertSyncDisabled(Boolean(row.sync_enabled));
+    if (String(row.teacher_status) !== 'active') {
+      throw new Error('teacher_model_active_teacher_required');
+    }
     if (!row.entra_object_id) throw new Error('teacher_model_entra_identity_required');
     if (!row.version_id) throw new Error('teacher_model_version_required');
 
@@ -371,19 +389,25 @@ export class D1TeacherModelRepository {
 
     if (state === 'validated') {
       const correlationId = crypto.randomUUID();
-      await this.db.batch([
-        this.db
-          .prepare(
-            `UPDATE teacher_models
-             SET state = 'ready_to_share', updated_at = CURRENT_TIMESTAMP
-             WHERE id = ? AND state = 'validated' AND sync_enabled = 0 AND environment = 'homologation'`,
-          )
-          .bind(teacherModelId),
-        this.audit('teacher_model.ready_to_share', teacherModelId, actor, correlationId, {
+      const markReady = this.db
+        .prepare(
+          `UPDATE teacher_models
+           SET state = 'ready_to_share', updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND state = 'validated' AND sync_enabled = 0
+             AND environment = 'homologation'`,
+        )
+        .bind(teacherModelId);
+      const audit = this.audit(
+        'teacher_model.ready_to_share',
+        teacherModelId,
+        actor,
+        correlationId,
+        {
           teacherModelVersionId: String(row.version_id),
           version: Number(row.version),
-        }),
-      ]);
+        },
+      );
+      await this.db.batch([markReady, audit]);
     }
 
     return {
@@ -404,14 +428,18 @@ export class D1TeacherModelRepository {
       .bind(input.teacherModelId)
       .first<Row>();
     if (!model) throw new Error('teacher_model_not_found');
-    if (String(model.state) !== 'ready_to_share') throw new Error('teacher_model_not_ready_for_share');
+    if (String(model.state) !== 'ready_to_share') {
+      throw new Error('teacher_model_not_ready_for_share');
+    }
 
-    await this.db.batch([
-      this.shareAudit('requested', input),
-      this.audit('teacher_model.share_requested', input.teacherModelId, input.actor, input.correlationId, {
-        recipientEntraObjectId: input.recipientEntraObjectId,
-      }),
-    ]);
+    const audit = this.audit(
+      'teacher_model.share_requested',
+      input.teacherModelId,
+      input.actor,
+      input.correlationId,
+      { recipientEntraObjectId: input.recipientEntraObjectId },
+    );
+    await this.db.batch([this.shareAudit('requested', input), audit]);
   }
 
   async recordShareSucceeded(input: TeacherModelShareRecord): Promise<void> {
@@ -426,27 +454,34 @@ export class D1TeacherModelRepository {
       .bind(input.teacherModelId)
       .first<Row>();
     if (!model) throw new Error('teacher_model_not_found');
-    if (String(model.state) !== 'ready_to_share') throw new Error('teacher_model_not_ready_for_share');
-    if (Boolean(model.sync_enabled)) throw new Error('teacher_model_sync_must_be_disabled');
-    if (String(model.environment) !== 'homologation') throw new Error('teacher_model_homologation_required');
+    if (String(model.state) !== 'ready_to_share') {
+      throw new Error('teacher_model_not_ready_for_share');
+    }
+    assertSyncDisabled(Boolean(model.sync_enabled));
+    assertHomologation(String(model.environment));
     if (String(model.entra_object_id ?? '') !== input.recipientEntraObjectId) {
       throw new Error('teacher_model_recipient_identity_mismatch');
     }
 
-    await this.db.batch([
-      this.db
-        .prepare(
-          `UPDATE teacher_models
-           SET state = 'shared', drive_item_id = ?, updated_at = CURRENT_TIMESTAMP
-           WHERE id = ? AND state = 'ready_to_share' AND sync_enabled = 0 AND environment = 'homologation'`,
-        )
-        .bind(input.driveItemId, input.teacherModelId),
-      this.shareAudit('succeeded', input),
-      this.audit('teacher_model.shared', input.teacherModelId, input.actor, input.correlationId, {
+    const markShared = this.db
+      .prepare(
+        `UPDATE teacher_models
+         SET state = 'shared', drive_item_id = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND state = 'ready_to_share' AND sync_enabled = 0
+           AND environment = 'homologation'`,
+      )
+      .bind(input.driveItemId, input.teacherModelId);
+    const audit = this.audit(
+      'teacher_model.shared',
+      input.teacherModelId,
+      input.actor,
+      input.correlationId,
+      {
         driveItemId: input.driveItemId,
         recipientEntraObjectId: input.recipientEntraObjectId,
-      }),
-    ]);
+      },
+    );
+    await this.db.batch([markShared, this.shareAudit('succeeded', input), audit]);
   }
 
   async recordShareFailed(input: TeacherModelShareRecord): Promise<void> {
@@ -456,18 +491,23 @@ export class D1TeacherModelRepository {
       .first<Row>();
     if (!model) throw new Error('teacher_model_not_found');
 
-    await this.db.batch([
-      this.shareAudit('failed', {
-        ...input,
-        details: {
-          ...input.details,
-          safeError: input.safeError,
-        },
-      }),
-      this.audit('teacher_model.share_failed', input.teacherModelId, input.actor, input.correlationId, {
+    const failed = this.shareAudit('failed', {
+      ...input,
+      details: {
+        ...input.details,
+        safeError: input.safeError,
+      },
+    });
+    const audit = this.audit(
+      'teacher_model.share_failed',
+      input.teacherModelId,
+      input.actor,
+      input.correlationId,
+      {
         safeError: input.safeError,
         ...input.details,
-      }),
-    ]);
+      },
+    );
+    await this.db.batch([failed, audit]);
   }
 }
