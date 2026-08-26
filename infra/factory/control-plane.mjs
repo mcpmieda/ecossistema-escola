@@ -1,4 +1,5 @@
 import process from 'node:process';
+import { readFileSync } from 'node:fs';
 
 const API_ROOT = 'https://api.github.com';
 const RUN_BEGIN = '<!-- FACTORY_RUN_BEGIN -->';
@@ -50,7 +51,7 @@ function stringArray(value, label) {
   return result;
 }
 
-function parseManifest(body) {
+export function parseManifest(body) {
   const start = body.indexOf(RUN_BEGIN);
   const end = body.indexOf(RUN_END);
   if (start < 0 || end < 0 || end <= start) {
@@ -254,9 +255,26 @@ async function materialize() {
   process.stdout.write(`${JSON.stringify(summary)}\n`);
 }
 
+function validateFile(path) {
+  const manifest = parseManifest(readFileSync(path, 'utf8'));
+  process.stdout.write(`${JSON.stringify({
+    status: 'valid',
+    run_id: manifest.runId,
+    task_count: manifest.tasks.length,
+    human_gate_tasks: manifest.tasks.filter((task) => task.humanGates.length > 0).map((task) => task.id),
+  })}\n`);
+}
+
 const command = process.argv[2];
-if (command !== 'materialize') fail(`Unsupported command: ${command ?? '(missing)'}`);
-materialize().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+if (command === 'validate-file') {
+  const path = process.argv[3];
+  if (!path) fail('validate-file requires a path.');
+  validateFile(path);
+} else if (command === 'materialize') {
+  materialize().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+} else {
+  fail(`Unsupported command: ${command ?? '(missing)'}`);
+}
