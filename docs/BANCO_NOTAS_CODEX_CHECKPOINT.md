@@ -1,12 +1,10 @@
 # Banco de Notas — Codex Checkpoint
 
-# Banco de Notas — Codex Checkpoint
-
 Última atualização: 26/08/2026 20:50 BRT
 Branch: `feat/banco-de-notas-foundation`
-HEAD: `848b78fe413345a115151f5a545c338bcc73c66c`
+HEAD: `5ee994e` (merge local de `origin/main`; próximo commit atualizará o hash)
 PR: `#52` — open, draft, sem merge
-CI: run `33008170523` — failure em lint (`no-unsafe-finally`)
+CI: gate local completo verde; run remoto do novo HEAD ainda não iniciado
 D1 homologation: run `32981705701` — success, migrations `0001`–`0007`, sync final `0`
 M365 operation: run `33003875460` — success, readiness read-only
 
@@ -20,16 +18,17 @@ M365 operation: run `33003875460` — success, readiness read-only
 - [x] Readiness M365 mais recente confirmada verde no run `33003875460`.
 - [x] Merge-base real com `origin/main` identificado como `a393589265378a1954325e504c4f12cbf63c5e14`.
 - [x] Produção não foi alterada pelas execuções auditadas; jobs de deploy/recovery do run corrente ficaram skipped.
+- [x] `no-unsafe-finally` corrigido sem desabilitar lint, remover cleanup ou mascarar o erro principal.
+- [x] Os 6 commits mais recentes de `origin/main` foram incorporados por merge limpo.
+- [x] Gate local completo aprovado: Prettier, lint, typecheck, semantic contract, 294/294 testes ativos, build, actionlint, sintaxe PowerShell e policy do Control Plane.
 
 ## Em andamento
 
-- [ ] Corrigir `no-unsafe-finally` preservando cleanup e propagação de erro.
-- [ ] Incorporar os 6 commits atuais de `origin/main` sem perder o Control Plane M365.
-- [ ] Executar o gate local completo e obter CI verde antes de qualquer escrita Microsoft real.
+- [ ] Publicar os commits e obter CI remota verde antes de qualquer escrita Microsoft real.
 
 ## Próxima ação exata
 
-Mover a propagação do erro de cleanup para depois do bloco `finally`, executar os gates locais, incorporar `origin/main`, repetir os gates e publicar o checkpoint/correção para disparar a CI.
+Commitar esta atualização, publicar o branch e acompanhar a CI até os jobs de validação, segurança e storage M365 concluírem.
 
 ## Estado Microsoft
 
@@ -60,7 +59,9 @@ Mover a propagação do erro de cleanup para depois do bloco `finally`, executar
 
 - HEAD recuperado: `848b78fe413345a115151f5a545c338bcc73c66c` — `test: isolar homologacao M365 em Node real`.
 - `origin/main`: `d0f03dccfe879024eb1a4cb8d8e3ee0a55adea77`.
-- O branch está 6 commits atrás de `origin/main` e 353 commits à frente a partir do merge-base.
+- `ec483b7` — correção do cleanup fora de `finally` e checkpoint inicial.
+- `5ee994e` — merge do `origin/main` atual no branch.
+- O branch agora contém integralmente `origin/main`; produção continua intocada.
 
 ## Runs
 
@@ -71,8 +72,7 @@ Mover a propagação do erro de cleanup para depois do bloco `finally`, executar
 
 ## Bloqueios
 
-- Interno imediato: `no-unsafe-finally` no teste Node de homologação M365.
-- O branch ainda precisa incorporar os 6 commits mais recentes de `main` antes da escrita Microsoft.
+- CI remota do novo HEAD ainda precisa ser executada antes da escrita Microsoft.
 - Credencial/MFA no navegador interno somente se a Microsoft solicitar durante a validação visual posterior.
 
 ## Como retomar
