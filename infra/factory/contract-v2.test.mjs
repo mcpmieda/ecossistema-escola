@@ -78,6 +78,9 @@ test('rejects reserved automation control-plane scopes but permits them behind a
   assert.throws(() =>
     parseFactoryRunV2(issueBody({ tasks: [task('a', { paths: ['infra/validation/**'] })] })),
   );
+  assert.throws(() =>
+    parseFactoryRunV2(issueBody({ tasks: [task('a', { paths: ['infra/**'] })] })),
+  );
   assert.doesNotThrow(() =>
     parseFactoryRunV2(
       issueBody({
@@ -91,6 +94,12 @@ test('rejects reserved automation control-plane scopes but permits them behind a
       }),
     ),
   );
+});
+
+test('rejects run ids that derive invalid integration branch names', () => {
+  for (const run_id of ['foo..bar', 'foo.lock', 'foo.']) {
+    assert.throws(() => parseFactoryRunV2(issueBody({ run_id })));
+  }
 });
 
 test('requires a currently active remote provider for ungated automation', () => {
