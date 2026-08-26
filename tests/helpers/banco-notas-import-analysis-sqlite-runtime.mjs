@@ -104,6 +104,10 @@ const results = {};
   const db = database();
   insertJob(db, 'job-valid');
   insertAnalysis(db, 'job-valid');
+  results.duplicateAnalysisRejected = rejects(
+    () => insertAnalysis(db, 'job-valid', { id: 'analysis-duplicate' }),
+    /UNIQUE constraint failed/iu,
+  );
   db.exec("UPDATE import_jobs SET state = 'analyzed' WHERE id = 'job-valid'");
   results.validAnalysisTransitionAllowed =
     String(db.prepare("SELECT state FROM import_jobs WHERE id = 'job-valid'").get()?.state) ===
@@ -120,10 +124,6 @@ const results = {};
       () => db.exec("DELETE FROM import_analyses WHERE import_job_id = 'job-valid'"),
       /import_analyses are append-only/iu,
     );
-  results.duplicateAnalysisRejected = rejects(
-    () => insertAnalysis(db, 'job-valid', { id: 'analysis-duplicate' }),
-    /UNIQUE constraint failed/iu,
-  );
   db.close();
 }
 
