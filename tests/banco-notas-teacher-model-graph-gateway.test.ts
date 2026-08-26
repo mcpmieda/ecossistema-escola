@@ -4,7 +4,9 @@ import { testEnv } from './fixtures';
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(bytes));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
+    '',
+  );
 }
 
 describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
@@ -16,13 +18,18 @@ describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
       const url = String(input);
       const method = init?.method ?? 'GET';
 
-      if (method === 'PUT' && url.endsWith('/items/parent-id:/Modelo%20Professor%202026.xlsx:/content')) {
+      if (
+        method === 'PUT' &&
+        url.endsWith('/items/parent-id:/Modelo%20Professor%202026.xlsx:/content')
+      ) {
         expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer graph-token');
         expect(new Headers(init?.headers).get('Content-Type')).toBe(
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         );
         expect(new Uint8Array(await (init?.body as Blob).arrayBuffer())).toEqual(content);
-        return new Response(JSON.stringify({ id: 'item-1', eTag: '"etag-1"' }), { status: 201 });
+        return new Response(JSON.stringify({ id: 'item-1', eTag: '"etag-1"' }), {
+          status: 201,
+        });
       }
 
       if (method === 'POST' && url.endsWith('/items/item-1/invite')) {
@@ -112,7 +119,10 @@ describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
       permissionId: shared.permissionId,
       correlationId: 'correlation-1',
     });
-    await gateway.remove({ driveItemId: stored.driveItemId, correlationId: 'correlation-1' });
+    await gateway.remove({
+      driveItemId: stored.driveItemId,
+      correlationId: 'correlation-1',
+    });
 
     expect(tokenProvider).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledTimes(6);
