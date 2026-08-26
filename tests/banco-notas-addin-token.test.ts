@@ -52,10 +52,10 @@ async function token(overrides: Record<string, unknown> = {}): Promise<string> {
 }
 
 const fetcher: typeof fetch = async () =>
-  new Response(
-    JSON.stringify({ keys: [{ ...publicJwk, kid, use: 'sig', alg: 'RS256' }] }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } },
-  );
+  new Response(JSON.stringify({ keys: [{ ...publicJwk, kid, use: 'sig', alg: 'RS256' }] }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 
 function verify(authorization: string | null) {
   return verifyMicrosoftEntraAccessToken({
