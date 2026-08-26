@@ -24,6 +24,12 @@ export type LegacyWorkbookAnalyzer = {
   analyze(source: LegacyWorkbookSource): Promise<LegacyIntermediateModel>;
 };
 
+export type VerifiedLegacyWorkbookAnalysis = {
+  model: LegacyIntermediateModel;
+  metadata: LegacyWorkbookSourceMetadata;
+  analyzerId: string;
+};
+
 export type GenericWorkbookArtifact = {
   metadata: GenericWorkbookArtifactMetadata;
   bytes: Uint8Array;
@@ -59,7 +65,7 @@ function assertAdapterId(id: string, kind: 'analyzer' | 'serializer'): void {
 export async function analyzeLegacyWorkbook(args: {
   source: LegacyWorkbookSource;
   analyzer: LegacyWorkbookAnalyzer;
-}): Promise<LegacyIntermediateModel> {
+}): Promise<VerifiedLegacyWorkbookAnalysis> {
   const metadata = legacyWorkbookSourceMetadataSchema.parse(args.source.metadata);
   assertAdapterId(args.analyzer.id, 'analyzer');
 
@@ -75,10 +81,15 @@ export async function analyzeLegacyWorkbook(args: {
     throw new WorkbookPipelineError('legacy_workbook_sha256_mismatch');
   }
 
+  const analyzerBytes = new Uint8Array(args.source.bytes.byteLength);
+  analyzerBytes.set(args.source.bytes);
   const analyzed = legacyIntermediateModelSchema.parse(
-    await args.analyzer.analyze({ metadata, bytes: args.source.bytes }),
+    await args.analyzer.analyze({ metadata, bytes: analyzerBytes }),
   );
 
+  if ((await sha256Bytes(analyzerBytes)) !== metadata.sourceHash) {
+    throw new WorkbookPipelineError('analyzer_mutated_verified_source');
+  }
   if (analyzed.sourceHash !== metadata.sourceHash) {
     throw new WorkbookPipelineError('legacy_analysis_source_hash_mismatch');
   }
@@ -89,7 +100,11 @@ export async function analyzeLegacyWorkbook(args: {
     throw new WorkbookPipelineError('legacy_analysis_school_year_mismatch');
   }
 
-  return analyzed;
+  return {
+    model: analyzed,
+    metadata,
+    analyzerId: args.analyzer.id,
+  };
 }
 
 export async function serializeGenericWorkbook(args: {
@@ -126,9 +141,12 @@ export async function serializeGenericWorkbook(args: {
     }
   }
 
+  const artifactBytes = new Uint8Array(serialized.bytes.byteLength);
+  artifactBytes.set(serialized.bytes);
+
   return {
     metadata,
-    bytes: serialized.bytes,
+    bytes: artifactBytes,
     serializerId: args.serializer.id,
   };
 }
