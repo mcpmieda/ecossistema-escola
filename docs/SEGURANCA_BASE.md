@@ -54,3 +54,17 @@ O gate `workflow-security`, sem secrets de produção, executa actionlint 1.7.12
 Os dois valores Cloudflare estão realmente em GitHub repository Actions Secrets, não em environment secrets. No estado atual, somente a conta administradora `mcpmieda` possui acesso ao repositório; PRs externos, Dependabot e o job `validate` não recebem esses valores. O plano GitHub atual não disponibiliza branch protection/deployment branch policies para este repositório privado. Migrar os secrets para outro escopo exigiria conhecer ou substituir seus valores, o que este hardening deliberadamente não fez.
 
 Guardrails para futuros agentes: não substituir SHA por `@vX`; não adicionar `id-token: write` ao CI normal; não referenciar production secrets em PR; não remover `environment: production`; não remover a guarda `github.ref == 'refs/heads/main'` da rotação; não mudar o subject OIDC sem revisar a FIC do Entra; não habilitar automerge cego; não adicionar aprovação humana periódica à rotação autônoma.
+
+## GitHub como plano de controle operacional
+
+O GitHub é também o plano de controle das operações técnicas do ecossistema. A estação administrativa pode iniciar uma operação por PowerShell/GitHub CLI, mas a execução relevante deve ocorrer em GitHub Actions sempre que tecnicamente possível.
+
+Não existe executor genérico de shell, Graph path, URL ou código arbitrário. Cada nova operação precisa ser implementada em código versionado e entrar explicitamente na allowlist.
+
+O CI pode ser iniciado manualmente por `workflow_dispatch`, porém o deploy de produção continua restrito a `push` em `refs/heads/main`. Disparos manuais do CI executam validação e segurança, sem acesso implícito a deploy. A concorrência da validação manual é isolada da produção, impedindo que um disparo manual cancele deploy ou recovery em andamento.
+
+Jobs com `id-token: write` são allowlisted e precisam manter o ambiente `production`. Novas integrações Entra/Graph devem receber identidades de privilégio mínimo por domínio; não é permitido transformar a identidade de manutenção em uma identidade Graph administrativa geral.
+
+O script `infra/ops/ecossistema.ps1` é a interface local de operação. Ele somente dispara workflows conhecidos, consulta logs ou baixa artifacts; não executa comandos administrativos arbitrários no tenant.
+
+A política `infra/validation/assert-github-control-plane.ps1` é executada pelo CI e bloqueia permissões `write-all`, Actions externas sem SHA imutável, inputs perigosos e uso de OIDC fora da allowlist.
