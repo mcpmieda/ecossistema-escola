@@ -97,11 +97,12 @@ $expectedMigrations = @(
   '0003_banco_notas_import_job_state_machine.sql',
   '0004_banco_notas_import_finding_resolution.sql',
   '0005_banco_notas_import_analysis.sql',
-  '0006_banco_notas_import_analysis_profiles.sql'
+  '0006_banco_notas_import_analysis_profiles.sql',
+  '0007_banco_notas_teacher_entra_identity.sql'
 )
 $actualMigrations = @($migrationFiles | ForEach-Object { $_.Name })
 if (($actualMigrations -join '|') -ne ($expectedMigrations -join '|')) {
-  throw "Conjunto de migrations de homologação inesperado. Esperado exatamente 0001 até 0006; encontrado: $($actualMigrations -join ', ')."
+  throw "Conjunto de migrations de homologação inesperado. Esperado exatamente 0001 até 0007; encontrado: $($actualMigrations -join ', ')."
 }
 
 foreach ($migrationFile in $migrationFiles) {
