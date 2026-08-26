@@ -22,7 +22,12 @@ type CentralEntry = {
   localHeaderOffset: number;
 };
 
-function assertRange(bytes: Uint8Array, offset: number, length: number, code: string): void {
+function assertRange(
+  bytes: Uint8Array,
+  offset: number,
+  length: number,
+  code: string,
+): void {
   if (offset < 0 || length < 0 || offset + length > bytes.byteLength) {
     throw new OoxmlZipError(code);
   }
@@ -79,9 +84,7 @@ async function inflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
   try {
     const copy = new Uint8Array(bytes.byteLength);
     copy.set(bytes);
-    const stream = new Blob([copy])
-      .stream()
-      .pipeThrough(new DecompressionStream('deflate-raw'));
+    const stream = new Blob([copy]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
     return new Uint8Array(await new Response(stream).arrayBuffer());
   } catch {
     throw new OoxmlZipError('xlsx_zip_deflate_failed');
@@ -107,11 +110,7 @@ function readCentralDirectory(bytes: Uint8Array): CentralEntry[] {
   if (entryCount === 0 || entryCount > MAX_ZIP_ENTRIES) {
     throw new OoxmlZipError('xlsx_zip_entry_count_invalid');
   }
-  if (
-    entryCount === 0xffff ||
-    centralSize === 0xffffffff ||
-    centralOffset === 0xffffffff
-  ) {
+  if (entryCount === 0xffff || centralSize === 0xffffffff || centralOffset === 0xffffffff) {
     throw new OoxmlZipError('xlsx_zip64_not_supported');
   }
   assertRange(bytes, centralOffset, centralSize, 'xlsx_zip_central_directory_out_of_bounds');
