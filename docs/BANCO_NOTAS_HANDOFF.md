@@ -74,6 +74,8 @@ O warning histórico de chunk JavaScript acima de 500 kB permanece não bloquead
 - stale permanece auditável sem regredir snapshot;
 - add-in só será exposto com bearer Entra/audience/scope próprios, nunca cookie administrativo improvisado.
 
+A produção continua obrigada a gerar um **modelo genérico limpo**, sem especialização por professor, workbook, aba, turma, disciplina ou célula de golden master.
+
 ## Migrations disponíveis
 
 - `0001_banco_notas_foundation.sql`;
@@ -151,7 +153,7 @@ Quando o adapter real for implementado, não remover esses gates e não fazer co
 
 ## Golden masters privados
 
-`NOTAS NINA 2026.xlsb`, `NOTAS ALANNA 2026.xlsb` e `Modelo_Professor_Nina_2026_Homologado.xlsx` são golden masters externos de homologação.
+`NOTAS NINA 2026.xlsb`, `NOTAS ALANNA 2026.xlsb` e `Modelo_Professor_Nina_2026_Homologado.xlsx` são **golden masters privados externos** de homologação.
 
 Eles não são templates e não podem entrar em Git, runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição. Nenhuma regra do produto pode depender de nomes, abas, turmas, componentes ou células desses arquivos.
 
