@@ -1,13 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createTeacherModelGraphGateway } from '../server/banco-notas/teacher-model-graph-gateway';
+import {
+  createTeacherModelGraphGateway,
+  teacherModelGraphTargetFromEnv,
+} from '../server/banco-notas/teacher-model-graph-gateway';
 import { testEnv } from './fixtures';
-
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(bytes));
-  const values = Array.from(new Uint8Array(digest));
-  const hex = values.map((byte) => byte.toString(16).padStart(2, '0'));
-  return hex.join('');
-}
 
 describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
   it('handles the secure model lifecycle', async () => {
@@ -111,11 +107,13 @@ describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
       driveItemId: stored.driveItemId,
       correlationId: 'correlation-1',
     });
-    expect(metadata).toEqual({
-      etag: '"etag-2"',
-      size: content.byteLength,
-      sha256: await sha256Hex(content),
+    expect(metadata).toEqual({ etag: '"etag-2"', size: content.byteLength });
+
+    const downloaded = await gateway.download({
+      driveItemId: stored.driveItemId,
+      correlationId: 'correlation-1',
     });
+    expect(Array.from(downloaded)).toEqual(Array.from(content));
 
     await gateway.revokeShare({
       driveItemId: stored.driveItemId,
@@ -189,5 +187,16 @@ describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
       }),
     ).rejects.toThrow('teacher_model_graph_filename_not_xlsx');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('requires both Graph target identifiers from configuration', () => {
+    expect(() => teacherModelGraphTargetFromEnv(testEnv)).toThrow();
+    expect(
+      teacherModelGraphTargetFromEnv({
+        ...testEnv,
+        BANCO_NOTAS_GRAPH_DRIVE_ID: 'drive-id',
+        BANCO_NOTAS_GRAPH_PARENT_ITEM_ID: 'parent-id',
+      }),
+    ).toEqual({ driveId: 'drive-id', parentItemId: 'parent-id' });
   });
 });
