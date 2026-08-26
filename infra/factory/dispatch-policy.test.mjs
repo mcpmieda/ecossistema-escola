@@ -13,8 +13,8 @@ function task(overrides = {}) {
   };
 }
 
-test('root Jules task is dispatched with the exact Jules trigger label', () => {
-  assert.deepEqual(initialDispatch(task()), { provider: 'jules', status: 'dispatched' });
+test('root Jules task requests the exact Jules trigger label', () => {
+  assert.deepEqual(initialDispatch(task()), { provider: 'jules', status: 'trigger-requested' });
   assert.deepEqual(desiredTaskLabels(task()), [
     FACTORY_LABELS.task,
     FACTORY_LABELS.providerJules,
