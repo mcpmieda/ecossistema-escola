@@ -4,9 +4,9 @@
 
 Em 25/08/2026 foi aberto o branch `feat/banco-de-notas-foundation`, a partir de `b2f743543f7365e591120b2363b5f274bf314cb0`, para iniciar o primeiro sistema especializado integrado ao Centro: **Banco de Notas**.
 
-Estado deste trabalho no PR #52: **Fase 1 consolidada e avanço do núcleo de importação/modelo genérico, sem merge ou deploy**. Além da adoção App Factory V1.4 e dos contratos prévios, o branch possui manifesto/capabilities, migrations e repositório D1, APIs iniciais, autoridade temporal de fontes, rota `/banco-de-notas`, shell HeroUI, `Configurações > Fonte`, grade-events interno, gate bearer fail closed, import jobs auditáveis, resolução append-only de blockers, geração determinística de instância genérica e layout físico versionado com posição escolar canônica. O D1 e o registro SharePoint de homologação não foram aplicados externamente; Entra/Graph reais e browser QA permanecem bloqueados por credenciais/ambiente, e a produção corrente do Centro permanece inalterada.
+Estado deste trabalho no PR #52: **Fase 1 consolidada e avanço do núcleo de importação/modelo genérico, sem merge ou deploy**. Além da adoção App Factory V1.4 e dos contratos prévios, o branch possui manifesto/capabilities, migrations e repositório D1, APIs iniciais, autoridade temporal de fontes, rota `/banco-de-notas`, shell HeroUI, `Configurações > Fonte`, grade-events interno, gate bearer fail closed, import jobs auditáveis, resolução append-only de blockers, geração determinística de instância genérica, layout físico versionado com posição escolar canônica e análise verificada persistente de importações. A passagem `draft → analyzed` agora exige artefato `import_analyses` imutável e não pode ser acionada pela transição administrativa genérica. O D1 e o registro SharePoint de homologação não foram aplicados externamente; Entra/Graph reais e browser QA permanecem bloqueados por credenciais/ambiente, e a produção corrente do Centro permanece inalterada.
 
-Evidência funcional mais recente antes desta atualização documental: head `82e977a27598fdffa77a7db7bfff17bf433827ce`, workflow `32920316172` / run `#556` — **success**, com segurança de Actions, formatting, lint, typecheck, semantic contract, **206/206 testes em 35 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram `skipped`, como esperado para PR.
+Base funcional verificada antes desta sincronização documental: head `88ea66896271408d57343c046d81b5d042b7810f`, workflow `32924002605` / run `#600` — **success**, com segurança de Actions, formatting, lint, typecheck, semantic contract, **229/229 testes em 39 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram `skipped`, como esperado para PR.
 
 Decisões duráveis já registradas:
 
@@ -22,6 +22,7 @@ Decisões duráveis já registradas:
 - add-in Office.js como fonte primária de baixa latência do novo modelo vinculado;
 - `SyncEnabled=false` por padrão até reconciliação individual;
 - GitHub é fonte técnica de construção/continuidade, nunca dependência de runtime;
+- `draft → analyzed` exige análise backend verificada, proveniência coerente e artefato imutável persistido; não é uma transição administrativa genérica;
 - o produto usará um modelo genérico limpo; os arquivos privados de Nina e Alanna são somente golden masters de homologação e nunca integram runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição;
 - a transformação de legado deve ser geral para qualquer professor e não pode depender de nomes, quantidade de abas, turmas, disciplinas ou particularidades dos golden masters privados;
 - layout físico do modelo é parte versionada da definição, com `layoutVersion`, linha inicial e colunas por campo;
@@ -321,7 +322,7 @@ As lições reutilizáveis de overlays, navegação e QA permanecem incorporadas
 
 A fundação do Centro de Administração v1 permanece encerrada como release oficial e a limpeza visual do shell está concluída em produção.
 
-O primeiro sistema especializado já está em implementação no PR #52. O próximo marco não é mais “integrar o primeiro sistema”, e sim **homologar o Banco de Notas de ponta a ponta**: D1 remoto de homologação, configuração Entra própria do add-in, analisador/serializador XLSX cloud, adapter Graph/SharePoint real, browser QA e regressão privada externa, mantendo `SyncEnabled=false` até reconciliação individual.
+O primeiro sistema especializado já está em implementação no PR #52. O próximo marco não é mais “integrar o primeiro sistema”, e sim **homologar o Banco de Notas de ponta a ponta**: aplicar migrations `0001` a `0005` no D1 remoto de homologação e executar smoke sintético, provisionar configuração Entra própria do add-in, conectar analisador/serializador XLSX cloud, adapter Graph/SharePoint real, browser QA e regressão privada externa, mantendo `SyncEnabled=false` até reconciliação individual.
 
 `Publicações` e `Páginas` permanecem fora da release v1 até priorização específica.
 
