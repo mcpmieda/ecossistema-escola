@@ -7,8 +7,8 @@ describe('Graph binary content transport', () => {
     const payload = new Uint8Array([0, 1, 2, 127, 128, 255]);
     const fetchMock = vi.fn<typeof fetch>(async (_input, init) => {
       const body = init?.body;
-      expect(body).toBeInstanceOf(Blob);
-      expect(new Uint8Array(await (body as Blob).arrayBuffer())).toEqual(payload);
+      expect(body).toBeDefined();
+      expect(new Uint8Array(body as ArrayBuffer)).toEqual(payload);
       expect(new Headers(init?.headers).get('Content-Type')).toBe('application/x-test');
       return new Response(JSON.stringify({ id: 'item-1' }), { status: 201 });
     });
