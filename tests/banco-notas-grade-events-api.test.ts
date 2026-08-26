@@ -93,7 +93,9 @@ describe('Banco de Notas grade-events API preparation', () => {
   it('returns an auditable event receipt by event id', async () => {
     const event = await storedEvent();
     const response = await routeGradeEventsApi({
-      request: new Request(`https://admin.escolaieda.com/api/banco-notas/v1/grade-events/${event.eventId}`),
+      request: new Request(
+        `https://admin.escolaieda.com/api/banco-notas/v1/grade-events/${event.eventId}`,
+      ),
       store: store({ event, snapshot }),
     });
     expect(response.status).toBe(200);
