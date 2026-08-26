@@ -44,8 +44,7 @@ async function readBoundedBody(request: Request, maxBytes: number): Promise<Uint
   const lengthHeader = request.headers.get('Content-Length');
   if (lengthHeader !== null) {
     const length = Number(lengthHeader);
-    if (!Number.isFinite(length) || length < 0)
-      throw new HttpError(400, 'Invalid Content-Length');
+    if (!Number.isFinite(length) || length < 0) throw new HttpError(400, 'Invalid Content-Length');
     if (length > maxBytes) throw new HttpError(413, 'Request body too large');
   }
 
