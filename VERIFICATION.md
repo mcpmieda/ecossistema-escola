@@ -32,59 +32,50 @@ Atualização visual corrente:
 - commit corrente em `main`: `9ae6c49bbfe5f57577537ff480dfc833bddaad8a`;
 - workflow pós-merge: `32892663858` — run `#417` — **success**.
 
-## Banco de Notas — decisão de verificação dos modelos
+## Banco de Notas — verificação corrente do PR #52
 
 ### Avanço local de importação/modelo genérico — 25/08/2026
 
-No head funcional `87bf87b60a17c24b5338d88b34c37ba7b0e32f74` do PR #52, o workflow `32917400697` / run `#528` concluiu com:
+No head funcional `82e977a27598fdffa77a7db7bfff17bf433827ce` do PR #52, o workflow `32920316172` / run `#556` concluiu com:
 
+- `Validate GitHub Actions security` — success;
 - formatting — success;
 - lint — success;
 - typecheck — success;
 - semantic check — success;
-- testes — **196/196 em 34 arquivos**;
+- testes — **205/205 em 35 arquivos**;
 - build — success;
 - `Deploy production` — skipped;
 - `Verify recovery after deploy` — skipped;
 - warning histórico de chunk acima de 500 kB, sem falha.
 
-Novas provas comportamentais cobrem o bearer Entra fail closed, geração determinística do modelo genérico, bloqueio de plano incompleto, state machine de import jobs, migration SQLite real com transição protegida/findings append-only, API de jobs e orquestração segura de store/share/reconcile.
+A evidência atual cobre, além da fundação já consolidada:
 
-Limites comprovados por inspeção do ambiente: Wrangler sem autenticação; tokens Cloudflare ausentes; CLIs e configuração administrativa Microsoft ausentes. Portanto, não houve D1 remoto, Entra provisionado, chamada SharePoint/Graph real, browser QA em preview, deploy ou sync.
+- bearer Entra fail closed, ainda sem roteamento público do add-in;
+- geração determinística do modelo genérico e bloqueio de plano incompleto/ambíguo;
+- import jobs com state machine, blockers reais e resolução auditável por stream append-only separado;
+- migrations SQLite reais para integridade cross-year, state machine e resolução de findings;
+- orquestração Graph abstrata com compensação explícita de share/upload em caso de falha;
+- layout físico do modelo agora versionado na definição, sem mapa de colunas escondido no gerador;
+- `studentPosition` como posição escolar canônica, sem ordenação de UUIDs;
+- validação exata de linha/coluna da célula gerada contra o layout versionado;
+- bloqueio de posições duplicadas de alunos dentro da mesma turma.
 
-No branch `feat/banco-de-notas-foundation`, foi registrada a separação obrigatória entre produto e homologação privada:
+No branch `feat/banco-de-notas-foundation`, continua registrada a separação obrigatória entre produto e homologação privada:
 
 - o produto usará um modelo genérico limpo;
 - golden masters Nina/Alanna permanecem externos e privados;
 - esses arquivos não podem entrar em runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição;
-- regressão privada nesses dois casos é evidência complementar, não permissão para especializar o produto;
-- generalização exige fixtures sintéticas variadas e ausência de dependências por professor/abas/turmas/disciplinas.
+- regressão privada nesses casos é evidência complementar, não permissão para especializar o produto;
+- generalização exige fixtures sintéticas variadas e ausência de dependências por professor/abas/turmas/disciplinas/células específicas.
 
-Esta seção registra o gate decidido; não declara que o transformador ou o modelo genérico já foram implementados ou homologados. A fonte detalhada é `docs/BANCO_NOTAS_MODELO_GENERICO_E_GOLDEN_MASTERS.md`.
+O transformador/planner e a instância genérica já existem em código e estão cobertos por regressão sintética. Isso **não** significa que o pipeline cloud completo esteja homologado: ainda falta analisador/serializador XLSX cloud real, D1 remoto, Entra provisionado, Graph/SharePoint real e browser QA.
 
-Evidência funcional consolidada do PR #52 antes da atualização documental corrente:
-
-- head: `94ccceff31d6355b8ce6eaa396eba16e2ecd1932`;
-- workflow: `32911996770` — run `#495` — **success**;
-- `Validate application` — success;
-- `Validate GitHub Actions security` — success;
-- formatação — success;
-- lint — success;
-- typecheck — success;
-- semantic check — success;
-- testes — **167/167 aprovados em 28 arquivos**;
-- build — success;
-- suíte `tests/banco-notas-d1-grade-event-store.test.ts` — **4/4** cenários aprovados com SQLite real;
-- deploy de produção — skipped;
-- recovery pós-deploy — skipped.
-
-O build continua emitindo o warning histórico de chunk JavaScript acima de 500 kB; não houve falha de build associada.
-
-A atualização documental posterior a esse head precisa de CI própria verde antes de substituir essa evidência como head final do branch.
+Limites comprovados por inspeção do ambiente: Wrangler sem autenticação; tokens Cloudflare ausentes; CLIs e configuração administrativa Microsoft ausentes. Portanto, não houve D1 remoto, Entra provisionado, chamada SharePoint/Graph real, browser QA em preview, deploy ou sync.
 
 ## Escopo verificado
 
-Permanecem liberadas como `ready`:
+Permanecem liberadas como `ready` no núcleo de produção:
 
 - Visão geral;
 - Operação;
@@ -97,7 +88,7 @@ Continuam `planned`:
 - Publicações;
 - Páginas.
 
-A atualização visual não introduziu operações de escrita, não integrou artificialmente nenhum sistema independente e não alterou regras de negócio.
+O Banco de Notas está em implementação real no PR #52, mas ainda não integra a release de produção.
 
 ## Fundação preservada
 
@@ -115,7 +106,7 @@ A release e a atualização visual não reconstruíram nem substituíram:
 - rotação automática;
 - contratos de dados e regras de negócio existentes.
 
-Não houve alteração de tenant, app registration, redirect URI, grupos, roles ou permissões Microsoft.
+Não houve alteração de tenant, app registration, redirect URI, grupos, roles ou permissões Microsoft na produção corrente.
 
 ## Verificação da release original — PR #48
 
@@ -356,34 +347,45 @@ Ele permanece não bloqueador porque os gates, testes e build passam no PR; em p
 
 Qualquer mudança futura material em regra, fluxo, dados, autorização, segurança ou comportamento observável deve entrar por novo PR e receber regressão proporcional.
 
-## Banco de Notas — Fase 1 + grade-events no PR #52
+## Banco de Notas — Fase 1 + importação/modelo genérico no PR #52
 
 A fundação executável e o hardening estão cobertos por testes dedicados de migration SQLite/D1, autoridade temporal, integridade cross-year, ausência versus zero, idempotência/sequence, contrato do módulo, API allow/deny, Origin, shell path-based, edição segura de vigência e isolamento dos golden masters privados.
 
-O bloco de grade-events acrescentou:
+O estado implementado também inclui:
 
-- OpenAPI/AsyncAPI definitivos no mesmo origin do Centro;
+- OpenAPI/AsyncAPI definitivos de grade-events no mesmo origin do Centro;
 - contrato tipado de eventos, receipts e snapshots;
 - hash de payload associado à idempotência;
-- snapshot por `(gradeKey, field)`;
-- stale auditável sem regressão de snapshot;
+- snapshot por `(gradeKey, field)` e stale auditável sem regressão;
 - store D1 com validação de fonte, modelo, ambiente, autoridade, sync e mapeamento de célula;
-- batch transacional evento + snapshot;
-- regressão Node/SQLite real do store.
+- bearer Entra fail closed preparado, mas não exposto publicamente sem audience/scope reais;
+- import jobs com idempotência, proveniência, findings e state machine protegida no storage;
+- stream append-only separado para resolução auditável de findings;
+- planner de transformação genérico com bloqueio de correspondências ausentes/ambíguas;
+- `GenericModelInstance` determinística em homologação e com sync desligado;
+- layout físico versionado com `layoutVersion`, `firstStudentRow` e coluna por `gradeField`;
+- posição escolar canônica via `studentPosition` e bloqueio de posição duplicada na turma;
+- validação exata de célula contra layout/posição;
+- boundary Graph com store/share/metadata/audit e compensação explícita em falha.
 
-No head funcional `94ccceff31d6355b8ce6eaa396eba16e2ecd1932`, run `32911996770` / `#495`, o pipeline passou security, format, lint, typecheck, semantic check, **167/167 testes** e build. `Deploy production` e `Verify recovery after deploy` ficaram corretamente `skipped`.
+No head funcional `82e977a27598fdffa77a7db7bfff17bf433827ce`, run `32920316172` / `#556`, o pipeline passou security, format, lint, typecheck, semantic check, **205/205 testes em 35 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram corretamente `skipped`.
 
 Limites explícitos dessa evidência:
 
 - SQLite real não substitui Cloudflare D1 remoto;
 - regressão estrutural de deep-link não substitui browser QA real;
-- D1 de homologação ainda não foi provisionado;
+- D1 de homologação ainda não foi provisionado/aplicado;
 - registro SharePoint ainda não foi aplicado ao tenant;
-- endpoint do add-in ainda não foi exposto;
+- endpoint público do add-in ainda não foi exposto;
 - audience/scope Entra do add-in ainda não foram provisionados;
+- analisador/serializador XLSX cloud ainda não está conectado;
+- adapter Graph real ainda não foi conectado/homologado;
+- não houve sync end-to-end;
 - não houve merge ou deploy de produção do Banco.
 
 O endpoint de grade-events deve continuar fechado ao add-in até existir autenticação bearer Entra própria. Não reutilizar cookie administrativo do Centro nem inventar audience, scope ou client secret.
+
+O serializador XLSX futuro deve consumir a definição de layout já versionada; não criar outra tabela hardcoded de colunas nem reconstruir a ordenação dos alunos por UUID ou pela ordem do arquivo legado.
 
 ## Referências
 
