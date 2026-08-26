@@ -225,6 +225,7 @@ describe('Banco de Notas generic model transformation contract', () => {
           gradeKey: '2026|synthetic-canonical-key',
           field: 'NotaT1',
           sheetKey: 'generated-sheet-1',
+          studentPosition: 1,
           cellAddress: 'B2',
         },
       ],
@@ -261,6 +262,7 @@ describe('Banco de Notas generic model transformation contract', () => {
     expect(instance.mappings).toEqual([
       expect.objectContaining({
         field: 'NotaT1',
+        studentPosition: 1,
         cellAddress: 'B2',
         sheetKey:
           'generated:11111111-1111-4111-8111-111111111111:22222222-2222-4222-8222-222222222222',
@@ -296,7 +298,7 @@ describe('Banco de Notas generic model transformation contract', () => {
     });
 
     expect(instance.layout.layoutVersion).toBe('2026.2-layout');
-    expect(instance.mappings[0]?.cellAddress).toBe('K7');
+    expect(instance.mappings[0]).toMatchObject({ studentPosition: 3, cellAddress: 'K7' });
   });
 
   it('rejects definitions whose layout does not cover exactly the configured grade fields', () => {
@@ -309,6 +311,33 @@ describe('Banco de Notas generic model transformation contract', () => {
         },
       }),
     ).toThrow('layout must define exactly one column for each grade field');
+  });
+
+  it('rejects a generated mapping whose cell row disagrees with the roster position', () => {
+    expect(() =>
+      genericModelInstanceSchema.parse({
+        schemaVersion: 1,
+        modelId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        teacherEntraObjectId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        schoolYear: 2026,
+        definitionVersion: '2026.1',
+        sourceHash: 'd'.repeat(64),
+        relationshipSnapshotId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        environment: 'homologation',
+        syncEnabled: false,
+        mappingVersion: 1,
+        layout: definition.layout,
+        mappings: [
+          {
+            gradeKey: '2026|synthetic-canonical-key',
+            field: 'NotaT1',
+            sheetKey: 'generated-sheet-1',
+            studentPosition: 3,
+            cellAddress: 'B2',
+          },
+        ],
+      }),
+    ).toThrow('cell address does not match the versioned model layout and roster position');
   });
 
   it('refuses generation when relationship blockers remain', () => {
