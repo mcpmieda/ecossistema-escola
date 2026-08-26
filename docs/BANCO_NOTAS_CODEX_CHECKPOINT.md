@@ -4,21 +4,22 @@
 Branch: `feat/banco-de-notas-foundation`
 PR: `#52` — open, draft, sem merge
 
-## Estado essencial
+## Estado
 
-- D1 `banco-notas-homologation`: migrations `0001`–`0007` homologadas.
+Reconstrução do bloco Graph concluída e publicada.
+
+- D1 migrations `0001`–`0007`: homologadas remotamente.
 - Run D1 final: `32981705701` — success.
 - Sync final: off.
-- Graph backend-only: upload/share por OID/metadata/download/SHA-256 local/reanálise/revoke/delete/compensação.
-- Target Graph: fail-closed.
-- Round-trip sintético XLSX: `serializer → Graph boundary → download → SHA-256 → analyzer`.
-- Microsoft real: ainda não homologado externamente.
+- Graph: backend-only, download + SHA-256 local + reanálise + compensação.
+- Round-trip XLSX sintético no boundary Graph: implementado.
+- Microsoft real: não homologado.
 - Produção: intocada.
+
+## Pendente
+
+CI verde do HEAD atual e atualização do corpo do PR.
 
 ## Próxima ação
 
-1. confirmar HEAD do PR;
-2. localizar a CI desse HEAD;
-3. corrigir até verde;
-4. atualizar o corpo do PR sem alterar arquivos;
-5. manter draft, no merge e sync off.
+Somente leituras até a CI aparecer. Não criar novo commit documental.
