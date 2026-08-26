@@ -55,10 +55,16 @@ test('rejects unsafe identifiers, branches, path scopes, provider names, and par
   assert.throws(() => parseFactoryRunV2(issueBody({ run_id: '../bad' })));
   assert.throws(() => parseFactoryRunV2(issueBody({ base_branch: 'main..bad' })));
   assert.throws(() => parseFactoryRunV2(issueBody({ max_parallel: 4 })));
-  assert.throws(() => parseFactoryRunV2(issueBody({ tasks: [task('a', { paths: ['../secret'] })] })));
-  assert.throws(() => parseFactoryRunV2(issueBody({ tasks: [task('a', { paths: ['src/*.ts'] })] })));
   assert.throws(() =>
-    parseFactoryRunV2(issueBody({ tasks: [task('a', { preferred_providers: ['unknown-provider'] })] })),
+    parseFactoryRunV2(issueBody({ tasks: [task('a', { paths: ['../secret'] })] })),
+  );
+  assert.throws(() =>
+    parseFactoryRunV2(issueBody({ tasks: [task('a', { paths: ['src/*.ts'] })] })),
+  );
+  assert.throws(() =>
+    parseFactoryRunV2(
+      issueBody({ tasks: [task('a', { preferred_providers: ['unknown-provider'] })] }),
+    ),
   );
 });
 
@@ -119,10 +125,7 @@ test('rejects overlapping scopes for tasks that may execute in parallel', () => 
   assert.throws(() =>
     parseFactoryRunV2(
       issueBody({
-        tasks: [
-          task('a', { paths: ['src/module/**'] }),
-          task('b', { paths: ['src/module/b.ts'] }),
-        ],
+        tasks: [task('a', { paths: ['src/module/**'] }), task('b', { paths: ['src/module/b.ts'] })],
       }),
     ),
   );

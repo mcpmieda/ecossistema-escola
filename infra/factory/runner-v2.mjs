@@ -241,7 +241,9 @@ async function ensureUpToDateAndGreen(owner, repo, prNumber, integrationBranch) 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     let pr = await github(`/repos/${owner}/${repo}/pulls/${prNumber}`);
     if (pr.base.ref !== integrationBranch) {
-      throw new Error(`Worker PR #${prNumber} targets ${pr.base.ref}, expected ${integrationBranch}.`);
+      throw new Error(
+        `Worker PR #${prNumber} targets ${pr.base.ref}, expected ${integrationBranch}.`,
+      );
     }
 
     const integration = await github(
@@ -296,7 +298,12 @@ async function processCompletedSessions(owner, repo, run, siblings) {
     }
     const prNumber = sameRepositoryPrNumberFromUrl(urls[0], owner, repo);
     if (!prNumber) {
-      await failTask(owner, repo, issue.number, 'Jules output is not a PR from the current repository.');
+      await failTask(
+        owner,
+        repo,
+        issue.number,
+        'Jules output is not a PR from the current repository.',
+      );
     }
 
     let pr = await github(`/repos/${owner}/${repo}/pulls/${prNumber}`);
@@ -318,13 +325,7 @@ async function processCompletedSessions(owner, repo, run, siblings) {
       );
     }
 
-    await setTaskState(
-      owner,
-      repo,
-      issue.number,
-      [FACTORY_LABELS.ci],
-      [FACTORY_LABELS.running],
-    );
+    await setTaskState(owner, repo, issue.number, [FACTORY_LABELS.ci], [FACTORY_LABELS.running]);
     const validated = await ensureUpToDateAndGreen(owner, repo, prNumber, run.integrationBranch);
     pr = validated.pr;
 

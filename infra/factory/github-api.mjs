@@ -75,9 +75,12 @@ export async function removeLabel(owner, repo, issueNumber, label) {
     `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`,
   );
   if (!existing) return;
-  await github(`/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`, {
-    method: 'DELETE',
-  });
+  await github(
+    `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 export async function addComment(owner, repo, issueNumber, body) {

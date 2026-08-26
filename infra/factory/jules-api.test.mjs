@@ -20,10 +20,7 @@ test('stores and recovers a Jules session only through a trusted Factory marker'
     ]),
     'sessions/12345',
   );
-  assert.equal(
-    julesSessionNameFromComments([{ user: { login: 'someone' }, body: marker }]),
-    null,
-  );
+  assert.equal(julesSessionNameFromComments([{ user: { login: 'someone' }, body: marker }]), null);
 });
 
 test('ignores malformed Jules session markers', () => {

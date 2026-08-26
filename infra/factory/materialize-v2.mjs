@@ -27,7 +27,9 @@ const RUNTIME_LABELS = new Set([
 ]);
 
 async function ensureLabel(owner, repo, name, description, color) {
-  const existing = await githubOptional(`/repos/${owner}/${repo}/labels/${encodeURIComponent(name)}`);
+  const existing = await githubOptional(
+    `/repos/${owner}/${repo}/labels/${encodeURIComponent(name)}`,
+  );
   if (existing) return;
   await github(`/repos/${owner}/${repo}/labels`, {
     method: 'POST',
@@ -44,12 +46,20 @@ async function ensureLabels(owner, repo) {
     [FACTORY_LABELS.ready, 'Factory task is ready for an allowlisted provider.', '0e8a16'],
     [FACTORY_LABELS.running, 'Factory provider session is active.', '1d76db'],
     [FACTORY_LABELS.ci, 'Factory worker result is under mandatory CI.', '0052cc'],
-    [FACTORY_LABELS.merged, 'Factory worker result was integrated into the isolated branch.', '0e8a16'],
+    [
+      FACTORY_LABELS.merged,
+      'Factory worker result was integrated into the isolated branch.',
+      '0e8a16',
+    ],
     [FACTORY_LABELS.failed, 'Factory task failed closed and requires inspection.', 'b60205'],
     [FACTORY_LABELS.final, 'Final consolidated Factory Run pull request.', '5319e7'],
     [FACTORY_LABELS.providerJules, 'Factory task selected Jules as remote worker.', '0e8a16'],
     [FACTORY_LABELS.julesApi, 'Factory task was dispatched through the Jules REST API.', '1d76db'],
-    [FACTORY_LABELS.julesTrigger, 'Legacy Jules label trigger; not used by API-first runs.', 'c5def5'],
+    [
+      FACTORY_LABELS.julesTrigger,
+      'Legacy Jules label trigger; not used by API-first runs.',
+      'c5def5',
+    ],
   ];
   for (const [name, description, color] of definitions) {
     await ensureLabel(owner, repo, name, description, color);
@@ -114,7 +124,9 @@ async function ensureImmutableManifest(owner, repo, parentIssue, run) {
     return;
   }
   if (existing.some((marker) => marker !== expected)) {
-    throw new Error('Factory Run manifest changed after materialization and was rejected fail-closed.');
+    throw new Error(
+      'Factory Run manifest changed after materialization and was rejected fail-closed.',
+    );
   }
 }
 
@@ -164,9 +176,12 @@ async function findTasks(owner, repo, runId) {
 
 async function ensureTaskLabels(owner, repo, issue, desired) {
   const current = new Set(labelNames(issue.labels));
-  const runtimeStarted = issue.state !== 'open' || [...current].some((label) => RUNTIME_LABELS.has(label));
+  const runtimeStarted =
+    issue.state !== 'open' || [...current].some((label) => RUNTIME_LABELS.has(label));
   const safeDesired = runtimeStarted
-    ? desired.filter((label) => label === FACTORY_LABELS.task || label === FACTORY_LABELS.providerJules)
+    ? desired.filter(
+        (label) => label === FACTORY_LABELS.task || label === FACTORY_LABELS.providerJules,
+      )
     : desired;
   await addLabels(
     owner,

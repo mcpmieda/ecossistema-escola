@@ -78,7 +78,9 @@ export function buildJulesPrompt({
   paths,
   integrationBranch,
 }) {
-  const scopes = paths.length ? paths.map((path) => `- ${path}`).join('\n') : '- none (fail closed)';
+  const scopes = paths.length
+    ? paths.map((path) => `- ${path}`).join('\n')
+    : '- none (fail closed)';
   return [
     `Factory Run: ${runId}`,
     `Task ID: ${taskId}`,

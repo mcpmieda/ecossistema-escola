@@ -174,7 +174,8 @@ export function parseFactoryRunV2(body) {
     }
 
     if (humanGates.length === 0) {
-      if (paths.length === 0) fail(`Automated task ${id} requires at least one declared path scope.`);
+      if (paths.length === 0)
+        fail(`Automated task ${id} requires at least one declared path scope.`);
       if (paths.some(scopeIsReserved)) {
         fail(
           `Automated task ${id} targets a reserved Control Plane/GitHub scope. Use a human-gated change instead.`,
@@ -269,7 +270,9 @@ function canonicalRun(run) {
 }
 
 export function manifestFingerprint(run) {
-  return createHash('sha256').update(JSON.stringify(canonicalRun(run))).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(canonicalRun(run)))
+    .digest('hex');
 }
 
 export function manifestMarker(run) {

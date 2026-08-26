@@ -73,17 +73,18 @@ test('accepts PR links only from trusted Jules bot comments and same repo', () =
     123,
   );
   assert.equal(
-    sameRepositoryPrNumberFromUrl('https://github.com/other/repo/pull/123', 'mcpmieda', 'ecossistema-escola'),
+    sameRepositoryPrNumberFromUrl(
+      'https://github.com/other/repo/pull/123',
+      'mcpmieda',
+      'ecossistema-escola',
+    ),
     null,
   );
 });
 
 test('stores merged PR evidence only from the trusted Factory actor', () => {
   const marker = mergedPrMarker(123, 'a'.repeat(40));
-  assert.equal(
-    mergedPrEvidenceFromComments([{ user: { login: 'someone' }, body: marker }]),
-    null,
-  );
+  assert.equal(mergedPrEvidenceFromComments([{ user: { login: 'someone' }, body: marker }]), null);
   assert.deepEqual(
     mergedPrEvidenceFromComments([{ user: { login: TRUSTED_FACTORY_LOGIN }, body: marker }]),
     {
