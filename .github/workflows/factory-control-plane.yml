@@ -8,6 +8,7 @@ on:
       - '.github/workflows/factory-reconcile.yml'
       - 'docs/FACTORY_CONTROL_PLANE.md'
       - 'docs/FACTORY_RUN_ISSUE_FORMAT.md'
+      - 'docs/FACTORY_JULES_PILOT_2026-08-26.md'
   issues:
     types: [opened, edited, reopened]
 
@@ -22,10 +23,12 @@ jobs:
     name: Validate Factory Control Plane
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Check Factory Control Plane syntax
@@ -38,7 +41,8 @@ jobs:
           node --check infra/factory/github-api.mjs &&
           node --check infra/factory/jules-api.mjs &&
           node --check infra/factory/materialize-v2.mjs &&
-          node --check infra/factory/runner-v2.mjs
+          node --check infra/factory/runner-v2.mjs &&
+          node --check infra/factory/validate-v2.mjs
       - name: Test Factory contracts and provider guardrails
         run: >-
           node --test
@@ -48,6 +52,8 @@ jobs:
           infra/factory/jules-api.test.mjs
       - name: Validate legacy Banco de Notas Factory Run fixture
         run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.txt
+      - name: Validate API-first Jules Factory Run fixture
+        run: node infra/factory/validate-v2.mjs infra/factory/examples/jules-api-pilot-issue.txt
 
   materialize:
     name: Materialize isolated Factory Run
@@ -58,11 +64,13 @@ jobs:
       contains(github.event.issue.body, '<!-- FACTORY_RUN_BEGIN -->') &&
       contains(github.event.issue.body, '<!-- FACTORY_RUN_END -->')
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: write # Required only to create/reuse the isolated factory/<run_id> integration branch.
       issues: write # Required only to materialize typed task issues, labels, and audit comments.
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Checkout trusted Control Plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Materialize API-first Factory Run
@@ -89,7 +97,8 @@ jobs:
       issues: write # Required only for typed task state labels, audit comments, and closing completed task issues.
       pull-requests: write # Required only to inspect/merge worker PRs and create the final draft PR; target merge is forbidden by policy.
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Checkout trusted Control Plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Run bounded multiagent orchestration
