@@ -16,7 +16,9 @@ describe('Banco de Notas add-in exposure gate', () => {
   it('prepares fail-closed audience and delegated scope configuration without inventing values', () => {
     expect(env).toContain('BANCO_NOTAS_ADDIN_AUDIENCE?: string');
     expect(env).toContain('BANCO_NOTAS_ADDIN_SCOPE?: string');
-    expect(bearer).toContain("throw new BearerConfigurationError('Banco de Notas add-in identity is not configured')");
+    expect(bearer).toContain(
+      "throw new BearerConfigurationError('Banco de Notas add-in identity is not configured')",
+    );
     expect(env).not.toMatch(/BANCO_NOTAS_ADDIN_(?:AUDIENCE|SCOPE)\s*[:=]\s*['"][^'"]+/u);
   });
 });
