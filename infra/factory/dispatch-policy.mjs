@@ -3,6 +3,7 @@ export const FACTORY_LABELS = Object.freeze({
   task: 'factory:task',
   blocked: 'factory:human-required',
   waiting: 'factory:waiting',
+  ready: 'factory:ready',
   providerJules: 'factory:provider:jules',
   julesTrigger: 'jules',
 });
