@@ -37,6 +37,12 @@ function assertCandidateMatchesReadyModel(
   }
 }
 
+function stableBytes(content: Uint8Array): Uint8Array<ArrayBuffer> {
+  const stable = new Uint8Array(new ArrayBuffer(content.byteLength));
+  stable.set(content);
+  return stable;
+}
+
 export async function shareTeacherModel(args: {
   input: ShareTeacherModelInput;
   repository: D1TeacherModelRepository;
@@ -50,6 +56,7 @@ export async function shareTeacherModel(args: {
 }> {
   const ready = await args.repository.prepareShare(args.input.teacherModelId, args.input.actor);
   assertCandidateMatchesReadyModel(args.input, ready);
+  const content = stableBytes(args.input.content);
 
   const correlationId = crypto.randomUUID();
   const baseShareRecord: Omit<TeacherModelShareRecord, 'driveItemId' | 'safeError' | 'details'> = {
@@ -93,7 +100,7 @@ export async function shareTeacherModel(args: {
       modelHash: args.input.modelHash,
       definitionVersion: args.input.definitionVersion,
       mappingVersion: args.input.mappingVersion,
-      content: args.input.content,
+      content,
     },
     recipient: {
       entraObjectId: ready.teacherEntraObjectId,
