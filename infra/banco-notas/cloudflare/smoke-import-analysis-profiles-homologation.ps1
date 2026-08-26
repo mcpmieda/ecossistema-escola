@@ -15,6 +15,12 @@ if (-not $ConfirmSyntheticWrites) {
 if (-not (Test-Path -LiteralPath $generatedConfig)) {
   throw 'Configuração local de homologação ausente. Este smoke não provisiona D1 nem cria configuração.'
 }
+if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) {
+  throw 'CLOUDFLARE_API_TOKEN não está disponível para o smoke remoto.'
+}
+if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
+  throw 'CLOUDFLARE_ACCOUNT_ID não está disponível para o smoke remoto.'
+}
 
 $config = Get-Content -LiteralPath $generatedConfig -Raw | ConvertFrom-Json
 $database = @($config.d1_databases) |
@@ -26,29 +32,43 @@ if (-not $database) {
 if ($database.database_name -ne $expectedDatabaseName) {
   throw "Smoke recusado: database_name deve ser exatamente $expectedDatabaseName."
 }
+if ([string]::IsNullOrWhiteSpace([string]$database.database_id)) {
+  throw 'database_id do D1 de homologação não está disponível.'
+}
+
+$d1Endpoint = "https://api.cloudflare.com/client/v4/accounts/$($env:CLOUDFLARE_ACCOUNT_ID)/d1/database/$($database.database_id)/query"
+$d1Headers = @{
+  Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN"
+  'Content-Type' = 'application/json'
+}
 
 function Invoke-D1 {
-  param([Parameter(Mandatory)][string]$Sql)
+  param(
+    [Parameter(Mandatory)][string]$Sql,
+    [switch]$AllowFailure
+  )
 
-  $stderrPath = Join-Path ([System.IO.Path]::GetTempPath()) "banco-notas-profile-smoke-$([guid]::NewGuid()).stderr"
+  $body = @{ sql = $Sql } | ConvertTo-Json -Compress
   try {
-    $stdout = & npx wrangler d1 execute $databaseBinding --remote --config $generatedConfig --command $Sql --json 2> $stderrPath | Out-String
-    $exitCode = $LASTEXITCODE
-    $stderr = if (Test-Path -LiteralPath $stderrPath) {
-      Get-Content -LiteralPath $stderrPath -Raw
+    $response = Invoke-RestMethod -Method Post -Uri $script:d1Endpoint -Headers $script:d1Headers -Body $body
+    $serialized = $response | ConvertTo-Json -Depth 20 -Compress
+    if (-not $response.success) {
+      if ($AllowFailure) {
+        return [pscustomobject]@{ ExitCode = 1; Stdout = ''; Stderr = $serialized; Combined = $serialized }
+      }
+      throw "Cloudflare D1 retornou failure: $serialized"
     }
-    else {
-      ''
-    }
-    return [pscustomobject]@{
-      ExitCode = $exitCode
-      Stdout = $stdout
-      Stderr = $stderr
-      Combined = "$stdout`n$stderr"
-    }
+    return [pscustomobject]@{ ExitCode = 0; Stdout = $serialized; Stderr = ''; Combined = $serialized }
   }
-  finally {
-    Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+  catch {
+    $details = $_.ErrorDetails.Message
+    if ([string]::IsNullOrWhiteSpace($details)) {
+      $details = $_.Exception.Message
+    }
+    if ($AllowFailure) {
+      return [pscustomobject]@{ ExitCode = 1; Stdout = ''; Stderr = $details; Combined = $details }
+    }
+    throw "Cloudflare D1 falhou: $details"
   }
 }
 
@@ -56,13 +76,12 @@ function Get-D1Rows {
   param([Parameter(Mandatory)][string]$Sql)
 
   $result = Invoke-D1 -Sql $Sql
-  if ($result.ExitCode -ne 0) { throw $result.Combined }
   $payload = $result.Stdout | ConvertFrom-Json
   $rows = @()
-  foreach ($entry in @($payload)) {
-    if ($entry.results) { $rows += @($entry.results) }
+  foreach ($entry in @($payload.result)) {
+    if ($null -ne $entry.results) { $rows += @($entry.results) }
   }
-  return $rows
+  return @($rows)
 }
 
 function Assert-True {
@@ -80,9 +99,9 @@ function Assert-D1Failure {
     [Parameter(Mandatory)][string]$ExpectedMessage
   )
 
-  $result = Invoke-D1 -Sql $Sql
+  $result = Invoke-D1 -Sql $Sql -AllowFailure
   Assert-True ($result.ExitCode -ne 0) "A operação deveria falhar: $ExpectedMessage"
-  Assert-True ($result.Combined -match [regex]::Escape($ExpectedMessage)) "Falha remota não contém '$ExpectedMessage'."
+  Assert-True ($result.Combined -match [regex]::Escape($ExpectedMessage)) "Falha remota não contém '$ExpectedMessage': $($result.Combined)"
 }
 
 function Get-Sha256Hex {
@@ -134,22 +153,21 @@ VALUES ('$linkedSourceId', '$yearId', 'linked_teacher_model', '$prefix vinculado
 INSERT INTO import_jobs
   (id, school_year_id, teacher_id, data_source_id, idempotency_key, source_hash, provenance_json, requested_by)
 VALUES
-  ('$xlsxJobId', '$yearId', '$teacherId', '$legacySourceId', '$prefix-xlsx-idem', '$xlsxHash', '{"sourceFormat":"xlsx","smoke":true}', 'smoke-remote');
+  ('$xlsxJobId', '$yearId', '$teacherId', '$legacySourceId', '$prefix-xlsx-idem', '$xlsxHash', json_object('sourceFormat','xlsx','smoke',1), 'smoke-remote');
 INSERT INTO import_jobs
   (id, school_year_id, teacher_id, data_source_id, idempotency_key, source_hash, provenance_json, requested_by)
 VALUES
-  ('$xlsbJobId', '$yearId', '$teacherId', '$legacySourceId', '$prefix-xlsb-idem', '$xlsbHash', '{"sourceFormat":"xlsb","smoke":true}', 'smoke-remote');
+  ('$xlsbJobId', '$yearId', '$teacherId', '$legacySourceId', '$prefix-xlsb-idem', '$xlsbHash', json_object('sourceFormat','xlsb','smoke',1), 'smoke-remote');
 "@
-$setup = Invoke-D1 -Sql $setupSql
-if ($setup.ExitCode -ne 0) { throw $setup.Combined }
+Invoke-D1 -Sql $setupSql | Out-Null
 
-$insertProfile = Invoke-D1 -Sql @"
+$insertProfile = @"
 INSERT INTO import_analysis_profiles
   (id, school_year_id, data_source_id, profile_id, analysis_version, profile_hash, profile_json, created_by, reason)
 VALUES
   ('$profileId', '$yearId', '$legacySourceId', '$profileKey', '$analysisVersion', '$profileHash', '$profileJson', 'smoke-remote', 'smoke remoto de perfil XLSX');
 "@
-if ($insertProfile.ExitCode -ne 0) { throw $insertProfile.Combined }
+Invoke-D1 -Sql $insertProfile | Out-Null
 
 $profile = Get-D1Rows -Sql "SELECT source_format FROM import_analysis_profiles WHERE id = '$profileId';"
 Assert-True ($profile.Count -eq 1 -and $profile[0].source_format -eq 'xlsx') 'Perfil remoto não preservou source_format=xlsx.'
@@ -163,13 +181,13 @@ VALUES
 Assert-D1Failure -ExpectedMessage 'import_analysis_profiles are append-only' -Sql "UPDATE import_analysis_profiles SET reason = 'mutação proibida' WHERE id = '$profileId';"
 Assert-D1Failure -ExpectedMessage 'import_analysis_profiles are append-only' -Sql "DELETE FROM import_analysis_profiles WHERE id = '$profileId';"
 
-$link = Invoke-D1 -Sql @"
+$linkSql = @"
 INSERT INTO import_job_analysis_profiles
   (import_job_id, analysis_profile_id, attached_by, reason)
 VALUES
   ('$xlsxJobId', '$profileId', 'smoke-remote', 'vínculo sintético de homologação');
 "@
-if ($link.ExitCode -ne 0) { throw $link.Combined }
+Invoke-D1 -Sql $linkSql | Out-Null
 
 $linkCount = Get-D1Rows -Sql "SELECT COUNT(*) AS total FROM import_job_analysis_profiles WHERE import_job_id = '$xlsxJobId' AND analysis_profile_id = '$profileId';"
 Assert-True ([int]$linkCount[0].total -eq 1) 'Vínculo XLSX válido não foi persistido exatamente uma vez.'
