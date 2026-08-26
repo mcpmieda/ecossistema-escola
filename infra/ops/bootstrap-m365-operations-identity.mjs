@@ -16,7 +16,7 @@ const graphResourceAppId = '00000003-0000-0000-c000-000000000000';
 const sitesSelectedRoleId = '883ea226-0bf2-4a8f-9f9d-92c9162a727d';
 const federatedCredentialName = 'github-m365-operations-production';
 const issuer = 'https://token.actions.githubusercontent.com';
-const subject = 'repo:mcpmieda/ecossistema-escola:environment:production';
+const subject = 'repo:mcpmieda@268288370/ecossistema-escola@1345061518:environment:production';
 const audience = 'api://AzureADTokenExchange';
 
 async function githubOidcToken(targetAudience) {
