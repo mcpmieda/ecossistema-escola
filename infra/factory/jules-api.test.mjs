@@ -6,6 +6,7 @@ import {
   julesSessionMarker,
   julesSessionNameFromComments,
   pullRequestUrlsFromSession,
+  sourceHasBranch,
 } from './jules-api.mjs';
 
 const FACTORY_ACTOR = 'github-actions[bot]';
@@ -46,6 +47,18 @@ test('extracts unique GitHub pull request URLs from session outputs', () => {
     }),
     ['https://github.com/acme/repo/pull/10'],
   );
+});
+
+test('recognizes integration branch visibility in a Jules GitHub source', () => {
+  const source = {
+    githubRepo: {
+      defaultBranch: { displayName: 'main' },
+      branches: [{ displayName: 'main' }, { displayName: 'factory/run-1' }],
+    },
+  };
+  assert.equal(sourceHasBranch(source, 'factory/run-1'), true);
+  assert.equal(sourceHasBranch(source, 'main'), true);
+  assert.equal(sourceHasBranch(source, 'factory/missing'), false);
 });
 
 test('prompt hard-bounds Jules to the declared task scope and integration branch', () => {
