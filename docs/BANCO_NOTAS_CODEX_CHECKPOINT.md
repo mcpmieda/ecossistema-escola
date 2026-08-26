@@ -4,29 +4,19 @@
 Branch: `feat/banco-de-notas-foundation`
 PR: `#52` — open, draft, sem merge
 
-## Estado estabilizado
+## Checkpoint congelado
 
-Reconstrução do bloco Codex publicada. **Não alterar este arquivo novamente antes de fechar a CI do HEAD corrente.**
+A reconstrução do bloco interrompido está publicada. Não criar novos commits antes de fechar a CI do HEAD corrente.
 
-- D1 homologation: migrations `0001`–`0007` comprovadas.
+- D1 `0001`–`0007`: homologado remotamente.
 - Run D1 final: `32981705701` — success.
 - Sync final: off.
-- Graph backend-only: upload/share OID/metadata/download/SHA-256 local/reanálise/revoke/delete/compensação.
-- Graph target: fail-closed, sem IDs fictícios.
-- Round-trip sintético XLSX no boundary Graph: implementado.
-- Microsoft real: não homologado externamente.
+- Graph backend-only: download + SHA-256 local + reanálise + compensação.
+- Target Graph: fail-closed.
+- Round-trip XLSX sintético no boundary Graph: implementado.
+- Microsoft real: ainda não homologado.
 - Produção: intocada.
 
 ## Próxima ação
 
-1. confirmar HEAD do PR;
-2. localizar a CI correspondente;
-3. corrigir qualquer falha até verde;
-4. atualizar o corpo do PR sem mover o HEAD;
-5. manter draft, no merge, sync off e produção untouched.
-
-## Bloqueios externos
-
-- autenticação Microsoft de homologação;
-- runtime Cloudflare de homologação para prova por binding D1;
-- ambiente navegável para browser QA.
+Confirmar HEAD → localizar CI desse HEAD → corrigir até verde → atualizar corpo do PR sem alterar arquivos → manter draft/no merge/sync off.
