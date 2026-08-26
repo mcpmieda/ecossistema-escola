@@ -16,7 +16,9 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
   const digest = await crypto.subtle.digest('SHA-256', copy);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
+    '',
+  );
 }
 
 async function source(): Promise<LegacyWorkbookSource> {
@@ -99,8 +101,13 @@ describe('Banco de Notas import analysis orchestration', () => {
     const input = await source();
     const initial = job(input.metadata.sourceHash);
     const analyzedJob = { ...initial, state: 'analyzed' as const };
-    const findImportJob = vi.fn().mockResolvedValueOnce(initial).mockResolvedValueOnce(analyzedJob);
-    const commitImportAnalysis = vi.fn(async (commit: ImportAnalysisCommit) => analysisFrom(commit));
+    const findImportJob = vi
+      .fn()
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(analyzedJob);
+    const commitImportAnalysis = vi.fn(async (commit: ImportAnalysisCommit) =>
+      analysisFrom(commit),
+    );
 
     const result = await analyzeImportJob({
       jobs: {
@@ -200,7 +207,9 @@ describe('Banco de Notas import analysis orchestration', () => {
   it('allows an idempotent analyzed retry to be resolved by the analysis repository', async () => {
     const input = await source();
     const analyzed = job(input.metadata.sourceHash, 'analyzed');
-    const commitImportAnalysis = vi.fn(async (commit: ImportAnalysisCommit) => analysisFrom(commit));
+    const commitImportAnalysis = vi.fn(async (commit: ImportAnalysisCommit) =>
+      analysisFrom(commit),
+    );
     const findImportJob = vi.fn().mockResolvedValue(analyzed);
 
     const result = await analyzeImportJob({
