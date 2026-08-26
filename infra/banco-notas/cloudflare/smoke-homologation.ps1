@@ -148,6 +148,7 @@ $teacherId = "$prefix-teacher"
 $otherTeacherId = "$prefix-teacher-other"
 $teacherModelId = "$prefix-teacher-model"
 $entraObjectId = [guid]::NewGuid().ToString()
+$replacementEntraObjectId = [guid]::NewGuid().ToString()
 $sourceId = "$prefix-source"
 $assignmentId = "$prefix-authority"
 $referenceAssignmentId = "$prefix-reference"
@@ -175,6 +176,21 @@ $identity = Get-D1Rows -Sql "SELECT entra_object_id FROM teachers WHERE id = '$t
 Assert-True -Condition ($identity[0].entra_object_id -eq $entraObjectId) -Message 'Identidade Entra sintética não foi persistida.'
 Assert-D1Failure -Label 'duplicate teacher Entra identity' -ExpectedMessage 'UNIQUE constraint failed' -Sql "UPDATE teachers SET entra_object_id = '$entraObjectId' WHERE id = '$otherTeacherId';"
 Write-Host 'PASS: identidade Entra é única e necessária antes de sync'
+
+Invoke-D1 -Sql "UPDATE teacher_models SET sync_enabled = 1 WHERE id = '$teacherModelId';" | Out-Null
+Assert-D1Failure -Label 'teacher Entra identity change while sync enabled' -ExpectedMessage 'teacher entra identity locked while sync enabled' -Sql "UPDATE teachers SET entra_object_id = '$replacementEntraObjectId' WHERE id = '$teacherId';"
+Assert-D1Failure -Label 'teacher deactivation while sync enabled' -ExpectedMessage 'active teacher required while sync enabled' -Sql "UPDATE teachers SET status = 'inactive' WHERE id = '$teacherId';"
+$protectedIdentity = Get-D1Rows -Sql "SELECT teacher.entra_object_id, teacher.status, model.sync_enabled FROM teachers teacher JOIN teacher_models model ON model.teacher_id = teacher.id WHERE teacher.id = '$teacherId' AND model.id = '$teacherModelId';"
+Assert-True -Condition ($protectedIdentity[0].entra_object_id -eq $entraObjectId) -Message 'Falha de troca de identidade não pode alterar o Entra OID protegido.'
+Assert-True -Condition ($protectedIdentity[0].status -eq 'active') -Message 'Falha de inativação não pode deixar professor em status inválido.'
+Assert-True -Condition ([int]$protectedIdentity[0].sync_enabled -eq 1) -Message 'Modelo deveria permanecer temporariamente em sync durante o teste dos locks.'
+
+Invoke-D1 -Sql "UPDATE teacher_models SET sync_enabled = 0 WHERE id = '$teacherModelId'; UPDATE teachers SET entra_object_id = '$replacementEntraObjectId', status = 'inactive' WHERE id = '$teacherId';" | Out-Null
+$safeFinalIdentity = Get-D1Rows -Sql "SELECT teacher.entra_object_id, teacher.status, model.sync_enabled FROM teachers teacher JOIN teacher_models model ON model.teacher_id = teacher.id WHERE teacher.id = '$teacherId' AND model.id = '$teacherModelId';"
+Assert-True -Condition ($safeFinalIdentity[0].entra_object_id -eq $replacementEntraObjectId) -Message 'Identidade não pôde ser atualizada depois de desligar sync.'
+Assert-True -Condition ($safeFinalIdentity[0].status -eq 'inactive') -Message 'Professor não pôde ser inativado depois de desligar sync.'
+Assert-True -Condition ([int]$safeFinalIdentity[0].sync_enabled -eq 0) -Message 'Smoke deve terminar com sync desligado.'
+Write-Host 'PASS: identidade e status ficam bloqueados durante sync; estado final permanece sync_enabled=0'
 
 Invoke-D1 -Sql "INSERT INTO data_sources (id, school_year_id, type, name, description, created_by) VALUES ('$sourceId', '$primaryYearId', 'legacy_import', 'SMOKE source $runToken', 'Dado sintético de homologação', 'smoke-remote');" | Out-Null
 

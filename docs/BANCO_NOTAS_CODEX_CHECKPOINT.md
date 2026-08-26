@@ -1,11 +1,11 @@
 # Banco de Notas — Codex Checkpoint
 
-Última atualização: 26/08/2026 11:36 BRT
+Última atualização: 26/08/2026 11:40 BRT
 Branch: `feat/banco-de-notas-foundation`
-HEAD: `2bb0750e2192a31621b86685ce610b2388509d37`
+HEAD: `a516fae567cf6ff7ab8a15a70471d1455693e5db`
 PR: `#52` — open, draft, sem merge
 CI mais recente: `32981035469` — success no HEAD `2bb0750`
-D1 homologation run mais recente: `32977813303` — success no HEAD `5f52839`
+D1 homologation run mais recente: `32981239012` — success no HEAD `a516fae`
 
 ## Objetivo do bloco atual
 
@@ -27,14 +27,19 @@ Fechar a CI corrente, validar a migration `0007` no D1 remoto de homologação e
 - [x] Sessão do portal Microsoft verificada e confirmada como não autenticada.
 - [x] Correção da CI commitada e publicada no commit `2bb0750`.
 - [x] CI normal verde no run `32981035469`; deploy e recovery de produção skipped.
+- [x] Workflow D1 `32981239012` executado com sucesso e database `banco-notas-homologation` reutilizado.
+- [x] Run `32981239012` confirmou migrations `0001`–`0007`, sync bloqueado sem OID, unicidade do OID e smokes existentes.
+- [x] Lacuna de evidência identificada: o smoke remoto não exercitava troca de OID/inativação durante sync.
+- [x] Smoke ampliado localmente para testar ambos os locks com sync temporário e provar estado final `sync_enabled=0`.
+- [x] Regressão do smoke atualizada; parser PowerShell e gate local completo aprovados.
 
 ## Em andamento
 
-- [ ] Executar novamente a homologação D1 e confirmar migration `0007` e seu smoke remoto.
+- [ ] Publicar o smoke ampliado e executar novamente a homologação D1 para fechar todos os invariantes remotos da migration `0007`.
 
 ## Próxima ação exata
 
-Commitar este checkpoint pré-operação e disparar `Banco de Notas D1 homologation` por `workflow_dispatch` na branch `feat/banco-de-notas-foundation`; acompanhar até a conclusão e inspecionar os logs redigidos.
+Commitar e publicar o smoke ampliado; acompanhar CI normal e o workflow D1 acionado pelo push até provar remotamente os locks de identidade/status e o estado final `sync_enabled=0`.
 
 ## Estado dos ambientes
 
@@ -50,7 +55,7 @@ Commitar este checkpoint pré-operação e disparar `Banco de Notas D1 homologat
 ### Cloudflare
 
 - D1 conhecido: `banco-notas-homologation`.
-- Workflow mais recente de homologação: run `32977813303`, success, porém a evidência detalhada da migration `0007` ainda precisa ser consolidada nesta sessão.
+- Workflow `32981239012`: success no HEAD `a516fae`; reutilizou o banco existente, sem migrations pendentes, e executou os smokes com dados sintéticos.
 - Wrangler local: `4.125.0`, não autenticado.
 - Variáveis `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_D1_API_TOKEN` e `CLOUDFLARE_ACCOUNT_ID`: ausentes do processo local.
 - Secrets GitHub existentes por nome: `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_D1_API_TOKEN`.
@@ -82,12 +87,14 @@ Nunca registrar secrets.
 ## Commits desta sessão
 
 - `2bb0750` — fechar baseline da CI do Banco de Notas e criar checkpoint persistente.
+- `a516fae` — registrar CI verde antes da operação D1.
 
 ## CIs / workflows
 
 - `32978280552` — failure — lint `no-control-regex` no HEAD inicial.
 - `32977813303` — success — D1 homologation no commit `5f52839`.
 - `32981035469` — success — CI normal completa no commit `2bb0750`; jobs de produção skipped.
+- `32981239012` — success — D1 remoto reutilizado; migrations `0001`–`0007` e smokes correntes aprovados.
 - Gate local pós-correção — success — formatting, lint, typecheck, semantic contract, 283/283 testes e build.
 
 ## Problemas encontrados
@@ -95,11 +102,13 @@ Nunca registrar secrets.
 - Regex de caracteres de controle violava `no-control-regex`.
 - Vitest atual não aceita argumento genérico em `toMatchObject` naquele matcher.
 - Igualdade direta entre typed arrays visualmente idênticos falhava por identidade/protótipo de realm; a asserção agora compara os mesmos bytes como arrays numéricos.
+- O smoke D1 remoto inicial da migration `0007` não cobria os triggers de lock de OID e status durante sync; a cobertura foi ampliada antes de declarar o bloco completo.
 
 ## Decisões técnicas tomadas
 
 - Validar nomes de arquivo por iteração explícita de caracteres, preservando fail-closed para barras e ASCII `0x00`–`0x1f`.
 - Manter o teste de upload estritamente byte a byte, removendo apenas a dependência de realm da representação `Uint8Array`.
+- Permitir sync somente de forma temporária no smoke sintético para exercitar os locks e desligá-lo explicitamente antes do fim, com asserção remota de `sync_enabled=0`.
 
 ## Bloqueios externos
 
@@ -121,5 +130,6 @@ Nunca registrar secrets.
 
 1. Confirmar `git status --short --branch` e o HEAD registrado acima.
 2. Revisar o diff local e repetir `npm run verify` se qualquer arquivo de código tiver mudado.
-3. Disparar/acompanhar `Banco de Notas D1 homologation` e consolidar a prova remota da migration `0007`.
-4. Para retomar Microsoft externo, autenticar uma sessão administrativa apropriada ou disponibilizar um fluxo de homologação com credencial de menor privilégio; não reutilizar produção por conveniência.
+3. Commitar/push do smoke ampliado e acompanhar CI + D1 homologation.
+4. Consolidar a prova remota da migration `0007` nos documentos obrigatórios e no corpo do PR.
+5. Para retomar Microsoft externo, autenticar uma sessão administrativa apropriada ou disponibilizar um fluxo de homologação com credencial de menor privilégio; não reutilizar produção por conveniência.

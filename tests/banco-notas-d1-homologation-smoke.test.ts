@@ -40,14 +40,22 @@ describe('Banco de Notas remote D1 homologation safeguards', () => {
     expect(smoke).toContain('database_name deve ser exatamente $expectedDatabaseName');
   });
 
-  it('never provisions, migrates, deploys, or successfully enables sync', () => {
-    const directModelSync = 'Invoke-D1 -Sql "UPDATE teacher_models SET sync_enabled = 1';
+  it('never provisions, migrates, deploys, or leaves sync enabled', () => {
     const failedSyncGuard = "Assert-D1Failure -Label 'teacher model sync without Entra identity'";
+    const temporarySyncEnable =
+      'Invoke-D1 -Sql "UPDATE teacher_models SET sync_enabled = 1 WHERE id = \'$teacherModelId\';"';
+    const finalSyncDisable =
+      "Invoke-D1 -Sql \"UPDATE teacher_models SET sync_enabled = 0 WHERE id = '$teacherModelId';";
 
     expect(smoke).not.toMatch(/wrangler\s+d1\s+create/iu);
     expect(smoke).not.toMatch(/wrangler\s+d1\s+migrations\s+apply/iu);
     expect(smoke).not.toMatch(/wrangler\s+(?:pages\s+)?deploy/iu);
-    expect(smoke).not.toContain(directModelSync);
+    expect(smoke).toContain(temporarySyncEnable);
+    expect(smoke).toContain(finalSyncDisable);
+    expect(smoke.indexOf(finalSyncDisable)).toBeGreaterThan(smoke.indexOf(temporarySyncEnable));
+    expect(smoke).toContain(
+      "sync_enabled -eq 0) -Message 'Smoke deve terminar com sync desligado.'",
+    );
     expect(smoke).not.toMatch(/UPDATE\s+source_assignments[\s\S]*sync_enabled/iu);
     expect(smoke).toContain(failedSyncGuard);
   });
@@ -68,6 +76,8 @@ describe('Banco de Notas remote D1 homologation safeguards', () => {
   it('covers the critical remote migration invariants using synthetic identifiers', () => {
     expect(smoke).toContain('teacher model entra identity required for sync');
     expect(smoke).toContain('duplicate teacher Entra identity');
+    expect(smoke).toContain('teacher entra identity locked while sync enabled');
+    expect(smoke).toContain('active teacher required while sync enabled');
     expect(smoke).toContain('authoritative source assignment overlap');
     expect(smoke).toContain('source assignment year mismatch');
     expect(smoke).toContain('invalid import job state transition');
