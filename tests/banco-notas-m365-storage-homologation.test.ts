@@ -55,7 +55,7 @@ const instance = genericModelInstanceSchema.parse({
 
 const presentation = genericWorkbookPresentationSchema.parse({
   schemaVersion: 1,
-  presentationVersion: '2026.1-m365-storage-homologation-presentation',
+  presentationVersion: '2026.1-m365-homologation',
   modelId,
   schoolYear: 2026,
   title: 'Banco de Notas 2026',
