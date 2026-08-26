@@ -29,6 +29,7 @@ O Control Plane não armazena API key do Jules. Para uma tarefa elegível, aplic
 
 Uma tarefa recebe o trigger `jules` somente quando todas as condições abaixo são verdadeiras:
 
+- a Factory Run foi aberta/editada pelo proprietário do repositório;
 - não possui `human_gates`;
 - não depende de outra tarefa (`depends_on` vazio);
 - lista `jules` explicitamente em `preferred_providers`.
@@ -41,13 +42,14 @@ As labels usadas são:
 - `factory:waiting`: tarefa que possui dependências e ainda não pode ser enviada a provider;
 - `factory:human-required`: tarefa que depende de decisão humana.
 
-Aplicar a label é registrado como `trigger-requested`, não como execução concluída. O Jules ainda precisa ter acesso ao repositório pelo seu GitHub App. Ausência dessa autorização não provoca fallback inseguro nem uso automático de Codex.
+A issue-filho é criada primeiro e a label `jules` é adicionada em seguida, produzindo um evento explícito de rotulagem para o GitHub App. Aplicar a label é registrado como `trigger-requested`, não como execução concluída. O Jules ainda precisa ter acesso ao repositório pelo seu GitHub App. Ausência dessa autorização não provoca fallback inseguro nem uso automático de Codex.
 
 Nesta fase somente a primeira wave pronta é enviada. A liberação automática das tarefas dependentes ficará para a fase de reconciliation, depois que houver evidência verificável de conclusão das predecessoras.
 
 ## Regras permanentes
 
 - GitHub é a fonte de verdade para estado durável da execução.
+- Factory Runs capazes de materializar ou disparar providers só são aceitas do proprietário do repositório.
 - Cada worker deve trabalhar em branch/PR isolado.
 - Tarefas paralelas não podem compartilhar escopo de escrita conhecido.
 - Produção, privilégios, operações destrutivas e decisões reais de produto exigem decisão humana.
