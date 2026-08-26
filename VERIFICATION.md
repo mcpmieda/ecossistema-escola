@@ -34,16 +34,16 @@ Atualização visual corrente:
 
 ## Banco de Notas — verificação corrente do PR #52
 
-### Avanço local de importação/modelo genérico — 25/08/2026
+### Importação/modelo genérico — 25/08/2026
 
-No head funcional `82e977a27598fdffa77a7db7bfff17bf433827ce` do PR #52, o workflow `32920316172` / run `#556` concluiu com:
+Na base funcional `88ea66896271408d57343c046d81b5d042b7810f` do PR #52, o workflow `32924002605` / run `#600` concluiu com:
 
 - `Validate GitHub Actions security` — success;
 - formatting — success;
 - lint — success;
 - typecheck — success;
 - semantic check — success;
-- testes — **206/206 em 35 arquivos**;
+- testes — **229/229 em 39 arquivos**;
 - build — success;
 - `Deploy production` — skipped;
 - `Verify recovery after deploy` — skipped;
@@ -54,9 +54,13 @@ A evidência atual cobre, além da fundação já consolidada:
 - bearer Entra fail closed, ainda sem roteamento público do add-in;
 - geração determinística do modelo genérico e bloqueio de plano incompleto/ambíguo;
 - import jobs com state machine, blockers reais e resolução auditável por stream append-only separado;
-- migrations SQLite reais para integridade cross-year, state machine e resolução de findings;
+- migrations SQLite reais para integridade cross-year, state machine, resolução de findings e análise persistente;
+- `0005_banco_notas_import_analysis.sql`, com `import_analyses` append-only e exigência de artefato antes de `analyzed`;
+- pipeline `analyzeImportJob` que valida hash/formato/ano da origem, usa o boundary verificado de workbook e persiste análise/findings/auditoria/estado atomicamente;
+- retry idempotente de análise sem duplicação e conflito em retry incompatível;
+- endpoint administrativo de transição bloqueando `targetState=analyzed`, que fica reservado ao pipeline verificado;
 - orquestração Graph abstrata com compensação explícita de share/upload em caso de falha;
-- layout físico do modelo agora versionado na definição, sem mapa de colunas escondido no gerador;
+- layout físico do modelo versionado na definição, sem mapa de colunas escondido no gerador;
 - `studentPosition` como posição escolar canônica, sem ordenação de UUIDs;
 - validação exata de linha/coluna da célula gerada contra o layout versionado;
 - bloqueio de posições duplicadas de alunos dentro da mesma turma.
@@ -69,7 +73,7 @@ No branch `feat/banco-de-notas-foundation`, continua registrada a separação ob
 - regressão privada nesses casos é evidência complementar, não permissão para especializar o produto;
 - generalização exige fixtures sintéticas variadas e ausência de dependências por professor/abas/turmas/disciplinas/células específicas.
 
-O transformador/planner e a instância genérica já existem em código e estão cobertos por regressão sintética. Isso **não** significa que o pipeline cloud completo esteja homologado: ainda falta analisador/serializador XLSX cloud real, D1 remoto, Entra provisionado, Graph/SharePoint real e browser QA.
+O transformador/planner, a instância genérica e a análise persistente já existem em código e estão cobertos por regressão sintética/SQLite. Isso **não** significa que o pipeline cloud completo esteja homologado: ainda falta analisador/serializador XLSX cloud real, D1 remoto, Entra provisionado, Graph/SharePoint real e browser QA.
 
 Limites comprovados por inspeção do ambiente: Wrangler sem autenticação; tokens Cloudflare ausentes; CLIs e configuração administrativa Microsoft ausentes. Portanto, não houve D1 remoto, Entra provisionado, chamada SharePoint/Graph real, browser QA em preview, deploy ou sync.
 
@@ -361,6 +365,10 @@ O estado implementado também inclui:
 - bearer Entra fail closed preparado, mas não exposto publicamente sem audience/scope reais;
 - import jobs com idempotência, proveniência, findings e state machine protegida no storage;
 - stream append-only separado para resolução auditável de findings;
+- artefato `import_analyses` append-only, preso a hash/formato/ano/analyzer/version da análise;
+- bloqueio de `analyzed` no storage quando não existe artefato de análise;
+- orquestração `analyzeImportJob` com commit transacional de análise, findings, auditoria e estado;
+- transição administrativa genérica impedida de alcançar `analyzed`;
 - planner de transformação genérico com bloqueio de correspondências ausentes/ambíguas;
 - `GenericModelInstance` determinística em homologação e com sync desligado;
 - layout físico versionado com `layoutVersion`, `firstStudentRow` e coluna por `gradeField`;
@@ -368,13 +376,14 @@ O estado implementado também inclui:
 - validação exata de célula contra layout/posição;
 - boundary Graph com store/share/metadata/audit e compensação explícita em falha.
 
-No head funcional `82e977a27598fdffa77a7db7bfff17bf433827ce`, run `32920316172` / `#556`, o pipeline passou security, format, lint, typecheck, semantic check, **206/206 testes em 35 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram corretamente `skipped`.
+Na base funcional `88ea66896271408d57343c046d81b5d042b7810f`, run `32924002605` / `#600`, o pipeline passou security, format, lint, typecheck, semantic check, **229/229 testes em 39 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram corretamente `skipped`.
 
 Limites explícitos dessa evidência:
 
 - SQLite real não substitui Cloudflare D1 remoto;
 - regressão estrutural de deep-link não substitui browser QA real;
 - D1 de homologação ainda não foi provisionado/aplicado;
+- migrations `0001` a `0005` ainda não foram aplicadas remotamente;
 - registro SharePoint ainda não foi aplicado ao tenant;
 - endpoint público do add-in ainda não foi exposto;
 - audience/scope Entra do add-in ainda não foram provisionados;
