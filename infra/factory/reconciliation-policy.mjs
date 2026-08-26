@@ -51,7 +51,9 @@ export function sameRepositoryPrNumbers(comments, owner, repo) {
 }
 
 function normalizePath(path) {
-  const value = String(path ?? '').trim().replace(/^\/+/, '');
+  const value = String(path ?? '')
+    .trim()
+    .replace(/^\/+/, '');
   if (!value || value.includes('..') || value.includes('\\')) return null;
   return value;
 }
@@ -82,5 +84,7 @@ export function shouldReleaseTask(task, dependencyEvidence) {
   if (!task || task.humanGates.length > 0 || task.dependencies.length === 0) {
     return false;
   }
-  return task.dependencies.every((dependency) => dependencyEvidence.get(dependency)?.ready === true);
+  return task.dependencies.every(
+    (dependency) => dependencyEvidence.get(dependency)?.ready === true,
+  );
 }
