@@ -21,8 +21,9 @@ describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
         expect(headers.get('Content-Type')).toBe(
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         );
-        const body = init?.body as Blob;
-        expect(Array.from(new Uint8Array(await body.arrayBuffer()))).toEqual(Array.from(content));
+        const body = init?.body;
+        expect(body).toBeDefined();
+        expect(Array.from(new Uint8Array(body as ArrayBuffer))).toEqual(Array.from(content));
         return new Response(JSON.stringify({ id: 'item-1', eTag: '"etag-1"' }), {
           status: 201,
         });
