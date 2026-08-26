@@ -1,5 +1,7 @@
-import process from 'node:process';
 import { readFileSync } from 'node:fs';
+import process from 'node:process';
+
+import { FACTORY_LABELS, initialDispatch, taskLabelPlan } from './dispatch-policy.mjs';
 
 const API_ROOT = 'https://api.github.com';
 const RUN_BEGIN = '<!-- FACTORY_RUN_BEGIN -->';
@@ -12,11 +14,6 @@ const ALLOWED_HUMAN_GATES = new Set([
   'legal_or_organizational_decision',
 ]);
 const ALLOWED_PROVIDERS = new Set(['jules', 'antigravity', 'opencode_ollama', 'manual']);
-const SAFE_LABELS = {
-  parent: 'factory:run',
-  task: 'factory:task',
-  blocked: 'factory:human-required',
-};
 
 function fail(message) {
   throw new Error(message);
@@ -152,7 +149,7 @@ async function github(path, options = {}) {
   return payload;
 }
 
-async function ensureLabel(owner, repo, name, description) {
+async function ensureLabel(owner, repo, name, description, color = '5319e7') {
   const encoded = encodeURIComponent(name);
   const existing = await fetch(`${API_ROOT}/repos/${owner}/${repo}/labels/${encoded}`, {
     headers: {
@@ -165,8 +162,25 @@ async function ensureLabel(owner, repo, name, description) {
   if (existing.status !== 404) fail(`Unable to inspect label ${name}: ${existing.status}`);
   await github(`/repos/${owner}/${repo}/labels`, {
     method: 'POST',
-    body: JSON.stringify({ name, color: '5319e7', description }),
+    body: JSON.stringify({ name, color, description }),
   });
+}
+
+function labelNames(labels) {
+  return (labels ?? [])
+    .map((item) => (typeof item === 'string' ? item : item?.name))
+    .filter(Boolean);
+}
+
+async function ensureIssueLabels(owner, repo, issueNumber, currentLabels, desiredLabels) {
+  const current = new Set(labelNames(currentLabels));
+  const missing = desiredLabels.filter((label) => !current.has(label));
+  if (missing.length === 0) return false;
+  await github(`/repos/${owner}/${repo}/issues/${issueNumber}/labels`, {
+    method: 'POST',
+    body: JSON.stringify({ labels: missing }),
+  });
+  return true;
 }
 
 function taskMarker(runId, taskId) {
@@ -178,6 +192,8 @@ function taskBody(parentIssue, manifest, task) {
   const dependencies = task.dependsOn.length ? task.dependsOn.join(', ') : 'none';
   const scopes = task.paths.length ? task.paths.join(', ') : 'unknown/conservative';
   const gates = task.humanGates.length ? task.humanGates.join(', ') : 'none';
+  const dispatch = initialDispatch(task);
+  const initialProvider = dispatch.provider ?? 'none';
   return (
     `${taskMarker(manifest.runId, task.id)}\n\n` +
     `Parent Factory Run: #${parentIssue}\n\n` +
@@ -188,6 +204,7 @@ function taskBody(parentIssue, manifest, task) {
     `Path scopes: ${scopes}\n` +
     `Required capabilities: ${task.requiredCapabilities.join(', ') || 'none'}\n` +
     `Preferred providers: ${providers}\n` +
+    `Initial dispatch: ${dispatch.status} (${initialProvider})\n` +
     `Human gates: ${gates}\n\n` +
     `## Task\n\n${task.title}\n\n` +
     `## Guardrails\n\n` +
@@ -195,7 +212,8 @@ function taskBody(parentIssue, manifest, task) {
     `- Do not merge or deploy production from this task.\n` +
     `- Do not enable Banco de Notas sync.\n` +
     `- Do not broaden permissions or credentials.\n` +
-    `- Preserve repository contracts and run required CI/review gates.\n`
+    `- Preserve repository contracts and run required CI/review gates.\n` +
+    `- A provider trigger is only a work request; it never grants merge or production authority.\n`
   );
 }
 
@@ -203,6 +221,48 @@ async function existingTaskIssues(owner, repo, runId) {
   const query = encodeURIComponent(`repo:${owner}/${repo} is:issue "factory-run:${runId};task:"`);
   const result = await github(`/search/issues?q=${query}&per_page=100`);
   return result.items ?? [];
+}
+
+async function ensureControlPlaneLabels(owner, repo) {
+  await ensureLabel(
+    owner,
+    repo,
+    FACTORY_LABELS.parent,
+    'Parent orchestration issue for a Factory Run.',
+  );
+  await ensureLabel(
+    owner,
+    repo,
+    FACTORY_LABELS.task,
+    'Materialized child task from a Factory Run.',
+  );
+  await ensureLabel(
+    owner,
+    repo,
+    FACTORY_LABELS.blocked,
+    'Factory task requires explicit human decision before execution.',
+  );
+  await ensureLabel(
+    owner,
+    repo,
+    FACTORY_LABELS.waiting,
+    'Factory task is waiting for declared dependencies before provider dispatch.',
+    'fbca04',
+  );
+  await ensureLabel(
+    owner,
+    repo,
+    FACTORY_LABELS.providerJules,
+    'Factory task selected Jules as the initial remote worker.',
+    '0e8a16',
+  );
+  await ensureLabel(
+    owner,
+    repo,
+    FACTORY_LABELS.julesTrigger,
+    'External Jules GitHub App trigger. Applied only to eligible root Factory tasks.',
+    '1d76db',
+  );
 }
 
 async function materialize() {
@@ -216,55 +276,47 @@ async function materialize() {
   const issue = await github(`/repos/${owner}/${repo}/issues/${issueNumber}`);
   const manifest = parseManifest(issue.body ?? '');
 
-  await ensureLabel(
-    owner,
-    repo,
-    SAFE_LABELS.parent,
-    'Parent orchestration issue for a Factory Run.',
-  );
-  await ensureLabel(owner, repo, SAFE_LABELS.task, 'Materialized child task from a Factory Run.');
-  await ensureLabel(
-    owner,
-    repo,
-    SAFE_LABELS.blocked,
-    'Factory task requires explicit human decision before execution.',
-  );
-
-  const labels = new Set(
-    (issue.labels ?? []).map((item) => (typeof item === 'string' ? item : item.name)),
-  );
-  if (!labels.has(SAFE_LABELS.parent)) {
-    labels.add(SAFE_LABELS.parent);
-    await github(`/repos/${owner}/${repo}/issues/${issueNumber}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ labels: [...labels] }),
-    });
-  }
+  await ensureControlPlaneLabels(owner, repo);
+  await ensureIssueLabels(owner, repo, issueNumber, issue.labels, [FACTORY_LABELS.parent]);
 
   const existing = await existingTaskIssues(owner, repo, manifest.runId);
   const existingBodies = new Map(existing.map((item) => [item.body ?? '', item]));
   const created = [];
   const reused = [];
+  const dispatchRecords = [];
 
   for (const task of manifest.tasks) {
     const marker = taskMarker(manifest.runId, task.id);
     const found = [...existingBodies.entries()].find(([body]) => body.includes(marker))?.[1];
+    const labelPlan = taskLabelPlan(task);
+    const dispatch = initialDispatch(task);
+
     if (found) {
+      await ensureIssueLabels(owner, repo, found.number, found.labels, labelPlan.desiredLabels);
       reused.push({ task: task.id, issue: found.number });
+      dispatchRecords.push({ task: task.id, issue: found.number, ...dispatch });
       continue;
     }
-    const childLabels = [SAFE_LABELS.task];
-    if (task.humanGates.length) childLabels.push(SAFE_LABELS.blocked);
+
     const child = await github(`/repos/${owner}/${repo}/issues`, {
       method: 'POST',
       body: JSON.stringify({
         title: `[Factory:${manifest.runId}] ${task.title}`,
         body: taskBody(issueNumber, manifest, task),
-        labels: childLabels,
+        labels: labelPlan.creationLabels,
       }),
     });
+    if (labelPlan.triggerLabels.length > 0) {
+      await ensureIssueLabels(owner, repo, child.number, child.labels, labelPlan.triggerLabels);
+    }
     created.push({ task: task.id, issue: child.number });
+    dispatchRecords.push({ task: task.id, issue: child.number, ...dispatch });
   }
+
+  const julesRequested = dispatchRecords.filter((item) => item.provider === 'jules');
+  const waiting = dispatchRecords.filter((item) => item.status === 'waiting');
+  const humanRequired = dispatchRecords.filter((item) => item.status === 'human-required');
+  const unassigned = dispatchRecords.filter((item) => item.status === 'unassigned');
 
   const summary = {
     status: 'materialized',
@@ -273,14 +325,29 @@ async function materialize() {
     task_count: manifest.tasks.length,
     created,
     reused,
-    provider_dispatch: 'not-enabled',
+    provider_dispatch: {
+      jules_trigger_requested: julesRequested,
+      waiting,
+      human_required: humanRequired,
+      unassigned,
+    },
     production_activation: 'not-performed',
   };
 
   await github(`/repos/${owner}/${repo}/issues/${issueNumber}/comments`, {
     method: 'POST',
     body: JSON.stringify({
-      body: `Factory Run \`${manifest.runId}\` materialized safely.\n\nCreated: ${created.length}\nReused: ${reused.length}\nProvider dispatch: not enabled yet.\nProduction: untouched.`,
+      body:
+        `Factory Run \`${manifest.runId}\` materialized safely.\n\n` +
+        `Created: ${created.length}\n` +
+        `Reused: ${reused.length}\n` +
+        `Jules trigger requested: ${julesRequested.length}\n` +
+        `Waiting on dependencies: ${waiting.length}\n` +
+        `Human-required: ${humanRequired.length}\n` +
+        `Unassigned: ${unassigned.length}\n\n` +
+        `The exact \`jules\` label is emitted as a separate post-creation label event only for eligible root tasks that explicitly prefer Jules. ` +
+        `External execution still requires the Jules GitHub App to have repository access.\n\n` +
+        `Production: untouched.`,
     }),
   });
   process.stdout.write(`${JSON.stringify(summary)}\n`);
@@ -288,6 +355,10 @@ async function materialize() {
 
 function validateFile(path) {
   const manifest = parseManifest(readFileSync(path, 'utf8'));
+  const initialDispatches = manifest.tasks.map((task) => ({
+    task: task.id,
+    ...initialDispatch(task),
+  }));
   process.stdout.write(
     `${JSON.stringify({
       status: 'valid',
@@ -296,6 +367,7 @@ function validateFile(path) {
       human_gate_tasks: manifest.tasks
         .filter((task) => task.humanGates.length > 0)
         .map((task) => task.id),
+      initial_dispatches: initialDispatches,
     })}\n`,
   );
 }
