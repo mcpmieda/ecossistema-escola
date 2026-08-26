@@ -37,12 +37,18 @@ describe('Banco de Notas import job domain', () => {
     );
   });
 
-  it('blocks forward progress while error findings remain', () => {
-    expect(() => assertImportJobGate({ targetState: 'generated', errorFindingCount: 1 })).toThrow(
-      'import_job_has_unresolved_error_findings',
-    );
+  it('allows analysis to persist blockers but blocks generation until they are resolved', () => {
     expect(() =>
-      assertImportJobGate({ targetState: 'failed', errorFindingCount: 1 }),
+      assertImportJobGate({ targetState: 'analyzed', unresolvedErrorFindingCount: 1 }),
+    ).not.toThrow();
+    expect(() =>
+      assertImportJobGate({ targetState: 'generated', unresolvedErrorFindingCount: 1 }),
+    ).toThrow('import_job_has_unresolved_error_findings');
+    expect(() =>
+      assertImportJobGate({ targetState: 'generated', unresolvedErrorFindingCount: 0 }),
+    ).not.toThrow();
+    expect(() =>
+      assertImportJobGate({ targetState: 'failed', unresolvedErrorFindingCount: 1 }),
     ).not.toThrow();
   });
 
@@ -61,5 +67,23 @@ describe('Banco de Notas import job domain', () => {
     expect(() =>
       importJobTransitionSchema.parse({ targetState: 'analyzed', reason: 'x', provenance: {} }),
     ).toThrow();
+  });
+
+  it('accepts unique finding resolutions and rejects duplicate resolution ids', () => {
+    const findingId = '44444444-4444-4444-8444-444444444444';
+    expect(
+      importJobTransitionSchema.parse({
+        targetState: 'generated',
+        reason: 'Correspondência revisada',
+        resolvedFindingIds: [findingId],
+      }).resolvedFindingIds,
+    ).toEqual([findingId]);
+    expect(() =>
+      importJobTransitionSchema.parse({
+        targetState: 'generated',
+        reason: 'Correspondência revisada',
+        resolvedFindingIds: [findingId, findingId],
+      }),
+    ).toThrow('resolved finding ids must be unique');
   });
 });
