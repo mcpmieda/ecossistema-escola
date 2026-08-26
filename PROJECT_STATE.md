@@ -6,7 +6,7 @@ Em 25/08/2026 foi aberto o branch `feat/banco-de-notas-foundation`, a partir de 
 
 Estado deste trabalho no PR #52: **Fase 1 consolidada e avanço do núcleo de importação/modelo genérico, sem merge ou deploy**. Além da adoção App Factory V1.4 e dos contratos prévios, o branch possui manifesto/capabilities, migrations e repositório D1, APIs iniciais, autoridade temporal de fontes, rota `/banco-de-notas`, shell HeroUI, `Configurações > Fonte`, grade-events interno, gate bearer fail closed, import jobs auditáveis, resolução append-only de blockers, geração determinística de instância genérica e layout físico versionado com posição escolar canônica. O D1 e o registro SharePoint de homologação não foram aplicados externamente; Entra/Graph reais e browser QA permanecem bloqueados por credenciais/ambiente, e a produção corrente do Centro permanece inalterada.
 
-Evidência funcional mais recente antes desta atualização documental: head `82e977a27598fdffa77a7db7bfff17bf433827ce`, workflow `32920316172` / run `#556` — **success**, com segurança de Actions, formatting, lint, typecheck, semantic contract, **205/205 testes em 35 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram `skipped`, como esperado para PR.
+Evidência funcional mais recente antes desta atualização documental: head `82e977a27598fdffa77a7db7bfff17bf433827ce`, workflow `32920316172` / run `#556` — **success**, com segurança de Actions, formatting, lint, typecheck, semantic contract, **206/206 testes em 35 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram `skipped`, como esperado para PR.
 
 Decisões duráveis já registradas:
 
