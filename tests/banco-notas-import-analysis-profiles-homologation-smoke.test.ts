@@ -16,7 +16,8 @@ describe('Banco de Notas remote analysis-profile smoke safeguards', () => {
     expect(smoke).toContain('[switch]$ConfirmSyntheticWrites');
     expect(smoke).toContain('if (-not $ConfirmSyntheticWrites)');
     expect(smoke).toContain('database_name deve ser exatamente $expectedDatabaseName');
-    expect(smoke).toContain('--remote --config $generatedConfig');
+    expect(smoke).toContain('/d1/database/$($database.database_id)/query');
+    expect(smoke).toContain('Invoke-RestMethod -Method Post -Uri $script:d1Endpoint');
   });
 
   it('verifies migration 0006 and its tables before any synthetic insert', () => {
