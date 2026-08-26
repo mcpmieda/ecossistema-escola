@@ -44,7 +44,8 @@ async function readBoundedBody(request: Request, maxBytes: number): Promise<Uint
   const lengthHeader = request.headers.get('Content-Length');
   if (lengthHeader !== null) {
     const length = Number(lengthHeader);
-    if (!Number.isFinite(length) || length < 0) throw new HttpError(400, 'Invalid Content-Length');
+    if (!Number.isFinite(length) || length < 0)
+      throw new HttpError(400, 'Invalid Content-Length');
     if (length > maxBytes) throw new HttpError(413, 'Request body too large');
   }
 
@@ -89,7 +90,8 @@ export async function readBoundedBytes(
 }
 
 export async function readBoundedJson(request: Request, maxBytes = 16_384): Promise<unknown> {
-  if (mediaType(request) !== 'application/json') throw new HttpError(415, 'Expected application/json');
+  if (mediaType(request) !== 'application/json')
+    throw new HttpError(415, 'Expected application/json');
   const bytes = await readBoundedBody(request, maxBytes);
   try {
     return JSON.parse(new TextDecoder().decode(bytes));
