@@ -3,8 +3,8 @@
 Última atualização: 26/08/2026 — retomada após interrupção do Codex
 Branch: `feat/banco-de-notas-foundation`
 PR: `#52` — open, draft, sem merge
-HEAD técnico validado para CI antes deste checkpoint: `042fd368bcf44811c2dfb1c1275c4a8f5587bdbd`
-CI final Graph: `32985538704` / run `#709` — queued no momento deste registro
+HEAD de código/documentação submetido à CI #709: `042fd368bcf44811c2dfb1c1275c4a8f5587bdbd`
+CI Graph: `32985538704` / run `#709` — queued no momento deste registro
 Última baseline D1 comprovada: run `32981705701` — success no HEAD `2467240`
 Última CI verde comprovada: `32981711631` — success no HEAD `2467240`
 
@@ -32,13 +32,13 @@ Fechar a fundação técnica corrente, preservar a homologação remota das migr
 
 ## Em andamento
 
-- [ ] CI `32985538704` / #709 do HEAD `042fd368...`.
-- [ ] Se a CI falhar, corrigir a causa sem enfraquecer regras e repetir.
+- [ ] Fechar CI do bloco Graph reconstruído.
+- [ ] Corrigir qualquer falha real sem enfraquecer regras.
 - [ ] Atualizar corpo do PR #52 com resultado final e contagem real de testes.
 
 ## Próxima ação exata
 
-1. acompanhar o run `32985538704`;
+1. acompanhar a CI do branch após a reconstrução;
 2. exigir formatting, lint, typecheck, semantic contract, testes e build verdes;
 3. corrigir qualquer falha real;
 4. atualizar o corpo do PR com HEAD/run/contagem final;
@@ -53,7 +53,7 @@ Fechar a fundação técnica corrente, preservar a homologação remota das migr
 - Branch: `feat/banco-de-notas-foundation`.
 - PR #52: open, draft, base `main`.
 - Run intermediário `32985041877` / #708 falhou em typecheck porque um mock antigo ainda não possuía `download`; corrigido nos commits posteriores.
-- Run final corrente: `32985538704` / #709 no HEAD `042fd368...`.
+- Run `32985538704` / #709 foi criado para `042fd368...` e estava em fila no último registro.
 
 ### Cloudflare
 
@@ -114,7 +114,7 @@ Nunca registrar secrets.
 - `32981705701` — success — locks de OID/status e estado final sync off.
 - `32981711631` — success — CI do bloco D1; produção skipped.
 - `32985041877` — failure intermediária — mock antigo sem `download`; corrigido depois.
-- `32985538704` — queued — CI final do bloco Graph no HEAD `042fd368...` no momento deste checkpoint.
+- `32985538704` — CI do bloco Graph para `042fd368...`; em fila no último registro.
 
 ## Bloqueios externos
 
@@ -136,7 +136,7 @@ Nunca registrar secrets.
 
 ## Como retomar
 
-1. Confirmar HEAD do PR e o run #709.
+1. Confirmar HEAD do PR e a CI mais recente.
 2. Fechar qualquer falha da CI.
 3. Atualizar o corpo do PR com a baseline final.
 4. Se Microsoft continuar indisponível, avançar em trabalho funcional independente seguro em vez de simular integração externa.
