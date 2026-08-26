@@ -11,12 +11,19 @@ export const importJobStateSchema = z.enum([
   'failed',
 ]);
 
-export const importFindingSchema = z
+export const importFindingInputSchema = z
   .object({
     severity: z.enum(['info', 'warning', 'error']),
     code: z.string().min(1).max(100),
     location: z.record(z.string(), z.unknown()).default({}),
     details: z.record(z.string(), z.unknown()).default({}),
+  })
+  .strict();
+
+export const importFindingSchema = importFindingInputSchema
+  .extend({
+    id: z.string().uuid(),
+    resolvedAt: z.string().datetime().nullable(),
   })
   .strict();
 
@@ -36,12 +43,23 @@ export const importJobTransitionSchema = z
   .object({
     targetState: importJobStateSchema,
     reason: z.string().trim().min(3).max(500),
-    findings: z.array(importFindingSchema).default([]),
+    findings: z.array(importFindingInputSchema).default([]),
+    resolvedFindingIds: z.array(z.string().uuid()).default([]),
     provenance: z.record(z.string(), z.unknown()).default({}),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (new Set(value.resolvedFindingIds).size !== value.resolvedFindingIds.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['resolvedFindingIds'],
+        message: 'resolved finding ids must be unique',
+      });
+    }
+  });
 
 export type ImportJobState = z.infer<typeof importJobStateSchema>;
+export type ImportFindingInput = z.infer<typeof importFindingInputSchema>;
 export type ImportFinding = z.infer<typeof importFindingSchema>;
 export type ImportJobCreate = z.infer<typeof importJobCreateSchema>;
 export type ImportJobTransition = z.infer<typeof importJobTransitionSchema>;
