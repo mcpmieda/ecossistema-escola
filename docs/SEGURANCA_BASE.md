@@ -68,3 +68,15 @@ Jobs com `id-token: write` são allowlisted e precisam manter o ambiente `produc
 O script `infra/ops/ecossistema.ps1` é a interface local de operação. Ele somente dispara workflows conhecidos, consulta logs ou baixa artifacts; não executa comandos administrativos arbitrários no tenant.
 
 A política `infra/validation/assert-github-control-plane.ps1` é executada pelo CI e bloqueia permissões `write-all`, Actions externas sem SHA imutável, inputs perigosos e uso de OIDC fora da allowlist.
+
+## Identidade operacional Microsoft 365
+
+As operações rotineiras Microsoft 365 do Control Plane usam uma identidade Entra separada da identidade de manutenção e do Graph Backend de runtime.
+
+O bootstrap da identidade operacional pode usar `Application.ReadWrite.OwnedBy` apenas para criar ou manter a aplicação, o service principal e sua credencial federada GitHub. Essa identidade solicita somente a permissão de aplicação `Sites.Selected`.
+
+`Sites.Selected` exige consentimento administrativo e não concede acesso a nenhum site por si só. O site autorizado deve receber uma concessão explícita separada. Não usar `Sites.ReadWrite.All`, `Sites.FullControl.All`, `Directory.ReadWrite.All` ou `AppRoleAssignment.ReadWrite.All` como atalho para eliminar essa fronteira administrativa.
+
+Depois do consentimento e da concessão do site, operações normais usam GitHub OIDC -> Entra -> identidade operacional e não dependem de client secret, certificado local, Codex ou login interativo por execução.
+
+Ações Microsoft 365 permanecem tipadas e allowlisted. A fundação inicial é somente de leitura e prontidão; qualquer escrita futura precisa ser implementada como operação explícita, idempotente e auditável.
