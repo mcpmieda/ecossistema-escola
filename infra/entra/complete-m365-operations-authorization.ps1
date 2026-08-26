@@ -164,6 +164,34 @@ function Test-PermissionTargetsApplication {
     return $false
 }
 
+function Get-OwnerIds {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]] $Owners
+    )
+
+    $ids = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($owner in $Owners) {
+        if ($null -eq $owner) {
+            continue
+        }
+
+        $idProperty = $owner.PSObject.Properties['id']
+        if ($null -eq $idProperty) {
+            continue
+        }
+
+        $id = [string] $idProperty.Value
+        if (-not [string]::IsNullOrWhiteSpace($id)) {
+            $ids.Add($id)
+        }
+    }
+
+    return @($ids)
+}
+
 function Ensure-Owner {
     param(
         [Parameter(Mandatory)]
@@ -182,8 +210,9 @@ function Ensure-Owner {
             -Method GET `
             -Path "/$Collection/$ObjectId/owners?`$select=id").value
     )
+    $ownerIds = @(Get-OwnerIds -Owners $owners)
 
-    if ($owners.id -contains $OwnerObjectId) {
+    if ($ownerIds -contains $OwnerObjectId) {
         return
     }
 
@@ -213,8 +242,9 @@ function Remove-OwnerIfPresent {
             -Method GET `
             -Path "/$Collection/$ObjectId/owners?`$select=id").value
     )
+    $ownerIds = @(Get-OwnerIds -Owners $owners)
 
-    if ($owners.id -notcontains $OwnerObjectId) {
+    if ($ownerIds -notcontains $OwnerObjectId) {
         return
     }
 
@@ -308,6 +338,10 @@ try {
             }
 
         $servicePrincipalCreated = $true
+    }
+
+    if (-not $servicePrincipal -or [string]::IsNullOrWhiteSpace([string] $servicePrincipal.id)) {
+        throw 'Microsoft Graph não retornou o Object ID do service principal operacional.'
     }
 
     Ensure-Owner `
