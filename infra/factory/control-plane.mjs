@@ -224,8 +224,18 @@ async function existingTaskIssues(owner, repo, runId) {
 }
 
 async function ensureControlPlaneLabels(owner, repo) {
-  await ensureLabel(owner, repo, FACTORY_LABELS.parent, 'Parent orchestration issue for a Factory Run.');
-  await ensureLabel(owner, repo, FACTORY_LABELS.task, 'Materialized child task from a Factory Run.');
+  await ensureLabel(
+    owner,
+    repo,
+    FACTORY_LABELS.parent,
+    'Parent orchestration issue for a Factory Run.',
+  );
+  await ensureLabel(
+    owner,
+    repo,
+    FACTORY_LABELS.task,
+    'Materialized child task from a Factory Run.',
+  );
   await ensureLabel(
     owner,
     repo,
