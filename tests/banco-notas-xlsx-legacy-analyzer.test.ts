@@ -218,7 +218,9 @@ async function generatedSource(deflated = false) {
     serializer: createGenericXlsxWorkbookSerializer(presentation),
   });
   const bytes = deflated ? await deflatedZip(storedEntries(artifact.bytes)) : artifact.bytes;
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const digestBytes = new Uint8Array(bytes.byteLength);
+  digestBytes.set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', digestBytes);
   const sourceHash = Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, '0'),
   ).join('');
