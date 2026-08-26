@@ -65,7 +65,7 @@ XLSX legado
 → XLSX OOXML novo
 ```
 
-O modelo e o arquivo gerado continuam genéricos, sem regras por professor, turma, aba, disciplina ou célula privada.
+O produto definitivo continua sendo um **modelo genérico limpo**, independente de professor, turma, aba, disciplina ou célula privada.
 
 ### XLSB
 
@@ -73,7 +73,7 @@ XLSB permanece fail-closed. Não existe parser XLSB cloud comprovado e não deve
 
 ## Golden masters
 
-Nina/Alanna são somente evidência privada externa. Nunca usar como:
+Nina/Alanna permanecem **golden masters privados externos**. São somente evidência privada de homologação/regressão e nunca entram no produto final. Nunca usar como:
 
 - template oficial;
 - seed/migration;
