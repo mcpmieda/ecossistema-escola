@@ -1,12 +1,13 @@
 openapi: 3.1.0
 info:
   title: Banco de Notas — importação e modelos genéricos
-  version: 0.2.0
+  version: 0.3.0
   description: >-
     Contrato do pipeline de importação auditável e do ciclo de modelos docentes.
-    Somente os endpoints de import-jobs estão conectados nesta versão. Operações de
-    modelo marcadas como future permanecem fora do roteamento até storage Graph e
-    gates externos serem homologados.
+    Os endpoints administrativos de import-jobs estão conectados nesta versão, mas a passagem
+    draft → analyzed é reservada ao pipeline backend de análise verificada e não pode ser
+    acionada pela transição administrativa genérica. Operações de modelo marcadas como future
+    permanecem fora do roteamento até storage Graph e gates externos serem homologados.
 servers:
   - url: https://admin.escolaieda.com/api/banco-notas
 security:
@@ -65,12 +66,17 @@ paths:
     post:
       operationId: transitionImportJob
       x-implementation-status: connected
+      x-analysis-transition: verified-internal-pipeline
       description: >-
-        Avança exatamente um gate permitido. Findings de erro podem ser persistidos no estado
-        analyzed para revisão; a progressão para generated e estados posteriores exige que todos
-        os erros estejam resolvidos. A resolução é registrada em trilha append-only separada.
-        Não executa nem alega conversão XLSB cloud; o bridge COM, quando usado externamente,
-        deve permanecer registrado na proveniência como ponte de migração/regressão.
+        Avança um gate administrativo permitido depois da análise verificada. A passagem
+        draft → analyzed não é aceita neste endpoint: ela exige o pipeline backend que verifica
+        tamanho/hash/formato/ano da origem, executa um LegacyWorkbookAnalyzer explicitamente
+        compatível, persiste um artefato imutável de análise e somente então grava o estado
+        analyzed. Findings de erro podem existir em analyzed para revisão; a progressão para
+        generated e estados posteriores exige que todos os erros estejam resolvidos. A resolução
+        é registrada em trilha append-only separada. Não executa nem alega conversão XLSB cloud;
+        o bridge COM, quando usado externamente, deve permanecer registrado na proveniência como
+        ponte de migração/regressão.
       requestBody:
         required: true
         content:
@@ -82,7 +88,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ImportJob' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '409':
+          description: >-
+            Idempotência incompatível, cross-year, resolução/transição inválida ou tentativa de
+            usar a transição administrativa para alcançar analyzed.
+          content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
         '422': { $ref: '#/components/responses/Unprocessable' }
   /v1/teacher-models:
     get:
@@ -169,7 +179,8 @@ components:
       additionalProperties: false
       required: [targetState, reason]
       properties:
-        targetState: { $ref: '#/components/schemas/ImportJobState' }
+        targetState:
+          $ref: '#/components/schemas/AdministrativeImportJobTargetState'
         reason: { type: string, minLength: 3, maxLength: 500 }
         findings: { type: array, items: { $ref: '#/components/schemas/ImportFindingInput' } }
         resolvedFindingIds:
@@ -177,6 +188,12 @@ components:
           uniqueItems: true
           items: { type: string, format: uuid }
         provenance: { type: object, additionalProperties: true }
+    AdministrativeImportJobTargetState:
+      type: string
+      description: >-
+        Estados alcançáveis pela transição administrativa genérica. analyzed é deliberadamente
+        excluído porque somente o pipeline backend de análise verificada pode gravá-lo.
+      enum: [generated, validated, ready_to_share, shared, connected, failed]
     ImportJobState:
       type: string
       enum: [draft, analyzed, generated, validated, ready_to_share, shared, connected, failed]
