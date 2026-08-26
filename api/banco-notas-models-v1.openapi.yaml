@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Banco de Notas — importação e modelos genéricos
-  version: 0.1.0
+  version: 0.2.0
   description: >-
     Contrato do pipeline de importação auditável e do ciclo de modelos docentes.
     Somente os endpoints de import-jobs estão conectados nesta versão. Operações de
@@ -57,7 +57,7 @@ paths:
       x-implementation-status: connected
       responses:
         '200':
-          description: Estado, proveniência e findings do job.
+          description: Estado, proveniência e findings do job, incluindo resolução auditável.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ImportJob' }
@@ -66,9 +66,11 @@ paths:
       operationId: transitionImportJob
       x-implementation-status: connected
       description: >-
-        Avança exatamente um gate permitido. Não executa nem alega conversão XLSB
-        cloud; o bridge COM, quando usado externamente, deve permanecer registrado
-        na proveniência como ponte de migração/regressão.
+        Avança exatamente um gate permitido. Findings de erro podem ser persistidos no estado
+        analyzed para revisão; a progressão para generated e estados posteriores exige que todos
+        os erros estejam resolvidos. A resolução é registrada em trilha append-only separada.
+        Não executa nem alega conversão XLSB cloud; o bridge COM, quando usado externamente,
+        deve permanecer registrado na proveniência como ponte de migração/regressão.
       requestBody:
         required: true
         content:
@@ -145,7 +147,7 @@ components:
         sourceHash: { type: string, pattern: '^[a-f0-9]{64}$' }
         sourceFormat: { type: string, enum: [xlsb, xlsx] }
         provenance: { type: object, additionalProperties: true }
-    ImportFinding:
+    ImportFindingInput:
       type: object
       additionalProperties: false
       required: [severity, code, location, details]
@@ -154,6 +156,14 @@ components:
         code: { type: string }
         location: { type: object, additionalProperties: true }
         details: { type: object, additionalProperties: true }
+    ImportFinding:
+      allOf:
+        - $ref: '#/components/schemas/ImportFindingInput'
+        - type: object
+          required: [id, resolvedAt]
+          properties:
+            id: { type: string, format: uuid }
+            resolvedAt: { type: [string, 'null'], format: date-time }
     ImportJobTransition:
       type: object
       additionalProperties: false
@@ -161,7 +171,11 @@ components:
       properties:
         targetState: { $ref: '#/components/schemas/ImportJobState' }
         reason: { type: string, minLength: 3, maxLength: 500 }
-        findings: { type: array, items: { $ref: '#/components/schemas/ImportFinding' } }
+        findings: { type: array, items: { $ref: '#/components/schemas/ImportFindingInput' } }
+        resolvedFindingIds:
+          type: array
+          uniqueItems: true
+          items: { type: string, format: uuid }
         provenance: { type: object, additionalProperties: true }
     ImportJobState:
       type: string
@@ -214,8 +228,8 @@ components:
       description: Recurso não encontrado.
       content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
     Conflict:
-      description: Idempotência incompatível, cross-year ou transição inválida.
+      description: Idempotência incompatível, cross-year, resolução inválida ou transição concorrente/inválida.
       content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
     Unprocessable:
-      description: Findings bloqueadores impedem o próximo gate.
+      description: Findings de erro não resolvidos impedem o próximo gate.
       content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
