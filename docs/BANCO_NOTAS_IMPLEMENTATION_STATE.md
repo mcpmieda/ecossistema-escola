@@ -10,16 +10,16 @@ Estado: **Fase 1 consolidada + grade-events interno + núcleo de importação/mo
 
 ## Evidência funcional corrente
 
-Head funcional: `fb1ed728183a048681109d3d0134921295324a7f`.
+Head funcional: `82e977a27598fdffa77a7db7bfff17bf433827ce`.
 
-GitHub Actions: workflow `32919405343` / run `#545` — **success**:
+GitHub Actions: workflow `32920316172` / run `#556` — **success**:
 
 - `Validate GitHub Actions security` — success;
 - formatting — success;
 - lint — success;
 - typecheck — success;
 - semantic contract — success;
-- testes — **203/203 em 35 arquivos**;
+- testes — **205/205 em 35 arquivos**;
 - build — success;
 - `Deploy production` — skipped;
 - `Verify recovery after deploy` — skipped.
@@ -96,12 +96,17 @@ Garantias atuais:
 - hash da origem e relationship snapshot permanecem na proveniência;
 - instância gerada nasce em `homologation`;
 - instância gerada nasce com `syncEnabled=false`;
-- definição e mapping são versionados;
+- definição, layout e mapping são versionados;
+- o layout define explicitamente `layoutVersion`, `firstStudentRow` e a coluna de cada `gradeField`;
+- a posição escolar estável do aluno entra como `studentPosition` na correspondência canônica e no plano de transformação;
+- o gerador calcula a linha por `firstStudentRow + studentPosition - 1`, sem ordenar UUIDs ou depender da ordem do workbook legado;
+- a instância valida que cada célula corresponde exatamente à coluna e à linha determinadas pelo layout versionado;
+- posições duplicadas dentro da mesma turma são bloqueadas antes da geração;
 - saída é validável sem reabrir o workbook legado.
 
-Limite atual: ainda não existe analisador/serializador XLSX cloud conectado ao pipeline. O bridge COM legado continua somente como ponte de migração/regressão, nunca como parser cloud definitivo.
+O layout físico deixou de ser convenção escondida no gerador. Alterar colunas ou a linha inicial exige nova definição/layout versionados; a ordem dos alunos é derivada da correspondência canônica, não de uma ordenação técnica arbitrária.
 
-O layout físico gerado ainda é um ponto a evoluir antes do serializador definitivo: colunas de notas e ordem de linhas devem migrar para uma definição de layout versionada e uma ordem escolar/humana estável, em vez de se tornarem convenções permanentes implícitas no código.
+Limite atual: ainda não existe analisador/serializador XLSX cloud conectado ao pipeline. O bridge COM legado continua somente como ponte de migração/regressão, nunca como parser cloud definitivo. A implementação futura do serializador deve consumir o layout versionado existente, sem recriar uma segunda regra física paralela.
 
 ## Grade-events
 
@@ -132,13 +137,13 @@ O backend possui validador bearer fail closed para access tokens Entra:
 - delegated scope;
 - erros diferenciados entre autenticação, autorização e indisponibilidade/configuração.
 
-`BANCO_NOTAS_ADDIN_AUDIENCE` e `BANCO_NOTAS_ADDIN_SCOPE` existem no runtime e agora também aparecem como placeholders vazios em `.env.example`.
+`BANCO_NOTAS_ADDIN_AUDIENCE` e `BANCO_NOTAS_ADDIN_SCOPE` existem no runtime e também aparecem como placeholders vazios em `.env.example`.
 
 Nenhum audience/scope real foi inventado ou provisionado. A conexão pública do add-in continua bloqueada até configuração Entra real.
 
 ## Orquestração Graph do modelo docente
 
-A camada de orquestração continua abstrata, sem adapter Graph real, e agora aplica compensação explícita:
+A camada de orquestração continua abstrata, sem adapter Graph real, e aplica compensação explícita:
 
 ```text
 store
@@ -206,7 +211,7 @@ Ordem recomendada:
 3. executar smoke remoto com dados sintéticos, incluindo rollback, cross-year, state machine e resolução de findings;
 4. provisionar audience/delegated scope Entra próprios do add-in;
 5. somente então conectar o router público bearer de `grade-events`;
-6. conectar analisador/serializador XLSX cloud ao pipeline genérico;
+6. conectar analisador/serializador XLSX cloud ao pipeline genérico, consumindo o layout versionado já definido;
 7. conectar adapter Graph real e aplicar SharePoint de homologação;
 8. testar store/share/reconcile e compensação em ambiente real;
 9. executar browser QA desktop/mobile/deep-link/refresh;
