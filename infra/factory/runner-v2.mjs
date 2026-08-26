@@ -73,14 +73,20 @@ async function failTask(owner, repo, issueNumber, message) {
   throw new Error(`Factory task #${issueNumber} failed closed: ${message}`);
 }
 
-function dependenciesMerged(task, siblings, mergedEvidence) {
+export function taskFromManifest(run, taskId) {
+  const task = run.tasks.find((item) => item.id === taskId);
+  if (!task) throw new Error(`Materialized task ${taskId} is absent from immutable parent manifest.`);
+  return task;
+}
+
+export function dependenciesMerged(task, siblings, mergedEvidence) {
   return task.dependsOn.every((dependencyId) => {
     const dependency = siblings.get(dependencyId);
     return dependency && mergedEvidence.has(dependencyId);
   });
 }
 
-async function ensureReadyDependencies(owner, repo, siblings) {
+async function ensureReadyDependencies(owner, repo, run, siblings) {
   const mergedEvidence = new Map();
   for (const [taskId, record] of siblings) {
     const comments = await issueComments(owner, repo, record.issue.number);
@@ -91,9 +97,10 @@ async function ensureReadyDependencies(owner, repo, siblings) {
   for (const record of siblings.values()) {
     const labels = new Set(labelNames(record.issue.labels));
     if (!labels.has(FACTORY_LABELS.waiting)) continue;
-    if (record.task.humanGates.length > 0) continue;
-    if (!dependenciesMerged(record.task, siblings, mergedEvidence)) continue;
-    if (!record.task.preferredProviders.includes('jules')) continue;
+    const taskDefinition = taskFromManifest(run, record.task.taskId);
+    if (taskDefinition.humanGates.length > 0) continue;
+    if (!dependenciesMerged(taskDefinition, siblings, mergedEvidence)) continue;
+    if (!taskDefinition.preferredProviders.includes('jules')) continue;
 
     await setTaskState(
       owner,
@@ -125,9 +132,10 @@ async function dispatchReadyTasks(owner, repo, run, source, siblings) {
     const labels = new Set(labelNames(issue.labels));
     if (!labels.has(FACTORY_LABELS.ready)) continue;
     if (labels.has(FACTORY_LABELS.failed) || labels.has(FACTORY_LABELS.merged)) continue;
-    if (!record.task.preferredProviders.includes('jules')) continue;
-    if (record.task.humanGates.length > 0) continue;
-    if (record.task.paths.length === 0) {
+    const taskDefinition = taskFromManifest(run, record.task.taskId);
+    if (!taskDefinition.preferredProviders.includes('jules')) continue;
+    if (taskDefinition.humanGates.length > 0) continue;
+    if (taskDefinition.paths.length === 0) {
       await failTask(owner, repo, issue.number, 'Declared write scope is empty.');
     }
 
@@ -145,7 +153,6 @@ async function dispatchReadyTasks(owner, repo, run, source, siblings) {
       continue;
     }
 
-    const taskDefinition = run.tasks.find((item) => item.id === record.task.taskId);
     const session = await createJulesSession({
       sourceName: source.name,
       startingBranch: run.integrationBranch,
@@ -274,6 +281,7 @@ async function processCompletedSessions(owner, repo, run, siblings) {
     const issue = await refreshIssue(owner, repo, record.issue.number);
     const labels = new Set(labelNames(issue.labels));
     if (!labels.has(FACTORY_LABELS.running)) continue;
+    const taskDefinition = taskFromManifest(run, record.task.taskId);
 
     const comments = await issueComments(owner, repo, issue.number);
     const sessionName = julesSessionNameFromComments(comments);
@@ -316,7 +324,7 @@ async function processCompletedSessions(owner, repo, run, siblings) {
       );
     }
     const files = await prChangedFiles(owner, repo, prNumber);
-    if (!changedFilesWithinDeclaredScope(files, record.task.paths)) {
+    if (!changedFilesWithinDeclaredScope(files, taskDefinition.paths)) {
       await failTask(
         owner,
         repo,
@@ -427,7 +435,7 @@ export async function runParent(parentIssue) {
       continue;
     }
 
-    await ensureReadyDependencies(owner, repo, siblings);
+    await ensureReadyDependencies(owner, repo, run, siblings);
     siblings = await childIssues(owner, repo, run.runId);
     await dispatchReadyTasks(owner, repo, run, source, siblings);
     siblings = await childIssues(owner, repo, run.runId);
