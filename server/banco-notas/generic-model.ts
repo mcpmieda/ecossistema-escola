@@ -172,6 +172,7 @@ export function generateGenericModelInstance(args: {
         gradeKey: mapping.gradeKey,
         field: mapping.field,
         sheetKey,
+        studentPosition: mapping.studentPosition,
         cellAddress: `${column}${row}`,
       };
     }),
