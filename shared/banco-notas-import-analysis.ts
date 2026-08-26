@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { legacyIntermediateModelSchema } from './banco-notas-generic-model';
-import type { ImportFindingInput, ImportJob } from './banco-notas-import-jobs';
+import type { ImportFindingInput } from './banco-notas-import-jobs';
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u, 'expected lowercase SHA-256');
 
@@ -58,5 +58,5 @@ export type ImportAnalysisCommit = Omit<ImportAnalysis, 'id' | 'createdAt'> & {
 
 export type ImportAnalysisRepository = {
   findImportAnalysis(importJobId: string): Promise<ImportAnalysis | null>;
-  commitImportAnalysis(input: ImportAnalysisCommit): Promise<ImportJob | null>;
+  commitImportAnalysis(input: ImportAnalysisCommit): Promise<ImportAnalysis>;
 };
