@@ -1,3 +1,4 @@
+import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { genericModelInstanceSchema } from '../shared/banco-notas-generic-model';
 import { genericWorkbookPresentationSchema } from '../shared/banco-notas-workbook-presentation';
@@ -139,10 +140,10 @@ function storedEntries(bytes: Uint8Array): Map<string, string> {
 }
 
 async function deflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
-  const copy = new Uint8Array(bytes.byteLength);
-  copy.set(bytes);
-  const stream = new Blob([copy]).stream().pipeThrough(new CompressionStream('deflate-raw'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+  const compressed = deflateRawSync(bytes);
+  const output = new Uint8Array(compressed.byteLength);
+  output.set(compressed);
+  return output;
 }
 
 async function deflatedZip(entries: Map<string, string>): Promise<Uint8Array> {
