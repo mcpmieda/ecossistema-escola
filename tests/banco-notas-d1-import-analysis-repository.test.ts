@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ImportAnalysisCommit } from '../shared/banco-notas-import-analysis';
 import { D1ImportAnalysisRepository } from '../server/banco-notas/d1-import-analysis-repository';
@@ -18,10 +18,10 @@ class SqliteStatement {
   constructor(
     private readonly db: DatabaseSync,
     private readonly sql: string,
-    private readonly params: unknown[] = [],
+    private readonly params: SQLInputValue[] = [],
   ) {}
 
-  bind(...params: unknown[]) {
+  bind(...params: SQLInputValue[]) {
     return new SqliteStatement(this.db, this.sql, params);
   }
 
