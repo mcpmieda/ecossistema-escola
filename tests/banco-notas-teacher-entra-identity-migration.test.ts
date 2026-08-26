@@ -40,14 +40,23 @@ function baseDatabase(modelSyncEnabled = false): DatabaseSync {
   return db;
 }
 
+function setTeacherIdentity(db: DatabaseSync, identity: string, teacherId = TEACHER_ID): void {
+  const statement = db.prepare('UPDATE teachers SET entra_object_id = ? WHERE id = ?');
+  statement.run(identity, teacherId);
+}
+
+function setModelSync(db: DatabaseSync, enabled: boolean): void {
+  const statement = db.prepare('UPDATE teacher_models SET sync_enabled = ? WHERE id = ?');
+  statement.run(enabled ? 1 : 0, MODEL_ID);
+}
+
 describe('Banco de Notas teacher Entra identity migration', () => {
   it('fails safe by disabling a pre-existing sync model without Entra identity', () => {
     const db = baseDatabase(true);
     db.exec(migration7);
 
-    expect(
-      db.prepare('SELECT sync_enabled FROM teacher_models WHERE id = ?').get(MODEL_ID),
-    ).toMatchObject({ sync_enabled: 0 });
+    const row = db.prepare('SELECT sync_enabled FROM teacher_models WHERE id = ?').get(MODEL_ID);
+    expect(row).toMatchObject({ sync_enabled: 0 });
     db.close();
   });
 
@@ -55,63 +64,52 @@ describe('Banco de Notas teacher Entra identity migration', () => {
     const db = baseDatabase();
     db.exec(migration7);
 
-    expect(() =>
-      db.prepare('UPDATE teacher_models SET sync_enabled = 1 WHERE id = ?').run(MODEL_ID),
-    ).toThrow('teacher model entra identity required for sync');
+    expect(() => setModelSync(db, true)).toThrow('teacher model entra identity required for sync');
 
-    db.prepare('UPDATE teachers SET entra_object_id = ? WHERE id = ?').run(ENTRA_ID, TEACHER_ID);
-    db.prepare('UPDATE teacher_models SET sync_enabled = 1 WHERE id = ?').run(MODEL_ID);
+    setTeacherIdentity(db, ENTRA_ID);
+    setModelSync(db, true);
 
-    expect(
-      db.prepare('SELECT sync_enabled FROM teacher_models WHERE id = ?').get(MODEL_ID),
-    ).toMatchObject({ sync_enabled: 1 });
+    const row = db.prepare('SELECT sync_enabled FROM teacher_models WHERE id = ?').get(MODEL_ID);
+    expect(row).toMatchObject({ sync_enabled: 1 });
     db.close();
   });
 
   it('prevents two teachers from sharing the same Entra object id', () => {
     const db = baseDatabase();
     db.exec(migration7);
-    db.prepare('UPDATE teachers SET entra_object_id = ? WHERE id = ?').run(ENTRA_ID, TEACHER_ID);
+    setTeacherIdentity(db, ENTRA_ID);
     db.prepare('INSERT INTO teachers (id, display_name) VALUES (?, ?)').run(
       OTHER_TEACHER_ID,
       'Outro docente sintético',
     );
 
-    expect(() =>
-      db.prepare('UPDATE teachers SET entra_object_id = ? WHERE id = ?').run(
-        ENTRA_ID,
-        OTHER_TEACHER_ID,
-      ),
-    ).toThrow('UNIQUE constraint failed');
+    expect(() => setTeacherIdentity(db, ENTRA_ID, OTHER_TEACHER_ID)).toThrow(
+      'UNIQUE constraint failed',
+    );
     db.close();
   });
 
   it('locks teacher identity and active status while a model is sync-enabled', () => {
     const db = baseDatabase();
     db.exec(migration7);
-    db.prepare('UPDATE teachers SET entra_object_id = ? WHERE id = ?').run(ENTRA_ID, TEACHER_ID);
-    db.prepare('UPDATE teacher_models SET sync_enabled = 1 WHERE id = ?').run(MODEL_ID);
+    setTeacherIdentity(db, ENTRA_ID);
+    setModelSync(db, true);
 
-    expect(() =>
-      db.prepare('UPDATE teachers SET entra_object_id = ? WHERE id = ?').run(
-        OTHER_ENTRA_ID,
-        TEACHER_ID,
-      ),
-    ).toThrow('teacher entra identity locked while sync enabled');
-    expect(() =>
-      db.prepare("UPDATE teachers SET status = 'inactive' WHERE id = ?").run(TEACHER_ID),
-    ).toThrow('active teacher required while sync enabled');
-
-    db.prepare('UPDATE teacher_models SET sync_enabled = 0 WHERE id = ?').run(MODEL_ID);
-    db.prepare('UPDATE teachers SET entra_object_id = ? WHERE id = ?').run(
-      OTHER_ENTRA_ID,
-      TEACHER_ID,
+    expect(() => setTeacherIdentity(db, OTHER_ENTRA_ID)).toThrow(
+      'teacher entra identity locked while sync enabled',
     );
+    expect(() => {
+      db.prepare("UPDATE teachers SET status = 'inactive' WHERE id = ?").run(TEACHER_ID);
+    }).toThrow('active teacher required while sync enabled');
+
+    setModelSync(db, false);
+    setTeacherIdentity(db, OTHER_ENTRA_ID);
     db.prepare("UPDATE teachers SET status = 'inactive' WHERE id = ?").run(TEACHER_ID);
 
-    expect(
-      db.prepare('SELECT entra_object_id, status FROM teachers WHERE id = ?').get(TEACHER_ID),
-    ).toMatchObject({ entra_object_id: OTHER_ENTRA_ID, status: 'inactive' });
+    const row = db
+      .prepare('SELECT entra_object_id, status FROM teachers WHERE id = ?')
+      .get(TEACHER_ID);
+    expect(row).toMatchObject({ entra_object_id: OTHER_ENTRA_ID, status: 'inactive' });
     db.close();
   });
 });
