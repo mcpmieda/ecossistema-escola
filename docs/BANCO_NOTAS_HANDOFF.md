@@ -116,6 +116,8 @@ O smoke remoto está em `infra/banco-notas/cloudflare/smoke-homologation.ps1`. E
 
 ## Decisões que não podem regredir
 
+- o produto definitivo sempre gera um **modelo genérico limpo**, sem regra dependente de professor, workbook, aba, turma, componente ou célula de caso privado;
+- os arquivos Nina/Alanna permanecem **golden masters privados externos**, usados somente para homologação/regressão e nunca como templates oficiais, runtime, D1, migration, fixture pública ou distribuição;
 - Banco de Notas é módulo nativo do Centro no mesmo repo/deploy;
 - HeroUI React v3 nativo;
 - D1 é estado transacional; SharePoint/OneDrive são arquivos/versões; Graph só no backend;
@@ -128,7 +130,6 @@ O smoke remoto está em `infra/banco-notas/cloudflare/smoke-homologation.ps1`. E
 - `studentPosition` é canônico; não ordenar por UUID;
 - serializador deve consumir o layout/mappings versionados, nunca criar segunda regra paralela de células;
 - `_BancoNotas` é aba interna reservada;
-- golden masters privados nunca entram em Git/runtime/D1/migrations/fixtures públicas/distribuição;
 - não declarar suporte XLSB cloud sem adapter comprovado;
 - não fazer merge, retirar draft ou deploy de produção sem autorização humana explícita.
 
