@@ -92,7 +92,8 @@ paths:
           description: >-
             Idempotência incompatível, cross-year, resolução/transição inválida ou tentativa de
             usar a transição administrativa para alcançar analyzed.
-          content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
+          content:
+            { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
         '422': { $ref: '#/components/responses/Unprocessable' }
   /v1/teacher-models:
     get:
