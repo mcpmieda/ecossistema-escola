@@ -6,6 +6,7 @@ on:
       - 'infra/factory/**'
       - '.github/workflows/factory-control-plane.yml'
       - 'docs/FACTORY_CONTROL_PLANE.md'
+      - 'docs/FACTORY_RUN_ISSUE_FORMAT.md'
   issues:
     types: [opened, edited, reopened]
 
@@ -27,7 +28,9 @@ jobs:
         with:
           persist-credentials: false
       - name: Check Factory Control Plane syntax
-        run: node --check infra/factory/control-plane.mjs
+        run: node --check infra/factory/control-plane.mjs && node --check infra/factory/dispatch-policy.mjs
+      - name: Test provider dispatch guardrails
+        run: node --test infra/factory/dispatch-policy.test.mjs
       - name: Validate Banco de Notas Factory Run fixture
         run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.txt
 
