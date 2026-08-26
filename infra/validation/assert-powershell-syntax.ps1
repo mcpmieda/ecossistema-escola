@@ -33,7 +33,7 @@ foreach ($file in $PowerShellFiles) {
         )
 
         $Failures.Add(
-            "$relativePath:$($parseError.Extent.StartLineNumber):$($parseError.Extent.StartColumnNumber) $($parseError.Message)"
+            "${relativePath}:$($parseError.Extent.StartLineNumber):$($parseError.Extent.StartColumnNumber) $($parseError.Message)"
         )
     }
 }
