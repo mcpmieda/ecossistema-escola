@@ -3,10 +3,36 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const root = process.cwd();
+const provisionPath = join(root, 'infra/banco-notas/cloudflare/provision-homologation.ps1');
 const smokePath = join(root, 'infra/banco-notas/cloudflare/smoke-homologation.ps1');
+const provision = readFileSync(provisionPath, 'utf8');
 const smoke = readFileSync(smokePath, 'utf8');
 
-describe('Banco de Notas remote D1 homologation smoke safeguards', () => {
+describe('Banco de Notas remote D1 homologation safeguards', () => {
+  it('provisions only the homologation database through the current Wrangler contract', () => {
+    expect(provision).toContain("$databaseName = 'banco-notas-homologation'");
+    expect(provision).toContain('wrangler d1 list --json');
+    expect(provision).toContain('wrangler d1 create $databaseName');
+    expect(provision).not.toMatch(/wrangler\s+d1\s+create[^\r\n]*--json/iu);
+    expect(provision).not.toContain('api.cloudflare.com/client/v4/accounts');
+    expect(provision).toContain("$accountId -notmatch '^[0-9a-fA-F]{32}$'");
+    expect(provision).toContain('Mais de um D1 chamado $databaseName foi encontrado');
+  });
+
+  it('locks the remote migration set to 0001 through 0006 before applying it', () => {
+    for (const migration of [
+      '0001_banco_notas_foundation.sql',
+      '0002_banco_notas_cross_year_integrity.sql',
+      '0003_banco_notas_import_job_state_machine.sql',
+      '0004_banco_notas_import_finding_resolution.sql',
+      '0005_banco_notas_import_analysis.sql',
+      '0006_banco_notas_import_analysis_profiles.sql',
+    ]) {
+      expect(provision).toContain(migration);
+    }
+    expect(provision).toContain('wrangler d1 migrations apply BANCO_NOTAS_DB --remote');
+  });
+
   it('is locked to the homologation database and requires explicit synthetic-write acknowledgement', () => {
     expect(smoke).toContain("$expectedDatabaseName = 'banco-notas-homologation'");
     expect(smoke).toContain('[switch]$ConfirmSyntheticWrites');
