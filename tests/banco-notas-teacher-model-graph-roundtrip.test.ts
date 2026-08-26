@@ -121,7 +121,9 @@ describe('Banco de Notas Graph XLSX round trip', () => {
       });
       expect(analysis.model.classes.map((item) => item.displayName)).toEqual(['Turma A']);
       expect(analysis.model.components.map((item) => item.displayName)).toEqual(['Matemática']);
-      expect(analysis.model.students.map((item) => item.displayName)).toEqual(['Estudante Sintético']);
+      expect(analysis.model.students.map((item) => item.displayName)).toEqual([
+        'Estudante Sintético',
+      ]);
       expect(analysis.model.findings).toEqual([]);
     });
 
@@ -146,6 +148,8 @@ describe('Banco de Notas Graph XLSX round trip', () => {
 
     expect(gateway.download).toHaveBeenCalledOnce();
     expect(verifyDownloadedWorkbook).toHaveBeenCalledOnce();
-    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ result: 'succeeded' }));
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ result: 'succeeded' }),
+    );
   });
 });
