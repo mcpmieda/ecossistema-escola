@@ -62,18 +62,26 @@ describe('Banco de Notas teacher model Graph orchestration', () => {
     expect(graph.revokeShare).toHaveBeenCalledWith(
       expect.objectContaining({ driveItemId: 'drive-item-1', permissionId: 'permission-1' }),
     );
-    expect(graph.remove).toHaveBeenCalledWith(expect.objectContaining({ driveItemId: 'drive-item-1' }));
+    expect(graph.remove).toHaveBeenCalledWith(
+      expect.objectContaining({ driveItemId: 'drive-item-1' }),
+    );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         result: 'failed',
         safeError: 'stored_model_size_mismatch',
-        compensation: expect.objectContaining({ shareRevoked: true, storedFileRemoved: true, errors: [] }),
+        compensation: expect.objectContaining({
+          shareRevoked: true,
+          storedFileRemoved: true,
+          errors: [],
+        }),
       }),
     );
   });
 
   it('removes an uploaded file when sharing fails before a permission is created', async () => {
-    const graph = gateway({ share: vi.fn(async () => Promise.reject(new Error('share_failed'))) });
+    const graph = gateway({
+      share: vi.fn(async () => Promise.reject(new Error('share_failed'))),
+    });
     const audit = { record: vi.fn(async () => undefined) };
 
     await expect(
