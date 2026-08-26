@@ -19,7 +19,7 @@ GitHub Actions: workflow `32920316172` / run `#556` — **success**:
 - lint — success;
 - typecheck — success;
 - semantic contract — success;
-- testes — **205/205 em 35 arquivos**;
+- testes — **206/206 em 35 arquivos**;
 - build — success;
 - `Deploy production` — skipped;
 - `Verify recovery after deploy` — skipped.
