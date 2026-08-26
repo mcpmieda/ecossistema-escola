@@ -123,7 +123,10 @@ describe('Banco de Notas add-in Microsoft Entra bearer', () => {
       BearerAuthenticationError,
     );
     const validToken = await token();
-    const tampered = `${validToken.slice(0, -2)}aa`;
+    const tokenParts = validToken.split('.');
+    const signature = tokenParts[2]!;
+    tokenParts[2] = `${signature.startsWith('a') ? 'b' : 'a'}${signature.slice(1)}`;
+    const tampered = tokenParts.join('.');
     await expect(verify(`Bearer ${tampered}`)).rejects.toBeInstanceOf(BearerAuthenticationError);
   });
 
