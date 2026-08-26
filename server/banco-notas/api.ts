@@ -21,7 +21,8 @@ import {
   type ImportAnalysisRuntime,
 } from './import-analysis-upload';
 
-const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const XLSX_CONTENT_TYPE =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const XLSB_CONTENT_TYPE = 'application/vnd.ms-excel.sheet.binary.macroenabled.12';
 const MAX_IMPORT_WORKBOOK_BYTES = 32 * 1024 * 1024;
 
@@ -118,7 +119,8 @@ async function importAnalysisMutation<T>(operation: () => Promise<T>): Promise<T
     return await operation();
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === 'import_job_not_found') throw new HttpError(404, 'Import job not found');
+      if (error.message === 'import_job_not_found')
+        throw new HttpError(404, 'Import job not found');
       if (error.message === 'import_job_school_year_not_found') {
         throw new HttpError(409, 'Import job school year is unavailable');
       }
@@ -213,7 +215,8 @@ export async function routeBancoNotasApi(args: {
   if (importAnalysisMatch?.[1]) {
     allowed(request, ['GET', 'POST']);
     requireCapability(capabilities, 'grades.import.run');
-    if (!args.importAnalysis) throw new HttpError(503, 'Import analysis storage is unavailable');
+    if (!args.importAnalysis)
+      throw new HttpError(503, 'Import analysis storage is unavailable');
     if (request.method === 'GET') {
       const result = await findImportAnalysis({
         repository: args.importAnalysis.repository,
@@ -223,6 +226,7 @@ export async function routeBancoNotasApi(args: {
       return response(result);
     }
 
+    const reason = importReason(request);
     const bytes = await readBoundedBytes(request, {
       maxBytes: MAX_IMPORT_WORKBOOK_BYTES,
       allowedContentTypes: [XLSX_CONTENT_TYPE, XLSB_CONTENT_TYPE],
@@ -235,7 +239,7 @@ export async function routeBancoNotasApi(args: {
           importJobId: importAnalysisMatch[1]!,
           bytes,
           actor,
-          reason: importReason(request),
+          reason,
         }),
       ),
     );
