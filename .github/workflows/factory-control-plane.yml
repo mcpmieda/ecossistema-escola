@@ -49,6 +49,7 @@ jobs:
           infra/factory/dispatch-policy.test.mjs
           infra/factory/reconciliation-policy.test.mjs
           infra/factory/contract-v2.test.mjs
+          infra/factory/github-api.test.mjs
           infra/factory/jules-api.test.mjs
           infra/factory/runner-v2.test.mjs
       - name: Validate legacy Banco de Notas Factory Run fixture
