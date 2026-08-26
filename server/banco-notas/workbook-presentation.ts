@@ -1,4 +1,7 @@
-import { genericModelInstanceSchema, type GenericModelInstance } from '../../shared/banco-notas-generic-model';
+import {
+  genericModelInstanceSchema,
+  type GenericModelInstance,
+} from '../../shared/banco-notas-generic-model';
 import {
   genericWorkbookPresentationSchema,
   genericWorkbookPresentationSourceSchema,
@@ -43,8 +46,10 @@ function validateSourceAgainstInstance(
   instance: GenericModelInstance,
   source: GenericWorkbookPresentationSource,
 ): void {
-  if (source.modelId !== instance.modelId) throw new Error('xlsx_presentation_source_model_mismatch');
-  if (source.schoolYear !== instance.schoolYear) throw new Error('xlsx_presentation_source_year_mismatch');
+  if (source.modelId !== instance.modelId)
+    throw new Error('xlsx_presentation_source_model_mismatch');
+  if (source.schoolYear !== instance.schoolYear)
+    throw new Error('xlsx_presentation_source_year_mismatch');
 
   const layoutFields = new Set(instance.layout.gradeColumns.map((item) => item.field));
   const sourceFields = new Set(source.gradeHeaders.map((item) => item.field));
@@ -112,7 +117,9 @@ export function buildGenericWorkbookPresentation(args: {
         `${sheet.classDisplayName} - ${sheet.componentDisplayName}`,
         usedNames,
       ),
-      rows: sheet.rows.slice().sort((left, right) => left.studentPosition - right.studentPosition),
+      rows: sheet.rows
+        .slice()
+        .sort((left, right) => left.studentPosition - right.studentPosition),
     }));
 
   return genericWorkbookPresentationSchema.parse({
