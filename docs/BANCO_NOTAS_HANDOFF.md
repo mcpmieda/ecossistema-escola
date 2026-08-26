@@ -10,16 +10,16 @@ Estado: **Fase 1 consolidada, grade-events interno e núcleo de importação/mod
 
 ## Evidência funcional mais recente
 
-Head funcional: `82e977a27598fdffa77a7db7bfff17bf433827ce`.
+Head funcional: `d71c19a111bee387bc4a9d83dc58315ab281f3ee`.
 
-Workflow `32920316172` / run `#556` — **success**:
+Workflow `32921638884` / run `#571` — **success**:
 
 - segurança de GitHub Actions — success;
 - formatting — success;
 - lint — success;
 - typecheck — success;
 - semantic contract — success;
-- **206/206 testes em 35 arquivos** — success;
+- **214/214 testes em 36 arquivos** — success;
 - build — success;
 - deploy production — skipped;
 - recovery pós-deploy — skipped.
@@ -35,11 +35,13 @@ O warning histórico de chunk JavaScript acima de 500 kB permanece não bloquead
 - progressão para `generated` ou além fica bloqueada enquanto houver `error` não resolvido;
 - state re-entry no mesmo estado é bloqueado no storage para reduzir corrida concorrente;
 - orquestração Graph compensa falhas com revoke de permissão e remoção do arquivo, promovendo e auditando falha de compensação;
-- o modelo genérico agora possui layout físico explicitamente versionado;
-- `layoutVersion`, `firstStudentRow` e a coluna de cada `gradeField` fazem parte da definição e seguem para o plano/instância;
-- a posição escolar do aluno é recebida como `studentPosition`, não derivada de UUID ou da ordem acidental do workbook;
-- posições duplicadas dentro da mesma turma bloqueiam geração;
-- a instância valida que a célula gerada corresponde exatamente à posição e à coluna definidas pelo layout.
+- o modelo genérico possui layout físico explicitamente versionado e posição escolar canônica via `studentPosition`;
+- foram criados boundaries explícitos `LegacyWorkbookAnalyzer` e `GenericWorkbookSerializer`;
+- bytes de entrada e saída são verificados por SHA-256 e tamanho;
+- analyzer/serializer IDs ficam preservados como proveniência;
+- analyzer sem suporte explícito a XLSB falha fechado; **não existe parser XLSB cloud declarado**;
+- analyzer que altera a cópia verificada da origem é rejeitado;
+- metadata do XLSX serializado precisa corresponder exatamente à versão/layout/proveniência da instância genérica.
 
 ## Comece por aqui
 
@@ -50,7 +52,7 @@ O warning histórico de chunk JavaScript acima de 500 kB permanece não bloquead
 5. leia `specs/banco-notas/semantic-contract.json`, `semantic-assurance.json` e `verification-plan.json`;
 6. leia `api/banco-notas-grade-events-v1.openapi.yaml`, `api/banco-notas-grade-events-v1.asyncapi.yaml` e `api/banco-notas-models-v1.openapi.yaml`;
 7. revise migrations `0001` a `0004` antes de qualquer D1 remoto;
-8. revise `server/banco-notas/d1-repository.ts`, `import-jobs.ts`, `generic-model.ts`, `grade-events.ts`, `d1-grade-event-store.ts` e `teacher-model-graph.ts`;
+8. revise `server/banco-notas/d1-repository.ts`, `import-jobs.ts`, `generic-model.ts`, `workbook-pipeline.ts`, `grade-events.ts`, `d1-grade-event-store.ts` e `teacher-model-graph.ts`;
 9. leia `VERIFICATION.md`, `PROJECT_STATE.md` e `ARCHITECTURE.md` para preservar o Centro existente.
 
 ## Decisões duráveis
@@ -75,7 +77,8 @@ O warning histórico de chunk JavaScript acima de 500 kB permanece não bloquead
 - stale permanece auditável sem regredir snapshot;
 - add-in só será exposto com bearer Entra/audience/scope próprios, nunca cookie administrativo improvisado;
 - layout físico do modelo é versionado; não reintroduzir mapa de colunas hardcoded no gerador/serializador;
-- posição escolar do aluno é dado canônico da correspondência e não ordenação técnica por UUID.
+- posição escolar do aluno é dado canônico da correspondência e não ordenação técnica por UUID;
+- parser/serializer concreto deve entrar por boundary explícito, com hash/proveniência verificados; não acoplar biblioteca de workbook diretamente ao domínio.
 
 A produção continua obrigada a gerar um **modelo genérico limpo**, sem especialização por professor, workbook, aba, turma, disciplina ou célula de golden master.
 
@@ -129,9 +132,21 @@ LegacyIntermediateModel
 
 Já existem contracts, planner, geração determinística e fixtures sintéticas. A instância nasce em `homologation` com `syncEnabled=false`.
 
-O layout físico já não é uma convenção implícita do gerador. A definição contém layout versionado e o plano preserva essa definição. A posição do aluno vem da correspondência canônica; o gerador apenas projeta essa posição na linha física. O serializador XLSX futuro deve consumir essa mesma definição, sem criar outra tabela de colunas ou outra regra de ordenação.
+O layout físico já não é uma convenção implícita do gerador. A definição contém layout versionado e o plano preserva essa definição. A posição do aluno vem da correspondência canônica; o gerador apenas projeta essa posição na linha física.
 
-Ainda falta o analisador/serializador XLSX cloud real. Não declarar conversão XLSB cloud. O bridge COM legado é apenas ponte de migração/regressão.
+## Boundary de workbook
+
+Arquivos:
+
+- `shared/banco-notas-workbook-pipeline.ts`;
+- `server/banco-notas/workbook-pipeline.ts`;
+- `tests/banco-notas-workbook-pipeline.test.ts`.
+
+O boundary de análise exige metadata de origem, valida tamanho/hash antes de executar o adapter, exige suporte explícito ao formato, preserva `analyzerId` e confere se o `LegacyIntermediateModel` continua ligado à mesma origem/ano/formato. O adapter recebe uma cópia dos bytes e mutação dessa cópia invalida a execução.
+
+O boundary de serialização aceita somente metadata de artefato XLSX compatível com a instância genérica, verifica tamanho/hash, prende o artefato a `modelId`, `definitionVersion`, `layoutVersion`, `mappingVersion`, `sourceHash` e `relationshipSnapshotId`, preserva `serializerId` e devolve uma cópia dos bytes verificados.
+
+Ainda faltam os adapters cloud reais. Não declarar conversão XLSB cloud. O bridge COM legado é apenas ponte de migração/regressão. O serializer XLSX futuro deve consumir o layout versionado existente, não criar uma segunda tabela de colunas ou regra de ordenação.
 
 ## Grade-events e Entra
 
@@ -168,7 +183,8 @@ Eles não são templates e não podem entrar em Git, runtime, D1, migrations, fi
 - não houve aplicação real no SharePoint;
 - não houve chamada Graph real;
 - não houve app registration/audience/scope do add-in provisionado;
-- não existe parser/serializador XLSX cloud conectado;
+- não existe analyzer/serializer cloud real conectado;
+- não existe parser XLSB cloud comprovado;
 - não houve sync end-to-end;
 - não houve deploy do Banco de Notas.
 
@@ -188,7 +204,7 @@ Quando houver credenciais externas:
 3. executar smoke remoto sintético para defaults, cross-year, idempotência, state machine, resolução append-only e rollback;
 4. provisionar audience/delegated scope Entra próprios;
 5. conectar grade-events público somente depois do gate bearer real;
-6. conectar analisador/serializador XLSX cloud consumindo o layout versionado já definido;
+6. implementar/conectar analyzer XLSX cloud e serializer XLSX real pelos boundaries existentes; suporte XLSB cloud exige adapter próprio comprovado;
 7. implementar adapter Graph real e aplicar SharePoint de homologação;
 8. testar store/share/reconcile + compensação no Microsoft real;
 9. executar browser QA desktop/mobile/deep-link/refresh;
@@ -203,7 +219,8 @@ Quando houver credenciais externas:
 - não usar GitHub como runtime;
 - não acumular wrappers, overrides temporários, CSS duplicado ou código morto;
 - não reintroduzir mapa físico de colunas hardcoded ou ordenação por UUID no gerador/serializador;
+- não acoplar parser/serializer concreto diretamente ao domínio, contornando o boundary de hash/proveniência;
 - não ativar sync em massa;
 - não expor add-in sem bearer Entra próprio;
-- não alegar D1/Graph/SharePoint/browser QA real sem execução real;
+- não alegar D1/Graph/SharePoint/browser QA/parser XLSB cloud real sem execução real;
 - não fazer merge, retirar draft ou deploy de produção sem autorização humana explícita.
