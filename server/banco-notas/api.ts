@@ -13,8 +13,17 @@ import {
   importJobTransitionSchema,
 } from '../../shared/banco-notas-import-jobs';
 import { requireCapability } from '../auth/capabilities';
-import { HttpError, readBoundedJson } from '../http/security';
+import { HttpError, readBoundedBytes, readBoundedJson } from '../http/security';
 import { effectiveAuthority } from './domain';
+import {
+  analyzeUploadedImportWorkbook,
+  findImportAnalysis,
+  type ImportAnalysisRuntime,
+} from './import-analysis-upload';
+
+const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const XLSB_CONTENT_TYPE = 'application/vnd.ms-excel.sheet.binary.macroenabled.12';
+const MAX_IMPORT_WORKBOOK_BYTES = 32 * 1024 * 1024;
 
 async function body(request: Request): Promise<unknown> {
   return readBoundedJson(request);
@@ -33,6 +42,13 @@ function response(value: unknown, status = 200): Response {
 }
 function allowed(request: Request, methods: string[]): void {
   if (!methods.includes(request.method)) throw new HttpError(405, 'Method not allowed');
+}
+function importReason(request: Request): string {
+  const reason = request.headers.get('X-Import-Reason')?.trim() ?? '';
+  if (reason.length < 3 || reason.length > 500) {
+    throw new HttpError(400, 'X-Import-Reason must contain between 3 and 500 characters');
+  }
+  return reason;
 }
 async function sourceAuthorityMutation<T>(operation: () => Promise<T>): Promise<T> {
   try {
@@ -97,17 +113,59 @@ async function importJobMutation<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
+async function importAnalysisMutation<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'import_job_not_found') throw new HttpError(404, 'Import job not found');
+      if (error.message === 'import_job_school_year_not_found') {
+        throw new HttpError(409, 'Import job school year is unavailable');
+      }
+      if (error.message === 'import_job_source_format_invalid') {
+        throw new HttpError(409, 'Import job source format is invalid');
+      }
+      if (
+        error.message.startsWith('import_analyzer_not_configured:') ||
+        error.message.startsWith('import_analyzer_ambiguous:')
+      ) {
+        throw new HttpError(503, 'Compatible import analyzer is not configured');
+      }
+      if (error.message === 'import_analysis_idempotency_conflict') {
+        throw new HttpError(409, 'A different analysis already exists for this import job');
+      }
+      if (
+        error.message === 'import_analysis_source_mismatch' ||
+        error.message === 'legacy_workbook_sha256_mismatch' ||
+        error.message === 'legacy_workbook_byte_length_mismatch' ||
+        error.message.startsWith('workbook_format_not_supported:') ||
+        error.message.startsWith('xlsx_')
+      ) {
+        throw new HttpError(422, 'Uploaded workbook failed verified analysis');
+      }
+      if (error.message.startsWith('invalid_import_job_transition:')) {
+        throw new HttpError(409, 'Import job is not eligible for analysis');
+      }
+    }
+    throw error;
+  }
+}
+
 export async function routeBancoNotasApi(args: {
   request: Request;
   repository: BancoNotasRepository;
   capabilities: readonly PlatformCapability[];
   actor: string;
+  importAnalysis?: ImportAnalysisRuntime;
 }): Promise<Response> {
   const { request, repository, capabilities, actor } = args;
   const url = new URL(request.url);
   const path = url.pathname.replace(/^\/api\/banco-notas/u, '') || '/';
+  const importAnalysisMatch = path.match(/^\/v1\/import-jobs\/([0-9a-f-]+)\/analysis$/iu);
   const requestBody =
-    request.method === 'POST' || request.method === 'PATCH' ? await body(request) : undefined;
+    (request.method === 'POST' || request.method === 'PATCH') && !importAnalysisMatch
+      ? await body(request)
+      : undefined;
 
   if (path === '/health') {
     allowed(request, ['GET']);
@@ -150,6 +208,36 @@ export async function routeBancoNotasApi(args: {
         ),
       ),
       201,
+    );
+  }
+  if (importAnalysisMatch?.[1]) {
+    allowed(request, ['GET', 'POST']);
+    requireCapability(capabilities, 'grades.import.run');
+    if (!args.importAnalysis) throw new HttpError(503, 'Import analysis storage is unavailable');
+    if (request.method === 'GET') {
+      const result = await findImportAnalysis({
+        repository: args.importAnalysis.repository,
+        importJobId: importAnalysisMatch[1],
+      });
+      if (!result) throw new HttpError(404, 'Import analysis not found');
+      return response(result);
+    }
+
+    const bytes = await readBoundedBytes(request, {
+      maxBytes: MAX_IMPORT_WORKBOOK_BYTES,
+      allowedContentTypes: [XLSX_CONTENT_TYPE, XLSB_CONTENT_TYPE],
+    });
+    return response(
+      await importAnalysisMutation(() =>
+        analyzeUploadedImportWorkbook({
+          jobs: repository,
+          runtime: args.importAnalysis!,
+          importJobId: importAnalysisMatch[1]!,
+          bytes,
+          actor,
+          reason: importReason(request),
+        }),
+      ),
     );
   }
   const importJobMatch = path.match(/^\/v1\/import-jobs\/([0-9a-f-]+)$/iu);
