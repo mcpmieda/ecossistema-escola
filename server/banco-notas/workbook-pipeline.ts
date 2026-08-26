@@ -1,4 +1,7 @@
-import { genericModelInstanceSchema, legacyIntermediateModelSchema } from '../../shared/banco-notas-generic-model';
+import {
+  genericModelInstanceSchema,
+  legacyIntermediateModelSchema,
+} from '../../shared/banco-notas-generic-model';
 import {
   genericWorkbookArtifactMetadataSchema,
   legacyWorkbookSourceMetadataSchema,
