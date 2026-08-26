@@ -8,17 +8,30 @@ import {
   pullRequestUrlsFromSession,
 } from './jules-api.mjs';
 
-test('stores and recovers a Jules session through a non-secret issue marker', () => {
+const FACTORY_ACTOR = 'github-actions[bot]';
+
+test('stores and recovers a Jules session only through a trusted Factory marker', () => {
   const marker = julesSessionMarker('sessions/12345');
   assert.equal(marker, '<!-- factory-jules-session:sessions/12345 -->');
   assert.equal(
-    julesSessionNameFromComments([{ body: `audit\n${marker}\nstarted` }]),
+    julesSessionNameFromComments([
+      { user: { login: FACTORY_ACTOR }, body: `audit\n${marker}\nstarted` },
+    ]),
     'sessions/12345',
+  );
+  assert.equal(
+    julesSessionNameFromComments([{ user: { login: 'someone' }, body: marker }]),
+    null,
   );
 });
 
 test('ignores malformed Jules session markers', () => {
-  assert.equal(julesSessionNameFromComments([{ body: '<!-- factory-jules-session:bad -->' }]), null);
+  assert.equal(
+    julesSessionNameFromComments([
+      { user: { login: FACTORY_ACTOR }, body: '<!-- factory-jules-session:bad -->' },
+    ]),
+    null,
+  );
   assert.throws(() => julesSessionMarker('bad'));
 });
 
