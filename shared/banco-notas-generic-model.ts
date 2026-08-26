@@ -8,6 +8,42 @@ const opaqueIdSchema = z
   .max(180)
   .regex(/^[A-Za-z0-9._:-]+$/u);
 const canonicalIdSchema = z.string().uuid();
+const excelColumnSchema = z.string().regex(/^[A-Z]{1,3}$/u, 'expected an Excel column');
+
+export const genericModelLayoutSchema = z
+  .object({
+    layoutVersion: z.string().min(1).max(40),
+    firstStudentRow: z.number().int().min(2).max(1_000_000),
+    gradeColumns: z
+      .array(
+        z
+          .object({
+            field: gradeFieldSchema,
+            column: excelColumnSchema,
+          })
+          .strict(),
+      )
+      .min(1),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const fields = value.gradeColumns.map((item) => item.field);
+    if (new Set(fields).size !== fields.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['gradeColumns'],
+        message: 'layout grade fields must be unique',
+      });
+    }
+    const columns = value.gradeColumns.map((item) => item.column);
+    if (new Set(columns).size !== columns.length) {
+      context.addIssue({
+        code: 'custom',
+        path: ['gradeColumns'],
+        message: 'layout grade columns must be unique',
+      });
+    }
+  });
 
 export const genericModelDefinitionSchema = z
   .object({
@@ -19,6 +55,7 @@ export const genericModelDefinitionSchema = z
     defaultEnvironment: z.literal('homologation'),
     defaultSyncEnabled: z.literal(false),
     gradeFields: z.array(gradeFieldSchema).min(1),
+    layout: genericModelLayoutSchema,
   })
   .strict()
   .superRefine((value, context) => {
@@ -27,6 +64,17 @@ export const genericModelDefinitionSchema = z
         code: 'custom',
         path: ['gradeFields'],
         message: 'grade fields must be unique',
+      });
+    }
+    const layoutFields = new Set(value.layout.gradeColumns.map((item) => item.field));
+    if (
+      layoutFields.size !== value.gradeFields.length ||
+      value.gradeFields.some((field) => !layoutFields.has(field))
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['layout', 'gradeColumns'],
+        message: 'layout must define exactly one column for each grade field',
       });
     }
   });
@@ -165,6 +213,7 @@ export const relationshipResolutionSchema = z
     componentId: canonicalIdSchema,
     sourceStudentId: opaqueIdSchema,
     studentId: canonicalIdSchema,
+    studentPosition: z.number().int().min(1).max(1_000_000),
   })
   .strict();
 
@@ -176,6 +225,7 @@ export const transformationMappingSchema = z
     classGroupId: canonicalIdSchema,
     componentId: canonicalIdSchema,
     studentId: canonicalIdSchema,
+    studentPosition: z.number().int().min(1).max(1_000_000),
   })
   .strict();
 
@@ -186,6 +236,7 @@ export const transformationPlanSchema = z
     schoolYear: z.number().int().min(2000).max(2200),
     definitionVersion: z.string().min(1).max(40),
     relationshipSnapshotId: canonicalIdSchema,
+    layout: genericModelLayoutSchema,
     mappings: z.array(transformationMappingSchema),
     findings: z.array(z.string().min(1).max(500)),
     blockers: z.array(z.string().min(1).max(500)),
@@ -222,6 +273,7 @@ export const genericModelInstanceSchema = z
     environment: z.literal('homologation'),
     syncEnabled: z.literal(false),
     mappingVersion: z.number().int().min(1),
+    layout: genericModelLayoutSchema,
     mappings: z.array(
       z
         .object({
@@ -233,8 +285,24 @@ export const genericModelInstanceSchema = z
         .strict(),
     ),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const columns = new Map(value.layout.gradeColumns.map((item) => [item.field, item.column]));
+    for (const [index, mapping] of value.mappings.entries()) {
+      const match = mapping.cellAddress.match(/^([A-Z]{1,3})([1-9][0-9]*)$/u);
+      const expectedColumn = columns.get(mapping.field);
+      const row = match?.[2] ? Number(match[2]) : 0;
+      if (!match || match[1] !== expectedColumn || row < value.layout.firstStudentRow) {
+        context.addIssue({
+          code: 'custom',
+          path: ['mappings', index, 'cellAddress'],
+          message: 'cell address does not match the versioned model layout',
+        });
+      }
+    }
+  });
 
+export type GenericModelLayout = z.infer<typeof genericModelLayoutSchema>;
 export type GenericModelDefinition = z.infer<typeof genericModelDefinitionSchema>;
 export type LegacyIntermediateModel = z.infer<typeof legacyIntermediateModelSchema>;
 export type RelationshipResolution = z.infer<typeof relationshipResolutionSchema>;
