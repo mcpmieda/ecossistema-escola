@@ -16,7 +16,7 @@ jobs:
     if: github.ref == 'refs/heads/main'
     permissions:
       contents: read
-      id-token: write # required for GitHub OIDC federation with the Entra maintenance app during sealed bootstrap
+      id-token: write # required for GitHub OIDC federation with the Entra maintenance app during registration bootstrap
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
@@ -35,7 +35,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Bootstrap dedicated Entra identity
+      - name: Prepare dedicated Entra application registration
         run: |
           set -o pipefail
           node infra/ops/bootstrap-m365-operations-identity.mjs | tee m365-operations-identity-bootstrap.jsonl

@@ -73,10 +73,12 @@ A política `infra/validation/assert-github-control-plane.ps1` é executada pelo
 
 As operações rotineiras Microsoft 365 do Control Plane usam uma identidade Entra separada da identidade de manutenção e do Graph Backend de runtime.
 
-O bootstrap da identidade operacional pode usar `Application.ReadWrite.OwnedBy` apenas para criar ou manter a aplicação, o service principal e sua credencial federada GitHub. Essa identidade solicita somente a permissão de aplicação `Sites.Selected`.
+O bootstrap da identidade operacional usa `Application.ReadWrite.OwnedBy` somente para criar ou manter o registro da aplicação e sua credencial federada GitHub. A execução real do tenant mostrou `403` na tentativa de criar o service principal, portanto essa fronteira não é contornada concedendo privilégios permanentes adicionais à identidade de manutenção.
 
-`Sites.Selected` exige consentimento administrativo e não concede acesso a nenhum site por si só. O site autorizado deve receber uma concessão explícita separada. Não usar `Sites.ReadWrite.All`, `Sites.FullControl.All`, `Directory.ReadWrite.All` ou `AppRoleAssignment.ReadWrite.All` como atalho para eliminar essa fronteira administrativa.
+A criação do service principal, o consentimento de `Sites.Selected` e a concessão `write` ao `CENTROADMIN` são concluídos uma única vez por um administrador autenticado através do script versionado `infra/entra/complete-m365-operations-authorization.ps1`. As permissões delegadas amplas necessárias para conceder o acesso ao site são usadas somente nessa sessão administrativa; não são atribuídas à identidade operacional.
 
-Depois do consentimento e da concessão do site, operações normais usam GitHub OIDC -> Entra -> identidade operacional e não dependem de client secret, certificado local, Codex ou login interativo por execução.
+`Sites.Selected` não concede acesso a nenhum site por si só. A identidade operacional fica permanentemente limitada ao site explicitamente autorizado e não recebe `Sites.ReadWrite.All`, `Sites.FullControl.All`, `Directory.ReadWrite.All` ou `AppRoleAssignment.ReadWrite.All`.
+
+Depois da autorização única, operações normais usam GitHub OIDC -> Entra -> identidade operacional e não dependem de client secret, certificado local, Codex ou login interativo por execução.
 
 Ações Microsoft 365 permanecem tipadas e allowlisted. A fundação inicial é somente de leitura e prontidão; qualquer escrita futura precisa ser implementada como operação explícita, idempotente e auditável.
