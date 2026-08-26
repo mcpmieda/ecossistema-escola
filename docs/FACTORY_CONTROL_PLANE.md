@@ -2,97 +2,191 @@
 
 ## Objetivo
 
-Usar o GitHub como plano de controle para iniciar, acompanhar e auditar Factory Runs multiagente sem depender do computador que iniciou a operação e sem transformar prompts em shell arbitrário.
+Usar o GitHub como plano de controle durável para iniciar, acompanhar e auditar Factory Runs multiagente sem depender do computador que iniciou a operação e sem transformar prompts em shell arbitrário.
 
-O fluxo alvo é:
+Fluxo atual:
 
 ```text
 ChatGPT / PowerShell
-  -> GitHub
-  -> Factory Run
-  -> child tasks tipadas
-  -> workers isolados
-  -> branches/PRs
-  -> CI/revisão
-  -> reconciliação de dependências
-  -> integração controlada
+  -> issue [Factory Run]
+  -> GitHub Actions
+  -> manifesto tipado e imutável
+  -> branch isolada factory/<run_id>
+  -> issues-filho tipadas
+  -> Jules REST API (até 3 sessões paralelas)
+  -> PRs dos workers para a branch isolada
+  -> validação de escopo
+  -> CI obrigatório
+  -> integração serial na branch isolada
+  -> próximas dependências
+  -> CI consolidado
+  -> PR final draft para a branch alvo
+  -> decisão humana final
 ```
 
-## Estado atual
+O runner nunca faz merge do PR consolidado na branch alvo e nunca ativa produção.
 
-O Control Plane materializa Factory Runs em issues-filho, possui o primeiro adaptador remoto via Jules e reconcilia dependências depois de PRs mesclados.
+## Estado
 
-O Banco de Notas continua em sua branch/PR atual. Esta fundação não escreve em `feat/banco-de-notas-foundation`, não retira draft, não ativa sync e não faz deploy de produção.
+A fundação do Control Plane está operacional e o piloto remoto legado foi comprovado de ponta a ponta em 26/08/2026:
 
-## Jules — primeira wave remota
+- Factory Run #64;
+- dois workers Jules executados em paralelo;
+- PRs #69 e #70 isolados por arquivo e integrados após CI;
+- tarefa dependente #67 liberada somente após as duas predecessoras;
+- PR #71 de verificação final integrado após CI;
+- nenhuma ativação de produção ou sync do Banco de Notas.
 
-O Control Plane não armazena API key do Jules. Para uma tarefa elegível, aplica a label exata `jules`, que funciona como solicitação ao GitHub App do Jules quando o repositório já está autorizado no serviço.
+O piloto mostrou duas limitações do trigger simples por label: labels emitidas por `github-actions[bot]` não iniciam o GitHub App do Jules de forma confiável e PRs criados pela integração não garantem um novo evento de CI por `pull_request`. A arquitetura v2 elimina essa dependência usando a Jules REST API e `workflow_dispatch` explícito do CI.
 
-Uma tarefa recebe o trigger `jules` somente quando todas as condições abaixo são verdadeiras:
+## Jules — modo API-first
 
-- a Factory Run foi aberta/editada pelo proprietário do repositório;
-- não possui `human_gates`;
-- não depende de outra tarefa (`depends_on` vazio); ou suas dependências foram reconciliadas com evidência válida;
-- lista `jules` explicitamente em `preferred_providers`.
+Novas Factory Runs usam `JULES_API_KEY` armazenada exclusivamente como GitHub Actions secret. A chave não pode aparecer em manifesto, issue, comentário, log, artifact, código ou documentação.
 
-As labels usadas são:
+O runner:
 
-- `factory:task`: issue-filho da Factory Run;
-- `factory:provider:jules`: seleção interna do provider;
-- `jules`: trigger externo oficial;
-- `factory:waiting`: tarefa que ainda aguarda dependências;
-- `factory:ready`: dependências confirmadas, mas sem provider remoto disponível/selecionado;
-- `factory:human-required`: tarefa que depende de decisão humana.
+1. localiza a fonte GitHub já autorizada no Jules;
+2. aguarda a branch `factory/<run_id>` ficar visível no Jules;
+3. cria sessões com `automationMode=AUTO_CREATE_PR` e `requirePlanApproval=false`;
+4. limita o paralelismo a `max_parallel`, atualmente de 1 a 3;
+5. persiste somente o identificador não secreto da sessão em comentário de auditoria do `github-actions[bot]`;
+6. aceita exatamente um PR de saída do mesmo repositório;
+7. rejeita qualquer arquivo fora dos `paths` declarados;
+8. atualiza o worker contra a branch de integração antes do CI;
+9. dispara o workflow fixo `ci.yml` explicitamente na branch candidata;
+10. só integra o worker na branch `factory/<run_id>` após CI verde;
+11. libera tarefas dependentes somente por evidência de integração emitida pelo próprio Factory runner;
+12. executa CI consolidado na branch de integração;
+13. cria um PR final em draft para `base_branch`;
+14. para no gate humano final.
 
-A issue-filho é criada primeiro e a label `jules` é adicionada em seguida, produzindo um evento explícito de rotulagem para o GitHub App. Aplicar a label é registrado como `trigger-requested`, não como execução concluída. O Jules ainda precisa ter acesso ao repositório pelo seu GitHub App. Ausência dessa autorização não provoca fallback inseguro nem uso automático de Codex.
+A label `jules` permanece apenas para compatibilidade com Factory Runs antigas. Ela não é o mecanismo primário do v2.
 
-## Reconciliação de dependências
+## Isolamento de branches
 
-O workflow `Factory Reconciliation` roda quando qualquer PR é efetivamente mesclado. Ele varre somente issues abertas com `factory:waiting` e trabalha em modo fail-closed.
+Cada Factory Run possui uma branch própria:
 
-Uma dependência é considerada concluída apenas quando:
+```text
+base_branch
+  \
+   factory/<run_id>
+      ^ worker A PR
+      ^ worker B PR
+      ^ worker C PR
+```
 
-1. a issue da tarefa foi materializada por `github-actions[bot]` e contém o marcador imutável de `run_id` + `task id`;
-2. existe comentário do login oficial `google-labs-jules[bot]` na issue com link para um PR do mesmo repositório;
-3. o PR está realmente mesclado na branch padrão do repositório;
-4. o PR alterou pelo menos um arquivo;
-5. todos os arquivos alterados estão dentro dos `paths` declarados pela tarefa predecessora.
+Workers nunca recebem autoridade de merge na branch alvo. O runner pode fazer squash merge somente dos PRs validados para `factory/<run_id>`.
 
-Se qualquer condição falhar, a tarefa dependente permanece em `factory:waiting`.
+Ao final:
 
-Quando todas as dependências são comprovadas:
+```text
+factory/<run_id> -> PR draft -> base_branch
+```
 
-- se a tarefa prefere Jules, `factory:waiting` é removida e o trigger `jules` é emitido em evento de label separado;
-- se não há provider remoto suportado/selecionado, a tarefa passa para `factory:ready`;
-- nenhuma reconciliação concede merge, deploy, produção ou mudança de privilégio.
+O merge desse PR final permanece humano.
 
-Essa política evita liberar uma etapa apenas porque uma issue foi fechada, um comentário humano alegou conclusão ou um PR alterou arquivos fora do escopo previsto.
+Isso permite inclusive trabalhar sobre uma feature em andamento. Para o Banco de Notas, uma Factory Run pode usar, por exemplo:
+
+```json
+{
+  "base_branch": "feat/banco-de-notas-foundation"
+}
+```
+
+Nesse caso, a fábrica não toca em `main` nem faz merge direto no PR #52. Ela entrega um PR consolidado para a própria branch do Banco.
+
+## Contrato e imutabilidade
+
+O manifesto é normalizado e recebe um SHA-256 de contrato. Após a primeira materialização, qualquer mudança no contrato da mesma Factory Run é rejeitada em modo fail-closed.
+
+Reexecuções com o mesmo manifesto são idempotentes: reaproveitam a branch e as issues já existentes sem recolocar uma tarefa concluída em estado `ready`.
+
+## Paralelismo seguro
+
+`max_parallel` aceita somente 1, 2 ou 3.
+
+Duas tarefas capazes de rodar simultaneamente não podem ter escopos de escrita sobrepostos. Sobreposição é permitida somente quando o grafo de dependências torna a execução explicitamente sequencial.
+
+Exemplo válido:
+
+```text
+A -> src/model/**
+B -> src/ui/**
+```
+
+Exemplo rejeitado para execução paralela:
+
+```text
+A -> src/model/**
+B -> src/model/student.ts
+```
+
+## Escopos reservados
+
+Workers automáticos não podem receber escopo sobre as áreas que controlam a própria fábrica ou a segurança do GitHub:
+
+- `.github/**`;
+- `infra/factory/**`;
+- `infra/validation/**`.
+
+Mudanças nessas áreas exigem uma tarefa com human gate e não são entregues automaticamente ao Jules.
+
+O contrato também rejeita path traversal, caminhos absolutos, barras invertidas e globs livres. O único glob aceito é `/**` ao final de um diretório.
+
+## Evidência confiável
+
+A fábrica não confia em texto livre de usuários para liberar dependências.
+
+São aceitos apenas:
+
+- issue-filho criada por `github-actions[bot]` com marcador estável de `run_id` + `task_id`;
+- marcador de sessão Jules publicado por `github-actions[bot]`;
+- saída de PR retornada diretamente pela Jules REST API;
+- PR do mesmo repositório e com base esperada;
+- arquivos do PR integralmente dentro dos escopos declarados;
+- CI obrigatório verde para o SHA atual;
+- marcador de merge emitido por `github-actions[bot]` depois do merge real na branch isolada.
+
+Comentários externos não podem fabricar evidência de sessão ou de integração.
+
+## Human gates
+
+Continuam reservados para decisões que não podem ser delegadas automaticamente:
+
+- `product_decision`;
+- `destructive_operation`;
+- `production_activation`;
+- `privilege_change`;
+- `legal_or_organizational_decision`.
+
+Uma tarefa com human gate não é enviada a provider remoto pelo runner.
 
 ## Regras permanentes
 
-- GitHub é a fonte de verdade para estado durável da execução.
-- Factory Runs capazes de materializar ou disparar providers só são aceitas do proprietário do repositório.
-- Cada worker deve trabalhar em branch/PR isolado.
-- Tarefas paralelas não podem compartilhar escopo de escrita conhecido.
-- Produção, privilégios, operações destrutivas e decisões reais de produto exigem decisão humana.
-- Codex não é worker automático de volume.
-- Providers externos são adaptadores substituíveis.
-- Secrets de providers ficam em mecanismo próprio e nunca no manifesto da Factory Run, issue body, logs ou artifacts.
-- Nenhuma operação aceita `command`, `script`, `shell`, URL/endpoint arbitrário ou outro executor livre.
-- Um trigger de provider nunca concede autoridade para merge, deploy ou ativação de produção.
+- GitHub é a fonte de verdade para o estado durável da execução.
+- Factory Runs executáveis só são aceitas quando o evento vem do proprietário do repositório.
+- O manifesto fica imutável depois da materialização.
+- Cada worker trabalha em PR isolado.
+- Tarefas paralelas não compartilham escopo de escrita.
+- Jules é o provider remoto ativo do v2; providers futuros só entram depois de adaptador e testes próprios.
+- Codex nunca é fallback automático de volume.
+- Secrets ficam somente no mecanismo de secrets do GitHub Actions.
+- Nenhum texto do manifesto é executado como `command`, `script` ou shell livre.
+- Nenhum worker pode alterar o próprio Control Plane automaticamente.
+- Produção, privilégios e operações destrutivas permanecem fora da autoridade dos providers.
+- O Banco de Notas continua com `SyncEnabled` desligado até autorização específica.
 
 ## Continuidade entre computadores
 
-O computador do trabalho ou de casa pode iniciar operações pelo mesmo repositório. Uma Factory Run não pode depender do computador inicial para preservar estado.
+O PC do trabalho ou de casa pode iniciar/acompanhar a mesma Factory Run. O estado persistente está em GitHub issues, labels, branches, PRs e Actions; o computador inicial pode ser desligado sem perder a execução remota.
 
-Workers locais são capacidade oportunística. Workers remotos e GitHub Actions continuam independentes do PC local.
+Workers locais futuros serão capacidade adicional, não fonte de verdade.
 
-## Fases
+## Próximas extensões
 
-1. contrato e validação de Factory Run — concluído;
-2. criação segura de parent/child issues — concluído;
-3. provider Jules, primeira wave — concluído no Control Plane;
-4. reconciliation de dependências e resultados — implementado nesta fase;
-5. provider Antigravity;
-6. provider OpenCode/Ollama local;
-7. merge train, status e telemetria de execução.
+Depois da estabilização do Jules API-first:
+
+1. adaptador Antigravity;
+2. adaptador OpenCode/Ollama para capacidade local;
+3. roteamento por custo/cota;
+4. Semgrep e SonarQube como gates especializados, evitando revisores genéricos duplicados.

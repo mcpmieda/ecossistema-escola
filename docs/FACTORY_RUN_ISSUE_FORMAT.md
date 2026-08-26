@@ -1,12 +1,12 @@
 # Formato de issue — Factory Run
 
-Uma Factory Run é iniciada por uma issue cujo título começa com:
+Uma Factory Run é iniciada por uma issue criada/aberta/editada pelo proprietário do repositório cujo título começa com:
 
 ```text
 [Factory Run]
 ```
 
-O corpo deve conter exatamente um manifesto JSON entre os marcadores:
+O corpo contém um manifesto JSON entre:
 
 ```text
 <!-- FACTORY_RUN_BEGIN -->
@@ -14,52 +14,128 @@ O corpo deve conter exatamente um manifesto JSON entre os marcadores:
 <!-- FACTORY_RUN_END -->
 ```
 
-O workflow `Factory Control Plane` valida o manifesto antes de qualquer materialização. A materialização só é permitida quando o ator do evento é o proprietário do repositório.
+O conteúdo do manifesto é dado, não código: nenhum campo é executado como shell.
 
-## O que acontece
+## Manifesto
 
-Ao abrir/editar/reabrir uma issue válida:
+Exemplo API-first:
 
-1. o GitHub Actions valida o manifesto e o ator;
-2. cria/aplica labels técnicas do Control Plane;
-3. cria uma issue-filho para cada tarefa ainda inexistente;
-4. reutiliza tarefas já materializadas quando o mesmo `run_id` + `task id` reaparece;
-5. reconcilia labels ausentes em tarefas reutilizadas;
-6. marca tarefas com human gate como `factory:human-required`;
-7. marca tarefas dependentes como `factory:waiting`;
-8. para uma tarefa-raiz sem human gate que liste `jules` em `preferred_providers`, cria a issue com `factory:provider:jules` e adiciona a label exata `jules` em uma operação separada;
-9. comenta um resumo na issue pai.
+```json
+{
+  "schema_version": 1,
+  "run_id": "banco-conselho-001",
+  "goal": "Implementar uma fase funcional do Banco de Notas em tarefas independentes.",
+  "base_branch": "feat/banco-de-notas-foundation",
+  "max_parallel": 3,
+  "tasks": [
+    {
+      "id": "conselho-ui",
+      "title": "Implementar a estrutura funcional do Conselho de Classe no escopo declarado",
+      "role": "implementation",
+      "depends_on": [],
+      "paths": ["src/features/banco-notas/conselho/**"],
+      "required_capabilities": ["repo_read", "repo_write"],
+      "preferred_providers": ["jules"],
+      "human_gates": []
+    },
+    {
+      "id": "conselho-tests",
+      "title": "Adicionar testes da implementação do Conselho de Classe",
+      "role": "verification",
+      "depends_on": ["conselho-ui"],
+      "paths": ["tests/banco-notas/conselho/**"],
+      "required_capabilities": ["repo_read", "repo_write", "review"],
+      "preferred_providers": ["jules"],
+      "human_gates": []
+    }
+  ]
+}
+```
 
-A label `jules` é uma solicitação de execução ao GitHub App do Jules. Ela não prova que o worker iniciou ou concluiu a tarefa. O repositório precisa estar previamente autorizado no Jules.
+## Campos de nível da Factory Run
+
+- `schema_version`: atualmente `1`;
+- `run_id`: identificador estável e único; somente letras, números, ponto, `_` e `-`;
+- `goal`: objetivo consolidado da rodada;
+- `base_branch`: branch que receberá o PR final; padrão `main`;
+- `max_parallel`: 1 a 3;
+- `tasks`: 1 a 20 tarefas.
+
+O Control Plane deriva automaticamente `factory/<run_id>` como branch de integração isolada.
+
+## Campos da tarefa
+
+- `id`: slug estável e único dentro da rodada;
+- `title`: instrução fechada da tarefa;
+- `role`: papel da tarefa;
+- `depends_on`: IDs que devem ser integrados antes dela;
+- `paths`: escopos de escrita autorizados;
+- `required_capabilities`: capacidades esperadas;
+- `preferred_providers`: providers aceitos, atualmente `jules` para automação remota;
+- `human_gates`: decisões que impedem execução automática.
+
+## Escopos `paths`
+
+Escopo de arquivo:
+
+```text
+src/features/example/model.ts
+```
+
+Escopo recursivo de diretório:
+
+```text
+src/features/example/**
+```
+
+Não são aceitos caminhos absolutos, `..`, `\\`, glob livre como `src/*.ts`, nem `.github/**`, `infra/factory/**` ou `infra/validation/**` em tarefa automática. As áreas reservadas podem aparecer apenas em tarefas protegidas por human gate, que não são enviadas automaticamente ao provider.
+
+## Paralelismo
+
+O Control Plane rejeita duas tarefas potencialmente simultâneas quando os escopos se sobrepõem. Uma sobreposição só é permitida quando `depends_on` força uma ordem sequencial explícita.
+
+## Materialização e imutabilidade
+
+Na primeira execução, o Control Plane valida o manifesto, grava um fingerprint SHA-256 do contrato em comentário técnico do `github-actions[bot]`, cria `factory/<run_id>` a partir de `base_branch`, cria uma issue-filho por tarefa e inicia o runner API-first.
+
+Depois disso, o contrato da mesma Factory Run é imutável. Uma edição que altere o manifesto normalizado é rejeitada fail-closed. Reexecutar a mesma issue sem alterar o contrato é idempotente e não reinicia tarefa já concluída.
+
+## Execução Jules API-first
+
+Para tarefas automáticas sem dependências, o estado inicial é `factory:task` + `factory:provider:jules` + `factory:ready`. O runner cria uma sessão pela Jules REST API usando a branch `factory/<run_id>` como ponto de partida e respeita `max_parallel`.
+
+Durante a execução podem aparecer `factory:running`, `factory:ci`, `factory:merged`, `factory:failed` e `factory:dispatch:jules-api`. A label simples `jules` é apenas compatibilidade legada e não é usada pelo fluxo API-first.
 
 ## Dependências
 
-Tarefas dependentes começam com `factory:waiting`. Depois de cada PR mesclado, o workflow `Factory Reconciliation` verifica as tarefas em espera.
+Uma tarefa com `depends_on` começa em `factory:waiting`. Ela só é liberada quando todas as predecessoras possuem evidência emitida pelo próprio Factory runner de que o Jules retornou um PR do mesmo repositório, a base é a branch de integração esperada, os arquivos ficaram dentro dos escopos declarados, o CI obrigatório passou e o PR foi realmente integrado em `factory/<run_id>`.
 
-Uma predecessora só conta como concluída quando a issue materializada contém um link de PR publicado por `google-labs-jules[bot]`, o PR está mesclado na branch padrão e todos os arquivos alterados permanecem dentro dos `paths` declarados pela predecessora.
+Comentários externos não contam como evidência.
 
-Quando todas as predecessoras satisfazem essas condições, a tarefa dependente deixa `factory:waiting` e:
+## Resultado final
 
-- recebe `factory:provider:jules` + `jules` quando Jules foi explicitamente preferido; ou
-- recebe `factory:ready` quando ainda não há provider remoto aplicável.
+Depois de todas as tarefas automáticas, o CI roda novamente sobre `factory/<run_id>` e o Control Plane abre ou reutiliza um PR final em **draft** para `base_branch`, aplica `factory:final` e encerra em `human-final-gate`. O Control Plane não faz merge desse PR final.
 
-Fechar issue manualmente, inserir um link por comentário humano ou mesclar um PR com arquivos fora do escopo não libera a dependência.
+## Human gates
+
+Valores permitidos: `product_decision`, `destructive_operation`, `production_activation`, `privilege_change` e `legal_or_organizational_decision`. Tarefas com qualquer human gate permanecem fora da execução automática.
 
 ## Segurança
 
-- somente o proprietário do repositório pode disparar a materialização da Factory Run;
-- máximo de 20 tarefas por Factory Run;
-- IDs duplicados, dependências inexistentes e ciclos são rejeitados;
+- somente o proprietário do repositório pode iniciar a Factory Run executável;
+- manifesto imutável após materialização;
+- até 20 tarefas e 3 workers paralelos;
+- dependências inexistentes, ciclos e sobreposição paralela são rejeitados;
 - providers e human gates são allowlisted;
-- Jules só é solicitado quando foi explicitamente listado pela tarefa;
-- nenhuma credencial ou API key do Jules entra no manifesto;
-- nenhum texto do manifesto é executado como shell;
-- nenhuma tarefa materializada ou reconciliada faz merge/deploy/ativação de produção;
-- um trigger de provider não concede autoridade de merge ou produção;
-- reconciliação é fail-closed quando falta evidência confiável;
+- Jules API key nunca entra no manifesto;
+- session IDs não são secrets, mas seus marcadores só são aceitos quando publicados por `github-actions[bot]`;
+- comentários externos não podem fabricar conclusão;
+- arquivos fora de `paths` fazem a tarefa falhar antes do CI/merge;
+- nenhum worker automático altera o próprio Control Plane/GitHub Actions;
 - Codex não é fallback automático;
-- Banco de Notas permanece com sync desligado.
+- merge final e produção permanecem humanos;
+- Banco de Notas continua com sync desligado salvo autorização específica.
 
-## Exemplo
+## Banco de Notas em desenvolvimento
 
-Consulte `infra/factory/examples/banco-notas-pilot-issue.txt`.
+Para trabalhar em paralelo com o PR #52 sem tocar em `main`, use a branch atual do Banco como `base_branch`. A fábrica cria sua própria branch isolada e entrega um PR final de volta para essa branch, mantendo o PR #52 draft e separado da infraestrutura do Control Plane.

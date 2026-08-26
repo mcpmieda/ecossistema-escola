@@ -4,7 +4,13 @@ export const FACTORY_LABELS = Object.freeze({
   blocked: 'factory:human-required',
   waiting: 'factory:waiting',
   ready: 'factory:ready',
+  running: 'factory:running',
+  ci: 'factory:ci',
+  merged: 'factory:merged',
+  failed: 'factory:failed',
+  final: 'factory:final',
   providerJules: 'factory:provider:jules',
+  julesApi: 'factory:dispatch:jules-api',
   julesTrigger: 'jules',
 });
 
@@ -16,7 +22,7 @@ export function initialDispatch(task) {
     return { provider: null, status: 'waiting' };
   }
   if (task.preferredProviders.includes('jules')) {
-    return { provider: 'jules', status: 'trigger-requested' };
+    return { provider: 'jules', status: 'ready' };
   }
   return { provider: null, status: 'unassigned' };
 }
@@ -30,7 +36,7 @@ export function desiredTaskLabels(task) {
   } else if (dispatch.status === 'waiting') {
     labels.push(FACTORY_LABELS.waiting);
   } else if (dispatch.provider === 'jules') {
-    labels.push(FACTORY_LABELS.providerJules, FACTORY_LABELS.julesTrigger);
+    labels.push(FACTORY_LABELS.providerJules, FACTORY_LABELS.ready);
   }
 
   return labels;
@@ -38,12 +44,9 @@ export function desiredTaskLabels(task) {
 
 export function taskLabelPlan(task) {
   const desired = desiredTaskLabels(task);
-  const triggerLabels = desired.includes(FACTORY_LABELS.julesTrigger)
-    ? [FACTORY_LABELS.julesTrigger]
-    : [];
   return {
-    creationLabels: desired.filter((label) => !triggerLabels.includes(label)),
-    triggerLabels,
+    creationLabels: desired,
+    triggerLabels: [],
     desiredLabels: desired,
   };
 }

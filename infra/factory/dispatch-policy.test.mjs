@@ -18,21 +18,21 @@ function task(overrides = {}) {
   };
 }
 
-test('root Jules task requests an explicit post-creation trigger label', () => {
-  assert.deepEqual(initialDispatch(task()), { provider: 'jules', status: 'trigger-requested' });
+test('root Jules task is queued for the API runner without external label trigger', () => {
+  assert.deepEqual(initialDispatch(task()), { provider: 'jules', status: 'ready' });
   assert.deepEqual(desiredTaskLabels(task()), [
     FACTORY_LABELS.task,
     FACTORY_LABELS.providerJules,
-    FACTORY_LABELS.julesTrigger,
+    FACTORY_LABELS.ready,
   ]);
   assert.deepEqual(taskLabelPlan(task()), {
-    creationLabels: [FACTORY_LABELS.task, FACTORY_LABELS.providerJules],
-    triggerLabels: [FACTORY_LABELS.julesTrigger],
-    desiredLabels: [FACTORY_LABELS.task, FACTORY_LABELS.providerJules, FACTORY_LABELS.julesTrigger],
+    creationLabels: [FACTORY_LABELS.task, FACTORY_LABELS.providerJules, FACTORY_LABELS.ready],
+    triggerLabels: [],
+    desiredLabels: [FACTORY_LABELS.task, FACTORY_LABELS.providerJules, FACTORY_LABELS.ready],
   });
 });
 
-test('dependent Jules task waits and is not externally triggered', () => {
+test('dependent Jules task waits for declared dependencies', () => {
   const value = task({ dependsOn: ['implementation'] });
   assert.deepEqual(initialDispatch(value), { provider: null, status: 'waiting' });
   assert.deepEqual(desiredTaskLabels(value), [FACTORY_LABELS.task, FACTORY_LABELS.waiting]);

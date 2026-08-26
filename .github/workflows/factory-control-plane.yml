@@ -8,6 +8,7 @@ on:
       - '.github/workflows/factory-reconcile.yml'
       - 'docs/FACTORY_CONTROL_PLANE.md'
       - 'docs/FACTORY_RUN_ISSUE_FORMAT.md'
+      - 'docs/FACTORY_JULES_PILOT_2026-08-26.md'
   issues:
     types: [opened, edited, reopened]
 
@@ -22,10 +23,12 @@ jobs:
     name: Validate Factory Control Plane
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Checkout candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       - name: Check Factory Control Plane syntax
@@ -33,17 +36,28 @@ jobs:
           node --check infra/factory/control-plane.mjs &&
           node --check infra/factory/dispatch-policy.mjs &&
           node --check infra/factory/reconciliation-policy.mjs &&
-          node --check infra/factory/reconcile.mjs
-      - name: Test provider dispatch and reconciliation guardrails
+          node --check infra/factory/reconcile.mjs &&
+          node --check infra/factory/contract-v2.mjs &&
+          node --check infra/factory/github-api.mjs &&
+          node --check infra/factory/jules-api.mjs &&
+          node --check infra/factory/materialize-v2.mjs &&
+          node --check infra/factory/runner-v2.mjs &&
+          node --check infra/factory/validate-v2.mjs
+      - name: Test Factory contracts and provider guardrails
         run: >-
           node --test
           infra/factory/dispatch-policy.test.mjs
           infra/factory/reconciliation-policy.test.mjs
-      - name: Validate Banco de Notas Factory Run fixture
+          infra/factory/contract-v2.test.mjs
+          infra/factory/jules-api.test.mjs
+          infra/factory/runner-v2.test.mjs
+      - name: Validate legacy Banco de Notas Factory Run fixture
         run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.txt
+      - name: Validate API-first Jules Factory Run fixture
+        run: node infra/factory/validate-v2.mjs infra/factory/examples/jules-api-pilot-issue.txt
 
   materialize:
-    name: Materialize Factory Run tasks
+    name: Materialize isolated Factory Run
     if: >-
       github.event_name == 'issues' &&
       github.actor == github.repository_owner &&
@@ -51,15 +65,47 @@ jobs:
       contains(github.event.issue.body, '<!-- FACTORY_RUN_BEGIN -->') &&
       contains(github.event.issue.body, '<!-- FACTORY_RUN_END -->')
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     permissions:
-      contents: read
-      issues: write # Required only to label the parent and create/comment child Factory tasks.
+      contents: write # Required only to create/reuse the isolated factory/<run_id> integration branch.
+      issues: write # Required only to materialize typed task issues, labels, and audit comments.
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Checkout trusted Control Plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Materialize typed Factory Run tasks
+      - name: Materialize API-first Factory Run
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           FACTORY_PARENT_ISSUE: ${{ github.event.issue.number }}
-        run: node infra/factory/control-plane.mjs materialize
+        run: node infra/factory/materialize-v2.mjs
+
+  run-factory:
+    name: Run Jules API Factory
+    if: >-
+      github.event_name == 'issues' &&
+      github.actor == github.repository_owner &&
+      startsWith(github.event.issue.title, '[Factory Run]') &&
+      contains(github.event.issue.body, '<!-- FACTORY_RUN_BEGIN -->') &&
+      contains(github.event.issue.body, '<!-- FACTORY_RUN_END -->')
+    needs: [materialize]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      actions: write # Required only to dispatch the fixed ci.yml workflow on worker/integration branches.
+      contents: write # Required only to synchronize and merge validated worker PRs into the isolated integration branch.
+      issues: write # Required only for typed task state labels, audit comments, and closing completed task issues.
+      pull-requests: write # Required only to inspect/merge worker PRs and create the final draft PR; target merge is forbidden by policy.
+    steps:
+      - name: Checkout trusted Control Plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Run bounded multiagent orchestration
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          FACTORY_PARENT_ISSUE: ${{ github.event.issue.number }}
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+        run: node infra/factory/runner-v2.mjs
