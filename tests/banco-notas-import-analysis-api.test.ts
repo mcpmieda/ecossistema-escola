@@ -32,7 +32,8 @@ function year(): SchoolYear {
   };
 }
 
-async function setup(sourceHash = await hash(bytes)) {
+async function setup(sourceHash?: string) {
+  const effectiveSourceHash = sourceHash ?? (await hash(bytes));
   let state: ImportJob['state'] = 'draft';
   const job = (): ImportJob => ({
     id: importJobId,
@@ -40,7 +41,7 @@ async function setup(sourceHash = await hash(bytes)) {
     teacherId,
     dataSourceId,
     idempotencyKey: 'synthetic-import-key',
-    sourceHash,
+    sourceHash: effectiveSourceHash,
     state,
     provenance: { sourceFormat: 'xlsx' },
     requestedBy: 'actor',
