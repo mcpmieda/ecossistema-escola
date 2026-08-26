@@ -44,7 +44,7 @@ export async function gradeEventPayloadHash(input: GradeEventInput): Promise<str
   return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
 }
 
-function receipt(
+export function gradeEventReceipt(
   event: StoredGradeEvent,
   status: GradeEventReceipt['status'],
   snapshot?: GradeSnapshot | null,
@@ -58,6 +58,19 @@ function receipt(
     receivedAt: event.receivedAt,
     ...(snapshot ? { snapshot } : {}),
   };
+}
+
+export async function getGradeEventReceipt(args: {
+  eventId: string;
+  store: GradeEventStore;
+}): Promise<GradeEventReceipt | null> {
+  const event = await args.store.findByEventId(args.eventId);
+  if (!event) return null;
+  return gradeEventReceipt(
+    event,
+    event.status,
+    await args.store.getSnapshot(event.gradeKey, event.field),
+  );
 }
 
 export async function ingestGradeEvent(args: {
@@ -75,7 +88,7 @@ export async function ingestGradeEvent(args: {
     if (duplicate.payloadHash !== payloadHash) {
       throw new GradeEventConflictError('idempotency_payload_conflict');
     }
-    return receipt(
+    return gradeEventReceipt(
       duplicate,
       'duplicate',
       await args.store.getSnapshot(duplicate.gradeKey, duplicate.field),
@@ -126,7 +139,7 @@ export async function ingestGradeEvent(args: {
   );
   const committedSnapshot =
     committed.snapshot ?? (await args.store.getSnapshot(input.gradeKey, input.field));
-  return receipt(
+  return gradeEventReceipt(
     committed.event,
     committed.event.status === 'stale' ? 'stale' : 'applied',
     committedSnapshot,
