@@ -35,12 +35,19 @@ export function enforceWriteOrigin(request: Request, env: RuntimeEnv): void {
   if (origin !== env.OFFICIAL_ORIGIN) throw new HttpError(403, 'Invalid origin');
 }
 
-export async function readBoundedJson(request: Request, maxBytes = 16_384): Promise<unknown> {
-  if (!request.headers.get('Content-Type')?.toLowerCase().startsWith('application/json'))
-    throw new HttpError(415, 'Expected application/json');
-  const length = Number(request.headers.get('Content-Length') ?? '0');
-  if (Number.isFinite(length) && length > maxBytes)
-    throw new HttpError(413, 'Request body too large');
+function mediaType(request: Request): string | null {
+  const value = request.headers.get('Content-Type');
+  return value ? (value.split(';', 1)[0]?.trim().toLowerCase() ?? null) : null;
+}
+
+async function readBoundedBody(request: Request, maxBytes: number): Promise<Uint8Array> {
+  const lengthHeader = request.headers.get('Content-Length');
+  if (lengthHeader !== null) {
+    const length = Number(lengthHeader);
+    if (!Number.isFinite(length) || length < 0) throw new HttpError(400, 'Invalid Content-Length');
+    if (length > maxBytes) throw new HttpError(413, 'Request body too large');
+  }
+
   const reader = request.body?.getReader();
   if (!reader) throw new HttpError(400, 'Missing request body');
   const chunks: Uint8Array[] = [];
@@ -55,12 +62,35 @@ export async function readBoundedJson(request: Request, maxBytes = 16_384): Prom
     }
     chunks.push(value);
   }
+  if (size === 0) throw new HttpError(400, 'Missing request body');
+
   const bytes = new Uint8Array(size);
   let offset = 0;
   for (const chunk of chunks) {
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
+  return bytes;
+}
+
+export async function readBoundedBytes(
+  request: Request,
+  options: {
+    maxBytes?: number;
+    allowedContentTypes?: readonly string[];
+  } = {},
+): Promise<Uint8Array> {
+  const maxBytes = options.maxBytes ?? 32 * 1024 * 1024;
+  const allowed = options.allowedContentTypes?.map((item) => item.toLowerCase());
+  if (allowed && !allowed.includes(mediaType(request) ?? '')) {
+    throw new HttpError(415, 'Unsupported content type');
+  }
+  return readBoundedBody(request, maxBytes);
+}
+
+export async function readBoundedJson(request: Request, maxBytes = 16_384): Promise<unknown> {
+  if (mediaType(request) !== 'application/json') throw new HttpError(415, 'Expected application/json');
+  const bytes = await readBoundedBody(request, maxBytes);
   try {
     return JSON.parse(new TextDecoder().decode(bytes));
   } catch {
