@@ -155,7 +155,7 @@ export async function storeShareAndVerifyTeacherModel(args: {
       compensation,
     });
     if (compensation.errors.length > 0) {
-      throw new Error(`teacher_model_compensation_failed:${originalError}`);
+      throw new Error(`teacher_model_compensation_failed:${originalError}`, { cause: error });
     }
     throw error;
   }
