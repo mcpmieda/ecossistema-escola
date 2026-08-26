@@ -79,7 +79,9 @@ async function inflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
   try {
     const copy = new Uint8Array(bytes.byteLength);
     copy.set(bytes);
-    const stream = new Blob([copy]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    const input = new Response(copy).body;
+    if (!input) throw new OoxmlZipError('xlsx_zip_deflate_stream_unavailable');
+    const stream = input.pipeThrough(new DecompressionStream('deflate-raw'));
     return new Uint8Array(await new Response(stream).arrayBuffer());
   } catch {
     throw new OoxmlZipError('xlsx_zip_deflate_failed');
