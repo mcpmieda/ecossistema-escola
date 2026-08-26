@@ -57,8 +57,8 @@ async function exchangeGitHubToken() {
   return body.access_token;
 }
 
-async function graphResponse(token, method, path, body) {
-  return fetch(`https://graph.microsoft.com/v1.0${path}`, {
+async function graph(token, method, path, body) {
+  const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -67,25 +67,11 @@ async function graphResponse(token, method, path, body) {
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-}
 
-async function graph(token, method, path, body) {
-  const response = await graphResponse(token, method, path, body);
   const text = await response.text();
   if (!response.ok)
     throw new Error(`Microsoft Graph ${method} ${path} failed (${response.status})`);
   return text ? JSON.parse(text) : null;
-}
-
-async function graphOptional(token, method, path) {
-  const response = await graphResponse(token, method, path);
-  const text = await response.text();
-  if (response.status === 403 || response.status === 404) {
-    return { status: response.status, body: null };
-  }
-  if (!response.ok)
-    throw new Error(`Microsoft Graph ${method} ${path} failed (${response.status})`);
-  return { status: response.status, body: text ? JSON.parse(text) : null };
 }
 
 function hasSitesSelected(application) {
@@ -114,12 +100,6 @@ async function servicePrincipalForAppId(token, appId) {
 
 async function main() {
   const token = await exchangeGitHubToken();
-  const maintenanceServicePrincipal = await servicePrincipalForAppId(token, maintenanceClientId);
-
-  if (!maintenanceServicePrincipal) {
-    throw new Error('Maintenance service principal was not found');
-  }
-
   const filter = encodeURIComponent(`displayName eq '${displayName}'`);
   const applications = await graph(
     token,
@@ -134,33 +114,7 @@ async function main() {
   let application = applications.value?.[0];
   let applicationCreated = false;
 
-  if (application) {
-    const owners = await graphOptional(
-      token,
-      'GET',
-      `/applications/${application.id}/owners?$select=id`,
-    );
-    const maintenanceOwnsApplication = (owners.body?.value ?? []).some(
-      (owner) => owner.id === maintenanceServicePrincipal.id,
-    );
-
-    if (owners.status === 403 || !maintenanceOwnsApplication) {
-      const existingServicePrincipal = await servicePrincipalForAppId(token, application.appId);
-      console.log(
-        JSON.stringify({
-          status: 'already-sealed',
-          applicationClientId: application.appId,
-          applicationObjectId: application.id,
-          servicePrincipalObjectId: existingServicePrincipal?.id ?? null,
-          requestedPermission: 'Sites.Selected',
-          maintenanceOwner: false,
-          adminConsentRequired: true,
-          selectedSiteGrantRequired: true,
-        }),
-      );
-      return;
-    }
-  } else {
+  if (!application) {
     application = await graph(token, 'POST', '/applications', {
       displayName,
       signInAudience: 'AzureADMyOrg',
@@ -188,16 +142,6 @@ async function main() {
       'GET',
       `/applications/${application.id}?$select=id,appId,displayName,requiredResourceAccess`,
     );
-  }
-
-  let servicePrincipal = await servicePrincipalForAppId(token, application.appId);
-  let servicePrincipalCreated = false;
-
-  if (!servicePrincipal) {
-    servicePrincipal = await graph(token, 'POST', '/servicePrincipals', {
-      appId: application.appId,
-    });
-    servicePrincipalCreated = true;
   }
 
   const credentials = await graph(
@@ -236,59 +180,27 @@ async function main() {
     federatedCredentialCreated = true;
   }
 
-  const servicePrincipalOwners = await graphOptional(
-    token,
-    'GET',
-    `/servicePrincipals/${servicePrincipal.id}/owners?$select=id`,
+  const servicePrincipal = await servicePrincipalForAppId(token, application.appId);
+
+  console.log(
+    JSON.stringify({
+      status: servicePrincipal
+        ? 'registration-ready-service-principal-exists'
+        : 'registration-ready-admin-authorization-required',
+      applicationCreated,
+      federatedCredentialCreated,
+      applicationClientId: application.appId,
+      applicationObjectId: application.id,
+      servicePrincipalObjectId: servicePrincipal?.id ?? null,
+      requestedPermission: 'Sites.Selected',
+      requestedPermissionId: sitesSelectedRoleId,
+      federatedSubject: subject,
+      servicePrincipalCreationRequired: !servicePrincipal,
+      adminAuthorizationRequired: true,
+      selectedSiteGrantRequired: true,
+      permanentPrivilegeExpansion: false,
+    }),
   );
-  const maintenanceOwnsServicePrincipal = (servicePrincipalOwners.body?.value ?? []).some(
-    (owner) => owner.id === maintenanceServicePrincipal.id,
-  );
-
-  if (maintenanceOwnsServicePrincipal) {
-    await graph(
-      token,
-      'DELETE',
-      `/servicePrincipals/${servicePrincipal.id}/owners/${maintenanceServicePrincipal.id}/$ref`,
-    );
-  }
-
-  const applicationOwners = await graph(
-    token,
-    'GET',
-    `/applications/${application.id}/owners?$select=id`,
-  );
-  const maintenanceOwnsApplication = (applicationOwners.value ?? []).some(
-    (owner) => owner.id === maintenanceServicePrincipal.id,
-  );
-
-  if (!maintenanceOwnsApplication) {
-    throw new Error('Maintenance identity is not the expected bootstrap owner before sealing');
-  }
-
-  await graph(
-    token,
-    'DELETE',
-    `/applications/${application.id}/owners/${maintenanceServicePrincipal.id}/$ref`,
-  );
-
-  const result = {
-    status: 'bootstrap-sealed',
-    applicationCreated,
-    servicePrincipalCreated,
-    federatedCredentialCreated,
-    applicationClientId: application.appId,
-    applicationObjectId: application.id,
-    servicePrincipalObjectId: servicePrincipal.id,
-    requestedPermission: 'Sites.Selected',
-    requestedPermissionId: sitesSelectedRoleId,
-    federatedSubject: subject,
-    maintenanceOwner: false,
-    adminConsentRequired: true,
-    selectedSiteGrantRequired: true,
-  };
-
-  console.log(JSON.stringify(result));
 }
 
 await main();
