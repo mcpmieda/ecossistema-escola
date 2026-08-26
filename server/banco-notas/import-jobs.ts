@@ -24,9 +24,13 @@ export function assertImportJobTransition(from: ImportJobState, to: ImportJobSta
 
 export function assertImportJobGate(args: {
   targetState: ImportJobState;
-  errorFindingCount: number;
+  unresolvedErrorFindingCount: number;
 }): void {
-  if (args.targetState !== 'failed' && args.errorFindingCount > 0) {
+  if (
+    args.targetState !== 'analyzed' &&
+    args.targetState !== 'failed' &&
+    args.unresolvedErrorFindingCount > 0
+  ) {
     throw new Error('import_job_has_unresolved_error_findings');
   }
 }
