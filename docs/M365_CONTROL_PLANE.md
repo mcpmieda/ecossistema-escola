@@ -23,17 +23,19 @@ O acesso efetivo só existe depois de duas autorizações explícitas:
 1. consentimento administrativo para a permissão de aplicação `Sites.Selected`;
 2. concessão da identidade ao site SharePoint selecionado com o papel necessário.
 
-## Bootstrap
+## Bootstrap selado
 
-O workflow `bootstrap-m365-operations-identity.yml` usa a identidade de manutenção por GitHub OIDC somente para:
+O workflow `bootstrap-m365-operations-identity.yml` usa a identidade de manutenção por GitHub OIDC somente enquanto a nova identidade ainda não possui consentimento nem acesso a dados. Ele pode:
 
-- criar ou reutilizar a aplicação operacional dedicada;
-- criar ou reutilizar o service principal;
+- criar a aplicação operacional dedicada;
+- criar o service principal;
 - declarar `Sites.Selected` como permissão necessária;
 - criar a credencial federada exata para `repo:mcpmieda/ecossistema-escola:environment:production`;
 - publicar evidência com os IDs públicos necessários para a autorização administrativa.
 
-O bootstrap não concede a si mesmo `Sites.Selected`, não concede acesso a site e não acessa arquivos do SharePoint.
+Antes de terminar, o bootstrap remove a identidade de manutenção da propriedade da aplicação operacional e do service principal quando aplicável. A identidade fica selada antes de receber consentimento ou grant de site.
+
+O bootstrap não concede a si mesmo `Sites.Selected`, não concede acesso a site e não acessa arquivos do SharePoint. Depois de selada, a identidade de manutenção não deve voltar a ser adicionada como owner.
 
 ## Autorização administrativa única
 
