@@ -68,7 +68,10 @@ function graphSegment(value: string): string {
 
 function graphFileName(value: string): string {
   if (!/\.xlsx$/iu.test(value)) throw new Error('teacher_model_graph_filename_not_xlsx');
-  if (/[\\/\u0000-\u001f]/u.test(value)) {
+  const hasUnsafeCharacter = Array.from(value).some(
+    (character) => character === '\\' || character === '/' || character.charCodeAt(0) <= 0x1f,
+  );
+  if (hasUnsafeCharacter) {
     throw new Error('teacher_model_graph_filename_unsafe');
   }
   return encodeURIComponent(value);

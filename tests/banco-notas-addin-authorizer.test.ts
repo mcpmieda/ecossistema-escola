@@ -4,10 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import {
-  BancoNotasAddinForbiddenError,
-  D1BancoNotasAddinAuthorizer,
-} from '../server/banco-notas/d1-addin-authorizer';
+import { D1BancoNotasAddinAuthorizer } from '../server/banco-notas/d1-addin-authorizer';
 
 const root = process.cwd();
 const migration1 = readFileSync(
@@ -95,7 +92,7 @@ describe('Banco de Notas add-in ownership authorization', () => {
         teacherModelId: MODEL_ID,
         entraObjectId: OTHER_OID,
       }),
-    ).rejects.toMatchObject<BancoNotasAddinForbiddenError>({
+    ).rejects.toMatchObject({
       message: 'teacher_model_not_owned',
       status: 403,
     });
