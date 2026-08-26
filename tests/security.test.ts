@@ -103,9 +103,7 @@ describe('HTTP security', () => {
       }),
       {
         maxBytes: 16,
-        allowedContentTypes: [
-          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ],
+        allowedContentTypes: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
       },
     );
     expect(Array.from(bytes)).toEqual([0x50, 0x4b, 0x03, 0x04]);
