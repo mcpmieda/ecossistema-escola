@@ -181,13 +181,13 @@ Write-Host 'PASS: reference_only pode coexistir sem tomar autoridade'
 
 Assert-D1Failure -Label 'cross-year source assignment' -ExpectedMessage 'source assignment year mismatch' -Sql "INSERT INTO source_assignments (id, school_year_id, data_source_id, scope, effective_from, operator_id, reason) VALUES ('$crossYearAssignmentId', '$secondaryYearId', '$sourceId', 'school_year_default', '$secondaryYear-01-01', 'smoke-remote', 'Cross-year deve falhar');"
 
-Invoke-D1 -Sql "INSERT INTO import_jobs (id, school_year_id, teacher_id, data_source_id, idempotency_key, source_hash, provenance_json, requested_by) VALUES ('$jobId', '$primaryYearId', '$teacherId', '$sourceId', '$prefix-idempotency', '$sourceHash', '{\"sourceFormat\":\"xlsx\",\"smoke\":true}', 'smoke-remote');" | Out-Null
+Invoke-D1 -Sql "INSERT INTO import_jobs (id, school_year_id, teacher_id, data_source_id, idempotency_key, source_hash, provenance_json, requested_by) VALUES ('$jobId', '$primaryYearId', '$teacherId', '$sourceId', '$prefix-idempotency', '$sourceHash', json_object('sourceFormat','xlsx','smoke',1), 'smoke-remote');" | Out-Null
 
 Assert-D1Failure -Label 'state jump draft to generated' -ExpectedMessage 'invalid import job state transition' -Sql "UPDATE import_jobs SET state = 'generated' WHERE id = '$jobId';"
 Assert-D1Failure -Label 'analyzed without persisted analysis' -ExpectedMessage 'import job analysis artifact required' -Sql "UPDATE import_jobs SET state = 'analyzed' WHERE id = '$jobId';"
-Assert-D1Failure -Label 'analysis provenance mismatch' -ExpectedMessage 'import analysis provenance mismatch' -Sql "INSERT INTO import_analyses (id, import_job_id, analyzer_id, analysis_version, source_hash, source_format, school_year, model_json, created_by) VALUES ('$analysisId-bad', '$jobId', 'smoke-xlsx-analyzer', 'smoke-1', '$wrongHash', 'xlsx', $primaryYear, '{\"schemaVersion\":1,\"smoke\":true}', 'smoke-remote');"
+Assert-D1Failure -Label 'analysis provenance mismatch' -ExpectedMessage 'import analysis provenance mismatch' -Sql "INSERT INTO import_analyses (id, import_job_id, analyzer_id, analysis_version, source_hash, source_format, school_year, model_json, created_by) VALUES ('$analysisId-bad', '$jobId', 'smoke-xlsx-analyzer', 'smoke-1', '$wrongHash', 'xlsx', $primaryYear, json_object('schemaVersion',1,'smoke',1), 'smoke-remote');"
 
-Invoke-D1 -Sql "INSERT INTO import_analyses (id, import_job_id, analyzer_id, analysis_version, source_hash, source_format, school_year, model_json, created_by) VALUES ('$analysisId', '$jobId', 'smoke-xlsx-analyzer', 'smoke-1', '$sourceHash', 'xlsx', $primaryYear, '{\"schemaVersion\":1,\"smoke\":true}', 'smoke-remote');" | Out-Null
+Invoke-D1 -Sql "INSERT INTO import_analyses (id, import_job_id, analyzer_id, analysis_version, source_hash, source_format, school_year, model_json, created_by) VALUES ('$analysisId', '$jobId', 'smoke-xlsx-analyzer', 'smoke-1', '$sourceHash', 'xlsx', $primaryYear, json_object('schemaVersion',1,'smoke',1), 'smoke-remote');" | Out-Null
 Invoke-D1 -Sql "UPDATE import_jobs SET state = 'analyzed' WHERE id = '$jobId';" | Out-Null
 $analyzed = Get-D1Rows -Sql "SELECT state FROM import_jobs WHERE id = '$jobId'; SELECT COUNT(*) AS total FROM import_analyses WHERE import_job_id = '$jobId';"
 Assert-True -Condition ($analyzed[0].state -eq 'analyzed') -Message 'Job não alcançou analyzed após análise válida.'
@@ -198,7 +198,7 @@ Assert-D1Failure -Label 'analysis append-only update' -ExpectedMessage 'import_a
 Assert-D1Failure -Label 'analysis append-only delete' -ExpectedMessage 'import_analyses are append-only' -Sql "DELETE FROM import_analyses WHERE id = '$analysisId';"
 Assert-D1Failure -Label 'state re-entry' -ExpectedMessage 'import job state re-entry is not allowed' -Sql "UPDATE import_jobs SET state = 'analyzed' WHERE id = '$jobId';"
 
-Invoke-D1 -Sql "INSERT INTO import_findings (id, import_job_id, severity, code, location_json, details_json) VALUES ('$findingId', '$jobId', 'warning', 'smoke_warning', '{\"smoke\":true}', '{\"message\":\"finding sintético\"}');" | Out-Null
+Invoke-D1 -Sql "INSERT INTO import_findings (id, import_job_id, severity, code, location_json, details_json) VALUES ('$findingId', '$jobId', 'warning', 'smoke_warning', json_object('smoke',1), json_object('message','finding sintético'));" | Out-Null
 Invoke-D1 -Sql "INSERT INTO import_finding_resolutions (id, import_finding_id, resolved_by, reason, resolved_at) VALUES ('$resolutionId', '$findingId', 'smoke-remote', 'Resolução sintética', '$(Get-Date -AsUTC -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')');" | Out-Null
 Assert-D1Failure -Label 'finding resolution append-only' -ExpectedMessage 'import_finding_resolutions are append-only' -Sql "UPDATE import_finding_resolutions SET reason = 'tampered' WHERE id = '$resolutionId';"
 Assert-D1Failure -Label 'finding append-only' -ExpectedMessage 'import_findings are append-only' -Sql "UPDATE import_findings SET code = 'tampered' WHERE id = '$findingId';"
