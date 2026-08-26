@@ -43,7 +43,7 @@ No head funcional `82e977a27598fdffa77a7db7bfff17bf433827ce` do PR #52, o workfl
 - lint — success;
 - typecheck — success;
 - semantic check — success;
-- testes — **205/205 em 35 arquivos**;
+- testes — **206/206 em 35 arquivos**;
 - build — success;
 - `Deploy production` — skipped;
 - `Verify recovery after deploy` — skipped;
@@ -368,7 +368,7 @@ O estado implementado também inclui:
 - validação exata de célula contra layout/posição;
 - boundary Graph com store/share/metadata/audit e compensação explícita em falha.
 
-No head funcional `82e977a27598fdffa77a7db7bfff17bf433827ce`, run `32920316172` / `#556`, o pipeline passou security, format, lint, typecheck, semantic check, **205/205 testes em 35 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram corretamente `skipped`.
+No head funcional `82e977a27598fdffa77a7db7bfff17bf433827ce`, run `32920316172` / `#556`, o pipeline passou security, format, lint, typecheck, semantic check, **206/206 testes em 35 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram corretamente `skipped`.
 
 Limites explícitos dessa evidência:
 
