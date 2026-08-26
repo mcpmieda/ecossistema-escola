@@ -1,4 +1,5 @@
 const TASK_MARKER = /<!-- factory-run:([^;]+);task:([^ ]+) -->/;
+const MERGED_PR_MARKER = /<!-- factory-merged-pr:(\d+);sha:([0-9a-f]{40}) -->/;
 const FIELD_LINE = /^([^\n:]+):\s*(.*)$/gm;
 
 export const TRUSTED_JULES_LOGIN = 'google-labs-jules[bot]';
@@ -26,10 +27,15 @@ export function parseMaterializedTask(issue) {
   return {
     runId: marker[1],
     taskId: marker[2],
+    goal: fields.get('Goal') ?? '',
+    role: fields.get('Role')?.replaceAll('`', '') ?? 'implementation',
     dependencies: splitCsv(fields.get('Dependencies')),
     paths: splitCsv(fields.get('Path scopes')),
+    requiredCapabilities: splitCsv(fields.get('Required capabilities')),
     preferredProviders: splitCsv(fields.get('Preferred providers')),
     humanGates: splitCsv(fields.get('Human gates')),
+    integrationBranch: fields.get('Integration branch')?.replaceAll('`', '') ?? null,
+    targetBranch: fields.get('Target branch')?.replaceAll('`', '') ?? null,
   };
 }
 
@@ -48,6 +54,29 @@ export function sameRepositoryPrNumbers(comments, owner, repo) {
   }
 
   return [...numbers];
+}
+
+export function sameRepositoryPrNumberFromUrl(url, owner, repo) {
+  const escapedOwner = String(owner).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escapedRepo = String(repo).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = String(url ?? '').match(
+    new RegExp(`^https://github\\.com/${escapedOwner}/${escapedRepo}/pull/(\\d+)$`),
+  );
+  return match ? Number(match[1]) : null;
+}
+
+export function mergedPrEvidenceFromComments(comments) {
+  for (const comment of comments ?? []) {
+    const match = String(comment?.body ?? '').match(MERGED_PR_MARKER);
+    if (match) return { prNumber: Number(match[1]), sha: match[2] };
+  }
+  return null;
+}
+
+export function mergedPrMarker(prNumber, sha) {
+  if (!Number.isInteger(prNumber) || prNumber <= 0) throw new Error('Invalid merged PR number.');
+  if (!/^[0-9a-f]{40}$/.test(String(sha))) throw new Error('Invalid merged PR SHA.');
+  return `<!-- factory-merged-pr:${prNumber};sha:${sha} -->`;
 }
 
 function normalizePath(path) {
