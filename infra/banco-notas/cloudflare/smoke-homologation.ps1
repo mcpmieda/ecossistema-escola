@@ -15,6 +15,12 @@ if (-not $ConfirmSyntheticWrites) {
 if (-not (Test-Path -LiteralPath $generatedConfig)) {
   throw 'Config de homologação ausente. Execute provision-homologation.ps1 somente após autorização explícita para o D1 remoto.'
 }
+if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) {
+  throw 'CLOUDFLARE_API_TOKEN não está disponível para o smoke remoto.'
+}
+if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
+  throw 'CLOUDFLARE_ACCOUNT_ID não está disponível para o smoke remoto.'
+}
 
 $config = Get-Content -LiteralPath $generatedConfig -Raw | ConvertFrom-Json
 $database = @($config.d1_databases) | Where-Object { $_.binding -eq $databaseBinding } | Select-Object -First 1
@@ -24,6 +30,15 @@ if (-not $database) {
 if ($database.database_name -ne $expectedDatabaseName) {
   throw "Smoke recusado: database_name deve ser exatamente $expectedDatabaseName."
 }
+if ([string]::IsNullOrWhiteSpace([string]$database.database_id)) {
+  throw 'database_id do D1 de homologação não está disponível.'
+}
+
+$d1Endpoint = "https://api.cloudflare.com/client/v4/accounts/$($env:CLOUDFLARE_ACCOUNT_ID)/d1/database/$($database.database_id)/query"
+$d1Headers = @{
+  Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN"
+  'Content-Type' = 'application/json'
+}
 
 function Invoke-D1 {
   param(
@@ -31,28 +46,27 @@ function Invoke-D1 {
     [switch]$AllowFailure
   )
 
-  $tempBase = Join-Path ([System.IO.Path]::GetTempPath()) "banco-notas-smoke-$([guid]::NewGuid().ToString('N'))"
-  $sqlPath = "$tempBase.sql"
-  $stderrPath = "$tempBase.stderr"
+  $body = @{ sql = $Sql } | ConvertTo-Json -Compress
   try {
-    [IO.File]::WriteAllText($sqlPath, $Sql, [Text.UTF8Encoding]::new($false))
-    $stdout = & npx wrangler d1 execute $databaseBinding --remote --config $generatedConfig --file $sqlPath --json 2> $stderrPath | Out-String
-    $exitCode = $LASTEXITCODE
-    $stderr = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
-    $combined = "$stdout`n$stderr"
-    if (-not $AllowFailure -and $exitCode -ne 0) {
-      throw "Wrangler D1 falhou (exit $exitCode): $combined"
+    $response = Invoke-RestMethod -Method Post -Uri $script:d1Endpoint -Headers $script:d1Headers -Body $body
+    $serialized = $response | ConvertTo-Json -Depth 20 -Compress
+    if (-not $response.success) {
+      if ($AllowFailure) {
+        return [pscustomobject]@{ ExitCode = 1; Stdout = ''; Stderr = $serialized; Combined = $serialized }
+      }
+      throw "Cloudflare D1 retornou failure: $serialized"
     }
-    return [pscustomobject]@{
-      ExitCode = $exitCode
-      Stdout = $stdout
-      Stderr = $stderr
-      Combined = $combined
-    }
+    return [pscustomobject]@{ ExitCode = 0; Stdout = $serialized; Stderr = ''; Combined = $serialized }
   }
-  finally {
-    Remove-Item -LiteralPath $sqlPath -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+  catch {
+    $details = $_.ErrorDetails.Message
+    if ([string]::IsNullOrWhiteSpace($details)) {
+      $details = $_.Exception.Message
+    }
+    if ($AllowFailure) {
+      return [pscustomobject]@{ ExitCode = 1; Stdout = ''; Stderr = $details; Combined = $details }
+    }
+    throw "Cloudflare D1 falhou: $details"
   }
 }
 
@@ -61,19 +75,14 @@ function Get-D1Rows {
 
   $result = Invoke-D1 -Sql $Sql
   try {
-    $jsonStart = $result.Stdout.IndexOf('[')
-    if ($jsonStart -lt 0) {
-      throw 'Payload JSON não encontrado na saída do Wrangler.'
-    }
-    $json = $result.Stdout.Substring($jsonStart)
-    $parsed = $json | ConvertFrom-Json
+    $parsed = $result.Stdout | ConvertFrom-Json
   }
   catch {
-    throw "Wrangler não retornou JSON válido para a consulta: $($result.Stdout)"
+    throw "Cloudflare não retornou JSON válido para a consulta: $($result.Stdout)"
   }
 
   $rows = @()
-  foreach ($entry in @($parsed)) {
+  foreach ($entry in @($parsed.result)) {
     if ($null -ne $entry.results) {
       $rows += @($entry.results)
     }
@@ -147,10 +156,10 @@ $resolutionId = "$prefix-resolution"
 $sourceHash = Get-Sha256Hex -Value "$prefix-source-workbook"
 $wrongHash = Get-Sha256Hex -Value "$prefix-wrong-workbook"
 
-Invoke-D1 -Sql "INSERT INTO school_years (id, year, name, starts_on, ends_on) VALUES ('$primaryYearId', $primaryYear, 'SMOKE $runToken', '$primaryYear-01-01', '$primaryYear-12-31');"
-Invoke-D1 -Sql "INSERT INTO school_years (id, year, name, starts_on, ends_on) VALUES ('$secondaryYearId', $secondaryYear, 'SMOKE secondary $runToken', '$secondaryYear-01-01', '$secondaryYear-12-31');"
-Invoke-D1 -Sql "INSERT INTO teachers (id, display_name) VALUES ('$teacherId', 'Pessoa sintética smoke $runToken');"
-Invoke-D1 -Sql "INSERT INTO data_sources (id, school_year_id, type, name, description, created_by) VALUES ('$sourceId', '$primaryYearId', 'legacy_import', 'SMOKE source $runToken', 'Dado sintético de homologação', 'smoke-remote');"
+Invoke-D1 -Sql "INSERT INTO school_years (id, year, name, starts_on, ends_on) VALUES ('$primaryYearId', $primaryYear, 'SMOKE $runToken', '$primaryYear-01-01', '$primaryYear-12-31');" | Out-Null
+Invoke-D1 -Sql "INSERT INTO school_years (id, year, name, starts_on, ends_on) VALUES ('$secondaryYearId', $secondaryYear, 'SMOKE secondary $runToken', '$secondaryYear-01-01', '$secondaryYear-12-31');" | Out-Null
+Invoke-D1 -Sql "INSERT INTO teachers (id, display_name) VALUES ('$teacherId', 'Pessoa sintética smoke $runToken');" | Out-Null
+Invoke-D1 -Sql "INSERT INTO data_sources (id, school_year_id, type, name, description, created_by) VALUES ('$sourceId', '$primaryYearId', 'legacy_import', 'SMOKE source $runToken', 'Dado sintético de homologação', 'smoke-remote');" | Out-Null
 
 $defaults = Get-D1Rows -Sql "SELECT environment, migration_state, status FROM data_sources WHERE id = '$sourceId';"
 Assert-True -Condition ($defaults[0].environment -eq 'homologation') -Message 'Data source não nasceu em homologation.'
@@ -158,7 +167,7 @@ Assert-True -Condition ($defaults[0].migration_state -eq 'not_started') -Message
 Assert-True -Condition ($defaults[0].status -eq 'active') -Message 'Status default inesperado.'
 Write-Host 'PASS: defaults seguros da fonte'
 
-Invoke-D1 -Sql "INSERT INTO source_assignments (id, school_year_id, data_source_id, scope, effective_from, operator_id, reason) VALUES ('$assignmentId', '$primaryYearId', '$sourceId', 'school_year_default', '$primaryYear-01-01', 'smoke-remote', 'Smoke de autoridade');"
+Invoke-D1 -Sql "INSERT INTO source_assignments (id, school_year_id, data_source_id, scope, effective_from, operator_id, reason) VALUES ('$assignmentId', '$primaryYearId', '$sourceId', 'school_year_default', '$primaryYear-01-01', 'smoke-remote', 'Smoke de autoridade');" | Out-Null
 $authority = Get-D1Rows -Sql "SELECT authority, sync_enabled, status FROM source_assignments WHERE id = '$assignmentId';"
 Assert-True -Condition ($authority[0].authority -eq 'authoritative') -Message 'Authority default inesperado.'
 Assert-True -Condition ([int]$authority[0].sync_enabled -eq 0) -Message 'sync_enabled deve nascer desligado.'
@@ -167,19 +176,19 @@ Write-Host 'PASS: authority e sync default'
 
 Assert-D1Failure -Label 'overlap authoritative' -ExpectedMessage 'authoritative source assignment overlap' -Sql "INSERT INTO source_assignments (id, school_year_id, data_source_id, scope, effective_from, operator_id, reason) VALUES ('$overlapAssignmentId', '$primaryYearId', '$sourceId', 'school_year_default', '$primaryYear-06-01', 'smoke-remote', 'Overlap sintético');"
 
-Invoke-D1 -Sql "INSERT INTO source_assignments (id, school_year_id, data_source_id, scope, authority, effective_from, operator_id, reason) VALUES ('$referenceAssignmentId', '$primaryYearId', '$sourceId', 'school_year_default', 'reference_only', '$primaryYear-06-01', 'smoke-remote', 'Referência sintética permitida');"
+Invoke-D1 -Sql "INSERT INTO source_assignments (id, school_year_id, data_source_id, scope, authority, effective_from, operator_id, reason) VALUES ('$referenceAssignmentId', '$primaryYearId', '$sourceId', 'school_year_default', 'reference_only', '$primaryYear-06-01', 'smoke-remote', 'Referência sintética permitida');" | Out-Null
 Write-Host 'PASS: reference_only pode coexistir sem tomar autoridade'
 
 Assert-D1Failure -Label 'cross-year source assignment' -ExpectedMessage 'source assignment year mismatch' -Sql "INSERT INTO source_assignments (id, school_year_id, data_source_id, scope, effective_from, operator_id, reason) VALUES ('$crossYearAssignmentId', '$secondaryYearId', '$sourceId', 'school_year_default', '$secondaryYear-01-01', 'smoke-remote', 'Cross-year deve falhar');"
 
-Invoke-D1 -Sql "INSERT INTO import_jobs (id, school_year_id, teacher_id, data_source_id, idempotency_key, source_hash, provenance_json, requested_by) VALUES ('$jobId', '$primaryYearId', '$teacherId', '$sourceId', '$prefix-idempotency', '$sourceHash', '{\"sourceFormat\":\"xlsx\",\"smoke\":true}', 'smoke-remote');"
+Invoke-D1 -Sql "INSERT INTO import_jobs (id, school_year_id, teacher_id, data_source_id, idempotency_key, source_hash, provenance_json, requested_by) VALUES ('$jobId', '$primaryYearId', '$teacherId', '$sourceId', '$prefix-idempotency', '$sourceHash', '{\"sourceFormat\":\"xlsx\",\"smoke\":true}', 'smoke-remote');" | Out-Null
 
 Assert-D1Failure -Label 'state jump draft to generated' -ExpectedMessage 'invalid import job state transition' -Sql "UPDATE import_jobs SET state = 'generated' WHERE id = '$jobId';"
 Assert-D1Failure -Label 'analyzed without persisted analysis' -ExpectedMessage 'import job analysis artifact required' -Sql "UPDATE import_jobs SET state = 'analyzed' WHERE id = '$jobId';"
 Assert-D1Failure -Label 'analysis provenance mismatch' -ExpectedMessage 'import analysis provenance mismatch' -Sql "INSERT INTO import_analyses (id, import_job_id, analyzer_id, analysis_version, source_hash, source_format, school_year, model_json, created_by) VALUES ('$analysisId-bad', '$jobId', 'smoke-xlsx-analyzer', 'smoke-1', '$wrongHash', 'xlsx', $primaryYear, '{\"schemaVersion\":1,\"smoke\":true}', 'smoke-remote');"
 
-Invoke-D1 -Sql "INSERT INTO import_analyses (id, import_job_id, analyzer_id, analysis_version, source_hash, source_format, school_year, model_json, created_by) VALUES ('$analysisId', '$jobId', 'smoke-xlsx-analyzer', 'smoke-1', '$sourceHash', 'xlsx', $primaryYear, '{\"schemaVersion\":1,\"smoke\":true}', 'smoke-remote');"
-Invoke-D1 -Sql "UPDATE import_jobs SET state = 'analyzed' WHERE id = '$jobId';"
+Invoke-D1 -Sql "INSERT INTO import_analyses (id, import_job_id, analyzer_id, analysis_version, source_hash, source_format, school_year, model_json, created_by) VALUES ('$analysisId', '$jobId', 'smoke-xlsx-analyzer', 'smoke-1', '$sourceHash', 'xlsx', $primaryYear, '{\"schemaVersion\":1,\"smoke\":true}', 'smoke-remote');" | Out-Null
+Invoke-D1 -Sql "UPDATE import_jobs SET state = 'analyzed' WHERE id = '$jobId';" | Out-Null
 $analyzed = Get-D1Rows -Sql "SELECT state FROM import_jobs WHERE id = '$jobId'; SELECT COUNT(*) AS total FROM import_analyses WHERE import_job_id = '$jobId';"
 Assert-True -Condition ($analyzed[0].state -eq 'analyzed') -Message 'Job não alcançou analyzed após análise válida.'
 Assert-True -Condition ([int]$analyzed[1].total -eq 1) -Message 'Artefato de análise não foi persistido exatamente uma vez.'
@@ -189,14 +198,14 @@ Assert-D1Failure -Label 'analysis append-only update' -ExpectedMessage 'import_a
 Assert-D1Failure -Label 'analysis append-only delete' -ExpectedMessage 'import_analyses are append-only' -Sql "DELETE FROM import_analyses WHERE id = '$analysisId';"
 Assert-D1Failure -Label 'state re-entry' -ExpectedMessage 'import job state re-entry is not allowed' -Sql "UPDATE import_jobs SET state = 'analyzed' WHERE id = '$jobId';"
 
-Invoke-D1 -Sql "INSERT INTO import_findings (id, import_job_id, severity, code, location_json, details_json) VALUES ('$findingId', '$jobId', 'warning', 'smoke_warning', '{\"smoke\":true}', '{\"message\":\"finding sintético\"}');"
-Invoke-D1 -Sql "INSERT INTO import_finding_resolutions (id, import_finding_id, resolved_by, reason, resolved_at) VALUES ('$resolutionId', '$findingId', 'smoke-remote', 'Resolução sintética', '$(Get-Date -AsUTC -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')');"
+Invoke-D1 -Sql "INSERT INTO import_findings (id, import_job_id, severity, code, location_json, details_json) VALUES ('$findingId', '$jobId', 'warning', 'smoke_warning', '{\"smoke\":true}', '{\"message\":\"finding sintético\"}');" | Out-Null
+Invoke-D1 -Sql "INSERT INTO import_finding_resolutions (id, import_finding_id, resolved_by, reason, resolved_at) VALUES ('$resolutionId', '$findingId', 'smoke-remote', 'Resolução sintética', '$(Get-Date -AsUTC -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')');" | Out-Null
 Assert-D1Failure -Label 'finding resolution append-only' -ExpectedMessage 'import_finding_resolutions are append-only' -Sql "UPDATE import_finding_resolutions SET reason = 'tampered' WHERE id = '$resolutionId';"
 Assert-D1Failure -Label 'finding append-only' -ExpectedMessage 'import_findings are append-only' -Sql "UPDATE import_findings SET code = 'tampered' WHERE id = '$findingId';"
 Write-Host 'PASS: finding e resolução preservam histórico append-only'
 
-Invoke-D1 -Sql "DELETE FROM source_assignments WHERE id IN ('$assignmentId', '$referenceAssignmentId');"
-Invoke-D1 -Sql "DELETE FROM school_years WHERE id = '$secondaryYearId';"
+Invoke-D1 -Sql "DELETE FROM source_assignments WHERE id IN ('$assignmentId', '$referenceAssignmentId');" | Out-Null
+Invoke-D1 -Sql "DELETE FROM school_years WHERE id = '$secondaryYearId';" | Out-Null
 
 Write-Host ''
 Write-Host 'SMOKE REMOTO CONCLUÍDO.'
