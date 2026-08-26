@@ -3,8 +3,9 @@
 Última atualização: 26/08/2026 — retomada após interrupção do Codex
 Branch: `feat/banco-de-notas-foundation`
 PR: `#52` — open, draft, sem merge
-HEAD de código/documentação submetido à CI #709: `042fd368bcf44811c2dfb1c1275c4a8f5587bdbd`
-CI Graph: `32985538704` / run `#709` — queued no momento deste registro
+HEAD atual após esta atualização: consultar o próprio commit deste checkpoint
+Último HEAD de código funcional antes dos checkpoints finais: `042fd368bcf44811c2dfb1c1275c4a8f5587bdbd`
+CI Graph criada: `32985538704` / run `#709` — associada a `042fd368...`
 Última baseline D1 comprovada: run `32981705701` — success no HEAD `2467240`
 Última CI verde comprovada: `32981711631` — success no HEAD `2467240`
 
@@ -32,13 +33,13 @@ Fechar a fundação técnica corrente, preservar a homologação remota das migr
 
 ## Em andamento
 
-- [ ] Fechar CI do bloco Graph reconstruído.
+- [ ] Obter CI verde que cubra o HEAD corrente da branch.
 - [ ] Corrigir qualquer falha real sem enfraquecer regras.
 - [ ] Atualizar corpo do PR #52 com resultado final e contagem real de testes.
 
 ## Próxima ação exata
 
-1. acompanhar a CI do branch após a reconstrução;
+1. localizar a execução CI mais recente para o HEAD corrente;
 2. exigir formatting, lint, typecheck, semantic contract, testes e build verdes;
 3. corrigir qualquer falha real;
 4. atualizar o corpo do PR com HEAD/run/contagem final;
@@ -53,7 +54,7 @@ Fechar a fundação técnica corrente, preservar a homologação remota das migr
 - Branch: `feat/banco-de-notas-foundation`.
 - PR #52: open, draft, base `main`.
 - Run intermediário `32985041877` / #708 falhou em typecheck porque um mock antigo ainda não possuía `download`; corrigido nos commits posteriores.
-- Run `32985538704` / #709 foi criado para `042fd368...` e estava em fila no último registro.
+- Run `32985538704` / #709 foi criado para `042fd368...`.
 
 ### Cloudflare
 
@@ -114,7 +115,7 @@ Nunca registrar secrets.
 - `32981705701` — success — locks de OID/status e estado final sync off.
 - `32981711631` — success — CI do bloco D1; produção skipped.
 - `32985041877` — failure intermediária — mock antigo sem `download`; corrigido depois.
-- `32985538704` — CI do bloco Graph para `042fd368...`; em fila no último registro.
+- `32985538704` — CI criada para o bloco Graph em `042fd368...`.
 
 ## Bloqueios externos
 
