@@ -1,0 +1,45 @@
+name: Factory Control Plane
+
+on:
+  pull_request:
+    paths:
+      - "infra/factory/**"
+      - ".github/workflows/factory-control-plane.yml"
+      - "docs/FACTORY_CONTROL_PLANE.md"
+  issues:
+    types: [opened, edited, reopened]
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Check Factory Control Plane syntax
+        run: node --check infra/factory/control-plane.mjs
+      - name: Validate Banco de Notas Factory Run fixture
+        run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.md
+
+  materialize:
+    if: >-
+      github.event_name == 'issues' &&
+      startsWith(github.event.issue.title, '[Factory Run]') &&
+      contains(github.event.issue.body, '<!-- FACTORY_RUN_BEGIN -->') &&
+      contains(github.event.issue.body, '<!-- FACTORY_RUN_END -->')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Materialize typed Factory Run tasks
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PARENT_ISSUE: ${{ github.event.issue.number }}
+        run: node infra/factory/control-plane.mjs materialize
