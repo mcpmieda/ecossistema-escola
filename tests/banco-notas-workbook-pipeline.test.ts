@@ -111,7 +111,7 @@ async function serializer(
 }
 
 describe('Banco de Notas workbook pipeline boundaries', () => {
-  it('verifies source bytes before accepting analyzer output', async () => {
+  it('verifies source bytes and preserves analyzer provenance', async () => {
     const input = await source('xlsx');
     const analyze = vi.fn(analyzer().analyze);
 
@@ -122,9 +122,13 @@ describe('Banco de Notas workbook pipeline boundaries', () => {
 
     expect(analyze).toHaveBeenCalledOnce();
     expect(result).toMatchObject({
-      sourceFormat: 'xlsx',
-      sourceHash: input.metadata.sourceHash,
-      schoolYear: 2026,
+      analyzerId: 'synthetic-xlsx-analyzer',
+      metadata: input.metadata,
+      model: {
+        sourceFormat: 'xlsx',
+        sourceHash: input.metadata.sourceHash,
+        schoolYear: 2026,
+      },
     });
   });
 
@@ -147,6 +151,32 @@ describe('Banco de Notas workbook pipeline boundaries', () => {
       analyzeLegacyWorkbook({ source: input, analyzer: analyzer({ analyze }) }),
     ).rejects.toThrow('legacy_workbook_sha256_mismatch');
     expect(analyze).not.toHaveBeenCalled();
+  });
+
+  it('rejects an analyzer that mutates its verified source copy', async () => {
+    const input = await source('xlsx');
+    const mutatingAnalyzer = analyzer({
+      async analyze(sourceInput) {
+        sourceInput.bytes[0] = sourceInput.bytes[0] === 0 ? 1 : 0;
+        return legacyIntermediateModelSchema.parse({
+          schemaVersion: 1,
+          sourceFormat: sourceInput.metadata.sourceFormat,
+          sourceHash: sourceInput.metadata.sourceHash,
+          schoolYear: sourceInput.metadata.schoolYear,
+          analysisVersion: 'synthetic-1',
+          classes: [],
+          components: [],
+          students: [],
+          gradeSlots: [],
+          findings: [],
+        });
+      },
+    });
+
+    await expect(
+      analyzeLegacyWorkbook({ source: input, analyzer: mutatingAnalyzer }),
+    ).rejects.toThrow('analyzer_mutated_verified_source');
+    expect(await sha256(input.bytes)).toBe(input.metadata.sourceHash);
   });
 
   it('rejects analyzer provenance that does not match the verified source', async () => {
