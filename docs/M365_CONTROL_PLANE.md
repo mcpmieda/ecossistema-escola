@@ -30,7 +30,7 @@ O workflow `bootstrap-m365-operations-identity.yml` usa a identidade de manuten�
 - criar a aplicação operacional dedicada;
 - criar o service principal;
 - declarar `Sites.Selected` como permissão necessária;
-- criar a credencial federada exata para `repo:mcpmieda/ecossistema-escola:environment:production`;
+- criar a credencial federada exata para `repo:mcpmieda@268288370/ecossistema-escola@1345061518:environment:production`;
 - publicar evidência com os IDs públicos necessários para a autorização administrativa.
 
 Antes de terminar, o bootstrap remove a identidade de manutenção da propriedade da aplicação operacional e do service principal quando aplicável. A identidade fica selada antes de receber consentimento ou grant de site.
