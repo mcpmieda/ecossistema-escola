@@ -3,13 +3,16 @@ import type {
   ImportAnalysisRepository,
   ImportAnalysis,
 } from '../../shared/banco-notas-import-analysis';
+import type { ImportAnalysisProfileRepository } from '../../shared/banco-notas-import-analysis-profile';
 import type { ImportJob } from '../../shared/banco-notas-import-jobs';
 import { analyzeImportJob } from './import-analysis';
+import { createGenericXlsxLegacyAnalyzer } from './xlsx-legacy-analyzer';
 import type { LegacyWorkbookAnalyzer } from './workbook-pipeline';
 
 export type ImportAnalysisRuntime = {
   repository: ImportAnalysisRepository;
   analyzers: readonly LegacyWorkbookAnalyzer[];
+  profiles?: ImportAnalysisProfileRepository;
 };
 
 type ImportAnalysisJobs = Pick<BancoNotasRepository, 'findImportJob' | 'listSchoolYears'>;
@@ -22,14 +25,29 @@ function sourceFormat(job: ImportJob): ImportSourceFormat {
   return value;
 }
 
-function selectAnalyzer(
-  analyzers: readonly LegacyWorkbookAnalyzer[],
-  format: ImportSourceFormat,
-): LegacyWorkbookAnalyzer {
-  const compatible = analyzers.filter((analyzer) => analyzer.supportedFormats.includes(format));
-  if (compatible.length === 0) throw new Error(`import_analyzer_not_configured:${format}`);
+export async function resolveImportAnalyzer(
+  runtime: ImportAnalysisRuntime,
+  job: ImportJob,
+): Promise<LegacyWorkbookAnalyzer> {
+  const format = sourceFormat(job);
+  const compatible = runtime.analyzers.filter((analyzer) => analyzer.supportedFormats.includes(format));
   if (compatible.length > 1) throw new Error(`import_analyzer_ambiguous:${format}`);
-  return compatible[0]!;
+  if (compatible.length === 1) return compatible[0]!;
+
+  if (format === 'xlsx' && runtime.profiles) {
+    const attached = await runtime.profiles.findForJob(job.id);
+    if (!attached) throw new Error('import_analysis_profile_not_attached');
+    if (
+      attached.schoolYearId !== job.schoolYearId ||
+      attached.dataSourceId !== job.dataSourceId ||
+      attached.sourceFormat !== 'xlsx'
+    ) {
+      throw new Error('import_analysis_profile_job_mismatch');
+    }
+    return createGenericXlsxLegacyAnalyzer(attached.profile);
+  }
+
+  throw new Error(`import_analyzer_not_configured:${format}`);
 }
 
 export async function findImportAnalysis(args: {
@@ -53,7 +71,7 @@ export async function analyzeUploadedImportWorkbook(args: {
   if (!year) throw new Error('import_job_school_year_not_found');
 
   const format = sourceFormat(job);
-  const analyzer = selectAnalyzer(args.runtime.analyzers, format);
+  const analyzer = await resolveImportAnalyzer(args.runtime, job);
   const stableBytes = new Uint8Array(args.bytes.byteLength);
   stableBytes.set(args.bytes);
 

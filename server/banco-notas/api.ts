@@ -9,6 +9,10 @@ import {
   type BancoNotasRepository,
 } from '../../shared/banco-notas-contract';
 import {
+  importAnalysisProfileAttachSchema,
+  importAnalysisProfileCreateSchema,
+} from '../../shared/banco-notas-import-analysis-profile';
+import {
   importJobCreateSchema,
   importJobTransitionSchema,
 } from '../../shared/banco-notas-import-jobs';
@@ -113,18 +117,53 @@ async function importJobMutation<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
+async function importProfileMutation<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'data_source_not_found') throw new HttpError(404, 'Data source not found');
+      if (error.message === 'import_job_not_found') throw new HttpError(404, 'Import job not found');
+      if (error.message === 'import_analysis_profile_not_found') {
+        throw new HttpError(404, 'Import analysis profile not found');
+      }
+      if (error.message === 'import_analysis_profile_requires_xlsx_job') {
+        throw new HttpError(422, 'An XLSX analysis profile can only be attached to an XLSX import');
+      }
+      if (
+        error.message === 'import_analysis_profile_year_mismatch' ||
+        error.message === 'import_analysis_profile_source_type_invalid' ||
+        error.message === 'import_analysis_profile_idempotency_conflict' ||
+        error.message === 'import_analysis_profile_attachment_conflict' ||
+        error.message === 'import_analysis_profile_job_not_draft' ||
+        error.message === 'import_analysis_profile_job_mismatch' ||
+        error.message.includes('import analysis profile source mismatch') ||
+        error.message.includes('import analysis profile job mismatch')
+      ) {
+        throw new HttpError(409, 'Import analysis profile is incompatible with this import');
+      }
+    }
+    throw error;
+  }
+}
+
 async function importAnalysisMutation<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === 'import_job_not_found')
-        throw new HttpError(404, 'Import job not found');
+      if (error.message === 'import_job_not_found') throw new HttpError(404, 'Import job not found');
       if (error.message === 'import_job_school_year_not_found') {
         throw new HttpError(409, 'Import job school year is unavailable');
       }
       if (error.message === 'import_job_source_format_invalid') {
         throw new HttpError(409, 'Import job source format is invalid');
+      }
+      if (error.message === 'import_analysis_profile_not_attached') {
+        throw new HttpError(409, 'Import job has no XLSX analysis profile attached');
+      }
+      if (error.message === 'import_analysis_profile_job_mismatch') {
+        throw new HttpError(409, 'Attached XLSX analysis profile does not match the import job');
       }
       if (
         error.message.startsWith('import_analyzer_not_configured:') ||
@@ -163,6 +202,9 @@ export async function routeBancoNotasApi(args: {
   const url = new URL(request.url);
   const path = url.pathname.replace(/^\/api\/banco-notas/u, '') || '/';
   const importAnalysisMatch = path.match(/^\/v1\/import-jobs\/([0-9a-f-]+)\/analysis$/iu);
+  const importProfileMatch = path.match(
+    /^\/v1\/import-jobs\/([0-9a-f-]+)\/analysis-profile$/iu,
+  );
   const requestBody =
     (request.method === 'POST' || request.method === 'PATCH') && !importAnalysisMatch
       ? await body(request)
@@ -193,6 +235,29 @@ export async function routeBancoNotasApi(args: {
     requireCapability(capabilities, 'grades.sources.read');
     return response(await repository.listTeachers());
   }
+  if (path === '/v1/import-analysis-profiles') {
+    allowed(request, ['GET', 'POST']);
+    requireCapability(capabilities, 'grades.import.run');
+    const profiles = args.importAnalysis?.profiles;
+    if (!profiles) throw new HttpError(503, 'Import analysis profile storage is unavailable');
+    if (request.method === 'GET') {
+      return response(
+        await profiles.listProfiles(
+          url.searchParams.get('schoolYearId') ?? undefined,
+          url.searchParams.get('dataSourceId') ?? undefined,
+        ),
+      );
+    }
+    return response(
+      await importProfileMutation(() =>
+        profiles.createProfile(
+          parsed(() => importAnalysisProfileCreateSchema.parse(requestBody)),
+          actor,
+        ),
+      ),
+      201,
+    );
+  }
   if (path === '/v1/import-jobs') {
     allowed(request, ['GET', 'POST']);
     requireCapability(capabilities, 'grades.import.run');
@@ -209,6 +274,26 @@ export async function routeBancoNotasApi(args: {
         ),
       ),
       201,
+    );
+  }
+  if (importProfileMatch?.[1]) {
+    allowed(request, ['GET', 'POST']);
+    requireCapability(capabilities, 'grades.import.run');
+    const profiles = args.importAnalysis?.profiles;
+    if (!profiles) throw new HttpError(503, 'Import analysis profile storage is unavailable');
+    if (request.method === 'GET') {
+      const result = await profiles.findForJob(importProfileMatch[1]);
+      if (!result) throw new HttpError(404, 'Import analysis profile not attached');
+      return response(result);
+    }
+    return response(
+      await importProfileMutation(() =>
+        profiles.attachToJob(
+          importProfileMatch[1]!,
+          parsed(() => importAnalysisProfileAttachSchema.parse(requestBody)),
+          actor,
+        ),
+      ),
     );
   }
   if (importAnalysisMatch?.[1]) {
