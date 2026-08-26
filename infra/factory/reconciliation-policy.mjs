@@ -79,6 +79,8 @@ export function changedFilesWithinDeclaredScope(changedFiles, declaredScopes) {
 }
 
 export function shouldReleaseTask(task, dependencyEvidence) {
-  if (!task || task.humanGates.length > 0 || task.dependencies.length === 0) return false;
+  if (!task || task.humanGates.length > 0 || task.dependencies.length === 0) {
+    return false;
+  }
   return task.dependencies.every((dependency) => dependencyEvidence.get(dependency)?.ready === true);
 }
