@@ -4,6 +4,8 @@ param()
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..\..')
 $generatedConfig = Join-Path $repositoryRoot 'wrangler.banco-notas.homologation.jsonc'
+$sourceMigrationDirectory = Join-Path $repositoryRoot 'infra\banco-notas\d1\migrations'
+$remoteMigrationDirectory = Join-Path $repositoryRoot '.wrangler\banco-notas-remote-migrations'
 $databaseName = 'banco-notas-homologation'
 
 if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) {
@@ -48,6 +50,33 @@ if ([string]::IsNullOrWhiteSpace($databaseId)) {
   throw 'Cloudflare não retornou o UUID do D1 de homologação.'
 }
 
+# Wrangler/D1 remoto possui casos conhecidos em que o parser de migrations
+# interpreta o END de um CASE dentro de CREATE TRIGGER como o fim do trigger.
+# A forma parentetizada é SQLite-equivalente e é aceita pelo caminho remoto.
+# Geramos apenas a cópia efêmera usada pela homologação; os arquivos fonte
+# continuam sendo a fonte de verdade e os nomes das migrations são preservados.
+if (Test-Path -LiteralPath $remoteMigrationDirectory) {
+  Remove-Item -LiteralPath $remoteMigrationDirectory -Recurse -Force
+}
+New-Item -ItemType Directory -Path $remoteMigrationDirectory -Force | Out-Null
+
+$migrationFiles = Get-ChildItem -LiteralPath $sourceMigrationDirectory -Filter '*.sql' -File | Sort-Object Name
+if (-not $migrationFiles) {
+  throw 'Nenhuma migration do Banco de Notas foi encontrada.'
+}
+
+foreach ($migrationFile in $migrationFiles) {
+  $sql = Get-Content -LiteralPath $migrationFile.FullName -Raw
+  $sql = $sql.Replace("`r`n", "`n").Replace("`r", "`n")
+  $sql = [regex]::Replace(
+    $sql,
+    'SELECT CASE(?<caseBody>[\s\S]*?)END;',
+    { param($match) "SELECT (CASE$($match.Groups['caseBody'].Value)END);" }
+  )
+  $target = Join-Path $remoteMigrationDirectory $migrationFile.Name
+  [IO.File]::WriteAllText($target, $sql, [Text.UTF8Encoding]::new($false))
+}
+
 $config = @"
 {
   "`$schema": "node_modules/wrangler/config-schema.json",
@@ -60,7 +89,7 @@ $config = @"
       "binding": "BANCO_NOTAS_DB",
       "database_name": "$databaseName",
       "database_id": "$databaseId",
-      "migrations_dir": "infra/banco-notas/d1/migrations"
+      "migrations_dir": ".wrangler/banco-notas-remote-migrations"
     }
   ]
 }
