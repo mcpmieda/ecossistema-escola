@@ -1,7 +1,12 @@
 import process from 'node:process';
 
 import { FACTORY_LABELS, initialDispatch, taskLabelPlan } from './dispatch-policy.mjs';
-import { integrationMarker, parseFactoryRunV2, taskMarker } from './contract-v2.mjs';
+import {
+  integrationMarker,
+  manifestMarker,
+  parseFactoryRunV2,
+  taskMarker,
+} from './contract-v2.mjs';
 import {
   addComment,
   addLabels,
@@ -11,6 +16,15 @@ import {
   labelNames,
   requiredEnv,
 } from './github-api.mjs';
+
+const TRUSTED_FACTORY_LOGIN = 'github-actions[bot]';
+const MANIFEST_MARKER = /<!-- factory-manifest-sha256:([0-9a-f]{64}) -->/;
+const RUNTIME_LABELS = new Set([
+  FACTORY_LABELS.running,
+  FACTORY_LABELS.ci,
+  FACTORY_LABELS.merged,
+  FACTORY_LABELS.failed,
+]);
 
 async function ensureLabel(owner, repo, name, description, color) {
   const existing = await githubOptional(`/repos/${owner}/${repo}/labels/${encodeURIComponent(name)}`);
@@ -40,6 +54,10 @@ async function ensureLabels(owner, repo) {
   for (const [name, description, color] of definitions) {
     await ensureLabel(owner, repo, name, description, color);
   }
+}
+
+function trustedFactoryComments(comments) {
+  return (comments ?? []).filter((comment) => comment?.user?.login === TRUSTED_FACTORY_LOGIN);
 }
 
 function taskBody(parentIssue, run, task) {
@@ -78,8 +96,30 @@ function taskBody(parentIssue, run, task) {
   ].join('\n');
 }
 
+async function ensureImmutableManifest(owner, repo, parentIssue, run) {
+  const comments = trustedFactoryComments(await issueComments(owner, repo, parentIssue));
+  const expected = manifestMarker(run);
+  const existing = [];
+  for (const comment of comments) {
+    const match = String(comment.body ?? '').match(MANIFEST_MARKER);
+    if (match) existing.push(match[0]);
+  }
+  if (existing.length === 0) {
+    await addComment(
+      owner,
+      repo,
+      parentIssue,
+      `${expected}\nFactory Run manifest locked. Future re-executions must preserve the exact normalized run contract.`,
+    );
+    return;
+  }
+  if (existing.some((marker) => marker !== expected)) {
+    throw new Error('Factory Run manifest changed after materialization and was rejected fail-closed.');
+  }
+}
+
 async function ensureIntegrationBranch(owner, repo, parentIssue, run) {
-  const comments = await issueComments(owner, repo, parentIssue);
+  const comments = trustedFactoryComments(await issueComments(owner, repo, parentIssue));
   const marker = integrationMarker(run);
   const branch = await githubOptional(
     `/repos/${owner}/${repo}/branches/${encodeURIComponent(run.integrationBranch)}`,
@@ -89,13 +129,15 @@ async function ensureIntegrationBranch(owner, repo, parentIssue, run) {
   if (branch) {
     if (!owned) {
       throw new Error(
-        `Integration branch ${run.integrationBranch} exists without Factory ownership evidence.`,
+        `Integration branch ${run.integrationBranch} exists without trusted Factory ownership evidence.`,
       );
     }
     return { created: false, sha: branch.commit.sha };
   }
 
-  const base = await githubOptional(`/repos/${owner}/${repo}/branches/${encodeURIComponent(run.baseBranch)}`);
+  const base = await githubOptional(
+    `/repos/${owner}/${repo}/branches/${encodeURIComponent(run.baseBranch)}`,
+  );
   if (!base?.commit?.sha) throw new Error(`Base branch ${run.baseBranch} does not exist.`);
 
   await github(`/repos/${owner}/${repo}/git/refs`, {
@@ -122,11 +164,15 @@ async function findTasks(owner, repo, runId) {
 
 async function ensureTaskLabels(owner, repo, issue, desired) {
   const current = new Set(labelNames(issue.labels));
+  const runtimeStarted = issue.state !== 'open' || [...current].some((label) => RUNTIME_LABELS.has(label));
+  const safeDesired = runtimeStarted
+    ? desired.filter((label) => label === FACTORY_LABELS.task || label === FACTORY_LABELS.providerJules)
+    : desired;
   await addLabels(
     owner,
     repo,
     issue.number,
-    desired.filter((label) => !current.has(label)),
+    safeDesired.filter((label) => !current.has(label)),
   );
 }
 
@@ -139,6 +185,7 @@ export async function materializeParent(parentIssueNumber) {
   const run = parseFactoryRunV2(parent.body ?? '');
   await ensureLabels(owner, repo);
   await ensureTaskLabels(owner, repo, parent, [FACTORY_LABELS.parent]);
+  await ensureImmutableManifest(owner, repo, parentIssueNumber, run);
   const integration = await ensureIntegrationBranch(owner, repo, parentIssueNumber, run);
 
   const existing = await findTasks(owner, repo, run.runId);
