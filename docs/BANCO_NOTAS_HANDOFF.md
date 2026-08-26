@@ -15,7 +15,7 @@ Estado: **Fase 1 consolidada, grade-events interno e núcleo de importação/mod
 - import jobs persistentes/API com hash, idempotência, findings, proveniência, operador e state machine protegida também pela migration `0003`;
 - OpenAPI de importação/modelos em `api/banco-notas-models-v1.openapi.yaml`, distinguindo endpoints conectados e futuros;
 - orquestração backend de store/share/metadata/audit para modelo docente, sem adapter Graph real ou sucesso externo inventado;
-- regressão local verde: **196 testes em 34 arquivos** e todos os demais gates de `npm run verify`.
+- head funcional `87bf87b60a17c24b5338d88b34c37ba7b0e32f74`, workflow `32917400697` / run `#528` verde: **196 testes em 34 arquivos**, segurança, formatting, lint, typecheck, semantic check e build; deploy/recovery skipped.
 
 Bloqueios confirmados no ambiente: Wrangler não autenticado e sem token/account Cloudflare; `az` e `m365` ausentes; variáveis Entra/SharePoint/add-in ausentes. Assim, D1 remoto, app registration/scope, SharePoint, Graph real e browser QA de homologação permanecem pendentes.
 

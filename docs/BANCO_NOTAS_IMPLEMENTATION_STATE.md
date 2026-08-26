@@ -16,7 +16,7 @@ Fase: **1 consolidada + grade-events interno + núcleo de importação/modelo ge
 - `api/banco-notas-models-v1.openapi.yaml` identifica import jobs como conectados e endpoints de teacher model/Graph como futuros e não roteados;
 - a orquestração backend de modelo docente exige um único destinatário Entra/UPN, compartilhamento autenticado, verificação de tamanho/hash e share audit; o adapter Graph real não foi conectado sem credenciais e recurso homologado.
 
-Verificação local deste avanço: `npm run verify` verde, com **196/196 testes em 34 arquivos**, além de formatting, lint, typecheck, semantic check e build. O warning histórico de chunk acima de 500 kB permanece sem falha associada. A CI GitHub do head publicado deve substituir esta evidência local quando concluída.
+Head funcional: `87bf87b60a17c24b5338d88b34c37ba7b0e32f74`. Workflow `32917400697` / run `#528` — **success**: segurança de Actions, formatting, lint, typecheck, semantic check, **196/196 testes em 34 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram `skipped`. O warning histórico de chunk acima de 500 kB permanece sem falha associada.
 
 ## Entregue no PR #52
 

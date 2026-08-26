@@ -36,7 +36,7 @@ Atualização visual corrente:
 
 ### Avanço local de importação/modelo genérico — 25/08/2026
 
-No branch do PR #52, `npm run verify` concluiu localmente com:
+No head funcional `87bf87b60a17c24b5338d88b34c37ba7b0e32f74` do PR #52, o workflow `32917400697` / run `#528` concluiu com:
 
 - formatting — success;
 - lint — success;
@@ -44,9 +44,11 @@ No branch do PR #52, `npm run verify` concluiu localmente com:
 - semantic check — success;
 - testes — **196/196 em 34 arquivos**;
 - build — success;
+- `Deploy production` — skipped;
+- `Verify recovery after deploy` — skipped;
 - warning histórico de chunk acima de 500 kB, sem falha.
 
-Novas provas comportamentais cobrem o bearer Entra fail closed, geração determinística do modelo genérico, bloqueio de plano incompleto, state machine de import jobs, migration SQLite real com transição protegida/findings append-only, API de jobs e orquestração segura de store/share/reconcile. Esta é evidência local; a CI do head publicado será registrada após conclusão.
+Novas provas comportamentais cobrem o bearer Entra fail closed, geração determinística do modelo genérico, bloqueio de plano incompleto, state machine de import jobs, migration SQLite real com transição protegida/findings append-only, API de jobs e orquestração segura de store/share/reconcile.
 
 Limites comprovados por inspeção do ambiente: Wrangler sem autenticação; tokens Cloudflare ausentes; CLIs e configuração administrativa Microsoft ausentes. Portanto, não houve D1 remoto, Entra provisionado, chamada SharePoint/Graph real, browser QA em preview, deploy ou sync.
 
