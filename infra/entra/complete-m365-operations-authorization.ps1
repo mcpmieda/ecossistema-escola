@@ -48,7 +48,7 @@ function Invoke-Graph {
     $parameters = @{
         Method     = $Method
         Uri        = "$GraphRoot$Path"
-        OutputType = 'PSObject'
+        OutputType = 'Json'
     }
 
     if ($null -ne $Body) {
@@ -56,7 +56,13 @@ function Invoke-Graph {
         $parameters.Body = $Body | ConvertTo-Json -Depth 20 -Compress
     }
 
-    Invoke-MgGraphRequest @parameters
+    $response = Invoke-MgGraphRequest @parameters
+
+    if ($null -eq $response -or [string]::IsNullOrWhiteSpace([string] $response)) {
+        return $null
+    }
+
+    return $response | ConvertFrom-Json -Depth 100
 }
 
 function Get-SingleApplication {
@@ -240,12 +246,17 @@ Write-Host ''
 Connect-MgGraph `
     -TenantId $TenantId `
     -Scopes $Scopes `
+    -ContextScope Process `
     -NoWelcome
 
 try {
     $me = Invoke-Graph `
         -Method GET `
         -Path '/me?$select=id,displayName,userPrincipalName'
+
+    if (-not $me -or [string]::IsNullOrWhiteSpace([string] $me.id)) {
+        throw 'Microsoft Graph não retornou o Object ID do administrador autenticado.'
+    }
 
     $application = Get-SingleApplication
 
@@ -435,7 +446,7 @@ try {
     Write-Host 'AUTORIZAÇÃO M365 CONCLUÍDA'
     Write-Host "Aplicação: $($application.appId)"
     Write-Host "Service principal: $($servicePrincipal.id)"
-    Write-Host "Sites.Selected: CONCEDIDO"
+    Write-Host 'Sites.Selected: CONCEDIDO'
     Write-Host "Site: $($site.webUrl)"
     Write-Host 'Papel no site: write'
     Write-Host 'Identidade de manutenção como owner: REMOVIDA'
@@ -458,5 +469,5 @@ try {
     }
 }
 finally {
-    Disconnect-MgGraph | Out-Null
+    # ContextScope Process keeps this one-shot admin login isolated to this pwsh process.
 }
