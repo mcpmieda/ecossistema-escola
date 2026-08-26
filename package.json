@@ -9,7 +9,7 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --write api/banco-notas-models-v1.openapi.yaml && git diff -- api/banco-notas-models-v1.openapi.yaml && false",
     "typecheck": "tsc -b --pretty false",
     "semantic:check": "node infra/validation/validate-semantic-contract.mjs",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run semantic:check && npm test && npm run build"
