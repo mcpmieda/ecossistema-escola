@@ -234,6 +234,7 @@ homologation('Banco de Notas M365 storage homologation', () => {
     let metadataByteLength: number | undefined;
     let downloadedByteLength: number | undefined;
     let downloadedHash = '';
+    let executionError: unknown;
     try {
       const stored = await gateway.store({
         fileName,
@@ -283,7 +284,7 @@ homologation('Banco de Notas M365 storage homologation', () => {
       expect(analysisSucceeded).toBe(true);
     } catch (error) {
       failure = safeError(error);
-      throw error;
+      executionError = error;
     } finally {
       if (driveItemId) {
         try {
@@ -323,7 +324,8 @@ homologation('Banco de Notas M365 storage homologation', () => {
         )}\n`,
         'utf8',
       );
-      if (cleanupError) throw new Error(`m365_homologation_cleanup_failed:${cleanupError}`);
     }
+    if (executionError !== undefined) throw executionError;
+    if (cleanupError) throw new Error(`m365_homologation_cleanup_failed:${cleanupError}`);
   }, 60_000);
 });
