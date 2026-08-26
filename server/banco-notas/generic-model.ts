@@ -41,24 +41,14 @@ export function buildGenericTransformationPlan(args: {
   const blockers: string[] = [];
   const findings = [...legacy.findings];
 
-  const classMap = buildResolutionMap(
-    resolutions,
-    'sourceClassId',
-    'classGroupId',
-    blockers,
-  );
+  const classMap = buildResolutionMap(resolutions, 'sourceClassId', 'classGroupId', blockers);
   const componentMap = buildResolutionMap(
     resolutions,
     'sourceComponentId',
     'componentId',
     blockers,
   );
-  const studentMap = buildResolutionMap(
-    resolutions,
-    'sourceStudentId',
-    'studentId',
-    blockers,
-  );
+  const studentMap = buildResolutionMap(resolutions, 'sourceStudentId', 'studentId', blockers);
   const supportedFields = new Set(definition.gradeFields);
 
   const mappings = legacy.gradeSlots.flatMap((slot) => {
@@ -96,7 +86,9 @@ export function buildGenericTransformationPlan(args: {
 
   const uniqueBlockers = [...new Set(blockers)];
   if (legacy.gradeSlots.length === 0) findings.push('legacy_analysis_contains_no_grade_slots');
-  if (mappings.length !== legacy.gradeSlots.length) findings.push('not_all_grade_slots_are_resolved');
+  if (mappings.length !== legacy.gradeSlots.length) {
+    findings.push('not_all_grade_slots_are_resolved');
+  }
 
   return transformationPlanSchema.parse({
     schemaVersion: 1,
