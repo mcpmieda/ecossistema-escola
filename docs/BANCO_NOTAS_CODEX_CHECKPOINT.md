@@ -4,44 +4,42 @@
 Branch: `feat/banco-de-notas-foundation`
 PR: `#52` — open, draft, sem merge
 
-## Estado
+## Ponto de retomada
 
-A reconstrução após a interrupção do Codex foi concluída e publicada na branch.
+A reconstrução do bloco interrompido foi publicada. Não criar novos commits de documentação antes de fechar a CI do HEAD corrente.
 
-- D1 `banco-notas-homologation`: migrations `0001`–`0007` homologadas remotamente.
-- Run D1 final: `32981705701` — success.
-- Sync final remoto: desligado.
-- Adapter Graph: backend-only, com upload, share por OID, metadata, download, SHA-256 local, reanálise OOXML, revoke/delete e compensação.
-- Target Graph: fail-closed por configuração, sem IDs fictícios.
-- Round-trip sintético: `serializer → Graph boundary → download → SHA-256 → analyzer` implementado.
-- Microsoft/Entra/Graph/SharePoint real: ainda não homologado externamente.
-- Produção: intocada.
+### Concluído
 
-## Pendente imediato
+- migrations D1 `0001`–`0007` homologadas em `banco-notas-homologation`;
+- run D1 final `32981705701` — success;
+- sync final desligado;
+- adapter Graph backend-only com download, SHA-256 local e reanálise OOXML;
+- compensação Graph por revoke/delete;
+- target Graph fail-closed sem IDs fictícios;
+- round-trip sintético `serializer → Graph boundary → download → SHA-256 → analyzer`;
+- implementation state, handoff e evidência D1 atualizados;
+- produção intocada, PR draft, sem merge.
 
-1. obter CI verde para o HEAD corrente;
-2. corrigir qualquer falha sem enfraquecer regras;
-3. atualizar o corpo do PR #52 com HEAD/run/contagem final;
-4. manter PR draft e sync off.
+### Próxima ação exata
 
-## Baselines conhecidas
+1. consultar HEAD atual do PR #52;
+2. localizar a CI desse HEAD;
+3. corrigir falhas até formatting/lint/typecheck/semantic/test/build verdes;
+4. atualizar apenas o corpo do PR com a baseline final, sem novo commit documental;
+5. manter sync off e produção untouched.
 
-- `32981711631` — CI verde do bloco D1 no commit `2467240`;
-- `32985041877` — falha intermediária Graph por mock sem `download`, já corrigida;
-- `32985538704` — execução de CI criada durante o fechamento Graph.
+### Bloqueios externos
 
-## Bloqueios externos
+- Microsoft/Entra/Graph/SharePoint real requer autenticação administrativa de homologação apropriada;
+- binding D1 real requer runtime Cloudflare de homologação autorizado;
+- browser QA requer ambiente navegável.
 
-- integração Microsoft real requer sessão/credencial administrativa de homologação apropriada;
-- atomicidade por binding D1 real requer runtime Cloudflare de homologação autorizado;
-- browser QA requer ambiente navegável apropriado.
-
-## Não fazer
+### Proibições
 
 - não fazer merge;
-- não tirar o PR de draft;
-- não tocar D1/Pages de produção;
-- não habilitar sync sem gate completo;
+- não tirar draft;
+- não tocar produção;
+- não habilitar sync;
 - não registrar secrets;
 - não usar compartilhamento anônimo;
-- não declarar Graph/SharePoint real homologado sem execução comprovada.
+- não declarar integração Microsoft real sem prova externa.
