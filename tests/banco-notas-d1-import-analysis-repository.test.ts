@@ -12,7 +12,9 @@ const migrations = [
   '0003_banco_notas_import_job_state_machine.sql',
   '0004_banco_notas_import_finding_resolution.sql',
   '0005_banco_notas_import_analysis.sql',
-].map((name) => readFileSync(join(root, 'infra/banco-notas/d1/migrations', name), 'utf8'));
+].map((name) =>
+  readFileSync(join(root, 'infra/banco-notas/d1/migrations', name), 'utf8'),
+);
 
 class SqliteStatement {
   constructor(
@@ -154,8 +156,12 @@ describe('D1 import analysis repository', () => {
       schoolYear: 2026,
     });
     expect(db.prepare('SELECT state FROM import_jobs').get()?.state).toBe('analyzed');
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM import_analyses').get()?.total)).toBe(1);
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM import_findings').get()?.total)).toBe(1);
+    expect(
+      Number(db.prepare('SELECT COUNT(*) AS total FROM import_analyses').get()?.total),
+    ).toBe(1);
+    expect(
+      Number(db.prepare('SELECT COUNT(*) AS total FROM import_findings').get()?.total),
+    ).toBe(1);
     expect(
       Number(
         db
@@ -174,8 +180,12 @@ describe('D1 import analysis repository', () => {
     const second = await repo.commitImportAnalysis(commit());
 
     expect(second).toEqual(first);
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM import_analyses').get()?.total)).toBe(1);
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM import_findings').get()?.total)).toBe(1);
+    expect(
+      Number(db.prepare('SELECT COUNT(*) AS total FROM import_analyses').get()?.total),
+    ).toBe(1);
+    expect(
+      Number(db.prepare('SELECT COUNT(*) AS total FROM import_findings').get()?.total),
+    ).toBe(1);
     expect(
       Number(
         db
@@ -202,7 +212,9 @@ describe('D1 import analysis repository', () => {
     await expect(repo.commitImportAnalysis(commit({ sourceHash: 'b'.repeat(64) }))).rejects.toThrow(
       'import_analysis_provenance_mismatch',
     );
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM import_analyses').get()?.total)).toBe(0);
+    expect(
+      Number(db.prepare('SELECT COUNT(*) AS total FROM import_analyses').get()?.total),
+    ).toBe(0);
     expect(db.prepare('SELECT state FROM import_jobs').get()?.state).toBe('draft');
   });
 
@@ -221,8 +233,12 @@ describe('D1 import analysis repository', () => {
     });
 
     await expect(repo.commitImportAnalysis(invalid)).rejects.toThrow();
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM import_analyses').get()?.total)).toBe(0);
-    expect(Number(db.prepare('SELECT COUNT(*) AS total FROM import_findings').get()?.total)).toBe(0);
+    expect(
+      Number(db.prepare('SELECT COUNT(*) AS total FROM import_analyses').get()?.total),
+    ).toBe(0);
+    expect(
+      Number(db.prepare('SELECT COUNT(*) AS total FROM import_findings').get()?.total),
+    ).toBe(0);
     expect(db.prepare('SELECT state FROM import_jobs').get()?.state).toBe('draft');
   });
 });
