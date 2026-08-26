@@ -150,7 +150,9 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function resolveDriveAndFolder(token: string): Promise<{ driveId: string; folderId: string }> {
+async function resolveDriveAndFolder(
+  token: string,
+): Promise<{ driveId: string; folderId: string }> {
   const siteId = requiredEnv('SHAREPOINT_SITE_ID');
   const env = {} as RuntimeEnv;
   const encodedSiteId = encodeURIComponent(siteId);
