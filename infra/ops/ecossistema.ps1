@@ -181,7 +181,7 @@ switch ($Acao) {
 
         & gh run view $RunId `
             --repo $Repo `
-            --log-failed
+            --log
 
         if ($LASTEXITCODE -ne 0) {
             throw "Não foi possível consultar os logs do run $RunId."

@@ -61,7 +61,7 @@ O GitHub é também o plano de controle das operações técnicas do ecossistema
 
 Não existe executor genérico de shell, Graph path, URL ou código arbitrário. Cada nova operação precisa ser implementada em código versionado e entrar explicitamente na allowlist.
 
-O CI pode ser iniciado manualmente por `workflow_dispatch`, porém o deploy de produção continua restrito a `push` em `refs/heads/main`. Disparos manuais do CI executam validação e segurança, sem acesso implícito a deploy.
+O CI pode ser iniciado manualmente por `workflow_dispatch`, porém o deploy de produção continua restrito a `push` em `refs/heads/main`. Disparos manuais do CI executam validação e segurança, sem acesso implícito a deploy. A concorrência da validação manual é isolada da produção, impedindo que um disparo manual cancele deploy ou recovery em andamento.
 
 Jobs com `id-token: write` são allowlisted e precisam manter o ambiente `production`. Novas integrações Entra/Graph devem receber identidades de privilégio mínimo por domínio; não é permitido transformar a identidade de manutenção em uma identidade Graph administrativa geral.
 

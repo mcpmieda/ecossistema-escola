@@ -33,6 +33,8 @@ push main -> validações -> deploy -> verificação de recuperação.
 
 workflow_dispatch do CI executa validação sob demanda, mas não faz deploy de produção.
 
+Validações manuais usam grupo de concorrência separado do pipeline de produção. Um disparo manual nunca cancela um deploy ou uma verificação de recuperação em andamento. Pushes de produção são serializados em vez de cancelar uma execução de produção anterior.
+
 ## OIDC
 
 Jobs que precisam de token OIDC devem:
