@@ -78,7 +78,10 @@ async function importJobMutation<T>(operation: () => Promise<T>): Promise<T> {
         error.message.includes('import_finding_not_resolvable') ||
         error.message.includes('import_finding_resolutions.import_finding_id')
       ) {
-        throw new HttpError(409, 'Import finding is already resolved or does not belong to this job');
+        throw new HttpError(
+          409,
+          'Import finding is already resolved or does not belong to this job',
+        );
       }
       if (error.message.includes('import_job_has_unresolved_error_findings')) {
         throw new HttpError(422, 'Import job has unresolved error findings');
