@@ -9,9 +9,7 @@ const migrations = [
   '0003_banco_notas_import_job_state_machine.sql',
   '0004_banco_notas_import_finding_resolution.sql',
   '0005_banco_notas_import_analysis.sql',
-].map((name) =>
-  readFileSync(join(root, 'infra/banco-notas/d1/migrations', name), 'utf8'),
-);
+].map((name) => readFileSync(join(root, 'infra/banco-notas/d1/migrations', name), 'utf8'));
 
 function database() {
   const db = new DatabaseSync(':memory:');
@@ -96,8 +94,7 @@ const results = {};
   const db = database();
   insertJob(db, 'job-requires-analysis');
   results.analyzedWithoutArtifactRejected = rejects(
-    () =>
-      db.exec("UPDATE import_jobs SET state = 'analyzed' WHERE id = 'job-requires-analysis'"),
+    () => db.exec("UPDATE import_jobs SET state = 'analyzed' WHERE id = 'job-requires-analysis'"),
     /import job analysis artifact required/iu,
   );
   db.close();
