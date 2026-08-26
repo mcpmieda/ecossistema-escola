@@ -32,10 +32,34 @@ const instance = genericModelInstanceSchema.parse({
     ],
   },
   mappings: [
-    { gradeKey: gradeKeyA, field: 'NotaT1', sheetKey: sheetKeyA, studentPosition: 1, cellAddress: 'B2' },
-    { gradeKey: gradeKeyA, field: 'NotaFinal', sheetKey: sheetKeyA, studentPosition: 1, cellAddress: 'C2' },
-    { gradeKey: gradeKeyB, field: 'NotaT1', sheetKey: sheetKeyB, studentPosition: 1, cellAddress: 'B2' },
-    { gradeKey: gradeKeyB, field: 'NotaFinal', sheetKey: sheetKeyB, studentPosition: 1, cellAddress: 'C2' },
+    {
+      gradeKey: gradeKeyA,
+      field: 'NotaT1',
+      sheetKey: sheetKeyA,
+      studentPosition: 1,
+      cellAddress: 'B2',
+    },
+    {
+      gradeKey: gradeKeyA,
+      field: 'NotaFinal',
+      sheetKey: sheetKeyA,
+      studentPosition: 1,
+      cellAddress: 'C2',
+    },
+    {
+      gradeKey: gradeKeyB,
+      field: 'NotaT1',
+      sheetKey: sheetKeyB,
+      studentPosition: 1,
+      cellAddress: 'B2',
+    },
+    {
+      gradeKey: gradeKeyB,
+      field: 'NotaFinal',
+      sheetKey: sheetKeyB,
+      studentPosition: 1,
+      cellAddress: 'C2',
+    },
   ],
 });
 
@@ -60,13 +84,17 @@ function source(overrides: Record<string, unknown> = {}) {
         sheetKey: sheetKeyB,
         classDisplayName: 'Turma / A',
         componentDisplayName: 'Componente muito extenso com mesmo começo para testar nomes',
-        rows: [{ studentPosition: 1, gradeKey: gradeKeyB, studentDisplayName: 'Estudante' }],
+        rows: [
+          { studentPosition: 1, gradeKey: gradeKeyB, studentDisplayName: 'Estudante' },
+        ],
       },
       {
         sheetKey: sheetKeyA,
         classDisplayName: 'Turma / A',
         componentDisplayName: 'Componente muito extenso com mesmo começo para testar nomes',
-        rows: [{ studentPosition: 1, gradeKey: gradeKeyA, studentDisplayName: 'Estudante' }],
+        rows: [
+          { studentPosition: 1, gradeKey: gradeKeyA, studentDisplayName: 'Estudante' },
+        ],
       },
     ],
     ...overrides,
@@ -119,7 +147,9 @@ describe('Banco de Notas workbook presentation builder', () => {
           sheetKey: sheetKeyB,
           classDisplayName: 'Turma A',
           componentDisplayName: 'Componente B',
-          rows: [{ studentPosition: 1, gradeKey: gradeKeyB, studentDisplayName: 'Estudante' }],
+          rows: [
+            { studentPosition: 1, gradeKey: gradeKeyB, studentDisplayName: 'Estudante' },
+          ],
         },
       ],
     });
@@ -136,7 +166,9 @@ describe('Banco de Notas workbook presentation builder', () => {
           sheetKey: sheetKeyA,
           classDisplayName: 'Turma A',
           componentDisplayName: 'Componente A',
-          rows: [{ studentPosition: 1, gradeKey: gradeKeyA, studentDisplayName: 'Estudante' }],
+          rows: [
+            { studentPosition: 1, gradeKey: gradeKeyA, studentDisplayName: 'Estudante' },
+          ],
         },
       ],
     });
@@ -144,7 +176,9 @@ describe('Banco de Notas workbook presentation builder', () => {
       'xlsx_presentation_source_sheets_do_not_match_instance',
     );
 
-    const missingField = source({ gradeHeaders: [{ field: 'NotaT1', label: '1º trimestre' }] });
+    const missingField = source({
+      gradeHeaders: [{ field: 'NotaT1', label: '1º trimestre' }],
+    });
     expect(() => buildGenericWorkbookPresentation({ instance, source: missingField })).toThrow(
       'xlsx_presentation_source_fields_do_not_match_layout',
     );
