@@ -69,6 +69,14 @@ export class D1GradeEventStore implements GradeEventStore {
     return row ? storedEvent(row) : null;
   }
 
+  async findByEventId(eventId: string): Promise<StoredGradeEvent | null> {
+    const row = await this.db
+      .prepare('SELECT * FROM grade_events WHERE id = ?')
+      .bind(eventId)
+      .first<Row>();
+    return row ? storedEvent(row) : null;
+  }
+
   async getSnapshot(gradeKey: string, field: GradeField): Promise<GradeSnapshot | null> {
     const row = await this.db
       .prepare('SELECT * FROM grade_snapshots WHERE grade_key = ? AND field = ?')
