@@ -69,9 +69,16 @@ async function importJobMutation<T>(operation: () => Promise<T>): Promise<T> {
       }
       if (
         error.message.includes('invalid_import_job_transition') ||
-        error.message.includes('invalid import job state transition')
+        error.message.includes('invalid import job state transition') ||
+        error.message.includes('import job state re-entry is not allowed')
       ) {
         throw new HttpError(409, 'Import job transition is not allowed');
+      }
+      if (
+        error.message.includes('import_finding_not_resolvable') ||
+        error.message.includes('import_finding_resolutions.import_finding_id')
+      ) {
+        throw new HttpError(409, 'Import finding is already resolved or does not belong to this job');
       }
       if (error.message.includes('import_job_has_unresolved_error_findings')) {
         throw new HttpError(422, 'Import job has unresolved error findings');
