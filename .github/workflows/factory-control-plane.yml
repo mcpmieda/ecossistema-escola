@@ -5,6 +5,7 @@ on:
     paths:
       - 'infra/factory/**'
       - '.github/workflows/factory-control-plane.yml'
+      - '.github/workflows/factory-reconcile.yml'
       - 'docs/FACTORY_CONTROL_PLANE.md'
       - 'docs/FACTORY_RUN_ISSUE_FORMAT.md'
   issues:
@@ -28,9 +29,16 @@ jobs:
         with:
           persist-credentials: false
       - name: Check Factory Control Plane syntax
-        run: node --check infra/factory/control-plane.mjs && node --check infra/factory/dispatch-policy.mjs
-      - name: Test provider dispatch guardrails
-        run: node --test infra/factory/dispatch-policy.test.mjs
+        run: >-
+          node --check infra/factory/control-plane.mjs &&
+          node --check infra/factory/dispatch-policy.mjs &&
+          node --check infra/factory/reconciliation-policy.mjs &&
+          node --check infra/factory/reconcile.mjs
+      - name: Test provider dispatch and reconciliation guardrails
+        run: >-
+          node --test
+          infra/factory/dispatch-policy.test.mjs
+          infra/factory/reconciliation-policy.test.mjs
       - name: Validate Banco de Notas Factory Run fixture
         run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.txt
 

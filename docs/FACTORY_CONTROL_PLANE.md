@@ -14,12 +14,13 @@ ChatGPT / PowerShell
   -> workers isolados
   -> branches/PRs
   -> CI/revisão
+  -> reconciliação de dependências
   -> integração controlada
 ```
 
 ## Estado atual
 
-O Control Plane materializa Factory Runs em issues-filho e possui o primeiro adaptador remoto: Jules via integração oficial do GitHub por label.
+O Control Plane materializa Factory Runs em issues-filho, possui o primeiro adaptador remoto via Jules e reconcilia dependências depois de PRs mesclados.
 
 O Banco de Notas continua em sua branch/PR atual. Esta fundação não escreve em `feat/banco-de-notas-foundation`, não retira draft, não ativa sync e não faz deploy de produção.
 
@@ -31,7 +32,7 @@ Uma tarefa recebe o trigger `jules` somente quando todas as condições abaixo s
 
 - a Factory Run foi aberta/editada pelo proprietário do repositório;
 - não possui `human_gates`;
-- não depende de outra tarefa (`depends_on` vazio);
+- não depende de outra tarefa (`depends_on` vazio); ou suas dependências foram reconciliadas com evidência válida;
 - lista `jules` explicitamente em `preferred_providers`.
 
 As labels usadas são:
@@ -39,12 +40,33 @@ As labels usadas são:
 - `factory:task`: issue-filho da Factory Run;
 - `factory:provider:jules`: seleção interna do provider;
 - `jules`: trigger externo oficial;
-- `factory:waiting`: tarefa que possui dependências e ainda não pode ser enviada a provider;
+- `factory:waiting`: tarefa que ainda aguarda dependências;
+- `factory:ready`: dependências confirmadas, mas sem provider remoto disponível/selecionado;
 - `factory:human-required`: tarefa que depende de decisão humana.
 
 A issue-filho é criada primeiro e a label `jules` é adicionada em seguida, produzindo um evento explícito de rotulagem para o GitHub App. Aplicar a label é registrado como `trigger-requested`, não como execução concluída. O Jules ainda precisa ter acesso ao repositório pelo seu GitHub App. Ausência dessa autorização não provoca fallback inseguro nem uso automático de Codex.
 
-Nesta fase somente a primeira wave pronta é enviada. A liberação automática das tarefas dependentes ficará para a fase de reconciliation, depois que houver evidência verificável de conclusão das predecessoras.
+## Reconciliação de dependências
+
+O workflow `Factory Reconciliation` roda quando qualquer PR é efetivamente mesclado. Ele varre somente issues abertas com `factory:waiting` e trabalha em modo fail-closed.
+
+Uma dependência é considerada concluída apenas quando:
+
+1. a issue da tarefa foi materializada por `github-actions[bot]` e contém o marcador imutável de `run_id` + `task id`;
+2. existe comentário do login oficial `google-labs-jules[bot]` na issue com link para um PR do mesmo repositório;
+3. o PR está realmente mesclado na branch padrão do repositório;
+4. o PR alterou pelo menos um arquivo;
+5. todos os arquivos alterados estão dentro dos `paths` declarados pela tarefa predecessora.
+
+Se qualquer condição falhar, a tarefa dependente permanece em `factory:waiting`.
+
+Quando todas as dependências são comprovadas:
+
+- se a tarefa prefere Jules, `factory:waiting` é removida e o trigger `jules` é emitido em evento de label separado;
+- se não há provider remoto suportado/selecionado, a tarefa passa para `factory:ready`;
+- nenhuma reconciliação concede merge, deploy, produção ou mudança de privilégio.
+
+Essa política evita liberar uma etapa apenas porque uma issue foi fechada, um comentário humano alegou conclusão ou um PR alterou arquivos fora do escopo previsto.
 
 ## Regras permanentes
 
@@ -69,8 +91,8 @@ Workers locais são capacidade oportunística. Workers remotos e GitHub Actions 
 
 1. contrato e validação de Factory Run — concluído;
 2. criação segura de parent/child issues — concluído;
-3. provider Jules, primeira wave — implementado nesta fase;
-4. reconciliation de dependências e resultados;
+3. provider Jules, primeira wave — concluído no Control Plane;
+4. reconciliation de dependências e resultados — implementado nesta fase;
 5. provider Antigravity;
 6. provider OpenCode/Ollama local;
 7. merge train, status e telemetria de execução.
