@@ -31,10 +31,12 @@ describe('Banco de Notas grade-event contracts', () => {
     expect(openapi).not.toMatch(/f04e0fa3-b8dc-4f77-be3c-7dfda0635188/iu);
   });
 
-  it('binds events to explicit source and teacher model identifiers', () => {
+  it('binds events and snapshots to their complete identifiers', () => {
     expect(openapi).toContain('- dataSourceId');
     expect(openapi).toContain('- teacherModelId');
     expect(openapi).toContain('- field');
+    expect(openapi).toContain("- $ref: '#/components/parameters/GradeFieldQuery'");
+    expect(openapi).toContain('O snapshot é identificado pelo par gradeKey + field');
     expect(asyncapi).toContain('teacherModelId:');
     expect(asyncapi).toContain('sourceId:');
   });
