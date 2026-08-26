@@ -1,0 +1,29 @@
+name: Factory Reconciliation
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+concurrency:
+  group: factory-reconciliation-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile Factory dependencies
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write # Required to transition waiting task labels and leave audit comments.
+      pull-requests: read # Required to verify merged PR metadata and changed-file scope.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Reconcile waiting Factory tasks
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node infra/factory/reconcile.mjs reconcile-all

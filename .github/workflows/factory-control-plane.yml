@@ -1,0 +1,65 @@
+name: Factory Control Plane
+
+on:
+  pull_request:
+    paths:
+      - 'infra/factory/**'
+      - '.github/workflows/factory-control-plane.yml'
+      - '.github/workflows/factory-reconcile.yml'
+      - 'docs/FACTORY_CONTROL_PLANE.md'
+      - 'docs/FACTORY_RUN_ISSUE_FORMAT.md'
+  issues:
+    types: [opened, edited, reopened]
+
+permissions: {}
+
+concurrency:
+  group: factory-control-plane-${{ github.event_name }}-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate Factory Control Plane
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Check Factory Control Plane syntax
+        run: >-
+          node --check infra/factory/control-plane.mjs &&
+          node --check infra/factory/dispatch-policy.mjs &&
+          node --check infra/factory/reconciliation-policy.mjs &&
+          node --check infra/factory/reconcile.mjs
+      - name: Test provider dispatch and reconciliation guardrails
+        run: >-
+          node --test
+          infra/factory/dispatch-policy.test.mjs
+          infra/factory/reconciliation-policy.test.mjs
+      - name: Validate Banco de Notas Factory Run fixture
+        run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.txt
+
+  materialize:
+    name: Materialize Factory Run tasks
+    if: >-
+      github.event_name == 'issues' &&
+      github.actor == github.repository_owner &&
+      startsWith(github.event.issue.title, '[Factory Run]') &&
+      contains(github.event.issue.body, '<!-- FACTORY_RUN_BEGIN -->') &&
+      contains(github.event.issue.body, '<!-- FACTORY_RUN_END -->')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write # Required only to label the parent and create/comment child Factory tasks.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Materialize typed Factory Run tasks
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_PARENT_ISSUE: ${{ github.event.issue.number }}
+        run: node infra/factory/control-plane.mjs materialize
