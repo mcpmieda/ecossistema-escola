@@ -4,29 +4,29 @@ import { testEnv } from './fixtures';
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(bytes));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(
-    '',
-  );
+  const values = Array.from(new Uint8Array(digest));
+  const hex = values.map((byte) => byte.toString(16).padStart(2, '0'));
+  return hex.join('');
 }
 
 describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
-  it('uploads XLSX, grants the exact signed-in recipient, downloads for SHA-256 verification, and supports compensation', async () => {
+  it('handles the secure model lifecycle', async () => {
     const content = new TextEncoder().encode('synthetic-xlsx-content');
     const recipientEntraObjectId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
     const tokenProvider = vi.fn(async () => 'graph-token');
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
+      const uploadPath = '/items/parent-id:/Modelo%20Professor%202026.xlsx:/content';
 
-      if (
-        method === 'PUT' &&
-        url.endsWith('/items/parent-id:/Modelo%20Professor%202026.xlsx:/content')
-      ) {
-        expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer graph-token');
-        expect(new Headers(init?.headers).get('Content-Type')).toBe(
+      if (method === 'PUT' && url.endsWith(uploadPath)) {
+        const headers = new Headers(init?.headers);
+        expect(headers.get('Authorization')).toBe('Bearer graph-token');
+        expect(headers.get('Content-Type')).toBe(
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         );
-        expect(new Uint8Array(await (init?.body as Blob).arrayBuffer())).toEqual(content);
+        const body = init?.body as Blob;
+        expect(new Uint8Array(await body.arrayBuffer())).toEqual(content);
         return new Response(JSON.stringify({ id: 'item-1', eTag: '"etag-1"' }), {
           status: 201,
         });
@@ -59,17 +59,20 @@ describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
       }
 
       if (method === 'GET' && url.endsWith('/items/item-1?$select=id,eTag,size')) {
-        return new Response(
-          JSON.stringify({ id: 'item-1', eTag: '"etag-2"', size: content.byteLength }),
-          { status: 200 },
-        );
+        const metadata = {
+          id: 'item-1',
+          eTag: '"etag-2"',
+          size: content.byteLength,
+        };
+        return new Response(JSON.stringify(metadata), { status: 200 });
       }
 
       if (method === 'GET' && url.endsWith('/items/item-1/content')) {
         return new Response(new Uint8Array(content), { status: 200 });
       }
 
-      if (method === 'DELETE' && url.endsWith('/items/item-1/permissions/permission-1')) {
+      const permissionPath = '/items/item-1/permissions/permission-1';
+      if (method === 'DELETE' && url.endsWith(permissionPath)) {
         return new Response(null, { status: 204 });
       }
 
@@ -128,20 +131,18 @@ describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
     expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 
-  it('fails closed when Graph resolves the invitation to a different Entra identity', async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          value: [
-            {
-              id: 'permission-wrong',
-              grantedToV2: { user: { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' } },
-            },
-          ],
-        }),
-        { status: 200 },
-      ),
-    );
+  it('rejects a different Entra recipient', async () => {
+    const response = {
+      value: [
+        {
+          id: 'permission-wrong',
+          grantedToV2: { user: { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' } },
+        },
+      ],
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(JSON.stringify(response), { status: 200 }));
     const gateway = createTeacherModelGraphGateway({
       env: testEnv,
       target: { driveId: 'drive-id', parentItemId: 'parent-id' },
@@ -162,7 +163,7 @@ describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
     ).rejects.toThrow('teacher_model_graph_recipient_identity_mismatch');
   });
 
-  it('rejects unsafe or non-XLSX filenames before touching Graph', async () => {
+  it('rejects unsafe and non-XLSX filenames', async () => {
     const fetchMock = vi.fn<typeof fetch>();
     const gateway = createTeacherModelGraphGateway({
       env: testEnv,
