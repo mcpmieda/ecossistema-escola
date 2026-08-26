@@ -156,6 +156,34 @@ describe('D1GradeEventStore with real SQLite', () => {
     runtime.database.close();
   });
 
+  it('rolls back the event when the snapshot statement fails inside the same batch', async () => {
+    const runtime = database();
+    runtime.database.exec(`
+      CREATE TRIGGER force_snapshot_failure
+      BEFORE INSERT ON grade_snapshots
+      BEGIN
+        SELECT RAISE(ABORT, 'forced snapshot failure');
+      END;
+    `);
+
+    await expect(
+      ingestGradeEvent({
+        input: input(),
+        idempotencyKey: 'sqlite-grade-event-atomicity-0001',
+        store: store(runtime),
+        receivedAt: '2026-08-25T12:00:01.000Z',
+      }),
+    ).rejects.toThrow('forced snapshot failure');
+
+    expect(
+      runtime.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get(),
+    ).toMatchObject({ total: 0 });
+    expect(
+      runtime.database.prepare('SELECT COUNT(*) AS total FROM grade_snapshots').get(),
+    ).toMatchObject({ total: 0 });
+    runtime.database.close();
+  });
+
   it('retains an old sequence as stale and does not regress the snapshot', async () => {
     const runtime = database();
     const gradeStore = store(runtime);
