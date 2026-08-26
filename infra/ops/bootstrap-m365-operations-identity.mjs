@@ -72,7 +72,8 @@ async function graphResponse(token, method, path, body) {
 async function graph(token, method, path, body) {
   const response = await graphResponse(token, method, path, body);
   const text = await response.text();
-  if (!response.ok) throw new Error(`Microsoft Graph ${method} ${path} failed (${response.status})`);
+  if (!response.ok)
+    throw new Error(`Microsoft Graph ${method} ${path} failed (${response.status})`);
   return text ? JSON.parse(text) : null;
 }
 
@@ -82,7 +83,8 @@ async function graphOptional(token, method, path) {
   if (response.status === 403 || response.status === 404) {
     return { status: response.status, body: null };
   }
-  if (!response.ok) throw new Error(`Microsoft Graph ${method} ${path} failed (${response.status})`);
+  if (!response.ok)
+    throw new Error(`Microsoft Graph ${method} ${path} failed (${response.status})`);
   return { status: response.status, body: text ? JSON.parse(text) : null };
 }
 
@@ -192,7 +194,9 @@ async function main() {
   let servicePrincipalCreated = false;
 
   if (!servicePrincipal) {
-    servicePrincipal = await graph(token, 'POST', '/servicePrincipals', { appId: application.appId });
+    servicePrincipal = await graph(token, 'POST', '/servicePrincipals', {
+      appId: application.appId,
+    });
     servicePrincipalCreated = true;
   }
 
@@ -217,7 +221,9 @@ async function main() {
       existingCredential.audiences[0] === audience;
 
     if (!exact) {
-      throw new Error(`Federated credential ${federatedCredentialName} exists with unexpected trust values`);
+      throw new Error(
+        `Federated credential ${federatedCredentialName} exists with unexpected trust values`,
+      );
     }
   } else {
     await graph(token, 'POST', `/applications/${application.id}/federatedIdentityCredentials`, {
