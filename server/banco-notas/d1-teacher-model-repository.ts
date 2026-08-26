@@ -1,11 +1,5 @@
 export type TeacherModelState =
-  | 'draft'
-  | 'validated'
-  | 'ready_to_share'
-  | 'shared'
-  | 'connected'
-  | 'suspended'
-  | 'archived';
+  'draft' | 'validated' | 'ready_to_share' | 'shared' | 'connected' | 'suspended' | 'archived';
 
 export type TeacherModelMapping = {
   gradeKey: string;
