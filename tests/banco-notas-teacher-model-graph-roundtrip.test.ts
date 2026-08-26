@@ -148,8 +148,6 @@ describe('Banco de Notas Graph XLSX round trip', () => {
 
     expect(gateway.download).toHaveBeenCalledOnce();
     expect(verifyDownloadedWorkbook).toHaveBeenCalledOnce();
-    expect(audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ result: 'succeeded' }),
-    );
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ result: 'succeeded' }));
   });
 });
