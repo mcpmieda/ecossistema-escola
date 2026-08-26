@@ -4,176 +4,149 @@ Data: 26/08/2026
 
 Branch: `feat/banco-de-notas-foundation`
 
-PR: `#52`
+PR: `#52` — **open, draft, sem merge e sem produção**.
 
-Estado: **fundação consolidada, importação auditável, modelo genérico e geração XLSX real em código; permanece draft, sem merge e sem produção.**
+## Ponto exato de retomada
 
-## Evidência funcional
+A fundação App Factory está consolidada e a homologação D1 remota deixou de ser bloqueio.
 
-Head funcional verificado: `41172bc416d6a8bfcbc44871d48ae12fe05e724e`.
+Evidência D1:
 
-Workflow `32927767229` / run `#627` — **success**:
+- database exclusivo: `banco-notas-homologation`;
+- workflow `Banco de Notas D1 homologation`;
+- run `32973613431` / execução `#12` — **success**;
+- commit validado remotamente: `7f13d6b85c18296ae0fa005dadb4000ec63515e5`;
+- Wrangler `4.125.0`;
+- provisionamento/migrations — success;
+- smoke principal — success;
+- smoke migration `0006`/analysis profiles — success.
 
-- segurança de GitHub Actions — success;
-- formatting — success;
-- lint — success;
-- typecheck — success;
-- semantic contract — success;
-- **241/241 testes em 42 arquivos** — success;
-- build — success;
-- deploy production — skipped;
-- recovery pós-deploy — skipped.
+Leia a evidência completa em `docs/BANCO_NOTAS_D1_HOMOLOGATION_VERIFICATION_2026-08-26.md`.
 
-## O que entrou no último bloco
+## D1
 
-### 1. Serializador XLSX real
+Migrations aplicadas e validadas remotamente:
 
-`server/banco-notas/xlsx-workbook-serializer.ts` implementa a geração física do `.xlsx` sem nova biblioteca de runtime.
+1. `0001_banco_notas_foundation.sql`;
+2. `0002_banco_notas_cross_year_integrity.sql`;
+3. `0003_banco_notas_import_job_state_machine.sql`;
+4. `0004_banco_notas_import_finding_resolution.sql`;
+5. `0005_banco_notas_import_analysis.sql`;
+6. `0006_banco_notas_import_analysis_profiles.sql`.
 
-Ele produz um pacote ZIP/OOXML determinístico com:
+O provisionador usa Wrangler atual: `d1 list --json`, criação sem `--json`, nome exato `banco-notas-homologation`, UUID validado e conjunto de migrations travado em `0001`–`0006`.
 
-- `[Content_Types].xml`;
-- relationships do pacote e workbook;
-- propriedades do documento;
-- `xl/workbook.xml`;
-- styles;
-- worksheets visíveis;
-- worksheet `_BancoNotas` em `veryHidden`.
+O smoke principal comprovou no D1 real defaults seguros, `sync_enabled=0`, autoridade, cross-year, state machine, análise obrigatória, provenance e históricos append-only. O smoke de profiles comprovou a migration `0006` e as regras de persistência/compatibilidade dos analysis profiles.
 
-Os mesmos dados produzem os mesmos bytes e o mesmo SHA-256.
+## Importação XLSX
 
-A aba interna registra proveniência e mapping físico: `modelId`, ano, versões, `sourceHash`, relationship snapshot, `sheetKey`, nome da aba, `cellAddress`, `gradeKey`, `field` e `studentPosition`.
+O analyzer XLSX concreto já está implementado. Não retomar a partir da premissa antiga de que ele falta.
 
-O boundary `serializeGenericWorkbook` continua validando MIME, tamanho, hash e identidade do artefato.
+Componentes centrais:
 
-### 2. Apresentação canônica
+- `server/banco-notas/ooxml-zip.ts`;
+- `server/banco-notas/xlsx-legacy-analyzer.ts`;
+- `server/banco-notas/import-analysis.ts`;
+- `server/banco-notas/d1-import-analysis-repository.ts`;
+- `server/banco-notas/d1-import-analysis-profile-repository.ts`;
+- `server/banco-notas/workbook-pipeline.ts`;
+- `server/banco-notas/xlsx-workbook-serializer.ts`.
 
-`shared/banco-notas-workbook-presentation.ts` separa dados canônicos de nomes visíveis.
-
-`server/banco-notas/workbook-presentation.ts` monta a apresentação a partir do roster canônico e valida contra `GenericModelInstance`.
-
-Nomes de abas são derivados deterministicamente de turma/componente, removem caracteres proibidos do Excel, respeitam 31 caracteres, evitam `_BancoNotas` e resolvem colisões com sufixos estáveis.
-
-A apresentação falha fechado se modelo, ano, campos, sheets, studentPosition ou gradeKey divergirem da instância gerada.
-
-### 3. Regressão
-
-Novos testes:
-
-- `tests/banco-notas-xlsx-workbook-serializer.test.ts`;
-- `tests/banco-notas-workbook-presentation.test.ts`.
-
-A evidência verifica estrutura ZIP/OOXML, determinismo, hidden metadata, roster, headers, colisões e inconsistências de identidade.
-
-## Limite da evidência XLSX
-
-O serializador deixou de ser somente um boundary futuro: há geração física real de bytes XLSX.
-
-Ainda **não** foi comprovado o round trip em Microsoft Excel, Graph ou SharePoint real. Até essa homologação externa, não afirmar compatibilidade operacional completa com Excel. O que está comprovado é a estrutura OOXML/ZIP gerada e suas invariantes internas.
-
-## Importação e análise
-
-A state machine continua:
+Pipeline atual:
 
 ```text
-draft
-→ analyzed
-→ generated
-→ validated
-→ ready_to_share
-→ shared
-→ connected
-```
-
-`draft → analyzed` somente ocorre pelo pipeline verificado:
-
-```text
-job draft
-→ valida hash/formato/ano
-→ valida bytes
-→ LegacyWorkbookAnalyzer
-→ ImportAnalysis imutável
-→ findings + audit + analyzed no mesmo commit
-```
-
-A migration `0005_banco_notas_import_analysis.sql` bloqueia `analyzed` sem artefato persistido.
-
-O adapter concreto de analyzer XLSX ainda falta. Não existe parser XLSB cloud comprovado.
-
-## Migrations
-
-Disponíveis:
-
-- `0001_banco_notas_foundation.sql`;
-- `0002_banco_notas_cross_year_integrity.sql`;
-- `0003_banco_notas_import_job_state_machine.sql`;
-- `0004_banco_notas_import_finding_resolution.sql`;
-- `0005_banco_notas_import_analysis.sql`.
-
-Ainda não foram aplicadas num D1 remoto.
-
-O smoke remoto está em `infra/banco-notas/cloudflare/smoke-homologation.ps1`. Ele exige confirmação explícita de escrita sintética e recusa database name diferente de `banco-notas-homologation`.
-
-## Decisões que não podem regredir
-
-- o produto definitivo sempre gera um **modelo genérico limpo**, sem regra dependente de professor, workbook, aba, turma, componente ou célula de caso privado;
-- os arquivos Nina/Alanna permanecem **golden masters privados externos**, usados somente para homologação/regressão e nunca como templates oficiais, runtime, D1, migration, fixture pública ou distribuição;
-- Banco de Notas é módulo nativo do Centro no mesmo repo/deploy;
-- HeroUI React v3 nativo;
-- D1 é estado transacional; SharePoint/OneDrive são arquivos/versões; Graph só no backend;
-- `SyncEnabled=false` por padrão;
-- fontes não se misturam silenciosamente;
-- ausência é diferente de zero;
-- add-in público exige bearer Entra próprio, nunca cookie administrativo;
-- `draft → analyzed` exige análise backend verificada;
-- layout físico é versionado;
-- `studentPosition` é canônico; não ordenar por UUID;
-- serializador deve consumir o layout/mappings versionados, nunca criar segunda regra paralela de células;
-- `_BancoNotas` é aba interna reservada;
-- não declarar suporte XLSB cloud sem adapter comprovado;
-- não fazer merge, retirar draft ou deploy de produção sem autorização humana explícita.
-
-## Arquivos para retomar
-
-Leia nesta ordem:
-
-1. `AGENTS.md` e `.app-factory.json`;
-2. `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
-3. `shared/banco-notas-generic-model.ts`;
-4. `shared/banco-notas-workbook-pipeline.ts`;
-5. `shared/banco-notas-workbook-presentation.ts`;
-6. `server/banco-notas/generic-model.ts`;
-7. `server/banco-notas/workbook-pipeline.ts`;
-8. `server/banco-notas/workbook-presentation.ts`;
-9. `server/banco-notas/xlsx-workbook-serializer.ts`;
-10. `server/banco-notas/import-analysis.ts` e `d1-import-analysis-repository.ts`;
-11. migrations `0001`–`0005`;
-12. OpenAPI/AsyncAPI e `VERIFICATION.md`.
-
-## Próximo avanço sem credenciais
-
-Prioridade: implementar um analyzer XLSX concreto pelo boundary existente e ligá-lo ao modelo intermediário usando apenas fixtures sintéticas e regras genéricas. Não especializar o parser pelos arquivos Nina/Alanna.
-
-Depois, compor um teste local completo:
-
-```text
-XLSX sintético de legado
-→ analyzer real
+XLSX legado
+→ analyzer OOXML real
 → LegacyIntermediateModel
 → relationship resolution
 → TransformationPlan
 → GenericModelInstance
 → apresentação canônica
-→ XLSX novo real
+→ XLSX OOXML novo
 ```
 
-## Próximo avanço com credenciais
+O modelo e o arquivo gerado continuam genéricos, sem regras por professor, turma, aba, disciplina ou célula privada.
 
-1. provisionar somente `banco-notas-homologation`;
-2. aplicar migrations `0001`–`0005`;
-3. executar o smoke remoto;
-4. abrir/gravar o XLSX gerado em Excel real e homologar round trip;
-5. provisionar audience/delegated scope Entra;
-6. conectar grade-events público;
-7. conectar Graph/SharePoint real;
-8. executar QA e piloto individual com sync desligado até reconciliação.
+### XLSB
+
+XLSB permanece fail-closed. Não existe parser XLSB cloud comprovado e não deve ser improvisado.
+
+## Golden masters
+
+Nina/Alanna são somente evidência privada externa. Nunca usar como:
+
+- template oficial;
+- seed/migration;
+- fixture pública;
+- fallback de runtime;
+- dado D1;
+- regra especial de parser/serializer;
+- arquivo distribuído no produto final.
+
+## Grade-events
+
+`server/banco-notas/d1-grade-event-store.ts` já usa `db.batch()` para gravar evento + snapshot e contém validações de fonte/modelo/ano/ambiente/sync/autoridade/mapping.
+
+Próximo bloco prioritário: **provar atomicidade usando binding D1 real/compatível**, incluindo o caso em que a segunda statement falha e a primeira não pode permanecer parcialmente gravada.
+
+O add-in público continua bloqueado.
+
+## Round-trip XLSX
+
+Analyzer e serializer OOXML reais já existem e possuem testes independentes. O próximo avanço deve reforçar o round-trip completo e provar preservação das invariantes canônicas entre análise, transformação, apresentação e serialização.
+
+Compatibilidade operacional com Excel/Graph/SharePoint real ainda não foi homologada.
+
+## Graph / SharePoint
+
+- D1 continua sendo a fonte estruturada/transacional;
+- SharePoint/OneDrive ficam para arquivos/modelos/versões;
+- Graph permanece backend-only;
+- `TeacherModelGraphGateway` continua abstrato;
+- nenhuma conexão Graph/SharePoint real deve ser ativada nesta retomada sem o bloco específico de integração.
+
+É seguro preparar tipos, contratos, configuração, validação fail-closed e testes sintéticos.
+
+## Entra / add-in
+
+O validador bearer Entra já existe e é fail-closed.
+
+O endpoint público continua bloqueado enquanto não existirem audience e delegated scope reais. Não preencher valores fictícios e não liberar o endpoint apenas para avançar testes.
+
+## Decisões que não podem regredir
+
+- D1 é a fonte estruturada/transacional;
+- SharePoint/OneDrive são arquivos/modelos;
+- Graph é backend-only;
+- sync nasce e permanece desligado;
+- zero é diferente de ausência;
+- fontes não se misturam silenciosamente;
+- layout/mappings são versionados;
+- `studentPosition` é canônico;
+- `_BancoNotas` é aba interna reservada;
+- analyzer/serializer não criam segunda regra paralela de células;
+- XLSB continua fail-closed;
+- golden masters privados não entram no produto;
+- PR #52 permanece open + draft;
+- não fazer merge ou deploy de produção.
+
+## Ordem recomendada de leitura
+
+1. `AGENTS.md` e `.app-factory.json`;
+2. `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
+3. `docs/BANCO_NOTAS_D1_HOMOLOGATION_VERIFICATION_2026-08-26.md`;
+4. `server/banco-notas/d1-grade-event-store.ts`;
+5. `server/banco-notas/xlsx-legacy-analyzer.ts`;
+6. `server/banco-notas/xlsx-workbook-serializer.ts`;
+7. `server/banco-notas/workbook-pipeline.ts`;
+8. `server/banco-notas/import-analysis.ts`;
+9. migrations `0001`–`0006`;
+10. OpenAPI/AsyncAPI + semantic/verification specs.
+
+## Próxima sequência segura
+
+1. atomicidade real via binding D1;
+2. round-trip XLSX;
+3. preparação Graph/SharePoint sem ativação externa;
+4. preparação Entra/add-in sem liberar endpoint;
+5. browser QA somente quando houver ambiente navegável e automação estiver autorizada.
