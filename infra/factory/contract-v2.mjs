@@ -47,6 +47,7 @@ function cleanBranch(value, label) {
     branch.includes('@{') ||
     branch.includes('\\') ||
     branch.endsWith('.lock') ||
+    branch.endsWith('.') ||
     branch.startsWith('.')
   ) {
     fail(`${label} is not a safe Git branch name.`);
@@ -105,8 +106,12 @@ export function pathScopesOverlap(left, right) {
 
 function scopeIsReserved(scope) {
   const root = scopeRoot(scope);
+  const recursive = isRecursiveScope(scope);
   return RESERVED_AUTOMATION_SCOPES.some(
-    (reserved) => root === reserved || root.startsWith(`${reserved}/`),
+    (reserved) =>
+      root === reserved ||
+      root.startsWith(`${reserved}/`) ||
+      (recursive && reserved.startsWith(`${root}/`)),
   );
 }
 
@@ -253,11 +258,13 @@ export function parseFactoryRunV2(body) {
     }
   }
 
+  const integrationBranch = cleanBranch(`factory/${runId}`, 'integration_branch');
+
   return {
     runId,
     goal,
     baseBranch,
-    integrationBranch: `factory/${runId}`,
+    integrationBranch,
     maxParallel,
     tasks,
   };
