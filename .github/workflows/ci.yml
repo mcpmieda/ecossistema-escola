@@ -68,6 +68,10 @@ jobs:
       - name: Validate workflows with actionlint
         run: bash ./infra/validation/run-actionlint.sh
 
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: ./infra/validation/assert-powershell-syntax.ps1
+
       - name: Validate GitHub control-plane policy
         shell: pwsh
         run: ./infra/validation/assert-github-control-plane.ps1
