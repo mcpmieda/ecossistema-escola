@@ -6,20 +6,20 @@ Branch: `feat/banco-de-notas-foundation`
 
 PR: `#52`
 
-Estado: **Fase 1 consolidada, grade-events interno e núcleo de importação/modelo genérico endurecido; permanece draft, sem merge e sem produção.**
+Estado: **Fase 1 consolidada, grade-events interno e pipeline de importação/modelo genérico endurecido; permanece draft, sem merge e sem produção.**
 
 ## Evidência funcional mais recente
 
-Head funcional: `d71c19a111bee387bc4a9d83dc58315ab281f3ee`.
+Base funcional verificada: `88ea66896271408d57343c046d81b5d042b7810f`.
 
-Workflow `32921638884` / run `#571` — **success**:
+Workflow `32924002605` / run `#600` — **success**:
 
 - segurança de GitHub Actions — success;
 - formatting — success;
 - lint — success;
 - typecheck — success;
 - semantic contract — success;
-- **214/214 testes em 36 arquivos** — success;
+- **229/229 testes em 39 arquivos** — success;
 - build — success;
 - deploy production — skipped;
 - recovery pós-deploy — skipped.
@@ -28,19 +28,26 @@ O warning histórico de chunk JavaScript acima de 500 kB permanece não bloquead
 
 ## Avanço mais recente
 
+- criada `0005_banco_notas_import_analysis.sql`;
+- `draft → analyzed` não é mais uma transição administrativa genérica;
+- o pipeline backend valida hash/formato/ano do job e tamanho/hash dos bytes antes de executar analyzer;
+- a análise verificada é persistida em `import_analyses`, com um artefato imutável por import job;
+- D1/SQLite rejeita `analyzed` sem artefato de análise;
+- análise, findings, auditoria e mudança para `analyzed` são persistidos atomicamente;
+- retry idempotente de uma análise idêntica não duplica histórico; retry incompatível é conflito;
+- falha do analyzer deixa o job sem avanço;
+- `POST /v1/import-jobs/{jobId}` rejeita `targetState=analyzed` e direciona esse gate ao pipeline verificado;
+- OpenAPI de importação/modelos foi sincronizado para `0.3.0` e exclui `analyzed` dos targets administrativos documentados;
 - bearer Entra continua fail closed e o endpoint público do add-in continua desconectado enquanto faltam audience/scope reais;
 - `.env.example` lista, sem valores, `BANCO_NOTAS_ADDIN_AUDIENCE` e `BANCO_NOTAS_ADDIN_SCOPE`;
 - import jobs suportam blockers reais em `analyzed` e resolução auditável antes de prosseguir;
-- findings originais permanecem append-only e a migration `0004_banco_notas_import_finding_resolution.sql` cria stream separado, também append-only, para resolução;
+- findings originais permanecem append-only e `0004_banco_notas_import_finding_resolution.sql` mantém stream separado de resolução;
 - progressão para `generated` ou além fica bloqueada enquanto houver `error` não resolvido;
-- state re-entry no mesmo estado é bloqueado no storage para reduzir corrida concorrente;
+- state re-entry no mesmo estado é bloqueado no storage;
 - orquestração Graph compensa falhas com revoke de permissão e remoção do arquivo, promovendo e auditando falha de compensação;
 - o modelo genérico possui layout físico explicitamente versionado e posição escolar canônica via `studentPosition`;
-- foram criados boundaries explícitos `LegacyWorkbookAnalyzer` e `GenericWorkbookSerializer`;
-- bytes de entrada e saída são verificados por SHA-256 e tamanho;
-- analyzer/serializer IDs ficam preservados como proveniência;
+- boundaries `LegacyWorkbookAnalyzer` e `GenericWorkbookSerializer` permanecem obrigatórios;
 - analyzer sem suporte explícito a XLSB falha fechado; **não existe parser XLSB cloud declarado**;
-- analyzer que altera a cópia verificada da origem é rejeitado;
 - metadata do XLSX serializado precisa corresponder exatamente à versão/layout/proveniência da instância genérica.
 
 ## Comece por aqui
@@ -51,8 +58,8 @@ O warning histórico de chunk JavaScript acima de 500 kB permanece não bloquead
 4. leia `docs/BANCO_NOTAS_MODELO_GENERICO_E_GOLDEN_MASTERS.md`;
 5. leia `specs/banco-notas/semantic-contract.json`, `semantic-assurance.json` e `verification-plan.json`;
 6. leia `api/banco-notas-grade-events-v1.openapi.yaml`, `api/banco-notas-grade-events-v1.asyncapi.yaml` e `api/banco-notas-models-v1.openapi.yaml`;
-7. revise migrations `0001` a `0004` antes de qualquer D1 remoto;
-8. revise `server/banco-notas/d1-repository.ts`, `import-jobs.ts`, `generic-model.ts`, `workbook-pipeline.ts`, `grade-events.ts`, `d1-grade-event-store.ts` e `teacher-model-graph.ts`;
+7. revise migrations `0001` a `0005` antes de qualquer D1 remoto;
+8. revise `server/banco-notas/d1-repository.ts`, `d1-import-analysis-repository.ts`, `import-jobs.ts`, `import-analysis.ts`, `generic-model.ts`, `workbook-pipeline.ts`, `grade-events.ts`, `d1-grade-event-store.ts` e `teacher-model-graph.ts`;
 9. leia `VERIFICATION.md`, `PROJECT_STATE.md` e `ARCHITECTURE.md` para preservar o Centro existente.
 
 ## Decisões duráveis
@@ -76,6 +83,7 @@ O warning histórico de chunk JavaScript acima de 500 kB permanece não bloquead
 - reutilização incompatível da chave de idempotência é conflito;
 - stale permanece auditável sem regredir snapshot;
 - add-in só será exposto com bearer Entra/audience/scope próprios, nunca cookie administrativo improvisado;
+- `draft → analyzed` exige análise backend verificada e artefato persistido; não reabrir esse gate por endpoint administrativo genérico;
 - layout físico do modelo é versionado; não reintroduzir mapa de colunas hardcoded no gerador/serializador;
 - posição escolar do aluno é dado canônico da correspondência e não ordenação técnica por UUID;
 - parser/serializer concreto deve entrar por boundary explícito, com hash/proveniência verificados; não acoplar biblioteca de workbook diretamente ao domínio.
@@ -87,11 +95,14 @@ A produção continua obrigada a gerar um **modelo genérico limpo**, sem especi
 - `0001_banco_notas_foundation.sql`;
 - `0002_banco_notas_cross_year_integrity.sql`;
 - `0003_banco_notas_import_job_state_machine.sql`;
-- `0004_banco_notas_import_finding_resolution.sql`.
+- `0004_banco_notas_import_finding_resolution.sql`;
+- `0005_banco_notas_import_analysis.sql`.
 
 Ainda não foram aplicadas num D1 remoto.
 
-A migration `0004` não modifica o finding original para marcá-lo como resolvido. Ela cria `import_finding_resolutions`, preservando ambos os históricos como append-only. O campo legado `import_findings.resolved_at` do schema inicial não deve ser usado como caminho de mutação; a resolução canônica passa pelo stream separado.
+`0004` cria `import_finding_resolutions`, preservando finding e resolução como históricos append-only separados.
+
+`0005` cria `import_analyses`, exige proveniência coerente com o import job, bloqueia update/delete e impede a mudança de estado para `analyzed` quando o artefato não existe.
 
 ## Import jobs
 
@@ -109,9 +120,21 @@ draft
 
 `failed` é terminal permitido a partir dos estados intermediários previstos.
 
+A diferença crítica agora é que `draft → analyzed` é realizado por `analyzeImportJob`, não pelo endpoint administrativo genérico.
+
+Fluxo do gate de análise:
+
+```text
+job draft
+→ verifica sourceHash/sourceFormat/schoolYear
+→ analyzeLegacyWorkbook verifica bytes/analyzer
+→ D1ImportAnalysisRepository.commitImportAnalysis
+→ import_analyses + findings + audit + state=analyzed no mesmo batch
+```
+
 Regra de blockers:
 
-- `draft → analyzed` pode registrar `error` findings;
+- a análise verificada pode registrar `error` findings e concluir em `analyzed`;
 - o job permanece revisável em `analyzed`;
 - a transição seguinte pode resolver findings existentes, com motivo auditável;
 - `generated` e estados posteriores exigem zero `error` findings não resolvidos;
@@ -132,15 +155,20 @@ LegacyIntermediateModel
 
 Já existem contracts, planner, geração determinística e fixtures sintéticas. A instância nasce em `homologation` com `syncEnabled=false`.
 
-O layout físico já não é uma convenção implícita do gerador. A definição contém layout versionado e o plano preserva essa definição. A posição do aluno vem da correspondência canônica; o gerador apenas projeta essa posição na linha física.
+O layout físico é parte versionada da definição. A posição do aluno vem da correspondência canônica; o gerador apenas projeta essa posição na linha física.
 
 ## Boundary de workbook
 
-Arquivos:
+Arquivos principais:
 
 - `shared/banco-notas-workbook-pipeline.ts`;
 - `server/banco-notas/workbook-pipeline.ts`;
-- `tests/banco-notas-workbook-pipeline.test.ts`.
+- `server/banco-notas/import-analysis.ts`;
+- `shared/banco-notas-import-analysis.ts`;
+- `server/banco-notas/d1-import-analysis-repository.ts`;
+- `tests/banco-notas-workbook-pipeline.test.ts`;
+- `tests/banco-notas-import-analysis.test.ts`;
+- `tests/banco-notas-d1-import-analysis-repository.test.ts`.
 
 O boundary de análise exige metadata de origem, valida tamanho/hash antes de executar o adapter, exige suporte explícito ao formato, preserva `analyzerId` e confere se o `LegacyIntermediateModel` continua ligado à mesma origem/ano/formato. O adapter recebe uma cópia dos bytes e mutação dessa cópia invalida a execução.
 
@@ -200,8 +228,8 @@ Eles não são templates e não podem entrar em Git, runtime, D1, migrations, fi
 Quando houver credenciais externas:
 
 1. provisionar/reutilizar somente `banco-notas-homologation`;
-2. aplicar migrations `0001` + `0002` + `0003` + `0004`;
-3. executar smoke remoto sintético para defaults, cross-year, idempotência, state machine, resolução append-only e rollback;
+2. aplicar migrations `0001` + `0002` + `0003` + `0004` + `0005`;
+3. executar smoke remoto sintético para defaults, cross-year, idempotência, state machine, resolução append-only, análise persistente obrigatória e rollback;
 4. provisionar audience/delegated scope Entra próprios;
 5. conectar grade-events público somente depois do gate bearer real;
 6. implementar/conectar analyzer XLSX cloud e serializer XLSX real pelos boundaries existentes; suporte XLSB cloud exige adapter próprio comprovado;
@@ -218,6 +246,7 @@ Quando houver credenciais externas:
 - não inserir golden masters ou PII no Git;
 - não usar GitHub como runtime;
 - não acumular wrappers, overrides temporários, CSS duplicado ou código morto;
+- não reabrir `draft → analyzed` como transição administrativa sem artefato de análise verificada;
 - não reintroduzir mapa físico de colunas hardcoded ou ordenação por UUID no gerador/serializador;
 - não acoplar parser/serializer concreto diretamente ao domínio, contornando o boundary de hash/proveniência;
 - não ativar sync em massa;
