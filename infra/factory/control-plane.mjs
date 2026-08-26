@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
 
-import { FACTORY_LABELS, desiredTaskLabels, initialDispatch } from './dispatch-policy.mjs';
+import { FACTORY_LABELS, initialDispatch, taskLabelPlan } from './dispatch-policy.mjs';
 
 const API_ROOT = 'https://api.github.com';
 const RUN_BEGIN = '<!-- FACTORY_RUN_BEGIN -->';
@@ -278,11 +278,11 @@ async function materialize() {
   for (const task of manifest.tasks) {
     const marker = taskMarker(manifest.runId, task.id);
     const found = [...existingBodies.entries()].find(([body]) => body.includes(marker))?.[1];
-    const desiredLabels = desiredTaskLabels(task);
+    const labelPlan = taskLabelPlan(task);
     const dispatch = initialDispatch(task);
 
     if (found) {
-      await ensureIssueLabels(owner, repo, found.number, found.labels, desiredLabels);
+      await ensureIssueLabels(owner, repo, found.number, found.labels, labelPlan.desiredLabels);
       reused.push({ task: task.id, issue: found.number });
       dispatchRecords.push({ task: task.id, issue: found.number, ...dispatch });
       continue;
@@ -293,9 +293,12 @@ async function materialize() {
       body: JSON.stringify({
         title: `[Factory:${manifest.runId}] ${task.title}`,
         body: taskBody(issueNumber, manifest, task),
-        labels: desiredLabels,
+        labels: labelPlan.creationLabels,
       }),
     });
+    if (labelPlan.triggerLabels.length > 0) {
+      await ensureIssueLabels(owner, repo, child.number, child.labels, labelPlan.triggerLabels);
+    }
     created.push({ task: task.id, issue: child.number });
     dispatchRecords.push({ task: task.id, issue: child.number, ...dispatch });
   }
@@ -332,7 +335,7 @@ async function materialize() {
         `Waiting on dependencies: ${waiting.length}\n` +
         `Human-required: ${humanRequired.length}\n` +
         `Unassigned: ${unassigned.length}\n\n` +
-        `The exact \`jules\` label is applied only to eligible root tasks that explicitly prefer Jules. ` +
+        `The exact \`jules\` label is emitted as a separate post-creation label event only for eligible root tasks that explicitly prefer Jules. ` +
         `External execution still requires the Jules GitHub App to have repository access.\n\n` +
         `Production: untouched.`,
     }),
