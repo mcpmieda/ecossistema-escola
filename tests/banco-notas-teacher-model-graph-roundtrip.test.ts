@@ -96,7 +96,10 @@ describe('Banco de Notas Graph XLSX round trip', () => {
       instance,
       serializer: createGenericXlsxWorkbookSerializer(presentation),
     });
-    const downloaded = new Uint8Array(artifact.bytes);
+    const artifactBytes = new Uint8Array(artifact.bytes.byteLength);
+    artifactBytes.set(artifact.bytes);
+    const downloaded = new Uint8Array(artifactBytes.byteLength);
+    downloaded.set(artifactBytes);
     const gateway = {
       store: vi.fn(async () => ({ driveItemId: 'item-graph-roundtrip', etag: 'stored' })),
       share: vi.fn(async () => ({ permissionId: 'permission-graph-roundtrip' })),
@@ -134,7 +137,7 @@ describe('Banco de Notas Graph XLSX round trip', () => {
         modelHash: artifact.metadata.sha256,
         definitionVersion: instance.definitionVersion,
         mappingVersion: instance.mappingVersion,
-        content: artifact.bytes,
+        content: artifactBytes,
       },
       recipient: {
         entraObjectId: teacherId,
