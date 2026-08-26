@@ -61,7 +61,12 @@ function Get-D1Rows {
 
   $result = Invoke-D1 -Sql $Sql
   try {
-    $parsed = $result.Stdout | ConvertFrom-Json
+    $jsonStart = $result.Stdout.IndexOf('[')
+    if ($jsonStart -lt 0) {
+      throw 'Payload JSON não encontrado na saída do Wrangler.'
+    }
+    $json = $result.Stdout.Substring($jsonStart)
+    $parsed = $json | ConvertFrom-Json
   }
   catch {
     throw "Wrangler não retornou JSON válido para a consulta: $($result.Stdout)"
