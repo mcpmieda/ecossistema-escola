@@ -15,6 +15,11 @@ export type ImportAnalysisResult = {
   analysis: ImportAnalysis;
 };
 
+type ImportAnalysisJobRepository = Pick<
+  BancoNotasRepository,
+  'findImportJob' | 'listSchoolYears'
+>;
+
 function analysisFindings(messages: readonly string[]): ImportFindingInput[] {
   return messages.map((message, index) => ({
     severity: 'warning',
@@ -25,7 +30,7 @@ function analysisFindings(messages: readonly string[]): ImportFindingInput[] {
 }
 
 export async function analyzeImportJob(args: {
-  jobs: BancoNotasRepository;
+  jobs: ImportAnalysisJobRepository;
   analyses: ImportAnalysisRepository;
   jobId: string;
   source: LegacyWorkbookSource;
