@@ -1,4 +1,7 @@
-import { genericModelInstanceSchema, type GenericModelInstance } from '../../shared/banco-notas-generic-model';
+import {
+  genericModelInstanceSchema,
+  type GenericModelInstance,
+} from '../../shared/banco-notas-generic-model';
 import {
   genericWorkbookPresentationSchema,
   type GenericWorkbookPresentation,
@@ -6,7 +9,8 @@ import {
 import type { GenericWorkbookSerializer } from './workbook-pipeline';
 
 const encoder = new TextEncoder();
-const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' as const;
+const XLSX_CONTENT_TYPE =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' as const;
 const METADATA_SHEET_NAME = '_BancoNotas';
 
 function xml(value: string): string {
@@ -141,8 +145,10 @@ function assertPresentationMatchesInstance(
   instance: GenericModelInstance,
   presentation: GenericWorkbookPresentation,
 ): void {
-  if (presentation.modelId !== instance.modelId) throw new Error('xlsx_presentation_model_mismatch');
-  if (presentation.schoolYear !== instance.schoolYear) throw new Error('xlsx_presentation_year_mismatch');
+  if (presentation.modelId !== instance.modelId)
+    throw new Error('xlsx_presentation_model_mismatch');
+  if (presentation.schoolYear !== instance.schoolYear)
+    throw new Error('xlsx_presentation_year_mismatch');
   if (instance.mappings.length === 0) throw new Error('xlsx_instance_has_no_mappings');
 
   const gradeColumns = new Set(instance.layout.gradeColumns.map((item) => item.column));
@@ -175,7 +181,9 @@ function assertPresentationMatchesInstance(
   const referencedRows = new Set<string>();
   for (const mapping of instance.mappings) {
     const sheet = sheets.get(mapping.sheetKey);
-    const row = sheet?.rows.find((candidate) => candidate.studentPosition === mapping.studentPosition);
+    const row = sheet?.rows.find(
+      (candidate) => candidate.studentPosition === mapping.studentPosition,
+    );
     if (!row || row.gradeKey !== mapping.gradeKey) {
       throw new Error('xlsx_presentation_roster_does_not_match_mapping');
     }
@@ -197,10 +205,20 @@ function worksheetXml(args: {
   sheet: GenericWorkbookPresentation['sheets'][number];
 }): string {
   const headerRow = args.instance.layout.firstStudentRow - 1;
-  const gradeHeader = new Map(args.presentation.gradeHeaders.map((item) => [item.field, item.label]));
+  const gradeHeader = new Map(
+    args.presentation.gradeHeaders.map((item) => [item.field, item.label]),
+  );
   const headerCells = [
-    inlineCell(`${args.presentation.studentPositionColumn}${headerRow}`, args.presentation.positionHeader, 1),
-    inlineCell(`${args.presentation.studentNameColumn}${headerRow}`, args.presentation.studentHeader, 1),
+    inlineCell(
+      `${args.presentation.studentPositionColumn}${headerRow}`,
+      args.presentation.positionHeader,
+      1,
+    ),
+    inlineCell(
+      `${args.presentation.studentNameColumn}${headerRow}`,
+      args.presentation.studentHeader,
+      1,
+    ),
     ...args.instance.layout.gradeColumns.map((item) =>
       inlineCell(`${item.column}${headerRow}`, gradeHeader.get(item.field) ?? item.field, 1),
     ),
@@ -214,7 +232,9 @@ function worksheetXml(args: {
       return `<row r="${rowNumber}">${numberCell(`${args.presentation.studentPositionColumn}${rowNumber}`, student.studentPosition)}${inlineCell(`${args.presentation.studentNameColumn}${rowNumber}`, student.studentDisplayName)}</row>`;
     });
 
-  const gradeColumnNumbers = args.instance.layout.gradeColumns.map((item) => columnNumber(item.column));
+  const gradeColumnNumbers = args.instance.layout.gradeColumns.map((item) =>
+    columnNumber(item.column),
+  );
   const positionColumn = columnNumber(args.presentation.studentPositionColumn);
   const nameColumn = columnNumber(args.presentation.studentNameColumn);
   const columnDefinitions = [
@@ -232,7 +252,9 @@ function metadataWorksheetXml(
   instance: GenericModelInstance,
   presentation: GenericWorkbookPresentation,
 ): string {
-  const sheetNames = new Map(presentation.sheets.map((sheet) => [sheet.sheetKey, sheet.displayName]));
+  const sheetNames = new Map(
+    presentation.sheets.map((sheet) => [sheet.sheetKey, sheet.displayName]),
+  );
   const metadataRows: string[] = [
     `<row r="1">${inlineCell('A1', 'Banco de Notas metadata', 1)}</row>`,
     `<row r="2">${inlineCell('A2', 'schemaVersion')}${numberCell('B2', 1)}</row>`,
@@ -274,7 +296,9 @@ function workbookEntries(
   instance: GenericModelInstance,
   presentation: GenericWorkbookPresentation,
 ): ZipEntry[] {
-  const visibleSheets = presentation.sheets.slice().sort((a, b) => a.sheetKey.localeCompare(b.sheetKey));
+  const visibleSheets = presentation.sheets
+    .slice()
+    .sort((a, b) => a.sheetKey.localeCompare(b.sheetKey));
   const allSheets = [...visibleSheets.map((sheet) => sheet.displayName), METADATA_SHEET_NAME];
   const sheetOverrides = allSheets
     .map(
