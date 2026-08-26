@@ -34,3 +34,15 @@ export function desiredTaskLabels(task) {
 
   return labels;
 }
+
+export function taskLabelPlan(task) {
+  const desired = desiredTaskLabels(task);
+  const triggerLabels = desired.includes(FACTORY_LABELS.julesTrigger)
+    ? [FACTORY_LABELS.julesTrigger]
+    : [];
+  return {
+    creationLabels: desired.filter((label) => !triggerLabels.includes(label)),
+    triggerLabels,
+    desiredLabels: desired,
+  };
+}
