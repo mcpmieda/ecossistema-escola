@@ -19,7 +19,7 @@ $headers = @{
   'Content-Type' = 'application/json'
 }
 $databaseEndpoint = "https://api.cloudflare.com/client/v4/accounts/$accountId/d1/database"
-$listUri = "$databaseEndpoint?name=$([uri]::EscapeDataString($databaseName))&per_page=10"
+$listUri = "${databaseEndpoint}?name=$([uri]::EscapeDataString($databaseName))&per_page=10"
 
 $listed = Invoke-RestMethod -Method Get -Uri $listUri -Headers $headers
 if (-not $listed.success) {
