@@ -54,6 +54,10 @@ class MemoryStore implements GradeEventStore {
     return this.events.get(idempotencyKey) ?? null;
   }
 
+  async findByEventId(eventId: string): Promise<StoredGradeEvent | null> {
+    return [...this.events.values()].find((event) => event.eventId === eventId) ?? null;
+  }
+
   async getSnapshot(gradeKey: string, field: GradeField): Promise<GradeSnapshot | null> {
     return this.snapshots.get(this.snapshotKey(gradeKey, field)) ?? null;
   }
