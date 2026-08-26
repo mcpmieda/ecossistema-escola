@@ -40,10 +40,7 @@ export type ImportAnalysisProfile = {
 export type ImportAnalysisProfileRepository = {
   listProfiles(schoolYearId?: string, dataSourceId?: string): Promise<ImportAnalysisProfile[]>;
   findProfile(id: string): Promise<ImportAnalysisProfile | null>;
-  createProfile(
-    input: ImportAnalysisProfileCreate,
-    actor: string,
-  ): Promise<ImportAnalysisProfile>;
+  createProfile(input: ImportAnalysisProfileCreate, actor: string): Promise<ImportAnalysisProfile>;
   findForJob(importJobId: string): Promise<ImportAnalysisProfile | null>;
   attachToJob(
     importJobId: string,

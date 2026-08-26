@@ -122,8 +122,10 @@ async function importProfileMutation<T>(operation: () => Promise<T>): Promise<T>
     return await operation();
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === 'data_source_not_found') throw new HttpError(404, 'Data source not found');
-      if (error.message === 'import_job_not_found') throw new HttpError(404, 'Import job not found');
+      if (error.message === 'data_source_not_found')
+        throw new HttpError(404, 'Data source not found');
+      if (error.message === 'import_job_not_found')
+        throw new HttpError(404, 'Import job not found');
       if (error.message === 'import_analysis_profile_not_found') {
         throw new HttpError(404, 'Import analysis profile not found');
       }
@@ -152,7 +154,8 @@ async function importAnalysisMutation<T>(operation: () => Promise<T>): Promise<T
     return await operation();
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === 'import_job_not_found') throw new HttpError(404, 'Import job not found');
+      if (error.message === 'import_job_not_found')
+        throw new HttpError(404, 'Import job not found');
       if (error.message === 'import_job_school_year_not_found') {
         throw new HttpError(409, 'Import job school year is unavailable');
       }
@@ -202,9 +205,7 @@ export async function routeBancoNotasApi(args: {
   const url = new URL(request.url);
   const path = url.pathname.replace(/^\/api\/banco-notas/u, '') || '/';
   const importAnalysisMatch = path.match(/^\/v1\/import-jobs\/([0-9a-f-]+)\/analysis$/iu);
-  const importProfileMatch = path.match(
-    /^\/v1\/import-jobs\/([0-9a-f-]+)\/analysis-profile$/iu,
-  );
+  const importProfileMatch = path.match(/^\/v1\/import-jobs\/([0-9a-f-]+)\/analysis-profile$/iu);
   const requestBody =
     (request.method === 'POST' || request.method === 'PATCH') && !importAnalysisMatch
       ? await body(request)

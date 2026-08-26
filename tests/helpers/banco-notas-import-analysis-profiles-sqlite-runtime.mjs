@@ -40,13 +40,7 @@ function insertJob(db, id, sourceFormat = 'xlsx', sourceId = 'source-2026') {
      (id, school_year_id, teacher_id, data_source_id, idempotency_key, source_hash,
       provenance_json, requested_by)
      VALUES (?, 'year-2026', 'teacher-2026', ?, ?, ?, ?, 'actor')`,
-  ).run(
-    id,
-    sourceId,
-    `idem-${id}`,
-    'a'.repeat(64),
-    JSON.stringify({ sourceFormat }),
-  );
+  ).run(id, sourceId, `idem-${id}`, 'a'.repeat(64), JSON.stringify({ sourceFormat }));
 }
 
 function insertProfile(db, id, overrides = {}) {

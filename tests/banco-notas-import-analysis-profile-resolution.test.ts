@@ -80,9 +80,7 @@ describe('Banco de Notas import analyzer resolution', () => {
       job,
     );
 
-    expect(analyzer.id).toBe(
-      'banco-notas-xlsx-ooxml-v1:generic-source-v1:xlsx-analysis-v1',
-    );
+    expect(analyzer.id).toBe('banco-notas-xlsx-ooxml-v1:generic-source-v1:xlsx-analysis-v1');
     expect(analyzer.supportedFormats).toEqual(['xlsx']);
     expect(repository.findForJob).toHaveBeenCalledWith(job.id);
   });

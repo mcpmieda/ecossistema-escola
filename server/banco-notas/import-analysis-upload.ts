@@ -30,7 +30,9 @@ export async function resolveImportAnalyzer(
   job: ImportJob,
 ): Promise<LegacyWorkbookAnalyzer> {
   const format = sourceFormat(job);
-  const compatible = runtime.analyzers.filter((analyzer) => analyzer.supportedFormats.includes(format));
+  const compatible = runtime.analyzers.filter((analyzer) =>
+    analyzer.supportedFormats.includes(format),
+  );
   if (compatible.length > 1) throw new Error(`import_analyzer_ambiguous:${format}`);
   if (compatible.length === 1) return compatible[0]!;
 
