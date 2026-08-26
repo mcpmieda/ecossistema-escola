@@ -117,9 +117,7 @@ export function buildGenericWorkbookPresentation(args: {
         `${sheet.classDisplayName} - ${sheet.componentDisplayName}`,
         usedNames,
       ),
-      rows: sheet.rows
-        .slice()
-        .sort((left, right) => left.studentPosition - right.studentPosition),
+      rows: sheet.rows.slice().sort((left, right) => left.studentPosition - right.studentPosition),
     }));
 
   return genericWorkbookPresentationSchema.parse({
