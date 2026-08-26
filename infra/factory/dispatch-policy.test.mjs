@@ -28,11 +28,7 @@ test('root Jules task requests an explicit post-creation trigger label', () => {
   assert.deepEqual(taskLabelPlan(task()), {
     creationLabels: [FACTORY_LABELS.task, FACTORY_LABELS.providerJules],
     triggerLabels: [FACTORY_LABELS.julesTrigger],
-    desiredLabels: [
-      FACTORY_LABELS.task,
-      FACTORY_LABELS.providerJules,
-      FACTORY_LABELS.julesTrigger,
-    ],
+    desiredLabels: [FACTORY_LABELS.task, FACTORY_LABELS.providerJules, FACTORY_LABELS.julesTrigger],
   });
 });
 
