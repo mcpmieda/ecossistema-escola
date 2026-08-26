@@ -8,9 +8,13 @@ PR: `#52` — **open, draft, sem merge e sem produção**.
 
 ## Ponto exato de retomada
 
-A fundação está consolidada. O D1 remoto de homologação está validado até a migration `0007`; o adapter Graph backend-only foi preparado e possui round-trip XLSX sintético real até download/hash/reanálise, mas Microsoft/Graph/SharePoint externos ainda não foram homologados por ausência de sessão/credencial administrativa apropriada no ambiente anterior.
+A fundação está consolidada. O D1 remoto de homologação está validado até a migration `0007`; analyzer e serializer OOXML são reais; o GitHub Control Plane comprovou `banco-notas-readiness` no Microsoft 365; o ciclo D1 → Graph do modelo docente está implementado e verde em CI.
+
+O próximo bloqueio não é mais "conseguir autenticar o GitHub no Microsoft 365". Agora é operacional: resolver o parent/pasta de homologação dentro da biblioteca institucional escolhida e executar o primeiro round-trip real do adapter runtime sem tocar produção ou habilitar sync.
 
 Checkpoint operacional: `docs/BANCO_NOTAS_CODEX_CHECKPOINT.md`.
+
+Evidência deste bloco: `docs/BANCO_NOTAS_M365_READINESS_E_D1_GRAPH_LIFECYCLE_2026-08-26.md`.
 
 ## D1 remoto
 
@@ -22,26 +26,15 @@ Evidência mais recente do bloco de identidade:
 - run `32981705701` — **success**;
 - commit validado: `2467240b53bf3bbc5996905ba940b544cb35f266`;
 - CI correspondente `32981711631` — **success**;
+- migrations `0001`–`0007` comprovadas;
 - produção skipped;
 - sync final desligado.
 
-Migrations comprovadas:
-
-1. `0001_banco_notas_foundation.sql`;
-2. `0002_banco_notas_cross_year_integrity.sql`;
-3. `0003_banco_notas_import_job_state_machine.sql`;
-4. `0004_banco_notas_import_finding_resolution.sql`;
-5. `0005_banco_notas_import_analysis.sql`;
-6. `0006_banco_notas_import_analysis_profiles.sql`;
-7. `0007_banco_notas_teacher_entra_identity.sql`.
-
-A `0007` protege o futuro sync com identidade institucional. O smoke remoto comprovou falta de OID, unicidade, lock de troca de OID e lock de inativação durante sync temporário, retornando ao final para `sync_enabled=0`.
+A `0007` protege o futuro sync com identidade institucional e Entra OID.
 
 ## Importação XLSX e modelo genérico
 
 O analyzer e o serializer OOXML XLSX são concretos. Não retomar a partir da hipótese antiga de que faltam.
-
-Fluxo de produto:
 
 ```text
 XLSX legado
@@ -64,39 +57,98 @@ Os **golden masters privados externos** continuam somente como evidência privad
 
 Nunca introduzir regra de produção dependente de arquivo/pessoa específica.
 
-## Graph / SharePoint
+## Microsoft 365 / GitHub Control Plane
 
-O adapter concreto está em `server/banco-notas/teacher-model-graph-gateway.ts` e continua backend-only.
+A integração criada no ecossistema foi reaproveitada e já elimina a necessidade de uma infraestrutura administrativa paralela para o Banco.
 
-Estado atual:
+Workflow `M365 operations`:
 
-- upload XLSX binário;
-- compartilhamento individual autenticado;
-- verificação do destinatário por Entra OID;
-- metadata separada do download;
-- download binário do arquivo armazenado;
-- SHA-256 local calculado sobre os bytes realmente baixados;
-- reanálise OOXML como gate antes de auditar sucesso;
-- compensação com revoke/delete após falhas;
-- target resolvido por `BANCO_NOTAS_GRAPH_DRIVE_ID` e `BANCO_NOTAS_GRAPH_PARENT_ITEM_ID`, ambos fail-closed se ausentes.
+- run `33003875460` / `#3` — **success**;
+- operação `banco-notas-readiness`;
+- GitHub OIDC → Entra workload federation — success;
+- audience — válida;
+- `Sites.Selected` — presente;
+- acesso ao site — válido;
+- `13` listas e `4` drives visíveis;
+- D1 confirmado como fonte estruturada/transacional;
+- SharePoint/OneDrive confirmados como boundary de arquivos;
+- `syncActivation=not-performed`;
+- `writeOperation=false`.
 
-Existe teste integrado sintético:
+Essa evidência é read-only. Ela valida o canal operacional GitHub → Microsoft 365, não o round-trip do runtime Graph do Banco.
+
+## SharePoint / OneDrive
+
+No site `CENTROADMIN` foram confirmadas:
+
+- `Documentos`;
+- `ARQUIVOS_PLATAFORMA`;
+- `SNAPSHOTS_PLATAFORMA`;
+- `RELATORIOS_PLATAFORMA`.
+
+`ARQUIVOS_PLATAFORMA` é o candidato institucional para os modelos/arquivos do Banco.
+
+Não hardcodar o ID descoberto. O adapter continua recebendo `BANCO_NOTAS_GRAPH_DRIVE_ID` e `BANCO_NOTAS_GRAPH_PARENT_ITEM_ID` por configuração e deve falhar fechado se estiverem ausentes.
+
+Ainda não criar pasta nem gravar arquivo até o round-trip de homologação ser executado conscientemente.
+
+## Ciclo D1 → Graph
+
+Novos componentes principais:
+
+- `server/banco-notas/d1-teacher-model-repository.ts`;
+- `server/banco-notas/teacher-model-share-service.ts`;
+- `server/banco-notas/teacher-model-graph.ts`;
+- `server/banco-notas/teacher-model-graph-gateway.ts`;
+- `tests/banco-notas-teacher-model-share-service.test.ts`;
+- `tests/banco-notas-teacher-model-graph.test.ts`;
+- `tests/banco-notas-teacher-model-graph-roundtrip.test.ts`.
+
+Fluxo:
 
 ```text
-serializer XLSX real
-→ boundary Graph
-→ download
-→ SHA-256
-→ analyzer XLSX real
+validated no D1
+→ professor ativo + Entra OID + homologation + sync=false
+→ ready_to_share
+→ hash local validado antes do upload
+→ Graph store/share
+→ metadata/download
+→ hash dos bytes baixados
+→ reanálise OOXML
+→ shared + drive_item_id
 ```
 
-Isso comprova o contrato interno; **não equivale a homologação real do tenant Microsoft**.
+Garantias:
 
-Nenhuma chamada Graph/SharePoint real foi realizada neste bloco reconstruído.
+- versão e mappings entram atomicamente no D1;
+- retry idempotente do mesmo modelo;
+- candidato precisa bater com hash/definitionVersion/mappingVersion persistidos;
+- hash local divergente não chama Graph `store`;
+- compartilhamento exige sign-in e valida Entra OID do destinatário;
+- falha após upload executa revoke/delete quando aplicável;
+- falha mantém o modelo `ready_to_share`;
+- sucesso só é registrado após download, hash e reanálise.
+
+## CI
+
+Baseline do bloco de código:
+
+- head `9959c6f143339c25e15fad7f50755339d4e47242`;
+- run `33005219880` / `#762` — **success**;
+- formatting — success;
+- lint — success;
+- typecheck — success;
+- semantic contract — success;
+- testes — **294/294 em 54 arquivos**;
+- build — success;
+- Actions security — success;
+- deploy/recovery de produção — skipped.
+
+O warning de bundle acima de 500 kB continua não bloqueador.
 
 ## Entra / add-in
 
-O validador bearer Entra já é fail-closed para assinatura, issuer, tenant, audience, scope e lifetime.
+O validador bearer Entra é fail-closed para assinatura, issuer, tenant, audience, scope e lifetime.
 
 A migration `0007` e o authorizer D1 exigem ownership `teacherModelId ↔ teacher ↔ entraObjectId`.
 
@@ -108,29 +160,17 @@ O endpoint público continua bloqueado enquanto `BANCO_NOTAS_ADDIN_AUDIENCE` e `
 
 A prova remota por binding D1 real ainda depende de runtime Worker/Pages de homologação autorizado. Não ampliar permissões ou criar runtime temporário inseguro só para produzir evidência.
 
-## CI
-
-Última baseline completamente verde anterior ao diff Graph reconstruído:
-
-- run `32981711631` — success no commit `2467240`;
-- formatting, lint, typecheck, semantic contract, testes e build aprovados;
-- deploy/recovery de produção skipped.
-
-A execução intermediária Graph `32985041877` falhou em typecheck porque um mock ainda não implementava o método novo `download`. Esse mock foi atualizado nos commits posteriores.
-
-Antes de declarar o bloco Graph encerrado, exigir CI final no HEAD atual.
-
 ## Ordem recomendada de leitura
 
 1. `AGENTS.md` e `.app-factory.json`;
 2. `docs/BANCO_NOTAS_CODEX_CHECKPOINT.md`;
 3. `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
-4. `docs/BANCO_NOTAS_D1_HOMOLOGATION_VERIFICATION_2026-08-26.md`;
-5. `server/banco-notas/teacher-model-graph.ts`;
-6. `server/banco-notas/teacher-model-graph-gateway.ts`;
-7. `tests/banco-notas-teacher-model-graph-roundtrip.test.ts`;
-8. `server/banco-notas/d1-addin-authorizer.ts`;
-9. `server/banco-notas/d1-grade-event-store.ts`;
+4. `docs/BANCO_NOTAS_M365_READINESS_E_D1_GRAPH_LIFECYCLE_2026-08-26.md`;
+5. `docs/BANCO_NOTAS_D1_HOMOLOGATION_VERIFICATION_2026-08-26.md`;
+6. `server/banco-notas/d1-teacher-model-repository.ts`;
+7. `server/banco-notas/teacher-model-share-service.ts`;
+8. `server/banco-notas/teacher-model-graph.ts`;
+9. `server/banco-notas/teacher-model-graph-gateway.ts`;
 10. migrations `0001`–`0007`.
 
 ## Decisões que não podem regredir
@@ -152,9 +192,9 @@ Antes de declarar o bloco Graph encerrado, exigir CI final no HEAD atual.
 
 ## Próxima sequência segura
 
-1. fechar CI do HEAD Graph reconstruído;
-2. atualizar PR/evidências com a baseline final;
-3. homologar Graph/SharePoint real somente quando houver autenticação Microsoft de homologação adequada;
-4. preparar audience/scope Entra reais sem liberar add-in prematuramente;
-5. comprovar binding D1 real quando houver runtime homologado;
-6. avançar para os módulos funcionais do Banco de Notas e QA em ambiente navegável.
+1. resolver/provisionar o parent item/pasta de homologação em `ARQUIVOS_PLATAFORMA` sem hardcode e sem ampliar privilégios;
+2. executar o primeiro round-trip operacional Graph/SharePoint com arquivo sintético e limpeza garantida;
+3. homologar audience/scope Entra reais antes de liberar add-in;
+4. comprovar binding D1 real quando houver runtime homologado autorizado;
+5. continuar módulos funcionais e QA navegável;
+6. release somente após homologação end-to-end e decisão humana explícita.
