@@ -22,9 +22,10 @@ describe('Banco de Notas remote D1 homologation smoke safeguards', () => {
     expect(smoke).not.toMatch(/UPDATE\s+source_assignments[\s\S]*sync_enabled/iu);
   });
 
-  it('targets the remote configured binding and verifies migration 0005 before synthetic writes', () => {
+  it('targets the configured remote D1 through the Cloudflare API and verifies migration 0005 before synthetic writes', () => {
     expect(smoke).toContain("$databaseBinding = 'BANCO_NOTAS_DB'");
-    expect(smoke).toContain('--remote --config $generatedConfig');
+    expect(smoke).toContain('/d1/database/$($database.database_id)/query');
+    expect(smoke).toContain('Invoke-RestMethod -Method Post -Uri $script:d1Endpoint');
     expect(smoke).toContain("name LIKE '0005_banco_notas_import_analysis%'");
     expect(smoke.indexOf("name LIKE '0005_banco_notas_import_analysis%'")).toBeLessThan(
       smoke.indexOf('INSERT INTO school_years'),
