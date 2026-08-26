@@ -15,54 +15,93 @@ if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
   throw 'CLOUDFLARE_ACCOUNT_ID não está disponível para provisionar o D1 de homologação.'
 }
 
-$accountId = $env:CLOUDFLARE_ACCOUNT_ID
-$headers = @{
-  Authorization = "Bearer $env:CLOUDFLARE_API_TOKEN"
-  'Content-Type' = 'application/json'
+$accountId = $env:CLOUDFLARE_ACCOUNT_ID.Trim()
+$apiToken = $env:CLOUDFLARE_API_TOKEN.Trim()
+if ($accountId -notmatch '^[0-9a-fA-F]{32}$') {
+  throw 'CLOUDFLARE_ACCOUNT_ID inválido: esperado identificador Cloudflare de 32 caracteres hexadecimais.'
 }
-$databaseEndpoint = "https://api.cloudflare.com/client/v4/accounts/$accountId/d1/database"
-$listUri = "${databaseEndpoint}?name=$([uri]::EscapeDataString($databaseName))&per_page=10"
+if ([string]::IsNullOrWhiteSpace($apiToken)) {
+  throw 'CLOUDFLARE_API_TOKEN ficou vazio após normalização.'
+}
+$env:CLOUDFLARE_ACCOUNT_ID = $accountId
+$env:CLOUDFLARE_API_TOKEN = $apiToken
 
-$listed = Invoke-RestMethod -Method Get -Uri $listUri -Headers $headers
-if (-not $listed.success) {
-  throw 'Cloudflare não retornou a lista de databases D1 com sucesso.'
+function Get-D1Databases {
+  $raw = & npx wrangler d1 list --json 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw "Wrangler falhou ao listar os databases D1: $($raw -join [Environment]::NewLine)"
+  }
+
+  $text = ($raw -join [Environment]::NewLine).Trim()
+  try {
+    $parsed = $text | ConvertFrom-Json
+  }
+  catch {
+    throw 'Wrangler não retornou JSON válido ao listar os databases D1.'
+  }
+
+  return @($parsed)
 }
 
-$existing = @($listed.result) |
-  Where-Object { $_.name -eq $databaseName } |
-  Select-Object -First 1
+function Resolve-HomologationDatabase {
+  $matches = @(Get-D1Databases | Where-Object { [string]$_.name -eq $databaseName })
+  if ($matches.Count -gt 1) {
+    throw "Mais de um D1 chamado $databaseName foi encontrado. Provisionamento recusado por segurança."
+  }
+  if ($matches.Count -eq 1) {
+    return $matches[0]
+  }
+  return $null
+}
 
-if ($existing) {
-  $databaseId = [string]$existing.uuid
+$database = Resolve-HomologationDatabase
+if ($database) {
   Write-Host "Reutilizando D1 de homologação existente: $databaseName"
 }
 else {
-  $body = @{ name = $databaseName } | ConvertTo-Json -Compress
-  $created = Invoke-RestMethod -Method Post -Uri $databaseEndpoint -Headers $headers -Body $body
-  if (-not $created.success -or -not $created.result) {
-    throw 'Cloudflare não criou o D1 de homologação com sucesso.'
+  $createOutput = & npx wrangler d1 create $databaseName 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    throw "Wrangler falhou ao criar o D1 de homologação: $($createOutput -join [Environment]::NewLine)"
   }
-  $databaseId = [string]$created.result.uuid
   Write-Host "D1 de homologação criado: $databaseName"
+
+  $database = Resolve-HomologationDatabase
+  if (-not $database) {
+    throw "Wrangler criou o D1, mas $databaseName não apareceu na listagem posterior."
+  }
 }
 
+$databaseId = [string]$database.uuid
 if ([string]::IsNullOrWhiteSpace($databaseId)) {
-  throw 'Cloudflare não retornou o UUID do D1 de homologação.'
+  $databaseId = [string]$database.database_id
 }
+$parsedDatabaseId = [guid]::Empty
+if ([string]::IsNullOrWhiteSpace($databaseId) -or -not [guid]::TryParse($databaseId, [ref]$parsedDatabaseId)) {
+  throw 'Wrangler não retornou um UUID válido para o D1 de homologação.'
+}
+$databaseId = $parsedDatabaseId.ToString()
 
-# Wrangler/D1 remoto possui casos conhecidos em que o parser de migrations
-# interpreta o END de um CASE dentro de CREATE TRIGGER como o fim do trigger.
-# A forma parentetizada é SQLite-equivalente e é aceita pelo caminho remoto.
-# Geramos apenas a cópia efêmera usada pela homologação; os arquivos fonte
-# continuam sendo a fonte de verdade e os nomes das migrations são preservados.
+# Wrangler/D1 remoto possui casos em que o parser de migrations interpreta o
+# END de um CASE dentro de CREATE TRIGGER como o fim do trigger. A forma
+# parentetizada é SQLite-equivalente. Geramos somente uma cópia efêmera usada
+# pela homologação; os arquivos fonte continuam sendo a fonte de verdade.
 if (Test-Path -LiteralPath $remoteMigrationDirectory) {
   Remove-Item -LiteralPath $remoteMigrationDirectory -Recurse -Force
 }
 New-Item -ItemType Directory -Path $remoteMigrationDirectory -Force | Out-Null
 
-$migrationFiles = Get-ChildItem -LiteralPath $sourceMigrationDirectory -Filter '*.sql' -File | Sort-Object Name
-if (-not $migrationFiles) {
-  throw 'Nenhuma migration do Banco de Notas foi encontrada.'
+$migrationFiles = @(Get-ChildItem -LiteralPath $sourceMigrationDirectory -Filter '*.sql' -File | Sort-Object Name)
+$expectedMigrations = @(
+  '0001_banco_notas_foundation.sql',
+  '0002_banco_notas_cross_year_integrity.sql',
+  '0003_banco_notas_import_job_state_machine.sql',
+  '0004_banco_notas_import_finding_resolution.sql',
+  '0005_banco_notas_import_analysis.sql',
+  '0006_banco_notas_import_analysis_profiles.sql'
+)
+$actualMigrations = @($migrationFiles | ForEach-Object { $_.Name })
+if (($actualMigrations -join '|') -ne ($expectedMigrations -join '|')) {
+  throw "Conjunto de migrations de homologação inesperado. Esperado exatamente 0001 até 0006; encontrado: $($actualMigrations -join ', ')."
 }
 
 foreach ($migrationFile in $migrationFiles) {
