@@ -64,6 +64,15 @@ export class BearerConfigurationError extends Error {
   }
 }
 
+export class BearerVerificationUnavailableError extends Error {
+  readonly status = 503;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'BearerVerificationUnavailableError';
+  }
+}
+
 function bearerToken(authorization: string | null): string {
   const match = authorization?.match(/^Bearer\s+([^\s]+)$/iu);
   if (!match?.[1]) throw new BearerAuthenticationError('Missing or malformed bearer token');
@@ -101,15 +110,17 @@ export async function verifyMicrosoftEntraAccessToken(args: {
       { signal: AbortSignal.timeout(8_000) },
     );
   } catch {
-    throw new BearerAuthenticationError('Unable to load signing keys');
+    throw new BearerVerificationUnavailableError('Microsoft Entra signing keys unavailable');
   }
-  if (!jwksResponse.ok) throw new BearerAuthenticationError('Unable to load signing keys');
+  if (!jwksResponse.ok) {
+    throw new BearerVerificationUnavailableError('Microsoft Entra signing keys unavailable');
+  }
 
   let jwks: z.infer<typeof jwksSchema>;
   try {
     jwks = jwksSchema.parse(await jwksResponse.json());
   } catch {
-    throw new BearerAuthenticationError('Invalid signing key response');
+    throw new BearerVerificationUnavailableError('Microsoft Entra signing key response invalid');
   }
   const jwk = jwks.keys.find((candidate) => candidate.kid === header.kid);
   if (!jwk) throw new BearerAuthenticationError('Unknown signing key');
