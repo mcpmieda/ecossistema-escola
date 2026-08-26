@@ -32,7 +32,18 @@ Ao abrir/editar/reabrir uma issue válida:
 
 A label `jules` é uma solicitação de execução ao GitHub App do Jules. Ela não prova que o worker iniciou ou concluiu a tarefa. O repositório precisa estar previamente autorizado no Jules.
 
-Tarefas dependentes nunca recebem `jules` nesta fase. Elas permanecem em `factory:waiting` até a futura etapa de reconciliation confirmar a conclusão das predecessoras.
+## Dependências
+
+Tarefas dependentes começam com `factory:waiting`. Depois de cada PR mesclado, o workflow `Factory Reconciliation` verifica as tarefas em espera.
+
+Uma predecessora só conta como concluída quando a issue materializada contém um link de PR publicado por `google-labs-jules[bot]`, o PR está mesclado na branch padrão e todos os arquivos alterados permanecem dentro dos `paths` declarados pela predecessora.
+
+Quando todas as predecessoras satisfazem essas condições, a tarefa dependente deixa `factory:waiting` e:
+
+- recebe `factory:provider:jules` + `jules` quando Jules foi explicitamente preferido; ou
+- recebe `factory:ready` quando ainda não há provider remoto aplicável.
+
+Fechar issue manualmente, inserir um link por comentário humano ou mesclar um PR com arquivos fora do escopo não libera a dependência.
 
 ## Segurança
 
@@ -43,8 +54,9 @@ Tarefas dependentes nunca recebem `jules` nesta fase. Elas permanecem em `factor
 - Jules só é solicitado quando foi explicitamente listado pela tarefa;
 - nenhuma credencial ou API key do Jules entra no manifesto;
 - nenhum texto do manifesto é executado como shell;
-- nenhuma tarefa materializada faz merge/deploy/ativação de produção;
+- nenhuma tarefa materializada ou reconciliada faz merge/deploy/ativação de produção;
 - um trigger de provider não concede autoridade de merge ou produção;
+- reconciliação é fail-closed quando falta evidência confiável;
 - Codex não é fallback automático;
 - Banco de Notas permanece com sync desligado.
 
