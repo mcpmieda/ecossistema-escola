@@ -73,6 +73,33 @@ describe('Banco de Notas teacher model Graph orchestration', () => {
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ result: 'succeeded' }));
   });
 
+  it('rejects a local content hash mismatch before uploading anything', async () => {
+    const graph = gateway();
+    const audit = { record: vi.fn(async () => undefined) };
+
+    await expect(
+      storeShareAndVerifyTeacherModel({
+        model: { ...model, modelHash: 'a'.repeat(64) },
+        recipient,
+        gateway: graph,
+        audit,
+        verifyDownloadedWorkbook: verifier(),
+        correlationId: 'correlation-local-hash',
+      }),
+    ).rejects.toThrow('teacher_model_content_hash_mismatch');
+
+    expect(graph.store).not.toHaveBeenCalled();
+    expect(graph.share).not.toHaveBeenCalled();
+    expect(graph.remove).not.toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        result: 'failed',
+        safeError: 'teacher_model_content_hash_mismatch',
+        correlationId: 'correlation-local-hash',
+      }),
+    );
+  });
+
   it('revokes and removes when metadata size validation fails', async () => {
     const graph = gateway({
       metadata: vi.fn(async () => ({ etag: 'verified', size: 2 })),
