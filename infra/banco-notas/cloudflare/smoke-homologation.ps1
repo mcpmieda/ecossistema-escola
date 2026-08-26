@@ -31,9 +31,12 @@ function Invoke-D1 {
     [switch]$AllowFailure
   )
 
-  $stderrPath = [System.IO.Path]::GetTempFileName()
+  $tempBase = Join-Path ([System.IO.Path]::GetTempPath()) "banco-notas-smoke-$([guid]::NewGuid().ToString('N'))"
+  $sqlPath = "$tempBase.sql"
+  $stderrPath = "$tempBase.stderr"
   try {
-    $stdout = & npx wrangler d1 execute $databaseBinding --remote --config $generatedConfig --command $Sql --json 2> $stderrPath | Out-String
+    [IO.File]::WriteAllText($sqlPath, $Sql, [Text.UTF8Encoding]::new($false))
+    $stdout = & npx wrangler d1 execute $databaseBinding --remote --config $generatedConfig --file $sqlPath --json 2> $stderrPath | Out-String
     $exitCode = $LASTEXITCODE
     $stderr = Get-Content -LiteralPath $stderrPath -Raw -ErrorAction SilentlyContinue
     $combined = "$stdout`n$stderr"
@@ -48,6 +51,7 @@ function Invoke-D1 {
     }
   }
   finally {
+    Remove-Item -LiteralPath $sqlPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
   }
 }
