@@ -53,6 +53,23 @@ async function githubPaged(path, maxPages = 10) {
   return items;
 }
 
+async function ensureLabel(owner, repo, name, description, color) {
+  const encoded = encodeURIComponent(name);
+  const response = await fetch(`${API_ROOT}/repos/${owner}/${repo}/labels/${encoded}`, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${env('GITHUB_TOKEN')}`,
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  });
+  if (response.ok) return;
+  if (response.status !== 404) fail(`Unable to inspect label ${name}: ${response.status}`);
+  await github(`/repos/${owner}/${repo}/labels`, {
+    method: 'POST',
+    body: JSON.stringify({ name, description, color }),
+  });
+}
+
 function labelsOf(issue) {
   return (issue?.labels ?? [])
     .map((label) => (typeof label === 'string' ? label : label?.name))
@@ -197,6 +214,14 @@ async function reconcileAll() {
   const repositoryData = await github(`/repos/${owner}/${repo}`);
   const defaultBranch = repositoryData.default_branch;
   if (!defaultBranch) fail('Repository default branch is missing.');
+
+  await ensureLabel(
+    owner,
+    repo,
+    FACTORY_LABELS.ready,
+    'Factory task dependencies are verified and the task is ready for provider assignment.',
+    '0e8a16',
+  );
 
   const query = encodeURIComponent(
     `repo:${owner}/${repo} is:issue is:open label:"${FACTORY_LABELS.waiting}"`,
