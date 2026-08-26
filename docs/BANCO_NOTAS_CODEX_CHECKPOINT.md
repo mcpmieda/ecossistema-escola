@@ -3,9 +3,9 @@
 Última atualização: 26/08/2026 — retomada após interrupção do Codex
 Branch: `feat/banco-de-notas-foundation`
 PR: `#52` — open, draft, sem merge
-HEAD atual após esta atualização: consultar o próprio commit deste checkpoint
-Último HEAD de código funcional antes dos checkpoints finais: `042fd368bcf44811c2dfb1c1275c4a8f5587bdbd`
-CI Graph criada: `32985538704` / run `#709` — associada a `042fd368...`
+HEAD corrente a validar: usar o commit que contém este checkpoint
+Último HEAD funcional anterior aos checkpoints finais: `042fd368bcf44811c2dfb1c1275c4a8f5587bdbd`
+CI Graph observada: `32985538704` / run `#709`, criada para `042fd368...`
 Última baseline D1 comprovada: run `32981705701` — success no HEAD `2467240`
 Última CI verde comprovada: `32981711631` — success no HEAD `2467240`
 
@@ -39,12 +39,12 @@ Fechar a fundação técnica corrente, preservar a homologação remota das migr
 
 ## Próxima ação exata
 
-1. localizar a execução CI mais recente para o HEAD corrente;
-2. exigir formatting, lint, typecheck, semantic contract, testes e build verdes;
-3. corrigir qualquer falha real;
-4. atualizar o corpo do PR com HEAD/run/contagem final;
-5. manter PR draft, sync off e produção untouched;
-6. Microsoft externo só retoma quando existir sessão/credencial administrativa de homologação apropriada.
+1. confirmar o HEAD corrente no GitHub;
+2. localizar a execução CI correspondente;
+3. exigir formatting, lint, typecheck, semantic contract, testes e build verdes;
+4. corrigir qualquer falha real;
+5. atualizar o corpo do PR com HEAD/run/contagem final;
+6. manter PR draft, sync off e produção untouched.
 
 ## Estado dos ambientes
 
@@ -115,7 +115,7 @@ Nunca registrar secrets.
 - `32981705701` — success — locks de OID/status e estado final sync off.
 - `32981711631` — success — CI do bloco D1; produção skipped.
 - `32985041877` — failure intermediária — mock antigo sem `download`; corrigido depois.
-- `32985538704` — CI criada para o bloco Graph em `042fd368...`.
+- `32985538704` — CI criada para `042fd368...`.
 
 ## Bloqueios externos
 
