@@ -77,11 +77,11 @@ function graphFileName(value: string): string {
   return encodeURIComponent(value);
 }
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const stable = new Uint8Array(bytes.byteLength);
-  stable.set(bytes);
-  const digest = await crypto.subtle.digest('SHA-256', stable);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+export function teacherModelGraphTargetFromEnv(env: RuntimeEnv): TeacherModelGraphTarget {
+  return targetSchema.parse({
+    driveId: env.BANCO_NOTAS_GRAPH_DRIVE_ID,
+    parentItemId: env.BANCO_NOTAS_GRAPH_PARENT_ITEM_ID,
+  });
 }
 
 export function createTeacherModelGraphGateway(args: {
@@ -159,7 +159,11 @@ export function createTeacherModelGraphGateway(args: {
       if (metadata.id !== input.driveItemId) {
         throw new Error('teacher_model_graph_metadata_identity_mismatch');
       }
+      return { etag: metadata.eTag, size: metadata.size };
+    },
 
+    async download(input) {
+      const accessToken = await token();
       const downloaded = await graphContentRequest({
         env: args.env,
         path: `${drivePath}/items/${graphSegment(input.driveItemId)}/content`,
@@ -168,15 +172,7 @@ export function createTeacherModelGraphGateway(args: {
         dependencies: graphDependencies,
         token: accessToken,
       });
-      const bytes = new Uint8Array(await downloaded.response.arrayBuffer());
-      if (bytes.byteLength !== metadata.size) {
-        throw new Error('teacher_model_graph_download_size_mismatch');
-      }
-      return {
-        etag: metadata.eTag,
-        size: metadata.size,
-        sha256: await sha256Hex(bytes),
-      };
+      return new Uint8Array(await downloaded.response.arrayBuffer());
     },
 
     async revokeShare(input) {
