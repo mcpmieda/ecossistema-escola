@@ -45,7 +45,7 @@ O token Cloudflare usado pelo CI é account-owned, com apenas Pages Write, escop
 
 ## GitHub Actions Supply Chain Hardening
 
-Todas as Actions externas são referenciadas por SHA completo e imutável; o comentário ao lado preserva a release humana. `checkout` não persiste credenciais Git. O job normal de CI possui somente `contents: read`; apenas o job de rotação possui `id-token: write`, documentado e necessário para GitHub OIDC → Entra. O deploy e a rotação usam `environment: production`; nenhum job de PR usa esse environment ou referencia secrets de produção. A rotação também exige explicitamente `refs/heads/main`, impedindo que uma ref escolhida em `workflow_dispatch` receba as credenciais de produção.
+Todas as Actions externas são referenciadas por SHA completo e imutável; o comentário ao lado preserva a release humana. `checkout` não persiste credenciais Git. O job normal de CI possui somente `contents: read`; `id-token: write` existe apenas em jobs operacionais explicitamente allowlisted, todos vinculados ao environment `production`. Nenhum job de PR recebe OIDC ou secrets de produção. Workflows privilegiados também exigem `refs/heads/main`, impedindo que uma ref escolhida em `workflow_dispatch` receba credenciais operacionais.
 
 O próprio repositório exige SHA pinning (`sha_pinning_required: true`) e permite somente Actions mantidas pelo GitHub mais `zizmorcore/zizmor-action`; outras Actions externas são bloqueadas por configuração, mesmo antes da revisão humana.
 
@@ -53,4 +53,32 @@ O gate `workflow-security`, sem secrets de produção, executa actionlint 1.7.12
 
 Os dois valores Cloudflare estão realmente em GitHub repository Actions Secrets, não em environment secrets. No estado atual, somente a conta administradora `mcpmieda` possui acesso ao repositório; PRs externos, Dependabot e o job `validate` não recebem esses valores. O plano GitHub atual não disponibiliza branch protection/deployment branch policies para este repositório privado. Migrar os secrets para outro escopo exigiria conhecer ou substituir seus valores, o que este hardening deliberadamente não fez.
 
-Guardrails para futuros agentes: não substituir SHA por `@vX`; não adicionar `id-token: write` ao CI normal; não referenciar production secrets em PR; não remover `environment: production`; não remover a guarda `github.ref == 'refs/heads/main'` da rotação; não mudar o subject OIDC sem revisar a FIC do Entra; não habilitar automerge cego; não adicionar aprovação humana periódica à rotação autônoma.
+Guardrails para futuros agentes: não substituir SHA por `@vX`; não adicionar `id-token: write` ao CI normal; não referenciar production secrets em PR; não remover `environment: production`; não remover as guardas de `refs/heads/main` dos workflows privilegiados; não mudar subjects OIDC sem revisar as FICs do Entra; não habilitar automerge cego; não adicionar aprovação humana periódica à rotação autônoma.
+
+## GitHub como plano de controle operacional
+
+O GitHub é também o plano de controle das operações técnicas do ecossistema. A estação administrativa pode iniciar uma operação por PowerShell/GitHub CLI, mas a execução relevante deve ocorrer em GitHub Actions sempre que tecnicamente possível.
+
+Não existe executor genérico de shell, Graph path, URL ou código arbitrário. Cada nova operação precisa ser implementada em código versionado e entrar explicitamente na allowlist.
+
+O CI pode ser iniciado manualmente por `workflow_dispatch`, porém o deploy de produção continua restrito a `push` em `refs/heads/main`. Disparos manuais do CI executam validação e segurança, sem acesso implícito a deploy. A concorrência da validação manual é isolada da produção, impedindo que um disparo manual cancele deploy ou recovery em andamento.
+
+Jobs com `id-token: write` são allowlisted e precisam manter o ambiente `production`. Novas integrações Entra/Graph devem receber identidades de privilégio mínimo por domínio; não é permitido transformar a identidade de manutenção em uma identidade Graph administrativa geral.
+
+O script `infra/ops/ecossistema.ps1` é a interface local de operação. Ele somente dispara workflows conhecidos, consulta logs ou baixa artifacts; não executa comandos administrativos arbitrários no tenant.
+
+A política `infra/validation/assert-github-control-plane.ps1` é executada pelo CI e bloqueia permissões `write-all`, Actions externas sem SHA imutável, inputs perigosos e uso de OIDC fora da allowlist.
+
+## Identidade operacional Microsoft 365
+
+As operações rotineiras Microsoft 365 do Control Plane usam uma identidade Entra separada da identidade de manutenção e do Graph Backend de runtime.
+
+O bootstrap da identidade operacional usa `Application.ReadWrite.OwnedBy` somente para criar ou manter o registro da aplicação e sua credencial federada GitHub. A execução real do tenant mostrou `403` na tentativa de criar o service principal, portanto essa fronteira não é contornada concedendo privilégios permanentes adicionais à identidade de manutenção.
+
+A criação do service principal, o consentimento de `Sites.Selected` e a concessão `write` ao `CENTROADMIN` são concluídos uma única vez por um administrador autenticado através do script versionado `infra/entra/complete-m365-operations-authorization.ps1`. As permissões delegadas amplas necessárias para conceder o acesso ao site são usadas somente nessa sessão administrativa; não são atribuídas à identidade operacional.
+
+`Sites.Selected` não concede acesso a nenhum site por si só. A identidade operacional fica permanentemente limitada ao site explicitamente autorizado e não recebe `Sites.ReadWrite.All`, `Sites.FullControl.All`, `Directory.ReadWrite.All` ou `AppRoleAssignment.ReadWrite.All`.
+
+Depois da autorização única, operações normais usam GitHub OIDC -> Entra -> identidade operacional e não dependem de client secret, certificado local, Codex ou login interativo por execução.
+
+Ações Microsoft 365 permanecem tipadas e allowlisted. A fundação inicial é somente de leitura e prontidão; qualquer escrita futura precisa ser implementada como operação explícita, idempotente e auditável.

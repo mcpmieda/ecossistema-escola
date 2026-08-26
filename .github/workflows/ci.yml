@@ -6,13 +6,16 @@ on:
     branches:
       - main
       - 'test/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: pages-${{ github.ref }}
-  cancel-in-progress: true
+  # Manual validation must never cancel an active production pipeline.
+  # Production pushes are serialized instead of cancelling one another.
+  group: pages-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
 
 jobs:
   validate:
@@ -64,6 +67,14 @@ jobs:
 
       - name: Validate workflows with actionlint
         run: bash ./infra/validation/run-actionlint.sh
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: ./infra/validation/assert-powershell-syntax.ps1
+
+      - name: Validate GitHub control-plane policy
+        shell: pwsh
+        run: ./infra/validation/assert-github-control-plane.ps1
 
       - name: Audit workflows with zizmor
         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
