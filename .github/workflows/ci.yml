@@ -38,7 +38,10 @@ jobs:
         run: npm ci
 
       - name: Check formatting
-        run: npm run format:check
+        run: >-
+          npm run format:check ||
+          (npx prettier --write tests/banco-notas-m365-storage-homologation.test.ts &&
+          git diff -- tests/banco-notas-m365-storage-homologation.test.ts && exit 1)
 
       - name: Lint
         run: npm run lint
