@@ -1,7 +1,7 @@
 import process from 'node:process';
 
 import { FACTORY_LABELS } from './dispatch-policy.mjs';
-import { parseFactoryRunV2, taskMarker } from './contract-v2.mjs';
+import { parseFactoryRunV2 } from './contract-v2.mjs';
 import {
   addComment,
   addLabels,
