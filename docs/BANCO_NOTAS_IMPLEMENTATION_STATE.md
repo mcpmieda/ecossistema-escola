@@ -6,25 +6,27 @@ Branch: `feat/banco-de-notas-foundation`
 
 PR: `#52`
 
-Estado: **Fase 1 consolidada + grade-events interno + núcleo de importação/modelo genérico endurecido; PR draft, sem merge e sem produção.**
+Estado: **Fase 1 consolidada + grade-events interno + importação auditável com análise verificada persistente + núcleo de modelo genérico endurecido; PR draft, sem merge e sem produção.**
 
 ## Evidência funcional corrente
 
-Head funcional: `d71c19a111bee387bc4a9d83dc58315ab281f3ee`.
+Base funcional verificada: `88ea66896271408d57343c046d81b5d042b7810f`.
 
-GitHub Actions: workflow `32921638884` / run `#571` — **success**:
+GitHub Actions: workflow `32924002605` / run `#600` — **success**:
 
 - `Validate GitHub Actions security` — success;
 - formatting — success;
 - lint — success;
 - typecheck — success;
 - semantic contract — success;
-- testes — **214/214 em 36 arquivos**;
+- testes — **229/229 em 39 arquivos**;
 - build — success;
 - `Deploy production` — skipped;
 - `Verify recovery after deploy` — skipped.
 
 O build mantém o warning histórico de chunk JavaScript acima de 500 kB, sem falha associada.
+
+A sincronização documental posterior a essa base não altera a evidência funcional acima.
 
 ## Fundação entregue
 
@@ -46,16 +48,17 @@ O build mantém o warning histórico de chunk JavaScript acima de 500 kB, sem fa
 
 ## Migrations D1
 
-O branch possui quatro migrations, ainda não aplicadas em D1 remoto:
+O branch possui cinco migrations, ainda não aplicadas em D1 remoto:
 
 1. `0001_banco_notas_foundation.sql` — schema base, fontes, modelos, mappings, eventos, snapshots, auditoria e importação;
 2. `0002_banco_notas_cross_year_integrity.sql` — integridade cross-year;
 3. `0003_banco_notas_import_job_state_machine.sql` — transições válidas e findings imutáveis;
-4. `0004_banco_notas_import_finding_resolution.sql` — resolução auditável e append-only dos findings e proteção contra reentrada concorrente no mesmo estado.
+4. `0004_banco_notas_import_finding_resolution.sql` — resolução auditável e append-only dos findings e proteção contra reentrada concorrente no mesmo estado;
+5. `0005_banco_notas_import_analysis.sql` — artefato imutável de análise por import job, integridade de proveniência e exigência de análise persistida antes de `analyzed`.
 
 As migrations são executadas em SQLite real por processos Node dedicados. Isso comprova compatibilidade/invariantes locais, mas **não substitui D1 remoto de homologação**.
 
-## Import jobs e resolução de findings
+## Import jobs, análise verificada e resolução de findings
 
 O fluxo de importação possui:
 
@@ -69,6 +72,31 @@ O fluxo de importação possui:
 - proteção contra salto de gates;
 - proteção contra reentrada concorrente no mesmo estado;
 - API autenticada por capability `grades.import.run`.
+
+A passagem `draft → analyzed` deixou de ser uma transição administrativa genérica. Ela é reservada ao pipeline backend de análise verificada:
+
+```text
+ImportJob draft
+→ valida sourceHash/sourceFormat/schoolYear
+→ valida bytes por tamanho + SHA-256
+→ executa LegacyWorkbookAnalyzer compatível
+→ persiste ImportAnalysis imutável
+→ persiste findings + auditoria
+→ grava job como analyzed
+```
+
+Garantias implementadas:
+
+- origem apresentada à análise precisa corresponder ao hash, formato e ano do import job;
+- analyzer não é executado em caso de mismatch;
+- `import_analyses` possui um único artefato por import job;
+- análise é append-only e não pode ser atualizada ou removida;
+- D1/SQLite rejeita estado `analyzed` quando não existe artefato de análise associado;
+- commit de análise, findings, auditoria e mudança de estado ocorre em batch transacional;
+- retry idempotente de análise idêntica não duplica histórico;
+- retry incompatível após análise persistida gera conflito;
+- falha do analyzer não avança o job;
+- o endpoint administrativo `POST /v1/import-jobs/{jobId}` rejeita `targetState=analyzed` e exige o pipeline verificado.
 
 A análise pode registrar findings de severidade `error` e ainda alcançar `analyzed`, permitindo revisão humana. A progressão para `generated` e estados posteriores exige que todos os erros estejam resolvidos.
 
@@ -108,7 +136,7 @@ O layout físico deixou de ser convenção escondida no gerador. Alterar colunas
 
 ## Boundary de workbook
 
-O branch agora possui contratos e boundaries explícitos em `shared/banco-notas-workbook-pipeline.ts` e `server/banco-notas/workbook-pipeline.ts` para impedir que o futuro parser/serializador cloud seja acoplado diretamente ao domínio.
+O branch possui contratos e boundaries explícitos em `shared/banco-notas-workbook-pipeline.ts` e `server/banco-notas/workbook-pipeline.ts` para impedir que o futuro parser/serializador cloud seja acoplado diretamente ao domínio.
 
 Entrada de análise:
 
@@ -129,9 +157,7 @@ Saída de serialização:
 - `serializerId` é preservado como proveniência;
 - os bytes retornados ao consumidor são copiados após verificação para não reaproveitar diretamente o buffer mutável do adapter.
 
-A suíte `tests/banco-notas-workbook-pipeline.test.ts` usa apenas adapters sintéticos e comprova fail closed para XLSB sem analyzer explícito, tampering da origem, mutação pelo analyzer, proveniência divergente, hash de saída inválido e layout divergente.
-
-**Isso não implementa nem declara parser XLSB cloud nem serializador XLSX real.** O produto possui agora o contrato seguro onde esses adapters reais poderão ser conectados. O bridge COM legado continua somente como ponte de migração/regressão.
+**Isso não implementa nem declara parser XLSB cloud nem serializador XLSX real.** O produto possui o contrato seguro onde esses adapters reais poderão ser conectados. O bridge COM legado continua somente como ponte de migração/regressão.
 
 ## Grade-events
 
@@ -184,15 +210,15 @@ Se uma etapa falhar após upload/compartilhamento:
 - o resultado da compensação é auditado;
 - falha de compensação é promovida como erro explícito, não ocultada.
 
-Isso evita declarar uma operação como simplesmente falha enquanto um compartilhamento rejeitado permanece silenciosamente ativo.
-
 Ainda não houve chamada Graph real.
 
 ## OpenAPI de importação/modelos
 
-`api/banco-notas-models-v1.openapi.yaml` está em versão `0.2.0`.
+`api/banco-notas-models-v1.openapi.yaml` está em versão `0.3.0`.
 
-- import jobs estão marcados como `connected`;
+- import jobs administrativos estão marcados como `connected`;
+- `draft → analyzed` é explicitamente reservado ao pipeline backend de análise verificada;
+- `AdministrativeImportJobTargetState` não inclui `analyzed`;
 - findings possuem identidade/resolução auditável;
 - endpoints de teacher model/share/reconcile permanecem `future-not-routed`;
 - não há alegação de storage/share/reconcile Graph ativo antes da homologação externa.
@@ -205,7 +231,7 @@ Ainda não houve chamada Graph real.
 - `SyncEnabled=false` é o estado seguro inicial;
 - nenhuma fonte é mesclada silenciosamente;
 - ausência não equivale a zero;
-- histórico de eventos, auditoria, findings e resoluções é append-only onde aplicável;
+- histórico de eventos, auditoria, findings, resoluções e análises é append-only onde aplicável;
 - nenhum arquivo docente real ou golden master entra no Git/runtime/D1/migrations/fixtures públicas;
 - GitHub nunca é runtime.
 
@@ -233,8 +259,8 @@ Consequentemente, **não foram alegados** D1 remoto, Entra provisionado, SharePo
 Ordem recomendada:
 
 1. autenticar Wrangler e provisionar **somente** `banco-notas-homologation`;
-2. aplicar `0001` + `0002` + `0003` + `0004` no D1 remoto;
-3. executar smoke remoto com dados sintéticos, incluindo rollback, cross-year, state machine e resolução de findings;
+2. aplicar `0001` + `0002` + `0003` + `0004` + `0005` no D1 remoto;
+3. executar smoke remoto com dados sintéticos, incluindo rollback, cross-year, state machine, resolução de findings e análise persistente obrigatória;
 4. provisionar audience/delegated scope Entra próprios do add-in;
 5. somente então conectar o router público bearer de `grade-events`;
 6. implementar/conectar analyzer XLSX cloud e serializer XLSX real através dos boundaries existentes; suporte XLSB cloud só pode ser declarado quando existir adapter real comprovado;
