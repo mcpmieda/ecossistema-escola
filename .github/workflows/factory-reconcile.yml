@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: read
       issues: write # Required to transition waiting task labels and leave audit comments.
-      pull-requests: read
+      pull-requests: read # Required to verify merged PR metadata and changed-file scope.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
