@@ -20,7 +20,7 @@ describe('Banco de Notas remote D1 homologation safeguards', () => {
   });
 
   it('locks the remote migration set to 0001 through 0007 before applying it', () => {
-    for (const migration of [
+    const expectedMigrations = [
       '0001_banco_notas_foundation.sql',
       '0002_banco_notas_cross_year_integrity.sql',
       '0003_banco_notas_import_job_state_machine.sql',
@@ -28,13 +28,12 @@ describe('Banco de Notas remote D1 homologation safeguards', () => {
       '0005_banco_notas_import_analysis.sql',
       '0006_banco_notas_import_analysis_profiles.sql',
       '0007_banco_notas_teacher_entra_identity.sql',
-    ]) {
-      expect(provision).toContain(migration);
-    }
+    ];
+    for (const migration of expectedMigrations) expect(provision).toContain(migration);
     expect(provision).toContain('wrangler d1 migrations apply BANCO_NOTAS_DB --remote');
   });
 
-  it('is locked to the homologation database and requires explicit synthetic-write acknowledgement', () => {
+  it('is locked to homologation and requires explicit synthetic-write acknowledgement', () => {
     expect(smoke).toContain("$expectedDatabaseName = 'banco-notas-homologation'");
     expect(smoke).toContain('[switch]$ConfirmSyntheticWrites');
     expect(smoke).toContain('if (-not $ConfirmSyntheticWrites)');
@@ -42,27 +41,28 @@ describe('Banco de Notas remote D1 homologation safeguards', () => {
   });
 
   it('never provisions, migrates, deploys, or successfully enables sync', () => {
+    const directModelSync = 'Invoke-D1 -Sql "UPDATE teacher_models SET sync_enabled = 1';
+    const failedSyncGuard = "Assert-D1Failure -Label 'teacher model sync without Entra identity'";
+
     expect(smoke).not.toMatch(/wrangler\s+d1\s+create/iu);
     expect(smoke).not.toMatch(/wrangler\s+d1\s+migrations\s+apply/iu);
     expect(smoke).not.toMatch(/wrangler\s+(?:pages\s+)?deploy/iu);
-    expect(smoke).not.toContain(
-      'Invoke-D1 -Sql "UPDATE teacher_models SET sync_enabled = 1',
-    );
+    expect(smoke).not.toContain(directModelSync);
     expect(smoke).not.toMatch(/UPDATE\s+source_assignments[\s\S]*sync_enabled/iu);
-    expect(smoke).toContain(
-      "Assert-D1Failure -Label 'teacher model sync without Entra identity'",
-    );
+    expect(smoke).toContain(failedSyncGuard);
   });
 
   it('verifies migrations 0005 and 0007 before synthetic writes', () => {
+    const migration5 = "name LIKE '0005_banco_notas_import_analysis%'";
+    const migration7 = "name LIKE '0007_banco_notas_teacher_entra_identity%'";
+    const firstSyntheticWrite = 'INSERT INTO school_years';
+
     expect(smoke).toContain("$databaseBinding = 'BANCO_NOTAS_DB'");
     expect(smoke).toContain('/d1/database/$($database.database_id)/query');
     expect(smoke).toContain('Invoke-RestMethod -Method Post -Uri $script:d1Endpoint');
-    expect(smoke).toContain("name LIKE '0005_banco_notas_import_analysis%'");
-    expect(smoke).toContain("name LIKE '0007_banco_notas_teacher_entra_identity%'");
-    expect(smoke.indexOf("name LIKE '0007_banco_notas_teacher_entra_identity%'")).toBeLessThan(
-      smoke.indexOf('INSERT INTO school_years'),
-    );
+    expect(smoke).toContain(migration5);
+    expect(smoke).toContain(migration7);
+    expect(smoke.indexOf(migration7)).toBeLessThan(smoke.indexOf(firstSyntheticWrite));
   });
 
   it('covers the critical remote migration invariants using synthetic identifiers', () => {
