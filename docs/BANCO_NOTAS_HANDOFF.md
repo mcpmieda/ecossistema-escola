@@ -10,16 +10,16 @@ Estado: **Fase 1 consolidada, grade-events interno e núcleo de importação/mod
 
 ## Evidência funcional mais recente
 
-Head funcional: `fb1ed728183a048681109d3d0134921295324a7f`.
+Head funcional: `82e977a27598fdffa77a7db7bfff17bf433827ce`.
 
-Workflow `32919405343` / run `#545` — **success**:
+Workflow `32920316172` / run `#556` — **success**:
 
 - segurança de GitHub Actions — success;
 - formatting — success;
 - lint — success;
 - typecheck — success;
 - semantic contract — success;
-- **203/203 testes em 35 arquivos** — success;
+- **205/205 testes em 35 arquivos** — success;
 - build — success;
 - deploy production — skipped;
 - recovery pós-deploy — skipped.
@@ -29,16 +29,17 @@ O warning histórico de chunk JavaScript acima de 500 kB permanece não bloquead
 ## Avanço mais recente
 
 - bearer Entra continua fail closed e o endpoint público do add-in continua desconectado enquanto faltam audience/scope reais;
-- `.env.example` agora lista, sem valores, `BANCO_NOTAS_ADDIN_AUDIENCE` e `BANCO_NOTAS_ADDIN_SCOPE`;
-- import jobs passaram a suportar blockers reais em `analyzed` e resolução auditável antes de prosseguir;
-- findings originais permanecem append-only;
-- a migration `0004_banco_notas_import_finding_resolution.sql` cria stream separado, também append-only, para resolução de finding;
-- cada resolução registra finding, operador, motivo e horário e só pode ocorrer uma vez;
+- `.env.example` lista, sem valores, `BANCO_NOTAS_ADDIN_AUDIENCE` e `BANCO_NOTAS_ADDIN_SCOPE`;
+- import jobs suportam blockers reais em `analyzed` e resolução auditável antes de prosseguir;
+- findings originais permanecem append-only e a migration `0004_banco_notas_import_finding_resolution.sql` cria stream separado, também append-only, para resolução;
 - progressão para `generated` ou além fica bloqueada enquanto houver `error` não resolvido;
 - state re-entry no mesmo estado é bloqueado no storage para reduzir corrida concorrente;
-- OpenAPI de importação/modelos foi atualizado para `0.2.0` com `id`, `resolvedAt` e `resolvedFindingIds`;
-- orquestração Graph agora compensa falhas: revoga permissão e remove arquivo quando uma operação falha depois de armazenar/compartilhar;
-- falha da própria compensação é explicitamente promovida e auditada, não ocultada.
+- orquestração Graph compensa falhas com revoke de permissão e remoção do arquivo, promovendo e auditando falha de compensação;
+- o modelo genérico agora possui layout físico explicitamente versionado;
+- `layoutVersion`, `firstStudentRow` e a coluna de cada `gradeField` fazem parte da definição e seguem para o plano/instância;
+- a posição escolar do aluno é recebida como `studentPosition`, não derivada de UUID ou da ordem acidental do workbook;
+- posições duplicadas dentro da mesma turma bloqueiam geração;
+- a instância valida que a célula gerada corresponde exatamente à posição e à coluna definidas pelo layout.
 
 ## Comece por aqui
 
@@ -72,7 +73,9 @@ O warning histórico de chunk JavaScript acima de 500 kB permanece não bloquead
 - snapshot de nota é `(gradeKey, field)`;
 - reutilização incompatível da chave de idempotência é conflito;
 - stale permanece auditável sem regredir snapshot;
-- add-in só será exposto com bearer Entra/audience/scope próprios, nunca cookie administrativo improvisado.
+- add-in só será exposto com bearer Entra/audience/scope próprios, nunca cookie administrativo improvisado;
+- layout físico do modelo é versionado; não reintroduzir mapa de colunas hardcoded no gerador/serializador;
+- posição escolar do aluno é dado canônico da correspondência e não ordenação técnica por UUID.
 
 A produção continua obrigada a gerar um **modelo genérico limpo**, sem especialização por professor, workbook, aba, turma, disciplina ou célula de golden master.
 
@@ -126,15 +129,15 @@ LegacyIntermediateModel
 
 Já existem contracts, planner, geração determinística e fixtures sintéticas. A instância nasce em `homologation` com `syncEnabled=false`.
 
-Ainda falta o analisador/serializador XLSX cloud real. Não declarar conversão XLSB cloud. O bridge COM legado é apenas ponte de migração/regressão.
+O layout físico já não é uma convenção implícita do gerador. A definição contém layout versionado e o plano preserva essa definição. A posição do aluno vem da correspondência canônica; o gerador apenas projeta essa posição na linha física. O serializador XLSX futuro deve consumir essa mesma definição, sem criar outra tabela de colunas ou outra regra de ordenação.
 
-Antes do serializador definitivo, revisar o layout físico atualmente determinado pelo gerador: colunas de nota e ordenação de alunos precisam virar definição versionada/ordem escolar estável, e não convenção permanente escondida no código.
+Ainda falta o analisador/serializador XLSX cloud real. Não declarar conversão XLSB cloud. O bridge COM legado é apenas ponte de migração/regressão.
 
 ## Grade-events e Entra
 
 O núcleo interno de grade-events está implementado e testado, mas o roteamento público do add-in permanece propositalmente desligado.
 
-O validador bearer já cobre RS256/JWKS/issuer/tenant/audience/scope/lifetime, incluindo indisponibilidade do provedor. Audience e delegated scope reais ainda não foram provisionados.
+O validador bearer cobre RS256/JWKS/issuer/tenant/audience/scope/lifetime, incluindo indisponibilidade do provedor. Audience e delegated scope reais ainda não foram provisionados.
 
 Quando o add-in definitivo for criado, usar access token para a API própria, sem client secret no cliente. Não reusar o cookie administrativo.
 
@@ -142,7 +145,7 @@ Quando o add-in definitivo for criado, usar access token para a API própria, se
 
 `TeacherModelGraphGateway` continua sendo boundary abstrato. Não existe adapter Graph real conectado.
 
-A orquestração agora exige operações de compensação:
+A orquestração exige operações de compensação:
 
 - `revokeShare` para permissão criada;
 - `remove` para arquivo armazenado;
@@ -185,7 +188,7 @@ Quando houver credenciais externas:
 3. executar smoke remoto sintético para defaults, cross-year, idempotência, state machine, resolução append-only e rollback;
 4. provisionar audience/delegated scope Entra próprios;
 5. conectar grade-events público somente depois do gate bearer real;
-6. conectar analisador/serializador XLSX cloud;
+6. conectar analisador/serializador XLSX cloud consumindo o layout versionado já definido;
 7. implementar adapter Graph real e aplicar SharePoint de homologação;
 8. testar store/share/reconcile + compensação no Microsoft real;
 9. executar browser QA desktop/mobile/deep-link/refresh;
@@ -199,6 +202,7 @@ Quando houver credenciais externas:
 - não inserir golden masters ou PII no Git;
 - não usar GitHub como runtime;
 - não acumular wrappers, overrides temporários, CSS duplicado ou código morto;
+- não reintroduzir mapa físico de colunas hardcoded ou ordenação por UUID no gerador/serializador;
 - não ativar sync em massa;
 - não expor add-in sem bearer Entra próprio;
 - não alegar D1/Graph/SharePoint/browser QA real sem execução real;
