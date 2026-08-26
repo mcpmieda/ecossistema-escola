@@ -15,7 +15,7 @@ export function initialDispatch(task) {
     return { provider: null, status: 'waiting' };
   }
   if (task.preferredProviders.includes('jules')) {
-    return { provider: 'jules', status: 'dispatched' };
+    return { provider: 'jules', status: 'trigger-requested' };
   }
   return { provider: null, status: 'unassigned' };
 }
