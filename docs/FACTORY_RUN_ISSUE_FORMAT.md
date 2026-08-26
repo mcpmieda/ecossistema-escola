@@ -14,20 +14,20 @@ O corpo deve conter exatamente um manifesto JSON entre os marcadores:
 <!-- FACTORY_RUN_END -->
 ```
 
-O workflow `Factory Control Plane` valida o manifesto antes de qualquer materialização.
+O workflow `Factory Control Plane` valida o manifesto antes de qualquer materialização. A materialização só é permitida quando o ator do evento é o proprietário do repositório.
 
 ## O que acontece
 
 Ao abrir/editar/reabrir uma issue válida:
 
-1. o GitHub Actions valida o manifesto;
+1. o GitHub Actions valida o manifesto e o ator;
 2. cria/aplica labels técnicas do Control Plane;
 3. cria uma issue-filho para cada tarefa ainda inexistente;
 4. reutiliza tarefas já materializadas quando o mesmo `run_id` + `task id` reaparece;
 5. reconcilia labels ausentes em tarefas reutilizadas;
 6. marca tarefas com human gate como `factory:human-required`;
 7. marca tarefas dependentes como `factory:waiting`;
-8. para uma tarefa-raiz sem human gate que liste `jules` em `preferred_providers`, aplica `factory:provider:jules` e a label exata `jules`;
+8. para uma tarefa-raiz sem human gate que liste `jules` em `preferred_providers`, cria a issue com `factory:provider:jules` e adiciona a label exata `jules` em uma operação separada;
 9. comenta um resumo na issue pai.
 
 A label `jules` é uma solicitação de execução ao GitHub App do Jules. Ela não prova que o worker iniciou ou concluiu a tarefa. O repositório precisa estar previamente autorizado no Jules.
@@ -36,6 +36,7 @@ Tarefas dependentes nunca recebem `jules` nesta fase. Elas permanecem em `factor
 
 ## Segurança
 
+- somente o proprietário do repositório pode disparar a materialização da Factory Run;
 - máximo de 20 tarefas por Factory Run;
 - IDs duplicados, dependências inexistentes e ciclos são rejeitados;
 - providers e human gates são allowlisted;
