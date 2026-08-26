@@ -10,16 +10,16 @@ Estado: **Fase 1 consolidada + grade-events interno + núcleo de importação/mo
 
 ## Evidência funcional corrente
 
-Head funcional: `82e977a27598fdffa77a7db7bfff17bf433827ce`.
+Head funcional: `d71c19a111bee387bc4a9d83dc58315ab281f3ee`.
 
-GitHub Actions: workflow `32920316172` / run `#556` — **success**:
+GitHub Actions: workflow `32921638884` / run `#571` — **success**:
 
 - `Validate GitHub Actions security` — success;
 - formatting — success;
 - lint — success;
 - typecheck — success;
 - semantic contract — success;
-- testes — **206/206 em 35 arquivos**;
+- testes — **214/214 em 36 arquivos**;
 - build — success;
 - `Deploy production` — skipped;
 - `Verify recovery after deploy` — skipped.
@@ -106,7 +106,32 @@ Garantias atuais:
 
 O layout físico deixou de ser convenção escondida no gerador. Alterar colunas ou a linha inicial exige nova definição/layout versionados; a ordem dos alunos é derivada da correspondência canônica, não de uma ordenação técnica arbitrária.
 
-Limite atual: ainda não existe analisador/serializador XLSX cloud conectado ao pipeline. O bridge COM legado continua somente como ponte de migração/regressão, nunca como parser cloud definitivo. A implementação futura do serializador deve consumir o layout versionado existente, sem recriar uma segunda regra física paralela.
+## Boundary de workbook
+
+O branch agora possui contratos e boundaries explícitos em `shared/banco-notas-workbook-pipeline.ts` e `server/banco-notas/workbook-pipeline.ts` para impedir que o futuro parser/serializador cloud seja acoplado diretamente ao domínio.
+
+Entrada de análise:
+
+- metadados tipados com `sourceFormat`, `sourceHash`, `byteLength` e ano letivo;
+- bytes são conferidos contra tamanho e SHA-256 antes do analyzer;
+- o analyzer precisa declarar explicitamente os formatos suportados;
+- não existe fallback implícito para XLSB;
+- um analyzer que não declara `xlsb` falha com `workbook_format_not_supported:xlsb`;
+- a análise retornada precisa manter hash, formato e ano da origem verificada;
+- `analyzerId` é preservado como proveniência da execução;
+- o analyzer recebe uma cópia dos bytes e a execução é rejeitada se essa cópia for alterada durante a análise.
+
+Saída de serialização:
+
+- somente artefato `xlsx` com MIME oficial é aceito pelo contrato atual;
+- bytes, tamanho e SHA-256 do artefato são conferidos;
+- metadata do artefato precisa corresponder a `modelId`, `definitionVersion`, `layoutVersion`, `mappingVersion`, `sourceHash` e `relationshipSnapshotId` da instância;
+- `serializerId` é preservado como proveniência;
+- os bytes retornados ao consumidor são copiados após verificação para não reaproveitar diretamente o buffer mutável do adapter.
+
+A suíte `tests/banco-notas-workbook-pipeline.test.ts` usa apenas adapters sintéticos e comprova fail closed para XLSB sem analyzer explícito, tampering da origem, mutação pelo analyzer, proveniência divergente, hash de saída inválido e layout divergente.
+
+**Isso não implementa nem declara parser XLSB cloud nem serializador XLSX real.** O produto possui agora o contrato seguro onde esses adapters reais poderão ser conectados. O bridge COM legado continua somente como ponte de migração/regressão.
 
 ## Grade-events
 
@@ -198,9 +223,10 @@ Eles não são template, seed, migration, fallback ou dependência de runtime. A
 - D1 de homologação não provisionado/aplicado;
 - registro SharePoint do módulo não aplicado ao tenant nesta fase;
 - adapter Graph real não conectado;
+- analyzer/serializer cloud real não conectado;
 - sem preview de homologação navegável para browser QA real.
 
-Consequentemente, **não foram alegados** D1 remoto, Entra provisionado, SharePoint aplicado, Graph real, browser QA real, sync end-to-end ou deploy do Banco de Notas.
+Consequentemente, **não foram alegados** D1 remoto, Entra provisionado, SharePoint aplicado, Graph real, parser XLSB cloud, serialização XLSX real, browser QA real, sync end-to-end ou deploy do Banco de Notas.
 
 ## Próximo marco
 
@@ -211,7 +237,7 @@ Ordem recomendada:
 3. executar smoke remoto com dados sintéticos, incluindo rollback, cross-year, state machine e resolução de findings;
 4. provisionar audience/delegated scope Entra próprios do add-in;
 5. somente então conectar o router público bearer de `grade-events`;
-6. conectar analisador/serializador XLSX cloud ao pipeline genérico, consumindo o layout versionado já definido;
+6. implementar/conectar analyzer XLSX cloud e serializer XLSX real através dos boundaries existentes; suporte XLSB cloud só pode ser declarado quando existir adapter real comprovado;
 7. conectar adapter Graph real e aplicar SharePoint de homologação;
 8. testar store/share/reconcile e compensação em ambiente real;
 9. executar browser QA desktop/mobile/deep-link/refresh;
