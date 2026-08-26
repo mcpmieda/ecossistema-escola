@@ -194,12 +194,20 @@ async function materialize() {
   if (!Number.isInteger(issueNumber) || issueNumber <= 0) fail('FACTORY_PARENT_ISSUE must be a positive integer.');
 
   const issue = await github(`/repos/${owner}/${repo}/issues/${issueNumber}`);
-  const labels = new Set((issue.labels ?? []).map((item) => typeof item === 'string' ? item : item.name));
-  if (!labels.has(SAFE_LABELS.parent)) fail(`Parent issue #${issueNumber} is missing label ${SAFE_LABELS.parent}.`);
-
   const manifest = parseManifest(issue.body ?? '');
+
+  await ensureLabel(owner, repo, SAFE_LABELS.parent, 'Parent orchestration issue for a Factory Run.');
   await ensureLabel(owner, repo, SAFE_LABELS.task, 'Materialized child task from a Factory Run.');
   await ensureLabel(owner, repo, SAFE_LABELS.blocked, 'Factory task requires explicit human decision before execution.');
+
+  const labels = new Set((issue.labels ?? []).map((item) => typeof item === 'string' ? item : item.name));
+  if (!labels.has(SAFE_LABELS.parent)) {
+    labels.add(SAFE_LABELS.parent);
+    await github(`/repos/${owner}/${repo}/issues/${issueNumber}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ labels: [...labels] }),
+    });
+  }
 
   const existing = await existingTaskIssues(owner, repo, manifest.runId);
   const existingBodies = new Map(existing.map((item) => [item.body ?? '', item]));
