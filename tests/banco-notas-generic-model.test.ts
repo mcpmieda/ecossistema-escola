@@ -19,6 +19,17 @@ const definition = genericModelDefinitionSchema.parse({
   defaultEnvironment: 'homologation',
   defaultSyncEnabled: false,
   gradeFields: ['NotaT1', 'NotaT2', 'RecT1', 'Total', 'NotaFinal'],
+  layout: {
+    layoutVersion: '2026.1-layout',
+    firstStudentRow: 2,
+    gradeColumns: [
+      { field: 'NotaT1', column: 'B' },
+      { field: 'NotaT2', column: 'C' },
+      { field: 'RecT1', column: 'E' },
+      { field: 'Total', column: 'H' },
+      { field: 'NotaFinal', column: 'J' },
+    ],
+  },
 });
 
 function locator(sheetId: string, sheetDisplayName: string, cellAddress: string) {
@@ -76,6 +87,7 @@ function resolution(overrides: Partial<RelationshipResolution> = {}): Relationsh
     componentId: '22222222-2222-4222-8222-222222222222',
     sourceStudentId: 'student-001',
     studentId: '33333333-3333-4333-8333-333333333333',
+    studentPosition: 1,
     ...overrides,
   };
 }
@@ -151,6 +163,7 @@ describe('Banco de Notas generic model transformation contract', () => {
           classGroupId: '66666666-6666-4666-8666-666666666666',
           sourceStudentId: 'student-002',
           studentId: '77777777-7777-4777-8777-777777777777',
+          studentPosition: 2,
         }),
       ],
     });
@@ -170,22 +183,28 @@ describe('Banco de Notas generic model transformation contract', () => {
 
     expect(plan.readyToGenerate).toBe(false);
     expect(plan.mappings).toEqual([]);
-    expect(plan.blockers).toContain('unresolved_grade_slot:slot-001:class,component,student');
+    expect(plan.blockers).toContain(
+      'unresolved_grade_slot:slot-001:class,component,student,studentPosition',
+    );
   });
 
-  it('blocks ambiguous correspondence', () => {
+  it('blocks ambiguous correspondence and ambiguous roster positions', () => {
     const plan = buildGenericTransformationPlan({
       legacy: legacyOne(),
       definition,
       relationshipSnapshotId: '99999999-9999-4999-8999-999999999999',
       resolutions: [
         resolution(),
-        resolution({ classGroupId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }),
+        resolution({
+          classGroupId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          studentPosition: 2,
+        }),
       ],
     });
 
     expect(plan.readyToGenerate).toBe(false);
     expect(plan.blockers).toContain('ambiguous_sourceClassId:class-a');
+    expect(plan.blockers).toContain('ambiguous_student_position:student-001');
   });
 
   it('keeps generated instances in homologation with sync disabled', () => {
@@ -200,12 +219,13 @@ describe('Banco de Notas generic model transformation contract', () => {
       environment: 'homologation',
       syncEnabled: false,
       mappingVersion: 1,
+      layout: definition.layout,
       mappings: [
         {
           gradeKey: '2026|synthetic-canonical-key',
           field: 'NotaT1',
           sheetKey: 'generated-sheet-1',
-          cellAddress: 'F12',
+          cellAddress: 'B2',
         },
       ],
     });
@@ -236,6 +256,7 @@ describe('Banco de Notas generic model transformation contract', () => {
       syncEnabled: false,
       sourceHash: 'a'.repeat(64),
       relationshipSnapshotId: '44444444-4444-4444-8444-444444444444',
+      layout: { layoutVersion: '2026.1-layout' },
     });
     expect(instance.mappings).toEqual([
       expect.objectContaining({
@@ -246,6 +267,48 @@ describe('Banco de Notas generic model transformation contract', () => {
       }),
     ]);
     expect(JSON.stringify(instance)).not.toContain('Planilha Principal');
+  });
+
+  it('uses the versioned layout instead of hardcoded grade columns', () => {
+    const alternateDefinition = genericModelDefinitionSchema.parse({
+      ...definition,
+      definitionVersion: '2026.2',
+      layout: {
+        ...definition.layout,
+        layoutVersion: '2026.2-layout',
+        firstStudentRow: 5,
+        gradeColumns: definition.layout.gradeColumns.map((item) =>
+          item.field === 'NotaT1' ? { ...item, column: 'K' } : item,
+        ),
+      },
+    });
+    const plan = buildGenericTransformationPlan({
+      legacy: legacyOne(),
+      definition: alternateDefinition,
+      relationshipSnapshotId: '44444444-4444-4444-8444-444444444444',
+      resolutions: [resolution({ studentPosition: 3 })],
+    });
+    const instance = generateGenericModelInstance({
+      plan,
+      modelId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      teacherEntraObjectId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      mappingVersion: 2,
+    });
+
+    expect(instance.layout.layoutVersion).toBe('2026.2-layout');
+    expect(instance.mappings[0]?.cellAddress).toBe('K7');
+  });
+
+  it('rejects definitions whose layout does not cover exactly the configured grade fields', () => {
+    expect(() =>
+      genericModelDefinitionSchema.parse({
+        ...definition,
+        layout: {
+          ...definition.layout,
+          gradeColumns: definition.layout.gradeColumns.filter((item) => item.field !== 'NotaT1'),
+        },
+      }),
+    ).toThrow('layout must define exactly one column for each grade field');
   });
 
   it('refuses generation when relationship blockers remain', () => {
