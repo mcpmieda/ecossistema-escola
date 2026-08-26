@@ -11,18 +11,6 @@ import {
   type TransformationPlan,
 } from '../../shared/banco-notas-generic-model';
 
-const gradeColumns = {
-  NotaT1: 'B',
-  NotaT2: 'C',
-  NotaT3: 'D',
-  RecT1: 'E',
-  RecT2: 'F',
-  RecT3: 'G',
-  Total: 'H',
-  TotalRec: 'I',
-  NotaFinal: 'J',
-} as const;
-
 function buildResolutionMap(
   resolutions: RelationshipResolution[],
   sourceKey: 'sourceClassId' | 'sourceComponentId' | 'sourceStudentId',
@@ -39,6 +27,22 @@ function buildResolutionMap(
       continue;
     }
     result.set(sourceId, targetId);
+  }
+  return result;
+}
+
+function buildStudentPositionMap(
+  resolutions: RelationshipResolution[],
+  blockers: string[],
+): Map<string, number> {
+  const result = new Map<string, number>();
+  for (const resolution of resolutions) {
+    const existing = result.get(resolution.sourceStudentId);
+    if (existing !== undefined && existing !== resolution.studentPosition) {
+      blockers.push(`ambiguous_student_position:${resolution.sourceStudentId}`);
+      continue;
+    }
+    result.set(resolution.sourceStudentId, resolution.studentPosition);
   }
   return result;
 }
@@ -63,16 +67,19 @@ export function buildGenericTransformationPlan(args: {
     blockers,
   );
   const studentMap = buildResolutionMap(resolutions, 'sourceStudentId', 'studentId', blockers);
+  const studentPositionMap = buildStudentPositionMap(resolutions, blockers);
   const supportedFields = new Set(definition.gradeFields);
 
   const mappings = legacy.gradeSlots.flatMap((slot) => {
     const classGroupId = classMap.get(slot.sourceClassId);
     const componentId = componentMap.get(slot.sourceComponentId);
     const studentId = studentMap.get(slot.sourceStudentId);
+    const studentPosition = studentPositionMap.get(slot.sourceStudentId);
     const missing: string[] = [];
     if (!classGroupId) missing.push('class');
     if (!componentId) missing.push('component');
     if (!studentId) missing.push('student');
+    if (studentPosition === undefined) missing.push('studentPosition');
     if (!supportedFields.has(slot.field)) missing.push('field');
     if (missing.length) {
       blockers.push(`unresolved_grade_slot:${slot.sourceGradeSlotId}:${missing.join(',')}`);
@@ -87,15 +94,25 @@ export function buildGenericTransformationPlan(args: {
         classGroupId,
         componentId,
         studentId,
+        studentPosition,
       },
     ];
   });
 
   const targetKeys = new Set<string>();
+  const rosterPositions = new Map<string, string>();
   for (const mapping of mappings) {
     const targetKey = `${mapping.gradeKey}::${mapping.field}`;
     if (targetKeys.has(targetKey)) blockers.push(`duplicate_target_grade:${targetKey}`);
     targetKeys.add(targetKey);
+
+    const rosterKey = `${mapping.classGroupId}::${mapping.studentPosition}`;
+    const rosterStudent = rosterPositions.get(rosterKey);
+    if (rosterStudent && rosterStudent !== mapping.studentId) {
+      blockers.push(`duplicate_student_position:${rosterKey}`);
+    } else {
+      rosterPositions.set(rosterKey, mapping.studentId);
+    }
   }
 
   const uniqueBlockers = [...new Set(blockers)];
@@ -110,6 +127,7 @@ export function buildGenericTransformationPlan(args: {
     schoolYear: legacy.schoolYear,
     definitionVersion: definition.definitionVersion,
     relationshipSnapshotId: args.relationshipSnapshotId,
+    layout: definition.layout,
     mappings,
     findings: [...new Set(findings)],
     blockers: uniqueBlockers,
@@ -128,13 +146,7 @@ export function generateGenericModelInstance(args: {
     throw new Error('transformation_plan_not_ready');
   }
 
-  const studentsBySheet = new Map<string, string[]>();
-  for (const mapping of plan.mappings) {
-    const sheetKey = `generated:${mapping.classGroupId}:${mapping.componentId}`;
-    const students = studentsBySheet.get(sheetKey) ?? [];
-    if (!students.includes(mapping.studentId)) students.push(mapping.studentId);
-    studentsBySheet.set(sheetKey, students.sort());
-  }
+  const gradeColumns = new Map(plan.layout.gradeColumns.map((item) => [item.field, item.column]));
 
   return genericModelInstanceSchema.parse({
     schemaVersion: 1,
@@ -147,15 +159,17 @@ export function generateGenericModelInstance(args: {
     environment: 'homologation',
     syncEnabled: false,
     mappingVersion: args.mappingVersion,
+    layout: plan.layout,
     mappings: plan.mappings.map((mapping) => {
+      const column = gradeColumns.get(mapping.field);
+      if (!column) throw new Error(`generated_grade_column_missing:${mapping.field}`);
+      const row = plan.layout.firstStudentRow + mapping.studentPosition - 1;
       const sheetKey = `generated:${mapping.classGroupId}:${mapping.componentId}`;
-      const row = (studentsBySheet.get(sheetKey)?.indexOf(mapping.studentId) ?? -1) + 2;
-      if (row < 2) throw new Error('generated_student_row_missing');
       return {
         gradeKey: mapping.gradeKey,
         field: mapping.field,
         sheetKey,
-        cellAddress: `${gradeColumns[mapping.field]}${row}`,
+        cellAddress: `${column}${row}`,
       };
     }),
   });
