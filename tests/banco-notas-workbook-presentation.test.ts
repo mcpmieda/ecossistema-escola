@@ -84,17 +84,13 @@ function source(overrides: Record<string, unknown> = {}) {
         sheetKey: sheetKeyB,
         classDisplayName: 'Turma / A',
         componentDisplayName: 'Componente muito extenso com mesmo começo para testar nomes',
-        rows: [
-          { studentPosition: 1, gradeKey: gradeKeyB, studentDisplayName: 'Estudante' },
-        ],
+        rows: [{ studentPosition: 1, gradeKey: gradeKeyB, studentDisplayName: 'Estudante' }],
       },
       {
         sheetKey: sheetKeyA,
         classDisplayName: 'Turma / A',
         componentDisplayName: 'Componente muito extenso com mesmo começo para testar nomes',
-        rows: [
-          { studentPosition: 1, gradeKey: gradeKeyA, studentDisplayName: 'Estudante' },
-        ],
+        rows: [{ studentPosition: 1, gradeKey: gradeKeyA, studentDisplayName: 'Estudante' }],
       },
     ],
     ...overrides,
@@ -147,9 +143,7 @@ describe('Banco de Notas workbook presentation builder', () => {
           sheetKey: sheetKeyB,
           classDisplayName: 'Turma A',
           componentDisplayName: 'Componente B',
-          rows: [
-            { studentPosition: 1, gradeKey: gradeKeyB, studentDisplayName: 'Estudante' },
-          ],
+          rows: [{ studentPosition: 1, gradeKey: gradeKeyB, studentDisplayName: 'Estudante' }],
         },
       ],
     });
@@ -166,9 +160,7 @@ describe('Banco de Notas workbook presentation builder', () => {
           sheetKey: sheetKeyA,
           classDisplayName: 'Turma A',
           componentDisplayName: 'Componente A',
-          rows: [
-            { studentPosition: 1, gradeKey: gradeKeyA, studentDisplayName: 'Estudante' },
-          ],
+          rows: [{ studentPosition: 1, gradeKey: gradeKeyA, studentDisplayName: 'Estudante' }],
         },
       ],
     });
