@@ -9,6 +9,7 @@ const opaqueIdSchema = z
   .regex(/^[A-Za-z0-9._:-]+$/u);
 const canonicalIdSchema = z.string().uuid();
 const excelColumnSchema = z.string().regex(/^[A-Z]{1,3}$/u, 'expected an Excel column');
+const studentPositionSchema = z.number().int().min(1).max(1_000_000);
 
 export const genericModelLayoutSchema = z
   .object({
@@ -213,7 +214,7 @@ export const relationshipResolutionSchema = z
     componentId: canonicalIdSchema,
     sourceStudentId: opaqueIdSchema,
     studentId: canonicalIdSchema,
-    studentPosition: z.number().int().min(1).max(1_000_000),
+    studentPosition: studentPositionSchema,
   })
   .strict();
 
@@ -225,7 +226,7 @@ export const transformationMappingSchema = z
     classGroupId: canonicalIdSchema,
     componentId: canonicalIdSchema,
     studentId: canonicalIdSchema,
-    studentPosition: z.number().int().min(1).max(1_000_000),
+    studentPosition: studentPositionSchema,
   })
   .strict();
 
@@ -280,6 +281,7 @@ export const genericModelInstanceSchema = z
           gradeKey: z.string().min(7).max(180),
           field: gradeFieldSchema,
           sheetKey: opaqueIdSchema,
+          studentPosition: studentPositionSchema,
           cellAddress: z.string().min(2).max(40),
         })
         .strict(),
@@ -291,12 +293,13 @@ export const genericModelInstanceSchema = z
     for (const [index, mapping] of value.mappings.entries()) {
       const match = mapping.cellAddress.match(/^([A-Z]{1,3})([1-9][0-9]*)$/u);
       const expectedColumn = columns.get(mapping.field);
+      const expectedRow = value.layout.firstStudentRow + mapping.studentPosition - 1;
       const row = match?.[2] ? Number(match[2]) : 0;
-      if (!match || match[1] !== expectedColumn || row < value.layout.firstStudentRow) {
+      if (!match || match[1] !== expectedColumn || row !== expectedRow) {
         context.addIssue({
           code: 'custom',
           path: ['mappings', index, 'cellAddress'],
-          message: 'cell address does not match the versioned model layout',
+          message: 'cell address does not match the versioned model layout and roster position',
         });
       }
     }
