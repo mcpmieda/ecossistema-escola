@@ -2,6 +2,7 @@ import process from 'node:process';
 
 const API_ROOT = 'https://jules.googleapis.com/v1alpha';
 const SESSION_MARKER = /<!-- factory-jules-session:([^ ]+) -->/;
+const TRUSTED_FACTORY_LOGIN = 'github-actions[bot]';
 
 function fail(message) {
   throw new Error(message);
@@ -39,6 +40,7 @@ export function julesSessionMarker(sessionName) {
 
 export function julesSessionNameFromComments(comments) {
   for (const comment of comments ?? []) {
+    if (comment?.user?.login !== TRUSTED_FACTORY_LOGIN) continue;
     const match = String(comment?.body ?? '').match(SESSION_MARKER);
     if (match && /^sessions\/[^\s/]+$/.test(match[1])) return match[1];
   }
