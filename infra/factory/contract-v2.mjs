@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const RUN_BEGIN = '<!-- FACTORY_RUN_BEGIN -->';
 const RUN_END = '<!-- FACTORY_RUN_END -->';
 const ALLOWED_HUMAN_GATES = new Set([
@@ -8,8 +10,10 @@ const ALLOWED_HUMAN_GATES = new Set([
   'legal_or_organizational_decision',
 ]);
 const ALLOWED_PROVIDERS = new Set(['jules', 'antigravity', 'opencode_ollama', 'manual']);
+const ACTIVE_REMOTE_PROVIDERS = new Set(['jules']);
 const SAFE_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
 const SAFE_BRANCH = /^(?!\/)(?!.*(?:\.\.|@\{|\\|[~^:?*\[]))(?!.*\/$)[A-Za-z0-9._\/-]+$/;
+const RESERVED_AUTOMATION_SCOPES = ['.github', 'infra/factory', 'infra/validation'];
 
 function fail(message) {
   throw new Error(message);
@@ -39,6 +43,69 @@ function cleanBranch(value, label) {
     fail(`${label} is not a safe Git branch name.`);
   }
   return branch;
+}
+
+function cleanPathScope(value, label) {
+  const scope = cleanText(value, label, 300);
+  if (scope.startsWith('/') || scope.includes('\\') || /[\u0000-\u001f]/.test(scope)) {
+    fail(`${label} is not a safe repository-relative path scope.`);
+  }
+  const withoutGlob = scope.endsWith('/**') ? scope.slice(0, -3) : scope;
+  if (scope.includes('*') && !scope.endsWith('/**')) {
+    fail(`${label} supports only an optional trailing '/**' recursive glob.`);
+  }
+  const segments = withoutGlob.split('/');
+  if (
+    !withoutGlob ||
+    segments.some((segment) => !segment || segment === '.' || segment === '..') ||
+    withoutGlob === '.git' ||
+    withoutGlob.startsWith('.git/')
+  ) {
+    fail(`${label} is not a safe repository-relative path scope.`);
+  }
+  return scope;
+}
+
+function scopeRoot(scope) {
+  return scope.endsWith('/**') ? scope.slice(0, -3) : scope;
+}
+
+function isRecursiveScope(scope) {
+  return scope.endsWith('/**');
+}
+
+function pathPrefixContains(prefix, candidate) {
+  return candidate === prefix || candidate.startsWith(`${prefix}/`);
+}
+
+export function pathScopesOverlap(left, right) {
+  const a = scopeRoot(left);
+  const b = scopeRoot(right);
+  const aRecursive = isRecursiveScope(left);
+  const bRecursive = isRecursiveScope(right);
+
+  if (!aRecursive && !bRecursive) return a === b;
+  if (aRecursive && bRecursive) return pathPrefixContains(a, b) || pathPrefixContains(b, a);
+  if (aRecursive) return pathPrefixContains(a, b);
+  return pathPrefixContains(b, a);
+}
+
+function scopeIsReserved(scope) {
+  const root = scopeRoot(scope);
+  return RESERVED_AUTOMATION_SCOPES.some(
+    (reserved) => root === reserved || root.startsWith(`${reserved}/`),
+  );
+}
+
+function transitiveDependencies(byId, id, memo = new Map()) {
+  if (memo.has(id)) return memo.get(id);
+  const result = new Set();
+  memo.set(id, result);
+  for (const dependency of byId.get(id).dependsOn) {
+    result.add(dependency);
+    for (const nested of transitiveDependencies(byId, dependency, memo)) result.add(nested);
+  }
+  return result;
 }
 
 export function parseFactoryRunV2(body) {
@@ -87,9 +154,17 @@ export function parseFactoryRunV2(body) {
     const title = cleanText(rawTask.title, `title for ${id}`, 200);
     const role = cleanText(rawTask.role ?? 'implementation', `role for ${id}`, 80);
     const dependsOn = stringArray(rawTask.depends_on, `depends_on for ${id}`);
-    const paths = stringArray(rawTask.paths, `paths for ${id}`);
-    const requiredCapabilities = stringArray(rawTask.required_capabilities, `required_capabilities for ${id}`);
-    const preferredProviders = stringArray(rawTask.preferred_providers, `preferred_providers for ${id}`);
+    const paths = stringArray(rawTask.paths, `paths for ${id}`).map((scope, scopeIndex) =>
+      cleanPathScope(scope, `paths[${scopeIndex}] for ${id}`),
+    );
+    const requiredCapabilities = stringArray(
+      rawTask.required_capabilities,
+      `required_capabilities for ${id}`,
+    );
+    const preferredProviders = stringArray(
+      rawTask.preferred_providers,
+      `preferred_providers for ${id}`,
+    );
     for (const provider of preferredProviders) {
       if (!ALLOWED_PROVIDERS.has(provider)) fail(`Unknown provider '${provider}' in task ${id}.`);
     }
@@ -97,7 +172,29 @@ export function parseFactoryRunV2(body) {
     for (const gate of humanGates) {
       if (!ALLOWED_HUMAN_GATES.has(gate)) fail(`Unknown human gate '${gate}' in task ${id}.`);
     }
-    return { id, title, role, dependsOn, paths, requiredCapabilities, preferredProviders, humanGates };
+
+    if (humanGates.length === 0) {
+      if (paths.length === 0) fail(`Automated task ${id} requires at least one declared path scope.`);
+      if (paths.some(scopeIsReserved)) {
+        fail(
+          `Automated task ${id} targets a reserved Control Plane/GitHub scope. Use a human-gated change instead.`,
+        );
+      }
+      if (!preferredProviders.some((provider) => ACTIVE_REMOTE_PROVIDERS.has(provider))) {
+        fail(`Automated task ${id} has no currently active remote provider.`);
+      }
+    }
+
+    return {
+      id,
+      title,
+      role,
+      dependsOn,
+      paths,
+      requiredCapabilities,
+      preferredProviders,
+      humanGates,
+    };
   });
 
   for (const task of tasks) {
@@ -120,6 +217,27 @@ export function parseFactoryRunV2(body) {
   };
   for (const task of tasks) visit(task.id);
 
+  const dependencyMemo = new Map();
+  for (let index = 0; index < tasks.length; index += 1) {
+    const left = tasks[index];
+    const leftDeps = transitiveDependencies(byId, left.id, dependencyMemo);
+    for (let otherIndex = index + 1; otherIndex < tasks.length; otherIndex += 1) {
+      const right = tasks[otherIndex];
+      const rightDeps = transitiveDependencies(byId, right.id, dependencyMemo);
+      const ordered = leftDeps.has(right.id) || rightDeps.has(left.id);
+      if (ordered) continue;
+      for (const leftScope of left.paths) {
+        for (const rightScope of right.paths) {
+          if (pathScopesOverlap(leftScope, rightScope)) {
+            fail(
+              `Parallel-capable tasks ${left.id} and ${right.id} have overlapping write scopes: ${leftScope} <> ${rightScope}.`,
+            );
+          }
+        }
+      }
+    }
+  }
+
   return {
     runId,
     goal,
@@ -128,6 +246,34 @@ export function parseFactoryRunV2(body) {
     maxParallel,
     tasks,
   };
+}
+
+function canonicalRun(run) {
+  return {
+    run_id: run.runId,
+    goal: run.goal,
+    base_branch: run.baseBranch,
+    integration_branch: run.integrationBranch,
+    max_parallel: run.maxParallel,
+    tasks: run.tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      role: task.role,
+      depends_on: task.dependsOn,
+      paths: task.paths,
+      required_capabilities: task.requiredCapabilities,
+      preferred_providers: task.preferredProviders,
+      human_gates: task.humanGates,
+    })),
+  };
+}
+
+export function manifestFingerprint(run) {
+  return createHash('sha256').update(JSON.stringify(canonicalRun(run))).digest('hex');
+}
+
+export function manifestMarker(run) {
+  return `<!-- factory-manifest-sha256:${manifestFingerprint(run)} -->`;
 }
 
 export function taskMarker(runId, taskId) {
