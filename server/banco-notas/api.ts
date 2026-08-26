@@ -161,12 +161,12 @@ export async function routeBancoNotasApi(args: {
       if (!result) throw new HttpError(404, 'Import job not found');
       return response(result);
     }
+    const transition = parsed(() => importJobTransitionSchema.parse(requestBody));
+    if (transition.targetState === 'analyzed') {
+      throw new HttpError(409, 'Import job analysis must use the verified analysis pipeline');
+    }
     const result = await importJobMutation(() =>
-      repository.transitionImportJob(
-        importJobMatch[1]!,
-        parsed(() => importJobTransitionSchema.parse(requestBody)),
-        actor,
-      ),
+      repository.transitionImportJob(importJobMatch[1]!, transition, actor),
     );
     if (!result) throw new HttpError(404, 'Import job not found');
     return response(result);
