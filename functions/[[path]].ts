@@ -32,6 +32,7 @@ import { graphCredentials, type GraphCredentialSlot } from '../server/auth/techn
 import { getPlatformSnapshot } from '../server/platform/snapshot';
 import { verifyRecoveryRoundTrip } from '../server/platform/recovery';
 import { D1BancoNotasRepository } from '../server/banco-notas/d1-repository';
+import { D1ImportAnalysisRepository } from '../server/banco-notas/d1-import-analysis-repository';
 import { routeBancoNotasApi } from '../server/banco-notas/api';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
@@ -362,6 +363,10 @@ async function route(context: Context, correlationId: string): Promise<Response>
       repository: new D1BancoNotasRepository(env.BANCO_NOTAS_DB),
       capabilities,
       actor: session.oid,
+      importAnalysis: {
+        repository: new D1ImportAnalysisRepository(env.BANCO_NOTAS_DB),
+        analyzers: [],
+      },
     });
   }
   throw new HttpError(404, 'Not found');
