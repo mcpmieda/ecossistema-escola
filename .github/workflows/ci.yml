@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - 'test/**'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -64,6 +65,10 @@ jobs:
 
       - name: Validate workflows with actionlint
         run: bash ./infra/validation/run-actionlint.sh
+
+      - name: Validate GitHub control-plane policy
+        shell: pwsh
+        run: ./infra/validation/assert-github-control-plane.ps1
 
       - name: Audit workflows with zizmor
         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
