@@ -3,6 +3,7 @@ const MERGED_PR_MARKER = /<!-- factory-merged-pr:(\d+);sha:([0-9a-f]{40}) -->/;
 const FIELD_LINE = /^([^\n:]+):\s*(.*)$/gm;
 
 export const TRUSTED_JULES_LOGIN = 'google-labs-jules[bot]';
+export const TRUSTED_FACTORY_LOGIN = 'github-actions[bot]';
 
 function splitCsv(value) {
   const text = String(value ?? '').trim();
@@ -14,7 +15,7 @@ function splitCsv(value) {
 }
 
 export function parseMaterializedTask(issue) {
-  if (issue?.user?.login !== 'github-actions[bot]') return null;
+  if (issue?.user?.login !== TRUSTED_FACTORY_LOGIN) return null;
   const body = String(issue.body ?? '');
   const marker = body.match(TASK_MARKER);
   if (!marker) return null;
@@ -67,6 +68,7 @@ export function sameRepositoryPrNumberFromUrl(url, owner, repo) {
 
 export function mergedPrEvidenceFromComments(comments) {
   for (const comment of comments ?? []) {
+    if (comment?.user?.login !== TRUSTED_FACTORY_LOGIN) continue;
     const match = String(comment?.body ?? '').match(MERGED_PR_MARKER);
     if (match) return { prNumber: Number(match[1]), sha: match[2] };
   }
