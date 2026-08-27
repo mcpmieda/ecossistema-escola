@@ -43,14 +43,18 @@ M365 operation: run `33003875460` — success, readiness read-only
 
 - [x] Login destinatário confirmado visualmente como GUILHERME PEREIRA DA SILVA / `GUI@escolaieda.com`; a sessão Global Admin foi encerrada antes do teste.
 - [x] Arquivo e worksheet corretos reabertos como destinatário real, com apenas os dados sintéticos esperados.
-- [ ] Corrigir a compatibilidade OOXML que faz o Excel Online abrir a pasta em modo reparado/somente leitura; substituir somente o XLSX sintético e repetir a abertura antes da edição controlada.
+- [x] Compatibilidade OOXML corrigida; o XLSX sintético foi substituído e reaberto sem reparação antes da edição controlada.
+- [x] Serializer corrigido e validado no run `33073736978`; `main` vigente incorporado sem conflito.
+- [x] XLSX incompatível substituído no run `33074034916`: permission anterior revogada, item anterior removido, pacote novo íntegro/oreanalisado e share individual recriado; job one-shot removido logo depois.
+- [x] Novo XLSX aberto nativamente em modo de edição por `GUI@escolaieda.com`, sem reparação.
+- [x] Edição sintética controlada salva: `teacherModelId=71111111-1111-4111-8111-111111111111`, `field=NotaT1`, `sheetKey=generated:73333333-3333-4333-8333-333333333333:74444444-4444-4444-8444-444444444444`, `cellAddress=B2`, valor anterior ausente, valor novo `8,5`.
 - [x] Estado real recuperado em 27/08/2026: worktree limpo, branch local/remoto no mesmo HEAD, PR open/draft, CI verde e stash preservado sem aplicação.
 - [x] Diferença atual para `origin/main` confirmada após fetch explícito: branch 3 commits atrás e 367 commits à frente.
 - [x] Aba Microsoft anterior não permaneceu disponível no navegador interno; nenhuma sessão, credencial ou MFA foi inspecionada.
 
 ## Próxima ação exata
 
-Validar em CI a correção do serializer OOXML (ordem crescente de colunas/células e `workbookView` referenciado), substituir de forma fail-closed o XLSX sintético retido e reabrir como `GUI@escolaieda.com`. Não aceitar a reparação destrutiva oferecida pelo Excel; editar somente após abertura nativa em modo de edição.
+Executar via Graph/backend o download pós-edição, validar o pacote e reanalisar OOXML confirmando `B2=8,5` no mesmo mapping/gradeKey. Em seguida revogar a permission individual, remover o XLSX e confirmar o cleanup mantendo somente a pasta dedicada e sync `0`.
 
 ## Estado Microsoft
 
