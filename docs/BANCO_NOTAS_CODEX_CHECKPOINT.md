@@ -1,11 +1,11 @@
 # Banco de Notas — Codex Checkpoint
 
-Última atualização: 26/08/2026 20:50 BRT
+Última atualização: 26/08/2026 21:23 BRT
 Branch: `feat/banco-de-notas-foundation`
-HEAD: `f928783c6283f126bbcea6012bd1edbd6a66d4ff`
+HEAD: `8144de55ebc3a7848eeb2551d38258fbc057166c`
 PR: `#52` — open, draft, sem merge
 CI: run `33025586408` — success completo, incluindo storage M365
-D1 homologation: run `32981705701` — success, migrations `0001`–`0007`, sync final `0`
+D1 homologation: run `33026452850` — success, vínculo sintético ao OID autorizado e sync `0`
 M365 operation: run `33003875460` — success, readiness read-only
 
 ## Concluído
@@ -30,14 +30,17 @@ M365 operation: run `33003875460` — success, readiness read-only
 - [x] Artefato XLSX diagnóstico `9628007563` excluído do GitHub após a análise.
 - [x] Gate local pós-correção verde: 298/298 testes ativos, lint, typecheck, semantic contract, build, actionlint, PowerShell e Control Plane.
 - [x] Storage M365 verde no run `33025586408`: pacote normalizado íntegro, OOXML reanalisado sem findings e cleanup confirmado.
+- [x] Conta `GUI@escolaieda.com` confirmada no Entra como membro habilitado; UPN canônico e Object ID conferidos no perfil.
+- [x] D1 remoto de homologação preparado no run `33026452850`: professor/modelo sintéticos ligados ao OID confirmado, estado `ready_to_share`, ambiente `homologation` e sync `0`.
+- [x] Gate local pré-share aprovado: Prettier, lint, typecheck, semantic contract, 299/299 testes ativos, build, actionlint, PowerShell e Control Plane.
 
 ## Em andamento
 
-- [ ] Resolver `gui@escolaieda.com` no Entra/Graph e executar share individual autenticado.
+- [ ] Executar o share individual autenticado e reter o único XLSX sintético apenas para a validação no Excel Online.
 
 ## Próxima ação exata
 
-Preparar o smoke de compartilhamento para resolver o usuário real, criar somente um XLSX sintético, compartilhar individualmente e manter o recurso apenas durante a validação no Excel Online.
+Publicar o job one-shot de share, exigir correspondência exata do OID, ausência de `Anyone`/organização/grupo/outro usuário e baixar a evidência redigida com a URL do Excel.
 
 ## Estado Microsoft
 
@@ -45,19 +48,21 @@ Preparar o smoke de compartilhamento para resolver o usuário real, criar soment
 - Site `CENTROADMIN` e library `ARQUIVOS_PLATAFORMA` confirmados.
 - Pasta confirmada: `ARQUIVOS_PLATAFORMA/BANCO_NOTAS_HOMOLOGACAO`.
 - Upload/download/delete Graph real executado no run `33024306664` somente no boundary dedicado.
-- Nenhum compartilhamento realizado; `gui@escolaieda.com` ainda não foi resolvido nesta retomada.
+- `GUI@escolaieda.com` resolvido no perfil Entra: membro e conta habilitada; OID real conferido sem invenção.
+- Nenhum compartilhamento realizado até este checkpoint.
 - Nenhuma credencial, token, cookie ou MFA registrado.
 
 ## Estado Cloudflare
 
 - D1 exclusivo `banco-notas-homologation` validado até migration `0007`.
-- Run `32981705701` success; estado final de sync comprovado como desligado.
+- Run `33026452850` success; vínculo do professor/modelo sintéticos ao OID autorizado e sync final desligado.
 - Nenhum D1 ou Pages de produção alterado nesta retomada.
 
 ## Recursos temporários existentes
 
 - Stash local recuperável: `stash@{0}` — `safety-before-recover-pr52-2026-08-26`.
 - Pasta M365 `BANCO_NOTAS_HOMOLOGACAO`: confirmada e retida conforme autorizado.
+- Registro sintético D1 de homologação para o teste de share; ambiente homologation e sync `0`.
 
 ## Recursos já limpos
 
@@ -72,6 +77,7 @@ Preparar o smoke de compartilhamento para resolver o usuário real, criar soment
 - `ec483b7` — correção do cleanup fora de `finally` e checkpoint inicial.
 - `5ee994e` — merge do `origin/main` atual no branch.
 - O branch agora contém integralmente `origin/main`; produção continua intocada.
+- `8144de5` — preparação fail-closed do vínculo sintético autorizado no D1 de homologação.
 
 ## Runs
 
@@ -79,19 +85,19 @@ Preparar o smoke de compartilhamento para resolver o usuário real, criar soment
 - `33024306664` — validação/segurança success; storage M365 failure por diferença de tamanho/hash; arquivo removido; produção skipped.
 - `33024796115` — validação/segurança success; diagnóstico M365 confirmou reanálise OOXML e cleanup; artefato XLSX temporário depois excluído.
 - `33025586408` — success completo; storage Graph real, integridade normalizada, reanálise e cleanup verdes; produção skipped.
+- `33026452850` — D1 homologation success; vínculo autorizado preparado e sync `0`.
 - `32981705701` — Banco de Notas D1 homologation — success.
 - `33003875460` — M365 operations/readiness — success.
 - `33006204505` — CI and deploy — último baseline anterior verde após incorporar o Control Plane M365 então vigente.
 
 ## Bloqueios
 
-- Compartilhamento e validação visual ainda não executados.
+- Compartilhamento e validação visual ainda não executados; o job one-shot está pronto localmente e ainda não foi publicado neste checkpoint.
 - Credencial/MFA no navegador interno somente se a Microsoft solicitar durante a validação visual posterior.
 
 ## Como retomar
 
-1. Confirmar branch/HEAD e revisar a instrumentação diagnóstica.
-2. Publicar a instrumentação e acompanhar o novo run M365.
-3. Baixar o XLSX sintético temporário, comparar pacote/partes OOXML e registrar a causa.
-4. Excluir o artefato XLSX diagnóstico do GitHub após a análise.
-5. Corrigir nosso transporte ou adotar critério estrutural comprovado, repetir o storage até verde e somente então iniciar share.
+1. Commitar e publicar somente o job one-shot de share M365 já validado localmente.
+2. Acompanhar o run até a correspondência exata de identidade, permissão mínima e integridade OOXML.
+3. Remover o job do workflow sem repetir o share e usar a URL privada da evidência para abrir no navegador interno.
+4. Pausar apenas se a Microsoft pedir credencial/MFA da conta destinatária.

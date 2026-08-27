@@ -18,10 +18,14 @@ import {
 
 const homologationEnabled = process.env.BANCO_NOTAS_M365_HOMOLOGATION === '1';
 const homologation = homologationEnabled ? describe : describe.skip;
+const homologationStage = process.env.BANCO_NOTAS_M365_HOMOLOGATION_STAGE ?? 'storage';
+const shareStage = homologationStage === 'share';
 const driveName = 'ARQUIVOS_PLATAFORMA';
 const folderName = 'BANCO_NOTAS_HOMOLOGACAO';
 const runSuffix = (process.env.GITHUB_RUN_ID ?? 'local').replace(/[^a-zA-Z0-9_-]/gu, '') || 'local';
-const fileName = `banco-notas-roundtrip-sintetico-${runSuffix}.xlsx`;
+const fileName = shareStage
+  ? 'banco-notas-share-excel-sintetico-20260826.xlsx'
+  : `banco-notas-roundtrip-sintetico-${runSuffix}.xlsx`;
 
 const modelId = '71111111-1111-4111-8111-111111111111';
 const teacherId = '72222222-2222-4222-8222-222222222222';
@@ -104,7 +108,25 @@ const profile = xlsxLegacyAnalysisProfileSchema.parse({
 });
 
 type Drive = { id: string; name: string; driveType?: string };
-type DriveItem = { id: string; name: string; folder?: { childCount?: number } };
+type DriveItem = {
+  id: string;
+  name: string;
+  webUrl?: string;
+  file?: { mimeType?: string };
+  folder?: { childCount?: number };
+};
+type PermissionIdentity = {
+  user?: { id?: string };
+  group?: { id?: string };
+};
+type Permission = {
+  id: string;
+  roles?: string[];
+  link?: { scope?: string; type?: string };
+  invitation?: { email?: string };
+  grantedToV2?: PermissionIdentity;
+  grantedToIdentitiesV2?: PermissionIdentity[];
+};
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -241,8 +263,25 @@ homologation('Banco de Notas M365 storage homologation', () => {
     let downloadedHash = '';
     let packageIntegrity: 'exact' | 'sharepoint_normalized' | undefined;
     let analysisError = '';
+    let permissionId: string | undefined;
+    let recipientIdentityMatch = false;
+    let permissionBoundaryVerified = false;
+    let resourceRetainedForExcel = false;
+    let webUrl = '';
     let executionError: unknown;
     try {
+      if (shareStage) {
+        const existing = (
+          await graphRequest<{ value: DriveItem[] }>({
+            env: {} as RuntimeEnv,
+            token,
+            path: `/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(target.folderId)}/children?$select=id,name,file&$top=200`,
+            correlationId: 'banco-notas-m365-share-preflight',
+          })
+        ).data.value.filter((item) => item.name === fileName);
+        if (existing.length !== 0) throw new Error('m365_homologation_share_file_preexisting');
+      }
+
       const stored = await gateway.store({
         fileName,
         content,
@@ -304,12 +343,85 @@ homologation('Banco de Notas M365 storage homologation', () => {
       expect(metadataByteLength).toBe(downloadedByteLength);
       expect(packageIntegrity).toBe('sharepoint_normalized');
       expect(analysisSucceeded).toBe(true);
+
+      if (shareStage) {
+        const recipientUpn = requiredEnv('BANCO_NOTAS_M365_RECIPIENT_UPN');
+        const recipientEntraObjectId = requiredEnv('BANCO_NOTAS_M365_RECIPIENT_OID');
+        const shared = await gateway.share({
+          driveItemId,
+          recipientUpn,
+          recipientEntraObjectId,
+          requireSignIn: true,
+          correlationId: 'banco-notas-m365-share',
+        });
+        permissionId = shared.permissionId;
+
+        const item = (
+          await graphRequest<DriveItem>({
+            env: {} as RuntimeEnv,
+            token,
+            path: `/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(driveItemId)}?$select=id,name,webUrl,file`,
+            correlationId: 'banco-notas-m365-share-item',
+          })
+        ).data;
+        if (item.name !== fileName || !item.webUrl || !item.file) {
+          throw new Error('m365_homologation_share_item_invalid');
+        }
+        webUrl = item.webUrl;
+
+        const permissions = (
+          await graphRequest<{ value: Permission[] }>({
+            env: {} as RuntimeEnv,
+            token,
+            path: `/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(driveItemId)}/permissions?$select=id,roles,link,invitation,grantedToV2,grantedToIdentitiesV2`,
+            correlationId: 'banco-notas-m365-share-permissions',
+          })
+        ).data.value;
+        const granted = permissions.find((permission) => permission.id === permissionId);
+        const grantedUserIds = [
+          granted?.grantedToV2?.user?.id,
+          ...(granted?.grantedToIdentitiesV2?.map((identity) => identity.user?.id) ?? []),
+        ].filter((id): id is string => Boolean(id));
+        recipientIdentityMatch = grantedUserIds.includes(recipientEntraObjectId);
+        const hasBroadLink = permissions.some(
+          (permission) =>
+            permission.link?.scope === 'anonymous' || permission.link?.scope === 'organization',
+        );
+        const hasGroupGrant = permissions.some(
+          (permission) =>
+            Boolean(permission.grantedToV2?.group?.id) ||
+            Boolean(permission.grantedToIdentitiesV2?.some((identity) => identity.group?.id)),
+        );
+        const otherSharedUser = permissions.some((permission) => {
+          const userIds = [
+            permission.grantedToV2?.user?.id,
+            ...(permission.grantedToIdentitiesV2?.map((identity) => identity.user?.id) ?? []),
+          ].filter((id): id is string => Boolean(id));
+          return userIds.some((id) => id !== recipientEntraObjectId);
+        });
+        expect(recipientIdentityMatch).toBe(true);
+        expect(granted?.roles).toContain('write');
+        expect(granted?.link?.scope).not.toBe('anonymous');
+        expect(granted?.link?.scope).not.toBe('organization');
+        expect(hasBroadLink).toBe(false);
+        expect(hasGroupGrant).toBe(false);
+        expect(otherSharedUser).toBe(false);
+        permissionBoundaryVerified = true;
+        resourceRetainedForExcel = true;
+      }
     } catch (error) {
       failure = safeError(error);
       executionError = error;
     } finally {
-      if (driveItemId) {
+      if (driveItemId && !resourceRetainedForExcel) {
         try {
+          if (permissionId) {
+            await gateway.revokeShare({
+              driveItemId,
+              permissionId,
+              correlationId: 'banco-notas-m365-share-compensation',
+            });
+          }
           await gateway.remove({
             driveItemId,
             correlationId: 'banco-notas-m365-cleanup',
@@ -329,7 +441,13 @@ homologation('Banco de Notas M365 storage homologation', () => {
             source: 'synthetic-generic-xlsx',
             executionEnvironment: 'node',
             syncEnabled: false,
-            sharing: 'not-performed-no-designated-test-recipient',
+            stage: homologationStage,
+            sharing: shareStage ? 'individual-write-no-invitation' : 'not-performed-storage-only',
+            recipientUpn: shareStage ? requiredEnv('BANCO_NOTAS_M365_RECIPIENT_UPN') : undefined,
+            recipientIdentityMatch: shareStage ? recipientIdentityMatch : undefined,
+            permissionBoundaryVerified: shareStage ? permissionBoundaryVerified : undefined,
+            permissionIdPresent: shareStage ? Boolean(permissionId) : undefined,
+            webUrl: resourceRetainedForExcel ? webUrl : undefined,
             uploadPerformed: Boolean(driveItemId),
             expectedByteLength: content.byteLength,
             metadataByteLength,
@@ -352,6 +470,7 @@ homologation('Banco de Notas M365 storage homologation', () => {
             ooxmlReanalysis: analysisSucceeded,
             ooxmlReanalysisError: analysisError || undefined,
             uploadedFileRemoved: cleanupSucceeded,
+            retainedForExcelValidation: resourceRetainedForExcel,
             cleanupError: cleanupError || undefined,
             failure: failure || undefined,
             dedicatedFolderRetained: true,
@@ -364,5 +483,8 @@ homologation('Banco de Notas M365 storage homologation', () => {
     }
     if (executionError !== undefined) throw executionError;
     if (cleanupError) throw new Error(`m365_homologation_cleanup_failed:${cleanupError}`);
+    if (shareStage && !resourceRetainedForExcel) {
+      throw new Error('m365_homologation_share_resource_not_retained');
+    }
   }, 60_000);
 });
