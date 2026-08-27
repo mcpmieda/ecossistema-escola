@@ -84,54 +84,6 @@ jobs:
           persona: pedantic
           version: v1.29.0
 
-  banco-notas-m365-share-homologation:
-    name: Banco de Notas M365 individual share homologation
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.number == 52 &&
-      github.head_ref == 'feat/banco-de-notas-foundation'
-    needs: [validate, workflow-security]
-    permissions:
-      contents: read
-      id-token: write # one-time PR #52 homologation through the existing Entra workload federation
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    environment: production
-    steps:
-      - name: Checkout PR merge candidate
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Execute isolated individual share homologation
-        run: npx vitest run tests/banco-notas-m365-storage-homologation.test.ts --reporter=verbose
-        env:
-          BANCO_NOTAS_M365_HOMOLOGATION: '1'
-          BANCO_NOTAS_M365_HOMOLOGATION_STAGE: share
-          BANCO_NOTAS_M365_RECIPIENT_UPN: GUI@escolaieda.com
-          BANCO_NOTAS_M365_RECIPIENT_OID: 86cc2402-c336-4253-a697-96e92c4b9134
-          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
-          ENTRA_OPERATIONS_CLIENT_ID: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
-          SHAREPOINT_SITE_ID: ${{ vars.SHAREPOINT_SITE_ID }}
-
-      - name: Publish redacted Banco de Notas share evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: banco-notas-m365-share-homologation-${{ github.run_id }}
-          path: banco-notas-m365-homologation-audit.json
-          if-no-files-found: warn
-          retention-days: 90
-
   deploy-production:
     name: Deploy production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
