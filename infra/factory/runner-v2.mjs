@@ -80,6 +80,37 @@ export function taskFromManifest(run, taskId) {
   return task;
 }
 
+export function isTaskProcessable(labels) {
+  const names = labelNames(labels);
+  const set = new Set(names);
+  if (
+    set.has(FACTORY_LABELS.waiting) ||
+    set.has(FACTORY_LABELS.ready) ||
+    set.has(FACTORY_LABELS.merged) ||
+    set.has(FACTORY_LABELS.failed)
+  ) {
+    return false;
+  }
+  return set.has(FACTORY_LABELS.running) || set.has(FACTORY_LABELS.ci);
+}
+
+export async function finalizeTaskMerged(owner, repo, issueNumber, commentText = null) {
+  if (commentText) {
+    await addComment(owner, repo, issueNumber, commentText);
+  }
+  await setTaskState(
+    owner,
+    repo,
+    issueNumber,
+    [FACTORY_LABELS.merged],
+    [FACTORY_LABELS.ci, FACTORY_LABELS.running, FACTORY_LABELS.ready, FACTORY_LABELS.waiting],
+  );
+  await github(`/repos/${owner}/${repo}/issues/${issueNumber}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ state: 'closed', state_reason: 'completed' }),
+  });
+}
+
 export function dependenciesMerged(task, siblings, mergedEvidence) {
   return task.dependsOn.every((dependencyId) => {
     const dependency = siblings.get(dependencyId);
@@ -215,9 +246,8 @@ async function dispatchCi(owner, repo, branch) {
   });
 }
 
-async function findCiRun(owner, repo, branch, sha) {
+export async function findCiRun(owner, repo, sha) {
   const params = new URLSearchParams({
-    branch,
     event: 'workflow_dispatch',
     per_page: '30',
   });
@@ -228,12 +258,12 @@ async function findCiRun(owner, repo, branch, sha) {
 }
 
 async function waitForCi(owner, repo, branch, sha) {
-  let run = await findCiRun(owner, repo, branch, sha);
+  let run = await findCiRun(owner, repo, sha);
   if (!run) {
     await dispatchCi(owner, repo, branch);
   }
   for (let attempt = 0; attempt < 180; attempt += 1) {
-    run = await findCiRun(owner, repo, branch, sha);
+    run = await findCiRun(owner, repo, sha);
     if (run?.status === 'completed') {
       if (run.conclusion !== 'success') {
         throw new Error(`Mandatory CI run ${run.id} concluded ${run.conclusion}.`);
@@ -277,14 +307,20 @@ async function ensureUpToDateAndGreen(owner, repo, prNumber, integrationBranch) 
   throw new Error(`Unable to stabilize PR #${prNumber} against the integration branch.`);
 }
 
-async function processCompletedSessions(owner, repo, run, siblings) {
+export async function processCompletedSessions(owner, repo, run, siblings) {
   for (const record of siblings.values()) {
     const issue = await refreshIssue(owner, repo, record.issue.number);
-    const labels = new Set(labelNames(issue.labels));
-    if (!labels.has(FACTORY_LABELS.running)) continue;
+    if (!isTaskProcessable(issue.labels)) continue;
     const taskDefinition = taskFromManifest(run, record.task.taskId);
 
     const comments = await issueComments(owner, repo, issue.number);
+
+    const existingEvidence = mergedPrEvidenceFromComments(comments);
+    if (existingEvidence) {
+      await finalizeTaskMerged(owner, repo, issue.number);
+      continue;
+    }
+
     const sessionName = julesSessionNameFromComments(comments);
     if (!sessionName) {
       await failTask(owner, repo, issue.number, 'Running task has no Jules API session marker.');
@@ -334,6 +370,22 @@ async function processCompletedSessions(owner, repo, run, siblings) {
       );
     }
 
+    if (pr.merged === true) {
+      const mergeCommitSha = String(pr.merge_commit_sha ?? '');
+      if (!/^[0-9a-f]{40}$/.test(mergeCommitSha)) {
+        await failTask(
+          owner,
+          repo,
+          issue.number,
+          `Merged PR #${prNumber} lacks a valid SHA-40 merge commit SHA.`,
+        );
+      }
+      const ci = await waitForCi(owner, repo, run.integrationBranch, pr.head.sha);
+      const recoveryComment = `${mergedPrMarker(prNumber, mergeCommitSha)}\nWorker PR #${prNumber} was already merged into \`${run.integrationBranch}\`. Validated mandatory CI run ${ci.id}. Target branch \`${run.baseBranch}\` remains untouched.`;
+      await finalizeTaskMerged(owner, repo, issue.number, recoveryComment);
+      continue;
+    }
+
     await setTaskState(owner, repo, issue.number, [FACTORY_LABELS.ci], [FACTORY_LABELS.running]);
     const validated = await ensureUpToDateAndGreen(owner, repo, prNumber, run.integrationBranch);
     pr = validated.pr;
@@ -351,23 +403,8 @@ async function processCompletedSessions(owner, repo, run, siblings) {
       await failTask(owner, repo, issue.number, `GitHub did not merge worker PR #${prNumber}.`);
     }
 
-    await addComment(
-      owner,
-      repo,
-      issue.number,
-      `${mergedPrMarker(prNumber, merged.sha)}\nWorker PR #${prNumber} passed mandatory CI and was merged only into \`${run.integrationBranch}\`. Target branch \`${run.baseBranch}\` remains untouched.`,
-    );
-    await setTaskState(
-      owner,
-      repo,
-      issue.number,
-      [FACTORY_LABELS.merged],
-      [FACTORY_LABELS.ci, FACTORY_LABELS.running, FACTORY_LABELS.ready],
-    );
-    await github(`/repos/${owner}/${repo}/issues/${issue.number}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ state: 'closed', state_reason: 'completed' }),
-    });
+    const auditComment = `${mergedPrMarker(prNumber, merged.sha)}\nWorker PR #${prNumber} passed mandatory CI and was merged only into \`${run.integrationBranch}\`. Target branch \`${run.baseBranch}\` remains untouched.`;
+    await finalizeTaskMerged(owner, repo, issue.number, auditComment);
   }
 }
 
