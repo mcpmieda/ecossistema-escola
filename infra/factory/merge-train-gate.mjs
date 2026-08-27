@@ -28,7 +28,9 @@ function timestamp(comment) {
 }
 
 function validateSha40(value, label = 'SHA') {
-  const sha = String(value ?? '').trim().toLowerCase();
+  const sha = String(value ?? '')
+    .trim()
+    .toLowerCase();
   if (!/^[0-9a-f]{40}$/.test(sha)) fail(`${label} must be a 40-character Git SHA.`);
   return sha;
 }
@@ -115,7 +117,8 @@ export function trustedMergeTrainEvidence(comments, expectedSha) {
   const matches = (comments ?? [])
     .map(parseTrustedMergeTrainEvidence)
     .filter((payload) => payload?.sha === sha);
-  if (matches.length > 1) fail('Multiple trusted Merge Train evidence markers exist for the same SHA.');
+  if (matches.length > 1)
+    fail('Multiple trusted Merge Train evidence markers exist for the same SHA.');
   return matches[0] ?? null;
 }
 
@@ -123,7 +126,9 @@ async function currentPr(owner, repo, prNumber, expectedSha) {
   const pr = await github(`/repos/${owner}/${repo}/pulls/${prNumber}`);
   const sha = validateSha40(expectedSha, 'Merge Train expected SHA');
   if (pr.head?.sha !== sha) {
-    fail(`Worker PR #${prNumber} moved from Merge Train SHA ${sha} to ${pr.head?.sha ?? 'unknown'}.`);
+    fail(
+      `Worker PR #${prNumber} moved from Merge Train SHA ${sha} to ${pr.head?.sha ?? 'unknown'}.`,
+    );
   }
   return pr;
 }
