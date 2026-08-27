@@ -311,3 +311,14 @@ Não aplicar automaticamente. Auditar antes e restaurar somente algo comprovadam
 9. `server/banco-notas/teacher-model-graph-gateway.ts`;
 10. `server/banco-notas/d1-addin-authorizer.ts`;
 11. `server/auth/entra-access-token.ts`.
+
+## Hardening Entra v2 do add-in — 27/08/2026
+
+- Corrigida a semântica de access token v2: `aud` é o client ID GUID da API, não o App ID URI.
+- `api://<client-id>/BancoNotas.Sync` permanece sendo o scope solicitado pelo cliente.
+- O bearer agora valida `ver=2.0`, `azp` self-preauthorized e rejeita drift de cliente confidencial quando `azpacr` estiver presente.
+- `BANCO_NOTAS_ADDIN_AUDIENCE` passa a exigir UUID.
+- O plano Entra removeu `Directory.Read.All`; nenhuma escrita no tenant foi feita.
+- Endpoint público desconectado, sync `0`, produção intocada e PR #52 draft.
+- Evidência: `docs/BANCO_NOTAS_ENTRA_ADDIN_TOKEN_V2_HARDENING_2026-08-27.md`.
+- Próximo gate: auditoria Entra read-only antes de qualquer apply.

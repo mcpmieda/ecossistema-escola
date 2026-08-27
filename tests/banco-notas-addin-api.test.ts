@@ -262,9 +262,7 @@ describe('Banco de Notas sealed add-in ingestion boundary', () => {
   it('rejects a token requested by another client application before persistence', async () => {
     const current = runtime();
 
-    await expect(
-      route(current, await request(input(), { azp: otherOid })),
-    ).rejects.toMatchObject({
+    await expect(route(current, await request(input(), { azp: otherOid }))).rejects.toMatchObject({
       status: 403,
       message: 'Client application is not authorized',
     });
