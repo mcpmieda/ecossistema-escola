@@ -118,7 +118,9 @@ export function workerRecoveryDecision({ mergedEvidence, pr, prNumber }) {
       );
     }
     if (pr?.merged !== true) {
-      throw new Error(`Trusted merged marker exists for PR #${prNumber}, but GitHub reports it unmerged.`);
+      throw new Error(
+        `Trusted merged marker exists for PR #${prNumber}, but GitHub reports it unmerged.`,
+      );
     }
     if (!validCommitSha(mergeSha)) {
       throw new Error(`Merged PR #${prNumber} has no valid merge commit SHA.`);
@@ -410,12 +412,25 @@ async function processCompletedSessions(owner, repo, run, siblings) {
           prNumber: mergedEvidence.prNumber,
         });
       } catch (error) {
-        await failTask(owner, repo, issue.number, error instanceof Error ? error.message : String(error));
+        await failTask(
+          owner,
+          repo,
+          issue.number,
+          error instanceof Error ? error.message : String(error),
+        );
       }
-      await finalizeMergedTask(owner, repo, issue, run, mergedEvidence.prNumber, recovery.mergeSha, {
-        existingEvidence: true,
-        recovered: true,
-      });
+      await finalizeMergedTask(
+        owner,
+        repo,
+        issue,
+        run,
+        mergedEvidence.prNumber,
+        recovery.mergeSha,
+        {
+          existingEvidence: true,
+          recovered: true,
+        },
+      );
       continue;
     }
 
@@ -454,7 +469,12 @@ async function processCompletedSessions(owner, repo, run, siblings) {
     try {
       recovery = workerRecoveryDecision({ mergedEvidence: null, pr, prNumber });
     } catch (error) {
-      await failTask(owner, repo, issue.number, error instanceof Error ? error.message : String(error));
+      await failTask(
+        owner,
+        repo,
+        issue.number,
+        error instanceof Error ? error.message : String(error),
+      );
     }
 
     if (recovery.kind === 'unrecorded') {
