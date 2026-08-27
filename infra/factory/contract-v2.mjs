@@ -10,7 +10,7 @@ const ALLOWED_HUMAN_GATES = new Set([
   'legal_or_organizational_decision',
 ]);
 const ALLOWED_PROVIDERS = new Set(['jules', 'antigravity', 'opencode_ollama', 'manual']);
-const ACTIVE_REMOTE_PROVIDERS = new Set(['jules']);
+const ACTIVE_AUTOMATIC_PROVIDERS = new Set(['jules', 'antigravity', 'opencode_ollama']);
 const SAFE_SLUG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/;
 const SAFE_BRANCH = /^[A-Za-z0-9._/-]+$/;
 const RESERVED_AUTOMATION_SCOPES = ['.github', 'infra/factory', 'infra/validation'];
@@ -200,8 +200,8 @@ export function parseFactoryRunV2(body) {
           `Automated task ${id} targets a reserved Control Plane/GitHub scope. Use a human-gated change instead.`,
         );
       }
-      if (!preferredProviders.some((provider) => ACTIVE_REMOTE_PROVIDERS.has(provider))) {
-        fail(`Automated task ${id} has no currently active remote provider.`);
+      if (!preferredProviders.some((provider) => ACTIVE_AUTOMATIC_PROVIDERS.has(provider))) {
+        fail(`Automated task ${id} has no currently active automatic provider.`);
       }
     }
 
@@ -291,9 +291,7 @@ function canonicalRun(run) {
 }
 
 export function manifestFingerprint(run) {
-  return createHash('sha256')
-    .update(JSON.stringify(canonicalRun(run)))
-    .digest('hex');
+  return createHash('sha256').update(JSON.stringify(canonicalRun(run))).digest('hex');
 }
 
 export function manifestMarker(run) {
