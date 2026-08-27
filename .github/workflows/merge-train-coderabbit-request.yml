@@ -4,18 +4,25 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
 
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
+permissions: {}
+
+concurrency:
+  group: coderabbit-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   request-review:
+    name: Request CodeRabbit review
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login == github.repository_owner
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      # Required to create the issue-style comment attached to the pull request.
+      issues: write
+      # GitHub currently rejects the PR comment request without this PR write scope.
+      pull-requests: write
     steps:
       - name: Request full CodeRabbit review
         shell: bash
