@@ -87,6 +87,11 @@ export function dependenciesMerged(task, siblings, mergedEvidence) {
   });
 }
 
+export function isProcessableTaskState(labels) {
+  const names = new Set(labelNames(labels));
+  return names.has(FACTORY_LABELS.running) || names.has(FACTORY_LABELS.ci);
+}
+
 async function ensureReadyDependencies(owner, repo, run, siblings) {
   const mergedEvidence = new Map();
   for (const [taskId, record] of siblings) {
@@ -217,8 +222,8 @@ async function dispatchCi(owner, repo, branch) {
 
 async function findCiRun(owner, repo, branch, sha) {
   const params = new URLSearchParams({
-    branch,
     event: 'workflow_dispatch',
+    head_sha: sha,
     per_page: '30',
   });
   const payload = await github(
@@ -280,8 +285,7 @@ async function ensureUpToDateAndGreen(owner, repo, prNumber, integrationBranch) 
 async function processCompletedSessions(owner, repo, run, siblings) {
   for (const record of siblings.values()) {
     const issue = await refreshIssue(owner, repo, record.issue.number);
-    const labels = new Set(labelNames(issue.labels));
-    if (!labels.has(FACTORY_LABELS.running)) continue;
+    if (!isProcessableTaskState(issue.labels)) continue;
     const taskDefinition = taskFromManifest(run, record.task.taskId);
 
     const comments = await issueComments(owner, repo, issue.number);
