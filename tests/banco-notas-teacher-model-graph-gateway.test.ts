@@ -70,10 +70,12 @@ describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
 
       const permissionPath = '/items/item-1/permissions/permission-1';
       if (method === 'DELETE' && url.endsWith(permissionPath)) {
+        expect(new Headers(init?.headers).get('Prefer')).toBeNull();
         return new Response(null, { status: 204 });
       }
 
       if (method === 'DELETE' && url.endsWith('/items/item-1')) {
+        expect(new Headers(init?.headers).get('Prefer')).toBe('bypass-shared-lock');
         return new Response(null, { status: 204 });
       }
 
@@ -124,6 +126,7 @@ describe('Banco de Notas TeacherModelGraphGateway adapter', () => {
     await gateway.remove({
       driveItemId: stored.driveItemId,
       correlationId: 'correlation-1',
+      bypassSharedLock: true,
     });
 
     expect(tokenProvider).toHaveBeenCalledOnce();

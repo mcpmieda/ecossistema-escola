@@ -46,7 +46,11 @@ export type TeacherModelGraphGateway = {
     permissionId: string;
     correlationId: string;
   }): Promise<void>;
-  remove(input: { driveItemId: string; correlationId: string }): Promise<void>;
+  remove(input: {
+    driveItemId: string;
+    correlationId: string;
+    bypassSharedLock?: boolean;
+  }): Promise<void>;
 };
 
 export type TeacherModelCompensation = {

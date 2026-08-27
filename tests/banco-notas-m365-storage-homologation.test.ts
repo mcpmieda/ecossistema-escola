@@ -708,6 +708,7 @@ cleanupHomologation('Banco de Notas M365 Excel round-trip and cleanup', () => {
               await gateway.remove({
                 driveItemId,
                 correlationId: `banco-notas-m365-roundtrip-remove-${attempt}`,
+                bypassSharedLock: true,
               });
               removeError = undefined;
               break;

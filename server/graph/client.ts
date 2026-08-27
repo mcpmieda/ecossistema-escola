@@ -51,6 +51,7 @@ export async function graphRequest<T>(input: {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   etag?: string;
+  prefer?: 'bypass-shared-lock';
   correlationId?: string;
   dependencies?: GraphDependencies;
   token?: string;
@@ -69,6 +70,7 @@ export async function graphRequest<T>(input: {
     });
     if (input.body !== undefined) headers.set('Content-Type', 'application/json');
     if (input.etag) headers.set('If-Match', input.etag);
+    if (input.prefer) headers.set('Prefer', input.prefer);
     const response = await dependencies.fetch(`https://graph.microsoft.com/v1.0${input.path}`, {
       method: input.method ?? 'GET',
       headers,

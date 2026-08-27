@@ -193,6 +193,7 @@ export function createTeacherModelGraphGateway(args: {
         env: args.env,
         path: `${drivePath}/items/${graphSegment(input.driveItemId)}`,
         method: 'DELETE',
+        prefer: input.bypassSharedLock ? 'bypass-shared-lock' : undefined,
         correlationId: input.correlationId,
         dependencies: graphDependencies,
         token: accessToken,
