@@ -267,6 +267,7 @@ homologation('Banco de Notas M365 storage homologation', () => {
     let recipientIdentityMatch = false;
     let permissionBoundaryVerified = false;
     let resourceRetainedForExcel = false;
+    let preexistingEffectiveUserPermissionCount: number | undefined;
     let webUrl = '';
     let executionError: unknown;
     try {
@@ -347,6 +348,22 @@ homologation('Banco de Notas M365 storage homologation', () => {
       if (shareStage) {
         const recipientUpn = requiredEnv('BANCO_NOTAS_M365_RECIPIENT_UPN');
         const recipientEntraObjectId = requiredEnv('BANCO_NOTAS_M365_RECIPIENT_OID');
+        const permissionsBeforeShare = (
+          await graphRequest<{ value: Permission[] }>({
+            env: {} as RuntimeEnv,
+            token,
+            path: `/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(driveItemId)}/permissions?$select=id,roles,link,invitation,grantedToV2,grantedToIdentitiesV2`,
+            correlationId: 'banco-notas-m365-share-permissions-before',
+          })
+        ).data.value;
+        const preexistingPermissionIds = new Set(
+          permissionsBeforeShare.map((permission) => permission.id),
+        );
+        preexistingEffectiveUserPermissionCount = permissionsBeforeShare.filter(
+          (permission) =>
+            Boolean(permission.grantedToV2?.user?.id) ||
+            Boolean(permission.grantedToIdentitiesV2?.some((identity) => identity.user?.id)),
+        ).length;
         const shared = await gateway.share({
           driveItemId,
           recipientUpn,
@@ -392,7 +409,8 @@ homologation('Banco de Notas M365 storage homologation', () => {
             Boolean(permission.grantedToV2?.group?.id) ||
             Boolean(permission.grantedToIdentitiesV2?.some((identity) => identity.group?.id)),
         );
-        const otherSharedUser = permissions.some((permission) => {
+        const newOtherSharedUser = permissions.some((permission) => {
+          if (preexistingPermissionIds.has(permission.id)) return false;
           const userIds = [
             permission.grantedToV2?.user?.id,
             ...(permission.grantedToIdentitiesV2?.map((identity) => identity.user?.id) ?? []),
@@ -405,7 +423,7 @@ homologation('Banco de Notas M365 storage homologation', () => {
         expect(granted?.link?.scope).not.toBe('organization');
         expect(hasBroadLink).toBe(false);
         expect(hasGroupGrant).toBe(false);
-        expect(otherSharedUser).toBe(false);
+        expect(newOtherSharedUser).toBe(false);
         permissionBoundaryVerified = true;
         resourceRetainedForExcel = true;
       }
@@ -436,7 +454,13 @@ homologation('Banco de Notas M365 storage homologation', () => {
         `${JSON.stringify(
           {
             status:
-              packageIntegrity && analysisSucceeded && cleanupSucceeded ? 'success' : 'failed',
+              packageIntegrity &&
+              analysisSucceeded &&
+              (shareStage
+                ? resourceRetainedForExcel && recipientIdentityMatch && permissionBoundaryVerified
+                : cleanupSucceeded)
+                ? 'success'
+                : 'failed',
             storageBoundary: 'ARQUIVOS_PLATAFORMA/BANCO_NOTAS_HOMOLOGACAO',
             source: 'synthetic-generic-xlsx',
             executionEnvironment: 'node',
@@ -446,6 +470,9 @@ homologation('Banco de Notas M365 storage homologation', () => {
             recipientUpn: shareStage ? requiredEnv('BANCO_NOTAS_M365_RECIPIENT_UPN') : undefined,
             recipientIdentityMatch: shareStage ? recipientIdentityMatch : undefined,
             permissionBoundaryVerified: shareStage ? permissionBoundaryVerified : undefined,
+            preexistingEffectiveUserPermissionCount: shareStage
+              ? preexistingEffectiveUserPermissionCount
+              : undefined,
             permissionIdPresent: shareStage ? Boolean(permissionId) : undefined,
             webUrl: resourceRetainedForExcel ? webUrl : undefined,
             uploadPerformed: Boolean(driveItemId),
