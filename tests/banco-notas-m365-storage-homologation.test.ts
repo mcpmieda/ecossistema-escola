@@ -599,7 +599,7 @@ cleanupHomologation('Banco de Notas M365 Excel round-trip and cleanup', () => {
           `m365_roundtrip_permission_boundary:${unsafePermission}:${recipientPermissions.length}`,
         );
       }
-      permissionId = recipientPermissions[0]!.id;
+      permissionId = recipientPermissions[0]?.id ?? '';
 
       const metadata = await gateway.metadata({
         driveItemId,
@@ -703,7 +703,7 @@ cleanupHomologation('Banco de Notas M365 Excel round-trip and cleanup', () => {
             permissionRevocationConfirmed = true;
           }
           let removeError: unknown;
-          for (let attempt = 1; attempt <= 3; attempt += 1) {
+          for (let attempt = 1; attempt <= 6; attempt += 1) {
             try {
               await gateway.remove({
                 driveItemId,
@@ -713,8 +713,8 @@ cleanupHomologation('Banco de Notas M365 Excel round-trip and cleanup', () => {
               break;
             } catch (error) {
               removeError = error;
-              if (attempt < 3 && safeError(error).includes('(423)')) {
-                await new Promise((resolve) => setTimeout(resolve, 5_000));
+              if (attempt < 6 && safeError(error).includes('(423)')) {
+                await new Promise((resolve) => setTimeout(resolve, 10_000));
                 continue;
               }
               break;
