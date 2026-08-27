@@ -54,6 +54,21 @@ async function ensureLabels(owner, repo) {
     [FACTORY_LABELS.failed, 'Factory task failed closed and requires inspection.', 'b60205'],
     [FACTORY_LABELS.final, 'Final consolidated Factory Run pull request.', '5319e7'],
     [FACTORY_LABELS.providerJules, 'Factory task selected Jules as remote worker.', '0e8a16'],
+    [
+      FACTORY_LABELS.providerAntigravity,
+      'Factory task selected Antigravity as a durable headless worker.',
+      '8250df',
+    ],
+    [
+      FACTORY_LABELS.providerOpenCode,
+      'Factory task selected OpenCode/Ollama as a durable local worker.',
+      '8250df',
+    ],
+    [
+      FACTORY_LABELS.durableAgent,
+      'Factory task is controlled by the GitHub-backed durable provider gateway.',
+      '1d76db',
+    ],
     [FACTORY_LABELS.julesApi, 'Factory task was dispatched through the Jules REST API.', '1d76db'],
     [
       FACTORY_LABELS.julesTrigger,
@@ -179,9 +194,7 @@ async function ensureTaskLabels(owner, repo, issue, desired) {
   const runtimeStarted =
     issue.state !== 'open' || [...current].some((label) => RUNTIME_LABELS.has(label));
   const safeDesired = runtimeStarted
-    ? desired.filter(
-        (label) => label === FACTORY_LABELS.task || label === FACTORY_LABELS.providerJules,
-      )
+    ? desired.filter((label) => label === FACTORY_LABELS.task)
     : desired;
   await addLabels(
     owner,
@@ -232,7 +245,7 @@ export async function materializeParent(parentIssueNumber) {
     repo,
     parentIssueNumber,
     [
-      `Factory Run \`${run.runId}\` materialized in API-first mode.`,
+      `Factory Run \`${run.runId}\` materialized in multi-provider mode.`,
       '',
       `Target branch: \`${run.baseBranch}\``,
       `Integration branch: \`${run.integrationBranch}\``,
