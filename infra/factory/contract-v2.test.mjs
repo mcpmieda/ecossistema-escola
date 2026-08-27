@@ -105,9 +105,7 @@ test('rejects run ids that derive invalid integration branch names', () => {
 test('accepts Jules, Antigravity, and OpenCode/Ollama as active automatic providers', () => {
   for (const provider of ['jules', 'antigravity', 'opencode_ollama']) {
     assert.doesNotThrow(() =>
-      parseFactoryRunV2(
-        issueBody({ tasks: [task('a', { preferred_providers: [provider] })] }),
-      ),
+      parseFactoryRunV2(issueBody({ tasks: [task('a', { preferred_providers: [provider] })] })),
     );
   }
   assert.throws(() =>

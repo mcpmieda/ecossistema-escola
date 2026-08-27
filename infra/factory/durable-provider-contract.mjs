@@ -1,7 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import { DURABLE_PROVIDERS } from './dispatch-policy.mjs';
-import { changedFilesWithinDeclaredScope, TRUSTED_FACTORY_LOGIN } from './reconciliation-policy.mjs';
+import {
+  changedFilesWithinDeclaredScope,
+  TRUSTED_FACTORY_LOGIN,
+} from './reconciliation-policy.mjs';
 
 export const DURABLE_SCHEMA_VERSION = 1;
 export const LEASE_MIN_SECONDS = 60;
@@ -115,13 +118,17 @@ export function validateIdentifier(value, label) {
 }
 
 export function validateSha40(value, label) {
-  const text = String(value ?? '').trim().toLowerCase();
+  const text = String(value ?? '')
+    .trim()
+    .toLowerCase();
   if (!SHA_40.test(text)) fail(`Invalid ${label}.`);
   return text;
 }
 
 export function validateSha64(value, label) {
-  const text = String(value ?? '').trim().toLowerCase();
+  const text = String(value ?? '')
+    .trim()
+    .toLowerCase();
   if (!SHA_64.test(text)) fail(`Invalid ${label}.`);
   return text;
 }
@@ -147,8 +154,12 @@ export function validateBranch(value, label) {
 }
 
 export function normalizeRuntimeScope(value) {
-  const scope = String(value ?? '').trim().replace(/^\/+/, '');
-  const withoutGlob = scope.endsWith('/**') ? scope.slice(0, -3).replace(/\/$/, '') : scope.replace(/\/$/, '');
+  const scope = String(value ?? '')
+    .trim()
+    .replace(/^\/+/, '');
+  const withoutGlob = scope.endsWith('/**')
+    ? scope.slice(0, -3).replace(/\/$/, '')
+    : scope.replace(/\/$/, '');
   if (
     !withoutGlob ||
     withoutGlob.includes('\\') ||
@@ -170,7 +181,9 @@ export function normalizeRuntimeScope(value) {
 }
 
 export function runtimePathWithinScope(filename, scope) {
-  const file = String(filename ?? '').trim().replace(/^\/+/, '');
+  const file = String(filename ?? '')
+    .trim()
+    .replace(/^\/+/, '');
   const root = normalizeRuntimeScope(scope);
   if (
     !file ||
@@ -230,14 +243,18 @@ export function portableRequest({ repository, run, task, workingBranch }) {
 }
 
 export function marker(kind, payload) {
-  const name = String(kind ?? '').trim().toUpperCase();
+  const name = String(kind ?? '')
+    .trim()
+    .toUpperCase();
   if (!/^[A-Z][A-Z0-9_]{0,31}$/.test(name)) fail(`Invalid marker kind: ${kind}`);
   const encoded = Buffer.from(stableJson(sanitize(payload)), 'utf8').toString('base64url');
   return `<!-- FACTORY_PROVIDER_${name} ${encoded} -->`;
 }
 
 export function markerPayload(body, kind) {
-  const name = String(kind ?? '').trim().toUpperCase();
+  const name = String(kind ?? '')
+    .trim()
+    .toUpperCase();
   if (!/^[A-Z][A-Z0-9_]{0,31}$/.test(name)) fail(`Invalid marker kind: ${kind}`);
   const match = String(body ?? '').match(
     new RegExp(`<!--\\s*FACTORY_PROVIDER_${name}\\s+([A-Za-z0-9_-]+)\\s*-->`),
@@ -266,12 +283,15 @@ export function validateHealthPayload(payload, now = new Date()) {
     if (!DURABLE_PROVIDERS.includes(providerId)) fail(`Invalid durable provider: ${providerId}`);
     if (seen.has(providerId)) fail(`Duplicate provider health: ${providerId}`);
     seen.add(providerId);
-    const status = String(raw?.status ?? '').trim().toLowerCase();
+    const status = String(raw?.status ?? '')
+      .trim()
+      .toLowerCase();
     if (!HEALTH_STATES.includes(status)) fail(`Invalid provider health status: ${status}`);
     const observed = parseTimestamp(raw?.observed_at, 'provider health observed_at');
     const ageSeconds = (now.getTime() - observed.getTime()) / 1000;
     if (ageSeconds > HEALTH_MAX_AGE_SECONDS) fail(`Provider health is stale: ${providerId}`);
-    if (ageSeconds < -FUTURE_CLOCK_SKEW_SECONDS) fail(`Provider health is from the future: ${providerId}`);
+    if (ageSeconds < -FUTURE_CLOCK_SKEW_SECONDS)
+      fail(`Provider health is from the future: ${providerId}`);
     return {
       provider_id: providerId,
       status,
@@ -339,7 +359,8 @@ export function buildLease({
 }
 
 export function validateLease(lease) {
-  if (Number(lease?.schema_version) !== DURABLE_SCHEMA_VERSION) fail('Unsupported durable lease schema_version.');
+  if (Number(lease?.schema_version) !== DURABLE_SCHEMA_VERSION)
+    fail('Unsupported durable lease schema_version.');
   for (const field of ['lease_id', 'run_id', 'task_id', 'worker_id']) {
     validateIdentifier(lease?.[field], field);
   }
@@ -361,14 +382,18 @@ export function validateLease(lease) {
   if (ttl < LEASE_MIN_SECONDS || ttl > LEASE_MAX_SECONDS) fail('Lease TTL is outside policy.');
   if (lease?.actor !== TRUSTED_FACTORY_LOGIN) fail('Lease actor is not github-actions[bot].');
   if (sha256(lease?.request) !== lease.request_sha256) fail('Lease request fingerprint mismatch.');
-  if (sha256(lease?.manifest) !== lease.manifest_sha256) fail('Lease manifest fingerprint mismatch.');
+  if (sha256(lease?.manifest) !== lease.manifest_sha256)
+    fail('Lease manifest fingerprint mismatch.');
   return lease;
 }
 
 export function leaseActiveAt(lease, when = new Date()) {
   validateLease(lease);
   const point = when.getTime();
-  return parseTimestamp(lease.issued_at).getTime() <= point && point < parseTimestamp(lease.expires_at).getTime();
+  return (
+    parseTimestamp(lease.issued_at).getTime() <= point &&
+    point < parseTimestamp(lease.expires_at).getTime()
+  );
 }
 
 export function trustedMarkers(comments, kind) {
@@ -396,12 +421,17 @@ export function activeTrustedLease(comments, now = new Date()) {
 }
 
 export function trustedLeaseById(comments, leaseId) {
-  return trustedLeases(comments).filter((record) => record.lease.lease_id === leaseId).at(-1) ?? null;
+  return (
+    trustedLeases(comments)
+      .filter((record) => record.lease.lease_id === leaseId)
+      .at(-1) ?? null
+  );
 }
 
 export function validateHeartbeatCandidate(candidate, lease) {
   const heartbeat = candidate?.heartbeat ?? candidate;
-  if (Number(heartbeat?.schema_version) !== DURABLE_SCHEMA_VERSION) fail('Unsupported heartbeat schema_version.');
+  if (Number(heartbeat?.schema_version) !== DURABLE_SCHEMA_VERSION)
+    fail('Unsupported heartbeat schema_version.');
   for (const field of ['lease_id', 'run_id', 'task_id', 'provider_id', 'worker_id']) {
     if (String(heartbeat?.[field] ?? '') !== String(lease?.[field] ?? '')) {
       fail(`Heartbeat ${field} does not match the trusted lease.`);
@@ -411,8 +441,11 @@ export function validateHeartbeatCandidate(candidate, lease) {
   const observed = parseTimestamp(heartbeat?.observed_at, 'heartbeat observed_at');
   if (!leaseActiveAt(lease, observed)) fail('Heartbeat was not observed inside the lease window.');
   const metrics = heartbeat?.metrics ?? {};
-  if (!metrics || typeof metrics !== 'object' || Array.isArray(metrics)) fail('Heartbeat metrics must be an object.');
-  if (Object.values(metrics).some((value) => typeof value !== 'number' || !Number.isFinite(value))) {
+  if (!metrics || typeof metrics !== 'object' || Array.isArray(metrics))
+    fail('Heartbeat metrics must be an object.');
+  if (
+    Object.values(metrics).some((value) => typeof value !== 'number' || !Number.isFinite(value))
+  ) {
     fail('Heartbeat metrics must be finite numbers.');
   }
   return {
@@ -424,7 +457,8 @@ export function validateHeartbeatCandidate(candidate, lease) {
     worker_id: lease.worker_id,
     phase: heartbeat.phase,
     observed_at: observed.toISOString(),
-    head_sha: heartbeat?.head_sha == null ? null : validateSha40(heartbeat.head_sha, 'heartbeat head_sha'),
+    head_sha:
+      heartbeat?.head_sha == null ? null : validateSha40(heartbeat.head_sha, 'heartbeat head_sha'),
     detail: redactText(heartbeat?.detail),
     metrics: sanitize(metrics),
   };
@@ -432,7 +466,8 @@ export function validateHeartbeatCandidate(candidate, lease) {
 
 export function validateResultCandidate(candidate, lease) {
   const result = candidate?.result ?? candidate;
-  if (Number(result?.schema_version) !== DURABLE_SCHEMA_VERSION) fail('Unsupported provider result schema_version.');
+  if (Number(result?.schema_version) !== DURABLE_SCHEMA_VERSION)
+    fail('Unsupported provider result schema_version.');
   for (const field of [
     'lease_id',
     'run_id',
@@ -450,7 +485,8 @@ export function validateResultCandidate(candidate, lease) {
   const status = String(result?.status ?? '').toLowerCase();
   if (!TERMINAL_STATES.includes(status)) fail('Invalid provider result status.');
   const observed = parseTimestamp(result?.observed_at, 'provider result observed_at');
-  if (!leaseActiveAt(lease, observed)) fail('Provider result was not observed inside the lease window.');
+  if (!leaseActiveAt(lease, observed))
+    fail('Provider result was not observed inside the lease window.');
   const normalized = {
     schema_version: DURABLE_SCHEMA_VERSION,
     lease_id: lease.lease_id,
@@ -475,7 +511,8 @@ export function validateResultCandidate(candidate, lease) {
     if (normalized.branch !== lease.working_branch) fail('Provider result branch mismatch.');
     validateSha40(normalized.commit_sha, 'provider result commit_sha');
     validateSha40(normalized.remote_sha, 'provider result remote_sha');
-    if (normalized.commit_sha !== normalized.remote_sha) fail('Provider result remote SHA mismatch.');
+    if (normalized.commit_sha !== normalized.remote_sha)
+      fail('Provider result remote SHA mismatch.');
     if (!normalized.pushed) fail('Successful provider result was not pushed.');
     if (!runtimeChangedFilesWithinScope(normalized.changed_paths, lease.request.paths)) {
       fail('Provider result changed paths outside the leased scope.');

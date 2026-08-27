@@ -17,11 +17,7 @@ export const FACTORY_LABELS = Object.freeze({
   julesTrigger: 'jules',
 });
 
-export const AUTOMATIC_PROVIDER_ORDER = Object.freeze([
-  'opencode_ollama',
-  'jules',
-  'antigravity',
-]);
+export const AUTOMATIC_PROVIDER_ORDER = Object.freeze(['opencode_ollama', 'jules', 'antigravity']);
 
 export const DURABLE_PROVIDERS = Object.freeze(['opencode_ollama', 'antigravity']);
 

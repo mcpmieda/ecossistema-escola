@@ -291,7 +291,9 @@ function canonicalRun(run) {
 }
 
 export function manifestFingerprint(run) {
-  return createHash('sha256').update(JSON.stringify(canonicalRun(run))).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(canonicalRun(run)))
+    .digest('hex');
 }
 
 export function manifestMarker(run) {

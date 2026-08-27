@@ -68,7 +68,9 @@ export function parentIssueNumber(issue) {
 }
 
 async function ensureLabel(owner, repo, name, description, color) {
-  const existing = await githubOptional(`/repos/${owner}/${repo}/labels/${encodeURIComponent(name)}`);
+  const existing = await githubOptional(
+    `/repos/${owner}/${repo}/labels/${encodeURIComponent(name)}`,
+  );
   if (existing) return;
   await github(`/repos/${owner}/${repo}/labels`, {
     method: 'POST',
@@ -134,17 +136,6 @@ function trustedBranchRecord(comments, branch, integrationBranch) {
   return records[0] ?? null;
 }
 
-function trustedSyncRecord(comments, lease, currentSha) {
-  const records = trustedMarkers(comments, 'SYNC').filter(
-    ({ payload }) =>
-      payload?.lease_id === lease.lease_id &&
-      payload?.provider_sha === payload?.source_sha &&
-      payload?.synchronized_sha === currentSha,
-  );
-  if (records.length > 1) fail('Multiple trusted sync markers match the current worker head.');
-  return records[0] ?? null;
-}
-
 async function ensureWorkerBranch(owner, repo, context) {
   const branch = validateBranch(
     `factory/${context.run.runId}/${context.task.id}`,
@@ -152,9 +143,12 @@ async function ensureWorkerBranch(owner, repo, context) {
   );
   const comments = await issueComments(owner, repo, context.issue.number);
   const ownership = trustedBranchRecord(comments, branch, context.run.integrationBranch);
-  const existing = await githubOptional(`/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`);
+  const existing = await githubOptional(
+    `/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`,
+  );
   if (existing) {
-    if (!ownership) fail(`Durable worker branch ${branch} exists without trusted ownership evidence.`);
+    if (!ownership)
+      fail(`Durable worker branch ${branch} exists without trusted ownership evidence.`);
     return {
       branch,
       headSha: existing.commit.sha,
@@ -201,16 +195,10 @@ async function persistHealth(owner, repo, issueNumber, workerId, observations) {
   );
 }
 
-export async function claimDurableLease(
-  owner,
-  repo,
-  issueNumber,
-  workerId,
-  payload,
-  ttlSeconds,
-) {
+export async function claimDurableLease(owner, repo, issueNumber, workerId, payload, ttlSeconds) {
   const context = await loadDurableTaskContext(owner, repo, issueNumber);
-  if (context.task.humanGates.length > 0) fail('Human-gated task cannot receive an automatic lease.');
+  if (context.task.humanGates.length > 0)
+    fail('Human-gated task cannot receive an automatic lease.');
   const observations = validateHealthPayload(payload);
   await ensureDurableLabels(owner, repo);
   await persistHealth(owner, repo, issueNumber, workerId, observations);
@@ -218,15 +206,15 @@ export async function claimDurableLease(
   const comments = await issueComments(owner, repo, issueNumber);
   const active = activeTrustedLease(comments);
   if (active) {
-    const observation = observations.find(
-      (item) => item.provider_id === active.lease.provider_id,
-    );
+    const observation = observations.find((item) => item.provider_id === active.lease.provider_id);
     if (
       active.lease.worker_id !== workerId ||
       !observation ||
       !['healthy', 'degraded'].includes(observation.status)
     ) {
-      fail(`Task already has active lease ${active.lease.lease_id} that cannot be reused by this claim.`);
+      fail(
+        `Task already has active lease ${active.lease.lease_id} that cannot be reused by this claim.`,
+      );
     }
     return { status: 'reused', lease: active.lease, context };
   }
@@ -310,7 +298,8 @@ export async function recordDurableHeartbeat(owner, repo, issueNumber, payload) 
     const branch = await github(
       `/repos/${owner}/${repo}/branches/${encodeURIComponent(record.lease.working_branch)}`,
     );
-    if (branch.commit.sha !== heartbeat.head_sha) fail('Heartbeat head SHA is not current on GitHub.');
+    if (branch.commit.sha !== heartbeat.head_sha)
+      fail('Heartbeat head SHA is not current on GitHub.');
   }
   await addComment(
     owner,
@@ -348,7 +337,8 @@ async function waitForCi(owner, repo, branch, sha) {
   for (let attempt = 0; attempt < MAX_CI_ATTEMPTS; attempt += 1) {
     run = await findCiRun(owner, repo, sha);
     if (run?.status === 'completed') {
-      if (run.conclusion !== 'success') fail(`Mandatory CI run ${run.id} concluded ${run.conclusion}.`);
+      if (run.conclusion !== 'success')
+        fail(`Mandatory CI run ${run.id} concluded ${run.conclusion}.`);
       return run;
     }
     await sleep(POLL_MS);
@@ -361,7 +351,8 @@ async function validateProviderCommit(owner, repo, context, lease, providerSha, 
   if (compare?.merge_base_commit?.sha !== startingSha) {
     fail('Provider commit does not descend from the trusted worker starting SHA.');
   }
-  if ((compare.ahead_by ?? 0) <= 0) fail('Provider produced no commits after the trusted starting SHA.');
+  if ((compare.ahead_by ?? 0) <= 0)
+    fail('Provider produced no commits after the trusted starting SHA.');
   const files = (compare.files ?? []).map((item) => item.filename).filter(Boolean);
   if (!runtimeChangedFilesWithinScope(files, lease.request.paths)) {
     fail('Provider commit changed files outside the leased runtime scope.');
@@ -532,13 +523,7 @@ async function finalizeIntegratedTask(owner, repo, context, pr, mergeSha, ci, fi
 }
 
 async function integrateSuccessfulResult(owner, repo, context, lease, result) {
-  const workerState = await ensureTrustedWorkerHead(
-    owner,
-    repo,
-    context,
-    lease,
-    result.remote_sha,
-  );
+  const workerState = await ensureTrustedWorkerHead(owner, repo, context, lease, result.remote_sha);
   lease.__result_paths = { [result.remote_sha]: result.changed_paths };
   const providerEvidence = await validateProviderCommit(
     owner,

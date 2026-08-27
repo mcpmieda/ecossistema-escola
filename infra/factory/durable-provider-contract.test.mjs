@@ -101,10 +101,7 @@ test('canonical hashes match the Python durable agent contract exactly', () => {
     sha256(manifest),
     '797c952bf08b70aa54d502db0f339202d46a186ff0687e22a85a513a01fd0cb0',
   );
-  assert.equal(
-    sha256(request),
-    'ba8ed2614fae559ab56e4ac81d8764bfc79174244642bfa81d2f62143856cf99',
-  );
+  assert.equal(sha256(request), 'ba8ed2614fae559ab56e4ac81d8764bfc79174244642bfa81d2f62143856cf99');
   assert.equal(request.instruction, 'Build docs.\n\nCreate durable docs.');
   assert.deepEqual(request.paths, ['docs/worker-a']);
   assert.equal(stableJson({ z: 2, a: { y: 2, x: 1 } }), '{"a":{"x":1,"y":2},"z":2}');
@@ -134,7 +131,17 @@ test('basic payload, timestamp, identifier, branch, and SHA validators fail clos
   assert.equal(validateIdentifier('executor:host-1', 'worker'), 'executor:host-1');
   assert.throws(() => validateIdentifier('bad worker', 'worker'), /Invalid worker/);
   assert.equal(validateBranch('factory/run/worker', 'branch'), 'factory/run/worker');
-  for (const value of ['', '/bad', '-bad', 'bad/', 'bad.', 'bad..x', 'bad@{x', 'bad//x', 'bad\\x']) {
+  for (const value of [
+    '',
+    '/bad',
+    '-bad',
+    'bad/',
+    'bad.',
+    'bad..x',
+    'bad@{x',
+    'bad//x',
+    'bad\\x',
+  ]) {
     assert.throws(() => validateBranch(value, 'branch'), /Invalid branch/);
   }
   assert.equal(validateSha40(SHA_A.toUpperCase(), 'sha'), SHA_A);
@@ -149,7 +156,10 @@ test('runtime scopes allow descendants and reject traversal or protected parents
   assert.equal(runtimePathWithinScope('docs/other.md', 'docs/worker'), false);
   assert.equal(runtimePathWithinScope('.github/workflows/escape.yml', 'docs'), false);
   assert.equal(
-    runtimeChangedFilesWithinScope(['docs/worker/a.md', 'docs/worker/nested/b.md'], ['docs/worker']),
+    runtimeChangedFilesWithinScope(
+      ['docs/worker/a.md', 'docs/worker/nested/b.md'],
+      ['docs/worker'],
+    ),
     true,
   );
   assert.equal(runtimeChangedFilesWithinScope([], ['docs']), false);
@@ -197,11 +207,16 @@ test('provider health is fresh, sanitized, and selected by health then zero-firs
   );
 
   const bothHealthy = validateHealthPayload(
-    { providers: [observation('antigravity', 'healthy'), observation('opencode_ollama', 'healthy')] },
+    {
+      providers: [observation('antigravity', 'healthy'), observation('opencode_ollama', 'healthy')],
+    },
     NOW,
   );
   assert.equal(
-    selectDurableProvider(task({ preferredProviders: ['antigravity', 'opencode_ollama'] }), bothHealthy),
+    selectDurableProvider(
+      task({ preferredProviders: ['antigravity', 'opencode_ollama'] }),
+      bothHealthy,
+    ),
     'opencode_ollama',
   );
   assert.equal(selectDurableProvider(task({ preferredProviders: ['jules'] }), bothHealthy), null);
