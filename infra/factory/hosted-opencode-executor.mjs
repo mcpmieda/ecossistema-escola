@@ -186,19 +186,16 @@ function parseProviderCandidate(result) {
     fail('Durable provider agent returned invalid JSON.');
   }
   if (payload?.candidate !== 'provider-result' || !payload?.result) {
-    fail(`Durable provider agent did not return a provider-result candidate (exit ${result.status}).`);
+    fail(
+      `Durable provider agent did not return a provider-result candidate (exit ${result.status}).`,
+    );
   }
   return payload;
 }
 
 async function checkoutWorkerBranch(lease) {
   const branch = lease.working_branch;
-  git(
-    'fetch',
-    '--no-tags',
-    'origin',
-    `refs/heads/${branch}:refs/remotes/origin/${branch}`,
-  );
+  git('fetch', '--no-tags', 'origin', `refs/heads/${branch}:refs/remotes/origin/${branch}`);
   git('checkout', '--force', '-B', branch, `refs/remotes/origin/${branch}`);
   git('config', 'user.name', 'github-actions[bot]');
   git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com');
