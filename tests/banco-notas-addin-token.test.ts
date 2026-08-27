@@ -10,7 +10,8 @@ import {
 } from '../server/auth/entra-access-token';
 
 const tenantId = '11111111-1111-4111-8111-111111111111';
-const audience = 'api://banco-notas-addin';
+const audience = '12111111-1111-4111-8111-111111111111';
+const authorizedParty = audience;
 const requiredScope = 'BancoNotas.Sync';
 const now = 2_000_000_000;
 const kid = 'test-signing-key';
@@ -35,6 +36,7 @@ beforeAll(async () => {
 async function token(overrides: Record<string, unknown> = {}): Promise<string> {
   const header = encodeJson({ alg: 'RS256', kid });
   const payload = encodeJson({
+    ver: '2.0',
     aud: audience,
     iss: `https://login.microsoftonline.com/${tenantId}/v2.0`,
     tid: tenantId,
@@ -44,6 +46,8 @@ async function token(overrides: Record<string, unknown> = {}): Promise<string> {
     nbf: now - 30,
     iat: now - 30,
     scp: `openid ${requiredScope}`,
+    azp: authorizedParty,
+    azpacr: '0',
     ...overrides,
   });
   const signature = await crypto.subtle.sign(
@@ -65,6 +69,7 @@ function verify(authorization: string | null, customFetcher: typeof fetch = fetc
     authorization,
     tenantId,
     audience,
+    authorizedParty,
     requiredScope,
     now,
     fetcher: customFetcher,
@@ -72,28 +77,49 @@ function verify(authorization: string | null, customFetcher: typeof fetch = fetc
 }
 
 describe('Banco de Notas add-in Microsoft Entra bearer', () => {
-  it('accepts a valid delegated access token with the exact audience and scope', async () => {
+  it('accepts a valid delegated v2 token for the exact API and self-preauthorized NAA client', async () => {
     const claims = await verify(`Bearer ${await token()}`);
     expect(claims.oid).toBe('22222222-2222-4222-8222-222222222222');
+    expect(claims.aud).toBe(audience);
+    expect(claims.azp).toBe(authorizedParty);
     expect(claims.scp.split(' ')).toContain(requiredScope);
   });
 
-  it('rejects a token issued for another audience', async () => {
-    await expect(verify(`Bearer ${await token({ aud: 'api://other' })}`)).rejects.toBeInstanceOf(
+  it('rejects a token whose v2 audience is a resource URI, array or another API', async () => {
+    await expect(
+      verify(`Bearer ${await token({ aud: `api://${audience}` })}`),
+    ).rejects.toBeInstanceOf(BearerAuthenticationError);
+    await expect(verify(`Bearer ${await token({ aud: [audience] })}`)).rejects.toBeInstanceOf(
       BearerAuthenticationError,
     );
+    await expect(
+      verify(`Bearer ${await token({ aud: '13111111-1111-4111-8111-111111111111' })}`),
+    ).rejects.toBeInstanceOf(BearerAuthenticationError);
   });
 
-  it('supports an audience array and rejects incorrect issuer or tenant', async () => {
-    await expect(
-      verify(`Bearer ${await token({ aud: ['api://other', audience] })}`),
-    ).resolves.toBeDefined();
+  it('rejects incorrect issuer, tenant or token version', async () => {
     await expect(
       verify(`Bearer ${await token({ iss: 'https://issuer.invalid/example' })}`),
     ).rejects.toBeInstanceOf(BearerAuthenticationError);
     await expect(
       verify(`Bearer ${await token({ tid: '33333333-3333-4333-8333-333333333333' })}`),
     ).rejects.toBeInstanceOf(BearerAuthenticationError);
+    await expect(verify(`Bearer ${await token({ ver: '1.0' })}`)).rejects.toBeInstanceOf(
+      BearerAuthenticationError,
+    );
+  });
+
+  it('rejects an unauthorized client application and confidential-client drift', async () => {
+    await expect(
+      verify(`Bearer ${await token({ azp: '14111111-1111-4111-8111-111111111111' })}`),
+    ).rejects.toBeInstanceOf(BearerAuthorizationError);
+    await expect(verify(`Bearer ${await token({ azpacr: '1' })}`)).rejects.toBeInstanceOf(
+      BearerAuthorizationError,
+    );
+    await expect(verify(`Bearer ${await token({ azpacr: '2' })}`)).rejects.toBeInstanceOf(
+      BearerAuthorizationError,
+    );
+    await expect(verify(`Bearer ${await token({ azpacr: undefined })}`)).resolves.toBeDefined();
   });
 
   it('rejects a valid identity without the delegated sync scope', async () => {
@@ -102,8 +128,11 @@ describe('Banco de Notas add-in Microsoft Entra bearer', () => {
     );
   });
 
-  it('rejects expired tokens and malformed authorization headers', async () => {
+  it('rejects expired tokens, missing actor and malformed authorization headers', async () => {
     await expect(verify(`Bearer ${await token({ exp: now })}`)).rejects.toBeInstanceOf(
+      BearerAuthenticationError,
+    );
+    await expect(verify(`Bearer ${await token({ azp: undefined })}`)).rejects.toBeInstanceOf(
       BearerAuthenticationError,
     );
     await expect(verify('Basic abc')).rejects.toBeInstanceOf(BearerAuthenticationError);
@@ -126,8 +155,9 @@ describe('Banco de Notas add-in Microsoft Entra bearer', () => {
     const tokenParts = validToken.split('.');
     const signature = tokenParts[2]!;
     tokenParts[2] = `${signature.startsWith('a') ? 'b' : 'a'}${signature.slice(1)}`;
-    const tampered = tokenParts.join('.');
-    await expect(verify(`Bearer ${tampered}`)).rejects.toBeInstanceOf(BearerAuthenticationError);
+    await expect(verify(`Bearer ${tokenParts.join('.')}`)).rejects.toBeInstanceOf(
+      BearerAuthenticationError,
+    );
   });
 
   it('treats JWKS transport and provider failures as temporarily unavailable, not bad credentials', async () => {
@@ -153,22 +183,22 @@ describe('Banco de Notas add-in Microsoft Entra bearer', () => {
     );
   });
 
-  it('fails closed with 503 semantics when audience or scope is not configured', async () => {
-    await expect(
-      verifyBancoNotasAddinToken({
-        authorization: `Bearer ${await token()}`,
-        env: { TENANT_ID: tenantId } as never,
-        now,
-        fetcher,
-      }),
-    ).rejects.toMatchObject({ status: 503 });
-    await expect(
-      verifyBancoNotasAddinToken({
-        authorization: `Bearer ${await token()}`,
-        env: { TENANT_ID: tenantId } as never,
-        now,
-        fetcher,
-      }),
-    ).rejects.toBeInstanceOf(BearerConfigurationError);
+  it('fails closed with 503 semantics when audience or scope is missing or malformed', async () => {
+    const authorization = `Bearer ${await token()}`;
+    for (const env of [
+      { TENANT_ID: tenantId },
+      {
+        TENANT_ID: tenantId,
+        BANCO_NOTAS_ADDIN_AUDIENCE: `api://${audience}`,
+        BANCO_NOTAS_ADDIN_SCOPE: requiredScope,
+      },
+    ]) {
+      await expect(
+        verifyBancoNotasAddinToken({ authorization, env: env as never, now, fetcher }),
+      ).rejects.toMatchObject({ status: 503 });
+      await expect(
+        verifyBancoNotasAddinToken({ authorization, env: env as never, now, fetcher }),
+      ).rejects.toBeInstanceOf(BearerConfigurationError);
+    }
   });
 });

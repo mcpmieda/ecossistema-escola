@@ -22,12 +22,14 @@ const envExample = readFileSync(join(root, '.env.example'), 'utf8');
 const applicationClientId = '11111111-1111-4111-8111-111111111111';
 
 describe('Banco de Notas Entra add-in homologation contract', () => {
-  it('resolves an exact single-tenant NAA audience and delegated scope', () => {
+  it('separates the v2 token audience from the resource scope URI', () => {
     const parsed = bancoNotasAddinEntraContractSchema.parse(contract);
     const resolved = resolveBancoNotasAddinEntraContract(parsed, applicationClientId);
 
     expect(resolved.signInAudience).toBe('AzureADMyOrg');
-    expect(resolved.audience).toBe(`api://${applicationClientId}`);
+    expect(resolved.resourceApplicationIdUri).toBe(`api://${applicationClientId}`);
+    expect(resolved.tokenAudience).toBe(applicationClientId);
+    expect(resolved.authorizedParty).toBe(applicationClientId);
     expect(resolved.delegatedScope).toMatchObject({
       value: 'BancoNotas.Sync',
       type: 'Admin',
@@ -67,14 +69,17 @@ describe('Banco de Notas Entra add-in homologation contract', () => {
     ).toThrow();
   });
 
-  it('keeps provisioning plan-only by default and credential-free', () => {
+  it('keeps provisioning plan-only, least-privileged and credential-free', () => {
     expect(provisioningScript).toContain('[switch] $Apply');
     expect(provisioningScript).toContain("'Application.Read.All'");
     expect(provisioningScript).toContain("'Application.ReadWrite.All'");
+    expect(provisioningScript).not.toContain("'Directory.Read.All'");
     expect(provisioningScript).toContain('-ContextScope Process');
     expect(provisioningScript).toContain('credentialsCreated           = $false');
     expect(provisioningScript).toContain('graphPermissionsRequested    = @()');
     expect(provisioningScript).toContain('requiredResourceAccess = @()');
+    expect(provisioningScript).toContain('tokenAudience');
+    expect(provisioningScript).toContain('authorizedParty');
     expect(provisioningScript).not.toContain('/addPassword');
     expect(provisioningScript).not.toContain('client_secret');
     expect(provisioningScript).not.toContain('passwordCredential =');

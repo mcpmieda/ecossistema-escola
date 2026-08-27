@@ -43,7 +43,9 @@ export type BancoNotasAddinEntraContract = z.infer<typeof bancoNotasAddinEntraCo
 
 export type ResolvedBancoNotasAddinEntraContract = BancoNotasAddinEntraContract & {
   applicationClientId: string;
-  audience: string;
+  resourceApplicationIdUri: string;
+  tokenAudience: string;
+  authorizedParty: string;
   requestedScope: string;
   spaRedirectUris: string[];
 };
@@ -55,13 +57,15 @@ export function resolveBancoNotasAddinEntraContract(
   const contract = bancoNotasAddinEntraContractSchema.parse(contractInput);
   const clientId = z.string().uuid().parse(applicationClientId);
   const replaceClientId = (value: string) => value.replaceAll(applicationClientIdToken, clientId);
-  const audience = replaceClientId(contract.identifierUriTemplate);
+  const resourceApplicationIdUri = replaceClientId(contract.identifierUriTemplate);
 
   return {
     ...contract,
     applicationClientId: clientId,
-    audience,
-    requestedScope: `${audience}/${contract.delegatedScope.value}`,
+    resourceApplicationIdUri,
+    tokenAudience: clientId,
+    authorizedParty: clientId,
+    requestedScope: `${resourceApplicationIdUri}/${contract.delegatedScope.value}`,
     spaRedirectUris: contract.spaRedirectUriTemplates.map(replaceClientId),
   };
 }

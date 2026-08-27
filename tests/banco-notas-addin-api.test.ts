@@ -64,7 +64,7 @@ class SqliteD1 {
 }
 
 const tenantId = testEnv.TENANT_ID;
-const audience = 'api://banco-notas-addin-homologation';
+const audience = '12111111-1111-4111-8111-111111111111';
 const scope = 'BancoNotas.Sync';
 const ownerOid = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const otherOid = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -103,6 +103,7 @@ beforeAll(async () => {
 async function token(overrides: Record<string, unknown> = {}): Promise<string> {
   const header = encodeJson({ alg: 'RS256', kid });
   const payload = encodeJson({
+    ver: '2.0',
     aud: audience,
     iss: `https://login.microsoftonline.com/${tenantId}/v2.0`,
     tid: tenantId,
@@ -112,6 +113,8 @@ async function token(overrides: Record<string, unknown> = {}): Promise<string> {
     nbf: now - 30,
     iat: now - 30,
     scp: `openid ${scope}`,
+    azp: audience,
+    azpacr: '0',
     ...overrides,
   });
   const signature = await crypto.subtle.sign(
@@ -250,6 +253,20 @@ describe('Banco de Notas sealed add-in ingestion boundary', () => {
     await expect(route(current, await request(input(), { oid: otherOid }))).rejects.toMatchObject({
       status: 403,
       message: 'teacher_model_not_owned',
+    });
+    expect(
+      current.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get(),
+    ).toMatchObject({ total: 0 });
+  });
+
+  it('rejects a token requested by another client application before persistence', async () => {
+    const current = runtime();
+
+    await expect(
+      route(current, await request(input(), { azp: otherOid })),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: 'Client application is not authorized',
     });
     expect(
       current.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get(),

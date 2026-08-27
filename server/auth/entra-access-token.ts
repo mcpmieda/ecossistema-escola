@@ -2,25 +2,31 @@ import { z } from 'zod';
 import type { RuntimeEnv } from '../env';
 import { decodeBase64Url, decodeJson } from './base64url';
 
+const uuidSchema = z.string().uuid();
+
 const jwtHeaderSchema = z.object({
   alg: z.literal('RS256'),
   kid: z.string().min(1),
 });
 
 const accessTokenClaimsSchema = z.object({
-  aud: z.union([z.string().min(1), z.array(z.string().min(1)).min(1)]),
+  ver: z.literal('2.0'),
+  aud: uuidSchema,
   iss: z.string().url(),
-  tid: z.string().uuid(),
-  oid: z.string().uuid(),
+  tid: uuidSchema,
+  oid: uuidSchema,
   sub: z.string().min(1),
   exp: z.number(),
   nbf: z.number().optional(),
   iat: z.number().optional(),
   scp: z.string().min(1),
-  azp: z.string().optional(),
+  azp: uuidSchema,
+  azpacr: z.enum(['0', '1', '2']).optional(),
   preferred_username: z.string().optional(),
   name: z.string().optional(),
 });
+
+const configuredScopeSchema = z.string().min(3).max(120).regex(/^\S+$/u);
 
 const jwksSchema = z.object({
   keys: z.array(
@@ -83,6 +89,7 @@ export async function verifyMicrosoftEntraAccessToken(args: {
   authorization: string | null;
   tenantId: string;
   audience: string;
+  authorizedParty: string;
   requiredScope: string;
   now?: number;
   fetcher?: typeof fetch;
@@ -153,12 +160,17 @@ export async function verifyMicrosoftEntraAccessToken(args: {
 
   const now = args.now ?? Math.floor(Date.now() / 1000);
   const issuer = `https://login.microsoftonline.com/${args.tenantId}/v2.0`;
-  const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-  if (claims.tid !== args.tenantId || claims.iss !== issuer || !audiences.includes(args.audience)) {
+  if (claims.tid !== args.tenantId || claims.iss !== issuer || claims.aud !== args.audience) {
     throw new BearerAuthenticationError('Invalid access token authority');
   }
   if (claims.exp <= now || (claims.nbf !== undefined && claims.nbf > now + 60)) {
     throw new BearerAuthenticationError('Invalid access token lifetime');
+  }
+  if (claims.azp !== args.authorizedParty) {
+    throw new BearerAuthorizationError('Client application is not authorized');
+  }
+  if (claims.azpacr !== undefined && claims.azpacr !== '0') {
+    throw new BearerAuthorizationError('Confidential client tokens are not accepted');
   }
 
   const scopes = new Set(claims.scp.split(/\s+/u).filter(Boolean));
@@ -174,16 +186,17 @@ export async function verifyBancoNotasAddinToken(args: {
   now?: number;
   fetcher?: typeof fetch;
 }): Promise<EntraAccessTokenClaims> {
-  const audience = args.env.BANCO_NOTAS_ADDIN_AUDIENCE;
-  const requiredScope = args.env.BANCO_NOTAS_ADDIN_SCOPE;
-  if (!audience || !requiredScope) {
+  const audience = uuidSchema.safeParse(args.env.BANCO_NOTAS_ADDIN_AUDIENCE);
+  const requiredScope = configuredScopeSchema.safeParse(args.env.BANCO_NOTAS_ADDIN_SCOPE);
+  if (!audience.success || !requiredScope.success) {
     throw new BearerConfigurationError('Banco de Notas add-in identity is not configured');
   }
   return verifyMicrosoftEntraAccessToken({
     authorization: args.authorization,
     tenantId: args.env.TENANT_ID,
-    audience,
-    requiredScope,
+    audience: audience.data,
+    authorizedParty: audience.data,
+    requiredScope: requiredScope.data,
     now: args.now,
     fetcher: args.fetcher,
   });

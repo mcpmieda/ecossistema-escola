@@ -168,7 +168,7 @@ function Assert-ExistingApplicationBoundary {
         $Contract,
 
         [Parameter(Mandatory)]
-        [string] $Audience
+        [string] $ResourceApplicationIdUri
     )
 
     if ($Application.signInAudience -ne $Contract.signInAudience) {
@@ -187,7 +187,7 @@ function Assert-ExistingApplicationBoundary {
     Assert-ExactSet `
         -Name 'identifierUris' `
         -Actual @($Application.identifierUris) `
-        -Expected @($Audience) `
+        -Expected @($ResourceApplicationIdUri) `
         -AllowEmptyActual
 
     Assert-ExactSet `
@@ -240,10 +240,10 @@ Ensure-MicrosoftGraphAuthentication
 Import-Module Microsoft.Graph.Authentication
 
 $scopes = if ($Apply) {
-    @('Application.ReadWrite.All', 'Directory.Read.All')
+    @('Application.ReadWrite.All')
 }
 else {
-    @('Application.Read.All', 'Directory.Read.All')
+    @('Application.Read.All')
 }
 
 Write-Host ''
@@ -283,20 +283,22 @@ try {
 
     if (-not $application) {
         $plan = [ordered]@{
-            status                       = 'plan-ready-application-missing'
-            apply                        = $false
-            tenantId                     = $TenantId
-            displayName                  = $contract.displayName
-            applicationClientId          = $null
-            audienceTemplate             = $contract.identifierUriTemplate
-            delegatedScopeValue          = $contract.delegatedScope.value
-            requestedScopeTemplate       = "$($contract.identifierUriTemplate)/$($contract.delegatedScope.value)"
-            spaRedirectUris              = @($contract.spaRedirectUriTemplates)
-            changes                      = @($changes)
-            credentialsCreated           = $false
-            graphPermissionsRequested    = @()
-            publicRouteEnabled           = $false
-            syncEnabled                  = $false
+            status                           = 'plan-ready-application-missing'
+            apply                            = $false
+            tenantId                         = $TenantId
+            displayName                      = $contract.displayName
+            applicationClientId              = $null
+            resourceApplicationIdUriTemplate = $contract.identifierUriTemplate
+            tokenAudience                    = $null
+            authorizedParty                  = $null
+            delegatedScopeValue              = $contract.delegatedScope.value
+            requestedScopeTemplate           = "$($contract.identifierUriTemplate)/$($contract.delegatedScope.value)"
+            spaRedirectUris                  = @($contract.spaRedirectUriTemplates)
+            changes                          = @($changes)
+            credentialsCreated               = $false
+            graphPermissionsRequested        = @()
+            publicRouteEnabled               = $false
+            syncEnabled                      = $false
         }
         $plan | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $EvidencePath -Encoding utf8
         $plan
@@ -308,11 +310,13 @@ try {
         throw 'Microsoft Graph não retornou um appId válido.'
     }
 
-    $audience = $contract.identifierUriTemplate.Replace('{applicationClientId}', $application.appId)
+    $resourceApplicationIdUri = $contract.identifierUriTemplate.Replace('{applicationClientId}', $application.appId)
+    $tokenAudience = [string] $application.appId
+    $authorizedParty = [string] $application.appId
     Assert-ExistingApplicationBoundary `
         -Application $application `
         -Contract $contract `
-        -Audience $audience
+        -ResourceApplicationIdUri $resourceApplicationIdUri
 
     $scope = @($application.api.oauth2PermissionScopes) |
         Where-Object { $_.value -eq $contract.delegatedScope.value } |
@@ -348,7 +352,7 @@ try {
             -Method PATCH `
             -Path "/applications/$($application.id)" `
             -Body @{
-                identifierUris = @($audience)
+                identifierUris = @($resourceApplicationIdUri)
                 spa = @{
                     redirectUris = @($contract.spaRedirectUriTemplates)
                 }
@@ -381,7 +385,7 @@ try {
         Assert-ExistingApplicationBoundary `
             -Application $application `
             -Contract $contract `
-            -Audience $audience
+            -ResourceApplicationIdUri $resourceApplicationIdUri
 
         $verifiedScope = @($application.api.oauth2PermissionScopes) |
             Where-Object { $_.value -eq $contract.delegatedScope.value } |
@@ -407,9 +411,11 @@ try {
         displayName                  = $contract.displayName
         applicationCreated           = $applicationCreated
         applicationClientId          = $application.appId
-        audience                     = $audience
+        resourceApplicationIdUri     = $resourceApplicationIdUri
+        tokenAudience                = $tokenAudience
+        authorizedParty              = $authorizedParty
         delegatedScopeValue          = $contract.delegatedScope.value
-        requestedScope               = "$audience/$($contract.delegatedScope.value)"
+        requestedScope               = "$resourceApplicationIdUri/$($contract.delegatedScope.value)"
         consentType                  = $contract.delegatedScope.type
         spaRedirectUris              = @($contract.spaRedirectUriTemplates)
         changes                      = @($changes)
