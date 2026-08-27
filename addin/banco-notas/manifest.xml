@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="TaskPaneApp">
+  <Id>af34971f-b05f-4b52-8048-71f36b40c9fb</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Escola IEDA</ProviderName>
+  <DefaultLocale>pt-BR</DefaultLocale>
+  <DisplayName DefaultValue="Banco de Notas"/>
+  <Description DefaultValue="Modelo do professor conectado ao Banco de Notas institucional."/>
+  <IconUrl DefaultValue="https://admin.escolaieda.com/banco-de-notas/addin/assets/icon.png"/>
+  <HighResolutionIconUrl DefaultValue="https://admin.escolaieda.com/banco-de-notas/addin/assets/icon.png"/>
+  <SupportUrl DefaultValue="https://admin.escolaieda.com/banco-de-notas"/>
+  <AppDomains>
+    <AppDomain>https://admin.escolaieda.com</AppDomain>
+    <AppDomain>https://login.microsoftonline.com</AppDomain>
+  </AppDomains>
+  <Hosts><Host Name="Workbook"/></Hosts>
+  <DefaultSettings><SourceLocation DefaultValue="https://admin.escolaieda.com/banco-de-notas/addin/taskpane.html"/></DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <GetStarted>
+            <Title resid="GetStarted.Title"/>
+            <Description resid="GetStarted.Description"/>
+            <LearnMoreUrl resid="GetStarted.LearnMoreUrl"/>
+          </GetStarted>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="BancoNotas.Group">
+                <Label resid="BancoNotas.Group.Label"/>
+                <Icon><bt:Image size="16" resid="Icon.16"/><bt:Image size="32" resid="Icon.32"/><bt:Image size="80" resid="Icon.80"/></Icon>
+                <Control xsi:type="Button" id="BancoNotas.Open">
+                  <Label resid="BancoNotas.Open.Label"/>
+                  <Supertip><Title resid="BancoNotas.Open.Label"/><Description resid="BancoNotas.Open.Tooltip"/></Supertip>
+                  <Icon><bt:Image size="16" resid="Icon.16"/><bt:Image size="32" resid="Icon.32"/><bt:Image size="80" resid="Icon.80"/></Icon>
+                  <Action xsi:type="ShowTaskpane"><TaskpaneId>BancoNotas.Taskpane</TaskpaneId><SourceLocation resid="BancoNotas.Taskpane.Url"/></Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images><bt:Image id="Icon.16" DefaultValue="https://admin.escolaieda.com/banco-de-notas/addin/assets/icon.png"/><bt:Image id="Icon.32" DefaultValue="https://admin.escolaieda.com/banco-de-notas/addin/assets/icon.png"/><bt:Image id="Icon.80" DefaultValue="https://admin.escolaieda.com/banco-de-notas/addin/assets/icon.png"/></bt:Images>
+      <bt:Urls><bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://admin.escolaieda.com/banco-de-notas"/><bt:Url id="BancoNotas.Taskpane.Url" DefaultValue="https://admin.escolaieda.com/banco-de-notas/addin/taskpane.html"/></bt:Urls>
+      <bt:ShortStrings><bt:String id="GetStarted.Title" DefaultValue="Banco de Notas"/><bt:String id="BancoNotas.Group.Label" DefaultValue="Banco de Notas"/><bt:String id="BancoNotas.Open.Label" DefaultValue="Abrir Banco"/></bt:ShortStrings>
+      <bt:LongStrings><bt:String id="GetStarted.Description" DefaultValue="Conecte este modelo ao Banco de Notas institucional."/><bt:String id="BancoNotas.Open.Tooltip" DefaultValue="Abrir o painel seguro do Banco de Notas."/></bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Banco de Notas</title>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Ecossistema Escola</p>
+        <h1>Banco de Notas</h1>
+        <p>Identidade institucional do modelo vinculado.</p>
+      </header>
+      <section class="card" aria-labelledby="identity-title">
+        <h2 id="identity-title">Autenticação</h2>
+        <dl>
+          <div>
+            <dt>Office</dt>
+            <dd id="office-state">Inicializando…</dd>
+          </div>
+          <div>
+            <dt>NAA 1.1</dt>
+            <dd id="naa-state">Verificando…</dd>
+          </div>
+          <div>
+            <dt>Conta</dt>
+            <dd id="account-state">Verificando…</dd>
+          </div>
+        </dl>
+        <p id="status" role="status">Aguardando o Office.</p>
+        <button id="connect" type="button" disabled>Conectar ao Banco</button>
+      </section>
+      <details>
+        <summary>Diagnóstico sanitizado</summary>
+        <pre id="diagnostic"></pre>
+      </details>
+      <p class="privacy">Tokens e dados pessoais não são exibidos nem gravados.</p>
+    </main>
+    <script type="module" src="./taskpane.ts"></script>
+  </body>
+</html>

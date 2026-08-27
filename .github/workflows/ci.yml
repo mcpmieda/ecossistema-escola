@@ -49,6 +49,9 @@ jobs:
       - name: Validate semantic contract
         run: npm run semantic:check
 
+      - name: Validate Banco de Notas add-in manifest
+        run: npm run validate:addin-manifest
+
       - name: Test
         run: npm test
 

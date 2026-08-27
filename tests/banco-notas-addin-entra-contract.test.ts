@@ -38,9 +38,13 @@ describe('Banco de Notas Entra add-in homologation contract', () => {
     expect(resolved.requestedScope).toBe(`api://${applicationClientId}/BancoNotas.Sync`);
     expect(resolved.spaRedirectUris).toEqual([
       'brk-multihub://admin.escolaieda.com',
-      'https://admin.escolaieda.com/banco-de-notas/addin/taskpane.html',
+      'https://admin.escolaieda.com/banco-de-notas/addin/auth.html',
     ]);
-    expect(resolved.requiredResourceAccess).toEqual([]);
+    expect(resolved.requiredResourceAccessResolved).toEqual({
+      resourceAppId: applicationClientId,
+      delegatedPermissionValue: 'BancoNotas.Sync',
+      type: 'Scope',
+    });
     expect(resolved.credentials).toBe('none');
     expect(resolved.publicRouteEnabled).toBe(false);
     expect(resolved.syncEnabled).toBe(false);
@@ -64,7 +68,10 @@ describe('Banco de Notas Entra add-in homologation contract', () => {
     expect(() =>
       bancoNotasAddinEntraContractSchema.parse({
         ...parsed,
-        requiredResourceAccess: [{ resourceAppId: 'graph' }],
+        requiredResourceAccess: {
+          ...parsed.requiredResourceAccess,
+          resourceAppIdTemplate: '00000003-0000-0000-c000-000000000000',
+        },
       }),
     ).toThrow();
   });
@@ -77,7 +84,9 @@ describe('Banco de Notas Entra add-in homologation contract', () => {
     expect(provisioningScript).toContain('-ContextScope Process');
     expect(provisioningScript).toContain('credentialsCreated           = $false');
     expect(provisioningScript).toContain('graphPermissionsRequested    = @()');
-    expect(provisioningScript).toContain('requiredResourceAccess = @()');
+    expect(provisioningScript).toContain("type = 'Scope'");
+    expect(provisioningScript).toContain('resourceAppId = $application.appId');
+    expect(provisioningScript).toContain('set_self_delegated_resource_access');
     expect(provisioningScript).toContain('tokenAudience');
     expect(provisioningScript).toContain('authorizedParty');
     expect(provisioningScript).not.toContain('/addPassword');

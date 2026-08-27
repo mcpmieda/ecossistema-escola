@@ -102,6 +102,10 @@
     {
       "id": "BN-INV-017",
       "statement": "A transformação de legado é geral para qualquer professor e nenhuma regra de produção depende de nomes, número ou ordem de abas, turmas, disciplinas, endereços de célula ou particularidades dos golden masters privados."
+    },
+    {
+      "id": "BN-INV-018",
+      "statement": "O add-in usa NAA credential-free com redirect broker por origin, página de retorno dedicada e token v2 delegado; access token, UPN, email e OID completo nunca entram em logs ou evidências."
     }
   ],
   "data_contracts": [
@@ -292,6 +296,20 @@
         "cada nova instância inicia SyncEnabled=false até reconciliação individual"
       ],
       "verification": ["test", "integration", "security"]
+    },
+    {
+      "id": "BN-AC-012",
+      "priority": "must",
+      "given": "um workbook aberto do SharePoint Online ou OneDrive no Excel Online e a conta institucional coerente com o tenant",
+      "when": "o add-in solicita api://<application-client-id>/BancoNotas.Sync por Nested App Authentication",
+      "then": [
+        "a task pane confirma NestedAppAuth 1.1 e usa uma página auth.html dedicada para o retorno MSAL",
+        "um access token v2 real é adquirido sem client secret ou certificado",
+        "aud e azp correspondem ao application client ID GUID e scp contém BancoNotas.Sync",
+        "tenant, issuer, lifetime, OID presente e public-client drift são validados",
+        "a evidência sanitizada não contém token, UPN, email nem OID completo"
+      ],
+      "verification": ["test", "browser", "security"]
     }
   ]
 }

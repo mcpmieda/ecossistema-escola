@@ -31,7 +31,14 @@ export const bancoNotasAddinEntraContractSchema = z
         'an HTTPS taskpane redirect is required',
       ),
     preAuthorizeSelf: z.literal(true),
-    requiredResourceAccess: z.tuple([]),
+    requiredResourceAccess: z
+      .object({
+        mode: z.literal('self-delegated-scope'),
+        resourceAppIdTemplate: z.literal(applicationClientIdToken),
+        delegatedPermissionValue: z.string().regex(/^[A-Za-z][A-Za-z0-9.]{2,119}$/u),
+        type: z.literal('Scope'),
+      })
+      .strict(),
     allowPublicClientFlows: z.literal(false),
     credentials: z.literal('none'),
     publicRouteEnabled: z.literal(false),
@@ -48,6 +55,11 @@ export type ResolvedBancoNotasAddinEntraContract = BancoNotasAddinEntraContract 
   authorizedParty: string;
   requestedScope: string;
   spaRedirectUris: string[];
+  requiredResourceAccessResolved: {
+    resourceAppId: string;
+    delegatedPermissionValue: string;
+    type: 'Scope';
+  };
 };
 
 export function resolveBancoNotasAddinEntraContract(
@@ -67,5 +79,10 @@ export function resolveBancoNotasAddinEntraContract(
     authorizedParty: clientId,
     requestedScope: `${resourceApplicationIdUri}/${contract.delegatedScope.value}`,
     spaRedirectUris: contract.spaRedirectUriTemplates.map(replaceClientId),
+    requiredResourceAccessResolved: {
+      resourceAppId: replaceClientId(contract.requiredResourceAccess.resourceAppIdTemplate),
+      delegatedPermissionValue: contract.requiredResourceAccess.delegatedPermissionValue,
+      type: contract.requiredResourceAccess.type,
+    },
   };
 }

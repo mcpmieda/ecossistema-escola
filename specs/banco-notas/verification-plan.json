@@ -100,6 +100,12 @@
       "name": "Generic model and private golden-master isolation",
       "method": "fixtures sintéticas estruturalmente variadas + inspeção de dependências nominais + regressão privada externa Nina/Alanna sem publicação dos arquivos",
       "required": true
+    },
+    {
+      "id": "BN-V-017",
+      "name": "NAA real token proof",
+      "method": "Excel Online em workbook SharePoint/OneDrive + diagnóstico sanitizado NAA_TOKEN_PROOF_PASSED + regressão de config/manifest/headers/backend",
+      "required": true
     }
   ],
   "scenario_matrix": [
@@ -127,7 +133,8 @@
     "viewport móvel",
     "duas origens sintéticas com nomes, ordem e quantidade de abas diferentes geram instâncias do mesmo modelo genérico",
     "origem incompleta produz finding explícito em vez de fallback Nina/Alanna",
-    "golden masters privados ausentes do Git, bundle, D1, migrations, fixtures públicas e SharePoint definitivo"
+    "golden masters privados ausentes do Git, bundle, D1, migrations, fixtures públicas e SharePoint definitivo",
+    "NAA ssoSilent com redirect bridge dedicado retorna token v2 válido sem gravar token ou PII"
   ],
   "data_policy": {
     "git": "somente fixtures sintéticas e contratos; nenhum nome/nota real",

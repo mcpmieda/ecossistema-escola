@@ -104,6 +104,24 @@ function Assert-ExactSet {
     }
 }
 
+function Test-SelfRequiredResourceAccess {
+    param(
+        [Parameter(Mandatory)] $Application,
+        [Parameter(Mandatory)] [string] $ScopeId
+    )
+
+    $resources = @($Application.requiredResourceAccess)
+    if ($resources.Count -ne 1 -or $resources[0].resourceAppId -ne $Application.appId) {
+        return $false
+    }
+    $permissions = @($resources[0].resourceAccess)
+    return (
+        $permissions.Count -eq 1 -and
+        $permissions[0].type -eq 'Scope' -and
+        [string] $permissions[0].id -eq $ScopeId
+    )
+}
+
 function Assert-Contract {
     param(
         [Parameter(Mandatory)]
@@ -134,8 +152,13 @@ function Assert-Contract {
     if (-not $Contract.preAuthorizeSelf) {
         throw 'A app NAA deve preautorizar o próprio client ID para o scope do backend.'
     }
-    if (@($Contract.requiredResourceAccess).Count -ne 0) {
-        throw 'O add-in não deve receber permissões Graph no bloco de identidade do Banco de Notas.'
+    if (
+        $Contract.requiredResourceAccess.mode -ne 'self-delegated-scope' -or
+        $Contract.requiredResourceAccess.resourceAppIdTemplate -ne '{applicationClientId}' -or
+        $Contract.requiredResourceAccess.delegatedPermissionValue -ne $Contract.delegatedScope.value -or
+        $Contract.requiredResourceAccess.type -ne 'Scope'
+    ) {
+        throw 'requiredResourceAccess deve declarar somente o delegated scope da própria API.'
     }
     if ($Contract.allowPublicClientFlows) {
         throw 'Public client flows legados devem permanecer desligados.'
@@ -155,7 +178,7 @@ function Assert-Contract {
         throw 'Redirect brk-multihub obrigatório ausente.'
     }
     if (-not ($redirects | Where-Object { $_ -like 'https://*' })) {
-        throw 'Redirect HTTPS do taskpane obrigatório ausente.'
+        throw 'Redirect HTTPS dedicado de autenticação obrigatório ausente.'
     }
 }
 
@@ -176,9 +199,6 @@ function Assert-ExistingApplicationBoundary {
     }
     if (@($Application.passwordCredentials).Count -ne 0 -or @($Application.keyCredentials).Count -ne 0) {
         throw 'Aplicação existente possui credencial; o add-in SPA/NAA deve ser credential-free.'
-    }
-    if (@($Application.requiredResourceAccess).Count -ne 0) {
-        throw 'Aplicação existente possui permissões de recurso inesperadas.'
     }
     if ($Application.isFallbackPublicClient) {
         throw 'Aplicação existente habilita public client flow legado.'
@@ -216,6 +236,15 @@ function Assert-ExistingApplicationBoundary {
         ) {
             throw 'Delegated scope existente diverge do contrato fail-closed.'
         }
+        if (
+            @($Application.requiredResourceAccess).Count -ne 0 -and
+            -not (Test-SelfRequiredResourceAccess -Application $Application -ScopeId ([string] $scope.id))
+        ) {
+            throw 'Aplicação existente possui requiredResourceAccess diferente do próprio delegated scope.'
+        }
+    }
+    elseif (@($Application.requiredResourceAccess).Count -ne 0) {
+        throw 'Aplicação sem delegated scope não pode possuir requiredResourceAccess.'
     }
 
     $preAuthorized = @($Application.api.preAuthorizedApplications)
@@ -346,6 +375,9 @@ try {
     if ($application.api.requestedAccessTokenVersion -ne 2) {
         $changes.Add('set_access_token_version_2')
     }
+    if (-not (Test-SelfRequiredResourceAccess -Application $application -ScopeId $scopeId)) {
+        $changes.Add('set_self_delegated_resource_access')
+    }
 
     if ($Apply -and $changes.Count -gt 0) {
         Invoke-Graph `
@@ -377,7 +409,17 @@ try {
                         }
                     )
                 }
-                requiredResourceAccess = @()
+                requiredResourceAccess = @(
+                    @{
+                        resourceAppId = $application.appId
+                        resourceAccess = @(
+                            @{
+                                id   = $scopeId
+                                type = 'Scope'
+                            }
+                        )
+                    }
+                )
                 isFallbackPublicClient = $false
             } | Out-Null
 
@@ -402,6 +444,9 @@ try {
         if (-not $verifiedSelf) {
             throw 'Preautorização self não foi confirmada após o apply.'
         }
+        if (-not (Test-SelfRequiredResourceAccess -Application $application -ScopeId ([string] $verifiedScope.id))) {
+            throw 'requiredResourceAccess self delegated não foi confirmado após o apply.'
+        }
     }
 
     $result = [ordered]@{
@@ -421,6 +466,7 @@ try {
         changes                      = @($changes)
         credentialsCreated           = $false
         graphPermissionsRequested    = @()
+        selfDelegatedPermission      = $true
         publicRouteEnabled           = $false
         syncEnabled                  = $false
         nextGate                     = 'configure homologation env and validate a real delegated token before public routing'
