@@ -6,11 +6,16 @@ const root = process.cwd();
 const router = readFileSync(join(root, 'functions/[[path]].ts'), 'utf8');
 const env = readFileSync(join(root, 'server/env.ts'), 'utf8');
 const bearer = readFileSync(join(root, 'server/auth/entra-access-token.ts'), 'utf8');
+const addinApi = readFileSync(join(root, 'server/banco-notas/addin-api.ts'), 'utf8');
 
 describe('Banco de Notas add-in exposure gate', () => {
-  it('keeps grade-events handler disconnected from the public router before Entra provisioning', () => {
+  it('keeps the assembled bearer boundary disconnected before Entra provisioning', () => {
     expect(router).not.toContain('routeGradeEventsApi');
     expect(router).not.toContain('verifyBancoNotasAddinToken');
+    expect(router).not.toContain('routeBancoNotasAddinApi');
+    expect(addinApi).toContain('verifyBancoNotasAddinToken');
+    expect(addinApi).toContain('assertTeacherModelOwner');
+    expect(addinApi).toContain("input.source.kind !== 'excel-addin'");
   });
 
   it('prepares fail-closed audience and delegated scope configuration without inventing values', () => {
