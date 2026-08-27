@@ -23,4 +23,4 @@ export async function runBancoNotasRuntimeHomologation(args: {
   if (!response.ok) throw new Error(result.error ?? 'RUNTIME_HOMOLOGATION_FAILED');
   return result;
 }
-
+
