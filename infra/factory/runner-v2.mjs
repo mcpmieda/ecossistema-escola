@@ -1,6 +1,11 @@
 import process from 'node:process';
 
-import { FACTORY_LABELS } from './dispatch-policy.mjs';
+import {
+  DURABLE_PROVIDERS,
+  FACTORY_LABELS,
+  providerLabel,
+  selectedAutomaticProvider,
+} from './dispatch-policy.mjs';
 import { parseFactoryRunV2 } from './contract-v2.mjs';
 import {
   addComment,
@@ -33,6 +38,11 @@ import {
 const POLL_MS = 10_000;
 const MAX_RUNNER_CYCLES = 540;
 const CI_WORKFLOW = 'ci.yml';
+const PROVIDER_LABELS = [
+  FACTORY_LABELS.providerJules,
+  FACTORY_LABELS.providerAntigravity,
+  FACTORY_LABELS.providerOpenCode,
+];
 
 function repositoryParts() {
   const repository = requiredEnv('GITHUB_REPOSITORY');
@@ -90,6 +100,43 @@ export function dependenciesMerged(task, siblings, mergedEvidence) {
 export function isProcessableTaskState(labels) {
   const names = new Set(labelNames(labels));
   return names.has(FACTORY_LABELS.running) || names.has(FACTORY_LABELS.ci);
+}
+
+export function selectedProviderForTask(task, labels = []) {
+  const names = new Set(labelNames(labels));
+  if (names.has(FACTORY_LABELS.providerJules)) return 'jules';
+  if (names.has(FACTORY_LABELS.providerOpenCode)) return 'opencode_ollama';
+  if (names.has(FACTORY_LABELS.providerAntigravity)) return 'antigravity';
+  return selectedAutomaticProvider(task);
+}
+
+export function shouldProcessJulesTask(labels) {
+  return (
+    selectedProviderForTask({ preferredProviders: [] }, labels) === 'jules' &&
+    isProcessableTaskState(labels)
+  );
+}
+
+export function shouldPauseForDurableProviders(run, labelsByTask) {
+  let durablePending = false;
+  let julesActive = false;
+  for (const task of run.tasks ?? []) {
+    if ((task.humanGates ?? []).length > 0) continue;
+    const labels = labelsByTask.get(task.id) ?? [];
+    const names = new Set(labelNames(labels));
+    if (names.has(FACTORY_LABELS.merged) || names.has(FACTORY_LABELS.failed)) continue;
+    const provider = selectedProviderForTask(task, labels);
+    if (
+      provider === 'jules' &&
+      [FACTORY_LABELS.ready, FACTORY_LABELS.running, FACTORY_LABELS.ci].some((label) =>
+        names.has(label),
+      )
+    ) {
+      julesActive = true;
+    }
+    if (DURABLE_PROVIDERS.includes(provider)) durablePending = true;
+  }
+  return durablePending && !julesActive;
 }
 
 export function selectMandatoryCiRun(runs, sha) {
@@ -155,20 +202,22 @@ async function ensureReadyDependencies(owner, repo, run, siblings) {
     const taskDefinition = taskFromManifest(run, record.task.taskId);
     if (taskDefinition.humanGates.length > 0) continue;
     if (!dependenciesMerged(taskDefinition, siblings, mergedEvidence)) continue;
-    if (!taskDefinition.preferredProviders.includes('jules')) continue;
+    const provider = selectedAutomaticProvider(taskDefinition);
+    const label = providerLabel(provider);
+    if (!provider || !label) continue;
 
     await setTaskState(
       owner,
       repo,
       record.issue.number,
-      [FACTORY_LABELS.providerJules, FACTORY_LABELS.ready],
-      [FACTORY_LABELS.waiting],
+      [label, FACTORY_LABELS.ready],
+      [FACTORY_LABELS.waiting, ...PROVIDER_LABELS.filter((item) => item !== label)],
     );
     await addComment(
       owner,
       repo,
       record.issue.number,
-      'All declared dependencies are integrated into the isolated Factory branch. Task is ready for Jules API dispatch.',
+      `All declared dependencies are integrated into the isolated Factory branch. Task is ready for selected provider \`${provider}\`.`,
     );
   }
 }
@@ -188,7 +237,7 @@ async function dispatchReadyTasks(owner, repo, run, source, siblings) {
     if (!labels.has(FACTORY_LABELS.ready)) continue;
     if (labels.has(FACTORY_LABELS.failed) || labels.has(FACTORY_LABELS.merged)) continue;
     const taskDefinition = taskFromManifest(run, record.task.taskId);
-    if (!taskDefinition.preferredProviders.includes('jules')) continue;
+    if (selectedProviderForTask(taskDefinition, issue.labels) !== 'jules') continue;
     if (taskDefinition.humanGates.length > 0) continue;
     if (taskDefinition.paths.length === 0) {
       await failTask(owner, repo, issue.number, 'Declared write scope is empty.');
@@ -392,6 +441,7 @@ async function processCompletedSessions(owner, repo, run, siblings) {
     const issue = await refreshIssue(owner, repo, record.issue.number);
     if (!isProcessableTaskState(issue.labels)) continue;
     const taskDefinition = taskFromManifest(run, record.task.taskId);
+    if (selectedProviderForTask(taskDefinition, issue.labels) !== 'jules') continue;
 
     const comments = await issueComments(owner, repo, issue.number);
     const mergedEvidence = mergedPrEvidenceFromComments(comments);
@@ -436,7 +486,7 @@ async function processCompletedSessions(owner, repo, run, siblings) {
 
     const sessionName = julesSessionNameFromComments(comments);
     if (!sessionName) {
-      await failTask(owner, repo, issue.number, 'Running task has no Jules API session marker.');
+      await failTask(owner, repo, issue.number, 'Running Jules task has no API session marker.');
     }
     const session = await getJulesSession(sessionName);
     const state = String(session.state ?? '').toUpperCase();
@@ -582,8 +632,10 @@ export async function runParent(parentIssue) {
     siblings = await childIssues(owner, repo, run.runId);
 
     const failed = [];
+    const labelsByTask = new Map();
     for (const record of siblings.values()) {
       const issue = await refreshIssue(owner, repo, record.issue.number);
+      labelsByTask.set(record.task.taskId, issue.labels);
       if (labelNames(issue.labels).includes(FACTORY_LABELS.failed)) failed.push(issue.number);
     }
     if (failed.length) throw new Error(`Factory Run failed closed in tasks: ${failed.join(', ')}`);
@@ -596,6 +648,17 @@ export async function runParent(parentIssue) {
         integration_branch: run.integrationBranch,
         target_branch: run.baseBranch,
         final_pr: pr.number,
+        final_merge: 'not-performed',
+        production_activation: 'not-performed',
+      };
+    }
+
+    if (shouldPauseForDurableProviders(run, labelsByTask)) {
+      return {
+        status: 'awaiting-durable-provider',
+        run_id: run.runId,
+        integration_branch: run.integrationBranch,
+        target_branch: run.baseBranch,
         final_merge: 'not-performed',
         production_activation: 'not-performed',
       };
