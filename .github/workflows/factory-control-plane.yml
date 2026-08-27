@@ -73,7 +73,7 @@ jobs:
           node --check infra/factory/materialize-v2.mjs &&
           node --check infra/factory/runner-v2.mjs &&
           node --check infra/factory/durable-provider-contract.mjs &&
-          node --check infra/factory/durable-provider-gateway-v2.mjs &&
+          node --check infra/factory/durable-provider-gateway.mjs &&
           node --check infra/factory/validate-v2.mjs
       - name: Test Factory contracts and provider guardrails
         run: >-
@@ -85,6 +85,7 @@ jobs:
           infra/factory/jules-api.test.mjs
           infra/factory/runner-v2.test.mjs
           infra/factory/durable-provider-contract.test.mjs
+          infra/factory/durable-provider-gateway.test.mjs
       - name: Validate legacy Banco de Notas Factory Run fixture
         run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.txt
       - name: Validate API-first Jules Factory Run fixture
@@ -173,4 +174,4 @@ jobs:
           FACTORY_PROVIDER_PAYLOAD: ${{ inputs.payload }}
           FACTORY_PROVIDER_TTL_SECONDS: ${{ inputs.ttl_seconds }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
-        run: node infra/factory/durable-provider-gateway-v2.mjs
+        run: node infra/factory/durable-provider-gateway.mjs
