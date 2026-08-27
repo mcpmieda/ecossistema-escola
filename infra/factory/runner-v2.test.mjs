@@ -6,7 +6,10 @@ import {
   dependenciesMerged,
   isProcessableTaskState,
   selectMandatoryCiRun,
+  selectedProviderForTask,
   shouldDispatchMandatoryCi,
+  shouldPauseForDurableProviders,
+  shouldProcessJulesTask,
   taskFromManifest,
   workerRecoveryDecision,
 } from './runner-v2.mjs';
@@ -56,6 +59,87 @@ test('running and ci are processable task states while waiting, ready, merged, f
   assert.equal(isProcessableTaskState([FACTORY_LABELS.merged]), false);
   assert.equal(isProcessableTaskState([FACTORY_LABELS.failed]), false);
   assert.equal(isProcessableTaskState([]), false);
+});
+
+test('provider labels override manifest fallback and Jules processing is explicit', () => {
+  const task = {
+    preferredProviders: ['opencode_ollama', 'jules', 'antigravity'],
+  };
+  assert.equal(selectedProviderForTask(task, []), 'opencode_ollama');
+  assert.equal(
+    selectedProviderForTask(task, [FACTORY_LABELS.providerAntigravity]),
+    'antigravity',
+  );
+  assert.equal(selectedProviderForTask(task, [FACTORY_LABELS.providerJules]), 'jules');
+  assert.equal(
+    selectedProviderForTask(task, [FACTORY_LABELS.providerOpenCode]),
+    'opencode_ollama',
+  );
+  assert.equal(
+    shouldProcessJulesTask([FACTORY_LABELS.providerJules, FACTORY_LABELS.running]),
+    true,
+  );
+  assert.equal(
+    shouldProcessJulesTask([FACTORY_LABELS.providerOpenCode, FACTORY_LABELS.running]),
+    false,
+  );
+  assert.equal(
+    shouldProcessJulesTask([FACTORY_LABELS.providerJules, FACTORY_LABELS.ready]),
+    false,
+  );
+});
+
+test('runner pauses durably when only local/headless work remains', () => {
+  const run = {
+    tasks: [
+      {
+        id: 'local',
+        humanGates: [],
+        preferredProviders: ['opencode_ollama', 'jules'],
+      },
+      {
+        id: 'human',
+        humanGates: ['product_decision'],
+        preferredProviders: ['jules'],
+      },
+    ],
+  };
+  assert.equal(
+    shouldPauseForDurableProviders(
+      run,
+      new Map([
+        ['local', [FACTORY_LABELS.providerOpenCode, FACTORY_LABELS.ready]],
+        ['human', [FACTORY_LABELS.blocked]],
+      ]),
+    ),
+    true,
+  );
+  assert.equal(
+    shouldPauseForDurableProviders(
+      {
+        tasks: [
+          ...run.tasks,
+          { id: 'remote', humanGates: [], preferredProviders: ['jules'] },
+        ],
+      },
+      new Map([
+        ['local', [FACTORY_LABELS.providerOpenCode, FACTORY_LABELS.running]],
+        ['human', [FACTORY_LABELS.blocked]],
+        ['remote', [FACTORY_LABELS.providerJules, FACTORY_LABELS.running]],
+      ]),
+    ),
+    false,
+  );
+  assert.equal(
+    shouldPauseForDurableProviders(
+      run,
+      new Map([
+        ['local', [FACTORY_LABELS.merged]],
+        ['human', [FACTORY_LABELS.blocked]],
+      ]),
+    ),
+    false,
+  );
 });
 
 test('mandatory CI selection requires workflow_dispatch and the exact worker head SHA', () => {
