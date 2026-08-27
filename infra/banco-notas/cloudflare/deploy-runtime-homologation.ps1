@@ -68,6 +68,27 @@ New-Item -ItemType Directory -Path $runtimeWorkingDirectory -Force | Out-Null
   [Text.UTF8Encoding]::new($false)
 )
 
+$existingDeploymentsJson = @(
+  & npx wrangler pages deployment list `
+    --project-name $projectName `
+    --environment preview `
+    --json 2>&1
+)
+if ($LASTEXITCODE -ne 0) {
+  throw 'Não foi possível inventariar os previews Pages antes do deploy.'
+}
+$existingDeployments = ($existingDeploymentsJson -join "`n") | ConvertFrom-Json
+$staleRuntimeDeployments = @($existingDeployments) |
+  Where-Object { [string]$_.Branch -eq $previewBranch }
+foreach ($staleDeployment in $staleRuntimeDeployments) {
+  & npx wrangler pages deployment delete ([string]$staleDeployment.Id) `
+    --project-name $projectName `
+    --force
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Um preview Pages anterior da branch temporária não pôde ser removido.'
+  }
+}
+
 $deployOutput = @(
   & npx wrangler pages deploy ../dist `
     --project-name $projectName `
@@ -98,9 +119,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 $deployments = ($deploymentsJson -join "`n") | ConvertFrom-Json
 $deployment = @($deployments) |
-  Where-Object { ([string]$_.url).TrimEnd('/') -eq $deploymentUrl } |
+  Where-Object { ([string]$_.Deployment).TrimEnd('/') -eq $deploymentUrl } |
   Select-Object -First 1
-if (-not $deployment -or [string]::IsNullOrWhiteSpace([string]$deployment.id)) {
+if (-not $deployment -or [string]::IsNullOrWhiteSpace([string]$deployment.Id)) {
   throw 'O preview foi criado, mas seu ID exato não foi identificado para cleanup.'
 }
 
@@ -110,7 +131,7 @@ $evidence = [ordered]@{
   status = 'RUNTIME_HOMOLOGATION_PAGES_DEPLOYED'
   environment = 'homologation'
   pagesProjectName = $projectName
-  pagesDeploymentId = [string]$deployment.id
+  pagesDeploymentId = [string]$deployment.Id
   deploymentUrl = $deploymentUrl
   previewBranch = $previewBranch
   database = $databaseName
