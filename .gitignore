@@ -20,7 +20,7 @@ playwright-report/
 **/NOTAS ALANNA 2026.xlsb
 **/Modelo_Professor_Nina_2026_Homologado.xlsx
 wrangler.banco-notas.homologation.jsonc
-wrangler.banco-notas.runtime-homologation.jsonc
+.runtime-homologation/
 runtime-homologation-deploy.json
 .DS_Store
 Thumbs.db

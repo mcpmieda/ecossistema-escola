@@ -4,7 +4,8 @@ param()
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..\..')
 $d1ConfigPath = Join-Path $repositoryRoot 'wrangler.banco-notas.homologation.jsonc'
-$runtimeConfigPath = Join-Path $repositoryRoot 'wrangler.banco-notas.runtime-homologation.jsonc'
+$runtimeWorkingDirectory = Join-Path $repositoryRoot '.runtime-homologation'
+$runtimeConfigPath = Join-Path $runtimeWorkingDirectory 'wrangler.jsonc'
 $deploymentEvidencePath = Join-Path $repositoryRoot 'runtime-homologation-deploy.json'
 $projectName = 'ecossistema-escola'
 $previewBranch = 'banco-notas-runtime-homologation'
@@ -41,9 +42,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $config = [ordered]@{
-  '$schema' = 'node_modules/wrangler/config-schema.json'
+  '$schema' = '../node_modules/wrangler/config-schema.json'
   name = $projectName
-  pages_build_output_dir = './dist'
+  pages_build_output_dir = '../dist'
   compatibility_date = '2026-08-27'
   compatibility_flags = @('nodejs_compat')
   d1_databases = @(
@@ -60,6 +61,7 @@ $config = [ordered]@{
     BANCO_NOTAS_ADDIN_SCOPE = 'BancoNotas.Sync'
   }
 }
+New-Item -ItemType Directory -Path $runtimeWorkingDirectory -Force | Out-Null
 [IO.File]::WriteAllText(
   $runtimeConfigPath,
   ($config | ConvertTo-Json -Depth 10),
@@ -67,17 +69,20 @@ $config = [ordered]@{
 )
 
 $deployOutput = @(
-  & npx wrangler pages deploy dist `
+  & npx wrangler pages deploy ../dist `
     --project-name $projectName `
     --branch $previewBranch `
     --commit-dirty=true `
-    --config $runtimeConfigPath 2>&1
+    --cwd $runtimeWorkingDirectory 2>&1
 )
 $deployOutput | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) {
   throw 'Deploy do preview Pages isolado de homologação falhou.'
 }
-$deploymentUrl = [regex]::Match(($deployOutput -join "`n"), 'https://[^\s]+\.pages\.dev').Value.TrimEnd('/')
+$deploymentUrl = [regex]::Match(
+  ($deployOutput -join "`n"),
+  'https://[A-Za-z0-9.-]+\.pages\.dev'
+).Value.TrimEnd('/')
 if ([string]::IsNullOrWhiteSpace($deploymentUrl)) {
   throw 'Wrangler concluiu o deploy, mas a URL pages.dev não foi identificada.'
 }
