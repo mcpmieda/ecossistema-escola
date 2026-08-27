@@ -10,11 +10,7 @@ import {
   recordDurableHeartbeat,
   recordDurableResult,
 } from './durable-provider-gateway.mjs';
-import {
-  githubOptional,
-  labelNames,
-  requiredEnv,
-} from './github-api.mjs';
+import { githubOptional, labelNames, requiredEnv } from './github-api.mjs';
 
 const OPENCODE_PROVIDER = 'opencode_ollama';
 const DEFAULT_MODEL = 'qwen3:0.6b';
@@ -29,7 +25,7 @@ function repositoryParts() {
   const repository = requiredEnv('GITHUB_REPOSITORY');
   const [owner, repo] = repository.split('/');
   if (!owner || !repo) fail('GITHUB_REPOSITORY must be owner/repo.');
-  return { owner, repo, repository };
+  return { owner, repo };
 }
 
 function issueNumber() {
@@ -48,8 +44,19 @@ export function hostedWorkerId(runId, attempt) {
 
 export function isExactCreateOnlyScope(paths) {
   if (!Array.isArray(paths) || paths.length !== 1) return false;
-  const raw = String(paths[0] ?? '').trim().replace(/^\/+/, '');
-  if (!raw || raw.endsWith('/**') || raw.endsWith('/') || raw.includes('\\')) return false;
+  const raw = String(paths[0] ?? '').trim();
+  if (
+    !raw ||
+    raw.startsWith('/') ||
+    raw.endsWith('/**') ||
+    raw.endsWith('/') ||
+    raw.includes('\\') ||
+    raw.includes('//')
+  ) {
+    return false;
+  }
+  const parts = raw.split('/');
+  if (parts.some((part) => !part || part === '.' || part === '..')) return false;
   const name = basename(raw);
   return name.includes('.') && name !== '.' && name !== '..';
 }
@@ -186,14 +193,13 @@ function parseProviderCandidate(result) {
 
 async function checkoutWorkerBranch(lease) {
   const branch = lease.working_branch;
-  runCommand('git', [
+  git(
     'fetch',
     '--no-tags',
     'origin',
     `refs/heads/${branch}:refs/remotes/origin/${branch}`,
-  ]);
-  const result = runCommand('git', ['checkout', '--force', '-B', branch, `refs/remotes/origin/${branch}`]);
-  if (result.status !== 0) fail('Trusted runtime could not checkout the leased worker branch.');
+  );
+  git('checkout', '--force', '-B', branch, `refs/remotes/origin/${branch}`);
   git('config', 'user.name', 'github-actions[bot]');
   git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com');
   const head = git('rev-parse', 'HEAD');
@@ -234,7 +240,11 @@ async function executeHostedTask(owner, repo, context, workerId, health) {
     },
   });
 
-  const tempRoot = join(requiredEnv('RUNNER_TEMP'), 'factory-hosted-opencode', String(context.issue.number));
+  const tempRoot = join(
+    requiredEnv('RUNNER_TEMP'),
+    'factory-hosted-opencode',
+    String(context.issue.number),
+  );
   const files = writeLeaseContract(tempRoot, claimed.lease, process.cwd());
   const appFactoryRoot = requiredEnv('FACTORY_APP_FACTORY_DIR');
   const profileHome = requiredEnv('OPENCODE_PROFILE_HOME');
@@ -288,7 +298,10 @@ export async function runHostedOpenCode() {
   }
 
   const health = loadProbeHealth(requiredEnv('FACTORY_OPENCODE_HEALTH_FILE'));
-  const workerId = hostedWorkerId(requiredEnv('GITHUB_RUN_ID'), process.env.GITHUB_RUN_ATTEMPT ?? '1');
+  const workerId = hostedWorkerId(
+    requiredEnv('GITHUB_RUN_ID'),
+    process.env.GITHUB_RUN_ATTEMPT ?? '1',
+  );
   return executeHostedTask(owner, repo, context, workerId, health);
 }
 
