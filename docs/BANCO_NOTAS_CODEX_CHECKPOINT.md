@@ -2,9 +2,9 @@
 
 Última atualização: 26/08/2026 20:50 BRT
 Branch: `feat/banco-de-notas-foundation`
-HEAD: `436c5b0` (próximo commit consolidará o gate de normalização)
+HEAD: `f928783c6283f126bbcea6012bd1edbd6a66d4ff`
 PR: `#52` — open, draft, sem merge
-CI: run `33024306664` — validação e segurança verdes; storage M365 falhou com transformação de bytes
+CI: run `33025586408` — success completo, incluindo storage M365
 D1 homologation: run `32981705701` — success, migrations `0001`–`0007`, sync final `0`
 M365 operation: run `33003875460` — success, readiness read-only
 
@@ -29,14 +29,15 @@ M365 operation: run `33003875460` — success, readiness read-only
 - [x] Gate fail-closed implementado: partes originais do produto idênticas, relações/content types originais preservados e apenas adições server-managed conhecidas aceitas.
 - [x] Artefato XLSX diagnóstico `9628007563` excluído do GitHub após a análise.
 - [x] Gate local pós-correção verde: 298/298 testes ativos, lint, typecheck, semantic contract, build, actionlint, PowerShell e Control Plane.
+- [x] Storage M365 verde no run `33025586408`: pacote normalizado íntegro, OOXML reanalisado sem findings e cleanup confirmado.
 
 ## Em andamento
 
-- [ ] Publicar o gate de integridade normalizada e repetir o storage M365 até verde.
+- [ ] Resolver `gui@escolaieda.com` no Entra/Graph e executar share individual autenticado.
 
 ## Próxima ação exata
 
-Commitar/publicar o gate normalizado e acompanhar o novo run até storage M365 verde, com arquivo sintético removido e sem artefato XLSX temporário.
+Preparar o smoke de compartilhamento para resolver o usuário real, criar somente um XLSX sintético, compartilhar individualmente e manter o recurso apenas durante a validação no Excel Online.
 
 ## Estado Microsoft
 
@@ -61,6 +62,7 @@ Commitar/publicar o gate normalizado e acompanhar o novo run até storage M365 v
 ## Recursos já limpos
 
 - XLSX sintético do run `33024306664` removido do SharePoint com sucesso.
+- XLSX sintético do run `33025586408` removido do SharePoint com sucesso.
 - Nenhuma permissão Graph criada nesta retomada.
 
 ## Commits
@@ -76,13 +78,14 @@ Commitar/publicar o gate normalizado e acompanhar o novo run até storage M365 v
 - `33008170523` — CI and deploy — failure no lint; storage M365 e produção skipped.
 - `33024306664` — validação/segurança success; storage M365 failure por diferença de tamanho/hash; arquivo removido; produção skipped.
 - `33024796115` — validação/segurança success; diagnóstico M365 confirmou reanálise OOXML e cleanup; artefato XLSX temporário depois excluído.
+- `33025586408` — success completo; storage Graph real, integridade normalizada, reanálise e cleanup verdes; produção skipped.
 - `32981705701` — Banco de Notas D1 homologation — success.
 - `33003875460` — M365 operations/readiness — success.
 - `33006204505` — CI and deploy — último baseline anterior verde após incorporar o Control Plane M365 então vigente.
 
 ## Bloqueios
 
-- O novo critério de integridade ainda precisa passar no boundary M365 real.
+- Compartilhamento e validação visual ainda não executados.
 - Credencial/MFA no navegador interno somente se a Microsoft solicitar durante a validação visual posterior.
 
 ## Como retomar
