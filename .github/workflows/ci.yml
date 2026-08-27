@@ -38,11 +38,7 @@ jobs:
         run: npm ci
 
       - name: Check formatting
-        run: >-
-          npm run format:check ||
-          (npx prettier --write shared/banco-notas-addin-entra.ts tests/banco-notas-addin-entra-contract.test.ts &&
-          git diff -- shared/banco-notas-addin-entra.ts tests/banco-notas-addin-entra-contract.test.ts &&
-          exit 1)
+        run: npm run format:check
 
       - name: Lint
         run: npm run lint

@@ -33,9 +33,7 @@ describe('Banco de Notas Entra add-in homologation contract', () => {
       type: 'Admin',
       isEnabled: true,
     });
-    expect(resolved.requestedScope).toBe(
-      `api://${applicationClientId}/BancoNotas.Sync`,
-    );
+    expect(resolved.requestedScope).toBe(`api://${applicationClientId}/BancoNotas.Sync`);
     expect(resolved.spaRedirectUris).toEqual([
       'brk-multihub://admin.escolaieda.com',
       'https://admin.escolaieda.com/banco-de-notas/addin/taskpane.html',
@@ -73,10 +71,10 @@ describe('Banco de Notas Entra add-in homologation contract', () => {
     expect(provisioningScript).toContain('[switch] $Apply');
     expect(provisioningScript).toContain("'Application.Read.All'");
     expect(provisioningScript).toContain("'Application.ReadWrite.All'");
-    expect(provisioningScript).toContain("-ContextScope Process");
-    expect(provisioningScript).toContain("credentialsCreated           = $false");
-    expect(provisioningScript).toContain("graphPermissionsRequested    = @()");
-    expect(provisioningScript).toContain("requiredResourceAccess = @()");
+    expect(provisioningScript).toContain('-ContextScope Process');
+    expect(provisioningScript).toContain('credentialsCreated           = $false');
+    expect(provisioningScript).toContain('graphPermissionsRequested    = @()');
+    expect(provisioningScript).toContain('requiredResourceAccess = @()');
     expect(provisioningScript).not.toContain('/addPassword');
     expect(provisioningScript).not.toContain('client_secret');
     expect(provisioningScript).not.toContain('passwordCredential =');

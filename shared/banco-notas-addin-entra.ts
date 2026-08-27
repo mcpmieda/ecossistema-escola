@@ -39,9 +39,7 @@ export const bancoNotasAddinEntraContractSchema = z
   })
   .strict();
 
-export type BancoNotasAddinEntraContract = z.infer<
-  typeof bancoNotasAddinEntraContractSchema
->;
+export type BancoNotasAddinEntraContract = z.infer<typeof bancoNotasAddinEntraContractSchema>;
 
 export type ResolvedBancoNotasAddinEntraContract = BancoNotasAddinEntraContract & {
   applicationClientId: string;
@@ -56,8 +54,7 @@ export function resolveBancoNotasAddinEntraContract(
 ): ResolvedBancoNotasAddinEntraContract {
   const contract = bancoNotasAddinEntraContractSchema.parse(contractInput);
   const clientId = z.string().uuid().parse(applicationClientId);
-  const replaceClientId = (value: string) =>
-    value.replaceAll(applicationClientIdToken, clientId);
+  const replaceClientId = (value: string) => value.replaceAll(applicationClientIdToken, clientId);
   const audience = replaceClientId(contract.identifierUriTemplate);
 
   return {
