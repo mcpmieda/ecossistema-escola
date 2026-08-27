@@ -63,7 +63,7 @@ class SqliteD1 {
   }
 }
 
-const tenantId = '11111111-1111-4111-8111-111111111111';
+const tenantId = testEnv.TENANT_ID;
 const audience = 'api://banco-notas-addin-homologation';
 const scope = 'BancoNotas.Sync';
 const ownerOid = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -171,10 +171,9 @@ function runtime(syncEnabled = true): SqliteD1 {
 }
 
 function env(configured = true): RuntimeEnv {
-  const base: RuntimeEnv = { ...testEnv, TENANT_ID: tenantId };
-  if (!configured) return base;
+  if (!configured) return testEnv;
   return {
-    ...base,
+    ...testEnv,
     BANCO_NOTAS_ADDIN_AUDIENCE: audience,
     BANCO_NOTAS_ADDIN_SCOPE: scope,
   };
