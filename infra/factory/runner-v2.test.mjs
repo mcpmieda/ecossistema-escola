@@ -114,9 +114,7 @@ test('processCompletedSessions recovers task when trusted merged evidence alread
     baseBranch: 'main',
     tasks: [{ id: 'task-1', paths: ['src/allowed.ts'] }],
   };
-  const siblings = new Map([
-    ['task-1', { issue: { number: 10 }, task: { taskId: 'task-1' } }],
-  ]);
+  const siblings = new Map([['task-1', { issue: { number: 10 }, task: { taskId: 'task-1' } }]]);
 
   await withMockedApi(
     async (url, options = {}) => {
@@ -191,9 +189,7 @@ test('processCompletedSessions recovers already-merged PR with valid SHA-40 merg
     baseBranch: 'main',
     tasks: [{ id: 'task-1', paths: ['src/allowed.ts'] }],
   };
-  const siblings = new Map([
-    ['task-1', { issue: { number: 10 }, task: { taskId: 'task-1' } }],
-  ]);
+  const siblings = new Map([['task-1', { issue: { number: 10 }, task: { taskId: 'task-1' } }]]);
   const headSha = '2222222222222222222222222222222222222222';
   const mergeSha = '3333333333333333333333333333333333333333';
 
@@ -213,7 +209,9 @@ test('processCompletedSessions recovers already-merged PR with valid SHA-40 merg
           },
         };
       }
-      if (strUrl === 'https://api.github.com/repos/owner/repo/issues/10/comments?per_page=100&page=1') {
+      if (
+        strUrl === 'https://api.github.com/repos/owner/repo/issues/10/comments?per_page=100&page=1'
+      ) {
         return {
           status: 200,
           ok: true,
@@ -263,7 +261,9 @@ test('processCompletedSessions recovers already-merged PR with valid SHA-40 merg
           },
         };
       }
-      if (strUrl.startsWith('https://api.github.com/repos/owner/repo/actions/workflows/ci.yml/runs')) {
+      if (
+        strUrl.startsWith('https://api.github.com/repos/owner/repo/actions/workflows/ci.yml/runs')
+      ) {
         return {
           status: 200,
           ok: true,
@@ -319,9 +319,7 @@ test('processCompletedSessions executes normal flow for open PR', async () => {
     baseBranch: 'main',
     tasks: [{ id: 'task-1', paths: ['src/allowed.ts'] }],
   };
-  const siblings = new Map([
-    ['task-1', { issue: { number: 10 }, task: { taskId: 'task-1' } }],
-  ]);
+  const siblings = new Map([['task-1', { issue: { number: 10 }, task: { taskId: 'task-1' } }]]);
   const headSha = '2222222222222222222222222222222222222222';
   const mergeSha = '4444444444444444444444444444444444444444';
   const baseSha = '1111111111111111111111111111111111111111';
@@ -342,7 +340,9 @@ test('processCompletedSessions executes normal flow for open PR', async () => {
           },
         };
       }
-      if (strUrl === 'https://api.github.com/repos/owner/repo/issues/10/comments?per_page=100&page=1') {
+      if (
+        strUrl === 'https://api.github.com/repos/owner/repo/issues/10/comments?per_page=100&page=1'
+      ) {
         return {
           status: 200,
           ok: true,
@@ -400,7 +400,9 @@ test('processCompletedSessions executes normal flow for open PR', async () => {
           },
         };
       }
-      if (strUrl.startsWith('https://api.github.com/repos/owner/repo/actions/workflows/ci.yml/runs')) {
+      if (
+        strUrl.startsWith('https://api.github.com/repos/owner/repo/actions/workflows/ci.yml/runs')
+      ) {
         return {
           status: 200,
           ok: true,
@@ -471,9 +473,7 @@ test('processCompletedSessions fails task if merged PR lacks a valid SHA-40 merg
     baseBranch: 'main',
     tasks: [{ id: 'task-1', paths: ['src/allowed.ts'] }],
   };
-  const siblings = new Map([
-    ['task-1', { issue: { number: 10 }, task: { taskId: 'task-1' } }],
-  ]);
+  const siblings = new Map([['task-1', { issue: { number: 10 }, task: { taskId: 'task-1' } }]]);
 
   await withMockedApi(
     async (url, options = {}) => {
@@ -489,7 +489,9 @@ test('processCompletedSessions fails task if merged PR lacks a valid SHA-40 merg
           },
         };
       }
-      if (strUrl === 'https://api.github.com/repos/owner/repo/issues/10/comments?per_page=100&page=1') {
+      if (
+        strUrl === 'https://api.github.com/repos/owner/repo/issues/10/comments?per_page=100&page=1'
+      ) {
         return {
           status: 200,
           ok: true,
