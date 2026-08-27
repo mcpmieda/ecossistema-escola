@@ -6,8 +6,8 @@ $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..\..')
 $d1ConfigPath = Join-Path $repositoryRoot 'wrangler.banco-notas.homologation.jsonc'
 $runtimeConfigPath = Join-Path $repositoryRoot 'wrangler.banco-notas.runtime-homologation.jsonc'
 $deploymentEvidencePath = Join-Path $repositoryRoot 'runtime-homologation-deploy.json'
-$projectName = 'ecossistema-escola-banco-notas-runtime-homologation'
-$previewBranch = 'runtime-homologation'
+$projectName = 'ecossistema-escola'
+$previewBranch = 'banco-notas-runtime-homologation'
 $databaseName = 'banco-notas-homologation'
 
 if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) {
@@ -66,22 +66,6 @@ $config = [ordered]@{
   [Text.UTF8Encoding]::new($false)
 )
 
-$projectsJson = @(& npx wrangler pages project list --json 2>&1)
-if ($LASTEXITCODE -ne 0) {
-  throw 'Não foi possível listar os projetos Pages de homologação.'
-}
-$projects = ($projectsJson -join "`n") | ConvertFrom-Json
-$projectExists = @($projects) | Where-Object { $_.name -eq $projectName } | Select-Object -First 1
-if (-not $projectExists) {
-  & npx wrangler pages project create $projectName `
-    --production-branch runtime-homologation-never `
-    --compatibility-date 2026-08-27 `
-    --compatibility-flag nodejs_compat
-  if ($LASTEXITCODE -ne 0) {
-    throw 'Criação do projeto Pages isolado de homologação falhou.'
-  }
-}
-
 $deployOutput = @(
   & npx wrangler pages deploy dist `
     --project-name $projectName `
@@ -91,13 +75,28 @@ $deployOutput = @(
 )
 $deployOutput | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) {
-  & npx wrangler pages project delete $projectName --yes
-  throw 'Deploy do Pages isolado de homologação falhou e o projeto temporário foi removido.'
+  throw 'Deploy do preview Pages isolado de homologação falhou.'
 }
 $deploymentUrl = [regex]::Match(($deployOutput -join "`n"), 'https://[^\s]+\.pages\.dev').Value.TrimEnd('/')
 if ([string]::IsNullOrWhiteSpace($deploymentUrl)) {
-  & npx wrangler pages project delete $projectName --yes
-  throw 'Wrangler concluiu o deploy, mas a URL pages.dev não foi identificada; o projeto temporário foi removido.'
+  throw 'Wrangler concluiu o deploy, mas a URL pages.dev não foi identificada.'
+}
+
+$deploymentsJson = @(
+  & npx wrangler pages deployment list `
+    --project-name $projectName `
+    --environment preview `
+    --json 2>&1
+)
+if ($LASTEXITCODE -ne 0) {
+  throw 'O preview foi criado, mas não foi possível resolver seu ID exato para cleanup.'
+}
+$deployments = ($deploymentsJson -join "`n") | ConvertFrom-Json
+$deployment = @($deployments) |
+  Where-Object { ([string]$_.url).TrimEnd('/') -eq $deploymentUrl } |
+  Select-Object -First 1
+if (-not $deployment -or [string]::IsNullOrWhiteSpace([string]$deployment.id)) {
+  throw 'O preview foi criado, mas seu ID exato não foi identificado para cleanup.'
 }
 
 $evidence = [ordered]@{
@@ -106,13 +105,15 @@ $evidence = [ordered]@{
   status = 'RUNTIME_HOMOLOGATION_PAGES_DEPLOYED'
   environment = 'homologation'
   pagesProjectName = $projectName
+  pagesDeploymentId = [string]$deployment.id
   deploymentUrl = $deploymentUrl
   previewBranch = $previewBranch
   database = $databaseName
   binding = 'BANCO_NOTAS_DB'
   productionRoutesConfigured = $false
-  isolatedPagesProjectCreated = $true
-  existingPagesProjectChanged = $false
+  isolatedPreviewDeploymentCreated = $true
+  previewConfigurationApplied = $true
+  productionPagesProjectChanged = $false
   accountIdIncluded = $false
   secretIncluded = $false
 }

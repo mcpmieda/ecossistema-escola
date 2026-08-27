@@ -37,15 +37,30 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Delete the exact temporary Pages project
+      - name: Resolve the exact temporary Pages preview deployment
+        id: deployment
+        shell: pwsh
+        run: |
+          $evidence = Get-Content `
+            -LiteralPath 'docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.json' `
+            -Raw | ConvertFrom-Json
+          $deploymentId = [string]$evidence.deployment.pagesDeploymentId
+          if ([string]::IsNullOrWhiteSpace($deploymentId)) {
+            throw 'A evidência não contém o ID exato do preview Pages temporário.'
+          }
+          "deployment_id=$deploymentId" >> $env:GITHUB_OUTPUT
+
+      - name: Delete only the exact temporary Pages preview deployment
         shell: pwsh
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PAGES_DEPLOYMENT_ID: ${{ steps.deployment.outputs.deployment_id }}
         run: >-
-          npx wrangler pages project delete
-          ecossistema-escola-banco-notas-runtime-homologation
-          --yes
+          npx wrangler pages deployment delete
+          $env:PAGES_DEPLOYMENT_ID
+          --project-name ecossistema-escola
+          --force
 
       - name: Record cleanup result
-        run: echo 'RUNTIME_HOMOLOGATION_PAGES_PROJECT_REMOVED'
+        run: echo 'RUNTIME_HOMOLOGATION_PAGES_PREVIEW_REMOVED'

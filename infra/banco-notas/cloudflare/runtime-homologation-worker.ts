@@ -398,12 +398,12 @@ async function executeRuntimeProof(
           pagesProjectCleanupPending: true,
         },
         homologationDeployment: {
-          surface: 'isolated_pages_project',
+          surface: 'isolated_pages_preview',
           cleanupPending: true,
         },
         production: {
           workerDeploymentPerformed: false,
-          existingPagesProjectChanged: false,
+          productionPagesDeploymentChanged: false,
           productionD1Changed: false,
         },
       },
