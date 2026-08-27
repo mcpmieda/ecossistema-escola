@@ -1,10 +1,10 @@
 # Banco de Notas — Codex Checkpoint
 
-Última atualização: 26/08/2026 21:34 BRT
+Última atualização: 27/08/2026 — retomada operacional
 Branch: `feat/banco-de-notas-foundation`
-HEAD: `18f35be9785bb6c80b6ab83e8eedb58979a024a7`
+HEAD: `6974ca51d3852189c6ba1db027033bdbf778835c`
 PR: `#52` — open, draft, sem merge
-CI: run `33027020137` — success após remoção do job one-shot; produção skipped
+CI: run `33027239078` — success; deploy e recovery de produção skipped
 D1 homologation: run `33026452850` — success, vínculo sintético ao OID autorizado e sync `0`
 M365 operation: run `33003875460` — success, readiness read-only
 
@@ -42,10 +42,13 @@ M365 operation: run `33003875460` — success, readiness read-only
 ## Em andamento
 
 - [ ] Entrar no Excel Online como `GUI@escolaieda.com`, confirmar acesso de edição e realizar a alteração sintética controlada.
+- [x] Estado real recuperado em 27/08/2026: worktree limpo, branch local/remoto no mesmo HEAD, PR open/draft, CI verde e stash preservado sem aplicação.
+- [x] Diferença atual para `origin/main` confirmada após fetch explícito: branch 3 commits atrás e 367 commits à frente.
+- [x] Aba Microsoft anterior não permaneceu disponível no navegador interno; nenhuma sessão, credencial ou MFA foi inspecionada.
 
 ## Próxima ação exata
 
-O usuário deve preencher diretamente na página Microsoft já aberta no navegador interno as credenciais/MFA da conta destinatária e responder `pronto`; depois validar e editar a célula sintética esperada.
+Reabrir o fluxo Microsoft no navegador interno e autenticar como `GUI@escolaieda.com`. Se senha/MFA forem exigidos e não puderem ser concluídos com a sessão já disponível, deixar a página visível para preenchimento direto pelo usuário; depois validar e editar a célula sintética esperada.
 
 ## Estado Microsoft
 
