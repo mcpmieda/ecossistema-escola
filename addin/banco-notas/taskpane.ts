@@ -269,4 +269,3 @@ void Office.onReady(async (info) => {
 });
 
 connect?.addEventListener('click', () => void acquireToken());
-

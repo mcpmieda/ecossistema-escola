@@ -26,4 +26,3 @@ describe('Banco de Notas runtime homologation client', () => {
     expect(init?.body).not.toContain('delegated-token-never-persisted');
   });
 });
-

@@ -290,4 +290,3 @@ export class D1GradeEventStore implements GradeEventStore {
     };
   }
 }
-

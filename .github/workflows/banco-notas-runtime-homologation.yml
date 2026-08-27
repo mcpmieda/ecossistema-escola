@@ -12,6 +12,8 @@ on:
       - 'infra/banco-notas/cloudflare/runtime-homologation-worker.ts'
       - 'server/auth/entra-access-token.ts'
       - 'server/banco-notas/d1-grade-event-store.ts'
+      - 'vite.runtime-homologation.config.ts'
+      - 'wrangler.banco-notas.runtime-homologation.template.jsonc'
   workflow_dispatch:
 
 permissions:
@@ -23,7 +25,7 @@ concurrency:
 
 jobs:
   deploy-isolated-runtime:
-    name: Deploy isolated Banco de Notas homologation runtime
+    name: Deploy isolated Banco de Notas Pages homologation runtime
     if: github.ref == 'refs/heads/feat/banco-de-notas-foundation'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -49,7 +51,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: ./infra/banco-notas/cloudflare/provision-homologation.ps1
 
-      - name: Deploy temporary homologation Worker and add-in assets
+      - name: Deploy temporary homologation Pages runtime and add-in assets
         shell: pwsh
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -63,4 +65,3 @@ jobs:
           path: runtime-homologation-deploy.json
           if-no-files-found: error
           retention-days: 7
-

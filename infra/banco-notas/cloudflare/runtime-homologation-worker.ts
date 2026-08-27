@@ -5,6 +5,7 @@ import { ingestGradeEvent } from '../../../server/banco-notas/grade-events';
 import type { GradeEventInput } from '../../../shared/banco-notas-grade-events';
 
 type Row = Record<string, string | number | null>;
+type RuntimeHomologationEnv = BancoNotasRuntimeHomologationEnv & { ASSETS: Fetcher };
 
 const runPath = '/__banco-notas-homologation/run';
 
@@ -47,7 +48,7 @@ async function fails(action: () => Promise<unknown>): Promise<boolean> {
 
 async function executeRuntimeProof(
   request: Request,
-  env: BancoNotasRuntimeHomologationEnv,
+  env: RuntimeHomologationEnv,
 ): Promise<Response> {
   if (env.RUNTIME_ENVIRONMENT !== 'homologation') {
     return json({ error: 'homologation_runtime_required' }, 503);
@@ -354,7 +355,7 @@ async function executeRuntimeProof(
           ? 'BANCO_NOTAS_RUNTIME_HOMOLOGATION_PASSED'
           : 'BANCO_NOTAS_RUNTIME_HOMOLOGATION_FAILED',
         environment: 'homologation',
-        runtime: 'Cloudflare Workers',
+        runtime: 'Cloudflare Pages Functions',
         database: 'banco-notas-homologation',
         binding: 'BANCO_NOTAS_DB',
         token: {
@@ -394,11 +395,15 @@ async function executeRuntimeProof(
           negativeFixturesRemoved: cleanupPassed,
           modelSyncEnabledFinal: Number(finalSync?.model_sync ?? -1),
           sourceAssignmentSyncEnabledFinal: Number(finalSync?.assignment_sync ?? -1),
-          workerCleanupPending: true,
+          pagesProjectCleanupPending: true,
+        },
+        homologationDeployment: {
+          surface: 'isolated_pages_project',
+          cleanupPending: true,
         },
         production: {
           workerDeploymentPerformed: false,
-          pagesChanged: false,
+          existingPagesProjectChanged: false,
           productionD1Changed: false,
         },
       },
@@ -425,7 +430,7 @@ async function executeRuntimeProof(
 }
 
 export default {
-  async fetch(request: Request, env: BancoNotasRuntimeHomologationEnv): Promise<Response> {
+  async fetch(request: Request, env: RuntimeHomologationEnv): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === runPath) {
       if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
@@ -453,5 +458,4 @@ export default {
     }
     return env.ASSETS.fetch(request);
   },
-} satisfies ExportedHandler<BancoNotasRuntimeHomologationEnv>;
-
+} satisfies ExportedHandler<RuntimeHomologationEnv>;

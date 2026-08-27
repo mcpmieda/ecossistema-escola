@@ -6,7 +6,8 @@ $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..\..')
 $d1ConfigPath = Join-Path $repositoryRoot 'wrangler.banco-notas.homologation.jsonc'
 $runtimeConfigPath = Join-Path $repositoryRoot 'wrangler.banco-notas.runtime-homologation.jsonc'
 $deploymentEvidencePath = Join-Path $repositoryRoot 'runtime-homologation-deploy.json'
-$workerName = 'ecossistema-escola-banco-notas-runtime-homologation'
+$projectName = 'ecossistema-escola-banco-notas-runtime-homologation'
+$previewBranch = 'runtime-homologation'
 $databaseName = 'banco-notas-homologation'
 
 if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_API_TOKEN)) {
@@ -34,20 +35,17 @@ $env:VITE_BANCO_NOTAS_RUNTIME_HOMOLOGATION = '1'
 if ($LASTEXITCODE -ne 0) {
   throw 'Build do add-in de homologação falhou.'
 }
+& npx vite build --config vite.runtime-homologation.config.ts
+if ($LASTEXITCODE -ne 0) {
+  throw 'Build do runtime Pages de homologação falhou.'
+}
 
 $config = [ordered]@{
   '$schema' = 'node_modules/wrangler/config-schema.json'
-  name = $workerName
-  main = 'infra/banco-notas/cloudflare/runtime-homologation-worker.ts'
+  name = $projectName
+  pages_build_output_dir = './dist'
   compatibility_date = '2026-08-27'
   compatibility_flags = @('nodejs_compat')
-  workers_dev = $true
-  preview_urls = $false
-  assets = [ordered]@{
-    directory = './dist'
-    binding = 'ASSETS'
-    run_worker_first = @('/__banco-notas-homologation/*')
-  }
   d1_databases = @(
     [ordered]@{
       binding = 'BANCO_NOTAS_DB'
@@ -61,10 +59,6 @@ $config = [ordered]@{
     BANCO_NOTAS_ADDIN_AUDIENCE = '73ab83d3-00ba-494a-a1f8-586d250d420a'
     BANCO_NOTAS_ADDIN_SCOPE = 'BancoNotas.Sync'
   }
-  observability = [ordered]@{
-    enabled = $true
-    head_sampling_rate = 1
-  }
 }
 [IO.File]::WriteAllText(
   $runtimeConfigPath,
@@ -72,27 +66,53 @@ $config = [ordered]@{
   [Text.UTF8Encoding]::new($false)
 )
 
-$deployOutput = @(& npx wrangler deploy --config $runtimeConfigPath 2>&1)
+$projectsJson = @(& npx wrangler pages project list --json 2>&1)
+if ($LASTEXITCODE -ne 0) {
+  throw 'Não foi possível listar os projetos Pages de homologação.'
+}
+$projects = ($projectsJson -join "`n") | ConvertFrom-Json
+$projectExists = @($projects) | Where-Object { $_.name -eq $projectName } | Select-Object -First 1
+if (-not $projectExists) {
+  & npx wrangler pages project create $projectName `
+    --production-branch runtime-homologation-never `
+    --compatibility-date 2026-08-27 `
+    --compatibility-flag nodejs_compat
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Criação do projeto Pages isolado de homologação falhou.'
+  }
+}
+
+$deployOutput = @(
+  & npx wrangler pages deploy dist `
+    --project-name $projectName `
+    --branch $previewBranch `
+    --commit-dirty=true `
+    --config $runtimeConfigPath 2>&1
+)
 $deployOutput | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) {
-  throw 'Deploy do Worker isolado de homologação falhou.'
+  & npx wrangler pages project delete $projectName --yes
+  throw 'Deploy do Pages isolado de homologação falhou e o projeto temporário foi removido.'
 }
-$workerUrl = [regex]::Match(($deployOutput -join "`n"), 'https://[^\s]+\.workers\.dev').Value.TrimEnd('/')
-if ([string]::IsNullOrWhiteSpace($workerUrl)) {
-  throw 'Wrangler concluiu o deploy, mas a URL workers.dev não foi identificada.'
+$deploymentUrl = [regex]::Match(($deployOutput -join "`n"), 'https://[^\s]+\.pages\.dev').Value.TrimEnd('/')
+if ([string]::IsNullOrWhiteSpace($deploymentUrl)) {
+  & npx wrangler pages project delete $projectName --yes
+  throw 'Wrangler concluiu o deploy, mas a URL pages.dev não foi identificada; o projeto temporário foi removido.'
 }
 
 $evidence = [ordered]@{
   schemaVersion = 1
   generatedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
-  status = 'RUNTIME_HOMOLOGATION_WORKER_DEPLOYED'
+  status = 'RUNTIME_HOMOLOGATION_PAGES_DEPLOYED'
   environment = 'homologation'
-  workerName = $workerName
-  workerUrl = $workerUrl
+  pagesProjectName = $projectName
+  deploymentUrl = $deploymentUrl
+  previewBranch = $previewBranch
   database = $databaseName
   binding = 'BANCO_NOTAS_DB'
   productionRoutesConfigured = $false
-  pagesChanged = $false
+  isolatedPagesProjectCreated = $true
+  existingPagesProjectChanged = $false
   accountIdIncluded = $false
   secretIncluded = $false
 }
@@ -101,5 +121,4 @@ $evidence = [ordered]@{
   ($evidence | ConvertTo-Json -Depth 10),
   [Text.UTF8Encoding]::new($false)
 )
-Write-Host 'RUNTIME_HOMOLOGATION_WORKER_DEPLOYED'
-
+Write-Host 'RUNTIME_HOMOLOGATION_PAGES_DEPLOYED'

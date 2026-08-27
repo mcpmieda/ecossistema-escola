@@ -12,5 +12,5 @@
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["addin", "vite.addin.config.ts"]
+  "include": ["addin", "vite.addin.config.ts", "vite.runtime-homologation.config.ts"]
 }

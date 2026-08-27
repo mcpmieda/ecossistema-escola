@@ -283,4 +283,3 @@ describe('D1GradeEventStore with real SQLite', () => {
     runtime.database.close();
   });
 });
-
