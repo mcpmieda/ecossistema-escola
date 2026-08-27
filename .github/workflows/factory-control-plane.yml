@@ -6,6 +6,9 @@ on:
       - 'infra/factory/**'
       - '.github/workflows/factory-control-plane.yml'
       - '.github/workflows/factory-reconcile.yml'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/merge-train-semgrep.yml'
+      - '.github/workflows/merge-train-sonar.yml'
       - 'docs/FACTORY_CONTROL_PLANE.md'
       - 'docs/FACTORY_RUN_ISSUE_FORMAT.md'
       - 'docs/FACTORY_JULES_PILOT_2026-08-26.md'
@@ -74,6 +77,7 @@ jobs:
           node --check infra/factory/runner-v2.mjs &&
           node --check infra/factory/durable-provider-contract.mjs &&
           node --check infra/factory/durable-provider-gateway.mjs &&
+          node --check infra/factory/merge-train-gate.mjs &&
           node --check infra/factory/validate-v2.mjs
       - name: Test Factory contracts and provider guardrails
         run: >-
@@ -86,6 +90,7 @@ jobs:
           infra/factory/runner-v2.test.mjs
           infra/factory/durable-provider-contract.test.mjs
           infra/factory/durable-provider-gateway.test.mjs
+          infra/factory/merge-train-gate.test.mjs
       - name: Validate legacy Banco de Notas Factory Run fixture
         run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.txt
       - name: Validate API-first Jules Factory Run fixture
