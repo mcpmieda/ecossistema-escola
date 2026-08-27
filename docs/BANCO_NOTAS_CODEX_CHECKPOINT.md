@@ -115,12 +115,11 @@ Permanece apenas a pasta autorizada `BANCO_NOTAS_HOMOLOGACAO` e o histórico sin
 
 ## Próximo bloco técnico seguro
 
-1. auditar os app registrations Entra existentes e escolher reutilização antes de criar qualquer app;
-2. homologar `BANCO_NOTAS_ADDIN_AUDIENCE` e `BANCO_NOTAS_ADDIN_SCOPE` reais;
-3. provar o bearer add-in com tenant, issuer, audience, scope, lifetime, OID e ownership;
-4. manter o endpoint público bloqueado até o gate completo;
-5. comprovar atomicidade por binding `D1Database.batch()` em runtime Cloudflare de homologação autorizado;
-6. avançar os módulos funcionais: Acompanhamento, Alunos, Turmas, Professores e Pesquisa.
+1. preservar a homologação NAA real já concluída e a registration credential-free;
+2. provar bearer e ownership end-to-end somente em runtime de homologação explicitamente autorizado;
+3. manter o endpoint público bloqueado e `sync_enabled=0` até esse gate;
+4. comprovar atomicidade por binding `D1Database.batch()` em runtime Cloudflare de homologação autorizado;
+5. avançar os módulos funcionais: Acompanhamento, Alunos, Turmas, Professores e Pesquisa.
 
 ## Não fazer ao retomar
 
@@ -149,7 +148,17 @@ Permanece apenas a pasta autorizada `BANCO_NOTAS_HOMOLOGACAO` e o histórico sin
 - O plano Entra removeu `Directory.Read.All`; nenhuma escrita no tenant foi feita.
 - Endpoint público desconectado, sync `0`, produção intocada e PR #52 draft.
 - Evidência: `docs/BANCO_NOTAS_ENTRA_ADDIN_TOKEN_V2_HARDENING_2026-08-27.md`.
-- Próximo gate: auditoria Entra read-only antes de qualquer apply.
+- Gate histórico concluído: auditoria Entra read-only executada antes do apply.
+
+## Homologação NAA real — 27/08/2026
+
+- Registration Entra credential-free criada e auditada.
+- Audience GUID e delegated scope `BancoNotas.Sync` homologados.
+- Redirect bridge dedicada implementada para MSAL Browser v5.
+- Excel Online obteve silenciosamente token v2 real em 662 ms; checks de tenant, issuer, audience, scope, authorized party, lifetime e presença de OID passaram.
+- Evidência sanitizada sem token, UPN ou valor de OID em `docs/BANCO_NOTAS_NAA_HOMOLOGATION_2026-08-27.md`.
+- Redirect local removido; zero permissões Graph, grants, app roles, secrets ou certificados.
+- Rota pública desconectada, `sync_enabled=0`, nenhum deploy e nenhum merge.
 
 ## Auditoria Entra read-only do add-in — 27/08/2026
 
@@ -159,4 +168,4 @@ Permanece apenas a pasta autorizada `BANCO_NOTAS_HOMOLOGACAO` e o histórico sin
 - Nenhuma escrita no tenant ocorreu; nenhuma application, service principal, permissão, consentimento ou credencial foi alterada.
 - Endpoint público desconectado, sync `0`, produção intocada e PR #52 draft.
 - Evidência: `docs/BANCO_NOTAS_ENTRA_ADDIN_AUDIT_2026-08-27.md`.
-- Próximo gate: apply separado para criar exatamente uma registration de homologação credential-free, sem publicar o add-in.
+- Gate histórico concluído: registration de homologação credential-free criada sem publicar o add-in.

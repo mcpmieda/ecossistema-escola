@@ -226,19 +226,15 @@ Já existe ownership D1:
 
 `teacherModelId ↔ teacher ↔ entraObjectId`
 
-Ainda faltam valores reais e homologados para:
-
-- `BANCO_NOTAS_ADDIN_AUDIENCE`;
-- `BANCO_NOTAS_ADDIN_SCOPE`.
+Audience e scope reais foram homologados em 27/08/2026. O Excel Online obteve um token NAA delegado v2 e todos os checks sanitizados passaram. Ver `docs/BANCO_NOTAS_NAA_HOMOLOGATION_2026-08-27.md`.
 
 Regras para o próximo agente:
 
-- auditar antes de criar;
-- reutilizar app existente se adequada;
+- preservar a registration de homologação já auditada;
 - menor privilégio;
 - sem consentimento amplo desnecessário;
 - sem publicação do add-in;
-- endpoint público continua bloqueado até o gate completo;
+- endpoint público continua bloqueado até uma prova bearer/ownership em runtime de homologação autorizado;
 - testar tenant/audience/scope/OID/ownership negativos.
 
 ## Grade-events e binding D1
@@ -321,7 +317,7 @@ Não aplicar automaticamente. Auditar antes e restaurar somente algo comprovadam
 - O plano Entra removeu `Directory.Read.All`; nenhuma escrita no tenant foi feita.
 - Endpoint público desconectado, sync `0`, produção intocada e PR #52 draft.
 - Evidência: `docs/BANCO_NOTAS_ENTRA_ADDIN_TOKEN_V2_HARDENING_2026-08-27.md`.
-- Próximo gate: auditoria Entra read-only antes de qualquer apply.
+- Gate histórico concluído: auditoria Entra read-only executada antes do apply.
 
 ## Auditoria Entra read-only do add-in — 27/08/2026
 
@@ -331,4 +327,13 @@ Não aplicar automaticamente. Auditar antes e restaurar somente algo comprovadam
 - Nenhuma escrita no tenant ocorreu; nenhuma application, service principal, permissão, consentimento ou credencial foi alterada.
 - Endpoint público desconectado, sync `0`, produção intocada e PR #52 draft.
 - Evidência: `docs/BANCO_NOTAS_ENTRA_ADDIN_AUDIT_2026-08-27.md`.
-- Próximo gate: apply separado para criar exatamente uma registration de homologação credential-free, sem publicar o add-in.
+- Gate histórico concluído: registration de homologação credential-free criada sem publicar o add-in.
+
+## Homologação NAA real — 27/08/2026
+
+- A registration credential-free, o audience GUID e `BancoNotas.Sync` estão homologados.
+- A redirect bridge dedicada do MSAL Browser v5 eliminou os timeouts do harness anterior.
+- Aquisição silenciosa real no Excel Online passou em 662 ms.
+- Evidência não contém token, UPN nem valor de OID.
+- Redirect local removido; zero Graph permissions, grants, app roles ou credenciais.
+- Rota pública desconectada, `sync_enabled=0`, produção intocada e PR #52 draft.

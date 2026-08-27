@@ -73,9 +73,7 @@ No branch `feat/banco-de-notas-foundation`, continua registrada a separação ob
 - regressão privada nesses casos é evidência complementar, não permissão para especializar o produto;
 - generalização exige fixtures sintéticas variadas e ausência de dependências por professor/abas/turmas/disciplinas/células específicas.
 
-O transformador/planner, a instância genérica e a análise persistente já existem em código e estão cobertos por regressão sintética/SQLite. Isso **não** significa que o pipeline cloud completo esteja homologado: ainda falta analisador/serializador XLSX cloud real, D1 remoto, Entra provisionado, Graph/SharePoint real e browser QA.
-
-Limites comprovados por inspeção do ambiente: Wrangler sem autenticação; tokens Cloudflare ausentes; CLIs e configuração administrativa Microsoft ausentes. Portanto, não houve D1 remoto, Entra provisionado, chamada SharePoint/Graph real, browser QA em preview, deploy ou sync.
+O transformador/planner, a instância genérica e a análise persistente existem em código e estão cobertos por regressão sintética/SQLite. Desde a evidência histórica desta seção, D1 de homologação, XLSX cloud, Graph/SharePoint e NAA real no Excel Online também foram comprovados e documentados. Isso não equivale a deploy ou sync de produção, que continuam ausentes.
 
 ## Escopo verificado
 
@@ -362,7 +360,7 @@ O estado implementado também inclui:
 - hash de payload associado à idempotência;
 - snapshot por `(gradeKey, field)` e stale auditável sem regressão;
 - store D1 com validação de fonte, modelo, ambiente, autoridade, sync e mapeamento de célula;
-- bearer Entra fail closed preparado, mas não exposto publicamente sem audience/scope reais;
+- bearer Entra fail closed preparado; audience/scope reais já homologados, mas a rota pública continua desconectada;
 - import jobs com idempotência, proveniência, findings e state machine protegida no storage;
 - stream append-only separado para resolução auditável de findings;
 - artefato `import_analyses` append-only, preso a hash/formato/ano/analyzer/version da análise;
@@ -378,21 +376,19 @@ O estado implementado também inclui:
 
 Na base funcional `88ea66896271408d57343c046d81b5d042b7810f`, run `32924002605` / `#600`, o pipeline passou security, format, lint, typecheck, semantic check, **229/229 testes em 39 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram corretamente `skipped`.
 
-Limites explícitos dessa evidência:
+Limites explícitos daquela evidência histórica (os itens já fechados aparecem como tal na documentação atual do Banco):
 
 - SQLite real não substitui Cloudflare D1 remoto;
 - regressão estrutural de deep-link não substitui browser QA real;
-- D1 de homologação ainda não foi provisionado/aplicado;
-- migrations `0001` a `0005` ainda não foram aplicadas remotamente;
-- registro SharePoint ainda não foi aplicado ao tenant;
+- D1 de homologação e migrations foram comprovados posteriormente;
+- ciclo SharePoint/Excel Online/Graph foi comprovado posteriormente e limpo;
 - endpoint público do add-in ainda não foi exposto;
-- audience/scope Entra do add-in ainda não foram provisionados;
-- analisador/serializador XLSX cloud ainda não está conectado;
-- adapter Graph real ainda não foi conectado/homologado;
+- audience/scope Entra e token NAA real foram comprovados em 27/08/2026;
+- analisador/serializador XLSX cloud e adapter Graph real foram comprovados posteriormente;
 - não houve sync end-to-end;
 - não houve merge ou deploy de produção do Banco.
 
-O endpoint de grade-events deve continuar fechado ao add-in até existir autenticação bearer Entra própria. Não reutilizar cookie administrativo do Centro nem inventar audience, scope ou client secret.
+O endpoint de grade-events deve continuar fechado até uma prova bearer/ownership no runtime de homologação autorizado. A identidade Entra própria já existe; não reutilizar cookie administrativo do Centro nem criar client secret.
 
 O serializador XLSX futuro deve consumir a definição de layout já versionada; não criar outra tabela hardcoded de colunas nem reconstruir a ordenação dos alunos por UUID ou pela ordem do arquivo legado.
 
@@ -401,6 +397,7 @@ O serializador XLSX futuro deve consumir a definição de layout já versionada;
 - estado atual: `PROJECT_STATE.md`;
 - estado do Banco: `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
 - handoff do Banco: `docs/BANCO_NOTAS_HANDOFF.md`;
+- homologação NAA: `docs/BANCO_NOTAS_NAA_HOMOLOGATION_2026-08-27.md`;
 - evidência da release: `docs/RELEASE_CENTRO_ADMIN_V1_2026-08-25.md`;
 - evidência da atualização visual: `docs/PRODUCTION_VISUAL_CLEANUP_PR50_2026-08-25.md`;
 - protocolo de liberação: `docs/PROTOCOLO_VALIDACAO_E_LIBERACAO.md`;

@@ -257,12 +257,9 @@ O backend já valida bearer Entra fail-closed para:
 
 A migration `0007` e o authorizer D1 protegem ownership `teacherModelId ↔ teacher ↔ entraObjectId`.
 
-Ainda faltam valores reais e homologados para:
+Audience e scope reais foram homologados em 27/08/2026. Uma sessão real do Excel Online obteve token NAA v2 delegado e validou tenant, issuer, audience GUID, `BancoNotas.Sync`, authorized party, lifetime e presença de OID. A evidência sanitizada está em `docs/BANCO_NOTAS_NAA_HOMOLOGATION_2026-08-27.md`.
 
-- `BANCO_NOTAS_ADDIN_AUDIENCE`;
-- `BANCO_NOTAS_ADDIN_SCOPE`.
-
-O endpoint público/add-in permanece bloqueado. Não inventar valores e não publicar antes do gate completo.
+O endpoint público/add-in permanece deliberadamente desconectado e `sync_enabled=0`. O gate de identidade foi fechado, mas isso não autoriza publicação nem deploy.
 
 ## Grade-events e atomicidade
 
@@ -272,23 +269,20 @@ Ainda falta provar atomicidade pelo binding D1 real em Worker/Pages de homologa�
 
 ## Bloqueios técnicos restantes
 
-1. audience/delegated scope Entra reais do add-in;
-2. bearer/ownership end-to-end do add-in;
-3. atomicidade por binding D1 real de homologação;
-4. módulos funcionais ainda planejados;
-5. browser QA amplo e release controlada.
+1. bearer/ownership end-to-end contra a rota de homologação, quando ela for explicitamente habilitada;
+2. atomicidade por binding D1 real de homologação;
+3. módulos funcionais ainda planejados;
+4. browser QA amplo e release controlada.
 
 O storage, o share individual, a edição no Excel, o retorno via Graph e o cleanup **não são mais bloqueadores**.
 
 ## Próxima sequência segura
 
-1. auditar apps Entra existentes e reutilizar quando adequado;
-2. configurar audience/scope de homologação com menor privilégio;
-3. testar tokens positivos e negativos, incluindo ownership;
-4. manter o add-in não publicado;
-5. validar atomicidade D1 por binding autorizado;
-6. avançar Acompanhamento, Alunos, Turmas, Professores e Pesquisa;
-7. QA e produção somente após gates e decisão humana explícita.
+1. manter o add-in não publicado e o sync desligado;
+2. testar o bearer/ownership positivo e negativo somente em rota de homologação autorizada;
+3. validar atomicidade D1 por binding autorizado;
+4. avançar Acompanhamento, Alunos, Turmas, Professores e Pesquisa;
+5. QA e produção somente após gates e decisão humana explícita.
 
 ## Regras que não podem regredir
 
@@ -315,7 +309,7 @@ O storage, o share individual, a edição no Excel, o retorno via Graph e o clea
 - O plano Entra removeu `Directory.Read.All`; nenhuma escrita no tenant foi feita.
 - Endpoint público desconectado, sync `0`, produção intocada e PR #52 draft.
 - Evidência: `docs/BANCO_NOTAS_ENTRA_ADDIN_TOKEN_V2_HARDENING_2026-08-27.md`.
-- Próximo gate: auditoria Entra read-only antes de qualquer apply.
+- Gate histórico concluído: auditoria Entra read-only executada antes do apply.
 
 ## Auditoria Entra read-only do add-in — 27/08/2026
 
@@ -325,4 +319,14 @@ O storage, o share individual, a edição no Excel, o retorno via Graph e o clea
 - Nenhuma escrita no tenant ocorreu; nenhuma application, service principal, permissão, consentimento ou credencial foi alterada.
 - Endpoint público desconectado, sync `0`, produção intocada e PR #52 draft.
 - Evidência: `docs/BANCO_NOTAS_ENTRA_ADDIN_AUDIT_2026-08-27.md`.
-- Próximo gate: apply separado para criar exatamente uma registration de homologação credential-free, sem publicar o add-in.
+- Gate histórico concluído: registration de homologação credential-free criada sem publicar o add-in.
+
+## Homologação NAA real — 27/08/2026
+
+- Registration credential-free criada e auditada com menor privilégio.
+- Redirect bridge dedicada implementada para MSAL Browser v5.
+- Token delegado v2 comprovado no Excel Online em 662 ms, sem persistir token ou PII.
+- Redirect temporário local removido; redirects finais restritos ao broker e ao `auth.html` de produção.
+- Zero permissões Graph, grants, app roles, secrets ou certificados.
+- Endpoint público desconectado, `sync_enabled=0`, nenhum deploy e nenhum merge.
+- Evidência: `docs/BANCO_NOTAS_NAA_HOMOLOGATION_2026-08-27.md`.
