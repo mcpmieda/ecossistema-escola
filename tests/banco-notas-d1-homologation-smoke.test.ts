@@ -5,8 +5,13 @@ import { describe, expect, it } from 'vitest';
 const root = process.cwd();
 const provisionPath = join(root, 'infra/banco-notas/cloudflare/provision-homologation.ps1');
 const smokePath = join(root, 'infra/banco-notas/cloudflare/smoke-homologation.ps1');
+const sharePreparationPath = join(
+  root,
+  'infra/banco-notas/cloudflare/prepare-share-homologation.ps1',
+);
 const provision = readFileSync(provisionPath, 'utf8');
 const smoke = readFileSync(smokePath, 'utf8');
+const sharePreparation = readFileSync(sharePreparationPath, 'utf8');
 
 describe('Banco de Notas remote D1 homologation safeguards', () => {
   it('provisions only the homologation database through the current Wrangler contract', () => {
@@ -38,6 +43,15 @@ describe('Banco de Notas remote D1 homologation safeguards', () => {
     expect(smoke).toContain('[switch]$ConfirmSyntheticWrites');
     expect(smoke).toContain('if (-not $ConfirmSyntheticWrites)');
     expect(smoke).toContain('database_name deve ser exatamente $expectedDatabaseName');
+  });
+
+  it('prepares only the authorized synthetic share identity with sync disabled', () => {
+    expect(sharePreparation).toContain("$expectedDatabaseName = 'banco-notas-homologation'");
+    expect(sharePreparation).toContain('ConfirmSyntheticWrites');
+    expect(sharePreparation).toContain("'ready_to_share', 0, 'homologation'");
+    expect(sharePreparation).toContain('sync_enabled -ne 0');
+    expect(sharePreparation).toContain("environment -ne 'homologation'");
+    expect(sharePreparation).not.toContain('wrangler d1 execute ecossistema-escola-db');
   });
 
   it('never provisions, migrates, deploys, or leaves sync enabled', () => {
