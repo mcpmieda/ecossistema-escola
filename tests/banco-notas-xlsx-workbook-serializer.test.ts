@@ -124,6 +124,7 @@ describe('Banco de Notas real XLSX serializer', () => {
     expect(entries.get('xl/workbook.xml')).toContain('Turma A - Matemática');
     expect(entries.get('xl/workbook.xml')).toContain('name="_BancoNotas"');
     expect(entries.get('xl/workbook.xml')).toContain('state="veryHidden"');
+    expect(entries.get('xl/workbook.xml')).toContain('<bookViews><workbookView/></bookViews>');
 
     const gradeSheet = entries.get('xl/worksheets/sheet1.xml') ?? '';
     expect(gradeSheet).toContain('Estudante Sintético');
@@ -131,6 +132,12 @@ describe('Banco de Notas real XLSX serializer', () => {
     expect(gradeSheet).toContain('Nota final');
     expect(gradeSheet).toContain('r="A2"><v>1</v>');
     expect(gradeSheet).toContain('r="D2" t="inlineStr"');
+    expect(gradeSheet).toContain(
+      '<cols><col min="1" max="1" width="8" customWidth="1"/><col min="2" max="2" width="12" customWidth="1"/><col min="3" max="3" width="12" customWidth="1"/><col min="4" max="4" width="32" customWidth="1"/></cols>',
+    );
+    expect(gradeSheet.indexOf('r="A1"')).toBeLessThan(gradeSheet.indexOf('r="B1"'));
+    expect(gradeSheet.indexOf('r="B1"')).toBeLessThan(gradeSheet.indexOf('r="C1"'));
+    expect(gradeSheet.indexOf('r="C1"')).toBeLessThan(gradeSheet.indexOf('r="D1"'));
 
     const metadataSheet = entries.get('xl/worksheets/sheet2.xml') ?? '';
     expect(metadataSheet).toContain(instance.modelId);

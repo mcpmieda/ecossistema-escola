@@ -41,14 +41,16 @@ M365 operation: run `33003875460` — success, readiness read-only
 
 ## Em andamento
 
-- [ ] Entrar no Excel Online como `GUI@escolaieda.com`, confirmar acesso de edição e realizar a alteração sintética controlada.
+- [x] Login destinatário confirmado visualmente como GUILHERME PEREIRA DA SILVA / `GUI@escolaieda.com`; a sessão Global Admin foi encerrada antes do teste.
+- [x] Arquivo e worksheet corretos reabertos como destinatário real, com apenas os dados sintéticos esperados.
+- [ ] Corrigir a compatibilidade OOXML que faz o Excel Online abrir a pasta em modo reparado/somente leitura; substituir somente o XLSX sintético e repetir a abertura antes da edição controlada.
 - [x] Estado real recuperado em 27/08/2026: worktree limpo, branch local/remoto no mesmo HEAD, PR open/draft, CI verde e stash preservado sem aplicação.
 - [x] Diferença atual para `origin/main` confirmada após fetch explícito: branch 3 commits atrás e 367 commits à frente.
 - [x] Aba Microsoft anterior não permaneceu disponível no navegador interno; nenhuma sessão, credencial ou MFA foi inspecionada.
 
 ## Próxima ação exata
 
-Reabrir o fluxo Microsoft no navegador interno e autenticar como `GUI@escolaieda.com`. Se senha/MFA forem exigidos e não puderem ser concluídos com a sessão já disponível, deixar a página visível para preenchimento direto pelo usuário; depois validar e editar a célula sintética esperada.
+Validar em CI a correção do serializer OOXML (ordem crescente de colunas/células e `workbookView` referenciado), substituir de forma fail-closed o XLSX sintético retido e reabrir como `GUI@escolaieda.com`. Não aceitar a reparação destrutiva oferecida pelo Excel; editar somente após abertura nativa em modo de edição.
 
 ## Estado Microsoft
 
@@ -60,6 +62,9 @@ Reabrir o fluxo Microsoft no navegador interno e autenticar como `GUI@escolaieda
 - Compartilhamento individual ativo somente para `GUI@escolaieda.com`; arquivo sintético retido temporariamente para Excel.
 - O arquivo abriu no Excel Online ainda sob a sessão administrativa; conteúdo visual correto, em modo de leitura nessa sessão.
 - Tela Microsoft `Entrar` aberta para troca à conta destinatária; coleta segura automatizada indisponível, aguardando preenchimento manual na interface.
+- Em 27/08/2026, a autenticação destinatária foi concluída e a interface confirmou `GUI@escolaieda.com`; a sessão administrativa foi removida do teste.
+- O Excel Online abriu o arquivo correto em modo reparado/somente leitura e ofereceu uma correção que poderia reescrever o pacote. A operação foi cancelada sem alterar o arquivo.
+- Diagnóstico local identificou estruturas OOXML incompatíveis com edição estrita: `sheetView` referenciava `workbookViewId=0` sem `<bookViews>` no workbook e células/definições de coluna eram emitidas fora de ordem crescente.
 - Nenhuma credencial, token, cookie ou MFA registrado.
 
 ## Estado Cloudflare

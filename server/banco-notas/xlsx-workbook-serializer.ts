@@ -209,20 +209,33 @@ function worksheetXml(args: {
     args.presentation.gradeHeaders.map((item) => [item.field, item.label]),
   );
   const headerCells = [
-    inlineCell(
-      `${args.presentation.studentPositionColumn}${headerRow}`,
-      args.presentation.positionHeader,
-      1,
-    ),
-    inlineCell(
-      `${args.presentation.studentNameColumn}${headerRow}`,
-      args.presentation.studentHeader,
-      1,
-    ),
-    ...args.instance.layout.gradeColumns.map((item) =>
-      inlineCell(`${item.column}${headerRow}`, gradeHeader.get(item.field) ?? item.field, 1),
-    ),
-  ];
+    {
+      column: args.presentation.studentPositionColumn,
+      content: inlineCell(
+        `${args.presentation.studentPositionColumn}${headerRow}`,
+        args.presentation.positionHeader,
+        1,
+      ),
+    },
+    {
+      column: args.presentation.studentNameColumn,
+      content: inlineCell(
+        `${args.presentation.studentNameColumn}${headerRow}`,
+        args.presentation.studentHeader,
+        1,
+      ),
+    },
+    ...args.instance.layout.gradeColumns.map((item) => ({
+      column: item.column,
+      content: inlineCell(
+        `${item.column}${headerRow}`,
+        gradeHeader.get(item.field) ?? item.field,
+        1,
+      ),
+    })),
+  ]
+    .sort((left, right) => columnNumber(left.column) - columnNumber(right.column))
+    .map((item) => item.content);
 
   const rows = args.sheet.rows
     .slice()
@@ -238,12 +251,16 @@ function worksheetXml(args: {
   const positionColumn = columnNumber(args.presentation.studentPositionColumn);
   const nameColumn = columnNumber(args.presentation.studentNameColumn);
   const columnDefinitions = [
-    `<col min="${positionColumn}" max="${positionColumn}" width="8" customWidth="1"/>`,
-    `<col min="${nameColumn}" max="${nameColumn}" width="32" customWidth="1"/>`,
-    ...gradeColumnNumbers.map(
-      (column) => `<col min="${column}" max="${column}" width="12" customWidth="1"/>`,
-    ),
-  ].join('');
+    { column: positionColumn, width: 8 },
+    { column: nameColumn, width: 32 },
+    ...gradeColumnNumbers.map((column) => ({ column, width: 12 })),
+  ]
+    .sort((left, right) => left.column - right.column)
+    .map(
+      ({ column, width }) =>
+        `<col min="${column}" max="${column}" width="${width}" customWidth="1"/>`,
+    )
+    .join('');
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="${headerRow}" topLeftCell="A${headerRow + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${columnDefinitions}</cols><sheetData><row r="${headerRow}">${headerCells.join('')}</row>${rows.join('')}</sheetData></worksheet>`;
 }
@@ -339,7 +356,7 @@ function workbookEntries(
     },
     {
       name: 'xl/workbook.xml',
-      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${workbookSheets}</sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`,
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets>${workbookSheets}</sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`,
     },
     {
       name: 'xl/_rels/workbook.xml.rels',
