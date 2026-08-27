@@ -8,6 +8,7 @@ import { xlsxLegacyAnalysisProfileSchema } from '../shared/banco-notas-xlsx-anal
 import type { RuntimeEnv } from '../server/env';
 import { createTeacherModelGraphGateway } from '../server/banco-notas/teacher-model-graph-gateway';
 import { createGenericXlsxLegacyAnalyzer } from '../server/banco-notas/xlsx-legacy-analyzer';
+import { assertSharePointWorkbookIntegrity } from '../server/banco-notas/xlsx-sharepoint-integrity';
 import { createGenericXlsxWorkbookSerializer } from '../server/banco-notas/xlsx-workbook-serializer';
 import { graphContentRequest, graphRequest } from '../server/graph/client';
 import {
@@ -21,7 +22,6 @@ const driveName = 'ARQUIVOS_PLATAFORMA';
 const folderName = 'BANCO_NOTAS_HOMOLOGACAO';
 const runSuffix = (process.env.GITHUB_RUN_ID ?? 'local').replace(/[^a-zA-Z0-9_-]/gu, '') || 'local';
 const fileName = `banco-notas-roundtrip-sintetico-${runSuffix}.xlsx`;
-const diagnosticFileName = 'banco-notas-m365-downloaded-diagnostic.xlsx';
 
 const modelId = '71111111-1111-4111-8111-111111111111';
 const teacherId = '72222222-2222-4222-8222-222222222222';
@@ -239,6 +239,7 @@ homologation('Banco de Notas M365 storage homologation', () => {
     let downloadedContentType = '';
     let downloadedBytes: Uint8Array | undefined;
     let downloadedHash = '';
+    let packageIntegrity: 'exact' | 'sharepoint_normalized' | undefined;
     let analysisError = '';
     let executionError: unknown;
     try {
@@ -274,6 +275,7 @@ homologation('Banco de Notas M365 storage homologation', () => {
       });
       downloadedContentType = directDownload.response.headers.get('Content-Type') ?? '';
       expect(new Uint8Array(await directDownload.response.arrayBuffer())).toEqual(downloaded);
+      packageIntegrity = await assertSharePointWorkbookIntegrity(content, downloaded);
 
       try {
         const analysis = await analyzeLegacyWorkbook({
@@ -299,9 +301,8 @@ homologation('Banco de Notas M365 storage homologation', () => {
         analysisError = safeError(error);
       }
 
-      expect(metadataByteLength).toBe(content.byteLength);
-      expect(downloadedByteLength).toBe(content.byteLength);
-      expect(downloadedHash).toBe(artifact.metadata.sha256);
+      expect(metadataByteLength).toBe(downloadedByteLength);
+      expect(packageIntegrity).toBe('sharepoint_normalized');
       expect(analysisSucceeded).toBe(true);
     } catch (error) {
       failure = safeError(error);
@@ -318,14 +319,12 @@ homologation('Banco de Notas M365 storage homologation', () => {
           cleanupError = safeError(error);
         }
       }
-      if (downloadedBytes && downloadedHash !== artifact.metadata.sha256) {
-        await writeFile(diagnosticFileName, downloadedBytes);
-      }
       await writeFile(
         'banco-notas-m365-homologation-audit.json',
         `${JSON.stringify(
           {
-            status: analysisSucceeded && cleanupSucceeded ? 'success' : 'failed',
+            status:
+              packageIntegrity && analysisSucceeded && cleanupSucceeded ? 'success' : 'failed',
             storageBoundary: 'ARQUIVOS_PLATAFORMA/BANCO_NOTAS_HOMOLOGACAO',
             source: 'synthetic-generic-xlsx',
             executionEnvironment: 'node',
@@ -345,7 +344,10 @@ homologation('Banco de Notas M365 storage homologation', () => {
                   byte.toString(16).padStart(2, '0'),
                 ).join('')
               : undefined,
-            metadataVerified: metadataByteLength === content.byteLength,
+            normalizationObserved: downloadedHash !== artifact.metadata.sha256,
+            packageIntegrity,
+            metadataMatchesDownloadedContent: metadataByteLength === downloadedByteLength,
+            byteExactUpload: downloadedHash === artifact.metadata.sha256,
             downloadedHashVerified: downloadedHash === artifact.metadata.sha256,
             ooxmlReanalysis: analysisSucceeded,
             ooxmlReanalysisError: analysisError || undefined,

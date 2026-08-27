@@ -32,7 +32,7 @@ function verifier() {
 }
 
 describe('Banco de Notas teacher model Graph orchestration', () => {
-  it('stores, shares, downloads, verifies hash, reanalyzes and only then audits success', async () => {
+  it('stores, shares, verifies package integrity, reanalyzes and only then audits success', async () => {
     const graph = gateway();
     const audit = { record: vi.fn(async () => undefined) };
     const verifyDownloadedWorkbook = verifier();
@@ -100,7 +100,7 @@ describe('Banco de Notas teacher model Graph orchestration', () => {
     );
   });
 
-  it('revokes and removes when metadata size validation fails', async () => {
+  it('revokes and removes when downloaded size differs from metadata', async () => {
     const graph = gateway({
       metadata: vi.fn(async () => ({ etag: 'verified', size: 2 })),
     });
@@ -114,8 +114,8 @@ describe('Banco de Notas teacher model Graph orchestration', () => {
         audit,
         verifyDownloadedWorkbook: verifier(),
       }),
-    ).rejects.toThrow('stored_model_size_mismatch');
-    expect(graph.download).not.toHaveBeenCalled();
+    ).rejects.toThrow('stored_model_download_size_mismatch');
+    expect(graph.download).toHaveBeenCalledOnce();
     expect(graph.revokeShare).toHaveBeenCalledWith(
       expect.objectContaining({ driveItemId: 'drive-item-1', permissionId: 'permission-1' }),
     );
@@ -125,7 +125,7 @@ describe('Banco de Notas teacher model Graph orchestration', () => {
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         result: 'failed',
-        safeError: 'stored_model_size_mismatch',
+        safeError: 'stored_model_download_size_mismatch',
         compensation: expect.objectContaining({
           shareRevoked: true,
           storedFileRemoved: true,
@@ -152,7 +152,7 @@ describe('Banco de Notas teacher model Graph orchestration', () => {
     expect(graph.remove).toHaveBeenCalledOnce();
   });
 
-  it('compensates when downloaded bytes do not match the model hash', async () => {
+  it('compensates when downloaded bytes are not an exact or safely normalized package', async () => {
     const graph = gateway({ download: vi.fn(async () => new Uint8Array([3, 2, 1])) });
     const audit = { record: vi.fn(async () => undefined) };
 
@@ -164,7 +164,7 @@ describe('Banco de Notas teacher model Graph orchestration', () => {
         audit,
         verifyDownloadedWorkbook: verifier(),
       }),
-    ).rejects.toThrow('stored_model_hash_mismatch');
+    ).rejects.toThrow('stored_model_package_integrity_mismatch');
     expect(graph.revokeShare).toHaveBeenCalledOnce();
     expect(graph.remove).toHaveBeenCalledOnce();
   });
@@ -226,7 +226,7 @@ describe('Banco de Notas teacher model Graph orchestration', () => {
         audit,
         verifyDownloadedWorkbook: verifier(),
       }),
-    ).rejects.toThrow('teacher_model_compensation_failed:stored_model_size_mismatch');
+    ).rejects.toThrow('teacher_model_compensation_failed:stored_model_download_size_mismatch');
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
         result: 'failed',

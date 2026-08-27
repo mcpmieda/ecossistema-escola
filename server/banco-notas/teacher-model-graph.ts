@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { assertSharePointWorkbookIntegrity } from './xlsx-sharepoint-integrity';
 
 const recipientSchema = z
   .object({
@@ -98,6 +99,7 @@ export async function storeShareAndVerifyTeacherModel(args: {
   permissionId: string;
   etag: string;
   correlationId: string;
+  contentIntegrity: 'exact' | 'sharepoint_normalized';
 }> {
   const model = storedModelSchema.parse(args.model);
   const recipient = recipientSchema.parse(args.recipient);
@@ -125,14 +127,15 @@ export async function storeShareAndVerifyTeacherModel(args: {
     permissionId = shared.permissionId;
 
     const metadata = await args.gateway.metadata({ driveItemId, correlationId });
-    if (metadata.size !== model.content.byteLength) throw new Error('stored_model_size_mismatch');
-
     const downloaded = await args.gateway.download({ driveItemId, correlationId });
     if (downloaded.byteLength !== metadata.size) {
       throw new Error('stored_model_download_size_mismatch');
     }
-    if ((await sha256Hex(downloaded)) !== model.modelHash) {
-      throw new Error('stored_model_hash_mismatch');
+    let contentIntegrity: 'exact' | 'sharepoint_normalized';
+    try {
+      contentIntegrity = await assertSharePointWorkbookIntegrity(model.content, downloaded);
+    } catch {
+      throw new Error('stored_model_package_integrity_mismatch');
     }
 
     await args.verifyDownloadedWorkbook({
@@ -156,6 +159,7 @@ export async function storeShareAndVerifyTeacherModel(args: {
       permissionId,
       etag: metadata.etag,
       correlationId,
+      contentIntegrity,
     };
   } catch (error) {
     const compensation: TeacherModelCompensation = {

@@ -53,6 +53,7 @@ export async function shareTeacherModel(args: {
   permissionId: string;
   etag: string;
   correlationId: string;
+  contentIntegrity: 'exact' | 'sharepoint_normalized';
 }> {
   const ready = await args.repository.prepareShare(args.input.teacherModelId, args.input.actor);
   assertCandidateMatchesReadyModel(args.input, ready);

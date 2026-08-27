@@ -2,7 +2,7 @@
 
 Última atualização: 26/08/2026 20:50 BRT
 Branch: `feat/banco-de-notas-foundation`
-HEAD: `c8ae770b9b91a8f8761e32e8bdfa81ff16264fd4`
+HEAD: `436c5b0` (próximo commit consolidará o gate de normalização)
 PR: `#52` — open, draft, sem merge
 CI: run `33024306664` — validação e segurança verdes; storage M365 falhou com transformação de bytes
 D1 homologation: run `32981705701` — success, migrations `0001`–`0007`, sync final `0`
@@ -25,14 +25,18 @@ M365 operation: run `33003875460` — success, readiness read-only
 - [x] Round-trip real executou upload, metadata, download e cleanup no boundary dedicado.
 - [x] Arquivo sintético removido com sucesso; pasta dedicada retida; nenhum share executado.
 - [x] Divergência reproduzida: original `9588` bytes, metadata/download `21329` bytes e hash baixado diferente.
+- [x] Diagnóstico OOXML comprovou preservação das partes do produto e injeção exclusiva de metadados SharePoint (`customXml`, custom properties e catálogos relacionados).
+- [x] Gate fail-closed implementado: partes originais do produto idênticas, relações/content types originais preservados e apenas adições server-managed conhecidas aceitas.
+- [x] Artefato XLSX diagnóstico `9628007563` excluído do GitHub após a análise.
+- [x] Gate local pós-correção verde: 298/298 testes ativos, lint, typecheck, semantic contract, build, actionlint, PowerShell e Control Plane.
 
 ## Em andamento
 
-- [ ] Capturar o XLSX baixado e diagnóstico OOXML para determinar a transformação Microsoft antes de alterar o gate de integridade.
+- [ ] Publicar o gate de integridade normalizada e repetir o storage M365 até verde.
 
 ## Próxima ação exata
 
-Publicar a instrumentação diagnóstica, executar novamente o storage M365, baixar o artefato sintético temporário, comparar o OOXML e remover o artefato diagnóstico do GitHub após a análise.
+Commitar/publicar o gate normalizado e acompanhar o novo run até storage M365 verde, com arquivo sintético removido e sem artefato XLSX temporário.
 
 ## Estado Microsoft
 
@@ -71,13 +75,14 @@ Publicar a instrumentação diagnóstica, executar novamente o storage M365, bai
 
 - `33008170523` — CI and deploy — failure no lint; storage M365 e produção skipped.
 - `33024306664` — validação/segurança success; storage M365 failure por diferença de tamanho/hash; arquivo removido; produção skipped.
+- `33024796115` — validação/segurança success; diagnóstico M365 confirmou reanálise OOXML e cleanup; artefato XLSX temporário depois excluído.
 - `32981705701` — Banco de Notas D1 homologation — success.
 - `33003875460` — M365 operations/readiness — success.
 - `33006204505` — CI and deploy — último baseline anterior verde após incorporar o Control Plane M365 então vigente.
 
 ## Bloqueios
 
-- A transformação do XLSX pelo boundary M365 precisa ser entendida antes de definir o critério de integridade.
+- O novo critério de integridade ainda precisa passar no boundary M365 real.
 - Credencial/MFA no navegador interno somente se a Microsoft solicitar durante a validação visual posterior.
 
 ## Como retomar
