@@ -42,10 +42,7 @@ function mediaType(request: BoundedBodyRequest): string | null {
   return value ? (value.split(';', 1)[0]?.trim().toLowerCase() ?? null) : null;
 }
 
-async function readBoundedBody(
-  request: BoundedBodyRequest,
-  maxBytes: number,
-): Promise<Uint8Array> {
+async function readBoundedBody(request: BoundedBodyRequest, maxBytes: number): Promise<Uint8Array> {
   const lengthHeader = request.headers.get('Content-Length');
   if (lengthHeader !== null) {
     const length = Number(lengthHeader);
