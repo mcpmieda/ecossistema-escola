@@ -19,7 +19,8 @@ import {
 const homologationEnabled = process.env.BANCO_NOTAS_M365_HOMOLOGATION === '1';
 const homologation = homologationEnabled ? describe : describe.skip;
 const homologationStage = process.env.BANCO_NOTAS_M365_HOMOLOGATION_STAGE ?? 'storage';
-const shareStage = homologationStage === 'share';
+const replaceStage = homologationStage === 'replace';
+const shareStage = homologationStage === 'share' || replaceStage;
 const driveName = 'ARQUIVOS_PLATAFORMA';
 const folderName = 'BANCO_NOTAS_HOMOLOGACAO';
 const runSuffix = (process.env.GITHUB_RUN_ID ?? 'local').replace(/[^a-zA-Z0-9_-]/gu, '') || 'local';
@@ -267,6 +268,8 @@ homologation('Banco de Notas M365 storage homologation', () => {
     let recipientIdentityMatch = false;
     let permissionBoundaryVerified = false;
     let resourceRetainedForExcel = false;
+    let previousRecipientPermissionRevoked = false;
+    let previousWorkbookRemoved = false;
     let preexistingEffectiveUserPermissionCount: number | undefined;
     let webUrl = '';
     let executionError: unknown;
@@ -280,7 +283,69 @@ homologation('Banco de Notas M365 storage homologation', () => {
             correlationId: 'banco-notas-m365-share-preflight',
           })
         ).data.value.filter((item) => item.name === fileName);
-        if (existing.length !== 0) throw new Error('m365_homologation_share_file_preexisting');
+        if (!replaceStage && existing.length !== 0) {
+          throw new Error('m365_homologation_share_file_preexisting');
+        }
+        if (replaceStage) {
+          if (existing.length !== 1 || !existing[0]!.file) {
+            throw new Error(`m365_homologation_replace_file_count:${existing.length}`);
+          }
+          const previousDriveItemId = existing[0]!.id;
+          const recipientEntraObjectId = requiredEnv('BANCO_NOTAS_M365_RECIPIENT_OID');
+          const previousPermissions = (
+            await graphRequest<{ value: Permission[] }>({
+              env: {} as RuntimeEnv,
+              token,
+              path: `/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(previousDriveItemId)}/permissions?$select=id,roles,link,invitation,grantedToV2,grantedToIdentitiesV2`,
+              correlationId: 'banco-notas-m365-replace-permissions',
+            })
+          ).data.value;
+          if (
+            previousPermissions.some(
+              (permission) =>
+                permission.link?.scope === 'anonymous' ||
+                permission.link?.scope === 'organization' ||
+                Boolean(permission.grantedToV2?.group?.id) ||
+                Boolean(permission.grantedToIdentitiesV2?.some((identity) => identity.group?.id)),
+            )
+          ) {
+            throw new Error('m365_homologation_replace_broad_permission_detected');
+          }
+          const recipientPermissions = previousPermissions.filter((permission) => {
+            const userIds = [
+              permission.grantedToV2?.user?.id,
+              ...(permission.grantedToIdentitiesV2?.map((identity) => identity.user?.id) ?? []),
+            ].filter((id): id is string => Boolean(id));
+            return userIds.includes(recipientEntraObjectId) && permission.roles?.includes('write');
+          });
+          if (recipientPermissions.length !== 1) {
+            throw new Error(
+              `m365_homologation_replace_recipient_permission_count:${recipientPermissions.length}`,
+            );
+          }
+          await gateway.revokeShare({
+            driveItemId: previousDriveItemId,
+            permissionId: recipientPermissions[0]!.id,
+            correlationId: 'banco-notas-m365-replace-revoke',
+          });
+          previousRecipientPermissionRevoked = true;
+          await gateway.remove({
+            driveItemId: previousDriveItemId,
+            correlationId: 'banco-notas-m365-replace-remove',
+          });
+          previousWorkbookRemoved = true;
+          const remaining = (
+            await graphRequest<{ value: DriveItem[] }>({
+              env: {} as RuntimeEnv,
+              token,
+              path: `/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(target.folderId)}/children?$select=id,name,file&$top=200`,
+              correlationId: 'banco-notas-m365-replace-confirm-remove',
+            })
+          ).data.value.filter((item) => item.name === fileName);
+          if (remaining.length !== 0) {
+            throw new Error('m365_homologation_replace_file_still_present');
+          }
+        }
       }
 
       const stored = await gateway.store({
@@ -498,6 +563,10 @@ homologation('Banco de Notas M365 storage homologation', () => {
             ooxmlReanalysisError: analysisError || undefined,
             uploadedFileRemoved: cleanupSucceeded,
             retainedForExcelValidation: resourceRetainedForExcel,
+            previousRecipientPermissionRevoked: replaceStage
+              ? previousRecipientPermissionRevoked
+              : undefined,
+            previousWorkbookRemoved: replaceStage ? previousWorkbookRemoved : undefined,
             cleanupError: cleanupError || undefined,
             failure: failure || undefined,
             dedicatedFolderRetained: true,
