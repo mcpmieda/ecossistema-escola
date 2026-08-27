@@ -1,5 +1,7 @@
 import type { RuntimeEnv } from '../env';
 
+type BoundedBodyRequest = Pick<Request, 'body' | 'headers'>;
+
 export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
   'Content-Security-Policy':
     "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'",
@@ -35,12 +37,15 @@ export function enforceWriteOrigin(request: Request, env: RuntimeEnv): void {
   if (origin !== env.OFFICIAL_ORIGIN) throw new HttpError(403, 'Invalid origin');
 }
 
-function mediaType(request: Request): string | null {
+function mediaType(request: BoundedBodyRequest): string | null {
   const value = request.headers.get('Content-Type');
   return value ? (value.split(';', 1)[0]?.trim().toLowerCase() ?? null) : null;
 }
 
-async function readBoundedBody(request: Request, maxBytes: number): Promise<Uint8Array> {
+async function readBoundedBody(
+  request: BoundedBodyRequest,
+  maxBytes: number,
+): Promise<Uint8Array> {
   const lengthHeader = request.headers.get('Content-Length');
   if (lengthHeader !== null) {
     const length = Number(lengthHeader);
@@ -74,7 +79,7 @@ async function readBoundedBody(request: Request, maxBytes: number): Promise<Uint
 }
 
 export async function readBoundedBytes(
-  request: Request,
+  request: BoundedBodyRequest,
   options: {
     maxBytes?: number;
     allowedContentTypes?: readonly string[];
@@ -88,7 +93,10 @@ export async function readBoundedBytes(
   return readBoundedBody(request, maxBytes);
 }
 
-export async function readBoundedJson(request: Request, maxBytes = 16_384): Promise<unknown> {
+export async function readBoundedJson(
+  request: BoundedBodyRequest,
+  maxBytes = 16_384,
+): Promise<unknown> {
   if (mediaType(request) !== 'application/json')
     throw new HttpError(415, 'Expected application/json');
   const bytes = await readBoundedBody(request, maxBytes);

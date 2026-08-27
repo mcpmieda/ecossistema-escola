@@ -10,6 +10,7 @@ import { D1BancoNotasAddinAuthorizer } from '../server/banco-notas/d1-addin-auth
 import { D1GradeEventStore } from '../server/banco-notas/d1-grade-event-store';
 import type { RuntimeEnv } from '../server/env';
 import type { GradeEventInput } from '../shared/banco-notas-grade-events';
+import { testEnv } from './fixtures';
 
 const root = process.cwd();
 const migrations = [
@@ -170,15 +171,13 @@ function runtime(syncEnabled = true): SqliteD1 {
 }
 
 function env(configured = true): RuntimeEnv {
+  const base: RuntimeEnv = { ...testEnv, TENANT_ID: tenantId };
+  if (!configured) return base;
   return {
-    TENANT_ID: tenantId,
-    ...(configured
-      ? {
-          BANCO_NOTAS_ADDIN_AUDIENCE: audience,
-          BANCO_NOTAS_ADDIN_SCOPE: scope,
-        }
-      : {}),
-  } as RuntimeEnv;
+    ...base,
+    BANCO_NOTAS_ADDIN_AUDIENCE: audience,
+    BANCO_NOTAS_ADDIN_SCOPE: scope,
+  };
 }
 
 function input(overrides: Partial<GradeEventInput> = {}): GradeEventInput {
