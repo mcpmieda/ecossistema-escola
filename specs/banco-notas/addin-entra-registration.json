@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "environment": "homologation",
+  "displayName": "Ecossistema Escola - Banco de Notas Add-in Homologation",
+  "signInAudience": "AzureADMyOrg",
+  "identifierUriTemplate": "api://{applicationClientId}",
+  "requestedAccessTokenVersion": 2,
+  "delegatedScope": {
+    "value": "BancoNotas.Sync",
+    "type": "Admin",
+    "isEnabled": true,
+    "adminConsentDisplayName": "Sincronizar notas pelo add-in",
+    "adminConsentDescription": "Permite que o add-in envie alterações de notas somente para modelos vinculados à identidade institucional autenticada."
+  },
+  "spaRedirectUriTemplates": [
+    "brk-multihub://admin.escolaieda.com",
+    "https://admin.escolaieda.com/banco-de-notas/addin/taskpane.html"
+  ],
+  "preAuthorizeSelf": true,
+  "requiredResourceAccess": [],
+  "allowPublicClientFlows": false,
+  "credentials": "none",
+  "publicRouteEnabled": false,
+  "syncEnabled": false
+}
