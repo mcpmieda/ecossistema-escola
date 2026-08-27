@@ -19,11 +19,6 @@ import {
 
 const TRUSTED_FACTORY_LOGIN = 'github-actions[bot]';
 const MANIFEST_MARKER = /<!-- factory-manifest-sha256:([0-9a-f]{64}) -->/;
-const PROVIDER_LABELS = new Set([
-  FACTORY_LABELS.providerJules,
-  FACTORY_LABELS.providerAntigravity,
-  FACTORY_LABELS.providerOpenCode,
-]);
 const RUNTIME_LABELS = new Set([
   FACTORY_LABELS.running,
   FACTORY_LABELS.ci,
@@ -199,9 +194,7 @@ async function ensureTaskLabels(owner, repo, issue, desired) {
   const runtimeStarted =
     issue.state !== 'open' || [...current].some((label) => RUNTIME_LABELS.has(label));
   const safeDesired = runtimeStarted
-    ? desired.filter(
-        (label) => label === FACTORY_LABELS.task || PROVIDER_LABELS.has(label),
-      )
+    ? desired.filter((label) => label === FACTORY_LABELS.task)
     : desired;
   await addLabels(
     owner,
