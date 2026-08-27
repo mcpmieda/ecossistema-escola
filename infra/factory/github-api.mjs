@@ -71,16 +71,23 @@ export async function addLabels(owner, repo, issueNumber, labels) {
 }
 
 export async function removeLabel(owner, repo, issueNumber, label) {
-  const existing = await githubOptional(
-    `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`,
-  );
-  if (!existing) return;
-  await github(
-    `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`,
-    {
-      method: 'DELETE',
+  const path = `/repos/${owner}/${repo}/issues/${issueNumber}/labels/${encodeURIComponent(label)}`;
+  const response = await fetch(`${API_ROOT}${path}`, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      Authorization: `Bearer ${requiredEnv('GITHUB_TOKEN')}`,
+      'X-GitHub-Api-Version': '2022-11-28',
     },
-  );
+  });
+  if (response.status === 404) return;
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : null;
+  if (!response.ok) {
+    throw new Error(
+      `GitHub API DELETE ${path} failed (${response.status}): ${payload?.message ?? 'unknown error'}`,
+    );
+  }
 }
 
 export async function addComment(owner, repo, issueNumber, body) {
