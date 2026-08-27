@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { gradeFieldSchema } from './banco-notas-grade-events';
+import { gradeFieldSchema, gradeValueSchema } from './banco-notas-grade-events';
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u, 'expected lowercase SHA-256');
 const opaqueIdSchema = z
@@ -124,6 +124,7 @@ export const legacyGradeSlotSchema = z
     sourceComponentId: opaqueIdSchema,
     sourceStudentId: opaqueIdSchema,
     field: gradeFieldSchema,
+    sourceValue: gradeValueSchema.optional(),
     sourceLocator: legacySourceLocatorSchema,
   })
   .strict();

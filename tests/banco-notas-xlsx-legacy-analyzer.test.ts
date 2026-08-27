@@ -259,7 +259,45 @@ describe('Banco de Notas generic XLSX legacy analyzer', () => {
       'B2',
       'C2',
     ]);
+    expect(verified.model.gradeSlots.map((item) => item.sourceValue)).toEqual([null, null]);
     expect(verified.model.findings).toEqual([]);
+  });
+
+  it('preserves an explicit numeric grade and keeps blank distinct from zero', async () => {
+    const source = await generatedSource();
+    const entries = storedEntries(source.bytes);
+    const worksheet = entries.get('xl/worksheets/sheet1.xml') ?? '';
+    entries.set(
+      'xl/worksheets/sheet1.xml',
+      worksheet.replace(
+        '<c r="D2" t="inlineStr"><is><t xml:space="preserve">Estudante Sintético</t></is></c>',
+        '<c r="B2"><v>8.5</v></c><c r="C2"><v>0</v></c><c r="D2" t="inlineStr"><is><t xml:space="preserve">Estudante Sintético</t></is></c>',
+      ),
+    );
+    const bytes = await deflatedZip(entries);
+    const digestBytes = new Uint8Array(bytes.byteLength);
+    digestBytes.set(bytes);
+    const digest = await crypto.subtle.digest('SHA-256', digestBytes);
+    const sourceHash = Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('');
+
+    const verified = await analyzeLegacyWorkbook({
+      source: {
+        metadata: {
+          sourceFormat: 'xlsx',
+          sourceHash,
+          byteLength: bytes.byteLength,
+          schoolYear: 2026,
+        },
+        bytes,
+      },
+      analyzer: createGenericXlsxLegacyAnalyzer(profile),
+    });
+
+    const values = new Map(verified.model.gradeSlots.map((item) => [item.field, item.sourceValue]));
+    expect(values.get('NotaT1')).toBe(8.5);
+    expect(values.get('NotaFinal')).toBe(0);
   });
 
   it('supports the DEFLATE compression normally used by XLSX packages', async () => {

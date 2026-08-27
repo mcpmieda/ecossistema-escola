@@ -7,6 +7,7 @@ import {
   type XlsxLegacyAnalysisProfile,
   type XlsxLegacySheetRule,
 } from '../../shared/banco-notas-xlsx-analysis-profile';
+import type { GradeValue } from '../../shared/banco-notas-grade-events';
 import { readOoxmlZipEntries } from './ooxml-zip';
 import type { LegacyWorkbookAnalyzer, LegacyWorkbookSource } from './workbook-pipeline';
 
@@ -180,6 +181,17 @@ function cellValue(body: string, type: string | null, sharedStrings: readonly st
     throw new XlsxLegacyAnalyzerError('xlsx_shared_string_index_invalid');
   }
   return sharedStrings[index] ?? '';
+}
+
+function gradeValue(rawValue: string): GradeValue {
+  const value = rawValue.trim();
+  if (!value) return null;
+  if (/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:[Ee][+-]?\d+)?$/u.test(value)) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  if (value.length > 120) throw new XlsxLegacyAnalyzerError('xlsx_grade_value_too_long');
+  return value;
 }
 
 function parseWorksheetCells(
@@ -389,6 +401,7 @@ async function analyzeXlsx(
           sourceComponentId,
           sourceStudentId,
           field: gradeColumn.field,
+          sourceValue: gradeValue(cells.get(cellAddress) ?? ''),
           sourceLocator: {
             sheetId: sheetLocatorId,
             sheetDisplayName: sheet.name,
