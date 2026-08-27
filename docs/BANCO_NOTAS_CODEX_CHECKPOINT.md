@@ -150,3 +150,13 @@ Permanece apenas a pasta autorizada `BANCO_NOTAS_HOMOLOGACAO` e o histórico sin
 - Endpoint público desconectado, sync `0`, produção intocada e PR #52 draft.
 - Evidência: `docs/BANCO_NOTAS_ENTRA_ADDIN_TOKEN_V2_HARDENING_2026-08-27.md`.
 - Próximo gate: auditoria Entra read-only antes de qualquer apply.
+
+## Auditoria Entra read-only do add-in — 27/08/2026
+
+- Run `33092136016` aprovado com GitHub OIDC e Microsoft Graph GET-only.
+- Resultado: `success_no_candidate`; zero registrations com o nome canônico.
+- `Application.ReadWrite.OwnedBy` listou o tenant com sucesso; a referência oficial permite `GET /applications` para todas as applications.
+- Nenhuma escrita no tenant ocorreu; nenhuma application, service principal, permissão, consentimento ou credencial foi alterada.
+- Endpoint público desconectado, sync `0`, produção intocada e PR #52 draft.
+- Evidência: `docs/BANCO_NOTAS_ENTRA_ADDIN_AUDIT_2026-08-27.md`.
+- Próximo gate: apply separado para criar exatamente uma registration de homologação credential-free, sem publicar o add-in.
