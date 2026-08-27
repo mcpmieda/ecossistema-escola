@@ -29,9 +29,10 @@ const shareStage = homologationStage === 'share';
 const driveName = 'ARQUIVOS_PLATAFORMA';
 const folderName = 'BANCO_NOTAS_HOMOLOGACAO';
 const runSuffix = (process.env.GITHUB_RUN_ID ?? 'local').replace(/[^a-zA-Z0-9_-]/gu, '') || 'local';
-const fileName = shareStage
-  ? 'banco-notas-share-excel-sintetico-20260826.xlsx'
-  : `banco-notas-roundtrip-sintetico-${runSuffix}.xlsx`;
+const fileName =
+  shareStage || roundTripCleanupStage
+    ? 'banco-notas-share-excel-sintetico-20260826.xlsx'
+    : `banco-notas-roundtrip-sintetico-${runSuffix}.xlsx`;
 
 const modelId = '71111111-1111-4111-8111-111111111111';
 const teacherId = '72222222-2222-4222-8222-222222222222';
