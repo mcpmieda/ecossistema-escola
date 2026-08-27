@@ -53,10 +53,38 @@ Alteração em worksheet, remoção de parte original ou adição inesperada no 
 - Artefato XLSX diagnóstico do run `33024796115` excluído do GitHub após a análise.
 - Apenas evidências JSON redigidas permanecem.
 
+## Identidade e D1 de homologação
+
+- `GUI@escolaieda.com` foi confirmado no perfil Entra como membro habilitado.
+- O Object ID exibido no Entra foi conferido com a identidade concedida pelo Graph, sem hardcode de identidade inventada.
+- Run D1 `33026452850`: professor/modelo sintéticos preparados no banco exclusivo `banco-notas-homologation`.
+- Estado persistido: `ready_to_share`, `environment=homologation` e `sync_enabled=0`.
+
+## Compartilhamento individual
+
+Run final: `33026888705`.
+
+Commit validado: `14d9eb19738be44aece479b1d1b08e9a81e61dcd`.
+
+Resultado:
+
+- arquivo `banco-notas-share-excel-sintetico-20260826.xlsx` criado somente no boundary dedicado;
+- compartilhamento individual com role `write`, login obrigatório e sem envio de convite;
+- OID concedido exatamente igual ao OID confirmado no Entra;
+- ausência de link anônimo, `Anyone`, organização inteira e grupo;
+- nenhuma nova permissão para outro usuário além do destinatário;
+- uma permissão efetiva de usuário já existia antes do share e foi tratada como baseline herdado, não como concessão nova;
+- pacote normalizado pelo SharePoint aprovado pelo gate de integridade;
+- metadata/download com `21334` bytes;
+- reanálise OOXML aprovada, sem findings;
+- XLSX retido temporariamente apenas para a validação no Excel Online;
+- job one-shot removido no commit `18f35be9785bb6c80b6ab83e8eedb58979a024a7`;
+- CI pós-remoção `33027020137`: success; deploy/recovery de produção skipped.
+
+O primeiro run de share (`33026678794`) falhou fechado ao confundir uma permissão efetiva preexistente com concessão nova. A compensação revogou a permissão criada e removeu o XLSX. O critério foi corrigido para comparar a coleção anterior e posterior ao share; as proibições de link amplo e grupo permaneceram absolutas.
+
 ## Próximos gates
 
-- resolver a identidade real de `gui@escolaieda.com` no Entra/Graph;
-- compartilhamento individual autenticado e conferência do OID concedido;
 - abertura e edição sintética no Excel Online pelo navegador interno do Codex;
 - download pós-edição, reanálise, revogação e cleanup final.
 
