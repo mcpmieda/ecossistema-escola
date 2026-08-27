@@ -10,9 +10,32 @@ export const FACTORY_LABELS = Object.freeze({
   failed: 'factory:failed',
   final: 'factory:final',
   providerJules: 'factory:provider:jules',
+  providerAntigravity: 'factory:provider:antigravity',
+  providerOpenCode: 'factory:provider:opencode-ollama',
   julesApi: 'factory:dispatch:jules-api',
+  durableAgent: 'factory:dispatch:durable-agent',
   julesTrigger: 'jules',
 });
+
+export const AUTOMATIC_PROVIDER_ORDER = Object.freeze([
+  'opencode_ollama',
+  'jules',
+  'antigravity',
+]);
+
+export const DURABLE_PROVIDERS = Object.freeze(['opencode_ollama', 'antigravity']);
+
+export function providerLabel(provider) {
+  if (provider === 'jules') return FACTORY_LABELS.providerJules;
+  if (provider === 'antigravity') return FACTORY_LABELS.providerAntigravity;
+  if (provider === 'opencode_ollama') return FACTORY_LABELS.providerOpenCode;
+  return null;
+}
+
+export function selectedAutomaticProvider(task) {
+  const preferred = new Set(task?.preferredProviders ?? []);
+  return AUTOMATIC_PROVIDER_ORDER.find((provider) => preferred.has(provider)) ?? null;
+}
 
 export function initialDispatch(task) {
   if (task.humanGates.length > 0) {
@@ -21,9 +44,8 @@ export function initialDispatch(task) {
   if (task.dependsOn.length > 0) {
     return { provider: null, status: 'waiting' };
   }
-  if (task.preferredProviders.includes('jules')) {
-    return { provider: 'jules', status: 'ready' };
-  }
+  const provider = selectedAutomaticProvider(task);
+  if (provider) return { provider, status: 'ready' };
   return { provider: null, status: 'unassigned' };
 }
 
@@ -35,8 +57,10 @@ export function desiredTaskLabels(task) {
     labels.push(FACTORY_LABELS.blocked);
   } else if (dispatch.status === 'waiting') {
     labels.push(FACTORY_LABELS.waiting);
-  } else if (dispatch.provider === 'jules') {
-    labels.push(FACTORY_LABELS.providerJules, FACTORY_LABELS.ready);
+  } else if (dispatch.status === 'ready') {
+    const label = providerLabel(dispatch.provider);
+    if (label) labels.push(label);
+    labels.push(FACTORY_LABELS.ready);
   }
 
   return labels;
