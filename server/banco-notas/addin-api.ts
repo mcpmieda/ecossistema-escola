@@ -1,8 +1,5 @@
 import { ZodError } from 'zod';
-import {
-  gradeEventInputSchema,
-  type GradeEventStore,
-} from '../../shared/banco-notas-grade-events';
+import { gradeEventInputSchema, type GradeEventStore } from '../../shared/banco-notas-grade-events';
 import type { RuntimeEnv } from '../env';
 import {
   BearerAuthenticationError,
@@ -18,10 +15,7 @@ import { routeGradeEventsApi } from './grade-events-api';
 const gradeEventsPath = '/api/banco-notas/v1/grade-events';
 
 export type BancoNotasAddinModelAuthorizer = {
-  assertTeacherModelOwner(input: {
-    teacherModelId: string;
-    entraObjectId: string;
-  }): Promise<void>;
+  assertTeacherModelOwner(input: { teacherModelId: string; entraObjectId: string }): Promise<void>;
 };
 
 function identityHttpError(error: unknown): HttpError | null {

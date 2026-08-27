@@ -16,9 +16,7 @@ const migrations = [
   '0001_banco_notas_foundation.sql',
   '0002_banco_notas_cross_year_integrity.sql',
   '0007_banco_notas_teacher_entra_identity.sql',
-].map((name) =>
-  readFileSync(join(root, 'infra/banco-notas/d1/migrations', name), 'utf8'),
-);
+].map((name) => readFileSync(join(root, 'infra/banco-notas/d1/migrations', name), 'utf8'));
 
 class SqlitePrepared {
   private values: SQLInputValue[] = [];
@@ -243,9 +241,9 @@ describe('Banco de Notas sealed add-in ingestion boundary', () => {
       eventId: input().eventId,
       snapshot: { field: 'NotaT1', value: 8.5, sequence: 1 },
     });
-    expect(current.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get()).toMatchObject(
-      { total: 1 },
-    );
+    expect(
+      current.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get(),
+    ).toMatchObject({ total: 1 });
   });
 
   it('rejects a valid tenant token whose oid owns another teacher model', async () => {
@@ -255,9 +253,9 @@ describe('Banco de Notas sealed add-in ingestion boundary', () => {
       status: 403,
       message: 'teacher_model_not_owned',
     });
-    expect(current.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get()).toMatchObject(
-      { total: 0 },
-    );
+    expect(
+      current.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get(),
+    ).toMatchObject({ total: 0 });
   });
 
   it('rejects missing delegated scope and missing add-in configuration before persistence', async () => {
@@ -291,9 +289,9 @@ describe('Banco de Notas sealed add-in ingestion boundary', () => {
       status: 403,
       message: 'grade_event_source_not_excel_addin',
     });
-    expect(current.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get()).toMatchObject(
-      { total: 0 },
-    );
+    expect(
+      current.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get(),
+    ).toMatchObject({ total: 0 });
   });
 
   it('preserves the D1 authority/sync gate after token and ownership authorization', async () => {
@@ -303,9 +301,9 @@ describe('Banco de Notas sealed add-in ingestion boundary', () => {
       status: 403,
       message: 'source_not_authoritative_or_sync_disabled',
     });
-    expect(current.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get()).toMatchObject(
-      { total: 0 },
-    );
+    expect(
+      current.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get(),
+    ).toMatchObject({ total: 0 });
   });
 
   it('does not expose receipts or snapshots through the add-in bearer boundary', async () => {
