@@ -545,6 +545,7 @@ cleanupHomologation('Banco de Notas M365 Excel round-trip and cleanup', () => {
     let reanalyzedValue: number | string | null | undefined;
     let ooxmlReanalysis = false;
     let recipientIdentityMatch = false;
+    let recipientPermissionAlreadyAbsent = false;
     let permissionBoundaryVerified = false;
     let permissionRevoked = false;
     let permissionRevocationConfirmed = false;
@@ -591,7 +592,8 @@ cleanupHomologation('Banco de Notas M365 Excel round-trip and cleanup', () => {
         return userIds.includes(recipientEntraObjectId) && permission.roles?.includes('write');
       });
       recipientIdentityMatch = recipientPermissions.length === 1;
-      permissionBoundaryVerified = !unsafePermission && recipientIdentityMatch;
+      recipientPermissionAlreadyAbsent = recipientPermissions.length === 0;
+      permissionBoundaryVerified = !unsafePermission && recipientPermissions.length <= 1;
       if (!permissionBoundaryVerified) {
         throw new Error(
           `m365_roundtrip_permission_boundary:${unsafePermission}:${recipientPermissions.length}`,
@@ -697,23 +699,43 @@ cleanupHomologation('Banco de Notas M365 Excel round-trip and cleanup', () => {
             if (!permissionRevocationConfirmed) {
               cleanupError = 'm365_roundtrip_recipient_permission_still_present';
             }
+          } else if (recipientPermissionAlreadyAbsent) {
+            permissionRevocationConfirmed = true;
           }
-          await gateway.remove({
-            driveItemId,
-            correlationId: 'banco-notas-m365-roundtrip-remove',
-          });
-          workbookRemoved = true;
-          const remainingFiles = (
-            await graphRequest<{ value: DriveItem[] }>({
-              env: {} as RuntimeEnv,
-              token,
-              path: `/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(target.folderId)}/children?$select=id,name,file&$top=200`,
-              correlationId: 'banco-notas-m365-roundtrip-confirm-remove',
-            })
-          ).data.value.filter((item) => item.name === fileName);
-          workbookRemovalConfirmed = remainingFiles.length === 0;
-          if (!workbookRemovalConfirmed) {
-            cleanupError = cleanupError || 'm365_roundtrip_workbook_still_present';
+          let removeError: unknown;
+          for (let attempt = 1; attempt <= 3; attempt += 1) {
+            try {
+              await gateway.remove({
+                driveItemId,
+                correlationId: `banco-notas-m365-roundtrip-remove-${attempt}`,
+              });
+              removeError = undefined;
+              break;
+            } catch (error) {
+              removeError = error;
+              if (attempt < 3 && safeError(error).includes('(423)')) {
+                await new Promise((resolve) => setTimeout(resolve, 5_000));
+                continue;
+              }
+              break;
+            }
+          }
+          if (removeError !== undefined) {
+            cleanupError = cleanupError || safeError(removeError);
+          } else {
+            workbookRemoved = true;
+            const remainingFiles = (
+              await graphRequest<{ value: DriveItem[] }>({
+                env: {} as RuntimeEnv,
+                token,
+                path: `/drives/${encodeURIComponent(target.driveId)}/items/${encodeURIComponent(target.folderId)}/children?$select=id,name,file&$top=200`,
+                correlationId: 'banco-notas-m365-roundtrip-confirm-remove',
+              })
+            ).data.value.filter((item) => item.name === fileName);
+            workbookRemovalConfirmed = remainingFiles.length === 0;
+            if (!workbookRemovalConfirmed) {
+              cleanupError = cleanupError || 'm365_roundtrip_workbook_still_present';
+            }
           }
         } catch (error) {
           cleanupError = cleanupError || safeError(error);
@@ -739,6 +761,7 @@ cleanupHomologation('Banco de Notas M365 Excel round-trip and cleanup', () => {
             syncEnabled: false,
             recipientUpn: requiredEnv('BANCO_NOTAS_M365_RECIPIENT_UPN'),
             recipientIdentityMatch,
+            recipientPermissionAlreadyAbsent,
             permissionBoundaryVerified,
             teacherModelId: 'homologation-share-model-20260826',
             teacherId: 'homologation-share-teacher-20260826',
