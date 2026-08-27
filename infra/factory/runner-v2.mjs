@@ -92,53 +92,6 @@ export function isProcessableTaskState(labels) {
   return names.has(FACTORY_LABELS.running) || names.has(FACTORY_LABELS.ci);
 }
 
-export function selectMandatoryCiRun(runs, sha) {
-  return (
-    (runs ?? []).find(
-      (run) => run?.event === 'workflow_dispatch' && String(run?.head_sha ?? '') === String(sha),
-    ) ?? null
-  );
-}
-
-export function shouldDispatchMandatoryCi(run) {
-  return run == null;
-}
-
-function validCommitSha(value) {
-  return /^[0-9a-f]{40}$/.test(String(value ?? ''));
-}
-
-export function workerRecoveryDecision({ mergedEvidence, pr, prNumber }) {
-  const mergeSha = String(pr?.merge_commit_sha ?? '');
-
-  if (mergedEvidence) {
-    if (mergedEvidence.prNumber !== prNumber) {
-      throw new Error(
-        `Trusted merged marker references PR #${mergedEvidence.prNumber}, expected #${prNumber}.`,
-      );
-    }
-    if (pr?.merged !== true) {
-      throw new Error(`Trusted merged marker exists for PR #${prNumber}, but GitHub reports it unmerged.`);
-    }
-    if (!validCommitSha(mergeSha)) {
-      throw new Error(`Merged PR #${prNumber} has no valid merge commit SHA.`);
-    }
-    if (mergeSha !== mergedEvidence.sha) {
-      throw new Error(`Trusted merged marker SHA does not match PR #${prNumber} merge commit.`);
-    }
-    return { kind: 'recorded', mergeSha };
-  }
-
-  if (pr?.merged === true) {
-    if (!validCommitSha(mergeSha)) {
-      throw new Error(`Merged PR #${prNumber} has no valid merge commit SHA.`);
-    }
-    return { kind: 'unrecorded', mergeSha };
-  }
-
-  return { kind: 'continue', mergeSha: null };
-}
-
 async function ensureReadyDependencies(owner, repo, run, siblings) {
   const mergedEvidence = new Map();
   for (const [taskId, record] of siblings) {
@@ -267,7 +220,7 @@ async function dispatchCi(owner, repo, branch) {
   });
 }
 
-async function findCiRun(owner, repo, sha) {
+async function findCiRun(owner, repo, branch, sha) {
   const params = new URLSearchParams({
     event: 'workflow_dispatch',
     head_sha: sha,
@@ -276,16 +229,16 @@ async function findCiRun(owner, repo, sha) {
   const payload = await github(
     `/repos/${owner}/${repo}/actions/workflows/${CI_WORKFLOW}/runs?${params.toString()}`,
   );
-  return selectMandatoryCiRun(payload.workflow_runs, sha);
+  return (payload.workflow_runs ?? []).find((run) => run.head_sha === sha) ?? null;
 }
 
 async function waitForCi(owner, repo, branch, sha) {
-  let run = await findCiRun(owner, repo, sha);
-  if (shouldDispatchMandatoryCi(run)) {
+  let run = await findCiRun(owner, repo, branch, sha);
+  if (!run) {
     await dispatchCi(owner, repo, branch);
   }
   for (let attempt = 0; attempt < 180; attempt += 1) {
-    run = await findCiRun(owner, repo, sha);
+    run = await findCiRun(owner, repo, branch, sha);
     if (run?.status === 'completed') {
       if (run.conclusion !== 'success') {
         throw new Error(`Mandatory CI run ${run.id} concluded ${run.conclusion}.`);
@@ -329,62 +282,6 @@ async function ensureUpToDateAndGreen(owner, repo, prNumber, integrationBranch) 
   throw new Error(`Unable to stabilize PR #${prNumber} against the integration branch.`);
 }
 
-async function validateWorkerPr(owner, repo, issue, run, taskDefinition, prNumber) {
-  const pr = await github(`/repos/${owner}/${repo}/pulls/${prNumber}`);
-  if (pr.base.ref !== run.integrationBranch) {
-    await failTask(
-      owner,
-      repo,
-      issue.number,
-      `Jules PR #${prNumber} targets ${pr.base.ref}, expected ${run.integrationBranch}.`,
-    );
-  }
-  const files = await prChangedFiles(owner, repo, prNumber);
-  if (!changedFilesWithinDeclaredScope(files, taskDefinition.paths)) {
-    await failTask(
-      owner,
-      repo,
-      issue.number,
-      `PR #${prNumber} changed files outside declared task scopes.`,
-    );
-  }
-  return pr;
-}
-
-async function finalizeMergedTask(
-  owner,
-  repo,
-  issue,
-  run,
-  prNumber,
-  mergeSha,
-  { existingEvidence = false, recovered = false, ciId = null } = {},
-) {
-  if (!existingEvidence) {
-    const detail = recovered
-      ? `Recovered worker PR #${prNumber} already merged into \`${run.integrationBranch}\` after runner restart; mandatory CI run ${ciId} was valid for the exact worker HEAD.`
-      : `Worker PR #${prNumber} passed mandatory CI and was merged only into \`${run.integrationBranch}\`.`;
-    await addComment(
-      owner,
-      repo,
-      issue.number,
-      `${mergedPrMarker(prNumber, mergeSha)}\n${detail} Target branch \`${run.baseBranch}\` remains untouched.`,
-    );
-  }
-
-  await github(`/repos/${owner}/${repo}/issues/${issue.number}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ state: 'closed', state_reason: 'completed' }),
-  });
-  await setTaskState(
-    owner,
-    repo,
-    issue.number,
-    [FACTORY_LABELS.merged],
-    [FACTORY_LABELS.ci, FACTORY_LABELS.running, FACTORY_LABELS.ready, FACTORY_LABELS.waiting],
-  );
-}
-
 async function processCompletedSessions(owner, repo, run, siblings) {
   for (const record of siblings.values()) {
     const issue = await refreshIssue(owner, repo, record.issue.number);
@@ -392,33 +289,6 @@ async function processCompletedSessions(owner, repo, run, siblings) {
     const taskDefinition = taskFromManifest(run, record.task.taskId);
 
     const comments = await issueComments(owner, repo, issue.number);
-    const mergedEvidence = mergedPrEvidenceFromComments(comments);
-    if (mergedEvidence) {
-      const pr = await validateWorkerPr(
-        owner,
-        repo,
-        issue,
-        run,
-        taskDefinition,
-        mergedEvidence.prNumber,
-      );
-      let recovery;
-      try {
-        recovery = workerRecoveryDecision({
-          mergedEvidence,
-          pr,
-          prNumber: mergedEvidence.prNumber,
-        });
-      } catch (error) {
-        await failTask(owner, repo, issue.number, error instanceof Error ? error.message : String(error));
-      }
-      await finalizeMergedTask(owner, repo, issue, run, mergedEvidence.prNumber, recovery.mergeSha, {
-        existingEvidence: true,
-        recovered: true,
-      });
-      continue;
-    }
-
     const sessionName = julesSessionNameFromComments(comments);
     if (!sessionName) {
       await failTask(owner, repo, issue.number, 'Running task has no Jules API session marker.');
@@ -449,21 +319,23 @@ async function processCompletedSessions(owner, repo, run, siblings) {
       );
     }
 
-    let pr = await validateWorkerPr(owner, repo, issue, run, taskDefinition, prNumber);
-    let recovery;
-    try {
-      recovery = workerRecoveryDecision({ mergedEvidence: null, pr, prNumber });
-    } catch (error) {
-      await failTask(owner, repo, issue.number, error instanceof Error ? error.message : String(error));
+    let pr = await github(`/repos/${owner}/${repo}/pulls/${prNumber}`);
+    if (pr.base.ref !== run.integrationBranch) {
+      await failTask(
+        owner,
+        repo,
+        issue.number,
+        `Jules PR #${prNumber} targets ${pr.base.ref}, expected ${run.integrationBranch}.`,
+      );
     }
-
-    if (recovery.kind === 'unrecorded') {
-      const ci = await waitForCi(owner, repo, pr.head.ref, pr.head.sha);
-      await finalizeMergedTask(owner, repo, issue, run, prNumber, recovery.mergeSha, {
-        recovered: true,
-        ciId: ci.id,
-      });
-      continue;
+    const files = await prChangedFiles(owner, repo, prNumber);
+    if (!changedFilesWithinDeclaredScope(files, taskDefinition.paths)) {
+      await failTask(
+        owner,
+        repo,
+        issue.number,
+        `PR #${prNumber} changed files outside declared task scopes.`,
+      );
     }
 
     await setTaskState(owner, repo, issue.number, [FACTORY_LABELS.ci], [FACTORY_LABELS.running]);
@@ -479,12 +351,26 @@ async function processCompletedSessions(owner, repo, run, siblings) {
         commit_message: `Typed Factory task #${issue.number}; mandatory CI run ${validated.ci.id} succeeded.`,
       }),
     });
-    if (!merged?.merged || !validCommitSha(merged.sha)) {
+    if (!merged?.merged || !/^[0-9a-f]{40}$/.test(String(merged.sha ?? ''))) {
       await failTask(owner, repo, issue.number, `GitHub did not merge worker PR #${prNumber}.`);
     }
 
-    await finalizeMergedTask(owner, repo, issue, run, prNumber, merged.sha, {
-      ciId: validated.ci.id,
+    await addComment(
+      owner,
+      repo,
+      issue.number,
+      `${mergedPrMarker(prNumber, merged.sha)}\nWorker PR #${prNumber} passed mandatory CI and was merged only into \`${run.integrationBranch}\`. Target branch \`${run.baseBranch}\` remains untouched.`,
+    );
+    await setTaskState(
+      owner,
+      repo,
+      issue.number,
+      [FACTORY_LABELS.merged],
+      [FACTORY_LABELS.ci, FACTORY_LABELS.running, FACTORY_LABELS.ready],
+    );
+    await github(`/repos/${owner}/${repo}/issues/${issue.number}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ state: 'closed', state_reason: 'completed' }),
     });
   }
 }
