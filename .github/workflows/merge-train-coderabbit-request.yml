@@ -19,10 +19,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      # Required to create the issue-style audit/request comments attached to the pull request.
-      issues: write
-      # GitHub currently rejects PR comment creation without this PR write scope.
-      pull-requests: write
+      issues: write # Create the issue-style audit/request comments attached to the worker pull request.
+      pull-requests: write # GitHub requires PR write scope when the issue-comment target is a pull request.
     steps:
       - name: Request full CodeRabbit review for exact worker SHA
         shell: bash
