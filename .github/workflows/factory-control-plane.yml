@@ -9,13 +9,43 @@ on:
       - 'docs/FACTORY_CONTROL_PLANE.md'
       - 'docs/FACTORY_RUN_ISSUE_FORMAT.md'
       - 'docs/FACTORY_JULES_PILOT_2026-08-26.md'
+      - 'docs/FACTORY_DURABLE_PROVIDERS.md'
   issues:
     types: [opened, edited, reopened]
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Trusted durable provider gateway operation.
+        required: true
+        type: choice
+        options:
+          - claim
+          - heartbeat
+          - result
+          - health
+      issue_number:
+        description: Materialized Factory task issue number.
+        required: true
+        type: string
+      worker_id:
+        description: Stable executor identifier; no credentials or personal profile paths.
+        required: true
+        type: string
+      payload:
+        description: JSON health, heartbeat, or result payload. Never place secrets here.
+        required: true
+        default: '{}'
+        type: string
+      ttl_seconds:
+        description: Lease TTL for claim, from 60 through 21600 seconds.
+        required: false
+        default: '1800'
+        type: string
 
 permissions: {}
 
 concurrency:
-  group: factory-control-plane-${{ github.event_name }}-${{ github.event.issue.number || github.event.pull_request.number || github.run_id }}
+  group: factory-control-plane-${{ github.event_name }}-${{ github.event.issue.number || github.event.pull_request.number || inputs.issue_number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -42,6 +72,8 @@ jobs:
           node --check infra/factory/jules-api.mjs &&
           node --check infra/factory/materialize-v2.mjs &&
           node --check infra/factory/runner-v2.mjs &&
+          node --check infra/factory/durable-provider-contract.mjs &&
+          node --check infra/factory/durable-provider-gateway.mjs &&
           node --check infra/factory/validate-v2.mjs
       - name: Test Factory contracts and provider guardrails
         run: >-
@@ -52,6 +84,8 @@ jobs:
           infra/factory/github-api.test.mjs
           infra/factory/jules-api.test.mjs
           infra/factory/runner-v2.test.mjs
+          infra/factory/durable-provider-contract.test.mjs
+          infra/factory/durable-provider-gateway.test.mjs
       - name: Validate legacy Banco de Notas Factory Run fixture
         run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.txt
       - name: Validate API-first Jules Factory Run fixture
@@ -83,7 +117,7 @@ jobs:
         run: node infra/factory/materialize-v2.mjs
 
   run-factory:
-    name: Run Jules API Factory
+    name: Run bounded multi-provider Factory
     if: >-
       github.event_name == 'issues' &&
       github.actor == github.repository_owner &&
@@ -110,3 +144,34 @@ jobs:
           FACTORY_PARENT_ISSUE: ${{ github.event.issue.number }}
           JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
         run: node infra/factory/runner-v2.mjs
+
+  durable-provider-gateway:
+    name: Reconcile durable provider executor
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.actor == github.repository_owner &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      actions: write # Dispatch exact-SHA ci.yml only.
+      contents: write # Create/synchronize worker branches and integrate into the isolated Factory branch only.
+      issues: write # Persist bot-authored leases, health, heartbeat, result, labels, and task closure.
+      pull-requests: write # Create/inspect/merge worker PRs only; final target merge remains forbidden.
+    steps:
+      - name: Checkout trusted Control Plane from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Run durable provider gateway
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          FACTORY_PROVIDER_OPERATION: ${{ inputs.operation }}
+          FACTORY_PROVIDER_ISSUE: ${{ inputs.issue_number }}
+          FACTORY_PROVIDER_WORKER: ${{ inputs.worker_id }}
+          FACTORY_PROVIDER_PAYLOAD: ${{ inputs.payload }}
+          FACTORY_PROVIDER_TTL_SECONDS: ${{ inputs.ttl_seconds }}
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+        run: node infra/factory/durable-provider-gateway.mjs

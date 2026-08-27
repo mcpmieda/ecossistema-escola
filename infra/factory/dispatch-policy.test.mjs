@@ -2,9 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  AUTOMATIC_PROVIDER_ORDER,
+  DURABLE_PROVIDERS,
   FACTORY_LABELS,
   desiredTaskLabels,
   initialDispatch,
+  providerLabel,
+  selectedAutomaticProvider,
   taskLabelPlan,
 } from './dispatch-policy.mjs';
 
@@ -32,23 +36,60 @@ test('root Jules task is queued for the API runner without external label trigge
   });
 });
 
-test('dependent Jules task waits for declared dependencies', () => {
-  const value = task({ dependsOn: ['implementation'] });
+test('zero-first routing selects OpenCode/Ollama before remote free-quota providers', () => {
+  const value = task({ preferredProviders: ['antigravity', 'jules', 'opencode_ollama'] });
+  assert.deepEqual(AUTOMATIC_PROVIDER_ORDER, ['opencode_ollama', 'jules', 'antigravity']);
+  assert.deepEqual(DURABLE_PROVIDERS, ['opencode_ollama', 'antigravity']);
+  assert.equal(selectedAutomaticProvider(value), 'opencode_ollama');
+  assert.deepEqual(initialDispatch(value), { provider: 'opencode_ollama', status: 'ready' });
+  assert.deepEqual(desiredTaskLabels(value), [
+    FACTORY_LABELS.task,
+    FACTORY_LABELS.providerOpenCode,
+    FACTORY_LABELS.ready,
+  ]);
+});
+
+test('Antigravity-only task is ready for the durable agent gateway', () => {
+  const value = task({ preferredProviders: ['antigravity'] });
+  assert.deepEqual(initialDispatch(value), { provider: 'antigravity', status: 'ready' });
+  assert.deepEqual(desiredTaskLabels(value), [
+    FACTORY_LABELS.task,
+    FACTORY_LABELS.providerAntigravity,
+    FACTORY_LABELS.ready,
+  ]);
+});
+
+test('dependent automatic task waits for declared dependencies', () => {
+  const value = task({
+    dependsOn: ['implementation'],
+    preferredProviders: ['opencode_ollama', 'jules'],
+  });
   assert.deepEqual(initialDispatch(value), { provider: null, status: 'waiting' });
   assert.deepEqual(desiredTaskLabels(value), [FACTORY_LABELS.task, FACTORY_LABELS.waiting]);
   assert.deepEqual(taskLabelPlan(value).triggerLabels, []);
 });
 
-test('human-gated task stays blocked even when Jules is preferred', () => {
-  const value = task({ humanGates: ['production_activation'] });
+test('human-gated task stays blocked even when automatic providers are preferred', () => {
+  const value = task({
+    humanGates: ['production_activation'],
+    preferredProviders: ['opencode_ollama', 'jules'],
+  });
   assert.deepEqual(initialDispatch(value), { provider: null, status: 'human-required' });
   assert.deepEqual(desiredTaskLabels(value), [FACTORY_LABELS.task, FACTORY_LABELS.blocked]);
   assert.deepEqual(taskLabelPlan(value).triggerLabels, []);
 });
 
-test('task without explicit Jules preference remains unassigned', () => {
-  const value = task({ preferredProviders: ['antigravity'] });
+test('task without an automatic provider remains unassigned', () => {
+  const value = task({ preferredProviders: ['manual'] });
   assert.deepEqual(initialDispatch(value), { provider: null, status: 'unassigned' });
   assert.deepEqual(desiredTaskLabels(value), [FACTORY_LABELS.task]);
   assert.deepEqual(taskLabelPlan(value).triggerLabels, []);
+});
+
+test('provider labels are explicit and unknown providers receive no label', () => {
+  assert.equal(providerLabel('jules'), FACTORY_LABELS.providerJules);
+  assert.equal(providerLabel('antigravity'), FACTORY_LABELS.providerAntigravity);
+  assert.equal(providerLabel('opencode_ollama'), FACTORY_LABELS.providerOpenCode);
+  assert.equal(providerLabel('codex'), null);
+  assert.equal(selectedAutomaticProvider(null), null);
 });

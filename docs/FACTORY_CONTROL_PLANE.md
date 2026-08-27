@@ -1,157 +1,268 @@
 # Factory Control Plane
 
+Atualizado em 27 de agosto de 2026.
+
 ## Objetivo
 
-Usar o GitHub como plano de controle durável para iniciar, acompanhar e auditar Factory Runs multiagente sem depender do computador que iniciou a operação e sem transformar prompts em shell arbitrário.
+Usar o GitHub como plano de controle durável para Factory Runs multiagente sem depender do computador que iniciou a operação e sem transformar prompts em shell arbitrário.
 
-Fluxo atual:
+Princípio central:
+
+> Nenhuma Factory Run depende do computador que a iniciou para preservar estado, autoridade ou resultado aproveitável.
+
+## Arquitetura atual
 
 ```text
-ChatGPT / PowerShell
-  -> issue [Factory Run]
-  -> GitHub Actions
+Factory Run issue
   -> manifesto tipado e imutável
-  -> branch isolada factory/<run_id>
+  -> integration branch factory/<run_id>
   -> issues-filho tipadas
-  -> Jules REST API (até 3 sessões paralelas)
-  -> PRs dos workers para a branch isolada
-  -> validação de escopo
-  -> CI obrigatório
-  -> integração serial na branch isolada
-  -> próximas dependências
+  -> seleção do provider
+       ├─ Jules REST API
+       ├─ Antigravity durável
+       └─ OpenCode/Ollama durável
+  -> worker branch / PR
+  -> validação de escopo e SHA
+  -> CI obrigatório workflow_dispatch
+  -> squash merge somente na integration branch
+  -> liberação de dependências
   -> CI consolidado
-  -> PR final draft para a branch alvo
+  -> PR final draft para o target
   -> decisão humana final
 ```
 
-O runner nunca faz merge do PR consolidado na branch alvo e nunca ativa produção.
+Codex não participa do roteamento automático.
 
-## Estado
+O Control Plane nunca:
 
-A fundação do Control Plane está operacional e o piloto remoto legado foi comprovado de ponta a ponta em 26/08/2026:
+- faz merge do PR final no target;
+- ativa produção;
+- habilita Banco de Notas sync;
+- amplia permissões do executor;
+- entrega secrets a providers locais.
 
-- Factory Run #64;
-- dois workers Jules executados em paralelo;
-- PRs #69 e #70 isolados por arquivo e integrados após CI;
-- tarefa dependente #67 liberada somente após as duas predecessoras;
-- PR #71 de verificação final integrado após CI;
-- nenhuma ativação de produção ou sync do Banco de Notas.
+## Estado comprovado
 
-O piloto mostrou duas limitações do trigger simples por label: labels emitidas por `github-actions[bot]` não iniciam o GitHub App do Jules de forma confiável e PRs criados pela integração não garantem um novo evento de CI por `pull_request`. A arquitetura v2 elimina essa dependência usando a Jules REST API e `workflow_dispatch` explícito do CI.
+A Factory Run `jules-api-pilot-002` comprovou em execução real:
 
-## Jules — modo API-first
+- Jules pela REST API;
+- dois workers paralelos;
+- task dependente;
+- branches e PRs isolados;
+- retomada de `factory:ci` depois de restart;
+- ausência de sessão duplicada;
+- CI por `workflow_dispatch` e SHA exato;
+- squash merge somente na integration branch;
+- CI final consolidado;
+- PR final #93 em draft;
+- produção pulada.
 
-Novas Factory Runs usam `JULES_API_KEY` armazenada exclusivamente como GitHub Actions secret. A chave não pode aparecer em manifesto, issue, comentário, log, artifact, código ou documentação.
+O PR #93 permanece no gate humano e não é mesclado automaticamente.
+
+## Manifesto
+
+O contrato aceita entre 1 e 20 tasks e `max_parallel` de 1–3.
+
+Providers automáticos reconhecidos:
+
+- `opencode_ollama`;
+- `jules`;
+- `antigravity`.
+
+Provider manual reconhecido:
+
+- `manual` somente com human gate.
+
+Cada task declara:
+
+- ID estável;
+- título e papel;
+- dependências;
+- escopos de escrita;
+- capacidades;
+- providers preferidos;
+- human gates.
+
+O manifesto recebe marcador SHA-256 bot-authored. Alteração posterior é rejeitada em modo fail-closed.
+
+## Roteamento
+
+A política baseline é:
+
+1. OpenCode/Ollama quando saudável;
+2. Jules;
+3. Antigravity;
+4. Codex somente por decisão excepcional e manual.
+
+O health local refina a seleção entre providers duráveis:
+
+- `healthy` antes de `degraded`;
+- `unavailable` e `unknown` não recebem task;
+- health tem validade máxima de 10 minutos;
+- fallback Jules ocorre somente quando declarado na task.
+
+Labels de provider:
+
+- `factory:provider:opencode-ollama`;
+- `factory:provider:jules`;
+- `factory:provider:antigravity`.
+
+## Jules API-first
+
+`JULES_API_KEY` fica somente em GitHub Actions secret.
 
 O runner:
 
-1. localiza a fonte GitHub já autorizada no Jules;
-2. aguarda a branch `factory/<run_id>` ficar visível no Jules;
-3. cria sessões com `automationMode=AUTO_CREATE_PR` e `requirePlanApproval=false`;
-4. limita o paralelismo a `max_parallel`, atualmente de 1 a 3;
-5. persiste somente o identificador não secreto da sessão em comentário de auditoria do `github-actions[bot]`;
-6. aceita exatamente um PR de saída do mesmo repositório;
-7. rejeita qualquer arquivo fora dos `paths` declarados;
-8. atualiza o worker contra a branch de integração antes do CI;
-9. dispara o workflow fixo `ci.yml` explicitamente na branch candidata;
-10. só integra o worker na branch `factory/<run_id>` após CI verde;
-11. libera tarefas dependentes somente por evidência de integração emitida pelo próprio Factory runner;
-12. executa CI consolidado na branch de integração;
-13. cria um PR final em draft para `base_branch`;
-14. para no gate humano final.
+1. localiza a fonte GitHub autorizada;
+2. cria sessão `AUTO_CREATE_PR`;
+3. persiste apenas o identificador não secreto;
+4. aceita exatamente um PR do mesmo repositório;
+5. revalida base, paths e head;
+6. sincroniza a integration branch;
+7. dispara `ci.yml` por `workflow_dispatch`;
+8. seleciona CI pelo SHA exato;
+9. faz squash merge somente para `factory/<run_id>`;
+10. libera dependentes por marcador bot-authored;
+11. cria PR final draft;
+12. para no gate humano.
 
-A label `jules` permanece apenas para compatibilidade com Factory Runs antigas. Ela não é o mecanismo primário do v2.
+Tasks Antigravity/OpenCode são ignoradas pelo processamento de sessões Jules. Quando somente trabalho durável local resta, o runner retorna `awaiting-durable-provider` em vez de ocupar um runner por horas.
 
-## Isolamento de branches
+## Providers duráveis
 
-Cada Factory Run possui uma branch própria:
+O gateway está em:
+
+- `infra/factory/durable-provider-contract.mjs`;
+- `infra/factory/durable-provider-gateway.mjs`;
+- `scripts/durable_provider_agent.py` no repositório `mcpmieda/app-factory`.
+
+Operações do workflow:
+
+- `claim`;
+- `heartbeat`;
+- `result`;
+- `health`.
+
+O workflow só executa o gateway quando:
+
+- evento é `workflow_dispatch`;
+- ator é o proprietário do repositório;
+- ref é `main`;
+- checkout usa `main` com credenciais persistentes desabilitadas.
+
+Detalhes operacionais: `docs/FACTORY_DURABLE_PROVIDERS.md`.
+
+## Lease e recuperação
+
+Uma lease vincula exatamente:
+
+- run/task/issue;
+- provider e executor;
+- repositório;
+- worker/integration/target branches;
+- request SHA-256;
+- manifesto SHA-256;
+- emissão e expiração.
+
+A lease só é confiável quando o comentário real foi criado por `github-actions[bot]`.
+
+Reexecução:
+
+- mesma lease ativa + mesmo executor/provider: reutiliza;
+- lease expirada: novo executor pode receber takeover;
+- duas leases ativas: conflito fail-closed;
+- heartbeat não renova lease;
+- resultado local permanece candidato até reconciliação bot-authored.
+
+## Branches
 
 ```text
 base_branch
   \
    factory/<run_id>
-      ^ worker A PR
-      ^ worker B PR
-      ^ worker C PR
+      ^ factory/<run_id>/<task_a>
+      ^ factory/<run_id>/<task_b>
 ```
 
-Workers nunca recebem autoridade de merge na branch alvo. O runner pode fazer squash merge somente dos PRs validados para `factory/<run_id>`.
+Jules normalmente cria a worker branch e o PR.
+
+O gateway durável:
+
+- cria branch estável por task;
+- registra starting SHA;
+- rejeita branch preexistente sem marcador confiável;
+- valida provider commit contra o starting SHA;
+- registra sync bot-authored;
+- cria/reutiliza worker PR;
+- integra somente na integration branch.
 
 Ao final:
 
 ```text
-factory/<run_id> -> PR draft -> base_branch
+factory/<run_id> -> PR final draft -> base_branch
 ```
 
-O merge desse PR final permanece humano.
+O merge final permanece humano.
 
-Isso permite inclusive trabalhar sobre uma feature em andamento. Para o Banco de Notas, uma Factory Run pode usar, por exemplo:
+## Escopos
 
-```json
-{
-  "base_branch": "feat/banco-de-notas-foundation"
-}
-```
-
-Nesse caso, a fábrica não toca em `main` nem faz merge direto no PR #52. Ela entrega um PR consolidado para a própria branch do Banco.
-
-## Contrato e imutabilidade
-
-O manifesto é normalizado e recebe um SHA-256 de contrato. Após a primeira materialização, qualquer mudança no contrato da mesma Factory Run é rejeitada em modo fail-closed.
-
-Reexecuções com o mesmo manifesto são idempotentes: reaproveitam a branch e as issues já existentes sem recolocar uma tarefa concluída em estado `ready`.
-
-## Paralelismo seguro
-
-`max_parallel` aceita somente 1, 2 ou 3.
-
-Duas tarefas capazes de rodar simultaneamente não podem ter escopos de escrita sobrepostos. Sobreposição é permitida somente quando o grafo de dependências torna a execução explicitamente sequencial.
-
-Exemplo válido:
-
-```text
-A -> src/model/**
-B -> src/ui/**
-```
-
-Exemplo rejeitado para execução paralela:
-
-```text
-A -> src/model/**
-B -> src/model/student.ts
-```
-
-## Escopos reservados
-
-Workers automáticos não podem receber escopo sobre as áreas que controlam a própria fábrica ou a segurança do GitHub:
+Workers automáticos nunca recebem autoridade sobre:
 
 - `.github/**`;
 - `infra/factory/**`;
 - `infra/validation/**`.
 
-Mudanças nessas áreas exigem uma tarefa com human gate e não são entregues automaticamente ao Jules.
+Também são rejeitados:
 
-O contrato também rejeita path traversal, caminhos absolutos, barras invertidas e globs livres. O único glob aceito é `/**` ao final de um diretório.
+- paths absolutos;
+- traversal;
+- barras invertidas;
+- escopo pai que alcance área protegida;
+- glob livre diferente de `/**` final;
+- tasks paralelas com escopos sobrepostos.
+
+O gateway revalida:
+
+- changed paths informados pelo executor;
+- diff real do provider SHA no GitHub;
+- diff sincronizado contra a integration branch;
+- changed paths do PR.
+
+## CI
+
+O CI obrigatório:
+
+- usa somente `ci.yml`;
+- é disparado por `workflow_dispatch`;
+- precisa ter o head SHA exato;
+- não é duplicado quando já existe para o mesmo SHA;
+- precisa concluir `success`;
+- é invalidado se o PR head mudar.
+
+`ci.yml` continua autorizado a produção apenas no fluxo normal de `push` para `main`. `workflow_dispatch` em worker/integration branch pula produção.
 
 ## Evidência confiável
 
-A fábrica não confia em texto livre de usuários para liberar dependências.
+Marcadores confiáveis incluem:
 
-São aceitos apenas:
+- manifesto imutável;
+- task materializada;
+- sessão Jules;
+- propriedade da worker branch;
+- lease;
+- health;
+- heartbeat;
+- sync;
+- resultado;
+- merge na integration branch.
 
-- issue-filho criada por `github-actions[bot]` com marcador estável de `run_id` + `task_id`;
-- marcador de sessão Jules publicado por `github-actions[bot]`;
-- saída de PR retornada diretamente pela Jules REST API;
-- PR do mesmo repositório e com base esperada;
-- arquivos do PR integralmente dentro dos escopos declarados;
-- CI obrigatório verde para o SHA atual;
-- marcador de merge emitido por `github-actions[bot]` depois do merge real na branch isolada.
+Para serem confiáveis, precisam estar em comentário criado por `github-actions[bot]`.
 
-Comentários externos não podem fabricar evidência de sessão ou de integração.
+Marcadores do gateway usam JSON canônico codificado em base64url, permitindo objetos aninhados sem parsing ambíguo.
 
 ## Human gates
 
-Continuam reservados para decisões que não podem ser delegadas automaticamente:
+Nunca são autoexecutados:
 
 - `product_decision`;
 - `destructive_operation`;
@@ -159,34 +270,62 @@ Continuam reservados para decisões que não podem ser delegadas automaticamente
 - `privilege_change`;
 - `legal_or_organizational_decision`.
 
-Uma tarefa com human gate não é enviada a provider remoto pelo runner.
+Tasks com human gate não recebem provider automático.
+
+## Permissões
+
+As permissões são definidas por job:
+
+- materialização: `contents:write`, `issues:write`;
+- runner: `actions:write`, `contents:write`, `issues:write`, `pull-requests:write`;
+- gateway durável: mesmas capacidades limitadas ao fluxo de worker/integration;
+- validação de PR: somente `contents:read`.
+
+A política de código proíbe merge no target. A permissão de token não substitui o gate lógico.
+
+## Dependências externas conhecidas
+
+### GitHub Actions criando PRs
+
+A configuração **Allow GitHub Actions to create and approve pull requests** está desativada.
+
+Consequências:
+
+- o runner/gateway pode chegar até branch, lease, resultado e CI;
+- criação autônoma de worker/final PR falha fechada;
+- nenhum merge alternativo para `main` é tentado;
+- habilitação administrativa é necessária para autonomia total;
+- merge final continuará humano.
+
+### CodeRabbit
+
+A revisão automática foi informada como desabilitada enquanto o repositório tiver menos de dez estrelas. O contrato do Merge Train não deve fingir evidência inexistente.
+
+### Executor local
+
+Pilotos Antigravity e OpenCode/Ollama dependem de host/profile/modelo reais. Credenciais locais nunca devem ser enviadas a issue, workflow input ou conversa.
 
 ## Regras permanentes
 
-- GitHub é a fonte de verdade para o estado durável da execução.
-- Factory Runs executáveis só são aceitas quando o evento vem do proprietário do repositório.
-- O manifesto fica imutável depois da materialização.
-- Cada worker trabalha em PR isolado.
-- Tarefas paralelas não compartilham escopo de escrita.
-- Jules é o provider remoto ativo do v2; providers futuros só entram depois de adaptador e testes próprios.
-- Codex nunca é fallback automático de volume.
-- Secrets ficam somente no mecanismo de secrets do GitHub Actions.
-- Nenhum texto do manifesto é executado como `command`, `script` ou shell livre.
-- Nenhum worker pode alterar o próprio Control Plane automaticamente.
-- Produção, privilégios e operações destrutivas permanecem fora da autoridade dos providers.
-- O Banco de Notas continua com `SyncEnabled` desligado até autorização específica.
+- GitHub é fonte de verdade.
+- Manifesto é imutável.
+- `max_parallel` é 1–3.
+- Tasks paralelas não sobrepõem escrita.
+- Worker automático não toca Control Plane.
+- Codex não é fallback automático.
+- Secrets ficam em GitHub Actions ou profile local isolado.
+- Prompt não vira shell.
+- Target/main nunca recebe auto-merge.
+- Produção e Banco de Notas sync permanecem fora da autoridade da Factory.
 
-## Continuidade entre computadores
+## Próxima homologação
 
-O PC do trabalho ou de casa pode iniciar/acompanhar a mesma Factory Run. O estado persistente está em GitHub issues, labels, branches, PRs e Actions; o computador inicial pode ser desligado sem perder a execução remota.
+1. integrar o gateway em `main` com CI e auditoria de segurança;
+2. habilitar administrativamente criação de PRs por Actions;
+3. executar piloto Antigravity em profile isolado;
+4. executar piloto OpenCode/Ollama;
+5. desligar o primeiro executor e retomar com um segundo depois da expiração;
+6. conectar CodeRabbit/Semgrep/Sonar reais;
+7. executar Merge Train multi-provider completo.
 
-Workers locais futuros serão capacidade adicional, não fonte de verdade.
-
-## Próximas extensões
-
-Depois da estabilização do Jules API-first:
-
-1. adaptador Antigravity;
-2. adaptador OpenCode/Ollama para capacidade local;
-3. roteamento por custo/cota;
-4. Semgrep e SonarQube como gates especializados, evitando revisores genéricos duplicados.
+A Factory inteira só será declarada pronta depois dessas provas.
