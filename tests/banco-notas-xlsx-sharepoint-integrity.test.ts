@@ -17,6 +17,12 @@ function originalEntries(): Map<string, Uint8Array> {
       ),
     ],
     [
+      'docProps/core.xml',
+      bytes(
+        '<cp:coreProperties><dc:title>Banco</dc:title><dc:creator>Banco de Notas</dc:creator></cp:coreProperties>',
+      ),
+    ],
+    [
       '_rels/.rels',
       bytes(
         '<Relationships><Relationship Id="rId1" Type="office" Target="xl/workbook.xml"/></Relationships>',
@@ -39,6 +45,12 @@ function normalizedEntries(): Map<string, Uint8Array> {
     '[Content_Types].xml',
     bytes(
       '<Types><Override PartName="/customXml/itemProps1.xml" ContentType="custom"/><Override PartName="/xl/workbook.xml" ContentType="workbook"/><Default Extension="xml" ContentType="application/xml"/></Types>',
+    ),
+  );
+  entries.set(
+    'docProps/core.xml',
+    bytes(
+      '<cp:coreProperties xmlns:extra="server">\r\n<dc:title>Banco</dc:title><dc:creator>Banco de Notas</dc:creator></cp:coreProperties>',
     ),
   );
   entries.set(

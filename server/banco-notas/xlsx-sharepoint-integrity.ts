@@ -4,11 +4,30 @@ const textDecoder = new TextDecoder();
 const mutableCatalogParts = new Set([
   '[Content_Types].xml',
   '_rels/.rels',
+  'docProps/core.xml',
   'xl/_rels/workbook.xml.rels',
 ]);
 
 function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
   return left.byteLength === right.byteLength && left.every((byte, index) => byte === right[index]);
+}
+
+function assertCorePropertiesPreserved(
+  original: Map<string, Uint8Array>,
+  downloaded: Map<string, Uint8Array>,
+): void {
+  const originalPart = original.get('docProps/core.xml');
+  const downloadedPart = downloaded.get('docProps/core.xml');
+  if (!originalPart || !downloadedPart) throw new Error('sharepoint_xlsx_core_properties_missing');
+  const originalXml = textDecoder.decode(originalPart);
+  const downloadedXml = textDecoder.decode(downloadedPart);
+  for (const tagName of ['dc:title', 'dc:creator']) {
+    const pattern = new RegExp(`<${tagName}\\b[^>]*>([\\s\\S]*?)</${tagName}>`, 'u');
+    const originalValue = pattern.exec(originalXml)?.[1];
+    if (originalValue !== undefined && pattern.exec(downloadedXml)?.[1] !== originalValue) {
+      throw new Error('sharepoint_xlsx_core_property_changed');
+    }
+  }
 }
 
 function allowedServerManagedPart(name: string): boolean {
@@ -106,6 +125,7 @@ export async function assertSharePointWorkbookIntegrity(
     'PartName',
     'ContentType',
   ]);
+  assertCorePropertiesPreserved(original, downloaded);
 
   return 'sharepoint_normalized';
 }
