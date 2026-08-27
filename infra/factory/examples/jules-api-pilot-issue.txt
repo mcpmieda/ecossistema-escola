@@ -1,0 +1,43 @@
+[Factory Run] Jules API-first pilot
+
+<!-- FACTORY_RUN_BEGIN -->
+{
+  "schema_version": 1,
+  "run_id": "jules-api-pilot-001",
+  "goal": "Prove the API-first Factory runner with two parallel documentation workers and one dependent verification worker.",
+  "base_branch": "main",
+  "max_parallel": 2,
+  "tasks": [
+    {
+      "id": "pilot-a",
+      "title": "Create docs/factory-api-pilot/JULES_API_A.md with a short Pilot A record and do not modify any other file",
+      "role": "implementation",
+      "depends_on": [],
+      "paths": ["docs/factory-api-pilot/JULES_API_A.md"],
+      "required_capabilities": ["repo_read", "repo_write"],
+      "preferred_providers": ["jules"],
+      "human_gates": []
+    },
+    {
+      "id": "pilot-b",
+      "title": "Create docs/factory-api-pilot/JULES_API_B.md with a short Pilot B record and do not modify any other file",
+      "role": "implementation",
+      "depends_on": [],
+      "paths": ["docs/factory-api-pilot/JULES_API_B.md"],
+      "required_capabilities": ["repo_read", "repo_write"],
+      "preferred_providers": ["jules"],
+      "human_gates": []
+    },
+    {
+      "id": "verify",
+      "title": "Create docs/factory-api-pilot/JULES_API_VERIFICATION.md summarizing that Pilot A and Pilot B records exist; do not modify any other file",
+      "role": "verification",
+      "depends_on": ["pilot-a", "pilot-b"],
+      "paths": ["docs/factory-api-pilot/JULES_API_VERIFICATION.md"],
+      "required_capabilities": ["repo_read", "repo_write", "review"],
+      "preferred_providers": ["jules"],
+      "human_gates": []
+    }
+  ]
+}
+<!-- FACTORY_RUN_END -->
