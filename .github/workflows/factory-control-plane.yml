@@ -5,6 +5,7 @@ on:
     paths:
       - 'infra/factory/**'
       - '.github/workflows/factory-control-plane.yml'
+      - '.github/workflows/factory-hosted-opencode.yml'
       - '.github/workflows/factory-reconcile.yml'
       - '.github/workflows/ci.yml'
       - '.github/workflows/merge-train-semgrep.yml'
@@ -77,6 +78,7 @@ jobs:
           node --check infra/factory/runner-v2.mjs &&
           node --check infra/factory/durable-provider-contract.mjs &&
           node --check infra/factory/durable-provider-gateway.mjs &&
+          node --check infra/factory/hosted-opencode-executor.mjs &&
           node --check infra/factory/merge-train-gate.mjs &&
           node --check infra/factory/validate-v2.mjs
       - name: Test Factory contracts and provider guardrails
@@ -90,6 +92,7 @@ jobs:
           infra/factory/runner-v2.test.mjs
           infra/factory/durable-provider-contract.test.mjs
           infra/factory/durable-provider-gateway.test.mjs
+          infra/factory/hosted-opencode-executor.test.mjs
           infra/factory/merge-train-gate.test.mjs
       - name: Validate legacy Banco de Notas Factory Run fixture
         run: node infra/factory/control-plane.mjs validate-file infra/factory/examples/banco-notas-pilot-issue.txt

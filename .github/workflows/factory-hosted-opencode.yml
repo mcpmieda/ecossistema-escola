@@ -1,0 +1,167 @@
+name: Factory Hosted OpenCode
+
+on:
+  issues:
+    types: [opened, labeled, reopened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Trusted materialized Factory task issue to reconcile.
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: factory-hosted-opencode-${{ github.event.issue.number || inputs.issue_number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  execute:
+    name: Execute bounded hosted OpenCode task
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'issues' &&
+       startsWith(github.event.issue.title, '[Factory:') &&
+       contains(github.event.issue.labels.*.name, 'factory:task') &&
+       contains(github.event.issue.labels.*.name, 'factory:ready') &&
+       contains(github.event.issue.labels.*.name, 'factory:provider:opencode-ollama'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    permissions:
+      actions: write # Durable result reconciliation dispatches and inspects exact-SHA mandatory CI only.
+      contents: write # Trusted runtime publishes only the leased worker branch; provider subprocess receives no GitHub token env.
+      issues: write # Trusted gateway persists health, lease, heartbeat, result and task state evidence.
+      pull-requests: write # Trusted gateway creates/merges worker PR only into factory/<run_id>; target merge remains forbidden.
+    env:
+      APP_FACTORY_COMMIT: 3a4f5e3fc0999904af2efe3c7265952e96374b1d
+      OLLAMA_VERSION: v0.33.1
+      OLLAMA_ARCHIVE_SHA256: 88e0d36bd90121595e5516c84f6ab61b546368fbd2d825b4aae70999c949649d
+      OPENCODE_VERSION: v1.18.23
+      OPENCODE_ARCHIVE_SHA256: ab7015cd8113e011a461f30a0c2b77d8299a144ff688cb62e93e8802835d7288
+      OPENCODE_OLLAMA_MODEL: qwen3:0.6b
+      OLLAMA_BASE_URL: http://127.0.0.1:11435/v1
+    steps:
+      - name: Checkout trusted Ecossistema main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Configure trusted worker-branch Git authentication
+        shell: bash
+        env:
+          FACTORY_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          auth=$(printf 'x-access-token:%s' "${FACTORY_GITHUB_TOKEN}" | base64 -w0)
+          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${auth}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch pinned App Factory durable runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime="${RUNNER_TEMP}/app-factory-runtime"
+          git init "${runtime}"
+          git -C "${runtime}" remote add origin https://github.com/mcpmieda/app-factory.git
+          git -C "${runtime}" fetch --depth=1 origin "${APP_FACTORY_COMMIT}"
+          git -C "${runtime}" checkout --detach FETCH_HEAD
+          test "$(git -C "${runtime}" rev-parse HEAD)" = "${APP_FACTORY_COMMIT}"
+          echo "FACTORY_APP_FACTORY_DIR=${runtime}" >> "${GITHUB_ENV}"
+
+      - name: Install pinned Ollama and OpenCode archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          tools_dir="${RUNNER_TEMP}/factory-tools"
+          mkdir -p "${tools_dir}/ollama" "${tools_dir}/opencode"
+          curl --fail --location --retry 3 \
+            "https://github.com/ollama/ollama/releases/download/${OLLAMA_VERSION}/ollama-linux-amd64.tar.zst" \
+            --output "${RUNNER_TEMP}/ollama-linux-amd64.tar.zst"
+          echo "${OLLAMA_ARCHIVE_SHA256}  ${RUNNER_TEMP}/ollama-linux-amd64.tar.zst" | sha256sum --check --strict
+          tar --use-compress-program=unzstd -xf "${RUNNER_TEMP}/ollama-linux-amd64.tar.zst" -C "${tools_dir}/ollama"
+          curl --fail --location --retry 3 \
+            "https://github.com/anomalyco/opencode/releases/download/${OPENCODE_VERSION}/opencode-linux-x64.tar.gz" \
+            --output "${RUNNER_TEMP}/opencode-linux-x64.tar.gz"
+          echo "${OPENCODE_ARCHIVE_SHA256}  ${RUNNER_TEMP}/opencode-linux-x64.tar.gz" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/opencode-linux-x64.tar.gz" -C "${tools_dir}/opencode"
+          echo "${tools_dir}/ollama/bin" >> "${GITHUB_PATH}"
+          echo "${tools_dir}/opencode" >> "${GITHUB_PATH}"
+          echo "LD_LIBRARY_PATH=${tools_dir}/ollama/lib" >> "${GITHUB_ENV}"
+
+      - name: Start loopback Ollama and native single-write bridge
+        shell: bash
+        env:
+          OLLAMA_CONTEXT_LENGTH: '8192'
+        run: |
+          set -euo pipefail
+          nohup ollama serve > "${RUNNER_TEMP}/ollama.log" 2>&1 &
+          for attempt in $(seq 1 30); do
+            if ollama list >/dev/null 2>&1; then break; fi
+            if [ "${attempt}" -eq 30 ]; then exit 1; fi
+            sleep 2
+          done
+          ollama pull "${OPENCODE_OLLAMA_MODEL}"
+          nohup python3 "${FACTORY_APP_FACTORY_DIR}/scripts/ollama_tool_proxy.py" \
+            --listen-host 127.0.0.1 \
+            --listen-port 11435 \
+            --upstream http://127.0.0.1:11434 \
+            --expected-tool write \
+            --audit-file "${RUNNER_TEMP}/tool-proxy-audit.json" \
+            > "${RUNNER_TEMP}/tool-proxy.log" 2>&1 &
+          python3 - <<'PY'
+          import socket, time
+          for _ in range(30):
+              try:
+                  with socket.create_connection(("127.0.0.1", 11435), timeout=1):
+                      break
+              except OSError:
+                  time.sleep(1)
+          else:
+              raise SystemExit("native single-write bridge did not bind to loopback")
+          PY
+          mkdir -p "${RUNNER_TEMP}/opencode-profile"
+          echo "OPENCODE_PROFILE_HOME=${RUNNER_TEMP}/opencode-profile" >> "${GITHUB_ENV}"
+
+      - name: Probe pinned provider before claiming authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 "${FACTORY_APP_FACTORY_DIR}/scripts/provider_worker.py" probe \
+            --provider opencode_ollama \
+            --model "${OPENCODE_OLLAMA_MODEL}" \
+            --ollama-base-url "${OLLAMA_BASE_URL}" \
+            --profile-home "${OPENCODE_PROFILE_HOME}" \
+            > "${RUNNER_TEMP}/provider-health.json"
+          cat "${RUNNER_TEMP}/provider-health.json"
+
+      - name: Execute exact leased create-only task and reconcile durable result
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FACTORY_HOSTED_OPENCODE_ISSUE: ${{ github.event.issue.number || inputs.issue_number }}
+          FACTORY_OPENCODE_HEALTH_FILE: ${{ runner.temp }}/provider-health.json
+          FACTORY_HOSTED_SUMMARY_FILE: ${{ runner.temp }}/hosted-opencode-summary.json
+        run: node infra/factory/hosted-opencode-executor.mjs
+
+      - name: Publish sanitized hosted executor evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: factory-hosted-opencode-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/provider-health.json
+            ${{ runner.temp }}/hosted-opencode-summary.json
+            ${{ runner.temp }}/tool-proxy-audit.json
+            ${{ runner.temp }}/tool-proxy.log
+            ${{ runner.temp }}/ollama.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Remove trusted Git authentication material
+        if: always()
+        shell: bash
+        run: git config --local --unset-all http.https://github.com/.extraheader || true
