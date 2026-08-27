@@ -1,31 +1,56 @@
 # Banco de Notas — Implementation State
 
-Última atualização: 26/08/2026
+Última atualização: 27/08/2026
 
 Branch: `feat/banco-de-notas-foundation`
 
 PR: `#52` — **open, draft, sem merge e sem produção**.
 
-Estado: **fundação consolidada + D1 remoto homologado até migration 0007 + importação/análise OOXML XLSX reais + modelo genérico + serialização XLSX real + M365 readiness comprovado via GitHub Control Plane + ciclo D1 → Graph do modelo docente implementado e testado; sync continua desligado.**
+Estado: **fundação consolidada + D1 remoto homologado até migration 0007 + analyzer/serializer OOXML reais + modelo genérico + ciclo D1 → Graph + round-trip real professor → Excel Online → SharePoint → Graph → analyzer comprovado e limpo; sync continua desligado.**
+
+## Resumo executivo
+
+O maior gate externo de arquivos/modelos foi fechado. O Banco de Notas já conseguiu:
+
+1. gerar um workbook genérico;
+2. armazená-lo no SharePoint pelo Graph backend-only;
+3. compartilhá-lo individualmente com uma identidade Entra comprovada;
+4. abri-lo e editá-lo no Excel Online como destinatário real;
+5. baixar o arquivo pós-edição;
+6. validar sua integridade semântica;
+7. reanalisar o OOXML;
+8. encontrar a nota `8.5` no mesmo mapping/célula;
+9. revogar a permission;
+10. remover o XLSX e confirmar a ausência.
+
+A pasta dedicada de homologação foi mantida. Jobs, testes externos e identidades hardcoded usados somente na prova foram removidos.
 
 ## D1 remoto
 
-Homologação comprovada em `banco-notas-homologation`:
+Database exclusivo:
 
-- workflow `Banco de Notas D1 homologation`;
-- run final do bloco de identidade: `32981705701` — **success**;
-- commit remotamente validado: `2467240b53bf3bbc5996905ba940b544cb35f266`;
-- CI correspondente: `32981711631` — **success**;
-- migrations `0001`–`0007` presentes e exercitadas remotamente;
-- estado final sintético comprovado com `sync_enabled=0`.
+`banco-notas-homologation`
 
-A migration `0007_banco_notas_teacher_entra_identity.sql` introduz o vínculo institucional do professor com Entra OID e protege o futuro sync. O smoke remoto comprovou falta de OID, unicidade, lock de troca de OID e lock de inativação durante sync temporário, retornando ao final para `sync_enabled=0`.
+Run mais recente: `33078530136` — **success**.
+
+Resultado:
+
+- Wrangler `4.125.0`;
+- database existente reutilizado;
+- migrations `0001`–`0007` confirmadas;
+- nenhum migration pendente;
+- core smoke remoto aprovado;
+- analysis profiles smoke aprovado;
+- defaults/autoridade/cross-year/state machine/provenance/append-only aprovados;
+- identidade Entra obrigatória e única;
+- troca de OID e inativação bloqueadas durante sync sintético;
+- estado final `sync_enabled=0`.
+
+O workflow padrão não contém mais OID/UPN de uma pessoa nem prepara automaticamente um professor para share. O script manual protegido `prepare-share-homologation.ps1` permanece disponível somente para homologações conscientemente autorizadas.
 
 Nenhum D1/Pages de produção foi alterado.
 
 ## Migrations D1
-
-Conjunto atual:
 
 1. `0001_banco_notas_foundation.sql`;
 2. `0002_banco_notas_cross_year_integrity.sql`;
@@ -35,156 +60,235 @@ Conjunto atual:
 6. `0006_banco_notas_import_analysis_profiles.sql`;
 7. `0007_banco_notas_teacher_entra_identity.sql`.
 
-O provisionador de homologação está travado nesse conjunto e recusa banco/nome incompatível.
+O provisionador está travado nesse conjunto e falha fechado em divergências.
 
 ## Fundação preservada
 
 - módulo nativo do Centro em `/banco-de-notas`;
 - API administrativa same-origin `/api/banco-notas/v1/*`;
-- HeroUI React v3 nativo, sem Ambient Constellation;
+- HeroUI React v3, sem Ambient Constellation;
 - capabilities e autorização server-side;
 - D1 como fonte estruturada/transacional;
-- SharePoint/OneDrive reservados a arquivos/modelos/versões;
+- SharePoint/OneDrive para arquivos/modelos/versões;
 - Graph backend-only;
 - fontes `legacy_import` e `linked_teacher_model` com autoridade temporal auditável;
 - `SyncEnabled=false` por padrão;
 - integridade cross-year;
 - Origin oficial nas mutações administrativas;
-- golden masters privados isolados do produto.
+- layout/mappings versionados;
+- `studentPosition` canônico;
+- `_BancoNotas` como aba interna reservada.
 
-## Importação e modelo genérico
+## Importação, análise e modelo genérico
 
-Analyzer e serializer XLSX OOXML concretos estão implementados.
+Pipeline real:
 
 ```text
 XLSX legado
-→ analyzer OOXML real
+→ analyzer OOXML
 → LegacyIntermediateModel
-→ correspondências canônicas
+→ relationship resolution
 → TransformationPlan
 → GenericModelInstance
 → GenericWorkbookPresentation
-→ XLSX OOXML novo
+→ serializer OOXML
+→ XLSX genérico
 ```
 
-Há cobertura real de serializer → analyzer e round-trip pelo boundary Graph sintético.
-
-XLSB permanece **fail-closed**. Não há parser XLSB cloud comprovado.
-
-Os **golden masters privados externos** permanecem exclusivamente como evidência privada de regressão/homologação. Não entram em Git, runtime, migrations, D1, fixtures públicas, SharePoint definitivo ou distribuição.
+XLSB permanece fail-closed.
 
 O produto continua obrigado a gerar um **modelo genérico limpo**, sem regra dependente de professor, turma, aba, disciplina ou célula privada.
 
-## Grade-events
+Os **golden masters privados externos** continuam somente como evidência privada. Não entram em Git, runtime, migrations, D1, fixtures públicas, SharePoint definitivo ou distribuição.
 
-O núcleo continua com:
+## Compatibilidade com Excel Online
 
-- idempotência por hash canônico;
-- zero distinto de ausência;
-- stale auditável sem regressão de snapshot;
-- snapshot por `(gradeKey, field)`;
-- validações de fonte, ano, ambiente, modelo, sync, autoridade e mapping;
-- evento + snapshot no mesmo `D1Database.batch()`;
-- regressão local que força falha na segunda statement e comprova rollback.
+O serializer foi corrigido para cumprir estruturas exigidas pelo Excel Online:
 
-A prova por binding D1 real em Worker/Pages de homologação ainda não foi executada porque requer runtime autorizado. Não ampliar permissões apenas para fabricar essa prova.
+- colunas emitidas em ordem crescente;
+- células emitidas em ordem crescente;
+- `<bookViews>` presente quando worksheets usam `workbookViewId=0`.
 
-## M365 readiness — comprovado
+Regressões permanentes cobrem essas garantias.
 
-O GitHub Control Plane existente foi reaproveitado; não foi criada uma segunda infraestrutura Microsoft para o Banco.
+O workbook corrigido abriu sem reparação e em modo de edição.
 
-Workflow `M365 operations`:
+## Valores das células e zero vs ausência
 
-- run `33003875460` / `#3` — **success**;
-- operação `banco-notas-readiness`;
-- autenticação GitHub OIDC → Entra workload federation;
-- audience válida;
-- `Sites.Selected` presente;
-- acesso ao site confirmado;
-- `13` listas e `4` drives visíveis;
-- storage boundary Microsoft confirmado como arquivos-only;
-- fonte estruturada/transacional confirmada como D1;
-- `syncActivation=not-performed`;
-- `writeOperation=false`.
+O analyzer passou a expor `sourceValue` opcional nos slots de nota.
 
-Essa prova fecha a prontidão de autenticação/acesso do Control Plane, mas **não** deve ser confundida com execução do adapter runtime do Banco contra o tenant.
+A interpretação cobre:
 
-## SharePoint / OneDrive
+- valor numérico;
+- valor string;
+- célula ausente/nula;
+- zero numérico distinto de ausência.
 
-Consulta read-only confirmou no site `CENTROADMIN`:
+A edição sintética `B2: null → 8.5` foi reanalisada corretamente.
 
-- `Documentos`;
-- `ARQUIVOS_PLATAFORMA`;
-- `SNAPSHOTS_PLATAFORMA`;
-- `RELATORIOS_PLATAFORMA`.
+## Integridade SharePoint/Excel
 
-`ARQUIVOS_PLATAFORMA` é o candidato institucional para modelos/arquivos do Banco. O ID observado em descoberta não foi hardcoded no produto.
+`server/banco-notas/xlsx-sharepoint-integrity.ts` diferencia:
 
-Ainda falta resolver ou provisionar o parent item/pasta dedicado do Banco. Nenhum diretório ou arquivo foi criado nesta etapa.
+- pacote exato;
+- pacote normalizado pelo SharePoint;
+- pacote editado pelo Excel.
+
+O gate fail-closed verifica:
+
+- preservação das partes do produto;
+- relações e content types;
+- propriedades core;
+- adições server-managed conhecidas;
+- ausência de macros/VBA;
+- ausência de relações externas;
+- worksheet visível esperada;
+- `_BancoNotas` em `veryHidden`;
+- modelo, estudante, mapping, célula e valor esperados.
+
+Alteração inesperada de worksheet, remoção de parte original ou adição inesperada sob `xl/` é rejeitada.
 
 ## Ciclo D1 → Graph do modelo docente
 
-Foi implementado `D1TeacherModelRepository` sobre `teacher_models`, `teacher_model_versions`, `cell_mappings` e `share_audit`, além do serviço que conecta o gate D1 à orquestração Graph existente.
+Componentes principais:
 
-Garantias atuais:
+- `D1TeacherModelRepository`;
+- `teacher-model-share-service.ts`;
+- `teacher-model-graph.ts`;
+- `teacher-model-graph-gateway.ts`;
+- transporte binário em `server/graph/client.ts`.
 
-- versão + mappings persistidos atomicamente no D1;
-- novas versões somente enquanto o modelo estiver em estado compatível;
-- retry idempotente do mesmo hash/mapping/definition;
-- duplicidade de mapping validada conforme os índices do D1;
-- `ready_to_share` exige homologação, `sync_enabled=0`, professor ativo, Entra OID, versão e mappings;
-- candidato a upload precisa corresponder ao hash, definitionVersion e mappingVersion persistidos;
-- SHA-256 dos bytes locais é validado antes de qualquer upload Graph;
-- upload somente de `.xlsx`;
-- compartilhamento individual com `requireSignIn=true`;
-- destinatário confirmado por Entra OID;
+Garantias:
+
+- versão + mappings persistidos atomicamente;
+- retry idempotente;
+- homologation + sync desligado + professor ativo + Entra OID antes de share;
+- hash local verificado antes de upload;
+- somente `.xlsx`;
+- sign-in obrigatório;
+- destinatário validado por OID;
 - metadata e download separados;
-- SHA-256 recalculado sobre os bytes realmente baixados;
-- reanálise OOXML obrigatória antes do sucesso;
-- só então o D1 passa `ready_to_share → shared` e grava `drive_item_id`;
-- falha após upload aciona revoke/delete;
-- falha deixa o modelo em `ready_to_share` para nova tentativa;
-- `share_audit` registra `requested`, `succeeded` e `failed`.
+- integridade/reanálise antes do sucesso;
+- compensação revoke/delete em falha;
+- estado D1 não avança falsamente.
 
-O adapter concreto continua backend-only e usa `BANCO_NOTAS_GRAPH_DRIVE_ID` e `BANCO_NOTAS_GRAPH_PARENT_ITEM_ID`, ambos opcionais/fail-closed. Nenhum ID fictício foi embutido no código.
+## Homologação M365 end-to-end
 
-## CI corrente do código
+Boundary:
 
-Head de código validado: `9959c6f143339c25e15fad7f50755339d4e47242`.
+`CENTROADMIN → ARQUIVOS_PLATAFORMA → BANCO_NOTAS_HOMOLOGACAO`
 
-GitHub Actions `CI and deploy` run `33005219880` / `#762` — **success**:
+Runs principais:
 
-- `Validate application` — success;
-- `Validate GitHub Actions security` — success;
+- `33003875460` — readiness OIDC/Entra/Sites.Selected — success;
+- `33025586408` — storage/download/reanálise/cleanup — success;
+- `33026888705` — share individual — success;
+- `33073736978` — serializer compatível com Excel — success;
+- `33074034916` — substituição controlada do workbook — success;
+- `33075802785` — Excel → Graph → analyzer — success;
+- `33076985566` — revogação e remoção final — success.
+
+Prova funcional:
+
+- conta destinatária: `GUI@escolaieda.com`;
+- célula: `B2`;
+- field: `NotaT1`;
+- valor anterior: nulo;
+- valor salvo/reanalisado: `8.5`;
+- mesmo `gradeKey`, `sheetKey` e mapping;
+- sync permaneceu `0`.
+
+Cleanup final:
+
+- permission ausente e revogação confirmada;
+- arquivo removido e ausência confirmada;
+- pasta dedicada retida;
+- nenhum share amplo criado.
+
+## Lock WOPI e remoção Graph
+
+O Excel Online manteve temporariamente um lock de coautoria e o Graph retornou `423 Locked`.
+
+Foi implementado `bypassSharedLock` opt-in no gateway. Somente a remoção explicitamente chamada com essa opção envia:
+
+`Prefer: bypass-shared-lock`
+
+Revogações e deletes comuns não recebem o header. Testes permanentes cobrem essa separação.
+
+## Código temporário removido
+
+No commit `a539417e09740db54c4f97ebbb62acc741bd0de2` foram removidos:
+
+- job M365 one-shot da CI;
+- teste externo temporário de tenant;
+- OID/UPN reais do workflow D1;
+- preparação automática pessoal para share.
+
+A suíte normal não chama Microsoft 365 nem depende do tenant.
+
+## CI corrente
+
+Head de código fechado: `a539417e09740db54c4f97ebbb62acc741bd0de2`.
+
+Run `33078535334` / CI #884 — **success**:
+
+- Actions security — success;
 - formatting — success;
 - lint — success;
 - typecheck — success;
 - semantic contract — success;
-- testes — **294/294 em 54 arquivos**;
+- testes — **302/302 em 55 arquivos**;
 - build — success;
-- `Deploy production` — skipped;
-- `Verify recovery after deploy` — skipped.
+- deploy production — skipped;
+- recovery — skipped.
 
-O warning histórico de chunk JavaScript acima de 500 kB permanece não bloqueador.
-
-Evidência consolidada: `docs/BANCO_NOTAS_M365_READINESS_E_D1_GRAPH_LIFECYCLE_2026-08-26.md`.
+O warning de chunk JavaScript acima de 500 kB permanece não bloqueador.
 
 ## Entra / add-in
 
-O backend já valida bearer Entra fail-closed para RS256/JWKS/issuer/tenant/audience/scope/lifetime.
+O backend já valida bearer Entra fail-closed para:
 
-A migration `0007` e o authorizer D1 adicionam ownership `teacherModelId ↔ teacher ↔ entraObjectId`.
+- RS256/JWKS;
+- issuer;
+- tenant;
+- audience;
+- scope;
+- lifetime.
 
-`BANCO_NOTAS_ADDIN_AUDIENCE` e `BANCO_NOTAS_ADDIN_SCOPE` continuam sem valores reais no repositório. O endpoint público do add-in permanece bloqueado.
+A migration `0007` e o authorizer D1 protegem ownership `teacherModelId ↔ teacher ↔ entraObjectId`.
 
-## Bloqueios externos restantes
+Ainda faltam valores reais e homologados para:
 
-1. resolver/provisionar parent item/pasta dedicada dentro da biblioteca institucional escolhida;
-2. executar o primeiro round-trip operacional do adapter runtime Graph/SharePoint: upload → share → metadata → download → hash → reanálise → limpeza/compensação;
-3. homologar audience/delegated scope Entra reais do add-in;
-4. comprovar atomicidade por binding D1 real em runtime Cloudflare de homologação autorizado;
-5. realizar browser QA em ambiente navegável;
-6. avançar os módulos funcionais ainda planejados da interface.
+- `BANCO_NOTAS_ADDIN_AUDIENCE`;
+- `BANCO_NOTAS_ADDIN_SCOPE`.
+
+O endpoint público/add-in permanece bloqueado. Não inventar valores e não publicar antes do gate completo.
+
+## Grade-events e atomicidade
+
+`D1GradeEventStore` usa um único `D1Database.batch()` para evento + snapshot e possui prova local de rollback.
+
+Ainda falta provar atomicidade pelo binding D1 real em Worker/Pages de homologação autorizado. Não ampliar permissões nem criar runtime inseguro para fabricar evidência.
+
+## Bloqueios técnicos restantes
+
+1. audience/delegated scope Entra reais do add-in;
+2. bearer/ownership end-to-end do add-in;
+3. atomicidade por binding D1 real de homologação;
+4. módulos funcionais ainda planejados;
+5. browser QA amplo e release controlada.
+
+O storage, o share individual, a edição no Excel, o retorno via Graph e o cleanup **não são mais bloqueadores**.
+
+## Próxima sequência segura
+
+1. auditar apps Entra existentes e reutilizar quando adequado;
+2. configurar audience/scope de homologação com menor privilégio;
+3. testar tokens positivos e negativos, incluindo ownership;
+4. manter o add-in não publicado;
+5. validar atomicidade D1 por binding autorizado;
+6. avançar Acompanhamento, Alunos, Turmas, Professores e Pesquisa;
+7. QA e produção somente após gates e decisão humana explícita.
 
 ## Regras que não podem regredir
 
@@ -197,17 +301,7 @@ A migration `0007` e o authorizer D1 adicionam ownership `teacherModelId ↔ tea
 - layout/mappings são versionados;
 - `studentPosition` é canônico;
 - `_BancoNotas` é aba interna reservada;
-- analyzer/serializer não criam segunda regra paralela de células;
 - XLSB continua fail-closed;
 - golden masters privados não entram no produto;
 - PR #52 permanece open + draft;
-- não fazer merge nem deploy de produção sem decisão humana explícita.
-
-## Próxima sequência segura
-
-1. resolver o parent de homologação sem hardcode e sem ampliar permissões;
-2. executar o round-trip operacional Graph/SharePoint somente em homologação, preservando compensação e limpeza;
-3. preparar audience/scope Entra reais sem liberar o endpoint público antes do gate completo;
-4. comprovar atomicidade D1 por binding quando houver runtime homologado autorizado;
-5. continuar os módulos funcionais do Banco;
-6. browser QA e release somente após homologação end-to-end.
+- não fazer merge ou deploy de produção sem decisão humana explícita.

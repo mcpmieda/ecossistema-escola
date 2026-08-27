@@ -1,129 +1,141 @@
 # Banco de Notas — Codex Checkpoint
 
-Última atualização: 27/08/2026 — retomada operacional
+Última atualização: 27/08/2026 — fechamento do ciclo M365/Excel
 Branch: `feat/banco-de-notas-foundation`
-HEAD: `6974ca51d3852189c6ba1db027033bdbf778835c`
 PR: `#52` — open, draft, sem merge
-CI: run `33027239078` — success; deploy e recovery de produção skipped
-D1 homologation: run `33026452850` — success, vínculo sintético ao OID autorizado e sync `0`
-M365 operation: run `33003875460` — success, readiness read-only
+Head de código fechado antes desta consolidação documental: `a539417e09740db54c4f97ebbb62acc741bd0de2`
+CI de código limpa: run `33078535334` — success
+D1 homologation final do bloco: run `33078530136` — success
+M365 Excel round-trip + cleanup: run `33076985566` — success
+Produção: deploy e recovery skipped
+Sync: `0`
+
+## Estado consolidado
+
+O ciclo técnico abaixo foi comprovado com dados exclusivamente sintéticos:
+
+```text
+professor destinatário
+→ Excel Online
+→ SharePoint
+→ Microsoft Graph
+→ analyzer OOXML do Banco de Notas
+```
+
+A conta institucional autorizada abriu o workbook em modo de edição, alterou a célula mapeada `B2` de ausência para `8,5`, o Excel salvou o arquivo e o backend encontrou o valor numérico `8.5` no mesmo mapping. Depois da prova, a permissão foi revogada e o XLSX foi removido.
 
 ## Concluído
 
-- [x] Checkout real recuperado e atualizado por fast-forward até o HEAD remoto do PR.
-- [x] Alterações locais encontradas sobre o HEAD antigo preservadas no stash de segurança `safety-before-recover-pr52-2026-08-26`.
-- [x] PR #52 confirmado open + draft; nenhum merge ou alteração de produção executado.
-- [x] Último log da CI lido integralmente até a causa: `throw` dentro de `finally` em `tests/banco-notas-m365-storage-homologation.test.ts`.
-- [x] Homologação D1 mais recente confirmada verde no run `32981705701`.
-- [x] Readiness M365 mais recente confirmada verde no run `33003875460`.
-- [x] Merge-base real com `origin/main` identificado como `a393589265378a1954325e504c4f12cbf63c5e14`.
-- [x] Produção não foi alterada pelas execuções auditadas; jobs de deploy/recovery do run corrente ficaram skipped.
-- [x] `no-unsafe-finally` corrigido sem desabilitar lint, remover cleanup ou mascarar o erro principal.
-- [x] Os 6 commits mais recentes de `origin/main` foram incorporados por merge limpo.
-- [x] Gate local completo aprovado: Prettier, lint, typecheck, semantic contract, 294/294 testes ativos, build, actionlint, sintaxe PowerShell e policy do Control Plane.
-- [x] CI remota interna aprovada no run `33024306664`; deploy e recovery de produção skipped.
-- [x] Round-trip real executou upload, metadata, download e cleanup no boundary dedicado.
-- [x] Arquivo sintético removido com sucesso; pasta dedicada retida; nenhum share executado.
-- [x] Divergência reproduzida: original `9588` bytes, metadata/download `21329` bytes e hash baixado diferente.
-- [x] Diagnóstico OOXML comprovou preservação das partes do produto e injeção exclusiva de metadados SharePoint (`customXml`, custom properties e catálogos relacionados).
-- [x] Gate fail-closed implementado: partes originais do produto idênticas, relações/content types originais preservados e apenas adições server-managed conhecidas aceitas.
-- [x] Artefato XLSX diagnóstico `9628007563` excluído do GitHub após a análise.
-- [x] Gate local pós-correção verde: 298/298 testes ativos, lint, typecheck, semantic contract, build, actionlint, PowerShell e Control Plane.
-- [x] Storage M365 verde no run `33025586408`: pacote normalizado íntegro, OOXML reanalisado sem findings e cleanup confirmado.
-- [x] Conta `GUI@escolaieda.com` confirmada no Entra como membro habilitado; UPN canônico e Object ID conferidos no perfil.
-- [x] D1 remoto de homologação preparado no run `33026452850`: professor/modelo sintéticos ligados ao OID confirmado, estado `ready_to_share`, ambiente `homologation` e sync `0`.
-- [x] Gate local pré-share aprovado: Prettier, lint, typecheck, semantic contract, 299/299 testes ativos, build, actionlint, PowerShell e Control Plane.
-- [x] Share individual verde no run `33026888705`: OID exato, role `write`, login obrigatório, sem convite, `Anyone`, organização, grupo ou usuário novo adicional.
-- [x] Integridade SharePoint normalizada e reanálise OOXML sem findings aprovadas antes da retenção temporária.
-- [x] Primeira tentativa `33026678794` compensada: permissão revogada e XLSX removido após classificação conservadora de permissão preexistente.
-- [x] Job one-shot retirado; CI `33027020137` verde e sem nova execução de share.
-- [x] XLSX correto aberto visualmente no Excel Online; turma, componente e estudante sintéticos visíveis.
+- [x] PR #52 confirmado aberto, draft e sem merge.
+- [x] Produção, D1 de produção e Pages de produção preservados.
+- [x] Migrations D1 `0001`–`0007` homologadas remotamente.
+- [x] D1 final reafirmado no run `33078530136`, com `sync_enabled=0`.
+- [x] GitHub OIDC → Entra e `Sites.Selected` comprovados.
+- [x] Boundary M365 exclusivo consolidado em `CENTROADMIN → ARQUIVOS_PLATAFORMA → BANCO_NOTAS_HOMOLOGACAO`.
+- [x] Serializer OOXML corrigido para ordem canônica de colunas/células e `bookViews` compatível com Excel Online.
+- [x] XLSX abriu no Excel Online sem reparação e em modo de edição.
+- [x] Sessão destinatária confirmada como `GUI@escolaieda.com`, sem sessão administrativa mascarando o teste.
+- [x] Edição sintética controlada: `NotaT1`, célula `B2`, valor anterior nulo, valor novo `8.5`.
+- [x] Download pós-edição pelo Graph, MIME XLSX, pacote classificado como `excel_edited` e reanálise OOXML aprovados.
+- [x] Mesmo `gradeKey`, `field`, `sheetKey` e `cellAddress` confirmados.
+- [x] Ownership institucional comprovado durante o share por `teacher ↔ entraObjectId`.
+- [x] Permissão individual revogada e ausência confirmada.
+- [x] XLSX temporário removido e ausência confirmada.
+- [x] Pasta `BANCO_NOTAS_HOMOLOGACAO` mantida como boundary autorizado.
+- [x] `Prefer: bypass-shared-lock` implementado de forma opt-in somente para remoção explícita sob lock WOPI.
+- [x] Job M365 one-shot removido da CI.
+- [x] Teste externo temporário removido; gates unitários permanentes preservados.
+- [x] OID/UPN reais removidos do workflow D1 padrão.
+- [x] CI limpa pós-remoção aprovada: `302/302` testes em `55` arquivos, build e segurança verdes.
 
-## Em andamento
+## Distinção de identificadores
 
-- [x] Login destinatário confirmado visualmente como GUILHERME PEREIRA DA SILVA / `GUI@escolaieda.com`; a sessão Global Admin foi encerrada antes do teste.
-- [x] Arquivo e worksheet corretos reabertos como destinatário real, com apenas os dados sintéticos esperados.
-- [x] Compatibilidade OOXML corrigida; o XLSX sintético foi substituído e reaberto sem reparação antes da edição controlada.
-- [x] Serializer corrigido e validado no run `33073736978`; `main` vigente incorporado sem conflito.
-- [x] XLSX incompatível substituído no run `33074034916`: permission anterior revogada, item anterior removido, pacote novo íntegro/oreanalisado e share individual recriado; job one-shot removido logo depois.
-- [x] Novo XLSX aberto nativamente em modo de edição por `GUI@escolaieda.com`, sem reparação.
-- [x] Edição sintética controlada salva: `teacherModelId=71111111-1111-4111-8111-111111111111`, `field=NotaT1`, `sheetKey=generated:73333333-3333-4333-8333-333333333333:74444444-4444-4444-8444-444444444444`, `cellAddress=B2`, valor anterior ausente, valor novo `8,5`.
-- [x] Estado real recuperado em 27/08/2026: worktree limpo, branch local/remoto no mesmo HEAD, PR open/draft, CI verde e stash preservado sem aplicação.
-- [x] Diferença atual para `origin/main` confirmada após fetch explícito: branch 3 commits atrás e 367 commits à frente.
-- [x] Aba Microsoft anterior não permaneceu disponível no navegador interno; nenhuma sessão, credencial ou MFA foi inspecionada.
+Não confundir:
 
-## Próxima ação exata
+- `teacherModelId` persistido no D1 de homologação: `homologation-share-model-20260826`;
+- `teacherId` persistido no D1 de homologação: `homologation-share-teacher-20260826`;
+- `modelId` genérico embutido no workbook: `71111111-1111-4111-8111-111111111111`.
 
-Executar via Graph/backend o download pós-edição, validar o pacote e reanalisar OOXML confirmando `B2=8,5` no mesmo mapping/gradeKey. Em seguida revogar a permission individual, remover o XLSX e confirmar o cleanup mantendo somente a pasta dedicada e sync `0`.
+A prova de edição usou:
 
-## Estado Microsoft
+- `gradeKey`: `2026|73333333-3333-4333-8333-333333333333|74444444-4444-4444-8444-444444444444|75555555-5555-4555-8555-555555555555`;
+- `field`: `NotaT1`;
+- `sheetKey`: `generated:73333333-3333-4333-8333-333333333333:74444444-4444-4444-8444-444444444444`;
+- `cellAddress`: `B2`;
+- valor reanalisado: `8.5`.
 
-- GitHub OIDC → Entra e `Sites.Selected` já comprovados em modo read-only.
-- Site `CENTROADMIN` e library `ARQUIVOS_PLATAFORMA` confirmados.
-- Pasta confirmada: `ARQUIVOS_PLATAFORMA/BANCO_NOTAS_HOMOLOGACAO`.
-- Upload/download/delete Graph real executado no run `33024306664` somente no boundary dedicado.
-- `GUI@escolaieda.com` resolvido no perfil Entra: membro e conta habilitada; OID real conferido sem invenção.
-- Compartilhamento individual ativo somente para `GUI@escolaieda.com`; arquivo sintético retido temporariamente para Excel.
-- O arquivo abriu no Excel Online ainda sob a sessão administrativa; conteúdo visual correto, em modo de leitura nessa sessão.
-- Tela Microsoft `Entrar` aberta para troca à conta destinatária; coleta segura automatizada indisponível, aguardando preenchimento manual na interface.
-- Em 27/08/2026, a autenticação destinatária foi concluída e a interface confirmou `GUI@escolaieda.com`; a sessão administrativa foi removida do teste.
-- O Excel Online abriu o arquivo correto em modo reparado/somente leitura e ofereceu uma correção que poderia reescrever o pacote. A operação foi cancelada sem alterar o arquivo.
-- Diagnóstico local identificou estruturas OOXML incompatíveis com edição estrita: `sheetView` referenciava `workbookViewId=0` sem `<bookViews>` no workbook e células/definições de coluna eram emitidas fora de ordem crescente.
-- Nenhuma credencial, token, cookie ou MFA registrado.
+## Evidência final do cleanup
 
-## Estado Cloudflare
+Artefato redigido do run `33076985566`:
 
-- D1 exclusivo `banco-notas-homologation` validado até migration `0007`.
-- Run `33026452850` success; vínculo do professor/modelo sintéticos ao OID autorizado e sync final desligado.
-- Nenhum D1 ou Pages de produção alterado nesta retomada.
+- `status=success`;
+- `recipientPermissionAlreadyAbsent=true`;
+- `permissionBoundaryVerified=true`;
+- `permissionRevocationConfirmed=true`;
+- `workbookRemoved=true`;
+- `workbookRemovalConfirmed=true`;
+- `dedicatedFolderRetained=true`;
+- `syncEnabled=false`.
+
+O campo `recipientIdentityMatch=false` nesse estágio não indica destinatário incorreto: a permissão já estava ausente, portanto não existia identidade ativa a comparar. A ausência e o boundary foram confirmados separadamente pelos campos acima.
 
 ## Recursos temporários existentes
 
-- Stash local recuperável: `stash@{0}` — `safety-before-recover-pr52-2026-08-26`.
-- Pasta M365 `BANCO_NOTAS_HOMOLOGACAO`: confirmada e retida conforme autorizado.
-- Registro sintético D1 de homologação para o teste de share; ambiente homologation e sync `0`.
-- XLSX `banco-notas-share-excel-sintetico-20260826.xlsx` e sua permissão individual estão temporariamente ativos até o round-trip/cleanup.
+Nenhum recurso temporário M365 ativo do ensaio:
+
+- nenhum XLSX sintético retido;
+- nenhuma permissão individual ativa criada pelo ensaio;
+- nenhum job one-shot M365 na CI;
+- nenhum teste externo de tenant na suíte comum.
+
+Permanece apenas a pasta autorizada `BANCO_NOTAS_HOMOLOGACAO` e o histórico sintético/auditável no D1 de homologação com sync desligado.
 
 ## Recursos já limpos
 
-- XLSX sintético do run `33024306664` removido do SharePoint com sucesso.
-- XLSX sintético do run `33025586408` removido do SharePoint com sucesso.
-- Permissão e XLSX da primeira tentativa de share (`33026678794`) foram compensados e removidos.
+- XLSX de storage inicial: removido.
+- XLSX diagnóstico: removido.
+- Primeira tentativa de share: permission e arquivo compensados.
+- XLSX incompatível substituído: permission e item anteriores removidos.
+- XLSX editado final: permission revogada e arquivo removido.
+- Jobs one-shot de storage/share/substituição/round-trip: removidos.
+- OID/UPN autorizados: removidos dos workflows permanentes.
 
-## Commits
+## Baselines e runs principais
 
-- HEAD recuperado: `848b78fe413345a115151f5a545c338bcc73c66c` — `test: isolar homologacao M365 em Node real`.
-- `origin/main`: `d0f03dccfe879024eb1a4cb8d8e3ee0a55adea77`.
-- `ec483b7` — correção do cleanup fora de `finally` e checkpoint inicial.
-- `5ee994e` — merge do `origin/main` atual no branch.
-- O branch agora contém integralmente `origin/main`; produção continua intocada.
-- `8144de5` — preparação fail-closed do vínculo sintético autorizado no D1 de homologação.
-- `1435bee` — share individual one-shot e gates de permissão/integridade.
-- `14d9eb1` — distinção fail-closed entre baseline efetivo e novas concessões.
-- `18f35be` — remoção do job one-shot após sucesso.
+- `33003875460` — M365 readiness — success.
+- `33025586408` — storage Graph/SharePoint real — success.
+- `33026452850` — preparação D1 sintética para share — success.
+- `33026888705` — share individual — success.
+- `33073736978` — serializer editável no Excel Online — success.
+- `33074034916` — substituição controlada do XLSX — success.
+- `33075802785` — prova Excel → Graph → analyzer — success.
+- `33076985566` — cleanup final sob lock WOPI — success.
+- `33078530136` — D1 homologation limpa, sem vínculo pessoal no workflow — success.
+- `33078535334` — CI limpa, sem job/teste externo — success.
 
-## Runs
+## Próximo bloco técnico seguro
 
-- `33008170523` — CI and deploy — failure no lint; storage M365 e produção skipped.
-- `33024306664` — validação/segurança success; storage M365 failure por diferença de tamanho/hash; arquivo removido; produção skipped.
-- `33024796115` — validação/segurança success; diagnóstico M365 confirmou reanálise OOXML e cleanup; artefato XLSX temporário depois excluído.
-- `33025586408` — success completo; storage Graph real, integridade normalizada, reanálise e cleanup verdes; produção skipped.
-- `33026452850` — D1 homologation success; vínculo autorizado preparado e sync `0`.
-- `33026678794` — primeira tentativa de share falhou fechado; permissão e arquivo compensados.
-- `33026888705` — share individual success; XLSX retido para Excel e produção skipped.
-- `33027020137` — CI success após retirada do job one-shot; nenhuma repetição do share.
-- `32981705701` — Banco de Notas D1 homologation — success.
-- `33003875460` — M365 operations/readiness — success.
-- `33006204505` — CI and deploy — último baseline anterior verde após incorporar o Control Plane M365 então vigente.
+1. auditar os app registrations Entra existentes e escolher reutilização antes de criar qualquer app;
+2. homologar `BANCO_NOTAS_ADDIN_AUDIENCE` e `BANCO_NOTAS_ADDIN_SCOPE` reais;
+3. provar o bearer add-in com tenant, issuer, audience, scope, lifetime, OID e ownership;
+4. manter o endpoint público bloqueado até o gate completo;
+5. comprovar atomicidade por binding `D1Database.batch()` em runtime Cloudflare de homologação autorizado;
+6. avançar os módulos funcionais: Acompanhamento, Alunos, Turmas, Professores e Pesquisa.
 
-## Bloqueios
+## Não fazer ao retomar
 
-- A troca para a conta destinatária exige preenchimento manual na página Microsoft já aberta; o navegador não disponibilizou a coleta segura automatizada.
-- Edição, round-trip pós-edição, revogação e cleanup aguardam esse login.
+- não recriar o XLSX/share já homologados;
+- não reintroduzir OID/UPN em workflows permanentes;
+- não habilitar sync;
+- não publicar add-in;
+- não tocar produção;
+- não aplicar o stash antigo automaticamente;
+- não introduzir golden master privado em fixture ou runtime.
 
-## Como retomar
+## Invariantes
 
-1. Após o usuário responder `pronto`, inspecionar a página Microsoft/Excel sem observar credenciais.
-2. Confirmar sessão `GUI@escolaieda.com`, modo de edição e os dados sintéticos visíveis.
-3. Alterar somente a nota sintética esperada e aguardar o salvamento do Excel.
-4. Executar download/reanálise backend, registrar a mudança e então revogar a permissão e remover o XLSX.
+- D1 continua sendo a fonte estruturada/transacional.
+- SharePoint/OneDrive continuam sendo o boundary de arquivos/modelos.
+- Graph continua backend-only.
+- O produto continua gerando um **modelo genérico limpo**.
+- Os **golden masters privados externos** continuam fora de Git, runtime, D1, fixtures públicas e distribuição.

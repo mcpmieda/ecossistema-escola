@@ -1,18 +1,18 @@
-# Banco de Notas — homologação D1 remota — 2026-08-26
+# Banco de Notas — homologação D1 remota — 2026-08-26/27
 
 ## Resultado atual
 
-Homologação remota concluída com sucesso no database exclusivo do Banco de Notas:
+Homologação remota concluída com sucesso no database exclusivo:
 
 - database: `banco-notas-homologation`;
 - workflow: `Banco de Notas D1 homologation`;
-- run inicial consolidado: `32973613431` / execução `#12`;
-- run final do bloco de identidade: `32981705701` — **success**;
-- commit final validado remotamente: `2467240b53bf3bbc5996905ba940b544cb35f266`;
-- CI correspondente: `32981711631` — **success**;
-- Wrangler observado durante o ciclo: `4.125.0`;
-- migrations `0001`–`0007` aplicadas e exercitadas;
-- estado final do smoke de identidade: `sync_enabled=0`.
+- run mais recente: `33078530136` / execução `#19` — **success**;
+- head validado: `a539417e09740db54c4f97ebbb62acc741bd0de2`;
+- Wrangler: `4.125.0`;
+- migrations `0001`–`0007` presentes e exercitadas;
+- core smoke — success;
+- analysis profiles smoke — success;
+- estado final dos gates de identidade: `sync_enabled=0`.
 
 Nenhum token, secret ou identificador sensível é registrado neste documento.
 
@@ -26,7 +26,9 @@ O provisionamento usa o Wrangler atual:
 4. valida UUID/account;
 5. confere o conjunto esperado de migrations antes de aplicar remotamente.
 
-O provisionador atual está travado nas migrations `0001`–`0007` e recusa divergência de conjunto ou duplicidade do nome de homologação.
+No run `33078530136`, o banco existente foi reutilizado e o Wrangler informou que não havia migrations pendentes.
+
+O provisionador está travado nas migrations `0001`–`0007` e recusa conjunto divergente ou duplicidade do nome de homologação.
 
 ## Migrations remotas comprovadas
 
@@ -38,11 +40,11 @@ O provisionador atual está travado nas migrations `0001`–`0007` e recusa dive
 6. `0006_banco_notas_import_analysis_profiles.sql`;
 7. `0007_banco_notas_teacher_entra_identity.sql`.
 
-As migrations anteriores continuaram válidas após a `0007`; os smokes de core e analysis profiles permaneceram aprovados.
+As migrations anteriores continuam válidas após a `0007`.
 
-## Invariantes remotos já comprovados
+## Invariantes remotos comprovados
 
-O smoke principal continua cobrindo com dados sintéticos:
+O smoke principal cobre com dados sintéticos:
 
 - defaults seguros;
 - autoridade padrão e sync desligado;
@@ -56,55 +58,82 @@ O smoke principal continua cobrindo com dados sintéticos:
 - bloqueio de reentrada de estado;
 - findings/resoluções append-only.
 
-O smoke de profiles continua comprovando persistência e invariantes da migration `0006`.
+O smoke de profiles comprova persistência e invariantes da migration `0006`.
 
 ## Migration 0007 — identidade Entra do professor
 
-A `0007_banco_notas_teacher_entra_identity.sql` foi exercitada no D1 remoto de homologação.
+A `0007_banco_notas_teacher_entra_identity.sql` foi exercitada no D1 remoto.
 
-O ciclo final comprovou:
+O ciclo comprovou:
 
-- um modelo não pode entrar em sync quando o professor não possui Entra OID;
-- a tentativa inválida falha e não deixa sync ativado;
+- modelo sem professor com Entra OID não pode entrar em sync;
+- tentativa inválida não deixa sync ativado;
 - Entra OID é único entre professores;
-- após atribuir uma identidade sintética válida, o smoke pode habilitar sync **temporariamente apenas para testar os locks**;
-- enquanto esse sync sintético está ativo, troca do Entra OID é rejeitada;
-- enquanto esse sync sintético está ativo, inativação do professor é rejeitada;
-- depois das provas, o smoke desabilita o sync;
-- a asserção final remota exige `sync_enabled=0`.
+- após identidade sintética válida, o smoke pode habilitar sync temporariamente para provar locks;
+- troca de OID é rejeitada durante sync;
+- inativação do professor é rejeitada durante sync;
+- o smoke retorna o modelo para sync desligado;
+- a asserção final exige `sync_enabled=0`.
 
-Isso fecha a lacuna da execução anterior, que ainda não exercitava os triggers de lock de OID/status.
+## Workflow permanente limpo
+
+A preparação de uma conta real para o ensaio M365 foi usada somente de forma controlada e já foi removida do workflow padrão.
+
+No commit `a539417e09740db54c4f97ebbb62acc741bd0de2` foram removidos de `.github/workflows/banco-notas-d1-homologation.yml`:
+
+- UPN real;
+- Object ID real;
+- etapa automática de preparação do professor/modelo para share.
+
+O workflow permanente voltou a executar somente:
+
+- provisionamento/migrations;
+- core smoke;
+- analysis profiles smoke.
+
+O script `infra/banco-notas/cloudflare/prepare-share-homologation.ps1` permanece protegido para uso manual consciente, exigindo parâmetros e confirmação explícita. Não recolocar identidade pessoal em YAML.
+
+## Relação com a prova M365
+
+O D1 de homologação foi usado para preparar registros sintéticos durante o ensaio de share. A prova Microsoft completa está documentada separadamente em:
+
+`docs/BANCO_NOTAS_M365_SHARE_AND_EXCEL_HOMOLOGATION_2026-08-26.md`
+
+Essa prova confirmou share individual, edição no Excel, download Graph, reanálise e cleanup, sempre com sync desligado.
+
+A evidência D1 atual confirma que o workflow padrão não mantém o vínculo pessoal como rotina permanente.
 
 ## Segurança preservada
-
-Durante toda a homologação:
 
 - nenhum D1 de produção foi acessado ou alterado;
 - nenhum Cloudflare Pages de produção foi alterado;
 - nenhum Worker temporário de produção foi criado;
-- o estado final de sync permaneceu desligado;
-- Entra, Graph e SharePoint reais não foram modificados;
+- estado final de sync permaneceu desligado;
 - credenciais D1 continuaram em GitHub Actions secrets;
 - golden masters privados não participaram de migrations ou smokes;
-- o PR #52 permaneceu open, draft e sem merge.
+- PR #52 permaneceu open, draft e sem merge;
+- OID/UPN reais não permanecem no workflow.
 
-## O que esta evidência não prova
+O Banco continua baseado em **modelo genérico limpo** e mantém **golden masters privados externos** fora do produto.
 
-Esta homologação comprova o storage D1 e seus invariantes. Ela não deve ser usada para afirmar:
+## O que esta evidência prova — e o que não prova
 
-- Graph/SharePoint real homologado;
-- audience/scope Entra real configurado;
-- add-in público liberado;
+Esta evidência prova o storage D1 remoto e seus invariantes.
+
+Ela não substitui os gates específicos de:
+
+- audience/scope Entra do add-in;
+- bearer/ownership end-to-end do add-in;
 - atomicidade por `D1Database.batch()` em binding Worker/Pages real;
-- compatibilidade operacional final com Excel;
-- browser QA.
+- browser QA funcional amplo;
+- release de produção.
 
-Esses itens possuem gates próprios.
+Graph/SharePoint/Excel possuem evidência própria e já não são bloqueadores do ciclo de arquivos.
 
 ## Próximo bloco técnico
 
-1. fechar a CI do adapter Graph reconstruído;
-2. homologar upload/share/download/reanálise em Microsoft Graph/SharePoint real somente em ambiente de homologação autenticado;
-3. preparar audience/scope Entra reais e ownership sem liberar endpoint público antes do gate completo;
-4. validar `D1Database.batch()` por binding quando existir runtime Cloudflare de homologação autorizado;
-5. avançar os módulos funcionais do Banco de Notas e, depois, browser QA/release.
+1. auditar apps Entra existentes;
+2. homologar audience/delegated scope reais do add-in;
+3. provar token e ownership sem publicar o add-in;
+4. validar `D1Database.batch()` por binding quando existir runtime de homologação autorizado;
+5. avançar módulos funcionais e QA.
