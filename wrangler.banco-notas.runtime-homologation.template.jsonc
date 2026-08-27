@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ecossistema-escola-banco-notas-runtime-homologation-template-do-not-deploy",
+  "main": "infra/banco-notas/cloudflare/runtime-homologation-worker.ts",
+  "compatibility_date": "2026-08-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/__banco-notas-homologation/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "BANCO_NOTAS_DB",
+      "database_name": "banco-notas-homologation",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+    },
+  ],
+  "vars": {
+    "RUNTIME_ENVIRONMENT": "homologation",
+    "TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188",
+    "BANCO_NOTAS_ADDIN_AUDIENCE": "73ab83d3-00ba-494a-a1f8-586d250d420a",
+    "BANCO_NOTAS_ADDIN_SCOPE": "BancoNotas.Sync",
+  },
+}
+

@@ -59,7 +59,17 @@ function snapshot(row: Row): GradeSnapshot {
 }
 
 export class D1GradeEventStore implements GradeEventStore {
-  constructor(private readonly db: D1Database) {}
+  constructor(
+    private readonly db: D1Database,
+    private readonly options: {
+      runtimeEnvironment?: 'homologation';
+      injectFailureAfterSnapshot?: boolean;
+    } = {},
+  ) {
+    if (options.injectFailureAfterSnapshot && options.runtimeEnvironment !== 'homologation') {
+      throw new Error('grade_event_failure_injection_requires_homologation');
+    }
+  }
 
   async findByIdempotencyKey(idempotencyKey: string): Promise<StoredGradeEvent | null> {
     const row = await this.db
@@ -179,7 +189,7 @@ export class D1GradeEventStore implements GradeEventStore {
     const { event } = command;
     const value = splitValue(event.valueAfter);
     try {
-      await this.db.batch([
+      const statements: D1PreparedStatement[] = [
         this.db
           .prepare(
             `INSERT INTO grade_events
@@ -235,7 +245,26 @@ export class D1GradeEventStore implements GradeEventStore {
            WHERE excluded.sequence > grade_snapshots.sequence`,
           )
           .bind(event.eventId),
-      ]);
+      ];
+      if (this.options.injectFailureAfterSnapshot) {
+        statements.push(
+          this.db
+            .prepare(
+              `INSERT INTO grade_snapshots
+                (grade_key, field, event_id, source_id, sequence, value_numeric, value_text,
+                 is_absent, updated_at)
+               VALUES (?, ?, ?, ?, 0, NULL, NULL, 1, ?)`,
+            )
+            .bind(
+              `${event.gradeKey}:forced-failure`,
+              event.field,
+              event.eventId,
+              event.sourceId,
+              event.receivedAt,
+            ),
+        );
+      }
+      await this.db.batch(statements);
     } catch (error) {
       const existing = await this.findByIdempotencyKey(event.idempotencyKey);
       if (existing) {
@@ -261,3 +290,4 @@ export class D1GradeEventStore implements GradeEventStore {
     };
   }
 }
+

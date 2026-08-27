@@ -5,6 +5,10 @@ import {
   type IPublicClientApplication,
 } from '@azure/msal-browser';
 import { createBancoNotasNaaConfig, type BancoNotasNaaConfig } from './config';
+import {
+  runBancoNotasRuntimeHomologation,
+  type RuntimeHomologationResult,
+} from './runtime-homologation';
 
 type SafeError = {
   name: string | null;
@@ -31,6 +35,7 @@ const diagnostic: {
   initialization: Record<string, string | number | boolean | null>;
   events: Array<Record<string, string | number | boolean | null | SafeError>>;
   tokenProof: TokenProof | null;
+  runtimeProof: RuntimeHomologationResult | null;
   error: SafeError | null;
 } = {
   schemaVersion: 1,
@@ -43,6 +48,7 @@ const diagnostic: {
   initialization: {},
   events: [],
   tokenProof: null,
+  runtimeProof: null,
   error: null,
 };
 
@@ -170,11 +176,30 @@ async function acquireToken(): Promise<void> {
     diagnostic.status = diagnostic.tokenProof.allChecksPassed
       ? 'NAA_TOKEN_PROOF_PASSED'
       : 'NAA_TOKEN_RECEIVED_CLAIMS_FAILED';
-    setStatus(
-      diagnostic.tokenProof.allChecksPassed
-        ? 'Conta conectada com segurança.'
-        : 'Token rejeitado pelo contrato do Banco.',
-    );
+    if (
+      diagnostic.tokenProof.allChecksPassed &&
+      import.meta.env.VITE_BANCO_NOTAS_RUNTIME_HOMOLOGATION === '1'
+    ) {
+      diagnostic.status = 'RUNTIME_HOMOLOGATION_STARTED';
+      setStatus('Validando autorização e atomicidade no runtime de homologação…');
+      render();
+      diagnostic.runtimeProof = await runBancoNotasRuntimeHomologation({
+        accessToken: response.accessToken,
+        origin: window.location.origin,
+      });
+      diagnostic.status = diagnostic.runtimeProof.status;
+      setStatus(
+        diagnostic.runtimeProof.status === 'BANCO_NOTAS_RUNTIME_HOMOLOGATION_PASSED'
+          ? 'Bearer, ownership e atomicidade D1 comprovados.'
+          : 'A homologação do runtime não passou.',
+      );
+    } else {
+      setStatus(
+        diagnostic.tokenProof.allChecksPassed
+          ? 'Conta conectada com segurança.'
+          : 'Token rejeitado pelo contrato do Banco.',
+      );
+    }
   } catch (error) {
     diagnostic.error = safeError(error);
     diagnostic.status = 'NAA_TOKEN_REQUEST_FAILED';
@@ -244,3 +269,4 @@ void Office.onReady(async (info) => {
 });
 
 connect?.addEventListener('click', () => void acquireToken());
+

@@ -1,6 +1,11 @@
 import { z } from 'zod';
-import type { RuntimeEnv } from '../env';
 import { decodeBase64Url, decodeJson } from './base64url';
+
+type BancoNotasAddinTokenEnv = {
+  TENANT_ID: string;
+  BANCO_NOTAS_ADDIN_AUDIENCE?: string;
+  BANCO_NOTAS_ADDIN_SCOPE?: string;
+};
 
 const uuidSchema = z.string().uuid();
 
@@ -182,7 +187,7 @@ export async function verifyMicrosoftEntraAccessToken(args: {
 
 export async function verifyBancoNotasAddinToken(args: {
   authorization: string | null;
-  env: RuntimeEnv;
+  env: BancoNotasAddinTokenEnv;
   now?: number;
   fetcher?: typeof fetch;
 }): Promise<EntraAccessTokenClaims> {

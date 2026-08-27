@@ -184,6 +184,36 @@ describe('D1GradeEventStore with real SQLite', () => {
     runtime.database.close();
   });
 
+  it('allows the controlled failure probe only in homologation and rolls back every statement', async () => {
+    const runtime = database();
+    expect(
+      () =>
+        new D1GradeEventStore(runtime as unknown as D1Database, {
+          injectFailureAfterSnapshot: true,
+        }),
+    ).toThrow('grade_event_failure_injection_requires_homologation');
+
+    await expect(
+      ingestGradeEvent({
+        input: input(),
+        idempotencyKey: 'sqlite-grade-event-homologation-probe-0001',
+        store: new D1GradeEventStore(runtime as unknown as D1Database, {
+          runtimeEnvironment: 'homologation',
+          injectFailureAfterSnapshot: true,
+        }),
+        receivedAt: '2026-08-25T12:00:01.000Z',
+      }),
+    ).rejects.toThrow();
+
+    expect(
+      runtime.database.prepare('SELECT COUNT(*) AS total FROM grade_events').get(),
+    ).toMatchObject({ total: 0 });
+    expect(
+      runtime.database.prepare('SELECT COUNT(*) AS total FROM grade_snapshots').get(),
+    ).toMatchObject({ total: 0 });
+    runtime.database.close();
+  });
+
   it('retains an old sequence as stale and does not regress the snapshot', async () => {
     const runtime = database();
     const gradeStore = store(runtime);
@@ -253,3 +283,4 @@ describe('D1GradeEventStore with real SQLite', () => {
     runtime.database.close();
   });
 });
+
