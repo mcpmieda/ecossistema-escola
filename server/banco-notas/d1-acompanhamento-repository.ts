@@ -19,7 +19,7 @@ const effectiveAssignmentSql = `
     AND assignment.effective_from <= date('now')
     AND (assignment.effective_to IS NULL OR assignment.effective_to >= date('now'))
     AND (assignment.teacher_id = ta.teacher_id OR assignment.teacher_id IS NULL)
-  ORDER BY CASE WHEN assignment.teacher_id = ta.teacher_id THEN 0 ELSE 1 END,
+  ORDER BY CASE WHEN assignment.teacher_id IS NULL THEN 1 ELSE 0 END,
            assignment.updated_at DESC
   LIMIT 1`;
 
@@ -354,7 +354,7 @@ export class D1AcompanhamentoRepository implements AcompanhamentoRepository {
                AND candidate.effective_from <= date('now')
                AND (candidate.effective_to IS NULL OR candidate.effective_to >= date('now'))
                AND (candidate.teacher_id = ta.teacher_id OR candidate.teacher_id IS NULL)
-             ORDER BY CASE WHEN candidate.teacher_id = ta.teacher_id THEN 0 ELSE 1 END,
+              ORDER BY CASE WHEN candidate.teacher_id IS NULL THEN 1 ELSE 0 END,
                       candidate.updated_at DESC LIMIT 1
            )
          LEFT JOIN data_sources source ON source.id = authority.data_source_id
