@@ -31,6 +31,7 @@ import {
   validateResultCandidate,
   validateSha40,
 } from './durable-provider-contract.mjs';
+import { durableWorkerBranch } from './durable-worker-branch.mjs';
 import {
   changedFilesWithinDeclaredScope,
   mergedPrEvidenceFromComments,
@@ -138,7 +139,7 @@ function trustedBranchRecord(comments, branch, integrationBranch) {
 
 async function ensureWorkerBranch(owner, repo, context) {
   const branch = validateBranch(
-    `factory/${context.run.runId}/${context.task.id}`,
+    durableWorkerBranch(context.run.runId, context.task.id),
     'durable worker branch',
   );
   const comments = await issueComments(owner, repo, context.issue.number);
