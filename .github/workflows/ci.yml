@@ -166,3 +166,52 @@ jobs:
           path: recovery-audit.jsonl
           if-no-files-found: error
           retention-days: 90
+
+  remove-banco-notas-runtime-preview:
+    name: Remove isolated Banco de Notas homologation runtime
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.number == 52 &&
+      github.head_ref == 'feat/banco-de-notas-foundation'
+    needs: [validate, workflow-security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Remove only the evidenced preview when it still exists
+        shell: pwsh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          $evidence = Get-Content -LiteralPath 'docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.json' -Raw | ConvertFrom-Json
+          $deploymentId = [string]$evidence.deployment.pagesDeploymentId
+          if ([string]::IsNullOrWhiteSpace($deploymentId)) {
+            throw 'A evidência não contém o ID exato do preview Pages temporário.'
+          }
+          $deployments = npx wrangler pages deployment list --project-name ecossistema-escola --json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Falha ao consultar os deployments Pages.'
+          }
+          if ($deployments.id -contains $deploymentId) {
+            npx wrangler pages deployment delete $deploymentId --project-name ecossistema-escola --force
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Falha ao remover o preview Pages exato.'
+            }
+            Write-Output 'RUNTIME_HOMOLOGATION_PAGES_PREVIEW_REMOVED'
+          } else {
+            Write-Output 'RUNTIME_HOMOLOGATION_PAGES_PREVIEW_ALREADY_ABSENT'
+          }
