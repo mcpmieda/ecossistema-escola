@@ -1,0 +1,1 @@
+Hosted OpenCode worker completed.
