@@ -1,5 +1,15 @@
 # PROJECT_STATE — Ecossistema Escolar
 
+## Banco de Notas — Professores V1 (28/08/2026)
+
+- Branch funcional `feat/banco-notas-professores-v1`, baseada na `main` integrada em `0d61a96e4c7567d565548ac6bedcc9b9c1c5c6c1`.
+- Diretório e detalhe operacional read-only de professores, com filtros/paginação server-side, identidade institucional segura, assignments, turmas/componentes, teacher models, fontes, pendências e atividade.
+- Regra de situação operacional compartilhada com Acompanhamento; `sync_enabled=0` isoladamente não é erro.
+- Navegação Professor ↔ Turma e Professor ↔ Acompanhamento com retorno preservado.
+- Contratos semânticos e OpenAPI atualizados; nenhum schema D1, Entra, Graph, add-in ou produção foi alterado.
+- Verificação local: 369 testes em 71 arquivos, lint, tipos, semântica e builds verdes; browser QA desktop/mobile sintético aprovado.
+- Documento: `docs/BANCO_NOTAS_PROFESSORES_V1.md`.
+
 ## Adoção App Factory e novo marco — Banco de Notas
 
 Em 25/08/2026 foi aberto o branch `feat/banco-de-notas-foundation`, a partir de `b2f743543f7365e591120b2363b5f274bf314cb0`, para iniciar o primeiro sistema especializado integrado ao Centro: **Banco de Notas**.

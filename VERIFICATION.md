@@ -1,5 +1,19 @@
 # VERIFICATION — Centro de Administração v1
 
+## Banco de Notas — verificação Professores V1 (28/08/2026)
+
+- Lista, pesquisa, filtros, paginação, detalhe, assignments, turmas/componentes, modelos, identidade, situação operacional, pendências e atividade: PASS local.
+- APIs read-only protegidas por `grades.analytics.read`, queries validadas e DTO sem OID/Drive ID: PASS.
+- Repositório D1 agregado sem N+1, latest model persistido e professores sem assignment preservados: PASS.
+- Regressão de Acompanhamento, Turmas e Alunos: PASS.
+- Testes: 369 em 71 arquivos, incluindo 16 novos testes focados: PASS.
+- Lint, typecheck, semantic contract, manifest e builds web/add-in: PASS.
+- Browser QA sintético: desktop 1440 × 900 e mobile 390 × 844; navegação cruzada, retorno, vazio, 403, 404 e 500: PASS.
+- Fixture local e servidor temporário removidos; nenhuma PII real em evidências.
+- Produção, D1 remoto, Graph e Entra intactos; add-in não publicado; `sync_enabled=0`.
+
+Evidência detalhada: `docs/BANCO_NOTAS_PROFESSORES_V1.md`.
+
 ## Estado da verificação
 
 O Centro de Administração v1 está oficialmente liberado e atualizado em produção.

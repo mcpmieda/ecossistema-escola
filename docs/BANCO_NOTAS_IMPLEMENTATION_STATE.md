@@ -1,5 +1,15 @@
 # Banco de Notas — Implementation State
 
+## Professores V1 — implementação em branch (28/08/2026)
+
+- Diretório e detalhe operacionais sobre `teachers`, assignments e relações persistidas atuais.
+- API read-only com `grades.analytics.read`, filtros/paginação server-side e DTO sem OID, claims ou Drive IDs.
+- Situação operacional extraída para regra compartilhada com Acompanhamento.
+- Professores sem assignment continuam visíveis; diagnósticos expõem buracos sem autocorreção.
+- Navegação cruzada com Turmas e Acompanhamento preserva o retorno.
+- Sem migration, D1 remoto, Graph, Entra, compartilhamento, publicação de add-in ou deploy.
+- Verificação local e browser QA sintético aprovados; detalhes em `docs/BANCO_NOTAS_PROFESSORES_V1.md`.
+
 Última atualização: 27/08/2026
 
 Branch: `feat/banco-de-notas-foundation`
