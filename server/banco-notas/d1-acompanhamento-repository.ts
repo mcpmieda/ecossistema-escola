@@ -429,6 +429,22 @@ export class D1AcompanhamentoRepository implements AcompanhamentoRepository {
       .bind(classGroupId)
       .first<Row>();
 
+    const noteFields = await this.db
+      .prepare(
+        `SELECT snapshot.field, COUNT(*) AS snapshots,
+                SUM(CASE WHEN snapshot.is_absent = 0 THEN 1 ELSE 0 END) AS present_values,
+                SUM(CASE WHEN snapshot.is_absent = 1 THEN 1 ELSE 0 END) AS absent_values,
+                SUM(CASE WHEN snapshot.is_absent = 0 AND snapshot.value_numeric = 0 THEN 1 ELSE 0 END) AS numeric_zero_values,
+                MAX(snapshot.updated_at) AS last_updated_at
+         FROM grade_snapshots snapshot
+         JOIN school_years sy ON snapshot.grade_key LIKE CAST(sy.year AS TEXT) || '|%'
+         WHERE snapshot.grade_key LIKE CAST(sy.year AS TEXT) || '|' || ? || '|%'
+         GROUP BY snapshot.field
+         ORDER BY snapshot.field`,
+      )
+      .bind(classGroupId)
+      .all<Row>();
+
     return {
       classGroup: {
         id: String(group.id),
@@ -473,6 +489,14 @@ export class D1AcompanhamentoRepository implements AcompanhamentoRepository {
         absentValues: Number(noteTotals?.absent_values ?? 0),
         numericZeroValues: Number(noteTotals?.numeric_zero_values ?? 0),
         lastUpdatedAt: noteTotals?.last_updated_at ? String(noteTotals.last_updated_at) : null,
+        byField: noteFields.results.map((row) => ({
+          field: String(row.field),
+          snapshots: Number(row.snapshots ?? 0),
+          presentValues: Number(row.present_values ?? 0),
+          absentValues: Number(row.absent_values ?? 0),
+          numericZeroValues: Number(row.numeric_zero_values ?? 0),
+          lastUpdatedAt: row.last_updated_at ? String(row.last_updated_at) : null,
+        })),
       },
     };
   }

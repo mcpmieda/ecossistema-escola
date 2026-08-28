@@ -42,6 +42,8 @@ describe('Banco de Notas Acompanhamento UI', () => {
   it('presents zero and absence as separate facts and keeps the experience read-only', () => {
     expect(source).toContain('Zeros numéricos');
     expect(source).toContain('Ausências explícitas');
+    expect(source).toContain('Campos e períodos com snapshot');
+    expect(source).toContain('Atividade recente');
     expect(source).toContain('nenhuma resolução destrutiva');
     expect(source).not.toMatch(/method:\s*['"](?:POST|PATCH|DELETE)['"]/u);
   });

@@ -181,6 +181,22 @@ describe('D1 Acompanhamento repository', () => {
       presentValues: 1,
       absentValues: 1,
       numericZeroValues: 1,
+      byField: [
+        expect.objectContaining({
+          field: 'NotaT1',
+          snapshots: 1,
+          presentValues: 1,
+          absentValues: 0,
+          numericZeroValues: 1,
+        }),
+        expect.objectContaining({
+          field: 'NotaT2',
+          snapshots: 1,
+          presentValues: 0,
+          absentValues: 1,
+          numericZeroValues: 0,
+        }),
+      ],
     });
     await expect(repository.detail('ffffffff-ffff-4fff-8fff-ffffffffffff')).resolves.toBeNull();
   });

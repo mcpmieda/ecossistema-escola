@@ -2,7 +2,7 @@
 
 Data: 28/08/2026
 
-Status do código local: vertical slice funcional concluído, ainda sujeito aos gates completos e à CI do PR.
+Status do código local: vertical slice funcional concluído e gates completos aprovados; CI do PR ainda pendente.
 
 ## Escopo entregue
 
@@ -13,7 +13,9 @@ Status do código local: vertical slice funcional concluído, ainda sujeito aos 
 - agregações e filtros executados no D1;
 - filtros de ano, turma, professor, estado do modelo, sync, situação e pesquisa;
 - query string como fonte do contexto de filtros, paginação e retorno do detalhe;
+- painéis de estados dos modelos e atividade recente no resumo;
 - turmas, professores, componentes, modelos, fonte autoritativa, snapshots e findings reais;
+- contagem factual de snapshots, presenças, ausências e zeros numéricos agrupada por campo/período;
 - alunos apenas quando podem ser relacionados pelos mappings canônicos do modelo;
 - zero numérico e ausência explícita exibidos separadamente;
 - estados de loading, vazio, filtro sem resultado, erro, parcial e sem permissão.
@@ -48,6 +50,8 @@ Os totais de notas consideram apenas `grade_snapshots` existentes:
 - zero numérico: `is_absent=0 AND value_numeric=0`.
 
 Nenhum “percentual lançado” ou “aluno sem nota” é inferido.
+
+No detalhe, `notes.byField` agrupa somente snapshots persistidos pelo campo canônico. Cada item informa contagens de snapshots, valores presentes, ausências explícitas, zeros numéricos e a última atualização observada, sem preencher períodos ou notas inexistentes.
 
 ## Contrato
 

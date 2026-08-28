@@ -290,7 +290,63 @@ export function AcompanhamentoPage() {
           ))}
         </div>
       ) : summary ? (
-        <SummaryCards summary={summary} />
+        <>
+          <SummaryCards summary={summary} />
+          <div className="mt-5 grid gap-5 xl:grid-cols-2">
+            <Card variant="default">
+              <Card.Header>
+                <Card.Title>Estados dos modelos</Card.Title>
+                <Card.Description>
+                  Distribuição sustentada pelos teacher models no D1.
+                </Card.Description>
+              </Card.Header>
+              <Card.Content className="flex flex-wrap gap-2">
+                {summary.modelStates.length ? (
+                  summary.modelStates.map((state) => (
+                    <Chip key={state.state} variant="soft">
+                      {modelLabels[state.state] ?? state.state}: {state.total}
+                    </Chip>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted">Nenhum modelo registrado.</span>
+                )}
+              </Card.Content>
+            </Card>
+            <Card variant="default">
+              <Card.Header>
+                <Card.Title>Atividade recente</Card.Title>
+                <Card.Description>Últimas mudanças operacionais registradas.</Card.Description>
+              </Card.Header>
+              <Card.Content className="grid gap-3">
+                {summary.recentActivity.length ? (
+                  summary.recentActivity.slice(0, 5).map((activity, index) => (
+                    <div
+                      key={`${activity.kind}:${activity.occurredAt}:${index}`}
+                      className="flex items-start justify-between gap-3 rounded-xl border border-border p-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{activity.label}</p>
+                        <p className="text-xs text-muted">
+                          {activity.kind === 'model'
+                            ? 'Modelo'
+                            : activity.kind === 'import'
+                              ? 'Importação'
+                              : 'Reconciliação'}{' '}
+                          · {modelLabels[activity.status] ?? activity.status}
+                        </p>
+                      </div>
+                      <span className="whitespace-nowrap text-xs text-muted">
+                        {formatDate(activity.occurredAt)}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-sm text-muted">Nenhuma atividade registrada.</span>
+                )}
+              </Card.Content>
+            </Card>
+          </div>
+        </>
       ) : null}
 
       <Surface className="bn-card mt-5" aria-label="Filtros de acompanhamento">
@@ -607,6 +663,51 @@ export function AcompanhamentoDetailPage() {
                   </Table.Content>
                 </Table.ScrollContainer>
               </Table>
+            </Card.Content>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <Card.Header>
+              <Card.Title>Campos e períodos com snapshot</Card.Title>
+              <Card.Description>
+                Contagem factual por campo; não representa percentual de lançamento.
+              </Card.Description>
+            </Card.Header>
+            <Card.Content className="p-0">
+              {detail.notes.byField.length === 0 ? (
+                <div className="p-6 text-sm text-muted">
+                  Nenhum snapshot de nota está disponível para esta turma.
+                </div>
+              ) : (
+                <Table variant="secondary">
+                  <Table.ScrollContainer>
+                    <Table.Content aria-label="Campos e períodos com snapshot">
+                      <Table.Header>
+                        <Table.Column id="field">Campo/período</Table.Column>
+                        <Table.Column id="snapshots">Snapshots</Table.Column>
+                        <Table.Column id="present">Presentes</Table.Column>
+                        <Table.Column id="absent">Ausências explícitas</Table.Column>
+                        <Table.Column id="zero">Zeros numéricos</Table.Column>
+                        <Table.Column id="updated">Atualização</Table.Column>
+                      </Table.Header>
+                      <Table.Body>
+                        {detail.notes.byField.map((field) => (
+                          <Table.Row id={field.field} key={field.field}>
+                            <Table.Cell className="font-medium">{field.field}</Table.Cell>
+                            <Table.Cell>{field.snapshots}</Table.Cell>
+                            <Table.Cell>{field.presentValues}</Table.Cell>
+                            <Table.Cell>{field.absentValues}</Table.Cell>
+                            <Table.Cell>{field.numericZeroValues}</Table.Cell>
+                            <Table.Cell className="whitespace-nowrap text-muted">
+                              {formatDate(field.lastUpdatedAt)}
+                            </Table.Cell>
+                          </Table.Row>
+                        ))}
+                      </Table.Body>
+                    </Table.Content>
+                  </Table.ScrollContainer>
+                </Table>
+              )}
             </Card.Content>
           </Card>
 

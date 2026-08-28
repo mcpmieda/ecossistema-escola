@@ -195,3 +195,16 @@ components:
         absentValues: { type: integer, minimum: 0 }
         numericZeroValues: { type: integer, minimum: 0 }
         lastUpdatedAt: { type: [string, 'null'], format: date-time }
+        byField:
+          type: array
+          items: { $ref: '#/components/schemas/NoteFieldStatus' }
+    NoteFieldStatus:
+      type: object
+      required: [field, snapshots, presentValues, absentValues, numericZeroValues]
+      properties:
+        field: { type: string }
+        snapshots: { type: integer, minimum: 0 }
+        presentValues: { type: integer, minimum: 0 }
+        absentValues: { type: integer, minimum: 0 }
+        numericZeroValues: { type: integer, minimum: 0 }
+        lastUpdatedAt: { type: [string, 'null'], format: date-time }

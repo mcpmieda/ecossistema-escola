@@ -121,6 +121,14 @@ export type AcompanhamentoDetail = {
     absentValues: number;
     numericZeroValues: number;
     lastUpdatedAt: string | null;
+    byField: Array<{
+      field: string;
+      snapshots: number;
+      presentValues: number;
+      absentValues: number;
+      numericZeroValues: number;
+      lastUpdatedAt: string | null;
+    }>;
   };
 };
 
