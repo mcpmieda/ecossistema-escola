@@ -45,6 +45,7 @@ import type {
   Teacher,
 } from '../../shared/banco-notas-contract';
 import type { PlatformCapability } from '../../shared/platform-contract';
+import { AcompanhamentoDetailPage, AcompanhamentoPage } from './AcompanhamentoPage';
 
 type BancoNotasIdentity = {
   name?: string;
@@ -795,7 +796,8 @@ function Shell({ identity }: Props) {
         </Surface>
         <Routes location={location}>
           <Route index element={<Overview />} />
-          <Route path="acompanhamento" element={<Planned title="Acompanhamento" />} />
+          <Route path="acompanhamento" element={<AcompanhamentoPage />} />
+          <Route path="acompanhamento/turmas/:id" element={<AcompanhamentoDetailPage />} />
           <Route path="alunos" element={<Planned title="Alunos" />} />
           <Route path="turmas" element={<Planned title="Turmas" />} />
           <Route path="professores" element={<Planned title="Professores" />} />

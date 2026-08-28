@@ -360,3 +360,19 @@ Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.j
 - `sync_enabled=0`; produção Pages, Worker e D1 não foram alterados.
 - `Deploy production` e `Verify recovery after deploy`: skipped.
 - PR #52 permanece open, draft e sem merge.
+
+## Atualização — Acompanhamento V1 (28/08/2026)
+
+O primeiro vertical slice de uso diário foi implementado em branch própria: summary, lista paginada com filtros server-side, detalhe de turma, professores/modelos/fontes, alunos sustentados por mappings, snapshots de notas e findings. A interface é read-only, usa HeroUI e persiste filtros na URL.
+
+Contrato e regra operacional: `docs/BANCO_NOTAS_ACOMPANHAMENTO_V1.md` e `api/banco-notas-acompanhamento-v1.openapi.yaml`.
+
+Produção permanece intacta e `sync_enabled` não foi alterado.
+
+## Integração controlada — Fundação + Acompanhamento V1 (28/08/2026)
+
+- Fundação técnica integrada à `main` pelo PR #52 no merge `cf48d837556fe6df1baaa21d0e0015e4535efe87`.
+- Acompanhamento V1 retargetado para `main` e consolidado pelo PR #129 após diff funcional limpo, regressão completa e CI verde.
+- A integração foi separada de release: nenhum deploy de produção, D1 remoto, alteração Entra/Graph ou publicação do add-in.
+- `sync_enabled=0`; edição de notas e ativação de sincronização continuam fora de escopo.
+- Próximo marco de produto: Turmas e Alunos V1, mediante nova missão explícita.

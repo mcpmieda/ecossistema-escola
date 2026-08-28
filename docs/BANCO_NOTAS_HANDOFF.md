@@ -367,3 +367,17 @@ Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.j
 - `sync_enabled=0`; produção Pages, Worker e D1 não foram alterados.
 - `Deploy production` e `Verify recovery after deploy`: skipped.
 - PR #52 permanece open, draft e sem merge.
+
+## Retomada — Acompanhamento V1 (28/08/2026)
+
+Branch de produto: `feat/banco-notas-acompanhamento`. O código local contém o vertical slice completo e seus testes. A branch deve permanecer stacked sobre `feat/banco-de-notas-foundation` enquanto o PR #52 estiver aberto, com publicação apenas em PR draft e sem merge ou deploy de produção.
+
+Documento funcional e evidências: `docs/BANCO_NOTAS_ACOMPANHAMENTO_V1.md`.
+
+## Integração controlada — estado final deste marco (28/08/2026)
+
+- Fundação integrada à `main` pelo PR #52: merge `cf48d837556fe6df1baaa21d0e0015e4535efe87`.
+- Acompanhamento V1 retargetado e integrado pelo PR #129 com base final `main` após regressão e CI verdes.
+- Os merges não autorizam release: nenhum deploy de produção, alteração D1 remota, mudança Entra/Graph ou publicação do add-in.
+- `sync_enabled=0` e endpoint público continuam protegidos.
+- Próxima retomada funcional: abrir missão própria para Turmas e Alunos V1; não inferir autorização de piloto ou produção.
