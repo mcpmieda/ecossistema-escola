@@ -4,10 +4,12 @@ import test from 'node:test';
 import {
   classifyCodeRabbitReview,
   codeRabbitEvidence,
+  latestMatchingReviewerWorkflowRun,
   latestTrustedReviewerEvidence,
   parseTrustedCodeRabbitRequest,
   parseTrustedMergeTrainEvidence,
   parseTrustedReviewerEvidence,
+  reviewerRunName,
   trustedMergeTrainEvidence,
 } from './merge-train-gate.mjs';
 
@@ -56,6 +58,37 @@ function reviewerMarker({ reviewer = 'Semgrep', sha = SHA, conclusion = 'success
     body: `<!-- FACTORY_REVIEWER_EVIDENCE ${encoded} -->`,
   });
 }
+
+test('reviewer workflow runs are correlated by exact PR and SHA title', () => {
+  const title = reviewerRunName('Sonar', 126, SHA);
+  assert.equal(title, `Sonar PR 126 @ ${SHA}`);
+  const runs = [
+    {
+      id: 40,
+      event: 'workflow_dispatch',
+      display_title: title,
+      status: 'completed',
+      conclusion: 'failure',
+    },
+    {
+      id: 41,
+      event: 'workflow_dispatch',
+      display_title: `Sonar PR 127 @ ${SHA}`,
+      status: 'completed',
+      conclusion: 'success',
+    },
+    {
+      id: 42,
+      event: 'workflow_dispatch',
+      display_title: reviewerRunName('Sonar', 126, OTHER_SHA),
+      status: 'completed',
+      conclusion: 'success',
+    },
+  ];
+  assert.equal(latestMatchingReviewerWorkflowRun(runs, 'Sonar', 126, SHA)?.id, 40);
+  assert.equal(latestMatchingReviewerWorkflowRun(runs, 'Sonar', 126, SHA, 40), null);
+  assert.throws(() => reviewerRunName('Unknown', 126, SHA), /Unsupported reviewer/);
+});
 
 test('CodeRabbit request markers trust only github-actions bot and exact SHA', () => {
   const body = `<!-- FACTORY_CODERABBIT_REQUEST {"sha":"${SHA}"} -->`;
