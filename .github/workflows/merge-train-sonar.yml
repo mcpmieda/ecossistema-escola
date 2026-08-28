@@ -65,9 +65,11 @@ jobs:
           test -n "${SONAR_PROJECT_KEY}" || { echo 'SONAR_PROJECT_KEY repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_ORGANIZATION}" || { echo 'SONAR_ORGANIZATION repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_TOKEN}" || { echo 'SONAR_TOKEN repository secret is required.' >&2; exit 1; }
-          echo "PR_HEAD_REF=${head_ref}" >> "${GITHUB_ENV}"
-          echo "PR_BASE_REF=${base_ref}" >> "${GITHUB_ENV}"
-          echo "SONAR_REFERENCE_BASE=main" >> "${GITHUB_ENV}"
+          {
+            echo "PR_HEAD_REF=${head_ref}"
+            echo "PR_BASE_REF=${base_ref}"
+            echo "SONAR_REFERENCE_BASE=main"
+          } >> "${GITHUB_ENV}"
 
       - name: Install pinned official SonarScanner CLI
         shell: bash
