@@ -487,3 +487,4 @@ Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.j
 - O destino incorreto `/acompanhamento/:id` foi detectado na QA, corrigido para `/acompanhamento/turmas/:id` e revalidado; fixture, servidor, aba e viewport temporários foram encerrados/restaurados.
 - Nenhum serviço remoto de produto é necessário ou autorizado para esta verificação.
 - Gate local final: `npm run verify` PASS, 386 testes em 76 arquivos, manifest e builds web/add-in PASS; audit high com 0 vulnerabilidades e diff check PASS.
+- PR Draft #136, primeira rodada: CI and deploy `33221412326` PASS; Semgrep `33221412336` PASS; Validate application e Actions Security verdes; deploy/recovery/cleanup/Merge Train skipped e zero deployments.

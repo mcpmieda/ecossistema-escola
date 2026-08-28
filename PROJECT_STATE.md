@@ -412,6 +412,6 @@ O Banco de Notas agora possui, em branch de produto separada, o primeiro módulo
 - UI HeroUI em `/banco-de-notas/pesquisa`, com URL, debounce, cancelamento, teclado e navegação cruzada.
 - Sem migration, índice/identidade paralelos, FTS, IA, fuzzy matching, write ou ranking no frontend.
 - Produção, D1 remoto, Graph, Entra, add-in e sync permanecem intocados; publicação autorizada somente como PR Draft, sem merge.
-- Gate local e Browser QA sintético concluídos; a próxima ação é publicar exclusivamente como PR Draft e aguardar CI/security/Semgrep.
+- Gate local e Browser QA sintético concluídos; PR Draft #136 publicado, com primeira rodada de CI/security/Semgrep verde e zero deployments. O PR deve permanecer Draft e sem merge.
 
 Documento: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.

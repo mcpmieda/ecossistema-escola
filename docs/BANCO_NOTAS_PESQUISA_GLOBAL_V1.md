@@ -54,3 +54,12 @@ Base: `main` em `8eed2e9bc00ff4d53749f4c1ac630bf0f182fa52`
 - `specs/banco-notas/semantic-contract.json`
 - `specs/banco-notas/semantic-assurance.json`
 - `specs/banco-notas/verification-plan.json`
+
+## Publicação controlada
+
+- PR Draft #136: `https://github.com/mcpmieda/ecossistema-escola/pull/136`.
+- Primeira rodada: CI and deploy `33221412326` e Semgrep `33221412336` — success.
+- Validate application e Validate GitHub Actions security — success; policy do control plane incluída.
+- Factory Merge Train, deploy, recovery e cleanup — skipped; deployments do head: zero.
+- CodeRabbit registrou success e não revisou automaticamente por o PR permanecer Draft.
+- Nenhum review ou review thread pendente; `main` permanece em `8eed2e9bc00ff4d53749f4c1ac630bf0f182fa52`.

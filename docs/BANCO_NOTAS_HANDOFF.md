@@ -413,3 +413,5 @@ O escopo é exclusivamente read-only: buscar alunos, professores e turmas canôn
 Browser QA sintético desktop/mobile passou, incluindo cancelamento real, estados operacionais e destinos canônicos. O alvo de Acompanhamento encontrado incorreto na QA foi corrigido e revalidado como `/acompanhamento/turmas/:id`; fixture, servidor e aba foram removidos.
 
 Leitura principal: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.
+
+Publicação: PR Draft #136 para `main`; primeira rodada CI `33221412326` e Semgrep `33221412336` verdes, sem reviews/threads pendentes e com zero deployments. O PR deve permanecer Draft e sem merge.

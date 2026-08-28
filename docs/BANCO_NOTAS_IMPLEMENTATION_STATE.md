@@ -407,5 +407,6 @@ Documento: `docs/BANCO_NOTAS_TURMAS_ALUNOS_V1.md`.
 - Produção, D1 remoto, Graph/Entra, add-in e `sync_enabled=0` permanecem intocados.
 - A missão exige PR Draft e proíbe merge.
 - Browser QA desktop/mobile passou; a rota de Acompanhamento foi corrigida para o detalhe existente e toda infraestrutura local sintética foi removida ao final.
+- Publicado como PR Draft #136; primeira rodada de CI, Actions Security e Semgrep verde, com jobs de deploy/recovery skipped e zero deployments. Não fazer merge nesta missão.
 
 Documento: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.
