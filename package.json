@@ -5,17 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && vite build --config vite.addin.config.ts",
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -b --pretty false",
     "semantic:check": "node infra/validation/validate-semantic-contract.mjs",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run semantic:check && npm test && npm run build"
+    "validate:addin-manifest": "office-addin-manifest validate addin/banco-notas/manifest.xml",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm run semantic:check && npm run validate:addin-manifest && npm test && npm run build"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",
+    "@azure/msal-browser": "5.19.0",
     "@heroui/react": "^3.2.4",
     "@heroui/styles": "^3.2.4",
     "@vitejs/plugin-react": "latest",
@@ -23,6 +25,7 @@
     "lucide-react": "^1.34.0",
     "react": "latest",
     "react-dom": "latest",
+    "react-router-dom": "^7.18.2",
     "tailwind-merge": "^3.6.0",
     "vite": "latest",
     "zod": "latest"
@@ -33,6 +36,7 @@
     "@eslint/js": "latest",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.2.0",
+    "@types/office-js": "^1.0.377",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@typescript-eslint/eslint-plugin": "latest",
@@ -42,10 +46,14 @@
     "eslint-plugin-react-refresh": "latest",
     "globals": "latest",
     "jsdom": "latest",
+    "office-addin-manifest": "^2.0.3",
     "prettier": "latest",
     "typescript": "latest",
     "typescript-eslint": "latest",
     "vitest": "latest",
     "wrangler": "latest"
+  },
+  "overrides": {
+    "adm-zip": ">=0.6.0"
   }
 }

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "environment": "homologation",
+  "displayName": "Ecossistema Escola - Banco de Notas Add-in Homologation",
+  "signInAudience": "AzureADMyOrg",
+  "identifierUriTemplate": "api://{applicationClientId}",
+  "requestedAccessTokenVersion": 2,
+  "delegatedScope": {
+    "value": "BancoNotas.Sync",
+    "type": "Admin",
+    "isEnabled": true,
+    "adminConsentDisplayName": "Sincronizar notas do Excel com o Banco de Notas",
+    "adminConsentDescription": "Permite ao suplemento do Excel sincronizar alteracoes de notas com o Banco de Notas em nome do professor autenticado."
+  },
+  "spaRedirectUriTemplates": [
+    "brk-multihub://admin.escolaieda.com",
+    "https://admin.escolaieda.com/banco-de-notas/addin/auth.html"
+  ],
+  "preAuthorizeSelf": true,
+  "requiredResourceAccess": {
+    "mode": "self-delegated-scope",
+    "resourceAppIdTemplate": "{applicationClientId}",
+    "delegatedPermissionValue": "BancoNotas.Sync",
+    "type": "Scope"
+  },
+  "allowPublicClientFlows": false,
+  "credentials": "none",
+  "publicRouteEnabled": false,
+  "syncEnabled": false
+}

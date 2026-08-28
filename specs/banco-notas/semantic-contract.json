@@ -1,0 +1,315 @@
+{
+  "schema_version": 1,
+  "module": "banco-de-notas",
+  "goal": "Integrar o Banco de Notas ao Centro de Administração como módulo HeroUI nativo, com fonte legada importável e nova fonte Excel vinculada por add-in, preservando rastreabilidade, autorização server-side, idempotência, regras pedagógicas versionadas e runtime Microsoft/Cloudflare sem dependência de GitHub.",
+  "change_type": "functional",
+  "risk": "high",
+  "scope": {
+    "in": [
+      "módulo same-origin em /banco-de-notas e API em /api/banco-notas/v1",
+      "registro pelo contrato institucional de módulos e capabilities server-side",
+      "HeroUI React v3 como design system transversal de todas as páginas do módulo",
+      "ausência de Ambient Constellation por decisão explícita de produto",
+      "configuração Fonte com legacy_import e linked_teacher_model",
+      "autoridade da fonte explícita por ano letivo e por professor durante migração",
+      "persistência transacional estruturada em Cloudflare D1",
+      "arquivos mestre e modelos em SharePoint/OneDrive com Microsoft Graph pelo backend",
+      "eventos grade.changed, grade.recalculated, grade.reverted e stale com idempotência e sequência",
+      "importação legada auditável e idempotente",
+      "modelo do professor com SyncEnabled=false por padrão e ativação individual após reconciliação",
+      "modelo genérico limpo e transformação de planilhas legadas de qualquer professor sem especialização por golden master",
+      "configurações versionadas para regras pedagógicas e dúvidas operacionais legítimas",
+      "integração futura de acompanhamento, conselho, boletins, pesquisa, entidades e análises conforme Relatório v1.6"
+    ],
+    "out": [
+      "substituir Cloudflare, Microsoft Entra ID, BFF, grupos, sessão, Graph, SharePoint CENTROADMIN, CI/CD ou recovery existentes",
+      "usar GitHub como banco, API, fila, storage operacional ou fonte de runtime",
+      "publicar dados reais de estudante ou professor no Git",
+      "incorporar os golden masters privados Nina/Alanna ao runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição",
+      "usar nome de professor, quantidade ou ordem de abas, turmas, disciplinas, células ou particularidades dos golden masters como regra de produção",
+      "transformar as listas NOTAS_POC_* em banco transacional definitivo",
+      "misturar shadcn, ReUI ou outro design system ao módulo",
+      "reintroduzir Ambient Constellation",
+      "ativar sincronização em massa antes de homologação e reconciliação individual",
+      "decidir automaticamente regra pedagógica ou jurídica que não esteja consolidada ou configurada"
+    ]
+  },
+  "invariants": [
+    {
+      "id": "BN-INV-001",
+      "statement": "GitHub não participa do caminho de runtime; operação funcional usa Cloudflare e Microsoft conforme a responsabilidade."
+    },
+    {
+      "id": "BN-INV-002",
+      "statement": "O navegador não acessa SharePoint/Graph diretamente para dados de negócio do Banco; autorização é aplicada no servidor."
+    },
+    {
+      "id": "BN-INV-003",
+      "statement": "Ausência de nota permanece ausência/null e nunca é convertida implicitamente em zero."
+    },
+    {
+      "id": "BN-INV-004",
+      "statement": "Cada valor consolidado preserva origem suficiente para chegar ao lote/arquivo/guia/célula ou ao evento que o produziu."
+    },
+    {
+      "id": "BN-INV-005",
+      "statement": "A mesma Idempotency-Key não produz um segundo efeito lógico."
+    },
+    {
+      "id": "BN-INV-006",
+      "statement": "Evento com sequência inferior ou igual ao estado confirmado é stale e não substitui snapshot mais novo."
+    },
+    {
+      "id": "BN-INV-007",
+      "statement": "grade.changed confirma a entrada aceita sem depender de recálculo global; grade.recalculated mantém a correlação do evento que originou os derivados."
+    },
+    {
+      "id": "BN-INV-008",
+      "statement": "Um modelo novo inicia com SyncEnabled=false e só é ativado após validação, compartilhamento correto e reconciliação."
+    },
+    {
+      "id": "BN-INV-009",
+      "statement": "Duas fontes concorrentes não são mescladas silenciosamente; a autoridade é explícita por professor/ano e tem vigência auditável."
+    },
+    {
+      "id": "BN-INV-010",
+      "statement": "Arquivos de professor, nomes/notas reais, tokens e secrets não são versionados no Git."
+    },
+    {
+      "id": "BN-INV-011",
+      "statement": "HeroUI React v3 é a linguagem de interface do módulo e Ambient Constellation permanece ausente em todas as superfícies."
+    },
+    {
+      "id": "BN-INV-012",
+      "statement": "O núcleo do Centro não absorve regras de negócio do Banco; integração ocorre por manifesto, rota, API e capabilities."
+    },
+    {
+      "id": "BN-INV-013",
+      "statement": "O adaptador SharePoint/Graph da POC não é promovido a banco transacional oficial."
+    },
+    {
+      "id": "BN-INV-014",
+      "statement": "Toda regra de cálculo, limite, recuperação ou arredondamento material possui versão e contexto de vigência."
+    },
+    {
+      "id": "BN-INV-015",
+      "statement": "Alteração reversível de nota preserva histórico; reversão é evento, não exclusão do passado."
+    },
+    {
+      "id": "BN-INV-016",
+      "statement": "O produto instancia um modelo genérico limpo; golden masters privados de Nina e Alanna são apenas entradas externas de homologação e nunca integram produto, runtime, persistência, migrations, fixtures públicas, SharePoint definitivo ou distribuição."
+    },
+    {
+      "id": "BN-INV-017",
+      "statement": "A transformação de legado é geral para qualquer professor e nenhuma regra de produção depende de nomes, número ou ordem de abas, turmas, disciplinas, endereços de célula ou particularidades dos golden masters privados."
+    },
+    {
+      "id": "BN-INV-018",
+      "statement": "O add-in usa NAA credential-free com redirect broker por origin, página de retorno dedicada e token v2 delegado; access token, UPN, email e OID completo nunca entram em logs ou evidências."
+    }
+  ],
+  "data_contracts": [
+    {
+      "name": "DataSource",
+      "source": "configuração versionada do Banco",
+      "direction": "backend para frontend e serviços",
+      "privacy": "sem credenciais; contém tipo, autoridade, vigência e status"
+    },
+    {
+      "name": "ImportJob",
+      "source": "arquivo restrito SharePoint/OneDrive + operador autorizado",
+      "direction": "Microsoft para Cloudflare",
+      "privacy": "metadados e evidências; conteúdo real permanece protegido"
+    },
+    {
+      "name": "TeacherModel",
+      "source": "Banco + SharePoint DriveItem + identidade Entra",
+      "direction": "Cloudflare/Microsoft",
+      "privacy": "acesso restrito ao papel e professor corretos"
+    },
+    {
+      "name": "GradeEvent",
+      "source": "add-in Office.js ou operação institucional equivalente autorizada",
+      "direction": "Excel/Microsoft para API Cloudflare",
+      "privacy": "somente dados necessários ao lançamento, com IDs/correlação e autorização"
+    },
+    {
+      "name": "GradeSnapshot",
+      "source": "GradeEvent aceito + ruleset versionado",
+      "direction": "D1 para read models do Banco",
+      "privacy": "acesso por capability e contexto institucional"
+    },
+    {
+      "name": "RelationshipSnapshot",
+      "source": "fonte institucional de estudantes/turmas e correspondências confirmadas",
+      "direction": "Microsoft/importação para D1",
+      "privacy": "dados mínimos necessários e auditáveis"
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "/banco-de-notas",
+      "mode": "same-origin-module",
+      "purpose": "entrada canônica do módulo integrado ao Centro"
+    },
+    {
+      "name": "/api/banco-notas/health",
+      "mode": "capability-aware-health",
+      "purpose": "estado contratual do módulo sem expor dados de negócio"
+    },
+    {
+      "name": "/api/banco-notas/v1/grade-events",
+      "mode": "governed-command",
+      "purpose": "receber eventos idempotentes e ordenados do add-in"
+    },
+    {
+      "name": "/api/banco-notas/v1/import-jobs",
+      "mode": "governed-job",
+      "purpose": "registrar, consultar e promover importações legadas"
+    },
+    {
+      "name": "/api/banco-notas/v1/teacher-models",
+      "mode": "governed-model-api",
+      "purpose": "gerar, configurar, compartilhar, conectar, suspender e reconciliar modelos"
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "BN-AC-001",
+      "priority": "must",
+      "given": "um usuário autenticado sem capability do Banco",
+      "when": "ele tenta abrir o módulo ou chamar sua API",
+      "then": [
+        "o servidor nega a operação",
+        "a ausência de menu ou botão não é o único controle de acesso"
+      ],
+      "verification": ["test", "browser"]
+    },
+    {
+      "id": "BN-AC-002",
+      "priority": "must",
+      "given": "um usuário autorizado abre /banco-de-notas ou uma subrota",
+      "when": "a página é carregada diretamente ou atualizada",
+      "then": [
+        "a SPA restaura a rota path-based correta",
+        "a interface usa componentes HeroUI nativos",
+        "não existe Ambient Constellation"
+      ],
+      "verification": ["browser", "test"]
+    },
+    {
+      "id": "BN-AC-003",
+      "priority": "must",
+      "given": "um ano letivo configurado",
+      "when": "o operador abre Configurações > Fonte",
+      "then": [
+        "legacy_import e linked_teacher_model estão disponíveis",
+        "a autoridade vigente e overrides por professor são explícitos",
+        "não existe merge silencioso de fontes"
+      ],
+      "verification": ["test", "browser"]
+    },
+    {
+      "id": "BN-AC-004",
+      "priority": "must",
+      "given": "um evento de nota válido com Idempotency-Key e sequência novas",
+      "when": "a API o aceita",
+      "then": [
+        "o evento é persistido",
+        "o snapshot é atualizado atomicamente",
+        "a confirmação usa correlationId",
+        "o mesmo comando repetido não duplica efeito"
+      ],
+      "verification": ["test", "integration", "database"]
+    },
+    {
+      "id": "BN-AC-005",
+      "priority": "must",
+      "given": "um evento com sequência antiga",
+      "when": "ele chega após um snapshot mais novo",
+      "then": ["o evento permanece auditável como stale", "o snapshot corrente não regride"],
+      "verification": ["test", "integration"]
+    },
+    {
+      "id": "BN-AC-006",
+      "priority": "must",
+      "given": "um modelo novo foi gerado e armazenado",
+      "when": "ele ainda não passou reconciliação",
+      "then": ["SyncEnabled permanece false", "nenhuma promoção automática em massa ocorre"],
+      "verification": ["test", "integration"]
+    },
+    {
+      "id": "BN-AC-007",
+      "priority": "must",
+      "given": "um arquivo legado importado novamente sem alteração",
+      "when": "o hash e a identidade do lote são conferidos",
+      "then": [
+        "o sistema não cria segundo efeito lógico",
+        "a origem permanece intacta e rastreável"
+      ],
+      "verification": ["test", "integration"]
+    },
+    {
+      "id": "BN-AC-008",
+      "priority": "must",
+      "given": "um arquivo modelo é compartilhado",
+      "when": "o backend usa Microsoft Graph",
+      "then": [
+        "o destinatário é conferido por ObjectId e UPN",
+        "não existe link anônimo",
+        "o resultado do compartilhamento é auditado"
+      ],
+      "verification": ["integration", "security"]
+    },
+    {
+      "id": "BN-AC-009",
+      "priority": "must",
+      "given": "a API, Graph ou add-in apresenta falha transitória",
+      "when": "a operação é retomada",
+      "then": [
+        "retry/backoff respeita limites configurados",
+        "eventos confirmados não são duplicados",
+        "nenhuma alteração é descartada silenciosamente"
+      ],
+      "verification": ["test", "resilience"]
+    },
+    {
+      "id": "BN-AC-010",
+      "priority": "must",
+      "given": "qualquer dado consolidado exibido ao operador",
+      "when": "a auditoria de origem é aberta",
+      "then": [
+        "a trilha identifica fonte, versão e origem suficiente para conferência",
+        "ausência e zero permanecem semanticamente distintos"
+      ],
+      "verification": ["test", "browser"]
+    },
+    {
+      "id": "BN-AC-011",
+      "priority": "must",
+      "given": "planilhas legadas sintéticas de professores com estruturas, nomes, abas, turmas e componentes diferentes",
+      "when": "o processo de transformação cria novas instâncias conectáveis ao Banco",
+      "then": [
+        "todas as saídas partem do mesmo modelo genérico limpo e de contratos gerais",
+        "a implementação não possui branch, fallback, fixture ou configuração de produção específica para Nina ou Alanna",
+        "os golden masters privados permanecem externos ao produto e podem ser usados somente como regressão adicional em homologação autorizada",
+        "cada nova instância inicia SyncEnabled=false até reconciliação individual"
+      ],
+      "verification": ["test", "integration", "security"]
+    },
+    {
+      "id": "BN-AC-012",
+      "priority": "must",
+      "given": "um workbook aberto do SharePoint Online ou OneDrive no Excel Online e a conta institucional coerente com o tenant",
+      "when": "o add-in solicita api://<application-client-id>/BancoNotas.Sync por Nested App Authentication",
+      "then": [
+        "a task pane confirma NestedAppAuth 1.1 e usa uma página auth.html dedicada para o retorno MSAL",
+        "um access token v2 real é adquirido sem client secret ou certificado",
+        "aud e azp correspondem ao application client ID GUID e scp contém BancoNotas.Sync",
+        "tenant, issuer, lifetime, OID presente e public-client drift são validados",
+        "a evidência sanitizada não contém token, UPN, email nem OID completo"
+      ],
+      "verification": ["test", "browser", "security"]
+    }
+  ]
+}

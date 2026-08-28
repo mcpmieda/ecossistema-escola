@@ -17,6 +17,20 @@ export const PLATFORM_CAPABILITIES = [
   'platform.modules.read',
   'platform.audit.read',
   'platform.settings.read',
+  'grades.read',
+  'grades.analytics.read',
+  'grades.sources.read',
+  'grades.sources.manage',
+  'grades.models.read',
+  'grades.models.manage',
+  'grades.import.run',
+  'grades.council.read',
+  'grades.council.manage',
+  'grades.reports.read',
+  'grades.reports.issue',
+  'grades.audit.read',
+  'grades.settings.read',
+  'grades.settings.manage',
 ] as const;
 
 export const MODULE_REGISTRY_STATUSES = ['installed', 'disabled', 'deprecated', 'unknown'] as const;

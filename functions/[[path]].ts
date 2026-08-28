@@ -31,6 +31,10 @@ import {
 import { graphCredentials, type GraphCredentialSlot } from '../server/auth/technical-identity';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
 import { verifyRecoveryRoundTrip } from '../server/platform/recovery';
+import { D1BancoNotasRepository } from '../server/banco-notas/d1-repository';
+import { D1ImportAnalysisRepository } from '../server/banco-notas/d1-import-analysis-repository';
+import { D1ImportAnalysisProfileRepository } from '../server/banco-notas/d1-import-analysis-profile-repository';
+import { routeBancoNotasApi } from '../server/banco-notas/api';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -343,6 +347,30 @@ async function route(context: Context, correlationId: string): Promise<Response>
     const capabilities = capabilitiesForRoles(session.roles);
     requireCapability(capabilities, 'platform.snapshot.read');
     return json(await getPlatformSnapshot(env, capabilities));
+  }
+  if (url.pathname.startsWith('/api/banco-notas/')) {
+    const session = await requireAuth(request, env);
+    const capabilities = capabilitiesForRoles(session.roles);
+    requireCapability(capabilities, 'grades.read');
+    if (request.method === 'POST' || request.method === 'PATCH') enforceWriteOrigin(request, env);
+    if (!env.BANCO_NOTAS_DB) {
+      if (url.pathname === '/api/banco-notas/health' && request.method === 'GET') {
+        return json({ status: 'degraded', service: 'banco-de-notas', version: '0.1.0' }, 503);
+      }
+      throw new HttpError(503, 'Banco de Notas storage unavailable');
+    }
+    const profiles = new D1ImportAnalysisProfileRepository(env.BANCO_NOTAS_DB);
+    return routeBancoNotasApi({
+      request,
+      repository: new D1BancoNotasRepository(env.BANCO_NOTAS_DB),
+      capabilities,
+      actor: session.oid,
+      importAnalysis: {
+        repository: new D1ImportAnalysisRepository(env.BANCO_NOTAS_DB),
+        analyzers: [],
+        profiles,
+      },
+    });
   }
   throw new HttpError(404, 'Not found');
 }

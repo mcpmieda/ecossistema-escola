@@ -20,6 +20,74 @@ body {
   min-height: 100vh;
 }
 
+.bn-shell {
+  min-height: 100vh;
+  background: #f4f4f5;
+}
+.bn-sidebar {
+  display: none;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1.5rem;
+}
+.bn-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 0;
+  padding: 0.75rem 1.5rem;
+}
+.bn-main {
+  margin: 0 auto;
+  max-width: 90rem;
+  padding: 2rem 1.5rem;
+}
+.bn-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.bn-nav:hover,
+.bn-nav-active {
+  background: var(--surface-secondary);
+  color: var(--foreground);
+}
+.bn-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+.bn-card {
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+}
+.bn-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+@media (min-width: 1024px) {
+  .bn-shell {
+    display: grid;
+    grid-template-columns: 17rem minmax(0, 1fr);
+  }
+  .bn-sidebar {
+    display: block;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+  }
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: 'Geist Variable', sans-serif;

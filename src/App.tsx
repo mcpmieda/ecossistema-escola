@@ -26,6 +26,7 @@ import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
 import { routeLabels } from './platform/routes';
 import { PlatformSearch } from './platform/search';
+import { BancoNotasApp } from './banco-notas/BancoNotasApp';
 
 type Identity = {
   authenticated: boolean;
@@ -481,6 +482,11 @@ export function App() {
     return <AuthErrorExperience correlationId={authFailure.correlationId} />;
   }
   if (!identity.authenticated) return <LoginExperience loading={false} />;
+  if (window.location.pathname.startsWith('/banco-de-notas')) {
+    if (!identity.capabilities?.includes('grades.read'))
+      return <RestrictedExperience name={identity.name} />;
+    return <BancoNotasApp identity={identity} />;
+  }
   if (!identity.capabilities?.includes('platform.snapshot.read')) {
     return <RestrictedExperience name={identity.name} />;
   }

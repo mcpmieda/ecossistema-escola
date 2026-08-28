@@ -1,0 +1,73 @@
+name: Banco de Notas D1 homologation
+
+on:
+  push:
+    branches:
+      - feat/banco-de-notas-foundation
+    paths:
+      - '.github/workflows/banco-notas-d1-homologation.yml'
+      - 'infra/banco-notas/cloudflare/**'
+      - 'infra/banco-notas/d1/migrations/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: banco-notas-d1-homologation
+  cancel-in-progress: false
+
+jobs:
+  provision-and-smoke:
+    name: Provision and validate Banco de Notas homologation D1
+    if: github.ref == 'refs/heads/feat/banco-de-notas-foundation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Require dedicated D1 homologation credentials
+        shell: pwsh
+        env:
+          CLOUDFLARE_D1_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_D1_API_TOKEN)) {
+            throw 'CLOUDFLARE_D1_API_TOKEN não está configurado. Use um token Cloudflare dedicado com Account > D1 > Write, restrito à conta do Ecossistema.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:CLOUDFLARE_ACCOUNT_ID)) {
+            throw 'CLOUDFLARE_ACCOUNT_ID não está disponível para este workflow.'
+          }
+
+      - name: Provision homologation D1 and apply migrations
+        shell: pwsh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: ./infra/banco-notas/cloudflare/provision-homologation.ps1
+
+      - name: Run core remote D1 smoke
+        shell: pwsh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: ./infra/banco-notas/cloudflare/smoke-homologation.ps1 -ConfirmSyntheticWrites
+
+      - name: Run XLSX analysis-profile remote D1 smoke
+        shell: pwsh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: ./infra/banco-notas/cloudflare/smoke-import-analysis-profiles-homologation.ps1 -ConfirmSyntheticWrites
