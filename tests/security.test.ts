@@ -3,7 +3,6 @@ import {
   enforceOfficialOrigin,
   enforceWriteOrigin,
   HttpError,
-  readBoundedBytes,
   readBoundedJson,
   SECURITY_HEADERS,
   withSecurityHeaders,
@@ -90,44 +89,6 @@ describe('HTTP security', () => {
           body: '{}',
           headers: { 'Content-Type': 'application/json', 'Content-Length': '20000' },
         }),
-      ),
-    ).rejects.toMatchObject({ status: 413 }));
-  it('reads an allowed bounded binary body without converting it to text', async () => {
-    const bytes = await readBoundedBytes(
-      new Request('https://x.test', {
-        method: 'POST',
-        body: new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
-        headers: {
-          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        },
-      }),
-      {
-        maxBytes: 16,
-        allowedContentTypes: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
-      },
-    );
-    expect(Array.from(bytes)).toEqual([0x50, 0x4b, 0x03, 0x04]);
-  });
-  it('rejects a binary upload with an unexpected media type', async () =>
-    await expect(
-      readBoundedBytes(
-        new Request('https://x.test', {
-          method: 'POST',
-          body: new Uint8Array([1]),
-          headers: { 'Content-Type': 'application/octet-stream' },
-        }),
-        { allowedContentTypes: ['application/test'] },
-      ),
-    ).rejects.toMatchObject({ status: 415 }));
-  it('rejects binary uploads above the configured limit', async () =>
-    await expect(
-      readBoundedBytes(
-        new Request('https://x.test', {
-          method: 'POST',
-          body: new Uint8Array([1, 2, 3, 4]),
-          headers: { 'Content-Type': 'application/test' },
-        }),
-        { maxBytes: 3, allowedContentTypes: ['application/test'] },
       ),
     ).rejects.toMatchObject({ status: 413 }));
   it('defines HSTS and a restrictive permissions policy', () => {

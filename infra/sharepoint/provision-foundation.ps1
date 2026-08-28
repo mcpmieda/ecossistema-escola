@@ -306,26 +306,16 @@ try {
     }
 
     $modules = $created | Where-Object Name -eq 'PLATAFORMA_MODULOS'
-    $moduleItems = Invoke-Graph GET "$GraphRoot/sites/$SiteId/lists/$($modules.Id)/items?expand=fields&`$top=200" $appToken
-    $now = (Get-Date).ToUniversalTime().ToString('o')
-    $desiredModules = @(
-        @{ Chave='plataforma-base'; Nome='Plataforma Base'; RotaBase='/'; Versao='1.0.0'; Ordem=0; HealthEndpoint='/api/health'; RolesJson='["ADMINISTRADOR","PROFESSOR","ALUNO","APOIO","VISITANTE"]' },
-        @{ Chave='banco-de-notas'; Nome='Banco de Notas'; RotaBase='/banco-de-notas'; Versao='0.1.0'; Ordem=10; HealthEndpoint='/api/banco-notas/health'; RolesJson='["ADMINISTRADOR"]' }
-    )
-    foreach ($desired in $desiredModules) {
-        $existing = $moduleItems.value | Where-Object { $_.fields.Chave -eq $desired.Chave } | Select-Object -First 1
-        $fields = @{
-            Title=$desired.Chave; Chave=$desired.Chave; Nome=$desired.Nome; RotaBase=$desired.RotaBase;
-            Versao=$desired.Versao; Status='instalado'; Ordem=$desired.Ordem; RolesJson=$desired.RolesJson;
-            HealthEndpoint=$desired.HealthEndpoint; AtualizadoEmUTC=$now
-        }
-        if ($existing) {
-            Invoke-Graph PATCH "$GraphRoot/sites/$SiteId/lists/$($modules.Id)/items/$($existing.id)/fields" $appToken $fields | Out-Null
-        }
-        else {
-            $fields.InstaladoEmUTC = $now
-            Invoke-Graph POST "$GraphRoot/sites/$SiteId/lists/$($modules.Id)/items" $appToken @{ fields = $fields } | Out-Null
-        }
+    $moduleItems = Invoke-Graph GET "$GraphRoot/sites/$SiteId/lists/$($modules.Id)/items?expand=fields(`$select=Chave)&`$top=200" $appToken
+    if (-not ($moduleItems.value.fields.Chave -contains 'plataforma-base')) {
+        $now = (Get-Date).ToUniversalTime().ToString('o')
+        Invoke-Graph POST "$GraphRoot/sites/$SiteId/lists/$($modules.Id)/items" $appToken @{
+            fields = @{
+                Title='plataforma-base'; Chave='plataforma-base'; Nome='Plataforma Base'; RotaBase='/';
+                Versao='1.0.0'; Status='instalado'; Ordem=0; RolesJson='["ADMINISTRADOR","PROFESSOR","ALUNO","APOIO","VISITANTE"]';
+                HealthEndpoint='/api/health'; InstaladoEmUTC=$now; AtualizadoEmUTC=$now
+            }
+        } | Out-Null
     }
 
     $credentialList = $created | Where-Object Name -eq 'PLATAFORMA_CREDENCIAIS'

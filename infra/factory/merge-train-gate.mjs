@@ -12,9 +12,6 @@ const REQUEST_PATTERN = /<!-- FACTORY_CODERABBIT_REQUEST \{"sha":"([0-9a-f]{40})
 const REVIEWER_PATTERN = /<!-- FACTORY_REVIEWER_EVIDENCE ([A-Za-z0-9_-]+) -->/;
 const MERGE_TRAIN_PATTERN = /<!-- FACTORY_MERGE_TRAIN ([A-Za-z0-9_-]+) -->/;
 const ACTIONABLE_PATTERN = /Actionable comments posted:\s*(\d+)/i;
-const RECENT_REVIEW_PATTERN = /<!-- recent_review_start -->([\s\S]*?)<!-- recent_review_end -->/i;
-const NO_ACTIONABLE_PATTERN = /No actionable comments were generated in the recent review\./i;
-const REVIEWED_RANGE_PATTERN = /between\s+([0-9a-f]{40})\s+and\s+([0-9a-f]{40})/i;
 const POLL_MS = 5_000;
 const MAX_REVIEW_ATTEMPTS = 120;
 
@@ -40,49 +37,12 @@ function validateSha40(value, label = 'SHA') {
   return sha;
 }
 
-function validatePrNumber(value) {
-  const number = Number(value);
-  if (!Number.isInteger(number) || number <= 0)
-    fail('Reviewer PR number must be a positive integer.');
-  return number;
-}
-
 function decodeMarkerPayload(encoded, label) {
   try {
     return JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
   } catch {
     fail(`${label} marker payload is invalid.`);
   }
-}
-
-export function reviewerRunName(reviewer, prNumber, expectedSha) {
-  if (!['Semgrep', 'Sonar'].includes(reviewer)) fail('Unsupported reviewer workflow name.');
-  const pr = validatePrNumber(prNumber);
-  const sha = validateSha40(expectedSha, `${reviewer} run SHA`);
-  return `${reviewer} PR ${pr} @ ${sha}`;
-}
-
-export function latestMatchingReviewerWorkflowRun(
-  runs,
-  reviewer,
-  prNumber,
-  expectedSha,
-  afterRunId = 0,
-) {
-  const title = reviewerRunName(reviewer, prNumber, expectedSha);
-  return (
-    (runs ?? [])
-      .filter((run) => {
-        const id = Number(run?.id);
-        return (
-          Number.isInteger(id) &&
-          id > Number(afterRunId || 0) &&
-          run?.event === 'workflow_dispatch' &&
-          run?.display_title === title
-        );
-      })
-      .sort((left, right) => Number(right.id) - Number(left.id))[0] ?? null
-  );
 }
 
 export function parseTrustedCodeRabbitRequest(comment) {
@@ -109,26 +69,7 @@ export function classifyCodeRabbitReview(review, expectedSha, notBefore = 0) {
     status: actionable === 0 ? 'success' : 'findings',
     actionable,
     reviewId: review?.id ?? null,
-    evidenceKind: 'review-submission',
     updatedAt: timestamp(review),
-  };
-}
-
-export function classifyCodeRabbitSummaryComment(comment, expectedSha) {
-  if (!CODERABBIT_LOGINS.has(authorLogin(comment))) return null;
-  const sha = validateSha40(expectedSha, 'CodeRabbit expected SHA');
-  const body = String(comment?.body ?? '');
-  const section = body.match(RECENT_REVIEW_PATTERN)?.[1];
-  if (!section || !NO_ACTIONABLE_PATTERN.test(section)) return null;
-  const reviewedRange = section.match(REVIEWED_RANGE_PATTERN);
-  if (!reviewedRange || reviewedRange[2].toLowerCase() !== sha) return null;
-  return {
-    status: 'success',
-    actionable: 0,
-    reviewId: comment?.id ?? null,
-    commentId: comment?.id ?? null,
-    evidenceKind: 'recent-review-comment',
-    updatedAt: timestamp(comment),
   };
 }
 
@@ -163,12 +104,6 @@ export function codeRabbitEvidence(comments, reviews, expectedSha) {
     .filter(Boolean)
     .sort((left, right) => right.updatedAt - left.updatedAt);
   if (completed[0]) return { status: completed[0].status, request, review: completed[0] };
-
-  const cleanSummary = (comments ?? [])
-    .map((comment) => classifyCodeRabbitSummaryComment(comment, sha))
-    .filter(Boolean)
-    .sort((left, right) => right.updatedAt - left.updatedAt)[0];
-  if (cleanSummary) return { status: 'success', request, review: cleanSummary };
 
   const unavailable = (comments ?? [])
     .map((comment) => classifyCodeRabbitUnavailableComment(comment, request.createdAt))
@@ -263,13 +198,6 @@ async function currentPr(owner, repo, prNumber, expectedSha) {
   return pr;
 }
 
-async function reviewerWorkflowRuns(owner, repo, workflow) {
-  const payload = await github(
-    `/repos/${owner}/${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&branch=main&per_page=50`,
-  );
-  return Array.isArray(payload?.workflow_runs) ? payload.workflow_runs : [];
-}
-
 async function dispatchReviewer(owner, repo, workflow, prNumber, sha) {
   await github(`/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`, {
     method: 'POST',
@@ -288,9 +216,6 @@ async function waitForReviewer(owner, repo, { workflow, reviewer, prNumber, sha 
   const existing = latestTrustedReviewerEvidence(comments, reviewer, sha);
   if (existing?.conclusion === 'success') return existing;
   const baselineRunId = existing?.run_id ?? 0;
-  const baselineRuns = await reviewerWorkflowRuns(owner, repo, workflow);
-  const baselineWorkflowRunId =
-    latestMatchingReviewerWorkflowRun(baselineRuns, reviewer, prNumber, sha)?.id ?? 0;
 
   await dispatchReviewer(owner, repo, workflow, prNumber, sha);
   for (let attempt = 0; attempt < MAX_REVIEW_ATTEMPTS; attempt += 1) {
@@ -302,20 +227,6 @@ async function waitForReviewer(owner, repo, { workflow, reviewer, prNumber, sha 
         fail(`${reviewer} reviewer run ${evidence.run_id} concluded ${evidence.conclusion}.`);
       }
       return evidence;
-    }
-
-    const workflowRuns = await reviewerWorkflowRuns(owner, repo, workflow);
-    const workflowRun = latestMatchingReviewerWorkflowRun(
-      workflowRuns,
-      reviewer,
-      prNumber,
-      sha,
-      baselineWorkflowRunId,
-    );
-    if (workflowRun?.status === 'completed' && workflowRun.conclusion !== 'success') {
-      fail(
-        `${reviewer} reviewer workflow run ${workflowRun.id} concluded ${workflowRun.conclusion} before valid SHA-bound evidence was published.`,
-      );
     }
     await sleep(POLL_MS);
   }
@@ -367,7 +278,7 @@ async function persistMergeTrainEvidence(owner, repo, prNumber, payload) {
     owner,
     repo,
     prNumber,
-    `${mergeTrainMarker(payload)}\nMerge Train passed for exact worker SHA \`${payload.sha}\`. Semgrep run ${payload.semgrep_run_id}; Sonar run ${payload.sonar_run_id}; CodeRabbit ${payload.coderabbit_evidence_kind} evidence ${payload.coderabbit_review_id}.`,
+    `${mergeTrainMarker(payload)}\nMerge Train passed for exact worker SHA \`${payload.sha}\`. Semgrep run ${payload.semgrep_run_id}; Sonar run ${payload.sonar_run_id}; CodeRabbit review ${payload.coderabbit_review_id}.`,
   );
   return payload;
 }
@@ -402,35 +313,25 @@ export async function ensureMergeTrain(owner, repo, { prNumber, sha }) {
     semgrep_run_id: semgrep.run_id,
     sonar_run_id: sonar.run_id,
     coderabbit_review_id: coderabbit.review.reviewId,
-    coderabbit_evidence_kind: coderabbit.review.evidenceKind,
     coderabbit_updated_at: new Date(coderabbit.review.updatedAt).toISOString(),
   };
   await persistMergeTrainEvidence(owner, repo, prNumber, payload);
   return payload;
 }
 
-export function selectFactoryWorkerPr(pulls, branch, sha) {
+export async function findFactoryWorkerPr(owner, repo, branch, sha) {
   const exactSha = validateSha40(sha, 'Factory worker SHA');
-  const candidates = (pulls ?? []).filter(
+  const head = encodeURIComponent(`${owner}:${branch}`);
+  const pulls = await github(`/repos/${owner}/${repo}/pulls?state=open&head=${head}&per_page=20`);
+  const matches = (pulls ?? []).filter(
     (pr) =>
       pr.head?.ref === branch &&
+      pr.head?.sha === exactSha &&
       typeof pr.base?.ref === 'string' &&
       pr.base.ref.startsWith('factory/'),
   );
-  if (candidates.length > 1) fail(`Multiple open Factory worker PRs match branch ${branch}.`);
-  const pr = candidates[0] ?? null;
-  if (!pr) return null;
-  const currentSha = validateSha40(pr.head?.sha, `Worker PR #${pr.number} head SHA`);
-  if (currentSha !== exactSha) {
-    fail(`Worker PR #${pr.number} moved from requested SHA ${exactSha} to ${currentSha}.`);
-  }
-  return pr;
-}
-
-export async function findFactoryWorkerPr(owner, repo, branch, sha) {
-  const head = encodeURIComponent(`${owner}:${branch}`);
-  const pulls = await github(`/repos/${owner}/${repo}/pulls?state=open&head=${head}&per_page=20`);
-  return selectFactoryWorkerPr(pulls, branch, sha);
+  if (matches.length > 1) fail(`Multiple open Factory worker PRs match ${branch}@${exactSha}.`);
+  return matches[0] ?? null;
 }
 
 export async function runMergeTrainForCurrentRevision() {

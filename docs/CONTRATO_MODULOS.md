@@ -31,7 +31,7 @@ Todo módulo integrado deve declarar:
 | `requiredCapabilities` | capabilities explícitas, válidas e sem duplicatas                            |
 | `healthEndpoint`       | caminho same-origin sob `/api/`                                              |
 
-Os manifestos integrados atualmente são `plataforma-base` 1.0.0 e `banco-de-notas` 0.1.0. O provisionador SharePoint mantém ambos em `PLATAFORMA_MODULOS` por upsert idempotente; esse inventário continua sem conceder autorização.
+O único manifesto integrado atualmente é `plataforma-base` 1.0.0.
 
 ## Estados de integração
 

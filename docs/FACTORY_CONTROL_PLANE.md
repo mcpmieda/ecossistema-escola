@@ -10,34 +10,6 @@ Princípio central:
 
 > Nenhuma Factory Run depende do computador que a iniciou para preservar estado, autoridade ou resultado aproveitável.
 
-## Estado executivo
-
-A arquitetura principal está operacional e já foi comprovada em execução real.
-
-Comprovado:
-
-- manifesto tipado e imutável com fingerprint bot-authored;
-- integration branch isolada por run;
-- tasks-filho tipadas e dependências explícitas;
-- Jules REST API-first;
-- OpenCode/Ollama em runner hospedado pelo GitHub para o perfil create-only homologado;
-- dois providers reais executando tasks independentes na mesma Factory Run;
-- paralelismo e liberação de task dependente;
-- leases duráveis, heartbeat, resultado e takeover entre executores após expiração;
-- recuperação sem depender de cache, stdout, sessão local ou computador iniciador;
-- validação de escopo e SHA contra o estado real do GitHub;
-- CI por `workflow_dispatch` e SHA exato;
-- squash merge somente na integration branch;
-- criação autônoma de worker/final PR pelo GitHub Actions;
-- PR final sempre draft e human-only;
-- Merge Train confiável integrado em `main`, executado a partir do Control Plane de `main`, não do código candidato.
-
-Ainda pendente para a visão completa:
-
-- homologação operacional do Antigravity em runner efêmero dedicado;
-- prova live final do Merge Train confiável com Semgrep + Sonar + CodeRabbit no mesmo worker SHA; a Factory Run `merge-train-homologation-001` está em execução;
-- configuração externa do Sonar, caso a homologação confirme que as variáveis/secret ainda não estão disponíveis.
-
 ## Arquitetura atual
 
 ```text
@@ -47,15 +19,11 @@ Factory Run issue
   -> issues-filho tipadas
   -> seleção do provider
        ├─ Jules REST API
-       ├─ OpenCode/Ollama durável / hosted create-only
-       └─ Antigravity durável
+       ├─ Antigravity durável
+       └─ OpenCode/Ollama durável
   -> worker branch / PR
   -> validação de escopo e SHA
-  -> CI obrigatório workflow_dispatch no SHA exato
-  -> Merge Train confiável quando o SHA pertence a worker PR
-       ├─ Semgrep
-       ├─ Sonar
-       └─ CodeRabbit
+  -> CI obrigatório workflow_dispatch
   -> squash merge somente na integration branch
   -> liberação de dependências
   -> CI consolidado
@@ -71,14 +39,11 @@ O Control Plane nunca:
 - ativa produção;
 - habilita Banco de Notas sync;
 - amplia permissões do executor;
-- entrega secrets a providers locais;
-- aceita evidência do próprio provider como autoridade final.
+- entrega secrets a providers locais.
 
-## Provas reais concluídas
+## Estado comprovado
 
-### Jules API-first
-
-A Factory Run `jules-api-pilot-002` comprovou:
+A Factory Run `jules-api-pilot-002` comprovou em execução real:
 
 - Jules pela REST API;
 - dois workers paralelos;
@@ -89,56 +54,10 @@ A Factory Run `jules-api-pilot-002` comprovou:
 - CI por `workflow_dispatch` e SHA exato;
 - squash merge somente na integration branch;
 - CI final consolidado;
-- gate humano final.
+- PR final #93 em draft;
+- produção pulada.
 
-O antigo PR final #93 foi posteriormente mesclado por decisão humana, não pela Factory.
-
-### Takeover durável
-
-A prova cross-executor demonstrou que uma task pode passar de executor A para executor B depois da expiração da lease sem depender de estado local do primeiro executor.
-
-A semântica preservada é:
-
-- lease ativa não pode ser tomada por outro executor;
-- heartbeat não estende autoridade implicitamente;
-- depois da expiração uma nova lease pode ser emitida;
-- executor antigo perde autoridade;
-- GitHub continua sendo a fonte durável de verdade.
-
-### OpenCode/Ollama hosted
-
-O executor hospedado em GitHub Actions está integrado para a classe de task deliberadamente estreita já homologada:
-
-- um único arquivo exato e ainda inexistente;
-- create-only;
-- sem shell para o provider;
-- runtime OpenCode/Ollama pinado;
-- profile isolado;
-- provider sem `GITHUB_TOKEN`;
-- publicação Git feita pela camada confiável;
-- lease/request/manifest revalidados antes e depois da execução.
-
-A primeira prova live chegou a `write + commit + push + exact-SHA CI`; um fixture Markdown falhou somente por newline final e foi mantido como falha, sem relaxar o validador.
-
-A homologação substituta em `.txt` foi concluída na Factory Run `multi-provider-hosted-pilot-002`.
-
-### Multi-provider real
-
-A Factory Run `multi-provider-hosted-pilot-002` (#112) comprovou a visão multi-provider no mesmo grafo:
-
-- Jules e OpenCode/Ollama como workers independentes;
-- execução paralela com `max_parallel=2`;
-- cada worker limitado ao próprio path;
-- integração isolada;
-- task Jules de verificação liberada somente depois dos dois predecessores;
-- CI consolidado da integração `33134149253` concluído com sucesso;
-- PR final #120 criado automaticamente como draft;
-- merge em `main` não executado pela Factory;
-- produção não ativada;
-- nenhum trabalho de Banco de Notas;
-- nenhum Codex.
-
-O PR #120 permanece o gate humano da prova e não deve ser auto-merged.
+O PR #93 permanece no gate humano e não é mesclado automaticamente.
 
 ## Manifesto
 
@@ -170,16 +89,16 @@ O manifesto recebe marcador SHA-256 bot-authored. Alteração posterior é rejei
 
 A política baseline é:
 
-1. OpenCode/Ollama quando saudável e a task cabe no capability profile disponível;
+1. OpenCode/Ollama quando saudável;
 2. Jules;
 3. Antigravity;
 4. Codex somente por decisão excepcional e manual.
 
-O health refina a seleção entre providers duráveis:
+O health local refina a seleção entre providers duráveis:
 
 - `healthy` antes de `degraded`;
 - `unavailable` e `unknown` não recebem task;
-- health tem validade máxima;
+- health tem validade máxima de 10 minutos;
 - fallback Jules ocorre somente quando declarado na task.
 
 Labels de provider:
@@ -195,18 +114,19 @@ Labels de provider:
 O runner:
 
 1. localiza a fonte GitHub autorizada;
-2. cria ou recupera a sessão Jules;
+2. cria sessão `AUTO_CREATE_PR`;
 3. persiste apenas o identificador não secreto;
-4. aceita exatamente um PR compatível com a task;
+4. aceita exatamente um PR do mesmo repositório;
 5. revalida base, paths e head;
-6. dispara `ci.yml` por `workflow_dispatch`;
-7. seleciona CI pelo SHA exato;
-8. integra somente em `factory/<run_id>`;
-9. libera dependentes por estado durável do GitHub;
-10. cria PR final draft;
-11. para no gate humano.
+6. sincroniza a integration branch;
+7. dispara `ci.yml` por `workflow_dispatch`;
+8. seleciona CI pelo SHA exato;
+9. faz squash merge somente para `factory/<run_id>`;
+10. libera dependentes por marcador bot-authored;
+11. cria PR final draft;
+12. para no gate humano.
 
-Tasks Antigravity/OpenCode não são tratadas como sessões Jules.
+Tasks Antigravity/OpenCode são ignoradas pelo processamento de sessões Jules. Quando somente trabalho durável local resta, o runner retorna `awaiting-durable-provider` em vez de ocupar um runner por horas.
 
 ## Providers duráveis
 
@@ -214,17 +134,21 @@ O gateway está em:
 
 - `infra/factory/durable-provider-contract.mjs`;
 - `infra/factory/durable-provider-gateway.mjs`;
-- `infra/factory/hosted-opencode-executor.mjs` para o perfil hosted create-only;
 - `scripts/durable_provider_agent.py` no repositório `mcpmieda/app-factory`.
 
-Operações duráveis:
+Operações do workflow:
 
 - `claim`;
 - `heartbeat`;
 - `result`;
 - `health`.
 
-O gateway confiável é executado a partir de `main`. Credenciais de provider não são aceitas em issues ou inputs públicos.
+O workflow só executa o gateway quando:
+
+- evento é `workflow_dispatch`;
+- ator é o proprietário do repositório;
+- ref é `main`;
+- checkout usa `main` com credenciais persistentes desabilitadas.
 
 Detalhes operacionais: `docs/FACTORY_DURABLE_PROVIDERS.md`.
 
@@ -244,32 +168,27 @@ A lease só é confiável quando o comentário real foi criado por `github-actio
 
 Reexecução:
 
-- mesma lease ativa + mesmo executor/provider: reutiliza quando permitido;
+- mesma lease ativa + mesmo executor/provider: reutiliza;
 - lease expirada: novo executor pode receber takeover;
 - duas leases ativas: conflito fail-closed;
 - heartbeat não renova lease;
-- resultado do provider permanece candidato até reconciliação bot-authored;
-- branch/PR/CI/merge já concluídos são reconciliados a partir do GitHub em vez de depender de memória local.
+- resultado local permanece candidato até reconciliação bot-authored.
 
 ## Branches
 
-A integration branch é:
-
 ```text
-factory/<run_id>
+base_branch
+  \
+   factory/<run_id>
+      ^ factory/<run_id>/<task_a>
+      ^ factory/<run_id>/<task_b>
 ```
 
-Workers duráveis usam branch estável irmã, por exemplo:
-
-```text
-factory/<run_id>-<task_id>
-```
-
-Jules pode usar a branch criada pela própria sessão, sempre validada contra a task e a integration branch.
+Jules normalmente cria a worker branch e o PR.
 
 O gateway durável:
 
-- cria/reutiliza branch apenas com evidência de propriedade confiável;
+- cria branch estável por task;
 - registra starting SHA;
 - rejeita branch preexistente sem marcador confiável;
 - valida provider commit contra o starting SHA;
@@ -309,63 +228,18 @@ O gateway revalida:
 - diff sincronizado contra a integration branch;
 - changed paths do PR.
 
-## CI e Merge Train
+## CI
 
 O CI obrigatório:
 
-- usa `ci.yml`;
+- usa somente `ci.yml`;
 - é disparado por `workflow_dispatch`;
-- precisa estar associado ao head SHA exato;
-- não é duplicado quando já existe evidência compatível;
+- precisa ter o head SHA exato;
+- não é duplicado quando já existe para o mesmo SHA;
 - precisa concluir `success`;
-- é invalidado se o PR head mudar;
-- pula produção em worker/integration branch.
+- é invalidado se o PR head mudar.
 
-Desde o PR #118, o Merge Train é parte obrigatória do `workflow_dispatch` para um Factory worker PR.
-
-### Autoridade confiável
-
-O worker não decide a própria aprovação:
-
-1. o SHA candidato é checkout somente como dado;
-2. `candidate/.github/workflows/ci.yml` deve ser byte-identical ao `ci.yml` confiável de `main`;
-3. o código do Merge Train é carregado de checkout separado de `main`;
-4. Semgrep e Sonar são despachados a partir do workflow confiável de `main` com `expected_sha` e `pr_number`;
-5. CodeRabbit recebe request confiável vinculado ao SHA;
-6. toda evidência aceita precisa apontar para o mesmo SHA atual do PR;
-7. ausência, staleness, falha, rate-limit ou findings relevantes bloqueiam em modo fail-closed.
-
-### Semgrep
-
-A revisão Semgrep:
-
-- usa versão pinada;
-- analisa o SHA candidato;
-- remove `.semgrepignore` fornecido pelo candidato;
-- restaura a política confiável de ignore;
-- desabilita suppressions inline `nosemgrep` do candidato;
-- persiste evidência bot-authored vinculada ao SHA.
-
-### CodeRabbit
-
-A revisão manual via `@coderabbitai review` foi comprovada no repositório mesmo quando a revisão automática não é iniciada por causa do número de estrelas.
-
-O Merge Train aceita somente review real do bot:
-
-- posterior ao request confiável;
-- vinculado ao mesmo `commit_id`/SHA;
-- sem comentários acionáveis aceitos como pendentes;
-- sem skip/rate-limit tratado como sucesso.
-
-### Sonar
-
-O workflow Sonar existe e é fail-closed. Requer configuração externa válida:
-
-- `SONAR_PROJECT_KEY`;
-- `SONAR_ORGANIZATION`;
-- `SONAR_TOKEN`.
-
-A Factory Run `merge-train-homologation-001` (#123) está sendo usada para provar o caminho live completo e confirmar se essa configuração externa já está disponível.
+`ci.yml` continua autorizado a produção apenas no fluxo normal de `push` para `main`. `workflow_dispatch` em worker/integration branch pula produção.
 
 ## Evidência confiável
 
@@ -378,15 +252,13 @@ Marcadores confiáveis incluem:
 - lease;
 - health;
 - heartbeat;
-- resultado;
 - sync;
-- reviewer evidence;
-- Merge Train evidence;
+- resultado;
 - merge na integration branch.
 
-Para serem autoridade do Control Plane, precisam vir de `github-actions[bot]` ou de uma fonte externa explicitamente validada pelo código confiável.
+Para serem confiáveis, precisam estar em comentário criado por `github-actions[bot]`.
 
-Marcadores estruturados usam payload canônico/validado para evitar parsing ambíguo.
+Marcadores do gateway usam JSON canônico codificado em base64url, permitindo objetos aninhados sem parsing ambíguo.
 
 ## Human gates
 
@@ -400,28 +272,38 @@ Nunca são autoexecutados:
 
 Tasks com human gate não recebem provider automático.
 
-O PR final da Factory Run também é sempre um gate humano, mesmo quando todas as tasks não possuem human gate individual.
+## Permissões
 
-## Permissões e PRs automáticos
+As permissões são definidas por job:
 
-As permissões são definidas por job e limitadas à função daquele job.
+- materialização: `contents:write`, `issues:write`;
+- runner: `actions:write`, `contents:write`, `issues:write`, `pull-requests:write`;
+- gateway durável: mesmas capacidades limitadas ao fluxo de worker/integration;
+- validação de PR: somente `contents:read`.
 
-A criação de PRs pelo GitHub Actions está operacional: a Factory multi-provider v2 criou autonomamente o PR final draft #120. Isso não concede autoridade para mesclá-lo em `main`.
+A política de código proíbe merge no target. A permissão de token não substitui o gate lógico.
 
-A política de código e os contratos continuam proibindo merge automático no target. A permissão do token não substitui esse gate lógico.
+## Dependências externas conhecidas
 
-## Dependência externa restante: Antigravity
+### GitHub Actions criando PRs
 
-O Antigravity permanece sem homologação live porque requer infraestrutura fora do GitHub-hosted path atual:
+A configuração **Allow GitHub Actions to create and approve pull requests** está desativada.
 
-- runner Linux x64 dedicado e efêmero;
-- labels de runner esperadas pelo piloto;
-- `agy`, Git e Python instalados;
-- profile autenticado dedicado fora do worktree;
-- nenhuma credencial de publicação Git entregue ao provider;
-- destruição/reprovisionamento do runner depois da execução.
+Consequências:
 
-A ausência dessa infraestrutura deve continuar bloqueando em modo fail-closed, sem fallback silencioso e sem pedir secrets em issue, workflow input ou conversa.
+- o runner/gateway pode chegar até branch, lease, resultado e CI;
+- criação autônoma de worker/final PR falha fechada;
+- nenhum merge alternativo para `main` é tentado;
+- habilitação administrativa é necessária para autonomia total;
+- merge final continuará humano.
+
+### CodeRabbit
+
+A revisão automática foi informada como desabilitada enquanto o repositório tiver menos de dez estrelas. O contrato do Merge Train não deve fingir evidência inexistente.
+
+### Executor local
+
+Pilotos Antigravity e OpenCode/Ollama dependem de host/profile/modelo reais. Credenciais locais nunca devem ser enviadas a issue, workflow input ou conversa.
 
 ## Regras permanentes
 
@@ -431,17 +313,19 @@ A ausência dessa infraestrutura deve continuar bloqueando em modo fail-closed, 
 - Tasks paralelas não sobrepõem escrita.
 - Worker automático não toca Control Plane.
 - Codex não é fallback automático.
-- Secrets ficam em GitHub Actions ou profile isolado apropriado.
-- Prompt não vira shell arbitrário.
-- Target/main nunca recebe auto-merge da Factory.
+- Secrets ficam em GitHub Actions ou profile local isolado.
+- Prompt não vira shell.
+- Target/main nunca recebe auto-merge.
 - Produção e Banco de Notas sync permanecem fora da autoridade da Factory.
-- Falha de reviewer não pode ser convertida em sucesso por relaxamento de validação.
 
-## Próximos gates
+## Próxima homologação
 
-1. concluir `merge-train-homologation-001` e registrar a evidência real de Semgrep + Sonar + CodeRabbit no mesmo SHA;
-2. se Sonar falhar por configuração ausente, provisionar somente as variáveis/secret necessários e repetir a mesma classe de prova sem enfraquecer o gate;
-3. provisionar o runner/profile efêmero do Antigravity e concluir sua homologação live;
-4. atualizar a declaração de readiness depois dessas provas.
+1. integrar o gateway em `main` com CI e auditoria de segurança;
+2. habilitar administrativamente criação de PRs por Actions;
+3. executar piloto Antigravity em profile isolado;
+4. executar piloto OpenCode/Ollama;
+5. desligar o primeiro executor e retomar com um segundo depois da expiração;
+6. conectar CodeRabbit/Semgrep/Sonar reais;
+7. executar Merge Train multi-provider completo.
 
-Para o caminho Jules + GitHub Control Plane + OpenCode/Ollama hosted create-only + paralelismo + dependências + recuperação durável + gate humano final, a arquitetura já está operacional.
+A Factory inteira só será declarada pronta depois dessas provas.

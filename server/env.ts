@@ -12,14 +12,7 @@ export type RuntimeSecrets = {
   SESSION_SECRET: string;
 };
 
-export type RuntimeEnv = Cloudflare.Env &
-  RuntimeSecrets & {
-    BANCO_NOTAS_DB?: D1Database;
-    BANCO_NOTAS_ADDIN_AUDIENCE?: string;
-    BANCO_NOTAS_ADDIN_SCOPE?: string;
-    BANCO_NOTAS_GRAPH_DRIVE_ID?: string;
-    BANCO_NOTAS_GRAPH_PARENT_ITEM_ID?: string;
-  };
+export type RuntimeEnv = Cloudflare.Env & RuntimeSecrets;
 
 const envSchema = z.object({
   TENANT_ID: z.string().uuid(),
@@ -41,11 +34,6 @@ const envSchema = z.object({
   GRAPH_CREDENTIAL_A: z.string().min(256).optional(),
   GRAPH_CREDENTIAL_B: z.string().min(256).optional(),
   SESSION_SECRET: z.string().min(43),
-  BANCO_NOTAS_DB: z.custom<D1Database>().optional(),
-  BANCO_NOTAS_ADDIN_AUDIENCE: z.string().uuid().optional(),
-  BANCO_NOTAS_ADDIN_SCOPE: z.string().min(3).max(120).regex(/^\S+$/u).optional(),
-  BANCO_NOTAS_GRAPH_DRIVE_ID: z.string().trim().min(1).max(512).optional(),
-  BANCO_NOTAS_GRAPH_PARENT_ITEM_ID: z.string().trim().min(1).max(512).optional(),
 });
 
 export function validateEnv(env: RuntimeEnv): RuntimeEnv {

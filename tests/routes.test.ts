@@ -204,24 +204,6 @@ describe('browser-facing authentication recovery', () => {
   });
 });
 
-describe('Banco de Notas route authorization', () => {
-  it('rejects an unauthenticated module health request', async () => {
-    const response = await invoke(await authenticatedRequest('/api/banco-notas/health'));
-    expect(response.status).toBe(401);
-  });
-
-  it('reports degraded health when the authenticated environment has no D1 binding', async () => {
-    const response = await invoke(
-      await authenticatedRequest('/api/banco-notas/health', ['ADMINISTRADOR']),
-    );
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toMatchObject({
-      status: 'degraded',
-      service: 'banco-de-notas',
-    });
-  });
-});
-
 describe('identity capability resolution', () => {
   it('returns resolved capabilities for an administrator without storing them in the session', async () => {
     const response = await invoke(await authenticatedRequest('/api/me', ['ADMINISTRADOR']));
