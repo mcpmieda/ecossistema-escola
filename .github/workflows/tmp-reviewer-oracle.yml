@@ -6,6 +6,7 @@ on:
       - '.coderabbit.yaml'
       - 'infra/factory/merge-train-gate.mjs'
       - 'infra/factory/merge-train-gate.test.mjs'
+      - 'infra/factory/sonar-scanner/package.json'
       - '.github/workflows/merge-train-semgrep.yml'
       - '.github/workflows/merge-train-sonar.yml'
       - '.github/workflows/tmp-reviewer-oracle.yml'
@@ -15,7 +16,7 @@ permissions:
 
 jobs:
   generate:
-    name: Generate trusted reviewer lockfile and formatting
+    name: Generate isolated reviewer lockfile and formatting
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -28,18 +29,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Install locked baseline
+      - name: Install locked application baseline for Prettier
         run: npm ci
-      - name: Add exact SonarScanner package to lockfile
-        run: npm install --save-dev --save-exact @sonar/scan@5.0.0
-      - name: Verify exact scanner package version
-        run: test "$(node -p "require('./node_modules/@sonar/scan/package.json').version")" = "5.0.0"
+      - name: Generate isolated exact SonarScanner lockfile
+        run: npm install --package-lock-only --ignore-scripts --prefix infra/factory/sonar-scanner
+      - name: Install isolated locked scanner and verify exact version
+        run: |
+          npm ci --prefix infra/factory/sonar-scanner
+          test "$(node -p "require('./infra/factory/sonar-scanner/node_modules/@sonar/scan/package.json').version")" = "5.0.0"
       - name: Format changed trusted files
         run: >-
           npx prettier --write
           .coderabbit.yaml
           infra/factory/merge-train-gate.mjs
           infra/factory/merge-train-gate.test.mjs
+          infra/factory/sonar-scanner/package.json
           .github/workflows/merge-train-semgrep.yml
           .github/workflows/merge-train-sonar.yml
       - name: Upload exact generated files
@@ -47,12 +51,13 @@ jobs:
         with:
           name: reviewer-oracle-${{ github.run_id }}
           path: |
-            package.json
-            package-lock.json
             .coderabbit.yaml
             infra/factory/merge-train-gate.mjs
             infra/factory/merge-train-gate.test.mjs
+            infra/factory/sonar-scanner/package.json
+            infra/factory/sonar-scanner/package-lock.json
             .github/workflows/merge-train-semgrep.yml
             .github/workflows/merge-train-sonar.yml
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 1
