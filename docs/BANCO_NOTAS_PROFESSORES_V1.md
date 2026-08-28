@@ -62,14 +62,14 @@ Também foram adicionados links Turma → Professor e Acompanhamento → Profess
 
 ## Verificação local
 
-- `npm test`: 369 testes em 71 arquivos — PASS;
+- `npm test`: 372 testes em 72 arquivos — PASS;
 - lint — PASS;
 - typecheck — PASS;
 - semantic contract — PASS;
 - build web e add-in — PASS;
 - warning histórico de chunk acima de 500 kB permanece não bloqueador.
 
-Foram adicionados 16 testes focados: 5 de repositório SQLite, 3 de API, 3 de contrato e 5 de UI/integração estática. A regressão completa inclui Acompanhamento, Turmas e Alunos.
+Foram adicionados 19 testes focados: 5 de repositório SQLite, 3 de API, 3 de contrato, 5 de UI/integração estática e 3 de retorno seguro executável. A regressão completa inclui Acompanhamento, Turmas e Alunos.
 
 ## Browser QA sintético
 
@@ -83,6 +83,8 @@ Desktop 1440 × 900:
 - Professor → Turma → Professor;
 - Professor → Acompanhamento → Professor;
 - vazio, HTTP 500, 403 e 404.
+
+O smoke de integração foi repetido após a correção do retorno cruzado e confirmou Professor → Turma, Professor → Acompanhamento e retorno aos filtros da lista. Alvos protocol-relative e prefixados por barra invertida são rejeitados pelo helper compartilhável de retorno seguro.
 
 Mobile 390 × 844:
 

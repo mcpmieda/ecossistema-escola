@@ -6,9 +6,9 @@
 - APIs read-only protegidas por `grades.analytics.read`, queries validadas e DTO sem OID/Drive ID: PASS.
 - Repositório D1 agregado sem N+1, latest model persistido e professores sem assignment preservados: PASS.
 - Regressão de Acompanhamento, Turmas e Alunos: PASS.
-- Testes: 369 em 71 arquivos, incluindo 16 novos testes focados: PASS.
+- Testes: 372 em 72 arquivos, incluindo 19 novos testes focados: PASS.
 - Lint, typecheck, semantic contract, manifest e builds web/add-in: PASS.
-- Browser QA sintético: desktop 1440 × 900 e mobile 390 × 844; navegação cruzada, retorno, vazio, 403, 404 e 500: PASS.
+- Browser QA sintético: desktop 1440 × 900 e mobile 390 × 844; navegação cruzada, retorno seguro para Turmas/Acompanhamento e filtros da lista, vazio, 403, 404 e 500: PASS.
 - Fixture local e servidor temporário removidos; nenhuma PII real em evidências.
 - Produção, D1 remoto, Graph e Entra intactos; add-in não publicado; `sync_enabled=0`.
 

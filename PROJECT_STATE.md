@@ -7,7 +7,7 @@
 - Regra de situação operacional compartilhada com Acompanhamento; `sync_enabled=0` isoladamente não é erro.
 - Navegação Professor ↔ Turma e Professor ↔ Acompanhamento com retorno preservado.
 - Contratos semânticos e OpenAPI atualizados; nenhum schema D1, Entra, Graph, add-in ou produção foi alterado.
-- Verificação local: 369 testes em 71 arquivos, lint, tipos, semântica e builds verdes; browser QA desktop/mobile sintético aprovado.
+- Verificação local: 372 testes em 72 arquivos, lint, tipos, semântica e builds verdes; browser QA desktop/mobile sintético aprovado, incluindo retorno seguro de Turmas/Acompanhamento.
 - Documento: `docs/BANCO_NOTAS_PROFESSORES_V1.md`.
 
 ## Adoção App Factory e novo marco — Banco de Notas

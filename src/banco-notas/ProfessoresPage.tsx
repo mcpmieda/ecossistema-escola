@@ -30,6 +30,7 @@ import type {
 } from '../../shared/banco-notas-professores';
 import type { AttentionLevel } from '../../shared/banco-notas-acompanhamento';
 import type { PageResult } from '../../shared/banco-notas-turmas-alunos';
+import { resolveSafeReturnHref } from './safe-return';
 
 class ApiError extends Error {
   constructor(
@@ -503,7 +504,7 @@ export function ProfessorDetailPage() {
   const [error, setError] = useState<Error | null>(null);
   const [reload, setReload] = useState(0);
   const rawReturn = params.get('retorno') ?? '';
-  const backHref = `/professores${rawReturn ? `?${rawReturn}` : ''}`;
+  const backHref = resolveSafeReturnHref(rawReturn, '/professores');
   const selectedYear = params.get('schoolYearId') ?? '';
   useEffect(() => {
     const controller = new AbortController();
