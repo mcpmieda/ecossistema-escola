@@ -70,7 +70,8 @@ export function leasedRequestForWorktree(lease, worktree) {
 }
 
 export function normalizeProbeHealth(value) {
-  const providerId = String(value?.provider_id ?? value?.provider ?? '').trim();
+  const candidateProvider = value?.provider_id ?? value?.provider ?? '';
+  const providerId = String(candidateProvider).trim();
   const status = String(value?.status ?? '').trim().toLowerCase();
   if (providerId !== OPENCODE_PROVIDER || status !== 'healthy') {
     fail('Pinned OpenCode/Ollama runtime did not pass the required healthy probe.');
