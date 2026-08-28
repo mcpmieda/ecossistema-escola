@@ -1,1 +1,4 @@
-Trusted Merge Train homologation worker completed.
+Trusted Merge Train homologation worker completed for Factory Run #123 / task #124.
+Worker PR: #126.
+Canonical evidence: bot-authored FACTORY_REVIEWER_EVIDENCE and FACTORY_MERGE_TRAIN markers on PR #126.
+The exact worker SHA is bound and validated at runtime by the trusted Control Plane; it is intentionally not embedded here because changing this file creates a new SHA.

@@ -15,5 +15,12 @@ test-results/
 playwright-report/
 *.log
 *.tsbuildinfo
+*.xlsb
+**/NOTAS NINA 2026.xlsb
+**/NOTAS ALANNA 2026.xlsb
+**/Modelo_Professor_Nina_2026_Homologado.xlsx
+wrangler.banco-notas.homologation.jsonc
+.runtime-homologation/
+runtime-homologation-deploy.json
 .DS_Store
 Thumbs.db

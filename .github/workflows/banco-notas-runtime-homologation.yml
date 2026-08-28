@@ -1,0 +1,67 @@
+name: Banco de Notas runtime homologation
+
+on:
+  push:
+    branches:
+      - feat/banco-de-notas-foundation
+    paths:
+      - '.github/workflows/banco-notas-runtime-homologation.yml'
+      - 'addin/banco-notas/runtime-homologation.ts'
+      - 'addin/banco-notas/taskpane.ts'
+      - 'infra/banco-notas/cloudflare/deploy-runtime-homologation.ps1'
+      - 'infra/banco-notas/cloudflare/runtime-homologation-worker.ts'
+      - 'server/auth/entra-access-token.ts'
+      - 'server/banco-notas/d1-grade-event-store.ts'
+      - 'vite.runtime-homologation.config.ts'
+      - 'wrangler.banco-notas.runtime-homologation.template.jsonc'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: banco-notas-runtime-homologation
+  cancel-in-progress: false
+
+jobs:
+  deploy-isolated-runtime:
+    name: Deploy isolated Banco de Notas Pages homologation runtime
+    if: github.ref == 'refs/heads/feat/banco-de-notas-foundation'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Provision only the dedicated homologation D1 config
+        shell: pwsh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: ./infra/banco-notas/cloudflare/provision-homologation.ps1
+
+      - name: Deploy temporary homologation Pages runtime and add-in assets
+        shell: pwsh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: ./infra/banco-notas/cloudflare/deploy-runtime-homologation.ps1
+
+      - name: Publish sanitized deployment evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: banco-notas-runtime-homologation-${{ github.run_id }}
+          path: runtime-homologation-deploy.json
+          if-no-files-found: error
+          retention-days: 7

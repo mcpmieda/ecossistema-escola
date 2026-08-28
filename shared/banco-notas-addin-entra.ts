@@ -1,0 +1,88 @@
+import { z } from 'zod';
+
+const applicationClientIdToken = '{applicationClientId}';
+
+export const bancoNotasAddinEntraContractSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    environment: z.literal('homologation'),
+    displayName: z.string().trim().min(8).max(120),
+    signInAudience: z.literal('AzureADMyOrg'),
+    identifierUriTemplate: z.literal(`api://${applicationClientIdToken}`),
+    requestedAccessTokenVersion: z.literal(2),
+    delegatedScope: z.object({
+      value: z.string().regex(/^[A-Za-z][A-Za-z0-9.]{2,119}$/u),
+      type: z.literal('Admin'),
+      isEnabled: z.literal(true),
+      adminConsentDisplayName: z.string().trim().min(8).max(120),
+      adminConsentDescription: z.string().trim().min(20).max(400),
+    }),
+    spaRedirectUriTemplates: z
+      .array(z.string().trim().min(8).max(512))
+      .min(2)
+      .max(6)
+      .refine((items) => new Set(items).size === items.length, 'redirect URIs must be unique')
+      .refine(
+        (items) => items.some((item) => item.startsWith('brk-multihub://')),
+        'a brk-multihub broker redirect is required',
+      )
+      .refine(
+        (items) => items.some((item) => item.startsWith('https://')),
+        'an HTTPS taskpane redirect is required',
+      ),
+    preAuthorizeSelf: z.literal(true),
+    requiredResourceAccess: z
+      .object({
+        mode: z.literal('self-delegated-scope'),
+        resourceAppIdTemplate: z.literal(applicationClientIdToken),
+        delegatedPermissionValue: z.string().regex(/^[A-Za-z][A-Za-z0-9.]{2,119}$/u),
+        type: z.literal('Scope'),
+      })
+      .strict(),
+    allowPublicClientFlows: z.literal(false),
+    credentials: z.literal('none'),
+    publicRouteEnabled: z.literal(false),
+    syncEnabled: z.literal(false),
+  })
+  .strict();
+
+export type BancoNotasAddinEntraContract = z.infer<typeof bancoNotasAddinEntraContractSchema>;
+
+export type ResolvedBancoNotasAddinEntraContract = BancoNotasAddinEntraContract & {
+  applicationClientId: string;
+  resourceApplicationIdUri: string;
+  tokenAudience: string;
+  authorizedParty: string;
+  requestedScope: string;
+  spaRedirectUris: string[];
+  requiredResourceAccessResolved: {
+    resourceAppId: string;
+    delegatedPermissionValue: string;
+    type: 'Scope';
+  };
+};
+
+export function resolveBancoNotasAddinEntraContract(
+  contractInput: unknown,
+  applicationClientId: string,
+): ResolvedBancoNotasAddinEntraContract {
+  const contract = bancoNotasAddinEntraContractSchema.parse(contractInput);
+  const clientId = z.string().uuid().parse(applicationClientId);
+  const replaceClientId = (value: string) => value.replaceAll(applicationClientIdToken, clientId);
+  const resourceApplicationIdUri = replaceClientId(contract.identifierUriTemplate);
+
+  return {
+    ...contract,
+    applicationClientId: clientId,
+    resourceApplicationIdUri,
+    tokenAudience: clientId,
+    authorizedParty: clientId,
+    requestedScope: `${resourceApplicationIdUri}/${contract.delegatedScope.value}`,
+    spaRedirectUris: contract.spaRedirectUriTemplates.map(replaceClientId),
+    requiredResourceAccessResolved: {
+      resourceAppId: replaceClientId(contract.requiredResourceAccess.resourceAppIdTemplate),
+      delegatedPermissionValue: contract.requiredResourceAccess.delegatedPermissionValue,
+      type: contract.requiredResourceAccess.type,
+    },
+  };
+}

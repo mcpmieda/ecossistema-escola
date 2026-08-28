@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "module": "banco-de-notas",
+  "mode": "release",
+  "risk": "high",
+  "principle": "Verificar classes de falha diferentes e preservar evidência real; código escrito ou CI verde isoladamente não comprovam o Banco de Notas.",
+  "required_gates": [
+    {
+      "id": "BN-V-001",
+      "name": "Project Adoption Gate",
+      "method": "App Factory pre-implementation/delivery",
+      "required": true
+    },
+    {
+      "id": "BN-V-002",
+      "name": "Format + lint + typecheck + build",
+      "method": "pipeline existente do ecossistema-escola",
+      "required": true
+    },
+    {
+      "id": "BN-V-003",
+      "name": "Semantic contract",
+      "method": "contrato do módulo + integração coerente com specs globais",
+      "required": true
+    },
+    {
+      "id": "BN-V-004",
+      "name": "Authorization matrix",
+      "method": "testes allow/deny por capability no servidor",
+      "required": true
+    },
+    {
+      "id": "BN-V-005",
+      "name": "D1 migration and transaction tests",
+      "method": "migrations em database descartável + constraints + rollback/Time Travel documentado",
+      "required": true
+    },
+    {
+      "id": "BN-V-006",
+      "name": "Grade event state-machine",
+      "method": "testes de idempotência, sequence, stale, revert, correlation e concorrência",
+      "required": true
+    },
+    {
+      "id": "BN-V-007",
+      "name": "Source authority",
+      "method": "testes legacy_import vs linked_teacher_model sem merge silencioso",
+      "required": true
+    },
+    {
+      "id": "BN-V-008",
+      "name": "Microsoft integration",
+      "method": "homologação real SharePoint/Graph com arquivo privado e identidade institucional",
+      "required": true
+    },
+    {
+      "id": "BN-V-009",
+      "name": "Add-in integration",
+      "method": "Excel Web + Windows; Mac antes de declarar suporte institucional total",
+      "required": true
+    },
+    {
+      "id": "BN-V-010",
+      "name": "Legacy regression",
+      "method": "fixtures sintéticas no Git + golden masters Nina/Alanna fora do Git para valores, dimensões, mapeamento e origem",
+      "required": true
+    },
+    {
+      "id": "BN-V-011",
+      "name": "HeroUI browser QA",
+      "method": "desktop/mobile, teclado, foco, overlays, loading, empty, partial, error, permission denied, reduced motion e ausência de Ambient Constellation",
+      "required": true
+    },
+    {
+      "id": "BN-V-012",
+      "name": "API contract compatibility",
+      "method": "OpenAPI/AsyncAPI lint + contract tests de consumidores independentes",
+      "required": true
+    },
+    {
+      "id": "BN-V-013",
+      "name": "Resilience",
+      "method": "falha Graph, timeout, retry/backoff, queue retry, API offline e reconciliação",
+      "required": true
+    },
+    {
+      "id": "BN-V-014",
+      "name": "Recovery",
+      "method": "D1 Time Travel em ambiente de homologação + versão SharePoint + rebuild + evidência sem dados reais",
+      "required": true
+    },
+    {
+      "id": "BN-V-015",
+      "name": "Security and privacy",
+      "method": "secrets scan, least privilege review, no PII in Git/logs, origin/CORS/token validation and browser security headers",
+      "required": true
+    },
+    {
+      "id": "BN-V-016",
+      "name": "Generic model and private golden-master isolation",
+      "method": "fixtures sintéticas estruturalmente variadas + inspeção de dependências nominais + regressão privada externa Nina/Alanna sem publicação dos arquivos",
+      "required": true
+    },
+    {
+      "id": "BN-V-017",
+      "name": "NAA real token proof",
+      "method": "Excel Online em workbook SharePoint/OneDrive + diagnóstico sanitizado NAA_TOKEN_PROOF_PASSED + regressão de config/manifest/headers/backend",
+      "required": true
+    }
+  ],
+  "scenario_matrix": [
+    "evento novo aceito",
+    "evento duplicado",
+    "evento stale",
+    "dois editores concorrentes",
+    "reversão auditada",
+    "nota ausente",
+    "nota zero oficial quando permitida",
+    "modelo com SyncEnabled=false",
+    "ativação após reconciliação",
+    "conta de professor errada",
+    "arquivo movido ou excluído",
+    "Graph indisponível",
+    "API Cloudflare indisponível",
+    "fila com retry",
+    "importação repetida do mesmo legado",
+    "mudança de fonte durante o ano",
+    "override de fonte por professor",
+    "rota profunda /banco-de-notas/... recarregada",
+    "usuário sem capability",
+    "usuário com capability parcial",
+    "reduced-motion",
+    "viewport móvel",
+    "duas origens sintéticas com nomes, ordem e quantidade de abas diferentes geram instâncias do mesmo modelo genérico",
+    "origem incompleta produz finding explícito em vez de fallback Nina/Alanna",
+    "golden masters privados ausentes do Git, bundle, D1, migrations, fixtures públicas e SharePoint definitivo",
+    "NAA ssoSilent com redirect bridge dedicado retorna token v2 válido sem gravar token ou PII"
+  ],
+  "data_policy": {
+    "git": "somente fixtures sintéticas e contratos; nenhum nome/nota real",
+    "real_regression": "arquivos Nina/Alanna permanecem privados, externos ao produto e são usados apenas como entradas de regressão em ambiente autorizado",
+    "golden_master_isolation": "golden masters privados não são templates oficiais e não entram em runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição",
+    "logs": "IDs técnicos/correlação e métricas; evitar valores e nomes de estudantes em logs técnicos"
+  },
+  "release_blockers": [
+    "qualquer invariável BN-INV violada",
+    "capability aplicada apenas na UI",
+    "duplicate effect em Idempotency-Key repetida",
+    "snapshot regressivo por stale event",
+    "fonte sem autoridade explícita",
+    "SyncEnabled true por default",
+    "dependência de GitHub em runtime",
+    "dados reais no repositório ou log público",
+    "uso de SharePoint como event store transacional definitivo",
+    "qualquer página do Banco fora da linguagem HeroUI",
+    "Ambient Constellation presente",
+    "migração massiva sem piloto e reconciliação",
+    "recovery não comprovado para o novo store antes da produção",
+    "modelo ou transformador de produção especializado por nome, abas, turmas, disciplinas, células ou particularidades de Nina/Alanna",
+    "golden master privado incorporado ao produto, runtime, persistência, migration, fixture pública, SharePoint definitivo ou distribuição"
+  ]
+}

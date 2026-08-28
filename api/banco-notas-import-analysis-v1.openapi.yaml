@@ -1,0 +1,516 @@
+openapi: 3.1.0
+info:
+  title: Banco de Notas — análise verificada de importação
+  version: 1.0.0
+  description: >-
+    Contrato administrativo same-origin para perfis XLSX versionados, vínculo imutável do
+    perfil ao import job e persistência da análise verificada antes do estado analyzed.
+    O runtime deriva o analyzer XLSX do perfil persistido quando não existe analyzer
+    explicitamente registrado. XLSB permanece fail closed sem adapter próprio comprovado.
+servers:
+  - url: https://admin.escolaieda.com/api/banco-notas
+security:
+  - administrativeSession: []
+paths:
+  /v1/import-analysis-profiles:
+    get:
+      operationId: listImportAnalysisProfiles
+      summary: Lista perfis XLSX imutáveis disponíveis para importação
+      parameters:
+        - name: schoolYearId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+        - name: dataSourceId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Perfis encontrados.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ImportAnalysisProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      operationId: createImportAnalysisProfile
+      summary: Cria uma versão imutável de perfil XLSX para uma fonte legacy_import
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportAnalysisProfileCreate'
+      responses:
+        '201':
+          description: Perfil criado ou repetição idempotente compatível.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportAnalysisProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/import-jobs/{jobId}/analysis-profile:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      operationId: getImportJobAnalysisProfile
+      summary: Consulta o perfil XLSX anexado ao import job
+      responses:
+        '200':
+          description: Perfil anexado ao job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportAnalysisProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      operationId: attachImportJobAnalysisProfile
+      summary: Anexa de forma append-only um perfil XLSX a um job draft compatível
+      description: >-
+        O job e o perfil devem pertencer ao mesmo ano e à mesma data source. O job deve
+        permanecer em draft e declarar sourceFormat=xlsx. Um job já ligado a outro perfil
+        gera conflito; repetir o mesmo vínculo é idempotente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportAnalysisProfileAttach'
+      responses:
+        '200':
+          description: Perfil anexado ou vínculo idempotente existente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportAnalysisProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /v1/import-jobs/{jobId}/analysis:
+    parameters:
+      - $ref: '#/components/parameters/JobId'
+    get:
+      operationId: getImportAnalysis
+      summary: Consulta o artefato imutável de análise verificada do job
+      responses:
+        '200':
+          description: Análise persistida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportAnalysis'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      operationId: analyzeImportWorkbook
+      summary: Executa a análise verificada e persiste o artefato antes de analyzed
+      description: >-
+        Requer capability grades.import.run, X-Import-Reason e origem limitada a 32 MiB.
+        XLSX exige perfil anexado quando não há analyzer explicitamente registrado. O MIME
+        XLSB é aceito no boundary de transporte para permitir um adapter futuro, porém o
+        runtime atual falha fechado porque não registra analyzer XLSB.
+      parameters:
+        - name: X-Import-Reason
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 500
+      requestBody:
+        required: true
+        content:
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema:
+              type: string
+              contentEncoding: binary
+          application/vnd.ms-excel.sheet.binary.macroenabled.12:
+            schema:
+              type: string
+              contentEncoding: binary
+      responses:
+        '200':
+          description: Job e análise persistida; retry compatível é idempotente.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [job, analysis]
+                properties:
+                  job:
+                    type: object
+                    additionalProperties: true
+                  analysis:
+                    $ref: '#/components/schemas/ImportAnalysis'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    administrativeSession:
+      type: apiKey
+      in: cookie
+      name: __Host-session
+      description: Sessão administrativa same-origin do Centro; não é o gate público do add-in.
+  parameters:
+    JobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Entrada ou header inválido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unauthorized:
+      description: Sessão administrativa ausente ou inválida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Capability necessária ausente.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Job, perfil, fonte ou análise não encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Idempotência, ano, fonte, estado ou vínculo incompatível.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unprocessable:
+      description: Workbook, formato ou vínculo semanticamente incompatível.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Unavailable:
+      description: Storage ou analyzer necessário indisponível.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    ImportAnalysisProfileCreate:
+      type: object
+      additionalProperties: false
+      required: [schoolYearId, dataSourceId, profile, reason]
+      properties:
+        schoolYearId:
+          type: string
+          format: uuid
+        dataSourceId:
+          type: string
+          format: uuid
+        profile:
+          $ref: '#/components/schemas/XlsxLegacyAnalysisProfile'
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+    ImportAnalysisProfileAttach:
+      type: object
+      additionalProperties: false
+      required: [profileId, reason]
+      properties:
+        profileId:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+    ImportAnalysisProfile:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - schoolYearId
+        - dataSourceId
+        - sourceFormat
+        - profileId
+        - analysisVersion
+        - profileHash
+        - profile
+        - createdBy
+        - reason
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        schoolYearId:
+          type: string
+          format: uuid
+        dataSourceId:
+          type: string
+          format: uuid
+        sourceFormat:
+          const: xlsx
+        profileId:
+          type: string
+        analysisVersion:
+          type: string
+        profileHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        profile:
+          $ref: '#/components/schemas/XlsxLegacyAnalysisProfile'
+        createdBy:
+          type: string
+        reason:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    XlsxLegacyAnalysisProfile:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, profileId, analysisVersion, worksheetRules]
+      properties:
+        schemaVersion:
+          const: 1
+        profileId:
+          type: string
+          minLength: 1
+          maxLength: 120
+        analysisVersion:
+          type: string
+          minLength: 1
+          maxLength: 40
+        worksheetRules:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/XlsxLegacySheetRule'
+    XlsxLegacySheetRule:
+      type: object
+      additionalProperties: false
+      required:
+        - ruleId
+        - sheetNamePattern
+        - caseInsensitive
+        - studentNameColumn
+        - firstStudentRow
+        - maxStudentRows
+        - gradeColumns
+      properties:
+        ruleId:
+          type: string
+        sheetNamePattern:
+          type: string
+          minLength: 1
+          maxLength: 240
+        caseInsensitive:
+          type: boolean
+        studentNameColumn:
+          $ref: '#/components/schemas/ExcelColumn'
+        firstStudentRow:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        maxStudentRows:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        gradeColumns:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/GradeColumn'
+    GradeColumn:
+      type: object
+      additionalProperties: false
+      required: [field, column]
+      properties:
+        field:
+          $ref: '#/components/schemas/GradeField'
+        column:
+          $ref: '#/components/schemas/ExcelColumn'
+    GradeField:
+      type: string
+      enum: [NotaT1, NotaT2, NotaT3, RecT1, RecT2, RecT3, Total, TotalRec, NotaFinal]
+    ExcelColumn:
+      type: string
+      pattern: '^[A-Z]{1,3}$'
+    ImportAnalysis:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - importJobId
+        - analyzerId
+        - analysisVersion
+        - sourceHash
+        - sourceFormat
+        - schoolYear
+        - model
+        - createdBy
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        importJobId:
+          type: string
+          format: uuid
+        analyzerId:
+          type: string
+          minLength: 1
+          maxLength: 120
+        analysisVersion:
+          type: string
+          minLength: 1
+          maxLength: 40
+        sourceHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        sourceFormat:
+          type: string
+          enum: [xlsb, xlsx]
+        schoolYear:
+          type: integer
+          minimum: 2000
+          maximum: 2200
+        model:
+          $ref: '#/components/schemas/LegacyIntermediateModel'
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    LegacyIntermediateModel:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - sourceFormat
+        - sourceHash
+        - schoolYear
+        - analysisVersion
+        - classes
+        - components
+        - students
+        - gradeSlots
+        - findings
+      properties:
+        schemaVersion:
+          const: 1
+        sourceFormat:
+          type: string
+          enum: [xlsb, xlsx]
+        sourceHash:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        schoolYear:
+          type: integer
+          minimum: 2000
+          maximum: 2200
+        analysisVersion:
+          type: string
+        classes:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        components:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        students:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        gradeSlots:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        findings:
+          type: array
+          items:
+            type: string
+    Problem:
+      type: object
+      additionalProperties: true
+      required: [error, correlationId]
+      properties:
+        error:
+          type: string
+        correlationId:
+          type: string
