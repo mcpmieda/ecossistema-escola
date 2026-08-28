@@ -1,0 +1,75 @@
+:root {
+  color: #18181b;
+  background: #f4f4f5;
+  font-family: Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+main {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+h1,
+h2,
+p {
+  margin: 0;
+}
+.eyebrow {
+  color: #52525b;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.card {
+  display: grid;
+  gap: 0.875rem;
+  padding: 1rem;
+  border: 1px solid #d4d4d8;
+  border-radius: 0.75rem;
+  background: #fff;
+}
+dl {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+dt {
+  color: #52525b;
+}
+dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+button {
+  min-height: 2.5rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #18181b;
+  color: #fff;
+  font-weight: 700;
+}
+button:disabled {
+  background: #a1a1aa;
+}
+pre {
+  overflow: auto;
+  max-height: 18rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background: #18181b;
+  color: #f4f4f5;
+  font-size: 0.75rem;
+}
+.privacy {
+  color: #52525b;
+  font-size: 0.75rem;
+}

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Microsoft Authentication</title>
+  </head>
+  <body>
+    <p>Processing authentication...</p>
+    <script type="module">
+      import { broadcastResponseToMainFrame } from '@azure/msal-browser/redirect-bridge';
+
+      broadcastResponseToMainFrame().catch(() => {
+        document.body.textContent = 'Authentication response could not be relayed.';
+      });
+    </script>
+  </body>
+</html>

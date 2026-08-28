@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "module": "banco-de-notas",
+  "depth": "domain",
+  "status": "ready-for-implementation",
+  "domain_vocabulary": [
+    {
+      "term": "Fonte",
+      "meaning": "mecanismo autorizado que alimenta o Banco para um contexto de ano/professor"
+    },
+    { "term": "legacy_import", "meaning": "lote imutável e auditável vindo de planilha antiga" },
+    {
+      "term": "linked_teacher_model",
+      "meaning": "modelo XLSX novo conectado ao Banco por add-in e reconciliação Microsoft"
+    },
+    {
+      "term": "SourceAuthority",
+      "meaning": "fonte vigente que pode alterar o snapshot oficial para um professor/ano"
+    },
+    {
+      "term": "TeacherModel",
+      "meaning": "instância XLSX individual criada para as turmas/componentes de um professor"
+    },
+    {
+      "term": "GradeKey",
+      "meaning": "identificador estável do lançamento, independente do nome visual ou endereço físico"
+    },
+    { "term": "GradeEvent", "meaning": "mudança append-only enviada por origem autorizada" },
+    { "term": "GradeSnapshot", "meaning": "estado corrente confirmado de uma GradeKey" },
+    {
+      "term": "stale",
+      "meaning": "evento válido para auditoria cuja sequência não pode substituir estado mais novo"
+    },
+    {
+      "term": "reconciliation",
+      "meaning": "comparação entre Banco e projeção/tabela técnica do workbook para detectar divergência"
+    },
+    {
+      "term": "ruleset",
+      "meaning": "versão auditável das regras pedagógicas e parâmetros aplicáveis"
+    },
+    {
+      "term": "modelo genérico limpo",
+      "meaning": "template oficial do produto sem dados, nomes, estrutura ou configuração derivados de professor específico"
+    },
+    {
+      "term": "golden master privado",
+      "meaning": "arquivo real externo usado somente em homologação autorizada para regressão, sem integrar produto ou runtime"
+    },
+    {
+      "term": "NAA redirect bridge",
+      "meaning": "página dedicada same-origin e no-store que devolve a resposta MSAL v5 ao frame principal sem carregar a aplicação"
+    }
+  ],
+  "precedence_rules": [
+    "Relatório Completo v1.6 governa o funcionamento do produto.",
+    "Dossiê Técnico v1.0 posterior governa a nova fonte vinculada e substitui a hipótese de importação exclusivamente desconectada.",
+    "Plano-Mestre v0.3 é referência histórica e de regressão, não pode reverter decisão posterior do Dossiê.",
+    "Infraestrutura e segurança em produção são governadas pelo ecossistema-escola atual.",
+    "Preferência explícita do usuário por HeroUI sem Ambient Constellation prevalece sobre o default ambiental da App Factory.",
+    "A decisão explícita de modelo genérico prevalece sobre qualquer interpretação anterior que tratasse o modelo Nina homologado como template do produto."
+  ],
+  "state_machines": [
+    {
+      "name": "ImportJob",
+      "states": [
+        "draft",
+        "analyzed",
+        "generated",
+        "validated",
+        "ready_to_share",
+        "shared",
+        "connected",
+        "failed"
+      ],
+      "rules": [
+        "failed não compartilha arquivo automaticamente",
+        "shared exige destinatário revisado",
+        "connected exige configuração de ambiente e reconciliação compatível"
+      ]
+    },
+    {
+      "name": "TeacherModel",
+      "states": [
+        "draft",
+        "validated",
+        "ready_to_share",
+        "shared",
+        "connected",
+        "suspended",
+        "archived"
+      ],
+      "rules": [
+        "syncEnabled inicia false",
+        "suspended interrompe envio sem inutilizar o workbook",
+        "archived não apaga histórico"
+      ]
+    },
+    {
+      "name": "GradeEvent",
+      "states": ["accepted", "stale", "recalculated", "reverted", "rejected"],
+      "rules": [
+        "idempotencyKey repetida retorna o efeito existente",
+        "stale nunca regride snapshot",
+        "reverted preserva o evento original"
+      ]
+    }
+  ],
+  "consistency_rules": [
+    "SourceAssignment ativo não pode ter duas autoridades concorrentes para o mesmo professor/ano e intervalo de vigência.",
+    "GradeSnapshot deve referenciar evento aceito e ruleset/version quando houver derivação.",
+    "TeacherModel conectado deve possuir professor, ano, DriveItem, modelVersion, mappingVersion e ambiente definidos.",
+    "ShareAudit deve registrar destinatário Entra revisado e resultado efetivo do Graph.",
+    "Evento vindo do add-in deve pertencer ao modelo, professor e contexto autorizados pelo token/conexão.",
+    "Mudança de ruleset não altera silenciosamente eventos históricos; recálculo gera nova versão/evidência.",
+    "Importação antiga não sobrescreve automaticamente fonte linked ativa com vigência posterior.",
+    "Golden masters privados não podem ser fonte de runtime, persistência, migration, fixture pública, template oficial ou distribuição.",
+    "Transformação de legado não pode conter decisão por identidade de professor nem por estrutura fixa aprendida dos golden masters.",
+    "Token do add-in deve ser v2, delegated, audience/azp iguais ao client ID GUID, scope BancoNotas.Sync e public client; nenhum token ou PII completo pode ser persistido no diagnóstico."
+  ],
+  "ambiguities_resolved_as_configuration": [
+    "fonte padrão do ano",
+    "override de fonte por professor",
+    "data de vigência da fonte",
+    "debounce",
+    "retry/backoff",
+    "queue limit",
+    "frequência de reconciliação",
+    "política de conflito",
+    "regras/limites por período e componente",
+    "retenção operacional",
+    "parâmetros de boletim e conselho já definidos como configuráveis no Relatório v1.6"
+  ],
+  "blocking_questions": [],
+  "non_blocking_risks": [
+    "O conversor XLSB homologado usa Excel COM; precisa ser substituído ou encapsulado como ponte de migração antes de declarar importação legada totalmente remota.",
+    "A autenticação NAA foi homologada no Excel Online; Windows e Mac continuam gates antes de declarar suporte institucional multiplataforma.",
+    "Cloudflare D1/Queues ainda precisam ser provisionados e vinculados ao ambiente; isso não altera a decisão arquitetural.",
+    "Concorrência multi-editor precisa de teste real antes de produção.",
+    "A fonte institucional definitiva de AlunoId/turma precisa ser confirmada durante integração, mantendo o fallback apenas transitório.",
+    "Golden masters privados podem não estar disponíveis no CI; fixtures sintéticas variadas continuam obrigatórias e a regressão privada deve ser registrada separadamente sem publicar conteúdo."
+  ]
+}

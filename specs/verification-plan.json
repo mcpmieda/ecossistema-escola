@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "spec_fingerprint": "d363edbc202a646a98c078cc3aee9fc69eec87aec5c8d61802258864a5186c89",
+  "spec_fingerprint": "e77757202c42fe597eaa82b17f871fd25bbc0bfae8d8d4176d6357ee31e4295e",
   "criteria": [
     {
       "id": "AC-001",
@@ -337,6 +337,32 @@
         {
           "kind": "gate",
           "gate": "package:lint"
+        }
+      ]
+    },
+    {
+      "id": "AC-018",
+      "priority": "must",
+      "preferred_evidence": ["test", "browser", "gate"],
+      "evidence": [
+        {
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/banco-notas-module.test.ts"
+        },
+        {
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/banco-notas-api.test.ts"
+        },
+        {
+          "kind": "test",
+          "gate": "package:test",
+          "ref": "tests/banco-notas-ui.test.ts"
+        },
+        {
+          "kind": "gate",
+          "gate": "package:build"
         }
       ]
     }

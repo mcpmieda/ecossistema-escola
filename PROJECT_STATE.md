@@ -1,5 +1,65 @@
 # PROJECT_STATE — Ecossistema Escolar
 
+## Adoção App Factory e novo marco — Banco de Notas
+
+Em 25/08/2026 foi aberto o branch `feat/banco-de-notas-foundation`, a partir de `b2f743543f7365e591120b2363b5f274bf314cb0`, para iniciar o primeiro sistema especializado integrado ao Centro: **Banco de Notas**.
+
+Estado deste trabalho no PR #52: **Fase 1 consolidada e avanço do núcleo de importação/modelo genérico, sem merge ou deploy**. Além da adoção App Factory V1.4 e dos contratos prévios, o branch possui manifesto/capabilities, migrations e repositório D1, APIs iniciais, autoridade temporal de fontes, rota `/banco-de-notas`, shell HeroUI, `Configurações > Fonte`, grade-events interno, gate bearer fail closed, import jobs auditáveis, resolução append-only de blockers, geração determinística de instância genérica, layout físico versionado com posição escolar canônica e análise verificada persistente de importações. A passagem `draft → analyzed` exige artefato `import_analyses` imutável e não pode ser acionada pela transição administrativa genérica. D1 de homologação, XLSX cloud, ciclo Graph/SharePoint/Excel Online e NAA real foram comprovados; o sync e a rota pública do add-in continuam desligados, e a produção corrente do Centro permanece inalterada.
+
+Base funcional verificada antes desta sincronização documental: head `88ea66896271408d57343c046d81b5d042b7810f`, workflow `32924002605` / run `#600` — **success**, com segurança de Actions, formatting, lint, typecheck, semantic contract, **229/229 testes em 39 arquivos** e build. `Deploy production` e `Verify recovery after deploy` ficaram `skipped`, como esperado para PR.
+
+Decisões duráveis já registradas:
+
+- repositório definitivo: `mcpmieda/ecossistema-escola`;
+- módulo same-origin em `/banco-de-notas` e API `/api/banco-notas/v1/*`;
+- HeroUI React v3 como design system de 100% do Banco de Notas;
+- shadcn/ReUI não entram no módulo;
+- Ambient Constellation permanece proibido, em coerência com a limpeza visual de produção do PR #50;
+- fontes configuráveis: `legacy_import` e `linked_teacher_model`, com autoridade explícita por professor/ano durante migração;
+- Cloudflare D1 como persistência transacional estruturada do Banco;
+- SharePoint/OneDrive para arquivos mestre/modelos e Microsoft Graph pelo backend;
+- Cloudflare Queues somente para trabalho assíncrono real;
+- add-in Office.js como fonte primária de baixa latência do novo modelo vinculado;
+- `SyncEnabled=false` por padrão até reconciliação individual;
+- GitHub é fonte técnica de construção/continuidade, nunca dependência de runtime;
+- `draft → analyzed` exige análise backend verificada, proveniência coerente e artefato imutável persistido; não é uma transição administrativa genérica;
+- o produto usará um modelo genérico limpo; os arquivos privados de Nina e Alanna são somente golden masters de homologação e nunca integram runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição;
+- a transformação de legado deve ser geral para qualquer professor e não pode depender de nomes, quantidade de abas, turmas, disciplinas ou particularidades dos golden masters privados;
+- layout físico do modelo é parte versionada da definição, com `layoutVersion`, linha inicial e colunas por campo;
+- posição escolar dos alunos é dada pela correspondência canônica e não por ordenação de UUID ou pela ordem acidental do workbook legado.
+
+Fontes privadas de produto e integração auditadas: `Relatorio_Completo_Banco_de_Notas_v1.6_consolidado`, `Dossie_Tecnico_Modelo_Professor_Integracao_Banco_de_Notas_v1.0` e `Plano_Mestre_antigo_antes_do_dossie.Reconstrucao_Planilha_Banco_de_Notas_v0.3`. O terreno de POC em `mcpmieda/escolaieda` foi auditado no commit `211251908efe078a8b75396e71e94827293da860`; código/contratos válidos serão migrados, mas o Banco definitivo continuará neste repositório.
+
+Continuidade: `AGENTS.md`, `.app-factory.json`, `docs/BANCO_NOTAS_ARCHITECTURE_V1.md`, `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`, `docs/BANCO_NOTAS_HANDOFF.md` e `specs/banco-notas/`.
+
+Esta abertura de trabalho **não altera a release atual em `main` nem libera o Banco de Notas em produção**.
+
+<!-- APP-FACTORY:ADOPTION:START -->
+
+## App Factory Adoption
+
+- governance: `app-factory`;
+- factory baseline: `v1.4.0`;
+- adoption mode: `existing`;
+- scale: `L`;
+- risk: `high`;
+- system level: `production-system`;
+- profile: `web-admin`;
+- API mode: `governed`;
+- Semantic Verification: `required` / depth `domain`;
+- Independent Verification: `release`;
+- authoritative data: Cloudflare D1 para dados transacionais estruturados, snapshots, configuração versionada e auditoria do Banco; SharePoint/OneDrive para arquivos mestre genéricos e instâncias; Entra ID para identidade;
+- identity: Microsoft Entra ID pela autenticação/BFF existente; add-in com audience/scope próprio antes do piloto;
+- authorization: capabilities aplicadas no servidor; navegador sem acesso direto a SharePoint/Graph para dados de negócio;
+- recovery: migrations e Time Travel D1, versões SharePoint das instâncias, hashes das origens e reconciliação;
+- design system: `HeroUI React v3`;
+- Professional UI Profile: `professional-default`;
+- Motion Profile: `ambient`;
+- UI deviation: Ambient Constellation é proibido por decisão explícita de produto; motion limita-se a transições e microinterações sem superfície ambient.
+
+A implementação material exige o Project Adoption Gate de pré-implementação verde ou checklist equivalente comprovada quando o validador não representar uma exceção explícita aceita pelo contrato.
+<!-- APP-FACTORY:ADOPTION:END -->
+
 ## Estado atual
 
 O Centro de Administração v1 está **oficialmente em produção** no domínio:
@@ -29,9 +89,10 @@ Estão liberadas como áreas do núcleo administrativo:
 - Auditoria;
 - Configurações.
 
+O primeiro sistema especializado, **Banco de Notas**, já está em implementação real no PR #52 e não deve mais ser tratado como uma integração futura inexistente. Entretanto, ele **ainda não integra a release de produção** enquanto o PR permanecer draft e os gates externos de homologação não forem executados.
+
 Continuam deliberadamente adiados e não foram artificialmente ativados:
 
-- integração funcional do primeiro sistema independente;
 - módulo `Publicações`;
 - módulo `Páginas`.
 
@@ -261,16 +322,74 @@ As lições reutilizáveis de overlays, navegação e QA permanecem incorporadas
 
 A fundação do Centro de Administração v1 permanece encerrada como release oficial e a limpeza visual do shell está concluída em produção.
 
-O próximo avanço funcional recomendado é integrar o primeiro sistema independente ao Centro para provar o contrato modular de ponta a ponta. `Publicações` e `Páginas` permanecem fora da release v1 até priorização específica.
+O primeiro sistema especializado já está em implementação no PR #52. D1 remoto de homologação, XLSX cloud, Graph/SharePoint e identidade NAA real já fecharam seus gates específicos. O próximo marco seguro é provar bearer/ownership e atomicidade no runtime Cloudflare de homologação explicitamente autorizado, mantendo `SyncEnabled=false`, a rota pública desconectada e a produção intocada.
+
+`Publicações` e `Páginas` permanecem fora da release v1 até priorização específica.
 
 Qualquer mudança futura material em comportamento, dados, autorização, segurança ou experiência deve entrar por novo PR e nova regressão proporcional.
 
 ## Referências internas
 
+## Banco de Notas — Turmas e Alunos V1 (28/08/2026)
+
+- Branch funcional adiciona diretórios reais, detalhes e navegação cruzada com Acompanhamento.
+- Roster somente pela versão mais recente dos mappings canônicos, gradeKey exata e deduplicação por ano + turma + aluno.
+- Sem matrícula paralela ou CRUD; aluno sem relação comprovada continua na pesquisa global.
+- API read-only com `grades.analytics.read`, filtros e paginação server-side.
+- Produção, D1 remoto, Graph, Entra e add-in intocados; `sync_enabled=0`.
+
+Referência: `docs/BANCO_NOTAS_TURMAS_ALUNOS_V1.md`.
+
+Publicação atual: PR Draft #134, sem merge; CI/Actions Security/Semgrep verdes na primeira rodada; produção e jobs de deploy/recovery intactos/skipped.
+
 - verificação da release e atualizações: `VERIFICATION.md`;
+- estado do Banco de Notas: `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
+- handoff do Banco de Notas: `docs/BANCO_NOTAS_HANDOFF.md`;
 - evidência da release: `docs/RELEASE_CENTRO_ADMIN_V1_2026-08-25.md`;
 - evidência da limpeza visual: `docs/PRODUCTION_VISUAL_CLEANUP_PR50_2026-08-25.md`;
 - protocolo de liberação: `docs/PROTOCOLO_VALIDACAO_E_LIBERACAO.md`;
 - arquitetura: `ARCHITECTURE.md`;
 - redesign Native v2: `docs/REDESIGN_HEROUI_NATIVE_V2.md`;
 - hardening Native v2: `docs/HEROUI_NATIVE_V2_HARDENING_2026-08-25.md`.
+
+## Homologação runtime bearer/ownership + atomicidade D1 — 28/08/2026
+
+- Excel Online real obteve bearer delegado NAA 1.1 e o enviou ao runtime isolado em Cloudflare Pages Functions.
+- Validação sanitizada aprovada para token v2, tenant, issuer, audience, scope, authorized party, lifetime e presença de OID; nenhum token, OID, conta ou PII foi persistido.
+- Ownership positivo aceito; ownership incorreto, modelo inexistente e professor inativo rejeitados.
+- A guarda de sync rejeitou ingestão com zero escritas enquanto desabilitada.
+- O binding real BANCO_NOTAS_DB comprovou atomicidade de evento + snapshot via D1Database.batch(): caminho positivo completo e falha controlada sem escrita parcial.
+- Estado final no D1 de homologação: modelo e assignment com sync_enabled=0; fixtures negativas removidas.
+- Deployment isolado: 239e9bc8-d504-41e1-8d15-d2b092039872; workflow de deploy 33160734080 — success.
+- Redirect SPA temporário do preview removido do Entra; dois redirects institucionais preservados; zero secrets/certificados.
+- Limpeza do preview Pages: pendente neste commit e disparada pelas evidências versionadas.
+- Nenhum Worker, Pages ou D1 de produção foi alterado. PR #52 permanece open, draft e sem merge.
+
+Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.json e docs/evidence/BancoNotas-D1-Binding-Atomicity-Homologation-2026-08-27.json.
+
+## Encerramento do runtime temporário — 28/08/2026
+
+- CI `33163724110` / #1008: **success**.
+- Formatting, lint, typecheck, semantic contract, validação do manifest, testes e builds: success.
+- Testes: **323 passed em 59 arquivos**.
+- Actions security: success.
+- Semgrep `33163724064`: success.
+- Factory Control Plane `33163724062`: success.
+- Job `98824370212` (`Remove isolated Banco de Notas homologation runtime`): success.
+- A consulta de deployments do Cloudflare retornou `RUNTIME_HOMOLOGATION_PAGES_PREVIEW_ALREADY_ABSENT` para o ID exato `239e9bc8-d504-41e1-8d15-d2b092039872`.
+- O redirect SPA temporário do preview continua ausente no Entra; redirects institucionais e contrato credential-free permanecem preservados.
+- `sync_enabled=0`; produção Pages, Worker e D1 não foram alterados.
+- `Deploy production` e `Verify recovery after deploy`: skipped.
+- PR #52 permanece open, draft e sem merge.
+
+## Atualização de produto — Acompanhamento V1 (28/08/2026)
+
+O Banco de Notas agora possui, em branch de produto separada, o primeiro módulo diário read-only: Acompanhamento. A implementação consome D1, usa a autorização administrativa atual, preserva filtros na URL e oferece lista/detalhe com estados reais de turmas, professores, modelos, fontes, notas disponíveis e pendências. Ainda não há autorização para produção ou merge.
+
+## Integração controlada — Fundação + Acompanhamento V1 (28/08/2026)
+
+- A fundação técnica foi integrada à `main` pelo PR #52 no merge `cf48d837556fe6df1baaa21d0e0015e4535efe87`.
+- O Acompanhamento V1 foi retargetado para `main`; a integração deste registro pelo PR #129 consolida o primeiro módulo diário read-only.
+- Os merges usam `[skip ci]` exclusivamente para impedir o workflow automático de deploy em pushes para `main`; todos os gates dos PRs são exigidos antes da integração.
+- Produção, D1 remoto, Entra, permissões Graph e publicação do add-in permanecem inalterados; `sync_enabled=0`.
+- Próxima fase funcional autorizável separadamente: Turmas e Alunos V1.

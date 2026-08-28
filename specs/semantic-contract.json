@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "goal": "Evoluir o núcleo do Centro de Administração em validação controlada, mantendo-o permission-aware e operacionalmente explicável, com capabilities aplicadas no servidor, snapshot recortado por autorização, contrato versionado para integração segura de módulos independentes e recovery verificável em recurso SharePoint descartável, preservando integralmente a fundação institucional existente.",
+  "goal": "Evoluir o Centro de Administração preservando a fundação em produção, com capabilities aplicadas no servidor, snapshot recortado por autorização, contrato versionado para integração segura de módulos independentes, Banco de Notas como primeiro módulo especializado e recovery verificável, sem inferir liberação funcional por CI ou deploy técnico.",
   "change_type": "functional",
   "risk": "high",
   "scope": {
@@ -10,6 +10,7 @@
       "autorização server-side por capability nos endpoints administrativos atuais",
       "snapshot BFF somente leitura recortado conforme capabilities resolvidas",
       "contrato versionado de integração de módulos independentes, separado do registro operacional SharePoint",
+      "integração funcional do Banco de Notas como primeiro módulo especializado, por manifesto, rota same-origin, API e capabilities server-side, mantendo suas regras dentro do próprio módulo",
       "resolução explícita de estados ready, registry-only, contract-mismatch, disabled, deprecated e invalid-registry",
       "remoção de RolesJson do caminho ativo de leitura, autorização e busca sem migrar destrutivamente a coluna existente",
       "navegação restaurável entre as áreas versionadas do núcleo",
@@ -29,7 +30,6 @@
       "liberação oficial da candidata para professores, alunos, apoio, visitantes ou outros públicos",
       "alteração dos grupos existentes, do mapeamento Entra para papéis ou da composição do cookie de sessão",
       "remoção física ou migração destrutiva da coluna RolesJson em PLATAFORMA_MODULOS",
-      "integração funcional de um primeiro sistema independente, montagem de sua interface ou criação de regras de negócio no núcleo",
       "mutações em Publicações, Páginas, Configurações, Auditoria, Operação ou registro de módulos",
       "execução automática de HealthEndpoint registrados ou monitoramento ativo de serviços externos",
       "declaração de disaster recovery completo, restauração integral de site ou recuperação de dados operacionais reais a partir do self-test descartável",
@@ -47,7 +47,8 @@
     "A coluna histórica RolesJson pode continuar fisicamente presente até uma migration de schema separada, mas não participa de autorização, disponibilidade ou composição do read model.",
     "A ausência de um sinal de falha no snapshot não prova disponibilidade total de dependências externas.",
     "A validação no domínio oficial não equivale a liberação oficial enquanto não houver o comando exato APROVADO PARA PRODUÇÃO.",
-    "O self-test de recovery cria e remove apenas recurso com prefixo RECOVERY_VERIFY_ no CENTROADMIN; listas operacionais existentes não são alvo do teste."
+    "O self-test de recovery cria e remove apenas recurso com prefixo RECOVERY_VERIFY_ no CENTROADMIN; listas operacionais existentes não são alvo do teste.",
+    "O Banco de Notas é incorporado sem copiar regras de notas, fontes, modelos ou cálculos para o núcleo; PLATAFORMA_MODULOS continua sendo inventário, nunca autoridade de acesso."
   ],
   "invariants": [
     {
@@ -109,6 +110,10 @@
     {
       "id": "INV-015",
       "statement": "Ambient Constellation e seus hooks visuais não existem na interface ativa; backgrounds, cards, surfaces, page headers, tabelas e blocos de conteúdo permanecem sem partículas ou efeitos ambient."
+    },
+    {
+      "id": "INV-016",
+      "statement": "O Banco de Notas é integrado somente por manifesto versionado, rota/API same-origin e capabilities aplicadas no servidor; PLATAFORMA_MODULOS permanece inventário e o núcleo não absorve regras internas do Banco."
     }
   ],
   "data_contracts": [
@@ -141,6 +146,12 @@
       "source": "workflow GitHub Actions production + endpoint de manutenção + round-trip de metadado em pasta RECOVERY_VERIFY_ descartável dentro de SNAPSHOTS_PLATAFORMA no CENTROADMIN",
       "direction": "evidência técnica redigida para estado versionado e PlatformSnapshot",
       "privacy": "somente status, escopo, timestamp, referência de evidência e checksums; sem conteúdo operacional, credenciais ou dados pessoais"
+    },
+    {
+      "name": "BancoNotasModuleIntegration",
+      "source": "manifesto versionado banco-de-notas + registro PLATAFORMA_MODULOS + capabilities resolvidas no servidor",
+      "direction": "BFF para frontend e handlers same-origin do módulo",
+      "privacy": "somente metadados de integração e dados autorizados; regras e dados do Banco permanecem na fronteira do módulo"
     }
   ],
   "interfaces": [
@@ -178,6 +189,16 @@
       "name": "/api/maintenance/recovery/verify",
       "mode": "maintenance-production-oidc-disposable-write",
       "purpose": "executar exclusivamente o round-trip de recovery em recurso SharePoint descartável após autenticação GitHub OIDC do environment production"
+    },
+    {
+      "name": "/banco-de-notas",
+      "mode": "same-origin-specialized-module",
+      "purpose": "montar o primeiro módulo especializado sem transferir suas regras para o núcleo"
+    },
+    {
+      "name": "/api/banco-notas/health e /api/banco-notas/v1/*",
+      "mode": "capability-protected-module-api",
+      "purpose": "expor saúde contratual e operações do Banco com autorização server-side"
     }
   ],
   "acceptance_criteria": [
@@ -393,6 +414,20 @@
         "não há overflow crítico, clipping, sobreposição ou contraste abaixo de WCAG AA para texto normal"
       ],
       "verification": ["browser", "visual", "gate"]
+    },
+    {
+      "id": "AC-018",
+      "priority": "must",
+      "given": "o Banco de Notas possui manifesto versionado e registro operacional compatível",
+      "when": "uma sessão abre /banco-de-notas ou chama /api/banco-notas/*",
+      "then": [
+        "o módulo usa rota path-based same-origin e restaura deep links",
+        "o servidor exige a capability grades.* correspondente a cada operação",
+        "PLATAFORMA_MODULOS não concede autorização por si só",
+        "o núcleo não copia regras de fontes, modelos ou notas do Banco",
+        "a integração não altera a fundação de autenticação, sessão, Graph, SharePoint, CI/CD ou recovery"
+      ],
+      "verification": ["test", "browser", "gate"]
     }
   ]
 }
