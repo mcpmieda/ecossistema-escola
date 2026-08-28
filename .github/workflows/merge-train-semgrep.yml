@@ -106,7 +106,7 @@ jobs:
             --arg sha "${EXPECTED_SHA}" \
             --arg conclusion "${conclusion}" \
             --argjson run_id "${REVIEW_RUN_ID}" \
-            '{schema_version:1,reviewer:$reviewer,sha:$sha,conclusion:$conclusion,run_id:$run_id}')
+            "{schema_version:1,reviewer:\$reviewer,sha:\$sha,conclusion:\$conclusion,run_id:\$run_id}")
           encoded=$(printf '%s' "${payload}" | base64 -w0 | tr '+/' '-_' | tr -d '=')
           body=$(printf '<!-- FACTORY_REVIEWER_EVIDENCE %s -->\nSemgrep reviewer run %s concluded `%s` for exact worker SHA `%s`.' \
             "${encoded}" "${REVIEW_RUN_ID}" "${conclusion}" "${EXPECTED_SHA}")
