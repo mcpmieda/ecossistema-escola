@@ -10,6 +10,7 @@ import {
   parseTrustedMergeTrainEvidence,
   parseTrustedReviewerEvidence,
   reviewerRunName,
+  selectFactoryWorkerPr,
   trustedMergeTrainEvidence,
 } from './merge-train-gate.mjs';
 
@@ -88,6 +89,34 @@ test('reviewer workflow runs are correlated by exact PR and SHA title', () => {
   assert.equal(latestMatchingReviewerWorkflowRun(runs, 'Sonar', 126, SHA)?.id, 40);
   assert.equal(latestMatchingReviewerWorkflowRun(runs, 'Sonar', 126, SHA, 40), null);
   assert.throws(() => reviewerRunName('Unknown', 126, SHA), /Unsupported reviewer/);
+});
+
+test('worker PR selection rejects stale workflow SHA instead of treating it as non-worker', () => {
+  const branch = 'factory/run-worker-session';
+  const worker = {
+    number: 126,
+    head: { ref: branch, sha: OTHER_SHA },
+    base: { ref: 'factory/run' },
+  };
+  assert.throws(
+    () => selectFactoryWorkerPr([worker], branch, SHA),
+    /Worker PR #126 moved from requested SHA/,
+  );
+  assert.equal(selectFactoryWorkerPr([worker], 'factory/another-worker', SHA), null);
+  assert.equal(selectFactoryWorkerPr([{ ...worker, head: { ref: branch, sha: SHA } }], branch, SHA), worker);
+});
+
+test('worker PR selection rejects ambiguous matching branches', () => {
+  const branch = 'factory/run-worker-session';
+  const worker = {
+    number: 126,
+    head: { ref: branch, sha: SHA },
+    base: { ref: 'factory/run' },
+  };
+  assert.throws(
+    () => selectFactoryWorkerPr([worker, { ...worker, number: 127 }], branch, SHA),
+    /Multiple open Factory worker PRs match branch/,
+  );
 });
 
 test('CodeRabbit request markers trust only github-actions bot and exact SHA', () => {
