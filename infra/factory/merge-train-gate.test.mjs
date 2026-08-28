@@ -103,7 +103,8 @@ test('worker PR selection rejects stale workflow SHA instead of treating it as n
     /Worker PR #126 moved from requested SHA/,
   );
   assert.equal(selectFactoryWorkerPr([worker], 'factory/another-worker', SHA), null);
-  assert.equal(selectFactoryWorkerPr([{ ...worker, head: { ref: branch, sha: SHA } }], branch, SHA), worker);
+  const exactWorker = { ...worker, head: { ref: branch, sha: SHA } };
+  assert.deepEqual(selectFactoryWorkerPr([exactWorker], branch, SHA), exactWorker);
 });
 
 test('worker PR selection rejects ambiguous matching branches', () => {
