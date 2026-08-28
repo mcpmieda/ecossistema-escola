@@ -12,6 +12,9 @@ const REQUEST_PATTERN = /<!-- FACTORY_CODERABBIT_REQUEST \{"sha":"([0-9a-f]{40})
 const REVIEWER_PATTERN = /<!-- FACTORY_REVIEWER_EVIDENCE ([A-Za-z0-9_-]+) -->/;
 const MERGE_TRAIN_PATTERN = /<!-- FACTORY_MERGE_TRAIN ([A-Za-z0-9_-]+) -->/;
 const ACTIONABLE_PATTERN = /Actionable comments posted:\s*(\d+)/i;
+const RECENT_REVIEW_PATTERN = /<!-- recent_review_start -->([\s\S]*?)<!-- recent_review_end -->/i;
+const NO_ACTIONABLE_PATTERN = /No actionable comments were generated in the recent review\./i;
+const REVIEWED_RANGE_PATTERN = /between\s+([0-9a-f]{40})\s+and\s+([0-9a-f]{40})/i;
 const POLL_MS = 5_000;
 const MAX_REVIEW_ATTEMPTS = 120;
 
@@ -106,7 +109,26 @@ export function classifyCodeRabbitReview(review, expectedSha, notBefore = 0) {
     status: actionable === 0 ? 'success' : 'findings',
     actionable,
     reviewId: review?.id ?? null,
+    evidenceKind: 'review-submission',
     updatedAt: timestamp(review),
+  };
+}
+
+export function classifyCodeRabbitSummaryComment(comment, expectedSha) {
+  if (!CODERABBIT_LOGINS.has(authorLogin(comment))) return null;
+  const sha = validateSha40(expectedSha, 'CodeRabbit expected SHA');
+  const body = String(comment?.body ?? '');
+  const section = body.match(RECENT_REVIEW_PATTERN)?.[1];
+  if (!section || !NO_ACTIONABLE_PATTERN.test(section)) return null;
+  const reviewedRange = section.match(REVIEWED_RANGE_PATTERN);
+  if (!reviewedRange || reviewedRange[2].toLowerCase() !== sha) return null;
+  return {
+    status: 'success',
+    actionable: 0,
+    reviewId: comment?.id ?? null,
+    commentId: comment?.id ?? null,
+    evidenceKind: 'recent-review-comment',
+    updatedAt: timestamp(comment),
   };
 }
 
@@ -141,6 +163,12 @@ export function codeRabbitEvidence(comments, reviews, expectedSha) {
     .filter(Boolean)
     .sort((left, right) => right.updatedAt - left.updatedAt);
   if (completed[0]) return { status: completed[0].status, request, review: completed[0] };
+
+  const cleanSummary = (comments ?? [])
+    .map((comment) => classifyCodeRabbitSummaryComment(comment, sha))
+    .filter(Boolean)
+    .sort((left, right) => right.updatedAt - left.updatedAt)[0];
+  if (cleanSummary) return { status: 'success', request, review: cleanSummary };
 
   const unavailable = (comments ?? [])
     .map((comment) => classifyCodeRabbitUnavailableComment(comment, request.createdAt))
@@ -339,7 +367,7 @@ async function persistMergeTrainEvidence(owner, repo, prNumber, payload) {
     owner,
     repo,
     prNumber,
-    `${mergeTrainMarker(payload)}\nMerge Train passed for exact worker SHA \`${payload.sha}\`. Semgrep run ${payload.semgrep_run_id}; Sonar run ${payload.sonar_run_id}; CodeRabbit review ${payload.coderabbit_review_id}.`,
+    `${mergeTrainMarker(payload)}\nMerge Train passed for exact worker SHA \`${payload.sha}\`. Semgrep run ${payload.semgrep_run_id}; Sonar run ${payload.sonar_run_id}; CodeRabbit ${payload.coderabbit_evidence_kind} evidence ${payload.coderabbit_review_id}.`,
   );
   return payload;
 }
@@ -374,6 +402,7 @@ export async function ensureMergeTrain(owner, repo, { prNumber, sha }) {
     semgrep_run_id: semgrep.run_id,
     sonar_run_id: sonar.run_id,
     coderabbit_review_id: coderabbit.review.reviewId,
+    coderabbit_evidence_kind: coderabbit.review.evidenceKind,
     coderabbit_updated_at: new Date(coderabbit.review.updatedAt).toISOString(),
   };
   await persistMergeTrainEvidence(owner, repo, prNumber, payload);
