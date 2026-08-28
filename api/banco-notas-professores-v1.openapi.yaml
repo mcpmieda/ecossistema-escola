@@ -1,0 +1,150 @@
+openapi: 3.1.0
+info:
+  title: Banco de Notas — Professores V1
+  version: 1.0.0
+  description: >-
+    Diretório administrativo read-only de professores no contexto operacional do Banco de Notas.
+    Identidade institucional e arquivo são minimizados para estados booleanos; OID, claims, UPN e
+    DriveItem ID não integram os DTOs.
+servers:
+  - url: https://admin.escolaieda.com/api/banco-notas
+security:
+  - administrativeSession: []
+paths:
+  /v1/professores/filters:
+    get:
+      operationId: getProfessoresFilters
+      x-required-capability: grades.analytics.read
+      responses:
+        '200': { description: Anos, turmas, componentes e diagnósticos estruturais factuais. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/professores:
+    get:
+      operationId: listProfessores
+      x-required-capability: grades.analytics.read
+      parameters:
+        - { in: query, name: schoolYearId, schema: { type: string, format: uuid } }
+        - { in: query, name: status, schema: { type: string, enum: [active, inactive] } }
+        - { in: query, name: classGroupId, schema: { type: string, format: uuid } }
+        - { in: query, name: componentId, schema: { type: string, format: uuid } }
+        - { in: query, name: identity, schema: { type: string, enum: [linked, missing] } }
+        - in: query
+          name: modelState
+          schema:
+            type: string
+            enum:
+              [missing, draft, validated, ready_to_share, shared, connected, suspended, archived]
+        - { in: query, name: assignment, schema: { type: string, enum: [with, without] } }
+        - { in: query, name: attention, schema: { type: string, enum: [needs_attention, normal] } }
+        - { in: query, name: q, schema: { type: string, maxLength: 80 } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: Página estável de professores canônicos agregada no servidor.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfessorPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/professores/{teacherId}:
+    get:
+      operationId: getProfessor
+      x-required-capability: grades.analytics.read
+      parameters:
+        - { in: path, name: teacherId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: schoolYearId, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Professor, assignments, modelos, fontes, pendências e atividade recente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfessorDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    administrativeSession: { type: apiKey, in: cookie, name: __Host-centro_session }
+  parameters:
+    Page:
+      { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
+    PageSize:
+      {
+        in: query,
+        name: pageSize,
+        schema: { type: integer, minimum: 1, maximum: 100, default: 20 },
+      }
+  responses:
+    BadRequest: { description: Parâmetro inválido. }
+    Unauthorized: { description: Sessão administrativa ausente ou inválida. }
+    Forbidden: { description: Capability administrativa insuficiente. }
+    NotFound: { description: Professor não encontrado. }
+    Unavailable: { description: Storage D1 indisponível; falha fechada. }
+  schemas:
+    ProfessorPage:
+      type: object
+      required: [items, page, pageSize, total, totalPages]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ProfessorItem' } }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    ProfessorItem:
+      type: object
+      required:
+        [
+          id,
+          displayName,
+          status,
+          identityState,
+          assignments,
+          models,
+          connectedModels,
+          openFindings,
+          attentionLevel,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        status: { type: string, enum: [active, inactive] }
+        identityState: { type: string, enum: [linked, missing] }
+        assignments: { type: integer, minimum: 0 }
+        models: { type: integer, minimum: 0 }
+        connectedModels: { type: integer, minimum: 0 }
+        openFindings: { type: integer, minimum: 0 }
+        attentionLevel: { type: string, enum: [normal, info, warning, error] }
+        lastActivityAt: { type: [string, 'null'], format: date-time }
+    ProfessorDetail:
+      type: object
+      required: [teacher, summary, contexts, models, pending, activity, availableSchoolYears]
+      properties:
+        teacher:
+          type: object
+          required: [id, displayName, status, identityState, attentionLevel]
+          properties:
+            id: { type: string, format: uuid }
+            displayName: { type: string }
+            status: { type: string, enum: [active, inactive] }
+            identityState: { type: string, enum: [linked, missing] }
+            attentionLevel: { type: string, enum: [normal, info, warning, error] }
+        summary: { type: object }
+        contexts: { type: array, items: { type: object } }
+        models:
+          type: array
+          items:
+            type: object
+            properties:
+              fileAvailable:
+                { type: boolean, description: Presença factual sem expor DriveItem ID. }
+              syncEnabled: { type: boolean }
+        pending: { type: array, items: { type: object } }
+        activity: { type: array, maxItems: 20, items: { type: object } }
+        availableSchoolYears: { type: array, items: { type: object } }

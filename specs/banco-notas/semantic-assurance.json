@@ -50,6 +50,14 @@
     {
       "term": "NAA redirect bridge",
       "meaning": "página dedicada same-origin e no-store que devolve a resposta MSAL v5 ao frame principal sem carregar a aplicação"
+    },
+    {
+      "term": "Professor operacional",
+      "meaning": "teacher canônico visto no contexto do Banco por assignments, modelos, fontes, atividade e pendências persistidas, sem virar cadastro de RH"
+    },
+    {
+      "term": "Situação operacional docente",
+      "meaning": "maior severidade factual entre status/assignment, identidade quando necessária, modelo, fonte, importação e findings; sync desligado sozinho é apenas informação"
     }
   ],
   "precedence_rules": [
@@ -116,7 +124,11 @@
     "Importação antiga não sobrescreve automaticamente fonte linked ativa com vigência posterior.",
     "Golden masters privados não podem ser fonte de runtime, persistência, migration, fixture pública, template oficial ou distribuição.",
     "Transformação de legado não pode conter decisão por identidade de professor nem por estrutura fixa aprendida dos golden masters.",
-    "Token do add-in deve ser v2, delegated, audience/azp iguais ao client ID GUID, scope BancoNotas.Sync e public client; nenhum token ou PII completo pode ser persistido no diagnóstico."
+    "Token do add-in deve ser v2, delegated, audience/azp iguais ao client ID GUID, scope BancoNotas.Sync e public client; nenhum token ou PII completo pode ser persistido no diagnóstico.",
+    "Professor operacional é relacionado somente por teacher_id e chaves estrangeiras persistidas; nome nunca é chave de vínculo.",
+    "A lista de professores parte de teachers e preserva docentes sem assignments; filtros anuais restringem contexto sem duplicar a identidade canônica.",
+    "Latest teacher model é o teacher_model único por professor/ano e sua versão corrente é a maior teacher_model_versions.version.",
+    "OID e drive_item_id podem determinar estados booleanos internos, mas nunca integram os DTOs administrativos de Professores V1."
   ],
   "ambiguities_resolved_as_configuration": [
     "fonte padrão do ano",
