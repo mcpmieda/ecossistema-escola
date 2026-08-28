@@ -1,4 +1,5 @@
 name: Sonar
+run-name: Sonar PR ${{ inputs.pr_number }} @ ${{ inputs.expected_sha }}
 
 on:
   workflow_dispatch:
@@ -34,6 +35,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Set up Node.js for official SonarScanner NPM
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
       - name: Validate exact SHA, PR head and Sonar configuration
         id: config
         shell: bash
@@ -53,18 +59,29 @@ jobs:
           test -n "${SONAR_PROJECT_KEY}" || { echo 'SONAR_PROJECT_KEY repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_ORGANIZATION}" || { echo 'SONAR_ORGANIZATION repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_TOKEN}" || { echo 'SONAR_TOKEN repository secret is required.' >&2; exit 1; }
+          node -e "const [major, minor] = process.versions.node.split('.').map(Number); if (major < 22 || (major === 22 && minor < 12)) process.exit(1)"
+
+      - name: Install pinned official SonarScanner NPM
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global --ignore-scripts=false @sonar/scan@5.0.0
+          sonar-scanner-npm --version
 
       - name: Run SonarQube Cloud scan
-        id: scan
-        uses: SonarSource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f # v8.2.1
+        shell: bash
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >-
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
-            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-            -Dsonar.sources=.
-            -Dsonar.exclusions=node_modules/**,dist/**,coverage/**,.git/**
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+        run: |
+          set -euo pipefail
+          sonar-scanner-npm \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
+            -Dsonar.organization="${SONAR_ORGANIZATION}" \
+            -Dsonar.sources=. \
+            -Dsonar.exclusions='node_modules/**,dist/**,coverage/**,.git/**'
 
   evidence:
     name: Publish Sonar reviewer evidence
@@ -73,8 +90,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      pull-requests: read # Detect stale PR heads before persisting reviewer evidence.
-      issues: write # Persist bot-authored SHA-bound reviewer evidence on the worker PR.
+      pull-requests: write # Read the exact head and persist evidence on a PR-backed issue.
+      issues: write # Retained for issue-comment compatibility across GitHub token permission models.
     env:
       GH_TOKEN: ${{ github.token }}
       EXPECTED_SHA: ${{ inputs.expected_sha }}
