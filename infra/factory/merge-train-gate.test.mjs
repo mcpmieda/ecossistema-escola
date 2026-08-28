@@ -93,10 +93,7 @@ test('CodeRabbit evidence requires a trusted SHA-bound request before the review
 test('trusted reviewer markers require bot authorship, exact SHA and supported reviewer', () => {
   const trusted = reviewerMarker({ reviewer: 'Semgrep', runId: 40 });
   assert.equal(parseTrustedReviewerEvidence(trusted)?.run_id, 40);
-  assert.equal(
-    parseTrustedReviewerEvidence({ ...trusted, user: { login: 'mcpmieda' } }),
-    null,
-  );
+  assert.equal(parseTrustedReviewerEvidence({ ...trusted, user: { login: 'mcpmieda' } }), null);
   assert.equal(
     latestTrustedReviewerEvidence(
       [reviewerMarker({ runId: 30 }), reviewerMarker({ runId: 40 })],
