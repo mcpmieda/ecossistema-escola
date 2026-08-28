@@ -380,19 +380,28 @@ export async function ensureMergeTrain(owner, repo, { prNumber, sha }) {
   return payload;
 }
 
-export async function findFactoryWorkerPr(owner, repo, branch, sha) {
+export function selectFactoryWorkerPr(pulls, branch, sha) {
   const exactSha = validateSha40(sha, 'Factory worker SHA');
-  const head = encodeURIComponent(`${owner}:${branch}`);
-  const pulls = await github(`/repos/${owner}/${repo}/pulls?state=open&head=${head}&per_page=20`);
-  const matches = (pulls ?? []).filter(
+  const candidates = (pulls ?? []).filter(
     (pr) =>
       pr.head?.ref === branch &&
-      pr.head?.sha === exactSha &&
       typeof pr.base?.ref === 'string' &&
       pr.base.ref.startsWith('factory/'),
   );
-  if (matches.length > 1) fail(`Multiple open Factory worker PRs match ${branch}@${exactSha}.`);
-  return matches[0] ?? null;
+  if (candidates.length > 1) fail(`Multiple open Factory worker PRs match branch ${branch}.`);
+  const pr = candidates[0] ?? null;
+  if (!pr) return null;
+  const currentSha = validateSha40(pr.head?.sha, `Worker PR #${pr.number} head SHA`);
+  if (currentSha !== exactSha) {
+    fail(`Worker PR #${pr.number} moved from requested SHA ${exactSha} to ${currentSha}.`);
+  }
+  return pr;
+}
+
+export async function findFactoryWorkerPr(owner, repo, branch, sha) {
+  const head = encodeURIComponent(`${owner}:${branch}`);
+  const pulls = await github(`/repos/${owner}/${repo}/pulls?state=open&head=${head}&per_page=20`);
+  return selectFactoryWorkerPr(pulls, branch, sha);
 }
 
 export async function runMergeTrainForCurrentRevision() {
