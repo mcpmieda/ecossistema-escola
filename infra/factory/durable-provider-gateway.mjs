@@ -138,7 +138,10 @@ function trustedBranchRecord(comments, branch, integrationBranch) {
 }
 
 async function ensureWorkerBranch(owner, repo, context) {
-  const branch = durableWorkerBranch(context.run.runId, context.task.id);
+  const branch = validateBranch(
+    durableWorkerBranch(context.run.runId, context.task.id),
+    'durable worker branch',
+  );
   const comments = await issueComments(owner, repo, context.issue.number);
   const ownership = trustedBranchRecord(comments, branch, context.run.integrationBranch);
   const existing = await githubOptional(
