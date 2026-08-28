@@ -1,4 +1,8 @@
 import { ZodError } from 'zod';
+import {
+  acompanhamentoListQuerySchema,
+  type AcompanhamentoRepository,
+} from '../../shared/banco-notas-acompanhamento';
 import type { PlatformCapability } from '../../shared/platform-contract';
 import {
   assignmentInputSchema,
@@ -197,6 +201,7 @@ async function importAnalysisMutation<T>(operation: () => Promise<T>): Promise<T
 export async function routeBancoNotasApi(args: {
   request: Request;
   repository: BancoNotasRepository;
+  acompanhamento?: AcompanhamentoRepository;
   capabilities: readonly PlatformCapability[];
   actor: string;
   importAnalysis?: ImportAnalysisRuntime;
@@ -210,6 +215,36 @@ export async function routeBancoNotasApi(args: {
     (request.method === 'POST' || request.method === 'PATCH') && !importAnalysisMatch
       ? await body(request)
       : undefined;
+
+  if (path === '/v1/acompanhamento/summary') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.acompanhamento) throw new HttpError(503, 'Acompanhamento storage unavailable');
+    return response(await args.acompanhamento.summary());
+  }
+  if (path === '/v1/acompanhamento/turmas') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.acompanhamento) throw new HttpError(503, 'Acompanhamento storage unavailable');
+    const rawQuery = Object.fromEntries(
+      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
+    );
+    return response(
+      await args.acompanhamento.list(parsed(() => acompanhamentoListQuerySchema.parse(rawQuery))),
+    );
+  }
+  const acompanhamentoDetailMatch = path.match(/^\/v1\/acompanhamento\/turmas\/([0-9a-f-]+)$/iu);
+  if (acompanhamentoDetailMatch?.[1]) {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.acompanhamento) throw new HttpError(503, 'Acompanhamento storage unavailable');
+    const classGroupId = parsed(() =>
+      acompanhamentoListQuerySchema.shape.classGroupId.unwrap().parse(acompanhamentoDetailMatch[1]),
+    );
+    const result = await args.acompanhamento.detail(classGroupId);
+    if (!result) throw new HttpError(404, 'Turma não encontrada');
+    return response(result);
+  }
 
   if (path === '/health') {
     allowed(request, ['GET']);
