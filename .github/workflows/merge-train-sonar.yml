@@ -19,6 +19,10 @@ concurrency:
   group: sonar-${{ inputs.expected_sha }}-${{ inputs.pr_number }}
   cancel-in-progress: false
 
+env:
+  SONAR_SCANNER_VERSION: 8.1.0.6389
+  SONAR_SCANNER_SHA256: bb8f709f9cb73352f8d1260a3b3c506c0f41146754bc630762c126d795499d0b
+
 jobs:
   sonar:
     name: Sonar
@@ -28,14 +32,6 @@ jobs:
       contents: read
       pull-requests: read # Confirm the worker PR still points to the exact SHA being scanned.
     steps:
-      - name: Checkout trusted scanner lockfile
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.workflow_sha }}
-          path: trusted
-          fetch-depth: 1
-          persist-credentials: false
-
       - name: Checkout exact worker revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -43,13 +39,6 @@ jobs:
           path: candidate
           fetch-depth: 0
           persist-credentials: false
-
-      - name: Set up Node.js for official SonarScanner NPM
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: trusted/infra/factory/sonar-scanner/package-lock.json
 
       - name: Validate exact SHA, PR head and Sonar configuration
         id: config
@@ -67,39 +56,56 @@ jobs:
           [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]
           test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq ".head.sha")" = "${EXPECTED_SHA}"
+          pr_json=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")
+          test "$(jq -r '.head.sha' <<<"${pr_json}")" = "${EXPECTED_SHA}"
+          head_ref=$(jq -r '.head.ref' <<<"${pr_json}")
+          base_ref=$(jq -r '.base.ref' <<<"${pr_json}")
+          [[ "${head_ref}" =~ ^[A-Za-z0-9._/-]+$ ]]
+          [[ "${base_ref}" =~ ^[A-Za-z0-9._/-]+$ ]]
           test -n "${SONAR_PROJECT_KEY}" || { echo 'SONAR_PROJECT_KEY repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_ORGANIZATION}" || { echo 'SONAR_ORGANIZATION repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_TOKEN}" || { echo 'SONAR_TOKEN repository secret is required.' >&2; exit 1; }
-          node -e "const [major, minor] = process.versions.node.split('.').map(Number); if (major < 22 || (major === 22 && minor < 12)) process.exit(1)"
+          echo "PR_HEAD_REF=${head_ref}" >> "${GITHUB_ENV}"
+          echo "PR_BASE_REF=${base_ref}" >> "${GITHUB_ENV}"
 
-      - name: Install trusted locked scanner dependencies
-        shell: bash
-        run: npm ci --prefix trusted/infra/factory/sonar-scanner
-
-      - name: Verify pinned official SonarScanner NPM
+      - name: Install pinned official SonarScanner CLI
         shell: bash
         run: |
           set -euo pipefail
-          scanner_root="trusted/infra/factory/sonar-scanner"
-          test "$(node -p "require('./${scanner_root}/node_modules/@sonar/scan/package.json').version")" = "5.0.0"
-          "${scanner_root}/node_modules/.bin/sonar-scanner-npm" --version
+          archive="${RUNNER_TEMP}/sonar-scanner.zip"
+          scanner_root="${RUNNER_TEMP}/sonar-scanner"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip" \
+            --output "${archive}"
+          echo "${SONAR_SCANNER_SHA256}  ${archive}" | sha256sum --check --strict
+          mkdir -p "${scanner_root}"
+          unzip -q "${archive}" -d "${scanner_root}"
+          scanner_home="${scanner_root}/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-x64"
+          test -x "${scanner_home}/bin/sonar-scanner"
+          "${scanner_home}/bin/sonar-scanner" --version
+          echo "SONAR_SCANNER_HOME=${scanner_home}" >> "${GITHUB_ENV}"
 
-      - name: Run SonarQube Cloud scan
+      - name: Run SonarQube Cloud scan and wait for Quality Gate
         shell: bash
         working-directory: candidate
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+          PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           set -euo pipefail
-          "${GITHUB_WORKSPACE}/trusted/infra/factory/sonar-scanner/node_modules/.bin/sonar-scanner-npm" \
+          "${SONAR_SCANNER_HOME}/bin/sonar-scanner" \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
             -Dsonar.organization="${SONAR_ORGANIZATION}" \
             -Dsonar.sources=. \
-            -Dsonar.exclusions='node_modules/**,dist/**,coverage/**,.git/**'
+            -Dsonar.exclusions='node_modules/**,dist/**,coverage/**,.git/**' \
+            -Dsonar.pullrequest.key="${PR_NUMBER}" \
+            -Dsonar.pullrequest.branch="${PR_HEAD_REF}" \
+            -Dsonar.pullrequest.base="${PR_BASE_REF}" \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300
 
   evidence:
     name: Publish Sonar reviewer evidence
