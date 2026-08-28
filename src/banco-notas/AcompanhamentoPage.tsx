@@ -577,6 +577,16 @@ export function AcompanhamentoDetailPage() {
       <Button variant="outline" size="sm" onPress={() => navigate(backHref)} className="mb-5">
         <ArrowLeft className="size-4" /> Voltar ao acompanhamento
       </Button>
+      {detail && (
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={() => navigate(`/turmas/${detail.classGroup.id}`)}
+          className="mb-5 ml-2"
+        >
+          Ver página da turma <ArrowRight className="size-4" />
+        </Button>
+      )}
       {error ? (
         <ErrorState error={error} retry={() => setReload((value) => value + 1)} />
       ) : !detail ? (

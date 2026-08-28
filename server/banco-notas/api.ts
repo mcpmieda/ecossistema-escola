@@ -3,6 +3,11 @@ import {
   acompanhamentoListQuerySchema,
   type AcompanhamentoRepository,
 } from '../../shared/banco-notas-acompanhamento';
+import {
+  alunosListQuerySchema,
+  turmasListQuerySchema,
+  type TurmasAlunosRepository,
+} from '../../shared/banco-notas-turmas-alunos';
 import type { PlatformCapability } from '../../shared/platform-contract';
 import {
   assignmentInputSchema,
@@ -202,6 +207,7 @@ export async function routeBancoNotasApi(args: {
   request: Request;
   repository: BancoNotasRepository;
   acompanhamento?: AcompanhamentoRepository;
+  turmasAlunos?: TurmasAlunosRepository;
   capabilities: readonly PlatformCapability[];
   actor: string;
   importAnalysis?: ImportAnalysisRuntime;
@@ -215,6 +221,59 @@ export async function routeBancoNotasApi(args: {
     (request.method === 'POST' || request.method === 'PATCH') && !importAnalysisMatch
       ? await body(request)
       : undefined;
+
+  if (path === '/v1/turmas-alunos/filters') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.turmasAlunos) throw new HttpError(503, 'Turmas e alunos storage unavailable');
+    return response(await args.turmasAlunos.filters());
+  }
+  if (path === '/v1/turmas') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.turmasAlunos) throw new HttpError(503, 'Turmas e alunos storage unavailable');
+    const rawQuery = Object.fromEntries(
+      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
+    );
+    return response(
+      await args.turmasAlunos.listTurmas(parsed(() => turmasListQuerySchema.parse(rawQuery))),
+    );
+  }
+  const turmaDetailMatch = path.match(/^\/v1\/turmas\/([0-9a-f-]+)$/iu);
+  if (turmaDetailMatch?.[1]) {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.turmasAlunos) throw new HttpError(503, 'Turmas e alunos storage unavailable');
+    const id = parsed(() =>
+      turmasListQuerySchema.shape.schoolYearId.unwrap().parse(turmaDetailMatch[1]),
+    );
+    const result = await args.turmasAlunos.turmaDetail(id);
+    if (!result) throw new HttpError(404, 'Turma não encontrada');
+    return response(result);
+  }
+  if (path === '/v1/alunos') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.turmasAlunos) throw new HttpError(503, 'Turmas e alunos storage unavailable');
+    const rawQuery = Object.fromEntries(
+      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
+    );
+    return response(
+      await args.turmasAlunos.listAlunos(parsed(() => alunosListQuerySchema.parse(rawQuery))),
+    );
+  }
+  const alunoDetailMatch = path.match(/^\/v1\/alunos\/([0-9a-f-]+)$/iu);
+  if (alunoDetailMatch?.[1]) {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.turmasAlunos) throw new HttpError(503, 'Turmas e alunos storage unavailable');
+    const id = parsed(() =>
+      alunosListQuerySchema.shape.schoolYearId.unwrap().parse(alunoDetailMatch[1]),
+    );
+    const result = await args.turmasAlunos.alunoDetail(id);
+    if (!result) throw new HttpError(404, 'Aluno não encontrado');
+    return response(result);
+  }
 
   if (path === '/v1/acompanhamento/summary') {
     allowed(request, ['GET']);

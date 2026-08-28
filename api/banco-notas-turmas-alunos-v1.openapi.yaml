@@ -1,0 +1,196 @@
+openapi: 3.1.0
+info:
+  title: Banco de Notas — Turmas e Alunos V1
+  version: 1.0.0
+  description: >-
+    Consulta administrativa read-only do cadastro de estudantes e do roster comprovado pelos
+    mappings canônicos mais recentes. Zero numérico, ausência explícita e snapshot inexistente
+    permanecem fatos distintos.
+servers:
+  - url: https://admin.escolaieda.com/api/banco-notas
+security:
+  - administrativeSession: []
+paths:
+  /v1/turmas-alunos/filters:
+    get:
+      operationId: getTurmasAlunosFilters
+      x-required-capability: grades.analytics.read
+      responses:
+        '200': { description: Opções reais de ano, turma, professor e componente. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/turmas:
+    get:
+      operationId: listTurmas
+      x-required-capability: grades.analytics.read
+      parameters:
+        - { in: query, name: schoolYearId, schema: { type: string, format: uuid } }
+        - { in: query, name: teacherId, schema: { type: string, format: uuid } }
+        - { in: query, name: componentId, schema: { type: string, format: uuid } }
+        - { in: query, name: status, schema: { type: string, enum: [active, inactive] } }
+        - { in: query, name: attention, schema: { type: string, enum: [needs_attention, normal] } }
+        - { in: query, name: q, schema: { type: string, maxLength: 80 } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: Página estável de turmas agregada no servidor.
+          content: { application/json: { schema: { $ref: '#/components/schemas/TurmaPage' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/turmas/{classGroupId}:
+    get:
+      operationId: getTurma
+      x-required-capability: grades.analytics.read
+      parameters:
+        - { in: path, name: classGroupId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Turma, roster deduplicado, assignments, modelos, fontes e findings. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /v1/alunos:
+    get:
+      operationId: listAlunos
+      x-required-capability: grades.analytics.read
+      parameters:
+        - { in: query, name: schoolYearId, schema: { type: string, format: uuid } }
+        - { in: query, name: classGroupId, schema: { type: string, format: uuid } }
+        - { in: query, name: status, schema: { type: string, enum: [active, inactive] } }
+        - { in: query, name: relationship, schema: { type: string, enum: [related, unrelated] } }
+        - { in: query, name: snapshots, schema: { type: string, enum: [present, none] } }
+        - { in: query, name: q, schema: { type: string, maxLength: 80 } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/PageSize' }
+      responses:
+        '200':
+          description: Página global de estudantes; estudantes sem turma canônica permanecem visíveis.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AlunoPage' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /v1/alunos/{studentId}:
+    get:
+      operationId: getAluno
+      x-required-capability: grades.analytics.read
+      parameters:
+        - { in: path, name: studentId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Contextos canônicos e snapshots atuais por ano, turma, componente e campo.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AlunoDetail' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  securitySchemes:
+    administrativeSession: { type: apiKey, in: cookie, name: __Host-centro_session }
+  parameters:
+    Page:
+      { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 10000, default: 1 } }
+    PageSize:
+      {
+        in: query,
+        name: pageSize,
+        schema: { type: integer, minimum: 1, maximum: 100, default: 20 },
+      }
+  responses:
+    BadRequest: { description: Parâmetro inválido. }
+    Unauthorized: { description: Sessão administrativa ausente ou inválida. }
+    Forbidden: { description: Capability administrativa insuficiente. }
+    NotFound: { description: Entidade não encontrada. }
+    Unavailable: { description: Storage D1 indisponível; falha fechada. }
+  schemas:
+    Page:
+      type: object
+      required: [items, page, pageSize, total, totalPages]
+      properties:
+        items: { type: array }
+        page: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1, maximum: 100 }
+        total: { type: integer, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+    TurmaPage:
+      allOf:
+        - { $ref: '#/components/schemas/Page' }
+        - type: object
+          properties: { items: { type: array, items: { $ref: '#/components/schemas/TurmaItem' } } }
+    TurmaItem:
+      type: object
+      required:
+        [
+          id,
+          name,
+          status,
+          schoolYearId,
+          students,
+          models,
+          connectedModels,
+          openFindings,
+          attentionLevel,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string }
+        schoolYearId: { type: string, format: uuid }
+        students: { type: integer, minimum: 0, description: Apenas alunos com evidência canônica. }
+        models: { type: integer, minimum: 0 }
+        connectedModels: { type: integer, minimum: 0 }
+        openFindings: { type: integer, minimum: 0 }
+        attentionLevel: { type: string, enum: [normal, warning, error] }
+    AlunoPage:
+      allOf:
+        - { $ref: '#/components/schemas/Page' }
+        - type: object
+          properties: { items: { type: array, items: { $ref: '#/components/schemas/AlunoItem' } } }
+    AlunoItem:
+      type: object
+      required: [id, displayName, status, classGroups, schoolYears, mappedFields, snapshots]
+      properties:
+        id: { type: string, format: uuid }
+        displayName: { type: string }
+        status: { type: string }
+        classGroups: { type: integer, minimum: 0 }
+        schoolYears: { type: integer, minimum: 0 }
+        mappedFields: { type: integer, minimum: 0 }
+        snapshots:
+          { type: integer, minimum: 0, description: Quantidade factual de snapshots atuais. }
+    AlunoDetail:
+      type: object
+      required: [student, contexts]
+      properties:
+        student: { type: object }
+        contexts:
+          type: array
+          items:
+            type: object
+            properties:
+              snapshots:
+                type: array
+                items:
+                  type: object
+                  required:
+                    [componentName, field, valueNumeric, valueText, isAbsent, sourceName, updatedAt]
+                  properties:
+                    componentName: { type: string }
+                    field: { type: string }
+                    valueNumeric:
+                      {
+                        type: [number, 'null'],
+                        description: Zero continua sendo valor numérico válido.,
+                      }
+                    valueText: { type: [string, 'null'] }
+                    isAbsent:
+                      {
+                        type: boolean,
+                        description: Ausência explícita; snapshot inexistente não é fabricado.,
+                      }
+                    sourceName: { type: string }
+                    updatedAt: { type: string, format: date-time }

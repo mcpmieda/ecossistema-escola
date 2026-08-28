@@ -46,6 +46,7 @@ import type {
 } from '../../shared/banco-notas-contract';
 import type { PlatformCapability } from '../../shared/platform-contract';
 import { AcompanhamentoDetailPage, AcompanhamentoPage } from './AcompanhamentoPage';
+import { AlunoDetailPage, AlunosPage, TurmaDetailPage, TurmasPage } from './TurmasAlunosPage';
 
 type BancoNotasIdentity = {
   name?: string;
@@ -798,8 +799,10 @@ function Shell({ identity }: Props) {
           <Route index element={<Overview />} />
           <Route path="acompanhamento" element={<AcompanhamentoPage />} />
           <Route path="acompanhamento/turmas/:id" element={<AcompanhamentoDetailPage />} />
-          <Route path="alunos" element={<Planned title="Alunos" />} />
-          <Route path="turmas" element={<Planned title="Turmas" />} />
+          <Route path="alunos" element={<AlunosPage />} />
+          <Route path="alunos/:id" element={<AlunoDetailPage />} />
+          <Route path="turmas" element={<TurmasPage />} />
+          <Route path="turmas/:id" element={<TurmaDetailPage />} />
           <Route path="professores" element={<Planned title="Professores" />} />
           <Route path="conselho" element={<Planned title="Conselho de classe" />} />
           <Route path="boletins" element={<Planned title="Boletins" />} />

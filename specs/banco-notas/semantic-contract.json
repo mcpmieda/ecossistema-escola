@@ -324,6 +324,20 @@
         "nenhum dado inexistente é inventado"
       ],
       "verification": ["test", "browser", "database"]
+    },
+    {
+      "id": "BN-AC-014",
+      "priority": "must",
+      "given": "um administrador autorizado consulta Turmas ou Alunos",
+      "when": "ele pesquisa, filtra e abre um detalhe",
+      "then": [
+        "o roster contém apenas relações comprovadas por gradeKey exata nos mappings da versão mais recente",
+        "o mesmo aluno é deduplicado entre professores, componentes e campos",
+        "estudantes sem turma comprovada permanecem visíveis na pesquisa global sem matrícula inventada",
+        "snapshot presente, ausência explícita, zero numérico e snapshot inexistente permanecem distintos",
+        "filtros e paginação são aplicados no servidor e a navegação cruza Turma, Aluno e Acompanhamento"
+      ],
+      "verification": ["test", "browser", "database"]
     }
   ]
 }

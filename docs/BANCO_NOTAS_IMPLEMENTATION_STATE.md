@@ -376,3 +376,14 @@ Produção permanece intacta e `sync_enabled` não foi alterado.
 - A integração foi separada de release: nenhum deploy de produção, D1 remoto, alteração Entra/Graph ou publicação do add-in.
 - `sync_enabled=0`; edição de notas e ativação de sincronização continuam fora de escopo.
 - Próximo marco de produto: Turmas e Alunos V1, mediante nova missão explícita.
+
+## Turmas e Alunos V1 — implementação em branch (28/08/2026)
+
+- Read model canônico sobre latest teacher model version + cell mappings + gradeKey exata + students.
+- Rotas reais `/turmas`, `/turmas/:id`, `/alunos` e `/alunos/:id`.
+- Endpoints read-only com `grades.analytics.read`, filtros e paginação server-side.
+- Detalhe da turma reutiliza Acompanhamento; detalhe do aluno expõe snapshots atuais por contexto.
+- Nenhuma migration, matrícula paralela ou write foi introduzido.
+- Publicado no PR Draft #134; primeira rodada de CI, Actions Security e Semgrep verde. Produção não autorizada e jobs de deploy/recovery skipped.
+
+Documento: `docs/BANCO_NOTAS_TURMAS_ALUNOS_V1.md`.
