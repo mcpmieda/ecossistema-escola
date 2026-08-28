@@ -440,3 +440,11 @@ Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.j
 - Browser QA: desktop e 390 × 844, reload, filtro, detalhe, retorno, empty e error, somente dados sintéticos.
 - Build de produção: aprovado localmente.
 - Produção, D1 remoto, Graph e add-in: não alterados.
+
+## Integração controlada — Fundação + Acompanhamento V1 (28/08/2026)
+
+- PR #52 integrado à `main` no merge `cf48d837556fe6df1baaa21d0e0015e4535efe87` após application validation, Actions Security, Semgrep e Factory Control Plane verdes.
+- Nenhum workflow de push foi criado para o merge da fundação; deploy e recovery de produção não executaram.
+- PR #129 retargetado para `main` com diff restrito aos 18 arquivos do Acompanhamento V1.
+- Regressão local de integração e CI do PR #129 são gates obrigatórios antes do segundo merge.
+- Produção intacta, add-in não publicado, D1 remoto não acessado e `sync_enabled=0`.
