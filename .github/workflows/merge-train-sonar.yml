@@ -48,6 +48,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_SHA: ${{ inputs.expected_sha }}
           PR_NUMBER: ${{ inputs.pr_number }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -62,6 +63,10 @@ jobs:
           base_ref=$(jq -r '.base.ref' <<<"${pr_json}")
           [[ "${head_ref}" =~ ^[A-Za-z0-9._/-]+$ ]]
           [[ "${base_ref}" =~ ^factory/[A-Za-z0-9._/-]+$ ]]
+          case "${SONAR_HOST_URL}" in
+            https://sonarcloud.io|https://sonarqube.us) ;;
+            *) echo 'SONAR_HOST_URL must be https://sonarcloud.io or https://sonarqube.us.' >&2; exit 1 ;;
+          esac
           test -n "${SONAR_PROJECT_KEY}" || { echo 'SONAR_PROJECT_KEY repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_ORGANIZATION}" || { echo 'SONAR_ORGANIZATION repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_TOKEN}" || { echo 'SONAR_TOKEN repository secret is required.' >&2; exit 1; }
@@ -92,6 +97,7 @@ jobs:
         shell: bash
         working-directory: candidate
         env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
@@ -100,7 +106,7 @@ jobs:
           set -euo pipefail
           echo "Factory worker PR base is ${PR_BASE_REF}; Sonar uses analyzed stable reference ${SONAR_REFERENCE_BASE}."
           "${SONAR_SCANNER_HOME}/bin/sonar-scanner" \
-            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.host.url="${SONAR_HOST_URL}" \
             -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
             -Dsonar.organization="${SONAR_ORGANIZATION}" \
             -Dsonar.sources=. \
