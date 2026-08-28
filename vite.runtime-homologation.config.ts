@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   build: {
-    outDir: path.resolve(import.meta.dirname, 'dist'),
+    outDir: path.resolve(import.meta.dirname, '.runtime-homologation'),
     emptyOutDir: false,
     sourcemap: false,
     target: 'es2022',
@@ -14,7 +14,7 @@ export default defineConfig({
         'infra/banco-notas/cloudflare/runtime-homologation-worker.ts',
       ),
       formats: ['es'],
-      fileName: () => '_worker.js',
+      fileName: () => 'runtime-worker.js',
     },
   },
 });

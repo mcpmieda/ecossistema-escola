@@ -41,6 +41,33 @@ if ($LASTEXITCODE -ne 0) {
   throw 'Build do runtime Pages de homologação falhou.'
 }
 
+$runtimeBundlePath = Join-Path $runtimeWorkingDirectory 'runtime-worker.js'
+if (-not (Test-Path -LiteralPath $runtimeBundlePath)) {
+  throw 'Bundle do runtime de homologação não foi gerado.'
+}
+$runtimeFunctionDirectory = Join-Path $runtimeWorkingDirectory 'functions\__banco-notas-homologation'
+$runtimeFunctionPath = Join-Path $runtimeFunctionDirectory 'run.js'
+New-Item -ItemType Directory -Path $runtimeFunctionDirectory -Force | Out-Null
+$runtimeFunction = @'
+import runtimeWorker from "../../runtime-worker.js";
+
+export function onRequest(context) {
+  return runtimeWorker.fetch(context.request, {
+    ...context.env,
+    ASSETS: {
+      fetch(request) {
+        return context.next(request);
+      },
+    },
+  });
+}
+'@
+[IO.File]::WriteAllText(
+  $runtimeFunctionPath,
+  $runtimeFunction,
+  [Text.UTF8Encoding]::new($false)
+)
+
 # The production asset bundle intentionally denies all framing. The isolated
 # preview delegates CSP/X-Frame-Options to the temporary Worker so the add-in
 # route can be framed by Office while every other asset remains denied.
