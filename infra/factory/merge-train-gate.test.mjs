@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   classifyCodeRabbitReview,
+  classifyCodeRabbitSummaryComment,
   codeRabbitEvidence,
   latestMatchingReviewerWorkflowRun,
   latestTrustedReviewerEvidence,
@@ -42,6 +43,31 @@ function review({
     submitted_at: submitted,
     state: 'COMMENTED',
   };
+}
+
+function codeRabbitSummary({
+  login = 'coderabbitai[bot]',
+  sha = SHA,
+  previousSha = OTHER_SHA,
+  updated = '2026-08-27T20:03:00Z',
+  id = 12,
+  clean = true,
+  includeRecentSection = true,
+  historicalSkip = false,
+}) {
+  const reviewedRange = `Reviewing files that changed from the base of the PR and between ${previousSha} and ${sha}.`;
+  const recent = clean
+    ? ['No actionable comments were generated in the recent review. 🎉', '', reviewedRange].join(
+        '\n',
+      )
+    : ['Actionable comments were generated in the recent review.', '', reviewedRange].join('\n');
+  const recentBlock = includeRecentSection
+    ? `<!-- recent_review_start -->\n${recent}\n<!-- recent_review_end -->`
+    : recent;
+  const body = [historicalSkip ? '<!-- skip review by coderabbit.ai -->' : '', recentBlock]
+    .filter(Boolean)
+    .join('\n');
+  return comment({ login, body, updated, id });
 }
 
 function reviewerMarker({ reviewer = 'Semgrep', sha = SHA, conclusion = 'success', runId = 20 }) {
@@ -139,6 +165,39 @@ test('CodeRabbit review is bound to exact commit and actionable count', () => {
   assert.equal(classifyCodeRabbitReview(review({ login: 'someone-else' }), SHA), null);
 });
 
+test('CodeRabbit zero-finding summary is trusted only from its bot and exact reviewed range', () => {
+  const trusted = classifyCodeRabbitSummaryComment(codeRabbitSummary({}), SHA);
+  const wrongAuthor = codeRabbitSummary({ login: 'mcpmieda' });
+  const wrongSha = codeRabbitSummary({ sha: OTHER_SHA });
+  const findings = codeRabbitSummary({ clean: false });
+  const unbounded = codeRabbitSummary({ includeRecentSection: false });
+
+  assert.equal(trusted?.status, 'success');
+  assert.equal(trusted?.actionable, 0);
+  assert.equal(trusted?.evidenceKind, 'recent-review-comment');
+  assert.equal(trusted?.reviewId, 12);
+  assert.equal(classifyCodeRabbitSummaryComment(wrongAuthor, SHA), null);
+  assert.equal(classifyCodeRabbitSummaryComment(wrongSha, SHA), null);
+  assert.equal(classifyCodeRabbitSummaryComment(findings, SHA), null);
+  assert.equal(classifyCodeRabbitSummaryComment(unbounded, SHA), null);
+});
+
+test('CodeRabbit clean exact-SHA summary can satisfy a later trusted request', () => {
+  const request = comment({
+    login: 'github-actions[bot]',
+    body: `<!-- FACTORY_CODERABBIT_REQUEST {"sha":"${SHA}"} -->`,
+    created: '2026-08-27T20:05:00Z',
+  });
+  const summary = codeRabbitSummary({
+    updated: '2026-08-27T20:03:00Z',
+    historicalSkip: true,
+  });
+  const evidence = codeRabbitEvidence([summary, request], [], SHA);
+  assert.equal(evidence.status, 'success');
+  assert.equal(evidence.review.reviewId, 12);
+  assert.equal(evidence.review.evidenceKind, 'recent-review-comment');
+});
+
 test('CodeRabbit evidence requires a trusted SHA-bound request before the review', () => {
   const request = comment({
     login: 'github-actions[bot]',
@@ -151,6 +210,8 @@ test('CodeRabbit evidence requires a trusted SHA-bound request before the review
   const evidence = codeRabbitEvidence([request], [before, after], SHA);
   assert.equal(evidence.status, 'success');
   assert.equal(evidence.review.reviewId, 11);
+  assert.equal(evidence.review.evidenceKind, 'review-submission');
+  assert.equal(codeRabbitEvidence([], [after], SHA).status, 'request-missing');
 });
 
 test('trusted reviewer markers require bot authorship, exact SHA and supported reviewer', () => {
@@ -188,6 +249,7 @@ test('Merge Train evidence is trusted only when bot-authored and unique for exac
     semgrep_run_id: 1,
     sonar_run_id: 2,
     coderabbit_review_id: 3,
+    coderabbit_evidence_kind: 'review-submission',
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const trusted = comment({
