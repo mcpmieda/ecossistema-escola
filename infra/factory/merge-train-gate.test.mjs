@@ -2,11 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  classifyCodeRabbitComment,
+  classifyCodeRabbitReview,
   codeRabbitEvidence,
+  latestTrustedReviewerEvidence,
   parseTrustedCodeRabbitRequest,
   parseTrustedMergeTrainEvidence,
-  selectExactReviewerRun,
+  parseTrustedReviewerEvidence,
   trustedMergeTrainEvidence,
 } from './merge-train-gate.mjs';
 
@@ -23,16 +24,38 @@ function comment({ login, body, created = '2026-08-27T20:00:00Z', updated = crea
   };
 }
 
-test('reviewer workflow selection requires workflow_dispatch and exact SHA', () => {
-  const runs = [
-    { id: 7, event: 'pull_request', head_sha: SHA },
-    { id: 8, event: 'workflow_dispatch', head_sha: OTHER_SHA },
-    { id: 9, event: 'workflow_dispatch', head_sha: SHA },
-    { id: 10, event: 'workflow_dispatch', head_sha: SHA },
-  ];
-  assert.equal(selectExactReviewerRun(runs, SHA)?.id, 10);
-  assert.equal(selectExactReviewerRun(runs.slice(0, 2), SHA), null);
-});
+function review({
+  login = 'coderabbitai[bot]',
+  body = '**Actionable comments posted: 0**',
+  sha = SHA,
+  submitted = '2026-08-27T20:02:00Z',
+  id = 10,
+}) {
+  return {
+    id,
+    body,
+    user: { login },
+    commit_id: sha,
+    submitted_at: submitted,
+    state: 'COMMENTED',
+  };
+}
+
+function reviewerMarker({ reviewer = 'Semgrep', sha = SHA, conclusion = 'success', runId = 20 }) {
+  const encoded = Buffer.from(
+    JSON.stringify({
+      schema_version: 1,
+      reviewer,
+      sha,
+      conclusion,
+      run_id: runId,
+    }),
+  ).toString('base64url');
+  return comment({
+    login: 'github-actions[bot]',
+    body: `<!-- FACTORY_REVIEWER_EVIDENCE ${encoded} -->`,
+  });
+}
 
 test('CodeRabbit request markers trust only github-actions bot and exact SHA', () => {
   const body = `<!-- FACTORY_CODERABBIT_REQUEST {"sha":"${SHA}"} -->`;
@@ -43,66 +66,56 @@ test('CodeRabbit request markers trust only github-actions bot and exact SHA', (
   assert.equal(parseTrustedCodeRabbitRequest(comment({ login: 'mcpmieda', body })), null);
 });
 
-test('CodeRabbit completion accepts only a completed no-actionable review after request', () => {
+test('CodeRabbit review is bound to exact commit and actionable count', () => {
+  assert.equal(classifyCodeRabbitReview(review({}), SHA)?.status, 'success');
+  assert.equal(
+    classifyCodeRabbitReview(review({ body: '**Actionable comments posted: 2**' }), SHA)?.status,
+    'findings',
+  );
+  assert.equal(classifyCodeRabbitReview(review({ sha: OTHER_SHA }), SHA), null);
+  assert.equal(classifyCodeRabbitReview(review({ login: 'someone-else' }), SHA), null);
+});
+
+test('CodeRabbit evidence requires a trusted SHA-bound request before the review', () => {
   const request = comment({
     login: 'github-actions[bot]',
     body: `<!-- FACTORY_CODERABBIT_REQUEST {"sha":"${SHA}"} -->`,
     created: '2026-08-27T20:00:00Z',
   });
-  const oldSuccess = comment({
-    login: 'coderabbitai[bot]',
-    body: '<!-- recent_review_start -->\nNo actionable comments were generated in the recent review. 🎉',
-    created: '2026-08-27T19:59:00Z',
-    updated: '2026-08-27T19:59:00Z',
-    id: 2,
-  });
-  const success = comment({
-    login: 'coderabbitai[bot]',
-    body: '<!-- recent_review_start -->\nNo actionable comments were generated in the recent review. 🎉',
-    created: '2026-08-27T20:01:00Z',
-    updated: '2026-08-27T20:02:00Z',
-    id: 3,
-  });
-  const evidence = codeRabbitEvidence([oldSuccess, request, success], SHA);
+  const before = review({ submitted: '2026-08-27T19:59:00Z' });
+  const after = review({ submitted: '2026-08-27T20:02:00Z', id: 11 });
+  assert.equal(codeRabbitEvidence([request], [before], SHA).status, 'pending');
+  const evidence = codeRabbitEvidence([request], [before, after], SHA);
   assert.equal(evidence.status, 'success');
-  assert.equal(evidence.review.commentId, 3);
+  assert.equal(evidence.review.reviewId, 11);
 });
 
-test('CodeRabbit skip and rate limit never count as approval', () => {
-  const notBefore = Date.parse('2026-08-27T20:00:00Z');
+test('trusted reviewer markers require bot authorship, exact SHA and supported reviewer', () => {
+  const trusted = reviewerMarker({ reviewer: 'Semgrep', runId: 40 });
+  assert.equal(parseTrustedReviewerEvidence(trusted)?.run_id, 40);
+  assert.equal(parseTrustedReviewerEvidence({ ...trusted, user: { login: 'mcpmieda' } }), null);
   assert.equal(
-    classifyCodeRabbitComment(
-      comment({
-        login: 'coderabbitai[bot]',
-        body: '<!-- This is an auto-generated comment: skip review by coderabbit.ai -->',
-        created: '2026-08-27T20:01:00Z',
-      }),
-      notBefore,
-    )?.status,
-    'unavailable',
+    latestTrustedReviewerEvidence(
+      [reviewerMarker({ runId: 30 }), reviewerMarker({ runId: 40 })],
+      'Semgrep',
+      SHA,
+    )?.run_id,
+    40,
   );
   assert.equal(
-    classifyCodeRabbitComment(
-      comment({
-        login: 'coderabbitai[bot]',
-        body: 'Action not completed\nReview rate limited.',
-        created: '2026-08-27T20:01:00Z',
-      }),
-      notBefore,
-    )?.status,
-    'unavailable',
+    latestTrustedReviewerEvidence([reviewerMarker({ sha: OTHER_SHA })], 'Semgrep', SHA),
+    null,
   );
 });
 
-test('CodeRabbit completed review with findings is classified as findings', () => {
-  const review = classifyCodeRabbitComment(
-    comment({
-      login: 'coderabbitai[bot]',
-      body: '<!-- recent_review_start -->\nActionable comments were generated.',
-      created: '2026-08-27T20:01:00Z',
-    }),
+test('reviewer recovery can require evidence newer than a failed run', () => {
+  const failed = reviewerMarker({ reviewer: 'Sonar', conclusion: 'failure', runId: 50 });
+  const success = reviewerMarker({ reviewer: 'Sonar', conclusion: 'success', runId: 51 });
+  assert.equal(latestTrustedReviewerEvidence([failed], 'Sonar', SHA)?.conclusion, 'failure');
+  assert.equal(
+    latestTrustedReviewerEvidence([failed, success], 'Sonar', SHA, 50)?.conclusion,
+    'success',
   );
-  assert.equal(review?.status, 'findings');
 });
 
 test('Merge Train evidence is trusted only when bot-authored and unique for exact SHA', () => {
@@ -111,7 +124,7 @@ test('Merge Train evidence is trusted only when bot-authored and unique for exac
     sha: SHA,
     semgrep_run_id: 1,
     sonar_run_id: 2,
-    coderabbit_comment_id: 3,
+    coderabbit_review_id: 3,
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const trusted = comment({
