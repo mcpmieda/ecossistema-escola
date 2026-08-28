@@ -5,6 +5,7 @@ import {
   hostedWorkerId,
   isExactCreateOnlyScope,
   leasedRequestForWorktree,
+  normalizeProbeHealth,
 } from './hosted-opencode-executor.mjs';
 
 test('hosted OpenCode accepts only one exact file scope', () => {
@@ -39,4 +40,27 @@ test('hosted request adds only local worktree to the leased portable request', (
 
 test('hosted worker id is stable and bounded', () => {
   assert.equal(hostedWorkerId('1234', '2'), 'github-hosted-opencode-1234-2');
+});
+
+test('hosted probe accepts provider_worker canonical provider field and normalizes it', () => {
+  const health = normalizeProbeHealth({
+    provider: 'opencode_ollama',
+    status: 'healthy',
+    reason: 'available',
+    details: { model: 'ollama/qwen3:0.6b' },
+  });
+  assert.equal(health.provider_id, 'opencode_ollama');
+  assert.equal(health.status, 'healthy');
+  assert.equal(health.provider, 'opencode_ollama');
+});
+
+test('hosted probe remains fail-closed for wrong provider or unhealthy status', () => {
+  assert.throws(
+    () => normalizeProbeHealth({ provider: 'antigravity', status: 'healthy' }),
+    /did not pass the required healthy probe/,
+  );
+  assert.throws(
+    () => normalizeProbeHealth({ provider: 'opencode_ollama', status: 'degraded' }),
+    /did not pass the required healthy probe/,
+  );
 });
