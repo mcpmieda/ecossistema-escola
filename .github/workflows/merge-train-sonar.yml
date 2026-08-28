@@ -49,7 +49,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: trusted/package-lock.json
+          cache-dependency-path: trusted/infra/factory/sonar-scanner/package-lock.json
 
       - name: Validate exact SHA, PR head and Sonar configuration
         id: config
@@ -73,16 +73,17 @@ jobs:
           test -n "${SONAR_TOKEN}" || { echo 'SONAR_TOKEN repository secret is required.' >&2; exit 1; }
           node -e "const [major, minor] = process.versions.node.split('.').map(Number); if (major < 22 || (major === 22 && minor < 12)) process.exit(1)"
 
-      - name: Install trusted locked dependencies
+      - name: Install trusted locked scanner dependencies
         shell: bash
-        run: npm ci --prefix trusted
+        run: npm ci --prefix trusted/infra/factory/sonar-scanner
 
       - name: Verify pinned official SonarScanner NPM
         shell: bash
         run: |
           set -euo pipefail
-          test "$(node -p "require('./trusted/node_modules/@sonar/scan/package.json').version")" = "5.0.0"
-          trusted/node_modules/.bin/sonar-scanner-npm --version
+          scanner_root="trusted/infra/factory/sonar-scanner"
+          test "$(node -p "require('./${scanner_root}/node_modules/@sonar/scan/package.json').version")" = "5.0.0"
+          "${scanner_root}/node_modules/.bin/sonar-scanner-npm" --version
 
       - name: Run SonarQube Cloud scan
         shell: bash
@@ -93,7 +94,7 @@ jobs:
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
         run: |
           set -euo pipefail
-          "${GITHUB_WORKSPACE}/trusted/node_modules/.bin/sonar-scanner-npm" \
+          "${GITHUB_WORKSPACE}/trusted/infra/factory/sonar-scanner/node_modules/.bin/sonar-scanner-npm" \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
             -Dsonar.organization="${SONAR_ORGANIZATION}" \
