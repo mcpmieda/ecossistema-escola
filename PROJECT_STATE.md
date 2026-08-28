@@ -403,3 +403,15 @@ O Banco de Notas agora possui, em branch de produto separada, o primeiro módulo
 - Os merges usam `[skip ci]` exclusivamente para impedir o workflow automático de deploy em pushes para `main`; todos os gates dos PRs são exigidos antes da integração.
 - Produção, D1 remoto, Entra, permissões Graph e publicação do add-in permanecem inalterados; `sync_enabled=0`.
 - Próxima fase funcional autorizável separadamente: Turmas e Alunos V1.
+
+## Pesquisa Global V1 — implementação em branch (28/08/2026)
+
+- Branch `feat/banco-notas-pesquisa-global-v1`, baseada na `main` em `8eed2e9bc00ff4d53749f4c1ac630bf0f182fa52`.
+- Pesquisa read-only de alunos, professores e turmas por IDs e relacionamentos canônicos já persistidos.
+- API protegida por `grades.analytics.read`, com normalização e ranking determinístico no servidor, limites e totais por tipo.
+- UI HeroUI em `/banco-de-notas/pesquisa`, com URL, debounce, cancelamento, teclado e navegação cruzada.
+- Sem migration, índice/identidade paralelos, FTS, IA, fuzzy matching, write ou ranking no frontend.
+- Produção, D1 remoto, Graph, Entra, add-in e sync permanecem intocados; publicação autorizada somente como PR Draft, sem merge.
+- Gate local e Browser QA sintético concluídos; a próxima ação é publicar exclusivamente como PR Draft e aguardar CI/security/Semgrep.
+
+Documento: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.
