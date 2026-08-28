@@ -49,7 +49,7 @@ jobs:
           [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]
           test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
-          test "$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')" = "${EXPECTED_SHA}"
+          test "$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq ".head.sha")" = "${EXPECTED_SHA}"
           test -n "${SONAR_PROJECT_KEY}" || { echo 'SONAR_PROJECT_KEY repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_ORGANIZATION}" || { echo 'SONAR_ORGANIZATION repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_TOKEN}" || { echo 'SONAR_TOKEN repository secret is required.' >&2; exit 1; }
@@ -88,7 +88,7 @@ jobs:
           set -euo pipefail
           [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
           [[ "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]
-          current_sha=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq '.head.sha')
+          current_sha=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq ".head.sha")
           conclusion="${REVIEW_RESULT}"
           if [ "${current_sha}" != "${EXPECTED_SHA}" ]; then
             conclusion="stale"
@@ -100,7 +100,6 @@ jobs:
             --argjson run_id "${REVIEW_RUN_ID}" \
             "{schema_version:1,reviewer:\$reviewer,sha:\$sha,conclusion:\$conclusion,run_id:\$run_id}")
           encoded=$(printf '%s' "${payload}" | base64 -w0 | tr '+/' '-_' | tr -d '=')
-          body=$(printf '<!-- FACTORY_REVIEWER_EVIDENCE %s -->\nSonar reviewer run %s concluded `%s` for exact worker SHA `%s`.' \
-            "${encoded}" "${REVIEW_RUN_ID}" "${conclusion}" "${EXPECTED_SHA}")
+          body="<!-- FACTORY_REVIEWER_EVIDENCE ${encoded} -->"$'\n'"Sonar reviewer run ${REVIEW_RUN_ID} concluded \`${conclusion}\` for exact worker SHA \`${EXPECTED_SHA}\`."
           gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" -f body="${body}" >/dev/null
           test "${conclusion}" = "success"
