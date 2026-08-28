@@ -61,12 +61,13 @@ jobs:
           head_ref=$(jq -r '.head.ref' <<<"${pr_json}")
           base_ref=$(jq -r '.base.ref' <<<"${pr_json}")
           [[ "${head_ref}" =~ ^[A-Za-z0-9._/-]+$ ]]
-          [[ "${base_ref}" =~ ^[A-Za-z0-9._/-]+$ ]]
+          [[ "${base_ref}" =~ ^factory/[A-Za-z0-9._/-]+$ ]]
           test -n "${SONAR_PROJECT_KEY}" || { echo 'SONAR_PROJECT_KEY repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_ORGANIZATION}" || { echo 'SONAR_ORGANIZATION repository variable is required.' >&2; exit 1; }
           test -n "${SONAR_TOKEN}" || { echo 'SONAR_TOKEN repository secret is required.' >&2; exit 1; }
           echo "PR_HEAD_REF=${head_ref}" >> "${GITHUB_ENV}"
           echo "PR_BASE_REF=${base_ref}" >> "${GITHUB_ENV}"
+          echo "SONAR_REFERENCE_BASE=main" >> "${GITHUB_ENV}"
 
       - name: Install pinned official SonarScanner CLI
         shell: bash
@@ -95,6 +96,7 @@ jobs:
           PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           set -euo pipefail
+          echo "Factory worker PR base is ${PR_BASE_REF}; Sonar uses analyzed stable reference ${SONAR_REFERENCE_BASE}."
           "${SONAR_SCANNER_HOME}/bin/sonar-scanner" \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
@@ -103,7 +105,7 @@ jobs:
             -Dsonar.exclusions='node_modules/**,dist/**,coverage/**,.git/**' \
             -Dsonar.pullrequest.key="${PR_NUMBER}" \
             -Dsonar.pullrequest.branch="${PR_HEAD_REF}" \
-            -Dsonar.pullrequest.base="${PR_BASE_REF}" \
+            -Dsonar.pullrequest.base="${SONAR_REFERENCE_BASE}" \
             -Dsonar.qualitygate.wait=true \
             -Dsonar.qualitygate.timeout=300
 
