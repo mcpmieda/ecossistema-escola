@@ -426,9 +426,10 @@ function Start-FactoryCi {
     Wait-GitHubRun -Repo $Repo -RunId $runId -Label 'Factory Merge Train completo'
 
     $markerText = "Merge Train passed for exact worker SHA ``$ExpectedHeadSha``."
+    $jqFilter = '.[] | select(.user.login == "github-actions[bot]" and (.body | contains("{0}"))) | .id' -f $markerText
     $markerIds = Invoke-Gh -Arguments @(
         'api', '--paginate', "repos/$Repo/issues/$PrNumber/comments",
-        '--jq', ".[] | select(.user.login == \"github-actions[bot]\" and (.body | contains(\"$markerText\"))) | .id"
+        '--jq', $jqFilter
     )
 
     if ($markerIds.Count -eq 0) {
@@ -440,7 +441,7 @@ function Start-FactoryCi {
 
 Assert-GitHubCli
 
-$repoParts = $Repository.Split('/', 2)
+$repoParts = $Repository -split '/', 2
 
 if ($repoParts.Count -ne 2 -or [string]::IsNullOrWhiteSpace($repoParts[0]) -or [string]::IsNullOrWhiteSpace($repoParts[1])) {
     throw 'Repository deve estar no formato owner/repo.'
