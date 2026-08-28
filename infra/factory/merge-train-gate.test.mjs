@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   classifyCodeRabbitReview,
+  classifyCodeRabbitSummaryComment,
   codeRabbitEvidence,
   latestMatchingReviewerWorkflowRun,
   latestTrustedReviewerEvidence,
@@ -42,6 +43,28 @@ function review({
     submitted_at: submitted,
     state: 'COMMENTED',
   };
+}
+
+function codeRabbitSummary({
+  login = 'coderabbitai[bot]',
+  sha = SHA,
+  previousSha = OTHER_SHA,
+  updated = '2026-08-27T20:03:00Z',
+  id = 12,
+  clean = true,
+  includeRecentSection = true,
+  historicalSkip = false,
+}) {
+  const recent = clean
+    ? `No actionable comments were generated in the recent review. 🎉\n\nReviewing files that changed from the base of the PR and between ${previousSha} and ${sha}.`
+    : `Actionable comments were generated in the recent review.\n\nReviewing files that changed from the base of the PR and between ${previousSha} and ${sha}.`;
+  const body = [
+    historicalSkip ? '<!-- skip review by coderabbit.ai -->' : '',
+    includeRecentSection ? `<!-- recent_review_start -->\n${recent}\n<!-- recent_review_end -->` : recent,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return comment({ login, body, updated, id });
 }
 
 function reviewerMarker({ reviewer = 'Semgrep', sha = SHA, conclusion = 'success', runId = 20 }) {
@@ -139,6 +162,46 @@ test('CodeRabbit review is bound to exact commit and actionable count', () => {
   assert.equal(classifyCodeRabbitReview(review({ login: 'someone-else' }), SHA), null);
 });
 
+test('CodeRabbit zero-finding summary is trusted only from its bot and exact reviewed range', () => {
+  const trusted = classifyCodeRabbitSummaryComment(codeRabbitSummary({}), SHA);
+  assert.equal(trusted?.status, 'success');
+  assert.equal(trusted?.actionable, 0);
+  assert.equal(trusted?.evidenceKind, 'recent-review-comment');
+  assert.equal(trusted?.reviewId, 12);
+  assert.equal(
+    classifyCodeRabbitSummaryComment(codeRabbitSummary({ login: 'mcpmieda' }), SHA),
+    null,
+  );
+  assert.equal(
+    classifyCodeRabbitSummaryComment(codeRabbitSummary({ sha: OTHER_SHA }), SHA),
+    null,
+  );
+  assert.equal(
+    classifyCodeRabbitSummaryComment(codeRabbitSummary({ clean: false }), SHA),
+    null,
+  );
+  assert.equal(
+    classifyCodeRabbitSummaryComment(codeRabbitSummary({ includeRecentSection: false }), SHA),
+    null,
+  );
+});
+
+test('CodeRabbit clean exact-SHA summary can satisfy a later trusted request', () => {
+  const request = comment({
+    login: 'github-actions[bot]',
+    body: `<!-- FACTORY_CODERABBIT_REQUEST {"sha":"${SHA}"} -->`,
+    created: '2026-08-27T20:05:00Z',
+  });
+  const summary = codeRabbitSummary({
+    updated: '2026-08-27T20:03:00Z',
+    historicalSkip: true,
+  });
+  const evidence = codeRabbitEvidence([summary, request], [], SHA);
+  assert.equal(evidence.status, 'success');
+  assert.equal(evidence.review.reviewId, 12);
+  assert.equal(evidence.review.evidenceKind, 'recent-review-comment');
+});
+
 test('CodeRabbit evidence requires a trusted SHA-bound request before the review', () => {
   const request = comment({
     login: 'github-actions[bot]',
@@ -151,6 +214,8 @@ test('CodeRabbit evidence requires a trusted SHA-bound request before the review
   const evidence = codeRabbitEvidence([request], [before, after], SHA);
   assert.equal(evidence.status, 'success');
   assert.equal(evidence.review.reviewId, 11);
+  assert.equal(evidence.review.evidenceKind, 'review-submission');
+  assert.equal(codeRabbitEvidence([], [after], SHA).status, 'request-missing');
 });
 
 test('trusted reviewer markers require bot authorship, exact SHA and supported reviewer', () => {
@@ -188,6 +253,7 @@ test('Merge Train evidence is trusted only when bot-authored and unique for exac
     semgrep_run_id: 1,
     sonar_run_id: 2,
     coderabbit_review_id: 3,
+    coderabbit_evidence_kind: 'review-submission',
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
   const trusted = comment({
