@@ -11,6 +11,8 @@ const runPath = '/__banco-notas-homologation/run';
 const addinPathPrefix = '/banco-de-notas/addin/';
 const addinContentSecurityPolicy =
   "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors https://*.officeapps.live.com https://*.office.com https://*.microsoft365.com https://*.sharepoint.com; form-action 'none'; img-src 'self' data:; style-src 'self'; script-src 'self' https://appsforoffice.microsoft.com; connect-src 'self' https://login.microsoftonline.com";
+const defaultContentSecurityPolicy =
+  "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'";
 
 function json(value: unknown, status = 200): Response {
   return Response.json(value, {
@@ -28,6 +30,18 @@ export function normalizeRuntimeHomologationAddinResponse(asset: Response): Resp
   headers.delete('Content-Security-Policy');
   headers.delete('X-Frame-Options');
   headers.set('Content-Security-Policy', addinContentSecurityPolicy);
+  return new Response(asset.body, {
+    status: asset.status,
+    statusText: asset.statusText,
+    headers,
+  });
+}
+
+export function normalizeRuntimeHomologationDefaultAssetResponse(asset: Response): Response {
+  const headers = new Headers(asset.headers);
+  headers.delete('Content-Security-Policy');
+  headers.set('Content-Security-Policy', defaultContentSecurityPolicy);
+  headers.set('X-Frame-Options', 'DENY');
   return new Response(asset.body, {
     status: asset.status,
     statusText: asset.statusText,
@@ -481,6 +495,6 @@ export default {
     if (url.pathname.startsWith(addinPathPrefix)) {
       return addinAssetResponse(request, env);
     }
-    return env.ASSETS.fetch(request);
+    return normalizeRuntimeHomologationDefaultAssetResponse(await env.ASSETS.fetch(request));
   },
 } satisfies ExportedHandler<RuntimeHomologationEnv>;

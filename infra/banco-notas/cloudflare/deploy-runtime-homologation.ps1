@@ -41,6 +41,26 @@ if ($LASTEXITCODE -ne 0) {
   throw 'Build do runtime Pages de homologação falhou.'
 }
 
+# The production asset bundle intentionally denies all framing. The isolated
+# preview delegates CSP/X-Frame-Options to the temporary Worker so the add-in
+# route can be framed by Office while every other asset remains denied.
+$runtimeHeadersPath = Join-Path $repositoryRoot 'dist\_headers'
+$runtimeHeaders = @'
+/*
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Referrer-Policy: same-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+
+/manifest.webmanifest
+  Cache-Control: public, max-age=3600
+'@
+[IO.File]::WriteAllText(
+  $runtimeHeadersPath,
+  $runtimeHeaders,
+  [Text.UTF8Encoding]::new($false)
+)
+
 $config = [ordered]@{
   '$schema' = '../node_modules/wrangler/config-schema.json'
   name = $projectName

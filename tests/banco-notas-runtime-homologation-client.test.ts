@@ -2,7 +2,10 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { runBancoNotasRuntimeHomologation } from '../addin/banco-notas/runtime-homologation';
-import { normalizeRuntimeHomologationAddinResponse } from '../infra/banco-notas/cloudflare/runtime-homologation-worker';
+import {
+  normalizeRuntimeHomologationAddinResponse,
+  normalizeRuntimeHomologationDefaultAssetResponse,
+} from '../infra/banco-notas/cloudflare/runtime-homologation-worker';
 
 describe('Banco de Notas runtime homologation client', () => {
   it('keeps the delegated token only in the outbound authorization header', async () => {
@@ -44,5 +47,12 @@ describe('Banco de Notas runtime homologation client', () => {
     );
     expect(response.headers.get('Content-Security-Policy')).not.toContain("frame-ancestors 'none'");
     await expect(response.text()).resolves.toBe('taskpane');
+  });
+
+  it('keeps non-add-in preview assets denied from framing', () => {
+    const response = normalizeRuntimeHomologationDefaultAssetResponse(new Response('asset'));
+
+    expect(response.headers.get('X-Frame-Options')).toBe('DENY');
+    expect(response.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'");
   });
 });
