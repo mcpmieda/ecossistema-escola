@@ -1,4 +1,5 @@
 name: Semgrep
+run-name: Semgrep PR ${{ inputs.pr_number || github.event.pull_request.number || 'pull-request' }} @ ${{ inputs.expected_sha || github.event.pull_request.head.sha || github.sha }}
 
 on:
   pull_request:
@@ -81,8 +82,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      pull-requests: read # Confirm that the worker PR still points to the exact reviewed SHA.
-      issues: write # Persist bot-authored SHA-bound reviewer evidence on the worker PR.
+      pull-requests: write # Read the exact head and persist evidence on a PR-backed issue.
+      issues: write # Retained for issue-comment compatibility across GitHub token permission models.
     env:
       GH_TOKEN: ${{ github.token }}
       EXPECTED_SHA: ${{ inputs.expected_sha }}
