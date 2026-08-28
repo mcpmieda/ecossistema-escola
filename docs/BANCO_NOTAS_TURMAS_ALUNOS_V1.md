@@ -46,3 +46,14 @@ Executado localmente contra o build de produção e um adaptador HTTP temporári
 O QA identificou antes do commit que “Relação com turma” e “Snapshots” estavam na tela de Turmas. Os filtros foram movidos para Alunos, o build foi refeito e toda a validação foi repetida com sucesso. Nenhum dado ou serviço remoto foi usado.
 
 Gate local final: `npm run verify` com 353 testes em 67 arquivos, build de aplicação e add-in, manifest, lint, tipos, formatação e contrato semântico aprovados; audit com zero vulnerabilidades e diff check limpo.
+
+## GitHub
+
+- branch: `feat/banco-notas-turmas-alunos-v1`;
+- commits funcionais/documentais iniciais: `822eeb6` e `eb3f148`;
+- PR Draft: `#134 — Banco de Notas: Turmas e Alunos V1`, base `main`;
+- primeira rodada: CI and deploy `33199767149` e Semgrep `33199767176`, ambas `success`;
+- Validate application, Actions Security e Semgrep: PASS;
+- Deploy production, recovery, cleanup de homologação e Factory Merge Train: `skipped`;
+- Factory Control Plane: não aplicável ao diff por seus filtros de paths restritos à infraestrutura/workflows/docs da Factory;
+- PR permaneceu Draft, sem merge.

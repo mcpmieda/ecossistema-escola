@@ -405,6 +405,8 @@ O serializador XLSX futuro deve consumir a definição de layout já versionada;
 - A fixture HTTP temporária foi encerrada e removida; CI do PR Draft será registrado após publicação.
 - Nenhum serviço remoto ou PII real; produção e `sync_enabled=0` intactos.
 - Gate local final: `npm run verify` PASS; **353 testes em 67 arquivos**; lint, formatação, tipos, contrato semântico, manifest e builds PASS; `npm audit --audit-level=high` com 0 vulnerabilidades; `git diff --check` PASS.
+- PR Draft #134, primeira rodada: CI and deploy `33199767149` PASS; Semgrep `33199767176` PASS; Validate application, Actions Security e Semgrep verdes; produção/recovery/cleanup/Merge Train skipped.
+- Factory Control Plane não foi acionado porque o diff não toca os paths de Factory que disparam esse workflow; a validação de política GitHub dentro de Actions Security passou.
 
 - estado atual: `PROJECT_STATE.md`;
 - estado do Banco: `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;

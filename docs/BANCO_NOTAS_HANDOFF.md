@@ -389,3 +389,5 @@ Branch `feat/banco-notas-turmas-alunos-v1`, baseada na `main` integrada em `2265
 O módulo é consulta operacional: roster apenas por gradeKey exata em mappings da versão mais recente; sem enrollment paralelo, SMECEL inferido ou CRUD. Antes da integração, exigir regressão completa, browser QA sintético, PR Draft e CI verde. Não fazer merge nem deploy nesta missão. Produção, D1 remoto, Graph/Entra e add-in fora do escopo; manter `sync_enabled=0`.
 
 Leitura principal: `docs/BANCO_NOTAS_TURMAS_ALUNOS_V1.md`.
+
+Publicação: PR Draft #134 para `main`; commits iniciais `822eeb6` e `eb3f148`; CI `33199767149` e Semgrep `33199767176` verdes. O PR deve permanecer sem merge. Factory Control Plane não se aplica a este diff pelos filtros de paths do workflow.

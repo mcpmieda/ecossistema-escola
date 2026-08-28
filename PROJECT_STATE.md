@@ -340,6 +340,8 @@ Qualquer mudança futura material em comportamento, dados, autorização, segura
 
 Referência: `docs/BANCO_NOTAS_TURMAS_ALUNOS_V1.md`.
 
+Publicação atual: PR Draft #134, sem merge; CI/Actions Security/Semgrep verdes na primeira rodada; produção e jobs de deploy/recovery intactos/skipped.
+
 - verificação da release e atualizações: `VERIFICATION.md`;
 - estado do Banco de Notas: `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
 - handoff do Banco de Notas: `docs/BANCO_NOTAS_HANDOFF.md`;
