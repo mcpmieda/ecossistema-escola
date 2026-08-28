@@ -1,0 +1,58 @@
+name: Temporary reviewer lockfile oracle
+
+on:
+  pull_request:
+    paths:
+      - '.coderabbit.yaml'
+      - 'infra/factory/merge-train-gate.mjs'
+      - 'infra/factory/merge-train-gate.test.mjs'
+      - '.github/workflows/merge-train-semgrep.yml'
+      - '.github/workflows/merge-train-sonar.yml'
+      - '.github/workflows/tmp-reviewer-oracle.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate trusted reviewer lockfile and formatting
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked baseline
+        run: npm ci
+      - name: Add exact SonarScanner package to lockfile
+        run: npm install --save-dev --save-exact @sonar/scan@5.0.0
+      - name: Verify exact scanner package version
+        run: test "$(node -p "require('./node_modules/@sonar/scan/package.json').version")" = "5.0.0"
+      - name: Format changed trusted files
+        run: >-
+          npx prettier --write
+          .coderabbit.yaml
+          infra/factory/merge-train-gate.mjs
+          infra/factory/merge-train-gate.test.mjs
+          .github/workflows/merge-train-semgrep.yml
+          .github/workflows/merge-train-sonar.yml
+      - name: Upload exact generated files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: reviewer-oracle-${{ github.run_id }}
+          path: |
+            package.json
+            package-lock.json
+            .coderabbit.yaml
+            infra/factory/merge-train-gate.mjs
+            infra/factory/merge-train-gate.test.mjs
+            .github/workflows/merge-train-semgrep.yml
+            .github/workflows/merge-train-sonar.yml
+          if-no-files-found: error
+          retention-days: 1
