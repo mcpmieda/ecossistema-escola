@@ -86,7 +86,7 @@ jobs:
 
   merge-train:
     name: Factory Merge Train
-    if: github.event_name == 'workflow_dispatch' && vars.FACTORY_MERGE_TRAIN_MODE == 'strict'
+    if: github.event_name == 'workflow_dispatch'
     needs: [validate, workflow-security]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
