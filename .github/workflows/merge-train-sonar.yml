@@ -28,10 +28,19 @@ jobs:
       contents: read
       pull-requests: read # Confirm the worker PR still points to the exact SHA being scanned.
     steps:
+      - name: Checkout trusted scanner lockfile
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Checkout exact worker revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.expected_sha }}
+          path: candidate
           fetch-depth: 0
           persist-credentials: false
 
@@ -39,10 +48,13 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: trusted/package-lock.json
 
       - name: Validate exact SHA, PR head and Sonar configuration
         id: config
         shell: bash
+        working-directory: candidate
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_SHA: ${{ inputs.expected_sha }}
@@ -61,22 +73,27 @@ jobs:
           test -n "${SONAR_TOKEN}" || { echo 'SONAR_TOKEN repository secret is required.' >&2; exit 1; }
           node -e "const [major, minor] = process.versions.node.split('.').map(Number); if (major < 22 || (major === 22 && minor < 12)) process.exit(1)"
 
-      - name: Install pinned official SonarScanner NPM
+      - name: Install trusted locked dependencies
+        shell: bash
+        run: npm ci --prefix trusted
+
+      - name: Verify pinned official SonarScanner NPM
         shell: bash
         run: |
           set -euo pipefail
-          npm install --global --ignore-scripts=false @sonar/scan@5.0.0
-          sonar-scanner-npm --version
+          test "$(node -p "require('./trusted/node_modules/@sonar/scan/package.json').version")" = "5.0.0"
+          trusted/node_modules/.bin/sonar-scanner-npm --version
 
       - name: Run SonarQube Cloud scan
         shell: bash
+        working-directory: candidate
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
           SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
         run: |
           set -euo pipefail
-          sonar-scanner-npm \
+          "${GITHUB_WORKSPACE}/trusted/node_modules/.bin/sonar-scanner-npm" \
             -Dsonar.host.url=https://sonarcloud.io \
             -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
             -Dsonar.organization="${SONAR_ORGANIZATION}" \
