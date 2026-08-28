@@ -39,7 +39,8 @@ function validateSha40(value, label = 'SHA') {
 
 function validatePrNumber(value) {
   const number = Number(value);
-  if (!Number.isInteger(number) || number <= 0) fail('Reviewer PR number must be a positive integer.');
+  if (!Number.isInteger(number) || number <= 0)
+    fail('Reviewer PR number must be a positive integer.');
   return number;
 }
 
