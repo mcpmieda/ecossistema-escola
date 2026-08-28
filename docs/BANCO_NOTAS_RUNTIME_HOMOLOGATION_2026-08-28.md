@@ -68,3 +68,18 @@ Método: D1Database.batch().
 - docs/evidence/BancoNotas-D1-Binding-Atomicity-Homologation-2026-08-27.json.
 
 As evidências contêm somente estados booleanos, identificadores operacionais do deployment e resultados técnicos não pessoais. Não contêm bearer, refresh token, UPN, e-mail, nome, OID, account ID ou segredo.
+
+## Encerramento do runtime temporário — 28/08/2026
+
+- CI `33163724110` / #1008: **success**.
+- Formatting, lint, typecheck, semantic contract, validação do manifest, testes e builds: success.
+- Testes: **323 passed em 59 arquivos**.
+- Actions security: success.
+- Semgrep `33163724064`: success.
+- Factory Control Plane `33163724062`: success.
+- Job `98824370212` (`Remove isolated Banco de Notas homologation runtime`): success.
+- A consulta de deployments do Cloudflare retornou `RUNTIME_HOMOLOGATION_PAGES_PREVIEW_ALREADY_ABSENT` para o ID exato `239e9bc8-d504-41e1-8d15-d2b092039872`.
+- O redirect SPA temporário do preview continua ausente no Entra; redirects institucionais e contrato credential-free permanecem preservados.
+- `sync_enabled=0`; produção Pages, Worker e D1 não foram alterados.
+- `Deploy production` e `Verify recovery after deploy`: skipped.
+- PR #52 permanece open, draft e sem merge.
