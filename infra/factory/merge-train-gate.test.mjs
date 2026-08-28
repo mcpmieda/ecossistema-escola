@@ -55,13 +55,16 @@ function codeRabbitSummary({
   includeRecentSection = true,
   historicalSkip = false,
 }) {
+  const reviewedRange = `Reviewing files that changed from the base of the PR and between ${previousSha} and ${sha}.`;
   const recent = clean
-    ? `No actionable comments were generated in the recent review. 🎉\n\nReviewing files that changed from the base of the PR and between ${previousSha} and ${sha}.`
-    : `Actionable comments were generated in the recent review.\n\nReviewing files that changed from the base of the PR and between ${previousSha} and ${sha}.`;
-  const body = [
-    historicalSkip ? '<!-- skip review by coderabbit.ai -->' : '',
-    includeRecentSection ? `<!-- recent_review_start -->\n${recent}\n<!-- recent_review_end -->` : recent,
-  ]
+    ? ['No actionable comments were generated in the recent review. 🎉', '', reviewedRange].join(
+        '\n',
+      )
+    : ['Actionable comments were generated in the recent review.', '', reviewedRange].join('\n');
+  const recentBlock = includeRecentSection
+    ? `<!-- recent_review_start -->\n${recent}\n<!-- recent_review_end -->`
+    : recent;
+  const body = [historicalSkip ? '<!-- skip review by coderabbit.ai -->' : '', recentBlock]
     .filter(Boolean)
     .join('\n');
   return comment({ login, body, updated, id });
@@ -164,26 +167,19 @@ test('CodeRabbit review is bound to exact commit and actionable count', () => {
 
 test('CodeRabbit zero-finding summary is trusted only from its bot and exact reviewed range', () => {
   const trusted = classifyCodeRabbitSummaryComment(codeRabbitSummary({}), SHA);
+  const wrongAuthor = codeRabbitSummary({ login: 'mcpmieda' });
+  const wrongSha = codeRabbitSummary({ sha: OTHER_SHA });
+  const findings = codeRabbitSummary({ clean: false });
+  const unbounded = codeRabbitSummary({ includeRecentSection: false });
+
   assert.equal(trusted?.status, 'success');
   assert.equal(trusted?.actionable, 0);
   assert.equal(trusted?.evidenceKind, 'recent-review-comment');
   assert.equal(trusted?.reviewId, 12);
-  assert.equal(
-    classifyCodeRabbitSummaryComment(codeRabbitSummary({ login: 'mcpmieda' }), SHA),
-    null,
-  );
-  assert.equal(
-    classifyCodeRabbitSummaryComment(codeRabbitSummary({ sha: OTHER_SHA }), SHA),
-    null,
-  );
-  assert.equal(
-    classifyCodeRabbitSummaryComment(codeRabbitSummary({ clean: false }), SHA),
-    null,
-  );
-  assert.equal(
-    classifyCodeRabbitSummaryComment(codeRabbitSummary({ includeRecentSection: false }), SHA),
-    null,
-  );
+  assert.equal(classifyCodeRabbitSummaryComment(wrongAuthor, SHA), null);
+  assert.equal(classifyCodeRabbitSummaryComment(wrongSha, SHA), null);
+  assert.equal(classifyCodeRabbitSummaryComment(findings, SHA), null);
+  assert.equal(classifyCodeRabbitSummaryComment(unbounded, SHA), null);
 });
 
 test('CodeRabbit clean exact-SHA summary can satisfy a later trusted request', () => {
