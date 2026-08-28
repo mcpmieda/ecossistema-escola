@@ -1,0 +1,1 @@
+Hosted OpenCode worker completed. Use write once; no shell or other file.
