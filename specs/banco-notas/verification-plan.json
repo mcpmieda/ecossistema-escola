@@ -112,6 +112,12 @@
       "name": "Professores V1 operational read model",
       "method": "SQLite real, contratos/API, allow/deny, UI e browser QA sintético desktop/mobile cobrindo docentes com e sem assignments/identidade/modelo/findings",
       "required": true
+    },
+    {
+      "id": "BN-V-019",
+      "name": "Pesquisa Global V1 canonical discovery",
+      "method": "SQLite real, contratos/API, allow/deny, normalização e ranking determinístico, limites/deduplicação, UI e browser QA sintético desktop/mobile com loading/empty/error/403",
+      "required": true
     }
   ],
   "scenario_matrix": [
@@ -145,7 +151,10 @@
     "professor sem assignment permanece visível e recebe estado informativo",
     "identidade institucional é reduzida a vinculada/ausente sem OID, claims, UPN ou DriveItem ID",
     "modelo latest, source authority, import failure, findings e atividade recente produzem situação factual",
-    "Professores navega para Turmas e Acompanhamento e recebe links de retorno desses módulos"
+    "Professores navega para Turmas e Acompanhamento e recebe links de retorno desses módulos",
+    "pesquisa por caixa, acentos e espaços encontra as mesmas entidades canônicas com ranking exato, prefixo, ocorrência e contexto",
+    "resultado de Pesquisa Global navega para Aluno, Professor, Turma e Acompanhamento preservando o retorno com q",
+    "requisição obsoleta de Pesquisa Global é cancelada e estados curto, loading, empty, error e permission denied são distintos"
   ],
   "data_policy": {
     "git": "somente fixtures sintéticas e contratos; nenhum nome/nota real",
@@ -169,6 +178,7 @@
     "recovery não comprovado para o novo store antes da produção",
     "modelo ou transformador de produção especializado por nome, abas, turmas, disciplinas, células ou particularidades de Nina/Alanna",
     "golden master privado incorporado ao produto, runtime, persistência, migration, fixture pública, SharePoint definitivo ou distribuição",
-    "Professores V1 relacionando teacher por nome, omitindo docente sem assignment ou expondo OID/DriveItem ID"
+    "Professores V1 relacionando teacher por nome, omitindo docente sem assignment ou expondo OID/DriveItem ID",
+    "Pesquisa Global criando índice ou identidade paralela, ranqueando no frontend, carregando entidades integralmente ou expondo identificadores técnicos"
   ]
 }

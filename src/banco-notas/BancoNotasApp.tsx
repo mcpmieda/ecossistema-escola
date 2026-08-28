@@ -48,6 +48,7 @@ import type { PlatformCapability } from '../../shared/platform-contract';
 import { AcompanhamentoDetailPage, AcompanhamentoPage } from './AcompanhamentoPage';
 import { AlunoDetailPage, AlunosPage, TurmaDetailPage, TurmasPage } from './TurmasAlunosPage';
 import { ProfessorDetailPage, ProfessoresPage } from './ProfessoresPage';
+import { PesquisaGlobalPage } from './PesquisaGlobalPage';
 
 type BancoNotasIdentity = {
   name?: string;
@@ -808,7 +809,7 @@ function Shell({ identity }: Props) {
           <Route path="professores/:id" element={<ProfessorDetailPage />} />
           <Route path="conselho" element={<Planned title="Conselho de classe" />} />
           <Route path="boletins" element={<Planned title="Boletins" />} />
-          <Route path="pesquisa" element={<Planned title="Pesquisa" />} />
+          <Route path="pesquisa" element={<PesquisaGlobalPage />} />
           <Route path="configuracoes/fonte" element={<SourceSettings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

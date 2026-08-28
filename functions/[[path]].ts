@@ -38,6 +38,7 @@ import { routeBancoNotasApi } from '../server/banco-notas/api';
 import { D1AcompanhamentoRepository } from '../server/banco-notas/d1-acompanhamento-repository';
 import { D1TurmasAlunosRepository } from '../server/banco-notas/d1-turmas-alunos-repository';
 import { D1ProfessoresRepository } from '../server/banco-notas/d1-professores-repository';
+import { D1BancoNotasSearchRepository } from '../server/banco-notas/d1-search-repository';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -369,6 +370,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
       acompanhamento: new D1AcompanhamentoRepository(env.BANCO_NOTAS_DB),
       turmasAlunos: new D1TurmasAlunosRepository(env.BANCO_NOTAS_DB),
       professores: new D1ProfessoresRepository(env.BANCO_NOTAS_DB),
+      search: new D1BancoNotasSearchRepository(env.BANCO_NOTAS_DB),
       capabilities,
       actor: session.oid,
       importAnalysis: {
