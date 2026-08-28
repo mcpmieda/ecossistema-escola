@@ -330,6 +330,16 @@ Qualquer mudança futura material em comportamento, dados, autorização, segura
 
 ## Referências internas
 
+## Banco de Notas — Turmas e Alunos V1 (28/08/2026)
+
+- Branch funcional adiciona diretórios reais, detalhes e navegação cruzada com Acompanhamento.
+- Roster somente pela versão mais recente dos mappings canônicos, gradeKey exata e deduplicação por ano + turma + aluno.
+- Sem matrícula paralela ou CRUD; aluno sem relação comprovada continua na pesquisa global.
+- API read-only com `grades.analytics.read`, filtros e paginação server-side.
+- Produção, D1 remoto, Graph, Entra e add-in intocados; `sync_enabled=0`.
+
+Referência: `docs/BANCO_NOTAS_TURMAS_ALUNOS_V1.md`.
+
 - verificação da release e atualizações: `VERIFICATION.md`;
 - estado do Banco de Notas: `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
 - handoff do Banco de Notas: `docs/BANCO_NOTAS_HANDOFF.md`;

@@ -394,6 +394,18 @@ O serializador XLSX futuro deve consumir a definição de layout já versionada;
 
 ## Referências
 
+## Banco de Notas — verificação Turmas e Alunos V1 (28/08/2026)
+
+- Repository D1 em SQLite real com migrations 0001–0007 e fixtures sintéticas.
+- Cobertura dedicada de latest version, gradeKey exata, deduplicação, aluno sem vínculo, paginação, filtros, 404, auth, falha fechada e zero versus ausência.
+- Regressão de Acompanhamento integra o gate local.
+- OpenAPI e contrato semântico atualizados; UI HeroUI administrativa e read-only.
+- Browser QA local sintético: PASS em 1440 × 900 e 390 × 844, incluindo filtros/query string, debounce, empty, detalhes, navegação cruzada, aluno sem vínculo, zero, ausência, erro, 403 e overflow horizontal contido na tabela.
+- Regressão visual após refinamentos: estado parcial, 404, cabeçalho operacional, snapshot count, pendências do contexto e mobile sem overflow — PASS.
+- A fixture HTTP temporária foi encerrada e removida; CI do PR Draft será registrado após publicação.
+- Nenhum serviço remoto ou PII real; produção e `sync_enabled=0` intactos.
+- Gate local final: `npm run verify` PASS; **353 testes em 67 arquivos**; lint, formatação, tipos, contrato semântico, manifest e builds PASS; `npm audit --audit-level=high` com 0 vulnerabilidades; `git diff --check` PASS.
+
 - estado atual: `PROJECT_STATE.md`;
 - estado do Banco: `docs/BANCO_NOTAS_IMPLEMENTATION_STATE.md`;
 - handoff do Banco: `docs/BANCO_NOTAS_HANDOFF.md`;

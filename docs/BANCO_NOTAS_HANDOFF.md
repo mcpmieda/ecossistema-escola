@@ -381,3 +381,11 @@ Documento funcional e evidências: `docs/BANCO_NOTAS_ACOMPANHAMENTO_V1.md`.
 - Os merges não autorizam release: nenhum deploy de produção, alteração D1 remota, mudança Entra/Graph ou publicação do add-in.
 - `sync_enabled=0` e endpoint público continuam protegidos.
 - Próxima retomada funcional: abrir missão própria para Turmas e Alunos V1; não inferir autorização de piloto ou produção.
+
+## Retomada — Turmas e Alunos V1 (28/08/2026)
+
+Branch `feat/banco-notas-turmas-alunos-v1`, baseada na `main` integrada em `22657ede13a22561e4b7d350b629719a79ed084f`.
+
+O módulo é consulta operacional: roster apenas por gradeKey exata em mappings da versão mais recente; sem enrollment paralelo, SMECEL inferido ou CRUD. Antes da integração, exigir regressão completa, browser QA sintético, PR Draft e CI verde. Não fazer merge nem deploy nesta missão. Produção, D1 remoto, Graph/Entra e add-in fora do escopo; manter `sync_enabled=0`.
+
+Leitura principal: `docs/BANCO_NOTAS_TURMAS_ALUNOS_V1.md`.
