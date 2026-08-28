@@ -339,3 +339,19 @@ Qualquer mudança futura material em comportamento, dados, autorização, segura
 - arquitetura: `ARCHITECTURE.md`;
 - redesign Native v2: `docs/REDESIGN_HEROUI_NATIVE_V2.md`;
 - hardening Native v2: `docs/HEROUI_NATIVE_V2_HARDENING_2026-08-25.md`.
+
+
+## Homologação runtime bearer/ownership + atomicidade D1 — 28/08/2026
+
+- Excel Online real obteve bearer delegado NAA 1.1 e o enviou ao runtime isolado em Cloudflare Pages Functions.
+- Validação sanitizada aprovada para token v2, tenant, issuer, audience, scope, authorized party, lifetime e presença de OID; nenhum token, OID, conta ou PII foi persistido.
+- Ownership positivo aceito; ownership incorreto, modelo inexistente e professor inativo rejeitados.
+- A guarda de sync rejeitou ingestão com zero escritas enquanto desabilitada.
+- O binding real BANCO_NOTAS_DB comprovou atomicidade de evento + snapshot via D1Database.batch(): caminho positivo completo e falha controlada sem escrita parcial.
+- Estado final no D1 de homologação: modelo e assignment com sync_enabled=0; fixtures negativas removidas.
+- Deployment isolado: 239e9bc8-d504-41e1-8d15-d2b092039872; workflow de deploy 33160734080 — success.
+- Redirect SPA temporário do preview removido do Entra; dois redirects institucionais preservados; zero secrets/certificados.
+- Limpeza do preview Pages: pendente neste commit e disparada pelas evidências versionadas.
+- Nenhum Worker, Pages ou D1 de produção foi alterado. PR #52 permanece open, draft e sem merge.
+
+Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.json e docs/evidence/BancoNotas-D1-Binding-Atomicity-Homologation-2026-08-27.json.

@@ -5,7 +5,14 @@ import { ingestGradeEvent } from '../../../server/banco-notas/grade-events';
 import type { GradeEventInput } from '../../../shared/banco-notas-grade-events';
 
 type Row = Record<string, string | number | null>;
-type RuntimeHomologationEnv = BancoNotasRuntimeHomologationEnv & { ASSETS: Fetcher };
+type RuntimeHomologationEnv = {
+  ASSETS: Fetcher;
+  BANCO_NOTAS_DB: D1Database;
+  RUNTIME_ENVIRONMENT: 'homologation';
+  TENANT_ID: string;
+  BANCO_NOTAS_ADDIN_AUDIENCE: string;
+  BANCO_NOTAS_ADDIN_SCOPE: string;
+};
 
 const runPath = '/__banco-notas-homologation/run';
 const addinPathPrefix = '/banco-de-notas/addin/';

@@ -4,7 +4,15 @@ import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
 
 export default [
-  { ignores: ['dist/**', 'node_modules/**', 'worker-configuration.d.ts'] },
+  {
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      '.runtime-homologation/**',
+      'worker-configuration.d.ts',
+      'worker-configuration.runtime-homologation.d.ts',
+    ],
+  },
   js.configs.recommended,
   {
     files: ['**/*.mjs'],

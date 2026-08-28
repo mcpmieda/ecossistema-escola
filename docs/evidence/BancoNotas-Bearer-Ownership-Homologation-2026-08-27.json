@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUtc": "2026-08-28T09:51:08.056Z",
+  "status": "BEARER_OWNERSHIP_RUNTIME_HOMOLOGATION_PASSED",
+  "environment": "homologation",
+  "endpoint": "/__banco-notas-homologation/run",
+  "httpStatus": 200,
+  "runtime": "Cloudflare Pages Functions",
+  "database": "banco-notas-homologation",
+  "binding": "BANCO_NOTAS_DB",
+  "authentication": {
+    "source": "Excel Online Nested App Authentication 1.1",
+    "delegatedTokenReachedRuntime": true,
+    "tokenValidated": true,
+    "tokenVersionV2Validated": true,
+    "tenantValidated": true,
+    "issuerValidated": true,
+    "audienceValidated": true,
+    "scopeValidated": true,
+    "authorizedPartyValidated": true,
+    "lifetimeValidated": true,
+    "oidPresent": true
+  },
+  "scenarios": {
+    "positiveOwnershipAccepted": true,
+    "wrongOwnershipRejected": true,
+    "nonexistentModelRejected": true,
+    "inactiveTeacherRejected": true,
+    "syncDisabledRejected": true,
+    "writesWhileSyncDisabled": 0
+  },
+  "cleanup": {
+    "temporaryIdentityCreated": false,
+    "negativeFixturesRemoved": true,
+    "modelSyncEnabledFinal": 0,
+    "sourceAssignmentSyncEnabledFinal": 0,
+    "pagesPreviewCleanupPending": true
+  },
+  "deployment": {
+    "surface": "isolated_pages_preview",
+    "pagesProjectName": "ecossistema-escola",
+    "pagesDeploymentId": "239e9bc8-d504-41e1-8d15-d2b092039872",
+    "deploymentUrl": "https://239e9bc8.ecossistema-escola.pages.dev",
+    "previewBranch": "banco-notas-runtime-homologation",
+    "cleanupPending": true
+  },
+  "production": {
+    "workerDeploymentPerformed": false,
+    "productionPagesDeploymentChanged": false,
+    "productionD1Changed": false
+  },
+  "sanitization": {
+    "rawAccessTokenIncluded": false,
+    "refreshTokenIncluded": false,
+    "upnIncluded": false,
+    "emailIncluded": false,
+    "personalNameIncluded": false,
+    "oidValueIncluded": false,
+    "accountIdIncluded": false,
+    "secretIncluded": false
+  }
+}
