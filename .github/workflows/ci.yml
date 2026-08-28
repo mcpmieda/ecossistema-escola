@@ -1,1 +1,217 @@
-Importing module "process" is not allowed in node_repl
+name: CI and deploy
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "test/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Manual validation must never cancel an active production pipeline.
+  # Production pushes are serialized instead of cancelling one another.
+  group: pages-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+
+jobs:
+  validate:
+    name: Validate application
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Validate semantic contract
+        run: npm run semantic:check
+
+      - name: Validate Banco de Notas add-in manifest
+        run: npm run validate:addin-manifest
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  workflow-security:
+    name: Validate GitHub Actions security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate workflows with actionlint
+        run: bash ./infra/validation/run-actionlint.sh
+
+      - name: Validate PowerShell syntax
+        shell: pwsh
+        run: ./infra/validation/assert-powershell-syntax.ps1
+
+      - name: Validate GitHub control-plane policy
+        shell: pwsh
+        run: ./infra/validation/assert-github-control-plane.ps1
+
+      - name: Audit workflows with zizmor
+        uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
+        with:
+          advanced-security: false
+          online-audits: false
+          persona: pedantic
+          version: v1.29.0
+
+  deploy-production:
+    name: Deploy production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [validate, workflow-security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy Cloudflare Pages
+        run: >-
+          npx wrangler pages deploy dist
+          --project-name ecossistema-escola
+          --branch main
+          --commit-hash "${DEPLOY_COMMIT_SHA}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          DEPLOY_COMMIT_SHA: ${{ github.sha }}
+
+  verify-recovery:
+    name: Verify recovery after deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [deploy-production]
+    permissions:
+      contents: read
+      id-token: write # required only to authenticate the post-deploy recovery check with GitHub OIDC
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout deployed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Rebuild deployed source as recovery evidence
+        run: npm run build
+
+      - name: Verify disposable SharePoint backup and restore round trip
+        shell: bash
+        run: |
+          set -o pipefail
+          node infra/maintenance/verify-recovery.mjs | tee recovery-audit.jsonl
+
+      - name: Publish redacted recovery evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: recovery-verification-${{ github.run_id }}
+          path: recovery-audit.jsonl
+          if-no-files-found: error
+          retention-days: 90
+
+  remove-banco-notas-runtime-preview:
+    name: Remove isolated Banco de Notas homologation runtime
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.number == 52 &&
+      github.head_ref == 'feat/banco-de-notas-foundation'
+    needs: [validate, workflow-security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Remove only the evidenced preview when it still exists
+        shell: pwsh
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          $evidence = Get-Content -LiteralPath 'docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.json' -Raw | ConvertFrom-Json
+          $deploymentId = [string]$evidence.deployment.pagesDeploymentId
+          if ([string]::IsNullOrWhiteSpace($deploymentId)) {
+            throw 'A evidência não contém o ID exato do preview Pages temporário.'
+          }
+          $deployments = npx wrangler pages deployment list --project-name ecossistema-escola --json | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Falha ao consultar os deployments Pages.'
+          }
+          if ($deployments.id -contains $deploymentId) {
+            npx wrangler pages deployment delete $deploymentId --project-name ecossistema-escola --force
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Falha ao remover o preview Pages exato.'
+            }
+            Write-Output 'RUNTIME_HOMOLOGATION_PAGES_PREVIEW_REMOVED'
+          } else {
+            Write-Output 'RUNTIME_HOMOLOGATION_PAGES_PREVIEW_ALREADY_ABSENT'
+          }
