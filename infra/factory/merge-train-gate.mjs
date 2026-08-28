@@ -37,12 +37,49 @@ function validateSha40(value, label = 'SHA') {
   return sha;
 }
 
+function validatePrNumber(value) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number <= 0)
+    fail('Reviewer PR number must be a positive integer.');
+  return number;
+}
+
 function decodeMarkerPayload(encoded, label) {
   try {
     return JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
   } catch {
     fail(`${label} marker payload is invalid.`);
   }
+}
+
+export function reviewerRunName(reviewer, prNumber, expectedSha) {
+  if (!['Semgrep', 'Sonar'].includes(reviewer)) fail('Unsupported reviewer workflow name.');
+  const pr = validatePrNumber(prNumber);
+  const sha = validateSha40(expectedSha, `${reviewer} run SHA`);
+  return `${reviewer} PR ${pr} @ ${sha}`;
+}
+
+export function latestMatchingReviewerWorkflowRun(
+  runs,
+  reviewer,
+  prNumber,
+  expectedSha,
+  afterRunId = 0,
+) {
+  const title = reviewerRunName(reviewer, prNumber, expectedSha);
+  return (
+    (runs ?? [])
+      .filter((run) => {
+        const id = Number(run?.id);
+        return (
+          Number.isInteger(id) &&
+          id > Number(afterRunId || 0) &&
+          run?.event === 'workflow_dispatch' &&
+          run?.display_title === title
+        );
+      })
+      .sort((left, right) => Number(right.id) - Number(left.id))[0] ?? null
+  );
 }
 
 export function parseTrustedCodeRabbitRequest(comment) {
@@ -198,6 +235,13 @@ async function currentPr(owner, repo, prNumber, expectedSha) {
   return pr;
 }
 
+async function reviewerWorkflowRuns(owner, repo, workflow) {
+  const payload = await github(
+    `/repos/${owner}/${repo}/actions/workflows/${workflow}/runs?event=workflow_dispatch&branch=main&per_page=50`,
+  );
+  return Array.isArray(payload?.workflow_runs) ? payload.workflow_runs : [];
+}
+
 async function dispatchReviewer(owner, repo, workflow, prNumber, sha) {
   await github(`/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`, {
     method: 'POST',
@@ -216,6 +260,9 @@ async function waitForReviewer(owner, repo, { workflow, reviewer, prNumber, sha 
   const existing = latestTrustedReviewerEvidence(comments, reviewer, sha);
   if (existing?.conclusion === 'success') return existing;
   const baselineRunId = existing?.run_id ?? 0;
+  const baselineRuns = await reviewerWorkflowRuns(owner, repo, workflow);
+  const baselineWorkflowRunId =
+    latestMatchingReviewerWorkflowRun(baselineRuns, reviewer, prNumber, sha)?.id ?? 0;
 
   await dispatchReviewer(owner, repo, workflow, prNumber, sha);
   for (let attempt = 0; attempt < MAX_REVIEW_ATTEMPTS; attempt += 1) {
@@ -227,6 +274,20 @@ async function waitForReviewer(owner, repo, { workflow, reviewer, prNumber, sha 
         fail(`${reviewer} reviewer run ${evidence.run_id} concluded ${evidence.conclusion}.`);
       }
       return evidence;
+    }
+
+    const workflowRuns = await reviewerWorkflowRuns(owner, repo, workflow);
+    const workflowRun = latestMatchingReviewerWorkflowRun(
+      workflowRuns,
+      reviewer,
+      prNumber,
+      sha,
+      baselineWorkflowRunId,
+    );
+    if (workflowRun?.status === 'completed' && workflowRun.conclusion !== 'success') {
+      fail(
+        `${reviewer} reviewer workflow run ${workflowRun.id} concluded ${workflowRun.conclusion} before valid SHA-bound evidence was published.`,
+      );
     }
     await sleep(POLL_MS);
   }
