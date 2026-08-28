@@ -87,6 +87,49 @@ jobs:
           persona: pedantic
           version: v1.29.0
 
+  merge-train:
+    name: Factory Merge Train
+    if: github.event_name == 'workflow_dispatch'
+    needs: [validate, workflow-security]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: write # Dispatch trusted Semgrep and Sonar reviewer workflows from main.
+      contents: read # Compare the candidate workflow with main and execute trusted Control Plane code.
+      issues: write # Persist SHA-bound reviewer and Merge Train evidence on worker PRs.
+      pull-requests: write # Read exact PR heads/reviews and request CodeRabbit through PR comments.
+    steps:
+      - name: Checkout exact worker revision as data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: candidate
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout trusted Control Plane from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trusted
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Prove the worker did not alter its CI authority
+        shell: bash
+        run: cmp candidate/.github/workflows/ci.yml trusted/.github/workflows/ci.yml
+
+      - name: Set up Node.js for trusted Control Plane
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Enforce exact-SHA Merge Train from trusted main
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node trusted/infra/factory/merge-train-gate.mjs
+
   deploy-production:
     name: Deploy production
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
