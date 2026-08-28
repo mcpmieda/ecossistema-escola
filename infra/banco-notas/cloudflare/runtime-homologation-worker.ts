@@ -8,6 +8,9 @@ type Row = Record<string, string | number | null>;
 type RuntimeHomologationEnv = BancoNotasRuntimeHomologationEnv & { ASSETS: Fetcher };
 
 const runPath = '/__banco-notas-homologation/run';
+const addinPathPrefix = '/banco-de-notas/addin/';
+const addinContentSecurityPolicy =
+  "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors https://*.officeapps.live.com https://*.office.com https://*.microsoft365.com https://*.sharepoint.com; form-action 'none'; img-src 'self' data:; style-src 'self'; script-src 'self' https://appsforoffice.microsoft.com; connect-src 'self' https://login.microsoftonline.com";
 
 function json(value: unknown, status = 200): Response {
   return Response.json(value, {
@@ -18,6 +21,25 @@ function json(value: unknown, status = 200): Response {
       'X-Content-Type-Options': 'nosniff',
     },
   });
+}
+
+export function normalizeRuntimeHomologationAddinResponse(asset: Response): Response {
+  const headers = new Headers(asset.headers);
+  headers.delete('Content-Security-Policy');
+  headers.delete('X-Frame-Options');
+  headers.set('Content-Security-Policy', addinContentSecurityPolicy);
+  return new Response(asset.body, {
+    status: asset.status,
+    statusText: asset.statusText,
+    headers,
+  });
+}
+
+async function addinAssetResponse(
+  request: Request,
+  env: RuntimeHomologationEnv,
+): Promise<Response> {
+  return normalizeRuntimeHomologationAddinResponse(await env.ASSETS.fetch(request));
 }
 
 async function count(db: D1Database, sql: string, ...values: unknown[]): Promise<number> {
@@ -455,6 +477,9 @@ export default {
           status,
         );
       }
+    }
+    if (url.pathname.startsWith(addinPathPrefix)) {
+      return addinAssetResponse(request, env);
     }
     return env.ASSETS.fetch(request);
   },

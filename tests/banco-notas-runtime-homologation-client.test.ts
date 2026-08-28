@@ -2,6 +2,7 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import { runBancoNotasRuntimeHomologation } from '../addin/banco-notas/runtime-homologation';
+import { normalizeRuntimeHomologationAddinResponse } from '../infra/banco-notas/cloudflare/runtime-homologation-worker';
 
 describe('Banco de Notas runtime homologation client', () => {
   it('keeps the delegated token only in the outbound authorization header', async () => {
@@ -24,5 +25,24 @@ describe('Banco de Notas runtime homologation client', () => {
       'Bearer delegated-token-never-persisted',
     );
     expect(init?.body).not.toContain('delegated-token-never-persisted');
+  });
+
+  it('removes the global frame denial only from the temporary add-in response', async () => {
+    const response = normalizeRuntimeHomologationAddinResponse(
+      new Response('taskpane', {
+        status: 200,
+        headers: {
+          'Content-Security-Policy': "default-src 'self'; frame-ancestors 'none'",
+          'X-Frame-Options': 'DENY',
+        },
+      }),
+    );
+
+    expect(response.headers.get('X-Frame-Options')).toBeNull();
+    expect(response.headers.get('Content-Security-Policy')).toContain(
+      'frame-ancestors https://*.officeapps.live.com',
+    );
+    expect(response.headers.get('Content-Security-Policy')).not.toContain("frame-ancestors 'none'");
+    await expect(response.text()).resolves.toBe('taskpane');
   });
 });
