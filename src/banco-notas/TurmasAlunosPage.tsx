@@ -580,7 +580,11 @@ export function TurmaDetailPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const state = useDetail<TurmaDetail>(`/v1/turmas/${id}`);
-  const back = `/turmas${params.get('retorno') ? `?${params.get('retorno')}` : ''}`;
+  const returnParams = params.get('retorno') ?? '';
+  const back =
+    returnParams.startsWith('/') && !returnParams.startsWith('//')
+      ? returnParams
+      : `/turmas${returnParams ? `?${returnParams}` : ''}`;
   return (
     <Frame
       title={state.data?.classGroup.name ?? 'Detalhe da turma'}
@@ -647,7 +651,17 @@ export function TurmaDetailPage() {
                       className="rounded-xl border border-border p-3"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <strong>{assignment.teacherName}</strong>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onPress={() =>
+                            navigate(
+                              `/professores/${assignment.teacherId}?retorno=${encodeURIComponent(`/turmas/${id}`)}&schoolYearId=${state.data?.classGroup.schoolYearId ?? ''}`,
+                            )
+                          }
+                        >
+                          {assignment.teacherName}
+                        </Button>
                         <Chip size="sm" variant="soft">
                           {assignment.modelState ?? 'Sem modelo'}
                         </Chip>

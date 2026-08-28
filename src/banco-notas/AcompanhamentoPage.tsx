@@ -467,7 +467,17 @@ export function AcompanhamentoPage() {
                           </div>
                         </Table.Cell>
                         <Table.Cell>
-                          <p className="font-medium">{row.teacherName}</p>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onPress={() =>
+                              navigate(
+                                `/professores/${row.teacherId}?retorno=${encodeURIComponent(`/acompanhamento${returnQuery ? `?${returnQuery}` : ''}`)}&schoolYearId=${row.schoolYearId}`,
+                              )
+                            }
+                          >
+                            {row.teacherName}
+                          </Button>
                           <p className="text-xs text-muted">
                             {row.components.join(', ') || 'Componente não informado'}
                           </p>
@@ -555,7 +565,10 @@ export function AcompanhamentoDetailPage() {
   const [error, setError] = useState<Error | null>(null);
   const [reload, setReload] = useState(0);
   const returnParams = params.get('retorno') ?? '';
-  const backHref = `/acompanhamento${returnParams ? `?${returnParams}` : ''}`;
+  const backHref =
+    returnParams.startsWith('/') && !returnParams.startsWith('//')
+      ? returnParams
+      : `/acompanhamento${returnParams ? `?${returnParams}` : ''}`;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -650,7 +663,19 @@ export function AcompanhamentoDetailPage() {
                           id={`${assignment.teacherId}:${assignment.componentName}`}
                           key={`${assignment.teacherId}:${assignment.componentName}`}
                         >
-                          <Table.Cell className="font-medium">{assignment.teacherName}</Table.Cell>
+                          <Table.Cell>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onPress={() =>
+                                navigate(
+                                  `/professores/${assignment.teacherId}?retorno=${encodeURIComponent(`/acompanhamento/turmas/${id}`)}&schoolYearId=${detail.classGroup.schoolYearId}`,
+                                )
+                              }
+                            >
+                              {assignment.teacherName}
+                            </Button>
+                          </Table.Cell>
                           <Table.Cell>{assignment.componentName}</Table.Cell>
                           <Table.Cell>
                             <StateChip state={assignment.modelState} />

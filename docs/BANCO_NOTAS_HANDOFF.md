@@ -1,5 +1,17 @@
 # Banco de Notas — Handoff
 
+## Retomada — Professores V1 (28/08/2026)
+
+Branch `feat/banco-notas-professores-v1`, criada sobre a `main` integrada em `0d61a96e4c7567d565548ac6bedcc9b9c1c5c6c1`.
+
+O vertical slice read-only está implementado: diretório, filtros, paginação, detalhe, assignments, modelos, identidade, fontes, pendências, atividade e navegação com Turmas/Acompanhamento. A regra de atenção é compartilhada com Acompanhamento e não transforma `sync_enabled=0` isolado em erro.
+
+Regressão local: 372 testes em 72 arquivos; browser QA desktop/mobile sintético aprovado, incluindo retorno seguro de Turmas/Acompanhamento. Não houve migration, deploy, D1 remoto, Graph/Entra, publicação do add-in ou alteração de sync.
+
+Leitura principal: `docs/BANCO_NOTAS_PROFESSORES_V1.md`.
+
+Próximo marco recomendado após encerrar PR Draft e CI: Pesquisa Global V1. Não inferir autorização de merge, produção ou operações de escrita.
+
 Data: 27/08/2026
 
 Branch: `feat/banco-de-notas-foundation`

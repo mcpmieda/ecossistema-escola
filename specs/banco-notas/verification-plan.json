@@ -106,6 +106,12 @@
       "name": "NAA real token proof",
       "method": "Excel Online em workbook SharePoint/OneDrive + diagnóstico sanitizado NAA_TOKEN_PROOF_PASSED + regressão de config/manifest/headers/backend",
       "required": true
+    },
+    {
+      "id": "BN-V-018",
+      "name": "Professores V1 operational read model",
+      "method": "SQLite real, contratos/API, allow/deny, UI e browser QA sintético desktop/mobile cobrindo docentes com e sem assignments/identidade/modelo/findings",
+      "required": true
     }
   ],
   "scenario_matrix": [
@@ -134,7 +140,12 @@
     "duas origens sintéticas com nomes, ordem e quantidade de abas diferentes geram instâncias do mesmo modelo genérico",
     "origem incompleta produz finding explícito em vez de fallback Nina/Alanna",
     "golden masters privados ausentes do Git, bundle, D1, migrations, fixtures públicas e SharePoint definitivo",
-    "NAA ssoSilent com redirect bridge dedicado retorna token v2 válido sem gravar token ou PII"
+    "NAA ssoSilent com redirect bridge dedicado retorna token v2 válido sem gravar token ou PII",
+    "professor canônico com múltiplos anos, turmas e componentes aparece uma vez com agregados estáveis",
+    "professor sem assignment permanece visível e recebe estado informativo",
+    "identidade institucional é reduzida a vinculada/ausente sem OID, claims, UPN ou DriveItem ID",
+    "modelo latest, source authority, import failure, findings e atividade recente produzem situação factual",
+    "Professores navega para Turmas e Acompanhamento e recebe links de retorno desses módulos"
   ],
   "data_policy": {
     "git": "somente fixtures sintéticas e contratos; nenhum nome/nota real",
@@ -157,6 +168,7 @@
     "migração massiva sem piloto e reconciliação",
     "recovery não comprovado para o novo store antes da produção",
     "modelo ou transformador de produção especializado por nome, abas, turmas, disciplinas, células ou particularidades de Nina/Alanna",
-    "golden master privado incorporado ao produto, runtime, persistência, migration, fixture pública, SharePoint definitivo ou distribuição"
+    "golden master privado incorporado ao produto, runtime, persistência, migration, fixture pública, SharePoint definitivo ou distribuição",
+    "Professores V1 relacionando teacher por nome, omitindo docente sem assignment ou expondo OID/DriveItem ID"
   ]
 }

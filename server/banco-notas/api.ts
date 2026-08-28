@@ -8,6 +8,11 @@ import {
   turmasListQuerySchema,
   type TurmasAlunosRepository,
 } from '../../shared/banco-notas-turmas-alunos';
+import {
+  professorDetailQuerySchema,
+  professoresListQuerySchema,
+  type ProfessoresRepository,
+} from '../../shared/banco-notas-professores';
 import type { PlatformCapability } from '../../shared/platform-contract';
 import {
   assignmentInputSchema,
@@ -208,6 +213,7 @@ export async function routeBancoNotasApi(args: {
   repository: BancoNotasRepository;
   acompanhamento?: AcompanhamentoRepository;
   turmasAlunos?: TurmasAlunosRepository;
+  professores?: ProfessoresRepository;
   capabilities: readonly PlatformCapability[];
   actor: string;
   importAnalysis?: ImportAnalysisRuntime;
@@ -221,6 +227,42 @@ export async function routeBancoNotasApi(args: {
     (request.method === 'POST' || request.method === 'PATCH') && !importAnalysisMatch
       ? await body(request)
       : undefined;
+
+  if (path === '/v1/professores/filters') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.professores) throw new HttpError(503, 'Professores storage unavailable');
+    return response(await args.professores.filters());
+  }
+  if (path === '/v1/professores') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.professores) throw new HttpError(503, 'Professores storage unavailable');
+    const rawQuery = Object.fromEntries(
+      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
+    );
+    return response(
+      await args.professores.list(parsed(() => professoresListQuerySchema.parse(rawQuery))),
+    );
+  }
+  const professorDetailMatch = path.match(/^\/v1\/professores\/([0-9a-f-]+)$/iu);
+  if (professorDetailMatch?.[1]) {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.professores) throw new HttpError(503, 'Professores storage unavailable');
+    const id = parsed(() =>
+      professoresListQuerySchema.shape.schoolYearId.unwrap().parse(professorDetailMatch[1]),
+    );
+    const rawQuery = Object.fromEntries(
+      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
+    );
+    const result = await args.professores.detail(
+      id,
+      parsed(() => professorDetailQuerySchema.parse(rawQuery)),
+    );
+    if (!result) throw new HttpError(404, 'Professor não encontrado');
+    return response(result);
+  }
 
   if (path === '/v1/turmas-alunos/filters') {
     allowed(request, ['GET']);

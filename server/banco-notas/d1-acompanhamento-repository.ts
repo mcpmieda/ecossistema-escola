@@ -5,8 +5,8 @@ import type {
   AcompanhamentoListResult,
   AcompanhamentoRepository,
   AcompanhamentoSummary,
-  AttentionLevel,
 } from '../../shared/banco-notas-acompanhamento';
+import { deriveOperationalAttention } from './operational-attention';
 
 type Row = Record<string, string | number | null>;
 
@@ -72,47 +72,21 @@ function bool(value: string | number | null | undefined): boolean {
   return Number(value ?? 0) === 1;
 }
 
-function attention(row: Row): { level: AttentionLevel; reasons: string[] } {
-  const reasons: string[] = [];
-  let level: AttentionLevel = 'normal';
-  const promote = (candidate: AttentionLevel) => {
-    const order: AttentionLevel[] = ['normal', 'info', 'warning', 'error'];
-    if (order.indexOf(candidate) > order.indexOf(level)) level = candidate;
-  };
-
-  if (Number(row.failed_imports ?? 0) > 0) {
-    reasons.push('Importação com erro');
-    promote('error');
-  }
-  if (Number(row.open_errors ?? 0) > 0) {
-    reasons.push('Finding de erro pendente');
-    promote('error');
-  } else if (Number(row.open_findings ?? 0) > 0) {
-    reasons.push('Pendência de importação');
-    promote('warning');
-  }
-  if (!row.model_id) {
-    reasons.push('Modelo ainda não criado');
-    promote('warning');
-  } else if (row.model_state === 'suspended') {
-    reasons.push('Modelo suspenso');
-    promote('error');
-  } else if (row.model_state !== 'connected') {
-    reasons.push('Modelo ainda não conectado');
-    promote('info');
-  }
-  if (!row.source_assignment_id) {
-    reasons.push('Fonte autoritativa não configurada');
-    promote('warning');
-  }
-  if (
-    !row.teacher_entra_object_id &&
-    ['validated', 'ready_to_share'].includes(String(row.model_state))
-  ) {
-    reasons.push('Identidade institucional necessária ausente');
-    promote('warning');
-  }
-  return { level, reasons };
+function attention(row: Row) {
+  return deriveOperationalAttention({
+    activeAssignments: 1,
+    failedImports: Number(row.failed_imports ?? 0),
+    openErrorFindings: Number(row.open_errors ?? 0),
+    openFindings: Number(row.open_findings ?? 0),
+    models: row.model_id ? 1 : 0,
+    missingModelContexts: row.model_id ? 0 : 1,
+    suspendedModels: row.model_state === 'suspended' ? 1 : 0,
+    nonConnectedModels: row.model_id && row.model_state !== 'connected' ? 1 : 0,
+    missingSources: row.source_assignment_id ? 0 : 1,
+    identityMissingForRequiredModel:
+      !row.teacher_entra_object_id &&
+      ['validated', 'ready_to_share', 'shared', 'connected'].includes(String(row.model_state)),
+  });
 }
 
 function item(row: Row): AcompanhamentoListItem {

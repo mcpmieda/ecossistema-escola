@@ -19,6 +19,7 @@
       "modelo do professor com SyncEnabled=false por padrão e ativação individual após reconciliação",
       "modelo genérico limpo e transformação de planilhas legadas de qualquer professor sem especialização por golden master",
       "configurações versionadas para regras pedagógicas e dúvidas operacionais legítimas",
+      "Professores V1 como diretório operacional read-only derivado de teachers, assignments, teacher models, fontes, atividade e findings persistidos",
       "integração futura de acompanhamento, conselho, boletins, pesquisa, entidades e análises conforme Relatório v1.6"
     ],
     "out": [
@@ -31,7 +32,8 @@
       "misturar shadcn, ReUI ou outro design system ao módulo",
       "reintroduzir Ambient Constellation",
       "ativar sincronização em massa antes de homologação e reconciliação individual",
-      "decidir automaticamente regra pedagógica ou jurídica que não esteja consolidada ou configurada"
+      "decidir automaticamente regra pedagógica ou jurídica que não esteja consolidada ou configurada",
+      "criar cadastro de RH, identidade paralela, vínculo Entra, compartilhamento Graph, edição de notas ou ativação de sync em Professores V1"
     ]
   },
   "invariants": [
@@ -106,6 +108,10 @@
     {
       "id": "BN-INV-018",
       "statement": "O add-in usa NAA credential-free com redirect broker por origin, página de retorno dedicada e token v2 delegado; access token, UPN, email e OID completo nunca entram em logs ou evidências."
+    },
+    {
+      "id": "BN-INV-019",
+      "statement": "Professores V1 usa somente teachers e relações persistidas por IDs; não cria identidade paralela, não relaciona por nome, não expõe OID ou DriveItem e não trata sync_enabled=0 isoladamente como erro."
     }
   ],
   "data_contracts": [
@@ -144,6 +150,12 @@
       "source": "fonte institucional de estudantes/turmas e correspondências confirmadas",
       "direction": "Microsoft/importação para D1",
       "privacy": "dados mínimos necessários e auditáveis"
+    },
+    {
+      "name": "ProfessorOperationalDirectory",
+      "source": "Cloudflare D1: teachers, teacher_assignments, teacher_models, versões, fontes, imports, findings, reconciliações e eventos",
+      "direction": "backend para frontend administrativo",
+      "privacy": "nome administrativo e estados operacionais mínimos; presença de identidade e arquivo como booleanos, sem OID, claims, UPN ou DriveItem ID"
     }
   ],
   "interfaces": [
@@ -171,6 +183,11 @@
       "name": "/api/banco-notas/v1/teacher-models",
       "mode": "governed-model-api",
       "purpose": "gerar, configurar, compartilhar, conectar, suspender e reconciliar modelos"
+    },
+    {
+      "name": "/api/banco-notas/v1/professores e /api/banco-notas/v1/professores/:id",
+      "mode": "governed-read-only-directory",
+      "purpose": "listar e detalhar o contexto operacional docente com filtros, paginação, autorização e minimização de identidade"
     }
   ],
   "acceptance_criteria": [
@@ -338,6 +355,21 @@
         "filtros e paginação são aplicados no servidor e a navegação cruza Turma, Aluno e Acompanhamento"
       ],
       "verification": ["test", "browser", "database"]
+    },
+    {
+      "id": "BN-AC-015",
+      "priority": "must",
+      "given": "um administrador autorizado consulta Professores",
+      "when": "ele pesquisa, filtra, pagina e abre o detalhe de um professor",
+      "then": [
+        "todos os professores canônicos permanecem pesquisáveis, inclusive sem assignment no período",
+        "turmas, componentes, assignments, latest teacher model, fonte, pendências e atividade são derivados de relações persistidas por ID sem N+1",
+        "a identidade institucional é exibida somente como vinculada ou ausente, sem OID, claims, UPN ou identificadores Graph",
+        "a situação operacional reutiliza fatos do Acompanhamento e sync desligado isoladamente não é erro",
+        "filtros e paginação são aplicados no servidor e a navegação cruza Professor, Turma e Acompanhamento",
+        "o módulo é read-only e não cria vínculo Entra, share, identidade paralela, nota ou ativação de sync"
+      ],
+      "verification": ["test", "browser", "database", "security"]
     }
   ]
 }
