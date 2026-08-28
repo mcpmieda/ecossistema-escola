@@ -1,8 +1,0 @@
-{
-  "name": "factory-sonar-scanner",
-  "private": true,
-  "version": "1.0.0",
-  "dependencies": {
-    "@sonar/scan": "5.0.0"
-  }
-}
