@@ -310,6 +310,20 @@
         "a evidência sanitizada não contém token, UPN, email nem OID completo"
       ],
       "verification": ["test", "browser", "security"]
+    },
+    {
+      "id": "BN-AC-013",
+      "priority": "must",
+      "given": "um administrador autorizado abre o Acompanhamento",
+      "when": "ele filtra uma turma e abre seu detalhe",
+      "then": [
+        "filtros e paginação são aplicados no servidor e persistidos na URL",
+        "o retorno preserva o contexto da lista",
+        "zero numérico e ausência explícita permanecem distintos",
+        "sync desligado não é classificado isoladamente como erro",
+        "nenhum dado inexistente é inventado"
+      ],
+      "verification": ["test", "browser", "database"]
     }
   ]
 }

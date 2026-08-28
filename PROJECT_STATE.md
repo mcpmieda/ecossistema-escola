@@ -369,3 +369,7 @@ Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.j
 - `sync_enabled=0`; produção Pages, Worker e D1 não foram alterados.
 - `Deploy production` e `Verify recovery after deploy`: skipped.
 - PR #52 permanece open, draft e sem merge.
+
+## Atualização de produto — Acompanhamento V1 (28/08/2026)
+
+O Banco de Notas agora possui, em branch de produto separada, o primeiro módulo diário read-only: Acompanhamento. A implementação consome D1, usa a autorização administrativa atual, preserva filtros na URL e oferece lista/detalhe com estados reais de turmas, professores, modelos, fontes, notas disponíveis e pendências. Ainda não há autorização para produção ou merge.

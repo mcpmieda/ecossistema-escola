@@ -432,3 +432,11 @@ Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.j
 - `sync_enabled=0`; produção Pages, Worker e D1 não foram alterados.
 - `Deploy production` e `Verify recovery after deploy`: skipped.
 - PR #52 permanece open, draft e sem merge.
+
+## Banco de Notas — Acompanhamento V1 (28/08/2026)
+
+- API e repository: testes unitários e SQLite real com migrations 0001–0007.
+- UI e contratos: testes de rotas, estados, filtros, contexto e OpenAPI.
+- Browser QA: desktop e 390 × 844, reload, filtro, detalhe, retorno, empty e error, somente dados sintéticos.
+- Build de produção: aprovado localmente.
+- Produção, D1 remoto, Graph e add-in: não alterados.
