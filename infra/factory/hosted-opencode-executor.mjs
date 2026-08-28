@@ -69,6 +69,19 @@ export function leasedRequestForWorktree(lease, worktree) {
   };
 }
 
+export function normalizeProbeHealth(value) {
+  const providerId = String(value?.provider_id ?? value?.provider ?? '').trim();
+  const status = String(value?.status ?? '').trim().toLowerCase();
+  if (providerId !== OPENCODE_PROVIDER || status !== 'healthy') {
+    fail('Pinned OpenCode/Ollama runtime did not pass the required healthy probe.');
+  }
+  return {
+    ...value,
+    provider_id: providerId,
+    status,
+  };
+}
+
 function runCommand(command, args, options = {}) {
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? process.cwd(),
@@ -137,11 +150,7 @@ export async function hostedTaskEligibility(owner, repo, context) {
 }
 
 function loadProbeHealth(path) {
-  const health = JSON.parse(readFileSync(path, 'utf8'));
-  if (health?.provider_id !== OPENCODE_PROVIDER || health?.status !== 'healthy') {
-    fail('Pinned OpenCode/Ollama runtime did not pass the required healthy probe.');
-  }
-  return health;
+  return normalizeProbeHealth(JSON.parse(readFileSync(path, 'utf8')));
 }
 
 function healthPayload(health) {
