@@ -102,16 +102,14 @@ test('rejects run ids that derive invalid integration branch names', () => {
   }
 });
 
-test('requires a currently active remote provider for ungated automation', () => {
+test('accepts Jules, Antigravity, and OpenCode/Ollama as active automatic providers', () => {
+  for (const provider of ['jules', 'antigravity', 'opencode_ollama']) {
+    assert.doesNotThrow(() =>
+      parseFactoryRunV2(issueBody({ tasks: [task('a', { preferred_providers: [provider] })] })),
+    );
+  }
   assert.throws(() =>
-    parseFactoryRunV2(issueBody({ tasks: [task('a', { preferred_providers: ['antigravity'] })] })),
-  );
-  assert.doesNotThrow(() =>
-    parseFactoryRunV2(
-      issueBody({
-        tasks: [task('a', { preferred_providers: ['antigravity', 'jules'] })],
-      }),
-    ),
+    parseFactoryRunV2(issueBody({ tasks: [task('a', { preferred_providers: ['manual'] })] })),
   );
 });
 

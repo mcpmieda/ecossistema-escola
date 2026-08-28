@@ -1,0 +1,146 @@
+name: Sonar
+run-name: Sonar PR ${{ inputs.pr_number }} @ ${{ inputs.expected_sha }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact worker SHA that must be analyzed.
+        required: true
+        type: string
+      pr_number:
+        description: Worker PR that must still point to expected_sha.
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: sonar-${{ inputs.expected_sha }}-${{ inputs.pr_number }}
+  cancel-in-progress: false
+
+env:
+  SONAR_SCANNER_VERSION: 8.1.0.6389
+  SONAR_SCANNER_SHA256: bb8f709f9cb73352f8d1260a3b3c506c0f41146754bc630762c126d795499d0b
+
+jobs:
+  sonar:
+    name: Sonar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read # Confirm the worker PR still points to the exact SHA being scanned.
+    steps:
+      - name: Checkout exact worker revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_sha }}
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate exact SHA, PR head and Sonar configuration
+        id: config
+        shell: bash
+        working-directory: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SHA}"
+          pr_json=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")
+          test "$(jq -r '.head.sha' <<<"${pr_json}")" = "${EXPECTED_SHA}"
+          head_ref=$(jq -r '.head.ref' <<<"${pr_json}")
+          base_ref=$(jq -r '.base.ref' <<<"${pr_json}")
+          [[ "${head_ref}" =~ ^[A-Za-z0-9._/-]+$ ]]
+          [[ "${base_ref}" =~ ^[A-Za-z0-9._/-]+$ ]]
+          test -n "${SONAR_PROJECT_KEY}" || { echo 'SONAR_PROJECT_KEY repository variable is required.' >&2; exit 1; }
+          test -n "${SONAR_ORGANIZATION}" || { echo 'SONAR_ORGANIZATION repository variable is required.' >&2; exit 1; }
+          test -n "${SONAR_TOKEN}" || { echo 'SONAR_TOKEN repository secret is required.' >&2; exit 1; }
+          echo "PR_HEAD_REF=${head_ref}" >> "${GITHUB_ENV}"
+          echo "PR_BASE_REF=${base_ref}" >> "${GITHUB_ENV}"
+
+      - name: Install pinned official SonarScanner CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="${RUNNER_TEMP}/sonar-scanner.zip"
+          scanner_root="${RUNNER_TEMP}/sonar-scanner"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+            "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip" \
+            --output "${archive}"
+          echo "${SONAR_SCANNER_SHA256}  ${archive}" | sha256sum --check --strict
+          mkdir -p "${scanner_root}"
+          unzip -q "${archive}" -d "${scanner_root}"
+          scanner_home="${scanner_root}/sonar-scanner-${SONAR_SCANNER_VERSION}-linux-x64"
+          test -x "${scanner_home}/bin/sonar-scanner"
+          "${scanner_home}/bin/sonar-scanner" --version
+          echo "SONAR_SCANNER_HOME=${scanner_home}" >> "${GITHUB_ENV}"
+
+      - name: Run SonarQube Cloud scan and wait for Quality Gate
+        shell: bash
+        working-directory: candidate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY }}
+          SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          "${SONAR_SCANNER_HOME}/bin/sonar-scanner" \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
+            -Dsonar.organization="${SONAR_ORGANIZATION}" \
+            -Dsonar.sources=. \
+            -Dsonar.exclusions='node_modules/**,dist/**,coverage/**,.git/**' \
+            -Dsonar.pullrequest.key="${PR_NUMBER}" \
+            -Dsonar.pullrequest.branch="${PR_HEAD_REF}" \
+            -Dsonar.pullrequest.base="${PR_BASE_REF}" \
+            -Dsonar.qualitygate.wait=true \
+            -Dsonar.qualitygate.timeout=300
+
+  evidence:
+    name: Publish Sonar reviewer evidence
+    if: always()
+    needs: sonar
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write # Read the exact head and persist evidence on a PR-backed issue.
+      issues: write # Retained for issue-comment compatibility across GitHub token permission models.
+    env:
+      GH_TOKEN: ${{ github.token }}
+      EXPECTED_SHA: ${{ inputs.expected_sha }}
+      PR_NUMBER: ${{ inputs.pr_number }}
+      REVIEW_RESULT: ${{ needs.sonar.result }}
+      REVIEW_RUN_ID: ${{ github.run_id }}
+    steps:
+      - name: Persist SHA-bound reviewer result
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${PR_NUMBER}" =~ ^[1-9][0-9]*$ ]]
+          current_sha=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}" --jq ".head.sha")
+          conclusion="${REVIEW_RESULT}"
+          if [ "${current_sha}" != "${EXPECTED_SHA}" ]; then
+            conclusion="stale"
+          fi
+          payload=$(jq -cn \
+            --arg reviewer "Sonar" \
+            --arg sha "${EXPECTED_SHA}" \
+            --arg conclusion "${conclusion}" \
+            --argjson run_id "${REVIEW_RUN_ID}" \
+            "{schema_version:1,reviewer:\$reviewer,sha:\$sha,conclusion:\$conclusion,run_id:\$run_id}")
+          encoded=$(printf '%s' "${payload}" | base64 -w0 | tr '+/' '-_' | tr -d '=')
+          body="<!-- FACTORY_REVIEWER_EVIDENCE ${encoded} -->"$'\n'"Sonar reviewer run ${REVIEW_RUN_ID} concluded \`${conclusion}\` for exact worker SHA \`${EXPECTED_SHA}\`."
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" -f body="${body}" >/dev/null
+          test "${conclusion}" = "success"
