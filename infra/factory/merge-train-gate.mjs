@@ -7,7 +7,7 @@ export const SONAR_WORKFLOW = 'merge-train-sonar.yml';
 
 const TRUSTED_BOT = 'github-actions[bot]';
 const CODERABBIT_BOT = 'coderabbitai[bot]';
-const CODERABBIT_COMMAND = '@coderabbitai full review';
+const CODERABBIT_COMMAND = '@coderabbitai review';
 const REQUEST_PATTERN = /<!-- FACTORY_CODERABBIT_REQUEST \{"sha":"([0-9a-f]{40})"\} -->/;
 const MERGE_TRAIN_PATTERN = /<!-- FACTORY_MERGE_TRAIN ([A-Za-z0-9_-]+) -->/;
 const POLL_MS = 5_000;
@@ -214,7 +214,7 @@ async function persistMergeTrainEvidence(owner, repo, prNumber, payload) {
 export async function ensureMergeTrain(owner, repo, { prNumber, branch, sha }) {
   const exactSha = validateSha40(sha, 'Merge Train SHA');
   await currentPr(owner, repo, prNumber, exactSha);
-  const [semgrep, sonar] = await Promise.all([
+  const [semgrep, sonar, coderabbit] = await Promise.all([
     waitForReviewerWorkflow(owner, repo, {
       workflow: SEMGREP_WORKFLOW,
       branch,
@@ -226,8 +226,8 @@ export async function ensureMergeTrain(owner, repo, { prNumber, branch, sha }) {
       sha: exactSha,
       inputs: { expected_sha: exactSha },
     }),
+    ensureCodeRabbit(owner, repo, prNumber, exactSha),
   ]);
-  const coderabbit = await ensureCodeRabbit(owner, repo, prNumber, exactSha);
   await currentPr(owner, repo, prNumber, exactSha);
 
   const payload = {
