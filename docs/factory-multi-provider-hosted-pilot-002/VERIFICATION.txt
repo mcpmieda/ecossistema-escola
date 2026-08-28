@@ -1,0 +1,20 @@
+Factory Run: multi-provider-hosted-pilot-002
+Task ID: verify
+GitHub task issue: #115
+Starting/integration branch: factory/multi-provider-hosted-pilot-002
+
+1. Parallel Worker Integration Verification:
+- Worker 1 (Jules API-first): Integrated output at docs/factory-multi-provider-hosted-pilot-002/JULES.txt ("Jules parallel worker completed.").
+- Worker 2 (GitHub-hosted OpenCode/Ollama): Integrated output at docs/factory-multi-provider-hosted-pilot-002/OPENCODE.txt ("Hosted OpenCode worker completed. Use write once; no shell or other file.").
+- Both independent parallel worker records are fully integrated on the integration branch.
+
+2. Dependent Verifier Execution:
+- The dependent verifier task (#115) was successfully released after both worker predecessors completed and were merged into factory/multi-provider-hosted-pilot-002.
+
+3. Compliance & Security Guardrails:
+- Write Scope: Modified strictly docs/factory-multi-provider-hosted-pilot-002/VERIFICATION.txt.
+- CI & Integration: Isolated integration with exact-SHA CI validation.
+- Production Activation: None. Production configuration, credentials, and deployment settings remain unchanged.
+- Banco de Notas: No Banco de Notas work or synchronization enabled.
+- Codex Execution: None.
+- Target Merge: Final target merge remains strictly human-only.
