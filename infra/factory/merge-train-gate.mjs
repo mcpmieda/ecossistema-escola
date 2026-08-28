@@ -1,4 +1,6 @@
-import { addComment, github, issueComments, sleep } from './github-api.mjs';
+import process from 'node:process';
+
+import { addComment, github, issueComments, requiredEnv, sleep } from './github-api.mjs';
 
 export const SEMGREP_WORKFLOW = 'merge-train-semgrep.yml';
 export const SONAR_WORKFLOW = 'merge-train-sonar.yml';
@@ -315,4 +317,56 @@ export async function ensureMergeTrain(owner, repo, { prNumber, sha }) {
   };
   await persistMergeTrainEvidence(owner, repo, prNumber, payload);
   return payload;
+}
+
+export async function findFactoryWorkerPr(owner, repo, branch, sha) {
+  const exactSha = validateSha40(sha, 'Factory worker SHA');
+  const head = encodeURIComponent(`${owner}:${branch}`);
+  const pulls = await github(`/repos/${owner}/${repo}/pulls?state=open&head=${head}&per_page=20`);
+  const matches = (pulls ?? []).filter(
+    (pr) =>
+      pr.head?.ref === branch &&
+      pr.head?.sha === exactSha &&
+      typeof pr.base?.ref === 'string' &&
+      pr.base.ref.startsWith('factory/'),
+  );
+  if (matches.length > 1) fail(`Multiple open Factory worker PRs match ${branch}@${exactSha}.`);
+  return matches[0] ?? null;
+}
+
+export async function runMergeTrainForCurrentRevision() {
+  const repository = requiredEnv('GITHUB_REPOSITORY');
+  const [owner, repo] = repository.split('/');
+  if (!owner || !repo) fail('GITHUB_REPOSITORY must be owner/repo.');
+  const sha = validateSha40(requiredEnv('GITHUB_SHA'), 'GITHUB_SHA');
+  const branch = requiredEnv('GITHUB_REF_NAME');
+  const pr = await findFactoryWorkerPr(owner, repo, branch, sha);
+  if (!pr) {
+    return {
+      status: 'not-a-worker-pr',
+      branch,
+      sha,
+    };
+  }
+  const evidence = await ensureMergeTrain(owner, repo, {
+    prNumber: pr.number,
+    sha,
+  });
+  return {
+    status: 'merge-train-passed',
+    pr_number: pr.number,
+    ...evidence,
+  };
+}
+
+async function main() {
+  const result = await runMergeTrainForCurrentRevision();
+  process.stdout.write(`${JSON.stringify(result)}\n`);
+}
+
+if (process.argv[1]?.endsWith('/merge-train-gate.mjs')) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
 }
