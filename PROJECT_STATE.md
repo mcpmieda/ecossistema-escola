@@ -1,5 +1,17 @@
 # PROJECT_STATE — Ecossistema Escolar
 
+## Banco de Notas — Central de Pendências V1 (28/08/2026)
+
+- Branch `feat/banco-notas-central-pendencias-v1`, baseada na `main` integrada em `5e6d7cfd0b010da7f34c0044eca5ce704a06d429`.
+- Visão operacional read-only em `/banco-de-notas/pendencias`, com resumo, filtros/paginação server-side, detalhe e navegação contextual.
+- Tipos limitados derivados de importações, findings, modelos, identidade quando necessária, fontes efetivas e assignments persistidos.
+- Classificação equivalente reutiliza `deriveOperationalAttention`; `sync_enabled=0` isoladamente não é erro.
+- APIs exigem `grades.analytics.read`; DTO minimizado sem token, OID, Graph/Drive ID, caminho de storage ou detalhes SQL.
+- Gate local: 403 testes em 80 arquivos, formatação/lint/tipos/semântica/manifest/builds verdes, audit high com 0 vulnerabilidades e Browser QA desktop/mobile aprovado.
+- PR Draft #137 publicado; primeira rodada CI/Application Security/Semgrep verde, jobs de deploy/recovery/cleanup/Merge Train skipped e zero deployments.
+- Nenhuma migration, D1 remoto, Graph, Entra, add-in, sync ou produção foi alterada.
+- Documento: `docs/BANCO_NOTAS_CENTRAL_PENDENCIAS_V1.md`.
+
 ## Banco de Notas — Professores V1 (28/08/2026)
 
 - Branch funcional `feat/banco-notas-professores-v1`, baseada na `main` integrada em `0d61a96e4c7567d565548ac6bedcc9b9c1c5c6c1`.

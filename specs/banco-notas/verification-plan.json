@@ -118,6 +118,12 @@
       "name": "Pesquisa Global V1 canonical discovery",
       "method": "SQLite real, contratos/API, allow/deny, normalização e ranking determinístico, limites/deduplicação, UI e browser QA sintético desktop/mobile com loading/empty/error/403",
       "required": true
+    },
+    {
+      "id": "BN-V-020",
+      "name": "Central de Pendências V1 factual diagnostics",
+      "method": "SQLite real, taxonomia/DTO/OpenAPI, summary/list/detail, allow/deny, filtros/paginação/ordenação/deduplicação, minimização e browser QA sintético desktop/mobile com empty/403/404/500",
+      "required": true
     }
   ],
   "scenario_matrix": [
@@ -154,7 +160,11 @@
     "Professores navega para Turmas e Acompanhamento e recebe links de retorno desses módulos",
     "pesquisa por caixa, acentos e espaços encontra as mesmas entidades canônicas com ranking exato, prefixo, ocorrência e contexto",
     "resultado de Pesquisa Global navega para Aluno, Professor, Turma e Acompanhamento preservando o retorno com q",
-    "requisição obsoleta de Pesquisa Global é cancelada e estados curto, loading, empty, error e permission denied são distintos"
+    "requisição obsoleta de Pesquisa Global é cancelada e estados curto, loading, empty, error e permission denied são distintos",
+    "Central resume erros, atenções e informações a partir de importações, findings, modelos, identidade necessária, fontes e assignments persistidos",
+    "Central filtra por ano, severidade, tipo, professor, turma, componente, status e texto com paginação e ordenação determinística no servidor",
+    "detalhe de pendência mostra causa, evidência, origem e links para Professor, Turma e Acompanhamento sem ação de resolução",
+    "Central diferencia loading, empty, 403, 404 e 500 em desktop e mobile sem overflow global"
   ],
   "data_policy": {
     "git": "somente fixtures sintéticas e contratos; nenhum nome/nota real",
@@ -179,6 +189,7 @@
     "modelo ou transformador de produção especializado por nome, abas, turmas, disciplinas, células ou particularidades de Nina/Alanna",
     "golden master privado incorporado ao produto, runtime, persistência, migration, fixture pública, SharePoint definitivo ou distribuição",
     "Professores V1 relacionando teacher por nome, omitindo docente sem assignment ou expondo OID/DriveItem ID",
-    "Pesquisa Global criando índice ou identidade paralela, ranqueando no frontend, carregando entidades integralmente ou expondo identificadores técnicos"
+    "Pesquisa Global criando índice ou identidade paralela, ranqueando no frontend, carregando entidades integralmente ou expondo identificadores técnicos",
+    "Central criando pendência por heurística não persistida, expondo identificador técnico ou oferecendo resolução/escrita em V1"
   ]
 }

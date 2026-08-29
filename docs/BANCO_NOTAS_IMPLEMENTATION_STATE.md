@@ -410,3 +410,18 @@ Documento: `docs/BANCO_NOTAS_TURMAS_ALUNOS_V1.md`.
 - Publicado como PR Draft #136; primeira rodada de CI, Actions Security e Semgrep verde, com jobs de deploy/recovery skipped e zero deployments. Não fazer merge nesta missão.
 
 Documento: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.
+
+## Central de Pendências V1 — implementação em branch (28/08/2026)
+
+- Read model dedicado sobre fatos persistidos de importação, findings, modelos, identidade necessária, fontes e assignments.
+- Rota HeroUI `/pendencias` + detalhe, summary por severidade, filtros/paginação server-side e URL persistente.
+- Classificação equivalente compartilhada com Acompanhamento/Professores; findings preservam severidade factual.
+- Acompanhamento, Professor e Turma navegam para a Central com contexto filtrado.
+- API read-only com `grades.analytics.read` e DTO minimizado, sem nova tabela/migration ou N+1.
+- Browser QA sintético desktop/mobile, empty/403/404/500, navegação contextual, debounce/abort e overflow: PASS; fixture e servidores removidos.
+- Gate local integral: 403 testes em 80 arquivos, audit high 0, diff check, lint, tipos, semântica, manifesto e builds web/add-in: PASS.
+- Produção, D1 remoto, Graph, Entra, add-in e sync permanecem intocados.
+
+Documento: `docs/BANCO_NOTAS_CENTRAL_PENDENCIAS_V1.md`.
+
+Publicação: PR Draft #137 para `main`; primeira rodada CI `33229929504` e Semgrep `33229929506` verdes. Factory Merge Train, deploy, recovery e cleanup skipped; Factory Control Plane não aplicável ao diff e policy interna validada; zero deployments.

@@ -603,6 +603,15 @@ export function TurmaDetailPage() {
             Abrir no Acompanhamento <ArrowRight className="size-4" />
           </Button>
         )}
+        {state.data && (
+          <Button
+            size="sm"
+            variant="outline"
+            onPress={() => navigate(`/pendencias?classGroupId=${state.data?.classGroup.id}`)}
+          >
+            Ver pendências <ArrowRight className="size-4" />
+          </Button>
+        )}
       </div>
       {state.error ? (
         <Failure error={state.error} retry={state.retry} />

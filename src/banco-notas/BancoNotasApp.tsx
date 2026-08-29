@@ -20,6 +20,7 @@ import {
   BarChart3,
   BookOpenCheck,
   ClipboardList,
+  CircleAlert,
   Database,
   FileText,
   Home,
@@ -49,6 +50,7 @@ import { AcompanhamentoDetailPage, AcompanhamentoPage } from './AcompanhamentoPa
 import { AlunoDetailPage, AlunosPage, TurmaDetailPage, TurmasPage } from './TurmasAlunosPage';
 import { ProfessorDetailPage, ProfessoresPage } from './ProfessoresPage';
 import { PesquisaGlobalPage } from './PesquisaGlobalPage';
+import { PendenciaDetailPage, PendenciasPage } from './PendenciasPage';
 
 type BancoNotasIdentity = {
   name?: string;
@@ -65,6 +67,7 @@ const navigation = [
   ['/conselho', 'Conselho de classe', ClipboardList],
   ['/boletins', 'Boletins', FileText],
   ['/pesquisa', 'Pesquisa', Search],
+  ['/pendencias', 'Pendências', CircleAlert],
   ['/configuracoes/fonte', 'Configurações', Settings],
 ] as const;
 
@@ -810,6 +813,8 @@ function Shell({ identity }: Props) {
           <Route path="conselho" element={<Planned title="Conselho de classe" />} />
           <Route path="boletins" element={<Planned title="Boletins" />} />
           <Route path="pesquisa" element={<PesquisaGlobalPage />} />
+          <Route path="pendencias" element={<PendenciasPage />} />
+          <Route path="pendencias/:id" element={<PendenciaDetailPage />} />
           <Route path="configuracoes/fonte" element={<SourceSettings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

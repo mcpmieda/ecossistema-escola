@@ -265,12 +265,27 @@ export function AcompanhamentoPage() {
   );
   const retry = () => setReload((value) => value + 1);
   const returnQuery = params.toString();
+  const pendingParams = new URLSearchParams();
+  ['schoolYearId', 'classGroupId', 'teacherId', 'q'].forEach((key) => {
+    const value = params.get(key);
+    if (value) pendingParams.set(key, value);
+  });
 
   return (
     <PageFrame
       title="Acompanhamento"
       description="Visão operacional read-only de turmas, professores, modelos, fontes, notas disponíveis e pendências reais do Banco de Notas."
     >
+      <div className="mb-5 flex justify-end">
+        <Button
+          variant="outline"
+          onPress={() =>
+            navigate(`/pendencias${pendingParams.toString() ? `?${pendingParams}` : ''}`)
+          }
+        >
+          Ver todas as pendências <ArrowRight className="size-4" />
+        </Button>
+      </div>
       {summaryError && result && (
         <Alert status="warning" className="mb-5">
           <Alert.Indicator />
@@ -598,6 +613,16 @@ export function AcompanhamentoDetailPage() {
           className="mb-5 ml-2"
         >
           Ver página da turma <ArrowRight className="size-4" />
+        </Button>
+      )}
+      {detail && (
+        <Button
+          variant="outline"
+          size="sm"
+          onPress={() => navigate(`/pendencias?classGroupId=${detail.classGroup.id}`)}
+          className="mb-5 ml-2"
+        >
+          Ver pendências <CircleAlert className="size-4" />
         </Button>
       )}
       {error ? (

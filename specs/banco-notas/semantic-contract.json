@@ -21,6 +21,7 @@
       "configurações versionadas para regras pedagógicas e dúvidas operacionais legítimas",
       "Professores V1 como diretório operacional read-only derivado de teachers, assignments, teacher models, fontes, atividade e findings persistidos",
       "Pesquisa Global V1 read-only de alunos, professores e turmas, derivada dos mesmos IDs e relacionamentos persistidos dos diretórios existentes",
+      "Central de Pendências V1 read-only com diagnóstico factual, severidade, filtros, detalhe e navegação para os contextos canônicos existentes",
       "integração futura de conselho, boletins, entidades e análises conforme Relatório v1.6"
     ],
     "out": [
@@ -35,7 +36,8 @@
       "ativar sincronização em massa antes de homologação e reconciliação individual",
       "decidir automaticamente regra pedagógica ou jurídica que não esteja consolidada ou configurada",
       "criar cadastro de RH, identidade paralela, vínculo Entra, compartilhamento Graph, edição de notas ou ativação de sync em Professores V1",
-      "criar índice paralelo, FTS, inferência fuzzy de identidade, busca por IA ou banco vetorial em Pesquisa Global V1"
+      "criar índice paralelo, FTS, inferência fuzzy de identidade, busca por IA ou banco vetorial em Pesquisa Global V1",
+      "resolver, ignorar, arquivar, atribuir responsável ou corrigir automaticamente uma pendência na Central V1"
     ]
   },
   "invariants": [
@@ -118,6 +120,10 @@
     {
       "id": "BN-INV-020",
       "statement": "Pesquisa Global V1 descobre somente alunos, professores e turmas canônicos por IDs e relações já persistidos em D1; não cria índice paralelo, não infere identidade, não expõe identificadores técnicos e não executa ranking no navegador."
+    },
+    {
+      "id": "BN-INV-021",
+      "statement": "Central de Pendências V1 deriva itens somente de fatos e relações canônicas persistidas, reutiliza a classificação operacional equivalente, minimiza dados técnicos e não oferece resolução automática nem escrita de produto."
     }
   ],
   "data_contracts": [
@@ -168,6 +174,12 @@
       "source": "Cloudflare D1: students, teachers, class_groups, school_years, components, assignments e roster canônico comprovado",
       "direction": "backend para frontend administrativo",
       "privacy": "nomes e contexto operacional mínimos; sem OID, claims, UPN, external IDs, DriveItem ID ou dados de nota"
+    },
+    {
+      "name": "OperationalPendingItem",
+      "source": "Cloudflare D1: importações, findings, modelos, identidade necessária, fontes efetivas, professores, assignments, turmas e componentes",
+      "direction": "backend para frontend administrativo",
+      "privacy": "causa, evidência e contexto mínimos; sem tokens, OID, claims, UPN, Graph/Drive IDs, caminhos de storage ou detalhes SQL"
     }
   ],
   "interfaces": [
@@ -205,6 +217,11 @@
       "name": "/api/banco-notas/v1/pesquisa",
       "mode": "governed-read-only-search",
       "purpose": "pesquisar alunos, professores e turmas com normalização, ranking determinístico, limites por tipo e capability server-side"
+    },
+    {
+      "name": "/api/banco-notas/v1/pendencias/summary, /api/banco-notas/v1/pendencias e /api/banco-notas/v1/pendencias/:id",
+      "mode": "governed-read-only-operational-diagnostics",
+      "purpose": "resumir, filtrar, paginar e detalhar pendências factuais com navegação contextual e sem comandos de resolução"
     }
   ],
   "acceptance_criteria": [
@@ -400,6 +417,21 @@
         "os resultados reutilizam IDs canônicos e oferecem navegação para detalhes existentes e Acompanhamento quando comprovado",
         "o DTO não expõe OID, claims, UPN, external IDs, DriveItem ID ou dados de nota",
         "a interface persiste q na URL, cancela requisições obsoletas e cobre loading, vazio, erro e permissão negada"
+      ],
+      "verification": ["test", "browser", "database", "security"]
+    },
+    {
+      "id": "BN-AC-017",
+      "priority": "must",
+      "given": "um administrador autorizado abre a Central de Pendências",
+      "when": "ele consulta o resumo, filtra, pagina e investiga uma evidência",
+      "then": [
+        "cada item corresponde a um fato persistido com ID estável, severidade, causa, evidência, origem e contexto mínimo",
+        "classificação equivalente reutiliza a situação operacional compartilhada e findings preservam sua severidade factual",
+        "filtros e paginação são aplicados no servidor com ordenação erro, atenção, informação, recência e desempate estável",
+        "o DTO não expõe token, OID, claims, UPN, identificador Graph/Drive, caminho de storage ou detalhe SQL",
+        "Acompanhamento, Professor e Turma oferecem navegação filtrada para a Central e o detalhe oferece links de investigação",
+        "a Central não oferece resolução automática, correção, arquivamento, atribuição ou qualquer escrita de produto"
       ],
       "verification": ["test", "browser", "database", "security"]
     }

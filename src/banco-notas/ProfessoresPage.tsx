@@ -281,6 +281,11 @@ export function ProfessoresPage() {
       title="Professores"
       description="Diretório operacional read-only de professores, atribuições, modelos, identidade institucional, fontes, atividade e pendências do Banco de Notas."
     >
+      <div className="mb-5 flex justify-end">
+        <Button variant="outline" onPress={() => navigate('/pendencias')}>
+          Ver todas as pendências <ArrowRight className="size-4" />
+        </Button>
+      </div>
       {(filtersError || diagnosticTotal > 0) && result && (
         <Alert status="warning" className="mb-5">
           <Alert.Indicator />
@@ -545,6 +550,15 @@ export function ProfessorDetailPage() {
               onChange={updateYear}
             />
           </div>
+        )}
+        {detail && (
+          <Button
+            size="sm"
+            variant="outline"
+            onPress={() => navigate(`/pendencias?teacherId=${detail.teacher.id}`)}
+          >
+            Ver pendências <CircleAlert className="size-4" />
+          </Button>
         )}
       </div>
       {error ? (
