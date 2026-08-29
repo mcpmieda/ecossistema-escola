@@ -504,3 +504,19 @@ Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.j
 - Nenhum serviço remoto de produto é necessário ou autorizado para esta verificação.
 - Gate local final: `npm run verify` PASS, 386 testes em 76 arquivos, manifest e builds web/add-in PASS; audit high com 0 vulnerabilidades e diff check PASS.
 - PR Draft #136, primeira rodada: CI and deploy `33221412326` PASS; Semgrep `33221412336` PASS; Validate application e Actions Security verdes; deploy/recovery/cleanup/Merge Train skipped e zero deployments.
+
+## Banco de Notas — verificação Experiência Cotidiana do Add-in V1 (29/08/2026)
+
+- SQLite real com migrations 0001 e 0007 prova identidade exata do workbook, ownership, assignment, fonte, mappings, snapshots e sync off.
+- Contratos Zod/API/OpenAPI cobrem bearer ausente/inválido, 403, 404, 405, 503, DTO minimizado e flag fail-closed.
+- Office.js e comparação local cobrem metadata inválida, guia sem mapping, mudança, nenhuma mudança, zero, ausência e baseline desconhecido.
+- UI HeroUI cobre loading, auth, authenticated, warning/sync off, blocked/sem assignment/modelo suspenso, workbook inválido, modelo ausente, ownership, erro e offline.
+- Regressão NAA preserva MSAL/NAA 1.1, redirect bridge, `auth.html`, memory-only cache, audience/scope e não registra token/PII.
+- Browser QA sintético em 360 × 800 e 280 × 720: preview factual, única ação Analisar novamente, nenhum botão de sync, zero overflow e zero erros de console. Fixture, servidor, aba e viewport removidos/restaurados.
+- Excel Online real não foi repetido porque o navegador não possuía sessão existente; nenhum login, sideload, upload ou publicação foi iniciado. A prova NAA real anterior permanece válida e sua regressão passou.
+- Gate local: `npm run verify` PASS; 421 testes em 85 arquivos; manifest válido; builds web/add-in PASS; audit high 0; `git diff --check` PASS.
+- Produção, D1 remoto, Graph, Entra, permissões, publicação do add-in e sync não foram alterados; `sync_enabled=0`.
+
+Status local: `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`.
+
+- PR Draft #138, primeira rodada: CI and deploy `33246218011` PASS; Semgrep `33246218042` PASS; Validate application e Actions Security verdes; CodeRabbit PASS/skip esperado; reviews e threads 0; Merge Train/deploy/recovery/cleanup skipped; zero deployments.

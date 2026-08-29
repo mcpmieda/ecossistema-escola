@@ -427,3 +427,17 @@ O Banco de Notas agora possui, em branch de produto separada, o primeiro módulo
 - Gate local e Browser QA sintético concluídos; PR Draft #136 publicado, com primeira rodada de CI/security/Semgrep verde e zero deployments. O PR deve permanecer Draft e sem merge.
 
 Documento: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.
+
+## Banco de Notas — Experiência Cotidiana do Add-in V1 (29/08/2026)
+
+- Branch `feat/banco-notas-addin-cotidiano-v1` baseada em `main` no commit `3e02f80b3dd07d00eef63f5d481ba4250c14c9e5`.
+- Taskpane HeroUI autentica por NAA existente, reconhece metadata governada, obtém contexto read-only com bearer/ownership e compara mappings localmente.
+- Context API minimizada permanece desabilitada sem flag explícita; grade-events continua desconectado do roteador público.
+- Zero, ausência e baseline desconhecido permanecem distintos; nenhuma alteração é enviada/persistida e não há comando de sync.
+- Gate local e Browser QA sintético: PASS; 421 testes em 85 arquivos, builds web/add-in e manifest aprovados, audit high 0.
+- Excel Online real não repetido por ausência de sessão existente; nenhum login, sideload, publicação, deploy, D1 remoto ou mudança Entra/Graph.
+- Produção intacta e `sync_enabled=0`.
+
+Referência: `docs/BANCO_NOTAS_ADDIN_COTIDIANO_V1.md`.
+
+Status local: `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`.

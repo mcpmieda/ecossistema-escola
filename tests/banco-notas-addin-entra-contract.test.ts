@@ -94,10 +94,12 @@ describe('Banco de Notas Entra add-in homologation contract', () => {
     expect(provisioningScript).not.toContain('passwordCredential =');
   });
 
-  it('does not activate runtime variables, public routing or sync', () => {
+  it('keeps identity values unset and exposes only the flagged read-only context route', () => {
     expect(envExample).toContain('BANCO_NOTAS_ADDIN_AUDIENCE=');
     expect(envExample).toContain('BANCO_NOTAS_ADDIN_SCOPE=');
     expect(envExample).not.toMatch(/BANCO_NOTAS_ADDIN_(?:AUDIENCE|SCOPE)=\S+/u);
-    expect(router).not.toContain('routeBancoNotasAddinApi');
+    expect(router).toContain("url.pathname === '/api/banco-notas/v1/addin/context'");
+    expect(router).toContain("BANCO_NOTAS_ADDIN_CONTEXT_ENABLED !== '1'");
+    expect(router).not.toContain("url.pathname === '/api/banco-notas/v1/grade-events'");
   });
 });

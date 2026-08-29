@@ -125,6 +125,12 @@ async function persist(repo: D1TeacherModelRepository, modelHash: string) {
     modelHash,
     definitionVersion: '2026.1-modelo-docente',
     mappingVersion: 1,
+    workbookIdentity: {
+      modelId: '55555555-5555-4555-8555-555555555555',
+      sourceHash: 'a'.repeat(64),
+      relationshipSnapshotId: '44444444-4444-4444-8444-444444444444',
+      layoutVersion: '2026.1-layout',
+    },
     provenance: {
       sourceHash: 'a'.repeat(64),
       relationshipSnapshotId: '44444444-4444-4444-8444-444444444444',

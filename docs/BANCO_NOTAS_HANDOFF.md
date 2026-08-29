@@ -427,3 +427,19 @@ Gates locais concluídos: Browser QA sintético desktop/mobile/empty/403/404/500
 Leitura principal: `docs/BANCO_NOTAS_CENTRAL_PENDENCIAS_V1.md`.
 
 Publicação concluída no PR Draft #137. Primeira rodada CI `33229929504` e Semgrep `33229929506`: PASS; Validate application e Actions Security verdes; Factory Merge Train/deploy/recovery/cleanup skipped; Factory Control Plane não aplicável aos paths; deployments do head: 0. Status: `BANCO_NOTAS_CENTRAL_PENDENCIAS_V1_PASSED`.
+
+## Retomada — Experiência Cotidiana do Add-in V1 (29/08/2026)
+
+Branch `feat/banco-notas-addin-cotidiano-v1`, baseada na `main` integrada em `3e02f80b3dd07d00eef63f5d481ba4250c14c9e5`.
+
+Implementação local: taskpane React/HeroUI, NAA existente preservada, metadata governada Office.js, endpoint `GET /api/banco-notas/v1/addin/context` com bearer delegado + ownership + flag fail-closed, contexto mínimo, preflight, pendências relevantes e comparação local de células. O endpoint público de grade-events permanece desconectado e não existe ação de sync.
+
+Gate local: 421 testes em 85 arquivos; verify, manifest, builds web/add-in, audit high 0 e diff check PASS. Browser QA sintético passou em 360 px e 280 px, incluindo zero/ausência, loading/auth/blocked/offline/ownership e ausência de overflow. Excel Online real não foi repetido porque não havia sessão existente; nenhum login/sideload/publicação foi iniciado e a regressão NAA homologada segue verde.
+
+Produção, D1 remoto, Graph, Entra, permissões Microsoft, add-in publicado e `sync_enabled=0` permanecem intactos. Próximo gate: PR Draft, CI/Semgrep verdes, zero deployments e integração controlada com `[skip ci]`.
+
+Leitura principal: `docs/BANCO_NOTAS_ADDIN_COTIDIANO_V1.md`.
+
+Status local: `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`.
+
+Publicação inicial: commit `1f90120d786f14b3b8ba4180f15c4bc5936906f2`, PR Draft #138, CI `33246218011` e Semgrep `33246218042` verdes; merge state CLEAN, reviews/threads pendentes 0, produção/recovery/cleanup skipped e deployments do head 0. Falta somente a rodada CI do commit de evidências e a integração controlada.

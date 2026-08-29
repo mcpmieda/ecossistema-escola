@@ -17,6 +17,7 @@ export type RuntimeEnv = Cloudflare.Env &
     BANCO_NOTAS_DB?: D1Database;
     BANCO_NOTAS_ADDIN_AUDIENCE?: string;
     BANCO_NOTAS_ADDIN_SCOPE?: string;
+    BANCO_NOTAS_ADDIN_CONTEXT_ENABLED?: string;
     BANCO_NOTAS_GRAPH_DRIVE_ID?: string;
     BANCO_NOTAS_GRAPH_PARENT_ITEM_ID?: string;
   };
@@ -44,6 +45,7 @@ const envSchema = z.object({
   BANCO_NOTAS_DB: z.custom<D1Database>().optional(),
   BANCO_NOTAS_ADDIN_AUDIENCE: z.string().uuid().optional(),
   BANCO_NOTAS_ADDIN_SCOPE: z.string().min(3).max(120).regex(/^\S+$/u).optional(),
+  BANCO_NOTAS_ADDIN_CONTEXT_ENABLED: z.literal('1').optional(),
   BANCO_NOTAS_GRAPH_DRIVE_ID: z.string().trim().min(1).max(512).optional(),
   BANCO_NOTAS_GRAPH_PARENT_ITEM_ID: z.string().trim().min(1).max(512).optional(),
 });

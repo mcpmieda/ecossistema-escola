@@ -425,3 +425,21 @@ Documento: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.
 Documento: `docs/BANCO_NOTAS_CENTRAL_PENDENCIAS_V1.md`.
 
 Publicação: PR Draft #137 para `main`; primeira rodada CI `33229929504` e Semgrep `33229929506` verdes. Factory Merge Train, deploy, recovery e cleanup skipped; Factory Control Plane não aplicável ao diff e policy interna validada; zero deployments.
+
+## Experiência Cotidiana do Add-in V1 — implementação em branch (29/08/2026)
+
+- Taskpane React/HeroUI para autenticação, contexto, preflight, mudanças e pendências relevantes.
+- NAA 1.1, MSAL, `auth.html`, cache em memória, audience/scope e validação bearer preservados.
+- Context API read-only com ownership e flag fail-closed; DTO não expõe OID, claims, tenant, token, teacherModelId ou IDs Graph/Drive.
+- Identidade exata da versão do workbook persistida na proveniência, sem confundir modelId do arquivo com teacher model interno.
+- Comparação de células ocorre localmente e preserva zero, ausência e baseline desconhecido; nenhuma mudança é enviada ou persistida.
+- Sync off é informação administrativa e não há botão/comando funcional de sincronização.
+- Gate local: 421 testes em 85 arquivos, verify/manifest/builds/audit/diff PASS; Browser QA sintético em 360/280 px PASS.
+- Excel Online real não repetido por ausência de sessão existente; sem login, sideload, upload ou publicação.
+- Produção, D1 remoto, Graph, Entra e `sync_enabled=0` intactos.
+
+Documento: `docs/BANCO_NOTAS_ADDIN_COTIDIANO_V1.md`.
+
+Status local: `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`.
+
+Publicação inicial: PR Draft #138; CI `33246218011` e Semgrep `33246218042` PASS; reviews/threads 0; merge state CLEAN; jobs de produção skipped; deployments 0.

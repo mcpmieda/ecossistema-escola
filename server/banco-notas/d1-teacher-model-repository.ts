@@ -14,6 +14,12 @@ export type PersistValidatedTeacherModelInput = {
   modelHash: string;
   definitionVersion: string;
   mappingVersion: number;
+  workbookIdentity: {
+    modelId: string;
+    sourceHash: string;
+    relationshipSnapshotId: string;
+    layoutVersion: string;
+  };
   provenance: Record<string, unknown>;
   mappings: TeacherModelMapping[];
   actor: string;
@@ -61,6 +67,7 @@ type ExistingTeacherModel = {
 };
 
 const sha256Pattern = /^[a-f0-9]{64}$/u;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
 
 function assertText(value: string, code: string): void {
   if (!value.trim()) throw new Error(code);
@@ -80,6 +87,16 @@ function assertValidatedModelInput(input: PersistValidatedTeacherModelInput): vo
   assertText(input.definitionVersion, 'teacher_model_definition_version_required');
   assertText(input.actor, 'teacher_model_actor_required');
   if (!sha256Pattern.test(input.modelHash)) throw new Error('teacher_model_hash_invalid');
+  if (!uuidPattern.test(input.workbookIdentity.modelId)) {
+    throw new Error('teacher_model_workbook_model_id_invalid');
+  }
+  if (!sha256Pattern.test(input.workbookIdentity.sourceHash)) {
+    throw new Error('teacher_model_workbook_source_hash_invalid');
+  }
+  if (!uuidPattern.test(input.workbookIdentity.relationshipSnapshotId)) {
+    throw new Error('teacher_model_workbook_relationship_snapshot_invalid');
+  }
+  assertText(input.workbookIdentity.layoutVersion, 'teacher_model_workbook_layout_required');
   if (!Number.isInteger(input.mappingVersion) || input.mappingVersion < 1) {
     throw new Error('teacher_model_mapping_version_invalid');
   }
@@ -224,7 +241,13 @@ export class D1TeacherModelRepository {
       Number(latest.mapping_version) === input.mappingVersion
     ) {
       const provenance = JSON.parse(String(latest.provenance_json)) as Record<string, unknown>;
-      if (provenance.definitionVersion !== input.definitionVersion) {
+      if (
+        provenance.definitionVersion !== input.definitionVersion ||
+        provenance.workbookModelId !== input.workbookIdentity.modelId ||
+        provenance.sourceHash !== input.workbookIdentity.sourceHash ||
+        provenance.relationshipSnapshotId !== input.workbookIdentity.relationshipSnapshotId ||
+        provenance.layoutVersion !== input.workbookIdentity.layoutVersion
+      ) {
         throw new Error('teacher_model_version_idempotency_conflict');
       }
       return {
@@ -244,6 +267,10 @@ export class D1TeacherModelRepository {
     const provenance = {
       ...input.provenance,
       definitionVersion: input.definitionVersion,
+      workbookModelId: input.workbookIdentity.modelId,
+      sourceHash: input.workbookIdentity.sourceHash,
+      relationshipSnapshotId: input.workbookIdentity.relationshipSnapshotId,
+      layoutVersion: input.workbookIdentity.layoutVersion,
     };
     const statements: D1PreparedStatement[] = [];
 
