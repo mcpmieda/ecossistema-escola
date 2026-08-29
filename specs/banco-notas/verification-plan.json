@@ -124,6 +124,12 @@
       "name": "Central de Pendências V1 factual diagnostics",
       "method": "SQLite real, taxonomia/DTO/OpenAPI, summary/list/detail, allow/deny, filtros/paginação/ordenação/deduplicação, minimização e browser QA sintético desktop/mobile com empty/403/404/500",
       "required": true
+    },
+    {
+      "id": "BN-V-021",
+      "name": "Experiência Cotidiana do Add-in V1",
+      "method": "contratos Zod/OpenAPI, SQLite real, bearer/ownership, metadata e mappings Office.js, zero/ausência/baseline desconhecido, estados HeroUI, regressão NAA, manifest, build separado e QA sintético do taskpane",
+      "required": true
     }
   ],
   "scenario_matrix": [
@@ -164,7 +170,12 @@
     "Central resume erros, atenções e informações a partir de importações, findings, modelos, identidade necessária, fontes e assignments persistidos",
     "Central filtra por ano, severidade, tipo, professor, turma, componente, status e texto com paginação e ordenação determinística no servidor",
     "detalhe de pendência mostra causa, evidência, origem e links para Professor, Turma e Acompanhamento sem ação de resolução",
-    "Central diferencia loading, empty, 403, 404 e 500 em desktop e mobile sem overflow global"
+    "Central diferencia loading, empty, 403, 404 e 500 em desktop e mobile sem overflow global",
+    "taskpane cotidiano autentica por NAA, reconhece metadata/guia e obtém contexto somente com bearer delegado e ownership",
+    "taskpane distingue loading, auth, authenticated, sem assignment/modelo, workbook inválido, ownership negado, sync off, ready, warning, error e offline",
+    "comparação local distingue zero, ausência, mudança, nenhuma mudança e baseline desconhecido sem enviar conteúdo de célula",
+    "context API permanece fail-closed sem flag, retorna DTO minimizado e não torna grade-events publicamente acessível",
+    "taskpane sintético em viewport estreito usa HeroUI, não apresenta overflow global e não expõe token, claims, OID ou tenant"
   ],
   "data_policy": {
     "git": "somente fixtures sintéticas e contratos; nenhum nome/nota real",
@@ -190,6 +201,8 @@
     "golden master privado incorporado ao produto, runtime, persistência, migration, fixture pública, SharePoint definitivo ou distribuição",
     "Professores V1 relacionando teacher por nome, omitindo docente sem assignment ou expondo OID/DriveItem ID",
     "Pesquisa Global criando índice ou identidade paralela, ranqueando no frontend, carregando entidades integralmente ou expondo identificadores técnicos",
-    "Central criando pendência por heurística não persistida, expondo identificador técnico ou oferecendo resolução/escrita em V1"
+    "Central criando pendência por heurística não persistida, expondo identificador técnico ou oferecendo resolução/escrita em V1",
+    "add-in cotidiano expondo token/claims/OID/tenant, enviando conteúdo de célula, persistindo mudança, publicando comando de sync ou reutilizando capability administrativa",
+    "rota addin/context habilitada por default, grade-events conectado ao roteador público ou mudança em Entra/Graph/permissões sem decisão humana"
   ]
 }

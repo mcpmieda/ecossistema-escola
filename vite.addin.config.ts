@@ -1,9 +1,12 @@
 import path from 'node:path';
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 const addinRoot = path.resolve(import.meta.dirname, 'addin/banco-notas');
 
 export default defineConfig({
+  plugins: [react(), tailwindcss()],
   root: addinRoot,
   publicDir: path.resolve(addinRoot, 'public'),
   base: '/banco-de-notas/addin/',

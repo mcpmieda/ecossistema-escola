@@ -169,3 +169,14 @@ Permanece apenas a pasta autorizada `BANCO_NOTAS_HOMOLOGACAO` e o histórico sin
 - Endpoint público desconectado, sync `0`, produção intocada e PR #52 draft.
 - Evidência: `docs/BANCO_NOTAS_ENTRA_ADDIN_AUDIT_2026-08-27.md`.
 - Gate histórico concluído: registration de homologação credential-free criada sem publicar o add-in.
+
+## Experiência Cotidiana do Add-in V1 — checkpoint local (29/08/2026)
+
+- Branch: `feat/banco-notas-addin-cotidiano-v1` sobre `3e02f80b3dd07d00eef63f5d481ba4250c14c9e5`.
+- Implementação, contratos, documentação, testes e Browser QA sintético concluídos.
+- Gate local: 421/421 testes, verify, manifest, builds, audit high 0 e diff check PASS.
+- Excel Online real não repetido por ausência de sessão existente; nenhuma publicação/sideload/login.
+- Context route fail-closed; grade-events público desconectado; sync `0`; produção/D1 remoto/Graph/Entra intactos.
+- Próximo passo seguro: commit, PR Draft, CI completa, zero deployments e integração controlada `[skip ci]`.
+
+`BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`

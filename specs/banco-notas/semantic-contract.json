@@ -22,6 +22,7 @@
       "Professores V1 como diretório operacional read-only derivado de teachers, assignments, teacher models, fontes, atividade e findings persistidos",
       "Pesquisa Global V1 read-only de alunos, professores e turmas, derivada dos mesmos IDs e relacionamentos persistidos dos diretórios existentes",
       "Central de Pendências V1 read-only com diagnóstico factual, severidade, filtros, detalhe e navegação para os contextos canônicos existentes",
+      "Experiência Cotidiana do Add-in V1 read-only com NAA, contexto por ownership, preflight e comparação local de células mapeadas",
       "integração futura de conselho, boletins, entidades e análises conforme Relatório v1.6"
     ],
     "out": [
@@ -37,7 +38,8 @@
       "decidir automaticamente regra pedagógica ou jurídica que não esteja consolidada ou configurada",
       "criar cadastro de RH, identidade paralela, vínculo Entra, compartilhamento Graph, edição de notas ou ativação de sync em Professores V1",
       "criar índice paralelo, FTS, inferência fuzzy de identidade, busca por IA ou banco vetorial em Pesquisa Global V1",
-      "resolver, ignorar, arquivar, atribuir responsável ou corrigir automaticamente uma pendência na Central V1"
+      "resolver, ignorar, arquivar, atribuir responsável ou corrigir automaticamente uma pendência na Central V1",
+      "publicar o add-in, ativar sync, expor grade-events no roteador público ou enviar/persistir alterações detectadas pela Experiência Cotidiana V1"
     ]
   },
   "invariants": [
@@ -124,6 +126,10 @@
     {
       "id": "BN-INV-021",
       "statement": "Central de Pendências V1 deriva itens somente de fatos e relações canônicas persistidas, reutiliza a classificação operacional equivalente, minimiza dados técnicos e não oferece resolução automática nem escrita de produto."
+    },
+    {
+      "id": "BN-INV-022",
+      "statement": "A Experiência Cotidiana do add-in obtém contexto somente com bearer delegado e ownership, compara localmente mappings autorizados, preserva zero versus ausência e não persiste nem envia alterações enquanto o piloto não estiver ativo."
     }
   ],
   "data_contracts": [
@@ -180,6 +186,12 @@
       "source": "Cloudflare D1: importações, findings, modelos, identidade necessária, fontes efetivas, professores, assignments, turmas e componentes",
       "direction": "backend para frontend administrativo",
       "privacy": "causa, evidência e contexto mínimos; sem tokens, OID, claims, UPN, Graph/Drive IDs, caminhos de storage ou detalhes SQL"
+    },
+    {
+      "name": "AddinDailyContext",
+      "source": "Cloudflare D1: identidade versionada do workbook, teacher model, ownership, assignment, fonte efetiva, mappings e snapshots",
+      "direction": "backend para taskpane; comparação de células permanece local no Office.js",
+      "privacy": "labels e baselines mínimos; sem token, claims, OID, tenant, UPN, teacherModelId ou IDs Graph/Drive"
     }
   ],
   "interfaces": [
@@ -222,6 +234,11 @@
       "name": "/api/banco-notas/v1/pendencias/summary, /api/banco-notas/v1/pendencias e /api/banco-notas/v1/pendencias/:id",
       "mode": "governed-read-only-operational-diagnostics",
       "purpose": "resumir, filtrar, paginar e detalhar pendências factuais com navegação contextual e sem comandos de resolução"
+    },
+    {
+      "name": "/api/banco-notas/v1/addin/context",
+      "mode": "delegated-bearer-owned-read-only-context",
+      "purpose": "reconhecer a versão exata do workbook e fornecer preflight, pendências relevantes e baselines mínimos sem capacidade administrativa ou escrita"
     }
   ],
   "acceptance_criteria": [
@@ -434,6 +451,21 @@
         "a Central não oferece resolução automática, correção, arquivamento, atribuição ou qualquer escrita de produto"
       ],
       "verification": ["test", "browser", "database", "security"]
+    },
+    {
+      "id": "BN-AC-018",
+      "priority": "must",
+      "given": "um professor abre no Office um workbook com metadata governada e usa NAA 1.1",
+      "when": "o taskpane solicita contexto e analisa a guia ativa",
+      "then": [
+        "o servidor exige bearer delegado, ownership e identidade exata da versão do workbook",
+        "o DTO omite token, claims, OID, tenant, UPN, IDs Graph/Drive e teacherModelId",
+        "o preflight distingue ready, warning e blocked e trata sync desligado como informação administrativa",
+        "a comparação ocorre localmente apenas sobre mappings autorizados e preserva zero, ausência e baseline desconhecido",
+        "nenhum conteúdo de célula é enviado, nenhuma mudança é persistida e não existe comando funcional de sincronização",
+        "a rota permanece fail-closed sem flag explícita e grade-events continua desconectado do roteador público"
+      ],
+      "verification": ["test", "browser", "integration", "database", "security"]
     }
   ]
 }

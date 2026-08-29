@@ -70,6 +70,14 @@
     {
       "term": "Central de Pendências",
       "meaning": "visão administrativa read-only que resume, filtra e detalha pendências operacionais e navega aos contextos canônicos"
+    },
+    {
+      "term": "Contexto cotidiano do add-in",
+      "meaning": "DTO read-only minimizado, autorizado por bearer delegado e ownership, que reconhece a versão do workbook e fornece preflight e baselines para comparação local"
+    },
+    {
+      "term": "baseline desconhecido",
+      "meaning": "campo mapeado sem snapshot factual conhecido, excluído da detecção de mudança em vez de ser inferido como zero ou ausência"
     }
   ],
   "precedence_rules": [
@@ -146,7 +154,12 @@
     "Central de Pendências deriva somente fatos persistidos e não transforma ausência de sync, isoladamente, em erro.",
     "Tipos e severidades da Central são limitados e documentados; semântica equivalente reutiliza deriveOperationalAttention e findings preservam a severidade persistida.",
     "Um PendingItem expõe somente contexto administrativo mínimo e links internos; identificadores técnicos Microsoft, credenciais, caminhos de storage e detalhes SQL permanecem fora do DTO.",
-    "Central de Pendências V1 é estritamente read-only e não resolve, ignora, arquiva, atribui ou corrige evidências."
+    "Central de Pendências V1 é estritamente read-only e não resolve, ignora, arquiva, atribui ou corrige evidências.",
+    "A identidade cotidiana do workbook combina modelId, sourceHash, relationshipSnapshotId, definitionVersion, layoutVersion, mappingVersion, ano e guia; ela não substitui o ID interno do teacher model.",
+    "O contexto do add-in exige token delegado e ownership no backend; OID serve somente à autorização e não integra o DTO.",
+    "A comparação cotidiana lê apenas células autorizadas no Office.js, não envia valores ao endpoint de contexto e não persiste alterações.",
+    "Zero numérico, ausência conhecida e baseline desconhecido são estados distintos no contexto e na comparação local.",
+    "Sync desligado é informação administrativa normal; a Experiência Cotidiana V1 não expõe comando de sincronização nem conecta grade-events ao roteador público."
   ],
   "ambiguities_resolved_as_configuration": [
     "fonte padrão do ano",

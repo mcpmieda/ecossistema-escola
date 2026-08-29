@@ -1,4 +1,9 @@
 import { ZodError } from 'zod';
+import {
+  addinContextQuerySchema,
+  addinContextResponseSchema,
+  type BancoNotasAddinContextRepository,
+} from '../../shared/banco-notas-addin-context';
 import { gradeEventInputSchema, type GradeEventStore } from '../../shared/banco-notas-grade-events';
 import type { RuntimeEnv } from '../env';
 import {
@@ -13,6 +18,7 @@ import { BancoNotasAddinForbiddenError } from './d1-addin-authorizer';
 import { routeGradeEventsApi } from './grade-events-api';
 
 const gradeEventsPath = '/api/banco-notas/v1/grade-events';
+const contextPath = '/api/banco-notas/v1/addin/context';
 
 export type BancoNotasAddinModelAuthorizer = {
   assertTeacherModelOwner(input: { teacherModelId: string; entraObjectId: string }): Promise<void>;
@@ -36,14 +42,21 @@ export async function routeBancoNotasAddinApi(args: {
   env: RuntimeEnv;
   store: GradeEventStore;
   authorizer: BancoNotasAddinModelAuthorizer;
+  contextRepository?: BancoNotasAddinContextRepository;
   now?: number;
   fetcher?: typeof fetch;
   verifyToken?: typeof verifyBancoNotasAddinToken;
 }): Promise<Response> {
   const { request } = args;
-  const path = new URL(request.url).pathname;
-  if (path !== gradeEventsPath) throw new HttpError(404, 'Not found');
-  if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
+  const url = new URL(request.url);
+  const path = url.pathname;
+  if (path !== gradeEventsPath && path !== contextPath) throw new HttpError(404, 'Not found');
+  if (path === gradeEventsPath && request.method !== 'POST') {
+    throw new HttpError(405, 'Method not allowed');
+  }
+  if (path === contextPath && request.method !== 'GET') {
+    throw new HttpError(405, 'Method not allowed');
+  }
 
   let claims: Awaited<ReturnType<typeof verifyBancoNotasAddinToken>>;
   try {
@@ -55,6 +68,26 @@ export async function routeBancoNotasAddinApi(args: {
     });
   } catch (error) {
     throw identityHttpError(error) ?? error;
+  }
+
+  if (path === contextPath) {
+    if (!args.contextRepository) throw new HttpError(503, 'Add-in context storage unavailable');
+    let query: ReturnType<typeof addinContextQuerySchema.parse>;
+    try {
+      query = addinContextQuerySchema.parse(Object.fromEntries(url.searchParams.entries()));
+    } catch (error) {
+      if (error instanceof ZodError) {
+        throw new HttpError(400, error.issues[0]?.message ?? 'Invalid workbook context');
+      }
+      throw error;
+    }
+    try {
+      const result = await args.contextRepository.context(query, claims.oid);
+      if (!result) throw new HttpError(404, 'addin_workbook_not_recognized');
+      return Response.json(addinContextResponseSchema.parse(result));
+    } catch (error) {
+      throw identityHttpError(error) ?? error;
+    }
   }
 
   let input: ReturnType<typeof gradeEventInputSchema.parse>;

@@ -40,6 +40,10 @@ import { D1TurmasAlunosRepository } from '../server/banco-notas/d1-turmas-alunos
 import { D1ProfessoresRepository } from '../server/banco-notas/d1-professores-repository';
 import { D1BancoNotasSearchRepository } from '../server/banco-notas/d1-search-repository';
 import { D1PendenciasRepository } from '../server/banco-notas/d1-pendencias-repository';
+import { routeBancoNotasAddinApi } from '../server/banco-notas/addin-api';
+import { D1BancoNotasAddinAuthorizer } from '../server/banco-notas/d1-addin-authorizer';
+import { D1BancoNotasAddinContextRepository } from '../server/banco-notas/d1-addin-context-repository';
+import { D1GradeEventStore } from '../server/banco-notas/d1-grade-event-store';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -352,6 +356,22 @@ async function route(context: Context, correlationId: string): Promise<Response>
     const capabilities = capabilitiesForRoles(session.roles);
     requireCapability(capabilities, 'platform.snapshot.read');
     return json(await getPlatformSnapshot(env, capabilities));
+  }
+  if (url.pathname === '/api/banco-notas/v1/addin/context') {
+    method(request, ['GET']);
+    if (env.BANCO_NOTAS_ADDIN_CONTEXT_ENABLED !== '1') {
+      throw new HttpError(404, 'Not found');
+    }
+    if (!env.BANCO_NOTAS_DB) {
+      throw new HttpError(503, 'Banco de Notas storage unavailable');
+    }
+    return routeBancoNotasAddinApi({
+      request,
+      env,
+      store: new D1GradeEventStore(env.BANCO_NOTAS_DB),
+      authorizer: new D1BancoNotasAddinAuthorizer(env.BANCO_NOTAS_DB),
+      contextRepository: new D1BancoNotasAddinContextRepository(env.BANCO_NOTAS_DB),
+    });
   }
   if (url.pathname.startsWith('/api/banco-notas/')) {
     const session = await requireAuth(request, env);

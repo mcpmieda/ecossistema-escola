@@ -1,0 +1,217 @@
+openapi: 3.1.0
+info:
+  title: Banco de Notas — Contexto Cotidiano do Add-in V1
+  version: 1.0.0
+  description: >-
+    Contexto mínimo e preflight read-only para um workbook governado. O endpoint exige bearer
+    delegado e ownership do teacher model, não recebe conteúdo de células, não persiste alterações
+    e não executa sincronização.
+servers:
+  - url: https://admin.escolaieda.com/api/banco-notas
+security:
+  - delegatedBearer: []
+paths:
+  /v1/addin/context:
+    get:
+      operationId: getAddinContext
+      summary: Reconhece o workbook e retorna somente o contexto autorizado para a guia ativa.
+      description: >-
+        A rota permanece fail-closed enquanto BANCO_NOTAS_ADDIN_CONTEXT_ENABLED não for 1. Mesmo
+        quando syncEnabled for true no estado administrativo, este contrato não oferece comando
+        de envio ou escrita.
+      parameters:
+        - { $ref: '#/components/parameters/WorkbookModelId' }
+        - { $ref: '#/components/parameters/SourceHash' }
+        - { $ref: '#/components/parameters/RelationshipSnapshotId' }
+        - { $ref: '#/components/parameters/DefinitionVersion' }
+        - { $ref: '#/components/parameters/LayoutVersion' }
+        - { $ref: '#/components/parameters/MappingVersion' }
+        - { $ref: '#/components/parameters/SchoolYear' }
+        - { $ref: '#/components/parameters/SheetKey' }
+      responses:
+        '200':
+          description: Contexto minimizado, preflight e baselines autorizados para comparação local.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AddinContext' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '405': { $ref: '#/components/responses/MethodNotAllowed' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    delegatedBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token v2 delegado com audience/azp da API, scope BancoNotas.Sync e OID presente.
+  parameters:
+    WorkbookModelId:
+      { in: query, name: workbookModelId, required: true, schema: { type: string, format: uuid } }
+    SourceHash:
+      in: query
+      name: sourceHash
+      required: true
+      schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+    RelationshipSnapshotId:
+      {
+        in: query,
+        name: relationshipSnapshotId,
+        required: true,
+        schema: { type: string, format: uuid },
+      }
+    DefinitionVersion:
+      {
+        in: query,
+        name: definitionVersion,
+        required: true,
+        schema: { type: string, minLength: 1, maxLength: 40 },
+      }
+    LayoutVersion:
+      {
+        in: query,
+        name: layoutVersion,
+        required: true,
+        schema: { type: string, minLength: 1, maxLength: 40 },
+      }
+    MappingVersion:
+      {
+        in: query,
+        name: mappingVersion,
+        required: true,
+        schema: { type: integer, minimum: 1, maximum: 1000000 },
+      }
+    SchoolYear:
+      {
+        in: query,
+        name: schoolYear,
+        required: true,
+        schema: { type: integer, minimum: 2000, maximum: 2200 },
+      }
+    SheetKey:
+      in: query
+      name: sheetKey
+      required: true
+      schema: { type: string, minLength: 1, maxLength: 180, pattern: '^[A-Za-z0-9._:-]+$' }
+  responses:
+    BadRequest: { description: Identidade interna ou versão do workbook inválida. }
+    Unauthorized: { description: Bearer delegado ausente ou inválido. }
+    Forbidden: { description: O professor autenticado não possui ownership do teacher model. }
+    NotFound: { description: Rota desabilitada ou workbook/model version não reconhecido. }
+    MethodNotAllowed: { description: Somente GET é aceito. }
+    Unavailable: { description: D1/context repository indisponível; falha fechada. }
+  schemas:
+    GradeValue:
+      oneOf:
+        - { type: number }
+        - { type: string, maxLength: 120 }
+        - { type: 'null' }
+    ReadinessReason:
+      type: string
+      enum:
+        - sync_disabled_by_administration
+        - model_not_connected
+        - model_suspended
+        - model_unavailable
+        - assignment_missing
+        - authoritative_source_missing
+        - mapping_unknown
+        - baseline_unavailable
+    AddinContextMapping:
+      type: object
+      additionalProperties: false
+      required: [cellAddress, field, studentLabel, known, knownValue, knownAbsent]
+      properties:
+        cellAddress: { type: string, minLength: 2, maxLength: 40 }
+        field:
+          type: string
+          enum: [NotaT1, NotaT2, NotaT3, RecT1, RecT2, RecT3, Total, TotalRec, NotaFinal]
+        studentLabel: { type: string, minLength: 1, maxLength: 240 }
+        known: { type: boolean }
+        knownValue: { $ref: '#/components/schemas/GradeValue' }
+        knownAbsent:
+          type: boolean
+          description: true distingue ausência conhecida de zero numérico.
+    Pending:
+      type: object
+      additionalProperties: false
+      required: [severity, code, message]
+      properties:
+        severity: { type: string, enum: [error, warning, info] }
+        code: { $ref: '#/components/schemas/ReadinessReason' }
+        message: { type: string, minLength: 1, maxLength: 240 }
+    AddinContext:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - teacher
+        - schoolYear
+        - assignment
+        - model
+        - syncEnabled
+        - lastActivityAt
+        - preflight
+        - pending
+        - mappings
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        teacher:
+          type: object
+          additionalProperties: false
+          required: [label]
+          properties: { label: { type: string, minLength: 1, maxLength: 240 } }
+        schoolYear:
+          type: object
+          additionalProperties: false
+          required: [label]
+          properties: { label: { type: string, minLength: 1, maxLength: 120 } }
+        assignment:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [classGroupLabel, componentLabel]
+              properties:
+                classGroupLabel: { type: string, minLength: 1, maxLength: 180 }
+                componentLabel: { type: string, minLength: 1, maxLength: 180 }
+            - { type: 'null' }
+        model:
+          type: object
+          additionalProperties: false
+          required: [version, mappingVersion, state]
+          properties:
+            version: { type: integer, minimum: 1 }
+            mappingVersion: { type: integer, minimum: 1 }
+            state:
+              type: string
+              enum: [draft, validated, ready_to_share, shared, connected, suspended, archived]
+        syncEnabled: { type: boolean }
+        lastActivityAt:
+          oneOf: [{ type: string, format: date-time }, { type: 'null' }]
+        preflight:
+          type: object
+          additionalProperties: false
+          required: [status, checks, reasons]
+          properties:
+            status: { type: string, enum: [ready, warning, blocked] }
+            checks:
+              type: object
+              additionalProperties: false
+              required: [structureValid, modelRecognized, teacherAuthorized, workbookCompatible]
+              properties:
+                structureValid: { type: boolean, const: true }
+                modelRecognized: { type: boolean, const: true }
+                teacherAuthorized: { type: boolean, const: true }
+                workbookCompatible: { type: boolean, const: true }
+            reasons:
+              type: array
+              items: { $ref: '#/components/schemas/ReadinessReason' }
+        pending:
+          type: array
+          items: { $ref: '#/components/schemas/Pending' }
+        mappings:
+          type: array
+          maxItems: 5000
+          items: { $ref: '#/components/schemas/AddinContextMapping' }
