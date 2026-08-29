@@ -107,4 +107,13 @@ Executado localmente em 28/08/2026 com build de produção e fixture HTTP exclus
 
 ## Estado
 
-Implementação, testes focados, Browser QA sintético e gate integral final concluídos localmente. Commits, PR Draft e CI ainda são gates obrigatórios antes de declarar `BANCO_NOTAS_CENTRAL_PENDENCIAS_V1_PASSED`.
+`BANCO_NOTAS_CENTRAL_PENDENCIAS_V1_PASSED`
+
+- commit funcional: `4735e7086cc1f49bc1594b243d8968088e629c53`;
+- PR Draft: `#137 — Banco de Notas: Central de Pendências V1`;
+- primeira rodada CI `33229929504`: Validate application e Validate GitHub Actions security PASS;
+- primeira rodada Semgrep `33229929506`: PASS;
+- CodeRabbit: PASS, com review automático corretamente não executado por o PR permanecer Draft;
+- Factory Control Plane não aplicável porque nenhum path `infra/factory/**` ou workflow de Factory foi alterado; a policy do control plane dentro de Actions Security passou;
+- Factory Merge Train, deploy, recovery e cleanup: skipped;
+- deployments associados ao head: 0.

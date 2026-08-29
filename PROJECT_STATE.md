@@ -8,6 +8,7 @@
 - Classificação equivalente reutiliza `deriveOperationalAttention`; `sync_enabled=0` isoladamente não é erro.
 - APIs exigem `grades.analytics.read`; DTO minimizado sem token, OID, Graph/Drive ID, caminho de storage ou detalhes SQL.
 - Gate local: 403 testes em 80 arquivos, formatação/lint/tipos/semântica/manifest/builds verdes, audit high com 0 vulnerabilidades e Browser QA desktop/mobile aprovado.
+- PR Draft #137 publicado; primeira rodada CI/Application Security/Semgrep verde, jobs de deploy/recovery/cleanup/Merge Train skipped e zero deployments.
 - Nenhuma migration, D1 remoto, Graph, Entra, add-in, sync ou produção foi alterada.
 - Documento: `docs/BANCO_NOTAS_CENTRAL_PENDENCIAS_V1.md`.
 

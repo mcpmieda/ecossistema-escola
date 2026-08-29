@@ -10,7 +10,9 @@
 - Browser QA sintético: PASS em desktop 1440 × 900 e mobile 390 × 844, cobrindo paginação, severidade, busca/debounce/abort, detalhe, navegação contextual com retorno, empty, 403, 404, 500/retry e overflow global ausente; tabela larga contida em scroll próprio.
 - Fixture HTTP, servidor, aba e viewport temporários encerrados/restaurados/removidos.
 - Gate local final: `npm run verify` PASS, 403 testes em 80 arquivos, formatação, lint, tipos, contrato semântico, manifesto e builds web/add-in verdes; audit high com 0 vulnerabilidades e diff check PASS.
-- CI do PR Draft permanece obrigatório antes do status PASS.
+- PR Draft #137, primeira rodada: CI and deploy `33229929504` PASS; Semgrep `33229929506` PASS; Validate application, Actions Security e Semgrep verdes; Factory Merge Train/deploy/recovery/cleanup skipped e zero deployments.
+- Factory Control Plane não foi acionado porque o diff não toca seus paths; sua policy interna passou em Actions Security.
+- status: `BANCO_NOTAS_CENTRAL_PENDENCIAS_V1_PASSED`.
 
 Evidência detalhada: `docs/BANCO_NOTAS_CENTRAL_PENDENCIAS_V1.md`.
 

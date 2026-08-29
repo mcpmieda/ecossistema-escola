@@ -423,3 +423,5 @@ Documento: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.
 - Produção, D1 remoto, Graph, Entra, add-in e sync permanecem intocados.
 
 Documento: `docs/BANCO_NOTAS_CENTRAL_PENDENCIAS_V1.md`.
+
+Publicação: PR Draft #137 para `main`; primeira rodada CI `33229929504` e Semgrep `33229929506` verdes. Factory Merge Train, deploy, recovery e cleanup skipped; Factory Control Plane não aplicável ao diff e policy interna validada; zero deployments.

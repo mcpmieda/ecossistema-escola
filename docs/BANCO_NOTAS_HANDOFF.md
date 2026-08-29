@@ -422,6 +422,8 @@ Branch `feat/banco-notas-central-pendencias-v1`, baseada na `main` em `5e6d7cfd0
 
 Implementação local: DTO/Zod, taxonomia factual, classificação operacional compartilhada, repository D1 por CTEs/joins, summary/list/detail, capability, wiring, OpenAPI, rota HeroUI, detalhe, filtros, paginação e links de Acompanhamento/Professor/Turma. Nenhuma migration ou escrita remota.
 
-Gates locais concluídos: Browser QA sintético desktop/mobile/empty/403/404/500, debounce/abort, navegação contextual e overflow; fixture/servidores removidos; `npm run verify` com 403 testes em 80 arquivos; audit high 0; diff check PASS. Próximos gates: commits, PR Draft e CI/Security/Semgrep verdes. Não fazer deploy, mutation D1 remota, mudança Graph/Entra, publicação do add-in ou ativação de sync.
+Gates locais concluídos: Browser QA sintético desktop/mobile/empty/403/404/500, debounce/abort, navegação contextual e overflow; fixture/servidores removidos; `npm run verify` com 403 testes em 80 arquivos; audit high 0; diff check PASS. Não fazer deploy, mutation D1 remota, mudança Graph/Entra, publicação do add-in ou ativação de sync.
 
 Leitura principal: `docs/BANCO_NOTAS_CENTRAL_PENDENCIAS_V1.md`.
+
+Publicação concluída no PR Draft #137. Primeira rodada CI `33229929504` e Semgrep `33229929506`: PASS; Validate application e Actions Security verdes; Factory Merge Train/deploy/recovery/cleanup skipped; Factory Control Plane não aplicável aos paths; deployments do head: 0. Status: `BANCO_NOTAS_CENTRAL_PENDENCIAS_V1_PASSED`.
