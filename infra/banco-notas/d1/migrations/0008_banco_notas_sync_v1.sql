@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS sync_pilot_eligibility (
 );
 
 CREATE TABLE IF NOT EXISTS sync_attempts (
-  request_id TEXT PRIMARY KEY, payload_hash TEXT NOT NULL, teacher_model_id TEXT REFERENCES teacher_models(id),
+  attempt_id TEXT PRIMARY KEY, request_id TEXT NOT NULL, payload_hash TEXT NOT NULL, teacher_model_id TEXT REFERENCES teacher_models(id),
   teacher_model_version_id TEXT REFERENCES teacher_model_versions(id), actor_id TEXT REFERENCES teachers(id),
   status TEXT NOT NULL CHECK(status IN('committed','rejected','conflict','duplicate','failed')),
   change_count INTEGER NOT NULL DEFAULT 0, conflict_count INTEGER NOT NULL DEFAULT 0,
@@ -19,9 +19,11 @@ CREATE TABLE IF NOT EXISTS sync_attempts (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, completed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_sync_attempts_model_time ON sync_attempts(teacher_model_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sync_attempts_request_actor_time ON sync_attempts(request_id,actor_id,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sync_attempts_terminal_request_actor ON sync_attempts(request_id,COALESCE(actor_id,'')) WHERE status <> 'failed';
 
 CREATE TABLE IF NOT EXISTS sync_attempt_invocations (
-  id TEXT PRIMARY KEY, request_id TEXT NOT NULL REFERENCES sync_attempts(request_id), actor_id TEXT REFERENCES teachers(id),
+  id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL REFERENCES sync_attempts(attempt_id), request_id TEXT NOT NULL, actor_id TEXT REFERENCES teachers(id),
   status TEXT NOT NULL CHECK(status='duplicate'), duration_ms INTEGER NOT NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -38,11 +40,11 @@ WHEN json_extract(NEW.provenance_json,'$.syncVersion') = 1
 BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM sync_configuration WHERE id='global' AND sync_enabled=1 AND commit_route_enabled=1)
     THEN RAISE(ABORT,'SYNC_DISABLED') END;
-  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM sync_pilot_eligibility p WHERE p.teacher_model_id=NEW.teacher_model_id AND p.enabled=1 AND (p.starts_at IS NULL OR p.starts_at<=CURRENT_TIMESTAMP) AND (p.expires_at IS NULL OR p.expires_at>=CURRENT_TIMESTAMP))
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM sync_pilot_eligibility p WHERE p.teacher_model_id=NEW.teacher_model_id AND p.enabled=1 AND (p.starts_at IS NULL OR datetime(p.starts_at)<=datetime(CURRENT_TIMESTAMP)) AND (p.expires_at IS NULL OR datetime(p.expires_at)>=datetime(CURRENT_TIMESTAMP)))
     THEN RAISE(ABORT,'PILOT_NOT_ALLOWED') END;
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM teacher_models model JOIN teachers teacher ON teacher.id=model.teacher_id WHERE model.id=NEW.teacher_model_id AND model.state='connected' AND model.sync_enabled=1 AND teacher.status='active' AND teacher.id=json_extract(NEW.provenance_json,'$.actorId'))
     THEN RAISE(ABORT,'OWNERSHIP_DENIED') END;
-  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM teacher_models model JOIN source_assignments assignment ON assignment.school_year_id=model.school_year_id AND (assignment.teacher_id=model.teacher_id OR assignment.teacher_id IS NULL) JOIN data_sources source ON source.id=assignment.data_source_id WHERE model.id=NEW.teacher_model_id AND source.id=NEW.source_id AND source.type='linked_teacher_model' AND source.status='active' AND source.environment=model.environment AND assignment.status='active' AND assignment.authority='authoritative' AND assignment.sync_enabled=1 AND assignment.effective_from<=date('now') AND (assignment.effective_to IS NULL OR assignment.effective_to>=date('now')))
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM teacher_models model JOIN source_assignments assignment ON assignment.school_year_id=model.school_year_id AND (assignment.teacher_id=model.teacher_id OR (assignment.teacher_id IS NULL AND NOT EXISTS(SELECT 1 FROM source_assignments teacher_override WHERE teacher_override.school_year_id=model.school_year_id AND teacher_override.teacher_id=model.teacher_id AND teacher_override.status='active' AND teacher_override.authority='authoritative' AND teacher_override.sync_enabled=1 AND teacher_override.effective_from<=date('now') AND (teacher_override.effective_to IS NULL OR teacher_override.effective_to>=date('now'))))) JOIN data_sources source ON source.id=assignment.data_source_id WHERE model.id=NEW.teacher_model_id AND source.id=NEW.source_id AND source.type='linked_teacher_model' AND source.status='active' AND source.environment=model.environment AND assignment.status='active' AND assignment.authority='authoritative' AND assignment.sync_enabled=1 AND assignment.effective_from<=date('now') AND (assignment.effective_to IS NULL OR assignment.effective_to>=date('now')))
     THEN RAISE(ABORT,'SOURCE_INVALID') END;
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM teacher_models model JOIN teacher_assignments assignment ON assignment.teacher_id=model.teacher_id AND assignment.school_year_id=model.school_year_id WHERE model.id=NEW.teacher_model_id AND assignment.status='active' AND assignment.effective_from<=date('now') AND (assignment.effective_to IS NULL OR assignment.effective_to>=date('now')) AND instr(NEW.grade_key,'|'||assignment.class_group_id||'|'||assignment.component_id||'|')>0)
     THEN RAISE(ABORT,'ASSIGNMENT_INACTIVE') END;

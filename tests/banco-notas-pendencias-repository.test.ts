@@ -188,16 +188,21 @@ describe('D1 Central de Pendências repository', () => {
 
   it('exposes conflict, failed and stale sync facts without grade values', async () => {
     database.exec(`INSERT INTO sync_attempts
-      (request_id,payload_hash,teacher_model_id,actor_id,status,change_count,conflict_count,reason_code,result_json,duration_ms)
+      (attempt_id,request_id,payload_hash,teacher_model_id,actor_id,status,change_count,conflict_count,reason_code,result_json,duration_ms)
       VALUES
-      ('sync-conflict','hash','model-a','${ids.teacherA}','conflict',1,1,'CONFLICT','{}',12),
-      ('sync-failed','hash','model-a','${ids.teacherA}','failed',2,1,'INTERNAL_ERROR','{}',18),
-      ('sync-stale','hash','model-a','${ids.teacherA}','conflict',1,1,'BASELINE_STALE','{}',9)`);
+      ('attempt-conflict','sync-conflict','hash','model-a','${ids.teacherA}','conflict',1,1,'CONFLICT','{}',12),
+      ('attempt-conflict-null','sync-conflict-null','hash','model-a','${ids.teacherA}','conflict',1,1,NULL,'{}',13),
+      ('attempt-failed','sync-failed','hash','model-a','${ids.teacherA}','failed',2,1,'INTERNAL_ERROR','{}',18),
+      ('attempt-stale','sync-stale','hash','model-a','${ids.teacherA}','conflict',1,1,'BASELINE_STALE','{}',9),
+      ('attempt-recovered-failed','sync-recovered','hash','model-a','${ids.teacherA}','failed',1,1,'INTERNAL_ERROR','{}',10),
+      ('attempt-recovered-committed','sync-recovered','hash','model-a','${ids.teacherA}','committed',1,0,NULL,'{}',11)`);
     const result = await repository.list({ page: 1, pageSize: 100 });
     expect(result.items.map((item) => item.kind)).toEqual(
       expect.arrayContaining(['sync_conflict', 'sync_failed', 'sync_rejected_stale']),
     );
     const syncItems = result.items.filter((item) => item.kind.startsWith('sync_'));
+    expect(syncItems.map((item) => item.id)).toContain('sync_conflict:sync-conflict-null');
+    expect(syncItems.map((item) => item.id)).not.toContain('sync_failed:sync-recovered');
     expect(JSON.stringify(syncItems)).not.toMatch(/value_numeric|value_text|valueAfter/iu);
   });
 });

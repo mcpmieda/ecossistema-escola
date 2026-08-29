@@ -49,8 +49,11 @@ export function SyncAttemptsPanel({
       });
     return () => controller.abort();
   }, [reload, teacherModelId]);
-  const summary = useMemo(
-    () => ({
+  const summary = useMemo(() => {
+    const validDurations = items?.flatMap((item) =>
+      item.durationMs === null ? [] : [item.durationMs],
+    );
+    return {
       committed: items?.filter((item) => item.status === 'committed').length ?? 0,
       conflicts: items?.filter((item) => item.status === 'conflict').length ?? 0,
       duplicates: items?.filter((item) => item.status === 'duplicate').length ?? 0,
@@ -58,15 +61,14 @@ export function SyncAttemptsPanel({
         items?.filter((item) => item.status === 'failed' || item.status === 'rejected').length ?? 0,
       lastSuccess: items?.find((item) => item.status === 'committed')?.completedAt ?? null,
       averageDuration:
-        items && items.some((item) => item.durationMs !== null)
+        validDurations && validDurations.length > 0
           ? Math.round(
-              items.reduce((total, item) => total + (item.durationMs ?? 0), 0) /
-                items.filter((item) => item.durationMs !== null).length,
+              validDurations.reduce((total, duration) => total + duration, 0) /
+                validDurations.length,
             )
           : null,
-    }),
-    [items],
-  );
+    };
+  }, [items]);
   return (
     <Surface className="bn-card mt-5" aria-label={title}>
       <div className="flex flex-wrap items-start justify-between gap-3">

@@ -27,7 +27,7 @@ O trigger `grade_events_sync_v1_guards` repete os gates mutáveis dentro do mesm
 
 ## Observabilidade
 
-- `sync_attempts`: uma linha append-only por operação lógica;
+- `sync_attempts`: uma linha append-only por tentativa, com `requestId` estável entre retries;
 - `sync_attempt_invocations`: observações append-only de retries duplicados;
 - `/v1/sync/attempts` e detalhe: status, contagens, motivo, duração e IDs internos;
 - `/v1/sync/readiness`: classificação automatizada `ready`, `blocked`, `needs_attention`;

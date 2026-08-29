@@ -180,7 +180,7 @@ WITH pending_facts AS (
   JOIN teacher_models model ON model.id = attempt.teacher_model_id
   JOIN school_years year ON year.id = model.school_year_id
   JOIN teachers teacher ON teacher.id = model.teacher_id
-  WHERE attempt.status = 'conflict' AND attempt.reason_code <> 'BASELINE_STALE'
+  WHERE attempt.status = 'conflict' AND (attempt.reason_code IS NULL OR attempt.reason_code <> 'BASELINE_STALE')
 
   UNION ALL
   SELECT 'sync_failed:' || attempt.request_id, 'sync_failed',
@@ -192,6 +192,22 @@ WITH pending_facts AS (
   JOIN school_years year ON year.id = model.school_year_id
   JOIN teachers teacher ON teacher.id = model.teacher_id
   WHERE attempt.status = 'failed'
+    AND NOT EXISTS (
+      SELECT 1 FROM sync_attempts committed
+      WHERE committed.request_id = attempt.request_id
+        AND committed.actor_id IS attempt.actor_id
+        AND committed.status = 'committed'
+    )
+    AND NOT EXISTS (
+      SELECT 1 FROM sync_attempts later_failure
+      WHERE later_failure.request_id = attempt.request_id
+        AND later_failure.actor_id IS attempt.actor_id
+        AND later_failure.status = 'failed'
+        AND (
+          later_failure.created_at > attempt.created_at
+          OR (later_failure.created_at = attempt.created_at AND later_failure.attempt_id > attempt.attempt_id)
+        )
+    )
 
   UNION ALL
   SELECT 'sync_rejected_stale:' || attempt.request_id, 'sync_rejected_stale',

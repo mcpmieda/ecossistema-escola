@@ -627,7 +627,7 @@ export function AcompanhamentoDetailPage() {
           Ver pendências <CircleAlert className="size-4" />
         </Button>
       )}
-      <SyncAttemptsPanel title="Tentativas de sync relacionadas" />
+      <SyncAttemptsPanel title="Tentativas recentes de sync (visão global)" />
       {error ? (
         <ErrorState error={error} retry={() => setReload((value) => value + 1)} />
       ) : !detail ? (

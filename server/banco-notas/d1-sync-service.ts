@@ -51,12 +51,17 @@ export class D1BancoNotasSyncService {
       .first<Row>();
     return row ? String(row.id) : null;
   }
-  private async recordDuplicate(requestId: string, actorId: string | null, durationMs: number) {
+  private async recordDuplicate(
+    attemptId: string,
+    requestId: string,
+    actorId: string | null,
+    durationMs: number,
+  ) {
     await this.db
       .prepare(
-        "INSERT INTO sync_attempt_invocations(id,request_id,actor_id,status,duration_ms) VALUES(?,?,?,'duplicate',?)",
+        "INSERT INTO sync_attempt_invocations(id,attempt_id,request_id,actor_id,status,duration_ms) VALUES(?,?,?,?,'duplicate',?)",
       )
-      .bind(crypto.randomUUID(), requestId, actorId, durationMs)
+      .bind(crypto.randomUUID(), attemptId, requestId, actorId, durationMs)
       .run();
   }
   private async recordAttempt(
@@ -70,9 +75,10 @@ export class D1BancoNotasSyncService {
   ) {
     await this.db
       .prepare(
-        `INSERT OR IGNORE INTO sync_attempts(request_id,payload_hash,teacher_model_id,teacher_model_version_id,actor_id,status,change_count,conflict_count,reason_code,result_json,duration_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT OR IGNORE INTO sync_attempts(attempt_id,request_id,payload_hash,teacher_model_id,teacher_model_version_id,actor_id,status,change_count,conflict_count,reason_code,result_json,duration_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
       )
       .bind(
+        crypto.randomUUID(),
         input.requestId,
         payloadHash,
         modelId,
@@ -147,7 +153,7 @@ export class D1BancoNotasSyncService {
       return { reason: 'SYNC_DISABLED' as const, model: m };
     const pilot = await this.db
       .prepare(
-        'SELECT 1 ok FROM sync_pilot_eligibility WHERE teacher_model_id=? AND enabled=1 AND (starts_at IS NULL OR starts_at<=CURRENT_TIMESTAMP) AND (expires_at IS NULL OR expires_at>=CURRENT_TIMESTAMP)',
+        'SELECT 1 ok FROM sync_pilot_eligibility WHERE teacher_model_id=? AND enabled=1 AND (starts_at IS NULL OR datetime(starts_at)<=datetime(CURRENT_TIMESTAMP)) AND (expires_at IS NULL OR datetime(expires_at)>=datetime(CURRENT_TIMESTAMP))',
       )
       .bind(m.model_id)
       .first<Row>();
@@ -223,7 +229,9 @@ export class D1BancoNotasSyncService {
     const actorId = await this.internalActorId(oid);
     if (!actorId) return null;
     const row = await this.db
-      .prepare('SELECT result_json FROM sync_attempts WHERE request_id=? AND actor_id=?')
+      .prepare(
+        "SELECT result_json FROM sync_attempts WHERE request_id=? AND actor_id IS ? ORDER BY CASE WHEN status='failed' THEN 1 ELSE 0 END,created_at DESC,attempt_id DESC LIMIT 1",
+      )
       .bind(requestId, actorId)
       .first<Row>();
     return row ? (JSON.parse(String(row.result_json)) as SyncResponse) : null;
@@ -247,10 +255,10 @@ export class D1BancoNotasSyncService {
     const rows = await this.db
       .prepare(
         `WITH visible_attempts AS (
-          SELECT request_id attempt_id,request_id,teacher_model_id,teacher_model_version_id,status,change_count,conflict_count,reason_code,duration_ms,created_at,completed_at FROM sync_attempts
+          SELECT attempt_id,request_id,teacher_model_id,teacher_model_version_id,status,change_count,conflict_count,reason_code,duration_ms,created_at,completed_at FROM sync_attempts
           UNION ALL
           SELECT invocation.id,invocation.request_id,attempt.teacher_model_id,attempt.teacher_model_version_id,'duplicate',attempt.change_count,0,'DUPLICATE_REQUEST',invocation.duration_ms,invocation.created_at,invocation.created_at
-          FROM sync_attempt_invocations invocation JOIN sync_attempts attempt ON attempt.request_id=invocation.request_id
+          FROM sync_attempt_invocations invocation JOIN sync_attempts attempt ON attempt.attempt_id=invocation.attempt_id
         ) SELECT attempt_id,request_id,teacher_model_id,teacher_model_version_id,status,change_count,conflict_count,reason_code,duration_ms,created_at,completed_at FROM visible_attempts ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY created_at DESC,attempt_id LIMIT ?`,
       )
       .bind(...values)
@@ -260,7 +268,7 @@ export class D1BancoNotasSyncService {
   async attemptDetail(requestId: string): Promise<SyncAttemptSummary | null> {
     const row = await this.db
       .prepare(
-        'SELECT request_id attempt_id,request_id,teacher_model_id,teacher_model_version_id,status,change_count,conflict_count,reason_code,duration_ms,created_at,completed_at FROM sync_attempts WHERE request_id=?',
+        "SELECT attempt_id,request_id,teacher_model_id,teacher_model_version_id,status,change_count,conflict_count,reason_code,duration_ms,created_at,completed_at FROM sync_attempts WHERE request_id=? ORDER BY CASE WHEN status='failed' THEN 1 ELSE 0 END,created_at DESC,attempt_id DESC LIMIT 1",
       )
       .bind(requestId)
       .first<Row>();
@@ -281,8 +289,8 @@ export class D1BancoNotasSyncService {
             (SELECT count(*) FROM cell_mappings mapping WHERE mapping.teacher_model_version_id=version.id) mapping_count,
             (SELECT count(*) FROM cell_mappings mapping JOIN grade_snapshots snapshot ON snapshot.grade_key=mapping.grade_key AND snapshot.field=mapping.field WHERE mapping.teacher_model_version_id=version.id) baseline_count,
             (SELECT count(*) FROM cell_mappings mapping WHERE mapping.teacher_model_version_id=version.id AND EXISTS(SELECT 1 FROM teacher_assignments assignment WHERE assignment.teacher_id=model.teacher_id AND assignment.school_year_id=model.school_year_id AND assignment.status='active' AND assignment.effective_from<=date('now') AND (assignment.effective_to IS NULL OR assignment.effective_to>=date('now')) AND instr(mapping.grade_key,'|'||assignment.class_group_id||'|'||assignment.component_id||'|')>0)) assignment_count,
-            CASE WHEN EXISTS(SELECT 1 FROM source_assignments authority JOIN data_sources source ON source.id=authority.data_source_id WHERE authority.school_year_id=model.school_year_id AND (authority.teacher_id=model.teacher_id OR authority.teacher_id IS NULL) AND authority.status='active' AND authority.authority='authoritative' AND authority.sync_enabled=1 AND authority.effective_from<=date('now') AND (authority.effective_to IS NULL OR authority.effective_to>=date('now')) AND source.type='linked_teacher_model' AND source.status='active' AND source.environment=model.environment) THEN 1 ELSE 0 END source_ready,
-            CASE WHEN EXISTS(SELECT 1 FROM sync_pilot_eligibility pilot WHERE pilot.teacher_model_id=model.id AND pilot.enabled=1 AND (pilot.starts_at IS NULL OR pilot.starts_at<=CURRENT_TIMESTAMP) AND (pilot.expires_at IS NULL OR pilot.expires_at>=CURRENT_TIMESTAMP)) THEN 1 ELSE 0 END pilot_eligible
+            CASE WHEN EXISTS(SELECT 1 FROM source_assignments authority JOIN data_sources source ON source.id=authority.data_source_id WHERE authority.school_year_id=model.school_year_id AND (authority.teacher_id=model.teacher_id OR (authority.teacher_id IS NULL AND NOT EXISTS(SELECT 1 FROM source_assignments teacher_override WHERE teacher_override.school_year_id=model.school_year_id AND teacher_override.teacher_id=model.teacher_id AND teacher_override.status='active' AND teacher_override.authority='authoritative' AND teacher_override.sync_enabled=1 AND teacher_override.effective_from<=date('now') AND (teacher_override.effective_to IS NULL OR teacher_override.effective_to>=date('now'))))) AND authority.status='active' AND authority.authority='authoritative' AND authority.sync_enabled=1 AND authority.effective_from<=date('now') AND (authority.effective_to IS NULL OR authority.effective_to>=date('now')) AND source.type='linked_teacher_model' AND source.status='active' AND source.environment=model.environment) THEN 1 ELSE 0 END source_ready,
+            CASE WHEN EXISTS(SELECT 1 FROM sync_pilot_eligibility pilot WHERE pilot.teacher_model_id=model.id AND pilot.enabled=1 AND (pilot.starts_at IS NULL OR datetime(pilot.starts_at)<=datetime(CURRENT_TIMESTAMP)) AND (pilot.expires_at IS NULL OR datetime(pilot.expires_at)>=datetime(CURRENT_TIMESTAMP))) THEN 1 ELSE 0 END pilot_eligible
           FROM teacher_models model JOIN teachers teacher ON teacher.id=model.teacher_id
           LEFT JOIN teacher_model_versions version ON version.id=(SELECT candidate.id FROM teacher_model_versions candidate WHERE candidate.teacher_model_id=model.id ORDER BY candidate.version DESC LIMIT 1)
           WHERE model.state<>'archived' ORDER BY model.school_year_id,model.id`,
@@ -310,6 +318,7 @@ export class D1BancoNotasSyncService {
       if (Number(row.source_ready) !== 1) reasons.push('SOURCE_INVALID');
       if (mappingCount > 0 && Number(row.baseline_count ?? 0) !== mappingCount)
         reasons.push('BASELINE_STALE');
+      if (Number(row.pilot_eligible) !== 1) reasons.push('PILOT_NOT_ALLOWED');
       return {
         teacherModelId: String(row.teacher_model_id),
         schoolYearId: String(row.school_year_id),
@@ -340,7 +349,7 @@ export class D1BancoNotasSyncService {
     const payloadHash = await hash(input);
     const prior = await this.db
       .prepare(
-        'SELECT payload_hash,result_json FROM sync_attempts WHERE request_id=? AND actor_id=?',
+        "SELECT attempt_id,payload_hash,status,result_json FROM sync_attempts WHERE request_id=? AND actor_id IS ? ORDER BY CASE WHEN status='failed' THEN 1 ELSE 0 END,created_at DESC,attempt_id DESC LIMIT 1",
       )
       .bind(input.requestId, actorId)
       .first<Row>();
@@ -354,9 +363,16 @@ export class D1BancoNotasSyncService {
           changeCount: input.changes.length,
           conflictCount: 1,
         };
-      const saved = JSON.parse(String(prior.result_json)) as SyncResponse;
-      await this.recordDuplicate(input.requestId, actorId, Date.now() - startedAt);
-      return { ...saved, status: 'duplicate', reasonCode: 'DUPLICATE_REQUEST' };
+      if (prior.status !== 'failed') {
+        const saved = JSON.parse(String(prior.result_json)) as SyncResponse;
+        await this.recordDuplicate(
+          String(prior.attempt_id),
+          input.requestId,
+          actorId,
+          Date.now() - startedAt,
+        );
+        return { ...saved, status: 'duplicate', reasonCode: 'DUPLICATE_REQUEST' };
+      }
     }
     const r = await this.resolve(input, oid);
     if ('reason' in r) {
@@ -471,9 +487,10 @@ export class D1BancoNotasSyncService {
     statements.push(
       this.db
         .prepare(
-          `INSERT INTO sync_attempts(request_id,payload_hash,teacher_model_id,teacher_model_version_id,actor_id,status,change_count,conflict_count,result_json,duration_ms) VALUES(?,?,?,?,?,'committed',?,0,?,?)`,
+          `INSERT INTO sync_attempts(attempt_id,request_id,payload_hash,teacher_model_id,teacher_model_version_id,actor_id,status,change_count,conflict_count,result_json,duration_ms) VALUES(?,?,?,?,?,?,'committed',?,0,?,?)`,
         )
         .bind(
+          crypto.randomUUID(),
           input.requestId,
           payloadHash,
           r.model.model_id,
@@ -491,12 +508,17 @@ export class D1BancoNotasSyncService {
       const msg = e instanceof Error ? e.message : '';
       const concurrent = await this.db
         .prepare(
-          'SELECT payload_hash,result_json FROM sync_attempts WHERE request_id=? AND actor_id=?',
+          "SELECT attempt_id,payload_hash,result_json FROM sync_attempts WHERE request_id=? AND actor_id IS ? AND status<>'failed' ORDER BY created_at DESC,attempt_id DESC LIMIT 1",
         )
         .bind(input.requestId, actorId)
         .first<Row>();
       if (concurrent && concurrent.payload_hash === payloadHash) {
-        await this.recordDuplicate(input.requestId, actorId, Date.now() - startedAt);
+        await this.recordDuplicate(
+          String(concurrent.attempt_id),
+          input.requestId,
+          actorId,
+          Date.now() - startedAt,
+        );
         return {
           ...(JSON.parse(String(concurrent.result_json)) as SyncResponse),
           status: 'duplicate',

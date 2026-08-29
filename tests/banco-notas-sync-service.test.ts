@@ -172,6 +172,23 @@ describe('Banco de Notas Sync V1', () => {
     );
     expect((await service.preflight(request(), ids.oid)).reasonCode).toBe('PILOT_NOT_ALLOWED');
   });
+  it('normalizes ISO 8601 pilot eligibility bounds before comparing them', async () => {
+    db.exec(`UPDATE sync_pilot_eligibility
+      SET starts_at=strftime('%Y-%m-%dT%H:%M:%SZ','now','-1 minute'),
+          expires_at=strftime('%Y-%m-%dT%H:%M:%SZ','now','+1 minute')
+      WHERE teacher_model_id='${ids.model}'`);
+    expect((await service.preflight(request(), ids.oid)).status).toBe('ready');
+    expect((await service.readiness()).items[0]).toMatchObject({ pilotEligible: true });
+    db.exec(`UPDATE sync_pilot_eligibility
+      SET expires_at=strftime('%Y-%m-%dT%H:%M:%SZ','now','-1 minute')
+      WHERE teacher_model_id='${ids.model}'`);
+    expect((await service.preflight(request(), ids.oid)).reasonCode).toBe('PILOT_NOT_ALLOWED');
+    expect((await service.readiness()).items[0]).toMatchObject({
+      status: 'needs_attention',
+      reasons: expect.arrayContaining(['PILOT_NOT_ALLOWED']),
+      pilotEligible: false,
+    });
+  });
   it('classifies rollout readiness from canonical facts without guessing a cohort', async () => {
     await expect(service.readiness()).resolves.toMatchObject({
       globalSyncEnabled: true,
@@ -193,6 +210,18 @@ describe('Banco de Notas Sync V1', () => {
     expect(blocked.items[0]).toMatchObject({
       status: 'blocked',
       reasons: expect.arrayContaining(['MODEL_SUSPENDED']),
+    });
+  });
+  it('does not fall back to a global source when an authoritative teacher override exists', async () => {
+    db.exec(`INSERT INTO data_sources(id,school_year_id,type,name,environment,status,created_by)
+      VALUES('global-source','${ids.year}','linked_teacher_model','Global','production','active','test');
+      INSERT INTO source_assignments(id,school_year_id,data_source_id,scope,authority,status,sync_enabled,effective_from,operator_id,reason)
+      VALUES('global-assignment','${ids.year}','global-source','school_year_default','authoritative','active',1,'2026-01-01','test','fallback');
+      UPDATE data_sources SET status='inactive' WHERE id='${ids.source}'`);
+    expect((await service.preflight(request(), ids.oid)).reasonCode).toBe('SOURCE_INVALID');
+    expect((await service.readiness()).items[0]).toMatchObject({
+      status: 'needs_attention',
+      reasons: expect.arrayContaining(['SOURCE_INVALID']),
     });
   });
   it('rejects suspended models, inactive assignments, forged mappings and stale versions', async () => {
@@ -299,6 +328,20 @@ describe('Banco de Notas Sync V1', () => {
         .prepare('SELECT value_numeric value FROM grade_snapshots WHERE grade_key=?')
         .get(secondKey),
     ).toMatchObject({ value: 7 });
+    db.exec('DROP TRIGGER force_atomic_failure');
+    const recovered = await service.commit(
+      { ...candidate, preflightFingerprint: preflight.preflightFingerprint! },
+      ids.oid,
+    );
+    expect(recovered.status).toBe('committed');
+    expect(
+      db
+        .prepare('SELECT status FROM sync_attempts WHERE request_id=? ORDER BY status')
+        .all(candidate.requestId),
+    ).toEqual([{ status: 'committed' }, { status: 'failed' }]);
+    expect(await service.outcome(candidate.requestId, ids.oid)).toMatchObject({
+      status: 'committed',
+    });
   });
   it('serializes competing writes and absorbs an exact retry storm', async () => {
     const first = request('50000000-0000-4000-8000-000000000001');

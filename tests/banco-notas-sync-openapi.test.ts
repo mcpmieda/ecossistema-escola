@@ -23,6 +23,20 @@ describe('Banco de Notas Sync OpenAPI', () => {
     expect(spec).toContain('baselineEventId:');
     expect(spec).toContain('baselineSequence:');
   });
+  it('declares a closed commit request that admits the preflight fingerprint', () => {
+    const commitSchema = spec.slice(
+      spec.indexOf('    CommitRequest:'),
+      spec.indexOf('    ReasonCode:'),
+    );
+    expect(commitSchema).toContain('additionalProperties: false');
+    expect(commitSchema).toContain(
+      'required: [schemaVersion, requestId, workbook, changes, preflightFingerprint]',
+    );
+    expect(commitSchema).toContain(
+      "preflightFingerprint: { type: string, pattern: '^[a-f0-9]{64}$' }",
+    );
+    expect(commitSchema).not.toContain('allOf:');
+  });
   it('does not document client-controlled canonical or identity fields', () => {
     const requestSchemas = spec.slice(
       spec.indexOf('    Workbook:'),

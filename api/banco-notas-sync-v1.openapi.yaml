@@ -173,11 +173,15 @@ components:
         workbook: { $ref: '#/components/schemas/Workbook' }
         changes: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/Change' } }
     CommitRequest:
-      allOf:
-        - { $ref: '#/components/schemas/PreflightRequest' }
-        - type: object
-          required: [preflightFingerprint]
-          properties: { preflightFingerprint: { type: string, pattern: '^[a-f0-9]{64}$' } }
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, requestId, workbook, changes, preflightFingerprint]
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        requestId: { type: string, format: uuid }
+        workbook: { $ref: '#/components/schemas/Workbook' }
+        changes: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/Change' } }
+        preflightFingerprint: { type: string, pattern: '^[a-f0-9]{64}$' }
     ReasonCode:
       type: string
       enum:
