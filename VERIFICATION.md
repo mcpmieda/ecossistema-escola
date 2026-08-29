@@ -518,3 +518,5 @@ Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.j
 - Produção, D1 remoto, Graph, Entra, permissões, publicação do add-in e sync não foram alterados; `sync_enabled=0`.
 
 Status local: `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`.
+
+- PR Draft #138, primeira rodada: CI and deploy `33246218011` PASS; Semgrep `33246218042` PASS; Validate application e Actions Security verdes; CodeRabbit PASS/skip esperado; reviews e threads 0; Merge Train/deploy/recovery/cleanup skipped; zero deployments.

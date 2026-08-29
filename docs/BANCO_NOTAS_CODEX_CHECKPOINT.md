@@ -180,3 +180,8 @@ Permanece apenas a pasta autorizada `BANCO_NOTAS_HOMOLOGACAO` e o histórico sin
 - Próximo passo seguro: commit, PR Draft, CI completa, zero deployments e integração controlada `[skip ci]`.
 
 `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`
+
+- Commit funcional `1f90120d786f14b3b8ba4180f15c4bc5936906f2` no PR Draft #138.
+- CI `33246218011` e Semgrep `33246218042`: PASS.
+- Merge state CLEAN; reviews/threads 0; deployments 0; produção/recovery/cleanup skipped.
+- Aguardar CI do commit de evidências e integrar com merge `[skip ci]` se o estado permanecer limpo.

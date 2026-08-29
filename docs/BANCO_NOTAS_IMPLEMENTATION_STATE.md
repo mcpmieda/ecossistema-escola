@@ -441,3 +441,5 @@ Publicação: PR Draft #137 para `main`; primeira rodada CI `33229929504` e Semg
 Documento: `docs/BANCO_NOTAS_ADDIN_COTIDIANO_V1.md`.
 
 Status local: `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`.
+
+Publicação inicial: PR Draft #138; CI `33246218011` e Semgrep `33246218042` PASS; reviews/threads 0; merge state CLEAN; jobs de produção skipped; deployments 0.

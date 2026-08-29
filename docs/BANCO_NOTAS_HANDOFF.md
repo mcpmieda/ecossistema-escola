@@ -441,3 +441,5 @@ Produção, D1 remoto, Graph, Entra, permissões Microsoft, add-in publicado e `
 Leitura principal: `docs/BANCO_NOTAS_ADDIN_COTIDIANO_V1.md`.
 
 Status local: `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`.
+
+Publicação inicial: commit `1f90120d786f14b3b8ba4180f15c4bc5936906f2`, PR Draft #138, CI `33246218011` e Semgrep `33246218042` verdes; merge state CLEAN, reviews/threads pendentes 0, produção/recovery/cleanup skipped e deployments do head 0. Falta somente a rodada CI do commit de evidências e a integração controlada.

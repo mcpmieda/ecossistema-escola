@@ -105,4 +105,16 @@ Gate local e QA sintética concluídos em 29/08/2026:
 
 Status local: `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`.
 
-PR Draft, CI e integração controlada ainda devem ser registrados neste documento antes da consolidação final.
+Publicação inicial:
+
+- commit funcional: `1f90120d786f14b3b8ba4180f15c4bc5936906f2`;
+- PR Draft: `#138 — Banco de Notas: Experiência Cotidiana do Add-in V1`;
+- primeira rodada CI `33246218011`: Validate application e Validate GitHub Actions security PASS;
+- primeira rodada Semgrep `33246218042`: PASS;
+- CodeRabbit: PASS com review automático corretamente skipped por o PR permanecer Draft;
+- reviews e review threads pendentes: 0;
+- Factory Merge Train, deploy, recovery e cleanup: skipped;
+- deployments associados ao head: 0;
+- merge state: `CLEAN`.
+
+Integração controlada ainda deve ser registrada neste documento antes da consolidação final.
