@@ -170,6 +170,39 @@ WITH pending_facts AS (
   LEFT JOIN teachers teacher ON teacher.id = job.teacher_id
   LEFT JOIN import_analyses analysis ON analysis.import_job_id = job.id
   WHERE job.state = 'draft' AND analysis.id IS NULL
+
+  UNION ALL
+  SELECT 'sync_conflict:' || attempt.request_id, 'sync_conflict',
+         year.id, year.name, teacher.id, teacher.display_name,
+         NULL, NULL, NULL, NULL, model.state, NULL,
+         COALESCE(attempt.reason_code, attempt.status), attempt.created_at, attempt.completed_at
+  FROM sync_attempts attempt
+  JOIN teacher_models model ON model.id = attempt.teacher_model_id
+  JOIN school_years year ON year.id = model.school_year_id
+  JOIN teachers teacher ON teacher.id = model.teacher_id
+  WHERE attempt.status = 'conflict' AND attempt.reason_code <> 'BASELINE_STALE'
+
+  UNION ALL
+  SELECT 'sync_failed:' || attempt.request_id, 'sync_failed',
+         year.id, year.name, teacher.id, teacher.display_name,
+         NULL, NULL, NULL, NULL, model.state, NULL,
+         COALESCE(attempt.reason_code, attempt.status), attempt.created_at, attempt.completed_at
+  FROM sync_attempts attempt
+  JOIN teacher_models model ON model.id = attempt.teacher_model_id
+  JOIN school_years year ON year.id = model.school_year_id
+  JOIN teachers teacher ON teacher.id = model.teacher_id
+  WHERE attempt.status = 'failed'
+
+  UNION ALL
+  SELECT 'sync_rejected_stale:' || attempt.request_id, 'sync_rejected_stale',
+         year.id, year.name, teacher.id, teacher.display_name,
+         NULL, NULL, NULL, NULL, model.state, NULL,
+         attempt.reason_code, attempt.created_at, attempt.completed_at
+  FROM sync_attempts attempt
+  JOIN teacher_models model ON model.id = attempt.teacher_model_id
+  JOIN school_years year ON year.id = model.school_year_id
+  JOIN teachers teacher ON teacher.id = model.teacher_id
+  WHERE attempt.reason_code = 'BASELINE_STALE'
 )
 `;
 
@@ -223,6 +256,18 @@ const labels: Record<PendingKind, { title: string; origin: string }> = {
   import_analysis_pending: {
     title: 'Análise de importação pendente',
     origin: 'Importação em rascunho sem análise verificada',
+  },
+  sync_conflict: {
+    title: 'Conflito de sincronização',
+    origin: 'Ledger append-only de tentativas de sincronização',
+  },
+  sync_failed: {
+    title: 'Falha de sincronização',
+    origin: 'Ledger append-only de tentativas de sincronização',
+  },
+  sync_rejected_stale: {
+    title: 'Baseline de sincronização desatualizada',
+    origin: 'Ledger append-only de tentativas de sincronização',
   },
 };
 

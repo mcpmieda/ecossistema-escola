@@ -9,11 +9,14 @@ const bearer = readFileSync(join(root, 'server/auth/entra-access-token.ts'), 'ut
 const addinApi = readFileSync(join(root, 'server/banco-notas/addin-api.ts'), 'utf8');
 
 describe('Banco de Notas add-in exposure gate', () => {
-  it('exposes only the read-only context behind an explicit fail-closed flag', () => {
+  it('exposes context and governed sync routes behind an explicit fail-closed flag', () => {
     expect(router).not.toContain('routeGradeEventsApi');
     expect(router).not.toContain('verifyBancoNotasAddinToken');
     expect(router).toContain('routeBancoNotasAddinApi');
     expect(router).toContain("url.pathname === '/api/banco-notas/v1/addin/context'");
+    expect(router).toContain("url.pathname.startsWith('/api/banco-notas/v1/addin/sync/')");
+    expect(router).toContain("method(request, [isSyncRoute ? 'POST' : 'GET'])");
+    expect(router).toContain('if (isSyncRoute) enforceWriteOrigin(request, env)');
     expect(router).toContain("env.BANCO_NOTAS_ADDIN_CONTEXT_ENABLED !== '1'");
     expect(addinApi).toContain('verifyBancoNotasAddinToken');
     expect(addinApi).toContain('assertTeacherModelOwner');

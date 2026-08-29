@@ -55,6 +55,7 @@ describe('D1 Central de Pendências repository', () => {
       '0005_banco_notas_import_analysis.sql',
       '0006_banco_notas_import_analysis_profiles.sql',
       '0007_banco_notas_teacher_entra_identity.sql',
+      '0008_banco_notas_sync_v1.sql',
     ];
     migrations.forEach((name) =>
       database.exec(
@@ -183,5 +184,20 @@ describe('D1 Central de Pendências repository', () => {
       'acompanhamento',
     ]);
     await expect(repository.detail('finding_error:missing')).resolves.toBeNull();
+  });
+
+  it('exposes conflict, failed and stale sync facts without grade values', async () => {
+    database.exec(`INSERT INTO sync_attempts
+      (request_id,payload_hash,teacher_model_id,actor_id,status,change_count,conflict_count,reason_code,result_json,duration_ms)
+      VALUES
+      ('sync-conflict','hash','model-a','${ids.teacherA}','conflict',1,1,'CONFLICT','{}',12),
+      ('sync-failed','hash','model-a','${ids.teacherA}','failed',2,1,'INTERNAL_ERROR','{}',18),
+      ('sync-stale','hash','model-a','${ids.teacherA}','conflict',1,1,'BASELINE_STALE','{}',9)`);
+    const result = await repository.list({ page: 1, pageSize: 100 });
+    expect(result.items.map((item) => item.kind)).toEqual(
+      expect.arrayContaining(['sync_conflict', 'sync_failed', 'sync_rejected_stale']),
+    );
+    const syncItems = result.items.filter((item) => item.kind.startsWith('sync_'));
+    expect(JSON.stringify(syncItems)).not.toMatch(/value_numeric|value_text|valueAfter/iu);
   });
 });

@@ -22,6 +22,7 @@ import type {
   PendingSeverity,
 } from '../../shared/banco-notas-pendencias';
 import type { PageResult } from '../../shared/banco-notas-turmas-alunos';
+import { SyncAttemptsPanel } from './SyncAttemptsPanel';
 
 class ApiError extends Error {
   constructor(
@@ -58,6 +59,9 @@ const kindLabels: Record<PendingKind, string> = {
   model_without_assignment: 'Modelo sem atribuição',
   model_not_connected: 'Modelo não conectado',
   import_analysis_pending: 'Análise de importação pendente',
+  sync_conflict: 'Conflito de sincronização',
+  sync_failed: 'Falha de sincronização',
+  sync_rejected_stale: 'Baseline de sincronização desatualizada',
 };
 
 const kindOptions = Object.entries(kindLabels).map(([id, label]) => ({ id, label }));
@@ -277,6 +281,7 @@ export function PendenciasPage() {
       title="Central de Pendências"
       description="Observabilidade operacional read-only para investigar erros, atenções e informações factuais sem corrigir ou alterar dados automaticamente."
     >
+      <SyncAttemptsPanel title="Tentativas relacionadas à operação" />
       {summaryError && result && (
         <Alert status="warning" className="mb-5">
           <Alert.Indicator />
@@ -503,6 +508,7 @@ export function PendenciaDetailPage() {
       <Button size="sm" variant="outline" className="mb-5" onPress={() => navigate(backHref)}>
         <ArrowLeft className="size-4" /> Voltar à Central
       </Button>
+      <SyncAttemptsPanel title="Tentativas recentes para investigação" />
       {error ? (
         <Failure error={error} retry={() => setReload((value) => value + 1)} />
       ) : !item ? (

@@ -43,6 +43,8 @@ import {
 import { requireCapability } from '../auth/capabilities';
 import { HttpError, readBoundedBytes, readBoundedJson } from '../http/security';
 import { effectiveAuthority } from './domain';
+import { syncAttemptsQuerySchema } from '../../shared/banco-notas-sync';
+import type { D1BancoNotasSyncService } from './d1-sync-service';
 import {
   analyzeUploadedImportWorkbook,
   findImportAnalysis,
@@ -229,6 +231,7 @@ export async function routeBancoNotasApi(args: {
   capabilities: readonly PlatformCapability[];
   actor: string;
   importAnalysis?: ImportAnalysisRuntime;
+  syncAttempts?: D1BancoNotasSyncService;
 }): Promise<Response> {
   const { request, repository, capabilities, actor } = args;
   const url = new URL(request.url);
@@ -239,6 +242,33 @@ export async function routeBancoNotasApi(args: {
     (request.method === 'POST' || request.method === 'PATCH') && !importAnalysisMatch
       ? await body(request)
       : undefined;
+
+  if (path === '/v1/sync/attempts') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.syncAttempts) throw new HttpError(503, 'Sync attempts unavailable');
+    const raw = Object.fromEntries(
+      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
+    );
+    return response(
+      await args.syncAttempts.listAttempts(parsed(() => syncAttemptsQuerySchema.parse(raw))),
+    );
+  }
+  if (path === '/v1/sync/readiness') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.syncAttempts) throw new HttpError(503, 'Sync readiness unavailable');
+    return response(await args.syncAttempts.readiness());
+  }
+  const syncAttemptMatch = path.match(/^\/v1\/sync\/attempts\/([0-9a-f-]+)$/iu);
+  if (syncAttemptMatch?.[1]) {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.syncAttempts) throw new HttpError(503, 'Sync attempts unavailable');
+    const result = await args.syncAttempts.attemptDetail(syncAttemptMatch[1]);
+    if (!result) throw new HttpError(404, 'Sync attempt not found');
+    return response(result);
+  }
 
   if (path === '/v1/pendencias/summary') {
     allowed(request, ['GET']);

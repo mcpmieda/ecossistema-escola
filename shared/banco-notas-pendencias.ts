@@ -17,6 +17,9 @@ export const pendingKindSchema = z.enum([
   'model_without_assignment',
   'model_not_connected',
   'import_analysis_pending',
+  'sync_conflict',
+  'sync_failed',
+  'sync_rejected_stale',
 ]);
 
 export const pendenciasFilterQuerySchema = z.object({

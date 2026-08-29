@@ -54,7 +54,7 @@ export function deriveOperationalAttention(facts: OperationalAttentionFacts): {
 }
 
 export const pendingKindsBySeverity: Record<PendingSeverity, readonly PendingKind[]> = {
-  error: ['import_error', 'finding_error', 'model_suspended', 'orphan_assignment'],
+  error: ['import_error', 'finding_error', 'model_suspended', 'orphan_assignment', 'sync_failed'],
   warning: [
     'finding_warning',
     'model_missing',
@@ -62,6 +62,8 @@ export const pendingKindsBySeverity: Record<PendingSeverity, readonly PendingKin
     'source_missing',
     'inactive_teacher_assignment',
     'model_without_assignment',
+    'sync_conflict',
+    'sync_rejected_stale',
   ],
   info: ['finding_info', 'model_not_connected', 'import_analysis_pending'],
 };
@@ -85,6 +87,12 @@ export function classifyOperationalPending(kind: PendingKind): {
   if (kind === 'finding_info') return { severity: 'info', reason: 'Finding informativo aberto' };
   if (kind === 'import_analysis_pending')
     return { severity: 'info', reason: 'Análise de importação ainda não concluída' };
+  if (kind === 'sync_failed')
+    return { severity: 'error', reason: 'Sincronização falhou e requer investigação' };
+  if (kind === 'sync_conflict')
+    return { severity: 'warning', reason: 'Conflito de sincronização detectado' };
+  if (kind === 'sync_rejected_stale')
+    return { severity: 'warning', reason: 'Sincronização rejeitada por baseline desatualizada' };
 
   const facts = emptyFacts();
   if (kind === 'import_error') facts.failedImports = 1;

@@ -44,6 +44,7 @@ import { routeBancoNotasAddinApi } from '../server/banco-notas/addin-api';
 import { D1BancoNotasAddinAuthorizer } from '../server/banco-notas/d1-addin-authorizer';
 import { D1BancoNotasAddinContextRepository } from '../server/banco-notas/d1-addin-context-repository';
 import { D1GradeEventStore } from '../server/banco-notas/d1-grade-event-store';
+import { D1BancoNotasSyncService } from '../server/banco-notas/d1-sync-service';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -357,8 +358,13 @@ async function route(context: Context, correlationId: string): Promise<Response>
     requireCapability(capabilities, 'platform.snapshot.read');
     return json(await getPlatformSnapshot(env, capabilities));
   }
-  if (url.pathname === '/api/banco-notas/v1/addin/context') {
-    method(request, ['GET']);
+  if (
+    url.pathname === '/api/banco-notas/v1/addin/context' ||
+    url.pathname.startsWith('/api/banco-notas/v1/addin/sync/')
+  ) {
+    const isSyncRoute = url.pathname.startsWith('/api/banco-notas/v1/addin/sync/');
+    method(request, [isSyncRoute ? 'POST' : 'GET']);
+    if (isSyncRoute) enforceWriteOrigin(request, env);
     if (env.BANCO_NOTAS_ADDIN_CONTEXT_ENABLED !== '1') {
       throw new HttpError(404, 'Not found');
     }
@@ -371,6 +377,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
       store: new D1GradeEventStore(env.BANCO_NOTAS_DB),
       authorizer: new D1BancoNotasAddinAuthorizer(env.BANCO_NOTAS_DB),
       contextRepository: new D1BancoNotasAddinContextRepository(env.BANCO_NOTAS_DB),
+      syncService: new D1BancoNotasSyncService(env.BANCO_NOTAS_DB),
     });
   }
   if (url.pathname.startsWith('/api/banco-notas/')) {
@@ -385,6 +392,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
       throw new HttpError(503, 'Banco de Notas storage unavailable');
     }
     const profiles = new D1ImportAnalysisProfileRepository(env.BANCO_NOTAS_DB);
+    const syncService = new D1BancoNotasSyncService(env.BANCO_NOTAS_DB);
     return routeBancoNotasApi({
       request,
       repository: new D1BancoNotasRepository(env.BANCO_NOTAS_DB),
@@ -400,6 +408,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
         analyzers: [],
         profiles,
       },
+      syncAttempts: syncService,
     });
   }
   throw new HttpError(404, 'Not found');

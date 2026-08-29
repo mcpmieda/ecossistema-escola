@@ -16,9 +16,18 @@ import {
 import { HttpError, readBoundedJson } from '../http/security';
 import { BancoNotasAddinForbiddenError } from './d1-addin-authorizer';
 import { routeGradeEventsApi } from './grade-events-api';
+import {
+  syncCommitRequestSchema,
+  syncOutcomeRequestSchema,
+  syncPreflightRequestSchema,
+} from '../../shared/banco-notas-sync';
+import type { D1BancoNotasSyncService } from './d1-sync-service';
 
 const gradeEventsPath = '/api/banco-notas/v1/grade-events';
 const contextPath = '/api/banco-notas/v1/addin/context';
+const preflightPath = '/api/banco-notas/v1/addin/sync/preflight';
+const commitPath = '/api/banco-notas/v1/addin/sync/commit';
+const outcomePath = '/api/banco-notas/v1/addin/sync/outcome';
 
 export type BancoNotasAddinModelAuthorizer = {
   assertTeacherModelOwner(input: { teacherModelId: string; entraObjectId: string }): Promise<void>;
@@ -43,6 +52,7 @@ export async function routeBancoNotasAddinApi(args: {
   store: GradeEventStore;
   authorizer: BancoNotasAddinModelAuthorizer;
   contextRepository?: BancoNotasAddinContextRepository;
+  syncService?: D1BancoNotasSyncService;
   now?: number;
   fetcher?: typeof fetch;
   verifyToken?: typeof verifyBancoNotasAddinToken;
@@ -50,13 +60,19 @@ export async function routeBancoNotasAddinApi(args: {
   const { request } = args;
   const url = new URL(request.url);
   const path = url.pathname;
-  if (path !== gradeEventsPath && path !== contextPath) throw new HttpError(404, 'Not found');
+  if (![gradeEventsPath, contextPath, preflightPath, commitPath, outcomePath].includes(path))
+    throw new HttpError(404, 'Not found');
   if (path === gradeEventsPath && request.method !== 'POST') {
     throw new HttpError(405, 'Method not allowed');
   }
   if (path === contextPath && request.method !== 'GET') {
     throw new HttpError(405, 'Method not allowed');
   }
+  if (
+    (path === preflightPath || path === commitPath || path === outcomePath) &&
+    request.method !== 'POST'
+  )
+    throw new HttpError(405, 'Method not allowed');
 
   let claims: Awaited<ReturnType<typeof verifyBancoNotasAddinToken>>;
   try {
@@ -87,6 +103,30 @@ export async function routeBancoNotasAddinApi(args: {
       return Response.json(addinContextResponseSchema.parse(result));
     } catch (error) {
       throw identityHttpError(error) ?? error;
+    }
+  }
+
+  if (path === preflightPath || path === commitPath || path === outcomePath) {
+    if (!args.syncService) throw new HttpError(503, 'Sync storage unavailable');
+    try {
+      const raw = await readBoundedJson(request);
+      if (path === outcomePath) {
+        const result = await args.syncService.outcome(
+          syncOutcomeRequestSchema.parse(raw).requestId,
+          claims.oid,
+        );
+        if (!result) throw new HttpError(404, 'sync_attempt_not_found');
+        return Response.json(result);
+      }
+      return Response.json(
+        path === preflightPath
+          ? await args.syncService.preflight(syncPreflightRequestSchema.parse(raw), claims.oid)
+          : await args.syncService.commit(syncCommitRequestSchema.parse(raw), claims.oid),
+      );
+    } catch (error) {
+      if (error instanceof ZodError)
+        throw new HttpError(400, error.issues[0]?.message ?? 'Invalid sync request');
+      throw error;
     }
   }
 

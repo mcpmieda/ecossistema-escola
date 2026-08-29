@@ -21,6 +21,7 @@ import type {
   AcompanhamentoSummary,
   AttentionLevel,
 } from '../../shared/banco-notas-acompanhamento';
+import { SyncAttemptsPanel } from './SyncAttemptsPanel';
 
 class ApiError extends Error {
   constructor(
@@ -286,6 +287,7 @@ export function AcompanhamentoPage() {
           Ver todas as pendências <ArrowRight className="size-4" />
         </Button>
       </div>
+      <SyncAttemptsPanel />
       {summaryError && result && (
         <Alert status="warning" className="mb-5">
           <Alert.Indicator />
@@ -625,6 +627,7 @@ export function AcompanhamentoDetailPage() {
           Ver pendências <CircleAlert className="size-4" />
         </Button>
       )}
+      <SyncAttemptsPanel title="Tentativas de sync relacionadas" />
       {error ? (
         <ErrorState error={error} retry={() => setReload((value) => value + 1)} />
       ) : !detail ? (

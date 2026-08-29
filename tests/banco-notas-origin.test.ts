@@ -45,6 +45,33 @@ describe('Banco de Notas mutation origin protection', () => {
     await expect(response.json()).resolves.toMatchObject({ error: 'Invalid origin' });
   });
 
+  it('accepts sync only as same-origin POST and fails closed before bearer/storage use', async () => {
+    const path = `${testEnv.OFFICIAL_ORIGIN}/api/banco-notas/v1/addin/sync/preflight`;
+    const enabledEnv = { ...testEnv, BANCO_NOTAS_ADDIN_CONTEXT_ENABLED: '1' as const };
+    const crossOrigin = await onRequest({
+      request: new Request(path, {
+        method: 'POST',
+        headers: { Origin: 'https://evil.test', 'Content-Type': 'application/json' },
+        body: '{}',
+      }),
+      env: enabledEnv,
+    } as never);
+    expect(crossOrigin.status).toBe(403);
+
+    const official = await onRequest({
+      request: new Request(path, {
+        method: 'POST',
+        headers: { Origin: testEnv.OFFICIAL_ORIGIN, 'Content-Type': 'application/json' },
+        body: '{}',
+      }),
+      env: enabledEnv,
+    } as never);
+    expect(official.status).toBe(503);
+
+    const wrongMethod = await onRequest({ request: new Request(path), env: enabledEnv } as never);
+    expect(wrongMethod.status).toBe(405);
+  });
+
   it('accepts the official Origin gate and then fails closed when homologation storage is absent', async () => {
     const response = await invoke(
       new Request(`${testEnv.OFFICIAL_ORIGIN}/api/banco-notas/v1/data-sources`, {

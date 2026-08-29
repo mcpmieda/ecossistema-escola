@@ -1,0 +1,272 @@
+openapi: 3.1.0
+info:
+  title: Banco de Notas — Sync V1
+  version: 1.0.0
+  description: >-
+    Preflight e commit atômico do add-in, consulta de outcome e observabilidade administrativa.
+    O servidor resolve IDs canônicos; o cliente nunca fornece gradeKey, sourceId ou teacherModelId.
+servers:
+  - url: https://admin.escolaieda.com/api/banco-notas
+paths:
+  /v1/addin/sync/preflight:
+    post:
+      operationId: preflightAddinSync
+      security: [{ delegatedBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/PreflightRequest' } }
+      responses:
+        '200':
+          {
+            description: Ready ou bloqueio factual,
+            content:
+              { application/json: { schema: { $ref: '#/components/schemas/SyncResponse' } } },
+          }
+        '400': { description: Contrato inválido. }
+        '401': { description: Bearer delegado ausente ou inválido. }
+        '403': { description: Scope, tenant ou ownership inválido. }
+        '413': { description: Corpo acima do limite. }
+        '503': { description: Sync indisponível; falha fechada. }
+  /v1/addin/sync/commit:
+    post:
+      operationId: commitAddinSync
+      security: [{ delegatedBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/CommitRequest' } }
+      responses:
+        '200':
+          {
+            description: Commit,
+            bloqueio,
+            conflito,
+            duplicata ou falha factual,
+            content:
+              { application/json: { schema: { $ref: '#/components/schemas/SyncResponse' } } },
+          }
+        '400': { description: Contrato inválido. }
+        '401': { description: Bearer delegado ausente ou inválido. }
+        '403': { description: Scope, tenant ou ownership inválido. }
+        '413': { description: Corpo acima do limite. }
+        '503': { description: Sync indisponível; falha fechada. }
+  /v1/addin/sync/outcome:
+    post:
+      operationId: getAddinSyncOutcome
+      security: [{ delegatedBearer: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties: { requestId: { type: string, format: uuid } }
+      responses:
+        '200':
+          {
+            description: Resultado lógico conhecido,
+            content:
+              { application/json: { schema: { $ref: '#/components/schemas/SyncResponse' } } },
+          }
+        '404': { description: Tentativa não encontrada para o ator autenticado. }
+  /v1/sync/attempts:
+    get:
+      operationId: listSyncAttempts
+      security: [{ adminSession: [] }]
+      x-required-capability: grades.analytics.read
+      parameters:
+        - { in: query, name: status, schema: { $ref: '#/components/schemas/AttemptStatus' } }
+        - { in: query, name: teacherModelId, schema: { type: string, format: uuid } }
+        - {
+            in: query,
+            name: limit,
+            schema: { type: integer, minimum: 1, maximum: 200, default: 50 },
+          }
+      responses:
+        '200':
+          description: Tentativas sem valores de nota.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Attempt' } }
+        '403': { description: Capability ausente. }
+  /v1/sync/attempts/{requestId}:
+    get:
+      operationId: getSyncAttempt
+      security: [{ adminSession: [] }]
+      x-required-capability: grades.analytics.read
+      parameters:
+        - { in: path, name: requestId, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          {
+            description: Detalhe sanitizado,
+            content: { application/json: { schema: { $ref: '#/components/schemas/Attempt' } } },
+          }
+        '403': { description: Capability ausente. }
+        '404': { description: Tentativa não encontrada. }
+  /v1/sync/readiness:
+    get:
+      operationId: getSyncReadiness
+      security: [{ adminSession: [] }]
+      x-required-capability: grades.analytics.read
+      responses:
+        '200':
+          description: Classificação factual e automatizada de todos os modelos não arquivados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReadinessReport' }
+        '403': { description: Capability ausente. }
+components:
+  securitySchemes:
+    delegatedBearer: { type: http, scheme: bearer, bearerFormat: JWT }
+    adminSession: { type: apiKey, in: cookie, name: __Host-session }
+  schemas:
+    Workbook:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          workbookModelId,
+          sourceHash,
+          relationshipSnapshotId,
+          definitionVersion,
+          layoutVersion,
+          mappingVersion,
+          schoolYear,
+          sheetKey,
+        ]
+      properties:
+        workbookModelId: { type: string, format: uuid }
+        sourceHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        relationshipSnapshotId: { type: string, format: uuid }
+        definitionVersion: { type: string, minLength: 1, maxLength: 40 }
+        layoutVersion: { type: string, minLength: 1, maxLength: 40 }
+        mappingVersion: { type: integer, minimum: 1, maximum: 1000000 }
+        schoolYear: { type: integer, minimum: 2000, maximum: 2200 }
+        sheetKey: { type: string, minLength: 1, maxLength: 180 }
+    Change:
+      type: object
+      additionalProperties: false
+      required: [cellAddress, field, baselineEventId, baselineSequence, valueAfter, isAbsent]
+      properties:
+        cellAddress: { type: string, minLength: 2, maxLength: 40 }
+        field:
+          {
+            type: string,
+            enum: [NotaT1, NotaT2, NotaT3, RecT1, RecT2, RecT3, Total, TotalRec, NotaFinal],
+          }
+        baselineEventId: { type: string, format: uuid }
+        baselineSequence: { type: integer, minimum: 1 }
+        valueAfter:
+          { oneOf: [{ type: number }, { type: string, maxLength: 120 }, { type: 'null' }] }
+        isAbsent: { type: boolean }
+    PreflightRequest:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, requestId, workbook, changes]
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        requestId: { type: string, format: uuid }
+        workbook: { $ref: '#/components/schemas/Workbook' }
+        changes: { type: array, maxItems: 500, items: { $ref: '#/components/schemas/Change' } }
+    CommitRequest:
+      allOf:
+        - { $ref: '#/components/schemas/PreflightRequest' }
+        - type: object
+          required: [preflightFingerprint]
+          properties: { preflightFingerprint: { type: string, pattern: '^[a-f0-9]{64}$' } }
+    ReasonCode:
+      type: string
+      enum:
+        [
+          SYNC_DISABLED,
+          PILOT_NOT_ALLOWED,
+          OWNERSHIP_DENIED,
+          MODEL_MISSING,
+          MODEL_SUSPENDED,
+          MODEL_VERSION_STALE,
+          ASSIGNMENT_INACTIVE,
+          SOURCE_INVALID,
+          WORKBOOK_MISMATCH,
+          MAPPING_MISMATCH,
+          BASELINE_STALE,
+          CONFLICT,
+          NO_CHANGES,
+          PAYLOAD_TOO_LARGE,
+          DUPLICATE_REQUEST,
+          INVALID_CHANGE,
+          NETWORK_UNKNOWN,
+        ]
+    SyncResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, requestId, status, changeCount, conflictCount]
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        requestId: { type: string, format: uuid }
+        status: { type: string, enum: [ready, blocked, committed, duplicate, conflict, failed] }
+        reasonCode: { $ref: '#/components/schemas/ReasonCode' }
+        changeCount: { type: integer, minimum: 0, maximum: 500 }
+        conflictCount: { type: integer, minimum: 0, maximum: 500 }
+        preflightFingerprint: { type: string, pattern: '^[a-f0-9]{64}$' }
+        eventIds: { type: array, maxItems: 500, items: { type: string, format: uuid } }
+    AttemptStatus: { type: string, enum: [committed, rejected, conflict, duplicate, failed] }
+    Attempt:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          attemptId,
+          requestId,
+          teacherModelId,
+          teacherModelVersionId,
+          status,
+          changeCount,
+          conflictCount,
+          reasonCode,
+          durationMs,
+          createdAt,
+          completedAt,
+        ]
+      properties:
+        attemptId: { type: string, format: uuid }
+        requestId: { type: string, format: uuid }
+        teacherModelId: { oneOf: [{ type: string, format: uuid }, { type: 'null' }] }
+        teacherModelVersionId: { oneOf: [{ type: string, format: uuid }, { type: 'null' }] }
+        status: { $ref: '#/components/schemas/AttemptStatus' }
+        changeCount: { type: integer, minimum: 0, maximum: 500 }
+        conflictCount: { type: integer, minimum: 0, maximum: 500 }
+        reasonCode: { oneOf: [{ $ref: '#/components/schemas/ReasonCode' }, { type: 'null' }] }
+        durationMs: { oneOf: [{ type: integer, minimum: 0 }, { type: 'null' }] }
+        createdAt: { type: string, format: date-time }
+        completedAt: { type: string, format: date-time }
+    ReadinessItem:
+      type: object
+      additionalProperties: false
+      required: [teacherModelId, schoolYearId, status, reasons, pilotEligible]
+      properties:
+        teacherModelId: { type: string, format: uuid }
+        schoolYearId: { type: string, format: uuid }
+        status: { type: string, enum: [ready, blocked, needs_attention] }
+        reasons: { type: array, items: { $ref: '#/components/schemas/ReasonCode' } }
+        pilotEligible: { type: boolean }
+    ReadinessReport:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, globalSyncEnabled, commitRouteEnabled, counts, items]
+      properties:
+        generatedAt: { type: string, format: date-time }
+        globalSyncEnabled: { type: boolean }
+        commitRouteEnabled: { type: boolean }
+        counts:
+          type: object
+          additionalProperties: false
+          required: [ready, blocked, needsAttention]
+          properties:
+            ready: { type: integer, minimum: 0 }
+            blocked: { type: integer, minimum: 0 }
+            needsAttention: { type: integer, minimum: 0 }
+        items: { type: array, items: { $ref: '#/components/schemas/ReadinessItem' } }
