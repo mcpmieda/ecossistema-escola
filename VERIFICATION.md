@@ -1,5 +1,19 @@
 # VERIFICATION — Centro de Administração v1
 
+## Banco de Notas — verificação Central de Pendências V1 (28/08/2026)
+
+- SQLite real com migrations `0001`–`0007`: summary/list/detail, tipos factuais, erro/atenção/informação, deduplicação, ordenação, filtros, paginação e 404.
+- API: `grades.analytics.read`, allow/deny, validação Zod, métodos somente GET e storage fail closed.
+- Privacidade: DTO sem token, OID, claims, UPN, Graph/Drive ID, caminho de storage, detalhes SQL ou conteúdo técnico de findings.
+- UI/contratos: rotas, HeroUI, URL/debounce, filtros, resumo, lista, detalhe, links contextuais e estados loading/empty/partial/403/404/error.
+- Nenhuma migration, deploy, D1 remoto, Graph/Entra, publicação do add-in ou ativação de sync.
+- Browser QA sintético: PASS em desktop 1440 × 900 e mobile 390 × 844, cobrindo paginação, severidade, busca/debounce/abort, detalhe, navegação contextual com retorno, empty, 403, 404, 500/retry e overflow global ausente; tabela larga contida em scroll próprio.
+- Fixture HTTP, servidor, aba e viewport temporários encerrados/restaurados/removidos.
+- Gate local final: `npm run verify` PASS, 403 testes em 80 arquivos, formatação, lint, tipos, contrato semântico, manifesto e builds web/add-in verdes; audit high com 0 vulnerabilidades e diff check PASS.
+- CI do PR Draft permanece obrigatório antes do status PASS.
+
+Evidência detalhada: `docs/BANCO_NOTAS_CENTRAL_PENDENCIAS_V1.md`.
+
 ## Banco de Notas — verificação Professores V1 (28/08/2026)
 
 - Lista, pesquisa, filtros, paginação, detalhe, assignments, turmas/componentes, modelos, identidade, situação operacional, pendências e atividade: PASS local.

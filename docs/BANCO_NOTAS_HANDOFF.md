@@ -415,3 +415,13 @@ Browser QA sintético desktop/mobile passou, incluindo cancelamento real, estado
 Leitura principal: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.
 
 Publicação: PR Draft #136 para `main`; primeira rodada CI `33221412326` e Semgrep `33221412336` verdes, sem reviews/threads pendentes e com zero deployments. O PR deve permanecer Draft e sem merge.
+
+## Retomada — Central de Pendências V1 (28/08/2026)
+
+Branch `feat/banco-notas-central-pendencias-v1`, baseada na `main` em `5e6d7cfd0b010da7f34c0044eca5ce704a06d429` após a integração da Pesquisa Global.
+
+Implementação local: DTO/Zod, taxonomia factual, classificação operacional compartilhada, repository D1 por CTEs/joins, summary/list/detail, capability, wiring, OpenAPI, rota HeroUI, detalhe, filtros, paginação e links de Acompanhamento/Professor/Turma. Nenhuma migration ou escrita remota.
+
+Gates locais concluídos: Browser QA sintético desktop/mobile/empty/403/404/500, debounce/abort, navegação contextual e overflow; fixture/servidores removidos; `npm run verify` com 403 testes em 80 arquivos; audit high 0; diff check PASS. Próximos gates: commits, PR Draft e CI/Security/Semgrep verdes. Não fazer deploy, mutation D1 remota, mudança Graph/Entra, publicação do add-in ou ativação de sync.
+
+Leitura principal: `docs/BANCO_NOTAS_CENTRAL_PENDENCIAS_V1.md`.

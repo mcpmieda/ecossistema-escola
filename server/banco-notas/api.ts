@@ -17,6 +17,12 @@ import {
   pesquisaGlobalQuerySchema,
   type BancoNotasSearchRepository,
 } from '../../shared/banco-notas-pesquisa';
+import {
+  pendingIdSchema,
+  pendenciasFilterQuerySchema,
+  pendenciasListQuerySchema,
+  type PendenciasRepository,
+} from '../../shared/banco-notas-pendencias';
 import type { PlatformCapability } from '../../shared/platform-contract';
 import {
   assignmentInputSchema,
@@ -219,6 +225,7 @@ export async function routeBancoNotasApi(args: {
   turmasAlunos?: TurmasAlunosRepository;
   professores?: ProfessoresRepository;
   search?: BancoNotasSearchRepository;
+  pendencias?: PendenciasRepository;
   capabilities: readonly PlatformCapability[];
   actor: string;
   importAnalysis?: ImportAnalysisRuntime;
@@ -232,6 +239,45 @@ export async function routeBancoNotasApi(args: {
     (request.method === 'POST' || request.method === 'PATCH') && !importAnalysisMatch
       ? await body(request)
       : undefined;
+
+  if (path === '/v1/pendencias/summary') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.pendencias) throw new HttpError(503, 'Pendências storage unavailable');
+    const rawQuery = Object.fromEntries(
+      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
+    );
+    return response(
+      await args.pendencias.summary(parsed(() => pendenciasFilterQuerySchema.parse(rawQuery))),
+    );
+  }
+  if (path === '/v1/pendencias') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.pendencias) throw new HttpError(503, 'Pendências storage unavailable');
+    const rawQuery = Object.fromEntries(
+      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
+    );
+    return response(
+      await args.pendencias.list(parsed(() => pendenciasListQuerySchema.parse(rawQuery))),
+    );
+  }
+  const pendingDetailMatch = path.match(/^\/v1\/pendencias\/(.+)$/u);
+  if (pendingDetailMatch?.[1]) {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.pendencias) throw new HttpError(503, 'Pendências storage unavailable');
+    let decodedId: string;
+    try {
+      decodedId = decodeURIComponent(pendingDetailMatch[1]);
+    } catch {
+      throw new HttpError(400, 'Invalid pending item id');
+    }
+    const id = parsed(() => pendingIdSchema.parse(decodedId));
+    const result = await args.pendencias.detail(id);
+    if (!result) throw new HttpError(404, 'Pendência não encontrada');
+    return response(result);
+  }
 
   if (path === '/v1/pesquisa') {
     allowed(request, ['GET']);

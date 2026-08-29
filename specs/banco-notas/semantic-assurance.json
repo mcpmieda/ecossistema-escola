@@ -62,6 +62,14 @@
     {
       "term": "Pesquisa Global",
       "meaning": "descoberta read-only e limitada de alunos, professores e turmas canônicos, com ranking determinístico no servidor e sem inferência de identidade"
+    },
+    {
+      "term": "Pendência operacional",
+      "meaning": "evidência factual aberta derivada de estado ou relação persistida, classificada para investigação sem implicar comando de resolução"
+    },
+    {
+      "term": "Central de Pendências",
+      "meaning": "visão administrativa read-only que resume, filtra e detalha pendências operacionais e navega aos contextos canônicos"
     }
   ],
   "precedence_rules": [
@@ -134,7 +142,11 @@
     "Latest teacher model é o teacher_model único por professor/ano e sua versão corrente é a maior teacher_model_versions.version.",
     "OID e drive_item_id podem determinar estados booleanos internos, mas nunca integram os DTOs administrativos de Professores V1.",
     "Pesquisa Global consulta as tabelas e read models canônicos, limita resultados por tipo e nunca cria vínculo, índice paralelo, identidade inferida ou ranking no navegador.",
-    "Normalização de Pesquisa Global altera somente a comparação textual; IDs persistidos continuam sendo a única identidade e o desempate final é estável por nome e ID."
+    "Normalização de Pesquisa Global altera somente a comparação textual; IDs persistidos continuam sendo a única identidade e o desempate final é estável por nome e ID.",
+    "Central de Pendências deriva somente fatos persistidos e não transforma ausência de sync, isoladamente, em erro.",
+    "Tipos e severidades da Central são limitados e documentados; semântica equivalente reutiliza deriveOperationalAttention e findings preservam a severidade persistida.",
+    "Um PendingItem expõe somente contexto administrativo mínimo e links internos; identificadores técnicos Microsoft, credenciais, caminhos de storage e detalhes SQL permanecem fora do DTO.",
+    "Central de Pendências V1 é estritamente read-only e não resolve, ignora, arquiva, atribui ou corrige evidências."
   ],
   "ambiguities_resolved_as_configuration": [
     "fonte padrão do ano",
