@@ -13,6 +13,10 @@ import {
   professoresListQuerySchema,
   type ProfessoresRepository,
 } from '../../shared/banco-notas-professores';
+import {
+  pesquisaGlobalQuerySchema,
+  type BancoNotasSearchRepository,
+} from '../../shared/banco-notas-pesquisa';
 import type { PlatformCapability } from '../../shared/platform-contract';
 import {
   assignmentInputSchema,
@@ -214,6 +218,7 @@ export async function routeBancoNotasApi(args: {
   acompanhamento?: AcompanhamentoRepository;
   turmasAlunos?: TurmasAlunosRepository;
   professores?: ProfessoresRepository;
+  search?: BancoNotasSearchRepository;
   capabilities: readonly PlatformCapability[];
   actor: string;
   importAnalysis?: ImportAnalysisRuntime;
@@ -227,6 +232,18 @@ export async function routeBancoNotasApi(args: {
     (request.method === 'POST' || request.method === 'PATCH') && !importAnalysisMatch
       ? await body(request)
       : undefined;
+
+  if (path === '/v1/pesquisa') {
+    allowed(request, ['GET']);
+    requireCapability(capabilities, 'grades.analytics.read');
+    if (!args.search) throw new HttpError(503, 'Pesquisa storage unavailable');
+    const rawQuery = Object.fromEntries(
+      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
+    );
+    return response(
+      await args.search.search(parsed(() => pesquisaGlobalQuerySchema.parse(rawQuery))),
+    );
+  }
 
   if (path === '/v1/professores/filters') {
     allowed(request, ['GET']);

@@ -397,3 +397,16 @@ Produção permanece intacta e `sync_enabled` não foi alterado.
 - Publicado no PR Draft #134; primeira rodada de CI, Actions Security e Semgrep verde. Produção não autorizada e jobs de deploy/recovery skipped.
 
 Documento: `docs/BANCO_NOTAS_TURMAS_ALUNOS_V1.md`.
+
+## Pesquisa Global V1 — implementação em branch (28/08/2026)
+
+- Read model dedicado consulta students, teachers, class_groups, assignments, components, years e roster canônico existente.
+- Busca normalizada e ranking exato/prefixo/ocorrência/contexto são server-side, preparados, limitados e sem N+1.
+- Rota, API, DTO mínimo, OpenAPI, semântica e testes foram adicionados sem migration ou write.
+- Resultado navega aos detalhes existentes e ao Acompanhamento quando há assignment ativo.
+- Produção, D1 remoto, Graph/Entra, add-in e `sync_enabled=0` permanecem intocados.
+- A missão exige PR Draft e proíbe merge.
+- Browser QA desktop/mobile passou; a rota de Acompanhamento foi corrigida para o detalhe existente e toda infraestrutura local sintética foi removida ao final.
+- Publicado como PR Draft #136; primeira rodada de CI, Actions Security e Semgrep verde, com jobs de deploy/recovery skipped e zero deployments. Não fazer merge nesta missão.
+
+Documento: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.

@@ -20,7 +20,8 @@
       "modelo genérico limpo e transformação de planilhas legadas de qualquer professor sem especialização por golden master",
       "configurações versionadas para regras pedagógicas e dúvidas operacionais legítimas",
       "Professores V1 como diretório operacional read-only derivado de teachers, assignments, teacher models, fontes, atividade e findings persistidos",
-      "integração futura de acompanhamento, conselho, boletins, pesquisa, entidades e análises conforme Relatório v1.6"
+      "Pesquisa Global V1 read-only de alunos, professores e turmas, derivada dos mesmos IDs e relacionamentos persistidos dos diretórios existentes",
+      "integração futura de conselho, boletins, entidades e análises conforme Relatório v1.6"
     ],
     "out": [
       "substituir Cloudflare, Microsoft Entra ID, BFF, grupos, sessão, Graph, SharePoint CENTROADMIN, CI/CD ou recovery existentes",
@@ -33,7 +34,8 @@
       "reintroduzir Ambient Constellation",
       "ativar sincronização em massa antes de homologação e reconciliação individual",
       "decidir automaticamente regra pedagógica ou jurídica que não esteja consolidada ou configurada",
-      "criar cadastro de RH, identidade paralela, vínculo Entra, compartilhamento Graph, edição de notas ou ativação de sync em Professores V1"
+      "criar cadastro de RH, identidade paralela, vínculo Entra, compartilhamento Graph, edição de notas ou ativação de sync em Professores V1",
+      "criar índice paralelo, FTS, inferência fuzzy de identidade, busca por IA ou banco vetorial em Pesquisa Global V1"
     ]
   },
   "invariants": [
@@ -112,6 +114,10 @@
     {
       "id": "BN-INV-019",
       "statement": "Professores V1 usa somente teachers e relações persistidas por IDs; não cria identidade paralela, não relaciona por nome, não expõe OID ou DriveItem e não trata sync_enabled=0 isoladamente como erro."
+    },
+    {
+      "id": "BN-INV-020",
+      "statement": "Pesquisa Global V1 descobre somente alunos, professores e turmas canônicos por IDs e relações já persistidos em D1; não cria índice paralelo, não infere identidade, não expõe identificadores técnicos e não executa ranking no navegador."
     }
   ],
   "data_contracts": [
@@ -156,6 +162,12 @@
       "source": "Cloudflare D1: teachers, teacher_assignments, teacher_models, versões, fontes, imports, findings, reconciliações e eventos",
       "direction": "backend para frontend administrativo",
       "privacy": "nome administrativo e estados operacionais mínimos; presença de identidade e arquivo como booleanos, sem OID, claims, UPN ou DriveItem ID"
+    },
+    {
+      "name": "GlobalOperationalSearch",
+      "source": "Cloudflare D1: students, teachers, class_groups, school_years, components, assignments e roster canônico comprovado",
+      "direction": "backend para frontend administrativo",
+      "privacy": "nomes e contexto operacional mínimos; sem OID, claims, UPN, external IDs, DriveItem ID ou dados de nota"
     }
   ],
   "interfaces": [
@@ -188,6 +200,11 @@
       "name": "/api/banco-notas/v1/professores e /api/banco-notas/v1/professores/:id",
       "mode": "governed-read-only-directory",
       "purpose": "listar e detalhar o contexto operacional docente com filtros, paginação, autorização e minimização de identidade"
+    },
+    {
+      "name": "/api/banco-notas/v1/pesquisa",
+      "mode": "governed-read-only-search",
+      "purpose": "pesquisar alunos, professores e turmas com normalização, ranking determinístico, limites por tipo e capability server-side"
     }
   ],
   "acceptance_criteria": [
@@ -368,6 +385,21 @@
         "a situação operacional reutiliza fatos do Acompanhamento e sync desligado isoladamente não é erro",
         "filtros e paginação são aplicados no servidor e a navegação cruza Professor, Turma e Acompanhamento",
         "o módulo é read-only e não cria vínculo Entra, share, identidade paralela, nota ou ativação de sync"
+      ],
+      "verification": ["test", "browser", "database", "security"]
+    },
+    {
+      "id": "BN-AC-016",
+      "priority": "must",
+      "given": "um administrador autorizado informa ao menos dois caracteres na Pesquisa Global",
+      "when": "a API pesquisa alunos, professores e turmas",
+      "then": [
+        "a consulta é normalizada por espaços, caixa e acentos comuns, executada no servidor e protegida por grades.analytics.read",
+        "resultados exatos precedem prefixos, que precedem ocorrências e contexto, com desempate estável por nome e ID",
+        "cada tipo possui limite, total e indicação de mais resultados sem N+1 ou carregamento integral das entidades",
+        "os resultados reutilizam IDs canônicos e oferecem navegação para detalhes existentes e Acompanhamento quando comprovado",
+        "o DTO não expõe OID, claims, UPN, external IDs, DriveItem ID ou dados de nota",
+        "a interface persiste q na URL, cancela requisições obsoletas e cobre loading, vazio, erro e permissão negada"
       ],
       "verification": ["test", "browser", "database", "security"]
     }

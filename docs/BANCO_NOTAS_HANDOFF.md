@@ -403,3 +403,15 @@ O módulo é consulta operacional: roster apenas por gradeKey exata em mappings 
 Leitura principal: `docs/BANCO_NOTAS_TURMAS_ALUNOS_V1.md`.
 
 Publicação: PR Draft #134 para `main`; commits iniciais `822eeb6` e `eb3f148`; CI `33199767149` e Semgrep `33199767176` verdes. O PR deve permanecer sem merge. Factory Control Plane não se aplica a este diff pelos filtros de paths do workflow.
+
+## Retomada — Pesquisa Global V1 (28/08/2026)
+
+Branch `feat/banco-notas-pesquisa-global-v1`, baseada em `main` no commit `8eed2e9bc00ff4d53749f4c1ac630bf0f182fa52`.
+
+O escopo é exclusivamente read-only: buscar alunos, professores e turmas canônicos, ranquear no servidor e navegar para módulos existentes. Não criar migration, índice paralelo, FTS, vínculo inferido, IA, write, deploy ou sync. Antes de encerrar, exigir `npm run verify`, auditoria high, diff check, browser QA sintético, PR Draft e CI/Application Security/Semgrep verdes. O PR deve permanecer sem merge.
+
+Browser QA sintético desktop/mobile passou, incluindo cancelamento real, estados operacionais e destinos canônicos. O alvo de Acompanhamento encontrado incorreto na QA foi corrigido e revalidado como `/acompanhamento/turmas/:id`; fixture, servidor e aba foram removidos.
+
+Leitura principal: `docs/BANCO_NOTAS_PESQUISA_GLOBAL_V1.md`.
+
+Publicação: PR Draft #136 para `main`; primeira rodada CI `33221412326` e Semgrep `33221412336` verdes, sem reviews/threads pendentes e com zero deployments. O PR deve permanecer Draft e sem merge.

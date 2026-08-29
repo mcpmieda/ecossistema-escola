@@ -476,3 +476,15 @@ Evidências: docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.j
 - PR #129 retargetado para `main` com diff restrito aos 18 arquivos do Acompanhamento V1.
 - Regressão local de integração e CI do PR #129 são gates obrigatórios antes do segundo merge.
 - Produção intacta, add-in não publicado, D1 remoto não acessado e `sync_enabled=0`.
+
+## Banco de Notas — verificação Pesquisa Global V1 (28/08/2026)
+
+- SQLite real com migrations 0001–0007 prova consultas preparadas, roster canônico, deduplicação, contexto, ranking e limites.
+- Contratos Zod/API/OpenAPI cobrem `q`, `types`, `limitPerType`, `schoolYearId`, capability e falha fechada.
+- Testes de privacidade impedem external ID, OID, claims, UPN, DriveItem ID e dados de nota nos DTOs.
+- UI cobre URL, debounce, abort, termo mínimo, loading, empty, error, 403, atalhos e destinos canônicos.
+- Browser QA sintético passou em 1440 × 900 e 390 × 844, cobrindo query string/reload, debounce, abort real, atalhos, loading, empty, 403, 500, resultados, navegação para Aluno/Professor/Turma/Acompanhamento e ausência de overflow global.
+- O destino incorreto `/acompanhamento/:id` foi detectado na QA, corrigido para `/acompanhamento/turmas/:id` e revalidado; fixture, servidor, aba e viewport temporários foram encerrados/restaurados.
+- Nenhum serviço remoto de produto é necessário ou autorizado para esta verificação.
+- Gate local final: `npm run verify` PASS, 386 testes em 76 arquivos, manifest e builds web/add-in PASS; audit high com 0 vulnerabilidades e diff check PASS.
+- PR Draft #136, primeira rodada: CI and deploy `33221412326` PASS; Semgrep `33221412336` PASS; Validate application e Actions Security verdes; deploy/recovery/cleanup/Merge Train skipped e zero deployments.

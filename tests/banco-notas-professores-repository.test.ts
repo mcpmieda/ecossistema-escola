@@ -104,8 +104,8 @@ describe('D1 Professores repository', () => {
       INSERT INTO data_sources (id, school_year_id, type, name, created_by) VALUES
         ('${ids.source}', '${ids.year2026}', 'linked_teacher_model', 'Fonte institucional', 'test');
       INSERT INTO source_assignments
-        (id, school_year_id, data_source_id, teacher_id, scope, authority, effective_from, operator_id, reason) VALUES
-        ('source-ana', '${ids.year2026}', '${ids.source}', '${ids.ana}', 'teacher_override', 'authoritative', '2026-01-01', 'test', 'fixture sintética');
+        (id, school_year_id, data_source_id, teacher_id, scope, authority, effective_from, operator_id, reason, updated_at) VALUES
+        ('source-ana', '${ids.year2026}', '${ids.source}', '${ids.ana}', 'teacher_override', 'authoritative', '2026-01-01', 'test', 'fixture sintética', '2026-08-28T08:00:00Z');
       INSERT INTO teacher_models
         (id, school_year_id, teacher_id, state, sync_enabled, drive_item_id, last_reconciled_at, updated_at) VALUES
         ('${ids.modelAna2026}', '${ids.year2026}', '${ids.ana}', 'connected', 0, 'drive-synthetic', '2026-08-27T10:00:00Z', '2026-08-27T10:00:00Z'),

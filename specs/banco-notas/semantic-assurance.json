@@ -58,6 +58,10 @@
     {
       "term": "Situação operacional docente",
       "meaning": "maior severidade factual entre status/assignment, identidade quando necessária, modelo, fonte, importação e findings; sync desligado sozinho é apenas informação"
+    },
+    {
+      "term": "Pesquisa Global",
+      "meaning": "descoberta read-only e limitada de alunos, professores e turmas canônicos, com ranking determinístico no servidor e sem inferência de identidade"
     }
   ],
   "precedence_rules": [
@@ -128,7 +132,9 @@
     "Professor operacional é relacionado somente por teacher_id e chaves estrangeiras persistidas; nome nunca é chave de vínculo.",
     "A lista de professores parte de teachers e preserva docentes sem assignments; filtros anuais restringem contexto sem duplicar a identidade canônica.",
     "Latest teacher model é o teacher_model único por professor/ano e sua versão corrente é a maior teacher_model_versions.version.",
-    "OID e drive_item_id podem determinar estados booleanos internos, mas nunca integram os DTOs administrativos de Professores V1."
+    "OID e drive_item_id podem determinar estados booleanos internos, mas nunca integram os DTOs administrativos de Professores V1.",
+    "Pesquisa Global consulta as tabelas e read models canônicos, limita resultados por tipo e nunca cria vínculo, índice paralelo, identidade inferida ou ranking no navegador.",
+    "Normalização de Pesquisa Global altera somente a comparação textual; IDs persistidos continuam sendo a única identidade e o desempate final é estável por nome e ID."
   ],
   "ambiguities_resolved_as_configuration": [
     "fonte padrão do ano",
