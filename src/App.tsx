@@ -298,8 +298,7 @@ function AdminShell({ identity }: { identity: Identity }) {
     [identity.name],
   );
   const modules = loadState.status === 'ready' ? loadState.snapshot.coreModules : [];
-  const registeredModules =
-    loadState.status === 'ready' ? loadState.snapshot.registeredModules : [];
+  const showBancoNotas = identity.capabilities?.includes('grades.read') ?? false;
   const snapshot = loadState.status === 'ready' ? loadState.snapshot : null;
 
   return (
@@ -308,7 +307,7 @@ function AdminShell({ identity }: { identity: Identity }) {
         <SidebarContent
           route={route}
           modules={modules}
-          registeredModules={registeredModules}
+          showBancoNotas={showBancoNotas}
           loading={loadState.status === 'loading'}
         />
       </aside>
@@ -337,7 +336,7 @@ function AdminShell({ identity }: { identity: Identity }) {
                       <SidebarContent
                         route={route}
                         modules={modules}
-                        registeredModules={registeredModules}
+                        showBancoNotas={showBancoNotas}
                         loading={loadState.status === 'loading'}
                         onNavigate={mobileNavigationState.close}
                       />

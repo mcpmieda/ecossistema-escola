@@ -20,12 +20,12 @@ describe('Centro de Administração registered-module entrypoint', () => {
     expect(page).toContain('<span className="text-xs text-muted">Indisponível</span>');
   });
 
-  it('places available systems directly in the desktop and mobile sidebar', () => {
+  it('places Banco de Notas directly in the desktop and mobile sidebar', () => {
     expect(navigation).toContain('aria-label="Sistemas disponíveis"');
-    expect(navigation).toContain('href={module.baseRoute}');
-    expect(navigation).toContain('{module.name}');
-    expect(navigation).toContain("module.baseRoute.startsWith('/')");
-    expect(navigation).toContain("!module.baseRoute.startsWith('//')");
-    expect(app.split('registeredModules={registeredModules}')).toHaveLength(3);
+    expect(navigation).toContain('href="/banco-de-notas"');
+    expect(navigation).toContain('Banco de Notas');
+    expect(navigation).not.toContain('href={module.baseRoute}');
+    expect(app).toContain("identity.capabilities?.includes('grades.read')");
+    expect(app.split('showBancoNotas={showBancoNotas}')).toHaveLength(3);
   });
 });
