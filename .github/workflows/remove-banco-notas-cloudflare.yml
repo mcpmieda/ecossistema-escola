@@ -1,0 +1,62 @@
+name: Remove Banco de Notas Cloudflare resources
+
+on:
+  push:
+    branches:
+      - cleanup/centro-banco-only
+    paths:
+      - '.github/workflows/remove-banco-notas-cloudflare.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: remove-banco-notas-cloudflare
+  cancel-in-progress: false
+
+jobs:
+  remove-d1:
+    name: Remove Banco de Notas D1 databases
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Delete Banco de Notas D1 databases
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN}"
+          test -n "${CLOUDFLARE_ACCOUNT_ID}"
+
+          before="$(npx wrangler d1 list --json)"
+          mapfile -t targets < <(
+            jq -r '.[] | select(.name == "banco-notas-production" or .name == "banco-notas-homologation") | .name' <<<"${before}"
+          )
+
+          for database in "${targets[@]}"; do
+            npx wrangler d1 delete "${database}" --skip-confirmation
+          done
+
+          after="$(npx wrangler d1 list --json)"
+          if jq -e '.[] | select(.name == "banco-notas-production" or .name == "banco-notas-homologation")' <<<"${after}" >/dev/null; then
+            echo 'Banco de Notas D1 database still exists after deletion.' >&2
+            exit 1
+          fi
+
+          echo "Removed ${#targets[@]} Banco de Notas D1 database(s)."
