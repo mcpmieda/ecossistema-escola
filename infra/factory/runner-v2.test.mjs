@@ -66,7 +66,6 @@ test('provider labels override manifest fallback and Jules processing is explici
     preferredProviders: ['opencode_ollama', 'jules', 'antigravity'],
   };
   assert.equal(selectedProviderForTask(task, []), 'opencode_ollama');
-  assert.equal(selectedProviderForTask(task, [FACTORY_LABELS.providerAntigravity]), 'antigravity');
   assert.equal(selectedProviderForTask(task, [FACTORY_LABELS.providerJules]), 'jules');
   assert.equal(selectedProviderForTask(task, [FACTORY_LABELS.providerOpenCode]), 'opencode_ollama');
   assert.equal(

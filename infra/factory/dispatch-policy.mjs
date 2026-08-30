@@ -10,20 +10,20 @@ export const FACTORY_LABELS = Object.freeze({
   failed: 'factory:failed',
   final: 'factory:final',
   providerJules: 'factory:provider:jules',
-  providerAntigravity: 'factory:provider:antigravity',
   providerOpenCode: 'factory:provider:opencode-ollama',
   julesApi: 'factory:dispatch:jules-api',
   durableAgent: 'factory:dispatch:durable-agent',
   julesTrigger: 'jules',
 });
 
-export const AUTOMATIC_PROVIDER_ORDER = Object.freeze(['opencode_ollama', 'jules', 'antigravity']);
+export const AUTOMATIC_PROVIDER_ORDER = Object.freeze(['opencode_ollama', 'jules']);
 
+// Keep the historical durable contract readable for old evidence/leases, but only
+// providers in AUTOMATIC_PROVIDER_ORDER can receive new automatic dispatch.
 export const DURABLE_PROVIDERS = Object.freeze(['opencode_ollama', 'antigravity']);
 
 export function providerLabel(provider) {
   if (provider === 'jules') return FACTORY_LABELS.providerJules;
-  if (provider === 'antigravity') return FACTORY_LABELS.providerAntigravity;
   if (provider === 'opencode_ollama') return FACTORY_LABELS.providerOpenCode;
   return null;
 }
