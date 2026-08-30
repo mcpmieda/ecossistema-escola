@@ -113,6 +113,7 @@ export const legacyStudentCandidateSchema = z
     sourceStudentId: opaqueIdSchema,
     displayName: z.string().min(1).max(240),
     sourceClassId: opaqueIdSchema,
+    studentPosition: studentPositionSchema.optional(),
     sourceLocator: legacySourceLocatorSchema,
   })
   .strict();

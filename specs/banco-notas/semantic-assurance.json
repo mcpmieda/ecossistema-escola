@@ -159,7 +159,10 @@
     "O contexto do add-in exige token delegado e ownership no backend; OID serve somente à autorização e não integra o DTO.",
     "A comparação cotidiana lê apenas células autorizadas no Office.js, não envia valores ao endpoint de contexto e não persiste alterações.",
     "Zero numérico, ausência conhecida e baseline desconhecido são estados distintos no contexto e na comparação local.",
-    "Sync desligado é informação administrativa normal; a Experiência Cotidiana V1 não expõe comando de sincronização nem conecta grade-events ao roteador público."
+    "Sync desligado é informação administrativa normal; a Experiência Cotidiana V1 não expõe comando de sincronização nem conecta grade-events ao roteador público.",
+    "Upload manual calcula SHA-256 no backend, persiste somente análise/proveniência e nunca executa macros, fórmulas, links ou código do workbook.",
+    "A posição institucional do estudante na turma participa da identidade do upload; nome é somente dado de conferência e não resolve vínculo por aproximação.",
+    "Analisar um upload não promove automaticamente valores para grade_events ou grade_snapshots; promoção é um comando separado, autorizado e auditável."
   ],
   "ambiguities_resolved_as_configuration": [
     "fonte padrão do ano",
@@ -181,6 +184,8 @@
     "Cloudflare D1/Queues ainda precisam ser provisionados e vinculados ao ambiente; isso não altera a decisão arquitetural.",
     "Concorrência multi-editor precisa de teste real antes de produção.",
     "A fonte institucional definitiva de AlunoId/turma precisa ser confirmada durante integração, mantendo o fallback apenas transitório.",
-    "Golden masters privados podem não estar disponíveis no CI; fixtures sintéticas variadas continuam obrigatórias e a regressão privada deve ser registrada separadamente sem publicar conteúdo."
+    "Golden masters privados podem não estar disponíveis no CI; fixtures sintéticas variadas continuam obrigatórias e a regressão privada deve ser registrada separadamente sem publicar conteúdo.",
+    "O Upload Manual V1 aceita somente XLSX no runtime; arquivos XLSB exigem uma cópia administrativa em XLSX enquanto o original permanece intacto.",
+    "A sincronização automática pelo add-in permanece uma evolução futura e não bloqueia o funcionamento inicial por lotes manuais."
   ]
 }

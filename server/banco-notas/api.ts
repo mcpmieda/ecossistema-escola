@@ -40,6 +40,7 @@ import {
   importJobCreateSchema,
   importJobTransitionSchema,
 } from '../../shared/banco-notas-import-jobs';
+import { manualImportQuerySchema } from '../../shared/banco-notas-manual-import';
 import { requireCapability } from '../auth/capabilities';
 import { HttpError, readBoundedBytes, readBoundedJson } from '../http/security';
 import { effectiveAuthority } from './domain';
@@ -50,6 +51,7 @@ import {
   findImportAnalysis,
   type ImportAnalysisRuntime,
 } from './import-analysis-upload';
+import { importManualXlsx } from './manual-import';
 
 const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const XLSB_CONTENT_TYPE = 'application/vnd.ms-excel.sheet.binary.macroenabled.12';
@@ -208,6 +210,7 @@ async function importAnalysisMutation<T>(operation: () => Promise<T>): Promise<T
         error.message === 'legacy_workbook_sha256_mismatch' ||
         error.message === 'legacy_workbook_byte_length_mismatch' ||
         error.message.startsWith('workbook_format_not_supported:') ||
+        error.message.startsWith('manual_import_') ||
         error.message.startsWith('xlsx_')
       ) {
         throw new HttpError(422, 'Uploaded workbook failed verified analysis');
@@ -238,8 +241,11 @@ export async function routeBancoNotasApi(args: {
   const path = url.pathname.replace(/^\/api\/banco-notas/u, '') || '/';
   const importAnalysisMatch = path.match(/^\/v1\/import-jobs\/([0-9a-f-]+)\/analysis$/iu);
   const importProfileMatch = path.match(/^\/v1\/import-jobs\/([0-9a-f-]+)\/analysis-profile$/iu);
+  const manualImport = path === '/v1/manual-imports';
   const requestBody =
-    (request.method === 'POST' || request.method === 'PATCH') && !importAnalysisMatch
+    (request.method === 'POST' || request.method === 'PATCH') &&
+    !importAnalysisMatch &&
+    !manualImport
       ? await body(request)
       : undefined;
 
@@ -483,6 +489,38 @@ export async function routeBancoNotasApi(args: {
         profiles.createProfile(
           parsed(() => importAnalysisProfileCreateSchema.parse(requestBody)),
           actor,
+        ),
+      ),
+      201,
+    );
+  }
+  if (manualImport) {
+    allowed(request, ['POST']);
+    requireCapability(capabilities, 'grades.import.run');
+    if (!args.importAnalysis?.profiles) {
+      throw new HttpError(503, 'Import analysis profile storage is unavailable');
+    }
+    const input = parsed(() =>
+      manualImportQuerySchema.parse(Object.fromEntries(url.searchParams.entries())),
+    );
+    const reason = importReason(request);
+    const bytes = await readBoundedBytes(request, {
+      maxBytes: MAX_IMPORT_WORKBOOK_BYTES,
+      allowedContentTypes: [XLSX_CONTENT_TYPE],
+    });
+    return response(
+      await importAnalysisMutation(() =>
+        importProfileMutation(() =>
+          importJobMutation(() =>
+            importManualXlsx({
+              repository,
+              runtime: args.importAnalysis!,
+              input,
+              bytes,
+              actor,
+              reason,
+            }),
+          ),
         ),
       ),
       201,

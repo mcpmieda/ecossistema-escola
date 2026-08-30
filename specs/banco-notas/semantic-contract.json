@@ -23,6 +23,7 @@
       "Pesquisa Global V1 read-only de alunos, professores e turmas, derivada dos mesmos IDs e relacionamentos persistidos dos diretórios existentes",
       "Central de Pendências V1 read-only com diagnóstico factual, severidade, filtros, detalhe e navegação para os contextos canônicos existentes",
       "Experiência Cotidiana e Sync V1 do add-in com NAA, contexto por ownership, preflight, comparação local e commit governado por piloto",
+      "Upload Manual V1 de cópias XLSX das planilhas docentes existentes, com hash server-side, análise OOXML, perfil versionado, idempotência, consulta do conteúdo lido e promoção explícita",
       "integração futura de conselho, boletins, entidades e análises conforme Relatório v1.6"
     ],
     "out": [
@@ -39,7 +40,10 @@
       "criar cadastro de RH, identidade paralela, vínculo Entra, compartilhamento Graph, edição de notas ou ativação de sync em Professores V1",
       "criar índice paralelo, FTS, inferência fuzzy de identidade, busca por IA ou banco vetorial em Pesquisa Global V1",
       "resolver, ignorar, arquivar, atribuir responsável ou corrigir automaticamente uma pendência na Central V1",
-      "ativar sincronização em massa ou distribuir o add-in fora da coorte validada sem rollout progressivo"
+      "ativar sincronização em massa ou distribuir o add-in fora da coorte validada sem rollout progressivo",
+      "executar macros, Excel COM ou fórmulas do arquivo enviado no runtime Cloudflare",
+      "usar nome aproximado de estudante como identidade no upload manual",
+      "alterar o arquivo original do professor durante upload, análise ou consulta"
     ]
   },
   "invariants": [
@@ -130,6 +134,10 @@
     {
       "id": "BN-INV-022",
       "statement": "O add-in obtém contexto somente com bearer delegado e ownership, compara mappings autorizados, preserva zero versus ausência e só persiste um lote atômico após preflight, elegibilidade de piloto, revalidação transacional e kill switches ativos."
+    },
+    {
+      "id": "BN-INV-023",
+      "statement": "O Upload Manual V1 lê somente uma cópia XLSX enviada por operador autorizado, calcula hash no servidor, não executa macros/fórmulas/links, identifica estudante por ano + turma + número sequencial e mantém análise e histórico idempotentes sem alterar o arquivo original."
     }
   ],
   "data_contracts": [
@@ -490,6 +498,22 @@
         "tentativas ficam observáveis sem token, claims, OID exposto ou valores de nota"
       ],
       "verification": ["test", "integration", "database", "security"]
+    },
+    {
+      "id": "BN-AC-020",
+      "priority": "must",
+      "given": "um operador com grades.import.run possui uma cópia XLSX de uma planilha docente e um perfil versionado compatível",
+      "when": "ele seleciona ano, professor, fonte e perfil e envia o arquivo pela área Importações",
+      "then": [
+        "o servidor calcula SHA-256 e não confia em hash informado pelo navegador",
+        "o pacote é analisado sem executar macro, fórmula, link externo ou código do workbook",
+        "turmas, componentes, estudantes, campos, zero e ausência ficam disponíveis para conferência com proveniência de guia e célula",
+        "a identidade do estudante usa ano, turma e número sequencial comprovados, nunca nome aproximado",
+        "o mesmo conteúdo para a mesma fonte não cria segundo efeito lógico",
+        "o binário e os dados reais não entram no Git e o arquivo original não é alterado",
+        "nenhum snapshot acadêmico é substituído sem promoção explícita e validação de relacionamento"
+      ],
+      "verification": ["test", "browser", "integration", "database", "security"]
     }
   ]
 }
