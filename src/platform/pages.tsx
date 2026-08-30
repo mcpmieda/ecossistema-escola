@@ -1,4 +1,4 @@
-import { Card, Chip, Skeleton, Spinner, Surface, Table } from '@heroui/react';
+import { Button, Card, Chip, Skeleton, Spinner, Surface, Table } from '@heroui/react';
 import {
   Activity,
   BookOpenText,
@@ -63,6 +63,9 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
     (configuration) => configuration.active,
   ).length;
   const availableModules = snapshot.coreModules.filter((module) => module.state === 'ready').length;
+  const availableSystems = snapshot.registeredModules.filter(
+    (module) => module.available && module.baseRoute.startsWith('/'),
+  );
 
   return (
     <>
@@ -155,6 +158,27 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
           <ModuleList modules={snapshot.coreModules} />
         </Card.Content>
       </Card>
+
+      {availableSystems.length > 0 && (
+        <Card variant="default" className="mt-5 overflow-hidden">
+          <Card.Header className="border-b border-border/60">
+            <Card.Title>Sistemas disponíveis</Card.Title>
+            <Card.Description>Acesse os sistemas integrados ao Centro.</Card.Description>
+          </Card.Header>
+          <Card.Content className="flex flex-wrap gap-3 p-4">
+            {availableSystems.map((module) => (
+              <Button
+                key={module.id}
+                variant="primary"
+                onPress={() => window.location.assign(module.baseRoute)}
+              >
+                <BookOpenText className="size-4" />
+                Abrir {module.name}
+              </Button>
+            ))}
+          </Card.Content>
+        </Card>
+      )}
     </>
   );
 }
@@ -204,6 +228,7 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                     <Table.Column id="registry">Registro</Table.Column>
                     <Table.Column id="integration">Integração</Table.Column>
                     <Table.Column id="capabilities">Permissões</Table.Column>
+                    <Table.Column id="access">Acesso</Table.Column>
                   </Table.Header>
                   <Table.Body>
                     {snapshot.registeredModules.map((module) => {
@@ -240,6 +265,19 @@ function SystemsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
                               </Chip>
                             ) : (
                               <span className="text-xs text-muted">Não definidas</span>
+                            )}
+                          </Table.Cell>
+                          <Table.Cell className="whitespace-nowrap">
+                            {module.available && module.baseRoute.startsWith('/') ? (
+                              <Button
+                                size="sm"
+                                variant="primary"
+                                onPress={() => window.location.assign(module.baseRoute)}
+                              >
+                                Abrir
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted">Indisponível</span>
                             )}
                           </Table.Cell>
                         </Table.Row>
