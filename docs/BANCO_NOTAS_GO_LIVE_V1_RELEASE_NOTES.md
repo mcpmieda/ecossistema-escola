@@ -1,6 +1,6 @@
 # Banco de Notas — Release notes GO-LIVE V1
 
-O RC.1 (`249a21d06263fe6529a36c0d3458c50219604288`) foi interrompido antes de backup, migrations, binding e deploy Pages por colisão com a variável automática PowerShell `$Matches` ao resolver o D1 recém-criado. O D1 vazio `e59579db-aa8b-4589-a02e-643cb4277b5f` foi preservado para reutilização inequívoca; o deployment Pages anterior permaneceu ativo. O próximo candidato deve usar um novo tag RC após o merge verde da correção, sem mover o tag RC.1.
+O RC.1 (`249a21d06263fe6529a36c0d3458c50219604288`) foi interrompido antes de backup, migrations, binding e deploy Pages por colisão com a variável automática PowerShell `$Matches` ao resolver o D1 recém-criado. O RC.2 (`10dbe4fd5aedac63cc44bf047484269e49738e8e`) obteve bookmark/export e foi interrompido antes da primeira migration porque Wrangler 4.125 rejeita a opção removida `--yes`; o SQL efêmero foi apagado pelo `finally`. O próximo candidato remove essa opção, suprime a saída do export para não registrar URLs assinadas e não move tags anteriores. O D1 `e59579db-aa8b-4589-a02e-643cb4277b5f` continua sem migrations e o deployment Pages anterior permanece ativo.
 
 ## Incluído
 
