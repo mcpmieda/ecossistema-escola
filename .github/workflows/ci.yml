@@ -34,12 +34,15 @@ jobs:
       - name: Detect add-in changes
         id: changes
         shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            git diff --name-only "${{ github.event.pull_request.base.sha }}" "${GITHUB_SHA}" > /tmp/changed-files
-          elif [[ "${GITHUB_EVENT_NAME}" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
-            git diff --name-only "${{ github.event.before }}" "${GITHUB_SHA}" > /tmp/changed-files
+            git diff --name-only "${PR_BASE_SHA}" "${GITHUB_SHA}" > /tmp/changed-files
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" && "${PUSH_BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --name-only "${PUSH_BEFORE_SHA}" "${GITHUB_SHA}" > /tmp/changed-files
           else
             printf '%s\n' 'manual-full-validation' > /tmp/changed-files
           fi
@@ -96,12 +99,15 @@ jobs:
       - name: Detect workflow changes
         id: workflows
         shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
-            git diff --name-only "${{ github.event.pull_request.base.sha }}" "${GITHUB_SHA}" > /tmp/changed-workflow-files
-          elif [[ "${GITHUB_EVENT_NAME}" == "push" && "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
-            git diff --name-only "${{ github.event.before }}" "${GITHUB_SHA}" > /tmp/changed-workflow-files
+            git diff --name-only "${PR_BASE_SHA}" "${GITHUB_SHA}" > /tmp/changed-workflow-files
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" && "${PUSH_BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --name-only "${PUSH_BEFORE_SHA}" "${GITHUB_SHA}" > /tmp/changed-workflow-files
           else
             printf '%s\n' '.github/workflows/ci.yml' > /tmp/changed-workflow-files
           fi
