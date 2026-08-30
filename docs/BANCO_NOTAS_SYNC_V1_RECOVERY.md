@@ -8,4 +8,4 @@
 6. Se dados divergiram, reconciliar por eventos compensatórios aprovados e nova sequência, nunca por delete/update de eventos.
 7. Validar snapshots, attempts, Central, ownership e non-pilot denial antes de religar.
 
-O backup pré-release é export D1 suportado, sanitizado e protegido; o rollback alvo é registrado no change plan.
+O backup pré-release é o bookmark do Time Travel mantido pelo D1 com acesso restrito. Um export efêmero é usado somente para registrar hash e tamanho, removido do runner antes das migrations e nunca publicado como artefato. O rollback alvo de Pages é registrado no change plan.
