@@ -77,6 +77,8 @@ describe('Banco de Notas NAA client', () => {
     expect(taskpane).toContain('claimsIncluded: false');
     expect(taskpane).toContain('tenantIdIncluded: false');
     expect(taskpane).toContain('BrowserCacheLocation.MemoryStorage');
+    expect(taskpane).toContain('pca.current.acquireTokenPopup(request)');
+    expect(taskpane).not.toContain('pca.current.ssoSilent(request)');
     expect(taskpane).not.toContain("cacheLocation: 'localStorage'");
     expect(taskpane).not.toMatch(
       /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/iu,
