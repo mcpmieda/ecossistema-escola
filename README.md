@@ -1,32 +1,33 @@
-# Ecossistema Escolar — fundação técnica
+# Ecossistema Escolar
 
-Fundação institucional da Escola Iêda Alves de Oliveira MCPM. A aplicação pública é somente a página técnica mínima; os módulos de negócio ainda não existem.
+Repositório do **Centro de Administração** e do **Banco de Notas** da Escola Iêda Alves de Oliveira MCPM.
 
-- Produção: <https://admin.escolaieda.com>
-- Runtime: Cloudflare Pages + Pages Functions, plano Free
-- Identidade: Microsoft Entra ID, tenant único, sessão BFF em cookie HttpOnly
-- Dados: SharePoint `CENTROADMIN`, acessado pelo backend via `Sites.Selected`
-- Entrega: GitHub Actions, branch `main`
-- Manutenção: GitHub OIDC → Entra, rotação automática e sobreposta dos certificados Web/Graph
+- Produção: `https://admin.escolaieda.com`
+- Frontend: React + HeroUI
+- Runtime: Cloudflare Pages + Pages Functions
+- Identidade: Microsoft Entra ID
+- Dados do Centro: SharePoint/Microsoft Graph
+- Dados do Banco de Notas: Cloudflare D1
 
 ## Desenvolvimento
 
-Requer Node.js 20 ou superior.
+Requer Node.js 22 ou compatível.
 
 ```powershell
 npm ci
 npm run verify
 ```
 
-Para executar localmente, copie apenas os nomes de `.env.example` para um arquivo local ignorado pelo Git e use valores de desenvolvimento próprios. Credenciais de produção nunca devem ser exportadas do Cloudflare.
+O fluxo normal verifica lint, tipos, testes e build. O deploy ocorre pela `main` quando código de runtime muda.
 
 ## Estrutura
 
-- `src/`: página React mínima.
-- `functions/`: roteador BFF das rotas `/auth/*` e `/api/*`.
-- `server/`: autenticação, sessão, autorização, Graph e contratos.
-- `infra/`: provisionamento idempotente e manutenção técnica.
-- `tests/`: testes unitários e de segurança.
-- `docs/`: arquitetura, operação, auditoria e relatório completo.
+- `src/`: Centro de Administração e interface atual do Banco de Notas.
+- `functions/`: entrada BFF de autenticação e APIs.
+- `server/`: autenticação, Graph e backend do Banco de Notas.
+- `shared/`: contratos compartilhados usados pelo runtime atual.
+- `infra/banco-notas/d1/migrations/`: migrations preservadas do Banco de Notas.
+- `tests/`: testes automatizados do Centro e do Banco ativos.
+- `docs/banco-notas/códigos de testes/`: reserva do código antigo do Banco, fora do runtime e do build.
 
-Comece por [RELATORIO_IMPLANTACAO_BASE_ECOSSISTEMA.md](docs/RELATORIO_IMPLANTACAO_BASE_ECOSSISTEMA.md).
+Código histórico removido continua recuperável pelo histórico do Git e pelo arquivo preservado em `docs/banco-notas/códigos de testes/`.
