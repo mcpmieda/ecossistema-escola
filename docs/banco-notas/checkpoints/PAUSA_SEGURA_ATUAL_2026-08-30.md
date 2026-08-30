@@ -2,7 +2,7 @@
 
 Atualizado em: 30/08/2026
 
-Status: Upload Manual V1 publicado; fonte institucional pronta; primeiro upload autorizado, mas ainda não transmitido por bloqueio do seletor automatizado.
+Status: desenvolvimento interrompido por decisão do usuário; produção preservada e nenhum upload real concluído.
 
 ## Decisão vigente
 
@@ -84,11 +84,7 @@ Concluir a primeira versão operacional do Banco de Notas por upload manual de c
 
 ## Próximo passo exato
 
-1. na tela já preparada, o usuário selecionar manualmente a cópia temporária `.xlsx` no campo de arquivo;
-2. o agente conferir que o nome/tamanho ficaram visíveis e acionar `Analisar planilha` sob a autorização já concedida;
-3. conferir o resumo da análise sem promover notas para eventos oficiais;
-4. revalidar D1, kill switches e ausência de sincronização;
-5. remover as cópias temporárias locais e registrar a evidência final sem dados pessoais.
+Nenhum. A missão está pausada por solicitação expressa do usuário. Uma retomada futura exige novo pedido, nova revalidação live de GitHub/Cloudflare/D1/Microsoft e nova confirmação antes de transmitir qualquer arquivo real.
 
 ## Condições de interrupção
 
@@ -140,3 +136,16 @@ Parar e registrar novo checkpoint se:
 - nenhuma tentativa chegou ao endpoint: leitura D1 posterior confirmou `import_jobs=0`, `import_analyses=0`, `sync_attempts=0`, `changed_db=false` e `rows_written=0`;
 - não foi criado bypass de autenticação, não foi usada escrita D1 direta e não houve relaxamento dos gates;
 - bloqueio externo exato: o usuário precisa escolher uma vez a cópia `.xlsx` no seletor nativo visível; após isso o agente pode concluir a análise e as verificações.
+
+## Encerramento solicitado pelo usuário
+
+- o usuário solicitou parar o desenvolvimento após o fluxo de seleção/upload não se comportar como planejado;
+- nenhuma nova tentativa foi feita após essa decisão;
+- leitura D1 final: `import_jobs=0`, `import_analyses=0`, `sync_attempts=0`, `sync_attempt_invocations=0`, `changed_db=false` e `rows_written=0`;
+- nenhuma nota real foi promovida, sincronizada ou gravada como evento acadêmico;
+- as duas pastas temporárias do `%TEMP%` e a cópia privada do workspace foram enviadas à Lixeira do Windows;
+- os três caminhos temporários deixaram de existir; a planilha `.xlsb` original continua presente e não foi modificada;
+- a fonte administrativa `Upload manual de planilhas docentes 2026` permanece cadastrada, ativa e pronta, porém sem jobs ou análises;
+- PRs de implementação e correção já integrados: `#150`, `#151` e `#153`;
+- checkpoint final consolidado no PR `#154` para integração em `main`;
+- condição de retomada: não assumir estados ou SHAs deste documento como atuais; revalidar tudo antes de qualquer mutação.
