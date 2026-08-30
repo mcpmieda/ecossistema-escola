@@ -97,6 +97,7 @@ export function ImportacoesPage() {
   const [teacherId, setTeacherId] = useState('');
   const [selectedJobId, setSelectedJobId] = useState('');
   const [analysis, setAnalysis] = useState<ImportAnalysis | null>(null);
+  const [workbookFile, setWorkbookFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ kind: 'success' | 'danger'; text: string } | null>(null);
@@ -163,9 +164,9 @@ export function ImportacoesPage() {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    const candidate = data.get('workbook');
+    const candidate = workbookFile;
     const reason = String(data.get('reason') ?? '').trim();
-    if (!(candidate instanceof File) || candidate.size === 0) {
+    if (!candidate || candidate.size === 0) {
       setMessage({ kind: 'danger', text: 'Selecione uma cópia .xlsx da planilha.' });
       return;
     }
@@ -208,6 +209,7 @@ export function ImportacoesPage() {
       });
       await load();
       await openJob(result.jobId);
+      setWorkbookFile(null);
       form.reset();
     } catch (error) {
       setMessage({
@@ -306,7 +308,14 @@ export function ImportacoesPage() {
                   variant="secondary"
                   type="file"
                   accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(event) => setWorkbookFile(event.currentTarget.files?.[0] ?? null)}
                 />
+                {workbookFile && (
+                  <p className="text-xs text-muted">
+                    Arquivo selecionado: {workbookFile.name} ·{' '}
+                    {(workbookFile.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                )}
               </TextField>
               <TextField
                 name="reason"
