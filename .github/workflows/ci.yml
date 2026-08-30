@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Detect add-in changes
+      - name: Detect affected application surfaces
         id: changes
         shell: bash
         env:
@@ -46,43 +46,59 @@ jobs:
           else
             printf '%s\n' 'manual-full-validation' > /tmp/changed-files
           fi
+
           cat /tmp/changed-files
-          if grep -Eq '^(addin/banco-notas/|vite\.addin\.config\.ts$|vite\.runtime-homologation\.config\.ts$|tsconfig\.addin\.json$|tsconfig\.runtime-homologation\.json$|infra/validation/assert-banco-notas-addin-build\.mjs$)' /tmp/changed-files; then
-            echo 'addin=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'addin=false' >> "$GITHUB_OUTPUT"
+          app=false
+          addin=false
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || grep -Eq '^(src/|functions/|tests/|migrations/|infra/|package\.json$|package-lock\.json$|tsconfig\.app\.json$|tsconfig\.server\.json$|vite\.config\.ts$|wrangler\.jsonc$|eslint\.config\.)' /tmp/changed-files; then
+            app=true
           fi
 
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || grep -Eq '^(addin/banco-notas/|vite\.addin\.config\.ts$|vite\.runtime-homologation\.config\.ts$|tsconfig\.addin\.json$|tsconfig\.runtime-homologation\.json$|infra/validation/assert-banco-notas-addin-build\.mjs$|package\.json$|package-lock\.json$)' /tmp/changed-files; then
+            addin=true
+          fi
+
+          echo "app=${app}" >> "$GITHUB_OUTPUT"
+          echo "addin=${addin}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Node.js
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.addin == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
 
       - name: Install locked dependencies
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.addin == 'true'
         run: npm ci
 
       - name: Check formatting
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.addin == 'true'
         run: npm run format:check
 
       - name: Lint
+        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.addin == 'true'
         run: npm run lint
 
       - name: Typecheck application
+        if: steps.changes.outputs.app == 'true'
         run: npm run typecheck
 
-      - name: Test
+      - name: Test application
+        if: steps.changes.outputs.app == 'true'
         run: npm test
 
       - name: Build application
+        if: steps.changes.outputs.app == 'true'
         run: npm run build
 
       - name: Validate add-in when affected
-        if: steps.changes.outputs.addin == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.changes.outputs.addin == 'true'
         run: npm run verify:addin
 
       - name: Verify add-in output when affected
-        if: steps.changes.outputs.addin == 'true' || github.event_name == 'workflow_dispatch'
+        if: steps.changes.outputs.addin == 'true'
         run: node infra/validation/assert-banco-notas-addin-build.mjs
 
   workflow-security:
