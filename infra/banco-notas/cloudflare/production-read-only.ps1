@@ -324,14 +324,19 @@ function New-ProductionConfig {
 function Invoke-Wrangler {
   param(
     [Parameter(Mandatory)][string]$Token,
-    [Parameter(Mandatory)][string[]]$Arguments
+    [Parameter(Mandatory)][string[]]$Arguments,
+    [switch]$SuppressOutput
   )
   $previousToken = $env:CLOUDFLARE_API_TOKEN
   try {
     $env:CLOUDFLARE_API_TOKEN = $Token
-    & npx wrangler @Arguments
+    $output = @(& npx wrangler @Arguments 2>&1)
     if ($LASTEXITCODE -ne 0) {
-      throw "Wrangler falhou: npx wrangler $($Arguments -join ' ')"
+      $details = $(if ($SuppressOutput) { 'saída suprimida' } else { $output -join [Environment]::NewLine })
+      throw "Wrangler falhou: npx wrangler $($Arguments -join ' ')`n$details"
+    }
+    if (-not $SuppressOutput) {
+      $output | ForEach-Object { Write-Host $_ }
     }
   }
   finally {
@@ -408,7 +413,7 @@ $backupBytes = 0
 try {
   Invoke-Wrangler -Token $env:CLOUDFLARE_D1_API_TOKEN -Arguments @(
     'd1', 'export', $bindingName, '--remote', '--skip-confirmation', '--config', $configPath, '--output', $backupPath
-  )
+  ) -SuppressOutput
   $backupHash = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash.ToLowerInvariant()
   $backupBytes = (Get-Item -LiteralPath $backupPath).Length
 }
@@ -435,7 +440,7 @@ New-Evidence `
   -Verification $backupEvidence
 
 Invoke-Wrangler -Token $env:CLOUDFLARE_D1_API_TOKEN -Arguments @(
-  'd1', 'migrations', 'apply', $bindingName, '--remote', '--yes', '--config', $configPath
+  'd1', 'migrations', 'apply', $bindingName, '--remote', '--config', $configPath
 )
 $verification = Get-D1Verification
 $verification['preMigrationBackupSha256'] = $backupHash

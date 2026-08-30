@@ -33,7 +33,7 @@ describe('Banco de Notas production control plane', () => {
     expect(exportIndex).toBeGreaterThan(0);
     expect(migrationIndex).toBeGreaterThan(exportIndex);
     expect(script).toContain("'--skip-confirmation'");
-    expect(script).toContain("'--yes'");
+    expect(script).not.toContain("'--yes'");
     expect(script).toContain("'0008_banco_notas_sync_v1.sql'");
     expect(script).toContain('[int]$row.sync_enabled -ne 0');
     expect(script).toContain('[int]$row.commit_route_enabled -ne 0');
@@ -41,6 +41,7 @@ describe('Banco de Notas production control plane', () => {
     expect(script).toContain('[int]$row.migration_count -ne 8');
     expect(script).toContain("mechanism = 'cloudflare-d1-time-travel'");
     expect(script).toContain('Remove-Item -LiteralPath $backupPath -Force');
+    expect(script).toMatch(/'d1', 'export'[\s\S]*?\) -SuppressOutput/u);
     expect(workflow).not.toContain('banco-notas-production-pre-migration.sql');
   });
 
