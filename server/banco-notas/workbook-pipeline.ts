@@ -1,17 +1,9 @@
+import { legacyIntermediateModelSchema } from '../../shared/banco-notas-generic-model';
 import {
-  genericModelInstanceSchema,
-  legacyIntermediateModelSchema,
-} from '../../shared/banco-notas-generic-model';
-import {
-  genericWorkbookArtifactMetadataSchema,
   legacyWorkbookSourceMetadataSchema,
-  type GenericWorkbookArtifactMetadata,
   type LegacyWorkbookSourceMetadata,
 } from '../../shared/banco-notas-workbook-pipeline';
-import type {
-  GenericModelInstance,
-  LegacyIntermediateModel,
-} from '../../shared/banco-notas-generic-model';
+import type { LegacyIntermediateModel } from '../../shared/banco-notas-generic-model';
 
 export type LegacyWorkbookSource = {
   metadata: LegacyWorkbookSourceMetadata;
@@ -30,20 +22,6 @@ export type VerifiedLegacyWorkbookAnalysis = {
   analyzerId: string;
 };
 
-export type GenericWorkbookArtifact = {
-  metadata: GenericWorkbookArtifactMetadata;
-  bytes: Uint8Array;
-  serializerId: string;
-};
-
-export type GenericWorkbookSerializer = {
-  id: string;
-  serialize(instance: GenericModelInstance): Promise<{
-    metadata: GenericWorkbookArtifactMetadata;
-    bytes: Uint8Array;
-  }>;
-};
-
 export class WorkbookPipelineError extends Error {
   constructor(code: string) {
     super(code);
@@ -58,16 +36,12 @@ async function sha256Bytes(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function assertAdapterId(id: string, kind: 'analyzer' | 'serializer'): void {
-  if (!id.trim()) throw new WorkbookPipelineError(`${kind}_id_required`);
-}
-
 export async function analyzeLegacyWorkbook(args: {
   source: LegacyWorkbookSource;
   analyzer: LegacyWorkbookAnalyzer;
 }): Promise<VerifiedLegacyWorkbookAnalysis> {
   const metadata = legacyWorkbookSourceMetadataSchema.parse(args.source.metadata);
-  assertAdapterId(args.analyzer.id, 'analyzer');
+  if (!args.analyzer.id.trim()) throw new WorkbookPipelineError('analyzer_id_required');
 
   if (!args.analyzer.supportedFormats.includes(metadata.sourceFormat)) {
     throw new WorkbookPipelineError(`workbook_format_not_supported:${metadata.sourceFormat}`);
@@ -104,49 +78,5 @@ export async function analyzeLegacyWorkbook(args: {
     model: analyzed,
     metadata,
     analyzerId: args.analyzer.id,
-  };
-}
-
-export async function serializeGenericWorkbook(args: {
-  instance: GenericModelInstance;
-  serializer: GenericWorkbookSerializer;
-}): Promise<GenericWorkbookArtifact> {
-  const instance = genericModelInstanceSchema.parse(args.instance);
-  assertAdapterId(args.serializer.id, 'serializer');
-
-  const serialized = await args.serializer.serialize(instance);
-  const metadata = genericWorkbookArtifactMetadataSchema.parse(serialized.metadata);
-
-  if (serialized.bytes.byteLength !== metadata.byteLength) {
-    throw new WorkbookPipelineError('generic_workbook_byte_length_mismatch');
-  }
-
-  const actualHash = await sha256Bytes(serialized.bytes);
-  if (actualHash !== metadata.sha256) {
-    throw new WorkbookPipelineError('generic_workbook_sha256_mismatch');
-  }
-
-  const expected = {
-    modelId: instance.modelId,
-    definitionVersion: instance.definitionVersion,
-    layoutVersion: instance.layout.layoutVersion,
-    mappingVersion: instance.mappingVersion,
-    sourceHash: instance.sourceHash,
-    relationshipSnapshotId: instance.relationshipSnapshotId,
-  } as const;
-
-  for (const [key, value] of Object.entries(expected)) {
-    if (metadata[key as keyof typeof expected] !== value) {
-      throw new WorkbookPipelineError(`generic_workbook_metadata_mismatch:${key}`);
-    }
-  }
-
-  const artifactBytes = new Uint8Array(serialized.bytes.byteLength);
-  artifactBytes.set(serialized.bytes);
-
-  return {
-    metadata,
-    bytes: artifactBytes,
-    serializerId: args.serializer.id,
   };
 }
