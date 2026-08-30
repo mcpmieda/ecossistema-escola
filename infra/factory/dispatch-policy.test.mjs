@@ -39,7 +39,7 @@ test('root Jules task is queued for the API runner without external label trigge
 test('zero-first routing selects OpenCode/Ollama before Jules', () => {
   const value = task({ preferredProviders: ['jules', 'opencode_ollama'] });
   assert.deepEqual(AUTOMATIC_PROVIDER_ORDER, ['opencode_ollama', 'jules']);
-  assert.deepEqual(DURABLE_PROVIDERS, ['opencode_ollama']);
+  assert.deepEqual(DURABLE_PROVIDERS, ['opencode_ollama', 'antigravity']);
   assert.equal(selectedAutomaticProvider(value), 'opencode_ollama');
   assert.deepEqual(initialDispatch(value), { provider: 'opencode_ollama', status: 'ready' });
   assert.deepEqual(desiredTaskLabels(value), [
