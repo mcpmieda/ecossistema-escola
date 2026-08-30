@@ -1,9 +1,0 @@
-{
-  "schemaVersion": 2,
-  "governance": "none",
-  "adoption": {
-    "status": "disabled",
-    "mode": "optional"
-  },
-  "note": "App Factory is not mandatory for this repository. Use it only when explicitly requested for a specific task."
-}
