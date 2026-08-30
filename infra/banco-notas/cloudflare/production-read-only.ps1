@@ -24,6 +24,8 @@ $backupPath = Join-Path $repositoryRoot 'banco-notas-production-pre-migration.sq
 $workingDirectory = Join-Path $repositoryRoot '.wrangler\banco-notas-production'
 $migrationDirectory = Join-Path $workingDirectory 'migrations'
 $configPath = Join-Path $workingDirectory 'wrangler.jsonc'
+$deployRedirectDirectory = Join-Path $repositoryRoot '.wrangler\deploy'
+$deployRedirectPath = Join-Path $deployRedirectDirectory 'config.json'
 $sourceMigrationDirectory = Join-Path $repositoryRoot 'infra\banco-notas\d1\migrations'
 $apiBase = "https://api.cloudflare.com/client/v4/accounts/$($env:CLOUDFLARE_ACCOUNT_ID)"
 
@@ -75,18 +77,18 @@ function Get-Databases {
   return @(Invoke-WranglerJson -Token $env:CLOUDFLARE_D1_API_TOKEN -Arguments @('d1', 'list', '--json'))
 }
 
-function Get-Deployments {
-  return @(Invoke-WranglerJson -Token $env:CLOUDFLARE_PAGES_API_TOKEN -Arguments @(
-      'pages', 'deployment', 'list', '--project-name', $projectName, '--environment', 'production', '--json'
-    ))
-}
-
 function Get-CurrentDeployment {
-  $deployments = @(Get-Deployments)
-  if ($deployments.Count -eq 0) {
-    throw 'Nenhum deployment Pages de produção foi encontrado.'
+  param([Parameter(Mandatory)][object]$Project)
+  $canonical = Get-NamedProperty -Value $Project -Name 'canonical_deployment'
+  $id = [string](Get-NamedProperty -Value $canonical -Name 'id')
+  if ($id -notmatch '^[0-9a-fA-F-]{36}$') {
+    throw 'Nenhum deployment Pages canônico de produção foi encontrado.'
   }
-  return $deployments[0]
+  return [pscustomobject]@{
+    Id = $id
+    Deployment = [string](Get-NamedProperty -Value $canonical -Name 'url')
+    Branch = [string]$canonical.deployment_trigger.metadata.branch
+  }
 }
 
 function Get-PropertyMap {
@@ -330,6 +332,15 @@ function New-ProductionConfig {
     ($config | ConvertTo-Json -Depth 20),
     [Text.UTF8Encoding]::new($false)
   )
+  New-Item -ItemType Directory -Path $deployRedirectDirectory -Force | Out-Null
+  $redirect = [ordered]@{
+    configPath = '../banco-notas-production/wrangler.jsonc'
+  }
+  [IO.File]::WriteAllText(
+    $deployRedirectPath,
+    ($redirect | ConvertTo-Json),
+    [Text.UTF8Encoding]::new($false)
+  )
 }
 
 function Invoke-Wrangler {
@@ -395,7 +406,7 @@ function Get-D1Verification {
 
 Assert-Environment
 $project = Invoke-CloudflareGet -Path "/pages/projects/$projectName"
-$currentDeployment = Get-CurrentDeployment
+$currentDeployment = Get-CurrentDeployment -Project $project
 $databases = @(Get-Databases)
 
 if ($Operation -eq 'snapshot') {
@@ -469,11 +480,12 @@ $env:VITE_BANCO_NOTAS_RUNTIME_HOMOLOGATION = '0'
 if ($LASTEXITCODE -ne 0) { throw 'Build do RC falhou.' }
 
 Invoke-Wrangler -Token $env:CLOUDFLARE_PAGES_API_TOKEN -Arguments @(
-  'pages', 'deploy', '../../dist', '--cwd', $workingDirectory, '--project-name', $projectName,
+  'pages', 'deploy', 'dist', '--project-name', $projectName,
   '--branch', 'main', '--commit-hash', $ExpectedReleaseSha, '--commit-dirty=true'
 )
 
-$newDeployment = Get-CurrentDeployment
+$newProject = Invoke-CloudflareGet -Path "/pages/projects/$projectName"
+$newDeployment = Get-CurrentDeployment -Project $newProject
 if ([string]$newDeployment.Id -eq [string]$currentDeployment.Id) {
   throw 'O deploy terminou sem produzir um novo deployment identificável.'
 }

@@ -61,6 +61,10 @@ describe('Banco de Notas production control plane', () => {
     expect(script).toContain('Assert-NoUnexpectedResourceBindings');
     expect(script).toContain('deployment_trigger.metadata.commit_hash -ne $ExpectedReleaseSha');
     expect(script).toContain("latest_stage.status -ne 'success'");
+    expect(script).toContain("Get-NamedProperty -Value $Project -Name 'canonical_deployment'");
+    expect(script).toContain("configPath = '../banco-notas-production/wrangler.jsonc'");
+    expect(script).toContain("'pages', 'deploy', 'dist'");
+    expect(script).not.toContain("'pages', 'deploy', '../../dist', '--cwd'");
     expect(script).not.toContain('keep_vars');
     expect(script).toContain("if ($variableType -eq 'plain_text')");
     expect(script).toContain("if ($variableType -ne 'secret_text')");
