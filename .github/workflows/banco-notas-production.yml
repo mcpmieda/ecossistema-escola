@@ -1,0 +1,80 @@
+name: Banco de Notas production control plane
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Allowlisted production operation
+        required: true
+        type: choice
+        options:
+          - snapshot
+          - deploy-read-only
+      expected_release_sha:
+        description: Exact 40-character release candidate SHA
+        required: true
+        type: string
+      expected_deployment_id:
+        description: Exact current Pages deployment UUID; required only for deploy-read-only
+        required: false
+        type: string
+      confirmation:
+        description: Exact DEPLOY_BANCO_NOTAS_READ_ONLY for deploy-read-only
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: banco-notas-production
+  cancel-in-progress: false
+
+jobs:
+  operate:
+    name: Execute guarded Banco de Notas production operation
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Checkout exact main revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Execute allowlisted operation with exact gates
+        shell: pwsh
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_D1_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          EXPECTED_RELEASE_SHA: ${{ inputs.expected_release_sha }}
+          EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
+          DEPLOY_CONFIRMATION: ${{ inputs.confirmation }}
+        run: >-
+          ./infra/banco-notas/cloudflare/production-read-only.ps1
+          -Operation '${{ inputs.operation }}'
+          -ExpectedReleaseSha $env:EXPECTED_RELEASE_SHA
+          -ExpectedDeploymentId $env:EXPECTED_DEPLOYMENT_ID
+          -Confirmation $env:DEPLOY_CONFIRMATION
+
+      - name: Publish sanitized operation evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: banco-notas-production-${{ inputs.operation }}-${{ github.run_id }}
+          path: |
+            banco-notas-production-evidence.json
+            banco-notas-production-pre-migration.sql
+          if-no-files-found: error
+          retention-days: 30
