@@ -1,32 +1,9 @@
 {
   "schemaVersion": 2,
-  "governance": "app-factory",
-  "factoryBaseline": "v1.4.0",
+  "governance": "none",
   "adoption": {
-    "status": "routed",
-    "mode": "existing"
+    "status": "disabled",
+    "mode": "optional"
   },
-  "routing": {
-    "scale": "L",
-    "risk": "high",
-    "systemLevel": "production-system",
-    "profile": "web-admin",
-    "apiMode": "governed",
-    "semanticVerification": "required",
-    "semanticDepth": "domain",
-    "independentVerification": "release",
-    "authoritativeData": "Cloudflare D1 para dados transacionais estruturados, snapshots, configuração versionada e auditoria do Banco de Notas; SharePoint/OneDrive para arquivos mestre e versões; SharePoint CENTROADMIN para registro do módulo; Microsoft Entra ID para identidade.",
-    "identity": "Microsoft Entra ID pela autenticação/BFF existente; o add-in deve usar identidade Entra e token destinado à API do Banco antes do piloto institucional.",
-    "authorization": "Capabilities aplicadas no servidor. O navegador não acessa diretamente SharePoint/Graph para dados de negócio do Banco de Notas.",
-    "recovery": "Migrations versionadas e Time Travel do Cloudflare D1, versionamento SharePoint dos arquivos, hashes imutáveis das fontes, reconciliação dos modelos e gates de recovery já existentes."
-  },
-  "ui": {
-    "enabled": true,
-    "designSystem": "HeroUI React v3",
-    "professionalUiProfile": "professional-default",
-    "motionProfile": "ambient",
-    "ambientSurfaceProfile": null,
-    "constellationIntensity": null,
-    "deviation": "Decisão explícita de produto em 25/08/2026: HeroUI é transversal e obrigatório no Banco de Notas, porém Ambient Constellation é proibido. A produção atual do Centro também possui regressões que exigem a ausência desse efeito."
-  }
+  "note": "App Factory is not mandatory for this repository. Use it only when explicitly requested for a specific task."
 }
