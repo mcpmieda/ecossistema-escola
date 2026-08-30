@@ -4,14 +4,6 @@
   "compatibility_date": "2026-08-24",
   "compatibility_flags": ["nodejs_compat"],
   "pages_build_output_dir": "./dist",
-  "d1_databases": [
-    {
-      "binding": "BANCO_NOTAS_DB",
-      "database_name": "banco-notas-production",
-      "database_id": "e59579db-aa8b-4589-a02e-643cb4277b5f",
-      "migrations_dir": "infra/banco-notas/d1/migrations",
-    },
-  ],
   "vars": {
     "RUNTIME_ENVIRONMENT": "production",
     "TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188",
@@ -23,9 +15,6 @@
     "GROUP_ALUNO_ID": "8255b76e-dd85-4d04-a360-8ce1baf6ce63",
     "GROUP_APOIO_ID": "74386ce1-2db4-4352-8618-7ab4659ab7b6",
     "GROUP_VISITANTE_ID": "9b0283b8-8883-4257-8085-3ac60060d489",
-    "OFFICIAL_ORIGIN": "https://admin.escolaieda.com",
-    "BANCO_NOTAS_ADDIN_AUDIENCE": "73ab83d3-00ba-494a-a1f8-586d250d420a",
-    "BANCO_NOTAS_ADDIN_SCOPE": "BancoNotas.Sync",
-    "BANCO_NOTAS_ADDIN_CONTEXT_ENABLED": "1",
-  },
+    "OFFICIAL_ORIGIN": "https://admin.escolaieda.com"
+  }
 }

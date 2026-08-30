@@ -53,14 +53,14 @@ describe('module registry integration resolution', () => {
         {
           id: 'module-legacy',
           fields: {
-            Chave: 'banco-notas',
-            Nome: 'Banco de Notas',
-            RotaBase: '/banco-notas',
+            Chave: 'legacy-system',
+            Nome: 'Sistema legado',
+            RotaBase: '/legado',
             Versao: '1.0.0',
             Status: 'instalado',
             Ordem: 1,
             RolesJson: '["ADMINISTRADOR"]',
-            HealthEndpoint: '/api/banco-notas/health',
+            HealthEndpoint: '/api/legado/health',
           },
         },
       ],
@@ -69,7 +69,7 @@ describe('module registry integration resolution', () => {
     const serialized = JSON.stringify(module);
 
     expect(module).toMatchObject({
-      key: 'banco-notas',
+      key: 'legacy-system',
       integrationState: 'registry-only',
       contractVersion: null,
       requiredCapabilities: [],

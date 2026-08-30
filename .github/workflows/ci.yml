@@ -10,11 +10,6 @@ on:
 permissions:
   contents: read
 
-env:
-  VITE_BANCO_NOTAS_ADDIN_CLIENT_ID: 73ab83d3-00ba-494a-a1f8-586d250d420a
-  VITE_TENANT_ID: f04e0fa3-b8dc-4f77-be3c-7dfda0635188
-  VITE_BANCO_NOTAS_RUNTIME_HOMOLOGATION: '0'
-
 concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -26,7 +21,6 @@ jobs:
     timeout-minutes: 15
     outputs:
       app: ${{ steps.changes.outputs.app }}
-      addin: ${{ steps.changes.outputs.addin }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,36 +46,24 @@ jobs:
 
           cat /tmp/changed-files
           app=false
-          addin=false
-
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || grep -Eq '^(src/|functions/|public/|tests/|migrations/|infra/|index\.html$|package\.json$|package-lock\.json$|tsconfig\.app\.json$|tsconfig\.server\.json$|vite\.config\.ts$|wrangler\.jsonc$|eslint\.config\.)' /tmp/changed-files; then
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || grep -Eq '^(src/|functions/|server/|shared/|public/|tests/|infra/|index\.html$|package\.json$|package-lock\.json$|tsconfig\.json$|tsconfig\.app\.json$|tsconfig\.server\.json$|vite\.config\.ts$|vitest\.config\.ts$|wrangler\.jsonc$|worker-configuration\.d\.ts$|eslint\.config\.)' /tmp/changed-files; then
             app=true
           fi
-
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || grep -Eq '^(addin/banco-notas/|vite\.addin\.config\.ts$|vite\.runtime-homologation\.config\.ts$|tsconfig\.addin\.json$|tsconfig\.runtime-homologation\.json$|infra/validation/assert-banco-notas-addin-build\.mjs$|package\.json$|package-lock\.json$)' /tmp/changed-files; then
-            addin=true
-          fi
-
           echo "app=${app}" >> "$GITHUB_OUTPUT"
-          echo "addin=${addin}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
-        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.addin == 'true'
+        if: steps.changes.outputs.app == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22
           cache: npm
 
       - name: Install locked dependencies
-        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.addin == 'true'
+        if: steps.changes.outputs.app == 'true'
         run: npm ci
 
-      - name: Check formatting
-        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.addin == 'true'
-        run: npm run format:check
-
       - name: Lint
-        if: steps.changes.outputs.app == 'true' || steps.changes.outputs.addin == 'true'
+        if: steps.changes.outputs.app == 'true'
         run: npm run lint
 
       - name: Typecheck application
@@ -95,14 +77,6 @@ jobs:
       - name: Build application
         if: steps.changes.outputs.app == 'true'
         run: npm run build
-
-      - name: Validate add-in when affected
-        if: steps.changes.outputs.addin == 'true'
-        run: npm run verify:addin
-
-      - name: Verify add-in output when affected
-        if: steps.changes.outputs.addin == 'true'
-        run: node infra/validation/assert-banco-notas-addin-build.mjs
 
   workflow-security:
     name: Validate GitHub Actions security
@@ -154,7 +128,7 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      (needs.validate.outputs.app == 'true' || needs.validate.outputs.addin == 'true')
+      needs.validate.outputs.app == 'true'
     needs: [validate, workflow-security]
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -175,10 +149,7 @@ jobs:
         run: npm ci
 
       - name: Build production bundle
-        run: npm run build:full
-
-      - name: Verify Banco de Notas add-in build configuration
-        run: node infra/validation/assert-banco-notas-addin-build.mjs
+        run: npm run build
 
       - name: Deploy Cloudflare Pages
         run: >-

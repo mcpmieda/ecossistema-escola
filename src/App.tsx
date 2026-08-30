@@ -26,7 +26,6 @@ import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
 import { routeLabels } from './platform/routes';
 import { PlatformSearch } from './platform/search';
-import { BancoNotasApp } from './banco-notas/BancoNotasApp';
 
 type Identity = {
   authenticated: boolean;
@@ -298,7 +297,6 @@ function AdminShell({ identity }: { identity: Identity }) {
     [identity.name],
   );
   const modules = loadState.status === 'ready' ? loadState.snapshot.coreModules : [];
-  const showBancoNotas = identity.capabilities?.includes('grades.read') ?? false;
   const snapshot = loadState.status === 'ready' ? loadState.snapshot : null;
 
   return (
@@ -307,7 +305,6 @@ function AdminShell({ identity }: { identity: Identity }) {
         <SidebarContent
           route={route}
           modules={modules}
-          showBancoNotas={showBancoNotas}
           loading={loadState.status === 'loading'}
         />
       </aside>
@@ -336,7 +333,6 @@ function AdminShell({ identity }: { identity: Identity }) {
                       <SidebarContent
                         route={route}
                         modules={modules}
-                        showBancoNotas={showBancoNotas}
                         loading={loadState.status === 'loading'}
                         onNavigate={mobileNavigationState.close}
                       />
@@ -489,11 +485,6 @@ export function App() {
     return <AuthErrorExperience correlationId={authFailure.correlationId} />;
   }
   if (!identity.authenticated) return <LoginExperience loading={false} />;
-  if (window.location.pathname.startsWith('/banco-de-notas')) {
-    if (!identity.capabilities?.includes('grades.read'))
-      return <RestrictedExperience name={identity.name} />;
-    return <BancoNotasApp identity={identity} />;
-  }
   if (!identity.capabilities?.includes('platform.snapshot.read')) {
     return <RestrictedExperience name={identity.name} />;
   }

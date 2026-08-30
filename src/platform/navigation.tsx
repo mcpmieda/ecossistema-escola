@@ -1,5 +1,4 @@
 import { Chip, ScrollShadow, Separator, Skeleton, Surface } from '@heroui/react';
-import { BookOpenCheck } from 'lucide-react';
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
 import { BrandMark } from './presentation';
 import { platformHref, routeIcons } from './routes';
@@ -64,13 +63,11 @@ function Navigation({
 export function SidebarContent({
   route,
   modules,
-  showBancoNotas,
   loading,
   onNavigate,
 }: {
   route: PlatformRoute;
   modules: CoreModuleContract[];
-  showBancoNotas: boolean;
   loading: boolean;
   onNavigate?: () => void;
 }) {
@@ -98,38 +95,6 @@ export function SidebarContent({
           </p>
         </div>
         <Navigation route={route} modules={modules} loading={loading} onNavigate={onNavigate} />
-
-        {!loading && showBancoNotas ? (
-          <>
-            <Separator className="mx-4 my-5" />
-            <div className="mb-3 px-6">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted">
-                Sistemas
-              </p>
-            </div>
-            <nav aria-label="Sistemas disponíveis" className="platform-nav px-3">
-              <ul className="grid gap-[0.3rem]">
-                <li>
-                  <a
-                    href="/banco-de-notas"
-                    className="platform-nav__item flex w-full items-center no-underline"
-                    onClick={onNavigate}
-                  >
-                    <Surface
-                      variant="transparent"
-                      className="platform-nav__icon grid size-9 shrink-0 place-items-center rounded-xl"
-                    >
-                      <BookOpenCheck className="size-4" />
-                    </Surface>
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                      Banco de Notas
-                    </span>
-                  </a>
-                </li>
-              </ul>
-            </nav>
-          </>
-        ) : null}
       </ScrollShadow>
     </Surface>
   );

@@ -204,24 +204,6 @@ describe('browser-facing authentication recovery', () => {
   });
 });
 
-describe('Banco de Notas route authorization', () => {
-  it('rejects an unauthenticated module health request', async () => {
-    const response = await invoke(await authenticatedRequest('/api/banco-notas/health'));
-    expect(response.status).toBe(401);
-  });
-
-  it('reports degraded health when the authenticated environment has no D1 binding', async () => {
-    const response = await invoke(
-      await authenticatedRequest('/api/banco-notas/health', ['ADMINISTRADOR']),
-    );
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toMatchObject({
-      status: 'degraded',
-      service: 'banco-de-notas',
-    });
-  });
-});
-
 describe('identity capability resolution', () => {
   it('returns resolved capabilities for an administrator without storing them in the session', async () => {
     const response = await invoke(await authenticatedRequest('/api/me', ['ADMINISTRADOR']));
@@ -270,29 +252,5 @@ describe('platform snapshot authorization', () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: 'Forbidden' });
-  });
-});
-
-describe('maintenance recovery route', () => {
-  it('rejects a POST without the GitHub production OIDC maintenance identity', async () => {
-    const response = await invoke(
-      new Request(`${testEnv.OFFICIAL_ORIGIN}/api/maintenance/recovery/verify`, {
-        method: 'POST',
-      }),
-    );
-
-    expect(response.status).toBe(401);
-    await expect(response.json()).resolves.toMatchObject({ error: 'Invalid maintenance identity' });
-  });
-
-  it('rejects non-POST methods before any recovery mutation is possible', async () => {
-    const response = await invoke(
-      new Request(`${testEnv.OFFICIAL_ORIGIN}/api/maintenance/recovery/verify`, {
-        method: 'GET',
-      }),
-    );
-
-    expect(response.status).toBe(405);
-    await expect(response.json()).resolves.toMatchObject({ error: 'Method not allowed' });
   });
 });

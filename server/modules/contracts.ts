@@ -44,21 +44,9 @@ export const platformBaseModule: ModuleContract = moduleContract.parse({
   healthEndpoint: '/api/health',
 });
 
-export const bancoNotasModule: ModuleContract = moduleContract.parse({
-  contractVersion: MODULE_CONTRACT_VERSION,
-  key: 'banco-de-notas',
-  name: 'Banco de Notas',
-  baseRoute: '/banco-de-notas',
-  version: '0.1.0',
-  status: 'installed',
-  order: 10,
-  requiredCapabilities: ['grades.read'],
-  healthEndpoint: '/api/banco-notas/health',
-});
-
 export const integratedModuleContracts: ModuleContract[] = z
   .array(moduleContract)
-  .parse([platformBaseModule, bancoNotasModule]);
+  .parse([platformBaseModule]);
 
 export function moduleContractForKey(key: string): ModuleContract | undefined {
   return integratedModuleContracts.find((contract) => contract.key === key);
