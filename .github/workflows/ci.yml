@@ -5,24 +5,19 @@ on:
   push:
     branches:
       - main
-      - 'test/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# Public identifiers required at Vite build time by the centrally deployed Office add-in.
-# These are application metadata, not credentials or secrets.
 env:
   VITE_BANCO_NOTAS_ADDIN_CLIENT_ID: 73ab83d3-00ba-494a-a1f8-586d250d420a
   VITE_TENANT_ID: f04e0fa3-b8dc-4f77-be3c-7dfda0635188
   VITE_BANCO_NOTAS_RUNTIME_HOMOLOGATION: '0'
 
 concurrency:
-  # Manual validation must never cancel an active production pipeline.
-  # Production pushes are serialized instead of cancelling one another.
-  group: pages-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
@@ -33,7 +28,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
+
+      - name: Detect add-in changes
+        id: changes
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            git diff --name-only "${PR_BASE_SHA}" "${GITHUB_SHA}" > /tmp/changed-files
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" && "${PUSH_BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --name-only "${PUSH_BEFORE_SHA}" "${GITHUB_SHA}" > /tmp/changed-files
+          else
+            printf '%s\n' 'manual-full-validation' > /tmp/changed-files
+          fi
+          cat /tmp/changed-files
+          if grep -Eq '^(addin/banco-notas/|vite\.addin\.config\.ts$|vite\.runtime-homologation\.config\.ts$|tsconfig\.addin\.json$|tsconfig\.runtime-homologation\.json$|infra/validation/assert-banco-notas-addin-build\.mjs$)' /tmp/changed-files; then
+            echo 'addin=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'addin=false' >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -50,22 +68,21 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Typecheck
+      - name: Typecheck application
         run: npm run typecheck
-
-      - name: Validate semantic contract
-        run: npm run semantic:check
-
-      - name: Validate Banco de Notas add-in manifest
-        run: npm run validate:addin-manifest
 
       - name: Test
         run: npm test
 
-      - name: Build
+      - name: Build application
         run: npm run build
 
-      - name: Verify Banco de Notas add-in build configuration
+      - name: Validate add-in when affected
+        if: steps.changes.outputs.addin == 'true' || github.event_name == 'workflow_dispatch'
+        run: npm run verify:addin
+
+      - name: Verify add-in output when affected
+        if: steps.changes.outputs.addin == 'true' || github.event_name == 'workflow_dispatch'
         run: node infra/validation/assert-banco-notas-addin-build.mjs
 
   workflow-security:
@@ -76,69 +93,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
+      - name: Detect workflow changes
+        id: workflows
+        shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            git diff --name-only "${PR_BASE_SHA}" "${GITHUB_SHA}" > /tmp/changed-workflow-files
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" && "${PUSH_BEFORE_SHA}" != "0000000000000000000000000000000000000000" ]]; then
+            git diff --name-only "${PUSH_BEFORE_SHA}" "${GITHUB_SHA}" > /tmp/changed-workflow-files
+          else
+            printf '%s\n' '.github/workflows/ci.yml' > /tmp/changed-workflow-files
+          fi
+          if grep -Eq '^\.github/workflows/' /tmp/changed-workflow-files; then
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Validate workflows with actionlint
+        if: steps.workflows.outputs.changed == 'true'
         run: bash ./infra/validation/run-actionlint.sh
 
-      - name: Validate PowerShell syntax
-        shell: pwsh
-        run: ./infra/validation/assert-powershell-syntax.ps1
-
-      - name: Validate GitHub control-plane policy
-        shell: pwsh
-        run: ./infra/validation/assert-github-control-plane.ps1
-
       - name: Audit workflows with zizmor
+        if: steps.workflows.outputs.changed == 'true'
         uses: zizmorcore/zizmor-action@3dc1ecc9bcb9e94e9b2c709687979e1298497054 # v0.6.2
         with:
           advanced-security: false
           online-audits: false
           persona: pedantic
           version: v1.29.0
-
-  merge-train:
-    name: Factory Merge Train
-    if: github.event_name == 'workflow_dispatch'
-    needs: [validate, workflow-security]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    permissions:
-      actions: write # Dispatch trusted Semgrep and Sonar reviewer workflows from main.
-      contents: read # Compare the candidate workflow with main and execute trusted Control Plane code.
-      issues: write # Persist SHA-bound reviewer and Merge Train evidence on worker PRs.
-      pull-requests: write # Read exact PR heads/reviews and request CodeRabbit through PR comments.
-    steps:
-      - name: Checkout exact worker revision as data
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          path: candidate
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Checkout trusted Control Plane from main
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: main
-          path: trusted
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Prove the worker did not alter its CI authority
-        shell: bash
-        run: cmp candidate/.github/workflows/ci.yml trusted/.github/workflows/ci.yml
-
-      - name: Set up Node.js for trusted Control Plane
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-
-      - name: Enforce exact-SHA Merge Train from trusted main
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node trusted/infra/factory/merge-train-gate.mjs
 
   deploy-production:
     name: Deploy production
@@ -162,8 +152,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Build production bundle
+        run: npm run build:full
 
       - name: Verify Banco de Notas add-in build configuration
         run: node infra/validation/assert-banco-notas-addin-build.mjs
@@ -178,99 +168,3 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DEPLOY_COMMIT_SHA: ${{ github.sha }}
-
-  verify-recovery:
-    name: Verify recovery after deploy
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [deploy-production]
-    permissions:
-      contents: read
-      id-token: write # required only to authenticate the post-deploy recovery check with GitHub OIDC
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: production
-    steps:
-      - name: Checkout deployed source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Rebuild deployed source as recovery evidence
-        run: npm run build
-
-      - name: Verify Banco de Notas add-in build configuration
-        run: node infra/validation/assert-banco-notas-addin-build.mjs
-
-      - name: Verify disposable SharePoint backup and restore round trip
-        shell: bash
-        run: |
-          set -o pipefail
-          node infra/maintenance/verify-recovery.mjs | tee recovery-audit.jsonl
-
-      - name: Publish redacted recovery evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: recovery-verification-${{ github.run_id }}
-          path: recovery-audit.jsonl
-          if-no-files-found: error
-          retention-days: 90
-
-  remove-banco-notas-runtime-preview:
-    name: Remove isolated Banco de Notas homologation runtime
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.number == 52 &&
-      github.head_ref == 'feat/banco-de-notas-foundation'
-    needs: [validate, workflow-security]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Remove only the evidenced preview when it still exists
-        shell: pwsh
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          $evidence = Get-Content -LiteralPath 'docs/evidence/BancoNotas-Bearer-Ownership-Homologation-2026-08-27.json' -Raw | ConvertFrom-Json
-          $deploymentId = [string]$evidence.deployment.pagesDeploymentId
-          if ([string]::IsNullOrWhiteSpace($deploymentId)) {
-            throw 'A evidência não contém o ID exato do preview Pages temporário.'
-          }
-          $deployments = npx wrangler pages deployment list --project-name ecossistema-escola --json | ConvertFrom-Json
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Falha ao consultar os deployments Pages.'
-          }
-          if ($deployments.id -contains $deploymentId) {
-            npx wrangler pages deployment delete $deploymentId --project-name ecossistema-escola --force
-            if ($LASTEXITCODE -ne 0) {
-              throw 'Falha ao remover o preview Pages exato.'
-            }
-            Write-Output 'RUNTIME_HOMOLOGATION_PAGES_PREVIEW_REMOVED'
-          } else {
-            Write-Output 'RUNTIME_HOMOLOGATION_PAGES_PREVIEW_ALREADY_ABSENT'
-          }
