@@ -1,14 +1,7 @@
-import { genericModelInstanceSchema } from '../../shared/banco-notas-generic-model';
-import { genericWorkbookPresentationSchema } from '../../shared/banco-notas-workbook-presentation';
+import { deflateRawSync } from 'node:zlib';
 import { xlsxLegacyAnalysisProfileSchema } from '../../shared/banco-notas-xlsx-analysis-profile';
-import { createGenericXlsxWorkbookSerializer } from '../../server/banco-notas/xlsx-workbook-serializer';
-import { serializeGenericWorkbook } from '../../server/banco-notas/workbook-pipeline';
 
-const classId = '44444444-4444-4444-8444-444444444444';
-const componentId = '55555555-5555-4555-8555-555555555555';
-const studentId = '66666666-6666-4666-8666-666666666666';
-const sheetKey = `generated:${classId}:${componentId}`;
-const gradeKey = `2026|${classId}|${componentId}|${studentId}`;
+const encoder = new TextEncoder();
 
 export const manualXlsxProfile = xlsxLegacyAnalysisProfileSchema.parse({
   schemaVersion: 1,
@@ -31,59 +24,179 @@ export const manualXlsxProfile = xlsxLegacyAnalysisProfileSchema.parse({
   ],
 });
 
-export async function createManualXlsxFixture(): Promise<Uint8Array> {
-  const instance = genericModelInstanceSchema.parse({
-    schemaVersion: 1,
-    modelId: '11111111-1111-4111-8111-111111111111',
-    teacherEntraObjectId: '22222222-2222-4222-8222-222222222222',
-    schoolYear: 2026,
-    definitionVersion: '2026.1',
-    sourceHash: 'a'.repeat(64),
-    relationshipSnapshotId: '33333333-3333-4333-8333-333333333333',
-    environment: 'homologation',
-    syncEnabled: false,
-    mappingVersion: 1,
-    layout: {
-      layoutVersion: '2026.1-layout',
-      firstStudentRow: 2,
-      gradeColumns: [
-        { field: 'NotaT1', column: 'B' },
-        { field: 'NotaFinal', column: 'C' },
-      ],
-    },
-    mappings: [
-      { gradeKey, field: 'NotaT1', sheetKey, studentPosition: 1, cellAddress: 'B2' },
-      { gradeKey, field: 'NotaFinal', sheetKey, studentPosition: 1, cellAddress: 'C2' },
+function uint16(value: number): Uint8Array {
+  const output = new Uint8Array(2);
+  new DataView(output.buffer).setUint16(0, value, true);
+  return output;
+}
+
+function uint32(value: number): Uint8Array {
+  const output = new Uint8Array(4);
+  new DataView(output.buffer).setUint32(0, value >>> 0, true);
+  return output;
+}
+
+function join(parts: readonly Uint8Array[]): Uint8Array {
+  const output = new Uint8Array(parts.reduce((total, part) => total + part.byteLength, 0));
+  let offset = 0;
+  for (const part of parts) {
+    output.set(part, offset);
+    offset += part.byteLength;
+  }
+  return output;
+}
+
+function crc32(bytes: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function xmlEscape(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
+function createZip(entries: ReadonlyMap<string, string>, compressed: boolean): Uint8Array {
+  const locals: Uint8Array[] = [];
+  const centrals: Uint8Array[] = [];
+  let localOffset = 0;
+
+  for (const [entryName, content] of entries) {
+    const name = encoder.encode(entryName);
+    const data = encoder.encode(content);
+    const compressedBuffer = compressed ? deflateRawSync(data) : data;
+    const payload = new Uint8Array(compressedBuffer.byteLength);
+    payload.set(compressedBuffer);
+    const method = compressed ? 8 : 0;
+    const checksum = crc32(data);
+
+    const local = join([
+      uint32(0x04034b50),
+      uint16(20),
+      uint16(0x0800),
+      uint16(method),
+      uint16(0),
+      uint16(33),
+      uint32(checksum),
+      uint32(payload.byteLength),
+      uint32(data.byteLength),
+      uint16(name.byteLength),
+      uint16(0),
+      name,
+      payload,
+    ]);
+    locals.push(local);
+
+    centrals.push(
+      join([
+        uint32(0x02014b50),
+        uint16(20),
+        uint16(20),
+        uint16(0x0800),
+        uint16(method),
+        uint16(0),
+        uint16(33),
+        uint32(checksum),
+        uint32(payload.byteLength),
+        uint32(data.byteLength),
+        uint16(name.byteLength),
+        uint16(0),
+        uint16(0),
+        uint16(0),
+        uint16(0),
+        uint32(0),
+        uint32(localOffset),
+        name,
+      ]),
+    );
+    localOffset += local.byteLength;
+  }
+
+  const localBytes = join(locals);
+  const centralBytes = join(centrals);
+  return join([
+    localBytes,
+    centralBytes,
+    uint32(0x06054b50),
+    uint16(0),
+    uint16(0),
+    uint16(entries.size),
+    uint16(entries.size),
+    uint32(centralBytes.byteLength),
+    uint32(localBytes.byteLength),
+    uint16(0),
+  ]);
+}
+
+export function createManualXlsxFixture(
+  options: {
+    notaT1?: number;
+    notaFinal?: number;
+    compressed?: boolean;
+    firstRowXml?: string;
+  } = {},
+): Uint8Array {
+  const gradeCells = [
+    options.notaT1 === undefined ? '' : `<c r="B2"><v>${options.notaT1}</v></c>`,
+    options.notaFinal === undefined ? '' : `<c r="C2"><v>${options.notaFinal}</v></c>`,
+  ].join('');
+
+  const worksheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetData>
+    ${options.firstRowXml ?? ''}
+    <row r="2">
+      <c r="A2"><v>1</v></c>
+      ${gradeCells}
+      <c r="D2" t="inlineStr"><is><t xml:space="preserve">${xmlEscape('Estudante Sintético')}</t></is></c>
+    </row>
+  </sheetData>
+</worksheet>`;
+
+  const entries = new Map<string, string>([
+    [
+      '[Content_Types].xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+</Types>`,
     ],
-  });
-  const presentation = genericWorkbookPresentationSchema.parse({
-    schemaVersion: 1,
-    presentationVersion: '2026.1-presentation',
-    modelId: instance.modelId,
-    schoolYear: 2026,
-    title: 'Banco de Notas 2026',
-    teacherDisplayName: 'Docente Sintético',
-    studentPositionColumn: 'A',
-    studentNameColumn: 'D',
-    positionHeader: 'Nº',
-    studentHeader: 'Estudante',
-    gradeHeaders: [
-      { field: 'NotaT1', label: '1º trimestre' },
-      { field: 'NotaFinal', label: 'Nota final' },
+    [
+      '_rels/.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`,
     ],
-    sheets: [
-      {
-        sheetKey,
-        displayName: 'Turma A - Matemática',
-        classDisplayName: 'Turma A',
-        componentDisplayName: 'Matemática',
-        rows: [{ studentPosition: 1, gradeKey, studentDisplayName: 'Estudante Sintético' }],
-      },
+    [
+      'xl/workbook.xml',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="Turma A - Matemática" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`,
     ],
-  });
-  const artifact = await serializeGenericWorkbook({
-    instance,
-    serializer: createGenericXlsxWorkbookSerializer(presentation),
-  });
-  return artifact.bytes;
+    [
+      'xl/_rels/workbook.xml.rels',
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>`,
+    ],
+    ['xl/worksheets/sheet1.xml', worksheet],
+  ]);
+
+  return createZip(entries, options.compressed ?? false);
 }
