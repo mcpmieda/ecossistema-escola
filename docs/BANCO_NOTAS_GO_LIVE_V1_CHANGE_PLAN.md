@@ -5,7 +5,7 @@
 1. Criar o RC a partir da `main` verde e registrar SHA, versão `1.0.0.0` do add-in e rollback de código/runtime.
 2. Executar `Banco de Notas production control plane` com `snapshot`; registrar deployment atual, configuração/bindings, inventário D1 e distribuição vigente do add-in.
 3. Executar `deploy-read-only` somente com SHA do RC, deployment anterior e confirmação `DEPLOY_BANCO_NOTAS_READ_ONLY` exatos. O workflow recusa drift e bindings de recursos inesperados.
-4. Criar ou reutilizar univocamente `banco-notas-production`, exportar antes da primeira migration, aplicar 0001–0008 e provar `sync_enabled=0`, `commit_route_enabled=0`, piloto habilitado = 0 e oito migrations.
+4. Criar ou reutilizar univocamente `banco-notas-production`, registrar bookmark pré-migration no Time Travel restrito do D1, gerar export efêmero apenas para hash/tamanho e removê-lo do runner antes da primeira migration. O artefato contém somente evidência sanitizada. Aplicar 0001–0008 e provar `sync_enabled=0`, `commit_route_enabled=0`, piloto habilitado = 0 e oito migrations.
 5. Vincular somente `BANCO_NOTAS_DB`; configurar audience/scope/context e preservar variáveis Pages existentes com `keep_vars`. Deploy do RC com sync e commit route OFF.
 6. Smoke administrativo read-only; rollback imediato ao deployment anterior se houver regressão.
 7. Identificar o piloto exclusivamente pela readiness canônica e confirmação institucional; enquanto isso, o alvo permanece `UNRESOLVED` e não deve ser inferido.

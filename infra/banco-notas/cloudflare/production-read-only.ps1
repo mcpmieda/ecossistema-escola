@@ -114,7 +114,10 @@ function Get-SanitizedProject {
   $production = $Project.deployment_configs.production
   $bindingGroups = [ordered]@{}
   foreach ($property in $production.PSObject.Properties) {
-    if ($property.Name -match '(bindings|namespaces|buckets|databases|datasets|producers|services|browsers)$') {
+    if (
+      $property.Name -eq 'mtls_certificates' -or
+      $property.Name -match '(bindings|namespaces|buckets|databases|datasets|producers|services|browsers)$'
+    ) {
       $map = Get-PropertyMap $property.Value
       $bindingGroups[$property.Name] = @($map.Keys | Sort-Object)
     }
@@ -198,7 +201,10 @@ function Assert-NoUnexpectedResourceBindings {
   foreach ($property in $production.PSObject.Properties) {
     if (
       $property.Name -ne 'd1_databases' -and
-      $property.Name -match '(bindings|namespaces|buckets|databases|datasets|producers|services|browsers)$'
+      (
+        $property.Name -eq 'mtls_certificates' -or
+        $property.Name -match '(bindings|namespaces|buckets|databases|datasets|producers|services|browsers)$'
+      )
     ) {
       $keys = @((Get-PropertyMap $property.Value).Keys)
       if ($keys.Count -gt 0) {
@@ -330,6 +336,24 @@ function Invoke-Wrangler {
   }
 }
 
+function Get-D1TimeTravelBookmark {
+  param([Parameter(Mandatory)][object]$Database)
+  $databaseId = [string]$Database.uuid
+  if ($databaseId -notmatch '^[0-9a-fA-F-]{36}$') {
+    throw 'UUID do D1 inválido para obter o bookmark de Time Travel.'
+  }
+  $headers = @{ Authorization = "Bearer $($env:CLOUDFLARE_D1_API_TOKEN)" }
+  $response = Invoke-RestMethod `
+    -Method Get `
+    -Uri "$apiBase/d1/database/$databaseId/time_travel/bookmark" `
+    -Headers $headers
+  $bookmark = [string]$response.result.bookmark
+  if (-not $response.success -or [string]::IsNullOrWhiteSpace($bookmark)) {
+    throw 'O D1 não forneceu um bookmark de Time Travel pré-migration.'
+  }
+  return $bookmark
+}
+
 function Get-D1Verification {
   $result = Invoke-WranglerJson -Token $env:CLOUDFLARE_D1_API_TOKEN -Arguments @(
     'd1', 'execute', $bindingName, '--remote', '--config', $configPath, '--json', '--command',
@@ -375,17 +399,49 @@ if ($existingD1Map.Count -eq 1 -and [string]$existingD1Map[$bindingName].id -ne 
 }
 New-ProductionConfig -Project $project -Database $database
 
-Invoke-Wrangler -Token $env:CLOUDFLARE_D1_API_TOKEN -Arguments @(
-  'd1', 'export', $bindingName, '--remote', '--skip-confirmation', '--config', $configPath, '--output', $backupPath
-)
-$backupHash = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$backupBookmark = Get-D1TimeTravelBookmark -Database $database
+$backupHash = ''
+$backupBytes = 0
+try {
+  Invoke-Wrangler -Token $env:CLOUDFLARE_D1_API_TOKEN -Arguments @(
+    'd1', 'export', $bindingName, '--remote', '--skip-confirmation', '--config', $configPath, '--output', $backupPath
+  )
+  $backupHash = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash.ToLowerInvariant()
+  $backupBytes = (Get-Item -LiteralPath $backupPath).Length
+}
+finally {
+  if (Test-Path -LiteralPath $backupPath) {
+    Remove-Item -LiteralPath $backupPath -Force
+  }
+}
+$backupEvidence = [ordered]@{
+  preMigrationBackupSha256 = $backupHash
+  preMigrationBackupBytes = $backupBytes
+  preMigrationRestore = [ordered]@{
+    mechanism = 'cloudflare-d1-time-travel'
+    bookmark = $backupBookmark
+    databaseUuid = [string]$database.uuid
+  }
+}
+New-Evidence `
+  -Project $project `
+  -CurrentDeployment $currentDeployment `
+  -Databases @(Get-Databases) `
+  -Status 'BANCO_NOTAS_PRODUCTION_PRE_MIGRATION_BACKUP_PASSED' `
+  -ProductionDatabase ([ordered]@{ name = $databaseName; uuid = [string]$database.uuid }) `
+  -Verification $backupEvidence
 
 Invoke-Wrangler -Token $env:CLOUDFLARE_D1_API_TOKEN -Arguments @(
   'd1', 'migrations', 'apply', $bindingName, '--remote', '--yes', '--config', $configPath
 )
 $verification = Get-D1Verification
 $verification['preMigrationBackupSha256'] = $backupHash
-$verification['preMigrationBackupBytes'] = (Get-Item -LiteralPath $backupPath).Length
+$verification['preMigrationBackupBytes'] = $backupBytes
+$verification['preMigrationRestore'] = [ordered]@{
+  mechanism = 'cloudflare-d1-time-travel'
+  bookmark = $backupBookmark
+  databaseUuid = [string]$database.uuid
+}
 
 $env:VITE_BANCO_NOTAS_ADDIN_CLIENT_ID = '73ab83d3-00ba-494a-a1f8-586d250d420a'
 $env:VITE_TENANT_ID = 'f04e0fa3-b8dc-4f77-be3c-7dfda0635188'
@@ -413,7 +469,12 @@ if (
 }
 $verification = Get-D1Verification
 $verification['preMigrationBackupSha256'] = $backupHash
-$verification['preMigrationBackupBytes'] = (Get-Item -LiteralPath $backupPath).Length
+$verification['preMigrationBackupBytes'] = $backupBytes
+$verification['preMigrationRestore'] = [ordered]@{
+  mechanism = 'cloudflare-d1-time-travel'
+  bookmark = $backupBookmark
+  databaseUuid = [string]$database.uuid
+}
 
 New-Evidence `
   -Project (Invoke-CloudflareGet -Path "/pages/projects/$projectName") `

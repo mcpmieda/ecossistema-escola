@@ -19,7 +19,7 @@ Migration `0008` é forward-only e não destrutiva. Flags nascem desligadas. A d
 ## Configuração do RC
 
 - D1 exclusivo: `banco-notas-production` via binding `BANCO_NOTAS_DB`;
-- migrations: `0001`–`0008`, em ordem, após export pré-migration;
+- migrations: `0001`–`0008`, em ordem, após bookmark de Time Travel e export pré-migration efêmero; somente hash, tamanho e referência de restauração entram na evidência;
 - runtime: `RUNTIME_ENVIRONMENT=production`, audience do add-in, scope `BancoNotas.Sync` e context route habilitada;
 - write gates no primeiro deploy: `sync_enabled=0`, `commit_route_enabled=0`, piloto habilitado = 0;
 - add-in: manifest `af34971f-b05f-4b52-8048-71f36b40c9fb`, versão `1.0.0.0`;
