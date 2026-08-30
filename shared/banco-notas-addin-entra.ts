@@ -27,8 +27,20 @@ export const bancoNotasAddinEntraContractSchema = z
         'a brk-multihub broker redirect is required',
       )
       .refine(
-        (items) => items.some((item) => item.startsWith('https://')),
-        'an HTTPS taskpane redirect is required',
+        (items) => items.some((item) => /^https:\/\/[^/]+\/.+\/taskpane\.html$/u.test(item)),
+        'the Excel manifest taskpane SPA redirect is required',
+      )
+      .refine(
+        (items) => items.some((item) => /^https:\/\/[^/]+\/.+\/taskpane$/u.test(item)),
+        'the canonical Excel web taskpane SPA redirect is required',
+      )
+      .refine(
+        (items) => items.some((item) => /^https:\/\/[^/]+\/.+\/auth\.html$/u.test(item)),
+        'the dedicated redirect bridge page is required',
+      )
+      .refine(
+        (items) => items.some((item) => /^https:\/\/[^/]+\/.+\/auth$/u.test(item)),
+        'the canonical redirect bridge page is required',
       ),
     preAuthorizeSelf: z.literal(true),
     requiredResourceAccess: z

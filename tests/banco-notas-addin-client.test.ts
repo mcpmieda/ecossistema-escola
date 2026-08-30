@@ -22,7 +22,7 @@ describe('Banco de Notas NAA client', () => {
       clientId,
       tenantId,
       authority: `https://login.microsoftonline.com/${tenantId}`,
-      redirectUri: 'https://admin.escolaieda.com/banco-de-notas/addin/auth.html',
+      redirectUri: 'https://admin.escolaieda.com/banco-de-notas/addin/auth',
       requestedScope: `api://${clientId}/BancoNotas.Sync`,
       delegatedScope: 'BancoNotas.Sync',
     });
@@ -50,6 +50,13 @@ describe('Banco de Notas NAA client', () => {
     expect(headers).toContain('/banco-de-notas/addin/*');
     expect(headers).toContain('! X-Frame-Options');
     expect(headers).toContain('Cache-Control: no-store');
+    expect(
+      createBancoNotasNaaConfig({
+        clientId: '11111111-1111-4111-8111-111111111111',
+        tenantId: '22222222-2222-4222-8222-222222222222',
+        origin: 'https://admin.escolaieda.com',
+      }).redirectUri,
+    ).not.toMatch(/\.html$/u);
   });
 
   it('keeps anti-framing globally and allows only Microsoft Office ancestors on add-in assets', () => {

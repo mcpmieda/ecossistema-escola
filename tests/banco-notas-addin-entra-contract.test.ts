@@ -38,7 +38,10 @@ describe('Banco de Notas Entra add-in homologation contract', () => {
     expect(resolved.requestedScope).toBe(`api://${applicationClientId}/BancoNotas.Sync`);
     expect(resolved.spaRedirectUris).toEqual([
       'brk-multihub://admin.escolaieda.com',
+      'https://admin.escolaieda.com/banco-de-notas/addin/taskpane.html',
+      'https://admin.escolaieda.com/banco-de-notas/addin/taskpane',
       'https://admin.escolaieda.com/banco-de-notas/addin/auth.html',
+      'https://admin.escolaieda.com/banco-de-notas/addin/auth',
     ]);
     expect(resolved.requiredResourceAccessResolved).toEqual({
       resourceAppId: applicationClientId,
@@ -48,6 +51,43 @@ describe('Banco de Notas Entra add-in homologation contract', () => {
     expect(resolved.credentials).toBe('none');
     expect(resolved.publicRouteEnabled).toBe(false);
     expect(resolved.syncEnabled).toBe(false);
+  });
+
+  it('requires both the Excel web taskpane redirect and the redirect bridge', () => {
+    const parsed = bancoNotasAddinEntraContractSchema.parse(contract);
+
+    expect(() =>
+      bancoNotasAddinEntraContractSchema.parse({
+        ...parsed,
+        spaRedirectUriTemplates: parsed.spaRedirectUriTemplates.filter(
+          (uri) => !uri.endsWith('/taskpane.html'),
+        ),
+      }),
+    ).toThrow(/manifest taskpane SPA redirect/u);
+    expect(() =>
+      bancoNotasAddinEntraContractSchema.parse({
+        ...parsed,
+        spaRedirectUriTemplates: parsed.spaRedirectUriTemplates.filter(
+          (uri) => !uri.endsWith('/taskpane'),
+        ),
+      }),
+    ).toThrow(/canonical Excel web taskpane SPA redirect/u);
+    expect(() =>
+      bancoNotasAddinEntraContractSchema.parse({
+        ...parsed,
+        spaRedirectUriTemplates: parsed.spaRedirectUriTemplates.filter(
+          (uri) => !uri.endsWith('/auth.html'),
+        ),
+      }),
+    ).toThrow(/redirect bridge/u);
+    expect(() =>
+      bancoNotasAddinEntraContractSchema.parse({
+        ...parsed,
+        spaRedirectUriTemplates: parsed.spaRedirectUriTemplates.filter(
+          (uri) => !uri.endsWith('/auth'),
+        ),
+      }),
+    ).toThrow(/canonical redirect bridge/u);
   });
 
   it('fails closed on multitenant, user-consent or Graph-permission drift', () => {

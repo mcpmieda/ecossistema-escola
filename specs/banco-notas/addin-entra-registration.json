@@ -14,7 +14,10 @@
   },
   "spaRedirectUriTemplates": [
     "brk-multihub://admin.escolaieda.com",
-    "https://admin.escolaieda.com/banco-de-notas/addin/auth.html"
+    "https://admin.escolaieda.com/banco-de-notas/addin/taskpane.html",
+    "https://admin.escolaieda.com/banco-de-notas/addin/taskpane",
+    "https://admin.escolaieda.com/banco-de-notas/addin/auth.html",
+    "https://admin.escolaieda.com/banco-de-notas/addin/auth"
   ],
   "preAuthorizeSelf": true,
   "requiredResourceAccess": {
