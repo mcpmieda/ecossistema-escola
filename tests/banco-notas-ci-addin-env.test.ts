@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 describe('Banco de Notas production build configuration', () => {
-  it('injects the public NAA identifiers into every CI and production build', () => {
+  it('keeps public NAA identifiers available while validating the add-in only when needed', () => {
     const workflow = readFileSync(join(process.cwd(), '.github/workflows/ci.yml'), 'utf8');
 
     expect(workflow).toContain(
@@ -14,6 +14,9 @@ describe('Banco de Notas production build configuration', () => {
     expect(workflow).toContain('VITE_TENANT_ID: f04e0fa3-b8dc-4f77-be3c-7dfda0635188');
     expect(workflow).toContain("VITE_BANCO_NOTAS_RUNTIME_HOMOLOGATION: '0'");
     expect(workflow.indexOf('env:')).toBeLessThan(workflow.indexOf('jobs:'));
-    expect(workflow.match(/assert-banco-notas-addin-build\.mjs/gu)).toHaveLength(3);
+    expect(workflow).toContain("steps.changes.outputs.addin == 'true'");
+    expect(workflow).toContain('npm run verify:addin');
+    expect(workflow).toContain('npm run build:full');
+    expect(workflow.match(/assert-banco-notas-addin-build\.mjs/gu)).toHaveLength(2);
   });
 });
