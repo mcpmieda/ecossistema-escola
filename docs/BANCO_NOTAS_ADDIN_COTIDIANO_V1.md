@@ -120,3 +120,11 @@ Publicação inicial:
 - merge state: `CLEAN`.
 
 O histórico acima registra a entrega read-only original. O Sync V1 é evoluído no PR próprio a partir da `main` `fca06dcf2d874dedbc1f26c596b8c5b5354f6d09`; distribuição e ativação continuam condicionadas aos gates do change plan.
+
+### Gate local do Sync V1
+
+- `npm run verify`: PASS, 453 testes em 89 arquivos;
+- manifesto Office e builds web/add-in: PASS;
+- audit high: 0 vulnerabilidades; diff check: PASS;
+- taskpane standalone em 280 × 720: fallback NAA fail-closed, botão desabilitado, zero overflow e zero erros/warnings de console;
+- estados autenticado, ready, commit, duplicate, stale conflict, offline e sync off cobertos por testes de componente/cliente; Excel Online real permanece gate da distribuição piloto.

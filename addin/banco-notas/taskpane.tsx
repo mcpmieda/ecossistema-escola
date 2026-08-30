@@ -134,7 +134,9 @@ function TaskpaneApp() {
   useEffect(() => {
     let active = true;
     void Office.onReady(async (info) => {
-      const naaSupported = Office.context.requirements.isSetSupported('NestedAppAuth', '1.1');
+      const naaSupported = Boolean(
+        Office.context?.requirements?.isSetSupported?.('NestedAppAuth', '1.1'),
+      );
       if (!naaSupported) {
         if (active) {
           setScreen({
