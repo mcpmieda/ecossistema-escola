@@ -298,12 +298,19 @@ function AdminShell({ identity }: { identity: Identity }) {
     [identity.name],
   );
   const modules = loadState.status === 'ready' ? loadState.snapshot.coreModules : [];
+  const registeredModules =
+    loadState.status === 'ready' ? loadState.snapshot.registeredModules : [];
   const snapshot = loadState.status === 'ready' ? loadState.snapshot : null;
 
   return (
     <div className="platform-shell min-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="sticky top-0 z-20 hidden h-svh border-r border-border/60 lg:block">
-        <SidebarContent route={route} modules={modules} loading={loadState.status === 'loading'} />
+        <SidebarContent
+          route={route}
+          modules={modules}
+          registeredModules={registeredModules}
+          loading={loadState.status === 'loading'}
+        />
       </aside>
 
       <div className="min-w-0">
@@ -330,6 +337,7 @@ function AdminShell({ identity }: { identity: Identity }) {
                       <SidebarContent
                         route={route}
                         modules={modules}
+                        registeredModules={registeredModules}
                         loading={loadState.status === 'loading'}
                         onNavigate={mobileNavigationState.close}
                       />
