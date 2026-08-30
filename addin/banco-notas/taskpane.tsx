@@ -1,11 +1,13 @@
 import {
   BrowserCacheLocation,
   createNestablePublicClientApplication,
+  InteractionRequiredAuthError,
   type IPublicClientApplication,
 } from '@azure/msal-browser';
 import { createRoot } from 'react-dom/client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createBancoNotasNaaConfig, type BancoNotasNaaConfig } from './config';
+import { BancoNotasNaaSilentTimeoutError, withNaaSilentTimeout } from './auth-timeout';
 import { runBancoNotasRuntimeHomologation } from './runtime-homologation';
 import { TaskpaneView, type TaskpaneFailureKind, type TaskpaneScreen } from './taskpane-view';
 import {
@@ -235,8 +237,14 @@ function TaskpaneApp() {
       };
       let response;
       try {
-        response = await pca.current.ssoSilent(request);
-      } catch {
+        response = await withNaaSilentTimeout(pca.current.ssoSilent(request));
+      } catch (error) {
+        if (
+          !(error instanceof InteractionRequiredAuthError) &&
+          !(error instanceof BancoNotasNaaSilentTimeoutError)
+        ) {
+          throw error;
+        }
         response = await pca.current.acquireTokenPopup(request);
       }
       const proof = validateTokenContract(response.accessToken, config.current);
