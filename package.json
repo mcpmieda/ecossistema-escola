@@ -5,20 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:app",
-    "build:app": "tsc -b tsconfig.app.json tsconfig.server.json && vite build",
-    "build:addin": "tsc -b tsconfig.addin.json tsconfig.runtime-homologation.json && vite build --config vite.addin.config.ts",
-    "build:full": "npm run build:app && npm run build:addin",
+    "build": "tsc -b tsconfig.app.json tsconfig.server.json && vite build",
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc -b tsconfig.app.json tsconfig.server.json --pretty false",
-    "typecheck:addin": "tsc -b tsconfig.addin.json tsconfig.runtime-homologation.json --pretty false",
-    "semantic:check": "node infra/validation/validate-semantic-contract.mjs",
-    "validate:addin-manifest": "office-addin-manifest validate addin/banco-notas/manifest.xml",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build",
-    "verify:addin": "npm run typecheck:addin && npm run validate:addin-manifest && npm run build:addin"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@fontsource-variable/geist": "^5.3.0",
