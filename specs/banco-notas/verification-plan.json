@@ -1,220 +1,59 @@
 {
   "schema_version": 1,
   "module": "banco-de-notas",
-  "mode": "release",
-  "risk": "high",
-  "principle": "Verificar classes de falha diferentes e preservar evidência real; código escrito ou CI verde isoladamente não comprovam o Banco de Notas.",
-  "required_gates": [
-    {
-      "id": "BN-V-001",
-      "name": "Project Adoption Gate",
-      "method": "App Factory pre-implementation/delivery",
-      "required": true
+  "mode": "reference",
+  "policy": "proportional",
+  "principle": "Validar somente as superfícies afetadas pela alteração. Este arquivo não é um gate automático de PR ou release.",
+  "default_checks": [
+    "format",
+    "lint",
+    "typecheck",
+    "tests",
+    "application_build"
+  ],
+  "conditional_checks": {
+    "addin": {
+      "when": "addin/banco-notas ou configuração de build/manifest do add-in mudar",
+      "checks": ["addin_typecheck", "manifest_validation", "addin_build"]
     },
-    {
-      "id": "BN-V-002",
-      "name": "Format + lint + typecheck + build",
-      "method": "pipeline existente do ecossistema-escola",
-      "required": true
+    "d1_or_migrations": {
+      "when": "schema, migration, persistência ou transação D1 mudar",
+      "checks": ["migration_tests", "constraints", "idempotency", "recovery_when_relevant"]
     },
-    {
-      "id": "BN-V-003",
-      "name": "Semantic contract",
-      "method": "contrato do módulo + integração coerente com specs globais",
-      "required": true
+    "microsoft_integrations": {
+      "when": "Entra, Graph, SharePoint ou autorização relacionada mudar",
+      "checks": ["authorization", "integration_contract", "real_homologation_when_required_for_release"]
     },
-    {
-      "id": "BN-V-004",
-      "name": "Authorization matrix",
-      "method": "testes allow/deny por capability no servidor",
-      "required": true
+    "github_actions": {
+      "when": ".github/workflows mudar",
+      "checks": ["actionlint", "zizmor"]
     },
-    {
-      "id": "BN-V-005",
-      "name": "D1 migration and transaction tests",
-      "method": "migrations em database descartável + constraints + rollback/Time Travel documentado",
-      "required": true
+    "visual": {
+      "when": "UI ou comportamento visual material mudar",
+      "checks": ["relevant_ui_tests", "targeted_browser_qa_when_useful"]
     },
-    {
-      "id": "BN-V-006",
-      "name": "Grade event state-machine",
-      "method": "testes de idempotência, sequence, stale, revert, correlation e concorrência",
-      "required": true
-    },
-    {
-      "id": "BN-V-007",
-      "name": "Source authority",
-      "method": "testes legacy_import vs linked_teacher_model sem merge silencioso",
-      "required": true
-    },
-    {
-      "id": "BN-V-008",
-      "name": "Microsoft integration",
-      "method": "homologação real SharePoint/Graph com arquivo privado e identidade institucional",
-      "required": true
-    },
-    {
-      "id": "BN-V-009",
-      "name": "Add-in integration",
-      "method": "Excel Web + Windows; Mac antes de declarar suporte institucional total",
-      "required": true
-    },
-    {
-      "id": "BN-V-010",
-      "name": "Legacy regression",
-      "method": "fixtures sintéticas no Git + golden masters Nina/Alanna fora do Git para valores, dimensões, mapeamento e origem",
-      "required": true
-    },
-    {
-      "id": "BN-V-011",
-      "name": "HeroUI browser QA",
-      "method": "desktop/mobile, teclado, foco, overlays, loading, empty, partial, error, permission denied, reduced motion e ausência de Ambient Constellation",
-      "required": true
-    },
-    {
-      "id": "BN-V-012",
-      "name": "API contract compatibility",
-      "method": "OpenAPI/AsyncAPI lint + contract tests de consumidores independentes",
-      "required": true
-    },
-    {
-      "id": "BN-V-013",
-      "name": "Resilience",
-      "method": "falha Graph, timeout, retry/backoff, queue retry, API offline e reconciliação",
-      "required": true
-    },
-    {
-      "id": "BN-V-014",
-      "name": "Recovery",
-      "method": "D1 Time Travel em ambiente de homologação + versão SharePoint + rebuild + evidência sem dados reais",
-      "required": true
-    },
-    {
-      "id": "BN-V-015",
-      "name": "Security and privacy",
-      "method": "secrets scan, least privilege review, no PII in Git/logs, origin/CORS/token validation and browser security headers",
-      "required": true
-    },
-    {
-      "id": "BN-V-016",
-      "name": "Generic model and private golden-master isolation",
-      "method": "fixtures sintéticas estruturalmente variadas + inspeção de dependências nominais + regressão privada externa Nina/Alanna sem publicação dos arquivos",
-      "required": true
-    },
-    {
-      "id": "BN-V-017",
-      "name": "NAA real token proof",
-      "method": "Excel Online em workbook SharePoint/OneDrive + diagnóstico sanitizado NAA_TOKEN_PROOF_PASSED + regressão de config/manifest/headers/backend",
-      "required": true
-    },
-    {
-      "id": "BN-V-018",
-      "name": "Professores V1 operational read model",
-      "method": "SQLite real, contratos/API, allow/deny, UI e browser QA sintético desktop/mobile cobrindo docentes com e sem assignments/identidade/modelo/findings",
-      "required": true
-    },
-    {
-      "id": "BN-V-019",
-      "name": "Pesquisa Global V1 canonical discovery",
-      "method": "SQLite real, contratos/API, allow/deny, normalização e ranking determinístico, limites/deduplicação, UI e browser QA sintético desktop/mobile com loading/empty/error/403",
-      "required": true
-    },
-    {
-      "id": "BN-V-020",
-      "name": "Central de Pendências V1 factual diagnostics",
-      "method": "SQLite real, taxonomia/DTO/OpenAPI, summary/list/detail, allow/deny, filtros/paginação/ordenação/deduplicação, minimização e browser QA sintético desktop/mobile com empty/403/404/500",
-      "required": true
-    },
-    {
-      "id": "BN-V-021",
-      "name": "Experiência Cotidiana do Add-in V1",
-      "method": "contratos Zod/OpenAPI, SQLite real, bearer/ownership, metadata e mappings Office.js, zero/ausência/baseline desconhecido, estados HeroUI, regressão NAA, manifest, build separado e QA sintético do taskpane",
-      "required": true
-    },
-    {
-      "id": "BN-V-022",
-      "name": "Upload Manual XLSX V1",
-      "method": "contratos Zod, hash server-side, parser OOXML, perfil versionado, API allow/deny, idempotência D1, zero/ausência, proveniência, UI HeroUI, browser QA e regressão de não promoção automática",
-      "required": true
+    "production_or_recovery": {
+      "when": "deploy, storage, backup/restore ou recovery mudar",
+      "checks": ["full_build", "targeted_recovery_proof"]
     }
-  ],
-  "scenario_matrix": [
-    "evento novo aceito",
-    "evento duplicado",
-    "evento stale",
-    "dois editores concorrentes",
-    "reversão auditada",
-    "nota ausente",
-    "nota zero oficial quando permitida",
-    "modelo com SyncEnabled=false",
-    "ativação após reconciliação",
-    "conta de professor errada",
-    "arquivo movido ou excluído",
-    "Graph indisponível",
-    "API Cloudflare indisponível",
-    "fila com retry",
-    "importação repetida do mesmo legado",
-    "mudança de fonte durante o ano",
-    "override de fonte por professor",
-    "rota profunda /banco-de-notas/... recarregada",
-    "usuário sem capability",
-    "usuário com capability parcial",
-    "reduced-motion",
-    "viewport móvel",
-    "duas origens sintéticas com nomes, ordem e quantidade de abas diferentes geram instâncias do mesmo modelo genérico",
-    "origem incompleta produz finding explícito em vez de fallback Nina/Alanna",
-    "golden masters privados ausentes do Git, bundle, D1, migrations, fixtures públicas e SharePoint definitivo",
-    "NAA acquireTokenPopup iniciado por gesto explícito, com redirect bridge dedicado, retorna token v2 válido sem gravar token ou PII",
-    "professor canônico com múltiplos anos, turmas e componentes aparece uma vez com agregados estáveis",
-    "professor sem assignment permanece visível e recebe estado informativo",
-    "identidade institucional é reduzida a vinculada/ausente sem OID, claims, UPN ou DriveItem ID",
-    "modelo latest, source authority, import failure, findings e atividade recente produzem situação factual",
-    "Professores navega para Turmas e Acompanhamento e recebe links de retorno desses módulos",
-    "pesquisa por caixa, acentos e espaços encontra as mesmas entidades canônicas com ranking exato, prefixo, ocorrência e contexto",
-    "resultado de Pesquisa Global navega para Aluno, Professor, Turma e Acompanhamento preservando o retorno com q",
-    "requisição obsoleta de Pesquisa Global é cancelada e estados curto, loading, empty, error e permission denied são distintos",
-    "Central resume erros, atenções e informações a partir de importações, findings, modelos, identidade necessária, fontes e assignments persistidos",
-    "Central filtra por ano, severidade, tipo, professor, turma, componente, status e texto com paginação e ordenação determinística no servidor",
-    "detalhe de pendência mostra causa, evidência, origem e links para Professor, Turma e Acompanhamento sem ação de resolução",
-    "Central diferencia loading, empty, 403, 404 e 500 em desktop e mobile sem overflow global",
-    "taskpane cotidiano autentica por NAA, reconhece metadata/guia e obtém contexto somente com bearer delegado e ownership",
-    "taskpane distingue loading, auth, authenticated, sem assignment/modelo, workbook inválido, ownership negado, sync off, ready, warning, error e offline",
-    "comparação local distingue zero, ausência, mudança, nenhuma mudança e baseline desconhecido sem enviar conteúdo de célula",
-    "context API permanece fail-closed sem flag, retorna DTO minimizado e não torna grade-events publicamente acessível",
-    "taskpane sintético em viewport estreito usa HeroUI, não apresenta overflow global e não expõe token, claims, OID ou tenant",
-    "upload manual calcula o hash no servidor, cria ou reutiliza o mesmo job e analisa uma cópia XLSX sem alterar a origem",
-    "upload repetido do mesmo conteúdo para a mesma fonte não duplica análise nem efeito lógico",
-    "arquivo XLSB recebe orientação para salvar uma cópia XLSX e permanece fail-closed no runtime",
-    "lote analisado exibe turma, componente, estudante, campo, zero, ausência e origem de célula sem promoção automática"
-  ],
-  "data_policy": {
-    "git": "somente fixtures sintéticas e contratos; nenhum nome/nota real",
-    "real_regression": "arquivos Nina/Alanna permanecem privados, externos ao produto e são usados apenas como entradas de regressão em ambiente autorizado",
-    "golden_master_isolation": "golden masters privados não são templates oficiais e não entram em runtime, D1, migrations, fixtures públicas, bundle, SharePoint definitivo ou distribuição",
-    "logs": "IDs técnicos/correlação e métricas; evitar valores e nomes de estudantes em logs técnicos"
   },
-  "release_blockers": [
-    "qualquer invariável BN-INV violada",
-    "capability aplicada apenas na UI",
-    "duplicate effect em Idempotency-Key repetida",
-    "snapshot regressivo por stale event",
-    "fonte sem autoridade explícita",
-    "SyncEnabled true por default",
-    "dependência de GitHub em runtime",
-    "dados reais no repositório ou log público",
-    "uso de SharePoint como event store transacional definitivo",
-    "qualquer página do Banco fora da linguagem HeroUI",
-    "Ambient Constellation presente",
-    "migração massiva sem piloto e reconciliação",
-    "recovery não comprovado para o novo store antes da produção",
-    "modelo ou transformador de produção especializado por nome, abas, turmas, disciplinas, células ou particularidades de Nina/Alanna",
-    "golden master privado incorporado ao produto, runtime, persistência, migration, fixture pública, SharePoint definitivo ou distribuição",
-    "Professores V1 relacionando teacher por nome, omitindo docente sem assignment ou expondo OID/DriveItem ID",
-    "Pesquisa Global criando índice ou identidade paralela, ranqueando no frontend, carregando entidades integralmente ou expondo identificadores técnicos",
-    "Central criando pendência por heurística não persistida, expondo identificador técnico ou oferecendo resolução/escrita em V1",
-    "add-in cotidiano expondo token/claims/OID/tenant, enviando conteúdo de célula, persistindo mudança, publicando comando de sync ou reutilizando capability administrativa",
-    "rota addin/context habilitada por default, grade-events conectado ao roteador público ou mudança em Entra/Graph/permissões sem decisão humana",
-    "upload manual confiando em hash do cliente, aceitando pacote macro-enabled, executando fórmula/link ou persistindo o binário no D1",
-    "upload manual vinculando estudante por nome aproximado ou promovendo lote sem conferência explícita"
-  ]
+  "not_required_by_default": [
+    "Project Adoption Gate",
+    "Semantic Assurance",
+    "Semantic Verification",
+    "Independent Verification",
+    "Merge Train",
+    "CodeRabbit/Semgrep/Sonar trio",
+    "Excel/Graph/D1/recovery tests unrelated to the diff",
+    "full browser matrix for non-visual changes",
+    "documentation evidence updates for every PR"
+  ],
+  "permanent_safety": [
+    "no secrets or real student grade data in Git/public logs",
+    "protected authorization remains server-side",
+    "absence and numeric zero remain distinct",
+    "no silent merge of competing grade sources",
+    "destructive/privilege/production changes require explicit authorization"
+  ],
+  "historical_note": "The previous 22-gate release matrix is preserved in Git history and no longer governs ordinary changes."
 }
