@@ -1,6 +1,6 @@
 # Banco de Notas — Release notes GO-LIVE V1
 
-O RC.1 (`249a21d06263fe6529a36c0d3458c50219604288`) foi interrompido ao resolver o D1 recém-criado. O RC.2 (`10dbe4fd5aedac63cc44bf047484269e49738e8e`) foi interrompido antes da primeira migration pela opção removida `--yes`. O RC.3 (`2827637ee6b9d964d1ba7232837187eaafa89d04`) aplicou as migrations 0001–0008 com todos os gates de escrita em zero, mas o Pages recusou o deploy porque não suporta `keep_vars`; o deployment anterior permaneceu ativo e sem binding de produção. O próximo candidato remove a chave incompatível e preserva explicitamente todas as variáveis `plain_text`, mantendo secrets sob gestão do Pages. Tags anteriores permanecem imutáveis.
+O RC.1 (`249a21d06263fe6529a36c0d3458c50219604288`) foi interrompido ao resolver o D1 recém-criado. O RC.2 (`10dbe4fd5aedac63cc44bf047484269e49738e8e`) foi interrompido antes da primeira migration pela opção removida `--yes`. O RC.3 (`2827637ee6b9d964d1ba7232837187eaafa89d04`) aplicou as migrations 0001–0008, mas o Pages recusou `keep_vars`. O RC.4 (`fc727c7017d647fc6e92f6d1ec583551ca19f0b8`) publicou o Pages com gates em zero, porém o smoke detectou que `/api/*` caía no HTML estático porque a execução a partir da pasta temporária não encontrou `functions`; o rollback imediato restaurou `631603f7-cec8-4915-bf7b-0873fbbf56bb`. O próximo candidato usa o redirecionamento oficial de configuração gerada mantendo o Wrangler na raiz e resolve o deployment ativo por `canonical_deployment`. Tags anteriores permanecem imutáveis.
 
 ## Incluído
 
