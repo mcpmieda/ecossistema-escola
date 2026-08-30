@@ -2,7 +2,7 @@
 
 Atualizado em: 30/08/2026
 
-Status: implementação autorizada, ainda sem mutação remota desta nova fase.
+Status: Upload Manual V1 publicado; fonte institucional pronta; primeiro upload real ainda não enviado.
 
 ## Decisão vigente
 
@@ -11,19 +11,17 @@ Concluir a primeira versão operacional do Banco de Notas por upload manual de c
 ## Git
 
 - repositório: `mcpmieda/ecossistema-escola`;
-- branch de trabalho: `feat/banco-notas-manual-upload-v1`;
-- base revalidada: `9c3488bef6e9a925dd69ecc8b2f1f7a4da8fe49f`;
-- `main` remota na abertura desta fase: mesmo SHA;
-- commit da implementação e documentação: `f13bb58`;
-- branch enviada ao GitHub e PR `#150` aberto;
-- `main` permanece inalterada até aprovação dos gates do PR.
+- Upload Manual V1 integrado pelo PR `#150`, squash `c5b75744f3f153fe27edeafef5ca60bc5968f8cf`;
+- binding permanente do D1 de produção integrado pelo PR `#151`, squash `a07b8d43a1309779f2bfb5767a4a165b0e37e11a`;
+- `main` local e remota revalidadas no SHA `a07b8d43a1309779f2bfb5767a4a165b0e37e11a` antes deste registro.
 
 ## GitHub/Cloudflare
 
-- workflow de `main` mais recente: `33325864994`, sucesso;
-- deployment Pages de produção observado: `ba1407f1-5d61-4572-89cf-94d88afa301c`;
-- estado revalidado pelo terminal antes do push em 30/08/2026;
-- produção deve ser revalidada antes do merge e novamente antes do deploy.
+- workflow do merge do Upload Manual V1: `33329183232`, PASS;
+- workflow do hotfix permanente do binding D1: `33329890467`, PASS;
+- deployment Pages canônico: `14d0be08-fd7f-4036-930c-083474941fd8`, branch `main`, source `a07b8d4`, status sucesso;
+- binding `BANCO_NOTAS_DB` de produção revalidado no D1 `banco-notas-production`;
+- smoke autenticado em `https://admin.escolaieda.com/banco-de-notas/importacoes` sem erro de storage e sem erros de console.
 
 ## D1 e escrita acadêmica
 
@@ -31,7 +29,7 @@ Concluir a primeira versão operacional do Banco de Notas por upload manual de c
 - `commit_route_enabled=0` na última leitura live;
 - `sync_attempts=0`;
 - `sync_attempt_invocations=0`;
-- `import_analysis_profiles=0`, `import_jobs=0` e `import_analyses=0` na revalidação live anterior ao push;
+- `import_analysis_profiles=0`, `import_jobs=0` e `import_analyses=0` na revalidação live imediatamente anterior ao primeiro upload;
 - consulta D1 estritamente read-only: `changed_db=false` e `rows_written=0`;
 - nenhum primeiro write acadêmico foi executado;
 - os eventos existentes do piloto são baselines provisionados, não lançamentos produzidos pelo suplemento.
@@ -86,15 +84,11 @@ Concluir a primeira versão operacional do Banco de Notas por upload manual de c
 
 ## Próximo passo exato
 
-1. atualizar contratos semânticos para tornar Upload Manual V1 o caminho operacional inicial;
-2. criar endpoint único que faça hash, crie/reutilize job, associe automaticamente o perfil institucional e analise o `.xlsx`;
-3. criar UI `Importações` com seleção de ano/professor/fonte/arquivo;
-4. exibir resumo e detalhe do conteúdo lido;
-5. testar limites, tipos, duplicidade, autorização, zero/ausência e privacidade;
-6. executar `npm run verify`, auditoria e `git diff --check`;
-7. abrir PR e aguardar CI/review;
-8. somente depois revalidar produção e decidir deploy;
-9. validar com cópia autorizada, nunca com o original.
+1. obter confirmação imediata do usuário para transmitir a cópia `.xlsx`, pois ela contém nomes e notas reais;
+2. enviar somente a cópia temporária validada, associada a `SECRETARIA — PILOTO CONTROLADO` e à fonte `Upload manual de planilhas docentes 2026`;
+3. conferir o resumo da análise sem promover notas para eventos oficiais;
+4. revalidar D1, kill switches e ausência de sincronização;
+5. remover a cópia temporária local e registrar a evidência final sem dados pessoais.
 
 ## Condições de interrupção
 
@@ -118,5 +112,18 @@ Parar e registrar novo checkpoint se:
 - tentativa pelo conector Cloudflare foi rejeitada por autenticação e não alterou estado;
 - control plane protegido `deploy-read-only`, run `33329512110`, criou backup/bookmark e confirmou migrations idempotentes, mas falhou fechado antes do deploy porque seu gate histórico exige zero pilotos;
 - o estado canônico atual tem exatamente um piloto/modelo/assignment interno habilitado e kill switches globais em zero; esse estado não foi desmontado para satisfazer o gate antigo;
-- correção permanente em andamento na branch `fix/banco-notas-preserve-production-d1`: declarar o D1 de produção e as variáveis fail-closed do Banco no `wrangler.jsonc` versionado;
+- correção permanente integrada pelo PR `#151`; o deploy seguinte preservou o binding e o smoke autenticado eliminou o erro de storage;
 - produção permanece sem importações e sem write acadêmico; sync global e commit route continuam em zero.
+
+## Fonte manual provisionada e ponto seguro final
+
+- fonte criada pela interface administrativa auditada: `Upload manual de planilhas docentes 2026`;
+- tipo `legacy_import`, ambiente `production`, migração `ready`, status `active`;
+- promoção registrada com motivo explícito e sem criar vigência de sincronização;
+- leitura D1 posterior: `changed_db=false`, `rows_written=0`, `import_jobs=0`, `import_analyses=0` e `sync_attempts=0`;
+- formulário de importação reconheceu automaticamente ano 2026, fonte e perfil `Visão Geral · turma + número sequencial`;
+- único professor disponível: `SECRETARIA — PILOTO CONTROLADO`, previamente autorizado;
+- uma cópia local temporária `.xlsx` foi produzida a partir de uma cópia isolada do `.xlsb`; o original não foi modificado;
+- regressão privada sobre essa cópia: 1 arquivo de teste PASS, sem imprimir conteúdo;
+- nenhum arquivo real foi transmitido, e nenhum nome ou nota foi registrado no GitHub;
+- parada segura: aguardar confirmação imediata do usuário antes do upload real.
