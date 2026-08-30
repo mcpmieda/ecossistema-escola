@@ -185,3 +185,12 @@ Permanece apenas a pasta autorizada `BANCO_NOTAS_HOMOLOGACAO` e o histórico sin
 - CI `33246218011` e Semgrep `33246218042`: PASS.
 - Merge state CLEAN; reviews/threads 0; deployments 0; produção/recovery/cleanup skipped.
 - Aguardar CI do commit de evidências e integrar com merge `[skip ci]` se o estado permanecer limpo.
+
+## Checkpoint — Sync V1 Core integrado / add-in em validação (29/08/2026)
+
+- Core integrado pelo PR #139 na `main` `fca06dcf2d874dedbc1f26c596b8c5b5354f6d09`, com CI/Semgrep/CodeRabbit verdes, sete threads resolvidas e zero deploys no merge `[skip ci]`;
+- branch ativa: `feat/banco-notas-addin-sync-v1`, baseada nessa `main`;
+- implementação local: confirmação explícita, preflight/commit/outcome, baselines no contexto, fórmula fail-closed, parsing strict e UX de conflito/resultado;
+- próximo gate: regressão integral, PR Draft, CI/Semgrep/review e integração sem deploy;
+- produção, D1 remoto, Graph, Entra, distribuição do add-in e primeiro write continuam intactos;
+- leitura: `docs/BANCO_NOTAS_SYNC_V1.md`, threat model, recovery, change plan, pilot runbook, support e release notes.

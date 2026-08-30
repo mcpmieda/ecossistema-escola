@@ -4,13 +4,13 @@ Data: 29/08/2026
 
 Branch: `feat/banco-notas-addin-cotidiano-v1`
 
-Base: `main` em `3e02f80b3dd07d00eef63f5d481ba4250c14c9e5`
+Base do Sync V1: `main` em `fca06dcf2d874dedbc1f26c596b8c5b5354f6d09`
 
 ## Objetivo
 
-O taskpane transforma a prova técnica NAA em uma experiência cotidiana read-only: autentica a conta institucional, reconhece o workbook e a guia ativa, obtém o contexto mínimo autorizado, executa preflight e compara células mapeadas com o estado conhecido.
+O taskpane transforma a prova técnica NAA em uma experiência cotidiana governada: autentica a conta institucional, reconhece o workbook e a guia ativa, obtém o contexto mínimo autorizado, compara células mapeadas e, somente para piloto elegível, oferece Sync V1 explícito.
 
-Esta V1 não envia, ingere nem persiste notas. A única ação é **Analisar novamente**.
+As ações são **Analisar novamente** e **Sincronizar alterações**. A segunda só é habilitada quando contexto, global switch, commit route, modelo, fonte, piloto, mappings e baselines permitem; o servidor revalida tudo no preflight e no commit.
 
 ## Fluxo
 
@@ -20,13 +20,17 @@ Esta V1 não envia, ingere nem persiste notas. A única ação é **Analisar nov
 4. A identidade versionada do workbook é enviada por query ao endpoint read-only.
 5. O backend valida bearer v2, OID, ownership e correspondência exata da versão persistida.
 6. O DTO retorna labels mínimos, estado, preflight, pendências relevantes e baselines autorizados.
-7. Office.js lê somente as células mapeadas da guia ativa e compara localmente; nenhum conteúdo de célula é enviado.
+7. Office.js lê somente as células mapeadas da guia ativa e compara localmente; nenhum conteúdo é enviado durante análise.
+8. Uma confirmação explícita cria `requestId`, executa preflight e envia no máximo 500 mudanças sem IDs canônicos controlados pelo cliente.
+9. Commit atômico grava eventos, snapshots e attempt; timeout consulta outcome pelo mesmo `requestId`.
 
 ## API e exposição controlada
 
 `GET /api/banco-notas/v1/addin/context` exige bearer delegado e ownership. A rota falha fechada com 404 enquanto `BANCO_NOTAS_ADDIN_CONTEXT_ENABLED` não for exatamente `1`, e com 503 sem binding D1.
 
 O endpoint de escrita `/api/banco-notas/v1/grade-events` continua desconectado do roteador público. Nenhuma capability administrativa foi reutilizada pelo add-in.
+
+`POST /api/banco-notas/v1/addin/sync/preflight`, `/commit` e `/outcome` exigem o mesmo bearer delegado. POST exige origin oficial; o roteador e o D1 falham fechados. O contrato está em `api/banco-notas-sync-v1.openapi.yaml`.
 
 Contrato: `api/banco-notas-addin-context-v1.openapi.yaml`.
 
@@ -50,7 +54,7 @@ A versão persistida registra `workbookModelId`, `sourceHash`, `relationshipSnap
 
 O preflight é read-only e distingue modelo suspenso/indisponível, assignment ausente, fonte autoritativa ausente, mapping desconhecido, baseline indisponível e sync desligado. Somente razões relevantes ao professor são apresentadas.
 
-`sync_enabled=0` produz “Sincronização indisponível pela administração enquanto o piloto não está ativo”; não é tratado como falha técnica. Mesmo se o estado administrativo vier habilitado, esta V1 informa que não envia alterações.
+`sync_enabled=0`, commit route off ou piloto ausente produzem “Sincronização indisponível pela administração enquanto o piloto não está ativo”; não são tratados como falha técnica. O botão só habilita com todos os gates e ao menos uma mudança com baseline.
 
 ## Alterações detectadas
 
@@ -61,7 +65,7 @@ Cada mapping autorizado contém endereço, campo, label do estudante e baseline.
 - ausência conhecida;
 - baseline desconhecido, excluído da contagem de mudanças.
 
-O preview é limitado a 25 alterações e o endpoint limita mappings a 5.000. A UI mostra quantidade de campos, estudantes afetados e transição factual. Nenhuma mudança é persistida ou enviada.
+O preview é limitado a 25 alterações, o contexto limita mappings a 5.000 e cada commit limita 500 mudanças. A UI mostra quantidade de campos, estudantes afetados e transição factual. Fórmula alterada é bloqueada; nenhum valor é enviado antes da confirmação explícita.
 
 ## Segurança e privacidade
 
@@ -71,7 +75,7 @@ O preview é limitado a 25 alterações e o endpoint limita mappings a 5.000. A 
 - sem client secret, certificado ou nova permissão Microsoft/Graph;
 - sem acesso direto do frontend ao Graph ou SharePoint;
 - política global anti-framing e exceções específicas do add-in preservadas;
-- nenhuma escrita D1 remota, alteração Entra/Graph, publicação do add-in ou deploy de produção.
+- nenhuma permissão Graph nova; escrita é exclusivamente D1, atômica e restrita ao piloto elegível.
 
 ## Verificação
 
@@ -81,12 +85,10 @@ A regressão NAA existente, validação do manifest, builds web/add-in, contrato
 
 ## Limites preservados
 
-- add-in não publicado;
-- rota de contexto não ativada em produção;
-- endpoint de ingestão público continua desconectado;
-- `sync_enabled=0` preservado;
-- produção, D1 remoto, Graph e Entra intactos;
-- Piloto Controlado / Sync V1 permanece decisão humana posterior.
+- distribuição e ativação continuam condicionadas ao change plan e à coorte canônica;
+- endpoint legado de grade-events continua desconectado;
+- antes do deploy read-only e do piloto real, `sync_enabled=0` deve permanecer preservado;
+- rollout amplo é proibido: somente modelos classificados `ready` entram em elegibilidade gradual.
 
 ## Estado
 
@@ -117,4 +119,4 @@ Publicação inicial:
 - deployments associados ao head: 0;
 - merge state: `CLEAN`.
 
-Integração controlada ainda deve ser registrada neste documento antes da consolidação final.
+O histórico acima registra a entrega read-only original. O Sync V1 é evoluído no PR próprio a partir da `main` `fca06dcf2d874dedbc1f26c596b8c5b5354f6d09`; distribuição e ativação continuam condicionadas aos gates do change plan.

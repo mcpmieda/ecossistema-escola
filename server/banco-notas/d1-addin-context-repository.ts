@@ -88,6 +88,7 @@ export class D1BancoNotasAddinContextRepository implements BancoNotasAddinContex
     const models = await this.db
       .prepare(
         `SELECT model.id AS teacher_model_id, model.teacher_id, model.state,
+                model.environment AS model_environment,
                 model.sync_enabled AS model_sync_enabled, model.last_reconciled_at,
                 model.updated_at AS model_updated_at,
                 teacher.display_name AS teacher_name,
@@ -128,7 +129,7 @@ export class D1BancoNotasAddinContextRepository implements BancoNotasAddinContex
     const teacherModelId = String(model.teacher_model_id);
     await this.authorizer.assertTeacherModelOwner({ teacherModelId, entraObjectId });
 
-    const [mappingRows, source, activity] = await Promise.all([
+    const [mappingRows, source, activity, configuration, pilot] = await Promise.all([
       this.db
         .prepare(
           `SELECT mapping.cell_address, mapping.field,
@@ -137,6 +138,7 @@ export class D1BancoNotasAddinContextRepository implements BancoNotasAddinContex
                   component.id AS component_id, component.name AS component_name,
                   assignment.id AS assignment_id,
                   snapshot.event_id AS snapshot_event_id,
+                  snapshot.sequence AS snapshot_sequence,
                   snapshot.value_numeric, snapshot.value_text,
                   snapshot.is_absent AS known_absent
            FROM cell_mappings mapping
@@ -168,26 +170,64 @@ export class D1BancoNotasAddinContextRepository implements BancoNotasAddinContex
         .all<Row>(),
       this.db
         .prepare(
-          `SELECT assignment.sync_enabled
+          `SELECT assignment.sync_enabled, source.id AS source_id
            FROM source_assignments assignment
-           JOIN data_sources source ON source.id = assignment.data_source_id
+           LEFT JOIN data_sources source ON source.id = assignment.data_source_id
+             AND source.status = 'active'
+             AND source.type = 'linked_teacher_model'
+             AND source.environment = ?
            WHERE assignment.school_year_id = ?
              AND assignment.status = 'active'
              AND assignment.authority = 'authoritative'
-             AND source.status = 'active'
              AND assignment.effective_from <= date('now')
              AND (assignment.effective_to IS NULL OR assignment.effective_to >= date('now'))
-             AND (assignment.teacher_id = ? OR assignment.teacher_id IS NULL)
-           ORDER BY CASE WHEN assignment.teacher_id = ? THEN 0 ELSE 1 END,
+             AND (
+               assignment.teacher_id = ?
+               OR (
+                 assignment.teacher_id IS NULL
+                 AND NOT EXISTS (
+                   SELECT 1 FROM source_assignments teacher_override
+                   WHERE teacher_override.school_year_id = assignment.school_year_id
+                     AND teacher_override.teacher_id = ?
+                     AND teacher_override.status = 'active'
+                     AND teacher_override.authority = 'authoritative'
+                     AND teacher_override.sync_enabled = 1
+                     AND teacher_override.effective_from <= date('now')
+                     AND (teacher_override.effective_to IS NULL OR teacher_override.effective_to >= date('now'))
+                 )
+               )
+             )
+           ORDER BY assignment.sync_enabled DESC,
+                    CASE WHEN assignment.teacher_id = ? THEN 0 ELSE 1 END,
                     assignment.effective_from DESC, assignment.id
            LIMIT 1`,
         )
-        .bind(String(model.school_year_id), String(model.teacher_id), String(model.teacher_id))
+        .bind(
+          String(model.model_environment),
+          String(model.school_year_id),
+          String(model.teacher_id),
+          String(model.teacher_id),
+          String(model.teacher_id),
+        )
         .first<Row>(),
       this.db
         .prepare(
           `SELECT MAX(occurred_at) AS last_activity_at
            FROM grade_events WHERE teacher_model_id = ?`,
+        )
+        .bind(teacherModelId)
+        .first<Row>(),
+      this.db
+        .prepare(
+          "SELECT sync_enabled,commit_route_enabled FROM sync_configuration WHERE id='global'",
+        )
+        .first<Row>(),
+      this.db
+        .prepare(
+          `SELECT 1 allowed FROM sync_pilot_eligibility
+           WHERE teacher_model_id=? AND enabled=1
+             AND (starts_at IS NULL OR datetime(starts_at)<=datetime(CURRENT_TIMESTAMP))
+             AND (expires_at IS NULL OR datetime(expires_at)>=datetime(CURRENT_TIMESTAMP))`,
         )
         .bind(teacherModelId)
         .first<Row>(),
@@ -219,6 +259,8 @@ export class D1BancoNotasAddinContextRepository implements BancoNotasAddinContex
           known: Boolean(row.snapshot_event_id),
           knownValue: snapshotValue(row),
           knownAbsent: Number(row.known_absent) === 1,
+          baselineEventId: row.snapshot_event_id ? String(row.snapshot_event_id) : null,
+          baselineSequence: row.snapshot_sequence ? Number(row.snapshot_sequence) : null,
         }))
       : [];
 
@@ -228,12 +270,16 @@ export class D1BancoNotasAddinContextRepository implements BancoNotasAddinContex
     else if (modelState === 'archived') reasons.push('model_unavailable');
     else if (modelState !== 'connected') reasons.push('model_not_connected');
     if (!assignment) reasons.push('assignment_missing');
-    if (!source) reasons.push('authoritative_source_missing');
+    if (!source?.source_id) reasons.push('authoritative_source_missing');
     if (!mappingIntegrity || mappings.length === 0) reasons.push('mapping_unknown');
     if (mappings.some((mapping) => !mapping.known)) reasons.push('baseline_unavailable');
 
     const syncEnabled =
-      Boolean(model.model_sync_enabled) && Boolean(source && Number(source.sync_enabled) === 1);
+      Boolean(model.model_sync_enabled) &&
+      Boolean(source?.source_id && Number(source.sync_enabled) === 1) &&
+      Number(configuration?.sync_enabled ?? 0) === 1 &&
+      Number(configuration?.commit_route_enabled ?? 0) === 1 &&
+      Boolean(pilot);
     if (!syncEnabled) reasons.push('sync_disabled_by_administration');
 
     const uniqueReasons = [...new Set(reasons)];

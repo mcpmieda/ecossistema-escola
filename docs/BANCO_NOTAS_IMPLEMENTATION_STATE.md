@@ -443,3 +443,16 @@ Documento: `docs/BANCO_NOTAS_ADDIN_COTIDIANO_V1.md`.
 Status local: `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`.
 
 Publicação inicial: PR Draft #138; CI `33246218011` e Semgrep `33246218042` PASS; reviews/threads 0; merge state CLEAN; jobs de produção skipped; deployments 0.
+
+## Sync V1 e GO-LIVE — Core integrado / add-in em validação (29/08/2026)
+
+- Core integrado pelo PR #139 em `main` `fca06dcf2d874dedbc1f26c596b8c5b5354f6d09`; CI, segurança, Semgrep e CodeRabbit PASS; merge `[skip ci]` sem deploy.
+- Branch ativa `feat/banco-notas-addin-sync-v1`, baseada nessa `main`.
+- Contratos strict, preflight, commit, outcome, piloto default-deny, dois kill switches, batch atômico, baseline otimista e retry idempotente implementados.
+- Mappings, grade keys, fonte, modelo, assignment e actor interno são resolvidos/revalidados server-side; OID externo não é persistido no ledger/proveniência.
+- Attempts e invocações duplicadas são append-only; falhas podem ser recuperadas sem apagar histórico; admin expõe contagens, conflitos, falhas, duplicatas, duração e último sucesso sem valores de nota.
+- Readiness automatizada classifica modelos não arquivados como `ready`, `blocked` ou `needs_attention`, sem adivinhar coorte.
+- Add-in executa confirmação explícita, preflight/commit/outcome, bloqueia fórmula alterada e não oferece force overwrite.
+- Corpus sintético de 25 estudantes, carga 1/10/100/500, rollback integral, corrida de baseline, mudanças pós-preflight e retry storm cobertos.
+- OpenAPI, contrato semântico, threat model, recovery, change plan, support, pilot runbook e release notes atualizados.
+- Estado remoto nesta etapa: produção intacta, D1 production inexistente, add-in não distribuído e sync remoto não provisionado.

@@ -10,6 +10,7 @@ const root = process.cwd();
 const migrations = [
   '0001_banco_notas_foundation.sql',
   '0007_banco_notas_teacher_entra_identity.sql',
+  '0008_banco_notas_sync_v1.sql',
 ].map((name) => readFileSync(join(root, 'infra/banco-notas/d1/migrations', name), 'utf8'));
 
 class Prepared {
@@ -200,5 +201,66 @@ describe('Banco de Notas cotidiano add-in context repository', () => {
     expect(result?.pending).toContainEqual(
       expect.objectContaining({ code: 'sync_disabled_by_administration', severity: 'info' }),
     );
+  });
+
+  it('enables the add-in action only when global, route, pilot, source and baseline gates pass', async () => {
+    const gradeKey = `2026|${ids.classGroup}|${ids.component}|${ids.student}`;
+    database.exec(`
+      UPDATE teacher_models SET sync_enabled=1 WHERE id='${ids.model}';
+      UPDATE source_assignments SET sync_enabled=1 WHERE id='authority-context';
+      UPDATE sync_configuration SET sync_enabled=1,commit_route_enabled=1 WHERE id='global';
+      INSERT INTO sync_pilot_eligibility(teacher_model_id,enabled,approved_by,reason)
+        VALUES('${ids.model}',1,'test','synthetic pilot');
+      INSERT INTO grade_events
+        (id,idempotency_key,payload_hash,correlation_id,event_type,status,grade_key,field,source_id,teacher_model_id,sequence,value_numeric,is_absent,provenance_json,occurred_at)
+        VALUES('event-third','idem-third','hash-third','corr-third','grade.changed','applied','${gradeKey}','NotaT3','${ids.source}','${ids.model}',1,7,0,'{}','2026-08-29T01:30:00Z');
+      INSERT INTO grade_snapshots(grade_key,field,event_id,source_id,sequence,value_numeric,is_absent,updated_at)
+        VALUES('${gradeKey}','NotaT3','event-third','${ids.source}',1,7,0,'2026-08-29T01:30:00Z');
+    `);
+    await expect(repository.context(query, ids.oid)).resolves.toMatchObject({
+      syncEnabled: true,
+      preflight: { status: 'ready', reasons: [] },
+      mappings: [
+        expect.objectContaining({ baselineEventId: 'event-zero', baselineSequence: 1 }),
+        expect.objectContaining({ baselineEventId: 'event-absent', baselineSequence: 1 }),
+        expect.objectContaining({ baselineEventId: 'event-third', baselineSequence: 1 }),
+      ],
+    });
+    database.exec(
+      `UPDATE sync_pilot_eligibility SET enabled=0 WHERE teacher_model_id='${ids.model}'`,
+    );
+    await expect(repository.context(query, ids.oid)).resolves.toMatchObject({
+      syncEnabled: false,
+      preflight: { status: 'warning', reasons: ['sync_disabled_by_administration'] },
+    });
+  });
+
+  it('normalizes pilot bounds and preserves teacher-source precedence in the UI gate', async () => {
+    database.exec(`
+      UPDATE teacher_models SET sync_enabled=1 WHERE id='${ids.model}';
+      UPDATE source_assignments SET sync_enabled=1,scope='teacher_override',teacher_id='${ids.teacher}'
+        WHERE id='authority-context';
+      UPDATE sync_configuration SET sync_enabled=1,commit_route_enabled=1 WHERE id='global';
+      INSERT INTO sync_pilot_eligibility(teacher_model_id,enabled,starts_at,expires_at,approved_by,reason)
+        VALUES('${ids.model}',1,
+          strftime('%Y-%m-%dT%H:%M:%SZ','now','-1 minute'),
+          strftime('%Y-%m-%dT%H:%M:%SZ','now','+1 minute'),'test','iso pilot');
+      INSERT INTO data_sources(id,school_year_id,type,name,environment,status,created_by)
+        VALUES('global-source','${ids.year}','linked_teacher_model','Global','homologation','active','test');
+      INSERT INTO source_assignments(id,school_year_id,data_source_id,scope,authority,status,sync_enabled,effective_from,operator_id,reason)
+        VALUES('global-authority','${ids.year}','global-source','school_year_default','authoritative','active',1,'2026-01-01','test','fallback');
+      UPDATE data_sources SET status='inactive' WHERE id='${ids.source}';
+    `);
+    await expect(repository.context(query, ids.oid)).resolves.toMatchObject({
+      syncEnabled: false,
+      preflight: {
+        reasons: expect.arrayContaining(['authoritative_source_missing']),
+      },
+    });
+    database.exec(`UPDATE data_sources SET status='active' WHERE id='${ids.source}'`);
+    await expect(repository.context(query, ids.oid)).resolves.toMatchObject({
+      syncEnabled: true,
+      preflight: { reasons: ['baseline_unavailable'] },
+    });
   });
 });
