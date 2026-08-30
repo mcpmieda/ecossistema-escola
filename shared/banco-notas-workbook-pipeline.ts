@@ -11,20 +11,4 @@ export const legacyWorkbookSourceMetadataSchema = z
   })
   .strict();
 
-export const genericWorkbookArtifactMetadataSchema = z
-  .object({
-    format: z.literal('xlsx'),
-    contentType: z.literal('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
-    sha256: sha256Schema,
-    byteLength: z.number().int().positive(),
-    modelId: z.string().uuid(),
-    definitionVersion: z.string().min(1).max(40),
-    layoutVersion: z.string().min(1).max(40),
-    mappingVersion: z.number().int().min(1),
-    sourceHash: sha256Schema,
-    relationshipSnapshotId: z.string().uuid(),
-  })
-  .strict();
-
 export type LegacyWorkbookSourceMetadata = z.infer<typeof legacyWorkbookSourceMetadataSchema>;
-export type GenericWorkbookArtifactMetadata = z.infer<typeof genericWorkbookArtifactMetadataSchema>;
