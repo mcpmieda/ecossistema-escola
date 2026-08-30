@@ -4,13 +4,7 @@
   "mode": "reference",
   "policy": "proportional",
   "principle": "Validar somente as superfícies afetadas pela alteração. Este arquivo não é um gate automático de PR ou release.",
-  "default_checks": [
-    "format",
-    "lint",
-    "typecheck",
-    "tests",
-    "application_build"
-  ],
+  "default_checks": ["format", "lint", "typecheck", "tests", "application_build"],
   "conditional_checks": {
     "addin": {
       "when": "addin/banco-notas ou configuração de build/manifest do add-in mudar",
@@ -22,7 +16,11 @@
     },
     "microsoft_integrations": {
       "when": "Entra, Graph, SharePoint ou autorização relacionada mudar",
-      "checks": ["authorization", "integration_contract", "real_homologation_when_required_for_release"]
+      "checks": [
+        "authorization",
+        "integration_contract",
+        "real_homologation_when_required_for_release"
+      ]
     },
     "github_actions": {
       "when": ".github/workflows mudar",
