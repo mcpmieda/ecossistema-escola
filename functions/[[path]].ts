@@ -11,7 +11,6 @@ import {
   exchangeCode,
   newAuthTransaction,
   verifyIdToken,
-  validateWebCredential,
 } from '../server/auth/oidc';
 import { clearCookie, readCookie, secureCookie } from '../server/auth/cookies';
 import { seal, unseal } from '../server/auth/sealed';
@@ -24,24 +23,13 @@ import {
   withSecurityHeaders,
 } from '../server/http/security';
 import { sharePointHealth } from '../server/graph/sharepoint';
-import {
-  MAINTENANCE_RECOVERY_AUDIENCE,
-  verifyGitHubMaintenanceToken,
-} from '../server/auth/github-oidc';
-import { graphCredentials, type GraphCredentialSlot } from '../server/auth/technical-identity';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
-import { verifyRecoveryRoundTrip } from '../server/platform/recovery';
 import { D1BancoNotasRepository } from '../server/banco-notas/d1-repository';
 import { D1ImportAnalysisRepository } from '../server/banco-notas/d1-import-analysis-repository';
 import { D1ImportAnalysisProfileRepository } from '../server/banco-notas/d1-import-analysis-profile-repository';
 import { routeBancoNotasApi } from '../server/banco-notas/api';
 import { D1TurmasAlunosRepository } from '../server/banco-notas/d1-turmas-alunos-repository';
 import { D1ProfessoresRepository } from '../server/banco-notas/d1-professores-repository';
-import { routeBancoNotasAddinApi } from '../server/banco-notas/addin-api';
-import { D1BancoNotasAddinAuthorizer } from '../server/banco-notas/d1-addin-authorizer';
-import { D1BancoNotasAddinContextRepository } from '../server/banco-notas/d1-addin-context-repository';
-import { D1GradeEventStore } from '../server/banco-notas/d1-grade-event-store';
-import { D1BancoNotasSyncService } from '../server/banco-notas/d1-sync-service';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -68,6 +56,7 @@ const MAX_AUTH_TRANSACTIONS = 4;
 function json(value: unknown, status = 200): Response {
   return Response.json(value, { status });
 }
+
 function method(request: Request, allowed: string[]): void {
   if (!allowed.includes(request.method)) throw new HttpError(405, 'Method not allowed');
 }
@@ -156,52 +145,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
     method(request, ['GET']);
     return json({ status: 'ok', service: 'ecossistema-escola', version: '1.0.0' });
   }
-  if (url.pathname === '/api/maintenance/rotation/validate') {
-    method(request, ['POST']);
-    try {
-      await verifyGitHubMaintenanceToken(request.headers.get('Authorization'));
-    } catch {
-      throw new HttpError(401, 'Invalid maintenance identity');
-    }
-    const requestedSlot = url.searchParams.get('slot');
-    const target = url.searchParams.get('target') ?? 'graph';
-    if (requestedSlot !== 'LEGACY' && requestedSlot !== 'A' && requestedSlot !== 'B') {
-      throw new HttpError(400, 'Invalid credential slot');
-    }
-    if (target !== 'graph' && target !== 'web') throw new HttpError(400, 'Invalid target');
-    try {
-      if (target === 'web') {
-        return json(await validateWebCredential(env, requestedSlot as GraphCredentialSlot));
-      }
-      const result = await sharePointHealth(env, requestedSlot as GraphCredentialSlot);
-      const credentialKeyId = graphCredentials(env, requestedSlot as GraphCredentialSlot)[0]?.keyId;
-      return json({ ...result, credentialSlot: requestedSlot, credentialKeyId });
-    } catch (error) {
-      throw new HttpError(
-        502,
-        error instanceof Error ? error.message : 'Technical identity validation failed',
-      );
-    }
-  }
-  if (url.pathname === '/api/maintenance/recovery/verify') {
-    method(request, ['POST']);
-    try {
-      await verifyGitHubMaintenanceToken(
-        request.headers.get('Authorization'),
-        MAINTENANCE_RECOVERY_AUDIENCE,
-      );
-    } catch {
-      throw new HttpError(401, 'Invalid maintenance identity');
-    }
-    try {
-      return json(await verifyRecoveryRoundTrip(env));
-    } catch (error) {
-      throw new HttpError(
-        502,
-        error instanceof Error ? error.message : 'Recovery verification failed',
-      );
-    }
-  }
+
   if (url.pathname === '/auth/login') {
     method(request, ['GET']);
     const transaction = await newAuthTransaction();
@@ -228,6 +172,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
       },
     });
   }
+
   if (url.pathname === '/auth/callback') {
     method(request, ['GET']);
     const transactions = await readAuthTransactions(request, env.SESSION_SECRET);
@@ -296,6 +241,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
         authCookie: remainingAuthCookie,
       });
     }
+
     const mappedRoles = rolesForGroups(claims.groups, env);
     if (mappedRoles.length === 0) {
       return authFailureResponse({
@@ -308,6 +254,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
         authCookie: remainingAuthCookie,
       });
     }
+
     const session = await seal(
       {
         oid: claims.oid,
@@ -323,6 +270,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
     headers.append('Set-Cookie', remainingAuthCookie);
     return new Response(null, { status: 302, headers });
   }
+
   if (url.pathname === '/auth/logout') {
     method(request, ['POST']);
     enforceWriteOrigin(request, env);
@@ -331,6 +279,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
     headers.append('Set-Cookie', clearCookie(AUTH_COOKIE));
     return new Response(null, { status: 303, headers });
   }
+
   if (url.pathname === '/api/me') {
     method(request, ['GET']);
     const session = await requireAuth(request, env);
@@ -341,6 +290,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
       capabilities: capabilitiesForRoles(session.roles),
     });
   }
+
   if (url.pathname === '/api/sharepoint/health') {
     method(request, ['GET']);
     const session = await requireAuth(request, env);
@@ -348,6 +298,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
     requireCapability(capabilities, 'platform.health.read');
     return json(await sharePointHealth(env));
   }
+
   if (url.pathname === '/api/platform/snapshot') {
     method(request, ['GET']);
     const session = await requireAuth(request, env);
@@ -355,28 +306,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
     requireCapability(capabilities, 'platform.snapshot.read');
     return json(await getPlatformSnapshot(env, capabilities));
   }
-  if (
-    url.pathname === '/api/banco-notas/v1/addin/context' ||
-    url.pathname.startsWith('/api/banco-notas/v1/addin/sync/')
-  ) {
-    const isSyncRoute = url.pathname.startsWith('/api/banco-notas/v1/addin/sync/');
-    method(request, [isSyncRoute ? 'POST' : 'GET']);
-    if (isSyncRoute) enforceWriteOrigin(request, env);
-    if (env.BANCO_NOTAS_ADDIN_CONTEXT_ENABLED !== '1') {
-      throw new HttpError(404, 'Not found');
-    }
-    if (!env.BANCO_NOTAS_DB) {
-      throw new HttpError(503, 'Banco de Notas storage unavailable');
-    }
-    return routeBancoNotasAddinApi({
-      request,
-      env,
-      store: new D1GradeEventStore(env.BANCO_NOTAS_DB),
-      authorizer: new D1BancoNotasAddinAuthorizer(env.BANCO_NOTAS_DB),
-      contextRepository: new D1BancoNotasAddinContextRepository(env.BANCO_NOTAS_DB),
-      syncService: new D1BancoNotasSyncService(env.BANCO_NOTAS_DB),
-    });
-  }
+
   if (url.pathname.startsWith('/api/banco-notas/')) {
     const session = await requireAuth(request, env);
     const capabilities = capabilitiesForRoles(session.roles);
@@ -388,8 +318,8 @@ async function route(context: Context, correlationId: string): Promise<Response>
       }
       throw new HttpError(503, 'Banco de Notas storage unavailable');
     }
+
     const profiles = new D1ImportAnalysisProfileRepository(env.BANCO_NOTAS_DB);
-    const syncService = new D1BancoNotasSyncService(env.BANCO_NOTAS_DB);
     return routeBancoNotasApi({
       request,
       repository: new D1BancoNotasRepository(env.BANCO_NOTAS_DB),
@@ -402,9 +332,9 @@ async function route(context: Context, correlationId: string): Promise<Response>
         analyzers: [],
         profiles,
       },
-      syncAttempts: syncService,
     });
   }
+
   throw new HttpError(404, 'Not found');
 }
 
@@ -421,7 +351,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
       error instanceof AuthorizationError
         ? error.status
         : 500;
-    if (status >= 500)
+    if (status >= 500) {
       console.error(
         JSON.stringify({
           message: 'request_failed',
@@ -430,6 +360,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
           error: error instanceof Error ? error.message : 'unknown',
         }),
       );
+    }
     return withSecurityHeaders(
       json(
         {
