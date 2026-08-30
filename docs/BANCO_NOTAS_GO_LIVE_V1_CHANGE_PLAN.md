@@ -6,7 +6,7 @@
 2. Executar `Banco de Notas production control plane` com `snapshot`; registrar deployment atual, configuração/bindings, inventário D1 e distribuição vigente do add-in.
 3. Executar `deploy-read-only` somente com SHA do RC, deployment anterior e confirmação `DEPLOY_BANCO_NOTAS_READ_ONLY` exatos. O workflow recusa drift e bindings de recursos inesperados.
 4. Criar ou reutilizar univocamente `banco-notas-production`, registrar bookmark pré-migration no Time Travel restrito do D1, gerar export efêmero apenas para hash/tamanho e removê-lo do runner antes da primeira migration. O artefato contém somente evidência sanitizada. Aplicar 0001–0008 e provar `sync_enabled=0`, `commit_route_enabled=0`, piloto habilitado = 0 e oito migrations.
-5. Vincular somente `BANCO_NOTAS_DB`; configurar audience/scope/context e preservar variáveis Pages existentes com `keep_vars`. Deploy do RC com sync e commit route OFF.
+5. Vincular somente `BANCO_NOTAS_DB`; configurar audience/scope/context e reconstruir explicitamente todas as variáveis Pages `plain_text` existentes. Secrets permanecem gerenciados pelo Pages e nunca são materializados; tipos desconhecidos interrompem o deploy. Deploy do RC com sync e commit route OFF.
 6. Smoke administrativo read-only; rollback imediato ao deployment anterior se houver regressão.
 7. Identificar o piloto exclusivamente pela readiness canônica e confirmação institucional; enquanto isso, o alvo permanece `UNRESOLVED` e não deve ser inferido.
 8. Distribuir add-in ao menor piloto inequívoco. Validar Excel Online/NAA/context/preflight.

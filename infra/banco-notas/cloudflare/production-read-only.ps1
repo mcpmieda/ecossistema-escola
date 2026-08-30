@@ -292,13 +292,29 @@ function New-ProductionConfig {
   else {
     $compatibilityDate = '2026-08-30'
   }
+  $productionVars = [ordered]@{}
+  $environmentVariableMap = Get-PropertyMap (Get-NamedProperty -Value $production -Name 'env_vars')
+  foreach ($variableName in @($environmentVariableMap.Keys | Sort-Object)) {
+    $variable = $environmentVariableMap[$variableName]
+    $variableType = [string](Get-NamedProperty -Value $variable -Name 'type')
+    if ($variableType -eq 'plain_text') {
+      $productionVars[$variableName] = [string](Get-NamedProperty -Value $variable -Name 'value')
+      continue
+    }
+    if ($variableType -ne 'secret_text') {
+      throw "Tipo inesperado para a variável de produção $variableName`: $variableType."
+    }
+  }
+  $productionVars['RUNTIME_ENVIRONMENT'] = 'production'
+  $productionVars['BANCO_NOTAS_ADDIN_AUDIENCE'] = '73ab83d3-00ba-494a-a1f8-586d250d420a'
+  $productionVars['BANCO_NOTAS_ADDIN_SCOPE'] = 'BancoNotas.Sync'
+  $productionVars['BANCO_NOTAS_ADDIN_CONTEXT_ENABLED'] = '1'
   $config = [ordered]@{
     '$schema' = '../../node_modules/wrangler/config-schema.json'
     name = $projectName
     pages_build_output_dir = '../../dist'
     compatibility_date = $compatibilityDate
     compatibility_flags = @(Get-NamedProperty -Value $production -Name 'compatibility_flags')
-    keep_vars = $true
     d1_databases = @(
       [ordered]@{
         binding = $bindingName
@@ -307,12 +323,7 @@ function New-ProductionConfig {
         migrations_dir = 'migrations'
       }
     )
-    vars = [ordered]@{
-      RUNTIME_ENVIRONMENT = 'production'
-      BANCO_NOTAS_ADDIN_AUDIENCE = '73ab83d3-00ba-494a-a1f8-586d250d420a'
-      BANCO_NOTAS_ADDIN_SCOPE = 'BancoNotas.Sync'
-      BANCO_NOTAS_ADDIN_CONTEXT_ENABLED = '1'
-    }
+    vars = $productionVars
   }
   [IO.File]::WriteAllText(
     $configPath,
