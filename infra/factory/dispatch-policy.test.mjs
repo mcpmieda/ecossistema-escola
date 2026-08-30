@@ -36,10 +36,10 @@ test('root Jules task is queued for the API runner without external label trigge
   });
 });
 
-test('zero-first routing selects OpenCode/Ollama before remote free-quota providers', () => {
-  const value = task({ preferredProviders: ['antigravity', 'jules', 'opencode_ollama'] });
-  assert.deepEqual(AUTOMATIC_PROVIDER_ORDER, ['opencode_ollama', 'jules', 'antigravity']);
-  assert.deepEqual(DURABLE_PROVIDERS, ['opencode_ollama', 'antigravity']);
+test('zero-first routing selects OpenCode/Ollama before Jules', () => {
+  const value = task({ preferredProviders: ['jules', 'opencode_ollama'] });
+  assert.deepEqual(AUTOMATIC_PROVIDER_ORDER, ['opencode_ollama', 'jules']);
+  assert.deepEqual(DURABLE_PROVIDERS, ['opencode_ollama']);
   assert.equal(selectedAutomaticProvider(value), 'opencode_ollama');
   assert.deepEqual(initialDispatch(value), { provider: 'opencode_ollama', status: 'ready' });
   assert.deepEqual(desiredTaskLabels(value), [
@@ -49,14 +49,10 @@ test('zero-first routing selects OpenCode/Ollama before remote free-quota provid
   ]);
 });
 
-test('Antigravity-only task is ready for the durable agent gateway', () => {
+test('retired Antigravity-only task is not dispatched automatically', () => {
   const value = task({ preferredProviders: ['antigravity'] });
-  assert.deepEqual(initialDispatch(value), { provider: 'antigravity', status: 'ready' });
-  assert.deepEqual(desiredTaskLabels(value), [
-    FACTORY_LABELS.task,
-    FACTORY_LABELS.providerAntigravity,
-    FACTORY_LABELS.ready,
-  ]);
+  assert.deepEqual(initialDispatch(value), { provider: null, status: 'unassigned' });
+  assert.deepEqual(desiredTaskLabels(value), [FACTORY_LABELS.task]);
 });
 
 test('dependent automatic task waits for declared dependencies', () => {
@@ -86,10 +82,10 @@ test('task without an automatic provider remains unassigned', () => {
   assert.deepEqual(taskLabelPlan(value).triggerLabels, []);
 });
 
-test('provider labels are explicit and unknown providers receive no label', () => {
+test('provider labels are explicit and retired providers receive no label', () => {
   assert.equal(providerLabel('jules'), FACTORY_LABELS.providerJules);
-  assert.equal(providerLabel('antigravity'), FACTORY_LABELS.providerAntigravity);
   assert.equal(providerLabel('opencode_ollama'), FACTORY_LABELS.providerOpenCode);
+  assert.equal(providerLabel('antigravity'), null);
   assert.equal(providerLabel('codex'), null);
   assert.equal(selectedAutomaticProvider(null), null);
 });
