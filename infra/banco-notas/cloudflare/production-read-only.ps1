@@ -113,12 +113,11 @@ function Get-SanitizedProject {
   param([Parameter(Mandatory)][object]$Project)
   $production = $Project.deployment_configs.production
   $bindingGroups = [ordered]@{}
-  foreach ($name in @(
-      'd1_databases', 'kv_namespaces', 'r2_buckets', 'durable_object_namespaces',
-      'services', 'analytics_engine_datasets', 'queue_producers', 'hyperdrive_bindings'
-    )) {
-    $map = Get-PropertyMap (Get-NamedProperty -Value $production -Name $name)
-    $bindingGroups[$name] = @($map.Keys | Sort-Object)
+  foreach ($property in $production.PSObject.Properties) {
+    if ($property.Name -match '(bindings|namespaces|buckets|databases|datasets|producers|services|browsers)$') {
+      $map = Get-PropertyMap $property.Value
+      $bindingGroups[$property.Name] = @($map.Keys | Sort-Object)
+    }
   }
   $environmentVariables = [ordered]@{}
   $envMap = Get-PropertyMap (Get-NamedProperty -Value $production -Name 'env_vars')
@@ -192,13 +191,15 @@ function Assert-ReadOnlyDeployInput {
 function Assert-NoUnexpectedResourceBindings {
   param([Parameter(Mandatory)][object]$Project)
   $production = $Project.deployment_configs.production
-  foreach ($name in @(
-      'kv_namespaces', 'r2_buckets', 'durable_object_namespaces', 'services',
-      'analytics_engine_datasets', 'queue_producers', 'hyperdrive_bindings'
-    )) {
-    $keys = @((Get-PropertyMap (Get-NamedProperty -Value $production -Name $name)).Keys)
-    if ($keys.Count -gt 0) {
-      throw "Binding de produção inesperado em ${name}: $($keys -join ', ')."
+  foreach ($property in $production.PSObject.Properties) {
+    if (
+      $property.Name -ne 'd1_databases' -and
+      $property.Name -match '(bindings|namespaces|buckets|databases|datasets|producers|services|browsers)$'
+    ) {
+      $keys = @((Get-PropertyMap $property.Value).Keys)
+      if ($keys.Count -gt 0) {
+        throw "Binding de produção inesperado em $($property.Name): $($keys -join ', ')."
+      }
     }
   }
   $d1Map = Get-PropertyMap (Get-NamedProperty -Value $production -Name 'd1_databases')
@@ -358,6 +359,11 @@ if ($Operation -eq 'snapshot') {
 
 Assert-ReadOnlyDeployInput -CurrentDeployment $currentDeployment
 Assert-NoUnexpectedResourceBindings -Project $project
+New-Evidence `
+  -Project $project `
+  -CurrentDeployment $currentDeployment `
+  -Databases $databases `
+  -Status 'BANCO_NOTAS_PRODUCTION_PRE_MUTATION_SNAPSHOT_PASSED'
 $database = Resolve-ProductionDatabase
 $existingD1Map = Get-PropertyMap (Get-NamedProperty -Value $project.deployment_configs.production -Name 'd1_databases')
 if ($existingD1Map.Count -eq 1 -and [string]$existingD1Map[$bindingName].id -ne [string]$database.uuid) {
@@ -366,12 +372,12 @@ if ($existingD1Map.Count -eq 1 -and [string]$existingD1Map[$bindingName].id -ne 
 New-ProductionConfig -Project $project -Database $database
 
 Invoke-Wrangler -Token $env:CLOUDFLARE_D1_API_TOKEN -Arguments @(
-  'd1', 'export', $bindingName, '--remote', '--config', $configPath, '--output', $backupPath
+  'd1', 'export', $bindingName, '--remote', '--skip-confirmation', '--config', $configPath, '--output', $backupPath
 )
 $backupHash = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash.ToLowerInvariant()
 
 Invoke-Wrangler -Token $env:CLOUDFLARE_D1_API_TOKEN -Arguments @(
-  'd1', 'migrations', 'apply', $bindingName, '--remote', '--config', $configPath
+  'd1', 'migrations', 'apply', $bindingName, '--remote', '--yes', '--config', $configPath
 )
 $verification = Get-D1Verification
 $verification['preMigrationBackupSha256'] = $backupHash

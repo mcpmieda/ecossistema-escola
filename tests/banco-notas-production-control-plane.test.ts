@@ -26,6 +26,8 @@ describe('Banco de Notas production control plane', () => {
     const migrationIndex = script.indexOf("'d1', 'migrations', 'apply'");
     expect(exportIndex).toBeGreaterThan(0);
     expect(migrationIndex).toBeGreaterThan(exportIndex);
+    expect(script).toContain("'--skip-confirmation'");
+    expect(script).toContain("'--yes'");
     expect(script).toContain("'0008_banco_notas_sync_v1.sql'");
     expect(script).toContain('[int]$row.sync_enabled -ne 0');
     expect(script).toContain('[int]$row.commit_route_enabled -ne 0');
