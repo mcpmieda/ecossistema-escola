@@ -61,6 +61,10 @@ describe('Banco de Notas production control plane', () => {
     expect(script).toContain('Assert-NoUnexpectedResourceBindings');
     expect(script).toContain('deployment_trigger.metadata.commit_hash -ne $ExpectedReleaseSha');
     expect(script).toContain("latest_stage.status -ne 'success'");
+    expect(script).not.toContain('keep_vars');
+    expect(script).toContain("if ($variableType -eq 'plain_text')");
+    expect(script).toContain("if ($variableType -ne 'secret_text')");
+    expect(script).toContain('$productionVars[$variableName]');
   });
 
   it('does not collide with the PowerShell automatic Matches variable while resolving D1', () => {
