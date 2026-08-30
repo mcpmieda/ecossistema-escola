@@ -11,6 +11,13 @@ on:
 permissions:
   contents: read
 
+# Public identifiers required at Vite build time by the centrally deployed Office add-in.
+# These are application metadata, not credentials or secrets.
+env:
+  VITE_BANCO_NOTAS_ADDIN_CLIENT_ID: 73ab83d3-00ba-494a-a1f8-586d250d420a
+  VITE_TENANT_ID: f04e0fa3-b8dc-4f77-be3c-7dfda0635188
+  VITE_BANCO_NOTAS_RUNTIME_HOMOLOGATION: '0'
+
 concurrency:
   # Manual validation must never cancel an active production pipeline.
   # Production pushes are serialized instead of cancelling one another.
@@ -57,6 +64,9 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Verify Banco de Notas add-in build configuration
+        run: node infra/validation/assert-banco-notas-addin-build.mjs
 
   workflow-security:
     name: Validate GitHub Actions security
@@ -155,6 +165,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify Banco de Notas add-in build configuration
+        run: node infra/validation/assert-banco-notas-addin-build.mjs
+
       - name: Deploy Cloudflare Pages
         run: >-
           npx wrangler pages deploy dist
@@ -194,6 +207,9 @@ jobs:
 
       - name: Rebuild deployed source as recovery evidence
         run: npm run build
+
+      - name: Verify Banco de Notas add-in build configuration
+        run: node infra/validation/assert-banco-notas-addin-build.mjs
 
       - name: Verify disposable SharePoint backup and restore round trip
         shell: bash
