@@ -30,8 +30,6 @@ import { manualImportQuerySchema } from '../../shared/banco-notas-manual-import'
 import { requireCapability } from '../auth/capabilities';
 import { HttpError, readBoundedBytes, readBoundedJson } from '../http/security';
 import { effectiveAuthority } from './domain';
-import { syncAttemptsQuerySchema } from '../../shared/banco-notas-sync';
-import type { D1BancoNotasSyncService } from './d1-sync-service';
 import {
   analyzeUploadedImportWorkbook,
   findImportAnalysis,
@@ -46,21 +44,26 @@ const MAX_IMPORT_WORKBOOK_BYTES = 32 * 1024 * 1024;
 async function body(request: Request): Promise<unknown> {
   return readBoundedJson(request);
 }
+
 function parsed<T>(parse: () => T): T {
   try {
     return parse();
   } catch (error) {
-    if (error instanceof ZodError)
+    if (error instanceof ZodError) {
       throw new HttpError(400, error.issues[0]?.message ?? 'Invalid input');
+    }
     throw error;
   }
 }
+
 function response(value: unknown, status = 200): Response {
   return Response.json(value, { status });
 }
+
 function allowed(request: Request, methods: string[]): void {
   if (!methods.includes(request.method)) throw new HttpError(405, 'Method not allowed');
 }
+
 function importReason(request: Request): string {
   const reason = request.headers.get('X-Import-Reason')?.trim() ?? '';
   if (reason.length < 3 || reason.length > 500) {
@@ -68,6 +71,7 @@ function importReason(request: Request): string {
   }
   return reason;
 }
+
 async function sourceAuthorityMutation<T>(operation: () => Promise<T>): Promise<T> {
   try {
     return await operation();
@@ -136,10 +140,8 @@ async function importProfileMutation<T>(operation: () => Promise<T>): Promise<T>
     return await operation();
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === 'data_source_not_found')
-        throw new HttpError(404, 'Data source not found');
-      if (error.message === 'import_job_not_found')
-        throw new HttpError(404, 'Import job not found');
+      if (error.message === 'data_source_not_found') throw new HttpError(404, 'Data source not found');
+      if (error.message === 'import_job_not_found') throw new HttpError(404, 'Import job not found');
       if (error.message === 'import_analysis_profile_not_found') {
         throw new HttpError(404, 'Import analysis profile not found');
       }
@@ -168,8 +170,7 @@ async function importAnalysisMutation<T>(operation: () => Promise<T>): Promise<T
     return await operation();
   } catch (error) {
     if (error instanceof Error) {
-      if (error.message === 'import_job_not_found')
-        throw new HttpError(404, 'Import job not found');
+      if (error.message === 'import_job_not_found') throw new HttpError(404, 'Import job not found');
       if (error.message === 'import_job_school_year_not_found') {
         throw new HttpError(409, 'Import job school year is unavailable');
       }
@@ -217,7 +218,6 @@ export async function routeBancoNotasApi(args: {
   capabilities: readonly PlatformCapability[];
   actor: string;
   importAnalysis?: ImportAnalysisRuntime;
-  syncAttempts?: D1BancoNotasSyncService;
 }): Promise<Response> {
   const { request, repository, capabilities, actor } = args;
   const url = new URL(request.url);
@@ -231,33 +231,6 @@ export async function routeBancoNotasApi(args: {
     !manualImport
       ? await body(request)
       : undefined;
-
-  if (path === '/v1/sync/attempts') {
-    allowed(request, ['GET']);
-    requireCapability(capabilities, 'grades.analytics.read');
-    if (!args.syncAttempts) throw new HttpError(503, 'Sync attempts unavailable');
-    const raw = Object.fromEntries(
-      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
-    );
-    return response(
-      await args.syncAttempts.listAttempts(parsed(() => syncAttemptsQuerySchema.parse(raw))),
-    );
-  }
-  if (path === '/v1/sync/readiness') {
-    allowed(request, ['GET']);
-    requireCapability(capabilities, 'grades.analytics.read');
-    if (!args.syncAttempts) throw new HttpError(503, 'Sync readiness unavailable');
-    return response(await args.syncAttempts.readiness());
-  }
-  const syncAttemptMatch = path.match(/^\/v1\/sync\/attempts\/([0-9a-f-]+)$/iu);
-  if (syncAttemptMatch?.[1]) {
-    allowed(request, ['GET']);
-    requireCapability(capabilities, 'grades.analytics.read');
-    if (!args.syncAttempts) throw new HttpError(503, 'Sync attempts unavailable');
-    const result = await args.syncAttempts.attemptDetail(syncAttemptMatch[1]);
-    if (!result) throw new HttpError(404, 'Sync attempt not found');
-    return response(result);
-  }
 
   if (path === '/v1/professores/filters') {
     allowed(request, ['GET']);
@@ -317,9 +290,7 @@ export async function routeBancoNotasApi(args: {
     allowed(request, ['GET']);
     requireCapability(capabilities, 'grades.analytics.read');
     if (!args.turmasAlunos) throw new HttpError(503, 'Turmas e alunos storage unavailable');
-    const id = parsed(() =>
-      turmasListQuerySchema.shape.schoolYearId.unwrap().parse(turmaDetailMatch[1]),
-    );
+    const id = parsed(() => turmasListQuerySchema.shape.schoolYearId.unwrap().parse(turmaDetailMatch[1]));
     const result = await args.turmasAlunos.turmaDetail(id);
     if (!result) throw new HttpError(404, 'Turma não encontrada');
     return response(result);
@@ -340,9 +311,7 @@ export async function routeBancoNotasApi(args: {
     allowed(request, ['GET']);
     requireCapability(capabilities, 'grades.analytics.read');
     if (!args.turmasAlunos) throw new HttpError(503, 'Turmas e alunos storage unavailable');
-    const id = parsed(() =>
-      alunosListQuerySchema.shape.schoolYearId.unwrap().parse(alunoDetailMatch[1]),
-    );
+    const id = parsed(() => alunosListQuerySchema.shape.schoolYearId.unwrap().parse(alunoDetailMatch[1]));
     const result = await args.turmasAlunos.alunoDetail(id);
     if (!result) throw new HttpError(404, 'Aluno não encontrado');
     return response(result);
@@ -361,10 +330,7 @@ export async function routeBancoNotasApi(args: {
     }
     requireCapability(capabilities, 'grades.settings.manage');
     return response(
-      await repository.createSchoolYear(
-        parsed(() => schoolYearInputSchema.parse(requestBody)),
-        actor,
-      ),
+      await repository.createSchoolYear(parsed(() => schoolYearInputSchema.parse(requestBody)), actor),
       201,
     );
   }
@@ -388,10 +354,7 @@ export async function routeBancoNotasApi(args: {
     }
     return response(
       await importProfileMutation(() =>
-        profiles.createProfile(
-          parsed(() => importAnalysisProfileCreateSchema.parse(requestBody)),
-          actor,
-        ),
+        profiles.createProfile(parsed(() => importAnalysisProfileCreateSchema.parse(requestBody)), actor),
       ),
       201,
     );
@@ -432,16 +395,11 @@ export async function routeBancoNotasApi(args: {
     allowed(request, ['GET', 'POST']);
     requireCapability(capabilities, 'grades.import.run');
     if (request.method === 'GET') {
-      return response(
-        await repository.listImportJobs(url.searchParams.get('schoolYearId') ?? undefined),
-      );
+      return response(await repository.listImportJobs(url.searchParams.get('schoolYearId') ?? undefined));
     }
     return response(
       await importJobMutation(() =>
-        repository.createImportJob(
-          parsed(() => importJobCreateSchema.parse(requestBody)),
-          actor,
-        ),
+        repository.createImportJob(parsed(() => importJobCreateSchema.parse(requestBody)), actor),
       ),
       201,
     );
@@ -520,16 +478,11 @@ export async function routeBancoNotasApi(args: {
     allowed(request, ['GET', 'POST']);
     if (request.method === 'GET') {
       requireCapability(capabilities, 'grades.sources.read');
-      return response(
-        await repository.listSources(url.searchParams.get('schoolYearId') ?? undefined),
-      );
+      return response(await repository.listSources(url.searchParams.get('schoolYearId') ?? undefined));
     }
     requireCapability(capabilities, 'grades.sources.manage');
     return response(
-      await repository.createSource(
-        parsed(() => sourceInputSchema.parse(requestBody)),
-        actor,
-      ),
+      await repository.createSource(parsed(() => sourceInputSchema.parse(requestBody)), actor),
       201,
     );
   }
@@ -549,16 +502,11 @@ export async function routeBancoNotasApi(args: {
     allowed(request, ['GET', 'POST']);
     if (request.method === 'GET') {
       requireCapability(capabilities, 'grades.sources.read');
-      return response(
-        await repository.listAssignments(url.searchParams.get('schoolYearId') ?? undefined),
-      );
+      return response(await repository.listAssignments(url.searchParams.get('schoolYearId') ?? undefined));
     }
     requireCapability(capabilities, 'grades.sources.manage');
     const input = parsed(() => assignmentInputSchema.parse(requestBody));
-    return response(
-      await sourceAuthorityMutation(() => repository.createAssignment(input, actor)),
-      201,
-    );
+    return response(await sourceAuthorityMutation(() => repository.createAssignment(input, actor)), 201);
   }
   const assignmentMatch = path.match(/^\/v1\/source-assignments\/([0-9a-f-]+)$/iu);
   if (assignmentMatch?.[1]) {
