@@ -6,6 +6,7 @@ Release candidate e deployment permanecem `PENDING` até o merge verde do contro
 
 - Centro de Administração: Acompanhamento, Turmas, Alunos, Professores, Pesquisa e Central;
 - add-in NAA com contexto governado, análise local, preflight, commit e outcome;
+- CSP do taskpane destaca a política global anti-frame antes de permitir exclusivamente ancestrais Microsoft Office;
 - Sync V1 atômico, idempotente, otimista e default-deny;
 - kill switches globais, allowlist piloto e readiness automatizada;
 - attempts, duplicatas, duração, último sucesso e pendências factuais;

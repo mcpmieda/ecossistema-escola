@@ -54,9 +54,14 @@ describe('Banco de Notas NAA client', () => {
 
   it('keeps anti-framing globally and allows only Microsoft Office ancestors on add-in assets', () => {
     const headers = read('public/_headers');
+    const addinHeaders = headers.slice(headers.indexOf('/banco-de-notas/addin/*'));
     expect(headers).toContain("frame-ancestors 'none'");
     expect(headers).toContain('X-Frame-Options: DENY');
-    expect(headers).toContain(
+    expect(addinHeaders).toContain('! Content-Security-Policy');
+    expect(addinHeaders.indexOf('! Content-Security-Policy')).toBeLessThan(
+      addinHeaders.indexOf('Content-Security-Policy:'),
+    );
+    expect(addinHeaders).toContain(
       'frame-ancestors https://*.officeapps.live.com https://*.office.com https://*.microsoft365.com https://*.sharepoint.com',
     );
   });
