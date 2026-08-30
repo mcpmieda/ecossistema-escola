@@ -16,16 +16,18 @@ describe('Banco de Notas cotidiano add-in published contracts', () => {
     expect(contract).toContain('delegatedBearer');
     expect(contract).toContain("'403'");
     expect(contract).toContain('knownAbsent');
+    expect(contract).toContain('baselineEventId');
+    expect(contract).toContain('baselineSequence');
     expect(contract).toContain('sync_disabled_by_administration');
     expect(contract).not.toMatch(/teacherModelId|entraObjectId|tenantId|driveItemId/iu);
   });
 
-  it('keeps the operational document explicit about no write, no publication and sync off', () => {
+  it('keeps the operational document explicit about governed writes and staged rollout', () => {
     const document = readFileSync(join(root, 'docs/BANCO_NOTAS_ADDIN_COTIDIANO_V1.md'), 'utf8');
     expect(document).toContain('Analisar novamente');
-    expect(document).toContain('não envia, ingere nem persiste notas');
-    expect(document).toContain('add-in não publicado');
+    expect(document).toContain('Sincronizar alterações');
+    expect(document).toContain('piloto elegível');
     expect(document).toContain('sync_enabled=0');
-    expect(document).toContain('endpoint de ingestão público continua desconectado');
+    expect(document).toContain('endpoint legado de grade-events continua desconectado');
   });
 });

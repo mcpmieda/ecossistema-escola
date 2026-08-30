@@ -5,9 +5,13 @@ import type { AddinContextResponse } from '../shared/banco-notas-addin-context';
 import {
   AddinContextApiError,
   AddinWorkbookError,
+  buildSyncPreflight,
+  commitSync,
   compareWorkbookValues,
   fetchAddinContext,
   parseWorkbookMetadata,
+  preflightSync,
+  querySyncOutcome,
 } from '../addin/banco-notas/workbook';
 
 const workbookModelId = '11111111-1111-4111-8111-111111111111';
@@ -66,6 +70,8 @@ function context(): AddinContextResponse {
         known: true,
         knownValue: 0,
         knownAbsent: false,
+        baselineEventId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        baselineSequence: 1,
       },
       {
         cellAddress: 'G12',
@@ -74,6 +80,8 @@ function context(): AddinContextResponse {
         known: true,
         knownValue: null,
         knownAbsent: true,
+        baselineEventId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+        baselineSequence: 2,
       },
       {
         cellAddress: 'H12',
@@ -82,6 +90,8 @@ function context(): AddinContextResponse {
         known: false,
         knownValue: null,
         knownAbsent: false,
+        baselineEventId: null,
+        baselineSequence: null,
       },
     ],
   };
@@ -143,6 +153,134 @@ describe('Banco de Notas add-in cotidiano workbook client', () => {
       expect.objectContaining({ before: 0, beforeAbsent: false, after: null, afterAbsent: true }),
       expect.objectContaining({ before: null, beforeAbsent: true, after: 0, afterAbsent: false }),
     ]);
+  });
+
+  it('rejects a changed formula instead of submitting its calculated value as a manual grade', () => {
+    expect(() =>
+      compareWorkbookValues(
+        context().mappings,
+        new Map<string, unknown>([['F12', 9]]),
+        new Set(['F12']),
+      ),
+    ).toThrow('workbook_formula_change');
+  });
+
+  it('builds a baseline-bound request and keeps delegated credentials out of sync bodies', async () => {
+    const request = buildSyncPreflight(
+      parseWorkbookMetadata(metadataRows(), '2º Ano A — Matemática').query,
+      compareWorkbookValues(context().mappings, new Map<string, unknown>([['F12', 8]])),
+      'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    );
+    expect(request.changes).toEqual([
+      expect.objectContaining({
+        cellAddress: 'F12',
+        field: 'NotaT1',
+        baselineEventId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        baselineSequence: 1,
+        valueAfter: 8,
+        isAbsent: false,
+      }),
+    ]);
+
+    const fingerprint = 'f'.repeat(64);
+    const preflightFetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        schemaVersion: 1,
+        requestId: request.requestId,
+        status: 'ready',
+        changeCount: 1,
+        conflictCount: 0,
+        preflightFingerprint: fingerprint,
+      }),
+    );
+    await expect(
+      preflightSync({
+        accessToken: 'memory-only-token',
+        origin: 'https://admin.escolaieda.com',
+        request,
+        fetcher: preflightFetcher,
+      }),
+    ).resolves.toMatchObject({ status: 'ready', preflightFingerprint: fingerprint });
+
+    const commitFetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        schemaVersion: 1,
+        requestId: request.requestId,
+        status: 'committed',
+        changeCount: 1,
+        conflictCount: 0,
+        eventIds: ['eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'],
+      }),
+    );
+    await expect(
+      commitSync({
+        accessToken: 'memory-only-token',
+        origin: 'https://admin.escolaieda.com',
+        request,
+        preflightFingerprint: fingerprint,
+        fetcher: commitFetcher,
+      }),
+    ).resolves.toMatchObject({ status: 'committed' });
+    expect(commitFetcher).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+
+    const outcomeFetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        schemaVersion: 1,
+        requestId: request.requestId,
+        status: 'committed',
+        changeCount: 1,
+        conflictCount: 0,
+      }),
+    );
+    await querySyncOutcome({
+      accessToken: 'memory-only-token',
+      origin: 'https://admin.escolaieda.com',
+      requestId: request.requestId,
+      fetcher: outcomeFetcher,
+    });
+
+    for (const fetcher of [preflightFetcher, commitFetcher, outcomeFetcher]) {
+      const [url, init] = fetcher.mock.calls[0]!;
+      expect(init?.method).toBe('POST');
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer memory-only-token');
+      expect(String(init?.body)).not.toContain('memory-only-token');
+      expect(String(url)).toContain('/api/banco-notas/v1/addin/sync/');
+    }
+    expect(JSON.parse(String(commitFetcher.mock.calls[0]![1]?.body))).toMatchObject({
+      preflightFingerprint: fingerprint,
+    });
+    expect(JSON.parse(String(outcomeFetcher.mock.calls[0]![1]?.body))).toEqual({
+      requestId: request.requestId,
+    });
+  });
+
+  it('fails closed when a sync endpoint returns an undocumented field', async () => {
+    const request = buildSyncPreflight(
+      parseWorkbookMetadata(metadataRows(), '2º Ano A — Matemática').query,
+      compareWorkbookValues(context().mappings, new Map<string, unknown>([['F12', 8]])),
+      'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    );
+    await expect(
+      preflightSync({
+        accessToken: 'token',
+        origin: 'https://admin.escolaieda.com',
+        request,
+        fetcher: vi.fn<typeof fetch>().mockResolvedValue(
+          Response.json({
+            schemaVersion: 1,
+            requestId: request.requestId,
+            status: 'ready',
+            changeCount: 1,
+            conflictCount: 0,
+            preflightFingerprint: 'a'.repeat(64),
+            unexpected: true,
+          }),
+        ),
+      }),
+    ).rejects.toThrow();
   });
 
   it('requests context read-only and keeps the delegated token only in the header', async () => {

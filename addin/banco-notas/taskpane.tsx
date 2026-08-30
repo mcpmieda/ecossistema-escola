@@ -14,7 +14,13 @@ import {
   detectWorkbookChanges,
   fetchAddinContext,
   inspectActiveWorkbook,
+  buildSyncPreflight,
+  preflightSync,
+  commitSync,
+  querySyncOutcome,
 } from './workbook';
+import type { AddinContextQuery } from '../../shared/banco-notas-addin-context';
+import type { SyncReasonCode, SyncResponse } from '../../shared/banco-notas-sync';
 import './style.css';
 
 const diagnostic = {
@@ -71,6 +77,8 @@ function failure(error: unknown): { kind: TaskpaneFailureKind; message: string }
       workbook_metadata_missing: 'A planilha não contém a metadata interna do Banco de Notas.',
       workbook_metadata_invalid: 'A metadata interna da planilha é inválida ou incompleta.',
       workbook_sheet_not_mapped: 'A guia ativa não possui mapping conhecido neste modelo.',
+      workbook_formula_change:
+        'Uma célula mapeada contém fórmula alterada. Fórmulas não podem ser sincronizadas como lançamento manual.',
     };
     return { kind: 'workbook-invalid', message: messages[error.code] ?? 'Workbook inválido.' };
   }
@@ -103,6 +111,16 @@ function failure(error: unknown): { kind: TaskpaneFailureKind; message: string }
   };
 }
 
+function syncFailureReason(error: unknown): SyncReasonCode {
+  if (!(error instanceof AddinContextApiError)) return 'NETWORK_UNKNOWN';
+  if (error.status === 0) return 'NETWORK_UNKNOWN';
+  if (error.status === 403) return 'OWNERSHIP_DENIED';
+  if (error.status === 413) return 'PAYLOAD_TOO_LARGE';
+  if (error.status === 422) return 'INVALID_CHANGE';
+  if (error.status === 409) return 'CONFLICT';
+  return 'NETWORK_UNKNOWN';
+}
+
 function TaskpaneApp() {
   const [screen, setScreen] = useState<TaskpaneScreen>({
     phase: 'loading',
@@ -112,11 +130,15 @@ function TaskpaneApp() {
   const config = useRef<BancoNotasNaaConfig | null>(null);
   const loginHint = useRef<string | undefined>(undefined);
   const accessToken = useRef<string | null>(null);
+  const workbookQuery = useRef<AddinContextQuery | null>(null);
+  const syncInFlight = useRef(false);
 
   useEffect(() => {
     let active = true;
     void Office.onReady(async (info) => {
-      const naaSupported = Office.context.requirements.isSetSupported('NestedAppAuth', '1.1');
+      const naaSupported = Boolean(
+        Office.context?.requirements?.isSetSupported?.('NestedAppAuth', '1.1'),
+      );
       if (!naaSupported) {
         if (active) {
           setScreen({
@@ -180,6 +202,7 @@ function TaskpaneApp() {
         query: inspection.query,
         origin: window.location.origin,
       });
+      workbookQuery.current = inspection.query;
       const changes = await detectWorkbookChanges(contextResult);
       setScreen({
         phase: 'authenticated',
@@ -249,7 +272,87 @@ function TaskpaneApp() {
     void analyze(accessToken.current);
   }, [analyze, connect]);
 
-  return <TaskpaneView screen={screen} onConnect={() => void connect()} onAnalyze={analyzeAgain} />;
+  const syncNow = useCallback(async () => {
+    const token = accessToken.current;
+    const query = workbookQuery.current;
+    if (!token || !query || screen.phase !== 'authenticated' || syncInFlight.current) return;
+    const request = buildSyncPreflight(query, screen.changes);
+    syncInFlight.current = true;
+    const applySync = (patch: { syncing: boolean; syncResult: SyncResponse | undefined }) =>
+      setScreen((previous) =>
+        previous.phase === 'authenticated' ? { ...previous, ...patch } : previous,
+      );
+    applySync({ syncing: true, syncResult: undefined });
+    try {
+      const preflight = await preflightSync({
+        accessToken: token,
+        origin: window.location.origin,
+        request,
+      });
+      if (preflight.status !== 'ready' || !preflight.preflightFingerprint) {
+        applySync({ syncing: false, syncResult: preflight });
+        return;
+      }
+      try {
+        const result = await commitSync({
+          accessToken: token,
+          origin: window.location.origin,
+          request,
+          preflightFingerprint: preflight.preflightFingerprint,
+        });
+        applySync({ syncing: false, syncResult: result });
+      } catch (error) {
+        if (error instanceof AddinContextApiError && error.status === 0) {
+          try {
+            const result = await querySyncOutcome({
+              accessToken: token,
+              origin: window.location.origin,
+              requestId: request.requestId,
+            });
+            applySync({ syncing: false, syncResult: result });
+            return;
+          } catch {
+            applySync({
+              syncing: false,
+              syncResult: {
+                schemaVersion: 1,
+                requestId: request.requestId,
+                status: 'failed',
+                reasonCode: 'NETWORK_UNKNOWN',
+                changeCount: request.changes.length,
+                conflictCount: 0,
+              },
+            });
+            return;
+          }
+        }
+        throw error;
+      }
+    } catch (error) {
+      applySync({
+        syncing: false,
+        syncResult: {
+          schemaVersion: 1,
+          requestId: request.requestId,
+          status: 'failed',
+          reasonCode: syncFailureReason(error),
+          changeCount: request.changes.length,
+          conflictCount: 0,
+        },
+      });
+    } finally {
+      syncInFlight.current = false;
+    }
+  }, [screen]);
+
+  return (
+    <TaskpaneView
+      screen={screen}
+      onConnect={() => void connect()}
+      onAnalyze={analyzeAgain}
+      onSync={() => void syncNow()}
+    />
+  );
 }
 
 const root = document.getElementById('root');

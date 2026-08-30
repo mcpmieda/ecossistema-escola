@@ -12,6 +12,7 @@ import {
 import type { AddinContextResponse } from '../../shared/banco-notas-addin-context';
 import type { GradeValue } from '../../shared/banco-notas-grade-events';
 import type { ChangeSummary } from './workbook';
+import type { SyncReasonCode, SyncResponse } from '../../shared/banco-notas-sync';
 
 export type TaskpaneFailureKind =
   'auth' | 'workbook-invalid' | 'ownership-denied' | 'model-missing' | 'offline' | 'error';
@@ -30,8 +31,32 @@ export type TaskpaneScreen =
       context: AddinContextResponse;
       changes: ChangeSummary;
       analyzedAt: string;
+      syncResult?: SyncResponse;
+      syncing?: boolean;
     }
   | { phase: 'failure'; kind: TaskpaneFailureKind; message: string };
+
+const syncReasonMessages: Record<SyncReasonCode, string> = {
+  SYNC_DISABLED: 'A sincronização foi pausada pela administração.',
+  PILOT_NOT_ALLOWED: 'Este modelo não está habilitado para o piloto.',
+  OWNERSHIP_DENIED: 'A conta atual não pode sincronizar este modelo.',
+  MODEL_MISSING: 'O modelo desta planilha não está disponível.',
+  MODEL_SUSPENDED: 'O modelo está suspenso para revisão administrativa.',
+  MODEL_VERSION_STALE: 'A planilha ficou desatualizada. Use Analisar novamente antes de tentar.',
+  ASSIGNMENT_INACTIVE: 'A atribuição docente não está ativa para estas alterações.',
+  SOURCE_INVALID: 'A fonte autoritativa deste modelo precisa de revisão.',
+  WORKBOOK_MISMATCH: 'A identidade desta planilha não corresponde ao modelo reconhecido.',
+  MAPPING_MISMATCH: 'Uma célula não corresponde ao mapping vigente. Use Analisar novamente.',
+  BASELINE_STALE:
+    'Há notas mais recentes no servidor. Use Analisar novamente para evitar sobrescrita.',
+  CONFLICT: 'A operação não pôde ser confirmada com segurança. Use Analisar novamente.',
+  NO_CHANGES: 'Não há alterações confirmáveis nesta planilha.',
+  PAYLOAD_TOO_LARGE: 'O lote excede 500 alterações. Reduza o envio e tente novamente.',
+  DUPLICATE_REQUEST: 'Esta solicitação já foi processada.',
+  INVALID_CHANGE: 'Uma alteração não atende ao contrato de notas.',
+  NETWORK_UNKNOWN:
+    'A resposta do servidor não pôde ser confirmada. Não repita o lançamento até consultar novamente.',
+};
 
 function grade(value: GradeValue, absent: boolean): string {
   if (absent) return 'Ausente';
@@ -218,7 +243,7 @@ function ChangesCard({ changes, analyzedAt }: { changes: ChangeSummary; analyzed
           <details>
             <summary className="cursor-pointer text-sm font-medium">Ver preview factual</summary>
             <ul className="mt-3 grid gap-2">
-              {changes.changes.map((change, index) => (
+              {changes.changes.slice(0, 25).map((change, index) => (
                 <li
                   key={`${change.studentLabel}:${change.field}:${index}`}
                   className="rounded-xl bg-surface-secondary p-3 text-sm"
@@ -231,6 +256,11 @@ function ChangesCard({ changes, analyzedAt }: { changes: ChangeSummary; analyzed
                 </li>
               ))}
             </ul>
+            {changes.changes.length > 25 && (
+              <p className="mt-2 text-xs text-muted">
+                Mostrando as primeiras 25 de {changes.changes.length} alterações.
+              </p>
+            )}
           </details>
         )}
         {changes.unknownBaselineFields > 0 && (
@@ -248,9 +278,11 @@ function ChangesCard({ changes, analyzedAt }: { changes: ChangeSummary; analyzed
 function Authenticated({
   screen,
   analyze,
+  sync,
 }: {
   screen: Extract<TaskpaneScreen, { phase: 'authenticated' }>;
   analyze: () => void;
+  sync: () => void;
 }) {
   return (
     <div className="grid gap-3">
@@ -275,11 +307,55 @@ function Authenticated({
       <Button variant="outline" className="w-full" onPress={analyze}>
         <RefreshCw className="size-4" /> Analisar novamente
       </Button>
+      <Button
+        className="w-full"
+        onPress={sync}
+        isPending={screen.syncing}
+        isDisabled={
+          !screen.context.syncEnabled ||
+          screen.context.preflight.status !== 'ready' ||
+          screen.changes.changedFields === 0 ||
+          screen.changes.changedFields > 500 ||
+          screen.syncing ||
+          screen.syncResult?.status === 'committed' ||
+          screen.syncResult?.status === 'duplicate'
+        }
+      >
+        Sincronizar alterações
+      </Button>
+      {screen.syncResult && (
+        <Alert
+          status={
+            screen.syncResult.status === 'committed' || screen.syncResult.status === 'duplicate'
+              ? 'success'
+              : screen.syncResult.status === 'conflict'
+                ? 'warning'
+                : 'danger'
+          }
+        >
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
+              {screen.syncResult.status === 'committed'
+                ? 'Sincronização concluída'
+                : screen.syncResult.status === 'duplicate'
+                  ? 'Solicitação já concluída'
+                  : screen.syncResult.status === 'conflict'
+                    ? 'Conflito detectado'
+                    : 'Sincronização bloqueada'}
+            </Alert.Title>
+            <Alert.Description>
+              {(screen.syncResult.reasonCode && syncReasonMessages[screen.syncResult.reasonCode]) ??
+                `${screen.syncResult.changeCount} alteração(ões) confirmada(s).`}
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
       <Surface className="rounded-2xl border border-border p-4">
         <p className="text-sm font-medium">Sincronização</p>
         <p className="mt-1 text-sm text-muted">
           {screen.context.syncEnabled
-            ? 'O estado administrativo permite sync, mas esta V1 não envia alterações.'
+            ? 'Disponível somente para o modelo elegível; cada envio passa por preflight e validação transacional.'
             : 'Indisponível enquanto o piloto não estiver ativo.'}
         </p>
       </Surface>
@@ -291,10 +367,12 @@ export function TaskpaneView({
   screen,
   onConnect,
   onAnalyze,
+  onSync,
 }: {
   screen: TaskpaneScreen;
   onConnect: () => void;
   onAnalyze: () => void;
+  onSync: () => void;
 }) {
   return (
     <main className="addin-main">
@@ -313,7 +391,9 @@ export function TaskpaneView({
       {screen.phase === 'failure' && (
         <Failure kind={screen.kind} message={screen.message} retry={onConnect} />
       )}
-      {screen.phase === 'authenticated' && <Authenticated screen={screen} analyze={onAnalyze} />}
+      {screen.phase === 'authenticated' && (
+        <Authenticated screen={screen} analyze={onAnalyze} sync={onSync} />
+      )}
       <p className="mt-4 text-xs text-muted">
         Tokens, claims, identificadores de identidade e credenciais não são exibidos nem gravados.
       </p>

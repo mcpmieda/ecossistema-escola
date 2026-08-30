@@ -443,3 +443,9 @@ Leitura principal: `docs/BANCO_NOTAS_ADDIN_COTIDIANO_V1.md`.
 Status local: `BANCO_NOTAS_ADDIN_COTIDIANO_V1_PASSED`.
 
 Publicação inicial: commit `1f90120d786f14b3b8ba4180f15c4bc5936906f2`, PR Draft #138, CI `33246218011` e Semgrep `33246218042` verdes; merge state CLEAN, reviews/threads pendentes 0, produção/recovery/cleanup skipped e deployments do head 0. Falta somente a rodada CI do commit de evidências e a integração controlada.
+
+## Handoff — Sync V1 / GO-LIVE (29/08/2026)
+
+O Core foi integrado pelo PR #139 na `main` `fca06dcf2d874dedbc1f26c596b8c5b5354f6d09`, sem deploy. Trabalho ativo em `feat/banco-notas-addin-sync-v1`: add-in sync, contexto com baseline, UX, parsing strict e documentação. Antes de produção, ainda exigir regressão, PR Draft, CI/Semgrep/reviews verdes e integração limpa em `main` sem deploy antecipado.
+
+Ordem externa: criar RC da main verde; snapshot de deployment/bindings/distribuição; criar e exportar D1 production; aplicar migrations 0001–0008 com flags zero; deploy read-only; smoke administrativo; identificar piloto somente por readiness + confirmação institucional; distribuir add-in ao menor alvo; Excel/NAA; first-write/idempotência/conflito/kill switch; expansão gradual. Nunca inferir piloto por nome/UPN nem ativar coorte não ready.

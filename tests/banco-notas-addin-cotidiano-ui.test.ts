@@ -7,7 +7,7 @@ import { TaskpaneView, type TaskpaneScreen } from '../addin/banco-notas/taskpane
 
 const root = process.cwd();
 
-function authenticated(): TaskpaneScreen {
+function authenticated(): Extract<TaskpaneScreen, { phase: 'authenticated' }> {
   return {
     phase: 'authenticated',
     analyzedAt: '29/08/2026, 00:10',
@@ -34,7 +34,7 @@ function authenticated(): TaskpaneScreen {
           severity: 'info',
           code: 'sync_disabled_by_administration',
           message:
-            'Sincronização indisponível pela administração enquanto o piloto não está ativo.',
+            'Sincronização indisponível porque um gate administrativo ainda está desativado.',
         },
       ],
       mappings: [],
@@ -45,12 +45,15 @@ function authenticated(): TaskpaneScreen {
       unknownBaselineFields: 0,
       changes: [
         {
+          cellAddress: 'F12',
           studentLabel: 'Estudante Sintético 01',
           field: 'NotaT1',
           before: 7,
           beforeAbsent: false,
           after: 8.5,
           afterAbsent: false,
+          baselineEventId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+          baselineSequence: 1,
         },
       ],
     },
@@ -64,6 +67,7 @@ describe('Banco de Notas cotidiano add-in taskpane UI', () => {
         screen: authenticated(),
         onConnect: vi.fn(),
         onAnalyze: vi.fn(),
+        onSync: vi.fn(),
       }),
     );
     expect(html).toContain('Professor Sintético');
@@ -76,7 +80,7 @@ describe('Banco de Notas cotidiano add-in taskpane UI', () => {
     expect(html).toContain('8,5');
     expect(html).toContain('Sincronização desligada pela administração');
     expect(html).toContain('Analisar novamente');
-    expect(html).not.toContain('Sincronizar agora');
+    expect(html).toContain('Sincronizar alterações');
   });
 
   it('renders loading, auth, ownership, workbook, missing-model, offline and generic failure states', () => {
@@ -98,7 +102,12 @@ describe('Banco de Notas cotidiano add-in taskpane UI', () => {
     const html = screens
       .map((screen) =>
         renderToStaticMarkup(
-          createElement(TaskpaneView, { screen, onConnect: vi.fn(), onAnalyze: vi.fn() }),
+          createElement(TaskpaneView, {
+            screen,
+            onConnect: vi.fn(),
+            onAnalyze: vi.fn(),
+            onSync: vi.fn(),
+          }),
         ),
       )
       .join('\n');
@@ -113,6 +122,50 @@ describe('Banco de Notas cotidiano add-in taskpane UI', () => {
     ]) {
       expect(html).toContain(expected);
     }
+  });
+
+  it('explains stale conflicts without exposing a raw reason code or offering overwrite', () => {
+    const screen = authenticated();
+    screen.syncResult = {
+      schemaVersion: 1,
+      requestId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      status: 'conflict',
+      reasonCode: 'BASELINE_STALE',
+      changeCount: 1,
+      conflictCount: 1,
+    };
+    const html = renderToStaticMarkup(
+      createElement(TaskpaneView, {
+        screen,
+        onConnect: vi.fn(),
+        onAnalyze: vi.fn(),
+        onSync: vi.fn(),
+      }),
+    );
+    expect(html).toContain('Há notas mais recentes no servidor');
+    expect(html).toContain('Analisar novamente');
+    expect(html).not.toContain('BASELINE_STALE');
+    expect(html).not.toMatch(/forçar|overwrite/iu);
+  });
+
+  it('states when the factual preview is truncated at 25 rows', () => {
+    const screen = authenticated();
+    screen.changes.changes = Array.from({ length: 26 }, (_, index) => ({
+      ...screen.changes.changes[0]!,
+      cellAddress: `F${index + 12}`,
+      studentLabel: `Estudante Sintético ${index + 1}`,
+    }));
+    screen.changes.changedFields = 26;
+    const html = renderToStaticMarkup(
+      createElement(TaskpaneView, {
+        screen,
+        onConnect: vi.fn(),
+        onAnalyze: vi.fn(),
+        onSync: vi.fn(),
+      }),
+    );
+    expect(html).toContain('Mostrando as primeiras 25 de 26 alterações.');
+    expect(html).not.toContain('Estudante Sintético 26');
   });
 
   it('uses HeroUI composition and keeps token, claims, OID and tenant IDs out of rendered diagnostics', () => {

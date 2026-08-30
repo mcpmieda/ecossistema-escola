@@ -67,7 +67,7 @@ describe('Banco de Notas NAA client', () => {
     expect(manifest).toContain('VersionOverridesV1_0');
     expect(manifest).toContain('xsi:type="Workbook"');
     expect(manifest).toContain('/banco-de-notas/addin/taskpane.html');
-    expect(taskpane).toContain("isSetSupported('NestedAppAuth', '1.1')");
+    expect(taskpane).toContain("isSetSupported?.('NestedAppAuth', '1.1')");
     expect(taskpane).toContain('rawAccessTokenIncluded: false');
     expect(taskpane).toContain('claimsIncluded: false');
     expect(taskpane).toContain('tenantIdIncluded: false');

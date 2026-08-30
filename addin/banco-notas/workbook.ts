@@ -6,6 +6,12 @@ import {
   type AddinContextResponse,
 } from '../../shared/banco-notas-addin-context';
 import type { GradeField, GradeValue } from '../../shared/banco-notas-grade-events';
+import {
+  syncCommitRequestSchema,
+  syncPreflightRequestSchema,
+  syncResponseSchema,
+  type SyncResponse,
+} from '../../shared/banco-notas-sync';
 
 const metadataSheetName = '_BancoNotas';
 
@@ -34,12 +40,15 @@ export type WorkbookInspection = {
 };
 
 export type DetectedChange = {
+  cellAddress: string;
   studentLabel: string;
   field: GradeField;
   before: GradeValue;
   beforeAbsent: boolean;
   after: GradeValue;
   afterAbsent: boolean;
+  baselineEventId: string;
+  baselineSequence: number;
 };
 
 export type ChangeSummary = {
@@ -134,6 +143,7 @@ function sameGrade(
 export function compareWorkbookValues(
   mappings: readonly AddinContextMapping[],
   currentValues: ReadonlyMap<string, unknown>,
+  formulaAddresses: ReadonlySet<string> = new Set(),
 ): ChangeSummary {
   const changes: DetectedChange[] = [];
   const students = new Set<string>();
@@ -143,16 +153,25 @@ export function compareWorkbookValues(
       unknownBaselineFields += 1;
       continue;
     }
+    if (!mapping.baselineEventId || !mapping.baselineSequence) {
+      unknownBaselineFields += 1;
+      continue;
+    }
     const current = normalizedGrade(currentValues.get(mapping.cellAddress));
     if (!sameGrade(mapping.knownValue, mapping.knownAbsent, current)) {
+      if (formulaAddresses.has(mapping.cellAddress))
+        throw new AddinWorkbookError('workbook_formula_change');
       students.add(mapping.studentLabel);
       changes.push({
+        cellAddress: mapping.cellAddress,
         studentLabel: mapping.studentLabel,
         field: mapping.field,
         before: mapping.knownValue,
         beforeAbsent: mapping.knownAbsent,
         after: current.value,
         afterAbsent: current.absent,
+        baselineEventId: mapping.baselineEventId,
+        baselineSequence: mapping.baselineSequence,
       });
     }
   }
@@ -160,7 +179,7 @@ export function compareWorkbookValues(
     changedFields: changes.length,
     affectedStudents: students.size,
     unknownBaselineFields,
-    changes: changes.slice(0, 25),
+    changes,
   };
 }
 
@@ -171,13 +190,18 @@ export async function detectWorkbookChanges(
     const sheet = context.workbook.worksheets.getActiveWorksheet();
     const ranges = contextResult.mappings.map((mapping) => {
       const range = sheet.getRange(mapping.cellAddress);
-      range.load('values');
+      range.load(['values', 'formulas']);
       return { mapping, range };
     });
     await context.sync();
     const values = new Map<string, unknown>();
-    ranges.forEach(({ mapping, range }) => values.set(mapping.cellAddress, range.values[0]?.[0]));
-    return compareWorkbookValues(contextResult.mappings, values);
+    const formulas = new Set<string>();
+    ranges.forEach(({ mapping, range }) => {
+      values.set(mapping.cellAddress, range.values[0]?.[0]);
+      const formula = range.formulas[0]?.[0];
+      if (typeof formula === 'string' && formula.startsWith('=')) formulas.add(mapping.cellAddress);
+    });
+    return compareWorkbookValues(contextResult.mappings, values, formulas);
   });
 }
 
@@ -209,4 +233,76 @@ export async function fetchAddinContext(args: {
     );
   }
   return addinContextResponseSchema.parse(payload);
+}
+
+async function syncCall(
+  path: string,
+  args: { accessToken: string; origin: string; body: unknown; fetcher?: typeof fetch },
+): Promise<SyncResponse> {
+  let response: Response;
+  try {
+    response = await (args.fetcher ?? fetch)(new URL(path, args.origin), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${args.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(args.body),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch {
+    throw new AddinContextApiError(0, 'network_unknown');
+  }
+  const payload = (await response.json().catch(() => ({}))) as SyncResponse & { error?: string };
+  if (!response.ok) throw new AddinContextApiError(response.status, payload.error ?? 'sync_failed');
+  return syncResponseSchema.parse(payload);
+}
+export function buildSyncPreflight(
+  query: AddinContextQuery,
+  changes: ChangeSummary,
+  requestId = crypto.randomUUID(),
+) {
+  return syncPreflightRequestSchema.parse({
+    schemaVersion: 1,
+    requestId,
+    workbook: query,
+    changes: changes.changes.map((c) => ({
+      cellAddress: c.cellAddress,
+      field: c.field,
+      baselineEventId: c.baselineEventId,
+      baselineSequence: c.baselineSequence,
+      valueAfter: c.after,
+      isAbsent: c.afterAbsent,
+    })),
+  });
+}
+export async function preflightSync(args: {
+  accessToken: string;
+  origin: string;
+  request: ReturnType<typeof buildSyncPreflight>;
+  fetcher?: typeof fetch;
+}) {
+  return syncCall('/api/banco-notas/v1/addin/sync/preflight', { ...args, body: args.request });
+}
+export async function commitSync(args: {
+  accessToken: string;
+  origin: string;
+  request: ReturnType<typeof buildSyncPreflight>;
+  preflightFingerprint: string;
+  fetcher?: typeof fetch;
+}) {
+  const body = syncCommitRequestSchema.parse({
+    ...args.request,
+    preflightFingerprint: args.preflightFingerprint,
+  });
+  return syncCall('/api/banco-notas/v1/addin/sync/commit', { ...args, body });
+}
+export async function querySyncOutcome(args: {
+  accessToken: string;
+  origin: string;
+  requestId: string;
+  fetcher?: typeof fetch;
+}) {
+  return syncCall('/api/banco-notas/v1/addin/sync/outcome', {
+    ...args,
+    body: { requestId: args.requestId },
+  });
 }

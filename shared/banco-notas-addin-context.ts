@@ -49,6 +49,8 @@ export const addinContextMappingSchema = z
     known: z.boolean(),
     knownValue: gradeValueSchema,
     knownAbsent: z.boolean(),
+    baselineEventId: z.string().uuid().nullable(),
+    baselineSequence: z.number().int().min(1).nullable(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -57,6 +59,13 @@ export const addinContextMappingSchema = z
         code: 'custom',
         path: ['knownValue'],
         message: 'an absent known value must be null',
+      });
+    }
+    if (value.known !== Boolean(value.baselineEventId && value.baselineSequence)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['baselineEventId'],
+        message: 'known baseline identity is required',
       });
     }
   });

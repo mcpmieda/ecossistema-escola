@@ -22,7 +22,7 @@
       "Professores V1 como diretório operacional read-only derivado de teachers, assignments, teacher models, fontes, atividade e findings persistidos",
       "Pesquisa Global V1 read-only de alunos, professores e turmas, derivada dos mesmos IDs e relacionamentos persistidos dos diretórios existentes",
       "Central de Pendências V1 read-only com diagnóstico factual, severidade, filtros, detalhe e navegação para os contextos canônicos existentes",
-      "Experiência Cotidiana do Add-in V1 read-only com NAA, contexto por ownership, preflight e comparação local de células mapeadas",
+      "Experiência Cotidiana e Sync V1 do add-in com NAA, contexto por ownership, preflight, comparação local e commit governado por piloto",
       "integração futura de conselho, boletins, entidades e análises conforme Relatório v1.6"
     ],
     "out": [
@@ -39,7 +39,7 @@
       "criar cadastro de RH, identidade paralela, vínculo Entra, compartilhamento Graph, edição de notas ou ativação de sync em Professores V1",
       "criar índice paralelo, FTS, inferência fuzzy de identidade, busca por IA ou banco vetorial em Pesquisa Global V1",
       "resolver, ignorar, arquivar, atribuir responsável ou corrigir automaticamente uma pendência na Central V1",
-      "publicar o add-in, ativar sync, expor grade-events no roteador público ou enviar/persistir alterações detectadas pela Experiência Cotidiana V1"
+      "ativar sincronização em massa ou distribuir o add-in fora da coorte validada sem rollout progressivo"
     ]
   },
   "invariants": [
@@ -129,7 +129,7 @@
     },
     {
       "id": "BN-INV-022",
-      "statement": "A Experiência Cotidiana do add-in obtém contexto somente com bearer delegado e ownership, compara localmente mappings autorizados, preserva zero versus ausência e não persiste nem envia alterações enquanto o piloto não estiver ativo."
+      "statement": "O add-in obtém contexto somente com bearer delegado e ownership, compara mappings autorizados, preserva zero versus ausência e só persiste um lote atômico após preflight, elegibilidade de piloto, revalidação transacional e kill switches ativos."
     }
   ],
   "data_contracts": [
@@ -239,6 +239,16 @@
       "name": "/api/banco-notas/v1/addin/context",
       "mode": "delegated-bearer-owned-read-only-context",
       "purpose": "reconhecer a versão exata do workbook e fornecer preflight, pendências relevantes e baselines mínimos sem capacidade administrativa ou escrita"
+    },
+    {
+      "name": "/api/banco-notas/v1/addin/sync/preflight, /commit e /outcome",
+      "mode": "delegated-bearer-owned-pilot-command",
+      "purpose": "validar e confirmar alterações mapeadas com idempotência, concorrência otimista, lote atômico, kill switch e consulta segura de resultado"
+    },
+    {
+      "name": "/api/banco-notas/v1/sync/attempts e /sync/attempts/:requestId",
+      "mode": "governed-read-only-sync-observability",
+      "purpose": "listar e detalhar tentativas sanitizadas para operação administrativa com grades.analytics.read"
     }
   ],
   "acceptance_criteria": [
@@ -462,10 +472,24 @@
         "o DTO omite token, claims, OID, tenant, UPN, IDs Graph/Drive e teacherModelId",
         "o preflight distingue ready, warning e blocked e trata sync desligado como informação administrativa",
         "a comparação ocorre localmente apenas sobre mappings autorizados e preserva zero, ausência e baseline desconhecido",
-        "nenhum conteúdo de célula é enviado, nenhuma mudança é persistida e não existe comando funcional de sincronização",
-        "a rota permanece fail-closed sem flag explícita e grade-events continua desconectado do roteador público"
+        "nenhum conteúdo é enviado antes de uma ação explícita do usuário e nenhuma mudança é persistida quando os gates não permitem",
+        "a rota permanece fail-closed sem flag explícita e grade-events legado continua desconectado do roteador público"
       ],
       "verification": ["test", "browser", "integration", "database", "security"]
+    },
+    {
+      "id": "BN-AC-019",
+      "priority": "must",
+      "given": "um professor elegível confirma alterações mapeadas após preflight",
+      "when": "o add-in envia o commit Sync V1",
+      "then": [
+        "kill switch, piloto, ownership, modelo, versão, assignment, fonte, mapping e baseline são revalidados no commit",
+        "o lote é integralmente aplicado ou integralmente rejeitado, sem overwrite silencioso",
+        "retries com o mesmo requestId não criam eventos duplicados e retornam o resultado lógico anterior",
+        "conflito stale rejeita o lote e orienta Analisar novamente sem force overwrite",
+        "tentativas ficam observáveis sem token, claims, OID exposto ou valores de nota"
+      ],
+      "verification": ["test", "integration", "database", "security"]
     }
   ]
 }
