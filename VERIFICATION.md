@@ -6,18 +6,14 @@ A verificação é **proporcional à alteração**. Não existe mais um ritual �
 
 ## Padrão para PR comum
 
-O fluxo normal cobre:
-
-1. formatação;
-2. lint;
-3. typecheck da aplicação;
-4. testes;
-5. build da aplicação.
-
 Os dois checks preservados pela proteção de `main` são:
 
 - `Validate application`;
 - `Validate GitHub Actions security`.
+
+Eles detectam as superfícies afetadas antes de executar trabalho pesado. Alterações apenas documentais podem concluir esses checks sem instalar dependências, testar ou compilar a aplicação.
+
+Quando código da aplicação é afetado, o fluxo normal cobre formatação, lint, typecheck, testes e build. Quando apenas o add-in é afetado, entram os checks específicos do add-in.
 
 ## Verificações condicionais
 
@@ -28,7 +24,7 @@ Execute validações adicionais somente quando houver relação direta com o dif
 - **Entra/Graph/SharePoint** — integração/autorização quando código ou configuração dessas integrações mudar.
 - **GitHub Actions** — actionlint/zizmor quando workflows forem alterados.
 - **Recovery** — somente para mudanças em storage, migrations, backup/restore ou mecanismo de recuperação; o workflow manual continua disponível.
-- **Produção** — deploy continua gerando o bundle completo para preservar a aplicação e o add-in já publicados.
+- **Produção** — deploy ocorre somente quando código/configuração de runtime ou do add-in mudar. Quando ocorre, o bundle completo continua sendo gerado para preservar a aplicação publicada.
 
 ## O que deixou de ser obrigatório por padrão
 
@@ -38,7 +34,8 @@ Execute validações adicionais somente quando houver relação direta com o dif
 - Merge Train e reviewers múltiplos;
 - Browser QA completo para alteração não visual;
 - Graph/Excel/D1/recovery para mudança que não toca essas superfícies;
-- atualização de documentos de evidência a cada PR.
+- atualização de documentos de evidência a cada PR;
+- build, testes ou deploy para mudança exclusivamente documental.
 
 ## Segurança mínima permanente
 
