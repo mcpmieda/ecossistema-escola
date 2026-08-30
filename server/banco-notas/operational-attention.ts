@@ -1,5 +1,4 @@
-import type { AttentionLevel } from '../../shared/banco-notas-acompanhamento';
-import type { PendingKind, PendingSeverity } from '../../shared/banco-notas-pendencias';
+import type { AttentionLevel } from '../../shared/banco-notas-professores';
 
 export type OperationalAttentionFacts = {
   activeAssignments: number;
@@ -51,78 +50,4 @@ export function deriveOperationalAttention(facts: OperationalAttentionFacts): {
     add('Sem atribuição no período selecionado', 'info');
 
   return { level, reasons };
-}
-
-export const pendingKindsBySeverity: Record<PendingSeverity, readonly PendingKind[]> = {
-  error: ['import_error', 'finding_error', 'model_suspended', 'orphan_assignment', 'sync_failed'],
-  warning: [
-    'finding_warning',
-    'model_missing',
-    'identity_missing',
-    'source_missing',
-    'inactive_teacher_assignment',
-    'model_without_assignment',
-    'sync_conflict',
-    'sync_rejected_stale',
-  ],
-  info: ['finding_info', 'model_not_connected', 'import_analysis_pending'],
-};
-
-const emptyFacts = (): OperationalAttentionFacts => ({
-  activeAssignments: 0,
-  failedImports: 0,
-  openErrorFindings: 0,
-  openFindings: 0,
-  models: 0,
-  suspendedModels: 0,
-  nonConnectedModels: 0,
-  missingSources: 0,
-  identityMissingForRequiredModel: false,
-});
-
-export function classifyOperationalPending(kind: PendingKind): {
-  severity: PendingSeverity;
-  reason: string;
-} {
-  if (kind === 'finding_info') return { severity: 'info', reason: 'Finding informativo aberto' };
-  if (kind === 'import_analysis_pending')
-    return { severity: 'info', reason: 'Análise de importação ainda não concluída' };
-  if (kind === 'sync_failed')
-    return { severity: 'error', reason: 'Sincronização falhou e requer investigação' };
-  if (kind === 'sync_conflict')
-    return { severity: 'warning', reason: 'Conflito de sincronização detectado' };
-  if (kind === 'sync_rejected_stale')
-    return { severity: 'warning', reason: 'Sincronização rejeitada por baseline desatualizada' };
-
-  const facts = emptyFacts();
-  if (kind === 'import_error') facts.failedImports = 1;
-  if (kind === 'finding_error') facts.openErrorFindings = 1;
-  if (kind === 'finding_warning') facts.openFindings = 1;
-  if (kind === 'model_suspended') facts.suspendedModels = 1;
-  if (kind === 'model_missing') {
-    facts.activeAssignments = 1;
-    facts.missingModelContexts = 1;
-  }
-  if (kind === 'identity_missing') facts.identityMissingForRequiredModel = true;
-  if (kind === 'source_missing') {
-    facts.activeAssignments = 1;
-    facts.missingSources = 1;
-  }
-  if (kind === 'inactive_teacher_assignment') {
-    facts.activeAssignments = 1;
-    facts.teacherInactive = true;
-  }
-  if (kind === 'model_without_assignment') {
-    facts.models = 1;
-    facts.modelsWithoutAssignments = 1;
-  }
-  if (kind === 'model_not_connected') {
-    facts.models = 1;
-    facts.nonConnectedModels = 1;
-  }
-  if (kind === 'orphan_assignment') facts.orphanAssignments = 1;
-
-  const classification = deriveOperationalAttention(facts);
-  const severity = classification.level === 'normal' ? 'info' : classification.level;
-  return { severity, reason: classification.reasons[0] ?? 'Informação operacional' };
 }

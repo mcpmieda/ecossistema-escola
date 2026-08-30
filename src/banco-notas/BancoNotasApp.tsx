@@ -1,36 +1,16 @@
+import { Avatar, Breadcrumbs, Button, Drawer, Surface, useOverlayState } from '@heroui/react';
 import {
-  Alert,
-  Avatar,
-  Breadcrumbs,
-  Button,
-  Description,
-  Drawer,
-  Input,
-  Label,
-  ListBox,
-  Select,
-  Spinner,
-  Surface,
-  Switch,
-  TextField,
-  Chip,
-  useOverlayState,
-} from '@heroui/react';
-import {
-  BarChart3,
   BookOpenCheck,
   ClipboardList,
-  CircleAlert,
   Database,
   FileText,
   Home,
   Menu,
-  Search,
   Settings,
   Upload,
   Users,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent, type PropsWithChildren } from 'react';
+import type { PropsWithChildren } from 'react';
 import {
   BrowserRouter,
   Link,
@@ -40,711 +20,48 @@ import {
   Routes,
   useLocation,
 } from 'react-router-dom';
-import type {
-  DataSource,
-  SchoolYear,
-  SourceAssignment,
-  Teacher,
-} from '../../shared/banco-notas-contract';
 import type { PlatformCapability } from '../../shared/platform-contract';
-import { AcompanhamentoDetailPage, AcompanhamentoPage } from './AcompanhamentoPage';
-import { AlunoDetailPage, AlunosPage, TurmaDetailPage, TurmasPage } from './TurmasAlunosPage';
-import { ProfessorDetailPage, ProfessoresPage } from './ProfessoresPage';
-import { PesquisaGlobalPage } from './PesquisaGlobalPage';
-import { PendenciaDetailPage, PendenciasPage } from './PendenciasPage';
 import { ImportacoesPage } from './ImportacoesPage';
+import { ProfessorDetailPage, ProfessoresPage } from './ProfessoresPage';
+import { AlunoDetailPage, AlunosPage, TurmaDetailPage, TurmasPage } from './TurmasAlunosPage';
 
 type BancoNotasIdentity = {
   name?: string;
   roles?: string[];
   capabilities?: PlatformCapability[];
 };
+
 type Props = { identity: BancoNotasIdentity };
+
 const navigation = [
   ['/', 'Visão geral', Home],
-  ['/acompanhamento', 'Acompanhamento', BarChart3],
   ['/alunos', 'Alunos', Users],
   ['/turmas', 'Turmas', BookOpenCheck],
   ['/professores', 'Professores', Users],
   ['/importacoes', 'Importações', Upload],
   ['/conselho', 'Conselho de classe', ClipboardList],
   ['/boletins', 'Boletins', FileText],
-  ['/pesquisa', 'Pesquisa', Search],
-  ['/pendencias', 'Pendências', CircleAlert],
-  ['/configuracoes/fonte', 'Configurações', Settings],
+  ['/configuracoes', 'Configurações', Settings],
 ] as const;
 
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`/api/banco-notas${path}`, {
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
-    ...init,
-  });
-  const payload = (await response.json().catch(() => ({}))) as { message?: string } & T;
-  if (!response.ok) throw new Error(payload.message ?? 'Falha ao acessar o Banco de Notas.');
-  return payload;
-}
-
-function Page({
-  title,
-  description,
-  children,
-}: PropsWithChildren<{ title: string; description: string }>) {
+function Page({ title, children }: PropsWithChildren<{ title: string }>) {
   return (
     <main className="bn-main">
       <Breadcrumbs className="mb-5">
-        <Breadcrumbs.Item href="/#sistemas">Centro de Administração</Breadcrumbs.Item>
+        <Breadcrumbs.Item href="/#/sistemas">Centro de Administração</Breadcrumbs.Item>
         <Breadcrumbs.Item href="/banco-de-notas">Banco de Notas</Breadcrumbs.Item>
         <Breadcrumbs.Item>{title}</Breadcrumbs.Item>
       </Breadcrumbs>
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-2 max-w-3xl text-sm text-muted">{description}</p>
       </header>
       {children}
     </main>
   );
 }
 
-function Planned({ title }: { title: string }) {
-  return (
-    <Page title={title} description="Área prevista no contrato funcional do Banco de Notas.">
-      <Surface className="bn-card">
-        <p className="text-sm text-muted">
-          Esta área será habilitada quando o respectivo backend estiver conectado. Nenhum dado
-          fictício é exibido.
-        </p>
-      </Surface>
-    </Page>
-  );
-}
-
-function Overview() {
-  return (
-    <Page
-      title="Visão geral"
-      description="Acompanhe o estado operacional do Banco de Notas sem misturar fontes ou resultados simulados."
-    >
-      <div className="bn-grid">
-        <Surface className="bn-card">
-          <strong>Fonte acadêmica</strong>
-          <p className="mt-2 text-sm text-muted">
-            A autoridade é definida por ano letivo e pode ter substituição explícita por professor.
-          </p>
-        </Surface>
-        <Surface className="bn-card">
-          <strong>Sincronização</strong>
-          <p className="mt-2 text-sm text-muted">
-            Desligada por padrão e ativada apenas por vigência.
-          </p>
-        </Surface>
-        <Surface className="bn-card">
-          <strong>Proveniência</strong>
-          <p className="mt-2 text-sm text-muted">
-            Importações e eventos conectados mantêm origem e histórico auditável.
-          </p>
-        </Surface>
-      </div>
-    </Page>
-  );
-}
-
-type SelectItem = { id: string; label: string };
-function SourceSelect({
-  label,
-  value,
-  onChange,
-  items,
-  placeholder,
-  isDisabled = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  items: SelectItem[];
-  placeholder: string;
-  isDisabled?: boolean;
-}) {
-  return (
-    <Select
-      aria-label={label}
-      placeholder={placeholder}
-      isDisabled={isDisabled}
-      selectedKey={value || null}
-      onSelectionChange={(key) => onChange(key ? String(key) : '')}
-    >
-      <Label>{label}</Label>
-      <Select.Trigger>
-        <Select.Value />
-        <Select.Indicator />
-      </Select.Trigger>
-      <Select.Popover>
-        <ListBox items={items}>
-          {(item) => (
-            <ListBox.Item id={item.id} textValue={item.label}>
-              {item.label}
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          )}
-        </ListBox>
-      </Select.Popover>
-    </Select>
-  );
-}
-
-function SourceSettings() {
-  const [years, setYears] = useState<SchoolYear[]>([]);
-  const [sources, setSources] = useState<DataSource[]>([]);
-  const [assignments, setAssignments] = useState<SourceAssignment[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [yearId, setYearId] = useState('');
-  const [sourceType, setSourceType] = useState('legacy_import');
-  const [assignmentSourceId, setAssignmentSourceId] = useState('');
-  const [assignmentTeacherId, setAssignmentTeacherId] = useState('__default__');
-  const [authorityMode, setAuthorityMode] = useState('authoritative');
-  const [syncEnabled, setSyncEnabled] = useState(false);
-  const [sourceEditId, setSourceEditId] = useState('');
-  const [sourceEnvironment, setSourceEnvironment] = useState('homologation');
-  const [sourceMigrationState, setSourceMigrationState] = useState('not_started');
-  const [sourceStatus, setSourceStatus] = useState('active');
-  const [assignmentEditId, setAssignmentEditId] = useState('');
-  const [assignmentEditAuthority, setAssignmentEditAuthority] = useState('authoritative');
-  const [assignmentEditStatus, setAssignmentEditStatus] = useState('active');
-  const [assignmentEditSync, setAssignmentEditSync] = useState(false);
-  const [assignmentEditClearEffectiveTo, setAssignmentEditClearEffectiveTo] = useState(false);
-  const [message, setMessage] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  const sourcesForYear = useMemo(
-    () => sources.filter((item) => item.schoolYearId === yearId),
-    [sources, yearId],
-  );
-  const assignmentsForYear = useMemo(
-    () => assignments.filter((item) => item.schoolYearId === yearId),
-    [assignments, yearId],
-  );
-  const selectedAssignment = useMemo(
-    () => assignments.find((item) => item.id === assignmentEditId) ?? null,
-    [assignmentEditId, assignments],
-  );
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const [y, s, a, t] = await Promise.all([
-        api<SchoolYear[]>('/v1/school-years'),
-        api<DataSource[]>('/v1/data-sources'),
-        api<SourceAssignment[]>('/v1/source-assignments'),
-        api<Teacher[]>('/v1/teachers'),
-      ]);
-      setYears(y);
-      setSources(s);
-      setAssignments(a);
-      setTeachers(t);
-      setYearId((current) => current || y[0]?.id || '');
-      setMessage('');
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Falha ao carregar.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void load();
-  }, []);
-
-  useEffect(() => {
-    if (!sourcesForYear.some((item) => item.id === assignmentSourceId)) {
-      setAssignmentSourceId('');
-    }
-    if (!sourcesForYear.some((item) => item.id === sourceEditId)) setSourceEditId('');
-    if (!assignmentsForYear.some((item) => item.id === assignmentEditId)) {
-      setAssignmentEditId('');
-      setAssignmentEditClearEffectiveTo(false);
-    }
-  }, [assignmentEditId, assignmentSourceId, assignmentsForYear, sourceEditId, sourcesForYear]);
-
-  function selectSourceForEdit(id: string) {
-    setSourceEditId(id);
-    const selected = sources.find((item) => item.id === id);
-    if (!selected) return;
-    setSourceEnvironment(selected.environment);
-    setSourceMigrationState(selected.migrationState);
-    setSourceStatus(selected.status);
-  }
-
-  function selectAssignmentForEdit(id: string) {
-    setAssignmentEditId(id);
-    setAssignmentEditClearEffectiveTo(false);
-    const selected = assignments.find((item) => item.id === id);
-    if (!selected) return;
-    setAssignmentEditAuthority(selected.authorityMode);
-    setAssignmentEditStatus(selected.status);
-    setAssignmentEditSync(selected.syncEnabled);
-  }
-
-  async function createYear(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    try {
-      await api('/v1/school-years', {
-        method: 'POST',
-        body: JSON.stringify({
-          year: Number(data.get('year')),
-          name: data.get('name'),
-          startsOn: data.get('startsOn'),
-          endsOn: data.get('endsOn'),
-        }),
-      });
-      form.reset();
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Falha.');
-    }
-  }
-
-  async function createSource(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    try {
-      await api('/v1/data-sources', {
-        method: 'POST',
-        body: JSON.stringify({
-          schoolYearId: yearId,
-          type: sourceType,
-          name: data.get('name'),
-          description: data.get('description') || '',
-        }),
-      });
-      form.reset();
-      setSourceType('legacy_import');
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Falha.');
-    }
-  }
-
-  async function assign(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const teacherId = assignmentTeacherId === '__default__' ? null : assignmentTeacherId;
-    try {
-      await api('/v1/source-assignments', {
-        method: 'POST',
-        body: JSON.stringify({
-          schoolYearId: yearId,
-          sourceId: assignmentSourceId,
-          scope: teacherId ? 'teacher_override' : 'school_year_default',
-          teacherId,
-          authorityMode,
-          effectiveFrom: data.get('effectiveFrom'),
-          effectiveTo: data.get('effectiveTo') || null,
-          syncEnabled,
-          reason: data.get('reason'),
-        }),
-      });
-      form.reset();
-      setAssignmentSourceId('');
-      setAssignmentTeacherId('__default__');
-      setAuthorityMode('authoritative');
-      setSyncEnabled(false);
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Falha.');
-    }
-  }
-
-  async function updateSource(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!sourceEditId) return;
-    const data = new FormData(event.currentTarget);
-    try {
-      await api(`/v1/data-sources/${sourceEditId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          environment: sourceEnvironment,
-          migrationState: sourceMigrationState,
-          status: sourceStatus,
-          reason: data.get('reason'),
-        }),
-      });
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Falha.');
-    }
-  }
-
-  async function updateAssignment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!assignmentEditId) return;
-    const data = new FormData(event.currentTarget);
-    try {
-      await api(`/v1/source-assignments/${assignmentEditId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          authorityMode: assignmentEditAuthority,
-          status: assignmentEditStatus,
-          syncEnabled: assignmentEditSync,
-          effectiveFrom: data.get('effectiveFrom') || undefined,
-          effectiveTo: assignmentEditClearEffectiveTo
-            ? undefined
-            : data.get('effectiveTo') || undefined,
-          clearEffectiveTo: assignmentEditClearEffectiveTo || undefined,
-          reason: data.get('reason'),
-        }),
-      });
-      setAssignmentEditClearEffectiveTo(false);
-      await load();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Falha.');
-    }
-  }
-
-  return (
-    <Page
-      title="Configurações · Fonte"
-      description="Defina a fonte padrão do ano e substituições explícitas por professor. Sincronização permanece desligada por padrão."
-    >
-      {message && (
-        <Alert status="danger" className="mb-5">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>Atenção</Alert.Title>
-            <Alert.Description>{message}</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      )}
-      {loading ? (
-        <Spinner />
-      ) : (
-        <div className="grid gap-5 xl:grid-cols-3">
-          <Surface className="bn-card">
-            <h2 className="font-semibold">Novo ano letivo</h2>
-            <form className="bn-form" onSubmit={createYear}>
-              <TextField name="year" isRequired>
-                <Label>Ano</Label>
-                <Input variant="secondary" type="number" min={2000} max={2200} placeholder="2026" />
-              </TextField>
-              <TextField name="name" isRequired>
-                <Label>Nome</Label>
-                <Input variant="secondary" placeholder="Ano letivo 2026" />
-              </TextField>
-              <TextField name="startsOn" isRequired>
-                <Label>Início</Label>
-                <Input variant="secondary" type="date" />
-              </TextField>
-              <TextField name="endsOn" isRequired>
-                <Label>Fim</Label>
-                <Input variant="secondary" type="date" />
-              </TextField>
-              <Button type="submit" variant="primary">
-                Criar ano
-              </Button>
-            </form>
-          </Surface>
-
-          <Surface className="bn-card">
-            <h2 className="font-semibold">Nova fonte</h2>
-            <div className="bn-form">
-              <SourceSelect
-                label="Ano letivo"
-                value={yearId}
-                onChange={setYearId}
-                placeholder="Selecione o ano"
-                items={years.map((year) => ({ id: year.id, label: year.name }))}
-              />
-            </div>
-            <form className="bn-form" onSubmit={createSource}>
-              <TextField name="name" isRequired>
-                <Label>Nome da fonte</Label>
-                <Input variant="secondary" placeholder="Ex.: Modelo conectado" />
-              </TextField>
-              <SourceSelect
-                label="Tipo"
-                value={sourceType}
-                onChange={setSourceType}
-                placeholder="Selecione o tipo"
-                items={[
-                  { id: 'legacy_import', label: 'Importação legada' },
-                  { id: 'linked_teacher_model', label: 'Modelo docente conectado' },
-                ]}
-              />
-              <TextField name="description">
-                <Label>Descrição</Label>
-                <Input variant="secondary" placeholder="Descrição opcional" />
-              </TextField>
-              <Button isDisabled={!yearId} type="submit" variant="primary">
-                Adicionar fonte
-              </Button>
-            </form>
-          </Surface>
-
-          <Surface className="bn-card">
-            <h2 className="font-semibold">Autoridade da fonte</h2>
-            <form className="bn-form" onSubmit={assign}>
-              <SourceSelect
-                label="Fonte"
-                value={assignmentSourceId}
-                onChange={setAssignmentSourceId}
-                placeholder="Selecione a fonte"
-                isDisabled={!yearId}
-                items={sourcesForYear.map((item) => ({ id: item.id, label: item.name }))}
-              />
-              <SourceSelect
-                label="Escopo"
-                value={assignmentTeacherId}
-                onChange={setAssignmentTeacherId}
-                placeholder="Padrão do ano"
-                items={[
-                  { id: '__default__', label: 'Padrão do ano' },
-                  ...teachers.map((teacher) => ({
-                    id: teacher.id,
-                    label: `Substituir para ${teacher.displayName}`,
-                  })),
-                ]}
-              />
-              <SourceSelect
-                label="Autoridade"
-                value={authorityMode}
-                onChange={setAuthorityMode}
-                placeholder="Selecione"
-                items={[
-                  { id: 'authoritative', label: 'Autoritativa' },
-                  { id: 'reference_only', label: 'Somente referência' },
-                ]}
-              />
-              <TextField name="effectiveFrom" isRequired>
-                <Label>Vigência inicial</Label>
-                <Input variant="secondary" type="date" />
-              </TextField>
-              <TextField name="effectiveTo">
-                <Label>Vigência final</Label>
-                <Input variant="secondary" type="date" />
-              </TextField>
-              <TextField name="reason" isRequired>
-                <Label>Motivo</Label>
-                <Input variant="secondary" minLength={3} placeholder="Motivo da configuração" />
-              </TextField>
-              <Switch isSelected={syncEnabled} onChange={setSyncEnabled}>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <Switch.Content>
-                  <Label>Ativar sincronização para esta vigência</Label>
-                  <Description>Permanece desligada por padrão.</Description>
-                </Switch.Content>
-              </Switch>
-              <Button isDisabled={!yearId || !assignmentSourceId} type="submit" variant="primary">
-                Salvar vigência
-              </Button>
-            </form>
-          </Surface>
-
-          <Surface className="bn-card xl:col-span-3">
-            <h2 className="font-semibold">Editar fonte existente</h2>
-            <form className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5" onSubmit={updateSource}>
-              <SourceSelect
-                label="Fonte"
-                value={sourceEditId}
-                onChange={selectSourceForEdit}
-                placeholder="Selecione a fonte"
-                items={sourcesForYear.map((item) => ({ id: item.id, label: item.name }))}
-              />
-              <SourceSelect
-                label="Ambiente"
-                value={sourceEnvironment}
-                onChange={setSourceEnvironment}
-                placeholder="Ambiente"
-                items={[
-                  { id: 'homologation', label: 'Homologação' },
-                  { id: 'production', label: 'Produção' },
-                ]}
-              />
-              <SourceSelect
-                label="Migração"
-                value={sourceMigrationState}
-                onChange={setSourceMigrationState}
-                placeholder="Estado"
-                items={[
-                  { id: 'not_started', label: 'Não iniciada' },
-                  { id: 'preparing', label: 'Preparando' },
-                  { id: 'reconciling', label: 'Reconciliando' },
-                  { id: 'ready', label: 'Pronta' },
-                  { id: 'blocked', label: 'Bloqueada' },
-                ]}
-              />
-              <SourceSelect
-                label="Status"
-                value={sourceStatus}
-                onChange={setSourceStatus}
-                placeholder="Status"
-                items={[
-                  { id: 'active', label: 'Ativa' },
-                  { id: 'inactive', label: 'Inativa' },
-                  { id: 'archived', label: 'Arquivada' },
-                ]}
-              />
-              <div className="grid gap-3">
-                <TextField name="reason" isRequired>
-                  <Label>Motivo da alteração</Label>
-                  <Input variant="secondary" minLength={3} />
-                </TextField>
-                <Button isDisabled={!sourceEditId} type="submit" variant="primary">
-                  Atualizar fonte
-                </Button>
-              </div>
-            </form>
-          </Surface>
-
-          <Surface className="bn-card xl:col-span-3">
-            <h2 className="font-semibold">Editar vigência existente</h2>
-            <form
-              className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4"
-              onSubmit={updateAssignment}
-            >
-              <SourceSelect
-                label="Vigência"
-                value={assignmentEditId}
-                onChange={selectAssignmentForEdit}
-                placeholder="Selecione a vigência"
-                items={assignmentsForYear.map((item) => ({
-                  id: item.id,
-                  label: `${item.scope === 'school_year_default' ? 'Padrão anual' : 'Exceção docente'} · ${sources.find((source) => source.id === item.sourceId)?.name ?? item.sourceId}`,
-                }))}
-              />
-              <SourceSelect
-                label="Autoridade"
-                value={assignmentEditAuthority}
-                onChange={setAssignmentEditAuthority}
-                placeholder="Autoridade"
-                items={[
-                  { id: 'authoritative', label: 'Autoritativa' },
-                  { id: 'reference_only', label: 'Somente referência' },
-                ]}
-              />
-              <SourceSelect
-                label="Status"
-                value={assignmentEditStatus}
-                onChange={setAssignmentEditStatus}
-                placeholder="Status"
-                items={[
-                  { id: 'active', label: 'Ativa' },
-                  { id: 'inactive', label: 'Inativa' },
-                ]}
-              />
-              <Switch isSelected={assignmentEditSync} onChange={setAssignmentEditSync}>
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <Switch.Content>
-                  <Label>Sincronização</Label>
-                  <Description>Alteração exige justificativa.</Description>
-                </Switch.Content>
-              </Switch>
-              <TextField name="effectiveFrom">
-                <Label>Vigência inicial</Label>
-                <Input
-                  key={`${assignmentEditId}-effective-from`}
-                  variant="secondary"
-                  type="date"
-                  defaultValue={selectedAssignment?.effectiveFrom ?? ''}
-                />
-              </TextField>
-              <TextField name="effectiveTo">
-                <Label>Vigência final</Label>
-                <Input
-                  key={`${assignmentEditId}-effective-to`}
-                  variant="secondary"
-                  type="date"
-                  defaultValue={selectedAssignment?.effectiveTo ?? ''}
-                  disabled={assignmentEditClearEffectiveTo}
-                />
-              </TextField>
-              <Switch
-                isSelected={assignmentEditClearEffectiveTo}
-                onChange={setAssignmentEditClearEffectiveTo}
-                isDisabled={!assignmentEditId || !selectedAssignment?.effectiveTo}
-              >
-                <Switch.Control>
-                  <Switch.Thumb />
-                </Switch.Control>
-                <Switch.Content>
-                  <Label>Remover vigência final</Label>
-                  <Description>Use somente para reabrir uma vigência já encerrada.</Description>
-                </Switch.Content>
-              </Switch>
-              <TextField name="reason" isRequired>
-                <Label>Motivo da alteração</Label>
-                <Input variant="secondary" minLength={3} />
-              </TextField>
-              <Button isDisabled={!assignmentEditId} type="submit" variant="primary">
-                Atualizar vigência
-              </Button>
-            </form>
-          </Surface>
-
-          <Surface className="bn-card xl:col-span-3">
-            <h2 className="font-semibold">Vigências configuradas</h2>
-            <div className="mt-4 grid gap-2">
-              {assignmentsForYear.length ? (
-                assignmentsForYear.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border p-3 text-sm"
-                  >
-                    <span>
-                      {item.scope === 'school_year_default' ? 'Padrão anual' : 'Exceção docente'} ·{' '}
-                      {sources.find((source) => source.id === item.sourceId)?.name ?? item.sourceId}
-                    </span>
-                    <Chip
-                      size="sm"
-                      variant="soft"
-                      color={item.authorityMode === 'authoritative' ? 'accent' : 'default'}
-                    >
-                      {item.authorityMode} · sync {item.syncEnabled ? 'ligada' : 'desligada'}
-                    </Chip>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted">Nenhuma vigência cadastrada para este ano.</p>
-              )}
-            </div>
-          </Surface>
-
-          <Surface className="bn-card xl:col-span-3">
-            <h2 className="font-semibold">Estado das fontes</h2>
-            <div className="mt-4 grid gap-2 md:grid-cols-2">
-              {sourcesForYear.length ? (
-                sourcesForYear.map((item) => (
-                  <div key={item.id} className="rounded-xl border border-border p-3 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <strong>{item.name}</strong>
-                      <Chip size="sm" variant="soft">
-                        {item.environment}
-                      </Chip>
-                    </div>
-                    <p className="mt-2 text-muted">
-                      Migração: {item.migrationState} · Status: {item.status}
-                    </p>
-                    <p className="mt-1 text-muted">
-                      Reconciliação detalhada será exposta quando o fluxo de reconciliação da Fase 2
-                      estiver conectado; nenhum resultado fictício é apresentado aqui.
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-muted">Nenhuma fonte cadastrada para este ano.</p>
-              )}
-            </div>
-          </Surface>
-        </div>
-      )}
-    </Page>
-  );
+function EmptyPage({ title }: { title: string }) {
+  return <Page title={title} />;
 }
 
 function Shell({ identity }: Props) {
@@ -774,6 +91,7 @@ function Shell({ identity }: Props) {
       </nav>
     </>
   );
+
   return (
     <div className="bn-shell">
       <aside className="bn-sidebar">{navigationContent}</aside>
@@ -789,10 +107,7 @@ function Shell({ identity }: Props) {
               </Drawer.Content>
             </Drawer.Backdrop>
           </Drawer>
-          <div>
-            <strong>Banco de Notas</strong>
-            <p className="text-xs text-muted">Ano e fonte governados</p>
-          </div>
+          <strong>Banco de Notas</strong>
           <div className="flex items-center gap-3">
             <Avatar size="sm">
               <Avatar.Fallback>{displayName.slice(0, 2).toUpperCase()}</Avatar.Fallback>
@@ -804,9 +119,7 @@ function Shell({ identity }: Props) {
           </div>
         </Surface>
         <Routes location={location}>
-          <Route index element={<Overview />} />
-          <Route path="acompanhamento" element={<AcompanhamentoPage />} />
-          <Route path="acompanhamento/turmas/:id" element={<AcompanhamentoDetailPage />} />
+          <Route index element={<EmptyPage title="Visão geral" />} />
           <Route path="alunos" element={<AlunosPage />} />
           <Route path="alunos/:id" element={<AlunoDetailPage />} />
           <Route path="turmas" element={<TurmasPage />} />
@@ -814,12 +127,9 @@ function Shell({ identity }: Props) {
           <Route path="professores" element={<ProfessoresPage />} />
           <Route path="professores/:id" element={<ProfessorDetailPage />} />
           <Route path="importacoes" element={<ImportacoesPage />} />
-          <Route path="conselho" element={<Planned title="Conselho de classe" />} />
-          <Route path="boletins" element={<Planned title="Boletins" />} />
-          <Route path="pesquisa" element={<PesquisaGlobalPage />} />
-          <Route path="pendencias" element={<PendenciasPage />} />
-          <Route path="pendencias/:id" element={<PendenciaDetailPage />} />
-          <Route path="configuracoes/fonte" element={<SourceSettings />} />
+          <Route path="conselho" element={<EmptyPage title="Conselho de classe" />} />
+          <Route path="boletins" element={<EmptyPage title="Boletins" />} />
+          <Route path="configuracoes" element={<EmptyPage title="Configurações" />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

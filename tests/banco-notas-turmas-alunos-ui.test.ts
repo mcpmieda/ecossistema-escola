@@ -38,7 +38,6 @@ describe('Banco de Notas Turmas e Alunos UI', () => {
   it('uses HeroUI and provides every cross-navigation action', () => {
     for (const component of ['Table', 'SearchField', 'Select', 'Chip'])
       expect(source).toContain(component);
-    expect(source).toContain('Abrir no Acompanhamento');
     expect(source).toContain('Ver aluno');
     expect(source).toContain('Ver turma');
     expect(source).not.toMatch(/ambient.?constellation|shadcn|reui/iu);

@@ -594,24 +594,6 @@ export function TurmaDetailPage() {
         <Button size="sm" variant="outline" onPress={() => navigate(back)}>
           <ArrowLeft className="size-4" /> Voltar às turmas
         </Button>
-        {state.data && (
-          <Button
-            size="sm"
-            variant="outline"
-            onPress={() => navigate(`/acompanhamento/turmas/${id}`)}
-          >
-            Abrir no Acompanhamento <ArrowRight className="size-4" />
-          </Button>
-        )}
-        {state.data && (
-          <Button
-            size="sm"
-            variant="outline"
-            onPress={() => navigate(`/pendencias?classGroupId=${state.data?.classGroup.id}`)}
-          >
-            Ver pendências <ArrowRight className="size-4" />
-          </Button>
-        )}
       </div>
       {state.error ? (
         <Failure error={state.error} retry={state.retry} />

@@ -9,7 +9,6 @@ import type {
   TurmasAlunosRepository,
   TurmasListQuery,
 } from '../../shared/banco-notas-turmas-alunos';
-import { D1AcompanhamentoRepository } from './d1-acompanhamento-repository';
 
 type Row = Record<string, string | number | null>;
 
@@ -273,7 +272,51 @@ export class D1TurmasAlunosRepository implements TurmasAlunosRepository {
       )
       .bind(classGroupId)
       .all<Row>();
-    const operational = await new D1AcompanhamentoRepository(this.db).detail(classGroupId);
+    const assignments = await this.db
+      .prepare(
+        `SELECT teacher.id AS teacher_id, teacher.display_name AS teacher_name,
+                component.name AS component_name, ta.status AS assignment_status,
+                model.state AS model_state, model.sync_enabled AS model_sync_enabled,
+                source.name AS source_name, authority.authority AS source_authority,
+                MAX(COALESCE(model.updated_at, ''), COALESCE(model.last_reconciled_at, '')) AS last_activity_at
+         FROM teacher_assignments ta
+         JOIN teachers teacher ON teacher.id = ta.teacher_id
+         JOIN components component ON component.id = ta.component_id
+         LEFT JOIN teacher_models model
+           ON model.school_year_id = ta.school_year_id AND model.teacher_id = ta.teacher_id
+         LEFT JOIN source_assignments authority
+           ON authority.id = (
+             SELECT candidate.id FROM source_assignments candidate
+             WHERE candidate.school_year_id = ta.school_year_id
+               AND candidate.status = 'active' AND candidate.authority = 'authoritative'
+               AND candidate.effective_from <= date('now')
+               AND (candidate.effective_to IS NULL OR candidate.effective_to >= date('now'))
+               AND (candidate.teacher_id = ta.teacher_id OR candidate.teacher_id IS NULL)
+             ORDER BY CASE WHEN candidate.teacher_id IS NULL THEN 1 ELSE 0 END,
+                      candidate.updated_at DESC LIMIT 1
+           )
+         LEFT JOIN data_sources source ON source.id = authority.data_source_id
+         WHERE ta.class_group_id = ?
+         ORDER BY teacher.display_name, component.name`,
+      )
+      .bind(classGroupId)
+      .all<Row>();
+    const findings = await this.db
+      .prepare(
+        `SELECT finding.severity, finding.code,
+                CASE WHEN resolution.id IS NULL THEN 'open' ELSE 'resolved' END AS status,
+                finding.created_at AS occurred_at
+         FROM teacher_assignments ta
+         JOIN import_jobs job
+           ON job.school_year_id = ta.school_year_id AND job.teacher_id = ta.teacher_id
+         JOIN import_findings finding ON finding.import_job_id = job.id
+         LEFT JOIN import_finding_resolutions resolution ON resolution.import_finding_id = finding.id
+         WHERE ta.class_group_id = ?
+         GROUP BY finding.id
+         ORDER BY finding.created_at DESC LIMIT 100`,
+      )
+      .bind(classGroupId)
+      .all<Row>();
     return {
       classGroup: {
         id: String(group.id),
@@ -295,26 +338,30 @@ export class D1TurmasAlunosRepository implements TurmasAlunosRepository {
         numericZeroValues: Number(row.numeric_zero_values),
         lastUpdatedAt: row.last_updated_at ? String(row.last_updated_at) : null,
       })),
-      assignments: (operational?.assignments ?? []).map((assignment) => ({
-        teacherId: assignment.teacherId,
-        teacherName: assignment.teacherName,
-        componentName: assignment.componentName,
-        assignmentStatus: assignment.assignmentStatus,
-        modelState: assignment.modelState,
-        modelSyncEnabled: assignment.modelSyncEnabled,
-        sourceName: assignment.sourceName,
-        sourceAuthority: assignment.sourceAuthority,
+      assignments: assignments.results.map((assignment) => ({
+        teacherId: String(assignment.teacher_id),
+        teacherName: String(assignment.teacher_name),
+        componentName: String(assignment.component_name),
+        assignmentStatus: String(assignment.assignment_status),
+        modelState: assignment.model_state ? String(assignment.model_state) : null,
+        modelSyncEnabled: Boolean(assignment.model_sync_enabled),
+        sourceName: assignment.source_name ? String(assignment.source_name) : null,
+        sourceAuthority: assignment.source_authority ? String(assignment.source_authority) : null,
       })),
-      findings: (operational?.findings ?? []).map((finding) => ({
-        severity: finding.severity,
-        code: finding.code,
-        status: finding.status,
-        occurredAt: finding.occurredAt,
+      findings: findings.results.map((finding) => ({
+        severity: String(finding.severity) as 'info' | 'warning' | 'error',
+        code: String(finding.code),
+        status: String(finding.status) as 'open' | 'resolved',
+        occurredAt: String(finding.occurred_at),
       })),
       lastUpdatedAt: latest([
-        operational?.notes.lastUpdatedAt,
-        ...(operational?.assignments.map((assignment) => assignment.lastActivityAt) ?? []),
-        ...(operational?.findings.map((finding) => finding.occurredAt) ?? []),
+        ...students.results.map((student) =>
+          student.last_updated_at ? String(student.last_updated_at) : null,
+        ),
+        ...assignments.results.map((assignment) =>
+          assignment.last_activity_at ? String(assignment.last_activity_at) : null,
+        ),
+        ...findings.results.map((finding) => String(finding.occurred_at)),
       ]),
     };
   }
