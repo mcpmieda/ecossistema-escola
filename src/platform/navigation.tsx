@@ -1,10 +1,6 @@
 import { Chip, ScrollShadow, Separator, Skeleton, Surface } from '@heroui/react';
 import { BookOpenCheck } from 'lucide-react';
-import type {
-  CoreModuleContract,
-  PlatformRoute,
-  RegisteredModule,
-} from '../../shared/platform-contract';
+import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
 import { BrandMark } from './presentation';
 import { platformHref, routeIcons } from './routes';
 
@@ -68,21 +64,16 @@ function Navigation({
 export function SidebarContent({
   route,
   modules,
-  registeredModules,
+  showBancoNotas,
   loading,
   onNavigate,
 }: {
   route: PlatformRoute;
   modules: CoreModuleContract[];
-  registeredModules: RegisteredModule[];
+  showBancoNotas: boolean;
   loading: boolean;
   onNavigate?: () => void;
 }) {
-  const availableSystems = registeredModules.filter(
-    (module) =>
-      module.available && module.baseRoute.startsWith('/') && !module.baseRoute.startsWith('//'),
-  );
-
   return (
     <Surface
       variant="default"
@@ -108,7 +99,7 @@ export function SidebarContent({
         </div>
         <Navigation route={route} modules={modules} loading={loading} onNavigate={onNavigate} />
 
-        {!loading && availableSystems.length > 0 ? (
+        {!loading && showBancoNotas ? (
           <>
             <Separator className="mx-4 my-5" />
             <div className="mb-3 px-6">
@@ -118,25 +109,23 @@ export function SidebarContent({
             </div>
             <nav aria-label="Sistemas disponíveis" className="platform-nav px-3">
               <ul className="grid gap-[0.3rem]">
-                {availableSystems.map((module) => (
-                  <li key={module.id}>
-                    <a
-                      href={module.baseRoute}
-                      className="platform-nav__item flex w-full items-center no-underline"
-                      onClick={onNavigate}
+                <li>
+                  <a
+                    href="/banco-de-notas"
+                    className="platform-nav__item flex w-full items-center no-underline"
+                    onClick={onNavigate}
+                  >
+                    <Surface
+                      variant="transparent"
+                      className="platform-nav__icon grid size-9 shrink-0 place-items-center rounded-xl"
                     >
-                      <Surface
-                        variant="transparent"
-                        className="platform-nav__icon grid size-9 shrink-0 place-items-center rounded-xl"
-                      >
-                        <BookOpenCheck className="size-4" />
-                      </Surface>
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                        {module.name}
-                      </span>
-                    </a>
-                  </li>
-                ))}
+                      <BookOpenCheck className="size-4" />
+                    </Surface>
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                      Banco de Notas
+                    </span>
+                  </a>
+                </li>
               </ul>
             </nav>
           </>
