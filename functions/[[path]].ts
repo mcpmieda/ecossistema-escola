@@ -24,12 +24,6 @@ import {
 } from '../server/http/security';
 import { sharePointHealth } from '../server/graph/sharepoint';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
-import { D1BancoNotasRepository } from '../server/banco-notas/d1-repository';
-import { D1ImportAnalysisRepository } from '../server/banco-notas/d1-import-analysis-repository';
-import { D1ImportAnalysisProfileRepository } from '../server/banco-notas/d1-import-analysis-profile-repository';
-import { routeBancoNotasApi } from '../server/banco-notas/api';
-import { D1TurmasAlunosRepository } from '../server/banco-notas/d1-turmas-alunos-repository';
-import { D1ProfessoresRepository } from '../server/banco-notas/d1-professores-repository';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 
@@ -305,34 +299,6 @@ async function route(context: Context, correlationId: string): Promise<Response>
     const capabilities = capabilitiesForRoles(session.roles);
     requireCapability(capabilities, 'platform.snapshot.read');
     return json(await getPlatformSnapshot(env, capabilities));
-  }
-
-  if (url.pathname.startsWith('/api/banco-notas/')) {
-    const session = await requireAuth(request, env);
-    const capabilities = capabilitiesForRoles(session.roles);
-    requireCapability(capabilities, 'grades.read');
-    if (request.method === 'POST' || request.method === 'PATCH') enforceWriteOrigin(request, env);
-    if (!env.BANCO_NOTAS_DB) {
-      if (url.pathname === '/api/banco-notas/health' && request.method === 'GET') {
-        return json({ status: 'degraded', service: 'banco-de-notas', version: '0.1.0' }, 503);
-      }
-      throw new HttpError(503, 'Banco de Notas storage unavailable');
-    }
-
-    const profiles = new D1ImportAnalysisProfileRepository(env.BANCO_NOTAS_DB);
-    return routeBancoNotasApi({
-      request,
-      repository: new D1BancoNotasRepository(env.BANCO_NOTAS_DB),
-      turmasAlunos: new D1TurmasAlunosRepository(env.BANCO_NOTAS_DB),
-      professores: new D1ProfessoresRepository(env.BANCO_NOTAS_DB),
-      capabilities,
-      actor: session.oid,
-      importAnalysis: {
-        repository: new D1ImportAnalysisRepository(env.BANCO_NOTAS_DB),
-        analyzers: [],
-        profiles,
-      },
-    });
   }
 
   throw new HttpError(404, 'Not found');
