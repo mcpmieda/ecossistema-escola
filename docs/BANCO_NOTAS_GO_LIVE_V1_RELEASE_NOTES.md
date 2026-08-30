@@ -1,6 +1,6 @@
 # Banco de Notas — Release notes GO-LIVE V1
 
-Release candidate e deployment permanecem `PENDING` até o merge verde do control plane de produção. O RC usará o tag explícito `banco-notas-go-live-v1-rc.1`, pois o repositório não possuía convenção anterior de tags/releases.
+O RC.1 (`249a21d06263fe6529a36c0d3458c50219604288`) foi interrompido antes de backup, migrations, binding e deploy Pages por colisão com a variável automática PowerShell `$Matches` ao resolver o D1 recém-criado. O D1 vazio `e59579db-aa8b-4589-a02e-643cb4277b5f` foi preservado para reutilização inequívoca; o deployment Pages anterior permaneceu ativo. O próximo candidato deve usar um novo tag RC após o merge verde da correção, sem mover o tag RC.1.
 
 ## Incluído
 

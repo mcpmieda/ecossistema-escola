@@ -220,11 +220,11 @@ function Assert-NoUnexpectedResourceBindings {
 }
 
 function Resolve-ProductionDatabase {
-  $matches = @(Get-Databases | Where-Object { [string]$_.name -eq $databaseName })
-  if ($matches.Count -gt 1) {
+  $databaseMatches = @(Get-Databases | Where-Object { [string]$_.name -eq $databaseName })
+  if ($databaseMatches.Count -gt 1) {
     throw "Mais de um D1 chamado $databaseName foi encontrado."
   }
-  if ($matches.Count -eq 0) {
+  if ($databaseMatches.Count -eq 0) {
     $previousToken = $env:CLOUDFLARE_API_TOKEN
     try {
       $env:CLOUDFLARE_API_TOKEN = $env:CLOUDFLARE_D1_API_TOKEN
@@ -236,12 +236,15 @@ function Resolve-ProductionDatabase {
     finally {
       $env:CLOUDFLARE_API_TOKEN = $previousToken
     }
-    $matches = @(Get-Databases | Where-Object { [string]$_.name -eq $databaseName })
+    $databaseMatches = @(Get-Databases | Where-Object { [string]$_.name -eq $databaseName })
   }
-  if ($matches.Count -ne 1 -or [string]$matches[0].uuid -notmatch '^[0-9a-fA-F-]{36}$') {
+  if (
+    $databaseMatches.Count -ne 1 -or
+    [string]$databaseMatches[0].uuid -notmatch '^[0-9a-fA-F-]{36}$'
+  ) {
     throw 'O D1 de produção não pôde ser resolvido de forma inequívoca.'
   }
-  return $matches[0]
+  return $databaseMatches[0]
 }
 
 function New-ProductionConfig {

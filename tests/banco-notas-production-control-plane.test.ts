@@ -61,4 +61,14 @@ describe('Banco de Notas production control plane', () => {
     expect(script).toContain('deployment_trigger.metadata.commit_hash -ne $ExpectedReleaseSha');
     expect(script).toContain("latest_stage.status -ne 'success'");
   });
+
+  it('does not collide with the PowerShell automatic Matches variable while resolving D1', () => {
+    const resolver = script.slice(
+      script.indexOf('function Resolve-ProductionDatabase'),
+      script.indexOf('function New-ProductionConfig'),
+    );
+    expect(resolver).toContain('$databaseMatches');
+    expect(resolver).not.toMatch(/\$matches\b/iu);
+    expect(resolver).toContain('return $databaseMatches[0]');
+  });
 });
