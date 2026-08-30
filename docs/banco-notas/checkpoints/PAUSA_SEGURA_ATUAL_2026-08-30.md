@@ -14,7 +14,9 @@ Concluir a primeira versão operacional do Banco de Notas por upload manual de c
 - branch de trabalho: `feat/banco-notas-manual-upload-v1`;
 - base revalidada: `9c3488bef6e9a925dd69ecc8b2f1f7a4da8fe49f`;
 - `main` remota na abertura desta fase: mesmo SHA;
-- nenhuma alteração desta fase foi enviada ao GitHub até este checkpoint.
+- commit da implementação e documentação: `f13bb58`;
+- branch enviada ao GitHub e PR `#150` aberto;
+- `main` permanece inalterada até aprovação dos gates do PR.
 
 ## GitHub/Cloudflare
 
