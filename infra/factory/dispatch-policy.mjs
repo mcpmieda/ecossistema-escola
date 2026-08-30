@@ -18,7 +18,9 @@ export const FACTORY_LABELS = Object.freeze({
 
 export const AUTOMATIC_PROVIDER_ORDER = Object.freeze(['opencode_ollama', 'jules']);
 
-export const DURABLE_PROVIDERS = Object.freeze(['opencode_ollama']);
+// Keep the historical durable contract readable for old evidence/leases, but only
+// providers in AUTOMATIC_PROVIDER_ORDER can receive new automatic dispatch.
+export const DURABLE_PROVIDERS = Object.freeze(['opencode_ollama', 'antigravity']);
 
 export function providerLabel(provider) {
   if (provider === 'jules') return FACTORY_LABELS.providerJules;
