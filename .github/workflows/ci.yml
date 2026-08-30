@@ -24,6 +24,9 @@ jobs:
     name: Validate application
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      app: ${{ steps.changes.outputs.app }}
+      addin: ${{ steps.changes.outputs.addin }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -51,7 +54,7 @@ jobs:
           app=false
           addin=false
 
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || grep -Eq '^(src/|functions/|tests/|migrations/|infra/|package\.json$|package-lock\.json$|tsconfig\.app\.json$|tsconfig\.server\.json$|vite\.config\.ts$|wrangler\.jsonc$|eslint\.config\.)' /tmp/changed-files; then
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || grep -Eq '^(src/|functions/|public/|tests/|migrations/|infra/|index\.html$|package\.json$|package-lock\.json$|tsconfig\.app\.json$|tsconfig\.server\.json$|vite\.config\.ts$|wrangler\.jsonc$|eslint\.config\.)' /tmp/changed-files; then
             app=true
           fi
 
@@ -148,7 +151,10 @@ jobs:
 
   deploy-production:
     name: Deploy production
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      (needs.validate.outputs.app == 'true' || needs.validate.outputs.addin == 'true')
     needs: [validate, workflow-security]
     runs-on: ubuntu-latest
     timeout-minutes: 10
