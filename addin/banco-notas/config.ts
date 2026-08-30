@@ -26,7 +26,7 @@ export function createBancoNotasNaaConfig(input: {
     clientId,
     tenantId,
     authority: `https://login.microsoftonline.com/${tenantId}`,
-    redirectUri: `${input.origin}/banco-de-notas/addin/auth.html`,
+    redirectUri: `${input.origin}/banco-de-notas/addin/auth`,
     requestedScope: `api://${clientId}/${delegatedScope}`,
     delegatedScope,
     expectedIssuer: `https://login.microsoftonline.com/${tenantId}/v2.0`,
