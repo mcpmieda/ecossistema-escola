@@ -2,7 +2,7 @@
 
 Atualizado em: 30/08/2026
 
-Status: Upload Manual V1 publicado; fonte institucional pronta; primeiro upload real ainda não enviado.
+Status: Upload Manual V1 publicado; fonte institucional pronta; primeiro upload autorizado, mas ainda não transmitido por bloqueio do seletor automatizado.
 
 ## Decisão vigente
 
@@ -84,11 +84,11 @@ Concluir a primeira versão operacional do Banco de Notas por upload manual de c
 
 ## Próximo passo exato
 
-1. obter confirmação imediata do usuário para transmitir a cópia `.xlsx`, pois ela contém nomes e notas reais;
-2. enviar somente a cópia temporária validada, associada a `SECRETARIA — PILOTO CONTROLADO` e à fonte `Upload manual de planilhas docentes 2026`;
+1. na tela já preparada, o usuário selecionar manualmente a cópia temporária `.xlsx` no campo de arquivo;
+2. o agente conferir que o nome/tamanho ficaram visíveis e acionar `Analisar planilha` sob a autorização já concedida;
 3. conferir o resumo da análise sem promover notas para eventos oficiais;
 4. revalidar D1, kill switches e ausência de sincronização;
-5. remover a cópia temporária local e registrar a evidência final sem dados pessoais.
+5. remover as cópias temporárias locais e registrar a evidência final sem dados pessoais.
 
 ## Condições de interrupção
 
@@ -126,4 +126,17 @@ Parar e registrar novo checkpoint se:
 - uma cópia local temporária `.xlsx` foi produzida a partir de uma cópia isolada do `.xlsb`; o original não foi modificado;
 - regressão privada sobre essa cópia: 1 arquivo de teste PASS, sem imprimir conteúdo;
 - nenhum arquivo real foi transmitido, e nenhum nome ou nota foi registrado no GitHub;
-- parada segura: aguardar confirmação imediata do usuário antes do upload real.
+- parada segura: aguardar seleção manual do arquivo no navegador; a autorização imediata do usuário para o upload já foi recebida.
+
+## Hotfix do campo de arquivo e bloqueio operacional remanescente
+
+- PR `#153` integrado em `main` como `6fb9fb290725cf4873c7ab835cd3bfddf3a4f11a`;
+- workflow de `main` `33330974805`: validação, deploy e recovery PASS;
+- deployment Pages canônico: `c19c8140-4333-41c1-a9a7-f4db3946c4cb`, branch `main`, source `6fb9fb2`;
+- hotfix guarda o `File` selecionado em estado explícito e o limpa somente após análise concluída;
+- gates locais: regressão privada PASS, 475 testes PASS, build web/add-in PASS e 0 vulnerabilidades;
+- o navegador integrado não consegue preencher o `input[type=file]`: o seletor retorna sem erro, mas `FileList` permanece vazio e nenhum evento chega ao estado da aplicação;
+- repetir com caminho no `%TEMP%`, caminho privado dentro do workspace e formatos documentados de arquivo único/lista produziu o mesmo resultado;
+- nenhuma tentativa chegou ao endpoint: leitura D1 posterior confirmou `import_jobs=0`, `import_analyses=0`, `sync_attempts=0`, `changed_db=false` e `rows_written=0`;
+- não foi criado bypass de autenticação, não foi usada escrita D1 direta e não houve relaxamento dos gates;
+- bloqueio externo exato: o usuário precisa escolher uma vez a cópia `.xlsx` no seletor nativo visível; após isso o agente pode concluir a análise e as verificações.
