@@ -205,7 +205,7 @@ function parseWorksheetCells(
   const cells = new Map<string, string>();
   let count = 0;
 
-  for (const match of xml.matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/gu)) {
+  for (const match of xml.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/gu)) {
     count += 1;
     if (count > MAX_XML_CELLS_PER_SHEET) {
       throw new XlsxLegacyAnalyzerError('xlsx_worksheet_cell_budget_exceeded');
@@ -255,7 +255,7 @@ function matchingRule(
     const componentDisplayName = match.groups?.component?.trim() ?? '';
     if (
       !classDisplayName ||
-      !componentDisplayName ||
+      (!componentDisplayName && !compiled.rule.componentNameCell) ||
       classDisplayName.length > 180 ||
       componentDisplayName.length > 180
     ) {
@@ -315,9 +315,18 @@ async function analyzeXlsx(
     matchedSheetCount += 1;
 
     const cells = parseWorksheetCells(entries, sheet, sharedStrings);
+    const componentDisplayName = matched.rule.componentNameCell
+      ? (cells.get(matched.rule.componentNameCell) ?? '').trim()
+      : matched.componentDisplayName;
+    if (!componentDisplayName || componentDisplayName.length > 180) {
+      throw new XlsxLegacyAnalyzerError(
+        `xlsx_component_cell_invalid:${matched.rule.ruleId}:${sheet.name}`,
+      );
+    }
     const rowEnd = matched.rule.firstStudentRow + matched.rule.maxStudentRows - 1;
-    const studentRows: Array<{ row: number; displayName: string }> = [];
+    const studentRows: Array<{ row: number; displayName: string; studentPosition?: number }> = [];
     const namesInSheet = new Map<string, number>();
+    const positionsInSheet = new Map<number, number>();
 
     for (let row = matched.rule.firstStudentRow; row <= rowEnd; row += 1) {
       const displayName = (cells.get(`${matched.rule.studentNameColumn}${row}`) ?? '').trim();
@@ -325,13 +334,31 @@ async function analyzeXlsx(
       if (displayName.length > 240) {
         throw new XlsxLegacyAnalyzerError('xlsx_student_display_name_too_long');
       }
+      let studentPosition: number | undefined;
+      if (matched.rule.studentPositionColumn) {
+        const rawPosition = (cells.get(`${matched.rule.studentPositionColumn}${row}`) ?? '').trim();
+        const parsedPosition = Number(rawPosition);
+        if (
+          !/^\d+$/u.test(rawPosition) ||
+          !Number.isSafeInteger(parsedPosition) ||
+          parsedPosition < 1
+        ) {
+          throw new XlsxLegacyAnalyzerError('xlsx_student_position_invalid');
+        }
+        const previousPositionRow = positionsInSheet.get(parsedPosition);
+        if (previousPositionRow !== undefined) {
+          throw new XlsxLegacyAnalyzerError('xlsx_student_position_duplicate');
+        }
+        positionsInSheet.set(parsedPosition, row);
+        studentPosition = parsedPosition;
+      }
       const previousRow = namesInSheet.get(displayName);
       if (previousRow !== undefined) {
         findings.push(`duplicate_student_name:${sheet.name}:${displayName}:${previousRow}:${row}`);
       } else {
         namesInSheet.set(displayName, row);
       }
-      studentRows.push({ row, displayName });
+      studentRows.push({ row, displayName, studentPosition });
     }
 
     if (studentRows.length === 0) {
@@ -340,10 +367,11 @@ async function analyzeXlsx(
     }
 
     const sourceClassId = await digestToken('class', matched.classDisplayName);
-    const sourceComponentId = await digestToken('component', matched.componentDisplayName);
+    const sourceComponentId = await digestToken('component', componentDisplayName);
     const sheetLocatorId = `sheet:${sheet.sheetId}`;
     const rangeEndColumn = maximumColumn([
       matched.rule.studentNameColumn,
+      ...(matched.rule.studentPositionColumn ? [matched.rule.studentPositionColumn] : []),
       ...matched.rule.gradeColumns.map((item) => item.column),
     ]);
     const lastStudentRow = studentRows.reduce((maximum, item) => Math.max(maximum, item.row), 0);
@@ -363,7 +391,7 @@ async function analyzeXlsx(
     if (!components.has(sourceComponentId)) {
       components.set(sourceComponentId, {
         sourceComponentId,
-        displayName: matched.componentDisplayName,
+        displayName: componentDisplayName,
         sourceLocator: {
           sheetId: sheetLocatorId,
           sheetDisplayName: sheet.name,
@@ -375,19 +403,27 @@ async function analyzeXlsx(
     for (const studentRow of studentRows) {
       const sourceStudentId = await digestToken(
         'student',
-        `${sourceClassId}\u0000${studentRow.displayName}`,
+        `${sourceClassId}\u0000${studentRow.studentPosition ?? studentRow.displayName}`,
       );
-      if (!students.has(sourceStudentId)) {
+      const existingStudent = students.get(sourceStudentId);
+      if (!existingStudent) {
         students.set(sourceStudentId, {
           sourceStudentId,
           displayName: studentRow.displayName,
           sourceClassId,
+          ...(studentRow.studentPosition === undefined
+            ? {}
+            : { studentPosition: studentRow.studentPosition }),
           sourceLocator: {
             sheetId: sheetLocatorId,
             sheetDisplayName: sheet.name,
             cellAddress: `${matched.rule.studentNameColumn}${studentRow.row}`,
           },
         });
+      } else if (existingStudent.displayName !== studentRow.displayName) {
+        findings.push(
+          `student_position_name_mismatch:${sheet.name}:${studentRow.studentPosition ?? 'legacy'}:${existingStudent.displayName}:${studentRow.displayName}`,
+        );
       }
 
       for (const gradeColumn of matched.rule.gradeColumns) {

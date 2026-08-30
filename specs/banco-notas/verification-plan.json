@@ -130,6 +130,12 @@
       "name": "Experiência Cotidiana do Add-in V1",
       "method": "contratos Zod/OpenAPI, SQLite real, bearer/ownership, metadata e mappings Office.js, zero/ausência/baseline desconhecido, estados HeroUI, regressão NAA, manifest, build separado e QA sintético do taskpane",
       "required": true
+    },
+    {
+      "id": "BN-V-022",
+      "name": "Upload Manual XLSX V1",
+      "method": "contratos Zod, hash server-side, parser OOXML, perfil versionado, API allow/deny, idempotência D1, zero/ausência, proveniência, UI HeroUI, browser QA e regressão de não promoção automática",
+      "required": true
     }
   ],
   "scenario_matrix": [
@@ -175,7 +181,11 @@
     "taskpane distingue loading, auth, authenticated, sem assignment/modelo, workbook inválido, ownership negado, sync off, ready, warning, error e offline",
     "comparação local distingue zero, ausência, mudança, nenhuma mudança e baseline desconhecido sem enviar conteúdo de célula",
     "context API permanece fail-closed sem flag, retorna DTO minimizado e não torna grade-events publicamente acessível",
-    "taskpane sintético em viewport estreito usa HeroUI, não apresenta overflow global e não expõe token, claims, OID ou tenant"
+    "taskpane sintético em viewport estreito usa HeroUI, não apresenta overflow global e não expõe token, claims, OID ou tenant",
+    "upload manual calcula o hash no servidor, cria ou reutiliza o mesmo job e analisa uma cópia XLSX sem alterar a origem",
+    "upload repetido do mesmo conteúdo para a mesma fonte não duplica análise nem efeito lógico",
+    "arquivo XLSB recebe orientação para salvar uma cópia XLSX e permanece fail-closed no runtime",
+    "lote analisado exibe turma, componente, estudante, campo, zero, ausência e origem de célula sem promoção automática"
   ],
   "data_policy": {
     "git": "somente fixtures sintéticas e contratos; nenhum nome/nota real",
@@ -203,6 +213,8 @@
     "Pesquisa Global criando índice ou identidade paralela, ranqueando no frontend, carregando entidades integralmente ou expondo identificadores técnicos",
     "Central criando pendência por heurística não persistida, expondo identificador técnico ou oferecendo resolução/escrita em V1",
     "add-in cotidiano expondo token/claims/OID/tenant, enviando conteúdo de célula, persistindo mudança, publicando comando de sync ou reutilizando capability administrativa",
-    "rota addin/context habilitada por default, grade-events conectado ao roteador público ou mudança em Entra/Graph/permissões sem decisão humana"
+    "rota addin/context habilitada por default, grade-events conectado ao roteador público ou mudança em Entra/Graph/permissões sem decisão humana",
+    "upload manual confiando em hash do cliente, aceitando pacote macro-enabled, executando fórmula/link ou persistindo o binário no D1",
+    "upload manual vinculando estudante por nome aproximado ou promovendo lote sem conferência explícita"
   ]
 }

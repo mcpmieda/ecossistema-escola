@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Banco de Notas — análise verificada de importação
-  version: 1.0.0
+  version: 1.1.0
   description: >-
     Contrato administrativo same-origin para perfis XLSX versionados, vínculo imutável do
     perfil ao import job e persistência da análise verificada antes do estado analyzed.
@@ -12,6 +12,80 @@ servers:
 security:
   - administrativeSession: []
 paths:
+  /v1/manual-imports:
+    post:
+      operationId: uploadManualTeacherWorkbook
+      summary: Valida e registra uma cópia XLSX em uma única operação administrativa
+      description: >-
+        Requer grades.import.run. O servidor calcula SHA-256, valida o perfil antes de criar
+        o job, registra job/vínculo/análise idempotentes e não persiste o binário. O perfil
+        deve declarar studentPositionColumn; nome do estudante não é chave de identidade.
+      parameters:
+        - name: schoolYearId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: teacherId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: dataSourceId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: profileKey
+          in: query
+          required: true
+          schema:
+            type: string
+            const: ieda-standard-overview-2026-v1
+        - name: fileName
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 6
+            maxLength: 180
+            pattern: '^[^\\/]+\.[xX][lL][sS][xX]$'
+        - name: X-Import-Reason
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            maxLength: 500
+      requestBody:
+        required: true
+        content:
+          application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+            schema:
+              type: string
+              contentEncoding: binary
+      responses:
+        '201':
+          description: Cópia analisada ou lote idempotente reutilizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualImportSummary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          description: Cópia acima de 32 MiB.
+        '415':
+          description: MIME diferente de XLSX.
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '503':
+          $ref: '#/components/responses/Unavailable'
   /v1/import-analysis-profiles:
     get:
       operationId: listImportAnalysisProfiles
@@ -376,7 +450,12 @@ components:
           maxLength: 240
         caseInsensitive:
           type: boolean
+        componentNameCell:
+          type: string
+          pattern: '^[A-Z]{1,3}[1-9][0-9]{0,6}$'
         studentNameColumn:
+          $ref: '#/components/schemas/ExcelColumn'
+        studentPositionColumn:
           $ref: '#/components/schemas/ExcelColumn'
         firstStudentRow:
           type: integer
@@ -452,6 +531,35 @@ components:
         createdAt:
           type: string
           format: date-time
+    ManualImportSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - jobId
+        - analysisId
+        - state
+        - reused
+        - sourceHash
+        - fileName
+        - classCount
+        - componentCount
+        - studentCount
+        - gradeSlotCount
+        - findingCount
+      properties:
+        schemaVersion: { const: 1 }
+        jobId: { type: string, format: uuid }
+        analysisId: { type: string, format: uuid }
+        state: { const: analyzed }
+        reused: { type: boolean }
+        sourceHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+        fileName: { type: string }
+        classCount: { type: integer, minimum: 0 }
+        componentCount: { type: integer, minimum: 0 }
+        studentCount: { type: integer, minimum: 0 }
+        gradeSlotCount: { type: integer, minimum: 0 }
+        findingCount: { type: integer, minimum: 0 }
     LegacyIntermediateModel:
       type: object
       additionalProperties: false

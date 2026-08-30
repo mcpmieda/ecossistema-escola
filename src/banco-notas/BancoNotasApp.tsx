@@ -27,6 +27,7 @@ import {
   Menu,
   Search,
   Settings,
+  Upload,
   Users,
 } from 'lucide-react';
 import { useEffect, useMemo, useState, type FormEvent, type PropsWithChildren } from 'react';
@@ -51,6 +52,7 @@ import { AlunoDetailPage, AlunosPage, TurmaDetailPage, TurmasPage } from './Turm
 import { ProfessorDetailPage, ProfessoresPage } from './ProfessoresPage';
 import { PesquisaGlobalPage } from './PesquisaGlobalPage';
 import { PendenciaDetailPage, PendenciasPage } from './PendenciasPage';
+import { ImportacoesPage } from './ImportacoesPage';
 
 type BancoNotasIdentity = {
   name?: string;
@@ -64,6 +66,7 @@ const navigation = [
   ['/alunos', 'Alunos', Users],
   ['/turmas', 'Turmas', BookOpenCheck],
   ['/professores', 'Professores', Users],
+  ['/importacoes', 'Importações', Upload],
   ['/conselho', 'Conselho de classe', ClipboardList],
   ['/boletins', 'Boletins', FileText],
   ['/pesquisa', 'Pesquisa', Search],
@@ -810,6 +813,7 @@ function Shell({ identity }: Props) {
           <Route path="turmas/:id" element={<TurmaDetailPage />} />
           <Route path="professores" element={<ProfessoresPage />} />
           <Route path="professores/:id" element={<ProfessorDetailPage />} />
+          <Route path="importacoes" element={<ImportacoesPage />} />
           <Route path="conselho" element={<Planned title="Conselho de classe" />} />
           <Route path="boletins" element={<Planned title="Boletins" />} />
           <Route path="pesquisa" element={<PesquisaGlobalPage />} />

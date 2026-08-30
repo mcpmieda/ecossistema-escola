@@ -263,6 +263,52 @@ describe('Banco de Notas generic XLSX legacy analyzer', () => {
     expect(verified.model.findings).toEqual([]);
   });
 
+  it('does not let a self-closing empty cell swallow the following component cell', async () => {
+    const source = await generatedSource();
+    const entries = storedEntries(source.bytes);
+    const worksheet = entries.get('xl/worksheets/sheet1.xml') ?? '';
+    entries.set(
+      'xl/worksheets/sheet1.xml',
+      worksheet.replace(
+        '<sheetData>',
+        '<sheetData><row r="1"><c r="J1"/><c r="K1" t="inlineStr"><is><t>Matemática</t></is></c></row>',
+      ),
+    );
+    const bytes = await deflatedZip(entries);
+    const digestInput = new Uint8Array(bytes.byteLength);
+    digestInput.set(bytes);
+    const digest = await crypto.subtle.digest('SHA-256', digestInput.buffer);
+    const sourceHash = Array.from(new Uint8Array(digest), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('');
+    const cellProfile = xlsxLegacyAnalysisProfileSchema.parse({
+      ...profile,
+      profileId: 'synthetic-component-cell-v1',
+      worksheetRules: [
+        {
+          ...profile.worksheetRules[0]!,
+          sheetNamePattern: '^(?<class>.+?) - .+$',
+          componentNameCell: 'K1',
+        },
+      ],
+    });
+
+    const verified = await analyzeLegacyWorkbook({
+      source: {
+        metadata: {
+          sourceFormat: 'xlsx',
+          sourceHash,
+          byteLength: bytes.byteLength,
+          schoolYear: 2026,
+        },
+        bytes,
+      },
+      analyzer: createGenericXlsxLegacyAnalyzer(cellProfile),
+    });
+
+    expect(verified.model.components.map((item) => item.displayName)).toEqual(['Matemática']);
+  });
+
   it('preserves an explicit numeric grade and keeps blank distinct from zero', async () => {
     const source = await generatedSource();
     const entries = storedEntries(source.bytes);

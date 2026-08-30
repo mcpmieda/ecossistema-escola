@@ -13,6 +13,11 @@ export const xlsxLegacySheetRuleSchema = z
     ruleId: opaqueIdSchema,
     sheetNamePattern: z.string().min(1).max(240),
     caseInsensitive: z.boolean().default(false),
+    componentNameCell: z
+      .string()
+      .regex(/^[A-Z]{1,3}[1-9][0-9]{0,6}$/u)
+      .optional(),
+    studentPositionColumn: excelColumnSchema.optional(),
     studentNameColumn: excelColumnSchema,
     firstStudentRow: z.number().int().min(1).max(1_000_000),
     maxStudentRows: z.number().int().min(1).max(10_000),
@@ -52,6 +57,17 @@ export const xlsxLegacySheetRuleSchema = z
         code: 'custom',
         path: ['studentNameColumn'],
         message: 'student name column cannot also be a grade column',
+      });
+    }
+    if (
+      value.studentPositionColumn &&
+      (columns.includes(value.studentPositionColumn) ||
+        value.studentPositionColumn === value.studentNameColumn)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['studentPositionColumn'],
+        message: 'student position column must be distinct from name and grade columns',
       });
     }
   });

@@ -1,5 +1,19 @@
 # Banco de Notas — Implementation State
 
+## Upload Manual V1 — pronto localmente para publicação controlada (30/08/2026)
+
+- O caminho operacional inicial passa a ser o upload administrativo de uma cópia `.xlsx` da planilha docente; o original não é alterado.
+- A UI `Importações` seleciona ano, professor e fonte, envia o arquivo e exibe o conteúdo analisado com origem por guia/célula.
+- O servidor limita o arquivo a 32 MiB, aceita somente XLSX, calcula SHA-256, evita duplicação por conteúdo e mantém proveniência/auditoria.
+- O perfil institucional é versionado e identifica estudante por ano + turma + número sequencial; o nome serve somente para conferência.
+- `.xlsb` continua fail-closed; o operador deve usar “Salvar uma cópia” para gerar `.xlsx`.
+- A análise é persistida em `import_jobs`/`import_analyses`; promoção para fatos oficiais permanece explícita e não foi habilitada nesta etapa.
+- Regressão privada executada sobre cópia autorizada sem registrar nomes/notas; cópia temporária enviada à Lixeira e original intocado.
+- Gate local integral: 472 testes em 94 arquivos, 1 regressão privada condicional pulada na execução pública, build web/add-in, manifesto, lint, tipos, semântica e formatação: PASS.
+- `npm audit --audit-level=high`: 0 vulnerabilidades; `git diff --check`: PASS.
+- Produção, D1, Graph, Entra, add-in e sync permaneceram intocados durante a implementação local.
+- Evidências, decisão e pausas seguras: `docs/banco-notas/`.
+
 ## Professores V1 — implementação em branch (28/08/2026)
 
 - Diretório e detalhe operacionais sobre `teachers`, assignments e relações persistidas atuais.

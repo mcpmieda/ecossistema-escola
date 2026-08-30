@@ -1,5 +1,18 @@
 # VERIFICATION — Centro de Administração v1
 
+## Banco de Notas — Upload Manual V1 (30/08/2026)
+
+- Fluxo administrativo único para upload de cópia `.xlsx`, com limite de 32 MiB, capability `grades.import.run`, motivo obrigatório e proteção same-origin já existente no roteador externo: PASS.
+- Hash SHA-256 server-side, idempotência por fonte + conteúdo, perfil institucional versionado, proveniência e análise persistente append-only: PASS.
+- Identidade do estudante por turma + número sequencial; nome apenas para conferência; zero distinto de ausência: PASS.
+- UI HeroUI em `/banco-de-notas/importacoes`, seleção de ano/professor/fonte, orientação XLSB → cópia XLSX, resumo e detalhe com origem por guia/célula: PASS local.
+- Parser OOXML corrigido para não engolir a célula seguinte após `<c/>`; regressão permanente: PASS.
+- Prova privada estrutural sobre cópia autorizada: PASS, sem conteúdo real em Git/log; temporário enviado à Lixeira e original intocado.
+- `npm run verify`: PASS — 472 testes em 94 arquivos, 1 teste privado condicional pulado, formatação, lint, tipos, contrato semântico, manifesto e builds web/add-in verdes.
+- `npm audit --audit-level=high`: 0 vulnerabilidades; `git diff --check`: PASS.
+- Produção, D1, Graph, Entra, add-in, flags de commit/sync e notas acadêmicas não foram alterados por esta verificação local.
+- Histórico completo e checkpoints sanitizados em `docs/banco-notas/`.
+
 ## Banco de Notas — verificação Central de Pendências V1 (28/08/2026)
 
 - SQLite real com migrations `0001`–`0007`: summary/list/detail, tipos factuais, erro/atenção/informação, deduplicação, ordenação, filtros, paginação e 404.
