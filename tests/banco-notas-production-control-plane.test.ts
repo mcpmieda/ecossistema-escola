@@ -42,5 +42,7 @@ describe('Banco de Notas production control plane', () => {
     expect(script).toContain('secretsIncluded = $false');
     expect(script).toContain('rawEnvironmentValuesIncluded = $false');
     expect(script).toContain('Assert-NoUnexpectedResourceBindings');
+    expect(script).toContain('deployment_trigger.metadata.commit_hash -ne $ExpectedReleaseSha');
+    expect(script).toContain("latest_stage.status -ne 'success'");
   });
 });

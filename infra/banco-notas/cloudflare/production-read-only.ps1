@@ -122,7 +122,8 @@ function Get-SanitizedProject {
   $environmentVariables = [ordered]@{}
   $envMap = Get-PropertyMap (Get-NamedProperty -Value $production -Name 'env_vars')
   foreach ($name in @($envMap.Keys | Sort-Object)) {
-    $environmentVariables[$name] = [string]$envMap[$name].type
+    $type = Get-NamedProperty -Value $envMap[$name] -Name 'type'
+    $environmentVariables[$name] = $(if ($type) { [string]$type } else { 'unknown' })
   }
   return [ordered]@{
     compatibilityDate = [string]$production.compatibility_date
@@ -149,6 +150,7 @@ function New-Evidence {
         createdAt = [string]$_.created_at
       }
     })
+  $currentDetails = Invoke-CloudflareGet -Path "/pages/projects/$projectName/deployments/$($CurrentDeployment.Id)"
   $evidence = [ordered]@{
     schemaVersion = 1
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
@@ -159,6 +161,8 @@ function New-Evidence {
       id = [string]$CurrentDeployment.Id
       url = [string]$CurrentDeployment.Deployment
       branch = [string]$CurrentDeployment.Branch
+      commitSha = [string]$currentDetails.deployment_trigger.metadata.commit_hash
+      stageStatus = [string]$currentDetails.latest_stage.status
     }
     productionConfiguration = Get-SanitizedProject $Project
     d1Inventory = $databaseInventory
@@ -398,6 +402,15 @@ $newDeployment = Get-CurrentDeployment
 if ([string]$newDeployment.Id -eq [string]$currentDeployment.Id) {
   throw 'O deploy terminou sem produzir um novo deployment identificável.'
 }
+$newDeploymentDetails = Invoke-CloudflareGet -Path "/pages/projects/$projectName/deployments/$($newDeployment.Id)"
+if (
+  [string]$newDeploymentDetails.environment -ne 'production' -or
+  [string]$newDeploymentDetails.deployment_trigger.metadata.branch -ne 'main' -or
+  [string]$newDeploymentDetails.deployment_trigger.metadata.commit_hash -ne $ExpectedReleaseSha -or
+  [string]$newDeploymentDetails.latest_stage.status -ne 'success'
+) {
+  throw 'O novo deployment não comprovou ambiente, branch, SHA e status esperados.'
+}
 $verification = Get-D1Verification
 $verification['preMigrationBackupSha256'] = $backupHash
 $verification['preMigrationBackupBytes'] = (Get-Item -LiteralPath $backupPath).Length
@@ -408,7 +421,12 @@ New-Evidence `
   -Databases @(Get-Databases) `
   -Status 'BANCO_NOTAS_PRODUCTION_READ_ONLY_DEPLOYED' `
   -ProductionDatabase ([ordered]@{ name = $databaseName; uuid = [string]$database.uuid }) `
-  -NewDeployment ([ordered]@{ id = [string]$newDeployment.Id; url = [string]$newDeployment.Deployment }) `
+  -NewDeployment ([ordered]@{
+    id = [string]$newDeployment.Id
+    url = [string]$newDeploymentDetails.url
+    commitSha = [string]$newDeploymentDetails.deployment_trigger.metadata.commit_hash
+    stageStatus = [string]$newDeploymentDetails.latest_stage.status
+  }) `
   -Verification $verification
 
 Write-Host 'BANCO_NOTAS_PRODUCTION_READ_ONLY_DEPLOYED'
