@@ -26,7 +26,7 @@ Não existe próximo “gate obrigatório” geral. Não retome automaticamente 
 - SharePoint/OneDrive permanecem armazenamento/versionamento de arquivos;
 - ausência de nota é diferente de zero;
 - fontes de notas concorrentes não são combinadas silenciosamente;
-- golden masters privados não entram no produto;
+- o produto usa **modelo genérico limpo**; os **golden masters privados externos** são apenas material autorizado de regressão e não entram no produto;
 - HeroUI permanece no Banco e Ambient Constellation permanece proibido.
 
 ## Validação
