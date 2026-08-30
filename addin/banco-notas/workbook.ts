@@ -246,6 +246,7 @@ async function syncCall(
       headers: { Authorization: `Bearer ${args.accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(args.body),
       cache: 'no-store',
+      signal: AbortSignal.timeout(30_000),
     });
   } catch {
     throw new AddinContextApiError(0, 'network_unknown');

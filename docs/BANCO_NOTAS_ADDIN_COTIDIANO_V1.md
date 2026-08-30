@@ -54,7 +54,7 @@ A versão persistida registra `workbookModelId`, `sourceHash`, `relationshipSnap
 
 O preflight é read-only e distingue modelo suspenso/indisponível, assignment ausente, fonte autoritativa ausente, mapping desconhecido, baseline indisponível e sync desligado. Somente razões relevantes ao professor são apresentadas.
 
-`sync_enabled=0`, commit route off ou piloto ausente produzem “Sincronização indisponível pela administração enquanto o piloto não está ativo”; não são tratados como falha técnica. O botão só habilita com todos os gates e ao menos uma mudança com baseline.
+`sync_enabled=0`, commit route off, modelo/fonte sem sync ou piloto ausente produzem o motivo conservador `sync_disabled_by_administration` e a mensagem “Sincronização indisponível porque um gate administrativo ainda está desativado”; não são tratados como falha técnica nem atribuídos indevidamente a um gate específico. O botão só habilita quando todos os gates estão ativos e existe ao menos uma mudança com baseline.
 
 ## Alterações detectadas
 

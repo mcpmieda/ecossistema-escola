@@ -221,6 +221,10 @@ describe('Banco de Notas add-in cotidiano workbook client', () => {
         fetcher: commitFetcher,
       }),
     ).resolves.toMatchObject({ status: 'committed' });
+    expect(commitFetcher).toHaveBeenCalledWith(
+      expect.any(URL),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
 
     const outcomeFetcher = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({

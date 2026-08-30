@@ -34,7 +34,7 @@ function authenticated(): Extract<TaskpaneScreen, { phase: 'authenticated' }> {
           severity: 'info',
           code: 'sync_disabled_by_administration',
           message:
-            'Sincronização indisponível pela administração enquanto o piloto não está ativo.',
+            'Sincronização indisponível porque um gate administrativo ainda está desativado.',
         },
       ],
       mappings: [],
@@ -146,6 +146,26 @@ describe('Banco de Notas cotidiano add-in taskpane UI', () => {
     expect(html).toContain('Analisar novamente');
     expect(html).not.toContain('BASELINE_STALE');
     expect(html).not.toMatch(/forçar|overwrite/iu);
+  });
+
+  it('states when the factual preview is truncated at 25 rows', () => {
+    const screen = authenticated();
+    screen.changes.changes = Array.from({ length: 26 }, (_, index) => ({
+      ...screen.changes.changes[0]!,
+      cellAddress: `F${index + 12}`,
+      studentLabel: `Estudante Sintético ${index + 1}`,
+    }));
+    screen.changes.changedFields = 26;
+    const html = renderToStaticMarkup(
+      createElement(TaskpaneView, {
+        screen,
+        onConnect: vi.fn(),
+        onAnalyze: vi.fn(),
+        onSync: vi.fn(),
+      }),
+    );
+    expect(html).toContain('Mostrando as primeiras 25 de 26 alterações.');
+    expect(html).not.toContain('Estudante Sintético 26');
   });
 
   it('uses HeroUI composition and keeps token, claims, OID and tenant IDs out of rendered diagnostics', () => {

@@ -145,7 +145,7 @@ components:
           type: boolean
           description: true distingue ausência conhecida de zero numérico.
         baselineEventId:
-          oneOf: [{ type: string, format: uuid }, { type: 'null' }]
+          oneOf: [{ type: string, minLength: 1 }, { type: 'null' }]
           description: Identidade do evento corrente usada no controle otimista de concorrência.
         baselineSequence:
           oneOf: [{ type: integer, minimum: 1 }, { type: 'null' }]

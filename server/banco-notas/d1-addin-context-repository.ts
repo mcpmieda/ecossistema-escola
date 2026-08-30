@@ -33,7 +33,7 @@ function pendingForReasons(
     sync_disabled_by_administration: {
       severity: 'info',
       code: 'sync_disabled_by_administration',
-      message: 'Sincronização indisponível pela administração enquanto o piloto não está ativo.',
+      message: 'Sincronização indisponível porque um gate administrativo ainda está desativado.',
     },
     model_not_connected: {
       severity: 'warning',

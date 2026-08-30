@@ -20,7 +20,7 @@ import {
   querySyncOutcome,
 } from './workbook';
 import type { AddinContextQuery } from '../../shared/banco-notas-addin-context';
-import type { SyncReasonCode } from '../../shared/banco-notas-sync';
+import type { SyncReasonCode, SyncResponse } from '../../shared/banco-notas-sync';
 import './style.css';
 
 const diagnostic = {
@@ -112,12 +112,13 @@ function failure(error: unknown): { kind: TaskpaneFailureKind; message: string }
 }
 
 function syncFailureReason(error: unknown): SyncReasonCode {
-  if (!(error instanceof AddinContextApiError)) return 'CONFLICT';
+  if (!(error instanceof AddinContextApiError)) return 'NETWORK_UNKNOWN';
   if (error.status === 0) return 'NETWORK_UNKNOWN';
   if (error.status === 403) return 'OWNERSHIP_DENIED';
   if (error.status === 413) return 'PAYLOAD_TOO_LARGE';
   if (error.status === 422) return 'INVALID_CHANGE';
-  return 'CONFLICT';
+  if (error.status === 409) return 'CONFLICT';
+  return 'NETWORK_UNKNOWN';
 }
 
 function TaskpaneApp() {
@@ -130,6 +131,7 @@ function TaskpaneApp() {
   const loginHint = useRef<string | undefined>(undefined);
   const accessToken = useRef<string | null>(null);
   const workbookQuery = useRef<AddinContextQuery | null>(null);
+  const syncInFlight = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -273,9 +275,14 @@ function TaskpaneApp() {
   const syncNow = useCallback(async () => {
     const token = accessToken.current;
     const query = workbookQuery.current;
-    if (!token || !query || screen.phase !== 'authenticated') return;
+    if (!token || !query || screen.phase !== 'authenticated' || syncInFlight.current) return;
     const request = buildSyncPreflight(query, screen.changes);
-    setScreen({ ...screen, syncing: true, syncResult: undefined });
+    syncInFlight.current = true;
+    const applySync = (patch: { syncing: boolean; syncResult: SyncResponse | undefined }) =>
+      setScreen((previous) =>
+        previous.phase === 'authenticated' ? { ...previous, ...patch } : previous,
+      );
+    applySync({ syncing: true, syncResult: undefined });
     try {
       const preflight = await preflightSync({
         accessToken: token,
@@ -283,7 +290,7 @@ function TaskpaneApp() {
         request,
       });
       if (preflight.status !== 'ready' || !preflight.preflightFingerprint) {
-        setScreen({ ...screen, syncing: false, syncResult: preflight });
+        applySync({ syncing: false, syncResult: preflight });
         return;
       }
       try {
@@ -293,7 +300,7 @@ function TaskpaneApp() {
           request,
           preflightFingerprint: preflight.preflightFingerprint,
         });
-        setScreen({ ...screen, syncing: false, syncResult: result });
+        applySync({ syncing: false, syncResult: result });
       } catch (error) {
         if (error instanceof AddinContextApiError && error.status === 0) {
           try {
@@ -302,11 +309,10 @@ function TaskpaneApp() {
               origin: window.location.origin,
               requestId: request.requestId,
             });
-            setScreen({ ...screen, syncing: false, syncResult: result });
+            applySync({ syncing: false, syncResult: result });
             return;
           } catch {
-            setScreen({
-              ...screen,
+            applySync({
               syncing: false,
               syncResult: {
                 schemaVersion: 1,
@@ -323,8 +329,7 @@ function TaskpaneApp() {
         throw error;
       }
     } catch (error) {
-      setScreen({
-        ...screen,
+      applySync({
         syncing: false,
         syncResult: {
           schemaVersion: 1,
@@ -335,6 +340,8 @@ function TaskpaneApp() {
           conflictCount: 0,
         },
       });
+    } finally {
+      syncInFlight.current = false;
     }
   }, [screen]);
 

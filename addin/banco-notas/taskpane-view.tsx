@@ -256,6 +256,11 @@ function ChangesCard({ changes, analyzedAt }: { changes: ChangeSummary; analyzed
                 </li>
               ))}
             </ul>
+            {changes.changes.length > 25 && (
+              <p className="mt-2 text-xs text-muted">
+                Mostrando as primeiras 25 de {changes.changes.length} alterações.
+              </p>
+            )}
           </details>
         )}
         {changes.unknownBaselineFields > 0 && (
