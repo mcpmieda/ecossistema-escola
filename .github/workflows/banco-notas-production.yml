@@ -58,12 +58,13 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_PAGES_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_D1_API_TOKEN: ${{ secrets.CLOUDFLARE_D1_API_TOKEN }}
+          OPERATION: ${{ inputs.operation }}
           EXPECTED_RELEASE_SHA: ${{ inputs.expected_release_sha }}
           EXPECTED_DEPLOYMENT_ID: ${{ inputs.expected_deployment_id }}
           DEPLOY_CONFIRMATION: ${{ inputs.confirmation }}
         run: >-
           ./infra/banco-notas/cloudflare/production-read-only.ps1
-          -Operation '${{ inputs.operation }}'
+          -Operation $env:OPERATION
           -ExpectedReleaseSha $env:EXPECTED_RELEASE_SHA
           -ExpectedDeploymentId $env:EXPECTED_DEPLOYMENT_ID
           -Confirmation $env:DEPLOY_CONFIRMATION
