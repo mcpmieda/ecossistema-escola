@@ -1,13 +1,11 @@
 import {
   BrowserCacheLocation,
   createNestablePublicClientApplication,
-  InteractionRequiredAuthError,
   type IPublicClientApplication,
 } from '@azure/msal-browser';
 import { createRoot } from 'react-dom/client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createBancoNotasNaaConfig, type BancoNotasNaaConfig } from './config';
-import { BancoNotasNaaSilentTimeoutError, withNaaSilentTimeout } from './auth-timeout';
 import { runBancoNotasRuntimeHomologation } from './runtime-homologation';
 import { TaskpaneView, type TaskpaneFailureKind, type TaskpaneScreen } from './taskpane-view';
 import {
@@ -235,18 +233,7 @@ function TaskpaneApp() {
         scopes: [config.current.requestedScope],
         ...(loginHint.current ? { loginHint: loginHint.current } : {}),
       };
-      let response;
-      try {
-        response = await withNaaSilentTimeout(pca.current.ssoSilent(request));
-      } catch (error) {
-        if (
-          !(error instanceof InteractionRequiredAuthError) &&
-          !(error instanceof BancoNotasNaaSilentTimeoutError)
-        ) {
-          throw error;
-        }
-        response = await pca.current.acquireTokenPopup(request);
-      }
+      const response = await pca.current.acquireTokenPopup(request);
       const proof = validateTokenContract(response.accessToken, config.current);
       diagnostic.tokenChecksPassed = proof.allPassed;
       if (!proof.allPassed) throw new Error('NAA_TOKEN_RECEIVED_CLAIMS_FAILED');

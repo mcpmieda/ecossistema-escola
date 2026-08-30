@@ -158,7 +158,7 @@
     "duas origens sintéticas com nomes, ordem e quantidade de abas diferentes geram instâncias do mesmo modelo genérico",
     "origem incompleta produz finding explícito em vez de fallback Nina/Alanna",
     "golden masters privados ausentes do Git, bundle, D1, migrations, fixtures públicas e SharePoint definitivo",
-    "NAA ssoSilent com redirect bridge dedicado retorna token v2 válido sem gravar token ou PII",
+    "NAA acquireTokenPopup iniciado por gesto explícito, com redirect bridge dedicado, retorna token v2 válido sem gravar token ou PII",
     "professor canônico com múltiplos anos, turmas e componentes aparece uma vez com agregados estáveis",
     "professor sem assignment permanece visível e recebe estado informativo",
     "identidade institucional é reduzida a vinculada/ausente sem OID, claims, UPN ou DriveItem ID",
