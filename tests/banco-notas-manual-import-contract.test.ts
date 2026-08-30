@@ -22,6 +22,15 @@ describe('Banco de Notas Upload Manual V1 contract', () => {
     expect(page).not.toMatch(/<(?:input|select|option)\b/u);
   });
 
+  it('persists the selected workbook outside the remounting file input', () => {
+    expect(page).toContain('const [workbookFile, setWorkbookFile] = useState<File | null>(null)');
+    expect(page).toContain(
+      'onChange={(event) => setWorkbookFile(event.currentTarget.files?.[0] ?? null)}',
+    );
+    expect(page).toContain('const candidate = workbookFile');
+    expect(page).toContain('setWorkbookFile(null)');
+  });
+
   it('keeps XLSB conversion explicit and the original workbook untouched', () => {
     expect(page).toContain('Salvar uma cópia');
     expect(page).toContain('não altera o arquivo original');
