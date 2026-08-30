@@ -64,7 +64,8 @@ function OverviewPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
   ).length;
   const availableModules = snapshot.coreModules.filter((module) => module.state === 'ready').length;
   const availableSystems = snapshot.registeredModules.filter(
-    (module) => module.available && module.baseRoute.startsWith('/'),
+    (module) =>
+      module.available && module.baseRoute.startsWith('/') && !module.baseRoute.startsWith('//'),
   );
 
   return (
