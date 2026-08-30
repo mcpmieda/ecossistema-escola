@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 const root = process.cwd();
 const workflow = readFileSync(join(root, '.github/workflows/banco-notas-production.yml'), 'utf8');
+const ciWorkflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
+const productionWrangler = readFileSync(join(root, 'wrangler.jsonc'), 'utf8');
 const script = readFileSync(
   join(root, 'infra/banco-notas/cloudflare/production-read-only.ps1'),
   'utf8',
@@ -69,6 +71,15 @@ describe('Banco de Notas production control plane', () => {
     expect(script).toContain("if ($variableType -eq 'plain_text')");
     expect(script).toContain("if ($variableType -ne 'secret_text')");
     expect(script).toContain('$productionVars[$variableName]');
+  });
+
+  it('keeps the production D1 binding and fail-closed add-in context on every main deploy', () => {
+    expect(ciWorkflow).toContain('npx wrangler pages deploy dist');
+    expect(productionWrangler).toContain('"binding": "BANCO_NOTAS_DB"');
+    expect(productionWrangler).toContain('"database_name": "banco-notas-production"');
+    expect(productionWrangler).toContain('"database_id": "e59579db-aa8b-4589-a02e-643cb4277b5f"');
+    expect(productionWrangler).toContain('"RUNTIME_ENVIRONMENT": "production"');
+    expect(productionWrangler).toContain('"BANCO_NOTAS_ADDIN_CONTEXT_ENABLED": "1"');
   });
 
   it('does not collide with the PowerShell automatic Matches variable while resolving D1', () => {

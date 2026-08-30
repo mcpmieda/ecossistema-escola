@@ -106,3 +106,17 @@ Parar e registrar novo checkpoint se:
 - a promoção criar conflito de fonte/ano/professor;
 - qualquer gate indicar escrita não prevista;
 - GitHub, Cloudflare, D1 ou Microsoft divergirem do estado esperado.
+
+## Incidente de binding após o primeiro deploy do Upload Manual V1
+
+- PR `#150` integrado em `main` como `c5b75744f3f153fe27edeafef5ca60bc5968f8cf`;
+- workflow `33329183232`: CI, deploy Pages e recovery PASS;
+- deployment produzido: `c2fa6523-48a8-462d-95b5-77a47cd49e58`;
+- smoke autenticado mostrou a nova tela, mas com `Banco de Notas storage unavailable`;
+- Cloudflare confirmou `deployment_configs.production.d1_databases={}` enquanto preview continuava ligado apenas ao D1 de homologação;
+- causa: o `wrangler.jsonc` usado pelo deploy genérico de `main` não declarava `BANCO_NOTAS_DB`, removendo o binding de produção a cada release;
+- tentativa pelo conector Cloudflare foi rejeitada por autenticação e não alterou estado;
+- control plane protegido `deploy-read-only`, run `33329512110`, criou backup/bookmark e confirmou migrations idempotentes, mas falhou fechado antes do deploy porque seu gate histórico exige zero pilotos;
+- o estado canônico atual tem exatamente um piloto/modelo/assignment interno habilitado e kill switches globais em zero; esse estado não foi desmontado para satisfazer o gate antigo;
+- correção permanente em andamento na branch `fix/banco-notas-preserve-production-d1`: declarar o D1 de produção e as variáveis fail-closed do Banco no `wrangler.jsonc` versionado;
+- produção permanece sem importações e sem write acadêmico; sync global e commit route continuam em zero.

@@ -232,3 +232,11 @@ Este estado deve ser revalidado antes de merge, deploy ou qualquer mutação rem
 ## Decisão de encerramento desta fase
 
 O add-in deixa de ser blocker da primeira entrega. O Banco de Notas V1 passa a operar por lotes `.xlsx` enviados manualmente por operador autorizado, com análise, conferência, histórico e promoção explícita. A sincronização automática permanece como evolução futura, não como condição para o produto funcionar.
+
+## Correção pós-deploy: preservação do binding D1
+
+Após o merge do Upload Manual V1, a aplicação e a rota foram publicadas, mas o smoke autenticado encontrou `Banco de Notas storage unavailable`. A leitura do projeto Pages comprovou ausência de `BANCO_NOTAS_DB` em produção, apesar de o D1 continuar existente e íntegro.
+
+O deploy genérico usava o `wrangler.jsonc` raiz, que preservava variáveis públicas, mas não declarava o binding D1 nem as variáveis operacionais do Banco. Assim, cada release posterior ao provisionamento controlado podia publicar Functions sem storage.
+
+O control plane histórico não foi contornado: ele falhou porque exige piloto zero, enquanto o checkpoint canônico já contém exatamente um piloto/modelo/assignment interno preparado, sempre sob kill switches globais desligados. A solução escolhida foi versionar o binding correto no config usado por todos os deploys de `main`, sem remover o piloto e sem relaxar sync/commit.
