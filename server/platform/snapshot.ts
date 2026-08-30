@@ -100,7 +100,9 @@ export function buildPlatformSnapshot(
 ) {
   const byName = new Map(source.lists.map((list) => [list.displayName, list.id]));
 
-  const allRegisteredModules = resolveRegisteredModules(source.moduleItems, capabilities);
+  const allRegisteredModules = resolveRegisteredModules(source.moduleItems, capabilities).filter(
+    (module) => module.contractVersion !== null,
+  );
 
   const allConfigurations = source.configurationItems
     .flatMap((item) => {

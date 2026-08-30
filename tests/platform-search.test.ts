@@ -17,7 +17,7 @@ const snapshot = {
     status: 'nominal',
     recentAuditFailureCount: 0,
     healthContractsConfigured: 0,
-    healthContractsMissing: 1,
+    healthContractsMissing: 0,
     lastAuditAt: '2026-08-24T18:44:00.000Z',
     recoveryStatus: 'not-verified',
     recoveryVerifiedAt: '',
@@ -44,24 +44,7 @@ const snapshot = {
       capabilities: ['platform.audit.read'],
     },
   ],
-  registeredModules: [
-    {
-      id: 'module-1',
-      key: 'banco-notas',
-      name: 'Banco de Notas',
-      baseRoute: '/banco-notas',
-      version: '1.0.0',
-      status: 'installed',
-      order: 1,
-      healthEndpoint: '/api/banco-notas/health',
-      updatedAt: '2026-08-24T18:00:00.000Z',
-      contractVersion: null,
-      requiredCapabilities: [],
-      integrationState: 'registry-only',
-      integrationIssues: [],
-      available: false,
-    },
-  ],
+  registeredModules: [],
   configurations: [
     {
       id: 'config-1',
@@ -103,26 +86,23 @@ describe('platform search model', () => {
     expect(normalizeSearch('AUDITORIA')).toBe('auditoria');
   });
 
-  it('indexes only core areas, registered systems and configuration metadata', () => {
+  it('indexes only core areas and configuration metadata', () => {
     const items = buildSearchItems(snapshot);
 
     expect(items.map((item) => item.id)).toEqual([
       'core:platform.settings',
       'core:platform.audit',
-      'system:module-1',
       'config:config-1',
     ]);
     expect(filterSearchItems(items, 'SEGREDO_NAO_INDEXAR')).toEqual([]);
     expect(filterSearchItems(items, 'SEGREDO_MIGRACAO_NAO_INDEXAR')).toEqual([]);
   });
 
-  it('finds accent-insensitive matches and routes systems to the systems area', () => {
+  it('finds accent-insensitive matches and routes core areas correctly', () => {
     const items = buildSearchItems(snapshot);
 
     expect(filterSearchItems(items, 'configuracoes')[0]?.href).toBe('#/configuracoes');
-    const system = filterSearchItems(items, 'banco notas registry only')[0];
-    expect(system?.label).toBe('Banco de Notas');
-    expect(system?.href).toBe('#/sistemas');
+    expect(filterSearchItems(items, 'auditoria')[0]?.href).toBe('#/auditoria');
   });
 
   it('enforces the result limit', () => {

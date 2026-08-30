@@ -5,7 +5,6 @@ import {
   moduleContract,
   moduleContractForKey,
   platformBaseModule,
-  bancoNotasModule,
 } from '../server/modules/contracts';
 
 describe('extension contracts', () => {
@@ -18,12 +17,9 @@ describe('extension contracts', () => {
     });
   });
 
-  it('keeps integrated module keys unique and addressable', () => {
-    expect(new Set(integratedModuleContracts.map((contract) => contract.key)).size).toBe(
-      integratedModuleContracts.length,
-    );
+  it('keeps the Centro contract unique and addressable', () => {
+    expect(integratedModuleContracts).toEqual([platformBaseModule]);
     expect(moduleContractForKey('plataforma-base')).toEqual(platformBaseModule);
-    expect(moduleContractForKey('banco-de-notas')).toEqual(bancoNotasModule);
     expect(moduleContractForKey('nao-registrado')).toBeUndefined();
   });
 

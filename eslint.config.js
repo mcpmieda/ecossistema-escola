@@ -5,13 +5,7 @@ import tsparser from '@typescript-eslint/parser';
 
 export default [
   {
-    ignores: [
-      'dist/**',
-      'node_modules/**',
-      '.runtime-homologation/**',
-      'worker-configuration.d.ts',
-      'worker-configuration.runtime-homologation.d.ts',
-    ],
+    ignores: ['dist/**', 'node_modules/**', 'worker-configuration.d.ts'],
   },
   js.configs.recommended,
   {

@@ -133,8 +133,10 @@ describe('platform snapshot parsing', () => {
           {
             id: 'module-1',
             fields: {
-              Chave: 'notas',
-              Nome: 'Banco de Notas',
+              Chave: 'plataforma-base',
+              Nome: 'Plataforma Base',
+              RotaBase: '/',
+              Versao: '1.0.0',
               Status: 'VALIDACAO',
             },
           },
