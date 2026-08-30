@@ -2,13 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { resolveSafeReturnHref } from '../src/banco-notas/safe-return';
 
 describe('Banco de Notas safe internal return', () => {
-  it('returns to Turmas and Acompanhamento through root-relative internal paths', () => {
+  it('returns to Turmas and Professores through root-relative internal paths', () => {
     expect(resolveSafeReturnHref('/turmas/turma-1', '/professores')).toBe('/turmas/turma-1');
-    expect(resolveSafeReturnHref('/acompanhamento?teacherId=teacher-1', '/professores')).toBe(
-      '/acompanhamento?teacherId=teacher-1',
-    );
-    expect(resolveSafeReturnHref('/acompanhamento/turmas/turma-1', '/professores')).toBe(
-      '/acompanhamento/turmas/turma-1',
+    expect(resolveSafeReturnHref('/professores/teacher-1', '/professores')).toBe(
+      '/professores/teacher-1',
     );
   });
 

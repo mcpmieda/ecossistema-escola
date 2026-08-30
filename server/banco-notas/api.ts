@@ -1,9 +1,5 @@
 import { ZodError } from 'zod';
 import {
-  acompanhamentoListQuerySchema,
-  type AcompanhamentoRepository,
-} from '../../shared/banco-notas-acompanhamento';
-import {
   alunosListQuerySchema,
   turmasListQuerySchema,
   type TurmasAlunosRepository,
@@ -13,16 +9,6 @@ import {
   professoresListQuerySchema,
   type ProfessoresRepository,
 } from '../../shared/banco-notas-professores';
-import {
-  pesquisaGlobalQuerySchema,
-  type BancoNotasSearchRepository,
-} from '../../shared/banco-notas-pesquisa';
-import {
-  pendingIdSchema,
-  pendenciasFilterQuerySchema,
-  pendenciasListQuerySchema,
-  type PendenciasRepository,
-} from '../../shared/banco-notas-pendencias';
 import type { PlatformCapability } from '../../shared/platform-contract';
 import {
   assignmentInputSchema,
@@ -226,11 +212,8 @@ async function importAnalysisMutation<T>(operation: () => Promise<T>): Promise<T
 export async function routeBancoNotasApi(args: {
   request: Request;
   repository: BancoNotasRepository;
-  acompanhamento?: AcompanhamentoRepository;
   turmasAlunos?: TurmasAlunosRepository;
   professores?: ProfessoresRepository;
-  search?: BancoNotasSearchRepository;
-  pendencias?: PendenciasRepository;
   capabilities: readonly PlatformCapability[];
   actor: string;
   importAnalysis?: ImportAnalysisRuntime;
@@ -274,57 +257,6 @@ export async function routeBancoNotasApi(args: {
     const result = await args.syncAttempts.attemptDetail(syncAttemptMatch[1]);
     if (!result) throw new HttpError(404, 'Sync attempt not found');
     return response(result);
-  }
-
-  if (path === '/v1/pendencias/summary') {
-    allowed(request, ['GET']);
-    requireCapability(capabilities, 'grades.analytics.read');
-    if (!args.pendencias) throw new HttpError(503, 'Pendências storage unavailable');
-    const rawQuery = Object.fromEntries(
-      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
-    );
-    return response(
-      await args.pendencias.summary(parsed(() => pendenciasFilterQuerySchema.parse(rawQuery))),
-    );
-  }
-  if (path === '/v1/pendencias') {
-    allowed(request, ['GET']);
-    requireCapability(capabilities, 'grades.analytics.read');
-    if (!args.pendencias) throw new HttpError(503, 'Pendências storage unavailable');
-    const rawQuery = Object.fromEntries(
-      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
-    );
-    return response(
-      await args.pendencias.list(parsed(() => pendenciasListQuerySchema.parse(rawQuery))),
-    );
-  }
-  const pendingDetailMatch = path.match(/^\/v1\/pendencias\/(.+)$/u);
-  if (pendingDetailMatch?.[1]) {
-    allowed(request, ['GET']);
-    requireCapability(capabilities, 'grades.analytics.read');
-    if (!args.pendencias) throw new HttpError(503, 'Pendências storage unavailable');
-    let decodedId: string;
-    try {
-      decodedId = decodeURIComponent(pendingDetailMatch[1]);
-    } catch {
-      throw new HttpError(400, 'Invalid pending item id');
-    }
-    const id = parsed(() => pendingIdSchema.parse(decodedId));
-    const result = await args.pendencias.detail(id);
-    if (!result) throw new HttpError(404, 'Pendência não encontrada');
-    return response(result);
-  }
-
-  if (path === '/v1/pesquisa') {
-    allowed(request, ['GET']);
-    requireCapability(capabilities, 'grades.analytics.read');
-    if (!args.search) throw new HttpError(503, 'Pesquisa storage unavailable');
-    const rawQuery = Object.fromEntries(
-      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
-    );
-    return response(
-      await args.search.search(parsed(() => pesquisaGlobalQuerySchema.parse(rawQuery))),
-    );
   }
 
   if (path === '/v1/professores/filters') {
@@ -413,36 +345,6 @@ export async function routeBancoNotasApi(args: {
     );
     const result = await args.turmasAlunos.alunoDetail(id);
     if (!result) throw new HttpError(404, 'Aluno não encontrado');
-    return response(result);
-  }
-
-  if (path === '/v1/acompanhamento/summary') {
-    allowed(request, ['GET']);
-    requireCapability(capabilities, 'grades.analytics.read');
-    if (!args.acompanhamento) throw new HttpError(503, 'Acompanhamento storage unavailable');
-    return response(await args.acompanhamento.summary());
-  }
-  if (path === '/v1/acompanhamento/turmas') {
-    allowed(request, ['GET']);
-    requireCapability(capabilities, 'grades.analytics.read');
-    if (!args.acompanhamento) throw new HttpError(503, 'Acompanhamento storage unavailable');
-    const rawQuery = Object.fromEntries(
-      [...url.searchParams.entries()].filter(([, value]) => value.trim() !== ''),
-    );
-    return response(
-      await args.acompanhamento.list(parsed(() => acompanhamentoListQuerySchema.parse(rawQuery))),
-    );
-  }
-  const acompanhamentoDetailMatch = path.match(/^\/v1\/acompanhamento\/turmas\/([0-9a-f-]+)$/iu);
-  if (acompanhamentoDetailMatch?.[1]) {
-    allowed(request, ['GET']);
-    requireCapability(capabilities, 'grades.analytics.read');
-    if (!args.acompanhamento) throw new HttpError(503, 'Acompanhamento storage unavailable');
-    const classGroupId = parsed(() =>
-      acompanhamentoListQuerySchema.shape.classGroupId.unwrap().parse(acompanhamentoDetailMatch[1]),
-    );
-    const result = await args.acompanhamento.detail(classGroupId);
-    if (!result) throw new HttpError(404, 'Turma não encontrada');
     return response(result);
   }
 

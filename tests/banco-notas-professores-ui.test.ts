@@ -4,10 +4,6 @@ import { describe, expect, it } from 'vitest';
 
 const source = readFileSync(join(process.cwd(), 'src/banco-notas/ProfessoresPage.tsx'), 'utf8');
 const app = readFileSync(join(process.cwd(), 'src/banco-notas/BancoNotasApp.tsx'), 'utf8');
-const acompanhamento = readFileSync(
-  join(process.cwd(), 'src/banco-notas/AcompanhamentoPage.tsx'),
-  'utf8',
-);
 const turmas = readFileSync(join(process.cwd(), 'src/banco-notas/TurmasAlunosPage.tsx'), 'utf8');
 
 describe('Banco de Notas Professores UI', () => {
@@ -56,9 +52,7 @@ describe('Banco de Notas Professores UI', () => {
     for (const text of [
       'Turmas e componentes',
       'Modelos e planilhas',
-      'Pendências',
       'Atividade recente',
-      'Abrir no Acompanhamento',
       'Ver turma',
     ])
       expect(source).toContain(text);
@@ -67,9 +61,7 @@ describe('Banco de Notas Professores UI', () => {
     expect(source).not.toMatch(/ambient.?constellation|shadcn|reui/iu);
   });
 
-  it('adds Turma and Acompanhamento links back to Professor', () => {
+  it('keeps the Turma link back to Professor', () => {
     expect(turmas).toContain('/professores/${assignment.teacherId}');
-    expect(acompanhamento).toContain('/professores/${row.teacherId}');
-    expect(acompanhamento).toContain('/professores/${assignment.teacherId}');
   });
 });

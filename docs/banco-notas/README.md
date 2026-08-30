@@ -11,6 +11,8 @@ Esta pasta reúne a documentação operacional viva do Banco de Notas. Ela compl
 
 - [Histórico consolidado das pausas seguras](checkpoints/HISTORICO_PAUSAS_SEGURAS_2026-08-28_A_2026-08-30.md)
 - [Checkpoint canônico atual](checkpoints/PAUSA_SEGURA_ATUAL_2026-08-30.md)
+- [Formatação controlada de 30/08/2026](checkpoints/FORMATACAO_CONTROLADA_2026-08-30.md)
+- [Códigos de testes arquivados](códigos%20de%20testes/README.md)
 
 ## Regras de segurança desta pasta
 

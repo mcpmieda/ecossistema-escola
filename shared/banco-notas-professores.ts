@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import type { AttentionLevel } from './banco-notas-acompanhamento';
 import type { PageResult } from './banco-notas-turmas-alunos';
+
+export type AttentionLevel = 'normal' | 'info' | 'warning' | 'error';
 
 export const professorModelStateSchema = z.enum([
   'draft',

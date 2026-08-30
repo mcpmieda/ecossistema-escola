@@ -4,36 +4,33 @@ import { describe, expect, it } from 'vitest';
 
 const source = readFileSync(join(process.cwd(), 'src/banco-notas/BancoNotasApp.tsx'), 'utf8');
 describe('Banco de Notas shell', () => {
-  it('uses a mature router and exposes the functional source settings route', () => {
+  it('uses a mature router and exposes the empty settings route', () => {
     expect(source).toContain("from 'react-router-dom'");
-    expect(source).toContain('/configuracoes/fonte');
-    expect(source).toContain('/v1/source-assignments');
-    expect(source).toContain('/v1/data-sources');
+    expect(source).toContain('path="configuracoes"');
+    expect(source).toContain('<EmptyPage title="Configurações"');
+    expect(source).not.toContain('/configuracoes/fonte');
   });
 
-  it('uses native HeroUI form primitives instead of hand-styled HTML controls', () => {
-    expect(source).toMatch(/\bTextField\b/u);
-    expect(source).toMatch(/\bInput\b/u);
-    expect(source).toMatch(/\bSelect\b/u);
-    expect(source).toMatch(/\bSwitch\b/u);
-    expect(source).toMatch(/\bListBox\b/u);
-    expect(source).not.toMatch(/<(?:input|select|option)\b/u);
+  it('keeps Visão geral and Configurações free of inherited controls', () => {
+    expect(source).toContain('<Route index element={<EmptyPage title="Visão geral" />} />');
+    expect(source).not.toMatch(/\bTextField\b|\bInput\b|\bSelect\b|\bSwitch\b|\bListBox\b/u);
+    expect(source).not.toContain('/v1/source-assignments');
+    expect(source).not.toContain('/v1/data-sources');
   });
 
-  it('does not activate synchronization implicitly', () => {
-    expect(source).toContain('useState(false)');
-    expect(source).toContain('setSyncEnabled(false)');
-    expect(source).toContain('isSelected={syncEnabled}');
+  it('does not expose synchronization controls in the cleaned shell', () => {
+    expect(source).not.toContain('setSyncEnabled');
+    expect(source).not.toContain('isSelected={syncEnabled}');
   });
 
   it('keeps prohibited UI stacks and Ambient out of the module', () => {
     expect(source).not.toMatch(/shadcn|reui|ambient.?constellation/iu);
   });
 
-  it('supports audited editing of source and assignment state', () => {
-    expect(source).toContain("method: 'PATCH'");
-    expect(source).toContain('Motivo da alteração');
-    expect(source).toContain('migrationState');
-    expect(source).toContain('sourceEnvironment');
+  it('does not retain the removed configuration mutation hierarchy', () => {
+    expect(source).not.toContain("method: 'PATCH'");
+    expect(source).not.toContain('Motivo da alteração');
+    expect(source).not.toContain('migrationState');
+    expect(source).not.toContain('sourceEnvironment');
   });
 });

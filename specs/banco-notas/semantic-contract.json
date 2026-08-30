@@ -234,16 +234,6 @@
       "purpose": "listar e detalhar o contexto operacional docente com filtros, paginação, autorização e minimização de identidade"
     },
     {
-      "name": "/api/banco-notas/v1/pesquisa",
-      "mode": "governed-read-only-search",
-      "purpose": "pesquisar alunos, professores e turmas com normalização, ranking determinístico, limites por tipo e capability server-side"
-    },
-    {
-      "name": "/api/banco-notas/v1/pendencias/summary, /api/banco-notas/v1/pendencias e /api/banco-notas/v1/pendencias/:id",
-      "mode": "governed-read-only-operational-diagnostics",
-      "purpose": "resumir, filtrar, paginar e detalhar pendências factuais com navegação contextual e sem comandos de resolução"
-    },
-    {
       "name": "/api/banco-notas/v1/addin/context",
       "mode": "delegated-bearer-owned-read-only-context",
       "purpose": "reconhecer a versão exata do workbook e fornecer preflight, pendências relevantes e baselines mínimos sem capacidade administrativa ou escrita"

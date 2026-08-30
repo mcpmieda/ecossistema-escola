@@ -24,11 +24,11 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import type {
+  AttentionLevel,
   ProfessorDetail,
   ProfessorListItem,
   ProfessoresFilters,
 } from '../../shared/banco-notas-professores';
-import type { AttentionLevel } from '../../shared/banco-notas-acompanhamento';
 import type { PageResult } from '../../shared/banco-notas-turmas-alunos';
 import { resolveSafeReturnHref } from './safe-return';
 
@@ -279,13 +279,8 @@ export function ProfessoresPage() {
   return (
     <Frame
       title="Professores"
-      description="Diretório operacional read-only de professores, atribuições, modelos, identidade institucional, fontes, atividade e pendências do Banco de Notas."
+      description="Diretório operacional de professores, atribuições, modelos e identidade institucional do Banco de Notas."
     >
-      <div className="mb-5 flex justify-end">
-        <Button variant="outline" onPress={() => navigate('/pendencias')}>
-          Ver todas as pendências <ArrowRight className="size-4" />
-        </Button>
-      </div>
       {(filtersError || diagnosticTotal > 0) && result && (
         <Alert status="warning" className="mb-5">
           <Alert.Indicator />
@@ -551,15 +546,6 @@ export function ProfessorDetailPage() {
             />
           </div>
         )}
-        {detail && (
-          <Button
-            size="sm"
-            variant="outline"
-            onPress={() => navigate(`/pendencias?teacherId=${detail.teacher.id}`)}
-          >
-            Ver pendências <CircleAlert className="size-4" />
-          </Button>
-        )}
       </div>
       {error ? (
         <Failure error={error} retry={() => setReload((value) => value + 1)} />
@@ -689,17 +675,6 @@ export function ProfessorDetailPage() {
                                   }
                                 >
                                   Ver turma
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onPress={() =>
-                                    navigate(
-                                      `/acompanhamento/turmas/${context.classGroupId}?retorno=${encodeURIComponent(professorReturn)}`,
-                                    )
-                                  }
-                                >
-                                  Abrir no Acompanhamento
                                 </Button>
                               </div>
                             </Table.Cell>
