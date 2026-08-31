@@ -5,6 +5,7 @@ Este arquivo apresenta o projeto em linguagem simples. O estado operacional deta
 ## Visão geral
 
 - **Issue principal:** [#182 — Programa de construção do Banco de Notas](../../issues/182)
+- **Coordenação da onda:** [#203 — Integração da primeira onda](../../issues/203)
 - **Site oficial:** `https://admin.escolaieda.com/#/banco-de-notas`
 - **Fase atual:** F0 concluída; primeira onda de desenvolvimento pronta.
 - **Agentes que podem começar agora:** 3, cada um em uma issue independente.
@@ -44,6 +45,8 @@ As três issues abaixo escrevem em áreas diferentes e podem ser executadas em p
    - Caminhos: `src/features/gradebook/import/**`, arquivos atuais do importador e testes próprios.
    - Deve preservar o comportamento publicado.
 
+O integrador acompanha esses três trabalhos em [#203](../../issues/203), revisa contratos, faz merges, verifica o deploy e libera a próxima onda. Essa issue não deve ser atribuída a um agente de implementação comum.
+
 ## Próxima onda — bloqueada de forma explícita
 
 | Issue | Liberação necessária |
@@ -71,6 +74,8 @@ As três issues abaixo escrevem em áreas diferentes e podem ser executadas em p
 #195 Modularização ───────> #198 Testes finais do módulo / #199 Manifesto
 
 #200 Decisão de armazenamento ─> persistência física da F2
+
+#203 Integrador ──────────> revisão, merge, deploy, estado e liberação da próxima onda
 ```
 
 ## Como iniciar um agente
