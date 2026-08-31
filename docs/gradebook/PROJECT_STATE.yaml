@@ -11,9 +11,9 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 203
-  current_integrator_issue: 210
-  current_wave: 2
+  previous_integrator_issue: 210
+  current_integrator_issue: 214
+  current_wave: 3
   integrator_required: true
   recommended_parallel_agents: 2
   central_state_editor: integrator-only
@@ -23,8 +23,8 @@ coordination:
   coordination_bootstrap_commit: ec6c712e287e97269375c6f5c4790c1529ea4309
 
 runtime:
-  last_verified_runtime_commit: 17ba8b1b7941d56c094abf8121796b2b7b0f7a66
-  last_verified_deploy_run: 33416970939
+  last_verified_runtime_commit: 32450ac431dde3ddad1dfcbee436710eb2cd6555
+  last_verified_deploy_run: 33421282101
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
@@ -38,10 +38,13 @@ runtime:
     - trimester-and-recovery-recognition
     - source-contract-v1-schema
     - academic-entity-contracts-v1
+    - academic-result-contracts-v1
+    - synthetic-source-and-import-regression-suite
+    - controlled-real-data-validation-protocol
   current_limitations:
     - academic-data-is-not-persisted
     - native-engine-not-yet-implemented
-    - source-contract-final-validation-pending-issue-198
+    - controlled-real-corpus-validation-not-yet-recorded
     - source-provenance-is-not-yet-complete
     - audit-workspace-not-yet-implemented
 
@@ -58,24 +61,30 @@ scope:
 
 contracts:
   source:
-    status: schema-integrated-validation-pending
-    issue: 193
-    pull_request: 207
-    merge_commit: 83d7bf4fd91b5f5b51344f73293cb9c39844cefd
-    final_validation_issue: 198
+    status: schema-and-synthetic-validation-integrated
+    schema_issue: 193
+    schema_pull_request: 207
+    schema_merge_commit: 83d7bf4fd91b5f5b51344f73293cb9c39844cefd
+    validation_issue: 198
+    validation_pull_request: 213
+    validation_merge_commit: 32450ac431dde3ddad1dfcbee436710eb2cd6555
+    manual_gate: controlled-real-corpus-validation
   academic_entities:
     status: frozen-v1
     issue: 194
     pull_request: 208
     merge_commit: 466717b57f738db520d1dff7089dee4e7a8eda19
   academic_results:
-    status: ready-for-implementation
+    status: frozen-v1
     issue: 196
+    pull_request: 212
+    merge_commit: 6b8eb4c059b51efd4fd74508ac439b1047b1e9a4
   import_reconciliation_audit:
-    status: blocked
+    status: ready-for-implementation
     issue: 197
-    blocked_by:
-      - 196
+  native_cell_semantics:
+    status: ready-for-implementation
+    issue: 201
 
 phases:
   F0:
@@ -88,27 +97,27 @@ phases:
   F1:
     name: source-contract-and-import
     status: in-progress
-    completed_units: 3
+    completed_units: 4
     total_units: 7
     issue: 184
     visible_result: modular-batch-reader-in-production
   F2:
     name: normalized-domain-and-persistence-boundaries
     status: in-progress
-    completed_units: 1
+    completed_units: 2
     total_units: 6
     issue: 185
     visible_result: none
   F3:
     name: native-engine
-    status: planned
+    status: ready-to-start
     completed_units: 0
     total_units: 7
     issue: 186
     visible_result: none
   F4:
     name: reconciliation-and-audit
-    status: planned
+    status: ready-to-start
     completed_units: 0
     total_units: 6
     issue: 187
@@ -165,30 +174,60 @@ completed_queue:
     task: modularize-current-importer-without-regression
     pull_request: 209
     merge_commit: 17ba8b1b7941d56c094abf8121796b2b7b0f7a66
-
-ready_queue:
   - issue: 196
     phase: F2
     task: freeze-grade-entry-and-result-contracts-v1
-    parallel_group: wave-2
+    pull_request: 212
+    merge_commit: 6b8eb4c059b51efd4fd74508ac439b1047b1e9a4
   - issue: 198
     phase: F1
     task: synthetic-fixtures-and-real-validation-protocol
-    parallel_group: wave-2
+    pull_request: 213
+    merge_commit: 32450ac431dde3ddad1dfcbee436710eb2cd6555
+
+ready_queue:
+  - issue: 197
+    phase: F4
+    task: freeze-import-reconciliation-audit-contracts-v1
+    parallel_group: wave-3
+  - issue: 201
+    phase: F3
+    task: native-cell-semantics-engine
+    parallel_group: wave-3
 
 blocked_queue:
-  - issue: 197
-    task: freeze-import-reconciliation-audit-contracts-v1
-    blocked_by:
-      - 196
   - issue: 199
+    phase: F1
     task: sha256-manifest-and-file-provenance
     blocked_by:
       - 197
-  - issue: 201
-    task: native-cell-semantics-engine
+  - task: native-term-composition
+    phase: F3
     blocked_by:
-      - 196
+      - 201
+    issue: not-created
+  - task: native-rounding
+    phase: F3
+    blocked_by:
+      - 201
+    issue: not-created
+  - task: native-recovery
+    phase: F3
+    blocked_by:
+      - 201
+    issue: not-created
+
+manual_gates:
+  - gate: controlled-real-corpus-validation
+    phase: F1
+    protocol: docs/gradebook/REAL_DATA_VALIDATION.md
+    status: pending-recorded-execution
+    blocks:
+      - final-source-contract-validation
+      - F1-completion
+    does_not_block:
+      - 197
+      - 201
 
 pending_decisions:
   - issue: 200
@@ -200,32 +239,32 @@ pending_decisions:
 
 integration:
   previous:
-    issue: 203
-    wave: 1
-    status: completed
-    merged_pull_requests:
-      - 207
-      - 208
-      - 209
-    verified_commit: 17ba8b1b7941d56c094abf8121796b2b7b0f7a66
-    deploy_run: 33416970939
-  current:
     issue: 210
     wave: 2
+    status: completed
+    merged_pull_requests:
+      - 212
+      - 213
+    verified_runtime_commit: 32450ac431dde3ddad1dfcbee436710eb2cd6555
+    deploy_run: 33421282101
+  current:
+    issue: 214
+    wave: 3
     status: waiting-for-pull-requests
     watches:
-      - 196
-      - 198
+      - 197
+      - 201
     responsibilities:
-      - contract-compatibility-review
-      - synthetic-source-validation-review
+      - import-audit-contract-compatibility-review
+      - native-cell-semantics-review
       - merge-and-production-verification
       - state-and-issue-map-update
-      - next-wave-unlock
+      - next-wave-definition-and-unlock
 
 next_integrator_actions:
-  - wait-for-issues-196-and-198
-  - review-contract-compatibility-and-data-sanitization
+  - wait-for-issues-197-and-201
+  - review-contract-compatibility-purity-and-data-sanitization
   - merge-small-pull-requests-continuously
-  - unlock-issues-197-and-201-only-after-196-integration
-  - create-wave-3-integration-issue
+  - unlock-issue-199-only-after-197-integration
+  - create-small-native-engine-issues-after-201-review
+  - create-wave-4-integration-issue
