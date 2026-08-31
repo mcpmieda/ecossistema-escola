@@ -11,10 +11,13 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Manifesto no fluxo real:** implementado por #199/PR #225; SHA-256/proveniência disponíveis no importador.
 - **Semântica nativa das células:** implementada por #201/PR #217.
 - **Arredondamento acadêmico:** implementado por #218/PR #224.
+- **Composição trimestral nativa:** implementada por #226/PR #231.
 - **Portas de persistência:** `congelado-v1`, integradas por #219/PR #223.
-- **Composição trimestral:** pronta para implementação em #226.
-- **Schema D1:** pronto para desenho em #227; nenhum recurso de produção foi criado.
-- **Planejamento idempotente de reimportação:** pronto para implementação em #228.
+- **Schema D1:** migrations locais V1 integradas por #227/PR #233; nenhum recurso de produção foi criado.
+- **Planejamento idempotente de reimportação:** implementado por #228/PR #232.
+- **Recuperação paralela:** pronta para implementação em #234.
+- **Catálogo fonte lógica ↔ streams e leitura D1:** prontos para implementação em #235.
+- **Executor transacional do plano:** pronto para implementação em #236.
 - **Read models:** propostos; serão detalhados nas issues dos módulos consumidores.
 
 ## Estados de maturidade
@@ -22,6 +25,7 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **proposto:** ainda pode mudar sem migração;
 - **congelado-v1:** consumidores podem implementar em paralelo;
 - **implementado-v1:** existe comportamento executável coberto por testes;
+- **implementado-local-v1:** existe schema/adaptador testado localmente, mas não provisionado em produção;
 - **deprecated:** permanece durante migração;
 - **retirado:** não pode ser usado.
 
@@ -246,13 +250,13 @@ critical-error
 
 Resolução ou descarte exige ator, data e justificativa, mantendo a transição anterior.
 
-## Motor nativo — implementações iniciais
+## Motor nativo — implementações V1
 
-### Semântica de célula V1
+### Semântica de célula
 
-`src/gradebook-domain/source/interpret-source-cell.ts` implementa função pura que consome `SourceCellEvidenceV1`, produz `AcademicGradeValueV1`, preserva proveniência e gera achados determinísticos sem acessar React, SheetJS, banco, rede ou relógio.
+`src/gradebook-domain/source/interpret-source-cell.ts` consome `SourceCellEvidenceV1`, produz `AcademicGradeValueV1`, preserva proveniência e gera achados determinísticos sem acessar React, SheetJS, banco, rede ou relógio.
 
-### Arredondamento V1
+### Arredondamento
 
 `src/gradebook-domain/rules/rounding/round-academic-grade.ts` implementa perfil imutável:
 
@@ -262,7 +266,19 @@ Resolução ou descarte exige ator, data e justificativa, mantendo a transição
 - comportamento negativo explicitamente simétrico;
 - proteção documentada contra ruído comum de ponto flutuante.
 
-A composição trimestral da #226 deve reutilizar essa função; não recriar arredondamento.
+### Composição trimestral
+
+`src/gradebook-domain/calculations/term/compose-native-term-result.ts` implementa `composeNativeTermResult` para o perfil 2026:
+
+- máximos trimestrais 30, 30 e 40;
+- 45% quantitativo e 55% qualitativo operacional;
+- máximos derivados 13,5/16,5 nos dois primeiros trimestres e 18/22 no terceiro;
+- blocos preservados separadamente;
+- nota bruta separada da nota nativa arredondada;
+- cobertura explícita para completo, parcial, insuficiente e não aplicável;
+- valores negativos ou acima do máximo produzem achados e não são corrigidos silenciosamente.
+
+A recuperação paralela da #234 deve reutilizar esse perfil para derivar máximo e corte, sem criar números concorrentes.
 
 ## Portas de persistência — congelado-v1
 
@@ -288,11 +304,57 @@ Conceitos transversais:
 - busca por SHA-256 permite reconhecer conteúdo idêntico;
 - promoção de lote roda em unidade de trabalho atômica e recebe apenas arquivos aprovados.
 
-Essas portas não importam D1, SQL, Wrangler ou Cloudflare. O schema da #227 e os adaptadores futuros devem implementá-las, não alterá-las por conveniência sem issue de contrato.
+Essas portas não importam D1, SQL, Wrangler ou Cloudflare.
 
-## D1 — decisão física, implementação pendente
+## Schema D1 — implementado localmente V1
 
-Cloudflare D1 foi aprovado na #200. A #227 deve desenhar migrations, tabelas, índices e constraints compatíveis com os contratos e portas, mas não pode provisionar banco/binding de produção. Acesso real ocorrerá somente pelo backend autorizado.
+Cloudflare D1 foi aprovado na #200. A #227 integrou:
+
+- `migrations/gradebook/0001_gradebook_context_entities_imports_v1.sql`;
+- `migrations/gradebook/0002_gradebook_records_audit_v1.sql`;
+- catálogo local das migrations;
+- 19 tabelas para ano/configuração, entidades, fontes, lotes, registros, reconciliação e Auditoria;
+- streams com ponteiro de versão atual e histórico append-only;
+- FKs tipadas e isoladas por ano;
+- índices para hash, fontes, lotes, registros atuais, histórico e paginação;
+- testes sobre SQLite descartável.
+
+Estado: `implementado-local-v1`. Nenhum banco, binding ou migration remota existe ainda.
+
+### Lacuna rastreada: catálogo por fonte lógica
+
+O planejador de reimportação precisa enumerar os streams acadêmicos atuais associados a uma fonte lógica. As migrations 0001–0002 não possuem relação relacional direta entre `logical_sources` e `academic_record_streams`.
+
+A #235 adicionará migration 0003 e a leitura correspondente. Não é permitido resolver essa lacuna usando nome de arquivo ou varredura de `payload_json`.
+
+## Planejamento idempotente de reimportação — implementado-v1
+
+`server/gradebook/application/import/import-reconciliation-v1.ts` implementa `planImportReconciliation`.
+
+O plano distingue:
+
+```text
+unchanged
+new
+changed
+missing-from-new-source
+blocked
+```
+
+Comportamentos:
+
+- mesmo hash produz no-op acadêmico;
+- mesmo hash renomeado pode gerar apenas versão de metadados da fonte;
+- hash novo com fonte lógica confirmada compara chaves acadêmicas estáveis;
+- somente valores novos/alterados são planejados para append;
+- valor ausente da nova fonte exige revisão e não é apagado;
+- fonte candidata/ambígua não é associada silenciosamente;
+- arquivo inválido ou crítico fica fora da promoção sem descartar os demais aprovados;
+- expectativas de versão são preservadas;
+- estimativa de writes é derivada do plano e não afirma quota exata da Cloudflare;
+- o planejamento executa zero writes.
+
+A #236 implementará a execução do plano contra `BatchPromotionTransactionPortV1`; a ligação física ao D1 permanece etapa posterior.
 
 ## Read models
 
@@ -318,3 +380,5 @@ Cada read model informa ano/contexto, versão ou timestamp, cobertura e permiss�
 6. Desempenho, Conselho e Boletins não mantêm enumerações próprias de situações ou resultados.
 7. Schema/adaptador D1 não altera o significado dos contratos.
 8. Nome do arquivo nunca substitui hash, fonte lógica ou confirmação de contexto.
+9. Lacuna física descoberta na integração vira migration/issue explícita; não pode ser escondida em JSON ou heurística.
+10. Planejamento, revisão e execução da promoção permanecem etapas distintas e auditáveis.
