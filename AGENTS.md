@@ -8,7 +8,8 @@ Este repositório deve permanecer simples, funcional e rastreável. A prioridade
 - Trabalhe em uma branch curta, com uma issue e um pull request por entrega.
 - Reutilize contratos, componentes e serviços existentes antes de criar novos.
 - Não altere branch protection, rulesets, permissões, secrets, ambientes, aplicações Entra, recursos Cloudflare ou Microsoft 365 sem autorização explícita.
-- Não crie orquestradores, merge trains, App Factory, agentes auxiliares ou infraestrutura “para o futuro”.
+- Não crie, invoque, utilize, aplique nem delegue trabalho ao App Factory, Factory Runs, merge trains, orquestradores ou agentes auxiliares, salvo autorização explícita na própria issue.
+- Cada issue `[BN]` deve ser executada diretamente pelo agente designado; a issue e a documentação canônica já constituem o fluxo de trabalho.
 - Não execute merge ou publicação por conta própria, salvo quando a issue declarar expressamente essa autoridade.
 - Nunca inclua nomes, notas, arquivos ou outros dados reais de estudantes em código, fixtures, issues, commits, logs ou screenshots. O repositório é público.
 - Execute `npm run verify` antes de declarar a entrega pronta.

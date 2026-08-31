@@ -1,6 +1,14 @@
 # Contratos compartilhados — Banco de Notas
 
-Este documento congela o vocabulário inicial. Os tipos ainda precisam ser materializados em TypeScript por issues próprias. Nenhum módulo pode criar uma segunda definição com significado diferente.
+Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma segunda definição com significado diferente.
+
+## Estado de implementação
+
+- **Fonte:** esquema `SourceContractV1` integrado por #193/PR #207; validação definitiva pendente em #198.
+- **Entidades acadêmicas:** `congelado-v1`, integradas por #194/PR #208.
+- **Lançamentos e resultados:** `proposto`; issue #196 pronta para execução.
+- **Lote, reconciliação e Auditoria:** `proposto`; issue #197 permanece bloqueada por #196.
+- **Read models:** `proposto`; serão detalhados nas issues dos módulos consumidores.
 
 ## Estados de maturidade
 
@@ -15,7 +23,9 @@ O contrato só recebe `congelado-v1` quando a issue correspondente for aceita pe
 
 Identificadores técnicos não devem depender apenas de nomes de exibição. Dentro da fonte, a evidência original preserva exatamente ano, turma, nome e marcas significativas. O modelo interno terá IDs próprios e manterá aliases/origens separados.
 
-## Entidades centrais propostas
+## Entidades centrais — congelado-v1
+
+Implementação pública: `shared/gradebook-contracts/entities/index.ts`.
 
 ### `AcademicYearV1`
 
@@ -90,7 +100,9 @@ text-invalid
 not-applicable
 ```
 
-## Avaliação
+A implementação integrada usa nomes TypeScript mais explícitos em `shared/gradebook-contracts/source/source-contract-v1.ts`; consumidores devem importar esses tipos, não recriar esta lista.
+
+## Avaliação — proposta para #196
 
 ### `AssessmentComponentV1`
 
@@ -145,7 +157,7 @@ special-status
 insufficient-data
 ```
 
-## Importação, reconciliação e auditoria
+## Importação, reconciliação e auditoria — proposta para #197
 
 ### `ImportBatchResultV1`
 

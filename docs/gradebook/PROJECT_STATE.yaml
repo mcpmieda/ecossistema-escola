@@ -8,34 +8,40 @@ coordination:
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
   issue_map: docs/gradebook/ISSUE_MAP.md
+  start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  integrator_issue: 203
+  previous_integrator_issue: 203
+  current_integrator_issue: 210
+  current_wave: 2
   integrator_required: true
-  recommended_parallel_agents: 3
+  recommended_parallel_agents: 2
   central_state_editor: integrator-only
   branch_model: short-lived-per-issue
   merge_target: main
   publication: automatic-after-main
   coordination_bootstrap_commit: ec6c712e287e97269375c6f5c4790c1529ea4309
-  issue_map_commit: 027dce35a1d881cecb94b4b164fd5d1913721519
 
 runtime:
-  last_verified_runtime_commit: 027dce35a1d881cecb94b4b164fd5d1913721519
-  last_verified_deploy_run: 33405602472
+  last_verified_runtime_commit: 17ba8b1b7941d56c094abf8121796b2b7b0f7a66
+  last_verified_deploy_run: 33416970939
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
   current_features:
     - unified-admin-shell
     - global-search-entry
+    - modular-gradebook-importer
     - batch-import-up-to-50-files
     - xlsb-xlsx-xls-reading
     - teacher-workbook-recognition
     - trimester-and-recovery-recognition
+    - source-contract-v1-schema
+    - academic-entity-contracts-v1
   current_limitations:
     - academic-data-is-not-persisted
     - native-engine-not-yet-implemented
+    - source-contract-final-validation-pending-issue-198
     - source-provenance-is-not-yet-complete
     - audit-workspace-not-yet-implemented
 
@@ -50,6 +56,27 @@ scope:
     - automatic-onedrive-sync
     - standardized-technical-spreadsheet
 
+contracts:
+  source:
+    status: schema-integrated-validation-pending
+    issue: 193
+    pull_request: 207
+    merge_commit: 83d7bf4fd91b5f5b51344f73293cb9c39844cefd
+    final_validation_issue: 198
+  academic_entities:
+    status: frozen-v1
+    issue: 194
+    pull_request: 208
+    merge_commit: 466717b57f738db520d1dff7089dee4e7a8eda19
+  academic_results:
+    status: ready-for-implementation
+    issue: 196
+  import_reconciliation_audit:
+    status: blocked
+    issue: 197
+    blocked_by:
+      - 196
+
 phases:
   F0:
     name: foundation-and-agent-coordination
@@ -60,15 +87,15 @@ phases:
     visible_result: repository-coordination-only
   F1:
     name: source-contract-and-import
-    status: partially-available
-    completed_units: 1
+    status: in-progress
+    completed_units: 3
     total_units: 7
     issue: 184
-    visible_result: batch-reader-in-production
+    visible_result: modular-batch-reader-in-production
   F2:
     name: normalized-domain-and-persistence-boundaries
-    status: planned
-    completed_units: 0
+    status: in-progress
+    completed_units: 1
     total_units: 6
     issue: 185
     visible_result: none
@@ -122,48 +149,45 @@ phases:
     issue: 192
     visible_result: none
 
-ready_queue:
+completed_queue:
   - issue: 193
     phase: F1
-    task: freeze-source-contract-v1
-    parallel_group: wave-1
+    task: freeze-source-contract-v1-schema
+    pull_request: 207
+    merge_commit: 83d7bf4fd91b5f5b51344f73293cb9c39844cefd
   - issue: 194
     phase: F2
     task: freeze-academic-entity-contracts-v1
-    parallel_group: wave-1
+    pull_request: 208
+    merge_commit: 466717b57f738db520d1dff7089dee4e7a8eda19
   - issue: 195
     phase: F1
     task: modularize-current-importer-without-regression
-    parallel_group: wave-1
+    pull_request: 209
+    merge_commit: 17ba8b1b7941d56c094abf8121796b2b7b0f7a66
+
+ready_queue:
+  - issue: 196
+    phase: F2
+    task: freeze-grade-entry-and-result-contracts-v1
+    parallel_group: wave-2
+  - issue: 198
+    phase: F1
+    task: synthetic-fixtures-and-real-validation-protocol
+    parallel_group: wave-2
 
 blocked_queue:
-  - issue: 196
-    task: freeze-grade-entry-and-result-contracts-v1
-    blocked_by:
-      - 193
-      - 194
   - issue: 197
     task: freeze-import-reconciliation-audit-contracts-v1
     blocked_by:
-      - 193
-      - 194
       - 196
-  - issue: 198
-    task: synthetic-fixtures-and-real-validation-protocol
-    blocked_by:
-      - 193
-      - 195
   - issue: 199
     task: sha256-manifest-and-file-provenance
     blocked_by:
-      - 193
-      - 195
       - 197
   - issue: 201
     task: native-cell-semantics-engine
     blocked_by:
-      - 193
-      - 194
       - 196
 
 pending_decisions:
@@ -175,21 +199,33 @@ pending_decisions:
       - database-migrations
 
 integration:
-  issue: 203
-  status: waiting-for-wave-1-pull-requests
-  watches:
-    - 193
-    - 194
-    - 195
-  responsibilities:
-    - contract-compatibility-review
-    - merge-and-production-verification
-    - state-and-issue-map-update
-    - next-wave-unlock
+  previous:
+    issue: 203
+    wave: 1
+    status: completed
+    merged_pull_requests:
+      - 207
+      - 208
+      - 209
+    verified_commit: 17ba8b1b7941d56c094abf8121796b2b7b0f7a66
+    deploy_run: 33416970939
+  current:
+    issue: 210
+    wave: 2
+    status: waiting-for-pull-requests
+    watches:
+      - 196
+      - 198
+    responsibilities:
+      - contract-compatibility-review
+      - synthetic-source-validation-review
+      - merge-and-production-verification
+      - state-and-issue-map-update
+      - next-wave-unlock
 
 next_integrator_actions:
-  - assign-one-agent-to-each-ready-issue
-  - review-contract-compatibility-before-merge
+  - wait-for-issues-196-and-198
+  - review-contract-compatibility-and-data-sanitization
   - merge-small-pull-requests-continuously
-  - verify-production-after-visible-deliveries
-  - unlock-next-wave-only-after-dependencies-merge
+  - unlock-issues-197-and-201-only-after-196-integration
+  - create-wave-3-integration-issue

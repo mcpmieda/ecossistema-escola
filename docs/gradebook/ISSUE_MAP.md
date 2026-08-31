@@ -1,23 +1,23 @@
 # Mapa de issues — Banco de Notas
 
-Este arquivo apresenta o projeto em linguagem simples. O estado operacional detalhado e legível por máquina fica em [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml).
+Este arquivo apresenta o projeto em linguagem simples. O estado legível por máquina fica em [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Para iniciar agentes, consulte primeiro [`COMECE_AQUI.md`](COMECE_AQUI.md).
 
 ## Visão geral
 
-- **Issue principal:** [#182 — Programa de construção do Banco de Notas](https://github.com/mcpmieda/ecossistema-escola/issues/182)
-- **Coordenação da onda:** [#203 — Integração da primeira onda](https://github.com/mcpmieda/ecossistema-escola/issues/203)
+- **Issue principal:** [#182](https://github.com/mcpmieda/ecossistema-escola/issues/182)
+- **Integração atual:** [#210 — segunda onda](https://github.com/mcpmieda/ecossistema-escola/issues/210)
 - **Site oficial:** `https://admin.escolaieda.com/#/banco-de-notas`
-- **Fase atual:** F0 concluída; primeira onda de desenvolvimento pronta.
-- **Agentes que podem começar agora:** 3, cada um em uma issue independente.
-- **Decisão humana pendente, sem bloquear a primeira onda:** [#200 — armazenamento físico](https://github.com/mcpmieda/ecossistema-escola/issues/200).
+- **Onda atual:** #196 e #198, simultaneamente.
+- **Primeira onda:** integrada e publicada.
+- **Decisão pendente que não bloqueia a onda atual:** [#200 — armazenamento físico](https://github.com/mcpmieda/ecossistema-escola/issues/200).
 
 ## Fases
 
 | Fase | Issue | Estado | Progresso objetivo | Resultado esperado no site |
 |---|---:|---|---:|---|
-| F0 — Fundação e coordenação | [#183](https://github.com/mcpmieda/ecossistema-escola/issues/183) | Publicada | 7/7 | Sem mudança funcional; base para agentes |
-| F1 — Fonte e importação | [#184](https://github.com/mcpmieda/ecossistema-escola/issues/184) | Em construção parcial | 1/7 | Importação confiável e rastreável |
-| F2 — Modelo e persistência | [#185](https://github.com/mcpmieda/ecossistema-escola/issues/185) | Planejada | 0/6 | Lotes/dados disponíveis após recarregar |
+| F0 — Fundação e coordenação | [#183](https://github.com/mcpmieda/ecossistema-escola/issues/183) | Publicada | 7/7 | Base para agentes |
+| F1 — Fonte e importação | [#184](https://github.com/mcpmieda/ecossistema-escola/issues/184) | Em construção | 3/7 | Importação confiável e rastreável |
+| F2 — Modelo e persistência | [#185](https://github.com/mcpmieda/ecossistema-escola/issues/185) | Em construção | 1/6 | Dados disponíveis após recarregar |
 | F3 — Motor nativo | [#186](https://github.com/mcpmieda/ecossistema-escola/issues/186) | Planejada | 0/7 | Comparação fonte × cálculo nativo |
 | F4 — Reconciliação e Auditoria | [#187](https://github.com/mcpmieda/ecossistema-escola/issues/187) | Planejada | 0/6 | Revisão, pendências e promoção do lote |
 | F5 — Contexto e centrais | [#188](https://github.com/mcpmieda/ecossistema-escola/issues/188) | Planejada | 0/7 | Aluno, turma, professor e componente |
@@ -26,84 +26,69 @@ Este arquivo apresenta o projeto em linguagem simples. O estado operacional deta
 | F8 — Boletins e relatórios | [#191](https://github.com/mcpmieda/ecossistema-escola/issues/191) | Planejada | 0/6 | Prévia, PDF, versões e relatórios |
 | F9 — Piloto e produção | [#192](https://github.com/mcpmieda/ecossistema-escola/issues/192) | Planejada/transversal | 0/7 | Operação institucional validada |
 
-## Primeira onda — pronta para agentes
+## Onda 1 — concluída
 
-As três issues abaixo escrevem em áreas diferentes e podem ser executadas em paralelo:
+| Issue | Resultado | PR/merge |
+|---:|---|---|
+| [#193](https://github.com/mcpmieda/ecossistema-escola/issues/193) | Esquema `SourceContractV1` integrado; validação definitiva segue em #198 | #207 / `83d7bf4` |
+| [#194](https://github.com/mcpmieda/ecossistema-escola/issues/194) | Entidades acadêmicas V1 congeladas | #208 / `466717b` |
+| [#195](https://github.com/mcpmieda/ecossistema-escola/issues/195) | Importador separado em módulos sem mudança intencional de comportamento | #209 / `17ba8b1` |
 
-1. [#193 — Congelar `SourceContractV1` e os tipos da origem](https://github.com/mcpmieda/ecossistema-escola/issues/193)
-   - Fase: F1.
-   - Caminhos: `shared/gradebook-contracts/source/**` e testes próprios.
-   - Não altera o site.
+O conjunto foi publicado no Cloudflare Pages pelo run `33416970939`.
 
-2. [#194 — Congelar contratos das entidades acadêmicas V1](https://github.com/mcpmieda/ecossistema-escola/issues/194)
-   - Fase: F2.
-   - Caminhos: `shared/gradebook-contracts/entities/**` e testes próprios.
-   - Não escolhe nem provisiona banco.
+## Onda 2 — pronta para agentes
 
-3. [#195 — Modularizar o importador atual sem regressão](https://github.com/mcpmieda/ecossistema-escola/issues/195)
-   - Fase: F1.
-   - Caminhos: `src/features/gradebook/import/**`, arquivos atuais do importador e testes próprios.
-   - Deve preservar o comportamento publicado.
+As duas issues abaixo escrevem em áreas diferentes e podem ser executadas ao mesmo tempo:
 
-O integrador acompanha esses três trabalhos em [#203](https://github.com/mcpmieda/ecossistema-escola/issues/203), revisa contratos, faz merges, verifica o deploy e libera a próxima onda. Essa issue não deve ser atribuída a um agente de implementação comum.
+1. [#196 — contratos de lançamentos e resultados](https://github.com/mcpmieda/ecossistema-escola/issues/196)
+   - Caminhos: `shared/gradebook-contracts/results/**` e testes próprios.
+   - Não implementa cálculos nem altera UI.
+
+2. [#198 — fixtures sintéticas e validação da fonte](https://github.com/mcpmieda/ecossistema-escola/issues/198)
+   - Caminhos: fixtures/testes do Banco e protocolo de validação real.
+   - Nunca adiciona dados reais ao Git.
+
+O integrador acompanha os dois trabalhos em [#210](https://github.com/mcpmieda/ecossistema-escola/issues/210).
 
 ## Próxima onda — bloqueada de forma explícita
 
 | Issue | Liberação necessária |
 |---:|---|
-| [#196 — contratos de lançamentos/resultados](https://github.com/mcpmieda/ecossistema-escola/issues/196) | #193 + #194 |
-| [#197 — contratos de lote/reconciliação/Auditoria](https://github.com/mcpmieda/ecossistema-escola/issues/197) | #193 + #194 + #196 |
-| [#198 — fixtures sintéticas e validação real](https://github.com/mcpmieda/ecossistema-escola/issues/198) | #193; integração final considera #195 |
-| [#199 — manifesto SHA-256/proveniência](https://github.com/mcpmieda/ecossistema-escola/issues/199) | #193 + #195 + #197 |
-| [#201 — interpretação semântica nativa](https://github.com/mcpmieda/ecossistema-escola/issues/201) | #193 + #194 + #196 |
-
-## Decisão pendente
-
-[#200 — Escolher o armazenamento físico da base acadêmica](https://github.com/mcpmieda/ecossistema-escola/issues/200) não bloqueia contratos nem a modularização inicial. Ela deve ser resolvida antes de migrations e persistência concreta. A recomendação registrada é Cloudflare D1, mas nenhum recurso será criado sem confirmação explícita.
+| [#197 — lote/reconciliação/Auditoria](https://github.com/mcpmieda/ecossistema-escola/issues/197) | #196 integrada |
+| [#201 — semântica nativa das células](https://github.com/mcpmieda/ecossistema-escola/issues/201) | #196 integrada |
+| [#199 — manifesto SHA-256/proveniência](https://github.com/mcpmieda/ecossistema-escola/issues/199) | #197 integrada; #195 já concluída |
 
 ## Dependências principais
 
 ```text
-#193 SourceContractV1 ─┬─> #196 Resultados V1 ─┬─> #197 Lote/Auditoria V1 ─> #199 Manifesto
-                       │                       └─> F4 Reconciliação/Auditoria
-                       ├─> #198 Fixtures
-                       └─> #201 Semântica nativa
+#193 + #194 ──> #196 ──> #197 e #201, simultaneamente
+#193 + #195 ──> #198
+#197 + #195 ──> #199
 
-#194 Entidades V1 ─────┴─> #196 Resultados V1 ─> F3 Motor / F5 Centrais / F6 Desempenho
-
-#195 Modularização ───────> #198 Testes finais do módulo / #199 Manifesto
-
-#200 Decisão de armazenamento ─> persistência física da F2
-
-#203 Integrador ──────────> revisão, merge, deploy, estado e liberação da próxima onda
+Onda 1 ──> integração #203 ──> Onda 2
+Onda 2 ──> integração #210 ──> Onda 3
 ```
+
+## Decisão pendente
+
+[#200](https://github.com/mcpmieda/ecossistema-escola/issues/200) deve ser respondida antes de migrations e persistência concreta. A recomendação registrada é Cloudflare D1, mas nenhum recurso será provisionado sem confirmação explícita.
 
 ## Como iniciar um agente
 
 Entregue ao agente somente uma issue marcada `[PRONTA]` e instrua-o a:
 
 1. ler `AGENTS.md` e `docs/gradebook/`;
-2. trabalhar apenas nos caminhos declarados;
-3. criar branch curta e PR para `main`;
-4. executar `npm run verify`;
-5. publicar o handoff na própria issue;
-6. não fazer merge, deploy ou alterar `PROJECT_STATE.yaml`.
-
-O integrador revisa contratos, faz o merge, acompanha o deploy e atualiza este mapa.
+2. executar a tarefa diretamente, sem App Factory ou agentes auxiliares;
+3. trabalhar apenas nos caminhos declarados;
+4. criar branch curta e PR para `main`;
+5. executar `npm run verify`;
+6. publicar o handoff na própria issue;
+7. não fazer merge, deploy ou alterar `PROJECT_STATE.yaml`.
 
 ## Critério de publicação
 
-Uma entrega funcional independente segue:
-
 ```text
-issue → branch → PR → validação → merge na main → Cloudflare Pages → verificação → Publicada
+issue → branch → PR → validação → integração → main → Cloudflare Pages → verificação
 ```
 
-Uma entrega interna pode ser integrada sem mudar visualmente o site, desde que preserve a produção e libere com segurança a próxima onda. Recursos incompletos não devem aparecer como disponíveis.
-
-## Pesquisas rápidas no GitHub
-
-- Issues do programa: `is:issue is:open [BN]`
-- Prontas: `is:issue is:open [BN] [PRONTA]`
-- Bloqueadas: `is:issue is:open [BN] [BLOQUEADA]`
-- Decisões: `is:issue is:open [BN] [DECISÃO]`
+Entregas internas podem não produzir mudança visual, mas devem preservar o site e liberar a próxima dependência de forma verificável.
