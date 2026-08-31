@@ -4,11 +4,11 @@ Este diretório é a memória oficial e suficiente para que uma pessoa ou inteli
 
 ## Acompanhamento imediato
 
-- [Issue principal #182](../../issues/182) — visão geral para acompanhamento humano.
+- [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — visão geral para acompanhamento humano.
 - [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, progresso, tarefas prontas e bloqueios.
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina e fila segura.
 
-A primeira onda possui três issues independentes prontas para agentes: [#193](../../issues/193), [#194](../../issues/194) e [#195](../../issues/195).
+A primeira onda possui três issues independentes prontas para agentes: [#193](https://github.com/mcpmieda/ecossistema-escola/issues/193), [#194](https://github.com/mcpmieda/ecossistema-escola/issues/194) e [#195](https://github.com/mcpmieda/ecossistema-escola/issues/195).
 
 ## Objetivo
 
