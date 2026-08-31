@@ -330,8 +330,7 @@ export function NotesPage() {
     try {
       const xlsx = await loadSheetJs();
 
-      for (let index = 0; index < files.length; index += 1) {
-        const file = files[index];
+      for (const [index, file] of files.entries()) {
         setProgress({ current: index + 1, total: files.length, fileName: file.name });
 
         const extension = fileExtension(file.name);
@@ -491,7 +490,7 @@ export function NotesPage() {
                   {results.map((result) => (
                     <Button
                       key={result.id}
-                      variant={selectedWorkbook?.fileName === result.summary.fileName ? 'secondary' : 'ghost'}
+                      variant={selectedId === result.id ? 'secondary' : 'ghost'}
                       size="sm"
                       onPress={() => setSelectedId(result.id)}
                     >
