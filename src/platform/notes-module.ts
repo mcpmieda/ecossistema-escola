@@ -12,16 +12,18 @@ export const notesModule: CoreModuleContract = {
 };
 
 export type NotesSection = {
-  id: 'importacao';
+  id: string;
   label: string;
   description: string;
   href: string;
   searchTerms: string;
 };
 
+export const defaultNotesSectionId = 'importacao';
+
 export const notesSections: NotesSection[] = [
   {
-    id: 'importacao',
+    id: defaultNotesSectionId,
     label: 'Importação',
     description: 'Importar e reconhecer planilhas de notas XLSB, XLSX e XLS.',
     href: platformHref('banco-de-notas'),
