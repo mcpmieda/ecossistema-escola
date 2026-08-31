@@ -106,3 +106,41 @@ Nenhum dado real de estudante pode ser versionado ou exposto em issues, PRs, fix
 **Status:** vigente
 
 Quando instruções entrarem em conflito, a mais antiga permanece oficial. Qualquer substituição deve citar a decisão anterior, explicar o impacto e ser confirmada explicitamente pelo responsável.
+
+## BN-DEC-016 — Cloudflare D1 como armazenamento físico
+
+**Data:** 2026-08-31  
+**Status:** vigente  
+**Origem:** issue #200
+
+Cloudflare D1 será o armazenamento físico principal da base acadêmica do Banco de Notas. O navegador não será a base institucional e as planilhas permanecem fonte documental/importação, não banco transacional.
+
+O domínio continua independente do fornecedor: código acadêmico conhece portas de persistência, não `D1Database`, SQL, Wrangler ou bindings. Todo acesso real ocorre pelo backend autorizado do Centro. Banco, binding, migrations, índices e recuperação serão criados somente por issues próprias; esta decisão não autoriza provisionamento silencioso.
+
+O plano gratuito pode ser usado em desenvolvimento e piloto, com medição de leituras, escritas e armazenamento. Se o volume exigir, a evolução prevista é alterar o plano Cloudflare sem trocar a tecnologia ou o modelo do Banco.
+
+## BN-DEC-017 — Identidade lógica da fonte e reimportação incremental
+
+**Data:** 2026-08-31  
+**Status:** vigente
+
+O nome do arquivo é metadado de origem, não identidade permanente. O SHA-256 identifica conteúdo binário idêntico:
+
+- mesmo hash com outro nome é o mesmo conteúdo renomeado e não gera duplicação;
+- hash diferente pode ser nova versão da mesma fonte lógica quando ano, professor e contexto acadêmico forem compatíveis;
+- contexto incompatível ou ambíguo exige confirmação humana; o sistema não associa silenciosamente;
+- salvar novamente um arquivo pode mudar bytes/metadados sem mudar notas, portanto a comparação acadêmica relevante sucede a comparação do hash;
+- valores inalterados não criam nova versão acadêmica;
+- valores novos ou alterados criam nova versão e preservam integralmente a versão anterior.
+
+A reimportação será idempotente, incremental e auditável. Não se adotará a estratégia de apagar a base e recriar todas as linhas a cada atualização.
+
+## BN-DEC-018 — Saúde e limites são globais no Centro de Administração
+
+**Data:** 2026-08-31  
+**Status:** vigente  
+**Issue planejada:** #220
+
+Quotas, consumo, disponibilidade e saúde de Cloudflare, D1, Workers e integrações pertencem ao Centro de Administração, em área administrativa global `Configurações → Saúde e limites`.
+
+Cada módulo pode fornecer métricas próprias, inclusive impacto estimado de importações do Banco de Notas, mas não mantém um painel isolado de infraestrutura. Tokens e credenciais nunca chegam ao navegador; métricas são obtidas por backend autorizado e não podem conter nomes, notas ou payload acadêmico. A indisponibilidade da fonte de métricas deve gerar estado parcial/desatualizado, não indisponibilidade do ambiente inteiro.
