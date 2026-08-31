@@ -11,6 +11,19 @@ Não atribua a um agente comum:
 - `#203` — integração e liberação das próximas tarefas;
 - `#200` — decisão do responsável sobre armazenamento.
 
+| Issue                              | Dificuldade | Use preferencialmente                     |
+| ---------------------------------- | ----------: | ----------------------------------------- |
+| **#193 — SourceContractV1**        |         3/5 | **ChatGPT Extra Alto**                    |
+| **#194 — Entidades acadêmicas**    |         4/5 | **ChatGPT Extra Alto**                    |
+| **#195 — Modularizar importador**  |         4/5 | **Codex**                                 |
+| **#196 — Contratos de resultados** |         5/5 | **ChatGPT Extra Alto**                    |
+| **#197 — Lote/Auditoria**          |         4/5 | **ChatGPT Extra Alto**                    |
+| **#198 — Fixtures e testes**       |         3/5 | **Codex**                                 |
+| **#199 — SHA-256/proveniência**    |         3/5 | **Codex**                                 |
+| **#201 — Semântica do motor**      |         4/5 | **Codex**                                 |
+| **#203 — Integração dos agentes**  |         5/5 | **ChatGPT Extra Alto**                    |
+| **#200 — Escolha do banco**        |     decisão | **Extra Alto para analisar; você decide** |
+
 ## Onda 1 — executar agora, simultaneamente
 
 | Agente | Issue | Trabalho |
@@ -63,16 +76,3 @@ AGORA
 3. O agente lê `AGENTS.md`, `docs/gradebook/` e a própria issue.
 4. O agente cria branch e PR, mas não faz merge.
 5. O integrador acompanha tudo em `#203` e libera a onda seguinte.
-
-| Issue                              | Dificuldade | Use preferencialmente                     |
-| ---------------------------------- | ----------: | ----------------------------------------- |
-| **#193 — SourceContractV1**        |         3/5 | **ChatGPT Extra Alto**                    |
-| **#194 — Entidades acadêmicas**    |         4/5 | **ChatGPT Extra Alto**                    |
-| **#195 — Modularizar importador**  |         4/5 | **Codex**                                 |
-| **#196 — Contratos de resultados** |         5/5 | **ChatGPT Extra Alto**                    |
-| **#197 — Lote/Auditoria**          |         4/5 | **ChatGPT Extra Alto**                    |
-| **#198 — Fixtures e testes**       |         3/5 | **Codex**                                 |
-| **#199 — SHA-256/proveniência**    |         3/5 | **Codex**                                 |
-| **#201 — Semântica do motor**      |         4/5 | **Codex**                                 |
-| **#203 — Integração dos agentes**  |         5/5 | **ChatGPT Extra Alto**                    |
-| **#200 — Escolha do banco**        |     decisão | **Extra Alto para analisar; você decide** |
