@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Alert, Button, Chip, Surface } from '@heroui/react';
 import { CheckCircle2, FileSpreadsheet, Upload } from 'lucide-react';
+import { notesSections } from './notes-module';
 import {
   ACCEPTED_EXTENSIONS,
   fileExtension,
@@ -104,10 +105,20 @@ export function NotesPage() {
 
       <Surface variant="default" className="mb-5 rounded-2xl border border-border/60 p-2 shadow-sm">
         <nav aria-label="Seções do Banco de notas" className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" size="sm" aria-current="page">
-            <FileSpreadsheet className="size-4" />
-            Importação
-          </Button>
+          {notesSections.map((section) => (
+            <Button
+              key={section.id}
+              variant="secondary"
+              size="sm"
+              aria-current={section.id === 'importacao' ? 'page' : undefined}
+              onPress={() => {
+                if (window.location.hash !== section.href) window.location.hash = section.href;
+              }}
+            >
+              <FileSpreadsheet className="size-4" />
+              {section.label}
+            </Button>
+          ))}
         </nav>
       </Surface>
 
