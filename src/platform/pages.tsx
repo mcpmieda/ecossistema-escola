@@ -15,6 +15,7 @@ import type {
   PlatformRoute,
   PlatformSnapshotContract,
 } from '../../shared/platform-contract';
+import { NotesPage } from './notes-page';
 import { OperationsPage } from './operations-page';
 import { EmptyState, formatDate, ModuleList, PageHeader, shortCorrelation } from './presentation';
 
@@ -533,7 +534,7 @@ export function PageContent({
     case 'paginas':
       return <PlannedPage route={route} />;
     case 'banco-de-notas':
-      return null;
+      return <NotesPage />;
     default:
       return <OverviewPage snapshot={snapshot} />;
   }
