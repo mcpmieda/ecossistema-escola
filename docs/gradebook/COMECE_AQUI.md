@@ -16,7 +16,7 @@ Não atribua a um agente comum:
 | **#193 — SourceContractV1**        |         3/5 | **ChatGPT Extra Alto**                    |
 | **#194 — Entidades acadêmicas**    |         4/5 | **ChatGPT Extra Alto**                    |
 | **#195 — Modularizar importador**  |         4/5 | **Codex**                                 |
-| **#196 — Contratos de resultados** |         5/5 | **ChatGPT Extra Alto - PR**               |
+| **#196 — Contratos de resultados** |         5/5 | **ChatGPT Extra Alto - PRO**              |
 | **#197 — Lote/Auditoria**          |         4/5 | **ChatGPT Extra Alto**                    |
 | **#198 — Fixtures e testes**       |         3/5 | **Codex**                                 |
 | **#199 — SHA-256/proveniência**    |         3/5 | **Codex**                                 |
