@@ -6,9 +6,10 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 
 - **Fonte:** esquema e suíte sintética integrados por #193/#198; execução controlada com o corpus real permanece como gate da F1.
 - **Entidades acadêmicas:** `congelado-v1`, integradas por #194/PR #208.
-- **Lançamentos e resultados:** `congelado-v1`, integrados por #196/PR #212 em `shared/gradebook-contracts/results/results-contract-v1.ts`.
-- **Lote, reconciliação e Auditoria:** `proposto`; issue #197 está pronta para execução.
-- **Semântica nativa das células:** issue #201 está pronta e deve consumir os contratos existentes sem alterá-los.
+- **Lançamentos e resultados:** `congelado-v1`, integrados por #196/PR #212.
+- **Lote, manifesto, reconciliação e Auditoria:** `congelado-v1`, integrados por #197/PR #216.
+- **Semântica nativa das células:** implementada por #201/PR #217 como função pura do domínio, consumindo os contratos congelados.
+- **Portas de persistência:** issue #219 pronta; a tecnologia física aprovada é Cloudflare D1, mas os contratos do domínio permanecem independentes do fornecedor.
 - **Read models:** `proposto`; serão detalhados nas issues dos módulos consumidores.
 
 ## Estados de maturidade
@@ -22,7 +23,9 @@ O contrato só recebe `congelado-v1` quando a issue correspondente for aceita pe
 
 ## Identificadores
 
-Identificadores técnicos não devem depender apenas de nomes de exibição. Dentro da fonte, a evidência original preserva exatamente ano, turma, nome e marcas significativas. O modelo interno terá IDs próprios e manterá aliases/origens separados.
+Identificadores técnicos não dependem apenas de nomes de exibição. Dentro da fonte, a evidência original preserva exatamente ano, turma, nome e marcas significativas. O modelo interno possui IDs próprios e mantém aliases/origens separados.
+
+Nome de arquivo também não é identidade permanente. O hash identifica conteúdo binário idêntico; uma fonte lógica pode possuir várias versões e vários nomes observados. Associação ambígua exige confirmação, conforme BN-DEC-017.
 
 ## Entidades centrais — congelado-v1
 
@@ -72,36 +75,49 @@ Implementação pública: `shared/gradebook-contracts/entities/index.ts`.
 
 ## Evidência de origem
 
-### `SourceFileManifestV1`
-
-- nome, extensão, MIME informado, tamanho, data de modificação;
-- SHA-256, versão de importação e data de leitura;
-- professor/ano sugeridos e confirmação do usuário quando necessária.
-
 ### `SourceCellEvidenceV1`
+
+Implementação pública: `shared/gradebook-contracts/source/source-contract-v1.ts`.
+
+Preserva:
 
 - arquivo/hash/guia/célula;
 - valor bruto, valor em cache e fórmula;
-- tipo físico da célula;
 - classificação semântica;
-- lote e instante de importação.
+- erro de origem quando aplicável.
 
-Classificações semânticas iniciais:
+Classificações semânticas oficiais incluem:
 
 ```text
-empty
-manual-number
-manual-negative
-manual-zero-legacy
-official-zero-marker
-formula-nonzero
-formula-zero-empty
-formula-error
-text-invalid
+missing-field
 not-applicable
+empty
+manual-positive-number
+manual-negative-number
+manual-legacy-zero
+manual-official-zero-marker
+formula-nonzero
+formula-zero
+formula-error-or-missing-cache
+invalid-text
 ```
 
-A implementação integrada usa nomes TypeScript mais explícitos em `shared/gradebook-contracts/source/source-contract-v1.ts`; consumidores devem importar esses tipos, não recriar esta lista.
+Consumidores importam os tipos oficiais; não recriam listas equivalentes.
+
+### `SourceFileManifestV1`
+
+Implementação pública: `shared/gradebook-contracts/imports/import-contract-v1.ts`.
+
+Preserva:
+
+- ID técnico do manifesto;
+- nome, extensão, MIME informado, tamanho e data de modificação;
+- SHA-256;
+- versões do contrato da fonte e do parser;
+- instante de leitura;
+- ano/professor sugeridos e confirmações quando disponíveis.
+
+O manifesto não contém caminho local. O SHA-256 ainda será calculado e exibido no importador pela issue #199.
 
 ## Avaliação — congelado-v1
 
@@ -151,7 +167,7 @@ Cobertura usa estados `complete`, `partial`, `insufficient-data` e `not-applicab
 - decisão final separada do estado acadêmico, com resultado, fundamento e referência opcionais;
 - `authorityMode`, cobertura e versão da regra.
 
-Estados internos iniciais são estáveis e independentes dos rótulos exibidos:
+Estados internos são estáveis e independentes dos rótulos exibidos:
 
 ```text
 in-progress
@@ -167,36 +183,80 @@ special-status
 insufficient-data
 ```
 
-## Importação, reconciliação e auditoria — proposta para #197
+## Importação, reconciliação e Auditoria — congelado-v1
+
+Implementações públicas:
+
+- `shared/gradebook-contracts/imports/import-ids-v1.ts`;
+- `shared/gradebook-contracts/imports/import-contract-v1.ts`;
+- `shared/gradebook-contracts/audit/audit-contract-v1.ts`.
 
 ### `ImportBatchResultV1`
 
-- `batchId`, arquivos, sucessos, falhas e progresso final;
-- estatísticas agregadas;
-- diagnósticos por arquivo;
-- status: `received`, `processing`, `review-required`, `approved`, `rejected`, `partially-approved`, `failed`.
+Representa arquivos e diagnósticos sem transformar uma falha individual em falha total. Estados do lote:
+
+```text
+received
+processing
+review-required
+partially-approved
+approved
+rejected
+failed
+```
+
+O estado `approved` exige estruturalmente ausência de arquivo rejeitado/falho e ausência de erro bloqueante/crítico no resumo. Arquivos mantêm estado próprio e podem coexistir no mesmo lote.
+
+### `ImportFileDiagnosticV1`
+
+- sempre aponta para `ImportFileId`;
+- pode apontar para manifesto, guia, célula, evidência e entidade técnica;
+- usa a gravidade comum da Auditoria;
+- não expõe caminho local.
 
 ### `ReconciliationResultV1`
 
-- registro/resultado comparado;
-- valor importado, valor nativo, diferença, tolerância e regra;
-- status: `match`, `expected-difference`, `mismatch`, `not-comparable`.
+Reutiliza `ComparedGradeValueV1` e preserva valor importado, valor nativo, diferença, tolerância, explicação e versão da regra. Estados:
+
+```text
+match
+expected-difference
+mismatch
+not-comparable
+```
+
+Nenhuma reconciliação substitui silenciosamente o valor de fonte ou do motor.
 
 ### `AuditOccurrenceV1`
 
-- nível, categoria, entidade, mensagem e ação recomendada;
-- arquivo, guia e célula quando aplicáveis;
+- gravidade: `information`, `warning`, `blocking-error` ou `critical-error`;
+- categoria, entidade, mensagem e ação recomendada;
+- referência a arquivo, guia e célula quando aplicável;
 - estado: `open`, `acknowledged`, `resolved`, `dismissed-with-reason`;
-- usuário, data e justificativa de resolução.
+- histórico de transição preservando estado anterior, ator, data e justificativa.
 
-Níveis iniciais:
+Erros críticos permanecem distinguíveis e não podem ser apresentados como sucesso completo.
 
-```text
-information
-warning
-blocking-error
-critical-error
-```
+## Interpretação semântica nativa — implementada
+
+Implementação: `src/gradebook-domain/source/interpret-source-cell.ts`.
+
+`interpretSourceCell(evidence, profile)` é pura e determinística. Ela transforma `SourceCellEvidenceV1` em `AcademicGradeValueV1`, preservando presença, valor bruto, validade, classificação, evidência e achados locais.
+
+Os achados determinísticos dessa função ainda não são uma ocorrência persistida completa. A camada de aplicação os converterá em `AuditOccurrenceV1`, adicionando ID, lote, instante, estado e contexto de entidade sem perder a proveniência original.
+
+## Persistência
+
+Cloudflare D1 é o armazenamento físico aprovado em BN-DEC-016. Isso não altera os contratos de domínio:
+
+- portas de persistência ficam em `src/gradebook-domain/ports/persistence/**`;
+- adaptadores D1 ficarão na camada de servidor/infraestrutura;
+- entidades e resultados não importam tipos Cloudflare ou SQL;
+- atualizações acadêmicas criam versões e preservam histórico;
+- promoção de lote deve ser transacional;
+- consultas são sempre associadas a ano/contexto e possuem paginação/limite explícito.
+
+A issue #219 materializará as portas antes do desenho físico das migrations.
 
 ## Read models
 
@@ -220,3 +280,4 @@ Cada read model deve informar ano/contexto, versão ou timestamp dos dados, cobe
 4. Uma alteração acadêmica exige decisão em `DECISIONS.md` antes do código.
 5. Consumidores não importam tabelas/implementações internas; usam contratos públicos.
 6. Desempenho, Conselho e Boletins não mantêm enumerações próprias de situações ou resultados.
+7. D1 não pode vazar para os contratos do domínio; somente adaptadores concretos conhecem o fornecedor.
