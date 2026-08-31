@@ -11,22 +11,38 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 
 ## Estado atual
 
-Duas ondas foram integradas:
+Três ondas foram integradas:
 
 - #193/PR #207: esquema `SourceContractV1`;
 - #194/PR #208: contratos das entidades acadêmicas V1;
 - #195/PR #209: importador atual separado em módulos;
 - #196/PR #212: contratos de lançamentos e resultados acadêmicos V1;
-- #198/PR #213: fixtures sintéticas e protocolo controlado de validação real.
+- #198/PR #213: fixtures sintéticas e protocolo controlado de validação real;
+- #197/PR #216: contratos de lote, manifesto, reconciliação e Auditoria V1;
+- #201/PR #217: interpretação semântica nativa das células.
 
-O commit funcional vigente é `32450ac431dde3ddad1dfcbee436710eb2cd6555`; o deploy Cloudflare Pages `33421282101` foi concluído com sucesso.
+O commit funcional vigente é `9476f84af7f99733c32f4a2503a50a4ef3c15c3f`; o deploy Cloudflare Pages `33424938206` foi concluído com sucesso.
 
-A terceira onda está pronta para dois agentes independentes:
+A quarta onda está pronta para três agentes independentes:
 
-- [#197 — contratos de lote, reconciliação e Auditoria](https://github.com/mcpmieda/ecossistema-escola/issues/197);
-- [#201 — interpretação semântica nativa das células](https://github.com/mcpmieda/ecossistema-escola/issues/201).
+- [#199 — SHA-256, manifesto e proveniência visível](https://github.com/mcpmieda/ecossistema-escola/issues/199);
+- [#218 — arredondamento acadêmico nativo V1](https://github.com/mcpmieda/ecossistema-escola/issues/218);
+- [#219 — portas de persistência e transação V1](https://github.com/mcpmieda/ecossistema-escola/issues/219).
 
-A integração da terceira onda fica reservada à [#214](https://github.com/mcpmieda/ecossistema-escola/issues/214).
+A integração da quarta onda fica reservada à [#221](https://github.com/mcpmieda/ecossistema-escola/issues/221).
+
+## Decisão de armazenamento
+
+A [#200](https://github.com/mcpmieda/ecossistema-escola/issues/200) aprovou **Cloudflare D1** como armazenamento físico principal da base acadêmica.
+
+Condições:
+
+- acesso somente pelo backend autorizado;
+- domínio independente do fornecedor por portas;
+- nenhuma migration, binding ou banco de produção criado sem issue própria;
+- plano gratuito permitido para desenvolvimento/piloto, com medição de consumo;
+- nome do arquivo não é identidade permanente;
+- reimportação idêntica não duplica e alterações preservam histórico versionado.
 
 ## Objetivo
 
@@ -43,13 +59,19 @@ Construir um Banco de Notas funcional, modular, auditável e acessível a usuár
 - processamento somente em memória, sem persistência acadêmica;
 - importador organizado em `src/features/gradebook/import/**`.
 
-As entregas #196 e #198 são internas: estabilizam contratos e testes, mas não acrescentam uma nova tela.
+As entregas #197 e #201 são internas: estabilizam contratos e a primeira função do motor, mas não acrescentam uma nova tela. A próxima mudança visível prevista é #199, que mostrará manifesto/hash e etapas do arquivo no importador.
 
 ## Validação da fonte
 
 A suíte pública sintética cobre D1, D2, D3, VG, trimestres, REC, estados especiais de célula, posições históricas, transferências, lotes de 1/20/50 arquivos e falha isolada. O procedimento `REAL_DATA_VALIDATION.md` define como conferir o corpus real fora do Git.
 
-A execução controlada desse procedimento ainda precisa ser registrada antes do fechamento definitivo da F1. Isso não bloqueia a terceira onda.
+A execução controlada desse procedimento ainda precisa ser registrada antes do fechamento definitivo da F1. Isso não bloqueia a quarta onda.
+
+## Saúde e limites
+
+A [#220](https://github.com/mcpmieda/ecossistema-escola/issues/220) registra o planejamento de `Centro de Administração → Configurações → Saúde e limites`.
+
+Essa área será global ao ecossistema, administrativa e alimentada por backend. Ela poderá mostrar D1, Workers, deploys, integrações e consumo por módulo sem expor tokens ou dados acadêmicos. Ainda não está pronta para implementação porque depende de D1/bindings e métricas reais.
 
 ## Fontes de referência revisadas
 
