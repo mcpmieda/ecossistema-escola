@@ -9,9 +9,10 @@ Não atribua a um agente comum:
 - `#182` — painel geral do programa;
 - `#184` a `#192` — acompanhamento das fases;
 - `#220` — Saúde e limites, ainda planejada;
-- `#237` — integração da sexta onda.
+- `#245` — adaptador D1 de escrita, ainda bloqueado;
+- `#246` — integração da sétima onda.
 
-As integrações `#203`, `#210`, `#214`, `#221` e `#229` já foram concluídas.
+As integrações `#203`, `#210`, `#214`, `#221`, `#229` e `#237` já foram concluídas.
 
 ## Ondas concluídas
 
@@ -22,39 +23,38 @@ As integrações `#203`, `#210`, `#214`, `#221` e `#229` já foram concluídas.
 | 3 | `#197`, `#201` | `#214` |
 | 4 | `#199`, `#218`, `#219` | `#221` |
 | 5 | `#226`, `#227`, `#228` | `#229` |
+| 6 | `#234`, `#235`, `#236` | `#237` |
 
-A quinta onda integrou a composição trimestral nativa, o schema/migrations D1 local e o planejador idempotente de reimportação. Código vigente da onda: `781a2a25640366f1807de7d98cf0157f5c3cfea1`; deploy: `33436989871`.
+A sexta onda integrou recuperação paralela nativa, migration 0003 + leitura D1 local e o executor transacional abstrato. Código vigente: `e8be42bd65b0a59d837ee6ca8283d9564967a6db`; deploy: `33441758173`.
 
-## Onda 6 — executar agora, simultaneamente
+## Onda 7 — executar agora, simultaneamente
 
 | Agente | Issue | Trabalho |
 |---|---:|---|
-| 1 | `#234` | Recuperação paralela nativa V1 |
-| 2 | `#235` | Catálogo fonte lógica ↔ streams e adaptador D1 local de leitura |
-| 3 | `#236` | Executor transacional do plano de reimportação |
+| 1 | `#242` | Consolidar o resultado trimestral nativo |
+| 2 | `#243` | Formalizar a associação transacional fonte lógica ↔ stream |
+| 3 | `#244` | Implementar recuperação final nativa |
 
-As três issues escrevem em áreas diferentes e podem começar juntas. A integração será feita exclusivamente pela `#237`.
+As três issues escrevem em áreas diferentes e podem começar juntas. A integração será feita exclusivamente pela `#246`.
 
-## Por que a #235 existe
+## Adaptação obrigatória da #243
 
-A #228 precisa listar os registros acadêmicos atualmente ligados a uma fonte lógica para detectar o que desapareceu de uma nova versão. As migrations 0001–0002 ainda não guardam essa ligação em uma tabela própria.
+A migration 0003 e o adaptador de leitura já conhecem a associação entre fonte lógica e stream acadêmico. Porém, as portas, o plano e o executor ainda não representam a **escrita versionada dessa associação**.
 
-A #235 adicionará essa relação de forma indexada e versionada. O agente não deve contornar a lacuna varrendo JSON nem usando o nome do arquivo como identidade.
+A #243 corrige o contrato antes do adaptador físico. Não é permitido esconder essa escrita como efeito colateral do D1, varrer JSON ou inferir relação pelo nome do arquivo.
 
 ## O que cada tarefa libera
 
 ```text
-#234 → consolidação trimestral completa e próxima regra do motor
-#235 → leitura persistente do planejamento e adaptador D1 completo
-#236 → execução segura do plano contra portas transacionais
-
-#235 + #236 → escrita/promoção transacional concreta no D1
+#242 + #244 → resultado anual e precedências do motor
+#243        → libera #245
+#245        → escrita/promoção transacional concreta no D1 local
 ```
 
-## Gates manuais que não bloqueiam a onda 6
+## Gates manuais que não bloqueiam a onda 7
 
 - Executar `REAL_DATA_VALIDATION.md` com o corpus real em ambiente privado antes de fechar definitivamente a F1.
-- O happy path visual da #199 foi aprovado pelo operador com dois arquivos XLSB. Ainda faltam, para o smoke completo, expandir o SHA-256, observar a etapa transitória de hash e conferir um diagnóstico de falha isolada.
+- O happy path visual da #199 foi aprovado com dois arquivos XLSB. Ainda faltam expandir o SHA-256 completo, observar a etapa transitória e conferir uma falha isolada.
 
 Nunca publicar arquivos, nomes, notas, hashes ou caminhos privados.
 
@@ -67,19 +67,20 @@ CONCLUÍDO
 #197 + #201 ──────────> #214
 #199 + #218 + #219 ───> #221
 #226 + #227 + #228 ───> #229
+#234 + #235 + #236 ───> #237
 
 AGORA
-#234 ─┐
-#235 ─┼──> integração #237 ──> sétima onda
-#236 ─┘
+#242 ─┐
+#243 ─┼──> integração #246 ──> oitava onda
+#244 ─┘
 ```
 
 ## Instrução simples para iniciar
 
-1. Escolha `#234`, `#235` ou `#236`.
+1. Escolha `#242`, `#243` ou `#244`.
 2. Entregue somente essa issue ao agente.
 3. O agente lê `AGENTS.md`, `docs/gradebook/` e a própria issue.
 4. O agente executa diretamente, sem App Factory ou agentes auxiliares.
 5. O agente cria branch e PR, executa `npm run verify` e registra o handoff.
 6. O agente não faz merge, deploy, provisionamento nem altera `PROJECT_STATE.yaml`.
-7. Depois das três entregas, execute a integração pela `#237`.
+7. Depois das três entregas, execute a integração pela `#246`.
