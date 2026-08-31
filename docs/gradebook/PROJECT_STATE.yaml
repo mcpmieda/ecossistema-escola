@@ -7,17 +7,20 @@ updated_at: 2026-08-31
 coordination:
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
-  issue_map: pending
-  master_issue: pending
+  issue_map: docs/gradebook/ISSUE_MAP.md
+  master_issue: 182
+  foundation_issue: 183
   integrator_required: true
-  recommended_parallel_agents: 4
+  recommended_parallel_agents: 3
   central_state_editor: integrator-only
   branch_model: short-lived-per-issue
   merge_target: main
   publication: automatic-after-main
+  coordination_bootstrap_commit: ec6c712e287e97269375c6f5c4790c1529ea4309
 
 runtime:
-  last_verified_runtime_commit: 743510de62e412ccad2cb39d845ad4c18e110391
+  last_verified_runtime_commit: ec6c712e287e97269375c6f5c4790c1529ea4309
+  last_verified_deploy_run: 33404200815
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
@@ -48,80 +51,130 @@ scope:
 phases:
   F0:
     name: foundation-and-agent-coordination
-    status: in_progress
-    progress: 80
-    issue: pending
+    status: published
+    completed_units: 7
+    total_units: 7
+    issue: 183
     visible_result: repository-coordination-only
   F1:
     name: source-contract-and-import
-    status: partially_available
-    progress: 30
-    issue: pending
+    status: partially-available
+    completed_units: 1
+    total_units: 7
+    issue: 184
     visible_result: batch-reader-in-production
   F2:
     name: normalized-domain-and-persistence-boundaries
     status: planned
-    progress: 0
-    issue: pending
+    completed_units: 0
+    total_units: 6
+    issue: 185
     visible_result: none
   F3:
     name: native-engine
     status: planned
-    progress: 0
-    issue: pending
+    completed_units: 0
+    total_units: 7
+    issue: 186
     visible_result: none
   F4:
     name: reconciliation-and-audit
     status: planned
-    progress: 0
-    issue: pending
+    completed_units: 0
+    total_units: 6
+    issue: 187
     visible_result: none
   F5:
     name: operational-entity-centers-and-context
     status: planned
-    progress: 0
-    issue: pending
+    completed_units: 0
+    total_units: 7
+    issue: 188
     visible_result: none
   F6:
     name: performance
     status: planned
-    progress: 0
-    issue: pending
+    completed_units: 0
+    total_units: 6
+    issue: 189
     visible_result: none
   F7:
     name: class-council
     status: planned
-    progress: 0
-    issue: pending
+    completed_units: 0
+    total_units: 7
+    issue: 190
     visible_result: none
   F8:
     name: bulletins-and-reports
     status: planned
-    progress: 0
-    issue: pending
+    completed_units: 0
+    total_units: 6
+    issue: 191
     visible_result: none
   F9:
     name: pilot-security-and-production-hardening
-    status: planned
-    progress: 0
-    issue: pending
+    status: planned-cross-cutting
+    completed_units: 0
+    total_units: 7
+    issue: 192
     visible_result: none
 
 ready_queue:
-  - define-source-contract-v1
-  - define-domain-contracts-v1
-  - modularize-current-importer-without-regression
+  - issue: 193
+    phase: F1
+    task: freeze-source-contract-v1
+    parallel_group: wave-1
+  - issue: 194
+    phase: F2
+    task: freeze-academic-entity-contracts-v1
+    parallel_group: wave-1
+  - issue: 195
+    phase: F1
+    task: modularize-current-importer-without-regression
+    parallel_group: wave-1
 
 blocked_queue:
-  - task: native-engine-calculations
-    blocked_by: source-contract-v1-and-domain-contracts-v1
-  - task: persistence-implementation
-    blocked_by: physical-storage-decision
-  - task: performance-ui
-    blocked_by: official-read-model-contracts
+  - issue: 196
+    task: freeze-grade-entry-and-result-contracts-v1
+    blocked_by:
+      - 193
+      - 194
+  - issue: 197
+    task: freeze-import-reconciliation-audit-contracts-v1
+    blocked_by:
+      - 193
+      - 194
+      - 196
+  - issue: 198
+    task: synthetic-fixtures-and-real-validation-protocol
+    blocked_by:
+      - 193
+      - 195
+  - issue: 199
+    task: sha256-manifest-and-file-provenance
+    blocked_by:
+      - 193
+      - 195
+      - 197
+  - issue: 201
+    task: native-cell-semantics-engine
+    blocked_by:
+      - 193
+      - 194
+      - 196
+
+pending_decisions:
+  - issue: 200
+    decision: physical-academic-storage
+    recommendation: cloudflare-d1
+    blocks:
+      - concrete-persistence
+      - database-migrations
 
 next_integrator_actions:
-  - merge-coordination-foundation
-  - create-master-and-phase-issues
-  - publish-issue-map-with-real-numbers
-  - mark-F0-published-after-production-workflow
+  - assign-one-agent-to-each-ready-issue
+  - review-contract-compatibility-before-merge
+  - merge-small-pull-requests-continuously
+  - verify-production-after-visible-deliveries
+  - unlock-next-wave-only-after-dependencies-merge
