@@ -7,7 +7,6 @@ import type {
   StudentId,
   StudentV1,
   TeacherId,
-  TeachingAssignmentId,
 } from '../../../../shared/gradebook-contracts/entities';
 import type {
   GradeEntryId,
@@ -45,7 +44,6 @@ const context = { academicYearId } satisfies AcademicPersistenceContextV1;
 const otherContext = { academicYearId: otherAcademicYearId } satisfies AcademicPersistenceContextV1;
 const studentId = 'student:synthetic:001' as StudentId;
 const enrollmentId = 'enrollment:2026:synthetic:001' as EnrollmentId;
-const assignmentId = 'assignment:2026:synthetic:001' as TeachingAssignmentId;
 const assessmentComponentId = 'assessment:2026:synthetic:001' as AssessmentComponentId;
 const gradeEntryId = 'grade-entry:synthetic:001' as GradeEntryId;
 const approvedFileId = 'import-file:approved' as ImportFileId;
