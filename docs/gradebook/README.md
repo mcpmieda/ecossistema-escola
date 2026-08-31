@@ -11,48 +11,35 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 
 ## Estado atual
 
-Cinco ondas foram integradas:
+Seis ondas foram integradas. As entregas mais recentes são:
 
-- #193/PR #207: esquema `SourceContractV1`;
-- #194/PR #208: contratos das entidades acadêmicas V1;
-- #195/PR #209: importador separado em módulos;
-- #196/PR #212: contratos de lançamentos e resultados acadêmicos V1;
-- #198/PR #213: fixtures sintéticas e protocolo controlado de validação real;
-- #197/PR #216: contratos de lote, reconciliação e Auditoria V1;
-- #201/PR #217: interpretação semântica nativa das células;
-- #199/PR #225: manifesto SHA-256 e proveniência visível por arquivo;
-- #218/PR #224: arredondamento acadêmico nativo V1;
-- #219/PR #223: portas de persistência e transação independentes do fornecedor;
-- #226/PR #231: composição trimestral nativa V1;
-- #227/PR #233: schema e migrations D1 V1 locais;
-- #228/PR #232: planejador idempotente de reimportação e versionamento.
+- #234/PR #240: recuperação paralela nativa V1;
+- #235/PR #241: migration 0003, catálogo fonte lógica ↔ stream e adaptador D1 local de leitura;
+- #236/PR #239: executor transacional abstrato do plano de reimportação.
 
-O código vigente da quinta onda está no commit `781a2a25640366f1807de7d98cf0157f5c3cfea1`; o deploy Cloudflare Pages `33436989871` foi concluído com sucesso.
+O código vigente da sexta onda está no commit `e8be42bd65b0a59d837ee6ca8283d9564967a6db`; o deploy Cloudflare Pages `33441758173` foi concluído com sucesso.
 
-A sexta onda está pronta para três agentes independentes:
+A sétima onda está pronta para três agentes independentes:
 
-- [#234 — recuperação paralela nativa V1](https://github.com/mcpmieda/ecossistema-escola/issues/234);
-- [#235 — catálogo de streams por fonte lógica e adaptador D1 local de leitura](https://github.com/mcpmieda/ecossistema-escola/issues/235);
-- [#236 — executor transacional do plano de reimportação](https://github.com/mcpmieda/ecossistema-escola/issues/236).
+- [#242 — consolidar resultado trimestral nativo V1](https://github.com/mcpmieda/ecossistema-escola/issues/242);
+- [#243 — formalizar associação transacional fonte lógica ↔ stream V1](https://github.com/mcpmieda/ecossistema-escola/issues/243);
+- [#244 — implementar recuperação final nativa V1](https://github.com/mcpmieda/ecossistema-escola/issues/244).
 
-A integração da sexta onda fica reservada à [#237](https://github.com/mcpmieda/ecossistema-escola/issues/237).
+A integração da sétima onda fica reservada à [#246](https://github.com/mcpmieda/ecossistema-escola/issues/246). A [#245](https://github.com/mcpmieda/ecossistema-escola/issues/245), de escrita/transação D1 local, permanece bloqueada até a integração da #243.
 
 ## Decisão de armazenamento
 
-A issue #200 aprovou **Cloudflare D1** como armazenamento físico principal da base acadêmica. O domínio continua independente do fornecedor por meio das portas da #219.
+A issue #200 aprovou **Cloudflare D1** como armazenamento físico principal da base acadêmica. O domínio continua independente do fornecedor por meio das portas de persistência.
 
-A quinta onda integrou duas migrations locais, 19 tabelas, histórico append-only, chaves estrangeiras por ano, controle otimista, proveniência e índices. Isso ainda **não** significa que exista um banco D1 de produção: nenhum banco, binding, migration remota ou adaptador de escrita foi criado.
+Estado real:
 
-Regras relacionadas:
-
-- acesso ao D1 somente pelo backend autorizado;
-- navegador não é a base institucional;
-- nome do arquivo é metadado, não identidade permanente;
-- mesmo hash não duplica conteúdo;
-- alterações acadêmicas geram versões apenas do que mudou;
-- valores anteriores permanecem no histórico;
-- valores ausentes de uma nova versão exigem revisão, não deleção silenciosa;
-- plano gratuito pode ser usado no desenvolvimento/piloto com medição de consumo.
+- migrations locais 0001–0003 integradas;
+- 21 tabelas para contexto, entidades, fontes, lotes, registros, catálogo por fonte, reconciliação e Auditoria;
+- histórico append-only, chaves estrangeiras por ano, índices e controle otimista;
+- adaptador local de leitura integrado;
+- executor de promoção validado contra porta transacional em memória;
+- nenhum banco D1, binding, secret ou migration remota de produção criado;
+- nenhum adaptador D1 de escrita operacional ainda.
 
 ## Objetivo
 
@@ -71,35 +58,49 @@ Construir um Banco de Notas funcional, modular, auditável e acessível a usuár
 - progresso separado entre preparação/hash e reconhecimento;
 - hash abreviado com acesso ao valor completo;
 - falha e diagnóstico isolados por arquivo;
-- processamento somente em memória, sem upload nem persistência acadêmica;
-- importador organizado em `src/features/gradebook/import/**`.
+- processamento somente em memória, sem upload nem persistência acadêmica.
 
-O operador confirmou o happy path da interface com dois arquivos XLSB: ambos foram reconhecidos, receberam SHA-256 e exibiram manifesto e leitura acadêmica. O smoke completo ainda precisa observar a etapa transitória de hash, expandir o valor completo e provocar uma falha isolada controlada.
+O operador confirmou o happy path da interface com dois arquivos XLSB. O smoke completo ainda precisa observar a etapa transitória de hash, expandir o valor completo e provocar uma falha isolada controlada.
 
 ## Núcleo já integrado
 
-- contratos de fonte, entidades, resultados, importação, reconciliação e Auditoria;
-- semântica nativa de células;
+### Fonte e importação
+
+- contratos de fonte, manifestos, lotes, diagnósticos, reconciliação e Auditoria;
+- reconhecedor modular e suíte sintética;
+- SHA-256 e proveniência visível;
+- planejador de reimportação que separa igual, novo, alterado, ausente e bloqueado.
+
+### Motor nativo
+
+- interpretação semântica de células;
 - arredondamento acadêmico V1;
-- composição trimestral do perfil 2026 com 30/30/40, blocos 45%/55%, cobertura e achados;
-- portas versionadas para entidades, arquivos/lotes, registros acadêmicos e Auditoria;
-- schema D1 local com migrations 0001–0002, 19 tabelas e histórico append-only;
-- planejamento de reimportação que separa igual, novo, alterado, ausente e bloqueado;
-- paginação, concorrência otimista e unidade de trabalho atômica para promoção futura.
+- composição trimestral 30/30/40 e 45%/55%;
+- recuperação paralela vinculada ao quantitativo abaixo de 60% do próprio máximo;
+- original, paralela, valor considerado, ganho, cobertura e achados preservados.
 
-Ainda não existem banco/binding D1 operacional, adaptador de escrita, recuperação paralela/final, executor persistente, área operacional de Auditoria ou demais módulos.
+### Persistência
 
-## Lacuna de integração rastreada
+- contratos de entidades e resultados;
+- portas independentes do fornecedor;
+- schema D1 local 0001–0003;
+- catálogo relacional de streams por fonte lógica;
+- adaptador D1 local de leitura;
+- executor abstrato que valida o plano, aplica somente versões autorizadas e exige rollback em conflito.
 
-O planejador da #228 precisa listar os registros acadêmicos associados a uma fonte lógica para detectar o que desapareceu da nova planilha. As migrations 0001–0002 não guardam essa associação em uma relação própria.
+Ainda não existem persistência acadêmica operacional, adaptador D1 de escrita, binding, endpoints autorizados, recuperação final, resultado anual ou área HeroUI de Auditoria.
 
-A #235 adicionará uma migration 0003 e o adaptador local de leitura correspondente. Não se deve substituir essa relação por varredura de JSON ou pelo nome do arquivo.
+## Adaptação de contrato em andamento
+
+A migration 0003 e a leitura local já representam a associação fonte lógica ↔ stream acadêmico. Porém, a porta de unidade de trabalho, o plano de reconciliação e o executor ainda não possuem uma operação explícita para **versionar essa associação durante a promoção**.
+
+A #243 corrige isso antes da escrita física. A associação não pode ser um efeito colateral escondido do adaptador, nem ser inferida por nome de arquivo ou varredura de JSON.
 
 ## Validação da fonte
 
 A suíte pública sintética cobre D1, D2, D3, VG, trimestres, REC, estados especiais de célula, posições históricas, transferências, lotes de 1/20/50 arquivos, hash e falha isolada. O procedimento `REAL_DATA_VALIDATION.md` define como conferir o corpus real fora do Git.
 
-A execução controlada desse procedimento ainda precisa ser registrada antes do fechamento definitivo da F1. Isso não bloqueia a sexta onda.
+A execução controlada desse procedimento ainda precisa ser registrada antes do fechamento definitivo da F1. Isso não bloqueia a sétima onda.
 
 ## Saúde e limites
 
