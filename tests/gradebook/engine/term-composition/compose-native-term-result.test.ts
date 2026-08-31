@@ -63,7 +63,10 @@ describe('composeNativeTermResult', () => {
       qualitativeOperational: qualitative,
     });
     expect(result.maximums).toEqual({ term: 30, quantitative: 13.5, qualitative: 16.5 });
-    expect(result.rawGrade).toEqual({ state: 'numeric', value: 22.37 });
+    expect(result.rawGrade.state).toBe('numeric');
+    if (result.rawGrade.state === 'numeric') {
+      expect(result.rawGrade.value).toBeCloseTo(22.37, 12);
+    }
     expect(result.nativeGrade).toEqual({ state: 'numeric', value: 22.5 });
   });
 
