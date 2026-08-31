@@ -22,6 +22,7 @@ import {
   type PlatformSnapshotContract,
 } from '../shared/platform-contract';
 import { SidebarContent } from './platform/navigation';
+import { NotesWorkspace } from './platform/notes-workspace';
 import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
 import { routeLabels } from './platform/routes';
@@ -313,6 +314,21 @@ function AdminShell({ identity }: { identity: Identity }) {
   );
   const modules = loadState.status === 'ready' ? loadState.snapshot.coreModules : [];
   const snapshot = loadState.status === 'ready' ? loadState.snapshot : null;
+
+  if (route === 'banco-de-notas') {
+    return (
+      <NotesWorkspace
+        identityName={identity.name}
+        snapshot={snapshot}
+        loading={loadState.status === 'loading'}
+        error={
+          loadState.status === 'error'
+            ? { message: loadState.message, correlationId: loadState.correlationId }
+            : undefined
+        }
+      />
+    );
+  }
 
   return (
     <div className="platform-shell min-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">

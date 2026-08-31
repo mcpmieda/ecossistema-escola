@@ -98,9 +98,19 @@ export function NotesPage() {
     <>
       <PageHeader
         eyebrow="Banco de notas"
-        title="Leitor de planilhas"
-        description="Reconhecimento local do padrão das planilhas de notas: turmas, alunos, períodos, quantitativo, qualitativo e recuperação."
+        title="Banco de notas"
+        description="Área de trabalho para importar e reconhecer planilhas de notas. Novas seções poderão ser adicionadas ao menu interno conforme o módulo evoluir."
       />
+
+      <Surface variant="default" className="mb-5 rounded-2xl border border-border/60 p-2 shadow-sm">
+        <nav aria-label="Seções do Banco de notas" className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" size="sm" aria-current="page">
+            <FileSpreadsheet className="size-4" />
+            Importação
+          </Button>
+        </nav>
+      </Surface>
+
       <Surface variant="default" className="platform-card-surface rounded-[2rem] p-6 sm:p-7">
         <input
           ref={inputRef}
