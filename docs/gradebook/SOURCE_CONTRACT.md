@@ -1,6 +1,6 @@
 # Contrato da fonte — planilhas de notas
 
-**Estado:** referência confirmada; deve virar `SourceContractV1` testável antes de ser considerado congelado.
+**Estado:** estrutura TypeScript V1 integrada pela issue #193/PR #207. A validação sintética e controlada necessária ao congelamento definitivo será concluída pela issue #198.
 
 ## Escopo inicial
 
@@ -112,6 +112,13 @@ Cada arquivo importado deve registrar:
 
 Cada lançamento deve apontar para arquivo/hash/guia/célula, fórmula, valor em cache, valor bruto e valor semântico.
 
+## Implementação V1 integrada
+
+- Código: `shared/gradebook-contracts/source/source-contract-v1.ts`.
+- Testes de contrato: `tests/gradebook/source-contract/source-contract-v1.test.ts`.
+- Integração: issue #193, PR #207, merge `83d7bf4fd91b5f5b51344f73293cb9c39844cefd`.
+- Estado atual: esquema e vocabulário integrados; validação ampliada pendente em #198.
+
 ## Banco central XLSB como referência funcional
 
 A varredura do `BANCO DE NOTAS 2026.xlsb` mostrou uma aplicação Excel composta por configuração, relação, vínculo de notas, base de controle, aproveitamento, boletim, ficha do aluno, Conselho e ata/resultados. No sistema novo:
@@ -131,13 +138,13 @@ A varredura do `BANCO DE NOTAS 2026.xlsb` mostrou uma aplicação Excel composta
 
 Não reproduzir fórmulas, nomes definidos, ActiveX ou guias como arquitetura web. Reproduzir as regras, os dados, a rastreabilidade e os fluxos funcionais.
 
-## Critério de congelamento do contrato V1
+## Critério de congelamento definitivo do contrato V1
 
-O contrato só será congelado depois de:
+O contrato só será considerado definitivamente validado depois de:
 
 1. testes sintéticos cobrindo todos os tipos de célula;
 2. validação de D1 e D2 e fixture representativa de D3;
 3. comparação controlada com as planilhas reais disponíveis;
 4. confirmação de REC e movimentações;
 5. nenhum dado pessoal real versionado;
-6. aprovação da issue de contrato pelo integrador.
+6. aprovação da issue #198 pelo integrador da onda #210.
