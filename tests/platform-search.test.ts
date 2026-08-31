@@ -86,12 +86,14 @@ describe('platform search model', () => {
     expect(normalizeSearch('AUDITORIA')).toBe('auditoria');
   });
 
-  it('indexes only core areas and configuration metadata', () => {
+  it('indexes core areas, gradebook entry points and configuration metadata', () => {
     const items = buildSearchItems(snapshot);
 
     expect(items.map((item) => item.id)).toEqual([
       'core:platform.settings',
       'core:platform.audit',
+      'core:content.notes',
+      'notes:importacao',
       'config:config-1',
     ]);
     expect(filterSearchItems(items, 'SEGREDO_NAO_INDEXAR')).toEqual([]);
@@ -103,6 +105,7 @@ describe('platform search model', () => {
 
     expect(filterSearchItems(items, 'configuracoes')[0]?.href).toBe('#/configuracoes');
     expect(filterSearchItems(items, 'auditoria')[0]?.href).toBe('#/auditoria');
+    expect(filterSearchItems(items, 'importar planilha')[0]?.href).toBe('#/banco-de-notas');
   });
 
   it('enforces the result limit', () => {
