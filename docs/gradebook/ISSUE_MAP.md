@@ -5,22 +5,22 @@ Este arquivo apresenta o projeto em linguagem simples. O estado legível por má
 ## Visão geral
 
 - **Issue principal:** [#182](https://github.com/mcpmieda/ecossistema-escola/issues/182)
-- **Integração atual:** [#221 — quarta onda](https://github.com/mcpmieda/ecossistema-escola/issues/221)
+- **Integração atual:** [#229 — quinta onda](https://github.com/mcpmieda/ecossistema-escola/issues/229)
 - **Site oficial:** `https://admin.escolaieda.com/#/banco-de-notas`
-- **Onda atual:** #199, #218 e #219, simultaneamente.
-- **Ondas concluídas:** primeira, segunda e terceira.
-- **Armazenamento aprovado:** Cloudflare D1 pela [#200](https://github.com/mcpmieda/ecossistema-escola/issues/200).
-- **Planejamento global futuro:** [#220 — Saúde e limites no Centro de Administração](https://github.com/mcpmieda/ecossistema-escola/issues/220).
+- **Onda atual:** #226, #227 e #228, simultaneamente.
+- **Ondas concluídas:** primeira, segunda, terceira e quarta.
+- **Armazenamento aprovado:** Cloudflare D1, conforme #200.
+- **Saúde e limites:** #220 planejada no Centro de Administração.
 
 ## Fases
 
 | Fase | Issue | Estado | Progresso objetivo | Resultado esperado no site |
 |---|---:|---|---:|---|
 | F0 — Fundação e coordenação | [#183](https://github.com/mcpmieda/ecossistema-escola/issues/183) | Publicada | 7/7 | Base para agentes |
-| F1 — Fonte e importação | [#184](https://github.com/mcpmieda/ecossistema-escola/issues/184) | Em construção | 5/7 | Importação confiável e rastreável |
-| F2 — Modelo e persistência | [#185](https://github.com/mcpmieda/ecossistema-escola/issues/185) | Em construção | 3/6 | Dados disponíveis após recarregar |
-| F3 — Motor nativo | [#186](https://github.com/mcpmieda/ecossistema-escola/issues/186) | Em construção | 1/7 | Comparação fonte × cálculo nativo |
-| F4 — Reconciliação e Auditoria | [#187](https://github.com/mcpmieda/ecossistema-escola/issues/187) | Em construção | 1/6 | Revisão, pendências e promoção do lote |
+| F1 — Fonte e importação | [#184](https://github.com/mcpmieda/ecossistema-escola/issues/184) | Em validação final | 6/7 | Importação confiável e rastreável |
+| F2 — Modelo e persistência | [#185](https://github.com/mcpmieda/ecossistema-escola/issues/185) | Em construção | 4/6 | Dados disponíveis após recarregar |
+| F3 — Motor nativo | [#186](https://github.com/mcpmieda/ecossistema-escola/issues/186) | Em construção | 2/7 | Comparação fonte × cálculo nativo |
+| F4 — Reconciliação e Auditoria | [#187](https://github.com/mcpmieda/ecossistema-escola/issues/187) | Em construção | 2/6 | Revisão, pendências e promoção do lote |
 | F5 — Contexto e centrais | [#188](https://github.com/mcpmieda/ecossistema-escola/issues/188) | Planejada | 0/7 | Aluno, turma, professor e componente |
 | F6 — Desempenho | [#189](https://github.com/mcpmieda/ecossistema-escola/issues/189) | Planejada | 0/6 | Matriz analítica da turma |
 | F7 — Conselho | [#190](https://github.com/mcpmieda/ecossistema-escola/issues/190) | Planejada | 0/7 | Fluxo operacional do Conselho |
@@ -36,73 +36,74 @@ Este arquivo apresenta o projeto em linguagem simples. O estado legível por má
 | [#195](https://github.com/mcpmieda/ecossistema-escola/issues/195) | Importador modularizado | #209 / `17ba8b1` |
 | [#196](https://github.com/mcpmieda/ecossistema-escola/issues/196) | Lançamentos e resultados acadêmicos V1 | #212 / `6b8eb4c` |
 | [#198](https://github.com/mcpmieda/ecossistema-escola/issues/198) | Fixtures sintéticas e protocolo privado | #213 / `32450ac` |
-| [#197](https://github.com/mcpmieda/ecossistema-escola/issues/197) | Lote, manifesto, reconciliação e Auditoria V1 | #216 / `0f1ba62` |
-| [#201](https://github.com/mcpmieda/ecossistema-escola/issues/201) | Interpretação semântica nativa das células | #217 / `9476f84` |
-| [#200](https://github.com/mcpmieda/ecossistema-escola/issues/200) | Decisão: Cloudflare D1 | decisão concluída |
+| [#197](https://github.com/mcpmieda/ecossistema-escola/issues/197) | Lote, reconciliação e Auditoria V1 | #216 / `0f1ba62` |
+| [#201](https://github.com/mcpmieda/ecossistema-escola/issues/201) | Semântica nativa das células | #217 / `9476f84` |
+| [#199](https://github.com/mcpmieda/ecossistema-escola/issues/199) | SHA-256, manifesto e proveniência visível | #225 / `bc82b35` |
+| [#218](https://github.com/mcpmieda/ecossistema-escola/issues/218) | Arredondamento acadêmico nativo V1 | #224 / `dc54adc` |
+| [#219](https://github.com/mcpmieda/ecossistema-escola/issues/219) | Portas de persistência e transação V1 | #223 / `65af08f` |
 
-O código da terceira onda foi publicado pelo deploy `33424938206`.
+A mudança visual da quarta onda foi publicada pelo deploy `33429726281`.
 
-## Onda 4 — pronta para agentes
+## Onda 5 — pronta para agentes
 
 As três issues abaixo escrevem em áreas separadas e podem ser executadas ao mesmo tempo:
 
-1. [#199 — manifesto SHA-256 e proveniência](https://github.com/mcpmieda/ecossistema-escola/issues/199)
-   - Feature de importação e testes próprios.
-   - Resultado visível: hash/manifesto, etapas de progresso e diagnóstico por arquivo.
-   - Não persiste nem envia bytes.
+1. [#226 — composição trimestral nativa V1](https://github.com/mcpmieda/ecossistema-escola/issues/226)
+   - Caminhos: `src/gradebook-domain/calculations/term/**` e testes próprios.
+   - Não implementa recuperação, UI ou persistência.
 
-2. [#218 — arredondamento acadêmico nativo V1](https://github.com/mcpmieda/ecossistema-escola/issues/218)
-   - Regra pura e testes próprios.
-   - Cobre limites 0,24/0,25/0,74/0,75 e negativos simétricos.
-   - Não compõe notas nem altera autoridade.
+2. [#227 — esquema e migrations D1 V1](https://github.com/mcpmieda/ecossistema-escola/issues/227)
+   - Caminhos: migrations/schema D1, documento próprio e testes locais.
+   - Não cria banco/binding de produção e não altera `wrangler.jsonc`.
 
-3. [#219 — portas de persistência e transação V1](https://github.com/mcpmieda/ecossistema-escola/issues/219)
-   - Portas do domínio e testes de contrato.
-   - Não cria D1, SQL, binding ou migrations.
-   - Prepara transações, versionamento, idempotência e consultas paginadas.
+3. [#228 — planejador idempotente de reimportação](https://github.com/mcpmieda/ecossistema-escola/issues/228)
+   - Caminhos: camada de aplicação da importação e testes de idempotência.
+   - Planeja alterações; não executa writes nem associa fonte ambígua.
 
-O integrador acompanha as três entregas em [#221](https://github.com/mcpmieda/ecossistema-escola/issues/221).
+O integrador acompanha os três trabalhos em [#229](https://github.com/mcpmieda/ecossistema-escola/issues/229).
 
 ## Próxima onda — dependências conhecidas
 
-| Tarefa | Liberação necessária |
+| Tarefa futura | Liberação necessária |
 |---|---|
-| Composição trimestral nativa | #218 integrada e issue pequena criada pela #221 |
-| Esquema e migrations D1 | #219 integrada e issue própria criada pela #221 |
-| Idempotência/versionamento persistente | #199 + #219 integradas |
-| Recuperação paralela/final | composição trimestral e arredondamento integrados |
+| Recuperação paralela nativa | #226 integrada |
+| Adaptador D1 local/preview e bindings por ambiente | #227 integrada |
+| Execução transacional da reimportação | #227 + #228 integradas |
+| Saúde e limites globais (#220) | D1/bindings e backend de métricas reais |
 
 ## Dependências principais
 
 ```text
-#193 + #194 ──> #196 ──> #197 e #201
-#197 + #195 ──> #199
-#201 ─────────> #218
-#200 + contratos ──> #219
+#201 + #218 ──> #226
+#219 + decisão #200 ──> #227
+#197 + #199 + #219 ──> #228
 
-Onda 1 ──> integração #203
-Onda 2 ──> integração #210
-Onda 3 ──> integração #214
-Onda 4 ──> integração #221
+#226 + #227 + #228 ──> integração #229
+
+#227 ──> adaptador D1
+#227 + #228 ──> promoção/versionamento persistente
+#226 ──> próxima regra do motor
 ```
 
-## Decisões D1 e reimportação
+## Gates manuais
 
-- D1 é o armazenamento físico aprovado, acessado somente pelo backend.
-- O domínio continua independente por portas.
+### Fonte real
+
+A #198 entregou a massa sintética e `REAL_DATA_VALIDATION.md`. A execução controlada com o corpus real continua pendente antes do fechamento definitivo da F1.
+
+### Smoke visual da #199
+
+O build e o deploy passaram. Ainda é necessário um operador autenticado selecionar um arquivo no site oficial e conferir SHA-256 abreviado/completo, progresso por etapa e diagnóstico isolado. Isso não bloqueia a onda 5.
+
+Nenhum gate autoriza publicar arquivos, nomes, notas, hashes ou caminhos privados.
+
+## Decisões vigentes relacionadas
+
+- D1 é o armazenamento físico aprovado; acesso somente pelo backend.
+- O domínio usa portas independentes do D1.
 - Nome do arquivo não é identidade permanente.
-- Mesmo hash renomeado é o mesmo conteúdo.
-- Arquivo atualizado gera comparação incremental; somente valores novos/alterados criam versões.
-- Histórico anterior nunca é apagado.
-- Nenhum banco/binding/migration de produção é criado sem issue própria.
-
-## Gate manual da fonte
-
-A #198 entregou a massa sintética e `REAL_DATA_VALIDATION.md`. A execução controlada com o corpus real continua pendente antes do fechamento definitivo da F1. Esse gate não bloqueia a onda 4 e não permite publicar arquivos, nomes, notas, hashes ou caminhos privados.
-
-## Saúde e limites
-
-A #220 permanece **Planejada**. O painel ficará em `Centro de Administração → Configurações → Saúde e limites`, porque quotas e consumo pertencem ao ambiente inteiro. Ele só será liberado quando existirem D1/bindings e backend de métricas.
+- Mesmo hash não duplica; diferenças geram versões apenas quando o conteúdo acadêmico mudou.
+- Saúde e limites pertencem ao Centro de Administração, não ao Banco isoladamente.
 
 ## Como iniciar um agente
 
