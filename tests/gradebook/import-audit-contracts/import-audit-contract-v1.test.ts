@@ -154,7 +154,7 @@ describe('import, reconciliation and audit contracts v1', () => {
     const approvedBatch = {
       id: 'import-batch:synthetic-approved' as ImportBatchId,
       status: 'approved',
-      files: [batch.files[0]],
+      files: [batch.files[0]!],
       diagnostics: [],
       summary: {
         totalFileCount: 1,
