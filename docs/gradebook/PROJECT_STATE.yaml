@@ -11,9 +11,9 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 214
-  current_integrator_issue: 221
-  current_wave: 4
+  previous_integrator_issue: 221
+  current_integrator_issue: 229
+  current_wave: 5
   integrator_required: true
   recommended_parallel_agents: 3
   central_state_editor: integrator-only
@@ -23,8 +23,9 @@ coordination:
   coordination_bootstrap_commit: ec6c712e287e97269375c6f5c4790c1529ea4309
 
 runtime:
-  last_verified_runtime_commit: 9476f84af7f99733c32f4a2503a50a4ef3c15c3f
-  last_verified_deploy_run: 33424938206
+  last_verified_runtime_commit: bc82b351026c44f2bddeb91920f61362a163f379
+  last_verified_deploy_run: 33429726281
+  last_deployment_preview: https://3059371e.ecossistema-escola.pages.dev
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
@@ -36,64 +37,51 @@ runtime:
     - xlsb-xlsx-xls-reading
     - teacher-workbook-recognition
     - trimester-and-recovery-recognition
-    - source-contract-v1-schema
+    - source-contract-v1
     - academic-entity-contracts-v1
     - academic-result-contracts-v1
     - import-reconciliation-audit-contracts-v1
-    - native-cell-semantics-v1
     - synthetic-source-and-import-regression-suite
     - controlled-real-data-validation-protocol
+    - native-source-cell-semantics-v1
+    - native-academic-rounding-v1
+    - provider-independent-persistence-ports-v1
+    - client-side-sha256-source-manifests
+    - visible-file-provenance-and-isolated-diagnostics
   current_limitations:
     - academic-data-is-not-persisted
-    - d1-is-approved-but-not-provisioned
-    - native-engine-has-only-cell-semantics
+    - d1-schema-bindings-and-adapter-not-yet-implemented
+    - native-term-composition-not-yet-implemented
     - controlled-real-corpus-validation-not-yet-recorded
-    - source-manifest-hash-is-not-yet-in-the-ui
     - audit-workspace-not-yet-implemented
+    - production-file-selection-smoke-test-pending
 
 scope:
   operational_sources:
     - teacher-grade-spreadsheets
   functional_reference:
     - BANCO_DE_NOTAS_2026_XLSB
+  physical_storage_decision:
+    technology: cloudflare-d1
+    status: approved
+    decision_issue: 200
+    access: authorized-backend-only
+    domain_dependency: provider-independent-ports
+    production_provisioning: not-yet-authorized-or-created
   excluded_for_now:
     - smecel
     - additional-cadastral-sources
     - automatic-onedrive-sync
     - standardized-technical-spreadsheet
 
-canonical_decisions:
-  physical_storage:
-    status: approved
-    provider: cloudflare-d1
-    issue: 200
-    provisioning_status: not-provisioned
-    constraints:
-      - backend-authorized-access-only
-      - domain-ports-independent-of-provider
-      - free-plan-allowed-for-development-and-pilot
-      - measure-reads-writes-and-storage-before-full-operation
-  source_identity:
-    status: approved
-    filename_is_identity: false
-    identical_content_key: sha256
-    reimport_mode: incremental-versioned
-    ambiguous_logical-source_match: requires-human-confirmation
-  infrastructure_health:
-    status: planned
-    issue: 220
-    owner_surface: admin-center
-    route_target: '#/configuracoes/saude-e-limites'
-
 contracts:
   source:
     status: schema-and-synthetic-validation-integrated
     schema_issue: 193
-    schema_pull_request: 207
-    schema_merge_commit: 83d7bf4fd91b5f5b51344f73293cb9c39844cefd
     validation_issue: 198
-    validation_pull_request: 213
-    validation_merge_commit: 32450ac431dde3ddad1dfcbee436710eb2cd6555
+    runtime_manifest_issue: 199
+    runtime_manifest_pull_request: 225
+    runtime_manifest_merge_commit: bc82b351026c44f2bddeb91920f61362a163f379
     manual_gate: controlled-real-corpus-validation
   academic_entities:
     status: frozen-v1
@@ -115,9 +103,16 @@ contracts:
     issue: 201
     pull_request: 217
     merge_commit: 9476f84af7f99733c32f4a2503a50a4ef3c15c3f
+  native_rounding:
+    status: implemented-v1
+    issue: 218
+    pull_request: 224
+    merge_commit: dc54adcc5c72d2be2c652b88668b5678d25610ef
   persistence_ports:
-    status: ready-for-implementation
+    status: frozen-v1
     issue: 219
+    pull_request: 223
+    merge_commit: 65af08fbbd4ded85375a13a90c4cb0151844ae1e
 
 phases:
   F0:
@@ -130,31 +125,31 @@ phases:
   F1:
     name: source-contract-and-import
     status: in-progress
-    completed_units: 5
+    completed_units: 6
     total_units: 7
     issue: 184
-    visible_result: modular-batch-reader-in-production
+    visible_result: sha256-manifest-and-file-provenance-in-production
   F2:
     name: normalized-domain-and-persistence-boundaries
     status: in-progress
-    completed_units: 3
+    completed_units: 4
     total_units: 6
     issue: 185
     visible_result: none
   F3:
     name: native-engine
     status: in-progress
-    completed_units: 1
+    completed_units: 2
     total_units: 7
     issue: 186
     visible_result: none
   F4:
     name: reconciliation-and-audit
     status: in-progress
-    completed_units: 1
+    completed_units: 2
     total_units: 6
     issue: 187
-    visible_result: none
+    visible_result: manifest-and-file-diagnostics-only
   F5:
     name: operational-entity-centers-and-context
     status: planned
@@ -227,61 +222,43 @@ completed_queue:
     task: native-cell-semantics-engine
     pull_request: 217
     merge_commit: 9476f84af7f99733c32f4a2503a50a4ef3c15c3f
-  - issue: 200
-    phase: F2
-    task: choose-physical-academic-storage
-    decision: cloudflare-d1
-
-ready_queue:
   - issue: 199
     phase: F1
-    task: sha256-manifest-and-file-provenance
-    parallel_group: wave-4
+    task: sha256-manifest-and-visible-file-provenance
+    pull_request: 225
+    merge_commit: bc82b351026c44f2bddeb91920f61362a163f379
   - issue: 218
     phase: F3
     task: native-academic-rounding-v1
-    parallel_group: wave-4
+    pull_request: 224
+    merge_commit: dc54adcc5c72d2be2c652b88668b5678d25610ef
   - issue: 219
     phase: F2
-    task: persistence-and-transaction-ports-v1
-    parallel_group: wave-4
+    task: provider-independent-persistence-ports-v1
+    pull_request: 223
+    merge_commit: 65af08fbbd4ded85375a13a90c4cb0151844ae1e
 
-blocked_queue:
-  - task: native-term-composition
+ready_queue:
+  - issue: 226
     phase: F3
-    blocked_by:
-      - 218
-    issue: not-created
-  - task: d1-schema-and-migrations
+    task: native-term-composition-v1
+    parallel_group: wave-5
+  - issue: 227
     phase: F2
-    blocked_by:
-      - 219
-    issue: not-created
-  - task: persistent-idempotency-and-versioning
+    task: d1-schema-and-migrations-v1-without-production-provisioning
+    parallel_group: wave-5
+  - issue: 228
     phase: F4
-    blocked_by:
-      - 199
-      - 219
-    issue: not-created
-  - task: native-parallel-recovery
-    phase: F3
-    blocked_by:
-      - native-term-composition
-    issue: not-created
-  - task: native-final-recovery
-    phase: F3
-    blocked_by:
-      - native-term-composition
-      - 218
-    issue: not-created
+    task: idempotent-reimport-change-planner-v1
+    parallel_group: wave-5
 
 planned_queue:
   - issue: 220
-    scope: admin-center
+    area: admin-center
     task: global-health-and-limits
     blocked_by:
-      - d1-binding-and-usage
-      - administrative-metrics-backend
+      - d1-bindings
+      - authorized-metrics-backend
 
 manual_gates:
   - gate: controlled-real-corpus-validation
@@ -289,44 +266,48 @@ manual_gates:
     protocol: docs/gradebook/REAL_DATA_VALIDATION.md
     status: pending-recorded-execution
     blocks:
-      - final-source-contract-validation
-      - F1-completion
+      - F1-final-validation
+  - gate: production-manifest-ui-file-smoke
+    phase: F1
+    status: pending-operator-file-selection
+    reason: authenticated-interactive-file-selection-not-available-to-integrator-session
     does_not_block:
-      - 199
-      - 218
-      - 219
+      - 226
+      - 227
+      - 228
 
 integration:
   previous:
-    issue: 214
-    wave: 3
-    status: completed
-    merged_pull_requests:
-      - 216
-      - 217
-    verified_runtime_commit: 9476f84af7f99733c32f4a2503a50a4ef3c15c3f
-    deploy_run: 33424938206
-  current:
     issue: 221
     wave: 4
+    status: completed
+    merged_pull_requests:
+      - 223
+      - 224
+      - 225
+    verified_runtime_commit: bc82b351026c44f2bddeb91920f61362a163f379
+    deploy_run: 33429726281
+  current:
+    issue: 229
+    wave: 5
     status: waiting-for-pull-requests
     watches:
-      - 199
-      - 218
-      - 219
+      - 226
+      - 227
+      - 228
     responsibilities:
-      - import-manifest-and-visible-provenance-review
-      - native-rounding-review
-      - persistence-ports-review
+      - native-term-composition-review
+      - d1-schema-and-migration-review
+      - idempotent-reimport-planner-review
       - merge-and-production-verification
       - state-and-issue-map-update
       - next-wave-definition-and-unlock
 
 next_integrator_actions:
-  - wait-for-issues-199-218-and-219
-  - review-contract-compatibility-purity-and-data-sanitization
-  - verify-visible-import-manifest-in-production
-  - create-native-term-composition-issue-after-218
-  - create-d1-schema-and-migrations-issue-after-219
-  - create-idempotency-versioning-issue-after-199-and-219
-  - create-wave-5-integration-issue
+  - wait-for-issues-226-227-and-228
+  - review-domain-application-and-persistence-boundaries
+  - merge-small-pull-requests-continuously
+  - create-local-preview-d1-adapter-and-binding-issue-after-227
+  - create-transactional-reimport-execution-issue-after-227-and-228
+  - create-next-native-engine-issue-after-226
+  - create-wave-6-integration-issue
