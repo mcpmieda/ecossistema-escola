@@ -4,10 +4,11 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 
 ## Estado de implementação
 
-- **Fonte:** esquema `SourceContractV1` integrado por #193/PR #207; validação definitiva pendente em #198.
+- **Fonte:** esquema e suíte sintética integrados por #193/#198; execução controlada com o corpus real permanece como gate da F1.
 - **Entidades acadêmicas:** `congelado-v1`, integradas por #194/PR #208.
-- **Lançamentos e resultados:** `congelado-v1`, implementados por #196 em `shared/gradebook-contracts/results/results-contract-v1.ts`.
-- **Lote, reconciliação e Auditoria:** `proposto`; #197 pode iniciar depois da integração de #196.
+- **Lançamentos e resultados:** `congelado-v1`, integrados por #196/PR #212 em `shared/gradebook-contracts/results/results-contract-v1.ts`.
+- **Lote, reconciliação e Auditoria:** `proposto`; issue #197 está pronta para execução.
+- **Semântica nativa das células:** issue #201 está pronta e deve consumir os contratos existentes sem alterá-los.
 - **Read models:** `proposto`; serão detalhados nas issues dos módulos consumidores.
 
 ## Estados de maturidade
