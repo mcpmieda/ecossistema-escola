@@ -2,9 +2,11 @@
 
 ## Estado e limite desta entrega
 
-Este documento descreve o schema relacional inicial compatível com Cloudflare D1 e com as portas de persistência V1. A entrega contém somente SQL versionado, registro das migrations e testes sobre SQLite descartável. Nenhum banco, binding, secret, recurso remoto ou migration de produção é criado ou executado.
+**Estado:** integrado pela issue #227/PR #233 no commit `781a2a25640366f1807de7d98cf0157f5c3cfea1`.
 
-O domínio permanece independente de D1. O futuro adaptador será responsável por converter contratos e portas em comandos SQL, sem expor tabelas aos consumidores.
+Este documento descreve o schema relacional inicial compatível com Cloudflare D1 e com as portas de persistência V1. A entrega contém somente SQL versionado, registro das migrations e testes sobre SQLite descartável. Nenhum banco, binding, secret, recurso remoto ou migration de produção foi criado ou executado.
+
+O domínio permanece independente de D1. O adaptador será responsável por converter contratos e portas em comandos SQL, sem expor tabelas aos consumidores.
 
 ## Migrations registradas
 
@@ -21,7 +23,7 @@ As duas migrations usam `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXIST
 
 - Todo identificador de domínio é armazenado como `TEXT` opaco; nomes de exibição não participam de chaves técnicas.
 - Toda relação acadêmica relevante inclui `academic_year_id`; FKs compostas impedem referências acidentais entre anos.
-- Streams mantêm apenas `current_version`, usado como ponteiro de controle otimista. O conteúdo de cada versão é acrescentado nas tabelas `*_versions` e nunca atualizado ou apagado pelo fluxo normal.
+- Streams mantêm `current_version` como ponteiro de controle otimista. O conteúdo de cada versão é acrescentado nas tabelas `*_versions` e não é apagado pelo fluxo normal.
 - Nenhuma FK usa `ON DELETE CASCADE`. Evidência, nota, resultado, diagnóstico e transição histórica não desaparecem por exclusão de um registro pai.
 - Campos consultados, relações e estados operacionais são normalizados. O payload contratual completo também é preservado em JSON válido para que o adaptador não perca campos congelados V1.
 - O nome do arquivo é metadado versionado. SHA-256 identifica conteúdo e recebe índice/constraint próprios.
@@ -59,7 +61,7 @@ As referências armazenam também o tipo esperado e usam FK composta `(academic_
 | `source_file_logical_source_candidates` | candidatos explícitos para associação ambígua                                                    |
 | `import_batch_streams`                  | identidade e versão atual do lote                                                                |
 | `import_batch_versions`                 | estados, resumo e payload histórico do lote                                                      |
-| `import_batch_files`                    | arquivo sintético do lote ligado à versão exata do manifesto quando existente                    |
+| `import_batch_files`                    | arquivo do lote ligado à versão exata do manifesto quando existente                              |
 | `import_diagnostics`                    | diagnóstico ligado a lote, arquivo, manifesto, localização, entidade e evidência                 |
 
 `source_file_streams` possui unicidade `(academic_year_id, current_sha256)`. O mesmo conteúdo renomeado permanece no mesmo stream e pode gerar outra versão com outro `file_name`; um segundo stream atual com o mesmo hash é rejeitado. Hash diferente pode ser associado a uma fonte lógica somente como candidato ou confirmação explícita.
@@ -104,7 +106,7 @@ versão 1  → previous_version IS NULL
 versão N  → previous_version = N - 1
 ```
 
-Isso torna uma expectativa obsoleta observável por update condicional e também impede versões duplicadas ou saltos na trilha. O SQL não implementa sozinho a unidade de trabalho: atomicidade e retorno de `VersionedWriteResultV1` pertencem ao adaptador futuro.
+Isso torna uma expectativa obsoleta observável por update condicional e também impede versões duplicadas ou saltos na trilha. O SQL não implementa sozinho a unidade de trabalho: atomicidade e retorno de `VersionedWriteResultV1` pertencem ao adaptador.
 
 ## Índices críticos
 
@@ -142,21 +144,35 @@ O adaptador deve gerar `recorded_at` no servidor autorizado. A migration usa o r
 - reconciliação, proveniência e transições de Auditoria;
 - timestamps UTC e presença dos índices críticos.
 
-Todos os IDs, nomes, payloads e valores usados são sintéticos.
+Todos os IDs, nomes, payloads e valores usados são sintéticos. O workflow da #227 passou com 28 arquivos/246 testes e build aprovado.
+
+## Lacuna de compatibilidade identificada na integração
+
+O planejador da #228 possui `LogicalSourceRecordCatalogV1` para enumerar os streams acadêmicos atuais de uma fonte lógica. Essa leitura é necessária para detectar `missing-from-new-source` sem apagar valores anteriores.
+
+As migrations 0001–0002 ainda não registram diretamente a associação:
+
+```text
+logical_source_id ↔ record_kind + stream_key
+```
+
+É tecnicamente possível encontrar referências dentro de payloads/evidências, mas isso exigiria varredura de JSON, seria difícil de indexar e criaria acoplamento implícito. Essa solução foi rejeitada.
+
+A issue #235 adicionará uma migration 0003 com relação explícita, isolada por ano, versionada/auditável e indexada, além do primeiro adaptador D1 local de leitura. Até essa integração, o schema V1 é válido como base, mas não é suficiente para a detecção persistente completa de registros ausentes por fonte lógica.
 
 ## Lacunas deliberadas para as próximas issues
 
-Esta entrega não inclui:
+Esta entrega ainda não inclui:
 
+- catálogo relacional fonte lógica ↔ streams acadêmicos — #235;
 - binding D1 em `wrangler.jsonc` ou configuração por ambiente;
-- criação de banco local/remoto ou execução de migration fora do teste descartável;
-- adaptadores das quatro portas de repositório;
-- implementação transacional de `BatchPromotionTransactionPortV1`;
+- criação de banco local/remoto ou execução de migration fora dos testes descartáveis;
+- adaptadores completos das quatro portas de repositório;
+- implementação física de `BatchPromotionTransactionPortV1`;
 - autorização/capabilities do backend e endpoints;
 - runner operacional de migrations, rollout, backup ou recuperação;
-- política de escolha/confirmação de fonte lógica;
-- regra transacional que exija ao menos um candidato quando o estado é `candidate`;
+- política humana de escolha/confirmação de fonte lógica;
 - armazenamento de binários;
 - métricas de Saúde e limites.
 
-A próxima entrega segura após integração é criar o adaptador D1 local/preview e os bindings por ambiente em issue própria. A promoção transacional concreta depende também do planejamento idempotente da #228.
+A #235 implementará a extensão relacional e leituras locais. A #236 implementará o executor transacional contra portas, ainda independente do D1. Depois que ambas forem integradas, será seguro criar a escrita/promoção transacional concreta no D1 e, separadamente, provisionar bindings por ambiente.
