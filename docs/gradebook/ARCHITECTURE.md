@@ -40,8 +40,6 @@ Planejamento, revisão e execução são etapas diferentes. O planejador não gr
 
 Cloudflare D1 é o armazenamento físico aprovado para a base acadêmica.
 
-Essa decisão não acopla o domínio ao fornecedor:
-
 ```text
 Domínio/aplicação
        ↓
@@ -63,7 +61,8 @@ O sistema separa:
 - **nome do arquivo:** metadado observado;
 - **SHA-256:** identidade exata dos bytes;
 - **fonte lógica:** continuidade confirmada de professor/ano/contexto;
-- **versão acadêmica:** alteração real de entidade, lançamento ou resultado.
+- **stream acadêmico:** chave estável de um lançamento ou resultado;
+- **versão acadêmica:** alteração real do conteúdo desse stream.
 
 Consequências:
 
@@ -75,7 +74,7 @@ Consequências:
 - valores desaparecidos da nova fonte não são apagados silenciosamente;
 - histórico anterior permanece imutável/auditável.
 
-Para detectar itens que desapareceram, é necessário saber quais streams acadêmicos pertencem à mesma fonte lógica. Essa associação deve ser relacional e indexada; não pode ser inferida por nome de arquivo nem por varredura de JSON.
+Para detectar itens que desapareceram, é necessário saber quais streams acadêmicos pertencem à mesma fonte lógica. Essa associação é relacional, anual, indexada e versionada; não pode ser inferida por nome de arquivo nem por varredura de JSON.
 
 ## Limites dos módulos
 
@@ -95,17 +94,42 @@ Vocabulário e formatos compartilhados. Alteração incompatível exige issue es
 
 Responsável por semântica de célula, composição de nota, recuperação, arredondamento, resultado anual, situações e precedências. É TypeScript puro, determinístico e independente de React/HeroUI, browser, banco físico e APIs externas.
 
+Implementações atuais:
+
+- interpretação semântica de células;
+- arredondamento acadêmico;
+- composição trimestral 30/30/40 e 45%/55%;
+- recuperação paralela por quantitativo abaixo de 60% do próprio máximo.
+
+A #242 consolidará paralela + composição + percentual. A #244 implementará recuperação final.
+
 ### Aplicação
 
 Orquestra casos de uso contra contratos e portas. Aqui ficam planejamento de reimportação, reconciliação, promoção de lote e montagem de comandos. Não conhece componentes HeroUI nem executa SQL diretamente.
 
-O planejador produz um `ImportChangePlanV1` com itens `unchanged`, `new`, `changed`, `missing-from-new-source` e `blocked`. O executor da #236 aplicará somente itens aprovados e versionáveis dentro da porta transacional.
+O planejador produz um `ImportChangePlanV1` com itens:
+
+```text
+unchanged
+new
+changed
+missing-from-new-source
+blocked
+```
+
+O executor:
+
+- valida o plano antes de qualquer write;
+- aplica somente versões de fonte e registros `new`/`changed` de arquivos prontos;
+- não escreve itens inalterados, ausentes ou bloqueados;
+- exige rollback integral para conflito ou falha;
+- permanece independente do D1.
 
 ### Persistência
 
 Responsável por transações, histórico, idempotência e consulta. O domínio conhece portas/interfaces, não o fornecedor físico.
 
-Portas V1 integradas:
+Portas integradas:
 
 - entidades acadêmicas;
 - arquivos/fontes/lotes;
@@ -115,23 +139,49 @@ Portas V1 integradas:
 - promoção atômica de lote;
 - paginação e concorrência otimista.
 
+A #243 adicionará a porta versionada da associação fonte lógica ↔ stream e a tornará parte explícita da unidade de trabalho, do plano e da estimativa.
+
 ### Schema D1
 
-As migrations 0001–0002 estão integradas e testadas localmente. Elas modelam ano/configuração, entidades, fontes, lotes, registros acadêmicos, reconciliação e Auditoria com histórico append-only, FKs por ano e índices.
+As migrations 0001–0003 estão integradas e testadas localmente. Elas modelam:
 
-Nenhuma migration foi aplicada em banco remoto. O schema físico não substitui contratos e não é consumido diretamente pela interface.
+- ano/configuração;
+- entidades acadêmicas;
+- fontes lógicas, manifestos e lotes;
+- registros acadêmicos versionados;
+- reconciliação e Auditoria;
+- associação versionada entre fonte lógica e stream acadêmico.
 
-### Adaptador D1
+São 21 tabelas, com histórico append-only, FKs por ano e índices. Nenhuma migration foi aplicada em banco remoto. O schema físico não substitui contratos e não é consumido diretamente pela interface.
 
-Implementação externa das portas. Pode importar tipos Cloudflare e executar SQL, mas não expõe D1 ao domínio.
+### Adaptador D1 de leitura
 
-A #235 implementará o primeiro adaptador local de leitura e adicionará a migration 0003 para a associação fonte lógica ↔ streams acadêmicos. Operações de escrita e a transação física completa serão liberadas depois da integração entre #235 e #236.
+`server/gradebook/persistence/d1/read/d1-read-adapter-v1.ts` implementa localmente:
+
+- busca de fonte por SHA-256;
+- leitura da versão atual do manifesto;
+- leitura do registro acadêmico atual;
+- listagem dos streams ativos de uma fonte lógica.
+
+O adaptador reconstrói contratos, confere colunas normalizadas e sanitiza falhas. Ele não usa nome de arquivo nem `json_extract` para descobrir associações.
+
+### Adaptador D1 de escrita
+
+Ainda não existe. A #245 está bloqueada até a #243 formalizar a escrita da associação.
+
+Quando liberado, o adaptador deve:
+
+- implementar compare-and-set para raízes e versões;
+- gravar fonte, registro acadêmico e associação explicitamente;
+- usar uma única transação por promoção;
+- reverter tudo em conflito ou constraint;
+- não provisionar produção silenciosamente.
 
 ### Reconciliação e Auditoria
 
 Compara fonte, versões persistidas e motor; produz ocorrências explícitas. Erro crítico não pode ser mascarado por sucesso geral. Resoluções mantêm ator, data, justificativa e estado anterior.
 
-O planejador da #228 é somente leitura e não executa deleção. Itens ausentes permanecem pendentes de decisão.
+O planejador é somente leitura. Itens ausentes permanecem pendentes de decisão. O executor aplica somente o conjunto previamente aprovado.
 
 ### Read models
 
@@ -143,7 +193,7 @@ Responsável por fluxo, comandos, consulta e apresentação. HeroUI React v3 é 
 
 ### Saúde e limites
 
-Área global futura do Centro de Administração, registrada na #220. Receberá métricas de Cloudflare/D1 e consumo por módulo por meio de backend autorizado. Tokens e dados acadêmicos não chegam ao navegador. O Banco poderá fornecer estimativa de impacto de importação, mas não manterá um painel de infraestrutura isolado.
+Área global futura do Centro de Administração, registrada na #220. Receberá métricas de Cloudflare/D1 e consumo por módulo por meio de backend autorizado. Tokens e dados acadêmicos não chegam ao navegador. O Banco poderá fornecer estimativa de impacto de importação, mas não manterá painel de infraestrutura isolado.
 
 ## Estrutura-alvo
 
@@ -175,7 +225,9 @@ src/
     ├── rules/
     ├── calculations/
     │   ├── term/
-    │   └── parallel-recovery/
+    │   ├── parallel-recovery/
+    │   ├── term-result/
+    │   └── final-recovery/
     ├── reconciliation/
     ├── validation/
     └── ports/
@@ -199,7 +251,8 @@ server/
     │   └── d1/
     │       ├── schema/
     │       ├── read/
-    │       └── write/
+    │       ├── write/
+    │       └── transaction/
     ├── queries/
     └── http/
 
@@ -227,7 +280,8 @@ tests/
 - Desempenho, Conselho e Boletins não importam código entre si para obter regras; todos dependem do núcleo.
 - Microsoft Graph/SharePoint nunca é acessado diretamente pelo navegador para dados acadêmicos.
 - Nome de arquivo nunca é chave técnica única de fonte.
-- O adaptador não pode preencher lacunas relacionais por varredura de JSON quando uma relação explícita é necessária.
+- O adaptador não pode preencher lacunas relacionais por varredura de JSON.
+- Escrita que afeta integridade precisa aparecer no contrato, no plano, na estimativa e na unidade de trabalho.
 
 ## Estado implementado
 
@@ -246,23 +300,26 @@ tests/
 
 - interpretação semântica de célula V1;
 - arredondamento acadêmico V1;
-- composição trimestral V1 com 30/30/40 e 45%/55%;
-- recuperação paralela será implementada em #234.
+- composição trimestral V1;
+- recuperação paralela V1;
+- resultado trimestral consolidado e recuperação final pendentes na onda 7.
 
 ### Persistência
 
 - decisão D1 aprovada;
 - portas V1 integradas;
-- migrations 0001–0002 e testes locais integrados;
-- banco, bindings, adaptador de escrita e migration remota ainda não existem;
-- catálogo relacional por fonte lógica será adicionado em #235.
+- migrations 0001–0003 e testes locais integrados;
+- adaptador local de leitura integrado;
+- banco, bindings e adaptador de escrita ainda não existem;
+- contrato de escrita da associação será formalizado em #243.
 
 ### Reconciliação
 
 - contratos V1 integrados;
-- planejamento idempotente implementado em #228;
-- execução abstrata transacional será implementada em #236;
-- promoção/transação física no D1 ainda não existe.
+- planejamento idempotente implementado;
+- executor abstrato transacional implementado;
+- associação transacional explícita pendente em #243;
+- promoção física D1 pendente em #245.
 
 ## Rotas-alvo
 
@@ -288,18 +345,17 @@ Somente rotas utilizáveis aparecem no menu. Entidades são abertas por pesquisa
 
 Mudança compatível adiciona campos opcionais ou novos estados sem alterar o significado existente. Mudança incompatível cria nova versão ou adaptador temporário. Mudança pedagógica nunca é adaptada silenciosamente: exige decisão oficial.
 
-Schema e adaptador D1 devem seguir os contratos/portas congelados. Caso uma incompatibilidade real seja descoberta, ela exige issue de contrato ou migration aditiva explícita; não deve ser escondida em SQL, JSON ou interface.
+Schema e adaptador D1 devem seguir os contratos/portas. Caso uma incompatibilidade real seja descoberta, ela exige issue de contrato ou migration aditiva explícita; não deve ser escondida em SQL, JSON, efeito colateral ou interface.
 
-A integração da quinta onda identificou uma lacuna física real entre o planejador e o schema: ausência do catálogo fonte lógica ↔ stream. A #235 é a correção controlada dessa lacuna e demonstra como pequenas diferenças entre fases devem ser adaptadas antes da junção final.
+A sexta onda detectou uma diferença entre a leitura física e a escrita abstrata da associação fonte lógica ↔ stream. A #243 é a adaptação controlada. Isso mantém as fases independentes sem permitir que diferenças pequenas se transformem em comportamento implícito na junção final.
 
 ## Paralelismo seguro
 
 - Uma issue declara caminhos de escrita exclusivos.
 - Contratos congelados permitem que UI use fixtures enquanto backend/motor avançam.
-- Regra de recuperação, leitura D1 e executor transacional podem avançar em paralelo porque ocupam camadas diferentes.
+- Resultado trimestral, contrato transacional de associação e recuperação final podem avançar em paralelo porque ocupam áreas distintas.
 - Arquivos centrais, navegação, contratos compartilhados e estado global são coordenados pelo integrador.
-- Não manter branches de fase por meses. PRs pequenos entram continuamente na `main`.
-- Recurso incompleto pode existir atrás de rota/feature flag, mas não aparece como disponível.
+- Não manter branches de fase por meses; PRs pequenos entram continuamente na `main`.
 
 ## Publicação
 
