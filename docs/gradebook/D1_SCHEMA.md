@@ -2,7 +2,7 @@
 
 ## Estado e limite desta entrega
 
-**Estado:** integrado pela issue #227/PR #233 no commit `781a2a25640366f1807de7d98cf0157f5c3cfea1`.
+**Estado:** base integrada pela issue #227/PR #233 e extensão de catálogo proposta pela issue #235.
 
 Este documento descreve o schema relacional inicial compatível com Cloudflare D1 e com as portas de persistência V1. A entrega contém somente SQL versionado, registro das migrations e testes sobre SQLite descartável. Nenhum banco, binding, secret, recurso remoto ou migration de produção foi criado ou executado.
 
@@ -16,8 +16,11 @@ O registro TypeScript fica em `server/gradebook/persistence/d1/schema/migrations
 | ------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | 1      | `0001_gradebook_context_entities_imports_v1.sql` | anos/configurações, entidades, fontes lógicas, manifestos, versões de arquivo, lotes, arquivos e diagnósticos |
 | 2      | `0002_gradebook_records_audit_v1.sql`            | streams de lançamentos/resultados, reconciliações, ocorrências e transições de Auditoria                      |
+| 3      | `0003_logical_source_record_catalog_v1.sql`      | associação explícita, versionada e anual entre fontes lógicas e streams acadêmicos                            |
 
-As duas migrations usam `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS` e `INSERT OR IGNORE` no catálogo `gradebook_schema_migrations`. Assim, a aplicação repetida sobre o mesmo banco é segura. A ordem continua obrigatória porque a versão 2 referencia tabelas da versão 1.
+As três migrations usam `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS` e `INSERT OR IGNORE` no catálogo `gradebook_schema_migrations`. Assim, a aplicação repetida sobre o mesmo banco é segura. A ordem continua obrigatória porque as versões posteriores referenciam tabelas anteriores.
+
+`GRADEBOOK_D1_MIGRATIONS` permanece como o catálogo congelado da base 0001–0002 para compatibilidade com a entrega #227. `GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS` é a ordem completa 0001–0003 consumida pela extensão e pelos seus testes.
 
 ## Princípios físicos
 
@@ -79,6 +82,17 @@ Checks estruturais seguem `AcademicRecordStreamV1`:
 - `term-result` e `final-recovery` exigem estudante, matrícula, atribuição e trimestre 1/2/3;
 - `annual-result` exige estudante, matrícula e atribuição, sem trimestre.
 
+### Catálogo de registros por fonte lógica
+
+| Tabela                           | Papel                                                                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `logical_source_record_streams`  | estado e versão atuais da associação anual entre fonte lógica e stream acadêmico                                       |
+| `logical_source_record_versions` | histórico append-only da associação, com estado, manifesto/versão de origem e instante em que a relação foi registrada |
+
+A chave da associação contém `academic_year_id`, `logical_source_id`, `record_kind` e `stream_key`. FKs compostas exigem que a fonte lógica e o stream acadêmico pertençam ao mesmo ano. A versão histórica referencia uma versão de manifesto confirmada para a mesma fonte lógica; referências cruzadas entre ano, manifesto e fonte são rejeitadas.
+
+Uma nova versão de arquivo não desativa nem remove associações ausentes. Mudanças para `inactive` exigem registro explícito de uma nova versão da associação em uma futura operação de escrita/transação.
+
 ### Reconciliação e Auditoria
 
 | Tabela                         | Papel                                                                                         |
@@ -122,6 +136,8 @@ Os índices V1 cobrem:
 - reconciliações por alvo;
 - proveniência de Auditoria por manifesto/versão;
 - transições por ocorrência/sequência.
+- associações atuais/ativas por ano, fonte lógica, tipo e chave de stream;
+- histórico de associação em versão descendente e proveniência por manifesto/versão.
 
 Cursores futuros devem usar as últimas colunas estáveis dos índices (`entity_id`, `manifest_id`, `import_batch_id`, `stream_key` ou `audit_record_id`) em vez de offsets globais.
 
@@ -133,7 +149,7 @@ O adaptador deve gerar `recorded_at` no servidor autorizado. A migration usa o r
 
 ## Verificação local descartável
 
-`tests/gradebook/persistence/d1-schema/d1-schema.test.ts` usa `node:sqlite` com banco `:memory:` e `PRAGMA foreign_keys = ON`. A suíte aplica as migrations em ordem, reaplica ambas e verifica:
+`tests/gradebook/persistence/d1-schema/d1-schema.test.ts` preserva a verificação da base 0001–0002. `tests/gradebook/persistence/d1-read-adapter/d1-read-adapter-v1.test.ts` usa `node:sqlite` com banco `:memory:` e `PRAGMA foreign_keys = ON`, aplica e reaplica a ordem completa 0001–0003 e verifica adicionalmente:
 
 - catálogo, registro idempotente e ausência de cascades destrutivos;
 - FKs tipadas e isolamento anual;
@@ -142,32 +158,34 @@ O adaptador deve gerar `recorded_at` no servidor autorizado. A migration usa o r
 - vínculos lote → arquivo → diagnóstico → manifesto/hash;
 - formatos dos streams acadêmicos e consulta paginada indexada;
 - reconciliação, proveniência e transições de Auditoria;
-- timestamps UTC e presença dos índices críticos.
+- timestamps UTC e presença dos índices críticos;
+- isolamento anual, histórico e proveniência da associação fonte lógica ↔ stream;
+- plano indexado da listagem atual e preservação quando chega nova versão de arquivo;
+- reconstrução dos contratos e falhas controladas para JSON, shape ou referência inválidos.
 
-Todos os IDs, nomes, payloads e valores usados são sintéticos. O workflow da #227 passou com 28 arquivos/246 testes e build aprovado.
+Todos os IDs, nomes, payloads e valores usados são sintéticos. Nenhum binding ou banco remoto é necessário para essa verificação.
 
-## Lacuna de compatibilidade identificada na integração
+## Extensão de compatibilidade da issue #235
 
 O planejador da #228 possui `LogicalSourceRecordCatalogV1` para enumerar os streams acadêmicos atuais de uma fonte lógica. Essa leitura é necessária para detectar `missing-from-new-source` sem apagar valores anteriores.
 
-As migrations 0001–0002 ainda não registram diretamente a associação:
+As migrations 0001–0002 não registravam diretamente a associação:
 
 ```text
 logical_source_id ↔ record_kind + stream_key
 ```
 
-É tecnicamente possível encontrar referências dentro de payloads/evidências, mas isso exigiria varredura de JSON, seria difícil de indexar e criaria acoplamento implícito. Essa solução foi rejeitada.
+É tecnicamente possível encontrar referências dentro de payloads/evidências, mas isso exigiria varredura de JSON, seria difícil de indexar e criaria acoplamento implícito. Essa solução foi rejeitada. A migration 0003 materializa a associação em colunas normalizadas, preserva seu histórico e fornece índice parcial para a leitura das relações atuais/ativas.
 
-A issue #235 adicionará uma migration 0003 com relação explícita, isolada por ano, versionada/auditável e indexada, além do primeiro adaptador D1 local de leitura. Até essa integração, o schema V1 é válido como base, mas não é suficiente para a detecção persistente completa de registros ausentes por fonte lógica.
+O adaptador descrito em `D1_READ_ADAPTER.md` consome essa relação sem consultar nomes de arquivo e sem extrair a associação de `payload_json`.
 
 ## Lacunas deliberadas para as próximas issues
 
 Esta entrega ainda não inclui:
 
-- catálogo relacional fonte lógica ↔ streams acadêmicos — #235;
 - binding D1 em `wrangler.jsonc` ou configuração por ambiente;
-- criação de banco local/remoto ou execução de migration fora dos testes descartáveis;
-- adaptadores completos das quatro portas de repositório;
+- criação de banco persistente/remoto ou execução de migration fora dos testes descartáveis;
+- operações de escrita das portas de repositório;
 - implementação física de `BatchPromotionTransactionPortV1`;
 - autorização/capabilities do backend e endpoints;
 - runner operacional de migrations, rollout, backup ou recuperação;
@@ -175,4 +193,4 @@ Esta entrega ainda não inclui:
 - armazenamento de binários;
 - métricas de Saúde e limites.
 
-A #235 implementará a extensão relacional e leituras locais. A #236 implementará o executor transacional contra portas, ainda independente do D1. Depois que ambas forem integradas, será seguro criar a escrita/promoção transacional concreta no D1 e, separadamente, provisionar bindings por ambiente.
+A #236 implementa o executor transacional contra portas, ainda independente do D1. Depois que #235 e #236 forem integradas, será seguro criar a escrita/promoção transacional concreta no D1 e, separadamente, provisionar bindings por ambiente.
