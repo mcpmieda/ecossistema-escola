@@ -1,6 +1,6 @@
 # Contrato da fonte — planilhas de notas
 
-**Estado:** estrutura TypeScript V1 integrada pela issue #193/PR #207. A validação sintética e controlada necessária ao congelamento definitivo será concluída pela issue #198.
+**Estado:** estrutura TypeScript V1 e validação sintética integradas pelas issues #193 e #198. O contrato está disponível para consumidores; a execução controlada com o corpus real continua como gate de confiança antes do fechamento definitivo da F1.
 
 ## Escopo inicial
 
@@ -112,12 +112,18 @@ Cada arquivo importado deve registrar:
 
 Cada lançamento deve apontar para arquivo/hash/guia/célula, fórmula, valor em cache, valor bruto e valor semântico.
 
-## Implementação V1 integrada
+## Implementação e testes integrados
 
-- Código: `shared/gradebook-contracts/source/source-contract-v1.ts`.
-- Testes de contrato: `tests/gradebook/source-contract/source-contract-v1.test.ts`.
-- Integração: issue #193, PR #207, merge `83d7bf4fd91b5f5b51344f73293cb9c39844cefd`.
-- Estado atual: esquema e vocabulário integrados; validação ampliada pendente em #198.
+- Contrato: `shared/gradebook-contracts/source/source-contract-v1.ts`.
+- Testes básicos: `tests/gradebook/source-contract/source-contract-v1.test.ts`.
+- Massa sintética: `tests/gradebook/fixtures/synthetic-teacher-workbooks.ts`.
+- Testes ampliados: `tests/gradebook/source/synthetic-source.test.ts` e `tests/gradebook/import/synthetic-import-batch.test.ts`.
+- Protocolo privado: `docs/gradebook/REAL_DATA_VALIDATION.md`.
+- Integrações: #193/PR #207 e #198/PR #213.
+
+A massa sintética cobre D1, D2, D3, VG, 1º, 2º, 3º, REC, tipos especiais de célula, atividades não aplicáveis, `J1` divergente, posições históricas, movimentações e lotes de 1, 20 e 50 arquivos com falha isolada.
+
+As fixtures são objetos de workbook em memória. Elas não substituem a conferência de serialização binária, macros, cache real de fórmulas ou metadados nativos de proteção/ocultação. Esses pontos permanecem no protocolo controlado.
 
 ## Banco central XLSB como referência funcional
 
@@ -138,13 +144,13 @@ A varredura do `BANCO DE NOTAS 2026.xlsb` mostrou uma aplicação Excel composta
 
 Não reproduzir fórmulas, nomes definidos, ActiveX ou guias como arquitetura web. Reproduzir as regras, os dados, a rastreabilidade e os fluxos funcionais.
 
-## Critério de congelamento definitivo do contrato V1
+## Estado dos critérios de confiança
 
-O contrato só será considerado definitivamente validado depois de:
+- [x] Testes sintéticos cobrindo os tipos de célula aplicáveis.
+- [x] D1 e D2 validados sinteticamente, com fixture representativa de D3.
+- [ ] Execução registrada do protocolo com as planilhas reais no commit vigente.
+- [x] REC e movimentações cobertas pela massa sintética.
+- [x] Nenhum dado pessoal real versionado.
+- [x] #198 revisada e integrada pelo responsável da #210.
 
-1. testes sintéticos cobrindo todos os tipos de célula;
-2. validação de D1 e D2 e fixture representativa de D3;
-3. comparação controlada com as planilhas reais disponíveis;
-4. confirmação de REC e movimentações;
-5. nenhum dado pessoal real versionado;
-6. aprovação da issue #198 pelo integrador da onda #210.
+O item pendente não bloqueia os contratos e o motor da terceira onda, mas bloqueia declarar a F1 definitivamente validada contra o corpus real.
