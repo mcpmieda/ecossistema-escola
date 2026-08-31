@@ -433,10 +433,11 @@ describe('persistence ports v1', () => {
       occurrenceStream,
       { limit: 10 },
     );
-    expect(occurrenceHistory.items.map(({ value }) => value.value.state)).toEqual([
-      'open',
-      'resolved',
-    ]);
+    expect(
+      occurrenceHistory.items.map(({ value }) =>
+        value.kind === 'occurrence' ? value.value.state : 'unexpected',
+      ),
+    ).toEqual(['open', 'resolved']);
     expect(resolved.stateHistory.at(-1)?.previousState).toBe('open');
 
     const reconciliationId = 'reconciliation:synthetic:001' as ReconciliationResultId;
