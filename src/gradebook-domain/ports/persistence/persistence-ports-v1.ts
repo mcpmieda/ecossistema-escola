@@ -18,6 +18,7 @@ import type {
   TeachingAssignmentV1,
 } from '../../../../shared/gradebook-contracts/entities';
 import type {
+  AcademicTermV1,
   AnnualResultV1,
   AssessmentComponentId,
   AssessmentComponentV1,
@@ -184,14 +185,14 @@ export type AcademicRecordStreamV1 =
       readonly studentId: StudentId;
       readonly enrollmentId: EnrollmentId;
       readonly teachingAssignmentId: TeachingAssignmentId;
-      readonly term: 1 | 2 | 3;
+      readonly term: AcademicTermV1;
     }
   | {
       readonly kind: 'final-recovery';
       readonly studentId: StudentId;
       readonly enrollmentId: EnrollmentId;
       readonly teachingAssignmentId: TeachingAssignmentId;
-      readonly recoveredTerm: 1 | 2 | 3;
+      readonly recoveredTerm: AcademicTermV1;
     }
   | {
       readonly kind: 'annual-result';
