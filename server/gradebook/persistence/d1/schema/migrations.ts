@@ -16,3 +16,16 @@ export const GRADEBOOK_D1_MIGRATIONS = [
     fileName: '0002_gradebook_records_audit_v1.sql',
   },
 ] as const satisfies readonly GradebookD1Migration[];
+
+/**
+ * Ordered local schema including the read-catalog extension. The original
+ * export remains the frozen 0001–0002 baseline consumed by the #227 suite.
+ */
+export const GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS = [
+  ...GRADEBOOK_D1_MIGRATIONS,
+  {
+    version: 3,
+    name: 'logical_source_record_catalog_v1',
+    fileName: '0003_logical_source_record_catalog_v1.sql',
+  },
+] as const satisfies readonly GradebookD1Migration[];
