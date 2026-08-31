@@ -532,6 +532,8 @@ export function PageContent({
     case 'publicacoes':
     case 'paginas':
       return <PlannedPage route={route} />;
+    case 'banco-de-notas':
+      return null;
     default:
       return <OverviewPage snapshot={snapshot} />;
   }

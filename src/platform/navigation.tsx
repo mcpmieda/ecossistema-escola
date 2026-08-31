@@ -3,6 +3,16 @@ import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-co
 import { BrandMark } from './presentation';
 import { platformHref, routeIcons } from './routes';
 
+const notesModule: CoreModuleContract = {
+  id: 'content.notes',
+  name: 'Banco de notas',
+  description: '',
+  route: 'banco-de-notas',
+  state: 'ready',
+  requiredRole: 'ADMINISTRADOR',
+  capabilities: [],
+};
+
 function Navigation({
   route,
   modules,
@@ -27,7 +37,7 @@ function Navigation({
   return (
     <nav aria-label="Navegação principal" className="platform-nav px-3">
       <ul className="grid gap-[0.3rem]">
-        {modules.map((module) => {
+        {[...modules, notesModule].map((module) => {
           const Icon = routeIcons[module.route];
           const isSelected = route === module.route;
           return (

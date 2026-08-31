@@ -3,6 +3,7 @@ export const PLATFORM_ROUTES = [
   'operacao',
   'publicacoes',
   'paginas',
+  'banco-de-notas',
   'sistemas',
   'auditoria',
   'configuracoes',
