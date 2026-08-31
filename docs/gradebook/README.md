@@ -11,20 +11,22 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 
 ## Estado atual
 
-A primeira onda foi integrada e publicada:
+Duas ondas foram integradas:
 
 - #193/PR #207: esquema `SourceContractV1`;
 - #194/PR #208: contratos das entidades acadêmicas V1;
 - #195/PR #209: importador atual separado em módulos;
-- commit funcional verificado: `17ba8b1b7941d56c094abf8121796b2b7b0f7a66`;
-- deploy Cloudflare Pages: `33416970939`, concluído com sucesso.
+- #196/PR #212: contratos de lançamentos e resultados acadêmicos V1;
+- #198/PR #213: fixtures sintéticas e protocolo controlado de validação real.
 
-A segunda onda está pronta para dois agentes independentes:
+O commit funcional vigente é `32450ac431dde3ddad1dfcbee436710eb2cd6555`; o deploy Cloudflare Pages `33421282101` foi concluído com sucesso.
 
-- [#196 — contratos de lançamentos e resultados](https://github.com/mcpmieda/ecossistema-escola/issues/196);
-- [#198 — fixtures sintéticas e protocolo de validação](https://github.com/mcpmieda/ecossistema-escola/issues/198).
+A terceira onda está pronta para dois agentes independentes:
 
-A integração da segunda onda fica reservada à [#210](https://github.com/mcpmieda/ecossistema-escola/issues/210).
+- [#197 — contratos de lote, reconciliação e Auditoria](https://github.com/mcpmieda/ecossistema-escola/issues/197);
+- [#201 — interpretação semântica nativa das células](https://github.com/mcpmieda/ecossistema-escola/issues/201).
+
+A integração da terceira onda fica reservada à [#214](https://github.com/mcpmieda/ecossistema-escola/issues/214).
 
 ## Objetivo
 
@@ -40,6 +42,14 @@ Construir um Banco de Notas funcional, modular, auditável e acessível a usuár
 - reconhecimento de turmas, alunos, disciplinas, trimestres, quantitativo, qualitativo e recuperação;
 - processamento somente em memória, sem persistência acadêmica;
 - importador organizado em `src/features/gradebook/import/**`.
+
+As entregas #196 e #198 são internas: estabilizam contratos e testes, mas não acrescentam uma nova tela.
+
+## Validação da fonte
+
+A suíte pública sintética cobre D1, D2, D3, VG, trimestres, REC, estados especiais de célula, posições históricas, transferências, lotes de 1/20/50 arquivos e falha isolada. O procedimento `REAL_DATA_VALIDATION.md` define como conferir o corpus real fora do Git.
+
+A execução controlada desse procedimento ainda precisa ser registrada antes do fechamento definitivo da F1. Isso não bloqueia a terceira onda.
 
 ## Fontes de referência revisadas
 
