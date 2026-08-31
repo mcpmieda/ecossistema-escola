@@ -6,8 +6,8 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 
 - **Fonte:** esquema `SourceContractV1` integrado por #193/PR #207; validação definitiva pendente em #198.
 - **Entidades acadêmicas:** `congelado-v1`, integradas por #194/PR #208.
-- **Lançamentos e resultados:** `proposto`; issue #196 pronta para execução.
-- **Lote, reconciliação e Auditoria:** `proposto`; issue #197 permanece bloqueada por #196.
+- **Lançamentos e resultados:** `congelado-v1`, implementados por #196 em `shared/gradebook-contracts/results/results-contract-v1.ts`.
+- **Lote, reconciliação e Auditoria:** `proposto`; #197 pode iniciar depois da integração de #196.
 - **Read models:** `proposto`; serão detalhados nas issues dos módulos consumidores.
 
 ## Estados de maturidade
@@ -102,46 +102,55 @@ not-applicable
 
 A implementação integrada usa nomes TypeScript mais explícitos em `shared/gradebook-contracts/source/source-contract-v1.ts`; consumidores devem importar esses tipos, não recriar esta lista.
 
-## Avaliação — proposta para #196
+## Avaliação — congelado-v1
+
+Implementação pública: `shared/gradebook-contracts/results/results-contract-v1.ts`.
+
+O valor acadêmico é uma união discriminada. Os estados `absent`, `official-zero`, `legacy-zero`, `not-applicable` e `insufficient-data` permanecem estruturalmente distintos; `numeric` representa um número sem apagar sua evidência de origem.
+
+Todo valor sujeito à migração preserva simultaneamente:
+
+- `imported.value` e uma ou mais `imported.evidence` do `SourceContractV1`;
+- `calculated.value` produzido pelo motor nativo;
+- `authorityMode`: `imported-source` ou `native-engine`, sem remover o lado não autoritativo.
+
+Cobertura usa estados `complete`, `partial`, `insufficient-data` e `not-applicable`, com contagens e motivos. Resultados registram também a versão da regra aplicada.
 
 ### `AssessmentComponentV1`
 
-- `id`, atribuição, trimestre, tipo, nome, máximo, ordem e aplicabilidade;
+- `id`, `academicYearId`, `teachingAssignmentId`, trimestre, tipo, nome, máximo, ordem e aplicabilidade;
 - tipos iniciais: `written`, `simulation`, `qualitative-activity`, `parallel-recovery`.
 
 ### `GradeEntryV1`
 
-- `id`, estudante/matrícula, componente, valor de origem e valor semântico;
-- presença, classificação, evidência da célula e versão atual;
-- nunca apagar versão anterior.
+- `id`, ano, estudante, matrícula e componente;
+- valor importado/evidência e valor calculado ficam separados;
+- `authorityMode`, `ruleVersion`, versão do lançamento e referência opcional ao lançamento substituído;
+- uma nova versão não apaga silenciosamente a anterior.
 
 ### `TermResultV1`
 
 - trimestre e máximo;
-- quantitativo original/considerado;
+- quantitativo original, paralela, aplicabilidade da paralela e quantitativo considerado;
 - qualitativo operacional;
-- paralela e aplicabilidade;
-- nota importada oficial;
-- nota calculada pelo motor;
-- percentual e estado de cobertura;
-- `authorityMode`: `imported-source` ou `native-engine`;
-- divergência e versão de regra.
+- nota oficial e percentual com valores importado/calculado separados;
+- `authorityMode`, cobertura e versão da regra.
 
 ### `FinalRecoveryV1`
 
 - trimestre recuperado;
-- nota original, nota de recuperação e nota substituta;
-- aplicabilidade e evidência de origem;
-- a nota original permanece preservada mesmo quando a recuperação for menor.
+- nota original, aplicabilidade, nota de recuperação e nota substituta em campos separados;
+- cada valor preserva fonte e cálculo nativo;
+- `authorityMode`, cobertura e versão da regra.
 
 ### `AnnualResultV1`
 
-- total original, total pós-recuperação;
-- resultado acadêmico antes de decisão colegiada;
-- decisão final, quando existente;
-- versão das regras e cobertura.
+- total original e total pós-recuperação em campos separados;
+- estado acadêmico importado e calculado preservados simultaneamente;
+- decisão final separada do estado acadêmico, com resultado, fundamento e referência opcionais;
+- `authorityMode`, cobertura e versão da regra.
 
-Estados internos iniciais devem ser estáveis e separados dos rótulos exibidos:
+Estados internos iniciais são estáveis e independentes dos rótulos exibidos:
 
 ```text
 in-progress
