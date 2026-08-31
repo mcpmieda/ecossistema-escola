@@ -7,6 +7,7 @@ import {
   formatNote,
   noteCount,
   recognizeWorkbook,
+  recoverySheets,
   stageLabel,
   trimesterSheets,
   type SheetJs,
@@ -98,7 +99,7 @@ export function NotesPage() {
       <PageHeader
         eyebrow="Banco de notas"
         title="Leitor de planilhas"
-        description="Reconhecimento local do padrão das planilhas de notas: turmas, alunos, períodos e blocos quantitativo e qualitativo."
+        description="Reconhecimento local do padrão das planilhas de notas: turmas, alunos, períodos, quantitativo, qualitativo e recuperação."
       />
       <Surface variant="default" className="platform-card-surface rounded-[2rem] p-6 sm:p-7">
         <input
@@ -213,12 +214,75 @@ export function NotesPage() {
                           </Surface>
                         );
                       })}
-                      {classroom.sheets.some((sheet) => sheet.stage === 'recovery') && (
-                        <Surface variant="secondary" className="rounded-2xl p-4 text-sm">
-                          <strong>Recuperação final reconhecida:</strong>{' '}
-                          {classroom.sheets.filter((sheet) => sheet.stage === 'recovery').map((sheet) => sheet.name).join(' · ')}
-                        </Surface>
-                      )}
+
+                      {recoverySheets(classroom.sheets).map((sheet) => {
+                        const eligible1 = sheet.students.filter((student) => student.recovery?.eligibleTrimester1).length;
+                        const eligible2 = sheet.students.filter((student) => student.recovery?.eligibleTrimester2).length;
+                        const eligible3 = sheet.students.filter((student) => student.recovery?.eligibleTrimester3).length;
+                        const recoveryNotes = sheet.students.reduce(
+                          (sum, student) => sum + noteCount([
+                            student.recovery?.trimester1 ?? null,
+                            student.recovery?.trimester2 ?? null,
+                            student.recovery?.trimester3 ?? null,
+                          ]),
+                          0,
+                        );
+                        const totalsAfterRecovery = noteCount(
+                          sheet.students.map((student) => student.recovery?.totalAfterRecovery ?? null),
+                        );
+
+                        return (
+                          <Surface key={sheet.name} variant="secondary" className="rounded-2xl p-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="mr-auto font-semibold">Recuperação final · {sheet.discipline || sheet.disciplineIndex}</p>
+                              <Chip variant="soft" size="sm">{sheet.disciplineIndex}</Chip>
+                              <Chip variant="soft" size="sm">{sheet.students.length} alunos</Chip>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Chip variant="soft" size="sm">Elegíveis 1º: {eligible1}</Chip>
+                              <Chip variant="soft" size="sm">Elegíveis 2º: {eligible2}</Chip>
+                              <Chip variant="soft" size="sm">Elegíveis 3º: {eligible3}</Chip>
+                              <Chip variant="soft" size="sm">Notas REC: {recoveryNotes}</Chip>
+                              <Chip variant="soft" size="sm">Totais pós-REC/U: {totalsAfterRecovery}</Chip>
+                              {sheet.formulas > 0 && <Chip color="accent" variant="soft" size="sm">Fórmulas: {sheet.formulas}</Chip>}
+                            </div>
+                            <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-border/50">
+                              <div className="min-w-[62rem]">
+                                <div className="grid grid-cols-[3rem_minmax(12rem,1fr)_5rem_5rem_5rem_5rem_5rem_5rem_6rem_6rem] gap-2 border-b border-border/50 px-3 py-2 text-[11px] font-medium text-muted">
+                                  <span>Nº</span>
+                                  <span>Aluno</span>
+                                  <span>1º orig.</span>
+                                  <span>REC 1º</span>
+                                  <span>2º orig.</span>
+                                  <span>REC 2º</span>
+                                  <span>3º orig.</span>
+                                  <span>REC 3º</span>
+                                  <span>Total orig.</span>
+                                  <span>Pós-REC</span>
+                                </div>
+                                {sheet.students.map((student) => {
+                                  const recovery = student.recovery;
+                                  return (
+                                    <div key={`${sheet.name}-${student.row}`} className="grid grid-cols-[3rem_minmax(12rem,1fr)_5rem_5rem_5rem_5rem_5rem_5rem_6rem_6rem] gap-2 border-b border-border/40 px-3 py-2 text-xs last:border-0">
+                                      <span className="text-muted">{student.number}</span>
+                                      <span className="truncate font-medium">{student.name}</span>
+                                      <span>{formatNote(recovery?.originalTrimester1 ?? null)}</span>
+                                      <span>{recovery?.eligibleTrimester1 ? '• ' : ''}{formatNote(recovery?.trimester1 ?? null)}</span>
+                                      <span>{formatNote(recovery?.originalTrimester2 ?? null)}</span>
+                                      <span>{recovery?.eligibleTrimester2 ? '• ' : ''}{formatNote(recovery?.trimester2 ?? null)}</span>
+                                      <span>{formatNote(recovery?.originalTrimester3 ?? null)}</span>
+                                      <span>{recovery?.eligibleTrimester3 ? '• ' : ''}{formatNote(recovery?.trimester3 ?? null)}</span>
+                                      <span>{formatNote(recovery?.originalAnnual ?? null)}</span>
+                                      <span>{formatNote(recovery?.totalAfterRecovery ?? null)}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                            <p className="mt-2 text-xs text-muted">• trimestre marcado pela própria planilha como aplicável à recuperação.</p>
+                          </Surface>
+                        );
+                      })}
                     </div>
                   </details>
                 </Surface>
