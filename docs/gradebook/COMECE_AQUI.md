@@ -8,10 +8,10 @@ Não atribua a um agente comum:
 
 - `#182` — painel geral do programa;
 - `#184` a `#192` — acompanhamento das fases;
-- `#214` — integração da terceira onda;
-- `#200` — decisão do responsável sobre armazenamento.
+- `#221` — integração da quarta onda;
+- `#220` — planejamento futuro de Saúde e limites.
 
-As integrações `#203` e `#210` já foram concluídas.
+As integrações `#203`, `#210` e `#214` já foram concluídas. A decisão `#200` também foi concluída: **Cloudflare D1 é o armazenamento físico aprovado**.
 
 ## Ondas concluídas
 
@@ -19,36 +19,35 @@ As integrações `#203` e `#210` já foram concluídas.
 |---:|---|---|
 | 1 | `#193`, `#194`, `#195` | `#203` |
 | 2 | `#196`, `#198` | `#210` |
+| 3 | `#197`, `#201` | `#214` |
 
-A segunda onda integrou os contratos de resultados e a suíte sintética/protocolo de validação. O código vigente foi publicado no commit `32450ac431dde3ddad1dfcbee436710eb2cd6555`, deploy `33421282101`.
+A terceira onda integrou os contratos de lote/reconciliação/Auditoria e a primeira função pura do motor. O código vigente foi publicado no commit `9476f84af7f99733c32f4a2503a50a4ef3c15c3f`, deploy `33424938206`.
 
-## Onda 3 — executar agora, simultaneamente
+## Onda 4 — executar agora, simultaneamente
 
 | Agente | Issue | Trabalho |
 |---|---:|---|
-| 1 | `#197` | Contratos de lote, reconciliação e Auditoria |
-| 2 | `#201` | Interpretação semântica nativa das células |
+| 1 | `#199` | SHA-256, manifesto e proveniência visível no importador |
+| 2 | `#218` | Arredondamento acadêmico nativo V1 |
+| 3 | `#219` | Portas de persistência e transação independentes do D1 |
 
-Essas duas issues escrevem em áreas diferentes e podem começar juntas. A integração será feita exclusivamente pela `#214`.
+As três issues escrevem em áreas diferentes e podem começar juntas. A integração será feita exclusivamente pela `#221`.
 
-## Onda 4 já conhecida
+## Depois da onda 4
 
-| Issue/tarefa | Pode começar quando |
-|---|---|
-| `#199` — SHA-256 e proveniência | `#197` integrada; `#195` já concluída |
-| composição trimestral nativa | `#201` integrada e issue pequena criada pelo integrador |
-| arredondamento nativo | `#201` integrada e issue pequena criada pelo integrador |
-| recuperação nativa | `#201` integrada e issue pequena criada pelo integrador |
+A `#221` criará/liberará tarefas pequenas para:
 
-A composição exata da quarta onda será publicada pela `#214` depois da revisão dos PRs da onda 3.
+- composição trimestral do motor, depois de `#218`;
+- esquema e migrations D1, depois de `#219`;
+- idempotência e versionamento persistente, depois de `#199` + `#219`.
 
-## Gate manual que não bloqueia a onda 3
+## Planejada, mas não executar agora
+
+`#220` criará futuramente `Centro de Administração → Configurações → Saúde e limites`, após existirem binding D1 e backend de métricas. Ela não pertence à onda atual.
+
+## Gate manual que não bloqueia a onda 4
 
 A suíte sintética e o protocolo foram criados em `#198`. A execução controlada com as planilhas reais continua pendente antes do fechamento definitivo da F1. Ela deve seguir `REAL_DATA_VALIDATION.md` e nunca publicar arquivos, nomes, notas, hashes ou caminhos privados.
-
-## Decisão que pode ocorrer a qualquer momento
-
-`#200` pode ser respondida em paralelo, mas precisa estar decidida antes da implementação da persistência física.
 
 ## Fluxo visual
 
@@ -56,22 +55,22 @@ A suíte sintética e o protocolo foram criados em `#198`. A execução controla
 CONCLUÍDO
 #193 + #194 + #195 ──> #203
 #196 + #198 ──────────> #210
+#197 + #201 ──────────> #214
 
 AGORA
-#197 ─┐
-      ├──> integração #214 ──> quarta onda
-#201 ─┘
+#199 ─┐
+#218 ─┼──> integração #221 ──> quinta onda
+#219 ─┘
 
-DEPOIS
-#197 integrada ──> #199
-#201 integrada ──> pequenas issues do motor
+DECISÃO CONCLUÍDA
+#200 ──> Cloudflare D1
 ```
 
 ## Instrução simples para iniciar
 
-1. Escolha `#197` ou `#201`.
+1. Escolha `#199`, `#218` ou `#219`.
 2. Entregue somente essa issue ao agente.
 3. O agente lê `AGENTS.md`, `docs/gradebook/` e a própria issue.
 4. O agente executa diretamente a tarefa, sem App Factory ou agentes auxiliares.
 5. O agente cria branch e PR, executa `npm run verify` e registra o handoff, mas não faz merge.
-6. Depois das duas entregas, execute a integração pela `#214`.
+6. Depois das três entregas, execute a integração pela `#221`.
