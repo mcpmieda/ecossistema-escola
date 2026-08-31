@@ -35,6 +35,20 @@ export type NoteValue = {
   formula?: string;
 };
 
+export type RecoveryRecognition = {
+  trimester1: NoteValue | null;
+  trimester2: NoteValue | null;
+  trimester3: NoteValue | null;
+  totalAfterRecovery: NoteValue | null;
+  originalTrimester1: NoteValue | null;
+  originalTrimester2: NoteValue | null;
+  originalTrimester3: NoteValue | null;
+  originalAnnual: NoteValue | null;
+  eligibleTrimester1: boolean;
+  eligibleTrimester2: boolean;
+  eligibleTrimester3: boolean;
+};
+
 export type StudentRecognition = {
   row: number;
   number: string;
@@ -48,6 +62,7 @@ export type StudentRecognition = {
   qualitativeTotal: NoteValue | null;
   official: NoteValue | null;
   annual: NoteValue | null;
+  recovery: RecoveryRecognition | null;
 };
 
 export type GradeStage = 'overview' | 'trimester-1' | 'trimester-2' | 'trimester-3' | 'recovery';
@@ -222,6 +237,22 @@ function worksheetDimensions(sheet: Worksheet, xlsx: SheetJs): Omit<SheetSummary
   };
 }
 
+function recognizeRecovery(sheet: Worksheet, row: number): RecoveryRecognition {
+  return {
+    trimester1: readNote(sheet, `R${row}`),
+    trimester2: readNote(sheet, `S${row}`),
+    trimester3: readNote(sheet, `T${row}`),
+    totalAfterRecovery: readNote(sheet, `U${row}`),
+    originalTrimester1: readNote(sheet, `X${row}`),
+    originalTrimester2: readNote(sheet, `Y${row}`),
+    originalTrimester3: readNote(sheet, `AA${row}`),
+    originalAnnual: readNote(sheet, `AB${row}`),
+    eligibleTrimester1: numberAt(sheet, `AC${row}`) === 1,
+    eligibleTrimester2: numberAt(sheet, `AD${row}`) === 1,
+    eligibleTrimester3: numberAt(sheet, `AE${row}`) === 1,
+  };
+}
+
 function recognizeStudents(
   sheet: Worksheet,
   stage: GradeStage,
@@ -233,6 +264,7 @@ function recognizeStudents(
   const startRow = Math.max(5, decoded.s.r + 1);
   const endRow = decoded.e.r + 1;
   const readGrades = stage === 'trimester-1' || stage === 'trimester-2' || stage === 'trimester-3';
+  const readRecovery = stage === 'recovery';
   const students: StudentRecognition[] = [];
 
   for (let row = startRow; row <= endRow; row += 1) {
@@ -255,10 +287,39 @@ function recognizeStudents(
       qualitativeTotal: readGrades ? readNote(sheet, `AK${row}`) : null,
       official: readGrades ? readNote(sheet, `AM${row}`) : null,
       annual: readGrades ? readNote(sheet, `AN${row}`) : null,
+      recovery: readRecovery ? recognizeRecovery(sheet, row) : null,
     });
   }
 
   return students;
+}
+
+function recognitionValues(student: StudentRecognition): Array<NoteValue | null> {
+  const values: Array<NoteValue | null> = [
+    student.written,
+    student.simulation,
+    student.quantitativeTotal,
+    student.parallel,
+    ...student.qualitative,
+    student.qualitativeTotal,
+    student.official,
+    student.annual,
+  ];
+
+  if (student.recovery) {
+    values.push(
+      student.recovery.trimester1,
+      student.recovery.trimester2,
+      student.recovery.trimester3,
+      student.recovery.totalAfterRecovery,
+      student.recovery.originalTrimester1,
+      student.recovery.originalTrimester2,
+      student.recovery.originalTrimester3,
+      student.recovery.originalAnnual,
+    );
+  }
+
+  return values;
 }
 
 function recognizeGradeSheet(
@@ -279,17 +340,7 @@ function recognizeGradeSheet(
   let officialZeros = 0;
 
   for (const student of students) {
-    const values = [
-      student.written,
-      student.simulation,
-      student.quantitativeTotal,
-      student.parallel,
-      ...student.qualitative,
-      student.qualitativeTotal,
-      student.official,
-      student.annual,
-    ];
-    for (const value of values) {
+    for (const value of recognitionValues(student)) {
       if (value?.kind === 'formula') formulas += 1;
       if (value?.kind === 'official-zero') officialZeros += 1;
     }
@@ -418,4 +469,8 @@ export function trimesterSheets(sheets: GradeSheetRecognition[]): GradeSheetReco
       sheet.stage === 'trimester-2' ||
       sheet.stage === 'trimester-3',
   );
+}
+
+export function recoverySheets(sheets: GradeSheetRecognition[]): GradeSheetRecognition[] {
+  return sheets.filter((sheet) => sheet.stage === 'recovery');
 }
