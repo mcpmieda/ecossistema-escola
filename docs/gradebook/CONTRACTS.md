@@ -8,16 +8,17 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Entidades acadêmicas:** `congelado-v1`, integradas por #194/PR #208.
 - **Lançamentos e resultados:** `congelado-v1`, integrados por #196/PR #212.
 - **Lote, manifesto, reconciliação e Auditoria:** `congelado-v1`, integrados por #197/PR #216.
-- **Manifesto no fluxo real:** implementado por #199/PR #225; SHA-256/proveniência disponíveis no importador.
+- **Manifesto no fluxo real:** implementado por #199/PR #225.
 - **Semântica nativa das células:** implementada por #201/PR #217.
 - **Arredondamento acadêmico:** implementado por #218/PR #224.
 - **Composição trimestral nativa:** implementada por #226/PR #231.
-- **Portas de persistência:** `congelado-v1`, integradas por #219/PR #223.
-- **Schema D1:** migrations locais V1 integradas por #227/PR #233; nenhum recurso de produção foi criado.
-- **Planejamento idempotente de reimportação:** implementado por #228/PR #232.
-- **Recuperação paralela:** pronta para implementação em #234.
-- **Catálogo fonte lógica ↔ streams e leitura D1:** prontos para implementação em #235.
-- **Executor transacional do plano:** pronto para implementação em #236.
+- **Recuperação paralela nativa:** implementada por #234/PR #240.
+- **Portas de persistência:** `congelado-v1`, com extensão explícita da associação pendente em #243.
+- **Schema D1:** migrations 0001–0003 implementadas localmente por #227/#235; nenhum recurso remoto foi criado.
+- **Leitura D1 local:** implementada por #235/PR #241.
+- **Planejamento idempotente de reimportação:** implementado por #228/PR #232; extensão de associação pendente em #243.
+- **Executor transacional abstrato:** implementado por #236/PR #239; extensão de associação pendente em #243.
+- **Próximos contratos executáveis:** resultado trimestral consolidado em #242 e recuperação final em #244.
 - **Read models:** propostos; serão detalhados nas issues dos módulos consumidores.
 
 ## Estados de maturidade
@@ -68,7 +69,7 @@ Implementação pública: `shared/gradebook-contracts/entities/index.ts`.
 
 - `id`, `displayName`;
 - nomes/origens preservados separadamente;
-- sem exigir identificador nacional ou permanente no escopo inicial.
+- sem exigir identificador nacional permanente no escopo inicial.
 
 ### `EnrollmentV1`
 
@@ -90,7 +91,7 @@ Implementação pública: `shared/gradebook-contracts/entities/index.ts`.
 - classificação semântica;
 - evidência imutável da origem.
 
-Classificações oficiais incluem vazio, campo inexistente, não aplicável, número manual positivo/negativo, zero legado, marcador oficial `0,1`, fórmula não zero, fórmula zero, fórmula sem cache/erro e texto inválido. Consumidores importam os tipos de `shared/gradebook-contracts/source/source-contract-v1.ts`; não recriam enumerações locais.
+Classificações oficiais distinguem vazio, campo inexistente, não aplicável, número manual positivo/negativo, zero legado, marcador oficial `0,1`, fórmula não zero, fórmula zero, fórmula sem cache/erro e texto inválido. Consumidores importam os tipos de `shared/gradebook-contracts/source/source-contract-v1.ts`; não recriam enumerações locais.
 
 ### `SourceFileManifestV1`
 
@@ -106,8 +107,6 @@ Campos:
 - instante de leitura;
 - ano/professor sugeridos e confirmados quando disponíveis.
 
-Implementação runtime: `src/features/gradebook/import/file-manifest.ts`.
-
 Regras:
 
 - SHA-256 é calculado antes do reconhecimento;
@@ -122,7 +121,7 @@ Implementação pública: `shared/gradebook-contracts/results/results-contract-v
 
 ### Valores acadêmicos
 
-`AcademicGradeValueV1` distingue estruturalmente:
+`AcademicGradeValueV1` distingue:
 
 ```text
 absent
@@ -199,7 +198,7 @@ Implementações públicas:
 
 ### `ImportBatchResultV1`
 
-Representa arquivos, manifestos, diagnósticos, resumo e estados:
+Estados:
 
 ```text
 received
@@ -219,7 +218,7 @@ Aponta para lote e arquivo; opcionalmente manifesto, guia, célula, evidência e
 
 ### `ReconciliationResultV1`
 
-Preserva valor importado e nativo, diferença, tolerância, versão da regra e um dos estados:
+Preserva valor importado e nativo, diferença, tolerância, versão da regra e estado:
 
 ```text
 match
@@ -258,33 +257,43 @@ Resolução ou descarte exige ator, data e justificativa, mantendo a transição
 
 ### Arredondamento
 
-`src/gradebook-domain/rules/rounding/round-academic-grade.ts` implementa perfil imutável:
+`src/gradebook-domain/rules/rounding/round-academic-grade.ts` implementa:
 
-- parte decimal 0,00–0,24: inteiro inferior;
+- decimal 0,00–0,24: inteiro inferior;
 - 0,25–0,74: meio ponto;
 - 0,75–0,99: inteiro superior;
-- comportamento negativo explicitamente simétrico;
-- proteção documentada contra ruído comum de ponto flutuante.
+- comportamento negativo simétrico;
+- proteção contra ruído comum de ponto flutuante.
 
 ### Composição trimestral
 
-`src/gradebook-domain/calculations/term/compose-native-term-result.ts` implementa `composeNativeTermResult` para o perfil 2026:
+`src/gradebook-domain/calculations/term/compose-native-term-result.ts` implementa:
 
-- máximos trimestrais 30, 30 e 40;
+- máximos 30, 30 e 40;
 - 45% quantitativo e 55% qualitativo operacional;
 - máximos derivados 13,5/16,5 nos dois primeiros trimestres e 18/22 no terceiro;
-- blocos preservados separadamente;
-- nota bruta separada da nota nativa arredondada;
-- cobertura explícita para completo, parcial, insuficiente e não aplicável;
-- valores negativos ou acima do máximo produzem achados e não são corrigidos silenciosamente.
+- nota bruta separada da nota arredondada;
+- cobertura e achados sem converter ausência em zero.
 
-A recuperação paralela da #234 deve reutilizar esse perfil para derivar máximo e corte, sem criar números concorrentes.
+### Recuperação paralela
 
-## Portas de persistência — congelado-v1
+`src/gradebook-domain/calculations/parallel-recovery/resolve-native-parallel-recovery.ts` implementa:
+
+- máximo quantitativo derivado do perfil integrado;
+- corte de aplicabilidade em 60% do máximo quantitativo: 8,1 para T1/T2 e 10,8 para T3;
+- aplicabilidade somente quando o quantitativo original fica estritamente abaixo do corte;
+- maior valor entre original e paralela quando aplicável;
+- preservação dos dois valores, do ganho, da aplicabilidade, da cobertura e dos achados;
+- paralela indevida, conflito de estado, negativo e excesso de faixa como achados explícitos;
+- nenhum uso do total trimestral para decidir a paralela.
+
+A #242 consolidará paralela + composição sem recriar essas regras. A #244 implementará a recuperação final.
+
+## Portas de persistência — congelado-v1 com extensão pendente
 
 Implementação pública: `src/gradebook-domain/ports/persistence/persistence-ports-v1.ts`.
 
-Portas:
+Portas atuais:
 
 - `AcademicEntityRepositoryV1`;
 - `ImportPersistenceRepositoryV1`;
@@ -296,42 +305,60 @@ Portas:
 Conceitos transversais:
 
 - `AcademicPersistenceContextV1` exige ano letivo;
-- `CursorPageRequestV1` e `CursorPageV1` exigem paginação/limite;
+- paginação usa cursor e limite explícito;
 - `VersionedRecordV1`, `VersionExpectationV1` e `VersionedWriteResultV1` protegem contra sobrescrita silenciosa;
-- registros acadêmicos são acrescentados como versões; não existe operação genérica para apagar histórico;
+- registros acadêmicos são acrescentados como versões;
 - `LogicalSourceIdV1` separa identidade lógica de nome/hash;
 - relação de fonte pode ser `unmatched`, `candidate` ou `confirmed`;
-- busca por SHA-256 permite reconhecer conteúdo idêntico;
 - promoção de lote roda em unidade de trabalho atômica e recebe apenas arquivos aprovados.
 
 Essas portas não importam D1, SQL, Wrangler ou Cloudflare.
 
+### Extensão obrigatória da #243
+
+A migration 0003 e o adaptador de leitura introduziram o catálogo relacional fonte lógica ↔ stream. Porém, a unidade de trabalho atual ainda não possui uma porta pública de escrita para essa associação.
+
+A #243 deve formalizar, sem dependência do fornecedor:
+
+```text
+LogicalSourceRecordAssociationV1
+LogicalSourceRecordAssociationStreamV1
+LogicalSourceRecordRepositoryV1
+```
+
+Também deve incluir a associação no plano, na estimativa e no executor. O adaptador D1 futuro não pode gravar essa relação como efeito colateral oculto de outro append.
+
 ## Schema D1 — implementado localmente V1
 
-Cloudflare D1 foi aprovado na #200. A #227 integrou:
+Cloudflare D1 foi aprovado na #200. As issues #227 e #235 integraram:
 
-- `migrations/gradebook/0001_gradebook_context_entities_imports_v1.sql`;
-- `migrations/gradebook/0002_gradebook_records_audit_v1.sql`;
-- catálogo local das migrations;
-- 19 tabelas para ano/configuração, entidades, fontes, lotes, registros, reconciliação e Auditoria;
-- streams com ponteiro de versão atual e histórico append-only;
+- migrations 0001, 0002 e 0003;
+- 21 tabelas;
+- ano/configuração, entidades, fontes, lotes, registros, reconciliação e Auditoria;
+- catálogo versionado de streams por fonte lógica;
+- histórico append-only e ponteiros de versão atual;
 - FKs tipadas e isoladas por ano;
-- índices para hash, fontes, lotes, registros atuais, histórico e paginação;
+- índices para hash, fontes, lotes, registros atuais, catálogo, histórico e paginação;
 - testes sobre SQLite descartável.
 
 Estado: `implementado-local-v1`. Nenhum banco, binding ou migration remota existe ainda.
 
-### Lacuna rastreada: catálogo por fonte lógica
+## Leitura D1 local — implementado-local-v1
 
-O planejador de reimportação precisa enumerar os streams acadêmicos atuais associados a uma fonte lógica. As migrations 0001–0002 não possuem relação relacional direta entre `logical_sources` e `academic_record_streams`.
+`server/gradebook/persistence/d1/read/d1-read-adapter-v1.ts` implementa:
 
-A #235 adicionará migration 0003 e a leitura correspondente. Não é permitido resolver essa lacuna usando nome de arquivo ou varredura de `payload_json`.
+- `findSourceFileByHash`;
+- `getSourceFileVersion`;
+- `AcademicRecordRepositoryV1.getCurrent`;
+- `listCurrentStreams` do catálogo por fonte lógica.
 
-## Planejamento idempotente de reimportação — implementado-v1
+A leitura reconstrói contratos a partir do payload preservado e confere colunas normalizadas. JSON inválido, shape incompatível e referência quebrada geram erros estáveis e sanitizados. A associação não é descoberta por nome de arquivo nem por `json_extract`.
+
+## Planejamento idempotente — implementado-v1 com extensão pendente
 
 `server/gradebook/application/import/import-reconciliation-v1.ts` implementa `planImportReconciliation`.
 
-O plano distingue:
+Estados dos itens:
 
 ```text
 unchanged
@@ -344,17 +371,33 @@ blocked
 Comportamentos:
 
 - mesmo hash produz no-op acadêmico;
-- mesmo hash renomeado pode gerar apenas versão de metadados da fonte;
-- hash novo com fonte lógica confirmada compara chaves acadêmicas estáveis;
-- somente valores novos/alterados são planejados para append;
-- valor ausente da nova fonte exige revisão e não é apagado;
-- fonte candidata/ambígua não é associada silenciosamente;
-- arquivo inválido ou crítico fica fora da promoção sem descartar os demais aprovados;
-- expectativas de versão são preservadas;
-- estimativa de writes é derivada do plano e não afirma quota exata da Cloudflare;
+- renomeação pode gerar somente versão de metadados da fonte;
+- hash novo com fonte confirmada compara chaves acadêmicas estáveis;
+- somente novos/alterados são planejados para append;
+- valor ausente exige revisão e não é apagado;
+- fonte ambígua não é associada silenciosamente;
+- arquivo inválido fica fora da promoção sem descartar os demais;
+- expectativas de versão e estimativa de writes são preservadas;
 - o planejamento executa zero writes.
 
-A #236 implementará a execução do plano contra `BatchPromotionTransactionPortV1`; a ligação física ao D1 permanece etapa posterior.
+A #243 adicionará ao plano a escrita explícita das associações fonte lógica ↔ stream.
+
+## Executor transacional abstrato — implementado-v1 com extensão pendente
+
+`server/gradebook/application/import/execution/execute-import-change-plan-v1.ts` implementa `executeImportChangePlan`.
+
+O executor:
+
+- valida integralmente o plano antes de escrever;
+- não abre transação quando não há mudança promovível;
+- aplica versões de fonte e apenas itens acadêmicos `new`/`changed`;
+- nunca escreve `unchanged`, `missing-from-new-source` ou `blocked`;
+- rejeita plano adulterado;
+- converte conflito otimista em resultado explícito;
+- exige rollback integral da porta transacional;
+- retorna apenas contagens, versões técnicas e erros sanitizados.
+
+A implementação está testada com unidade de trabalho transacional em memória. Ela ainda não executa SQL/D1. A #243 incluirá associação no mesmo contrato transacional; a #245 implementará a escrita física local depois dessa adaptação.
 
 ## Read models
 
@@ -380,5 +423,5 @@ Cada read model informa ano/contexto, versão ou timestamp, cobertura e permiss�
 6. Desempenho, Conselho e Boletins não mantêm enumerações próprias de situações ou resultados.
 7. Schema/adaptador D1 não altera o significado dos contratos.
 8. Nome do arquivo nunca substitui hash, fonte lógica ou confirmação de contexto.
-9. Lacuna física descoberta na integração vira migration/issue explícita; não pode ser escondida em JSON ou heurística.
-10. Planejamento, revisão e execução da promoção permanecem etapas distintas e auditáveis.
+9. Relação necessária à integridade não pode ser ocultada em JSON nem em efeito colateral do adaptador.
+10. Escritas relacionadas à mesma promoção devem ser explícitas no plano, nas portas, na estimativa e na transação.
