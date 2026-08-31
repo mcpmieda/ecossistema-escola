@@ -1,7 +1,8 @@
 import type { PlatformRoute, PlatformSnapshotContract } from '../../shared/platform-contract';
+import { notesModule, notesSections, withNotesModule } from './notes-module';
 import { platformHref } from './routes';
 
-export type SearchCategory = 'Área' | 'Sistema' | 'Configuração';
+export type SearchCategory = 'Área' | 'Seção' | 'Sistema' | 'Configuração';
 export type SearchIconKind = 'route' | 'system' | 'configuration';
 
 export type PlatformSearchItem = {
@@ -23,7 +24,7 @@ export function normalizeSearch(value: string): string {
 }
 
 export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSearchItem[] {
-  const core = snapshot.coreModules.map((module) => ({
+  const core = withNotesModule(snapshot.coreModules).map((module) => ({
     id: `core:${module.id}`,
     label: module.name,
     description: module.description,
@@ -34,6 +35,19 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     ),
     iconKind: 'route' as const,
     route: module.route,
+  }));
+
+  const notes = notesSections.map((section) => ({
+    id: `notes:${section.id}`,
+    label: section.label,
+    description: `${notesModule.name} · ${section.description}`,
+    category: 'Seção' as const,
+    href: section.href,
+    searchText: normalizeSearch(
+      `${notesModule.name} ${notesModule.description} ${section.label} ${section.description} ${section.searchTerms}`,
+    ),
+    iconKind: 'route' as const,
+    route: notesModule.route,
   }));
 
   const systems = snapshot.registeredModules.map((module) => ({
@@ -62,7 +76,7 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     route: 'configuracoes' as const,
   }));
 
-  return [...core, ...systems, ...configurations];
+  return [...core, ...notes, ...systems, ...configurations];
 }
 
 export function filterSearchItems(
