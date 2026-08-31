@@ -1,9 +1,21 @@
 import { useRef } from 'react';
 import { Alert, Button, Surface } from '@heroui/react';
 import { FileSpreadsheet, Upload } from 'lucide-react';
+import { abbreviateSha256 } from './file-manifest';
 import { MAX_NOTES_IMPORT_FILES } from './import-batch';
 import { useImportBatch } from './use-import-batch';
 import { WorkbookInspector } from './workbook-inspector';
+
+function FileHash({ sha256 }: { sha256: string }) {
+  return (
+    <details className="mt-2 text-xs text-muted">
+      <summary className="cursor-pointer">
+        SHA-256 <code>{abbreviateSha256(sha256)}</code>
+      </summary>
+      <code className="mt-2 block break-all">{sha256}</code>
+    </details>
+  );
+}
 
 export function NotesImportPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -15,7 +27,7 @@ export function NotesImportPanel() {
     progress,
     results,
     selectedId,
-    selectedWorkbook,
+    selectedResult,
     setSelectedId,
     totals,
   } = useImportBatch();
@@ -60,7 +72,10 @@ export function NotesImportPanel() {
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>
-              Reconhecendo {progress.current} de {progress.total}
+              {progress.stage === 'preparing'
+                ? 'Preparando e calculando SHA-256'
+                : 'Reconhecendo estrutura'}{' '}
+              {progress.current} de {progress.total}
             </Alert.Title>
             <Alert.Description>{progress.fileName}</Alert.Description>
           </Alert.Content>
@@ -112,6 +127,38 @@ export function NotesImportPanel() {
             </Alert>
           )}
 
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+            {results.map((result) => (
+              <Surface key={result.id} variant="secondary" className="rounded-2xl p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="mr-auto font-medium">{result.manifest.fileName}</p>
+                  <span className="text-xs font-medium text-success">Reconhecido</span>
+                </div>
+                <FileHash sha256={result.manifest.sha256} />
+                <p className="mt-2 text-xs text-muted">
+                  Reconhecimento concluído · sem diagnósticos
+                </p>
+              </Surface>
+            ))}
+            {failures.map((failure) => (
+              <Surface key={failure.id} variant="secondary" className="rounded-2xl p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="mr-auto font-medium">{failure.fileName}</p>
+                  <span className="text-xs font-medium text-danger">Falha isolada</span>
+                </div>
+                {failure.manifest ? (
+                  <FileHash sha256={failure.manifest.sha256} />
+                ) : (
+                  <p className="mt-2 text-xs text-muted">Manifesto indisponível</p>
+                )}
+                <p className="mt-2 text-xs text-muted">
+                  {failure.stage === 'preparation' ? 'Preparação/hash' : 'Reconhecimento'} ·{' '}
+                  {failure.diagnostic.code}: {failure.message}
+                </p>
+              </Surface>
+            ))}
+          </div>
+
           {results.length > 0 && (
             <div className="mt-5 overflow-x-auto pb-1">
               <div className="flex min-w-max gap-2">
@@ -130,7 +177,7 @@ export function NotesImportPanel() {
             </div>
           )}
 
-          {selectedWorkbook && <WorkbookInspector workbook={selectedWorkbook} />}
+          {selectedResult && <WorkbookInspector result={selectedResult} />}
         </div>
       )}
     </Surface>

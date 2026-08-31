@@ -1,12 +1,13 @@
 import { Alert, Chip, Surface } from '@heroui/react';
 import { CheckCircle2 } from 'lucide-react';
+import { abbreviateSha256 } from './file-manifest';
+import type { BatchSuccess } from './import-batch';
 import {
   formatNote,
   noteCount,
   recoverySheets,
   stageLabel,
   trimesterSheets,
-  type WorkbookSummary,
 } from './spreadsheet-recognizer';
 
 function formatBytes(bytes: number): string {
@@ -15,7 +16,16 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function WorkbookInspector({ workbook }: { workbook: WorkbookSummary }) {
+function formatTimestamp(value: string | null): string {
+  if (!value) return 'Não informado';
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+export function WorkbookInspector({ result }: { result: BatchSuccess }) {
+  const { manifest, summary: workbook } = result;
   const totalStudents = workbook.classes.reduce((sum, classroom) => sum + classroom.students, 0);
   const trimesterGuides = workbook.gradeSheets.filter((sheet) =>
     sheet.stage.startsWith('trimester'),
@@ -36,6 +46,47 @@ export function WorkbookInspector({ workbook }: { workbook: WorkbookSummary }) {
           </Alert.Description>
         </Alert.Content>
       </Alert>
+
+      <Surface variant="secondary" className="mt-4 rounded-2xl p-4">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">
+              Identidade técnica
+            </p>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-sm font-medium">
+                SHA-256 <code>{abbreviateSha256(manifest.sha256)}</code>
+              </summary>
+              <code className="mt-2 block break-all text-xs text-muted">{manifest.sha256}</code>
+            </details>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Origem</p>
+            <p className="mt-2 break-all text-sm font-medium">{manifest.fileName}</p>
+            <p className="mt-1 text-xs text-muted">
+              {manifest.extension.toUpperCase()} ·{' '}
+              {manifest.reportedMimeType ?? 'MIME não informado'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">Arquivo</p>
+            <p className="mt-2 text-sm font-medium">{formatBytes(manifest.sizeBytes)}</p>
+            <p className="mt-1 text-xs text-muted">
+              Modificado em {formatTimestamp(manifest.lastModifiedAt)}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">
+              Processamento
+            </p>
+            <p className="mt-2 text-sm font-medium">Reconhecimento concluído</p>
+            <p className="mt-1 text-xs text-muted">
+              Fonte v{manifest.sourceContractVersion} · parser {manifest.parserVersion}
+            </p>
+            <p className="mt-1 text-xs text-muted">Lido em {formatTimestamp(manifest.readAt)}</p>
+          </div>
+        </div>
+      </Surface>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[

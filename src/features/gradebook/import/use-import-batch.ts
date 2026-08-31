@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   importWorkbookBatch,
   validateBatchSize,
-  type BatchFailure,
+  type BatchFailureDetail,
   type BatchProgress,
   type BatchSuccess,
 } from './import-batch';
@@ -12,13 +12,12 @@ export function useImportBatch() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<BatchSuccess[]>([]);
-  const [failures, setFailures] = useState<BatchFailure[]>([]);
+  const [failures, setFailures] = useState<BatchFailureDetail[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [progress, setProgress] = useState<BatchProgress | null>(null);
 
-  const selectedWorkbook = useMemo(
-    () =>
-      results.find((result) => result.id === selectedId)?.summary ?? results[0]?.summary ?? null,
+  const selectedResult = useMemo(
+    () => results.find((result) => result.id === selectedId) ?? results[0] ?? null,
     [results, selectedId],
   );
 
@@ -57,9 +56,11 @@ export function useImportBatch() {
 
     try {
       const xlsx = await loadSheetJs();
-      const batch = await importWorkbookBatch(files, xlsx, setProgress);
+      const batch = await importWorkbookBatch(files, xlsx, () => undefined, {
+        onStageProgress: setProgress,
+      });
       setResults(batch.successes);
-      setFailures(batch.failures);
+      setFailures(batch.failureDetails);
       setSelectedId(batch.successes[0]?.id ?? null);
       if (batch.successes.length === 0) {
         setError('Nenhuma das planilhas selecionadas pôde ser reconhecida.');
@@ -82,7 +83,7 @@ export function useImportBatch() {
     progress,
     results,
     selectedId,
-    selectedWorkbook,
+    selectedResult,
     setSelectedId,
     totals,
   };
