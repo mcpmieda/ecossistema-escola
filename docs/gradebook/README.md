@@ -11,42 +11,46 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 
 ## Estado atual
 
-Três ondas foram integradas:
+Quatro ondas foram integradas:
 
 - #193/PR #207: esquema `SourceContractV1`;
 - #194/PR #208: contratos das entidades acadêmicas V1;
-- #195/PR #209: importador atual separado em módulos;
+- #195/PR #209: importador separado em módulos;
 - #196/PR #212: contratos de lançamentos e resultados acadêmicos V1;
 - #198/PR #213: fixtures sintéticas e protocolo controlado de validação real;
-- #197/PR #216: contratos de lote, manifesto, reconciliação e Auditoria V1;
-- #201/PR #217: interpretação semântica nativa das células.
+- #197/PR #216: contratos de lote, reconciliação e Auditoria V1;
+- #201/PR #217: interpretação semântica nativa das células;
+- #199/PR #225: manifesto SHA-256 e proveniência visível por arquivo;
+- #218/PR #224: arredondamento acadêmico nativo V1;
+- #219/PR #223: portas de persistência e transação independentes do fornecedor.
 
-O commit funcional vigente é `9476f84af7f99733c32f4a2503a50a4ef3c15c3f`; o deploy Cloudflare Pages `33424938206` foi concluído com sucesso.
+O commit funcional publicado é `bc82b351026c44f2bddeb91920f61362a163f379`; o deploy Cloudflare Pages `33429726281` foi concluído com sucesso.
 
-A quarta onda está pronta para três agentes independentes:
+A quinta onda está pronta para três agentes independentes:
 
-- [#199 — SHA-256, manifesto e proveniência visível](https://github.com/mcpmieda/ecossistema-escola/issues/199);
-- [#218 — arredondamento acadêmico nativo V1](https://github.com/mcpmieda/ecossistema-escola/issues/218);
-- [#219 — portas de persistência e transação V1](https://github.com/mcpmieda/ecossistema-escola/issues/219).
+- [#226 — composição trimestral nativa V1](https://github.com/mcpmieda/ecossistema-escola/issues/226);
+- [#227 — esquema e migrations D1 V1, sem provisionar produção](https://github.com/mcpmieda/ecossistema-escola/issues/227);
+- [#228 — planejamento idempotente de reimportação e versionamento](https://github.com/mcpmieda/ecossistema-escola/issues/228).
 
-A integração da quarta onda fica reservada à [#221](https://github.com/mcpmieda/ecossistema-escola/issues/221).
+A integração da quinta onda fica reservada à [#229](https://github.com/mcpmieda/ecossistema-escola/issues/229).
 
 ## Decisão de armazenamento
 
-A [#200](https://github.com/mcpmieda/ecossistema-escola/issues/200) aprovou **Cloudflare D1** como armazenamento físico principal da base acadêmica.
+A issue #200 aprovou **Cloudflare D1** como armazenamento físico principal da base acadêmica. O domínio continua independente do fornecedor por meio das portas da #219; banco, bindings, migrations remotas e adaptador concreto serão criados somente em issues próprias.
 
-Condições:
+Regras relacionadas:
 
-- acesso somente pelo backend autorizado;
-- domínio independente do fornecedor por portas;
-- nenhuma migration, binding ou banco de produção criado sem issue própria;
-- plano gratuito permitido para desenvolvimento/piloto, com medição de consumo;
-- nome do arquivo não é identidade permanente;
-- reimportação idêntica não duplica e alterações preservam histórico versionado.
+- acesso ao D1 somente pelo backend autorizado;
+- navegador não é a base institucional;
+- nome do arquivo é metadado, não identidade permanente;
+- mesmo hash não duplica conteúdo;
+- alterações acadêmicas geram versões apenas do que mudou;
+- valores anteriores permanecem no histórico;
+- plano gratuito pode ser usado no desenvolvimento/piloto com medição de consumo.
 
 ## Objetivo
 
-Construir um Banco de Notas funcional, modular, auditável e acessível a usuários leigos, integrado ao Centro de Administração e alimentado inicialmente pelas planilhas atuais dos professores. O sistema deve preservar a origem dos dados, implementar o motor nativo junto com o núcleo e publicar progressivamente cada entrega independente no site oficial.
+Construir um Banco de Notas funcional, modular, auditável e acessível a usuários leigos, integrado ao Centro de Administração e alimentado inicialmente pelas planilhas atuais dos professores. O sistema preserva a origem dos dados, implementa o motor nativo junto com o núcleo e publica progressivamente cada entrega independente no site oficial.
 
 ## Em produção
 
@@ -56,22 +60,35 @@ Construir um Banco de Notas funcional, modular, auditável e acessível a usuár
 - importação local de até 50 arquivos por lote;
 - leitura sequencial de XLSB, XLSX e XLS;
 - reconhecimento de turmas, alunos, disciplinas, trimestres, quantitativo, qualitativo e recuperação;
-- processamento somente em memória, sem persistência acadêmica;
+- SHA-256 calculado no navegador antes do reconhecimento;
+- manifesto por arquivo com nome, tipo, tamanho, modificação, versões e instante de leitura;
+- progresso separado entre preparação/hash e reconhecimento;
+- hash abreviado com acesso ao valor completo;
+- falha e diagnóstico isolados por arquivo;
+- processamento somente em memória, sem upload nem persistência acadêmica;
 - importador organizado em `src/features/gradebook/import/**`.
 
-As entregas #197 e #201 são internas: estabilizam contratos e a primeira função do motor, mas não acrescentam uma nova tela. A próxima mudança visível prevista é #199, que mostrará manifesto/hash e etapas do arquivo no importador.
+O deploy da #199 foi concluído. Ainda falta o smoke manual de seleção de arquivo por operador autenticado para registrar a conferência visual final da nova interface.
+
+## Núcleo já integrado
+
+- contratos de fonte, entidades, resultados, importação, reconciliação e Auditoria;
+- semântica nativa de células;
+- arredondamento acadêmico V1;
+- portas versionadas para entidades, arquivos/lotes, registros acadêmicos e Auditoria;
+- paginação, concorrência otimista e unidade de trabalho atômica para promoção futura.
+
+Ainda não existem schema/binding/adaptador D1, composição trimestral, recuperação nativa, promoção persistente ou área operacional de Auditoria.
 
 ## Validação da fonte
 
-A suíte pública sintética cobre D1, D2, D3, VG, trimestres, REC, estados especiais de célula, posições históricas, transferências, lotes de 1/20/50 arquivos e falha isolada. O procedimento `REAL_DATA_VALIDATION.md` define como conferir o corpus real fora do Git.
+A suíte pública sintética cobre D1, D2, D3, VG, trimestres, REC, estados especiais de célula, posições históricas, transferências, lotes de 1/20/50 arquivos, hash e falha isolada. O procedimento `REAL_DATA_VALIDATION.md` define como conferir o corpus real fora do Git.
 
-A execução controlada desse procedimento ainda precisa ser registrada antes do fechamento definitivo da F1. Isso não bloqueia a quarta onda.
+A execução controlada desse procedimento ainda precisa ser registrada antes do fechamento definitivo da F1. Isso não bloqueia a quinta onda.
 
 ## Saúde e limites
 
-A [#220](https://github.com/mcpmieda/ecossistema-escola/issues/220) registra o planejamento de `Centro de Administração → Configurações → Saúde e limites`.
-
-Essa área será global ao ecossistema, administrativa e alimentada por backend. Ela poderá mostrar D1, Workers, deploys, integrações e consumo por módulo sem expor tokens ou dados acadêmicos. Ainda não está pronta para implementação porque depende de D1/bindings e métricas reais.
+A #220 registra a futura área global `Centro de Administração → Configurações → Saúde e limites`. Ela permanece planejada até existirem bindings D1, uso real e backend autorizado de métricas. O painel não pertence exclusivamente ao Banco de Notas.
 
 ## Fontes de referência revisadas
 
