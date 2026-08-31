@@ -1,6 +1,6 @@
 import { Chip, ScrollShadow, Separator, Skeleton, Surface } from '@heroui/react';
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
-import { notesModule, withNotesModule } from './notes-module';
+import { withNotesModule } from './notes-module';
 import { BrandMark } from './presentation';
 import { platformHref, routeIcons } from './routes';
 
@@ -105,5 +105,3 @@ export function SidebarContent({
     </Surface>
   );
 }
-
-void notesModule;
