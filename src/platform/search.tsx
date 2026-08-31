@@ -14,17 +14,7 @@ function SearchResults({
   query: string;
   onNavigate: (href: string) => void;
 }) {
-  if (!query.trim()) {
-    return (
-      <Surface variant="transparent" className="px-5 py-8 text-center">
-        <Search className="mx-auto size-5 text-muted" />
-        <p className="mt-3 text-sm font-medium">Busca transversal</p>
-        <p className="mt-1 text-xs leading-5 text-muted">
-          Pesquise áreas, sistemas registrados e configurações disponíveis no seu acesso.
-        </p>
-      </Surface>
-    );
-  }
+  if (!query.trim()) return null;
 
   if (items.length === 0) {
     return (
@@ -121,11 +111,13 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
   const [query, setQuery] = useState('');
   const [desktopOpen, setDesktopOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const searchRootRef = useRef<HTMLDivElement>(null);
   const desktopInputRef = useRef<HTMLInputElement>(null);
   const mobileInputRef = useRef<HTMLInputElement>(null);
 
   const items = useMemo(() => (snapshot ? buildSearchItems(snapshot) : []), [snapshot]);
   const results = useMemo(() => filterSearchItems(items, query), [items, query]);
+  const hasQuery = Boolean(query.trim());
 
   const closeSearch = (reset = true) => {
     if (reset) setQuery('');
@@ -143,6 +135,24 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
     const frame = window.requestAnimationFrame(() => mobileInputRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!desktopOpen && !mobileOpen) return;
+
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Node && searchRootRef.current?.contains(target)) return;
+
+      setDesktopOpen(false);
+      if (mobileOpen) {
+        setQuery('');
+        setMobileOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
+  }, [desktopOpen, mobileOpen]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -163,7 +173,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
   }, [snapshot]);
 
   return (
-    <>
+    <div ref={searchRootRef} className="contents">
       <div
         className="platform-search-desktop relative hidden w-full max-w-md md:block"
         onBlurCapture={(event) => {
@@ -178,7 +188,7 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
           onFocus={() => setDesktopOpen(Boolean(snapshot))}
           showShortcut
         />
-        {desktopOpen && snapshot && (
+        {desktopOpen && snapshot && hasQuery && (
           <Surface
             variant="default"
             className="platform-search-popover absolute right-0 top-[calc(100%+.5rem)] z-50 w-full overflow-hidden rounded-2xl border border-border p-2 shadow-xl"
@@ -195,7 +205,10 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
         className="md:hidden"
         aria-label={mobileOpen ? 'Fechar busca' : 'Buscar no Centro'}
         isDisabled={!snapshot}
-        onPress={() => setMobileOpen((value) => !value)}
+        onPress={() => {
+          if (mobileOpen) closeSearch();
+          else setMobileOpen(true);
+        }}
       >
         {mobileOpen ? <X /> : <Search />}
       </Button>
@@ -214,14 +227,16 @@ export function PlatformSearch({ snapshot }: { snapshot: PlatformSnapshotContrac
               Cancelar
             </Button>
           </div>
-          <Surface
-            variant="default"
-            className="mt-2 max-h-[min(60svh,28rem)] overflow-y-auto rounded-2xl border border-border p-2 shadow-xl"
-          >
-            <SearchResults items={results} query={query} onNavigate={navigateFromSearch} />
-          </Surface>
+          {hasQuery && (
+            <Surface
+              variant="default"
+              className="mt-2 max-h-[min(60svh,28rem)] overflow-y-auto rounded-2xl border border-border p-2 shadow-xl"
+            >
+              <SearchResults items={results} query={query} onNavigate={navigateFromSearch} />
+            </Surface>
+          )}
         </div>
       )}
-    </>
+    </div>
   );
 }
