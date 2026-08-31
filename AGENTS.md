@@ -1,26 +1,49 @@
 # Regras para agentes de IA
 
-Este repositório deve permanecer simples. A prioridade é alterar somente o necessário para o Centro de Administração e para integrações explicitamente solicitadas.
+Este repositório deve permanecer simples, funcional e rastreável. A prioridade é alterar somente o necessário para o Centro de Administração e para o Banco de Notas, reutilizando a estrutura existente e evitando camadas permanentes sem utilidade comprovada.
 
-## Limites obrigatórios
+## Regras gerais
 
-- Faça a menor mudança suficiente para atender ao pedido atual.
-- Reutilize a estrutura existente antes de criar qualquer nova camada.
-- Não crie GitHub Actions, pipelines de CI/CD, automações, merge trains, App Factory, Factory Runs, orquestradores, agentes auxiliares ou mecanismos de governança sem autorização explícita do responsável.
-- Não crie nem altere regras de proteção de branch, required checks, rulesets, permissões, secrets, ambientes ou políticas do GitHub sem autorização explícita.
-- Não crie infraestrutura, serviços, bancos, bindings, filas, workers, aplicações Entra, recursos Cloudflare ou recursos Microsoft 365 "para o futuro" sem necessidade direta e autorização explícita.
-- Não crie documentação operacional extensa, issues, tarefas de homologação, branches permanentes ou artefatos de auditoria apenas por precaução.
-- Não recrie componentes, rotas, dados, documentação ou infraestrutura removidos do Banco de Notas.
-- Não transforme uma integração simples de aplicativo em um projeto de governança ou plataforma.
+- Faça a menor mudança suficiente para a issue atribuída.
+- Trabalhe em uma branch curta, com uma issue e um pull request por entrega.
+- Reutilize contratos, componentes e serviços existentes antes de criar novos.
+- Não altere branch protection, rulesets, permissões, secrets, ambientes, aplicações Entra, recursos Cloudflare ou Microsoft 365 sem autorização explícita.
+- Não crie orquestradores, merge trains, App Factory, agentes auxiliares ou infraestrutura “para o futuro”.
+- Não execute merge ou publicação por conta própria, salvo quando a issue declarar expressamente essa autoridade.
+- Nunca inclua nomes, notas, arquivos ou outros dados reais de estudantes em código, fixtures, issues, commits, logs ou screenshots. O repositório é público.
+- Execute `npm run verify` antes de declarar a entrega pronta.
 
-## Ao integrar um aplicativo
+## Banco de Notas
 
-- Integre somente o necessário para o aplicativo funcionar dentro do ecossistema atual.
-- Preserve o Centro de Administração e seus contratos existentes.
-- Adicione apenas rotas, links, permissões, configurações e código indispensáveis à integração solicitada.
-- Testes diretamente relacionados à mudança são permitidos quando necessários, mas não devem introduzir novos pipelines, políticas ou camadas de governança.
-- Qualquer ampliação estrutural que ultrapasse a integração pedida deve ser apresentada ao responsável antes de ser implementada.
+A construção modular do Banco de Notas está explicitamente autorizada e é coordenada por `docs/gradebook/` e pelas issues `[BN]`.
 
-## Regra de decisão
+Antes de modificar o Banco de Notas, leia nesta ordem:
 
-Quando houver duas soluções tecnicamente válidas, escolha a que tiver menos arquivos, menos serviços, menos automação permanente e menor impacto no repositório.
+1. `AGENTS.md`;
+2. `docs/gradebook/README.md`;
+3. `docs/gradebook/PROJECT_STATE.yaml`;
+4. `docs/gradebook/DECISIONS.md`;
+5. a issue atribuída;
+6. os contratos, o contrato da fonte e a matriz de testes relacionados.
+
+Regras obrigatórias:
+
+- HeroUI React v3 é o sistema visual transversal. O domínio e o motor nativo não importam React nem HeroUI.
+- O Banco usa o mesmo shell, identidade, autorização, pesquisa e publicação do Centro de Administração.
+- A fonte operacional inicial são as planilhas atuais dos professores; o arquivo `BANCO DE NOTAS 2026.xlsb` é referência funcional. Outras fontes ficam fora do escopo inicial.
+- Não exigir planilha técnica padronizada. O importador reconhece os arquivos reais existentes.
+- O motor nativo é construído junto com o Banco, em paralelo à preservação e conferência do resultado importado.
+- Uma regra acadêmica existe em um único lugar no domínio. Interface, Desempenho, Conselho, Boletins e relatórios não criam cálculos concorrentes.
+- Mudanças em contratos compartilhados exigem issue `[BN][CONTRATO]` própria. Um agente não amplia contrato silenciosamente dentro de outra tarefa.
+- Cada issue declara caminhos permitidos. Não altere arquivos fora deles sem registrar a necessidade e aguardar ajuste de escopo.
+- Agentes de implementação não editam `PROJECT_STATE.yaml`, salvo quando a issue os nomear como integrador. O integrador atualiza o estado depois do merge.
+- Ao concluir, registre na issue: estado, commit, arquivos, contratos alterados, testes, pendências e próxima tarefa segura.
+- Uma entrega independente só é considerada concluída depois de integrada à `main`, publicada pelo workflow oficial e verificada no site quando houver resultado visível.
+
+## Precedência de decisões
+
+As decisões cronológicas em `docs/gradebook/DECISIONS.md` são a autoridade do projeto. Quando duas instruções divergirem, prevalece a primeira decisão oficial. Uma decisão posterior somente substitui a anterior quando declarar explicitamente a revogação ou substituição.
+
+## Regra de decisão técnica
+
+Quando houver duas soluções válidas, escolha a que preserve os contratos oficiais com menos duplicação, menos serviços, menos automação permanente e menor impacto no repositório.

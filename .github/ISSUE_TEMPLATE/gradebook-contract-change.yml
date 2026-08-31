@@ -1,0 +1,93 @@
+name: Mudança de contrato do Banco de Notas
+description: Proposta controlada para alterar um contrato compartilhado.
+title: "[BN][CONTRATO] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use este formulário quando uma descoberta afetar mais de um módulo ou mudar um formato compartilhado.
+        Mudança pedagógica também exige uma issue `[BN][DECISÃO]`.
+
+  - type: input
+    id: contract
+    attributes:
+      label: Contrato e versão atuais
+      placeholder: "Ex.: TermResultV1"
+    validations:
+      required: true
+
+  - type: textarea
+    id: discovery
+    attributes:
+      label: Descoberta ou problema
+      description: Explique a evidência que tornou a mudança necessária.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: compatibility
+    attributes:
+      label: Compatibilidade
+      options:
+        - Compatível — campo/estado opcional
+        - Incompatível — exige nova versão ou adaptador
+        - Pedagógica — exige decisão oficial antes do código
+        - Ainda não determinada
+    validations:
+      required: true
+
+  - type: textarea
+    id: consumers
+    attributes:
+      label: Consumidores afetados
+      placeholder: |
+        - Importação
+        - Motor nativo
+        - Desempenho
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta de alteração
+      description: Mostre o formato anterior e o novo quando aplicável.
+    validations:
+      required: true
+
+  - type: textarea
+    id: migration
+    attributes:
+      label: Adaptador, migração e retirada
+      description: Como consumidores antigos continuam funcionando e quando a compatibilidade termina.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: Testes afetados
+      description: Cite IDs da matriz e novos casos necessários.
+    validations:
+      required: true
+
+  - type: textarea
+    id: decisions
+    attributes:
+      label: Decisões oficiais relacionadas
+      placeholder: "BN-DEC-XXX ou nenhuma"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: safeguards
+    attributes:
+      label: Confirmações
+      options:
+        - label: A mudança não será aplicada silenciosamente dentro de outra tarefa.
+          required: true
+        - label: Consumidores e plano de compatibilidade foram identificados.
+          required: true
+        - label: Nenhum dado real de estudante será incluído nas evidências públicas.
+          required: true

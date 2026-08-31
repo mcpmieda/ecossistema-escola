@@ -1,0 +1,74 @@
+name: Decisão do Banco de Notas
+description: Resolver uma dúvida funcional, pedagógica ou de escopo sem decisão silenciosa.
+title: "[BN][DECISÃO] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A primeira decisão oficial prevalece. Para substituir uma decisão existente, cite-a expressamente e explique o impacto.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Decisão necessária
+      description: Formule a dúvida de modo objetivo.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidências disponíveis
+      description: Cite planilha, documento, comportamento observado ou regra já registrada, sem expor dados pessoais.
+    validations:
+      required: true
+
+  - type: textarea
+    id: prior
+    attributes:
+      label: Decisões anteriores relacionadas
+      placeholder: "BN-DEC-XXX, ou nenhuma"
+    validations:
+      required: true
+
+  - type: textarea
+    id: options
+    attributes:
+      label: Opções legítimas
+      description: Liste alternativas, efeitos e riscos.
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Fases, contratos e dados afetados
+    validations:
+      required: true
+
+  - type: textarea
+    id: default
+    attributes:
+      label: Padrão seguro proposto
+      description: Quando couber, indique se a escolha deve virar configuração versionada.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: override
+    attributes:
+      label: Substituição de decisão anterior
+      options:
+        - label: Esta proposta NÃO substitui decisão anterior.
+        - label: Esta proposta substitui expressamente uma decisão citada acima e exige confirmação do responsável.
+
+  - type: checkboxes
+    id: safeguards
+    attributes:
+      label: Salvaguardas
+      options:
+        - label: Nenhuma implementação conflitante será feita antes da decisão.
+          required: true
+        - label: Nenhum dado real de estudante será incluído na discussão pública.
+          required: true

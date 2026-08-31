@@ -1,0 +1,127 @@
+name: Tarefa executável do Banco de Notas
+description: Entrega pequena e delimitada para uma pessoa ou agente de IA.
+title: "[BN][TAREFA] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de preencher, leia `AGENTS.md` e `docs/gradebook/AGENT_PROTOCOL.md`.
+        Uma tarefa deve caber em uma branch curta e declarar limites claros.
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Fase
+      options:
+        - F0 — Fundação e coordenação
+        - F1 — Contrato da fonte e importação
+        - F2 — Modelo normalizado e persistência
+        - F3 — Motor nativo
+        - F4 — Reconciliação e Auditoria
+        - F5 — Contexto e centrais
+        - F6 — Desempenho
+        - F7 — Conselho de Classe
+        - F8 — Boletins e relatórios
+        - F9 — Piloto e produção
+    validations:
+      required: true
+
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo funcional
+      description: O que precisa funcionar ao final, em linguagem de produto.
+      placeholder: "Ex.: separar a classificação semântica de células do componente React."
+    validations:
+      required: true
+
+  - type: textarea
+    id: user_result
+    attributes:
+      label: O que o usuário verá
+      description: Descreva o resultado no site ou informe que a entrega é interna.
+    validations:
+      required: true
+
+  - type: textarea
+    id: paths
+    attributes:
+      label: Caminhos permitidos
+      description: Liste arquivos/pastas que a tarefa pode modificar.
+      placeholder: |
+        - src/gradebook-domain/source/**
+        - tests/gradebook/source/**
+    validations:
+      required: true
+
+  - type: textarea
+    id: contracts
+    attributes:
+      label: Contratos consumidos e produzidos
+      description: Cite versões e indique se algum contrato será alterado.
+      placeholder: |
+        Consome: SourceContractV1
+        Produz: SourceCellEvidenceV1
+        Não altera contratos compartilhados.
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependências e bloqueios
+      description: Cite issues necessárias ou escreva “nenhuma”.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critérios de aceite
+      description: Use uma lista objetiva e verificável.
+      placeholder: |
+        - [ ] comportamento atual preservado
+        - [ ] tipos sem dependência de React/HeroUI
+        - [ ] erros possuem mensagens estáveis
+    validations:
+      required: true
+
+  - type: textarea
+    id: tests
+    attributes:
+      label: Testes obrigatórios
+      description: Cite IDs de `TEST_MATRIX.md` e comandos adicionais.
+      placeholder: |
+        - CELL-001 a CELL-009
+        - npm run verify
+    validations:
+      required: true
+
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Fora do escopo
+      description: O que não deve ser implementado nesta issue.
+    validations:
+      required: true
+
+  - type: textarea
+    id: publication
+    attributes:
+      label: Condição de publicação
+      description: Informe rota, feature flag ou “sem mudança visual”.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: safeguards
+    attributes:
+      label: Salvaguardas
+      options:
+        - label: Não incluirei dados reais de estudantes no repositório, PR, logs ou screenshots.
+          required: true
+        - label: Não ampliarei caminhos ou contratos sem registrar a necessidade na issue.
+          required: true
+        - label: Executarei `npm run verify` antes de solicitar integração.
+          required: true

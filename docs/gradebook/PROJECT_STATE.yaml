@@ -1,0 +1,127 @@
+schema_version: 1
+project: banco-de-notas
+repository: mcpmieda/ecossistema-escola
+production_url: https://admin.escolaieda.com/#/banco-de-notas
+updated_at: 2026-08-31
+
+coordination:
+  canonical_decisions: docs/gradebook/DECISIONS.md
+  canonical_roadmap: docs/gradebook/ROADMAP.md
+  issue_map: pending
+  master_issue: pending
+  integrator_required: true
+  recommended_parallel_agents: 4
+  central_state_editor: integrator-only
+  branch_model: short-lived-per-issue
+  merge_target: main
+  publication: automatic-after-main
+
+runtime:
+  last_verified_runtime_commit: 743510de62e412ccad2cb39d845ad4c18e110391
+  design_system: HeroUI React v3
+  authentication: Microsoft Entra ID inherited from the Admin Center
+  current_route: '#/banco-de-notas'
+  current_features:
+    - unified-admin-shell
+    - global-search-entry
+    - batch-import-up-to-50-files
+    - xlsb-xlsx-xls-reading
+    - teacher-workbook-recognition
+    - trimester-and-recovery-recognition
+  current_limitations:
+    - academic-data-is-not-persisted
+    - native-engine-not-yet-implemented
+    - source-provenance-is-not-yet-complete
+    - audit-workspace-not-yet-implemented
+
+scope:
+  operational_sources:
+    - teacher-grade-spreadsheets
+  functional_reference:
+    - BANCO_DE_NOTAS_2026_XLSB
+  excluded_for_now:
+    - smecel
+    - additional-cadastral-sources
+    - automatic-onedrive-sync
+    - standardized-technical-spreadsheet
+
+phases:
+  F0:
+    name: foundation-and-agent-coordination
+    status: in_progress
+    progress: 80
+    issue: pending
+    visible_result: repository-coordination-only
+  F1:
+    name: source-contract-and-import
+    status: partially_available
+    progress: 30
+    issue: pending
+    visible_result: batch-reader-in-production
+  F2:
+    name: normalized-domain-and-persistence-boundaries
+    status: planned
+    progress: 0
+    issue: pending
+    visible_result: none
+  F3:
+    name: native-engine
+    status: planned
+    progress: 0
+    issue: pending
+    visible_result: none
+  F4:
+    name: reconciliation-and-audit
+    status: planned
+    progress: 0
+    issue: pending
+    visible_result: none
+  F5:
+    name: operational-entity-centers-and-context
+    status: planned
+    progress: 0
+    issue: pending
+    visible_result: none
+  F6:
+    name: performance
+    status: planned
+    progress: 0
+    issue: pending
+    visible_result: none
+  F7:
+    name: class-council
+    status: planned
+    progress: 0
+    issue: pending
+    visible_result: none
+  F8:
+    name: bulletins-and-reports
+    status: planned
+    progress: 0
+    issue: pending
+    visible_result: none
+  F9:
+    name: pilot-security-and-production-hardening
+    status: planned
+    progress: 0
+    issue: pending
+    visible_result: none
+
+ready_queue:
+  - define-source-contract-v1
+  - define-domain-contracts-v1
+  - modularize-current-importer-without-regression
+
+blocked_queue:
+  - task: native-engine-calculations
+    blocked_by: source-contract-v1-and-domain-contracts-v1
+  - task: persistence-implementation
+    blocked_by: physical-storage-decision
+  - task: performance-ui
+    blocked_by: official-read-model-contracts
+
+next_integrator_actions:
+  - merge-coordination-foundation
+  - create-master-and-phase-issues
+  - publish-issue-map-with-real-numbers
+  - mark-F0-published-after-production-workflow
