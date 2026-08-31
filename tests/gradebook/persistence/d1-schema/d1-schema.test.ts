@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { GRADEBOOK_D1_MIGRATIONS } from '../../../../server/gradebook/persistence/d1/schema/migrations';
 
@@ -12,9 +12,16 @@ const yearId = 'academic-year:synthetic:2026';
 const sha256 = 'a'.repeat(64);
 
 let databases: DatabaseSync[] = [];
+let DatabaseSyncConstructor: typeof DatabaseSync;
+
+beforeAll(async () => {
+  const sqliteModuleName = 'node:sqlite';
+  const sqlite = await import(/* @vite-ignore */ sqliteModuleName);
+  DatabaseSyncConstructor = sqlite.DatabaseSync;
+});
 
 function openDatabase(): DatabaseSync {
-  const database = new DatabaseSync(':memory:');
+  const database = new DatabaseSyncConstructor(':memory:');
   database.exec('PRAGMA foreign_keys = ON;');
   databases.push(database);
   return database;
