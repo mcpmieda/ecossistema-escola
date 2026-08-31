@@ -1,17 +1,8 @@
 import { Chip, ScrollShadow, Separator, Skeleton, Surface } from '@heroui/react';
 import type { CoreModuleContract, PlatformRoute } from '../../shared/platform-contract';
+import { notesModule, withNotesModule } from './notes-module';
 import { BrandMark } from './presentation';
 import { platformHref, routeIcons } from './routes';
-
-const notesModule: CoreModuleContract = {
-  id: 'content.notes',
-  name: 'Banco de notas',
-  description: '',
-  route: 'banco-de-notas',
-  state: 'ready',
-  requiredRole: 'ADMINISTRADOR',
-  capabilities: [],
-};
 
 function Navigation({
   route,
@@ -27,7 +18,7 @@ function Navigation({
   if (loading) {
     return (
       <div className="grid gap-2 px-4">
-        {Array.from({ length: 7 }).map((_, index) => (
+        {Array.from({ length: 8 }).map((_, index) => (
           <Skeleton className="h-12 w-full rounded-2xl" key={index} />
         ))}
       </div>
@@ -37,7 +28,7 @@ function Navigation({
   return (
     <nav aria-label="Navegação principal" className="platform-nav px-3">
       <ul className="grid gap-[0.3rem]">
-        {[...modules, notesModule].map((module) => {
+        {withNotesModule(modules).map((module) => {
           const Icon = routeIcons[module.route];
           const isSelected = route === module.route;
           return (
@@ -86,7 +77,12 @@ export function SidebarContent({
       variant="default"
       className="sidebar-surface flex h-dvh min-h-dvh w-[min(88vw,320px)] flex-col rounded-none border-0 text-foreground lg:h-full lg:min-h-0 lg:w-auto"
     >
-      <div className="flex h-[72px] min-h-[72px] items-center gap-3 px-5">
+      <a
+        href={platformHref('visao-geral')}
+        className="flex h-[72px] min-h-[72px] items-center gap-3 px-5 text-foreground no-underline"
+        aria-label="Ir para a visão geral do Centro de Administração"
+        onClick={onNavigate}
+      >
         <BrandMark compact />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold tracking-[-0.025em]">
@@ -94,7 +90,7 @@ export function SidebarContent({
           </p>
           <p className="mt-0.5 truncate text-xs text-muted">Escola Iêda Alves de Oliveira</p>
         </div>
-      </div>
+      </a>
 
       <Separator />
 
@@ -109,3 +105,5 @@ export function SidebarContent({
     </Surface>
   );
 }
+
+void notesModule;
