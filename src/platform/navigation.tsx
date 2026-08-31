@@ -84,7 +84,7 @@ export function SidebarContent({
   return (
     <Surface
       variant="default"
-      className="sidebar-surface flex h-full min-h-0 flex-col rounded-none border-0 text-foreground"
+      className="sidebar-surface flex h-dvh min-h-dvh w-[min(88vw,320px)] flex-col rounded-none border-0 text-foreground lg:h-full lg:min-h-0 lg:w-auto"
     >
       <div className="flex h-[72px] min-h-[72px] items-center gap-3 px-5">
         <BrandMark compact />
