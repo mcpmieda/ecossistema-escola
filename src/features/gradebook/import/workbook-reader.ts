@@ -8,8 +8,8 @@ export const WORKBOOK_READ_OPTIONS = {
   cellStyles: true,
 } as const;
 
-export async function readWorkbook(file: File, xlsx: SheetJs): Promise<WorkbookSummary> {
-  const parsed = xlsx.read(await file.arrayBuffer(), WORKBOOK_READ_OPTIONS);
+export function readWorkbookData(file: File, data: ArrayBuffer, xlsx: SheetJs): WorkbookSummary {
+  const parsed = xlsx.read(data, WORKBOOK_READ_OPTIONS);
   if (parsed.SheetNames.length === 0) {
     throw new Error('A planilha não contém abas reconhecíveis.');
   }
@@ -20,4 +20,8 @@ export async function readWorkbook(file: File, xlsx: SheetJs): Promise<WorkbookS
   }
 
   return summary;
+}
+
+export async function readWorkbook(file: File, xlsx: SheetJs): Promise<WorkbookSummary> {
+  return readWorkbookData(file, await file.arrayBuffer(), xlsx);
 }
