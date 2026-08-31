@@ -1,25 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { PLATFORM_ROUTES, normalizePlatformRoute } from '../shared/platform-contract';
 import { coreModuleSchema, coreModules } from '../server/platform/manifest';
+import { withNotesModule } from '../src/platform/notes-module';
+
+const navigableModules = withNotesModule(coreModules);
 
 describe('Centro de Administração module contract', () => {
-  it('declares one stable module per platform route', () => {
-    expect(coreModules).toHaveLength(PLATFORM_ROUTES.length);
-    expect(new Set(coreModules.map((module) => module.id)).size).toBe(coreModules.length);
-    expect(new Set(coreModules.map((module) => module.route))).toEqual(new Set(PLATFORM_ROUTES));
+  it('declares one stable navigable module per platform route', () => {
+    expect(navigableModules).toHaveLength(PLATFORM_ROUTES.length);
+    expect(new Set(navigableModules.map((module) => module.id)).size).toBe(
+      navigableModules.length,
+    );
+    expect(new Set(navigableModules.map((module) => module.route))).toEqual(
+      new Set(PLATFORM_ROUTES),
+    );
   });
 
   it('keeps the production platform restricted to administrators', () => {
-    expect(coreModules.every((module) => module.requiredRole === 'ADMINISTRADOR')).toBe(true);
+    expect(navigableModules.every((module) => module.requiredRole === 'ADMINISTRADOR')).toBe(true);
   });
 
-  it('requires explicit capabilities in every module manifest', () => {
+  it('requires explicit capabilities in every server module manifest', () => {
     expect(coreModules.every((module) => module.capabilities.length > 0)).toBe(true);
     for (const module of coreModules) expect(coreModuleSchema.parse(module)).toEqual(module);
   });
 
   it('keeps future content domains planned and the released administrative core ready', () => {
-    const states = new Map(coreModules.map((module) => [module.route, module.state]));
+    const states = new Map(navigableModules.map((module) => [module.route, module.state]));
     expect(states.get('publicacoes')).toBe('planned');
     expect(states.get('paginas')).toBe('planned');
     expect(states.get('visao-geral')).toBe('ready');
@@ -27,6 +34,7 @@ describe('Centro de Administração module contract', () => {
     expect(states.get('sistemas')).toBe('ready');
     expect(states.get('auditoria')).toBe('ready');
     expect(states.get('configuracoes')).toBe('ready');
+    expect(states.get('banco-de-notas')).toBe('ready');
   });
 
   it('gives the operational area an explicit read capability', () => {
@@ -37,6 +45,7 @@ describe('Centro de Administração module contract', () => {
   it('restores known routes and falls back safely', () => {
     expect(normalizePlatformRoute('operacao')).toBe('operacao');
     expect(normalizePlatformRoute('auditoria')).toBe('auditoria');
+    expect(normalizePlatformRoute('banco-de-notas')).toBe('banco-de-notas');
     expect(normalizePlatformRoute('rota-inexistente')).toBe('visao-geral');
   });
 });
