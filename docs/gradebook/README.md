@@ -11,7 +11,7 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 
 ## Estado atual
 
-Quatro ondas foram integradas:
+Cinco ondas foram integradas:
 
 - #193/PR #207: esquema `SourceContractV1`;
 - #194/PR #208: contratos das entidades acadêmicas V1;
@@ -22,21 +22,26 @@ Quatro ondas foram integradas:
 - #201/PR #217: interpretação semântica nativa das células;
 - #199/PR #225: manifesto SHA-256 e proveniência visível por arquivo;
 - #218/PR #224: arredondamento acadêmico nativo V1;
-- #219/PR #223: portas de persistência e transação independentes do fornecedor.
+- #219/PR #223: portas de persistência e transação independentes do fornecedor;
+- #226/PR #231: composição trimestral nativa V1;
+- #227/PR #233: schema e migrations D1 V1 locais;
+- #228/PR #232: planejador idempotente de reimportação e versionamento.
 
-O commit funcional publicado é `bc82b351026c44f2bddeb91920f61362a163f379`; o deploy Cloudflare Pages `33429726281` foi concluído com sucesso.
+O código vigente da quinta onda está no commit `781a2a25640366f1807de7d98cf0157f5c3cfea1`; o deploy Cloudflare Pages `33436989871` foi concluído com sucesso.
 
-A quinta onda está pronta para três agentes independentes:
+A sexta onda está pronta para três agentes independentes:
 
-- [#226 — composição trimestral nativa V1](https://github.com/mcpmieda/ecossistema-escola/issues/226);
-- [#227 — esquema e migrations D1 V1, sem provisionar produção](https://github.com/mcpmieda/ecossistema-escola/issues/227);
-- [#228 — planejamento idempotente de reimportação e versionamento](https://github.com/mcpmieda/ecossistema-escola/issues/228).
+- [#234 — recuperação paralela nativa V1](https://github.com/mcpmieda/ecossistema-escola/issues/234);
+- [#235 — catálogo de streams por fonte lógica e adaptador D1 local de leitura](https://github.com/mcpmieda/ecossistema-escola/issues/235);
+- [#236 — executor transacional do plano de reimportação](https://github.com/mcpmieda/ecossistema-escola/issues/236).
 
-A integração da quinta onda fica reservada à [#229](https://github.com/mcpmieda/ecossistema-escola/issues/229).
+A integração da sexta onda fica reservada à [#237](https://github.com/mcpmieda/ecossistema-escola/issues/237).
 
 ## Decisão de armazenamento
 
-A issue #200 aprovou **Cloudflare D1** como armazenamento físico principal da base acadêmica. O domínio continua independente do fornecedor por meio das portas da #219; banco, bindings, migrations remotas e adaptador concreto serão criados somente em issues próprias.
+A issue #200 aprovou **Cloudflare D1** como armazenamento físico principal da base acadêmica. O domínio continua independente do fornecedor por meio das portas da #219.
+
+A quinta onda integrou duas migrations locais, 19 tabelas, histórico append-only, chaves estrangeiras por ano, controle otimista, proveniência e índices. Isso ainda **não** significa que exista um banco D1 de produção: nenhum banco, binding, migration remota ou adaptador de escrita foi criado.
 
 Regras relacionadas:
 
@@ -46,6 +51,7 @@ Regras relacionadas:
 - mesmo hash não duplica conteúdo;
 - alterações acadêmicas geram versões apenas do que mudou;
 - valores anteriores permanecem no histórico;
+- valores ausentes de uma nova versão exigem revisão, não deleção silenciosa;
 - plano gratuito pode ser usado no desenvolvimento/piloto com medição de consumo.
 
 ## Objetivo
@@ -68,23 +74,32 @@ Construir um Banco de Notas funcional, modular, auditável e acessível a usuár
 - processamento somente em memória, sem upload nem persistência acadêmica;
 - importador organizado em `src/features/gradebook/import/**`.
 
-O deploy da #199 foi concluído. Ainda falta o smoke manual de seleção de arquivo por operador autenticado para registrar a conferência visual final da nova interface.
+O operador confirmou o happy path da interface com dois arquivos XLSB: ambos foram reconhecidos, receberam SHA-256 e exibiram manifesto e leitura acadêmica. O smoke completo ainda precisa observar a etapa transitória de hash, expandir o valor completo e provocar uma falha isolada controlada.
 
 ## Núcleo já integrado
 
 - contratos de fonte, entidades, resultados, importação, reconciliação e Auditoria;
 - semântica nativa de células;
 - arredondamento acadêmico V1;
+- composição trimestral do perfil 2026 com 30/30/40, blocos 45%/55%, cobertura e achados;
 - portas versionadas para entidades, arquivos/lotes, registros acadêmicos e Auditoria;
+- schema D1 local com migrations 0001–0002, 19 tabelas e histórico append-only;
+- planejamento de reimportação que separa igual, novo, alterado, ausente e bloqueado;
 - paginação, concorrência otimista e unidade de trabalho atômica para promoção futura.
 
-Ainda não existem schema/binding/adaptador D1, composição trimestral, recuperação nativa, promoção persistente ou área operacional de Auditoria.
+Ainda não existem banco/binding D1 operacional, adaptador de escrita, recuperação paralela/final, executor persistente, área operacional de Auditoria ou demais módulos.
+
+## Lacuna de integração rastreada
+
+O planejador da #228 precisa listar os registros acadêmicos associados a uma fonte lógica para detectar o que desapareceu da nova planilha. As migrations 0001–0002 não guardam essa associação em uma relação própria.
+
+A #235 adicionará uma migration 0003 e o adaptador local de leitura correspondente. Não se deve substituir essa relação por varredura de JSON ou pelo nome do arquivo.
 
 ## Validação da fonte
 
 A suíte pública sintética cobre D1, D2, D3, VG, trimestres, REC, estados especiais de célula, posições históricas, transferências, lotes de 1/20/50 arquivos, hash e falha isolada. O procedimento `REAL_DATA_VALIDATION.md` define como conferir o corpus real fora do Git.
 
-A execução controlada desse procedimento ainda precisa ser registrada antes do fechamento definitivo da F1. Isso não bloqueia a quinta onda.
+A execução controlada desse procedimento ainda precisa ser registrada antes do fechamento definitivo da F1. Isso não bloqueia a sexta onda.
 
 ## Saúde e limites
 
@@ -106,7 +121,7 @@ Esses arquivos não devem ser adicionados ao repositório público quando contiv
 3. [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml);
 4. [`DECISIONS.md`](DECISIONS.md);
 5. a issue atribuída;
-6. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`CONTRACTS.md`](CONTRACTS.md), [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md) e [`TEST_MATRIX.md`](TEST_MATRIX.md) conforme o escopo;
+6. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`CONTRACTS.md`](CONTRACTS.md), [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md), [`D1_SCHEMA.md`](D1_SCHEMA.md) e [`TEST_MATRIX.md`](TEST_MATRIX.md) conforme o escopo;
 7. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md).
 
 A issue deve ser executada diretamente. App Factory, Factory Runs, orquestradores e agentes auxiliares só podem ser usados quando a própria issue autorizar expressamente.
