@@ -10,6 +10,7 @@ coordination:
   issue_map: docs/gradebook/ISSUE_MAP.md
   master_issue: 182
   foundation_issue: 183
+  integrator_issue: 203
   integrator_required: true
   recommended_parallel_agents: 3
   central_state_editor: integrator-only
@@ -17,10 +18,11 @@ coordination:
   merge_target: main
   publication: automatic-after-main
   coordination_bootstrap_commit: ec6c712e287e97269375c6f5c4790c1529ea4309
+  issue_map_commit: 027dce35a1d881cecb94b4b164fd5d1913721519
 
 runtime:
-  last_verified_runtime_commit: ec6c712e287e97269375c6f5c4790c1529ea4309
-  last_verified_deploy_run: 33404200815
+  last_verified_runtime_commit: 027dce35a1d881cecb94b4b164fd5d1913721519
+  last_verified_deploy_run: 33405602472
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
@@ -171,6 +173,19 @@ pending_decisions:
     blocks:
       - concrete-persistence
       - database-migrations
+
+integration:
+  issue: 203
+  status: waiting-for-wave-1-pull-requests
+  watches:
+    - 193
+    - 194
+    - 195
+  responsibilities:
+    - contract-compatibility-review
+    - merge-and-production-verification
+    - state-and-issue-map-update
+    - next-wave-unlock
 
 next_integrator_actions:
   - assign-one-agent-to-each-ready-issue
