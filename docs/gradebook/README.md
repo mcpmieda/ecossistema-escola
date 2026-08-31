@@ -2,6 +2,14 @@
 
 Este diretório é a memória oficial e suficiente para que uma pessoa ou inteligência artificial entenda o projeto, descubra onde o trabalho parou e continue sem depender de conversas anteriores.
 
+## Acompanhamento imediato
+
+- [Issue principal #182](../../issues/182) — visão geral para acompanhamento humano.
+- [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, progresso, tarefas prontas e bloqueios.
+- [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina e fila segura.
+
+A primeira onda possui três issues independentes prontas para agentes: [#193](../../issues/193), [#194](../../issues/194) e [#195](../../issues/195).
+
 ## Objetivo
 
 Construir um Banco de Notas funcional, modular, auditável e acessível a usuários leigos, integrado ao Centro de Administração e alimentado inicialmente pelas planilhas atuais dos professores. O sistema deve preservar a origem dos dados, implementar o motor nativo junto com o núcleo e publicar progressivamente cada entrega independente no site oficial.
@@ -31,18 +39,19 @@ Esses arquivos não devem ser adicionados ao repositório público quando contiv
 
 ## Leitura obrigatória
 
-1. [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina e fila segura;
-2. [`DECISIONS.md`](DECISIONS.md) — decisões oficiais em ordem cronológica;
-3. [`ROADMAP.md`](ROADMAP.md) — fases, dependências e critérios de conclusão;
-4. [`ARCHITECTURE.md`](ARCHITECTURE.md) — limites dos módulos e direção do código;
-5. [`CONTRACTS.md`](CONTRACTS.md) — vocabulário e contratos compartilhados;
-6. [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md) — estrutura confirmada das planilhas;
-7. [`TEST_MATRIX.md`](TEST_MATRIX.md) — testes mínimos por camada;
-8. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md) — como assumir e entregar uma issue.
+1. [`ISSUE_MAP.md`](ISSUE_MAP.md) — visão rápida para escolher uma tarefa;
+2. [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina e fila segura;
+3. [`DECISIONS.md`](DECISIONS.md) — decisões oficiais em ordem cronológica;
+4. [`ROADMAP.md`](ROADMAP.md) — fases, dependências e critérios de conclusão;
+5. [`ARCHITECTURE.md`](ARCHITECTURE.md) — limites dos módulos e direção do código;
+6. [`CONTRACTS.md`](CONTRACTS.md) — vocabulário e contratos compartilhados;
+7. [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md) — estrutura confirmada das planilhas;
+8. [`TEST_MATRIX.md`](TEST_MATRIX.md) — testes mínimos por camada;
+9. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md) — como assumir e entregar uma issue.
 
 ## Regra de acompanhamento
 
-O acompanhamento humano usa uma issue principal e uma issue por fase. Cada fase informa em linguagem simples:
+O acompanhamento humano usa a issue #182 e uma issue por fase. Cada fase informa em linguagem simples:
 
 - o que já funciona;
 - o que falta;
