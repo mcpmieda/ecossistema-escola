@@ -21,14 +21,16 @@ O fluxo normal verifica lint, tipos, testes e build. Pull requests são validado
 
 ## Banco de Notas
 
-O Banco de Notas é desenvolvido no mesmo repositório e no mesmo shell do Centro. A coordenação para múltiplos agentes, decisões oficiais, fases, contratos e estado atual está em:
+O Banco de Notas é desenvolvido no mesmo repositório e no mesmo shell do Centro.
 
+- [Programa no GitHub — issue #182](../../issues/182)
 - [`docs/gradebook/README.md`](docs/gradebook/README.md)
+- [`docs/gradebook/ISSUE_MAP.md`](docs/gradebook/ISSUE_MAP.md)
 - [`docs/gradebook/PROJECT_STATE.yaml`](docs/gradebook/PROJECT_STATE.yaml)
 - [`docs/gradebook/ROADMAP.md`](docs/gradebook/ROADMAP.md)
 - [`docs/gradebook/DECISIONS.md`](docs/gradebook/DECISIONS.md)
 
-A issue principal do programa será registrada nesses documentos após a criação do mapa inicial de issues.
+As primeiras tarefas independentes para agentes estão nas issues #193, #194 e #195. Cada agente deve ler `AGENTS.md`, trabalhar apenas nos caminhos declarados pela issue e abrir PR para `main` sem fazer merge ou deploy por conta própria.
 
 ## Estrutura atual
 
