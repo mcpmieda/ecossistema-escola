@@ -4,6 +4,7 @@ Este diretório é a memória oficial e suficiente para que uma pessoa ou inteli
 
 ## Acompanhamento imediato
 
+- [`COMECE_AQUI.md`](COMECE_AQUI.md) — mapa curto: o que executar agora e quais issues dependem de outras.
 - [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — visão geral para acompanhamento humano.
 - [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, progresso, tarefas prontas e bloqueios.
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina e fila segura.
@@ -39,15 +40,16 @@ Esses arquivos não devem ser adicionados ao repositório público quando contiv
 
 ## Leitura obrigatória
 
-1. [`ISSUE_MAP.md`](ISSUE_MAP.md) — visão rápida para escolher uma tarefa;
-2. [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina e fila segura;
-3. [`DECISIONS.md`](DECISIONS.md) — decisões oficiais em ordem cronológica;
-4. [`ROADMAP.md`](ROADMAP.md) — fases, dependências e critérios de conclusão;
-5. [`ARCHITECTURE.md`](ARCHITECTURE.md) — limites dos módulos e direção do código;
-6. [`CONTRACTS.md`](CONTRACTS.md) — vocabulário e contratos compartilhados;
-7. [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md) — estrutura confirmada das planilhas;
-8. [`TEST_MATRIX.md`](TEST_MATRIX.md) — testes mínimos por camada;
-9. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md) — como assumir e entregar uma issue.
+1. [`COMECE_AQUI.md`](COMECE_AQUI.md) — escolha da issue e ordem das ondas;
+2. [`ISSUE_MAP.md`](ISSUE_MAP.md) — visão das fases e dependências;
+3. [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina e fila segura;
+4. [`DECISIONS.md`](DECISIONS.md) — decisões oficiais em ordem cronológica;
+5. [`ROADMAP.md`](ROADMAP.md) — fases, dependências e critérios de conclusão;
+6. [`ARCHITECTURE.md`](ARCHITECTURE.md) — limites dos módulos e direção do código;
+7. [`CONTRACTS.md`](CONTRACTS.md) — vocabulário e contratos compartilhados;
+8. [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md) — estrutura confirmada das planilhas;
+9. [`TEST_MATRIX.md`](TEST_MATRIX.md) — testes mínimos por camada;
+10. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md) — como assumir e entregar uma issue.
 
 ## Regra de acompanhamento
 
