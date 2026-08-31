@@ -1,45 +1,20 @@
 import { useRef, useState } from 'react';
 import { Alert, Button, Chip, Surface } from '@heroui/react';
 import { CheckCircle2, FileSpreadsheet, Upload } from 'lucide-react';
+import {
+  ACCEPTED_EXTENSIONS,
+  fileExtension,
+  formatNote,
+  noteCount,
+  recognizeWorkbook,
+  stageLabel,
+  trimesterSheets,
+  type SheetJs,
+  type WorkbookSummary,
+} from './notes-spreadsheet-recognizer';
 import { PageHeader } from './presentation';
 
 const SHEETJS_SRC = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
-const ACCEPTED_EXTENSIONS = ['xlsx', 'xlsb', 'xls'] as const;
-
-type Worksheet = {
-  '!ref'?: string;
-};
-
-type Workbook = {
-  SheetNames: string[];
-  Sheets: Record<string, Worksheet>;
-};
-
-type SheetJs = {
-  version: string;
-  read: (data: ArrayBuffer, options?: Record<string, unknown>) => Workbook;
-  utils: {
-    decode_range: (range: string) => {
-      s: { r: number; c: number };
-      e: { r: number; c: number };
-    };
-  };
-};
-
-type SheetSummary = {
-  name: string;
-  range: string;
-  rows: number;
-  columns: number;
-};
-
-type WorkbookSummary = {
-  fileName: string;
-  format: string;
-  size: number;
-  parserVersion: string;
-  sheets: SheetSummary[];
-};
 
 declare global {
   interface Window {
@@ -52,12 +27,10 @@ let sheetJsPromise: Promise<SheetJs> | null = null;
 function loadSheetJs(): Promise<SheetJs> {
   if (window.XLSX) return Promise.resolve(window.XLSX);
   if (sheetJsPromise) return sheetJsPromise;
-
   sheetJsPromise = new Promise<SheetJs>((resolve, reject) => {
     const script = document.createElement('script');
     script.src = SHEETJS_SRC;
     script.async = true;
-    script.dataset.sheetjs = '0.20.3';
     script.addEventListener('load', () => {
       if (window.XLSX) resolve(window.XLSX);
       else reject(new Error('O leitor de planilhas não foi carregado.'));
@@ -68,38 +41,13 @@ function loadSheetJs(): Promise<SheetJs> {
     });
     document.head.appendChild(script);
   });
-
   return sheetJsPromise;
-}
-
-function fileExtension(name: string): string {
-  return name.split('.').pop()?.trim().toLowerCase() ?? '';
 }
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function summarizeWorkbook(file: File, workbook: Workbook, xlsx: SheetJs): WorkbookSummary {
-  return {
-    fileName: file.name,
-    format: fileExtension(file.name).toUpperCase(),
-    size: file.size,
-    parserVersion: xlsx.version,
-    sheets: workbook.SheetNames.map((name) => {
-      const range = workbook.Sheets[name]?.['!ref'];
-      if (!range) return { name, range: 'Vazia', rows: 0, columns: 0 };
-      const decoded = xlsx.utils.decode_range(range);
-      return {
-        name,
-        range,
-        rows: decoded.e.r - decoded.s.r + 1,
-        columns: decoded.e.c - decoded.s.c + 1,
-      };
-    }),
-  };
 }
 
 export function NotesPage() {
@@ -115,25 +63,24 @@ export function NotesPage() {
       setError('Selecione uma planilha XLSX, XLSB ou XLS.');
       return;
     }
-
     setLoading(true);
     setError(null);
     setWorkbook(null);
-
     try {
       const xlsx = await loadSheetJs();
-      const data = await file.arrayBuffer();
-      const parsed = xlsx.read(data, {
+      const parsed = xlsx.read(await file.arrayBuffer(), {
         type: 'array',
         cellDates: true,
         cellFormula: true,
-        cellHTML: true,
         cellNF: true,
         cellStyles: true,
       });
-
       if (parsed.SheetNames.length === 0) throw new Error('A planilha não contém abas reconhecíveis.');
-      setWorkbook(summarizeWorkbook(file, parsed, xlsx));
+      const summary = recognizeWorkbook(file, parsed, xlsx);
+      if (summary.gradeSheets.length === 0) {
+        throw new Error('O arquivo abriu, mas nenhuma guia corresponde ao padrão de notas configurado.');
+      }
+      setWorkbook(summary);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Não foi possível reconhecer a planilha.');
     } finally {
@@ -142,14 +89,17 @@ export function NotesPage() {
     }
   }
 
+  const totalStudents = workbook?.classes.reduce((sum, classroom) => sum + classroom.students, 0) ?? 0;
+  const trimesterGuides = workbook?.gradeSheets.filter((sheet) => sheet.stage.startsWith('trimester')).length ?? 0;
+  const recoveryClasses = workbook?.classes.filter((classroom) => classroom.recovery).length ?? 0;
+
   return (
     <>
       <PageHeader
         eyebrow="Banco de notas"
         title="Leitor de planilhas"
-        description="Selecione uma planilha para reconhecer o arquivo e todas as abas diretamente no navegador."
+        description="Reconhecimento local do padrão das planilhas de notas: turmas, alunos, períodos e blocos quantitativo e qualitativo."
       />
-
       <Surface variant="default" className="platform-card-surface rounded-[2rem] p-6 sm:p-7">
         <input
           ref={inputRef}
@@ -161,20 +111,17 @@ export function NotesPage() {
             if (file) void handleFile(file);
           }}
         />
-
         <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <FileSpreadsheet className="size-5 text-accent" />
               <h3 className="text-lg font-semibold">Importar planilha</h3>
             </div>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              XLSB, XLSX e XLS. O arquivo permanece no dispositivo e é lido localmente.
-            </p>
+            <p className="mt-2 text-sm text-muted">XLSB, XLSX e XLS. Leitura somente em memória, sem upload.</p>
           </div>
           <Button variant="primary" isPending={loading} onPress={() => inputRef.current?.click()}>
             <Upload className="size-4" />
-            {loading ? 'Lendo planilha' : 'Importar planilha'}
+            {loading ? 'Reconhecendo' : 'Importar planilha'}
           </Button>
         </div>
 
@@ -182,7 +129,7 @@ export function NotesPage() {
           <Alert status="danger" className="mt-5">
             <Alert.Indicator />
             <Alert.Content>
-              <Alert.Title>Não foi possível ler o arquivo</Alert.Title>
+              <Alert.Title>Não foi possível reconhecer a planilha</Alert.Title>
               <Alert.Description>{error}</Alert.Description>
             </Alert.Content>
           </Alert>
@@ -191,35 +138,99 @@ export function NotesPage() {
         {workbook && (
           <div className="mt-6">
             <Alert status="success">
-              <Alert.Indicator>
-                <CheckCircle2 className="size-4" />
-              </Alert.Indicator>
+              <Alert.Indicator><CheckCircle2 className="size-4" /></Alert.Indicator>
               <Alert.Content>
-                <Alert.Title>Planilha reconhecida</Alert.Title>
+                <Alert.Title>Padrão de notas reconhecido</Alert.Title>
                 <Alert.Description>
-                  {workbook.fileName} · {workbook.format} · {formatBytes(workbook.size)} ·{' '}
-                  {workbook.sheets.length} aba(s)
+                  {workbook.fileName} · {workbook.format} · {formatBytes(workbook.size)} · {workbook.sheets.length} aba(s)
                 </Alert.Description>
               </Alert.Content>
             </Alert>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {workbook.sheets.map((sheet) => (
-                <Surface key={sheet.name} variant="secondary" className="rounded-2xl p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">{sheet.name}</p>
-                      <p className="mt-1 text-xs text-muted">Intervalo: {sheet.range}</p>
-                    </div>
-                    <Chip variant="soft" size="sm">
-                      {sheet.rows} × {sheet.columns}
-                    </Chip>
-                  </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                ['Turmas', workbook.classes.length, 'turmas distintas'],
+                ['Alunos', totalStudents, 'posições únicas por turma'],
+                ['Trimestres', trimesterGuides, 'guias de 1º, 2º e 3º'],
+                ['Recuperação', recoveryClasses, 'turma(s) com guia REC'],
+              ].map(([label, value, detail]) => (
+                <Surface key={String(label)} variant="secondary" className="rounded-2xl p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">{label}</p>
+                  <p className="mt-2 text-2xl font-semibold">{value}</p>
+                  <p className="mt-1 text-xs text-muted">{detail}</p>
                 </Surface>
               ))}
             </div>
 
-            <p className="mt-4 text-xs text-muted">Leitor SheetJS {workbook.parserVersion}</p>
+            <div className="mt-5 space-y-4">
+              {workbook.classes.map((classroom) => (
+                <Surface key={classroom.name} variant="default" className="rounded-3xl border border-border/60 p-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="mr-1 text-lg font-semibold">{classroom.name}</h3>
+                    <Chip variant="soft" size="sm">{classroom.students} alunos</Chip>
+                    {classroom.declaredStudents !== null && <Chip variant="soft" size="sm">J1: {classroom.declaredStudents}</Chip>}
+                    {classroom.trimesters.map((period) => <Chip key={period} color="success" variant="soft" size="sm">{period}</Chip>)}
+                    {classroom.recovery && <Chip color="accent" variant="soft" size="sm">REC</Chip>}
+                  </div>
+                  <p className="mt-2 text-sm text-muted">
+                    {classroom.disciplines.length ? classroom.disciplines.join(' · ') : 'Disciplina não informada em K2'}
+                  </p>
+
+                  <details className="mt-4">
+                    <summary className="cursor-pointer text-sm font-medium">Ver leitura por trimestre</summary>
+                    <div className="mt-3 space-y-3">
+                      {trimesterSheets(classroom.sheets).map((sheet) => {
+                        const q = noteCount(sheet.students.map((student) => student.quantitativeTotal));
+                        const ql = noteCount(sheet.students.map((student) => student.qualitativeTotal));
+                        const activities = sheet.students.reduce((sum, student) => sum + noteCount(student.qualitative), 0);
+                        const official = noteCount(sheet.students.map((student) => student.official));
+                        return (
+                          <Surface key={sheet.name} variant="secondary" className="rounded-2xl p-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="mr-auto font-semibold">{stageLabel(sheet.stage)} · {sheet.discipline || sheet.disciplineIndex}</p>
+                              <Chip variant="soft" size="sm">{sheet.disciplineIndex}</Chip>
+                              <Chip variant="soft" size="sm">{sheet.students.length} alunos</Chip>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Chip variant="soft" size="sm">Q/T: {q}</Chip>
+                              <Chip variant="soft" size="sm">AA:AJ: {activities}</Chip>
+                              <Chip variant="soft" size="sm">QL/AK: {ql}</Chip>
+                              <Chip variant="soft" size="sm">Oficial/AM: {official}</Chip>
+                              {sheet.formulas > 0 && <Chip color="accent" variant="soft" size="sm">Fórmulas: {sheet.formulas}</Chip>}
+                              {sheet.officialZeros > 0 && <Chip color="warning" variant="soft" size="sm">Zeros 0,1: {sheet.officialZeros}</Chip>}
+                            </div>
+                            <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-border/50">
+                              {sheet.students.map((student) => (
+                                <div key={`${sheet.name}-${student.row}`} className="grid grid-cols-[3rem_minmax(11rem,1fr)_5rem_5rem_5rem] gap-2 border-b border-border/40 px-3 py-2 text-xs last:border-0">
+                                  <span className="text-muted">{student.number}</span>
+                                  <span className="truncate font-medium">{student.name}</span>
+                                  <span title="Quantitativo">Q {formatNote(student.quantitativeTotal)}</span>
+                                  <span title="Qualitativo">QL {formatNote(student.qualitativeTotal)}</span>
+                                  <span title="Nota oficial">AM {formatNote(student.official)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </Surface>
+                        );
+                      })}
+                      {classroom.sheets.some((sheet) => sheet.stage === 'recovery') && (
+                        <Surface variant="secondary" className="rounded-2xl p-4 text-sm">
+                          <strong>Recuperação final reconhecida:</strong>{' '}
+                          {classroom.sheets.filter((sheet) => sheet.stage === 'recovery').map((sheet) => sheet.name).join(' · ')}
+                        </Surface>
+                      )}
+                    </div>
+                  </details>
+                </Surface>
+              ))}
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Chip variant="soft" size="sm">SheetJS {workbook.parserVersion}</Chip>
+              <Chip variant="soft" size="sm">Guias de notas: {workbook.gradeSheets.length}</Chip>
+              {workbook.auxiliarySheets.map((name) => <Chip key={name} variant="soft" size="sm">Auxiliar: {name}</Chip>)}
+              {workbook.unrecognizedSheets.length > 0 && <Chip color="warning" variant="soft" size="sm">Não classificadas: {workbook.unrecognizedSheets.length}</Chip>}
+            </div>
           </div>
         )}
       </Surface>
