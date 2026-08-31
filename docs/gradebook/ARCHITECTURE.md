@@ -2,20 +2,22 @@
 
 ## Princípio
 
-O Banco de Notas é um produto modular dentro do Centro de Administração. Não é outro aplicativo e não deve crescer como um único componente/página. O shell global permanece em `src/platform`; as funções do Banco evoluem por módulos, contratos e rotas próprias.
+O Banco de Notas é um produto modular dentro do Centro de Administração. Não é outro aplicativo e não cresce como um único componente/página. O shell global permanece em `src/platform`; as funções do Banco evoluem por módulos, contratos, portas e rotas próprias.
 
 ## Fluxo de dados
 
 ```text
 Planilhas dos professores
           ↓
-Importação + manifesto + evidência de origem
+Leitura local + SHA-256 + manifesto
           ↓
-Normalização e reconciliação
+Reconhecimento e evidência de origem
           ↓
-Portas do domínio
+Planejamento de reconciliação/idempotência
           ↓
-Cloudflare D1 por adaptador autorizado
+Revisão e promoção autorizada
+          ↓
+Modelo acadêmico versionado no D1
           ↓
 Motor nativo versionado
           ↓
@@ -26,90 +28,88 @@ Read models por experiência
 Centrais / Desempenho / Conselho / Boletins / Relatórios
 ```
 
-O valor importado e o valor calculado pelo motor nunca se sobrescrevem silenciosamente. A origem conserva arquivo, hash, versão, guia, célula, fórmula, valor em cache, classificação semântica, lote, usuário e data.
+O valor importado e o valor calculado pelo motor nunca se sobrescrevem silenciosamente. A origem conserva arquivo, hash, versão, guia, célula, fórmula, cache, classificação, lote, usuário e data.
 
-O nome do arquivo é metadado, não identidade permanente. O SHA-256 identifica conteúdo exatamente igual; a identidade lógica da fonte considera ano, professor, contexto acadêmico e confirmações registradas. Valores inalterados não criam novas versões acadêmicas; valores alterados preservam a versão anterior.
+## Decisão de armazenamento
+
+Cloudflare D1 é o armazenamento físico aprovado para a base acadêmica.
+
+Essa decisão não acopla o domínio ao fornecedor:
+
+```text
+Domínio/aplicação
+       ↓
+Portas V1 de persistência e transação
+       ↓
+Adaptador D1 futuro
+       ↓
+D1
+```
+
+O domínio não importa `D1Database`, SQL, Wrangler ou bindings. O acesso real ao banco ocorre somente pelo backend autorizado do Centro. Banco, bindings, migrations remotas e recursos de produção exigem issues próprias.
+
+## Identidade e atualização da fonte
+
+O sistema separa:
+
+- **nome do arquivo:** metadado observado;
+- **SHA-256:** identidade exata dos bytes;
+- **fonte lógica:** continuidade confirmada de professor/ano/contexto;
+- **versão acadêmica:** alteração real de entidade, lançamento ou resultado.
+
+Consequências:
+
+- mesmo hash com outro nome não duplica conteúdo;
+- hash diferente não prova sozinho que exista outra fonte lógica;
+- contexto ambíguo exige confirmação;
+- reimportação idêntica não cria versões acadêmicas;
+- somente valores novos/alterados geram nova versão;
+- valores desaparecidos da nova fonte não são apagados silenciosamente;
+- histórico anterior permanece imutável/auditável.
 
 ## Limites dos módulos
 
 ### Plataforma
 
-Responsável pelo shell, autenticação Entra, capabilities, navegação, pesquisa global e publicação. Não contém regras de nota.
-
-Saúde, quotas e consumo de infraestrutura pertencem ao Centro de Administração, não ao Banco. A área global planejada em #220 recebe métricas dos módulos sem armazenar payload acadêmico.
+Responsável pelo shell, autenticação Entra, capabilities, navegação, pesquisa global, Saúde e limites e publicação. Não contém regras de nota.
 
 ### Importação
 
-Responsável por arquivos, leitura binária, mapeamento, classificação de células, manifesto, diagnósticos e criação de comandos/registros de entrada. Não decide resultado acadêmico final.
-
-O fluxo aprovado é:
-
-```text
-arquivo
-  ↓
-metadados + SHA-256
-  ↓
-leitura/reconhecimento
-  ↓
-manifesto + diagnósticos + evidências
-  ↓
-revisão/promoção posterior
-```
-
-Falha em um arquivo não cancela os demais. Nenhum byte é persistido ou enviado sem uma etapa explicitamente aprovada.
+Responsável por arquivos, leitura binária, SHA-256, manifesto, mapeamento, classificação de células, diagnósticos e criação de registros de entrada. O arquivo permanece local nesta etapa. O importador não decide resultado acadêmico final e não grava diretamente no D1.
 
 ### Contratos
 
 Vocabulário e formatos compartilhados. Alteração incompatível exige issue específica, versão e plano de migração/adaptação.
 
-Contratos congelados atualmente:
-
-- fonte/células;
-- entidades acadêmicas;
-- lançamentos e resultados;
-- manifesto, lote, diagnóstico, reconciliação e Auditoria.
-
 ### Domínio e motor
 
-Responsável por regras de nota, recuperação, arredondamento, resultado anual, situações e precedências. Deve ser TypeScript puro, determinístico e independente de React/HeroUI, browser, banco físico e APIs externas.
+Responsável por semântica de célula, composição de nota, recuperação, arredondamento, resultado anual, situações e precedências. É TypeScript puro, determinístico e independente de React/HeroUI, browser, banco físico e APIs externas.
 
-`interpretSourceCell` é a primeira função nativa integrada. Achados locais do domínio são convertidos pela camada de aplicação em ocorrências persistidas de Auditoria, que acrescentam ID, lote, contexto, tempo e estado.
+### Aplicação
+
+Orquestra casos de uso contra contratos e portas. Aqui ficam planejamento de reimportação, reconciliação, promoção de lote e montagem de comandos. Não conhece componentes HeroUI nem executa SQL diretamente.
 
 ### Persistência
 
-Cloudflare D1 é o armazenamento físico aprovado pela BN-DEC-016. O domínio conhece portas/interfaces, não o fornecedor físico.
+Responsável por transações, histórico, idempotência e consulta. O domínio conhece portas/interfaces, não o fornecedor físico.
 
-Separação obrigatória:
+Portas V1 integradas:
 
-```text
-gradebook-domain/ports
-          ↓
-server/gradebook/application
-          ↓
-server/gradebook/persistence/d1
-          ↓
-D1
-```
+- entidades acadêmicas;
+- arquivos/fontes/lotes;
+- lançamentos e resultados;
+- ocorrências e reconciliações;
+- unidade de trabalho;
+- promoção atômica de lote;
+- paginação e concorrência otimista.
 
-Regras:
+### Adaptador D1
 
-- nenhuma entidade/regra importa `D1Database`, SQL ou Wrangler;
-- acesso ao banco ocorre somente pelo backend autorizado;
-- consultas exigem ano/contexto e paginação/limite explícito;
-- escritas acadêmicas preservam versões; não há exclusão genérica de histórico;
-- promoção de lote é transacional;
-- concorrência deve impedir sobrescrita perdida;
-- migrations, índices, bindings e recuperação são versionados em issues próprias;
-- desenvolvimento/piloto pode usar o plano gratuito, mas consumo deve ser medido antes da operação institucional plena.
+Implementação física futura das portas. Deve usar schema/migrations versionados, índices, constraints e autorização no servidor. Não muda o significado dos contratos para acomodar tabelas.
 
 ### Reconciliação e Auditoria
 
-Compara fonte, registros e motor; produz ocorrências explícitas. Erro crítico não pode ser mascarado por sucesso geral.
-
-- diagnósticos de arquivo podem existir antes do manifesto completo;
-- reconciliação preserva os dois valores, diferença, tolerância e regra;
-- ocorrência preserva origem, gravidade e histórico de resolução;
-- nenhum estado de UI substitui o contrato oficial.
+Compara fonte, versões persistidas e motor; produz ocorrências explícitas. Erro crítico não pode ser mascarado por sucesso geral. Resoluções mantêm ator, data, justificativa e estado anterior.
 
 ### Read models
 
@@ -117,11 +117,15 @@ Modelos compactos e específicos para cada experiência. Evitam N+1 e impedem qu
 
 ### Interface HeroUI
 
-Responsável apenas por fluxo, comandos, consulta e apresentação. HeroUI React v3 é obrigatório na experiência do Banco. A interface não calcula nota oficial, elegibilidade ou recuperação.
+Responsável por fluxo, comandos, consulta e apresentação. HeroUI React v3 é obrigatório. A interface não calcula nota oficial, elegibilidade ou recuperação.
+
+### Saúde e limites
+
+Área global futura do Centro de Administração, registrada na #220. Receberá métricas de Cloudflare/D1 e consumo por módulo por meio de backend autorizado. Tokens e dados acadêmicos não chegam ao navegador. O Banco poderá fornecer estimativa de impacto de importação, mas não manterá um painel de infraestrutura isolado.
 
 ## Estrutura-alvo
 
-A migração será incremental; não mover tudo em um único PR.
+A migração é incremental; não mover tudo em um único PR.
 
 ```text
 src/
@@ -160,15 +164,16 @@ shared/
     ├── results/
     ├── imports/
     ├── audit/
-    ├── commands/
-    ├── events/
     └── read-models/
 
 server/
 └── gradebook/
     ├── application/
+    │   └── import/
     ├── persistence/
     │   └── d1/
+    │       ├── schema/
+    │       └── adapters/
     ├── queries/
     └── http/
 
@@ -180,24 +185,54 @@ tests/
     ├── source/
     ├── import/
     ├── engine/
-    ├── contracts/
     ├── persistence/
     ├── reconciliation/
     └── integration/
 ```
 
-Os caminhos físicos do adaptador/migrations serão confirmados pela issue específica de D1. A árvore acima declara responsabilidades, não autoriza criação antecipada de infraestrutura.
-
 ## Regras de dependência
 
-- `src/gradebook-domain/**` não importa `react`, `@heroui/*`, DOM, Cloudflare ou Microsoft Graph.
-- `shared/gradebook-contracts/**` não depende da interface nem da persistência.
-- `src/features/gradebook/**` consome contratos/read models; não acessa planilhas ou tabelas diretamente.
-- `server/gradebook/**` aplica autorização e orquestra domínio, persistência e consultas.
-- somente o adaptador concreto de persistência conhece D1/SQL.
-- Desempenho, Conselho e Boletins não importam código uns dos outros para obter regras; todos dependem do núcleo.
+- `src/gradebook-domain/**` não importa React, HeroUI, DOM, Cloudflare ou Microsoft Graph.
+- `shared/gradebook-contracts/**` não depende de interface ou persistência.
+- `src/features/gradebook/**` consome contratos/read models; não acessa D1/tabelas diretamente.
+- `server/gradebook/application/**` consome domínio e portas; não importa UI.
+- `server/gradebook/persistence/d1/**` implementa portas e pode importar tipos Cloudflare, mas não exporta esses tipos para o domínio.
+- `server/gradebook/http/**` aplica autenticação/capabilities antes de acessar dados acadêmicos.
+- Desempenho, Conselho e Boletins não importam código entre si para obter regras; todos dependem do núcleo.
 - Microsoft Graph/SharePoint nunca é acessado diretamente pelo navegador para dados acadêmicos.
-- tokens administrativos da Cloudflare nunca são enviados ao frontend.
+- Nome de arquivo nunca é chave técnica única de fonte.
+
+## Estado implementado
+
+### Importação
+
+- até 50 arquivos sequenciais;
+- XLSB/XLSX/XLS;
+- leitura local em memória;
+- SHA-256 via Web Crypto;
+- manifesto e diagnóstico por arquivo;
+- progresso `preparing` → `recognizing`;
+- proveniência exibida em HeroUI;
+- nenhum upload ou persistência ainda.
+
+### Motor
+
+- interpretação semântica de célula V1;
+- arredondamento acadêmico V1;
+- composição trimestral será implementada em #226.
+
+### Persistência
+
+- decisão D1 aprovada;
+- portas V1 integradas;
+- schema/migrations serão desenhados em #227;
+- adaptador/bindings ainda não existem.
+
+### Reconciliação
+
+- contratos V1 integrados;
+- planejamento idempotente será implementado em #228;
+- promoção/transação física ainda não existe.
 
 ## Rotas-alvo
 
@@ -217,27 +252,23 @@ Os caminhos físicos do adaptador/migrations serão confirmados pela issue espec
 #/banco-de-notas/importacoes/:loteId
 ```
 
-Somente rotas utilizáveis devem aparecer no menu. Entidades são abertas por pesquisa, matrizes e relações contextuais, não precisam ocupar permanentemente a sidebar.
-
-A futura área de infraestrutura será uma rota do Centro de Administração, não uma subrota exclusiva do Banco:
-
-```text
-#/configuracoes/saude-e-limites
-```
+Somente rotas utilizáveis aparecem no menu. Entidades são abertas por pesquisa, matrizes e relações contextuais.
 
 ## Contratos e compatibilidade
 
-Mudança compatível adiciona campos opcionais ou novos estados sem alterar o significado existente. Mudança incompatível cria nova versão ou adaptador temporário. Mudança pedagógica nunca é “adaptada” silenciosamente: deve ser tratada como decisão oficial.
+Mudança compatível adiciona campos opcionais ou novos estados sem alterar o significado existente. Mudança incompatível cria nova versão ou adaptador temporário. Mudança pedagógica nunca é adaptada silenciosamente: exige decisão oficial.
+
+Schema e adaptador D1 devem seguir os contratos/portas congelados. Caso uma incompatibilidade real seja descoberta, ela exige issue de contrato; não deve ser corrigida escondendo o conflito em SQL ou na interface.
 
 ## Paralelismo seguro
 
 - Uma issue declara caminhos de escrita exclusivos.
-- Contratos congelados permitem que UI use fixtures sintéticas enquanto backend/motor são implementados.
-- Arquivos centrais (`App.tsx`, navegação, contratos compartilhados, estado global) são coordenados pelo integrador.
+- Contratos congelados permitem que UI use fixtures enquanto backend/motor avançam.
+- Domínio, schema D1 e planejamento de reimportação podem avançar em paralelo porque ocupam camadas diferentes.
+- Arquivos centrais, navegação, contratos compartilhados e estado global são coordenados pelo integrador.
 - Não manter branches de fase por meses. PRs pequenos entram continuamente na `main`.
-- Recurso incompleto pode existir atrás de rota/feature flag, mas não deve aparecer como disponível.
-- Adaptador D1, motor e importador podem avançar em paralelo somente depois de portas/contratos estáveis.
+- Recurso incompleto pode existir atrás de rota/feature flag, mas não aparece como disponível.
 
 ## Publicação
 
-O único caminho de produção é `main` → workflow `Deploy Cloudflare Pages` → `admin.escolaieda.com`. Agentes de tarefa não alteram o workflow nem publicam diretamente. A issue só muda para `Publicada` depois da verificação do integrador.
+O único caminho de produção é `main` → workflow `Deploy Cloudflare Pages` → `admin.escolaieda.com`. Agentes de tarefa não alteram o workflow nem publicam diretamente. A issue só muda para `Publicada` depois da verificação aplicável pelo integrador. Quando a verificação exigir autenticação e seleção de arquivo real, o gate manual é registrado em vez de ser presumido como concluído.
