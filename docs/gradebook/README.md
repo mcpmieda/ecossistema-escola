@@ -1,23 +1,36 @@
 # Banco de Notas — ponto de entrada
 
-Este diretório é a memória oficial e suficiente para que uma pessoa ou inteligência artificial entenda o projeto, descubra onde o trabalho parou e continue sem depender de conversas anteriores.
+Este diretório é a memória oficial para que uma pessoa ou inteligência artificial entenda o projeto, descubra onde o trabalho parou e continue sem depender de conversas anteriores.
 
-## Acompanhamento imediato
+## Comece por aqui
 
-- [`COMECE_AQUI.md`](COMECE_AQUI.md) — mapa curto: o que executar agora e quais issues dependem de outras.
-- [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — visão geral para acompanhamento humano.
-- [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, progresso, tarefas prontas e bloqueios.
-- [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina e fila segura.
+- [`COMECE_AQUI.md`](COMECE_AQUI.md) — qual issue pode ser executada agora.
+- [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — acompanhamento humano.
+- [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, progresso e dependências.
+- [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina.
 
-A primeira onda possui três issues independentes prontas para agentes: [#193](https://github.com/mcpmieda/ecossistema-escola/issues/193), [#194](https://github.com/mcpmieda/ecossistema-escola/issues/194) e [#195](https://github.com/mcpmieda/ecossistema-escola/issues/195).
+## Estado atual
+
+A primeira onda foi integrada e publicada:
+
+- #193/PR #207: esquema `SourceContractV1`;
+- #194/PR #208: contratos das entidades acadêmicas V1;
+- #195/PR #209: importador atual separado em módulos;
+- commit funcional verificado: `17ba8b1b7941d56c094abf8121796b2b7b0f7a66`;
+- deploy Cloudflare Pages: `33416970939`, concluído com sucesso.
+
+A segunda onda está pronta para dois agentes independentes:
+
+- [#196 — contratos de lançamentos e resultados](https://github.com/mcpmieda/ecossistema-escola/issues/196);
+- [#198 — fixtures sintéticas e protocolo de validação](https://github.com/mcpmieda/ecossistema-escola/issues/198).
+
+A integração da segunda onda fica reservada à [#210](https://github.com/mcpmieda/ecossistema-escola/issues/210).
 
 ## Objetivo
 
 Construir um Banco de Notas funcional, modular, auditável e acessível a usuários leigos, integrado ao Centro de Administração e alimentado inicialmente pelas planilhas atuais dos professores. O sistema deve preservar a origem dos dados, implementar o motor nativo junto com o núcleo e publicar progressivamente cada entrega independente no site oficial.
 
-## Estado atual
-
-Em produção já existe:
+## Em produção
 
 - área `Banco de notas` no mesmo shell do Centro;
 - interface HeroUI React v3;
@@ -25,48 +38,33 @@ Em produção já existe:
 - importação local de até 50 arquivos por lote;
 - leitura sequencial de XLSB, XLSX e XLS;
 - reconhecimento de turmas, alunos, disciplinas, trimestres, quantitativo, qualitativo e recuperação;
-- processamento somente em memória, sem persistência acadêmica.
-
-O código do protótipo ainda está concentrado em `src/platform/notes-page.tsx` e `src/platform/notes-spreadsheet-recognizer.ts`. A primeira frente de construção deve separá-lo em importação, contratos, domínio e apresentação sem interromper o recurso publicado.
+- processamento somente em memória, sem persistência acadêmica;
+- importador organizado em `src/features/gradebook/import/**`.
 
 ## Fontes de referência revisadas
 
 - `Relatorio_Completo_Banco_de_Notas_v1.6_consolidado.docx`;
 - `PAINEL DESEMPENHO.docx`;
 - `BANCO DE NOTAS 2026.xlsb`;
-- planilhas reais de professores de 2026 usadas em testes de reconhecimento.
+- planilhas reais de professores de 2026 usadas em validação controlada.
 
 Esses arquivos não devem ser adicionados ao repositório público quando contiverem dados reais. As decisões e os contratos derivados ficam registrados neste diretório.
 
-## Leitura obrigatória
+## Leitura obrigatória do agente
 
-1. [`COMECE_AQUI.md`](COMECE_AQUI.md) — escolha da issue e ordem das ondas;
-2. [`ISSUE_MAP.md`](ISSUE_MAP.md) — visão das fases e dependências;
-3. [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina e fila segura;
-4. [`DECISIONS.md`](DECISIONS.md) — decisões oficiais em ordem cronológica;
-5. [`ROADMAP.md`](ROADMAP.md) — fases, dependências e critérios de conclusão;
-6. [`ARCHITECTURE.md`](ARCHITECTURE.md) — limites dos módulos e direção do código;
-7. [`CONTRACTS.md`](CONTRACTS.md) — vocabulário e contratos compartilhados;
-8. [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md) — estrutura confirmada das planilhas;
-9. [`TEST_MATRIX.md`](TEST_MATRIX.md) — testes mínimos por camada;
-10. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md) — como assumir e entregar uma issue.
+1. `AGENTS.md`;
+2. [`COMECE_AQUI.md`](COMECE_AQUI.md);
+3. [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml);
+4. [`DECISIONS.md`](DECISIONS.md);
+5. a issue atribuída;
+6. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`CONTRACTS.md`](CONTRACTS.md), [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md) e [`TEST_MATRIX.md`](TEST_MATRIX.md) conforme o escopo;
+7. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md).
 
-## Regra de acompanhamento
-
-O acompanhamento humano usa a issue #182 e uma issue por fase. Cada fase informa em linguagem simples:
-
-- o que já funciona;
-- o que falta;
-- dependências;
-- progresso por tarefas;
-- resultado visível no site;
-- última publicação verificada.
-
-As tarefas executáveis são issues pequenas, com caminhos permitidos, contratos consumidos, critérios de aceite e testes. O integrador mantém o mapa e o `PROJECT_STATE.yaml` após cada merge.
+A issue deve ser executada diretamente. App Factory, Factory Runs, orquestradores e agentes auxiliares só podem ser usados quando a própria issue autorizar expressamente.
 
 ## Regra de publicação
 
-Uma entrega independente e utilizável não espera o restante do sistema. Depois de testes, revisão e merge na `main`, o workflow oficial publica no Cloudflare Pages. Funcionalidade incompleta pode ser integrada apenas quando não quebra a aplicação e permanece inacessível por rota/feature flag até cumprir os critérios de aceite.
+Uma entrega independente e utilizável não espera o restante do sistema. Depois de testes, revisão e merge na `main`, o workflow oficial publica no Cloudflare Pages. Funcionalidade incompleta só pode ser integrada quando não quebra a aplicação e permanece inacessível até cumprir os critérios de aceite.
 
 ## Regra de segurança
 
