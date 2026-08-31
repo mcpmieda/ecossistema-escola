@@ -76,6 +76,21 @@ function MicrosoftMark() {
   );
 }
 
+function SessionCheckExperience() {
+  return (
+    <main
+      className="platform-shell grid min-h-svh place-items-center p-6"
+      aria-busy="true"
+      aria-label="Carregando Centro de Administração"
+    >
+      <div className="flex items-center gap-3 text-muted">
+        <BrandMark compact />
+        <Spinner size="sm" color="accent" />
+      </div>
+    </main>
+  );
+}
+
 function LoginExperience({ loading }: { loading: boolean }) {
   return (
     <main className="platform-shell grid min-h-svh place-items-center px-4 py-6 sm:px-6 lg:px-8">
@@ -480,7 +495,7 @@ export function App() {
       .catch(() => setIdentity({ authenticated: false }));
   }, []);
 
-  if (identity === null) return <LoginExperience loading />;
+  if (identity === null) return <SessionCheckExperience />;
   if (authFailure && !identity.authenticated) {
     return <AuthErrorExperience correlationId={authFailure.correlationId} />;
   }
