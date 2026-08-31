@@ -1,10 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import type { AcademicYearId, StudentId } from '../../../shared/gradebook-contracts/entities';
 import type {
-  AcademicYearId,
-  StudentId,
+  ComparedGradeValueV1,
   TermResultId,
-} from '../../../shared/gradebook-contracts/entities';
-import type { ComparedGradeValueV1 } from '../../../shared/gradebook-contracts/results/results-contract-v1';
+} from '../../../shared/gradebook-contracts/results/results-contract-v1';
 import { SOURCE_CONTRACT_V1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
 import type { SourceCellEvidenceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
 import {
