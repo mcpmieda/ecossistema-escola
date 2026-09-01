@@ -23,9 +23,14 @@ describe('integração da onda 14 F4/F5/F6/F8', () => {
     expect(BULLETIN_AUTHORITY_MODE_V1).toBe('imported-source');
   });
 
-  it('compõe somente Auditoria no runtime físico e preserva o único bridge do Operational Workspace', () => {
+  it('compõe Auditoria no runtime físico e preserva os bridges autorizados sem nova autoridade', () => {
     const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
+    const runtimeAuthorization = source(
+      'server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1.ts',
+    );
+    const capabilities = source('server/auth/capabilities.ts');
     const functions = source('functions/[[path]].ts');
+    const auditRoute = source('server/gradebook/http/audit-workspace-routes-v1.ts');
 
     expect(runtime).toContain('createAuditWorkspaceV1');
     expect(runtime).toContain('GradebookD1AuditWorkspaceSourceV1');
@@ -33,20 +38,35 @@ describe('integração da onda 14 F4/F5/F6/F8', () => {
     expect(runtime).not.toContain('createClassPerformanceReadModelV1');
     expect(runtime).not.toContain('createBulletinEmissionServiceV1');
 
-    expect(functions).toContain('handleOperationalWorkspaceRequestV1');
-    expect(functions).not.toContain('audit-workspace-routes');
-    expect(functions).not.toContain('class-performance');
-    expect(functions).not.toContain('bulletin');
+    expect(functions.match(/handleOperationalWorkspaceRequestV1/gu)).toHaveLength(2);
+    expect(functions.match(/handleAuditWorkspaceRequestV1/gu)).toHaveLength(2);
+    expect(auditRoute.match(/'\/api\/gradebook\/audit-workspace'/gu)).toHaveLength(1);
+    expect(auditRoute.match(/request\.method !== 'POST'/gu)).toHaveLength(1);
+    expect(auditRoute).toContain('authorizeGradebookD1RuntimeV1');
+    expect(auditRoute).not.toContain('requireCapability');
+    expect(runtimeAuthorization.match(/gradebook\.persistence\.admin/gu)).toHaveLength(1);
+    expect(capabilities.match(/'gradebook\.persistence\.admin'/gu)).toHaveLength(1);
   });
 
-  it('não cria uma segunda rota operacional nem expõe Auditoria, Desempenho ou Boletins por HTTP', () => {
+  it('mantém um único bridge operacional, Auditoria local/preview e produção fail-closed', () => {
+    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const operationalRoute = source('server/gradebook/http/operational-workspace-routes-v1.ts');
+    const auditRoute = source('server/gradebook/http/audit-workspace-routes-v1.ts');
     const functions = source('functions/[[path]].ts');
 
-    expect(operationalRoute).toContain("'/api/gradebook/operational-workspace'");
+    expect(operationalRoute.match(/'\/api\/gradebook\/operational-workspace'/gu)).toHaveLength(1);
+    expect(operationalRoute.match(/request\.method !== 'POST'/gu)).toHaveLength(1);
     expect(functions.match(/handleOperationalWorkspaceRequestV1/gu)).toHaveLength(2);
-    expect(functions).not.toMatch(/audit.*workspace.*request/iu);
+    expect(auditRoute.match(/'\/api\/gradebook\/audit-workspace'/gu)).toHaveLength(1);
+    expect(auditRoute.match(/request\.method !== 'POST'/gu)).toHaveLength(1);
+    expect(functions.match(/handleAuditWorkspaceRequestV1/gu)).toHaveLength(2);
     expect(functions).not.toMatch(/performance.*request/iu);
     expect(functions).not.toMatch(/bulletin.*request/iu);
+    expect(functions).not.toMatch(/bulletin.*pdf|pdf.*bulletin/iu);
+
+    const environmentGate = runtime.indexOf('const environment = runtimeEnvironment(env);');
+    const bindingAccess = runtime.indexOf('const database = requireDatabase(env.GRADEBOOK_D1);');
+    expect(environmentGate).toBeGreaterThanOrEqual(0);
+    expect(bindingAccess).toBeGreaterThan(environmentGate);
   });
 });
