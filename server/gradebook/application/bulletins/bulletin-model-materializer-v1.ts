@@ -77,8 +77,23 @@ export type BulletinModelMaterializationResultV1 =
       readonly reasons: BulletinEmissionReasonsV1;
     };
 
+export interface BulletinAggregateMaterializationItemV1 {
+  /** Index of the original batch request. Class-group requests can produce multiple items. */
+  readonly requestIndex: number;
+  /** Null only when the class-group base cannot yield a valid student target. */
+  readonly request: BulletinStudentEmissionRequestV1 | null;
+  readonly materialization: BulletinModelMaterializationResultV1;
+}
+
 export interface BulletinModelMaterializerV1 {
   materialize(request: BulletinEmissionRequestV1): Promise<BulletinModelMaterializationResultV1>;
+  /**
+   * Materializes a batch against one cached ClassGroupCenter base per academic-year/class-group
+   * pair. The cache lives only for this call and never persists academic data.
+   */
+  materializeBatch(
+    requests: readonly BulletinEmissionRequestV1[],
+  ): Promise<readonly BulletinAggregateMaterializationItemV1[]>;
 }
 
 export interface BulletinModelMaterializerDependenciesV1 {
@@ -469,12 +484,8 @@ function findStudent(
 async function materializeReady(
   dependencies: BulletinModelMaterializerDependenciesV1,
   request: BulletinStudentEmissionRequestV1,
+  classGroup: ClassGroupCenterReadModelV1,
 ): Promise<Extract<BulletinModelMaterializationResultV1, { readonly status: 'ready' }>> {
-  const classGroup = await dependencies.classGroups.get(
-    { academicYearId: request.academicYearId },
-    request.target.classGroupId,
-  );
-  if (classGroup === null) block(BULLETIN_MATERIALIZATION_REASONS_V1.classGroupNotFound);
   if (
     classGroup.academicYearId !== request.academicYearId ||
     classGroup.classGroup.value.id !== request.target.classGroupId ||
@@ -629,21 +640,198 @@ async function materializeReady(
   return { status: 'ready', model, dataVersion: dataVersion(model, tokens) };
 }
 
+function stoppedMaterialization(error: unknown): MaterializationStoppedResult {
+  if (error instanceof MaterializationStopped) return error.result;
+  return {
+    status: 'blocked',
+    reasons: reasons(BULLETIN_MATERIALIZATION_REASONS_V1.academicDataUnavailable),
+  };
+}
+
+function unavailableMaterialization(reason: string): MaterializationStoppedResult {
+  return { status: 'blocked', reasons: reasons(reason) };
+}
+
+function materializationCacheKey(request: BulletinStudentEmissionRequestV1): string {
+  return JSON.stringify({
+    academicYearId: request.academicYearId,
+    period: request.period,
+    target: request.target,
+    model: request.model,
+  });
+}
+
+function classGroupCacheKey(request: BulletinEmissionRequestV1): string {
+  return `${request.academicYearId}\u0000${request.target.classGroupId}`;
+}
+
+function studentRequestOrNull(
+  request: BulletinEmissionRequestV1,
+): BulletinStudentEmissionRequestV1 | null {
+  return request.target.kind === 'student' ? (request as BulletinStudentEmissionRequestV1) : null;
+}
+
 export function createBulletinModelMaterializerV1(
   dependencies: BulletinModelMaterializerDependenciesV1,
 ): BulletinModelMaterializerV1 {
+  async function materializeStudent(
+    request: BulletinStudentEmissionRequestV1,
+    classGroup?: ClassGroupCenterReadModelV1,
+  ): Promise<BulletinModelMaterializationResultV1> {
+    try {
+      const base =
+        classGroup ??
+        (await dependencies.classGroups.get(
+          { academicYearId: request.academicYearId },
+          request.target.classGroupId,
+        ));
+      if (base === null) {
+        return unavailableMaterialization(BULLETIN_MATERIALIZATION_REASONS_V1.classGroupNotFound);
+      }
+      return await materializeReady(dependencies, request, base);
+    } catch (error) {
+      return stoppedMaterialization(error);
+    }
+  }
+
   return {
     async materialize(request) {
       try {
         requireStudentRequest(request);
-        return await materializeReady(dependencies, request);
+        return await materializeStudent(request);
       } catch (error) {
-        if (error instanceof MaterializationStopped) return error.result;
-        return {
-          status: 'blocked',
-          reasons: reasons(BULLETIN_MATERIALIZATION_REASONS_V1.academicDataUnavailable),
-        };
+        return stoppedMaterialization(error);
       }
+    },
+
+    async materializeBatch(requests) {
+      const results: BulletinAggregateMaterializationItemV1[] = [];
+      const classGroups = new Map<string, Promise<ClassGroupCenterReadModelV1 | null>>();
+      const studentMaterializations = new Map<
+        string,
+        Promise<BulletinModelMaterializationResultV1>
+      >();
+
+      function loadClassGroup(
+        request: BulletinEmissionRequestV1,
+      ): Promise<ClassGroupCenterReadModelV1 | null> {
+        const key = classGroupCacheKey(request);
+        const cached = classGroups.get(key);
+        if (cached !== undefined) return cached;
+        const loaded = dependencies.classGroups.get(
+          { academicYearId: request.academicYearId },
+          request.target.classGroupId,
+        );
+        classGroups.set(key, loaded);
+        return loaded;
+      }
+
+      function materializeShared(
+        request: BulletinStudentEmissionRequestV1,
+        classGroup: ClassGroupCenterReadModelV1,
+      ): Promise<BulletinModelMaterializationResultV1> {
+        const key = materializationCacheKey(request);
+        const cached = studentMaterializations.get(key);
+        if (cached !== undefined) return cached;
+        const materialization = materializeStudent(request, classGroup);
+        studentMaterializations.set(key, materialization);
+        return materialization;
+      }
+
+      for (let requestIndex = 0; requestIndex < requests.length; requestIndex += 1) {
+        const sourceRequest = requests[requestIndex];
+        if (sourceRequest === undefined) continue;
+
+        let classGroup: ClassGroupCenterReadModelV1 | null;
+        try {
+          classGroup = await loadClassGroup(sourceRequest);
+        } catch (error) {
+          results.push({
+            requestIndex,
+            request: studentRequestOrNull(sourceRequest),
+            materialization: stoppedMaterialization(error),
+          });
+          continue;
+        }
+
+        if (classGroup === null) {
+          results.push({
+            requestIndex,
+            request: studentRequestOrNull(sourceRequest),
+            materialization: unavailableMaterialization(
+              BULLETIN_MATERIALIZATION_REASONS_V1.classGroupNotFound,
+            ),
+          });
+          continue;
+        }
+
+        if (
+          classGroup.academicYearId !== sourceRequest.academicYearId ||
+          classGroup.classGroup.value.id !== sourceRequest.target.classGroupId ||
+          classGroup.classGroup.value.academicYearId !== sourceRequest.academicYearId
+        ) {
+          results.push({
+            requestIndex,
+            request: studentRequestOrNull(sourceRequest),
+            materialization: unavailableMaterialization(
+              BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData,
+            ),
+          });
+          continue;
+        }
+
+        const studentRequests: BulletinStudentEmissionRequestV1[] = [];
+        if (sourceRequest.target.kind === 'student') {
+          studentRequests.push(sourceRequest as BulletinStudentEmissionRequestV1);
+        } else {
+          const students = [...classGroup.students].sort((left, right) =>
+            codeUnitCompare(left.enrollment.value.id, right.enrollment.value.id),
+          );
+          if (students.length === 0) {
+            results.push({
+              requestIndex,
+              request: null,
+              materialization: unavailableMaterialization(
+                BULLETIN_MATERIALIZATION_REASONS_V1.studentTargetNotFound,
+              ),
+            });
+            continue;
+          }
+          for (const { enrollment } of students) {
+            if (
+              enrollment.value.academicYearId !== sourceRequest.academicYearId ||
+              enrollment.value.classGroupId !== sourceRequest.target.classGroupId
+            ) {
+              results.push({
+                requestIndex,
+                request: null,
+                materialization: unavailableMaterialization(
+                  BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData,
+                ),
+              });
+              continue;
+            }
+            studentRequests.push({
+              ...sourceRequest,
+              target: {
+                kind: 'student',
+                classGroupId: enrollment.value.classGroupId,
+                studentId: enrollment.value.studentId,
+                enrollmentId: enrollment.value.id,
+              },
+            });
+          }
+        }
+
+        for (const studentRequest of studentRequests) {
+          results.push({
+            requestIndex,
+            request: studentRequest,
+            materialization: await materializeShared(studentRequest, classGroup),
+          });
+        }
+      }
+      return results;
     },
   };
 }

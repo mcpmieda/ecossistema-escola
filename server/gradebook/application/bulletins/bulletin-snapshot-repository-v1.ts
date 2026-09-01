@@ -31,8 +31,25 @@ export interface BulletinSnapshotRepositoryV1 {
   ): Promise<BulletinSnapshotAppendResultV1>;
 }
 
-/** Local/test-only snapshot storage. It does not provision or connect to any remote persistence. */
-export function createInMemoryBulletinSnapshotRepositoryV1(): BulletinSnapshotRepositoryV1 {
+function cloneSnapshot(snapshot: BulletinSnapshotV1): BulletinSnapshotV1 {
+  function clone<Value>(value: Value): Value {
+    if (Array.isArray(value)) return value.map((item) => clone(item)) as Value;
+    if (value !== null && typeof value === 'object') {
+      const result: Record<string, unknown> = {};
+      for (const [key, item] of Object.entries(value)) result[key] = clone(item);
+      return result as Value;
+    }
+    return value;
+  }
+
+  return clone(snapshot);
+}
+
+/**
+ * Local/disposable snapshot storage. Every append owns a deep immutable copy; no object supplied by
+ * the caller is retained, mutated or frozen through aliasing. It provisions no remote persistence.
+ */
+export function createLocalBulletinSnapshotRepositoryV1(): BulletinSnapshotRepositoryV1 {
   const bySeries = new Map<BulletinSnapshotSeriesKeyV1, BulletinSnapshotV1[]>();
   const byHistoricalIdentity = new Map<string, BulletinSnapshotV1>();
 
@@ -67,7 +84,7 @@ export function createInMemoryBulletinSnapshotRepositoryV1(): BulletinSnapshotRe
         return { status: 'version-conflict' };
       }
 
-      const snapshot = freezeBulletinSnapshotV1(candidate);
+      const snapshot = freezeBulletinSnapshotV1(cloneSnapshot(candidate));
       snapshots.push(snapshot);
       bySeries.set(seriesKey, snapshots);
       byHistoricalIdentity.set(
@@ -77,4 +94,9 @@ export function createInMemoryBulletinSnapshotRepositoryV1(): BulletinSnapshotRe
       return { status: 'appended', snapshot };
     },
   };
+}
+
+/** Backward-compatible name for the local/disposable implementation. */
+export function createInMemoryBulletinSnapshotRepositoryV1(): BulletinSnapshotRepositoryV1 {
+  return createLocalBulletinSnapshotRepositoryV1();
 }
