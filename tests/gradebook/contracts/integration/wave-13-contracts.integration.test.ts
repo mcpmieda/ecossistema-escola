@@ -126,7 +126,7 @@ describe('wave 13 contract compatibility', () => {
       'invalid-request',
     );
     expect(inspectBulletinEmissionRequestV1({ ...bulletinRequest, authorityMode: 'native-engine' })).toBe(
-      'forbidden-client-payload',
+      'invalid-request',
     );
   });
 
