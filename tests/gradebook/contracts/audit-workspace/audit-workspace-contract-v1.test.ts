@@ -11,6 +11,7 @@ import type {
   ImportBatchId,
   ImportFileId,
 } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
+import type { GradeEntryId } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
 import {
   AUDIT_WORKSPACE_AUTHORIZATION_POLICY_V1,
   AUDIT_WORKSPACE_CONTRACT_V1,
@@ -88,7 +89,7 @@ const reconciliation = {
   id: reconciliationId,
   target: {
     kind: 'grade-entry',
-    id: 'grade-entry:synthetic:001',
+    id: 'grade-entry:synthetic:001' as GradeEntryId,
   },
   value: {
     imported: {
