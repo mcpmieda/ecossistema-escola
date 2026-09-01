@@ -13,11 +13,11 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Arredondamento acadêmico:** implementado por #218/PR #224.
 - **Composição trimestral nativa:** implementada por #226/PR #231.
 - **Recuperação paralela nativa:** implementada por #234/PR #240.
-- **Portas de persistência:** `congelado-v1`, com extensão explícita da associação pendente em #243.
+- **Portas de persistência:** `congelado-v1`, incluindo a associação versionada fonte lógica ↔ stream formalizada por #243.
 - **Schema D1:** migrations 0001–0003 implementadas localmente por #227/#235; nenhum recurso remoto foi criado.
-- **Leitura D1 local:** implementada por #235/PR #241.
-- **Planejamento idempotente de reimportação:** implementado por #228/PR #232; extensão de associação pendente em #243.
-- **Executor transacional abstrato:** implementado por #236/PR #239; extensão de associação pendente em #243.
+- **Leitura D1 local:** implementada por #235/PR #241 e adaptada em #243 para a porta oficial de associação.
+- **Planejamento idempotente de reimportação:** implementado por #228/PR #232 e estendido em #243 com associações explícitas e estimativa própria.
+- **Executor transacional abstrato:** implementado por #236/PR #239 e estendido em #243 para gravar associações na mesma unidade de trabalho.
 - **Próximos contratos executáveis:** resultado trimestral consolidado em #242 e recuperação final em #244.
 - **Read models:** propostos; serão detalhados nas issues dos módulos consumidores.
 
@@ -289,7 +289,7 @@ Resolução ou descarte exige ator, data e justificativa, mantendo a transição
 
 A #242 consolidará paralela + composição sem recriar essas regras. A #244 implementará a recuperação final.
 
-## Portas de persistência — congelado-v1 com extensão pendente
+## Portas de persistência — congelado-v1
 
 Implementação pública: `src/gradebook-domain/ports/persistence/persistence-ports-v1.ts`.
 
@@ -298,6 +298,7 @@ Portas atuais:
 - `AcademicEntityRepositoryV1`;
 - `ImportPersistenceRepositoryV1`;
 - `AcademicRecordRepositoryV1`;
+- `LogicalSourceRecordRepositoryV1`;
 - `AuditPersistenceRepositoryV1`;
 - `PersistenceUnitOfWorkV1`;
 - `BatchPromotionTransactionPortV1`.
@@ -310,15 +311,14 @@ Conceitos transversais:
 - registros acadêmicos são acrescentados como versões;
 - `LogicalSourceIdV1` separa identidade lógica de nome/hash;
 - relação de fonte pode ser `unmatched`, `candidate` ou `confirmed`;
+- associação fonte lógica ↔ stream possui identidade, estado e histórico próprios;
 - promoção de lote roda em unidade de trabalho atômica e recebe apenas arquivos aprovados.
 
 Essas portas não importam D1, SQL, Wrangler ou Cloudflare.
 
-### Extensão obrigatória da #243
+### Associação fonte lógica ↔ stream — congelado-v1
 
-A migration 0003 e o adaptador de leitura introduziram o catálogo relacional fonte lógica ↔ stream. Porém, a unidade de trabalho atual ainda não possui uma porta pública de escrita para essa associação.
-
-A #243 deve formalizar, sem dependência do fornecedor:
+Tipos públicos:
 
 ```text
 LogicalSourceRecordAssociationV1
@@ -326,7 +326,17 @@ LogicalSourceRecordAssociationStreamV1
 LogicalSourceRecordRepositoryV1
 ```
 
-Também deve incluir a associação no plano, na estimativa e no executor. O adaptador D1 futuro não pode gravar essa relação como efeito colateral oculto de outro append.
+`LogicalSourceRecordAssociationV1` preserva:
+
+- ano letivo;
+- `logicalSourceId` confirmado;
+- `AcademicRecordStreamV1` e sua chave estável;
+- estado `active` ou `inactive`;
+- manifesto e versão da fonte que originaram a decisão.
+
+A versão técnica fica no envelope `VersionedRecordV1`; toda gravação exige `VersionExpectationV1`. A porta fornece leitura corrente, histórico paginado, listagem dos streams atualmente ativos e append otimista. `PersistenceUnitOfWorkV1.logicalSourceRecords` garante que fonte, registro e associação possam participar da mesma promoção.
+
+Não é permitido derivar a associação por nome de arquivo, varrer payload JSON ou escondê-la como efeito colateral de outro repositório.
 
 ## Schema D1 — implementado localmente V1
 
@@ -350,11 +360,14 @@ Estado: `implementado-local-v1`. Nenhum banco, binding ou migration remota exist
 - `findSourceFileByHash`;
 - `getSourceFileVersion`;
 - `AcademicRecordRepositoryV1.getCurrent`;
-- `listCurrentStreams` do catálogo por fonte lógica.
+- `LogicalSourceRecordRepositoryV1.getCurrent`;
+- `LogicalSourceRecordRepositoryV1.listCurrentStreams`.
 
-A leitura reconstrói contratos a partir do payload preservado e confere colunas normalizadas. JSON inválido, shape incompatível e referência quebrada geram erros estáveis e sanitizados. A associação não é descoberta por nome de arquivo nem por `json_extract`.
+A leitura reconstrói a associação exclusivamente por colunas normalizadas das tabelas da migration 0003 e confere fonte lógica, tipo, chave do stream, ponteiro de versão, estado e proveniência. JSON inválido, shape incompatível e referência quebrada geram erros estáveis e sanitizados. A associação não é descoberta por nome de arquivo nem por `json_extract`.
 
-## Planejamento idempotente — implementado-v1 com extensão pendente
+A escrita D1 concreta permanece fora deste contrato e pertence à #245.
+
+## Planejamento idempotente — implementado-v1
 
 `server/gradebook/application/import/import-reconciliation-v1.ts` implementa `planImportReconciliation`.
 
@@ -373,31 +386,33 @@ Comportamentos:
 - mesmo hash produz no-op acadêmico;
 - renomeação pode gerar somente versão de metadados da fonte;
 - hash novo com fonte confirmada compara chaves acadêmicas estáveis;
-- somente novos/alterados são planejados para append;
-- valor ausente exige revisão e não é apagado;
+- somente novos/alterados são planejados para append acadêmico e associação ativa;
+- associação nova usa expectativa nula e associação existente usa sua versão corrente;
+- valor inalterado não cria versão acadêmica nem de associação;
+- valor ausente exige revisão e não gera desativação automática;
 - fonte ambígua não é associada silenciosamente;
 - arquivo inválido fica fora da promoção sem descartar os demais;
-- expectativas de versão e estimativa de writes são preservadas;
+- a estimativa separa versões de fonte, registros acadêmicos e associações;
 - o planejamento executa zero writes.
 
-A #243 adicionará ao plano a escrita explícita das associações fonte lógica ↔ stream.
-
-## Executor transacional abstrato — implementado-v1 com extensão pendente
+## Executor transacional abstrato — implementado-v1
 
 `server/gradebook/application/import/execution/execute-import-change-plan-v1.ts` implementa `executeImportChangePlan`.
 
 O executor:
 
 - valida integralmente o plano antes de escrever;
+- confere arquivo, fonte lógica, stream, registro, associação, manifesto, versão e expectativa otimista;
 - não abre transação quando não há mudança promovível;
-- aplica versões de fonte e apenas itens acadêmicos `new`/`changed`;
+- aplica versões de fonte, registros acadêmicos `new`/`changed` e suas associações explícitas;
+- executa os três appends na mesma `PersistenceUnitOfWorkV1`;
 - nunca escreve `unchanged`, `missing-from-new-source` ou `blocked`;
-- rejeita plano adulterado;
-- converte conflito otimista em resultado explícito;
+- rejeita plano adulterado antes da transação;
+- converte conflito de fonte, registro ou associação em resultado explícito;
 - exige rollback integral da porta transacional;
-- retorna apenas contagens, versões técnicas e erros sanitizados.
+- retorna contagens e versões técnicas separadas, sem payload sensível.
 
-A implementação está testada com unidade de trabalho transacional em memória. Ela ainda não executa SQL/D1. A #243 incluirá associação no mesmo contrato transacional; a #245 implementará a escrita física local depois dessa adaptação.
+A implementação está testada com unidade de trabalho transacional em memória. Ela ainda não executa SQL/D1; a #245 implementará a escrita física local consumindo exatamente este contrato.
 
 ## Read models
 

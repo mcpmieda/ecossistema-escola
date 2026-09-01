@@ -4,6 +4,8 @@ import type {
   AcademicRecordStreamV1,
   AcademicRecordV1,
   LogicalSourceIdV1,
+  LogicalSourceRecordAssociationStreamV1,
+  LogicalSourceRecordAssociationV1,
   SourceFileVersionV1,
   VersionedRecordV1,
 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
@@ -31,7 +33,10 @@ export interface D1ReadDatabaseV1 {
 }
 
 export type GradebookD1ReadErrorCodeV1 =
-  'database-read-failed' | 'invalid-json' | 'incompatible-row' | 'broken-reference';
+  | 'database-read-failed'
+  | 'invalid-json'
+  | 'incompatible-row'
+  | 'broken-reference';
 
 const ERROR_MESSAGES: Record<GradebookD1ReadErrorCodeV1, string> = {
   'database-read-failed': 'Não foi possível consultar os dados acadêmicos persistidos.',
@@ -72,6 +77,11 @@ function positiveInteger(value: unknown): number {
 
 function academicTerm(value: unknown): 1 | 2 | 3 {
   if (value !== 1 && value !== 2 && value !== 3) return fail('incompatible-row');
+  return value;
+}
+
+function associationState(value: unknown): LogicalSourceRecordAssociationV1['state'] {
+  if (value !== 'active' && value !== 'inactive') return fail('incompatible-row');
   return value;
 }
 
@@ -129,7 +139,10 @@ function validateManifest(value: unknown): SourceFileManifestV1 {
   ) {
     return fail('incompatible-row');
   }
-  if (value.suggestedTeacherName !== undefined && typeof value.suggestedTeacherName !== 'string') {
+  if (
+    value.suggestedTeacherName !== undefined &&
+    typeof value.suggestedTeacherName !== 'string'
+  ) {
     return fail('incompatible-row');
   }
   if (value.confirmedTeacherId !== undefined && typeof value.confirmedTeacherId !== 'string') {
@@ -322,6 +335,45 @@ function mapCatalogStream(row: D1Row): AcademicRecordStreamV1 {
   return stream;
 }
 
+function mapAssociation(
+  row: D1Row,
+  context: AcademicPersistenceContextV1,
+  requestedStream: LogicalSourceRecordAssociationStreamV1,
+): VersionedRecordV1<LogicalSourceRecordAssociationV1> {
+  const persistedVersion = positiveInteger(row.persisted_version);
+  if (positiveInteger(row.current_version) !== persistedVersion) return fail('broken-reference');
+
+  const persistedState = associationState(row.association_state);
+  if (associationState(row.current_state) !== persistedState) return fail('broken-reference');
+
+  const logicalSourceId = requiredString(row.logical_source_id) as LogicalSourceIdV1;
+  const academicRecordStream = mapCatalogStream(row);
+  const stableKey = academicRecordStreamKeyV1(academicRecordStream);
+  if (
+    logicalSourceId !== requestedStream.logicalSourceId ||
+    stableKey !== requestedStream.stableKey ||
+    academicRecordStreamKeyV1(requestedStream.academicRecordStream) !== stableKey
+  ) {
+    return fail('incompatible-row');
+  }
+
+  return {
+    value: {
+      academicYearId: context.academicYearId,
+      logicalSourceId,
+      academicRecordStream,
+      stableKey,
+      state: persistedState,
+      sourceManifestId: requiredString(
+        row.source_manifest_id,
+      ) as LogicalSourceRecordAssociationV1['sourceManifestId'],
+      sourceManifestVersion: positiveInteger(row.source_manifest_version),
+    },
+    version: persistedVersion,
+    recordedAt: requiredString(row.recorded_at),
+  };
+}
+
 class GradebookD1ReaderV1 {
   constructor(private readonly database: D1ReadDatabaseV1) {}
 
@@ -433,6 +485,60 @@ class GradebookD1ReaderV1 {
     });
   }
 
+  getCurrentAssociation(
+    context: AcademicPersistenceContextV1,
+    stream: LogicalSourceRecordAssociationStreamV1,
+  ): Promise<VersionedRecordV1<LogicalSourceRecordAssociationV1> | null> {
+    return this.safely(async () => {
+      const row = await this.database
+        .prepare(
+          `SELECT
+             c.logical_source_id,
+             c.record_kind AS association_record_kind,
+             c.stream_key AS association_stream_key,
+             c.current_version,
+             c.current_state,
+             v.version AS persisted_version,
+             v.association_state,
+             v.source_manifest_id,
+             v.source_manifest_version,
+             v.recorded_at,
+             r.record_kind AS linked_record_kind,
+             r.stream_key AS linked_stream_key,
+             r.student_id,
+             r.enrollment_id,
+             r.assessment_component_id,
+             r.teaching_assignment_id,
+             r.term
+           FROM logical_source_record_streams c
+           LEFT JOIN logical_source_record_versions v
+             ON v.academic_year_id = c.academic_year_id
+            AND v.logical_source_id = c.logical_source_id
+            AND v.record_kind = c.record_kind
+            AND v.stream_key = c.stream_key
+            AND v.version = c.current_version
+           LEFT JOIN academic_record_streams r
+             ON r.academic_year_id = c.academic_year_id
+            AND r.record_kind = c.record_kind
+            AND r.stream_key = c.stream_key
+           WHERE c.academic_year_id = ?
+             AND c.logical_source_id = ?
+             AND c.record_kind = ?
+             AND c.stream_key = ?`,
+        )
+        .bind(
+          context.academicYearId,
+          stream.logicalSourceId,
+          stream.academicRecordStream.kind,
+          stream.stableKey,
+        )
+        .first<D1Row>();
+      if (!row) return null;
+      if (row.persisted_version === null) return fail('broken-reference');
+      return mapAssociation(row, context, stream);
+    });
+  }
+
   listCurrentStreams(
     context: AcademicPersistenceContextV1,
     logicalSourceId: LogicalSourceIdV1,
@@ -481,6 +587,7 @@ export function createGradebookD1ReadAdapterV1(
       getCurrent: (context, stream) => reader.getCurrent(context, stream),
     },
     logicalSourceRecords: {
+      getCurrent: (context, stream) => reader.getCurrentAssociation(context, stream),
       listCurrentStreams: (context, logicalSourceId) =>
         reader.listCurrentStreams(context, logicalSourceId),
     },

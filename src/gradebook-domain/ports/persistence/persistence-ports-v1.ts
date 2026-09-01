@@ -227,6 +227,49 @@ export interface AcademicRecordRepositoryV1 {
   ): Promise<VersionedWriteResultV1<AcademicRecordV1>>;
 }
 
+export interface LogicalSourceRecordAssociationStreamV1 {
+  readonly logicalSourceId: LogicalSourceIdV1;
+  readonly academicRecordStream: AcademicRecordStreamV1;
+  readonly stableKey: string;
+}
+
+export type LogicalSourceRecordAssociationStateV1 = 'active' | 'inactive';
+
+export interface LogicalSourceRecordAssociationV1 {
+  readonly academicYearId: AcademicYearId;
+  readonly logicalSourceId: LogicalSourceIdV1;
+  readonly academicRecordStream: AcademicRecordStreamV1;
+  readonly stableKey: string;
+  readonly state: LogicalSourceRecordAssociationStateV1;
+  readonly sourceManifestId: SourceFileManifestId;
+  readonly sourceManifestVersion: number;
+}
+
+export interface LogicalSourceRecordRepositoryV1 {
+  getCurrent(
+    context: AcademicPersistenceContextV1,
+    stream: LogicalSourceRecordAssociationStreamV1,
+  ): Promise<VersionedRecordV1<LogicalSourceRecordAssociationV1> | null>;
+
+  listCurrentStreams(
+    context: AcademicPersistenceContextV1,
+    logicalSourceId: LogicalSourceIdV1,
+  ): Promise<readonly AcademicRecordStreamV1[]>;
+
+  listVersions(
+    context: AcademicPersistenceContextV1,
+    stream: LogicalSourceRecordAssociationStreamV1,
+    page: CursorPageRequestV1,
+  ): Promise<CursorPageV1<VersionedRecordV1<LogicalSourceRecordAssociationV1>>>;
+
+  appendVersion(
+    context: AcademicPersistenceContextV1,
+    stream: LogicalSourceRecordAssociationStreamV1,
+    association: LogicalSourceRecordAssociationV1,
+    expectation: VersionExpectationV1,
+  ): Promise<VersionedWriteResultV1<LogicalSourceRecordAssociationV1>>;
+}
+
 export type AuditRecordStreamV1 =
   | { readonly kind: 'occurrence'; readonly id: AuditOccurrenceId }
   | { readonly kind: 'reconciliation'; readonly id: ReconciliationResultId };
@@ -259,6 +302,7 @@ export interface PersistenceUnitOfWorkV1 {
   readonly entities: AcademicEntityRepositoryV1;
   readonly imports: ImportPersistenceRepositoryV1;
   readonly academicRecords: AcademicRecordRepositoryV1;
+  readonly logicalSourceRecords: LogicalSourceRecordRepositoryV1;
   readonly audit: AuditPersistenceRepositoryV1;
 }
 

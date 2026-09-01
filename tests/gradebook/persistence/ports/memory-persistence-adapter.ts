@@ -15,6 +15,9 @@ import type {
   CursorPageV1,
   ImportPersistenceRepositoryV1,
   LogicalSourceIdV1,
+  LogicalSourceRecordAssociationStreamV1,
+  LogicalSourceRecordAssociationV1,
+  LogicalSourceRecordRepositoryV1,
   PersistenceUnitOfWorkV1,
   SourceFileVersionV1,
   VersionExpectationV1,
@@ -32,6 +35,10 @@ interface MemoryState {
   sourceFiles: Map<string, readonly VersionedRecordV1<SourceFileVersionV1>[]>;
   batches: Map<string, readonly VersionedRecordV1<ImportBatchResultV1>[]>;
   academicRecords: Map<string, readonly VersionedRecordV1<AcademicRecordV1>[]>;
+  logicalSourceRecordAssociations: Map<
+    string,
+    readonly VersionedRecordV1<LogicalSourceRecordAssociationV1>[]
+  >;
   auditRecords: Map<string, readonly VersionedRecordV1<AuditRecordV1>[]>;
 }
 
@@ -41,6 +48,7 @@ function emptyState(): MemoryState {
     sourceFiles: new Map(),
     batches: new Map(),
     academicRecords: new Map(),
+    logicalSourceRecordAssociations: new Map(),
     auditRecords: new Map(),
   };
 }
@@ -57,11 +65,16 @@ function cloneState(source: MemoryState): MemoryState {
     sourceFiles: cloneHistoryMap(source.sourceFiles),
     batches: cloneHistoryMap(source.batches),
     academicRecords: cloneHistoryMap(source.academicRecords),
+    logicalSourceRecordAssociations: cloneHistoryMap(
+      source.logicalSourceRecordAssociations,
+    ),
     auditRecords: cloneHistoryMap(source.auditRecords),
   };
 }
 
-function latest<T>(history: readonly VersionedRecordV1<T>[] | undefined): VersionedRecordV1<T> | null {
+function latest<T>(
+  history: readonly VersionedRecordV1<T>[] | undefined,
+): VersionedRecordV1<T> | null {
   return history?.at(-1) ?? null;
 }
 
@@ -150,6 +163,20 @@ function academicRecordKey(
   }
 }
 
+function logicalSourceRecordAssociationKey(
+  context: AcademicPersistenceContextV1,
+  stream: LogicalSourceRecordAssociationStreamV1,
+): string {
+  return `${yearPrefix(context)}logical-source-record:${stream.logicalSourceId}:${stream.stableKey}`;
+}
+
+function logicalSourceRecordAssociationPrefix(
+  context: AcademicPersistenceContextV1,
+  logicalSourceId: LogicalSourceIdV1,
+): string {
+  return `${yearPrefix(context)}logical-source-record:${logicalSourceId}:`;
+}
+
 function auditRecordKey(
   context: AcademicPersistenceContextV1,
   stream: AuditRecordStreamV1,
@@ -161,8 +188,11 @@ function createEntitiesRepository(state: MemoryState): AcademicEntityRepositoryV
   return {
     async get(context, reference) {
       return (
-        latest(state.entities.get(entityKey(context, reference.kind, entityReferenceId(reference)))) ??
-        null
+        latest(
+          state.entities.get(
+            entityKey(context, reference.kind, entityReferenceId(reference)),
+          ),
+        ) ?? null
       );
     },
 
@@ -172,7 +202,10 @@ function createEntitiesRepository(state: MemoryState): AcademicEntityRepositoryV
         .filter(([key]) => key.startsWith(prefix))
         .sort(([left], [right]) => left.localeCompare(right))
         .map(([, history]) => latest(history))
-        .filter((record): record is VersionedRecordV1<AcademicEntityRecordV1> => record !== null);
+        .filter(
+          (record): record is VersionedRecordV1<AcademicEntityRecordV1> =>
+            record !== null,
+        );
       return page(items, request);
     },
 
@@ -208,13 +241,18 @@ function createImportsRepository(state: MemoryState): ImportPersistenceRepositor
       const items = [...state.sourceFiles.entries()]
         .filter(([key]) => key.startsWith(prefix))
         .map(([, history]) => latest(history))
-        .filter((record): record is VersionedRecordV1<SourceFileVersionV1> => record !== null)
+        .filter(
+          (record): record is VersionedRecordV1<SourceFileVersionV1> =>
+            record !== null,
+        )
         .filter(
           ({ value }) =>
             value.logicalSource.state === 'confirmed' &&
             value.logicalSource.logicalSourceId === logicalSourceId,
         )
-        .sort((left, right) => left.value.manifest.readAt.localeCompare(right.value.manifest.readAt));
+        .sort((left, right) =>
+          left.value.manifest.readAt.localeCompare(right.value.manifest.readAt),
+        );
       return page(items, request);
     },
 
@@ -244,7 +282,10 @@ function createAcademicRecordsRepository(state: MemoryState): AcademicRecordRepo
     },
 
     async listVersions(context, stream, request) {
-      return page(state.academicRecords.get(academicRecordKey(context, stream)) ?? [], request);
+      return page(
+        state.academicRecords.get(academicRecordKey(context, stream)) ?? [],
+        request,
+      );
     },
 
     async appendVersion(context, stream, record, expectation) {
@@ -252,6 +293,55 @@ function createAcademicRecordsRepository(state: MemoryState): AcademicRecordRepo
         state.academicRecords,
         academicRecordKey(context, stream),
         record,
+        expectation,
+      );
+    },
+  };
+}
+
+function createLogicalSourceRecordsRepository(
+  state: MemoryState,
+): LogicalSourceRecordRepositoryV1 {
+  return {
+    async getCurrent(context, stream) {
+      return latest(
+        state.logicalSourceRecordAssociations.get(
+          logicalSourceRecordAssociationKey(context, stream),
+        ),
+      );
+    },
+
+    async listCurrentStreams(context, logicalSourceId) {
+      const prefix = logicalSourceRecordAssociationPrefix(context, logicalSourceId);
+      return [...state.logicalSourceRecordAssociations.entries()]
+        .filter(([key]) => key.startsWith(prefix))
+        .map(([, history]) => latest(history))
+        .filter(
+          (
+            record,
+          ): record is VersionedRecordV1<LogicalSourceRecordAssociationV1> =>
+            record?.value.state === 'active',
+        )
+        .sort((left, right) =>
+          left.value.stableKey.localeCompare(right.value.stableKey),
+        )
+        .map(({ value }) => value.academicRecordStream);
+    },
+
+    async listVersions(context, stream, request) {
+      return page(
+        state.logicalSourceRecordAssociations.get(
+          logicalSourceRecordAssociationKey(context, stream),
+        ) ?? [],
+        request,
+      );
+    },
+
+    async appendVersion(context, stream, association, expectation) {
+      return appendVersion(
+        state.logicalSourceRecordAssociations,
+        logicalSourceRecordAssociationKey(context, stream),
+        association,
         expectation,
       );
     },
@@ -269,7 +359,12 @@ function createAuditRepository(state: MemoryState): AuditPersistenceRepositoryV1
     },
 
     async appendVersion(context, stream, record, expectation) {
-      return appendVersion(state.auditRecords, auditRecordKey(context, stream), record, expectation);
+      return appendVersion(
+        state.auditRecords,
+        auditRecordKey(context, stream),
+        record,
+        expectation,
+      );
     },
   };
 }
@@ -279,6 +374,7 @@ function createUnitOfWork(state: MemoryState): PersistenceUnitOfWorkV1 {
     entities: createEntitiesRepository(state),
     imports: createImportsRepository(state),
     academicRecords: createAcademicRecordsRepository(state),
+    logicalSourceRecords: createLogicalSourceRecordsRepository(state),
     audit: createAuditRepository(state),
   };
 }
@@ -305,7 +401,9 @@ export class MemoryPersistenceAdapter implements BatchPromotionTransactionPortV1
     }
 
     const approvedIds = new Set(
-      currentBatch.value.files.filter((file) => file.status === 'approved').map((file) => file.id),
+      currentBatch.value.files
+        .filter((file) => file.status === 'approved')
+        .map((file) => file.id),
     );
 
     if (request.approvedImportFileIds.some((id) => !approvedIds.has(id))) {
