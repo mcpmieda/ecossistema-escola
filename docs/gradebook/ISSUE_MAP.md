@@ -1,137 +1,147 @@
 # Mapa de issues — Banco de Notas
 
-Este arquivo apresenta o projeto em linguagem simples. O estado legível por máquina fica em [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Para iniciar agentes, consulte primeiro [`COMECE_AQUI.md`](COMECE_AQUI.md).
+Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila curta: [`COMECE_AQUI.md`](COMECE_AQUI.md).
 
 ## Visão geral
 
-- **Issue principal:** [#182](https://github.com/mcpmieda/ecossistema-escola/issues/182)
-- **Integração concluída pela onda atual:** [#306](https://github.com/mcpmieda/ecossistema-escola/issues/306) / PR #319
-- **Próxima integração planejada:** [#318](https://github.com/mcpmieda/ecossistema-escola/issues/318)
-- **Sessão temporária histórica:** [#273](https://github.com/mcpmieda/ecossistema-escola/issues/273), sem fila paralela nova
-- **Site oficial:** `https://admin.escolaieda.com/#/banco-de-notas`
-- **Ondas concluídas:** primeira à décima quarta
-- **Próxima onda:** #314, #315, #316 e #317 em paralelo após a liberação da #306; integração #318 depois das quatro
-- **Armazenamento aprovado:** Cloudflare D1, conforme #200
-- **Produção:** nenhum D1 acadêmico, binding ou migration remota provisionado
-- **Saúde e limites:** #220 planejada no Centro de Administração
+- **Programa:** #182
+- **Integração da onda 15:** #318 / PR #324
+- **Próxima onda:** #325, #326 e #327 em paralelo; integração #328
+- **Armazenamento físico aprovado:** Cloudflare D1 local/preview
+- **Produção acadêmica:** sem D1 remoto, binding, migration remota ou ativação de consultas
+- **Autoridade:** `imported-source`
+- **Autorização acadêmica atual:** `gradebook.persistence.admin`, emitida/validada no servidor
 
-## Fases
+## Fases — estado funcional atual
 
-| Fase                           |                                                             Issue | Estado após onda 14                                           | Progresso objetivo | Resultado esperado no site             |
-| ------------------------------ | ----------------------------------------------------------------: | -------------------------------------------------------------- | -----------------: | -------------------------------------- |
-| F0 — Fundação e coordenação    | [#183](https://github.com/mcpmieda/ecossistema-escola/issues/183) | Publicada                                                      |                7/7 | Base para agentes                      |
-| F1 — Fonte e importação        | [#184](https://github.com/mcpmieda/ecossistema-escola/issues/184) | Validação final privada pendente                               |                6/7 | Importação confiável e rastreável      |
-| F2 — Modelo e persistência     | [#185](https://github.com/mcpmieda/ecossistema-escola/issues/185) | Persistência local V1 completa e composta                      |                6/6 | Dados disponíveis após recarregar      |
-| F3 — Motor nativo              | [#186](https://github.com/mcpmieda/ecossistema-escola/issues/186) | Núcleo e equivalência V1 completos                             |                7/7 | Comparação fonte × cálculo nativo      |
-| F4 — Reconciliação e Auditoria | [#187](https://github.com/mcpmieda/ecossistema-escola/issues/187) | Workspace interno composto; UI/HTTP local-preview em #314      |                7/8 | Revisão, pendências e promoção do lote |
-| F5 — Contexto e centrais       | [#188](https://github.com/mcpmieda/ecossistema-escola/issues/188) | Operational Workspace local-preview integrado; hardening #317  |                8/9 | Aluno, turma, professor e componente   |
-| F6 — Desempenho                | [#189](https://github.com/mcpmieda/ecossistema-escola/issues/189) | Read model provider-independent; fonte física em lote #315     |                1/6 | Matriz analítica da turma              |
-| F7 — Conselho                  | [#190](https://github.com/mcpmieda/ecossistema-escola/issues/190) | Planejada; elegibilidade integrada                             |                0/7 | Fluxo operacional do Conselho          |
-| F8 — Boletins e relatórios     | [#191](https://github.com/mcpmieda/ecossistema-escola/issues/191) | Emissão provider-independent; hardening/snapshots locais #316  |                1/6 | Prévia, PDF, versões e relatórios      |
-| F9 — Piloto e produção         | [#192](https://github.com/mcpmieda/ecossistema-escola/issues/192) | Planejada/transversal                                          |                0/7 | Operação institucional validada        |
+| Fase | Issue | Estado após onda 15 | Próximo grande passo |
+| --- | ---: | --- | --- |
+| F0 Fundação | #183 | concluída | manutenção |
+| F1 Fonte/importação | #184 | sintético completo; validação privada final pendente | validação real controlada |
+| F2 Persistência | #185 | D1 local V1 + UoW/runtime | produção continua fechada |
+| F3 Motor | #186 | núcleo/equivalência V1 | sem mudança de autoridade |
+| F4 Auditoria | #187 | Audit Workspace local/preview com HTTP/UI | hardening transversal posterior |
+| F5 Centrais | #188 | Operational Workspace local/preview endurecido | hardening transversal posterior |
+| F6 Desempenho | #189 | fonte D1 + read model compostos internamente; sem HTTP/UI | #325 end-to-end |
+| F7 Conselho | #190 | elegibilidade anual V1 integrada | #327 Conselho V1 |
+| F8 Boletins | #191 | emissão + materialização agregada + snapshots locais; sem HTTP/UI/PDF | #326 end-to-end |
+| F9 Piloto/segurança | #192 | requisitos transversais aplicados continuamente | frente grande reavaliada depois de F6/F7/F8 visíveis |
 
-## Ondas fundacionais e contratuais anteriores
+## Onda 13 — contratos amplos
 
-As ondas 1–12 estabeleceram fonte, contratos, motor nativo, equivalência, persistência D1 local, UoW, read models operacionais e pesquisa acadêmica autorizada. As referências de merge permanecem em `PROJECT_STATE.yaml`.
+| Issue | Entrega |
+| ---: | --- |
+| #293 | Operational Workspace V1 |
+| #294 | Audit Workspace V1 |
+| #295 | Class Performance V1 |
+| #296 | Bulletin V1 |
+| #297 | integração dos quatro contratos |
 
-### Décima terceira onda — contratos amplos
+## Onda 14 — implementação provider-independent / primeira composição
 
-| Frente |                                                             Issue | Entrega contratual                                               | PR / merge          |
-| :----: | ----------------------------------------------------------------: | ---------------------------------------------------------------- | ------------------- |
-| A | [#293](https://github.com/mcpmieda/ecossistema-escola/issues/293) | Experiência operacional F5: ano, navegação, pesquisa e estados   | #298 / `8452199` |
-| B | [#294](https://github.com/mcpmieda/ecossistema-escola/issues/294) | Workspace F4: lotes, ocorrências, reconciliações e resolução     | #301 / `a78e410` |
-| C | [#295](https://github.com/mcpmieda/ecossistema-escola/issues/295) | Desempenho F6: matriz, quatro lentes, cobertura e comparabilidade | #299 / `706426b` |
-| D | [#296](https://github.com/mcpmieda/ecossistema-escola/issues/296) | F8: `BulletinModelV1`, emissão, snapshots e reimpressão           | #300 / `e7b9298` |
+| Issue / PR | Entrega |
+| --- | --- |
+| #302 / #312 | F5 transporte/bridge/UI local-preview |
+| #303 / #313 | Audit Workspace + read-source D1 |
+| #304 / #310 | read model de Desempenho |
+| #305 / #311 | emissão de Boletins |
+| #306 / #319 | Auditoria composta internamente; F6/F8 ainda não expostos |
 
-A #297/PR #309 integrou e testou os quatro contratos conjuntamente, preservando ano explícito, autorização no servidor, ausência sem zero fabricado, paginação opaca e `authorityMode: imported-source`.
+## Onda 15 — superfícies e hardening
 
-## Décima quarta onda — implementações
+| Frente | Issue / PR | Entrega | Merge da frente |
+| :---: | --- | --- | --- |
+| A | #314 / #321 | Audit Workspace HeroUI + HTTP local/preview | `fd3fdc32d85227fa12a84477feaca0892e773816` |
+| B | #315 / #323 | fonte D1 de Desempenho, 6 queries, sem N+1 | `a101819daef4791e5a1f5a5a64b554ab97d59263` |
+| C | #316 / #322 | materialização agregada + snapshots locais imutáveis/versionados | `2875749517ea0c145d73c3dc1df9aa11a8dc18a3` |
+| D | #317 / #320 | hardening/stale-response/year/pagination do Operational Workspace | `d7f984e8753e5ad102f8aeb6a135f4870b8298e6` |
+| Integração | #318 / #324 | compõe F6 internamente no runtime, sem HTTP/UI | PR de integração |
 
-| Frente | Issue | Implementação | PR / merge |
-| :----: | ----: | ------------ | ---------- |
-| A | [#302](https://github.com/mcpmieda/ecossistema-escola/issues/302) | F5: transporte, bridge local/preview, catálogo de anos e HeroUI | #312 / `af67eae` |
-| B | [#303](https://github.com/mcpmieda/ecossistema-escola/issues/303) | F4: Audit Workspace + read-source D1 | #313 / `b488a88` |
-| C | [#304](https://github.com/mcpmieda/ecossistema-escola/issues/304) | F6: read model provider-independent de Desempenho | #310 / `e919e18` |
-| D | [#305](https://github.com/mcpmieda/ecossistema-escola/issues/305) | F8: emissão provider-independent de Boletins | #311 / `292cf17` |
+### Invariantes congeladas na onda 15
 
-A #306/PR #319 faz apenas a composição segura prevista:
+- exatamente um `POST /api/gradebook/operational-workspace`;
+- exatamente um `POST /api/gradebook/audit-workspace`;
+- nenhum Performance/Bulletin HTTP na integração #318;
+- Performance: comparação solicitada sem resolvedor oficial continua `not-comparable`;
+- Performance: anual non-result continua `insufficient-data`;
+- `recovery + result` usa `FinalRecoveryV1`; outras lentes recovery usam trimestre;
+- 6 queries em lote / zero N+1 na fonte física F6;
+- Boletins: snapshot imutável/versionado; reimpressão não recalcula;
+- F5: resposta obsoleta não substitui contexto novo; paginação deduplicada;
+- produção fail-closed antes de `GRADEBOOK_D1`.
 
-- mantém o bridge único de #302;
-- liga #303 internamente a `GradebookD1RuntimeV1`, mesma UoW/autorização, sem HTTP/UI;
-- não cria adapter físico/runtime/endpoint para #304;
-- não cria PDF, endpoint ou snapshot remoto para #305;
-- mantém produção fail-closed antes do binding, `gradebook.persistence.admin` e `imported-source`.
+## Próxima onda — grandes frentes verticais
 
-## Próxima onda — hardening e fontes físicas
+As issues foram pré-criadas bloqueadas pela #318 e passam a `[PRONTA]` somente após deploy/smokes finais. A própria issue é a autoridade do estado.
 
-As quatro issues abaixo são pré-criadas como `[BLOQUEADA]` pela #306 e ficam `[PRONTA]` somente após deploy/smokes da integração.
+| Frente | Issue | Objetivo | Executor | Integração |
+| :---: | ---: | --- | --- | ---: |
+| 1 | #325 | Desempenho end-to-end local/preview | **Extra Alto** | #328 |
+| 2 | #326 | Boletins end-to-end local/preview | **Extra Alto** | #328 |
+| 3 | #327 | Conselho de Classe V1 sem regras novas | **Extra Alto** | #328 |
+| Integração | #328 | wiring central, revisão, merge, deploy e estado | **Extra Alto** | — |
 
-| Frente |                                                             Issue | Implementação | Executor | Integração |
-| :----: | ----------------------------------------------------------------: | ------------ | -------- | ---------- |
-| A | [#314](https://github.com/mcpmieda/ecossistema-escola/issues/314) | F4: Audit Workspace HeroUI + HTTP local/preview | **Extra Alto** | #318 |
-| B | [#315](https://github.com/mcpmieda/ecossistema-escola/issues/315) | F6: fonte física D1 em lote sem N+1 | **GPT-5.6 Sol, esforço máximo** | #318 |
-| C | [#316](https://github.com/mcpmieda/ecossistema-escola/issues/316) | F8: hardening/materialização agregada e snapshots locais | **GPT-5.6 Sol, esforço máximo** | #318 |
-| D | [#317](https://github.com/mcpmieda/ecossistema-escola/issues/317) | F5: evolução/hardening do Operational Workspace | **Extra Alto** | #318 |
+### #325 — F6 end-to-end
 
-A [#318](https://github.com/mcpmieda/ecossistema-escola/issues/318) integra as quatro depois de PRs verdes e SHAs fixados.
+Transporte/HTTP, matriz HeroUI, quatro lentes, regular/recovery, paginação, detalhes aluno/célula, a11y/mobile e stale-response discard. Comparabilidade continua fail-closed até semântica oficial própria.
 
-## Dependências principais
+### #326 — F8 end-to-end
+
+Seleção, preview, emissão, reimpressão, lote, snapshots históricos locais, HTTP/UI e mesma base canônica para futuro PDF. Como não há renderer PDF integrado hoje, a issue aceita **um único bloqueio explícito de PDF** se incluir renderer exigir decisão/runtime/biblioteca nova.
+
+### #327 — F7 Conselho V1
+
+Fila, elegibilidade, visão T1/T2/T3/REC, decisão humana separada do cálculo, justificativa, histórico e CAS. Não implementar votação, desempate, frequência, participantes ou exceções não formalizadas.
+
+### F9
+
+Não há quarta frente artificial nesta onda. Reavaliar #192 depois da integração #328, quando F6/F7/F8 adicionarem massa funcional visível. Segurança, no-store, sanitização, a11y e recuperação de falhas continuam critérios obrigatórios de todas as frentes.
+
+## Dependências atuais
 
 ```text
-#293 ─┬─ #294 ─┬─ #295 ─┬─ #296
-      └────────┴────────┴──────> #297
-                                   ↓
-#302 ─┬─ #303 ─┬─ #304 ─┬─ #305
-      └────────┴────────┴──────> #306
-                                   ↓
 #314 ─┬─ #315 ─┬─ #316 ─┬─ #317
       └────────┴────────┴──────> #318
+                                   ↓
+#325 ─┬─ #326 ─┬─ #327
+      └────────┴───────────────> #328
 ```
 
-## Estado do D1 e das superfícies
+## D1 e superfícies
 
-Integrado localmente:
+### Local/preview
 
-- migrations 0001–0003, 21 tabelas;
-- leitura/escrita completa e UoW única;
-- promoção atômica com CAS/savepoints/rollback;
-- runtime local/preview, runner e autorização administrativa;
-- quatro read models operacionais e pesquisa acadêmica;
-- Operational Workspace com um único bridge local/preview;
-- Audit Workspace composto internamente no runtime;
-- read model de Desempenho provider-independent;
-- emissão de Boletins provider-independent e snapshots por porta/local de teste.
-
-Não integrado em produção:
-
-- banco ou binding D1 remoto;
-- migrations remotas;
-- persistência ou consulta acadêmica do site;
+- migrations 0001–0003 / 21 tabelas;
+- UoW única e promoção transacional CAS/savepoint/rollback;
+- Operational Workspace HTTP/UI;
 - Audit Workspace HTTP/UI;
-- fonte física/runtime/endpoint/UI de Desempenho;
-- PDF/endpoint/persistência remota de Boletins;
-- backup/rollout acadêmico;
-- métricas reais de Saúde e limites.
+- Desempenho físico + read model interno;
+- Boletins provider-independent + snapshots locais.
+
+### Produção
+
+Não existem:
+
+- D1 acadêmico remoto;
+- binding/migration remota;
+- consulta/persistência acadêmica ativa;
+- Performance HTTP/UI;
+- Boletins HTTP/UI/PDF;
+- Conselho operacional.
 
 ## Gates manuais
 
-- executar `REAL_DATA_VALIDATION.md` com o corpus real em ambiente privado antes do fechamento definitivo da F1;
-- concluir smoke autenticado do hash completo, etapa transitória e falha isolada.
+- `REAL_DATA_VALIDATION.md` em ambiente privado;
+- smoke autenticado somente quando houver autorização/ambiente apropriado.
 
 Nenhum gate autoriza publicar arquivos, nomes, notas, hashes ou caminhos privados.
 
-## Como iniciar um agente
+## Como iniciar agente
 
-1. entregue somente uma issue marcada `[PRONTA]`;
-2. use o executor indicado;
-3. exija leitura de `AGENTS.md`, documentação e contratos;
-4. execute diretamente, sem App Factory ou agentes auxiliares;
-5. mantenha uma branch e um PR por issue;
-6. execute `npm run verify` e registre o handoff;
-7. não faça merge, deploy, provisionamento ou alteração de `PROJECT_STATE.yaml`.
-
-## Critério de publicação
-
-```text
-issue → branch → PR → validação → integração → main → Cloudflare Pages → verificação
-```
+1. usar apenas issue `[PRONTA]`;
+2. ler `AGENTS.md`, docs e contratos;
+3. uma branch curta / um PR;
+4. `npm run verify` no SHA final;
+5. handoff completo;
+6. sem merge/deploy/provisionamento/`PROJECT_STATE.yaml` em frente comum;
+7. integração apenas pela issue integradora.
