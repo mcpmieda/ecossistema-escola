@@ -137,12 +137,12 @@ const missingCoverage: ResultCoverageV1 = {
   missingItemCount: 1,
   reasons: ['official-result-absent'],
 };
-const notApplicableCoverage: ResultCoverageV1 = {
-  state: 'not-applicable',
-  expectedItemCount: 0,
+const unavailableProjectionCoverage: ResultCoverageV1 = {
+  state: 'insufficient-data',
+  expectedItemCount: 1,
   resolvedItemCount: 0,
-  missingItemCount: 0,
-  reasons: ['lens-not-applicable-to-period'],
+  missingItemCount: 1,
+  reasons: ['official-projection-unavailable'],
 };
 
 function aggregateCoverage(cells: readonly PerformanceMatrixSourceCellV1[]): ResultCoverageV1 {
@@ -252,70 +252,13 @@ function periodRecord(
 }
 
 function comparisonFor(
-  current: AcademicRecordV1 | null,
-  reference: AcademicRecordV1 | null,
   referencePeriod: PerformancePeriodV1 | null,
-  lens: PerformanceMatrixSourceRequestV1['lens'],
 ): PerformanceValueComparisonV1 | null {
   if (referencePeriod === null) return null;
-  if (current === null || reference === null || current.kind !== reference.kind) {
-    return {
-      state: 'not-comparable',
-      referencePeriod,
-      reason: 'official-comparison-basis-unavailable',
-    };
-  }
-  if (lens === 'assessments')
-    return {
-      state: 'not-comparable',
-      referencePeriod,
-      reason: 'assessment-collection-has-no-single-official-value',
-    };
-  if (current.kind === 'term-result' && reference.kind === 'term-result') {
-    const field =
-      lens === 'quantitative'
-        ? 'considered'
-        : lens === 'qualitative'
-          ? 'qualitativeOperational'
-          : 'percentage';
-    const currentValue =
-      field === 'considered' ? current.value.quantitative.considered : current.value[field];
-    const referenceValue =
-      field === 'considered' ? reference.value.quantitative.considered : reference.value[field];
-    return {
-      state: 'comparable',
-      referencePeriod,
-      basis: field === 'percentage' ? 'percentage' : 'official-value',
-      current: compared(currentValue),
-      reference: compared(referenceValue),
-    };
-  }
-  if (
-    lens === 'result' &&
-    current.kind === 'final-recovery' &&
-    reference.kind === 'final-recovery'
-  ) {
-    return {
-      state: 'comparable',
-      referencePeriod,
-      basis: 'official-value',
-      current: compared(current.value.replacementTermGrade),
-      reference: compared(reference.value.replacementTermGrade),
-    };
-  }
-  if (lens === 'result' && current.kind === 'annual-result' && reference.kind === 'annual-result') {
-    return {
-      state: 'comparable',
-      referencePeriod,
-      basis: 'official-value',
-      current: compared(current.value.postRecoveryTotal),
-      reference: compared(reference.value.postRecoveryTotal),
-    };
-  }
   return {
     state: 'not-comparable',
     referencePeriod,
-    reason: 'official-comparison-basis-unavailable',
+    reason: 'comparison-semantics-not-integrated',
   };
 }
 
@@ -326,23 +269,10 @@ function projection(
   enrollmentId: string,
   assignment: TeachingAssignmentV1,
 ): PerformanceMatrixSourceCellV1 {
-  const current = periodRecord(
-    materialized.records,
-    studentId,
-    assignment.id,
-    request.period,
-    request.mode,
-  );
-  const reference =
-    request.comparisonPeriod === null
-      ? null
-      : periodRecord(
-          materialized.records,
-          studentId,
-          assignment.id,
-          request.comparisonPeriod,
-          request.mode,
-        );
+  const isResultLens = request.lens === 'result';
+  const current = isResultLens
+    ? periodRecord(materialized.records, studentId, assignment.id, request.period, request.mode)
+    : null;
   const requestedTerm = request.period.kind === 'term' ? request.period.term : null;
   const termResult =
     requestedTerm !== null
@@ -354,31 +284,38 @@ function projection(
             item.value.term === requestedTerm,
         ) ?? null)
       : null;
-  const coverage =
-    current?.kind === 'term-result' ||
-    current?.kind === 'final-recovery' ||
-    current?.kind === 'annual-result'
+  const coverage = isResultLens
+    ? current?.kind === 'term-result' ||
+      current?.kind === 'final-recovery' ||
+      current?.kind === 'annual-result'
       ? current.value.coverage
-      : request.period.kind === 'annual' && request.lens !== 'result'
-        ? notApplicableCoverage
-        : (termResult?.value.coverage ?? missingCoverage);
-  const comparison = comparisonFor(
-    current ?? termResult,
-    reference,
-    request.comparisonPeriod,
-    request.lens,
-  );
+      : missingCoverage
+    : requestedTerm === null
+      ? unavailableProjectionCoverage
+      : (termResult?.value.coverage ?? missingCoverage);
+  const comparison = comparisonFor(request.comparisonPeriod);
+  const projectionUnavailable = !isResultLens && requestedTerm === null;
+  const projectedRecordAbsent = isResultLens ? current === null : termResult === null;
   const signals = [
-    ...(current === null && termResult === null
+    ...(projectionUnavailable
       ? [
           {
-            code: 'official-result-absent',
-            explanation: 'Não há resultado oficial para esta célula.',
+            code: 'official-projection-unavailable',
+            explanation: 'A projeção oficial solicitada ainda não está disponível.',
             source: 'official-result' as const,
             detail: 'cell' as const,
           },
         ]
-      : []),
+      : projectedRecordAbsent
+        ? [
+            {
+              code: 'official-result-absent',
+              explanation: 'Não há resultado oficial para esta célula.',
+              source: 'official-result' as const,
+              detail: 'cell' as const,
+            },
+          ]
+        : []),
     ...(coverage.state === 'complete'
       ? []
       : [

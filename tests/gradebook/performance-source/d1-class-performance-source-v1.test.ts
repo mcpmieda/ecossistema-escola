@@ -423,7 +423,7 @@ async function fixture(): Promise<SqliteD1Database> {
     recoveryGrade: numeric(22),
     replacementTermGrade: numeric(22),
     authorityMode: 'imported-source',
-    coverage: coverage('complete'),
+    coverage: coverage('partial'),
     ruleVersion: 'synthetic-rule-v1',
   };
   insertRecord(database, year, 'final-recovery', recovery as unknown as Record<string, unknown>, {
@@ -492,8 +492,16 @@ describe('fonte D1 em lote de Desempenho V1', () => {
         expect(new Set(cells.map((cell) => cell.coverage.state))).toEqual(
           new Set(['complete', 'partial', 'insufficient-data', 'not-applicable']),
         );
-        expect(cells.some((cell) => cell.comparison?.state === 'comparable')).toBe(true);
-        expect(cells.some((cell) => cell.comparison?.state === 'not-comparable')).toBe(true);
+        expect(
+          cells.every(
+            (cell) =>
+              cell.comparison?.state === 'not-comparable' &&
+              cell.comparison.reason === 'comparison-semantics-not-integrated',
+          ),
+        ).toBe(true);
+        expect(JSON.stringify(cells.map((cell) => cell.comparison))).not.toMatch(
+          /"basis"|"current"|"reference"/u,
+        );
         const projection = cells[0]!.projection;
         expect(projection).toHaveProperty('officialGrade.imported');
         expect(projection).toHaveProperty('officialGrade.calculated');
@@ -533,6 +541,73 @@ describe('fonte D1 em lote de Desempenho V1', () => {
     ).resolves.toBeNull();
   });
 
+  it.each(['quantitative', 'qualitative', 'assessments'] as const)(
+    'mantém annual + %s como projeção oficial insuficiente sem fabricar não aplicabilidade ou agregado',
+    async (lens) => {
+      const provider = createClassPerformanceReadModelV1(
+        createGradebookD1ClassPerformanceSourceV1(await fixture()),
+      );
+      const model = await provider.get(
+        request(lens, { period: { kind: 'annual' }, comparisonPeriod: null }),
+      );
+      const cells = model!.rows.items.flatMap((row) => row.cells);
+      expect(model?.coverage.state).toBe('insufficient-data');
+      expect(
+        cells.every(
+          (cell) =>
+            cell.coverage.state === 'insufficient-data' &&
+            cell.coverage.reasons.includes('official-projection-unavailable'),
+        ),
+      ).toBe(true);
+      expect(JSON.stringify(cells)).not.toContain('not-applicable');
+      expect(JSON.stringify(cells)).not.toMatch(/"state":"numeric"|official-zero|legacy-zero/u);
+      if (lens === 'assessments') {
+        expect(
+          cells.every((cell) => cell.lens === 'assessments' && cell.projection.items.length === 0),
+        ).toBe(true);
+      }
+    },
+  );
+
+  it('mantém comparison null sem período de referência e fail-closed com referência', async () => {
+    const source = createGradebookD1ClassPerformanceSourceV1(await fixture());
+    const withoutReference = await source.loadMatrix({
+      contractVersion: 1,
+      academicYearId: year,
+      classGroupId: classGroup,
+      period: { kind: 'term', term: 1 },
+      mode: 'regular',
+      lens: 'result',
+      comparisonPeriod: null,
+    });
+    expect(
+      withoutReference?.rows.flatMap((row) => row.cells).every((cell) => cell.comparison === null),
+    ).toBe(true);
+
+    for (const lens of ['result', 'quantitative', 'qualitative', 'assessments'] as const) {
+      const withReference = await source.loadMatrix({
+        contractVersion: 1,
+        academicYearId: year,
+        classGroupId: classGroup,
+        period: { kind: 'term', term: 1 },
+        mode: 'regular',
+        lens,
+        comparisonPeriod: { kind: 'term', term: 2 },
+      });
+      const comparisons = withReference!.rows
+        .flatMap((row) => row.cells)
+        .map((cell) => cell.comparison);
+      expect(
+        comparisons.every(
+          (comparison) =>
+            comparison?.state === 'not-comparable' &&
+            comparison.reason === 'comparison-semantics-not-integrated',
+        ),
+      ).toBe(true);
+      expect(JSON.stringify(comparisons)).not.toMatch(/"basis"|"current"|"reference"/u);
+    }
+  });
+
   it('seleciona a recuperação oficial trimestral sem recalcular valores', async () => {
     const provider = createClassPerformanceReadModelV1(
       createGradebookD1ClassPerformanceSourceV1(await fixture()),
@@ -552,7 +627,37 @@ describe('fonte D1 em lote de Desempenho V1', () => {
         calculated: { state: 'numeric', value: 22.25 },
       },
     });
+    expect(ana?.cells[0]?.coverage.state).toBe('partial');
   });
+
+  it.each(['quantitative', 'qualitative', 'assessments'] as const)(
+    'mantém recovery + %s na projeção e cobertura do TermResultV1',
+    async (lens) => {
+      const provider = createClassPerformanceReadModelV1(
+        createGradebookD1ClassPerformanceSourceV1(await fixture()),
+      );
+      const model = await provider.get(request(lens, { mode: 'recovery', comparisonPeriod: null }));
+      const ana = model!.rows.items.find((row) => row.studentId === students[0])!;
+      const mathematics = ana.cells.find((cell) => cell.teachingAssignmentId === assignments[0])!;
+      expect(mathematics.coverage.state).toBe('complete');
+      expect(mathematics.signals.some((signal) => signal.code === 'coverage-partial')).toBe(false);
+      if (mathematics.lens === 'quantitative') {
+        expect(mathematics.projection.original.imported).toEqual({ state: 'numeric', value: 11 });
+      } else if (mathematics.lens === 'qualitative') {
+        expect(mathematics.projection.operational.imported).toEqual({
+          state: 'numeric',
+          value: 13,
+        });
+      } else if (mathematics.lens === 'assessments') {
+        expect(mathematics.projection.items[0]?.value.imported).toEqual({
+          state: 'numeric',
+          value: 8,
+        });
+      } else {
+        throw new Error('unexpected synthetic result lens');
+      }
+    },
+  );
 
   it('carrega detalhes separadamente com registros oficiais e sem evidência na matriz', async () => {
     const provider = createClassPerformanceReadModelV1(
