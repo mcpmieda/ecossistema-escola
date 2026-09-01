@@ -169,7 +169,7 @@ describe('Performance HTTP V1', () => {
           calculated: { state: 'numeric', value: 20 },
         },
       },
-    } as PerformanceCellV1;
+    } as unknown as PerformanceCellV1;
     const route = handler(fakeProvider({
       async getCellDetail() {
         return {
