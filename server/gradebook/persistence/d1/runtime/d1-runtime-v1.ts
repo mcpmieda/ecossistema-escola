@@ -1,4 +1,10 @@
 import type { RuntimeEnv, RuntimeEnvironment } from '../../../../env';
+import {
+  createAuditWorkspaceV1,
+  type AuditWorkspaceServerContextV1,
+  type AuditWorkspaceV1,
+  type ExistingImportChangePlanSourceV1,
+} from '../../../application/audit-workspace/audit-workspace-v1';
 import type { ImportChangeExecutionResultV1 } from '../../../application/import/execution/execute-import-change-plan-v1';
 import { executeImportChangePlan } from '../../../application/import/execution/execute-import-change-plan-v1';
 import type {
@@ -10,6 +16,7 @@ import {
   type GradebookOperationalReadModelsV1,
 } from '../../../application/read-models/composition/operational-read-models-v1';
 import type { PersistenceUnitOfWorkV1 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import { GradebookD1AuditWorkspaceSourceV1 } from '../audit-workspace/d1-audit-workspace-source-v1';
 import { createGradebookD1PersistenceUnitOfWorkV1 } from '../composition/d1-persistence-unit-of-work-v1';
 import {
   createOperationalWorkspaceAcademicYearCatalogV1,
@@ -109,6 +116,7 @@ export class GradebookD1RuntimeV1 {
     private readonly unitOfWork: PersistenceUnitOfWorkV1,
     private readonly readModels: GradebookOperationalReadModelsV1,
     private readonly operationalAcademicYears: OperationalWorkspaceAcademicYearCatalogV1,
+    private readonly auditWorkspaceSource: GradebookD1AuditWorkspaceSourceV1,
     private readonly transaction: GradebookD1BatchPromotionTransactionV1,
     private readonly migrations: GradebookD1MigrationRunnerV1,
   ) {}
@@ -145,6 +153,26 @@ export class GradebookD1RuntimeV1 {
     return this.operationalAcademicYears;
   }
 
+  auditWorkspace(
+    server: Pick<AuditWorkspaceServerContextV1, 'resolutionIdentity'>,
+    existingPlans?: ExistingImportChangePlanSourceV1,
+  ): AuditWorkspaceV1 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    return createAuditWorkspaceV1({
+      source: this.auditWorkspaceSource,
+      imports: this.unitOfWork.imports,
+      audit: this.unitOfWork.audit,
+      server: {
+        isAuthorized: () => {
+          requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+          return true;
+        },
+        resolutionIdentity: () => server.resolutionIdentity(),
+      },
+      ...(existingPlans === undefined ? {} : { existingPlans }),
+    });
+  }
+
   inspectSchema(): Promise<GradebookD1MigrationStatusV1> {
     requireGradebookD1RuntimeAuthorizationV1(this.authorization);
     return this.migrations.inspect(this.authorization);
@@ -174,6 +202,7 @@ export function createGradebookD1RuntimeV1(
   });
   const readModels = createGradebookOperationalReadModelsV1(unitOfWork);
   const operationalAcademicYears = createOperationalWorkspaceAcademicYearCatalogV1(database);
+  const auditWorkspaceSource = new GradebookD1AuditWorkspaceSourceV1(database);
   const transaction = new GradebookD1BatchPromotionTransactionV1(database, { now: options.now });
   const migrations = new GradebookD1MigrationRunnerV1(database, {
     migrationSql: options.migrationSql,
@@ -184,6 +213,7 @@ export function createGradebookD1RuntimeV1(
     unitOfWork,
     readModels,
     operationalAcademicYears,
+    auditWorkspaceSource,
     transaction,
     migrations,
   );
