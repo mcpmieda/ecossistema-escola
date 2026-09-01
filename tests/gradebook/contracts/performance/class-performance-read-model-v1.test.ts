@@ -123,6 +123,36 @@ function cellDetailRef(assignmentId: TeachingAssignmentId, ordinal: number): Per
 }
 
 function cellForLens(
+  lens: 'result',
+  assignmentId: TeachingAssignmentId,
+  ordinal: number,
+  cellCoverage?: ResultCoverageV1,
+): Extract<PerformanceCellV1, { lens: 'result' }>;
+function cellForLens(
+  lens: 'quantitative',
+  assignmentId: TeachingAssignmentId,
+  ordinal: number,
+  cellCoverage?: ResultCoverageV1,
+): Extract<PerformanceCellV1, { lens: 'quantitative' }>;
+function cellForLens(
+  lens: 'qualitative',
+  assignmentId: TeachingAssignmentId,
+  ordinal: number,
+  cellCoverage?: ResultCoverageV1,
+): Extract<PerformanceCellV1, { lens: 'qualitative' }>;
+function cellForLens(
+  lens: 'assessments',
+  assignmentId: TeachingAssignmentId,
+  ordinal: number,
+  cellCoverage?: ResultCoverageV1,
+): Extract<PerformanceCellV1, { lens: 'assessments' }>;
+function cellForLens(
+  lens: PerformanceLensV1,
+  assignmentId: TeachingAssignmentId,
+  ordinal: number,
+  cellCoverage?: ResultCoverageV1,
+): PerformanceCellV1;
+function cellForLens(
   lens: PerformanceLensV1,
   assignmentId: TeachingAssignmentId,
   ordinal: number,
