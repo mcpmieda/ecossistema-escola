@@ -11,9 +11,9 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 297
-  current_integrator_issue: 306
-  current_wave: 14
+  previous_integrator_issue: 306
+  current_integrator_issue: 318
+  current_wave: 15
   integrator_required: true
   recommended_parallel_agents: 4
   central_state_editor: integrator-only
@@ -22,28 +22,32 @@ coordination:
   publication: automatic-after-main
   temporary_serial_session:
     issue: 273
-    status: stopped-not-an-orchestrator-for-wave-14
+    status: stopped-not-an-orchestrator-for-wave-15
     agent: codex-5.6-high
-    mode: serial-direct-execution-only-when-explicitly-authorized
+    mode: historical-only
     changes_roadmap: false
-    initial_queue:
-      - 269
-      - 270
-      - 271
-      - 272
     current_authorized_queue: []
-    next_operation_requires_pro: false
-    next_operation_issue: 302
+    next_operation_issue: 314
     next_operation_agent: extra-high
 
 runtime:
-  last_verified_runtime_commit: 845309812866d736b41407c4f4d2f1b29abf7fd4
-  last_verified_pull_request_workflow: 33527184888
-  last_verified_deploy_run: 33515510207
-  pending_deploy_for_pull_request: 309
+  integration_pull_request: 319
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
+  production_academic_runtime_enabled: false
+  production_d1_binding_present: false
+  production_remote_resources_created: false
+  authorization:
+    capability: gradebook.persistence.admin
+    capability_role:
+      - ADMINISTRADOR
+    opaque_server_context: required
+    client_authorization_claims: forbidden
+  environments:
+    local: allowed-with-injected-binding
+    preview: allowed-with-injected-binding
+    production: fail-closed-before-binding
   current_features:
     - unified-admin-shell
     - global-search-entry
@@ -70,49 +74,39 @@ runtime:
     - provider-independent-persistence-ports-v1
     - logical-source-record-association-contract-v1
     - d1-schema-local-migrations-0001-0003
-    - d1-logical-source-record-catalog-v1
-    - d1-local-read-adapter-v1
-    - d1-local-write-adapter-v1
-    - d1-local-batch-promotion-transaction-v1
+    - complete-d1-local-persistence-unit-of-work-v1
     - d1-local-preview-runtime-v1
     - d1-canonical-migration-runner-v1
     - gradebook-persistence-admin-capability
-    - protected-d1-admin-status-and-migration-routes
     - idempotent-reimport-change-planner-v1
     - transactional-change-plan-executor-v1
-    - reconciliation-isolation-regressions-restored-v1
-    - client-side-sha256-source-manifests
-    - visible-file-provenance-and-isolated-diagnostics
-    - complete-d1-local-persistence-unit-of-work-v1
-    - complete-d1-local-academic-entity-repository-v1
-    - complete-d1-local-import-repository-v1
-    - complete-d1-local-audit-repository-v1
-    - paginated-academic-record-and-association-history-v1
-    - local-student-center-read-model-v1
-    - local-class-group-center-read-model-v1
-    - local-teacher-and-subject-center-read-models-v1
     - operational-read-model-facade-v1
-    - authorized-local-preview-operational-read-models-v1
-    - authorized-academic-global-search-contract-v1
-    - local-academic-global-search-read-model-v1
-    - composed-authorized-academic-global-search-v1
+    - authorized-academic-global-search-v1
     - operational-workspace-contract-v1
+    - operational-workspace-transport-v1
+    - operational-workspace-academic-year-catalog-v1
+    - operational-workspace-http-bridge-local-preview-v1
+    - operational-workspace-heroui-local-preview-v1
     - audit-workspace-contract-v1
+    - audit-workspace-provider-independent-v1
+    - audit-workspace-d1-read-source-v1
+    - audit-workspace-runtime-composition-v1
     - class-performance-read-model-contract-v1
+    - class-performance-provider-independent-v1
     - bulletin-model-and-emission-contract-v1
-    - wave-13-contract-compatibility-v1
+    - bulletin-provider-independent-emission-v1
+    - wave-14-implementation-compatibility-v1
   current_limitations:
     - academic-data-is-not-persisted-in-production
     - no-remote-d1-database-or-binding
     - no-remote-migration-applied
-    - academic-global-search-has-no-http-endpoint-or-ui
-    - operational-read-models-and-search-not-exposed-in-production
+    - operational-workspace-production-data-access-disabled
+    - audit-workspace-has-no-http-endpoint-or-ui
+    - performance-has-no-physical-source-runtime-endpoint-or-ui
+    - bulletin-has-no-pdf-endpoint-or-remote-snapshot-persistence
+    - bulletin-high-scale-batch-not-exposed
     - controlled-real-corpus-validation-not-yet-recorded
     - complete-manifest-failure-smoke-not-yet-recorded
-    - operational-workspace-implementation-not-yet-integrated
-    - audit-workspace-not-yet-implemented
-    - performance-read-model-not-yet-implemented
-    - bulletin-emission-not-yet-implemented
 
 scope:
   operational_sources:
@@ -127,14 +121,15 @@ scope:
     domain_dependency: provider-independent-ports
     schema_status: local-v1-migrations-0001-0003-integrated
     runtime_status: local-preview-v1-integrated-production-disabled
-    read_adapter_status: complete-local-v1
-    write_adapter_status: complete-local-v1
     production_provisioning: not-authorized-or-created
   excluded_for_now:
     - smecel
     - additional-cadastral-sources
     - automatic-onedrive-sync
     - standardized-technical-spreadsheet
+    - production-academic-d1
+    - remote-bulletin-snapshot-storage
+    - bulletin-pdf-rendering
 
 contracts:
   source:
@@ -153,35 +148,19 @@ contracts:
   import_reconciliation_audit:
     status: frozen-v1
     issue: 197
-    import_repository_completion_issue: 270
-    audit_repository_completion_issue: 271
-  native_cell_semantics:
+  native_engine:
     status: implemented-v1
-    issue: 201
-  native_rounding:
-    status: implemented-v1
-    issue: 218
-  native_term_composition:
-    status: implemented-v1
-    issue: 226
-  native_parallel_recovery:
-    status: implemented-v1
-    issue: 234
-  native_term_outcome:
-    status: implemented-v1
-    issue: 242
-  native_final_recovery:
-    status: implemented-v1
-    issue: 244
-  native_annual_outcome:
-    status: implemented-v1
-    issue: 255
-  native_annual_equivalence:
-    status: implemented-v1
-    issue: 263
-    pull_request: 266
-    merge_commit: 94535a97666057c886035ff4edddb651e95b4c9c
-    authority: imported-source
+    authority: comparative-only
+    official_authority: imported-source
+    components:
+      - source-cell-semantics
+      - rounding
+      - term-composition
+      - parallel-recovery
+      - term-outcome
+      - final-recovery
+      - annual-outcome
+      - annual-equivalence
   academic_context_2026:
     status: implemented-local-v1
     issue: 262
@@ -193,9 +172,6 @@ contracts:
     status: frozen-v1-with-association-repository
     base_issue: 219
     extension_issue: 243
-  logical_source_record_association:
-    status: frozen-and-executable-v1
-    issue: 243
   d1_schema:
     status: implemented-local-v1
     base_issue: 227
@@ -206,36 +182,19 @@ contracts:
       - 0002_gradebook_records_audit_v1.sql
       - 0003_logical_source_record_catalog_v1.sql
     production_applied: false
+    wave_14_changed: false
   d1_runtime:
-    status: implemented-local-preview-v1
-    issue: 261
-    pull_request: 268
-    merge_commit: 44bde4d683221551e7a0ac3d9904db3c03dbc50e
+    status: implemented-local-preview-v1-with-audit-workspace
+    base_issue: 261
+    operational_workspace_issue: 302
+    audit_workspace_composition_issue: 306
     allowed_environments:
       - local
       - preview
     production_enabled: false
+    production_gate: before-binding
     capability: gradebook.persistence.admin
-    capability_role:
-      - ADMINISTRADOR
     remote_resources_created: false
-  d1_read_write_coverage:
-    academic_year: implemented-local-v1
-    source_files: implemented-local-v1
-    academic_records: implemented-local-v1
-    logical_source_record_associations: implemented-local-v1
-    academic_entities_except_year: implemented-local-v1
-    import_batches_and_logical_source_history: implemented-local-v1
-    audit_and_reconciliation: implemented-local-v1
-    composition: complete-local-preview-v1
-  idempotent_reimport_planner:
-    status: implemented-v1-with-explicit-association-writes
-    base_issue: 228
-    extension_issue: 243
-  transactional_change_plan_executor:
-    status: implemented-v1-with-explicit-association-writes
-    base_issue: 236
-    extension_issue: 243
   operational_read_models:
     status: implemented-local-preview-v1
     integration_issue: 281
@@ -249,49 +208,66 @@ contracts:
   academic_global_search:
     status: implemented-local-preview-v1
     contract_issue: 286
-    contract_pull_request: 290
-    contract_merge_commit: d9640dbc0e807af324116c549f825c3d13ecdf89
     read_model_issue: 287
-    read_model_pull_request: 291
-    read_model_merge_commit: 9e17abb4c2386cbfb03451c402a8c4282e9b4181
     integration_issue: 288
-    integration_pull_request: 292
     capability: gradebook.persistence.admin
-    result_kinds:
-      - student
-      - class-group
-      - teacher
-      - subject
     production_enabled: false
+    matching: single-existing-implementation
+  operational_workspace:
+    status: implemented-local-preview-v1
+    contract_issue: 293
+    implementation_issue: 302
+    pull_request: 312
+    merge_commit: af67eae671a3f76e7394e2951fb240a599a86d81
+    transport_contract: operational-workspace-transport-v1
+    academic_year_selection: explicit-server-catalog
+    bridge: POST-/api/gradebook/operational-workspace
+    bridge_count: 1
+    ui: heroui-in-existing-shell
+    production_enabled: false
+    next_hardening_issue: 317
+  audit_workspace:
+    status: implemented-local-preview-internal-v1
+    contract_issue: 294
+    implementation_issue: 303
+    pull_request: 313
+    merge_commit: b488a887a980d999cb5c3687f4dcf3e47b125e29
+    provider_independent_service: createAuditWorkspaceV1
+    d1_read_source: GradebookD1AuditWorkspaceSourceV1
+    runtime_composed_by: 306
+    runtime_method: GradebookD1RuntimeV1.auditWorkspace
+    authorization: opaque-runtime-context
+    resolution_identity: server-side-only
     http_endpoint_created: false
     ui_created: false
-  operational_workspace:
-    status: frozen-v1
-    issue: 293
-    pull_request: 298
-    merge_commit: 8452199541111d669a3ea84733c6c85678d6501b
-    implementation_issue: 302
-  audit_workspace:
-    status: frozen-v1
-    issue: 294
-    pull_request: 301
-    merge_commit: a78e410d149bbbc03e5cc374d0c1913c8dcffcc3
-    implementation_issue: 303
+    next_ui_http_issue: 314
   class_performance_read_model:
-    status: frozen-v1
-    issue: 295
-    pull_request: 299
-    merge_commit: 706426be7a7aabe5682e301cfd9e38b2c4a7e857
-    authority: imported-source
+    status: implemented-provider-independent-v1
+    contract_issue: 295
     implementation_issue: 304
+    pull_request: 310
+    merge_commit: e919e18e3d00c175b736200265adb4ac3986e5b0
+    authority: imported-source
+    source_boundary: ClassPerformanceSourceV1
+    physical_d1_source_created: false
+    runtime_composed: false
+    http_endpoint_created: false
+    next_physical_source_issue: 315
   bulletin_model_and_emission:
-    status: frozen-v1
-    issue: 296
-    pull_request: 300
-    merge_commit: e7b92987fe2781d55606783e432a69c02828970f
+    status: implemented-provider-independent-v1
+    contract_issue: 296
+    implementation_issue: 305
+    pull_request: 311
+    merge_commit: 292cf17703f1e5d24f8c6c24cdb0fc9a8fa90d67
     authority: imported-source
     internal_authority_invariant: true
-    implementation_issue: 305
+    local_snapshot_repository: in-memory-test-only
+    reprint_recalculates: false
+    pdf_created: false
+    http_endpoint_created: false
+    remote_snapshot_persistence_created: false
+    high_scale_batch_exposed: false
+    next_hardening_issue: 316
 
 phases:
   F0:
@@ -300,70 +276,64 @@ phases:
     completed_units: 7
     total_units: 7
     issue: 183
-    visible_result: repository-coordination-only
   F1:
     name: source-contract-and-import
     status: final-validation-pending
     completed_units: 6
     total_units: 7
     issue: 184
-    visible_result: sha256-manifest-and-file-provenance-in-production
   F2:
     name: normalized-domain-and-persistence-boundaries
     status: local-persistence-v1-complete-and-composed
     completed_units: 6
     total_units: 6
     issue: 185
-    visible_result: none
   F3:
     name: native-engine
     status: core-and-equivalence-v1-complete
     completed_units: 7
     total_units: 7
     issue: 186
-    visible_result: none
   F4:
     name: reconciliation-and-audit
-    status: core-complete-audit-workspace-contract-integrated-implementation-ready
-    completed_units: 6
-    total_units: 7
-    issue: 187
-    visible_result: manifest-and-file-diagnostics-only
-  F5:
-    name: operational-entity-centers-and-context
-    status: local-centers-search-and-operational-contract-integrated-ui-implementation-ready
+    status: audit-workspace-internal-runtime-composed-ui-http-next
     completed_units: 7
     total_units: 8
+    issue: 187
+    next_issue: 314
+  F5:
+    name: operational-entity-centers-and-context
+    status: operational-workspace-local-preview-integrated-hardening-next
+    completed_units: 8
+    total_units: 9
     issue: 188
-    visible_result: none
+    next_issue: 317
   F6:
     name: performance
-    status: contract-integrated-read-model-implementation-ready
-    completed_units: 0
+    status: provider-independent-read-model-integrated-physical-source-next
+    completed_units: 1
     total_units: 6
     issue: 189
-    visible_result: none
+    next_issue: 315
   F7:
     name: class-council
     status: planned-with-eligibility-foundation
     completed_units: 0
     total_units: 7
     issue: 190
-    visible_result: none
   F8:
     name: bulletins-and-reports
-    status: contract-integrated-emission-implementation-ready
-    completed_units: 0
+    status: provider-independent-emission-integrated-hardening-next
+    completed_units: 1
     total_units: 6
     issue: 191
-    visible_result: none
+    next_issue: 316
   F9:
     name: pilot-security-and-production-hardening
     status: planned-cross-cutting
     completed_units: 0
     total_units: 7
     issue: 192
-    visible_result: none
 
 completed_queue:
   - issue: 193
@@ -386,26 +356,26 @@ completed_queue:
     task: freeze-grade-entry-and-result-contracts-v1
     pull_request: 212
     merge_commit: 6b8eb4c059b51efd4fd74508ac439b1047b1e9a4
-  - issue: 198
-    phase: F1
-    task: synthetic-fixtures-and-real-validation-protocol
-    pull_request: 213
-    merge_commit: 32450ac431dde3ddad1dfcbee436710eb2cd6555
   - issue: 197
     phase: F4
     task: freeze-import-reconciliation-audit-contracts-v1
     pull_request: 216
     merge_commit: 0f1ba62988f5dbdfb47a68ff9fa512c0ac69a66f
-  - issue: 201
-    phase: F3
-    task: native-cell-semantics-engine
-    pull_request: 217
-    merge_commit: 9476f84af7f99733c32f4a2503a50a4ef3c15c3f
+  - issue: 198
+    phase: F1
+    task: synthetic-fixtures-and-real-validation-protocol
+    pull_request: 213
+    merge_commit: 32450ac431dde3ddad1dfcbee436710eb2cd6555
   - issue: 199
     phase: F1
     task: sha256-manifest-and-visible-file-provenance
     pull_request: 225
     merge_commit: bc82b351026c44f2bddeb91920f61362a163f379
+  - issue: 201
+    phase: F3
+    task: native-cell-semantics-engine
+    pull_request: 217
+    merge_commit: 9476f84af7f99733c32f4a2503a50a4ef3c15c3f
   - issue: 218
     phase: F3
     task: native-academic-rounding-v1
@@ -476,21 +446,21 @@ completed_queue:
     task: native-annual-outcome-eligibility-and-precedence-v1
     pull_request: 260
     merge_commit: ee0518c98682665c4ee8f32a639abbd893872f40
-  - issue: 263
-    phase: F3-F4
-    task: source-versus-native-annual-equivalence-v1
-    pull_request: 266
-    merge_commit: 94535a97666057c886035ff4edddb651e95b4c9c
-  - issue: 262
-    phase: F2-F5
-    task: academic-year-and-evaluation-profile-2026-context-v1
-    pull_request: 267
-    merge_commit: 4584af4e1d20615d3af20bce1f22c4bb24cf1818
   - issue: 261
     phase: F2-F4
     task: d1-local-preview-runtime-migration-runner-and-authorized-backend-v1
     pull_request: 268
     merge_commit: 44bde4d683221551e7a0ac3d9904db3c03dbc50e
+  - issue: 262
+    phase: F2-F5
+    task: academic-year-and-evaluation-profile-2026-context-v1
+    pull_request: 267
+    merge_commit: 4584af4e1d20615d3af20bce1f22c4bb24cf1818
+  - issue: 263
+    phase: F3-F4
+    task: source-versus-native-annual-equivalence-v1
+    pull_request: 266
+    merge_commit: 94535a97666057c886035ff4edddb651e95b4c9c
   - issue: 269
     phase: F2-F5
     task: complete-d1-local-academic-entity-repository-v1
@@ -531,6 +501,11 @@ completed_queue:
     task: local-authorized-academic-global-search-read-model-v1
     pull_request: 291
     merge_commit: 9e17abb4c2386cbfb03451c402a8c4282e9b4181
+  - issue: 288
+    phase: F5
+    task: compose-authorized-academic-global-search-v1
+    pull_request: 292
+    merge_commit: 8fe5b091378eb074295ddf67d9fcba2f2d937879
   - issue: 293
     phase: F5
     task: freeze-operational-workspace-contract-v1
@@ -551,65 +526,95 @@ completed_queue:
     task: freeze-bulletin-model-and-versioned-emission-contract-v1
     pull_request: 300
     merge_commit: e7b92987fe2781d55606783e432a69c02828970f
-
-ready_queue:
+  - issue: 297
+    phase: F4-F5-F6-F8
+    task: integrate-wave-13-contracts
+    pull_request: 309
+    merge_commit: 9c1163ef5131b4ef758666a3acb16e342d1b347e
   - issue: 302
     phase: F5
-    front: A
     task: implement-operational-workspace-local-preview
-    recommended_agent: extra-high
-    parallel_group: wave-14-implementations
-    integration_issue: 306
-    release_gate: issue-297-deploy-smokes
-    paths:
-      - src/features/gradebook/operational-workspace/**
-      - src/App.tsx
-      - server/gradebook/application/operational-workspace/**
-      - tests/gradebook/operational-workspace/**
+    pull_request: 312
+    merge_commit: af67eae671a3f76e7394e2951fb240a599a86d81
   - issue: 303
     phase: F4
-    front: B
     task: implement-audit-workspace-local-preview
-    recommended_agent: codex-gpt-5.6-sol-max
-    parallel_group: wave-14-implementations
-    integration_issue: 306
-    release_gate: issue-297-deploy-smokes
-    paths:
-      - server/gradebook/application/audit-workspace/**
-      - tests/gradebook/audit-workspace/**
+    pull_request: 313
+    merge_commit: b488a887a980d999cb5c3687f4dcf3e47b125e29
   - issue: 304
     phase: F6
-    front: C
     task: implement-class-performance-read-model-v1
-    recommended_agent: codex-gpt-5.6-sol-max
-    parallel_group: wave-14-implementations
-    integration_issue: 306
-    release_gate: issue-297-deploy-smokes
-    paths:
-      - server/gradebook/application/read-models/performance/**
-      - tests/gradebook/performance/**
+    pull_request: 310
+    merge_commit: e919e18e3d00c175b736200265adb4ac3986e5b0
   - issue: 305
     phase: F8
-    front: D
     task: implement-bulletin-emission-provider-independent-v1
-    recommended_agent: codex-gpt-5.6-sol-max
-    parallel_group: wave-14-implementations
-    integration_issue: 306
-    release_gate: issue-297-deploy-smokes
-    paths:
-      - server/gradebook/application/bulletins/**
-      - tests/gradebook/bulletins/**
-
-planned_queue:
+    pull_request: 311
+    merge_commit: 292cf17703f1e5d24f8c6c24cdb0fc9a8fa90d67
   - issue: 306
     phase: F4-F5-F6-F8
     task: integrate-wave-14-implementations
+    pull_request: 319
+
+ready_queue:
+  - issue: 314
+    phase: F4
+    front: A
+    task: expose-audit-workspace-ui-http-local-preview
+    recommended_agent: extra-high
+    parallel_group: wave-15-hardening
+    integration_issue: 318
+    release_gate: issue-306-deploy-smokes
+    paths:
+      - src/features/gradebook/audit-workspace/**
+      - src/App.tsx
+      - server/gradebook/http/audit-workspace-routes-v1.ts
+      - functions/[[path]].ts
+      - tests/gradebook/audit-workspace-ui/**
+  - issue: 315
+    phase: F6
+    front: B
+    task: implement-batched-d1-performance-source
+    recommended_agent: gpt-5.6-sol-max
+    parallel_group: wave-15-hardening
+    integration_issue: 318
+    release_gate: issue-306-deploy-smokes
+    paths:
+      - server/gradebook/persistence/d1/performance/**
+      - tests/gradebook/performance-source/**
+  - issue: 316
+    phase: F8
+    front: C
+    task: harden-bulletin-aggregate-materialization-local-snapshots
+    recommended_agent: gpt-5.6-sol-max
+    parallel_group: wave-15-hardening
+    integration_issue: 318
+    release_gate: issue-306-deploy-smokes
+    paths:
+      - server/gradebook/application/bulletins/**
+      - tests/gradebook/bulletins-hardening/**
+  - issue: 317
+    phase: F5
+    front: D
+    task: harden-operational-workspace
+    recommended_agent: extra-high
+    parallel_group: wave-15-hardening
+    integration_issue: 318
+    release_gate: issue-306-deploy-smokes
+    paths:
+      - src/features/gradebook/operational-workspace/**
+      - tests/gradebook/operational-workspace-hardening/**
+
+planned_queue:
+  - issue: 318
+    phase: F4-F5-F6-F8
+    task: integrate-wave-15-hardening
     recommended_agent: extra-high
     blocked_by:
-      - 302
-      - 303
-      - 304
-      - 305
+      - 314
+      - 315
+      - 316
+      - 317
   - issue: 220
     area: admin-center
     task: global-health-and-limits
@@ -618,26 +623,23 @@ planned_queue:
       - authorized-metrics-backend
 
 blocked_capabilities:
-  operational_f5_ui:
-    missing_dependency: implementation-not-yet-integrated
-    decision_needed: none-contract-frozen-v1
-    conflicting_path: src-app-shared-with-shell
-    smallest_safe_task: 302
-  audit_review_workspace:
-    missing_dependency: implementation-not-yet-integrated
-    decision_needed: none-contract-frozen-v1
-    conflicting_path: shared-executor-and-repositories-must-remain-reused
-    smallest_safe_task: 303
-  performance:
-    missing_dependency: implementation-not-yet-integrated
-    decision_needed: none-contract-frozen-v1
-    conflicting_path: ui-cannot-own-analytics-semantics
-    smallest_safe_task: 304
-  bulletins:
-    missing_dependency: emission-implementation-not-yet-integrated
-    decision_needed: pdf-and-remote-snapshot-persistence-remain-separate-if-needed
-    conflicting_path: renderer-and-persistence-outside-first-emission-implementation
-    smallest_safe_task: 305
+  production_academic_runtime:
+    missing_dependency: explicit-production-authorization-and-remote-resource-plan
+    decision_needed: true
+    current_state: fail-closed-before-binding
+  audit_review_workspace_ui:
+    missing_dependency: issue-314
+    internal_runtime_composed: true
+  performance_physical_source:
+    missing_dependency: issue-315
+    application_read_model_ready: true
+  bulletin_high_scale_and-rendering:
+    missing_dependency: issue-316-and-later-rendering-decision
+    provider_independent_emission_ready: true
+    pdf_out_of_scope: true
+  operational_workspace_hardening:
+    missing_dependency: issue-317
+    bridge_count: 1
 
 manual_gates:
   - gate: controlled-real-corpus-validation
@@ -658,69 +660,73 @@ manual_gates:
       - observe-transient-hash-stage
       - verify-isolated-failure-diagnostic
     does_not_block:
-      - 302
-      - 303
-      - 304
-      - 305
+      - 314
+      - 315
+      - 316
+      - 317
 
 integration:
   previous:
-    issue: 297
-    wave: 13
-    status: completed-by-pull-request-309
-    reviewed_pull_requests:
-      - 298
-      - 301
-      - 299
-      - 300
-    reviewed_head_shas:
-      - 9b2a9ad636af5f08f55e2054ed76682b54bf20a7
-      - e2cbe1ad3197ff6bd34cc648a02a5c38efbeeb3b
-      - 3a9b7155f9eb9b22284e305decd3db9a04bcfb12
-      - f7d976d2911ec57036a4490d7dcbf8e912e618e3
-    merged_pull_requests:
-      - 298
-      - 301
-      - 299
-      - 300
-    merged_commits:
-      - 8452199541111d669a3ea84733c6c85678d6501b
-      - a78e410d149bbbc03e5cc374d0c1913c8dcffcc3
-      - 706426be7a7aabe5682e301cfd9e38b2c4a7e857
-      - e7b92987fe2781d55606783e432a69c02828970f
-    integration_pull_request: 309
-    compatibility_test: tests/gradebook/contracts/integration/wave-13-contracts.integration.test.ts
-    authority: imported-source
-    production_academic_endpoint_created: false
-    production_academic_ui_created: false
-    remote_resources_created: false
-  current:
     issue: 306
     wave: 14
-    status: blocked-by-four-implementations
+    status: completed-by-pull-request-319
+    reviewed_pull_requests:
+      - 312
+      - 313
+      - 310
+      - 311
+    reviewed_head_shas:
+      - b111d2160c548fd89bbdb614fd3aeb1e8db4984a
+      - 1cbc5c47de54ee68a22eda78f83fcafd6d12fafc
+      - 96bd2fee4e2c87b1ccd8fad05de86ada8fe6a20f
+      - c6f025b480182c0eee811aacd284787d301dbab0
+    merged_pull_requests:
+      - 312
+      - 313
+      - 310
+      - 311
+    merged_commits:
+      - af67eae671a3f76e7394e2951fb240a599a86d81
+      - b488a887a980d999cb5c3687f4dcf3e47b125e29
+      - e919e18e3d00c175b736200265adb4ac3986e5b0
+      - 292cf17703f1e5d24f8c6c24cdb0fc9a8fa90d67
+    integration_pull_request: 319
+    compatibility_test: tests/gradebook/integration/wave-14-implementations.integration.test.ts
+    audit_runtime_test: tests/gradebook/persistence/d1-composition/audit-workspace-runtime-v1.test.ts
+    operational_bridge_count: 1
+    audit_http_endpoint_created: false
+    performance_physical_adapter_created: false
+    bulletin_pdf_or_remote_snapshot_created: false
+    authority: imported-source
+    production_academic_runtime_enabled: false
+    remote_resources_created: false
+  current:
+    issue: 318
+    wave: 15
+    status: blocked-by-four-hardening-fronts
     watches:
-      - 302
-      - 303
-      - 304
-      - 305
+      - 314
+      - 315
+      - 316
+      - 317
     recommended_agent: extra-high
     parallel_implementation_issues:
-      - 302
-      - 303
-      - 304
-      - 305
+      - 314
+      - 315
+      - 316
+      - 317
     responsibilities:
-      - fixed-sha-implementation-review
-      - combined-implementation-compatibility
+      - fixed-sha-review
+      - combined-compatibility
       - combined-verification-and-smoke
       - state-and-next-wave-update
 
 next_integrator_actions:
-  - release-issues-302-303-304-305-after-issue-297-deploy-and-smokes
-  - execute-issues-302-303-304-305-in-parallel-only-on-reserved-disjoint-paths
-  - keep-issue-306-blocked-until-all-four-implementation-prs-are-green
-  - do-not-mix-shared-contract-changes-into-implementation-issues
-  - preserve-gradebook-persistence-admin-and-server-authorization
+  - release-issues-314-315-316-317-after-issue-306-deploy-and-smokes
+  - keep-issue-318-blocked-until-all-four-prs-are-green
+  - preserve-single-operational-workspace-bridge
+  - preserve-gradebook-persistence-admin-and-opaque-server-authorization
   - preserve-authority-mode-imported-source
-  - preserve-production-fail-closed-and-no-remote-resource
-  - separate-pdf-rendering-or-remote-snapshot-persistence-when-they-require-new-paths-or-decisions
+  - preserve-production-fail-closed-before-binding
+  - reject-new-migrations-bindings-secrets-or-remote-resources-without-own-decision
+  - keep-performance-and-bulletin-physical-exposure-outside-unrelated-fronts
