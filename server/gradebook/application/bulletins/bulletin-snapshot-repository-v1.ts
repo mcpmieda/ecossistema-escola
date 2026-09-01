@@ -1,3 +1,4 @@
+import type { AcademicYearId, ClassGroupId, StudentId } from '../../../../shared/gradebook-contracts/entities';
 import {
   freezeBulletinSnapshotV1,
   isBulletinSnapshotCoherentV1,
@@ -8,6 +9,12 @@ import {
 export type BulletinSnapshotSeriesKeyV1 = string & {
   readonly __bulletinSnapshotSeriesKeyV1: true;
 };
+
+export interface BulletinSnapshotHistoryQueryV1 {
+  readonly academicYearId: AcademicYearId;
+  readonly classGroupId: ClassGroupId;
+  readonly studentIds?: readonly StudentId[];
+}
 
 export type BulletinSnapshotAppendResultV1 =
   | { readonly status: 'appended'; readonly snapshot: BulletinSnapshotV1 }
@@ -29,6 +36,10 @@ export interface BulletinSnapshotRepositoryV1 {
     snapshot: BulletinSnapshotV1,
     expectedPreviousVersion: number,
   ): Promise<BulletinSnapshotAppendResultV1>;
+  /** Optional until a durable provider is explicitly designed. The local/preview repository supports it. */
+  listHistory?(
+    query: BulletinSnapshotHistoryQueryV1,
+  ): Promise<readonly BulletinSnapshotV1[]>;
 }
 
 function cloneSnapshot(snapshot: BulletinSnapshotV1): BulletinSnapshotV1 {
@@ -45,9 +56,20 @@ function cloneSnapshot(snapshot: BulletinSnapshotV1): BulletinSnapshotV1 {
   return clone(snapshot);
 }
 
+function compareHistory(left: BulletinSnapshotV1, right: BulletinSnapshotV1): number {
+  const instant = right.emittedAt.localeCompare(left.emittedAt);
+  if (instant !== 0) return instant;
+  const student = left.model.student.displayName.localeCompare(right.model.student.displayName);
+  if (student !== 0) return student;
+  const snapshot = left.snapshotId.localeCompare(right.snapshotId);
+  if (snapshot !== 0) return snapshot;
+  return right.snapshotVersion - left.snapshotVersion;
+}
+
 /**
  * Local/disposable snapshot storage. Every append owns a deep immutable copy; no object supplied by
- * the caller is retained, mutated or frozen through aliasing. It provisions no remote persistence.
+ * the caller is retained, mutated or frozen through aliasing. It provisions no remote persistence
+ * and deliberately does not promise durability across worker restarts or isolates.
  */
 export function createLocalBulletinSnapshotRepositoryV1(): BulletinSnapshotRepositoryV1 {
   const bySeries = new Map<BulletinSnapshotSeriesKeyV1, BulletinSnapshotV1[]>();
@@ -92,6 +114,18 @@ export function createLocalBulletinSnapshotRepositoryV1(): BulletinSnapshotRepos
         snapshot,
       );
       return { status: 'appended', snapshot };
+    },
+
+    async listHistory(query) {
+      const studentIds = query.studentIds === undefined ? null : new Set(query.studentIds);
+      return [...byHistoricalIdentity.values()]
+        .filter(
+          (snapshot) =>
+            snapshot.model.academicYearId === query.academicYearId &&
+            snapshot.model.classGroup.id === query.classGroupId &&
+            (studentIds === null || studentIds.has(snapshot.model.student.id)),
+        )
+        .sort(compareHistory);
     },
   };
 }
