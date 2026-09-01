@@ -10,11 +10,11 @@ O domínio permanece independente de D1. Adaptadores convertem contratos e porta
 
 ## Migrations registradas
 
-| Versão | Arquivo | Responsabilidade |
-|---:|---|---|
-| 1 | `0001_gradebook_context_entities_imports_v1.sql` | anos/configurações, entidades, fontes, manifestos, lotes e diagnósticos |
-| 2 | `0002_gradebook_records_audit_v1.sql` | registros acadêmicos, reconciliação, ocorrências e transições de Auditoria |
-| 3 | `0003_logical_source_record_catalog_v1.sql` | associação anual e versionada entre fonte lógica e stream acadêmico |
+| Versão | Arquivo                                          | Responsabilidade                                                           |
+| -----: | ------------------------------------------------ | -------------------------------------------------------------------------- |
+|      1 | `0001_gradebook_context_entities_imports_v1.sql` | anos/configurações, entidades, fontes, manifestos, lotes e diagnósticos    |
+|      2 | `0002_gradebook_records_audit_v1.sql`            | registros acadêmicos, reconciliação, ocorrências e transições de Auditoria |
+|      3 | `0003_logical_source_record_catalog_v1.sql`      | associação anual e versionada entre fonte lógica e stream acadêmico        |
 
 As migrations usam criação condicional e registro idempotente em `gradebook_schema_migrations`. A ordem 0001–0003 é obrigatória.
 
@@ -35,35 +35,35 @@ As migrations usam criação condicional e registro idempotente em `gradebook_sc
 
 ### Contexto e entidades
 
-| Tabela | Papel |
-|---|---|
-| `gradebook_schema_migrations` | versões aplicadas |
-| `academic_years` | identidade do ano e ponteiro atual |
-| `academic_year_configuration_versions` | perfil/configuração anual versionado |
-| `academic_year_versions` | estado/calendário do ano |
-| `academic_entity_streams` | identidade e versão atual das entidades |
-| `academic_entity_versions` | histórico e relações tipadas |
+| Tabela                                 | Papel                                   |
+| -------------------------------------- | --------------------------------------- |
+| `gradebook_schema_migrations`          | versões aplicadas                       |
+| `academic_years`                       | identidade do ano e ponteiro atual      |
+| `academic_year_configuration_versions` | perfil/configuração anual versionado    |
+| `academic_year_versions`               | estado/calendário do ano                |
+| `academic_entity_streams`              | identidade e versão atual das entidades |
+| `academic_entity_versions`             | histórico e relações tipadas            |
 
 ### Fonte e importação
 
-| Tabela | Papel |
-|---|---|
-| `logical_sources` | continuidade lógica por ano/contexto |
-| `source_file_streams` | identidade do manifesto e hash atual |
-| `source_file_versions` | nomes, hash, parser, leitura e relação lógica versionados |
-| `source_file_logical_source_candidates` | candidatos explícitos para associação ambígua |
-| `import_batch_streams` | identidade e versão atual do lote |
-| `import_batch_versions` | histórico do lote |
-| `import_batch_files` | arquivos do lote e manifesto correspondente |
-| `import_diagnostics` | diagnósticos por lote/arquivo/origem |
+| Tabela                                  | Papel                                                     |
+| --------------------------------------- | --------------------------------------------------------- |
+| `logical_sources`                       | continuidade lógica por ano/contexto                      |
+| `source_file_streams`                   | identidade do manifesto e hash atual                      |
+| `source_file_versions`                  | nomes, hash, parser, leitura e relação lógica versionados |
+| `source_file_logical_source_candidates` | candidatos explícitos para associação ambígua             |
+| `import_batch_streams`                  | identidade e versão atual do lote                         |
+| `import_batch_versions`                 | histórico do lote                                         |
+| `import_batch_files`                    | arquivos do lote e manifesto correspondente               |
+| `import_diagnostics`                    | diagnósticos por lote/arquivo/origem                      |
 
 Mesmo hash renomeado não cria outra identidade acadêmica. Hash diferente exige confirmação de fonte lógica quando o contexto não for inequívoco.
 
 ### Registros acadêmicos
 
-| Tabela | Papel |
-|---|---|
-| `academic_record_streams` | chave estável e versão atual de lançamento/resultado |
+| Tabela                     | Papel                                                 |
+| -------------------------- | ----------------------------------------------------- |
+| `academic_record_streams`  | chave estável e versão atual de lançamento/resultado  |
 | `academic_record_versions` | histórico append-only com autoridade, regra e payload |
 
 Tipos:
@@ -75,9 +75,9 @@ Tipos:
 
 ### Catálogo por fonte lógica
 
-| Tabela | Papel |
-|---|---|
-| `logical_source_record_streams` | estado e versão atuais da associação fonte ↔ stream |
+| Tabela                           | Papel                                                  |
+| -------------------------------- | ------------------------------------------------------ |
+| `logical_source_record_streams`  | estado e versão atuais da associação fonte ↔ stream    |
 | `logical_source_record_versions` | histórico da associação com manifesto/versão de origem |
 
 A chave inclui ano, fonte lógica, tipo e chave do stream. FKs exigem fonte, stream e manifesto confirmado no mesmo ano/contexto.
@@ -86,11 +86,11 @@ Item ausente em uma nova versão não é desativado automaticamente. Estado `ina
 
 ### Reconciliação e Auditoria
 
-| Tabela | Papel |
-|---|---|
-| `audit_record_streams` | identidade e versão atual de ocorrência/reconciliação |
-| `audit_record_versions` | histórico, gravidade, alvo e proveniência |
-| `audit_occurrence_transitions` | mudanças imutáveis de estado, ator e justificativa |
+| Tabela                         | Papel                                                 |
+| ------------------------------ | ----------------------------------------------------- |
+| `audit_record_streams`         | identidade e versão atual de ocorrência/reconciliação |
+| `audit_record_versions`        | histórico, gravidade, alvo e proveniência             |
+| `audit_occurrence_transitions` | mudanças imutáveis de estado, ator e justificativa    |
 
 ## Versionamento e compare-and-set
 
@@ -158,6 +158,16 @@ O adaptador local implementa:
 - `LogicalSourceRecordRepositoryV1.getCurrent`;
 - `listCurrentStreams` por fonte lógica.
 
+A composição da #272 acrescenta as operações que completam as portas sobre o mesmo schema:
+
+- leitura/escrita e listagem das oito entidades além de `academic-year`;
+- histórico paginado de fonte lógica e leitura/escrita de lotes;
+- histórico paginado de registros acadêmicos e associações;
+- leitura/escrita e histórico de ocorrências e reconciliações.
+
+Não houve migration nova. A composição continua consumindo exclusivamente 0001–0003 e suas 21
+tabelas, com FKs e isolamento anual existentes.
+
 Ele filtra por ano, reconstrói contratos, confere colunas normalizadas e produz erros sanitizados. Nome de arquivo e varredura de JSON não são usados para descobrir relações.
 
 ## Verificação local
@@ -198,7 +208,9 @@ Ainda permanecem fora do escopo:
 - banco persistente/remoto;
 - migrations fora dos testes;
 - endpoints, autenticação e capabilities;
-- runner operacional, rollout, backup e recuperação;
+- rollout, backup e recuperação remotos;
 - métricas de Saúde e limites.
 
-A #245 não autorizou provisionamento. A #261 tratará runtime/binding somente local ou preview, runner idempotente e backend autorizado; banco, binding e migrations de produção continuam dependentes de autorização explícita própria.
+A #245 não autorizou provisionamento. A #261 integrou runtime somente local/preview, runner
+idempotente e backend autorizado; a #272 conectou a UoW completa a esse runtime. Banco, binding e
+migrations de produção continuam dependentes de autorização explícita própria.

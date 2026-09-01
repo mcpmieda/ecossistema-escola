@@ -162,12 +162,13 @@ Já implementados:
 - promoção física local com CAS, savepoints e rollback;
 - runtime local/preview e runner de migrations.
 
-Décima onda:
+Décima onda integrada:
 
 - #269 completa as demais entidades;
 - #270 completa lotes e listagem de versões por fonte lógica;
 - #271 completa Auditoria/reconciliação;
-- #272 compõe tudo em uma única `PersistenceUnitOfWorkV1`.
+- #272 compõe tudo em uma única `PersistenceUnitOfWorkV1` e completa as leituras históricas de
+  registros e associações.
 
 Nenhum módulo deve reimplementar uma operação já integrada. A composição central escolhe exatamente um fornecedor por operação da porta.
 
@@ -223,11 +224,15 @@ concluído:
   runner idempotente
   capability e rotas administrativas protegidas
 
-agora:
+concluído na décima onda:
   repositório local de entidades
   repositório local de importações
   repositório local de Auditoria
   composição integral da unidade de trabalho
+
+agora:
+  read models locais das centrais de aluno e turma
+  read models locais das centrais de professor e componente
 
 posteriormente, somente com autorização explícita:
   recurso D1 remoto/preview

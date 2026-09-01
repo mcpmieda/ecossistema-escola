@@ -117,3 +117,8 @@ Os testes em `tests/gradebook/persistence/d1-audit/` cobrem, com dados sintétic
 - determinismo e não mutação.
 
 A validação final deve executar `npm run verify` no SHA final do PR.
+
+A composição da #272 fornece este repositório como a única implementação de
+`AuditPersistenceRepositoryV1` na UoW local/preview. As classificações `match`,
+`expected-difference`, `mismatch` e `not-comparable` permanecem dados recebidos e validados; a
+composição não decide, corrige ou arredonda nenhuma delas.

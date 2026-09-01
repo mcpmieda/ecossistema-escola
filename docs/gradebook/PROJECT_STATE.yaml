@@ -11,9 +11,9 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 264
-  current_integrator_issue: 272
-  current_wave: 10
+  previous_integrator_issue: 272
+  current_integrator_issue: 281
+  current_wave: 11
   integrator_required: true
   recommended_parallel_agents: 3
   central_state_editor: integrator-only
@@ -31,9 +31,14 @@ coordination:
       - 270
       - 271
       - 272
+    current_authorized_queue:
+      - 278
+      - 279
+      - 280
+    next_integrator_not_authorized_for_codex: 281
 
 runtime:
-  last_verified_runtime_commit: 44bde4d683221551e7a0ac3d9904db3c03dbc50e
+  last_verified_runtime_commit: ed55eb521556fb0cdf64bc6a63381842de677697
   last_verified_deploy_run: 33500153831
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
@@ -77,13 +82,16 @@ runtime:
     - reconciliation-isolation-regressions-restored-v1
     - client-side-sha256-source-manifests
     - visible-file-provenance-and-isolated-diagnostics
+    - complete-d1-local-persistence-unit-of-work-v1
+    - complete-d1-local-academic-entity-repository-v1
+    - complete-d1-local-import-repository-v1
+    - complete-d1-local-audit-repository-v1
+    - paginated-academic-record-and-association-history-v1
   current_limitations:
     - academic-data-is-not-persisted-in-production
     - no-remote-d1-database-or-binding
     - no-remote-migration-applied
-    - d1-entity-repository-incomplete
-    - d1-import-batch-repository-incomplete
-    - d1-audit-repository-incomplete
+    - operational-center-read-models-not-yet-integrated
     - controlled-real-corpus-validation-not-yet-recorded
     - complete-manifest-failure-smoke-not-yet-recorded
     - audit-workspace-not-yet-implemented
@@ -101,8 +109,8 @@ scope:
     domain_dependency: provider-independent-ports
     schema_status: local-v1-migrations-0001-0003-integrated
     runtime_status: local-preview-v1-integrated-production-disabled
-    read_adapter_status: partial-local-v1
-    write_adapter_status: partial-local-v1
+    read_adapter_status: complete-local-v1
+    write_adapter_status: complete-local-v1
     production_provisioning: not-authorized-or-created
   excluded_for_now:
     - smecel
@@ -198,9 +206,10 @@ contracts:
     source_files: implemented-local-v1
     academic_records: implemented-local-v1
     logical_source_record_associations: implemented-local-v1
-    academic_entities_except_year: pending-issue-269
-    import_batches_and-logical-source-history: pending-issue-270
-    audit_and-reconciliation: pending-issue-271
+    academic_entities_except_year: implemented-local-v1
+    import_batches_and_logical_source_history: implemented-local-v1
+    audit_and_reconciliation: implemented-local-v1
+    composition: complete-local-preview-v1
   idempotent_reimport_planner:
     status: implemented-v1-with-explicit-association-writes
     base_issue: 228
@@ -227,8 +236,8 @@ phases:
     visible_result: sha256-manifest-and-file-provenance-in-production
   F2:
     name: normalized-domain-and-persistence-boundaries
-    status: local-runtime-and-context-integrated-repositories-completing
-    completed_units: 5
+    status: local-persistence-v1-complete-and-composed
+    completed_units: 6
     total_units: 6
     issue: 185
     visible_result: none
@@ -241,15 +250,15 @@ phases:
     visible_result: none
   F4:
     name: reconciliation-and-audit
-    status: core-and-runtime-v1-complete-repository-completing
+    status: core-runtime-and-local-repository-v1-complete
     completed_units: 6
     total_units: 6
     issue: 187
     visible_result: manifest-and-file-diagnostics-only
   F5:
     name: operational-entity-centers-and-context
-    status: context-integrated-centers-planned
-    completed_units: 1
+    status: context-and-entities-integrated-read-models-ready
+    completed_units: 2
     total_units: 7
     issue: 188
     visible_result: none
@@ -408,26 +417,41 @@ completed_queue:
     task: d1-local-preview-runtime-migration-runner-and-authorized-backend-v1
     pull_request: 268
     merge_commit: 44bde4d683221551e7a0ac3d9904db3c03dbc50e
-
-ready_queue:
   - issue: 269
     phase: F2-F5
     task: complete-d1-local-academic-entity-repository-v1
-    recommended_agent: codex
-    serial_order: 1
-    integration_issue: 272
+    pull_request: 275
+    merge_commit: 57e7a98585b825926b7d39e7cd63b884a5bb212b
   - issue: 270
     phase: F1-F4
     task: complete-d1-local-import-repository-v1
-    recommended_agent: codex
-    serial_order: 2
-    integration_issue: 272
+    pull_request: 276
+    merge_commit: 2f5ed83ccb470e88b57a82bdf950aa158c59ab74
   - issue: 271
     phase: F4
     task: complete-d1-local-audit-and-reconciliation-repository-v1
+    pull_request: 277
+    merge_commit: 79a24263eb416ffd2218de7e3a263da700435679
+
+ready_queue:
+  - issue: 278
+    phase: F5
+    task: local-student-center-read-model-v1
+    recommended_agent: codex
+    serial_order: 1
+    integration_issue: 281
+  - issue: 279
+    phase: F5
+    task: local-class-group-center-read-model-v1
+    recommended_agent: codex
+    serial_order: 2
+    integration_issue: 281
+  - issue: 280
+    phase: F5
+    task: local-teacher-and-subject-center-read-models-v1
     recommended_agent: codex
     serial_order: 3
-    integration_issue: 272
+    integration_issue: 281
 
 planned_queue:
   - issue: 220
@@ -456,45 +480,48 @@ manual_gates:
       - observe-transient-hash-stage
       - verify-isolated-failure-diagnostic
     does_not_block:
-      - 269
-      - 270
-      - 271
+      - 278
+      - 279
+      - 280
 
 integration:
   previous:
-    issue: 264
-    wave: 9
-    status: completed
-    merged_pull_requests:
-      - 266
-      - 267
-      - 268
-    merged_commits:
-      - 94535a97666057c886035ff4edddb651e95b4c9c
-      - 4584af4e1d20615d3af20bce1f22c4bb24cf1818
-      - 44bde4d683221551e7a0ac3d9904db3c03dbc50e
-    verified_runtime_commit: 44bde4d683221551e7a0ac3d9904db3c03dbc50e
-    deploy_run: 33500153831
-  current:
     issue: 272
     wave: 10
+    status: completed
+    merged_pull_requests:
+      - 275
+      - 276
+      - 277
+    merged_commits:
+      - 57e7a98585b825926b7d39e7cd63b884a5bb212b
+      - 2f5ed83ccb470e88b57a82bdf950aa158c59ab74
+      - 79a24263eb416ffd2218de7e3a263da700435679
+    composition: complete-persistence-unit-of-work-v1
+    composition_commit: ed55eb521556fb0cdf64bc6a63381842de677697
+    verification: npm-run-verify-green-50-files-512-tests
+  current:
+    issue: 281
+    wave: 11
     status: waiting-for-pull-requests
     watches:
-      - 269
-      - 270
-      - 271
+      - 278
+      - 279
+      - 280
+    recommended_agent: pro
+    codex_temporary_session_authorized: false
     responsibilities:
       - repository-diff-and-contract-review
-      - complete-persistence-unit-of-work-composition
+      - operational-read-model-composition
       - combined-verification
       - merge-and-production-smoke
       - state-and-issue-map-update
       - next-wave-definition-and-unlock
 
 next_integrator_actions:
-  - wait-for-issues-269-270-and-271
+  - wait-for-issues-278-279-and-280
   - verify-no-duplicate-operation-implementation
-  - compose-one-complete-persistence-unit-of-work
+  - compose-one-operational-read-model-facade
   - preserve-local-preview-only-runtime-and-production-fail-closed
   - confirm-no-remote-resource-or-secret
-  - create-wave-11-and-update-session-273
+  - create-wave-12-and-update-session-273

@@ -15,7 +15,7 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Schema D1:** migrations locais 0001–0003 integradas; nenhum recurso remoto criado.
 - **Leitura/escrita/transação D1 local:** implementadas para contexto anual, fonte, registros e associações.
 - **Runtime D1 local/preview:** implementado por #261/PR #268, com produção fechada.
-- **Repositórios completos de entidades, lotes e Auditoria:** fila da décima onda #269–#271.
+- **Repositórios completos de entidades, lotes e Auditoria:** integrados pela décima onda #269–#272.
 - **Read models:** propostos; serão detalhados nas issues consumidoras.
 
 ## Estados de maturidade
@@ -50,8 +50,8 @@ Ano letivo participa de todas as relações acadêmicas persistentes. Transferê
 A #262/PR #267 integrou uma única composição oficial:
 
 ```ts
-createAcademicContext2026V1(academicYear)
-createActiveAcademicContextServiceV1(dependencies)
+createAcademicContext2026V1(academicYear);
+createActiveAcademicContextServiceV1(dependencies);
 ```
 
 Regras:
@@ -188,7 +188,7 @@ Preserva gravidade, categoria, alvo, origem, ação recomendada e histórico de 
 A #263/PR #266 integrou:
 
 ```ts
-compareImportedAndNativeAnnualOutcome(input, profile)
+compareImportedAndNativeAnnualOutcome(input, profile);
 ```
 
 Classificações:
@@ -245,22 +245,28 @@ Migrations locais:
 
 O schema possui 21 tabelas, FKs por ano, histórico append-only, índices e ausência de cascades destrutivos.
 
-Implementado localmente:
+Implementado e composto localmente:
 
 - leitura por hash/manifesto;
 - leitura/escrita do `academic-year`;
 - leitura/escrita de registros acadêmicos;
 - leitura/escrita das associações;
+- leitura/escrita das oito demais entidades acadêmicas;
+- lotes e histórico de versões por fonte lógica;
+- ocorrências de Auditoria e resultados de reconciliação;
+- históricos paginados de registros e associações;
 - promoção `fonte → registro → associação` em uma transação;
 - compare-and-set, savepoints e rollback integral.
 
-A décima onda completa, em módulos independentes:
+A décima onda completou, em módulos independentes:
 
 - #269: demais entidades acadêmicas;
 - #270: lotes e versões de fonte por fonte lógica;
 - #271: ocorrências e reconciliações.
 
-A #272 comporá todas as operações em uma única unidade de trabalho, sem duplicar implementações.
+A #272 compõe exatamente um fornecedor por operação em uma única unidade de trabalho. `academic-year`
+continua pertencendo à implementação oficial da #262; fonte, registros e associações continuam nas
+implementações previamente integradas. Nenhum valor importado ou nativo é substituído.
 
 ## Runtime D1 local/preview
 

@@ -18,10 +18,10 @@ O repositório atende exclusivamente estes oito tipos:
 - `student-status-event`;
 - `assessment-component`.
 
-`academic-year` é recusado explicitamente com
+`academic-year` é recusado explicitamente neste módulo com
 `academic-year-owned-by-context-adapter`. Sua implementação oficial permanece no adaptador de
-contexto anual já integrado; a composição em uma única `PersistenceUnitOfWorkV1` pertence à issue de
-integração.
+contexto anual já integrado. A composição da #272 roteia esse tipo para a implementação da #262 e os
+oito tipos deste documento para este repositório, sem concorrência.
 
 O adaptador preserva a autoridade `imported-source`. Ele não substitui valores importados ou nativos,
 não altera `authorityMode`, não interpreta decisões pedagógicas e não cria regras acadêmicas,
@@ -98,7 +98,7 @@ Esta implementação é somente local e não:
 - cria ou configura recursos D1;
 - altera schema ou migrações;
 - ativa persistência acadêmica em produção;
-- conecta o adaptador ao runtime central;
+- cria uma segunda implementação para `academic-year`;
 - substitui o adaptador oficial de ano acadêmico.
 
 ## Verificação
@@ -106,3 +106,6 @@ Esta implementação é somente local e não:
 Os testes em `tests/gradebook/persistence/d1-entities/` usam somente dados sintéticos e cobrem os oito
 tipos, isolamento anual, histórico, relações, cursores, CAS, rollback, determinismo, não mutação das
 entradas e sanitização de falhas. A validação final do repositório deve ser feita com `npm run verify`.
+
+O teste composto em `tests/gradebook/persistence/d1-composition/` exercita os nove tipos pela mesma
+UoW usada pelo runtime local/preview.
