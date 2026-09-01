@@ -4,57 +4,55 @@
 
 **Agente de implementação só começa em issue marcada `[PRONTA]`.**
 
-Não atribua a um agente comum:
+Não atribua a agente comum:
 
 - `#182` — painel geral do programa;
 - `#184` a `#192` — acompanhamento das fases;
 - `#220` — Saúde e limites, ainda planejada;
-- `#245` — adaptador D1 de escrita, ainda bloqueado;
-- `#246` — integração da sétima onda.
+- `#256` — integração da oitava onda.
 
-As integrações `#203`, `#210`, `#214`, `#221`, `#229` e `#237` já foram concluídas.
+As integrações `#203`, `#210`, `#214`, `#221`, `#229`, `#237` e `#246` já foram concluídas.
 
-## Ondas concluídas
+## Onda 7 — concluída e integrada
 
-| Onda | Issues | Integração |
+| Issue | Entrega | PR/merge |
 |---:|---|---|
-| 1 | `#193`, `#194`, `#195` | `#203` |
-| 2 | `#196`, `#198` | `#210` |
-| 3 | `#197`, `#201` | `#214` |
-| 4 | `#199`, `#218`, `#219` | `#221` |
-| 5 | `#226`, `#227`, `#228` | `#229` |
-| 6 | `#234`, `#235`, `#236` | `#237` |
+| `#242` | Resultado trimestral nativo consolidado | `#252` / `b41054a` |
+| `#243` | Associação transacional fonte lógica ↔ stream | `#249` / `40dd21c` |
+| `#244` | Recuperação final nativa | `#253` / `fa62bdd` |
 
-A sexta onda integrou recuperação paralela nativa, migration 0003 + leitura D1 local e o executor transacional abstrato. Código vigente: `e8be42bd65b0a59d837ee6ca8283d9564967a6db`; deploy: `33441758173`.
+O PR combinado `#248` foi fechado sem merge. Seu conteúdo foi separado nos PRs `#252` e `#253`, restaurando uma issue e um PR por entrega. A correção está registrada na `#250`.
 
-## Onda 7 — executar agora, simultaneamente
+Código vigente da onda: `40dd21c08336919206bafcb556d6764f5570e6f9`. Deploy: `33456232765`.
+
+## Onda 8 — executar agora, simultaneamente
 
 | Agente | Issue | Trabalho |
 |---|---:|---|
-| 1 | `#242` | Consolidar o resultado trimestral nativo |
-| 2 | `#243` | Formalizar a associação transacional fonte lógica ↔ stream |
-| 3 | `#244` | Implementar recuperação final nativa |
+| 1 | `#245` | Adaptador D1 local de escrita e promoção transacional |
+| 2 | `#254` | Restaurar regressões de isolamento da reconciliação |
+| 3 | `#255` | Resultado anual, elegibilidade básica e precedências explícitas |
 
-As três issues escrevem em áreas diferentes e podem começar juntas. A integração será feita exclusivamente pela `#246`.
-
-## Adaptação obrigatória da #243
-
-A migration 0003 e o adaptador de leitura já conhecem a associação entre fonte lógica e stream acadêmico. Porém, as portas, o plano e o executor ainda não representam a **escrita versionada dessa associação**.
-
-A #243 corrige o contrato antes do adaptador físico. Não é permitido esconder essa escrita como efeito colateral do D1, varrer JSON ou inferir relação pelo nome do arquivo.
+As três issues escrevem em áreas diferentes. A integração será feita exclusivamente pela `#256`.
 
 ## O que cada tarefa libera
 
 ```text
-#242 + #244 → resultado anual e precedências do motor
-#243        → libera #245
-#245        → escrita/promoção transacional concreta no D1 local
+#245 → binding/preview D1, runner de migrations e contexto anual persistente
+#254 → fechamento seguro da cobertura de regressão da F4
+#255 → equivalência anual fonte × motor e base do Conselho
 ```
 
-## Gates manuais que não bloqueiam a onda 7
+## Estado real do D1
+
+Já existem migrations 0001–0003, 21 tabelas, leitura local, contratos de escrita e executor transacional abstrato. Ainda não existem banco/binding remoto, migration aplicada em ambiente, adaptador físico de escrita ou endpoint autorizado.
+
+A `#245` continua exclusivamente local: não autoriza provisionamento.
+
+## Gates manuais que não bloqueiam a onda 8
 
 - Executar `REAL_DATA_VALIDATION.md` com o corpus real em ambiente privado antes de fechar definitivamente a F1.
-- O happy path visual da #199 foi aprovado com dois arquivos XLSB. Ainda faltam expandir o SHA-256 completo, observar a etapa transitória e conferir uma falha isolada.
+- O happy path visual do manifesto foi aprovado com dois arquivos XLSB. Ainda faltam expandir o SHA-256, observar a etapa transitória de hash e conferir uma falha isolada.
 
 Nunca publicar arquivos, nomes, notas, hashes ou caminhos privados.
 
@@ -62,25 +60,20 @@ Nunca publicar arquivos, nomes, notas, hashes ou caminhos privados.
 
 ```text
 CONCLUÍDO
-#193 + #194 + #195 ──> #203
-#196 + #198 ──────────> #210
-#197 + #201 ──────────> #214
-#199 + #218 + #219 ───> #221
-#226 + #227 + #228 ───> #229
-#234 + #235 + #236 ───> #237
+#242 + #243 + #244 ──> integração #246
 
 AGORA
-#242 ─┐
-#243 ─┼──> integração #246 ──> oitava onda
-#244 ─┘
+#245 ─┐
+#254 ─┼──> integração #256 ──> nona onda
+#255 ─┘
 ```
 
 ## Instrução simples para iniciar
 
-1. Escolha `#242`, `#243` ou `#244`.
+1. Escolha `#245`, `#254` ou `#255`.
 2. Entregue somente essa issue ao agente.
 3. O agente lê `AGENTS.md`, `docs/gradebook/` e a própria issue.
-4. O agente executa diretamente, sem App Factory ou agentes auxiliares.
-5. O agente cria branch e PR, executa `npm run verify` e registra o handoff.
-6. O agente não faz merge, deploy, provisionamento nem altera `PROJECT_STATE.yaml`.
-7. Depois das três entregas, execute a integração pela `#246`.
+4. Executa diretamente, sem App Factory ou agentes auxiliares.
+5. Cria branch curta e PR, executa `npm run verify` e registra o handoff.
+6. Não faz merge, deploy, provisionamento nem altera `PROJECT_STATE.yaml`.
+7. Depois das três entregas, execute a integração pela `#256`.
