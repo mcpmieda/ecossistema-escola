@@ -28,6 +28,7 @@ const SESSION_OID = '11111111-1111-4111-8111-111111111111';
 const batchA = 'import-batch:audit-http:a' as ImportBatchId;
 const batchB = 'import-batch:audit-http:b' as ImportBatchId;
 const fileA = 'import-file:audit-http:a' as ImportFileId;
+const fileB = 'import-file:audit-http:b' as ImportFileId;
 const occurrenceId = 'audit-occurrence:audit-http:a' as AuditOccurrenceId;
 type TestRole = 'ADMINISTRADOR' | 'PROFESSOR';
 
@@ -82,36 +83,70 @@ async function invoke(request: Request, env: RuntimeEnv): Promise<Response> {
   return await onRequest({ request, env } as never);
 }
 
-function batch(id: ImportBatchId, status: ImportBatchResultV1['status'], updatedAt: string): ImportBatchResultV1 {
+function reviewBatch(): ImportBatchResultV1 {
   return {
-    id,
-    status,
+    id: batchA,
+    status: 'review-required',
     receivedAt: instant,
-    updatedAt,
-    files:
-      id === batchA
-        ? [
-            {
-              id: fileA,
-              sourceFile: {
-                fileName: 'synthetic-audit-http.xlsx',
-                extension: 'xlsx',
-                reportedMimeType: null,
-                sizeBytes: 96,
-                lastModifiedAt: null,
-              },
-              manifest: null,
-              status: 'review-required',
-              diagnosticIds: [],
-            },
-          ]
-        : [],
+    updatedAt: '2026-09-01T18:00:00.000Z',
+    files: [
+      {
+        id: fileA,
+        sourceFile: {
+          fileName: 'synthetic-audit-http-review.xlsx',
+          extension: 'xlsx',
+          reportedMimeType: null,
+          sizeBytes: 96,
+          lastModifiedAt: null,
+        },
+        manifest: null,
+        status: 'review-required',
+        diagnosticIds: [],
+      },
+    ],
     diagnostics: [],
     summary: {
-      totalFileCount: id === batchA ? 1 : 0,
-      processedFileCount: id === batchA ? 1 : 0,
-      approvedFileCount: status === 'approved' ? 1 : 0,
-      reviewRequiredFileCount: status === 'review-required' ? 1 : 0,
+      totalFileCount: 1,
+      processedFileCount: 1,
+      approvedFileCount: 0,
+      reviewRequiredFileCount: 1,
+      rejectedFileCount: 0,
+      failedFileCount: 0,
+      informationCount: 0,
+      warningCount: 0,
+      blockingErrorCount: 0,
+      criticalErrorCount: 0,
+    },
+  };
+}
+
+function approvedBatch(): ImportBatchResultV1 {
+  return {
+    id: batchB,
+    status: 'approved',
+    receivedAt: instant,
+    updatedAt: '2026-09-01T17:00:00.000Z',
+    files: [
+      {
+        id: fileB,
+        sourceFile: {
+          fileName: 'synthetic-audit-http-approved.xlsx',
+          extension: 'xlsx',
+          reportedMimeType: null,
+          sizeBytes: 80,
+          lastModifiedAt: null,
+        },
+        manifest: null,
+        status: 'approved',
+        diagnosticIds: [],
+      },
+    ],
+    diagnostics: [],
+    summary: {
+      totalFileCount: 1,
+      processedFileCount: 1,
+      approvedFileCount: 1,
+      reviewRequiredFileCount: 0,
       rejectedFileCount: 0,
       failedFileCount: 0,
       informationCount: 0,
@@ -139,12 +174,8 @@ async function seedAuditData(): Promise<ReturnType<typeof createGradebookD1Runti
   const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
   const runtime = createGradebookD1RuntimeV1(localEnv(), authorization, { now: () => instant });
   const unit = runtime.persistenceUnitOfWork();
-  await unit.imports.appendImportBatchVersion(context, batch(batchA, 'review-required', '2026-09-01T18:00:00.000Z'), {
-    expectedVersion: null,
-  });
-  await unit.imports.appendImportBatchVersion(context, batch(batchB, 'approved', '2026-09-01T17:00:00.000Z'), {
-    expectedVersion: null,
-  });
+  await unit.imports.appendImportBatchVersion(context, reviewBatch(), { expectedVersion: null });
+  await unit.imports.appendImportBatchVersion(context, approvedBatch(), { expectedVersion: null });
   await unit.audit.appendVersion(
     context,
     { kind: 'occurrence', id: occurrenceId },
