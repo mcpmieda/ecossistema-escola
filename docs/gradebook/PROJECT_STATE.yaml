@@ -11,18 +11,18 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 272
-  current_integrator_issue: 281
-  current_wave: 11
+  previous_integrator_issue: 281
+  current_integrator_issue: 288
+  current_wave: 12
   integrator_required: true
-  recommended_parallel_agents: 3
+  recommended_parallel_agents: 1
   central_state_editor: integrator-only
   branch_model: short-lived-per-issue
   merge_target: main
   publication: automatic-after-main
   temporary_serial_session:
     issue: 273
-    status: active
+    status: stopped-no-codex-authorized-queue
     agent: codex-5.6-high
     mode: serial-direct-execution
     changes_roadmap: false
@@ -31,14 +31,11 @@ coordination:
       - 270
       - 271
       - 272
-    current_authorized_queue:
-      - 278
-      - 279
-      - 280
-    next_integrator_not_authorized_for_codex: 281
+    current_authorized_queue: []
+    next_operation_requires_pro: 286
 
 runtime:
-  last_verified_runtime_commit: ed55eb521556fb0cdf64bc6a63381842de677697
+  last_verified_runtime_commit: dae01068353bf44ed0a64c053d7cd126986ecf26
   last_verified_deploy_run: 33500153831
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
@@ -87,11 +84,17 @@ runtime:
     - complete-d1-local-import-repository-v1
     - complete-d1-local-audit-repository-v1
     - paginated-academic-record-and-association-history-v1
+    - local-student-center-read-model-v1
+    - local-class-group-center-read-model-v1
+    - local-teacher-and-subject-center-read-models-v1
+    - operational-read-model-facade-v1
+    - authorized-local-preview-operational-read-models-v1
   current_limitations:
     - academic-data-is-not-persisted-in-production
     - no-remote-d1-database-or-binding
     - no-remote-migration-applied
-    - operational-center-read-models-not-yet-integrated
+    - academic-global-search-contract-not-yet-frozen
+    - operational-read-models-not-exposed-in-production
     - controlled-real-corpus-validation-not-yet-recorded
     - complete-manifest-failure-smoke-not-yet-recorded
     - audit-workspace-not-yet-implemented
@@ -257,8 +260,8 @@ phases:
     visible_result: manifest-and-file-diagnostics-only
   F5:
     name: operational-entity-centers-and-context
-    status: context-and-entities-integrated-read-models-ready
-    completed_units: 2
+    status: operational-center-read-models-integrated-search-pending
+    completed_units: 6
     total_units: 7
     issue: 188
     visible_result: none
@@ -432,28 +435,44 @@ completed_queue:
     task: complete-d1-local-audit-and-reconciliation-repository-v1
     pull_request: 277
     merge_commit: 79a24263eb416ffd2218de7e3a263da700435679
-
-ready_queue:
   - issue: 278
     phase: F5
     task: local-student-center-read-model-v1
-    recommended_agent: codex
-    serial_order: 1
-    integration_issue: 281
+    pull_request: 283
+    merge_commit: 1e79af0977501ac2bfc03b61808856902f983c0a
   - issue: 279
     phase: F5
     task: local-class-group-center-read-model-v1
-    recommended_agent: codex
-    serial_order: 2
-    integration_issue: 281
+    pull_request: 284
+    merge_commit: 5483fe566f568ed5e869410187b7eb3b95ae67fc
   - issue: 280
     phase: F5
     task: local-teacher-and-subject-center-read-models-v1
-    recommended_agent: codex
-    serial_order: 3
-    integration_issue: 281
+    pull_request: 285
+    merge_commit: 3dd300f8aa45225772b7133dfe9a4968d9438271
+
+ready_queue:
+  - issue: 286
+    phase: F5
+    task: freeze-authorized-academic-global-search-contract-v1
+    recommended_agent: pro
+    serial_order: 1
+    integration_issue: 288
 
 planned_queue:
+  - issue: 287
+    phase: F5
+    task: local-authorized-academic-global-search-read-model-v1
+    recommended_agent: codex
+    blocked_by:
+      - 286
+  - issue: 288
+    phase: F5
+    task: integrate-wave-12-authorized-academic-global-search
+    recommended_agent: pro
+    blocked_by:
+      - 286
+      - 287
   - issue: 220
     area: admin-center
     task: global-health-and-limits
@@ -480,48 +499,42 @@ manual_gates:
       - observe-transient-hash-stage
       - verify-isolated-failure-diagnostic
     does_not_block:
-      - 278
-      - 279
-      - 280
+      - 286
 
 integration:
   previous:
-    issue: 272
-    wave: 10
-    status: completed
-    merged_pull_requests:
-      - 275
-      - 276
-      - 277
-    merged_commits:
-      - 57e7a98585b825926b7d39e7cd63b884a5bb212b
-      - 2f5ed83ccb470e88b57a82bdf950aa158c59ab74
-      - 79a24263eb416ffd2218de7e3a263da700435679
-    composition: complete-persistence-unit-of-work-v1
-    composition_commit: ed55eb521556fb0cdf64bc6a63381842de677697
-    verification: npm-run-verify-green-50-files-512-tests
-  current:
     issue: 281
     wave: 11
-    status: waiting-for-pull-requests
+    status: completed
+    merged_pull_requests:
+      - 283
+      - 284
+      - 285
+    merged_commits:
+      - 1e79af0977501ac2bfc03b61808856902f983c0a
+      - 5483fe566f568ed5e869410187b7eb3b95ae67fc
+      - 3dd300f8aa45225772b7133dfe9a4968d9438271
+    composition: operational-read-model-facade-v1
+    composition_commit: dae01068353bf44ed0a64c053d7cd126986ecf26
+    verification: npm-run-verify-green-54-files-526-tests
+  current:
+    issue: 288
+    wave: 12
+    status: blocked-by-contract-and-implementation
     watches:
-      - 278
-      - 279
-      - 280
+      - 286
+      - 287
     recommended_agent: pro
     codex_temporary_session_authorized: false
     responsibilities:
-      - repository-diff-and-contract-review
-      - operational-read-model-composition
-      - combined-verification
-      - merge-and-production-smoke
-      - state-and-issue-map-update
-      - next-wave-definition-and-unlock
+      - contract-and-implementation-review
+      - authorized-search-composition
+      - combined-verification-and-smoke
+      - state-and-next-wave-update
 
 next_integrator_actions:
-  - wait-for-issues-278-279-and-280
-  - verify-no-duplicate-operation-implementation
-  - compose-one-operational-read-model-facade
-  - preserve-local-preview-only-runtime-and-production-fail-closed
-  - confirm-no-remote-resource-or-secret
-  - create-wave-12-and-update-session-273
+  - assign-issue-286-to-pro
+  - freeze-search-result-and-authorization-contract-without-new-capability
+  - unlock-issue-287-only-after-contract-merge-and-explicit-codex-authorization
+  - keep-issue-288-blocked-until-286-and-287-are-green
+  - preserve-production-fail-closed-and-no-remote-resource

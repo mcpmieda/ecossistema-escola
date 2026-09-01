@@ -36,6 +36,7 @@ A configuração ou criação concreta de um banco/binding local ou de preview p
 Depois da autorização, da validação do ambiente e da validação estrutural do binding, `createGradebookD1RuntimeV1` compõe:
 
 - `createGradebookD1PersistenceUnitOfWorkV1` para todas as famílias das portas V1;
+- `createGradebookOperationalReadModelsV1` sobre a porta `entities` dessa mesma UoW;
 - uma visão restrita dessa mesma UoW para o planejamento de reconciliação;
 - `GradebookD1BatchPromotionTransactionV1`, que cria a unidade de escrita já integrada;
 - `GradebookD1MigrationRunnerV1` para conferir e aplicar o schema.
@@ -43,6 +44,11 @@ Depois da autorização, da validação do ambiente e da validação estrutural 
 O método administrativo `persistenceUnitOfWork()` expõe a composição integral somente depois da
 autorização opaca já validada. Não há segunda implementação de `academic-year`, fonte, registro ou
 associação. Históricos de registros e associações usam paginação keyset vinculada ao ano e ao stream.
+
+`operationalReadModels()` aplica a mesma validação de autorização e retorna uma única fachada com
+`students`, `classGroups`, `teachers` e `subjects`. A fachada reutiliza exclusivamente
+`unitOfWork.entities`; não executa SQL próprio, não duplica consultas, não cria endpoint e não fica
+disponível em produção, porque o runtime continua falhando antes de inspecionar o binding.
 
 A única operação de promoção exposta pela composição chama `executeImportChangePlan`. Portanto, a ordem continua sendo:
 
@@ -100,8 +106,8 @@ As suites desta entrega usam somente:
 
 Elas cobrem autorização antes do binding, bloqueio de produção, shape do binding,
 aplicação/reaplicação 0001–0003, catálogo incompatível, sanitização, `no-store`, método/origem/corpo,
-a UoW integral e a promoção `fonte → registro → associação` pelo executor existente em uma única
-transação.
+a UoW integral, os quatro read models operacionais pela mesma composição e a promoção
+`fonte → registro → associação` pelo executor existente em uma única transação.
 
 ## Limites preservados
 
@@ -109,5 +115,5 @@ transação.
 - nenhuma migration remota aplicada;
 - nenhum secret criado ou versionado;
 - nenhum fluxo ou UI acadêmica ativado;
-- nenhuma alteração em migrations 0001–0003, portas V1, motor, importador ou `PROJECT_STATE.yaml`;
+- nenhuma alteração em migrations 0001–0003, portas V1, motor ou importador;
 - produção continua sem persistência acadêmica ativa.

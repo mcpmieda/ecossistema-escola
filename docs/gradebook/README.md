@@ -12,38 +12,40 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 
 ## Estado atual
 
-Dez ondas foram integradas. A décima entregou:
+Onze ondas foram integradas. A décima primeira entregou:
 
-- #269/PR #275 — repositório D1 local das oito entidades além do ano acadêmico;
-- #270/PR #276 — lotes de importação e histórico por fonte lógica;
-- #271/PR #277 — ocorrências de Auditoria e reconciliações;
-- #272 — composição integral em uma única `PersistenceUnitOfWorkV1`.
+- #278/PR #283 — read model local da Central do Aluno;
+- #279/PR #284 — read model local da Central da Turma;
+- #280/PR #285 — read models locais das Centrais do Professor e do Componente;
+- #281 — fachada operacional única sobre a `PersistenceUnitOfWorkV1` e runtime local/preview.
 
 Merges funcionais:
 
 ```text
-#269  57e7a98585b825926b7d39e7cd63b884a5bb212b
-#270  2f5ed83ccb470e88b57a82bdf950aa158c59ab74
-#271  79a24263eb416ffd2218de7e3a263da700435679
+#278  1e79af0977501ac2bfc03b61808856902f983c0a
+#279  5483fe566f568ed5e869410187b7eb3b95ae67fc
+#280  3dd300f8aa45225772b7133dfe9a4968d9438271
 ```
 
 A produção continua sem D1 acadêmico provisionado, binding remoto ou migration remota. Nenhuma nova tela ou persistência oficial foi ativada.
 
-## Décima primeira onda
+## Décima segunda onda
 
-- [#278 — read model local da Central do Aluno](https://github.com/mcpmieda/ecossistema-escola/issues/278) — **Codex**;
-- [#279 — read model local da Central da Turma](https://github.com/mcpmieda/ecossistema-escola/issues/279) — **Codex**;
-- [#280 — read models locais de Professor e Componente](https://github.com/mcpmieda/ecossistema-escola/issues/280) — **Codex**;
-- [#281 — integração da décima primeira onda](https://github.com/mcpmieda/ecossistema-escola/issues/281) — **Pro**, sem autorização atual ao Codex.
+- [#286 — contrato da pesquisa global acadêmica autorizada](https://github.com/mcpmieda/ecossistema-escola/issues/286) — **Pro**;
+- [#287 — read model local da pesquisa acadêmica](https://github.com/mcpmieda/ecossistema-escola/issues/287) — **Codex**, bloqueada por #286;
+- [#288 — integração da décima segunda onda](https://github.com/mcpmieda/ecossistema-escola/issues/288) — **Pro**, bloqueada por #286 e #287.
 
-As implementações possuem caminhos disjuntos e consomem a porta de entidades por injeção. Não criam UI, endpoint, contrato compartilhado ou acesso remoto.
+A fila inicia pela #286 porque pesquisa e autorização exigem contrato próprio. A #287 não pode começar
+antes desse merge e de autorização explícita na #273. Nenhuma tarefa cria UI, endpoint ou acesso remoto.
 
 ## Sessão temporária serial
 
-A #273 não substitui issues, branches, PRs, testes, integração ou deploy. Ela apenas permite que uma única sessão do Codex 5.6 High execute a fila oficial em série:
+A #273 não substitui issues, branches, PRs, testes, integração ou deploy. Ela permite que uma única
+sessão do Codex 5.6 High execute apenas a fila explicitamente autorizada. Depois da #281 não existe
+nova issue Codex liberada:
 
 ```text
-#278 → #279 → #280
+#286 (Pro) → #287 (Codex bloqueada) → #288 (Pro bloqueada)
 ```
 
 Cada implementação continua com branch e PR próprios; os merges permanecem reservados à issue de integração. `PAUSAR`, `PARAR`, `RETOMAR` e `ENCERRAR MODO AUTÔNOMO` controlam a sessão. Hard stops impedem recursos remotos, dados reais, mudança de autoridade, migrations destrutivas ou decisões humanas não documentadas.
@@ -98,7 +100,9 @@ Existe uma única composição oficial de 2026. Ela referencia diretamente os pe
 - runner idempotente que consome o catálogo canônico das migrations;
 - uma única composição local da `PersistenceUnitOfWorkV1`, com histórico paginado para todas as portas versionadas.
 
-Ainda faltam os read models funcionais, sua ligação posterior à interface e autorização explícita para qualquer recurso remoto.
+Os quatro read models operacionais e sua fachada única estão integrados localmente. Ainda faltam o
+contrato/pesquisa global autorizada, a ligação posterior à interface e autorização explícita para
+qualquer recurso remoto.
 
 ## Validação da fonte
 
