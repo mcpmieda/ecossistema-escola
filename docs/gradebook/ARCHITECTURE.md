@@ -13,7 +13,7 @@ Leitura local + SHA-256 + manifesto
           ↓
 Reconhecimento e evidência de origem
           ↓
-Contexto acadêmico 2026 explícito
+Contexto acadêmico explícito
           ↓
 Planejamento idempotente
           ↓
@@ -31,7 +31,7 @@ Resultados + Auditoria
           ↓
 Read models + pesquisa autorizada
           ↓
-Centrais / Desempenho / Conselho / Boletins
+Centrais / Auditoria / Desempenho / Conselho / Boletins
 ```
 
 Planejamento, revisão e execução são etapas distintas. O planejador não grava; o executor não resolve ambiguidades; o adaptador não cria regras acadêmicas; a equivalência não muda a autoridade.
@@ -50,7 +50,7 @@ A #262 integrou o contexto oficial de 2026:
 - contexto ausente, duplicado, inativo ou incompatível falha;
 - ano/configuração são versionados localmente com histórico append-only e CAS.
 
-O `academic-year` possui uma implementação oficial. Repositórios e read models posteriores devem compô-la, não recriá-la.
+O `academic-year` possui uma implementação oficial. Repositórios e read models posteriores devem compô-la, não recriá-la. O Operational Workspace da #302 enumera o catálogo persistido e exige escolha explícita do ano; não infere ano pelo ID nem pelo relógio.
 
 ## Armazenamento
 
@@ -74,7 +74,7 @@ O domínio não importa `D1Database`, SQL, Wrangler ou bindings. Banco, bindings
 
 ## Ambientes do runtime
 
-A #261 integrou separação explícita:
+A separação permanece explícita:
 
 ```text
 local      → binding injetado e permitido
@@ -82,44 +82,9 @@ preview    → binding injetado e permitido
 production → bloqueada antes de inspecionar o binding
 ```
 
-O runtime valida o shape do binding, compõe leitura/escrita/transação e utiliza o runner canônico das migrations 0001–0003. As rotas administrativas existentes exigem sessão e `gradebook.persistence.admin`, usam same-origin/método correto e `Cache-Control: no-store`.
+O runtime valida o shape do binding, compõe leitura/escrita/transação e utiliza o runner canônico das migrations 0001–0003. As operações expostas pelo runtime exigem o contexto opaco emitido depois de `gradebook.persistence.admin`; o objeto de autorização não é reconstruível a partir de JSON.
 
 Nenhum binding remoto ou banco foi criado. A presença do código não ativa persistência ou consulta acadêmica no site oficial.
-
-## Identidade da fonte
-
-O sistema separa:
-
-- nome do arquivo: metadado observado;
-- SHA-256: identidade exata dos bytes;
-- fonte lógica: continuidade confirmada de professor/ano/contexto;
-- versão acadêmica: mudança real de entidade, lançamento ou resultado.
-
-Consequências:
-
-- mesmo hash renomeado não duplica conteúdo;
-- hash diferente não confirma sozinho nova fonte lógica;
-- fonte ambígua exige confirmação;
-- somente valores novos/alterados geram versão acadêmica;
-- item desaparecido não é apagado nem desativado automaticamente;
-- histórico anterior permanece auditável.
-
-## Associação fonte lógica ↔ stream
-
-```text
-arquivo/fonte confirmada
-        +
-registro acadêmico promovível
-        ↓
-associação versionada e ativa
-```
-
-- não é inferida por nome do arquivo;
-- não é descoberta por varredura de JSON;
-- possui expectativa otimista própria;
-- versão de fonte, registro e associação pertencem à mesma unidade de trabalho;
-- conflito em qualquer etapa reverte a promoção inteira;
-- ausência em uma nova planilha não gera desativação automática.
 
 ## Limites dos módulos
 
@@ -141,7 +106,7 @@ Funções TypeScript puras e determinísticas para semântica, arredondamento, t
 
 ### Aplicação
 
-Orquestra contexto, planejamento, revisão, execução e read models contra portas. Não executa SQL e não importa UI.
+Orquestra contexto, planejamento, revisão, execução, read models, Auditoria e emissão contra portas. Não executa SQL e não importa UI.
 
 ### Persistência
 
@@ -149,34 +114,28 @@ Responsável por paginação, versionamento, compare-and-set, histórico e atomi
 
 ### Schema D1
 
-Migrations locais 0001–0003, 21 tabelas, FKs por ano, índices, ponteiros de versão atual e histórico append-only. Não há cascades destrutivos.
+Migrations locais 0001–0003, 21 tabelas, FKs por ano, índices, ponteiros de versão atual e histórico append-only. Não há cascades destrutivos. A onda 14 não altera schema nem catálogo de migrations.
 
-### Adaptadores D1
+## Runtime D1 após a onda 14
 
-Já implementados:
+A composição autorizada em `GradebookD1RuntimeV1` contém:
 
-- leitura/escrita do contexto anual;
-- leitura/escrita de manifestos/fontes;
-- leitura/escrita de registros acadêmicos;
-- leitura/escrita de associações;
-- leitura/escrita das oito demais entidades acadêmicas;
-- lotes e versões por fonte lógica;
-- ocorrências de Auditoria e reconciliações;
-- históricos paginados;
-- promoção física local com CAS, savepoints e rollback;
-- runtime local/preview e runner de migrations.
+```text
+GradebookD1RuntimeV1
+  ├── PersistenceUnitOfWorkV1
+  ├── operationalReadModels()
+  ├── operationalWorkspaceAcademicYears()
+  ├── auditWorkspace(serverResolutionIdentity, existingPlans?)
+  ├── planningRepositories()
+  ├── inspectSchema()/runMigrations()
+  └── promoteImportChangePlan()
+```
 
-A #272 compôs exatamente um fornecedor por operação em uma única `PersistenceUnitOfWorkV1`. Nenhum módulo deve reimplementar operação já integrada.
-
-### Reconciliação e Auditoria
-
-Compara fonte, versões persistidas e motor. A equivalência anual da #263 produz `match`, `expected-difference`, `mismatch` ou `not-comparable` sem tolerância concorrente e sem mudar `imported-source`.
+Todas essas superfícies são alcançadas somente após autorização opaca. `production` continua falhando antes de `GRADEBOOK_D1` ser inspecionado.
 
 ### Read models operacionais
 
-A décima primeira onda integrou quatro consultas provider-independent — Aluno, Turma, Professor e Componente — e `createGradebookOperationalReadModelsV1`, a única fachada que as injeta com `PersistenceUnitOfWorkV1.entities`.
-
-A décima segunda onda integrou a pesquisa acadêmica nessa mesma fachada:
+Uma única fachada compõe:
 
 ```text
 PersistenceUnitOfWorkV1.entities
@@ -189,40 +148,78 @@ createGradebookOperationalReadModelsV1
               └── search
 ```
 
-`search` é criada por `createAcademicGlobalSearchReadModelV1` e consome diretamente o contrato V1 da #286. A fachada não executa segunda consulta, normalização, matching, autorização ou regra acadêmica.
+A pesquisa acadêmica continua sendo a implementação da #287: matching literal após normalização de caixa/diacríticos, sem fuzzy matching, ranking aproximado ou heurística de identidade. A fachada não implementa segundo matching nem regra acadêmica.
 
-A pesquisa:
+### Operational Workspace F5
 
-- recebe ano, escopo, limite, cursor e ordem explícitos;
-- lista somente os tipos solicitados por `AcademicEntityRepositoryV1`;
-- não usa `get`, evitando N+1;
-- percorre a paginação interna, ordena pelo comparador oficial e pagina externamente com cursor opaco;
-- usa inclusão literal após normalização de caixa/diacríticos, sem fuzzy matching ou heurística de identidade;
-- retorna somente `kind`, ID e `displayName`/`code`;
-- falha fechada para vazio, ausência, escopo insuficiente, cursor inválido e dado incompatível.
+A #302 integrou:
 
-`GradebookD1RuntimeV1.operationalReadModels()` expõe a fachada somente após validar a autorização opaca. Como o runtime falha em produção antes de inspecionar o binding, a pesquisa também fica indisponível em produção. A onda não criou endpoint nem UI.
+- extensão serializável de transporte V1, sem alterar o significado do `OperationalWorkspace V1`;
+- catálogo D1 read-only de `academic_year_id + year`;
+- serviço que projeta os quatro read models existentes;
+- um único bridge `POST /api/gradebook/operational-workspace`;
+- `requireAuth`, `gradebook.persistence.admin`, autorização opaca e `no-store`;
+- HeroUI no shell atual, com ano explícito, pesquisa existente e navegação por `kind + id` opaco;
+- estados `loading | ready | empty | unavailable | not-authorized`.
 
-### Interface HeroUI
+O bridge existe no bundle de produção, mas o runtime retorna indisponibilidade antes do binding. Nenhum segundo bridge operacional é permitido.
 
-Apresenta fluxo, comandos e resultados. Não calcula nota, recuperação, elegibilidade ou decisão de Conselho.
+### Audit Workspace F4
 
-A próxima experiência operacional ainda depende do contrato #293 para ano, navegação, pesquisa e estados. A UI não pode importar tipos de `server/**` nem inventar transporte, rota ou autorização.
+A #303 implementou duas fronteiras:
 
-### Saúde e limites
+```text
+AuditWorkspaceV1 (provider-independent)
+        ↑
+AuditWorkspaceSourceV1
+        ↑
+GradebookD1AuditWorkspaceSourceV1
+```
 
-Área global futura do Centro, registrada na #220. Métricas chegam por backend autorizado; tokens e payload acadêmico não chegam ao navegador.
+O read-source D1 lista lotes, ocorrências e reconciliações correntes com filtro, ordem e cursor keyset; detalhe e resolução reutilizam `PersistenceUnitOfWorkV1.imports` e `.audit`; resolução usa `appendVersion`/CAS e recebe ator/instante exclusivamente do servidor. Elegibilidade de promoção é informativa e pode refletir somente um `ImportChangePlanV1` já produzido.
 
-## Próxima camada contratual
+A #306 compõe essa implementação **internamente** no runtime:
 
-A décima terceira onda congela quatro contratos amplos, em caminhos disjuntos:
+- `GradebookD1AuditWorkspaceSourceV1` usa o mesmo database/runtime autorizado;
+- `createAuditWorkspaceV1` recebe a mesma UoW;
+- `isAuthorized()` é construído pelo próprio runtime a partir da autorização opaca;
+- o caller fornece apenas `resolutionIdentity()` server-side;
+- não existe endpoint nem UI de Auditoria nesta onda.
 
-- #293 — experiência operacional F5;
-- #294 — workspace de Auditoria e revisão F4;
-- #295 — matriz/lentes de Desempenho F6;
-- #296 — `BulletinModelV1` e emissão versionada F8.
+### Desempenho F6
 
-A integração #297 valida a coexistência. UI, endpoints, implementação de Auditoria, read model de Desempenho e emissão/PDF só podem avançar depois dos respectivos contratos.
+A #304 implementou `createClassPerformanceReadModelV1(source)` e a fronteira `ClassPerformanceSourceV1`.
+
+A matriz:
+
+- possui quatro lentes;
+- pagina linhas/colunas independentemente com cursores opacos;
+- preserva cobertura/comparabilidade, imported/calculated e `imported-source`;
+- recebe uma projeção física já resolvida em `loadMatrix`, impedindo N+1 na fronteira de aplicação;
+- carrega detalhes sob demanda.
+
+A #306 **não** cria fonte D1, composição de runtime, endpoint ou UI para Desempenho. A fonte física em lote pertence à #315.
+
+### Boletins F8
+
+A #305 implementou materialização e emissão provider-independent:
+
+- modelos `synthetic | composition | detailed` sobre contratos/read models oficiais;
+- snapshots profundamente imutáveis/versionados por porta;
+- reimpressão exclusivamente pelo snapshot histórico;
+- lote parcial com `ready` e `blocked` separados;
+- autorização, emissor, relógio e fábrica de IDs fornecidos por contexto/dependências server-side;
+- rejeição runtime de `native-engine` nas projeções internas.
+
+A implementação inclui somente repositório de snapshots em memória/local de teste. A #306 não cria PDF, endpoint, persistência remota, runtime físico nem exposição de lote de alta escala. O hardening/materialização agregada pertence à #316.
+
+## Reconciliação e Auditoria
+
+A equivalência anual produz `match`, `expected-difference`, `mismatch` ou `not-comparable` sem tolerância concorrente e sem mudar `imported-source`. Promoção continua exclusivamente em `planImportReconciliation` + `executeImportChangePlan`; o Audit Workspace não oferece método de promoção.
+
+## Interface HeroUI
+
+Apresenta fluxo, comandos e resultados. Não calcula nota, recuperação, elegibilidade ou decisão de Conselho. O Operational Workspace usa o shell existente e o único bridge autorizado. Audit Workspace UI/HTTP será uma frente separada (#314) e continuará local/preview.
 
 ## Estado do motor
 
@@ -252,55 +249,28 @@ O Conselho permanece humano. A equivalência preserva os dois lados e somente cl
 concluído localmente:
   portas independentes
   migrations 0001–0003
-  contexto acadêmico 2026
+  contexto acadêmico
   leitura/escrita completa
   planejamento idempotente
   executor transacional
   runtime local/preview
   runner idempotente
-  capability e rotas administrativas protegidas
-  quatro read models operacionais
-  pesquisa acadêmica autorizada na fachada única
+  capability/autorização opaca
+  quatro read models operacionais + pesquisa
+  Operational Workspace + bridge/UI local-preview
+  Audit Workspace + D1 read-source + composição interna
+  Desempenho provider-independent
+  Boletins provider-independent
 
 posteriormente, somente com autorização explícita:
-  recurso D1 remoto/preview
+  recurso D1 remoto/preview persistente
   binding remoto
-  migrations em ambiente
-  endpoints acadêmicos
-  ligação à interface
-  produção
-```
-
-## Estrutura-alvo
-
-```text
-src/
-├── platform/
-├── features/gradebook/
-│   ├── import/
-│   ├── audit/
-│   ├── students/
-│   ├── classes/
-│   ├── teachers/
-│   ├── subjects/
-│   ├── performance/
-│   ├── council/
-│   ├── bulletins/
-│   ├── reports/
-│   └── settings/
-└── gradebook-domain/
-    ├── context/
-    ├── calculations/
-    └── ports/persistence/
-
-shared/gradebook-contracts/
-server/gradebook/
-├── application/
-├── persistence/d1/
-├── queries/
-└── http/
-
-tests/gradebook/
+  migrations remotas
+  ativação acadêmica em produção
+  Audit Workspace UI/HTTP local-preview (#314)
+  fonte física de Desempenho (#315)
+  hardening/snapshots locais de Boletins (#316)
+  hardening F5 (#317)
 ```
 
 ## Regras de dependência
@@ -310,10 +280,11 @@ tests/gradebook/
 - interface consome contratos/read models, nunca tabelas D1;
 - aplicação consome domínio e portas, nunca SQL;
 - adaptador D1 não altera o significado dos contratos;
-- toda escrita necessária à integridade aparece no plano e na unidade de trabalho;
+- toda escrita necessária à integridade aparece explicitamente no plano e na unidade de trabalho;
 - Desempenho, Conselho e Boletins não mantêm motores próprios;
 - Microsoft Graph/SharePoint não é acessado diretamente pelo navegador para dados acadêmicos;
-- produção permanece fail-closed até issue e autorização específicas.
+- produção permanece fail-closed até issue e autorização específicas;
+- nenhuma frente pode criar segundo bridge para o Operational Workspace.
 
 ## Coordenação
 
@@ -324,7 +295,7 @@ uma issue → uma branch → um PR → verify → handoff
 onda → integração → main → deploy → próxima onda
 ```
 
-Hard stops impedem recursos remotos, dados reais, mudança de autoridade, migrations destrutivas e decisões humanas não documentadas.
+A onda seguinte é #314–#317, com integração #318. Hard stops impedem recursos remotos, dados reais, mudança de autoridade, migrations não autorizadas e decisões humanas não documentadas.
 
 ## Publicação
 
@@ -334,4 +305,4 @@ O único caminho de produção é:
 main → Deploy Cloudflare Pages → admin.escolaieda.com
 ```
 
-Agentes de tarefa não publicam diretamente. Entrega sem mudança visual ainda deve preservar build, testes e site.
+Agentes de tarefa não publicam diretamente. O integrador acompanha deploy e smokes; código acadêmico que não tenha autorização própria para produção permanece fail-closed.
