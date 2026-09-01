@@ -4,34 +4,48 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 
 ## Comece por aqui
 
-- [`COMECE_AQUI.md`](COMECE_AQUI.md) — qual issue pode ser executada agora.
+- [`COMECE_AQUI.md`](COMECE_AQUI.md) — fila executável atual.
 - [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — acompanhamento humano.
-- [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, progresso e dependências.
+- [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, ondas e dependências.
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina.
+- [Sessão temporária #273](https://github.com/mcpmieda/ecossistema-escola/issues/273) — execução serial opcional pelo Codex 5.6 High.
 
 ## Estado atual
 
-Oito ondas foram integradas. A mais recente entregou:
+Nove ondas foram integradas. A nona entregou:
 
-- #245/PR #258 — escrita e promoção transacional D1 local;
-- #254/PR #259 — regressões de isolamento da reconciliação restauradas;
-- #255/PR #260 — resultado anual, elegibilidade básica e precedência formal explícita.
+- #261/PR #268 — runtime D1 local/preview, runner canônico e backend administrativo autorizado;
+- #262/PR #267 — contexto acadêmico único de 2026 e versionamento local do ano/configuração;
+- #263/PR #266 — equivalência anual fonte × motor, preservando `imported-source`.
 
-O código funcional vigente da onda está no commit `ee0518c98682665c4ee8f32a639abbd893872f40`; o deploy Cloudflare Pages `33491736646` foi concluído com sucesso.
+Merges funcionais:
 
-A nona onda está pronta para três agentes independentes:
+```text
+#263  94535a97666057c886035ff4edddb651e95b4c9c
+#262  4584af4e1d20615d3af20bce1f22c4bb24cf1818
+#261  44bde4d683221551e7a0ac3d9904db3c03dbc50e
+```
 
-- [#261 — runtime D1 local/preview e runner autorizado](https://github.com/mcpmieda/ecossistema-escola/issues/261);
-- [#262 — contexto acadêmico global e perfil 2026](https://github.com/mcpmieda/ecossistema-escola/issues/262);
-- [#263 — equivalência anual fonte × motor](https://github.com/mcpmieda/ecossistema-escola/issues/263).
+A produção continua sem D1 acadêmico provisionado, binding remoto ou migration remota. Nenhuma nova tela ou persistência oficial foi ativada.
 
-A integração fica reservada à [#264](https://github.com/mcpmieda/ecossistema-escola/issues/264).
+## Décima onda
 
-## Correção realizada na conferência
+- [#269 — repositório D1 local de entidades](https://github.com/mcpmieda/ecossistema-escola/issues/269) — **Codex**;
+- [#270 — repositório D1 local de importações](https://github.com/mcpmieda/ecossistema-escola/issues/270) — **Codex**;
+- [#271 — repositório D1 local de Auditoria/reconciliação](https://github.com/mcpmieda/ecossistema-escola/issues/271) — **Codex**;
+- [#272 — integração da décima onda](https://github.com/mcpmieda/ecossistema-escola/issues/272) — **Pro** no fluxo normal; Codex 5.6 High autorizado somente pela sessão temporária #273.
 
-O PR #248 reunia as issues #242 e #244. O conteúdo funcional estava validado, mas o formato contrariava a regra de uma issue e um PR por entrega. Ele foi fechado sem merge e substituído por #252 e #253, mantendo os mesmos arquivos funcionais separados e novamente validados.
+As implementações possuem caminhos disjuntos. O integrador comporá todas as operações em uma única `PersistenceUnitOfWorkV1` sem duplicar o `academic-year` da #262 ou as operações de fonte já existentes.
 
-A revisão da #243 identificou cenários herdados de isolamento sem cobertura explícita após a reorganização dos testes. A #254 restaurou lote misto, falha isolada, determinismo e zero writes indevidos sem revelar defeito funcional.
+## Sessão temporária serial
+
+A #273 não substitui issues, branches, PRs, testes, integração ou deploy. Ela apenas permite que uma única sessão do Codex 5.6 High execute a fila oficial em série:
+
+```text
+#269 → #270 → #271 → #272
+```
+
+Cada implementação continua com branch e PR próprios; os merges permanecem reservados à issue de integração. `PAUSAR`, `PARAR`, `RETOMAR` e `ENCERRAR MODO AUTÔNOMO` controlam a sessão. Hard stops impedem recursos remotos, dados reais, mudança de autoridade, migrations destrutivas ou decisões humanas não documentadas.
 
 ## Objetivo
 
@@ -49,44 +63,40 @@ Construir um Banco de Notas funcional, modular, auditável e acessível a usuár
 - manifesto, progresso e diagnóstico por arquivo;
 - processamento somente em memória, sem persistência acadêmica.
 
-## Núcleo já integrado
+## Núcleo integrado
 
 ### Motor nativo
 
 - semântica das células;
 - arredondamento acadêmico;
 - composição trimestral 30/30/40 e 45%/55%;
-- recuperação paralela pelo quantitativo abaixo de 60% do próprio máximo;
-- resultado trimestral com nota bruta, nota nativa, percentual, cobertura e achados;
-- recuperação final com corte anual 60, limites 18/18/24 e substituição obrigatória mesmo quando menor;
-- resultado anual com limites 59,9/60/60,1, aprovação direta/pós-REC, contagem 0/1/2/3+ e precedência somente de decisão formal registrada.
+- recuperação paralela;
+- resultado trimestral e percentual;
+- recuperação final;
+- resultado anual, aprovação direta/pós-REC e elegibilidade básica;
+- equivalência anual `match | expected-difference | mismatch | not-comparable`.
 
 A autoridade continua `imported-source`. O motor permanece separável e comparável; não assume a nota oficial silenciosamente.
+
+### Contexto acadêmico
+
+Existe uma única composição oficial de 2026. Ela referencia diretamente os perfis nativos integrados, não escolhe ano pelo relógio e falha para contexto ausente, duplicado, inativo ou incompatível.
 
 ### Persistência e reconciliação
 
 - Cloudflare D1 aprovado como armazenamento físico;
 - portas independentes do fornecedor;
 - migrations locais 0001–0003 e 21 tabelas;
-- adaptadores locais de leitura e escrita;
+- leitura/escrita local de ano, fonte, registros e associações;
 - planejamento idempotente de reimportação;
-- executor transacional abstrato exercitado contra a promoção D1 local;
-- associação fonte lógica ↔ stream representada nas portas, plano, estimativa, executor e transação física;
-- regressões de isolamento por arquivo restauradas.
+- promoção transacional com compare-and-set, savepoints e rollback;
+- runtime local/preview explicitamente injetado;
+- produção bloqueada antes de inspecionar o binding;
+- capability `gradebook.persistence.admin` somente no servidor;
+- rotas administrativas autenticadas, autorizadas e `no-store`;
+- runner idempotente que consome o catálogo canônico das migrations.
 
-Ainda não existem banco/binding D1 operacional, migration remota, runner/runtime autorizado ou persistência no site. A implementação D1 continua local e descartável.
-
-## Próximas entregas
-
-```text
-#261 → runtime D1 local/preview + runner autorizado
-#262 → contexto acadêmico global e perfil 2026
-#263 → equivalência anual fonte × motor
-       ↓
-integração #264
-```
-
-Nenhuma dessas issues autoriza provisionamento de produção, migration remota silenciosa ou mudança da autoridade `imported-source`.
+Ainda faltam os repositórios locais completos de entidades, lotes e Auditoria, sua composição central e, posteriormente, autorização explícita para qualquer recurso remoto.
 
 ## Validação da fonte
 
@@ -96,7 +106,7 @@ Essa execução ainda precisa ser registrada antes do fechamento definitivo da F
 
 ## Saúde e limites
 
-A #220 registra a futura área global `Centro de Administração → Configurações → Saúde e limites`. Ela permanece planejada até existirem bindings D1, uso real e backend autorizado de métricas.
+A #220 registra a futura área global `Centro de Administração → Configurações → Saúde e limites`. Ela permanece planejada até existirem binding/uso real de D1 e backend autorizado de métricas.
 
 ## Leitura obrigatória do agente
 
@@ -105,7 +115,7 @@ A #220 registra a futura área global `Centro de Administração → Configuraç
 3. [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml);
 4. [`DECISIONS.md`](DECISIONS.md);
 5. a issue atribuída;
-6. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`CONTRACTS.md`](CONTRACTS.md), [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md), [`D1_SCHEMA.md`](D1_SCHEMA.md) e [`TEST_MATRIX.md`](TEST_MATRIX.md) conforme o escopo;
+6. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`CONTRACTS.md`](CONTRACTS.md), [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md), [`D1_SCHEMA.md`](D1_SCHEMA.md), [`D1_RUNTIME.md`](D1_RUNTIME.md) e [`TEST_MATRIX.md`](TEST_MATRIX.md) conforme o escopo;
 7. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md).
 
 A issue deve ser executada diretamente. App Factory, Factory Runs, orquestradores e agentes auxiliares só podem ser usados quando a própria issue autorizar expressamente.
