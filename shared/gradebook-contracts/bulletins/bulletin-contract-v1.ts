@@ -25,8 +25,9 @@ import {
 
 export const BULLETIN_CONTRACT_VERSION_V1 = 1 as const;
 export const BULLETIN_MODEL_VERSION_V1 = 1 as const;
+export type BulletinAuthorityModeV1 = Extract<AuthorityModeV1, 'imported-source'>;
 export const BULLETIN_AUTHORITY_MODE_V1 =
-  'imported-source' as const satisfies AuthorityModeV1;
+  'imported-source' as const satisfies BulletinAuthorityModeV1;
 
 export const BULLETIN_MODEL_KINDS_V1 = ['synthetic', 'composition', 'detailed'] as const;
 export type BulletinModelKindV1 = (typeof BULLETIN_MODEL_KINDS_V1)[number];
@@ -116,7 +117,7 @@ export interface BulletinTermSummaryV1 {
   readonly term: AcademicTermV1;
   readonly officialGrade: BulletinComparedGradeValueV1;
   readonly percentage: BulletinComparedGradeValueV1;
-  readonly authorityMode: AuthorityModeV1;
+  readonly authorityMode: BulletinAuthorityModeV1;
   readonly coverage: ResultCoverageV1;
 }
 
@@ -127,7 +128,7 @@ export interface BulletinAnnualResultV1 {
   readonly postRecoveryTotal: BulletinComparedGradeValueV1;
   readonly academicState: ComparedAcademicStateV1;
   readonly finalDecision: AnnualFinalDecisionV1;
-  readonly authorityMode: AuthorityModeV1;
+  readonly authorityMode: BulletinAuthorityModeV1;
   readonly coverage: ResultCoverageV1;
 }
 
@@ -145,7 +146,7 @@ export interface BulletinTermCompositionV1 {
   readonly qualitativeOperational: BulletinComparedGradeValueV1;
   readonly officialGrade: BulletinComparedGradeValueV1;
   readonly percentage: BulletinComparedGradeValueV1;
-  readonly authorityMode: AuthorityModeV1;
+  readonly authorityMode: BulletinAuthorityModeV1;
   readonly coverage: ResultCoverageV1;
 }
 
@@ -156,7 +157,7 @@ export interface BulletinAssessmentEntryV1 {
   readonly name: string;
   readonly applicability: ApplicabilityV1;
   readonly value: BulletinComparedGradeValueV1;
-  readonly authorityMode: AuthorityModeV1;
+  readonly authorityMode: BulletinAuthorityModeV1;
 }
 
 export interface BulletinDetailedTermV1 extends BulletinTermCompositionV1 {
@@ -187,7 +188,7 @@ interface BulletinModelBaseV1 {
   readonly period: BulletinPeriodV1;
   readonly student: BulletinStudentIdentityV1;
   readonly classGroup: BulletinClassGroupIdentityV1;
-  readonly authorityMode: typeof BULLETIN_AUTHORITY_MODE_V1;
+  readonly authorityMode: BulletinAuthorityModeV1;
 }
 
 export type BulletinModelV1 =
@@ -568,6 +569,35 @@ export function isBulletinSnapshotVersionV1(input: unknown): input is number {
   return typeof input === 'number' && Number.isInteger(input) && input > 0;
 }
 
+function hasCoherentBulletinAuthorityModesV1(model: BulletinModelV1): boolean {
+  if (model.authorityMode !== BULLETIN_AUTHORITY_MODE_V1) return false;
+
+  if (model.modelKind === 'synthetic') {
+    return model.subjects.every(
+      ({ result }) => result.authorityMode === BULLETIN_AUTHORITY_MODE_V1,
+    );
+  }
+
+  if (model.modelKind === 'composition') {
+    return model.subjects.every(
+      ({ terms, annualResult }) =>
+        terms.every(({ authorityMode }) => authorityMode === BULLETIN_AUTHORITY_MODE_V1) &&
+        (annualResult === null || annualResult.authorityMode === BULLETIN_AUTHORITY_MODE_V1),
+    );
+  }
+
+  return model.subjects.every(
+    ({ terms, annualResult }) =>
+      terms.every(
+        ({ authorityMode, assessments }) =>
+          authorityMode === BULLETIN_AUTHORITY_MODE_V1 &&
+          assessments.every(
+            (assessment) => assessment.authorityMode === BULLETIN_AUTHORITY_MODE_V1,
+          ),
+      ) && (annualResult === null || annualResult.authorityMode === BULLETIN_AUTHORITY_MODE_V1),
+  );
+}
+
 export function isBulletinSnapshotCoherentV1(snapshot: BulletinSnapshotV1): boolean {
   return (
     snapshot.contractVersion === BULLETIN_CONTRACT_VERSION_V1 &&
@@ -575,7 +605,7 @@ export function isBulletinSnapshotCoherentV1(snapshot: BulletinSnapshotV1): bool
     snapshot.modelVersion === BULLETIN_MODEL_VERSION_V1 &&
     snapshot.model.contractVersion === BULLETIN_CONTRACT_VERSION_V1 &&
     snapshot.model.modelVersion === snapshot.modelVersion &&
-    snapshot.model.authorityMode === BULLETIN_AUTHORITY_MODE_V1 &&
+    hasCoherentBulletinAuthorityModesV1(snapshot.model) &&
     snapshot.model.academicYearId.trim().length > 0 &&
     snapshot.snapshotId.trim().length > 0 &&
     snapshot.dataVersion.trim().length > 0 &&

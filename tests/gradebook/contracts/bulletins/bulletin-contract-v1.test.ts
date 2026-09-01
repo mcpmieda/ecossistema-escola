@@ -27,6 +27,7 @@ import {
   isBulletinArtifactPayloadSafeV1,
   isBulletinSnapshotCoherentV1,
   type BulletinAnnualResultV1,
+  type BulletinAuthorityModeV1,
   type BulletinBatchEmissionRequestV1,
   type BulletinBatchEmissionResultV1,
   type BulletinComparedGradeValueV1,
@@ -294,9 +295,11 @@ function snapshot(
 describe('bulletin contract v1', () => {
   it('freezes one versioned contract for synthetic, composition and detailed models over the same base', () => {
     const models = [syntheticModel(), compositionModel(), detailedModel()];
+    const authorityMode: BulletinAuthorityModeV1 = BULLETIN_AUTHORITY_MODE_V1;
 
     expect(BULLETIN_MODEL_KINDS_V1).toEqual(['synthetic', 'composition', 'detailed']);
     expect(models.map((model) => model.modelKind)).toEqual(BULLETIN_MODEL_KINDS_V1);
+    expect(authorityMode).toBe('imported-source');
 
     for (const model of models) {
       expect(model.contractVersion).toBe(1);
@@ -370,6 +373,129 @@ describe('bulletin contract v1', () => {
     expect(historical.model.authorityMode).toBe('imported-source');
     expect(historical.dataVersion).toBe('data:synthetic:v1');
     expect(historical.issuerId).toBe(issuerId);
+  });
+
+  it('rejects native-engine injected into a synthetic term result', () => {
+    const model = syntheticModel();
+    if (model.modelKind !== 'synthetic') throw new Error('unexpected synthetic fixture');
+
+    const invalidModel = {
+      ...model,
+      subjects: model.subjects.map((entry, index) =>
+        index === 0
+          ? {
+              ...entry,
+              result: {
+                ...entry.result,
+                authorityMode: 'native-engine',
+              },
+            }
+          : entry,
+      ),
+    } as unknown as BulletinModelV1;
+
+    expect(
+      isBulletinSnapshotCoherentV1(snapshot(1, 'data:synthetic:invalid-term', invalidModel)),
+    ).toBe(false);
+  });
+
+  it('rejects native-engine injected into an annual result', () => {
+    const model = compositionModel();
+    if (model.modelKind !== 'composition') throw new Error('unexpected synthetic fixture');
+    const annual = model.subjects[0]?.annualResult;
+    if (annual === null || annual === undefined) throw new Error('unexpected synthetic fixture');
+
+    const invalidModel = {
+      ...model,
+      subjects: model.subjects.map((entry, index) =>
+        index === 0
+          ? {
+              ...entry,
+              annualResult: {
+                ...annual,
+                authorityMode: 'native-engine',
+              },
+            }
+          : entry,
+      ),
+    } as unknown as BulletinModelV1;
+
+    expect(
+      isBulletinSnapshotCoherentV1(snapshot(1, 'data:synthetic:invalid-annual', invalidModel)),
+    ).toBe(false);
+  });
+
+  it('rejects native-engine injected into a term composition', () => {
+    const model = compositionModel();
+    if (model.modelKind !== 'composition') throw new Error('unexpected synthetic fixture');
+    const firstTerm = model.subjects[0]?.terms[0];
+    if (firstTerm === undefined) throw new Error('unexpected synthetic fixture');
+
+    const invalidModel = {
+      ...model,
+      subjects: model.subjects.map((entry, subjectIndex) =>
+        subjectIndex === 0
+          ? {
+              ...entry,
+              terms: entry.terms.map((term, termIndex) =>
+                termIndex === 0
+                  ? {
+                      ...term,
+                      authorityMode: 'native-engine',
+                    }
+                  : term,
+              ),
+            }
+          : entry,
+      ),
+    } as unknown as BulletinModelV1;
+
+    expect(firstTerm.authorityMode).toBe('imported-source');
+    expect(
+      isBulletinSnapshotCoherentV1(
+        snapshot(1, 'data:synthetic:invalid-composition', invalidModel),
+      ),
+    ).toBe(false);
+  });
+
+  it('rejects native-engine injected into a detailed assessment', () => {
+    const model = detailedModel();
+    if (model.modelKind !== 'detailed') throw new Error('unexpected synthetic fixture');
+    const firstAssessment = model.subjects[0]?.terms[0]?.assessments[0];
+    if (firstAssessment === undefined) throw new Error('unexpected synthetic fixture');
+
+    const invalidModel = {
+      ...model,
+      subjects: model.subjects.map((entry, subjectIndex) =>
+        subjectIndex === 0
+          ? {
+              ...entry,
+              terms: entry.terms.map((term, termIndex) =>
+                termIndex === 0
+                  ? {
+                      ...term,
+                      assessments: term.assessments.map((assessment, assessmentIndex) =>
+                        assessmentIndex === 0
+                          ? {
+                              ...assessment,
+                              authorityMode: 'native-engine',
+                            }
+                          : assessment,
+                      ),
+                    }
+                  : term,
+              ),
+            }
+          : entry,
+      ),
+    } as unknown as BulletinModelV1;
+
+    expect(firstAssessment.authorityMode).toBe('imported-source');
+    expect(
+      isBulletinSnapshotCoherentV1(
+        snapshot(1, 'data:synthetic:invalid-assessment', invalidModel),
+      ),
+    ).toBe(false);
   });
 
   it('reprints only the exact historical snapshot/version without recalculation fields', () => {
