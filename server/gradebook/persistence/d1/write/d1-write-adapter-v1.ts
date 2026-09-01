@@ -1,4 +1,6 @@
+import { ACADEMIC_CONTEXT_2026_IDENTITY_V1 } from '../../../../../src/gradebook-domain/context/academic-context-2026-v1';
 import type {
+  AcademicEntityRecordV1,
   AcademicPersistenceContextV1,
   AcademicRecordStreamV1,
   AcademicRecordV1,
@@ -14,6 +16,7 @@ import {
   academicRecordStreamKeyV1,
 } from '../../../application/import/import-reconciliation-v1';
 import {
+  createGradebookD1AcademicEntityReadAdapterV1,
   createGradebookD1ReadAdapterV1,
   type D1ReadDatabaseV1,
   type D1ReadResultV1,
@@ -230,6 +233,27 @@ function validAssociation(
   }
 }
 
+function validAcademicYear(
+  context: AcademicPersistenceContextV1,
+  record: AcademicEntityRecordV1,
+): record is Extract<AcademicEntityRecordV1, { readonly kind: 'academic-year' }> {
+  if (record.kind !== 'academic-year') return false;
+  const value = record.value;
+  return (
+    nonEmptyString(context.academicYearId) &&
+    value.id === context.academicYearId &&
+    nonEmptyString(value.id) &&
+    nonEmptyString(value.schoolId) &&
+    value.year === ACADEMIC_CONTEXT_2026_IDENTITY_V1.academicYear &&
+    (value.status === 'planned' || value.status === 'active' || value.status === 'closed') &&
+    (value.startsOn === undefined || nonEmptyString(value.startsOn)) &&
+    (value.endsOn === undefined || nonEmptyString(value.endsOn)) &&
+    value.activeEvaluationProfileId === ACADEMIC_CONTEXT_2026_IDENTITY_V1.evaluationProfileId &&
+    value.configurationVersion ===
+      String(ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationVersion)
+  );
+}
+
 function streamColumns(stream: AcademicRecordStreamV1): {
   readonly studentId: string;
   readonly enrollmentId: string;
@@ -321,7 +345,11 @@ class GradebookD1WriterV1 {
   }
 
   private async readCurrentVersion(
-    table: 'source_file_streams' | 'academic_record_streams' | 'logical_source_record_streams',
+    table:
+      | 'academic_years'
+      | 'source_file_streams'
+      | 'academic_record_streams'
+      | 'logical_source_record_streams',
     predicate: string,
     values: readonly D1WriteValueV1[],
   ): Promise<number | null> {
@@ -330,6 +358,139 @@ class GradebookD1WriterV1 {
       .bind(...values)
       .first<D1WriteRowV1>();
     return currentVersion(row);
+  }
+
+  async appendAcademicYearVersion(
+    context: AcademicPersistenceContextV1,
+    record: AcademicEntityRecordV1,
+    expectation: VersionExpectationV1,
+  ): Promise<VersionedWriteResultV1<AcademicEntityRecordV1>> {
+    if (!validExpectation(expectation) || !validAcademicYear(context, record)) {
+      return fail('incompatible-write');
+    }
+
+    const value = record.value;
+    const payloadJson = serialize(value);
+    const configurationPayloadJson = serialize({});
+    const recordedAt = this.now();
+    if (!nonEmptyString(recordedAt)) return fail('incompatible-write');
+
+    return this.inSavepoint(async () => {
+      let rootChanges: number;
+      if (expectation.expectedVersion === null) {
+        rootChanges = changes(
+          await this.database
+            .prepare(
+              `INSERT INTO academic_years (
+                 academic_year_id, school_id, year, current_version, created_at
+               ) VALUES (?, ?, ?, 1, ?)
+               ON CONFLICT DO NOTHING`,
+            )
+            .bind(value.id, value.schoolId, value.year, recordedAt)
+            .run(),
+        );
+      } else {
+        rootChanges = changes(
+          await this.database
+            .prepare(
+              `UPDATE academic_years
+               SET current_version = ?
+               WHERE academic_year_id = ?
+                 AND school_id = ?
+                 AND year = ?
+                 AND current_version = ?`,
+            )
+            .bind(
+              expectation.expectedVersion + 1,
+              value.id,
+              value.schoolId,
+              value.year,
+              expectation.expectedVersion,
+            )
+            .run(),
+        );
+      }
+
+      if (rootChanges !== 1) {
+        const persisted = await this.readCurrentVersion(
+          'academic_years',
+          'academic_year_id = ?',
+          [value.id],
+        );
+        return { status: 'version-conflict', currentVersion: persisted };
+      }
+
+      changes(
+        await this.database
+          .prepare(
+            `INSERT INTO academic_year_configuration_versions (
+               academic_year_id, configuration_id, version, previous_version,
+               evaluation_profile_id, payload_json, recorded_at
+             ) VALUES (?, ?, ?, NULL, ?, ?, ?)
+             ON CONFLICT (academic_year_id, configuration_id, version) DO NOTHING`,
+          )
+          .bind(
+            value.id,
+            ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationId,
+            ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationVersion,
+            ACADEMIC_CONTEXT_2026_IDENTITY_V1.evaluationProfileId,
+            configurationPayloadJson,
+            recordedAt,
+          )
+          .run(),
+      );
+
+      const configuration = await this.database
+        .prepare(
+          `SELECT evaluation_profile_id
+           FROM academic_year_configuration_versions
+           WHERE academic_year_id = ? AND configuration_id = ? AND version = ?`,
+        )
+        .bind(
+          value.id,
+          ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationId,
+          ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationVersion,
+        )
+        .first<D1WriteRowV1>();
+      if (
+        !configuration ||
+        configuration.evaluation_profile_id !==
+          ACADEMIC_CONTEXT_2026_IDENTITY_V1.evaluationProfileId
+      ) {
+        return fail('incompatible-write');
+      }
+
+      const version = (expectation.expectedVersion ?? 0) + 1;
+      changes(
+        await this.database
+          .prepare(
+            `INSERT INTO academic_year_versions (
+               academic_year_id, version, previous_version, status, starts_on, ends_on,
+               active_evaluation_profile_id, configuration_id, configuration_version,
+               payload_json, recorded_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .bind(
+            value.id,
+            version,
+            expectation.expectedVersion,
+            value.status,
+            value.startsOn ?? null,
+            value.endsOn ?? null,
+            value.activeEvaluationProfileId,
+            ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationId,
+            ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationVersion,
+            payloadJson,
+            recordedAt,
+          )
+          .run(),
+      );
+
+      return {
+        status: 'written',
+        record: { value: record, version, recordedAt },
+      };
+    });
   }
 
   async appendSourceFileVersion(
@@ -668,13 +829,19 @@ export function createGradebookD1WriteUnitOfWorkV1(
   options: GradebookD1WriteAdapterOptionsV1 = {},
 ): PersistenceUnitOfWorkV1 {
   const reads = createGradebookD1ReadAdapterV1(database);
+  const entityReads = createGradebookD1AcademicEntityReadAdapterV1(database);
   const writer = new GradebookD1WriterV1(database, options.now ?? (() => new Date().toISOString()));
 
   return {
     entities: {
-      get: async () => unsupported(),
-      list: async () => unsupported(),
-      appendVersion: async () => unsupported(),
+      get: async (context, reference) =>
+        reference.kind === 'academic-year' ? entityReads.get(context, reference) : unsupported(),
+      list: async (context, kind, page) =>
+        kind === 'academic-year' ? entityReads.list(context, kind, page) : unsupported(),
+      appendVersion: async (context, record, expectation) =>
+        record.kind === 'academic-year'
+          ? writer.appendAcademicYearVersion(context, record, expectation)
+          : unsupported(),
     },
     imports: {
       findSourceFileByHash: reads.imports.findSourceFileByHash,
