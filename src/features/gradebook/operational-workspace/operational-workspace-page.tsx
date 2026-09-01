@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, Chip, Label, SearchField, Spinner, Surface } from '@heroui/react';
 import {
   BookOpenText,
@@ -28,9 +28,9 @@ import type {
   OperationalWorkspaceStudentStatusV1,
   OperationalWorkspaceTeachingAssignmentV1,
   OperationalWorkspaceTransportRequestV1,
-  OperationalWorkspaceTransportResponseV1,
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v1';
 import { requestOperationalWorkspaceV1 } from './operational-workspace-client';
+import { createOperationalWorkspaceRequestGate } from './operational-workspace-request-gate';
 
 type WorkspaceState = 'idle' | 'loading' | 'ready' | 'empty' | 'unavailable' | 'not-authorized';
 type CenterKind = OperationalWorkspaceNavigationIntentV1['kind'];
@@ -79,6 +79,10 @@ function lifecycleLabel(status: 'active' | 'inactive'): string {
   return status === 'active' ? 'Ativo' : 'Inativo';
 }
 
+function loadedResultsLabel(count: number): string {
+  return count === 1 ? '1 resultado carregado.' : `${count} resultados carregados.`;
+}
+
 function StateAlert({ state }: { state: Extract<WorkspaceState, 'empty' | 'unavailable' | 'not-authorized'> }) {
   if (state === 'not-authorized') {
     return (
@@ -98,9 +102,9 @@ function StateAlert({ state }: { state: Extract<WorkspaceState, 'empty' | 'unava
       <Alert status="danger">
         <Alert.Indicator />
         <Alert.Content>
-          <Alert.Title>Centrais indisponíveis neste ambiente</Alert.Title>
+          <Alert.Title>Centrais indisponíveis</Alert.Title>
           <Alert.Description>
-            A consulta acadêmica permanece fechada quando o runtime local ou de preview não está disponível.
+            A consulta acadêmica não está disponível neste ambiente agora. Nenhum dado foi carregado.
           </Alert.Description>
         </Alert.Content>
       </Alert>
@@ -130,10 +134,10 @@ function EntityLinkButton({
     <Button
       size="sm"
       variant="ghost"
-      className="h-auto justify-start px-2 py-1 text-left"
+      className="h-auto max-w-full justify-start px-2 py-1 text-left"
       onPress={() => onNavigate({ kind: link.kind, id: link.id } as OperationalWorkspaceNavigationIntentV1)}
     >
-      {link.label}
+      <span className="break-words">{link.label}</span>
     </Button>
   );
 }
@@ -165,23 +169,23 @@ function AssignmentList({
   return (
     <div className="grid gap-3 md:grid-cols-2">
       {assignments.map((assignment) => (
-        <Surface key={assignment.id} variant="secondary" className="rounded-2xl p-4">
-          <div className="grid gap-2 text-sm">
+        <Surface key={assignment.id} variant="secondary" className="min-w-0 rounded-2xl p-4">
+          <div className="grid gap-3 text-sm">
             {assignment.classGroup && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted">Turma</span>
+              <div className="flex min-w-0 flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <span className="shrink-0 text-muted">Turma</span>
                 <EntityLinkButton link={assignment.classGroup} onNavigate={onNavigate} />
               </div>
             )}
             {assignment.teacher && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted">Professor</span>
+              <div className="flex min-w-0 flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <span className="shrink-0 text-muted">Professor</span>
                 <EntityLinkButton link={assignment.teacher} onNavigate={onNavigate} />
               </div>
             )}
             {assignment.subject && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted">Componente</span>
+              <div className="flex min-w-0 flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <span className="shrink-0 text-muted">Componente</span>
                 <EntityLinkButton link={assignment.subject} onNavigate={onNavigate} />
               </div>
             )}
@@ -205,20 +209,20 @@ function CenterView({
     return (
       <Card variant="default">
         <Card.Header>
-          <div>
+          <div className="min-w-0">
             <Card.Description>Central do Aluno</Card.Description>
-            <Card.Title ref={headingRef} tabIndex={-1} className="mt-1 outline-none">
+            <Card.Title ref={headingRef} tabIndex={-1} className="mt-1 break-words outline-none focus-visible:ring-2 focus-visible:ring-focus">
               {view.displayName}
             </Card.Title>
           </div>
         </Card.Header>
-        <Card.Content className="grid gap-3">
+        <Card.Content className="grid gap-3 md:grid-cols-2">
           {view.enrollments.length === 0 ? (
-            <p className="text-sm text-muted">Nenhuma matrícula encontrada neste ano.</p>
+            <p className="text-sm text-muted md:col-span-2">Nenhuma matrícula encontrada neste ano.</p>
           ) : (
             view.enrollments.map((enrollment) => (
-              <Surface key={enrollment.id} variant="secondary" className="rounded-2xl p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+              <Surface key={enrollment.id} variant="secondary" className="min-w-0 rounded-2xl p-4">
+                <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                   <Chip size="sm" variant="soft">
                     {enrollment.position === 'current' ? 'Posição atual' : 'Posição histórica'}
                   </Chip>
@@ -241,10 +245,10 @@ function CenterView({
     return (
       <div className="grid gap-4">
         <Card variant="default">
-          <Card.Header>
-            <div>
+          <Card.Header className="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
               <Card.Description>Central da Turma</Card.Description>
-              <Card.Title ref={headingRef} tabIndex={-1} className="mt-1 outline-none">
+              <Card.Title ref={headingRef} tabIndex={-1} className="mt-1 break-words outline-none focus-visible:ring-2 focus-visible:ring-focus">
                 {view.code}
               </Card.Title>
             </div>
@@ -253,8 +257,8 @@ function CenterView({
           <Card.Content>
             <div className="grid gap-3 md:grid-cols-2">
               {view.students.map((entry) => (
-                <Surface key={entry.id} variant="secondary" className="rounded-2xl p-4">
-                  <div className="flex items-center justify-between gap-3">
+                <Surface key={entry.id} variant="secondary" className="min-w-0 rounded-2xl p-4">
+                  <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     {entry.student ? (
                       <EntityLinkButton link={entry.student} onNavigate={onNavigate} />
                     ) : (
@@ -270,7 +274,7 @@ function CenterView({
                 </Surface>
               ))}
               {view.students.length === 0 && (
-                <p className="text-sm text-muted">Nenhum aluno encontrado nesta turma.</p>
+                <p className="text-sm text-muted md:col-span-2">Nenhum aluno encontrado nesta turma.</p>
               )}
             </div>
           </Card.Content>
@@ -290,10 +294,10 @@ function CenterView({
   if (view.kind === 'teacher') {
     return (
       <Card variant="default">
-        <Card.Header>
-          <div>
+        <Card.Header className="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <Card.Description>Central do Professor</Card.Description>
-            <Card.Title ref={headingRef} tabIndex={-1} className="mt-1 outline-none">
+            <Card.Title ref={headingRef} tabIndex={-1} className="mt-1 break-words outline-none focus-visible:ring-2 focus-visible:ring-focus">
               {view.displayName}
             </Card.Title>
           </div>
@@ -308,13 +312,13 @@ function CenterView({
 
   return (
     <Card variant="default">
-      <Card.Header>
-        <div>
+      <Card.Header className="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <Card.Description>Central do Componente</Card.Description>
-          <Card.Title ref={headingRef} tabIndex={-1} className="mt-1 outline-none">
+          <Card.Title ref={headingRef} tabIndex={-1} className="mt-1 break-words outline-none focus-visible:ring-2 focus-visible:ring-focus">
             {view.displayName}
           </Card.Title>
-          <p className="mt-1 text-xs text-muted">{view.code} · {view.shortName}</p>
+          <p className="mt-1 break-words text-xs text-muted">{view.code} · {view.shortName}</p>
         </div>
         <Chip variant="soft">{lifecycleLabel(view.status)}</Chip>
       </Card.Header>
@@ -325,10 +329,6 @@ function CenterView({
   );
 }
 
-function stateFromResponse(response: OperationalWorkspaceTransportResponseV1): WorkspaceState {
-  return response.state;
-}
-
 export function OperationalWorkspacePage() {
   const [activated, setActivated] = useState(false);
   const [workspaceState, setWorkspaceState] = useState<WorkspaceState>('idle');
@@ -337,58 +337,109 @@ export function OperationalWorkspacePage() {
   const [activeCenter, setActiveCenter] = useState<CenterKind>('student');
   const [detailState, setDetailState] = useState<WorkspaceState>('empty');
   const [detail, setDetail] = useState<OperationalWorkspaceCenterViewV1 | null>(null);
+  const [detailIntent, setDetailIntent] = useState<OperationalWorkspaceNavigationIntentV1 | null>(null);
   const [query, setQuery] = useState('');
   const [searchState, setSearchState] = useState<WorkspaceState>('empty');
   const [searchItems, setSearchItems] = useState<readonly GlobalSearchResultV1[]>([]);
   const [nextCursor, setNextCursor] = useState<GlobalSearchCursorV1 | null>(null);
+  const [searchAttempted, setSearchAttempted] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
-  const detailSequence = useRef(0);
-  const searchSequence = useRef(0);
+  const searchSummaryRef = useRef<HTMLParagraphElement>(null);
+  const bootstrapGate = useRef(createOperationalWorkspaceRequestGate());
+  const detailGate = useRef(createOperationalWorkspaceRequestGate());
+  const searchGate = useRef(createOperationalWorkspaceRequestGate());
+  const lastCompletedSearchKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    const currentBootstrapGate = bootstrapGate.current;
+    const currentDetailGate = detailGate.current;
+    const currentSearchGate = searchGate.current;
+    return () => {
+      currentBootstrapGate.invalidate();
+      currentDetailGate.invalidate();
+      currentSearchGate.invalidate();
+    };
+  }, []);
 
   const loadBootstrap = async () => {
-    if (workspaceState === 'loading' || workspaceState === 'ready') return;
+    if (workspaceState === 'ready') return;
+    const ticket = bootstrapGate.current.begin('bootstrap');
+    if (!ticket) return;
+
     setActivated(true);
     setWorkspaceState('loading');
     try {
-      const response = await requestOperationalWorkspaceV1({
-        contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
-        operation: 'bootstrap',
-      });
+      const response = await requestOperationalWorkspaceV1(
+        {
+          contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
+          operation: 'bootstrap',
+        },
+        ticket.signal,
+      );
+      if (!ticket.isCurrent()) return;
       if ('availableAcademicYears' in response) {
         setYears(response.availableAcademicYears);
         setWorkspaceState(response.state);
       } else {
         setYears([]);
-        setWorkspaceState(stateFromResponse(response));
+        setWorkspaceState(response.state);
       }
     } catch {
+      if (!ticket.isCurrent()) return;
       setYears([]);
       setWorkspaceState('unavailable');
+    } finally {
+      ticket.complete();
     }
   };
 
-  const clearSelection = () => {
-    detailSequence.current += 1;
-    searchSequence.current += 1;
+  const invalidateDetail = () => {
+    detailGate.current.invalidate();
     setDetail(null);
+    setDetailIntent(null);
     setDetailState('empty');
+  };
+
+  const invalidateSearch = () => {
+    searchGate.current.invalidate();
+    lastCompletedSearchKey.current = null;
     setSearchItems([]);
     setNextCursor(null);
+    setSearchAttempted(false);
+    setIsLoadingMore(false);
     setSearchState('empty');
+  };
+
+  const clearSelection = () => {
+    invalidateDetail();
+    invalidateSearch();
   };
 
   const selectYear = (value: string) => {
     const selected = years.find((year) => year.id === value);
-    setSelectedAcademicYearId(selected?.id ?? null);
+    const nextYearId = selected?.id ?? null;
+    if (nextYearId === selectedAcademicYearId) {
+      if (selected) window.requestAnimationFrame(() => searchInputRef.current?.focus());
+      return;
+    }
+
     clearSelection();
+    setSelectedAcademicYearId(nextYearId);
     if (selected) window.requestAnimationFrame(() => searchInputRef.current?.focus());
   };
 
   const loadCenter = async (intent: OperationalWorkspaceNavigationIntentV1) => {
-    if (!selectedAcademicYearId) return;
-    const sequence = ++detailSequence.current;
+    const academicYearId = selectedAcademicYearId;
+    if (!academicYearId) return;
+
+    const requestKey = JSON.stringify([academicYearId, intent.kind, intent.id]);
+    const ticket = detailGate.current.begin(requestKey);
+    if (!ticket) return;
+
     setActiveCenter(intent.kind);
+    setDetailIntent(intent);
     setDetail(null);
     setDetailState('loading');
 
@@ -398,7 +449,7 @@ export function OperationalWorkspacePage() {
         request = {
           contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
           operation: 'student',
-          academicYearId: selectedAcademicYearId,
+          academicYearId,
           id: intent.id,
         };
         break;
@@ -406,7 +457,7 @@ export function OperationalWorkspacePage() {
         request = {
           contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
           operation: 'class-group',
-          academicYearId: selectedAcademicYearId,
+          academicYearId,
           id: intent.id,
         };
         break;
@@ -414,7 +465,7 @@ export function OperationalWorkspacePage() {
         request = {
           contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
           operation: 'teacher',
-          academicYearId: selectedAcademicYearId,
+          academicYearId,
           id: intent.id,
         };
         break;
@@ -422,68 +473,154 @@ export function OperationalWorkspacePage() {
         request = {
           contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
           operation: 'subject',
-          academicYearId: selectedAcademicYearId,
+          academicYearId,
           id: intent.id,
         };
         break;
     }
 
     try {
-      const response = await requestOperationalWorkspaceV1(request);
-      if (sequence !== detailSequence.current) return;
-      if (response.state === 'ready' && 'view' in response) {
+      const response = await requestOperationalWorkspaceV1(request, ticket.signal);
+      if (!ticket.isCurrent()) return;
+
+      if (
+        response.state === 'ready' &&
+        'context' in response &&
+        'view' in response &&
+        response.context.selectedAcademicYearId === academicYearId &&
+        response.view.kind === intent.kind &&
+        response.view.id === intent.id
+      ) {
         setDetail(response.view);
         setDetailState('ready');
-        window.requestAnimationFrame(() => detailHeadingRef.current?.focus());
+        window.requestAnimationFrame(() => {
+          if (ticket.isCurrent()) detailHeadingRef.current?.focus();
+        });
         return;
       }
+
+      if (
+        response.state === 'empty' &&
+        'context' in response &&
+        response.context.selectedAcademicYearId === academicYearId
+      ) {
+        setDetail(null);
+        setDetailState('empty');
+        return;
+      }
+
       setDetail(null);
-      setDetailState(response.state);
+      setDetailState(
+        response.state === 'not-authorized' || response.state === 'unavailable'
+          ? response.state
+          : 'unavailable',
+      );
     } catch {
-      if (sequence !== detailSequence.current) return;
+      if (!ticket.isCurrent()) return;
       setDetail(null);
       setDetailState('unavailable');
+    } finally {
+      ticket.complete();
     }
   };
 
+  const handleQueryChange = (value: string) => {
+    setQuery(value);
+    invalidateSearch();
+  };
+
   const runSearch = async (cursor: GlobalSearchCursorV1 | null = null) => {
-    if (!selectedAcademicYearId || !query.trim()) {
-      setSearchItems([]);
-      setNextCursor(null);
-      setSearchState('empty');
+    const academicYearId = selectedAcademicYearId;
+    const submittedQuery = query;
+    if (!academicYearId || !submittedQuery.trim()) {
+      invalidateSearch();
       return;
     }
-    const sequence = ++searchSequence.current;
+
+    const searchKey = JSON.stringify([academicYearId, submittedQuery]);
+    if (cursor === null && lastCompletedSearchKey.current === searchKey) return;
+
+    const requestKey = JSON.stringify([searchKey, cursor]);
+    const ticket = searchGate.current.begin(requestKey);
+    if (!ticket) return;
+
     const append = cursor !== null;
-    setSearchState('loading');
+    setSearchAttempted(true);
+    if (append) {
+      setIsLoadingMore(true);
+    } else {
+      setSearchItems([]);
+      setNextCursor(null);
+      setSearchState('loading');
+    }
+
     try {
-      const response = await requestOperationalWorkspaceV1({
-        contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
-        operation: 'search',
-        request: {
-          contractVersion: GLOBAL_SEARCH_CONTRACT_VERSION_V1,
-          academicYearId: selectedAcademicYearId,
-          query,
-          scope: { kinds: CENTER_KINDS },
-          page: { limit: 20, cursor },
-          order: GLOBAL_SEARCH_ORDER_V1,
+      const response = await requestOperationalWorkspaceV1(
+        {
+          contractVersion: OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
+          operation: 'search',
+          request: {
+            contractVersion: GLOBAL_SEARCH_CONTRACT_VERSION_V1,
+            academicYearId,
+            query: submittedQuery,
+            scope: { kinds: CENTER_KINDS },
+            page: { limit: 20, cursor },
+            order: GLOBAL_SEARCH_ORDER_V1,
+          },
         },
-      });
-      if (sequence !== searchSequence.current) return;
-      if (response.state === 'ready' && 'search' in response) {
+        ticket.signal,
+      );
+      if (!ticket.isCurrent()) return;
+
+      if (
+        response.state === 'ready' &&
+        'context' in response &&
+        'search' in response &&
+        response.context.selectedAcademicYearId === academicYearId &&
+        response.search.academicYearId === academicYearId
+      ) {
         setSearchItems((current) => (append ? [...current, ...response.search.items] : response.search.items));
         setNextCursor(response.search.nextCursor);
         setSearchState('ready');
+        lastCompletedSearchKey.current = searchKey;
+        if (append) {
+          window.requestAnimationFrame(() => {
+            if (ticket.isCurrent()) searchSummaryRef.current?.focus();
+          });
+        }
         return;
       }
+
+      if (
+        response.state === 'empty' &&
+        'context' in response &&
+        'search' in response &&
+        response.context.selectedAcademicYearId === academicYearId
+      ) {
+        setSearchItems([]);
+        setNextCursor(null);
+        setSearchState('empty');
+        lastCompletedSearchKey.current = searchKey;
+        return;
+      }
+
       setSearchItems([]);
       setNextCursor(null);
-      setSearchState(response.state);
+      setSearchState(
+        response.state === 'not-authorized' || response.state === 'unavailable'
+          ? response.state
+          : 'unavailable',
+      );
+      lastCompletedSearchKey.current = null;
     } catch {
-      if (sequence !== searchSequence.current) return;
+      if (!ticket.isCurrent()) return;
       setSearchItems([]);
       setNextCursor(null);
       setSearchState('unavailable');
+      lastCompletedSearchKey.current = null;
+    } finally {
+      if (ticket.isCurrent()) setIsLoadingMore(false);
+      ticket.complete();
     }
   };
 
@@ -492,16 +629,27 @@ export function OperationalWorkspacePage() {
     void loadCenter(intent);
   };
 
+  const chooseCenterKind = (kind: CenterKind) => {
+    detailGate.current.invalidate();
+    setActiveCenter(kind);
+    setDetail(null);
+    setDetailIntent(null);
+    setDetailState('empty');
+  };
+
+  const workspaceBusy = workspaceState === 'loading';
+  const searchBusy = searchState === 'loading' || isLoadingMore;
+
   return (
     <Surface
       variant="default"
-      className="mt-6 rounded-[2rem] border border-border/70 p-5 shadow-sm sm:p-7"
-      aria-busy={workspaceState === 'loading'}
+      className="mt-6 rounded-[2rem] border border-border/70 p-4 shadow-sm sm:p-7"
+      aria-busy={workspaceBusy}
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:flex-wrap">
         <div className="max-w-2xl">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-            <Building2 className="size-4" />
+            <Building2 className="size-4" aria-hidden="true" />
             Centrais acadêmicas
           </div>
           <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
@@ -513,14 +661,14 @@ export function OperationalWorkspacePage() {
         </div>
         {!activated && (
           <Button variant="primary" onPress={() => void loadBootstrap()}>
-            <BookOpenText className="size-4" />
+            <BookOpenText className="size-4" aria-hidden="true" />
             Abrir Centrais
           </Button>
         )}
       </div>
 
       {activated && workspaceState === 'loading' && (
-        <div className="mt-6 flex items-center gap-3 text-sm text-muted" role="status">
+        <div className="mt-6 flex items-center gap-3 text-sm text-muted" role="status" aria-live="polite">
           <Spinner size="sm" color="accent" />
           Carregando contexto acadêmico…
         </div>
@@ -530,8 +678,15 @@ export function OperationalWorkspacePage() {
         (workspaceState === 'empty' ||
           workspaceState === 'unavailable' ||
           workspaceState === 'not-authorized') && (
-          <div className="mt-6">
+          <div className="mt-6 grid gap-3">
             <StateAlert state={workspaceState} />
+            {workspaceState === 'unavailable' && (
+              <div>
+                <Button size="sm" variant="outline" onPress={() => void loadBootstrap()}>
+                  Tentar abrir novamente
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -559,6 +714,7 @@ export function OperationalWorkspacePage() {
               </div>
 
               <form
+                className="min-w-0"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void runSearch();
@@ -568,14 +724,9 @@ export function OperationalWorkspacePage() {
                   name="academic-operational-search"
                   fullWidth
                   value={query}
-                  onChange={setQuery}
-                  onClear={() => {
-                    setQuery('');
-                    setSearchItems([]);
-                    setNextCursor(null);
-                    setSearchState('empty');
-                  }}
-                  isDisabled={!selectedAcademicYearId || searchState === 'loading'}
+                  onChange={handleQueryChange}
+                  onClear={() => handleQueryChange('')}
+                  isDisabled={!selectedAcademicYearId}
                 >
                   <Label>Pesquisar nas Centrais</Label>
                   <SearchField.Group>
@@ -593,9 +744,9 @@ export function OperationalWorkspacePage() {
                       type="submit"
                       variant="primary"
                       size="sm"
-                      isDisabled={!selectedAcademicYearId || !query.trim()}
+                      isDisabled={!selectedAcademicYearId || !query.trim() || searchBusy}
                     >
-                      <Search className="size-4" />
+                      <Search className="size-4" aria-hidden="true" />
                       Buscar
                     </Button>
                   </SearchField.Group>
@@ -604,7 +755,7 @@ export function OperationalWorkspacePage() {
             </div>
           </Surface>
 
-          <nav aria-label="Centrais acadêmicas" className="flex flex-wrap gap-2">
+          <div role="group" aria-label="Escolher tipo de Central" className="flex flex-wrap gap-2">
             {CENTER_KINDS.map((kind) => {
               const Icon = centerIcon(kind);
               return (
@@ -612,48 +763,68 @@ export function OperationalWorkspacePage() {
                   key={kind}
                   size="sm"
                   variant={activeCenter === kind ? 'primary' : 'secondary'}
-                  aria-current={activeCenter === kind ? 'page' : undefined}
-                  onPress={() => {
-                    setActiveCenter(kind);
-                    setDetail(null);
-                    setDetailState('empty');
-                  }}
+                  aria-pressed={activeCenter === kind}
+                  onPress={() => chooseCenterKind(kind)}
                 >
-                  <Icon className="size-4" />
+                  <Icon className="size-4" aria-hidden="true" />
                   {CENTER_LABELS[kind]}
                 </Button>
               );
             })}
-          </nav>
+          </div>
 
-          <div aria-live="polite">
+          <div aria-live="polite" aria-atomic="false" aria-busy={searchBusy}>
             {searchState === 'loading' && (
               <div className="flex items-center gap-2 text-sm text-muted" role="status">
                 <Spinner size="sm" color="accent" />
                 Pesquisando…
               </div>
             )}
-            {searchState === 'empty' && query.trim() && selectedAcademicYearId && (
+            {searchState === 'empty' && searchAttempted && query.trim() && selectedAcademicYearId && (
               <p className="text-sm text-muted">Nenhum resultado encontrado para esta pesquisa.</p>
             )}
             {searchState === 'not-authorized' && <StateAlert state="not-authorized" />}
-            {searchState === 'unavailable' && <StateAlert state="unavailable" />}
+            {searchState === 'unavailable' && (
+              <div className="grid gap-3">
+                <StateAlert state="unavailable" />
+                <div>
+                  <Button size="sm" variant="outline" onPress={() => void runSearch()}>
+                    Tentar pesquisar novamente
+                  </Button>
+                </div>
+              </div>
+            )}
             {searchItems.length > 0 && (
               <Surface variant="secondary" className="rounded-2xl p-2">
+                <div className="flex flex-col gap-2 px-2 pb-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p
+                    ref={searchSummaryRef}
+                    tabIndex={-1}
+                    className="text-xs text-muted outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                  >
+                    {loadedResultsLabel(searchItems.length)}
+                  </p>
+                  {isLoadingMore && (
+                    <span className="flex items-center gap-2 text-xs text-muted" role="status">
+                      <Spinner size="sm" color="accent" />
+                      Carregando mais resultados…
+                    </span>
+                  )}
+                </div>
                 <ul aria-label="Resultados da pesquisa acadêmica" className="grid gap-1">
                   {searchItems.map((result) => {
                     const Icon = centerIcon(result.kind);
                     return (
-                      <li key={`${result.kind}:${result.id}`}>
+                      <li key={`${result.kind}:${result.id}`} className="min-w-0">
                         <Button
                           variant="ghost"
                           fullWidth
-                          className="h-auto justify-start px-3 py-2 text-left"
+                          className="h-auto min-w-0 justify-start gap-2 px-3 py-2 text-left"
                           onPress={() => chooseResult(result)}
                         >
-                          <Icon className="size-4 shrink-0 text-muted" />
+                          <Icon className="size-4 shrink-0 text-muted" aria-hidden="true" />
                           <span className="min-w-0 flex-1 truncate">{resultLabel(result)}</span>
-                          <Chip size="sm" variant="soft">
+                          <Chip size="sm" variant="soft" className="shrink-0">
                             {CENTER_LABELS[result.kind]}
                           </Chip>
                         </Button>
@@ -663,7 +834,12 @@ export function OperationalWorkspacePage() {
                 </ul>
                 {nextCursor && (
                   <div className="flex justify-center p-2">
-                    <Button size="sm" variant="outline" onPress={() => void runSearch(nextCursor)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      isDisabled={isLoadingMore}
+                      onPress={() => void runSearch(nextCursor)}
+                    >
                       Carregar mais resultados
                     </Button>
                   </div>
@@ -672,9 +848,13 @@ export function OperationalWorkspacePage() {
             )}
           </div>
 
-          <section aria-label={`Central do ${CENTER_LABELS[activeCenter]}`} aria-live="polite">
+          <section
+            aria-label={`Central do ${CENTER_LABELS[activeCenter]}`}
+            aria-live="polite"
+            aria-busy={detailState === 'loading'}
+          >
             {!selectedAcademicYearId && (
-              <Surface variant="secondary" className="rounded-2xl p-6 text-center">
+              <Surface variant="secondary" className="rounded-2xl p-5 text-center sm:p-6">
                 <p className="font-medium">Selecione um ano acadêmico</p>
                 <p className="mt-1 text-sm text-muted">
                   O sistema não escolhe o ano automaticamente.
@@ -688,15 +868,28 @@ export function OperationalWorkspacePage() {
               </div>
             )}
             {selectedAcademicYearId && detailState === 'empty' && (
-              <Surface variant="secondary" className="rounded-2xl p-6 text-center">
+              <Surface variant="secondary" className="rounded-2xl p-5 text-center sm:p-6">
                 <p className="font-medium">Central do {CENTER_LABELS[activeCenter]}</p>
                 <p className="mt-1 text-sm text-muted">
-                  Use a pesquisa acima para escolher uma identidade neste ano.
+                  {detailIntent
+                    ? 'Nenhuma informação está disponível para esta identidade neste ano.'
+                    : 'Use a pesquisa acima para escolher uma identidade neste ano.'}
                 </p>
               </Surface>
             )}
             {detailState === 'not-authorized' && <StateAlert state="not-authorized" />}
-            {detailState === 'unavailable' && <StateAlert state="unavailable" />}
+            {detailState === 'unavailable' && (
+              <div className="grid gap-3">
+                <StateAlert state="unavailable" />
+                {detailIntent && (
+                  <div>
+                    <Button size="sm" variant="outline" onPress={() => void loadCenter(detailIntent)}>
+                      Tentar carregar esta Central novamente
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
             {detailState === 'ready' && detail && (
               <CenterView view={detail} onNavigate={(intent) => void loadCenter(intent)} headingRef={detailHeadingRef} />
             )}
