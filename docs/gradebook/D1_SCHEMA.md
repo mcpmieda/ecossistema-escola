@@ -2,7 +2,7 @@
 
 ## Estado e limite
 
-**Estado:** base integrada por #227/PR #233, catálogo/leitura local por #235/PR #241 e contrato transacional da associação por #243/PR #249.
+**Estado:** base integrada por #227/PR #233, catálogo/leitura local por #235/PR #241, contrato transacional da associação por #243/PR #249 e escrita/promoção local por #245/PR #258.
 
 Este documento descreve o schema relacional local compatível com Cloudflare D1. Nenhum banco, binding, secret, recurso remoto ou migration de produção foi criado ou executado.
 
@@ -177,7 +177,7 @@ Somente dados sintéticos são usados.
 
 ## Escrita e promoção transacional local — #245
 
-A #245 implementa localmente:
+A #245/PR #258 implementou localmente:
 
 - `appendSourceFileVersion`;
 - `AcademicRecordRepositoryV1.appendVersion`;
@@ -201,4 +201,4 @@ Ainda permanecem fora do escopo:
 - runner operacional, rollout, backup e recuperação;
 - métricas de Saúde e limites.
 
-A #245 não autoriza provisionamento. Binding/preview e backend autorizado serão issues posteriores e separadas.
+A #245 não autorizou provisionamento. A #261 tratará runtime/binding somente local ou preview, runner idempotente e backend autorizado; banco, binding e migrations de produção continuam dependentes de autorização explícita própria.

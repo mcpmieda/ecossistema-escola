@@ -119,7 +119,7 @@ Funções TypeScript puras e determinísticas para:
 - recuperação paralela;
 - resultado trimestral;
 - recuperação final;
-- resultado anual e elegibilidade, na #255.
+- resultado anual e elegibilidade V1.
 
 Não acessa React, HeroUI, DOM, banco, rede ou relógio global.
 
@@ -141,11 +141,13 @@ Migrations locais 0001–0003, 21 tabelas, FKs por ano, índices, ponteiros de v
 
 ### Adaptador D1
 
-A leitura local está implementada. A #245 implementará escrita/transação local para fonte, registro e associação. O adaptador pode conhecer D1/SQL, mas não exporta esses tipos ao domínio.
+Leitura e escrita locais estão implementadas. A promoção física aplica fonte, registro e associação na mesma transação com compare-and-set, savepoints e rollback integral. O adaptador pode conhecer D1/SQL, mas não exporta esses tipos ao domínio.
+
+A #261 conectará somente runtime local/preview, runner das migrations 0001–0003 e backend autorizado. Banco/binding/migration de produção continuam proibidos sem autorização explícita própria.
 
 ### Reconciliação e Auditoria
 
-Compara fonte, versões persistidas e motor. Erro crítico não pode ser mascarado por sucesso geral. A #254 restaura explicitamente cenários herdados de isolamento antes do fechamento da F4.
+Compara fonte, versões persistidas e motor. Erro crítico não pode ser mascarado por sucesso geral. A #254 restaurou os cenários herdados de isolamento; a #263 acrescentará a equivalência anual explicável sem mudar `imported-source`.
 
 ### Read models
 
@@ -175,9 +177,11 @@ recuperação paralela
 resultado trimestral + percentual
   ↓
 recuperação final + total pós-REC
+  ↓
+resultado anual + elegibilidade básica
 ```
 
-A #255 acrescentará resultado anual, contagem de componentes não aprovados, elegibilidade básica e precedência somente de decisão formal explícita. A decisão humana do Conselho não será automatizada.
+O resultado anual V1 acrescenta contagem de componentes não aprovados, elegibilidade básica e precedência somente de decisão formal explícita. A decisão humana do Conselho não é automatizada.
 
 ## Estado da persistência
 
@@ -186,18 +190,18 @@ concluído:
   portas independentes
   migrations 0001–0003
   leitura D1 local
+  escrita D1 local
   planejamento idempotente
   executor transacional abstrato
   contrato explícito da associação
+  promoção física local com rollback integral
 
 agora:
-  #245 escrita/transação D1 local
+  #261 runtime D1 local/preview + runner autorizado
+  #262 contexto acadêmico global/perfil 2026
 
 posteriormente:
-  binding/preview
-  runner de migrations
-  backend autorizado
-  contexto anual/perfil 2026
+  autorização explícita de recurso remoto/produção
   ligação à interface
 ```
 
@@ -228,7 +232,8 @@ src/
     │   ├── parallel-recovery/
     │   ├── term-result/
     │   ├── final-recovery/
-    │   └── annual-result/
+    │   ├── annual-result/
+    │   └── annual-equivalence/
     └── ports/persistence/
 
 shared/gradebook-contracts/
@@ -261,7 +266,7 @@ tests/gradebook/
 
 Uma issue declara caminhos exclusivos. A integração da sétima onda identificou um PR que reunia #242 e #244. O conteúdo foi separado nos PRs #252 e #253 antes do merge, preservando rastreabilidade.
 
-A integração também registrou a #254 para restaurar regressões de isolamento removidas durante a evolução da #243. Dívida de teste identificada não é escondida nem confundida com falha funcional comprovada.
+A integração registrou a #254 para restaurar regressões de isolamento removidas durante a evolução da #243. A cobertura foi restaurada sem defeito funcional; dívida de teste identificada não foi escondida nem confundida com falha comprovada.
 
 ## Publicação
 

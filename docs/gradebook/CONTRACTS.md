@@ -14,8 +14,10 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Schema D1:** migrations locais 0001–0003 integradas; nenhum recurso remoto criado.
 - **Leitura D1 local:** implementada pela #235/PR #241.
 - **Planejamento/executor de reimportação:** implementados, incluindo associação explícita pela #243.
-- **Escrita/transação D1 local:** pronta para implementação em #245.
-- **Resultado anual/elegibilidade:** pronto para implementação em #255.
+- **Escrita/transação D1 local:** implementada por #245/PR #258, sem recurso remoto.
+- **Regressões de isolamento:** restauradas por #254/PR #259 contra a porta oficial de associação.
+- **Resultado anual/elegibilidade:** implementado por #255/PR #260.
+- **Runtime D1, contexto 2026 e equivalência anual:** prontos para #261, #262 e #263.
 - **Read models:** propostos; serão detalhados nas issues consumidoras.
 
 ## Estados de maturidade
@@ -194,7 +196,17 @@ Preserva gravidade, categoria, alvo, origem, ação recomendada e histórico de 
 
 ### Resultado anual
 
-A #255 produzirá o resultado anual nativo, a contagem 0/1/2/3+ de componentes não aprovados e a precedência de decisão formal explícita. O Conselho não será automatizado.
+`resolveNativeAnnualOutcome`, integrado por #255/PR #260, produz resultados por componente, cobertura e contagens anuais:
+
+- total original `>= 60`: `approved-direct`;
+- original `< 60` e pós-REC `>= 60`: `approved-after-recovery`;
+- pós-REC `< 60`: componente não aprovado;
+- 0 componentes não aprovados: aprovação direta ou pós-REC;
+- 1 ou 2: `eligible-for-council`;
+- 3 ou mais: `not-eligible-for-council`;
+- cobertura incompleta: `insufficient-data`, sem reprovação inventada.
+
+Decisão `pending` não altera o cálculo. Decisão `recorded` preserva cálculo e decisão separadamente e usa somente o `resultingState` explícito como estado efetivo. O Conselho não é automatizado.
 
 ## Portas de persistência — congelado-v1
 
@@ -251,7 +263,7 @@ O schema possui 21 tabelas, FKs por ano, histórico append-only, índices e aus�
 
 O adaptador de leitura local implementa manifesto por hash/ID, registro atual e associações atuais por fonte lógica. Não descobre vínculos por nome de arquivo nem por varredura de JSON.
 
-A #245 implementará escrita e transação físicas locais. Binding, banco remoto, runner de migrations e endpoints permanecem fora desse escopo.
+A #245/PR #258 implementou escrita e transação físicas locais para fonte, registro e associação, com compare-and-set, savepoint por append e rollback integral. Binding, banco remoto, runner de migrations e backend autorizado continuam inexistentes; a #261 tratará apenas runtime local/preview e autorização explícita, sem produção silenciosa.
 
 ## Planejamento e execução da reimportação
 
@@ -279,7 +291,7 @@ O plano discrimina estimativas de:
 
 Itens iguais, ausentes, bloqueados ou em revisão não são escritos automaticamente. Conflito/falha exige rollback integral.
 
-A #254 restaurará explicitamente regressões herdadas de isolamento de arquivos e falhas de leitura antes do fechamento da F4.
+A #254/PR #259 restaurou explicitamente regressões herdadas de isolamento de arquivos, falhas de leitura, determinismo e promoção parcial, discriminando versões de fonte, registro e associação. Nenhum defeito funcional foi revelado.
 
 ## Read models
 

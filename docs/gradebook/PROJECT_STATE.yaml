@@ -11,9 +11,9 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 246
-  current_integrator_issue: 256
-  current_wave: 8
+  previous_integrator_issue: 256
+  current_integrator_issue: 264
+  current_wave: 9
   integrator_required: true
   recommended_parallel_agents: 3
   central_state_editor: integrator-only
@@ -23,8 +23,8 @@ coordination:
   coordination_bootstrap_commit: ec6c712e287e97269375c6f5c4790c1529ea4309
 
 runtime:
-  last_verified_runtime_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
-  last_verified_deploy_run: 33456232765
+  last_verified_runtime_commit: ee0518c98682665c4ee8f32a639abbd893872f40
+  last_verified_deploy_run: 33491736646
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
@@ -48,20 +48,24 @@ runtime:
     - native-parallel-recovery-v1
     - native-term-outcome-v1
     - native-final-recovery-v1
+    - native-annual-outcome-v1
     - provider-independent-persistence-ports-v1
     - logical-source-record-association-contract-v1
     - d1-schema-local-migrations-0001-0003
     - d1-logical-source-record-catalog-v1
     - d1-local-read-adapter-v1
+    - d1-local-write-adapter-v1
+    - d1-local-batch-promotion-transaction-v1
     - idempotent-reimport-change-planner-v1
     - transactional-change-plan-executor-v1
+    - reconciliation-isolation-regressions-restored-v1
     - client-side-sha256-source-manifests
     - visible-file-provenance-and-isolated-diagnostics
   current_limitations:
     - academic-data-is-not-persisted
-    - d1-database-bindings-and-write-adapter-not-yet-implemented
-    - annual-result-and-council-eligibility-not-yet-implemented
-    - inherited-reconciliation-isolation-regressions-await-explicit-restoration
+    - d1-database-bindings-and-authorized-runtime-not-yet-implemented
+    - academic-year-2026-global-context-not-yet-materialized
+    - source-versus-native-annual-equivalence-not-yet-implemented
     - controlled-real-corpus-validation-not-yet-recorded
     - complete-manifest-failure-smoke-not-yet-recorded
     - audit-workspace-not-yet-implemented
@@ -79,7 +83,7 @@ scope:
     domain_dependency: provider-independent-ports
     schema_status: local-v1-migrations-0001-0003-integrated
     read_adapter_status: local-v1-integrated
-    write_adapter_status: ready-for-implementation
+    write_adapter_status: local-v1-integrated
     production_provisioning: not-yet-authorized-or-created
   excluded_for_now:
     - smecel
@@ -142,8 +146,10 @@ contracts:
     pull_request: 253
     merge_commit: fa62bdd7583c255b58f3c60be0e0b794cb3a1293
   native_annual_outcome:
-    status: ready-for-implementation
+    status: implemented-v1
     issue: 255
+    pull_request: 260
+    merge_commit: ee0518c98682665c4ee8f32a639abbd893872f40
   persistence_ports:
     status: frozen-v1-with-association-repository
     base_issue: 219
@@ -177,8 +183,11 @@ contracts:
     pull_request: 241
     merge_commit: b9bdeff27b40099e60fe25a492be7bda9231c4cd
   d1_write_adapter:
-    status: ready-for-implementation
+    status: implemented-local-v1
     issue: 245
+    pull_request: 258
+    merge_commit: d254e9421b85e8bac28e2c9c5e1a91838bd7865d
+    remote_resources_created: false
   idempotent_reimport_planner:
     status: implemented-v1-with-explicit-association-writes
     base_issue: 228
@@ -199,12 +208,10 @@ contracts:
 quality_followups:
   - issue: 254
     description: restore inherited mixed-batch-and-read-failure-isolation-regressions
-    status: ready
-    blocks:
-      - F4-final-validation
-    does_not_block:
-      - 245
-      - 255
+    status: completed
+    pull_request: 259
+    merge_commit: f18ccc780c8b7ab566da2717f137b7ad6989c76c
+    defect_found: false
 
 phases:
   F0:
@@ -230,15 +237,15 @@ phases:
     visible_result: none
   F3:
     name: native-engine
-    status: in-progress
-    completed_units: 6
+    status: core-v1-complete-equivalence-pending
+    completed_units: 7
     total_units: 7
     issue: 186
     visible_result: none
   F4:
     name: reconciliation-and-audit
-    status: in-progress
-    completed_units: 5
+    status: core-v1-complete-runtime-pending
+    completed_units: 6
     total_units: 6
     issue: 187
     visible_result: manifest-and-file-diagnostics-only
@@ -258,7 +265,7 @@ phases:
     visible_result: none
   F7:
     name: class-council
-    status: planned
+    status: planned-with-eligibility-foundation
     completed_units: 0
     total_units: 7
     issue: 190
@@ -374,20 +381,35 @@ completed_queue:
     task: native-final-recovery-v1
     pull_request: 253
     merge_commit: fa62bdd7583c255b58f3c60be0e0b794cb3a1293
-
-ready_queue:
   - issue: 245
     phase: F2-F4
     task: d1-local-write-and-transaction-adapter-v1
-    parallel_group: wave-8
+    pull_request: 258
+    merge_commit: d254e9421b85e8bac28e2c9c5e1a91838bd7865d
   - issue: 254
     phase: F4
     task: restore-reconciliation-isolation-regressions-v1
-    parallel_group: wave-8
+    pull_request: 259
+    merge_commit: f18ccc780c8b7ab566da2717f137b7ad6989c76c
   - issue: 255
     phase: F3-F7
     task: native-annual-outcome-eligibility-and-precedence-v1
-    parallel_group: wave-8
+    pull_request: 260
+    merge_commit: ee0518c98682665c4ee8f32a639abbd893872f40
+
+ready_queue:
+  - issue: 261
+    phase: F2-F4
+    task: d1-local-preview-runtime-migration-runner-and-authorized-backend-v1
+    parallel_group: wave-9
+  - issue: 262
+    phase: F2-F5
+    task: academic-year-and-evaluation-profile-2026-context-v1
+    parallel_group: wave-9
+  - issue: 263
+    phase: F3-F4
+    task: source-versus-native-annual-equivalence-v1
+    parallel_group: wave-9
 
 planned_queue:
   - issue: 220
@@ -396,15 +418,6 @@ planned_queue:
     blocked_by:
       - d1-bindings
       - authorized-metrics-backend
-  - task: d1-local-preview-binding-and-migration-runner
-    blocked_by:
-      - 245
-  - task: academic-year-and-evaluation-profile-2026-context
-    blocked_by:
-      - 245
-  - task: source-versus-native-equivalence
-    blocked_by:
-      - 255
 
 manual_gates:
   - gate: controlled-real-corpus-validation
@@ -430,49 +443,49 @@ manual_gates:
       - observe-transient-hash-stage
       - verify-isolated-failure-diagnostic
     does_not_block:
-      - 245
-      - 254
-      - 255
+      - 261
+      - 262
+      - 263
 
 integration:
   previous:
-    issue: 246
-    wave: 7
-    status: completed
-    merged_pull_requests:
-      - 252
-      - 249
-      - 253
-    merged_commits:
-      - b41054a5097f292add93550961fd93058caa04d6
-      - 40dd21c08336919206bafcb556d6764f5570e6f9
-      - fa62bdd7583c255b58f3c60be0e0b794cb3a1293
-    superseded_pull_request: 248
-    process_correction_issue: 250
-    verified_runtime_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
-    deploy_run: 33456232765
-  current:
     issue: 256
     wave: 8
+    status: completed
+    merged_pull_requests:
+      - 258
+      - 259
+      - 260
+    merged_commits:
+      - d254e9421b85e8bac28e2c9c5e1a91838bd7865d
+      - f18ccc780c8b7ab566da2717f137b7ad6989c76c
+      - ee0518c98682665c4ee8f32a639abbd893872f40
+    verified_runtime_commit: ee0518c98682665c4ee8f32a639abbd893872f40
+    deploy_run: 33491736646
+    combined_test_files: 40
+    combined_tests: 417
+    importer_regression_test_files: 8
+    importer_regression_tests: 75
+  current:
+    issue: 264
+    wave: 9
     status: waiting-for-pull-requests
     watches:
-      - 245
-      - 254
-      - 255
+      - 261
+      - 262
+      - 263
     responsibilities:
-      - d1-local-write-and-transaction-review
-      - inherited-reconciliation-regression-review
-      - native-annual-outcome-and-eligibility-review
+      - d1-runtime-migration-runner-and-authorization-review
+      - academic-year-context-and-profile-review
+      - source-native-annual-equivalence-review
       - merge-and-production-verification
       - state-and-issue-map-update
       - next-wave-definition-and-unlock
 
 next_integrator_actions:
-  - wait-for-issues-245-254-and-255
-  - verify-d1-physical-local-transaction-and-rollback
-  - verify-restored-mixed-batch-and-read-failure-regressions
-  - verify-annual-result-and-council-eligibility-without-human-decision-automation
-  - create-d1-preview-binding-and-authorized-backend-issue-after-245
-  - create-academic-year-context-and-profile-issue-after-245
-  - create-source-versus-native-equivalence-issue-after-255
-  - create-wave-9-integration-issue
+  - wait-for-issues-261-262-and-263
+  - verify-d1-runtime-authorization-and-migration-idempotency
+  - verify-academic-year-context-profile-coherence-and-local-versioning
+  - verify-source-native-equivalence-with-imported-source-authority
+  - confirm-no-remote-d1-resource-or-secret-created-silently
+  - create-wave-10-integration-issue-and-release-next-safe-units
