@@ -123,36 +123,6 @@ function cellDetailRef(assignmentId: TeachingAssignmentId, ordinal: number): Per
 }
 
 function cellForLens(
-  lens: 'result',
-  assignmentId: TeachingAssignmentId,
-  ordinal: number,
-  cellCoverage?: ResultCoverageV1,
-): Extract<PerformanceCellV1, { lens: 'result' }>;
-function cellForLens(
-  lens: 'quantitative',
-  assignmentId: TeachingAssignmentId,
-  ordinal: number,
-  cellCoverage?: ResultCoverageV1,
-): Extract<PerformanceCellV1, { lens: 'quantitative' }>;
-function cellForLens(
-  lens: 'qualitative',
-  assignmentId: TeachingAssignmentId,
-  ordinal: number,
-  cellCoverage?: ResultCoverageV1,
-): Extract<PerformanceCellV1, { lens: 'qualitative' }>;
-function cellForLens(
-  lens: 'assessments',
-  assignmentId: TeachingAssignmentId,
-  ordinal: number,
-  cellCoverage?: ResultCoverageV1,
-): Extract<PerformanceCellV1, { lens: 'assessments' }>;
-function cellForLens(
-  lens: PerformanceLensV1,
-  assignmentId: TeachingAssignmentId,
-  ordinal: number,
-  cellCoverage?: ResultCoverageV1,
-): PerformanceCellV1;
-function cellForLens(
   lens: PerformanceLensV1,
   assignmentId: TeachingAssignmentId,
   ordinal: number,
@@ -488,19 +458,14 @@ describe('class performance read model contract v1', () => {
   });
 
   it('preserves imported and native values under imported-source authority without raw evidence', () => {
-    const cell = {
-      ...cellForLens('result', assignmentA, 1),
-      projection: {
-        source: 'term-result',
-        officialGrade: compared(18, 19),
-        percentage: compared(60, 63.3333333333),
-      },
-    } as const satisfies PerformanceCellV1;
+    const cell = cellForLens('result', assignmentA, 1);
 
     expect(cell.authorityMode).toBe('imported-source');
-    if (cell.projection.source !== 'term-result') throw new Error('unexpected synthetic projection');
-    expect(cell.projection.officialGrade.imported).toEqual(numeric(18));
-    expect(cell.projection.officialGrade.calculated).toEqual(numeric(19));
+    if (cell.lens !== 'result' || cell.projection.source !== 'term-result') {
+      throw new Error('unexpected synthetic projection');
+    }
+    expect(cell.projection.officialGrade.imported).toEqual(numeric(21));
+    expect(cell.projection.officialGrade.calculated).toEqual(numeric(21.5));
     expect(cell.projection.officialGrade.imported).not.toEqual(
       cell.projection.officialGrade.calculated,
     );
