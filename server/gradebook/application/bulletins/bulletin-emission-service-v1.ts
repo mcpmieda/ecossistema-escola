@@ -179,6 +179,14 @@ export function createBulletinEmissionServiceV1(
     context: BulletinServerEmissionContextV1,
   ): Promise<BulletinEmissionResultV1> {
     const materialization = await materializer.materialize(request);
+    return emitStudentMaterialization(request, materialization, context);
+  }
+
+  async function emitStudentMaterialization(
+    request: BulletinStudentEmissionRequestV1,
+    materialization: BulletinModelMaterializationResultV1,
+    context: BulletinServerEmissionContextV1,
+  ): Promise<BulletinEmissionResultV1> {
     if (materialization.status !== 'ready') {
       return emissionFromMaterializationFailure(materialization);
     }
@@ -322,73 +330,31 @@ export function createBulletinEmissionServiceV1(
         return { contractVersion: BULLETIN_CONTRACT_VERSION_V1, ready, blocked: blockedItems };
       }
 
-      async function collect(item: BulletinEmissionRequestV1, requestIndex: number): Promise<void> {
-        const emission = await emitStudent(item as BulletinStudentEmissionRequestV1, context);
+      async function collect(
+        item: BulletinStudentEmissionRequestV1 | null,
+        materialization: BulletinModelMaterializationResultV1,
+        requestIndex: number,
+      ): Promise<void> {
+        let emission: BulletinEmissionResultV1;
+        try {
+          if (item === null) {
+            emission =
+              materialization.status === 'ready'
+                ? blocked(BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData)
+                : emissionFromMaterializationFailure(materialization);
+          } else {
+            emission = await emitStudentMaterialization(item, materialization, context);
+          }
+        } catch {
+          emission = blocked(BULLETIN_EMISSION_REASONS_V1.snapshotRejected);
+        }
         if (emission.status === 'ready') ready.push({ requestIndex, emission });
         else blockedItems.push({ requestIndex, emission });
       }
 
-      for (let requestIndex = 0; requestIndex < request.items.length; requestIndex += 1) {
-        const item = request.items[requestIndex];
-        if (item === undefined) continue;
-        if (item.target.kind === 'student') {
-          await collect(item, requestIndex);
-          continue;
-        }
-
-        try {
-          const classGroup = await dependencies.classGroups.get(
-            { academicYearId: item.academicYearId },
-            item.target.classGroupId,
-          );
-          if (classGroup === null || classGroup.students.length === 0) {
-            blockedItems.push({
-              requestIndex,
-              emission: blocked(BULLETIN_MATERIALIZATION_REASONS_V1.studentTargetNotFound),
-            });
-            continue;
-          }
-          if (
-            classGroup.academicYearId !== item.academicYearId ||
-            classGroup.classGroup.value.id !== item.target.classGroupId ||
-            classGroup.classGroup.value.academicYearId !== item.academicYearId
-          ) {
-            blockedItems.push({
-              requestIndex,
-              emission: blocked(BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData),
-            });
-            continue;
-          }
-          for (const { enrollment } of classGroup.students) {
-            if (
-              enrollment.value.academicYearId !== item.academicYearId ||
-              enrollment.value.classGroupId !== item.target.classGroupId
-            ) {
-              blockedItems.push({
-                requestIndex,
-                emission: blocked(BULLETIN_MATERIALIZATION_REASONS_V1.incompatibleOfficialData),
-              });
-              continue;
-            }
-            await collect(
-              {
-                ...item,
-                target: {
-                  kind: 'student',
-                  classGroupId: enrollment.value.classGroupId,
-                  studentId: enrollment.value.studentId,
-                  enrollmentId: enrollment.value.id,
-                },
-              },
-              requestIndex,
-            );
-          }
-        } catch {
-          blockedItems.push({
-            requestIndex,
-            emission: blocked(BULLETIN_EMISSION_REASONS_V1.classGroupDataUnavailable),
-          });
-        }
+      const materializedItems = await materializer.materializeBatch(request.items);
+      for (const item of materializedItems) {
+        await collect(item.request, item.materialization, item.requestIndex);
       }
       return {
         contractVersion: BULLETIN_CONTRACT_VERSION_V1,
