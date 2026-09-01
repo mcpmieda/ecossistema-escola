@@ -17,7 +17,11 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Runtime D1 local/preview:** implementado por #261/PR #268, com produção fechada.
 - **Read models operacionais:** implementados e compostos pela #281.
 - **Pesquisa global acadêmica autorizada:** contrato congelado pela #286, read model implementado pela #287 e composto localmente pela #288; sem endpoint, UI ou ativação em produção.
-- **Próximos contratos:** #293 experiência operacional, #294 Auditoria/revisão, #295 Desempenho e #296 Boletins/emissão.
+- **Experiência operacional F5:** contrato V1 congelado pela #293/PR #298.
+- **Workspace de Auditoria/revisão F4:** contrato V1 congelado pela #294/PR #301.
+- **Desempenho F6:** contrato V1 congelado pela #295/PR #299.
+- **Boletins/emissão F8:** contrato V1 congelado pela #296/PR #300, com `imported-source` invariável também nas projeções internas.
+- **Próximas implementações:** #302 experiência operacional, #303 Auditoria, #304 Desempenho e #305 emissão de Boletins; integração #306.
 
 ## Estados de maturidade
 
@@ -347,16 +351,69 @@ O runtime local/preview retorna a pesquisa pela mesma `operationalReadModels()` 
 
 Este contrato não substitui nem duplica `PlatformSearchItem`, `normalizeSearch` ou `filterSearchItems`, usados pela pesquisa de navegação do Centro.
 
-## Contratos da décima terceira onda
+## Contratos da décima terceira onda — congelados-v1
 
-As issues seguintes alteram somente subdiretórios próprios e testes próprios; documentação central será atualizada pela integração #297:
+A #297 integrou os quatro contratos sem alteração de semântica:
 
-- #293 — `shared/gradebook-contracts/operational-workspace/**`;
-- #294 — `shared/gradebook-contracts/audit-workspace/**`;
-- #295 — `shared/gradebook-contracts/performance/**`;
-- #296 — `shared/gradebook-contracts/bulletins/**`.
+### Experiência operacional F5 — #293/PR #298
 
-Nenhuma implementação de UI, Auditoria, Desempenho ou Boletim pode misturar mudança nesses contratos.
+Implementação pública:
+`shared/gradebook-contracts/operational-workspace/operational-workspace-contract-v1.ts`.
+
+- ano selecionado explicitamente e sem fallback por relógio;
+- navegação por `kind` + ID opaco;
+- pesquisa é alias direto do `GlobalSearch...V1`, sem matching ou paginação paralelos;
+- estados `loading | ready | empty | unavailable | not-authorized`;
+- autorização no servidor e alegações do cliente proibidas;
+- rota, nota, resultado, evidência e `authorityMode` não são aceitos como payload operacional.
+
+### Workspace de Auditoria/revisão F4 — #294/PR #301
+
+Implementação pública:
+`shared/gradebook-contracts/audit-workspace/audit-workspace-contract-v1.ts`.
+
+- listas separadas de lotes, ocorrências e reconciliações, com ano explícito, cursor opaco e sem total;
+- filtros combinados por AND e detalhe explícito;
+- resolução reutiliza as transições existentes de `AuditOccurrenceV1`, com ator e instante fornecidos pelo servidor;
+- promoção é somente projeção do plano existente;
+- `planImportReconciliation` e `executeImportChangePlan` continuam sendo o planejador/executor exclusivos.
+
+### Desempenho F6 — #295/PR #299
+
+Implementação pública:
+`shared/gradebook-contracts/performance/class-performance-read-model-v1.ts`.
+
+- matriz e lentes `result | quantitative | qualitative | assessments`;
+- paginação independente de linhas/colunas por cursores opacos;
+- cobertura e comparabilidade explícitas;
+- lados importado/calculado preservados;
+- `PerformanceAuthorityModeV1` é restrito a `imported-source`;
+- cálculo, arredondamento, recuperação, classificação anual, tolerância e mutação por sinal são proibidos.
+
+### Boletins/emissão F8 — #296/PR #300
+
+Implementação pública:
+`shared/gradebook-contracts/bulletins/bulletin-contract-v1.ts`.
+
+- `BulletinModelV1` único para `synthetic | composition | detailed`;
+- snapshot versionado e imutável, reimpressão histórica e lote parcial explícitos;
+- prévia e PDF compartilham exatamente o mesmo snapshot canônico;
+- fórmula, peso, corte, regra acadêmica, autorização/ator do cliente e renderização ficam fora do contrato;
+- `BulletinAuthorityModeV1 = Extract<AuthorityModeV1, 'imported-source'>`;
+- `imported-source` é invariável no modelo principal, resultado trimestral, resultado anual, composição e avaliação; `isBulletinSnapshotCoherentV1` rejeita `native-engine` também internamente.
+
+### Compatibilidade conjunta
+
+O teste `tests/gradebook/contracts/integration/wave-13-contracts.integration.test.ts` importa os quatro contratos simultaneamente e fixa:
+
+- ano acadêmico explícito;
+- autorização efetiva no servidor;
+- ausência sem fabricação de valor;
+- paginação por cursor opaco e sem total inventado;
+- `authorityMode: imported-source` onde aplicável;
+- nenhuma regra acadêmica, cálculo ou promoção concorrente.
+
+As implementações seguintes são #302, #303, #304 e #305; nenhuma pode alterar esses contratos silenciosamente. A integração da onda de implementações será #306.
 
 ## Regras de evolução
 
