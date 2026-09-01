@@ -9,81 +9,83 @@ Não atribua como tarefa comum:
 - `#182` — painel geral do programa;
 - `#184` a `#192` — acompanhamento das fases;
 - `#220` — Saúde e limites, ainda planejada;
-- `#297` — integração da décima terceira onda, bloqueada pelas quatro frentes.
+- `#306` — integração da próxima onda, bloqueada pelas quatro frentes.
 
-As integrações `#203`, `#210`, `#214`, `#221`, `#229`, `#237`, `#246`, `#256`, `#264`, `#272`, `#281` e `#288` foram concluídas.
+As integrações `#203`, `#210`, `#214`, `#221`, `#229`, `#237`, `#246`, `#256`, `#264`, `#272`, `#281`, `#288` e `#297` pertencem às ondas já integradas quando este documento estiver na `main`.
 
-## Décima segunda onda — concluída e integrada
+## Décima terceira onda — contratos integrados
 
-|  Issue | Entrega                                                       | PR/merge           |
-| -----: | ------------------------------------------------------------- | ------------------ |
-| `#286` | Contrato V1 da pesquisa global acadêmica autorizada           | `#290` / `d9640db` |
-| `#287` | Read model local e provider-independent da pesquisa           | `#291` / `9e17abb` |
-| `#288` | Fachada única, runtime local/preview, integração e próxima onda | `#292`             |
+|  Issue | Entrega                                                | PR / merge       |
+| -----: | ------------------------------------------------------ | ---------------- |
+| `#293` | Contrato V1 da experiência operacional F5              | `#298` / `8452199` |
+| `#294` | Contrato V1 do workspace de Auditoria/revisão F4       | `#301` / `a78e410` |
+| `#295` | Contrato V1 do read model de Desempenho F6             | `#299` / `706426b` |
+| `#296` | `BulletinModelV1` e emissão versionada F8              | `#300` / `e7b9298` |
 
-A pesquisa acadêmica:
+A integração #297 verifica os quatro juntos. Invariantes comuns:
 
-- usa somente aluno, turma, professor e componente;
-- exige ano explícito;
-- retorna somente campos mínimos;
-- usa ordem determinística e cursor opaco;
-- não usa fuzzy matching ou heurística de identidade;
-- não retorna nota, resultado ou evidência de origem;
-- reutiliza `gradebook.persistence.admin` no servidor;
-- permanece sem endpoint, UI ou ativação em produção.
+- ano acadêmico explícito, sem fallback pelo relógio;
+- autorização efetiva e identidade de ator/emissor no servidor;
+- cursores opacos e ausência de totais quando o contrato assim define;
+- ausência, não aplicabilidade e insuficiência preservadas sem virar zero;
+- `authorityMode: imported-source`, inclusive nas projeções internas de Boletins;
+- nenhuma fórmula, regra acadêmica ou executor de promoção concorrente.
 
-## Décima terceira onda — quatro frentes paralelas
+Nenhum desses contratos, sozinho ou em conjunto, ativa UI, endpoint, persistência acadêmica ou recurso remoto em produção.
 
-Depois da #288 na `main`, estas quatro issues ficam prontas e podem começar em paralelo porque seus caminhos são disjuntos:
+## Próxima onda — quatro frentes grandes e paralelas
 
-| Frente |  Issue | Trabalho                                               | Agente | Caminho exclusivo                                      |
-| :----: | -----: | ------------------------------------------------------ | ------ | ------------------------------------------------------ |
-|   A    | `#293` | Contrato V1 da experiência operacional F5              | **Pro** | `shared/gradebook-contracts/operational-workspace/**` |
-|   B    | `#294` | Contrato V1 do workspace de Auditoria/revisão F4       | **Pro** | `shared/gradebook-contracts/audit-workspace/**`       |
-|   C    | `#295` | Contrato V1 do read model de Desempenho F6             | **Pro** | `shared/gradebook-contracts/performance/**`           |
-|   D    | `#296` | `BulletinModelV1` e emissão versionada F8              | **Pro** | `shared/gradebook-contracts/bulletins/**`             |
+As issues foram criadas pela #297. **O título atual da issue é a autoridade de execução:** enquanto estiver `[BLOQUEADA]`, não iniciar; depois que a #297 concluir CI, merge, deploy e smokes, o integrador muda as quatro para `[PRONTA]`.
 
-Testes também ficam em subdiretórios próprios sob `tests/gradebook/contracts/**`. Nenhuma dessas issues altera documentação canônica, UI, runtime ou outro contrato compartilhado.
+| Frente | Issue | Trabalho | Executor | Caminhos reservados principais |
+| :----: | ----: | -------- | -------- | ------------------------------ |
+| A | `#302` | Experiência operacional local/preview F5, Centrais, ano, pesquisa e HeroUI | **Extra Alto** | `src/features/gradebook/operational-workspace/**`, `server/gradebook/application/operational-workspace/**` |
+| B | `#303` | Workspace de Auditoria local/preview F4 | **Codex GPT-5.6 Sol, esforço max** | `server/gradebook/application/audit-workspace/**` |
+| C | `#304` | Read model provider-independent de Desempenho F6 | **Codex GPT-5.6 Sol, esforço max** | `server/gradebook/application/read-models/performance/**` |
+| D | `#305` | Emissão provider-independent de Boletins F8 | **Codex GPT-5.6 Sol, esforço max** | `server/gradebook/application/bulletins/**` |
 
-A integração `#297` permanece bloqueada por `#293`, `#294`, `#295` e `#296`.
+A integração seguinte é `#306`, bloqueada pelas quatro.
 
-## Por que as implementações ainda não começam
+As quatro frentes não editam contratos compartilhados silenciosamente e foram desenhadas para começar em paralelo depois da liberação da #297. Separar trabalho adicional somente quando surgir conflito real de caminho, contrato, persistência, renderização ou decisão arquitetural.
 
-### Frente A — F5
+### Frente A — #302
 
-- **Dependência ausente:** contrato compartilhado entre read models do servidor e experiência React;
-- **decisão necessária:** forma provider-independent dos estados e intenções de navegação, sem inventar rota acadêmica;
-- **caminho conflitante:** `src/platform/**` concentra shell, pesquisa e página atual;
-- **menor próxima tarefa segura:** executar #293 e congelar o contrato antes da UI HeroUI/local-preview.
+- consome o contrato #293 e a fachada/read models existentes;
+- implementa experiência das Centrais com seleção explícita de ano e pesquisa acadêmica;
+- usa HeroUI React v3 no shell existente;
+- não cria regra acadêmica no frontend;
+- não ativa endpoint/UI acadêmica em produção nesta onda.
 
-### Frente B — F4
+### Frente B — #303
 
-- **Dependência ausente:** contrato único de lista, detalhe, filtros, pendências e resolução versionada;
-- **decisão necessária:** superfície operacional sem criar transição, escrita ou promoção paralela;
-- **caminho conflitante:** executor, repositórios e futura UI não podem ser alterados na mesma issue de contrato;
-- **menor próxima tarefa segura:** executar #294, mantendo promoção exclusiva em `executeImportChangePlan`.
+- consome #294;
+- implementa listas, filtros, detalhe, pendências e resolução versionada;
+- reutiliza repositórios existentes;
+- promoção continua exclusivamente em `planImportReconciliation` + `executeImportChangePlan`;
+- ator, autorização e instante efetivos permanecem no servidor.
 
-### Frente C — F6
+### Frente C — #304
 
-- **Dependência ausente:** `ClassPerformanceReadModelV1` efetivamente congelado;
-- **decisão necessária:** matriz, quatro lentes, cobertura, comparabilidade, paginação e ausência explícita;
-- **caminho conflitante:** UI não pode definir semântica analítica nem cálculo;
-- **menor próxima tarefa segura:** executar #295 antes de qualquer implementação ou HeroUI.
+- consome #295;
+- implementa matriz, quatro lentes, paginação, cobertura, comparabilidade e detalhe sob demanda;
+- preserva lados importado/calculado e `authorityMode: imported-source`;
+- não cria fórmula, arredondamento, recuperação, classificação ou tolerância concorrente.
 
-### Frente D — F8
+### Frente D — #305
 
-- **Dependência ausente:** `BulletinModelV1` e emissão/snapshot versionados;
-- **decisão necessária:** modelo canônico comum a prévia e PDF, três apresentações e reimpressão;
-- **caminho conflitante:** templates não podem receber cálculo nem definir persistência histórica;
-- **menor próxima tarefa segura:** executar #296 antes de read model, PDF ou armazenamento de snapshots.
+- consome #296;
+- materializa `BulletinModelV1`, emissão/snapshot, reimpressão e lote;
+- `imported-source` é invariável no modelo e em todas as projeções internas;
+- reimpressão usa snapshot histórico e não recalcula silenciosamente;
+- PDF/renderização e persistência remota ficam fora se exigirem decisão ou caminho próprios.
 
 ## Sessão temporária #273
 
-A #273 não é orquestrador paralelo e não recebe a nova fila. Cada issue da décima terceira onda deve ser entregue diretamente ao agente indicado, com branch e PR próprios.
+A #273 não é orquestrador paralelo e não recebe a nova fila. Cada issue executável deve ser entregue diretamente ao agente indicado, com branch e PR próprios.
 
 ```text
 issue → branch curta → PR → npm run verify → handoff
-quatro contratos verdes → integração #297 → main → deploy → próxima onda
+quatro frentes verdes → integração #306 → main → deploy → próxima onda
 ```
 
 Não usar App Factory, Factory Runs, subagentes ou automação permanente.
@@ -98,17 +100,18 @@ Já existem:
 - runtime injetado permitido somente em local/preview;
 - runner canônico e idempotente das migrations;
 - capability administrativa no servidor e rotas `no-store`;
-- quatro read models operacionais e pesquisa acadêmica na mesma fachada autorizada.
+- quatro read models operacionais e pesquisa acadêmica na mesma fachada autorizada;
+- contratos V1 integrados para experiência operacional, Auditoria, Desempenho e Boletins.
 
-Ainda não existem:
+Ainda não existem em produção:
 
-- banco D1 remoto/persistente;
+- banco D1 acadêmico remoto/persistente;
 - binding remoto ou migration remota;
 - persistência ou consulta acadêmica ativa no site oficial;
-- experiência HeroUI das Centrais;
+- experiência HeroUI das Centrais consumindo os novos contratos;
 - workspace funcional de Auditoria/revisão;
-- matriz de Desempenho;
-- emissão de boletim/PDF ou snapshots.
+- matriz executável de Desempenho;
+- emissão executável de boletim/PDF ou persistência de snapshots.
 
 ## Gates manuais que não bloqueiam o trabalho local seguro
 

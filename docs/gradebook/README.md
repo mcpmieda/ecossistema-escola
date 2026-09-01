@@ -8,38 +8,41 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 - [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — acompanhamento humano.
 - [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, ondas e dependências.
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina.
-- [Issue #297](https://github.com/mcpmieda/ecossistema-escola/issues/297) — integração planejada da décima terceira onda.
+- [Issue #306](https://github.com/mcpmieda/ecossistema-escola/issues/306) — integração planejada da próxima onda de implementações.
 
 ## Estado atual
 
-Doze ondas foram integradas. A décima segunda entregou:
+Treze ondas de trabalho contratual/fundacional foram integradas. A décima terceira entregou quatro contratos amplos e independentes:
 
-- #286/PR #290 — contrato V1 da pesquisa global acadêmica autorizada;
-- #287/PR #291 — read model local e provider-independent da pesquisa;
-- #288/PR #292 — composição da pesquisa na fachada operacional única e no runtime local/preview.
+- #293/PR #298 — contrato V1 da experiência operacional F5;
+- #294/PR #301 — contrato V1 do workspace de Auditoria/revisão F4;
+- #295/PR #299 — contrato V1 do read model de Desempenho F6;
+- #296/PR #300 — `BulletinModelV1` e emissão versionada F8.
 
 Merges funcionais da onda:
 
 ```text
-#286  d9640dbc0e807af324116c549f825c3d13ecdf89
-#287  9e17abb4c2386cbfb03451c402a8c4282e9b4181
+#293  8452199541111d669a3ea84733c6c85678d6501b
+#294  a78e410d149bbbc03e5cc374d0c1913c8dcffcc3
+#295  706426be7a7aabe5682e301cfd9e38b2c4a7e857
+#296  e7b92987fe2781d55606783e432a69c02828970f
 ```
 
-A pesquisa acadêmica usa somente aluno, turma, professor e componente, com ano explícito, campos mínimos, ordem determinística e cursor opaco. Não usa fuzzy matching, heurística de identidade, nota, resultado ou evidência de origem. A autorização continua no servidor pela capability `gradebook.persistence.admin`.
+A #297 valida a coexistência desses contratos sem duplicar ano, autorização, paginação, ausência, regra acadêmica ou autoridade. `authorityMode` continua `imported-source`; em Boletins essa invariância também vale para todas as projeções internas e é verificada em runtime.
 
-A produção continua sem D1 acadêmico provisionado, binding remoto ou migration remota. Nenhuma UI, endpoint ou consulta acadêmica foi ativada no site oficial pela décima segunda onda.
+A produção continua sem D1 acadêmico provisionado, binding remoto ou migration remota. A décima terceira onda não ativa UI, endpoint, consulta ou persistência acadêmica nova no site oficial.
 
-## Décima terceira onda — contratos amplos
+## Próxima onda — implementações grandes e paralelas
 
-As quatro frentes podem executar em paralelo depois da integração da #288 porque usam caminhos disjuntos e não editam documentação central:
+Depois da integração #297, as quatro frentes abaixo ficam independentes e podem iniciar em paralelo porque possuem caminhos reservados disjuntos e consomem contratos já congelados:
 
-- [#293 — contrato da experiência operacional F5](https://github.com/mcpmieda/ecossistema-escola/issues/293) — **Pro**;
-- [#294 — contrato do workspace de Auditoria/revisão F4](https://github.com/mcpmieda/ecossistema-escola/issues/294) — **Pro**;
-- [#295 — contrato do read model de Desempenho F6](https://github.com/mcpmieda/ecossistema-escola/issues/295) — **Pro**;
-- [#296 — `BulletinModelV1` e emissão versionada F8](https://github.com/mcpmieda/ecossistema-escola/issues/296) — **Pro**;
-- [#297 — integração da onda](https://github.com/mcpmieda/ecossistema-escola/issues/297) — **Pro**, bloqueada pelas quatro anteriores.
+- [#302 — experiência operacional local/preview F5](https://github.com/mcpmieda/ecossistema-escola/issues/302) — **Extra Alto**;
+- [#303 — workspace de Auditoria local/preview F4](https://github.com/mcpmieda/ecossistema-escola/issues/303) — **Codex GPT-5.6 Sol, esforço max**;
+- [#304 — read model provider-independent de Desempenho F6](https://github.com/mcpmieda/ecossistema-escola/issues/304) — **Codex GPT-5.6 Sol, esforço max**;
+- [#305 — emissão provider-independent de Boletins F8](https://github.com/mcpmieda/ecossistema-escola/issues/305) — **Codex GPT-5.6 Sol, esforço max**;
+- [#306 — integração da onda](https://github.com/mcpmieda/ecossistema-escola/issues/306) — **Extra Alto**, bloqueada pelas quatro frentes.
 
-Cada frente congela uma capacidade coerente e verificável. Implementação HeroUI, endpoints, resolução persistida, matriz de Desempenho, prévia/PDF e snapshots pertencem a ondas posteriores, somente depois dos contratos correspondentes entrarem na `main`.
+As implementações não alteram contratos compartilhados silenciosamente. PDF/renderização e persistência remota de snapshots permanecem separados quando exigirem caminho, armazenamento ou decisão arquitetural próprios.
 
 ## Sessão temporária #273
 
@@ -68,7 +71,7 @@ Construir um Banco de Notas funcional, modular, auditável e acessível a usuár
 - manifesto, progresso e diagnóstico por arquivo;
 - processamento somente em memória, sem persistência acadêmica.
 
-A pesquisa acadêmica integrada nesta onda não é a pesquisa de navegação já visível e permanece indisponível em produção.
+A pesquisa acadêmica e os quatro contratos da décima terceira onda ainda não representam novos fluxos de produção.
 
 ## Núcleo integrado
 
