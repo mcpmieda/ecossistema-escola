@@ -16,8 +16,10 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Leitura/escrita/transação D1 local:** implementadas para contexto anual, fonte, registros e associações.
 - **Runtime D1 local/preview:** implementado por #261/PR #268, com produção fechada.
 - **Repositórios completos de entidades, lotes e Auditoria:** integrados pela décima onda #269–#272.
-- **Read models operacionais:** implementados localmente pela décima primeira onda, sem contrato
-  compartilhado novo; pesquisa global permanece proposta para a issue de contrato #286.
+- **Read models operacionais:** implementados localmente pela décima primeira onda; a fachada única
+  continua sem contrato compartilhado próprio.
+- **Pesquisa global acadêmica autorizada:** `congelado-v1` pela #286, sem endpoint, UI ou ativação em
+  produção.
 
 ## Estados de maturidade
 
@@ -317,8 +319,56 @@ quatro sobre `PersistenceUnitOfWorkV1.entities`; não existe segunda consulta ou
 
 Esses modelos preservam versão/instante das entidades, contexto anual explícito, paginação por cursor,
 ordenação determinística e ausência como `null` ou lista vazia. Não consultam notas/resultados, não
-alteram `confirmationOrigin` ou `authorityMode` e não inferem relações por nome. `GlobalSearchResultV1`
-continua somente proposto até a #286 congelar forma e autorização em contrato próprio.
+alteram `confirmationOrigin` ou `authorityMode` e não inferem relações por nome.
+
+## Pesquisa global acadêmica autorizada — congelado-v1
+
+Implementação pública:
+`shared/gradebook-contracts/search/global-search-contract-v1.ts`.
+
+`GlobalSearchRequestV1` exige explicitamente:
+
+- `contractVersion: 1`;
+- `academicYearId` opaco, sem escolha pelo relógio;
+- `query` original, usada pelo contrato somente para distinguir vazio de não vazio;
+- `scope.kinds` não vazio e sem duplicatas, limitado a `student`, `class-group`, `teacher` e
+  `subject`;
+- `page.limit` inteiro entre 1 e 100 e `page.cursor` opaco ou `null`;
+- ordem fixa `kind-presentation-id-ascending-code-unit`.
+
+A autorização continua pertencendo ao servidor. O contrato reutiliza a capability pública existente
+`gradebook.persistence.admin`, atualmente concedida apenas a `ADMINISTRADOR`, e exige contexto opaco
+emitido/verificado pelo servidor antes de qualquer consulta acadêmica. O pedido não transporta papel,
+lista de capabilities, booleano `authorized`, token ou outra alegação do navegador. O mapeamento de
+papéis permanece na plataforma; nenhum papel, capability ou autorização concorrente é criado.
+
+`GlobalSearchResultV1` é uma união discriminada com estes campos exatos de apresentação:
+
+- aluno: `kind`, `id`, `displayName`;
+- turma: `kind`, `id`, `code`;
+- professor: `kind`, `id`, `displayName`;
+- componente/disciplina: `kind`, `id`, `displayName`.
+
+O resultado não contém nota, resultado, matrícula, atribuição docente, status, evidência ou alias de
+origem, marca de identidade, `confirmationOrigin`, `authorityMode`, total, rota, URL, `href`,
+`searchText` ou payload acadêmico. O ano aparece apenas no envelope de uma página autorizada com
+resultados; cada item não o repete.
+
+Páginas com resultados são não vazias, respeitam o limite, usam cursor opaco e não informam total. A
+ordem é determinística: primeiro a sequência `student → class-group → teacher → subject`, depois o
+campo mínimo de apresentação bruto e, em empate, o ID opaco, sempre por unidade de código e sem
+locale. O contrato não normaliza a consulta, não implementa matching, fuzzy matching, heurística de
+identidade ou regra acadêmica.
+
+Consulta vazia, ausência de resultados, dado insuficiente, escopo insuficiente, pedido inválido e não
+autorização usam a mesma forma sem dados: `contractVersion`, `outcome`, `items: []` e
+`nextCursor: null`. Essa forma não devolve ano, consulta, contagem, total, entidade parcial ou pista de
+continuação.
+
+Este contrato não substitui nem duplica `PlatformSearchItem`, `normalizeSearch` ou
+`filterSearchItems`, usados pela pesquisa de navegação do Centro. Ele não conhece React, D1, rota,
+URL ou comportamento visual; a composição com a pesquisa global da plataforma pertence a tarefa
+posterior autorizada.
 
 ## Regras de evolução
 
