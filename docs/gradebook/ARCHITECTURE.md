@@ -13,17 +13,19 @@ Leitura local + SHA-256 + manifesto
           ↓
 Reconhecimento e evidência de origem
           ↓
+Contexto acadêmico 2026 explícito
+          ↓
 Planejamento idempotente
           ↓
 Revisão humana dos pendentes
           ↓
 Executor transacional
           ↓
-Adaptador D1 autorizado
+Runtime D1 autorizado por ambiente
           ↓
 Modelo acadêmico versionado
           ↓
-Motor nativo versionado
+Motor nativo + equivalência fonte × motor
           ↓
 Resultados + Auditoria
           ↓
@@ -32,11 +34,23 @@ Read models
 Centrais / Desempenho / Conselho / Boletins
 ```
 
-Planejamento, revisão e execução são etapas distintas. O planejador não grava; o executor não resolve ambiguidades; o adaptador não cria regras acadêmicas.
+Planejamento, revisão e execução são etapas distintas. O planejador não grava; o executor não resolve ambiguidades; o adaptador não cria regras acadêmicas; a equivalência não muda a autoridade.
 
 ## Separação de autoridade
 
 O valor importado e o calculado pelo motor permanecem separados. `authorityMode` seleciona a autoridade vigente sem apagar o outro lado. A autoridade continua `imported-source` até aceite explícito.
+
+## Contexto acadêmico único
+
+A #262 integrou o contexto oficial de 2026:
+
+- ano letivo e perfil são dependências explícitas;
+- nenhum módulo escolhe “ano atual” pelo relógio;
+- os perfis nativos existentes são referenciados, não copiados;
+- contexto ausente, duplicado, inativo ou incompatível falha;
+- ano/configuração são versionados localmente com histórico append-only e CAS.
+
+O `academic-year` possui uma implementação oficial. Repositórios posteriores devem compô-la, não recriá-la.
 
 ## Armazenamento
 
@@ -47,14 +61,30 @@ Domínio/aplicação
        ↓
 Portas V1
        ↓
-Adaptador D1
+Composição de repositórios D1
+       ↓
+Runtime injetado
        ↓
 Migrations/schema
        ↓
-D1
+D1 do ambiente autorizado
 ```
 
-O domínio não importa `D1Database`, SQL, Wrangler ou bindings. Banco, bindings, migrations remotas e endpoints exigem issues próprias.
+O domínio não importa `D1Database`, SQL, Wrangler ou bindings. Banco, bindings, migrations remotas e endpoints operacionais exigem issues próprias.
+
+## Ambientes do runtime
+
+A #261 integrou separação explícita:
+
+```text
+local   → binding injetado e permitido
+a preview → binding injetado e permitido
+production → bloqueada antes de inspecionar o binding
+```
+
+O runtime valida o shape do binding, compõe leitura/escrita/transação e utiliza o runner canônico das migrations 0001–0003. As rotas administrativas exigem sessão e `gradebook.persistence.admin`, usam same-origin/método correto e `Cache-Control: no-store`.
+
+Nenhum binding remoto ou banco foi criado. A presença do código não ativa persistência no site oficial.
 
 ## Identidade da fonte
 
@@ -76,8 +106,6 @@ Consequências:
 
 ## Associação fonte lógica ↔ stream
 
-A migration 0003 materializa a relação entre fonte lógica e stream acadêmico. A #243 tornou sua escrita explícita também nas portas, no plano, na estimativa e no executor.
-
 ```text
 arquivo/fonte confirmada
         +
@@ -86,11 +114,9 @@ registro acadêmico promovível
 associação versionada e ativa
 ```
 
-Regras arquiteturais:
-
-- a associação não é inferida por nome do arquivo;
-- a associação não é descoberta por varredura de JSON;
-- ela possui expectativa otimista própria;
+- não é inferida por nome do arquivo;
+- não é descoberta por varredura de JSON;
+- possui expectativa otimista própria;
 - versão de fonte, registro e associação pertencem à mesma unidade de trabalho;
 - conflito em qualquer etapa reverte a promoção inteira;
 - ausência em uma nova planilha não gera desativação automática.
@@ -103,7 +129,7 @@ Shell, autenticação Entra, capabilities, navegação, pesquisa global, Saúde 
 
 ### Importação
 
-Arquivos, leitura binária, hash, manifesto, mapeamento, classificação de células e diagnósticos. O arquivo permanece local na etapa atual e o importador não grava diretamente no D1.
+Arquivos, leitura binária, hash, manifesto, mapeamento, classificação de células e diagnósticos. O arquivo permanece local e o importador não grava diretamente no D1.
 
 ### Contratos
 
@@ -111,43 +137,43 @@ Vocabulário compartilhado. Mudança incompatível exige issue de contrato, vers
 
 ### Domínio e motor
 
-Funções TypeScript puras e determinísticas para:
-
-- semântica de célula;
-- arredondamento;
-- composição trimestral;
-- recuperação paralela;
-- resultado trimestral;
-- recuperação final;
-- resultado anual e elegibilidade V1.
-
-Não acessa React, HeroUI, DOM, banco, rede ou relógio global.
+Funções TypeScript puras e determinísticas para semântica, arredondamento, trimestre, paralela, REC final, resultado anual e equivalência. Não acessa React, HeroUI, DOM, banco, rede ou relógio global.
 
 ### Aplicação
 
-Orquestra planejamento, revisão e execução contra portas. Não executa SQL e não importa UI.
-
-`planImportReconciliation` produz itens iguais, novos, alterados, ausentes ou bloqueados, mais versões planejadas de fonte, registro e associação.
-
-`executeImportChangePlan` valida o plano e executa os appends aprovados na mesma unidade de trabalho.
+Orquestra contexto, planejamento, revisão e execução contra portas. Não executa SQL e não importa UI.
 
 ### Persistência
 
-Responsável por paginação, versionamento, compare-and-set, histórico e atomicidade. As portas públicas abrangem entidades, importações, registros acadêmicos, Auditoria e associações de fonte.
+Responsável por paginação, versionamento, compare-and-set, histórico e atomicidade. As portas públicas abrangem entidades, importações, registros acadêmicos, Auditoria e associações.
 
 ### Schema D1
 
 Migrations locais 0001–0003, 21 tabelas, FKs por ano, índices, ponteiros de versão atual e histórico append-only. Não há cascades destrutivos.
 
-### Adaptador D1
+### Adaptadores D1
 
-Leitura e escrita locais estão implementadas. A promoção física aplica fonte, registro e associação na mesma transação com compare-and-set, savepoints e rollback integral. O adaptador pode conhecer D1/SQL, mas não exporta esses tipos ao domínio.
+Já implementados:
 
-A #261 conectará somente runtime local/preview, runner das migrations 0001–0003 e backend autorizado. Banco/binding/migration de produção continuam proibidos sem autorização explícita própria.
+- leitura/escrita do contexto anual;
+- leitura/escrita de manifestos/fontes;
+- leitura/escrita de registros acadêmicos;
+- leitura/escrita de associações;
+- promoção física local com CAS, savepoints e rollback;
+- runtime local/preview e runner de migrations.
+
+Décima onda:
+
+- #269 completa as demais entidades;
+- #270 completa lotes e listagem de versões por fonte lógica;
+- #271 completa Auditoria/reconciliação;
+- #272 compõe tudo em uma única `PersistenceUnitOfWorkV1`.
+
+Nenhum módulo deve reimplementar uma operação já integrada. A composição central escolhe exatamente um fornecedor por operação da porta.
 
 ### Reconciliação e Auditoria
 
-Compara fonte, versões persistidas e motor. Erro crítico não pode ser mascarado por sucesso geral. A #254 restaurou os cenários herdados de isolamento; a #263 acrescentará a equivalência anual explicável sem mudar `imported-source`.
+Compara fonte, versões persistidas e motor. A equivalência anual da #263 produz `match`, `expected-difference`, `mismatch` ou `not-comparable` sem tolerância concorrente e sem mudar `imported-source`.
 
 ### Read models
 
@@ -163,8 +189,6 @@ Apresenta fluxo, comandos e resultados. Não calcula nota, recuperação, elegib
 
 ## Estado do motor
 
-Implementado:
-
 ```text
 célula
   ↓
@@ -179,9 +203,11 @@ resultado trimestral + percentual
 recuperação final + total pós-REC
   ↓
 resultado anual + elegibilidade básica
+  ↓
+equivalência fonte × motor
 ```
 
-O resultado anual V1 acrescenta contagem de componentes não aprovados, elegibilidade básica e precedência somente de decisão formal explícita. A decisão humana do Conselho não é automatizada.
+O Conselho permanece humano. A equivalência preserva os dois lados e somente classifica a comparação.
 
 ## Estado da persistência
 
@@ -189,23 +215,27 @@ O resultado anual V1 acrescenta contagem de componentes não aprovados, elegibil
 concluído:
   portas independentes
   migrations 0001–0003
-  leitura D1 local
-  escrita D1 local
+  contexto acadêmico 2026
+  leitura/escrita local de ano, fonte, registros e associações
   planejamento idempotente
-  executor transacional abstrato
-  contrato explícito da associação
-  promoção física local com rollback integral
+  executor transacional
+  runtime local/preview
+  runner idempotente
+  capability e rotas administrativas protegidas
 
 agora:
-  #261 runtime D1 local/preview + runner autorizado
-  #262 contexto acadêmico global/perfil 2026
+  repositório local de entidades
+  repositório local de importações
+  repositório local de Auditoria
+  composição integral da unidade de trabalho
 
-posteriormente:
-  autorização explícita de recurso remoto/produção
+posteriormente, somente com autorização explícita:
+  recurso D1 remoto/preview
+  binding remoto
+  migrations em ambiente
   ligação à interface
+  produção
 ```
-
-Não existe ainda banco D1 persistente ou de produção.
 
 ## Estrutura-alvo
 
@@ -225,25 +255,23 @@ src/
 │   ├── reports/
 │   └── settings/
 └── gradebook-domain/
-    ├── source/
-    ├── rules/
+    ├── context/
     ├── calculations/
-    │   ├── term/
-    │   ├── parallel-recovery/
-    │   ├── term-result/
-    │   ├── final-recovery/
-    │   ├── annual-result/
-    │   └── annual-equivalence/
     └── ports/persistence/
 
 shared/gradebook-contracts/
 server/gradebook/
-├── application/import/
+├── application/
 ├── persistence/d1/
 │   ├── schema/
 │   ├── read/
 │   ├── write/
-│   └── transaction/
+│   ├── transaction/
+│   ├── runtime/
+│   ├── entities/
+│   ├── imports/
+│   ├── audit/
+│   └── composition/
 ├── queries/
 └── http/
 
@@ -260,13 +288,19 @@ tests/gradebook/
 - adaptador D1 não altera o significado dos contratos;
 - toda escrita necessária à integridade aparece no plano e na unidade de trabalho;
 - Desempenho, Conselho e Boletins não mantêm motores próprios;
-- Microsoft Graph/SharePoint não é acessado diretamente pelo navegador para dados acadêmicos.
+- Microsoft Graph/SharePoint não é acessado diretamente pelo navegador para dados acadêmicos;
+- produção permanece fail-closed até issue e autorização específicas.
 
-## Paralelismo e correção de processo
+## Sessão temporária de execução
 
-Uma issue declara caminhos exclusivos. A integração da sétima onda identificou um PR que reunia #242 e #244. O conteúdo foi separado nos PRs #252 e #253 antes do merge, preservando rastreabilidade.
+A #273 permite uma única sessão do Codex 5.6 High executar issues oficiais em série. Ela não cria automação permanente e não altera o processo:
 
-A integração registrou a #254 para restaurar regressões de isolamento removidas durante a evolução da #243. A cobertura foi restaurada sem defeito funcional; dívida de teste identificada não foi escondida nem confundida com falha comprovada.
+```text
+uma issue → uma branch → um PR → verify → handoff
+onda → integração → main → deploy → próxima onda
+```
+
+Hard stops impedem recursos remotos, dados reais, mudança de autoridade, migrations destrutivas e decisões humanas não documentadas. O fluxo comum retorna imediatamente quando o responsável usar `ENCERRAR MODO AUTÔNOMO`.
 
 ## Publicação
 

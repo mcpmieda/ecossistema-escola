@@ -11,20 +11,30 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 256
-  current_integrator_issue: 264
-  current_wave: 9
+  previous_integrator_issue: 264
+  current_integrator_issue: 272
+  current_wave: 10
   integrator_required: true
   recommended_parallel_agents: 3
   central_state_editor: integrator-only
   branch_model: short-lived-per-issue
   merge_target: main
   publication: automatic-after-main
-  coordination_bootstrap_commit: ec6c712e287e97269375c6f5c4790c1529ea4309
+  temporary_serial_session:
+    issue: 273
+    status: active
+    agent: codex-5.6-high
+    mode: serial-direct-execution
+    changes_roadmap: false
+    initial_queue:
+      - 269
+      - 270
+      - 271
+      - 272
 
 runtime:
-  last_verified_runtime_commit: ee0518c98682665c4ee8f32a639abbd893872f40
-  last_verified_deploy_run: 33491736646
+  last_verified_runtime_commit: 44bde4d683221551e7a0ac3d9904db3c03dbc50e
+  last_verified_deploy_run: 33500153831
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
@@ -49,6 +59,8 @@ runtime:
     - native-term-outcome-v1
     - native-final-recovery-v1
     - native-annual-outcome-v1
+    - source-native-annual-equivalence-v1
+    - academic-context-2026-v1
     - provider-independent-persistence-ports-v1
     - logical-source-record-association-contract-v1
     - d1-schema-local-migrations-0001-0003
@@ -56,16 +68,22 @@ runtime:
     - d1-local-read-adapter-v1
     - d1-local-write-adapter-v1
     - d1-local-batch-promotion-transaction-v1
+    - d1-local-preview-runtime-v1
+    - d1-canonical-migration-runner-v1
+    - gradebook-persistence-admin-capability
+    - protected-d1-admin-status-and-migration-routes
     - idempotent-reimport-change-planner-v1
     - transactional-change-plan-executor-v1
     - reconciliation-isolation-regressions-restored-v1
     - client-side-sha256-source-manifests
     - visible-file-provenance-and-isolated-diagnostics
   current_limitations:
-    - academic-data-is-not-persisted
-    - d1-database-bindings-and-authorized-runtime-not-yet-implemented
-    - academic-year-2026-global-context-not-yet-materialized
-    - source-versus-native-annual-equivalence-not-yet-implemented
+    - academic-data-is-not-persisted-in-production
+    - no-remote-d1-database-or-binding
+    - no-remote-migration-applied
+    - d1-entity-repository-incomplete
+    - d1-import-batch-repository-incomplete
+    - d1-audit-repository-incomplete
     - controlled-real-corpus-validation-not-yet-recorded
     - complete-manifest-failure-smoke-not-yet-recorded
     - audit-workspace-not-yet-implemented
@@ -82,9 +100,10 @@ scope:
     access: authorized-backend-only
     domain_dependency: provider-independent-ports
     schema_status: local-v1-migrations-0001-0003-integrated
-    read_adapter_status: local-v1-integrated
-    write_adapter_status: local-v1-integrated
-    production_provisioning: not-yet-authorized-or-created
+    runtime_status: local-preview-v1-integrated-production-disabled
+    read_adapter_status: partial-local-v1
+    write_adapter_status: partial-local-v1
+    production_provisioning: not-authorized-or-created
   excluded_for_now:
     - smecel
     - additional-cadastral-sources
@@ -97,121 +116,99 @@ contracts:
     schema_issue: 193
     validation_issue: 198
     runtime_manifest_issue: 199
-    runtime_manifest_pull_request: 225
-    runtime_manifest_merge_commit: bc82b351026c44f2bddeb91920f61362a163f379
     manual_gate: controlled-real-corpus-validation
   academic_entities:
     status: frozen-v1
     issue: 194
-    pull_request: 208
-    merge_commit: 466717b57f738db520d1dff7089dee4e7a8eda19
+    full_d1_repository_issue: 269
   academic_results:
     status: frozen-v1
     issue: 196
-    pull_request: 212
-    merge_commit: 6b8eb4c059b51efd4fd74508ac439b1047b1e9a4
   import_reconciliation_audit:
     status: frozen-v1
     issue: 197
-    pull_request: 216
-    merge_commit: 0f1ba62988f5dbdfb47a68ff9fa512c0ac69a66f
+    import_repository_completion_issue: 270
+    audit_repository_completion_issue: 271
   native_cell_semantics:
     status: implemented-v1
     issue: 201
-    pull_request: 217
-    merge_commit: 9476f84af7f99733c32f4a2503a50a4ef3c15c3f
   native_rounding:
     status: implemented-v1
     issue: 218
-    pull_request: 224
-    merge_commit: dc54adcc5c72d2be2c652b88668b5678d25610ef
   native_term_composition:
     status: implemented-v1
     issue: 226
-    pull_request: 231
-    merge_commit: 5780f88643783ab71be0e2a07a70cc1573f0efd5
   native_parallel_recovery:
     status: implemented-v1
     issue: 234
-    pull_request: 240
-    merge_commit: 810880c9686394e39786e12ad958457102bbeedf
   native_term_outcome:
     status: implemented-v1
     issue: 242
-    pull_request: 252
-    merge_commit: b41054a5097f292add93550961fd93058caa04d6
   native_final_recovery:
     status: implemented-v1
     issue: 244
-    pull_request: 253
-    merge_commit: fa62bdd7583c255b58f3c60be0e0b794cb3a1293
   native_annual_outcome:
     status: implemented-v1
     issue: 255
-    pull_request: 260
-    merge_commit: ee0518c98682665c4ee8f32a639abbd893872f40
+  native_annual_equivalence:
+    status: implemented-v1
+    issue: 263
+    pull_request: 266
+    merge_commit: 94535a97666057c886035ff4edddb651e95b4c9c
+    authority: imported-source
+  academic_context_2026:
+    status: implemented-local-v1
+    issue: 262
+    pull_request: 267
+    merge_commit: 4584af4e1d20615d3af20bce1f22c4bb24cf1818
+    clock_fallback: forbidden
+    profile_duplication: forbidden
   persistence_ports:
     status: frozen-v1-with-association-repository
     base_issue: 219
     extension_issue: 243
-    base_pull_request: 223
-    extension_pull_request: 249
-    base_merge_commit: 65af08fbbd4ded85375a13a90c4cb0151844ae1e
-    extension_merge_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
   logical_source_record_association:
     status: frozen-and-executable-v1
     issue: 243
-    pull_request: 249
-    merge_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
   d1_schema:
     status: implemented-local-v1
     base_issue: 227
     catalog_issue: 235
-    base_pull_request: 233
-    catalog_pull_request: 241
-    base_merge_commit: 781a2a25640366f1807de7d98cf0157f5c3cfea1
-    catalog_merge_commit: b9bdeff27b40099e60fe25a492be7bda9231c4cd
     table_count: 21
     migrations:
       - 0001_gradebook_context_entities_imports_v1.sql
       - 0002_gradebook_records_audit_v1.sql
       - 0003_logical_source_record_catalog_v1.sql
     production_applied: false
-  d1_read_adapter:
-    status: implemented-local-v1
-    issue: 235
-    pull_request: 241
-    merge_commit: b9bdeff27b40099e60fe25a492be7bda9231c4cd
-  d1_write_adapter:
-    status: implemented-local-v1
-    issue: 245
-    pull_request: 258
-    merge_commit: d254e9421b85e8bac28e2c9c5e1a91838bd7865d
+  d1_runtime:
+    status: implemented-local-preview-v1
+    issue: 261
+    pull_request: 268
+    merge_commit: 44bde4d683221551e7a0ac3d9904db3c03dbc50e
+    allowed_environments:
+      - local
+      - preview
+    production_enabled: false
+    capability: gradebook.persistence.admin
+    capability_role:
+      - ADMINISTRADOR
     remote_resources_created: false
+  d1_read_write_coverage:
+    academic_year: implemented-local-v1
+    source_files: implemented-local-v1
+    academic_records: implemented-local-v1
+    logical_source_record_associations: implemented-local-v1
+    academic_entities_except_year: pending-issue-269
+    import_batches_and-logical-source-history: pending-issue-270
+    audit_and-reconciliation: pending-issue-271
   idempotent_reimport_planner:
     status: implemented-v1-with-explicit-association-writes
     base_issue: 228
     extension_issue: 243
-    base_pull_request: 232
-    extension_pull_request: 249
-    base_merge_commit: 9b4e4fa5474b45b40784c89035a546132643319b
-    extension_merge_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
   transactional_change_plan_executor:
     status: implemented-v1-with-explicit-association-writes
     base_issue: 236
     extension_issue: 243
-    base_pull_request: 239
-    extension_pull_request: 249
-    base_merge_commit: e8be42bd65b0a59d837ee6ca8283d9564967a6db
-    extension_merge_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
-
-quality_followups:
-  - issue: 254
-    description: restore inherited mixed-batch-and-read-failure-isolation-regressions
-    status: completed
-    pull_request: 259
-    merge_commit: f18ccc780c8b7ab566da2717f137b7ad6989c76c
-    defect_found: false
 
 phases:
   F0:
@@ -230,29 +227,29 @@ phases:
     visible_result: sha256-manifest-and-file-provenance-in-production
   F2:
     name: normalized-domain-and-persistence-boundaries
-    status: in-progress
+    status: local-runtime-and-context-integrated-repositories-completing
     completed_units: 5
     total_units: 6
     issue: 185
     visible_result: none
   F3:
     name: native-engine
-    status: core-v1-complete-equivalence-pending
+    status: core-and-equivalence-v1-complete
     completed_units: 7
     total_units: 7
     issue: 186
     visible_result: none
   F4:
     name: reconciliation-and-audit
-    status: core-v1-complete-runtime-pending
+    status: core-and-runtime-v1-complete-repository-completing
     completed_units: 6
     total_units: 6
     issue: 187
     visible_result: manifest-and-file-diagnostics-only
   F5:
     name: operational-entity-centers-and-context
-    status: planned
-    completed_units: 0
+    status: context-integrated-centers-planned
+    completed_units: 1
     total_units: 7
     issue: 188
     visible_result: none
@@ -396,27 +393,48 @@ completed_queue:
     task: native-annual-outcome-eligibility-and-precedence-v1
     pull_request: 260
     merge_commit: ee0518c98682665c4ee8f32a639abbd893872f40
-
-ready_queue:
-  - issue: 261
-    phase: F2-F4
-    task: d1-local-preview-runtime-migration-runner-and-authorized-backend-v1
-    parallel_group: wave-9
-  - issue: 262
-    phase: F2-F5
-    task: academic-year-and-evaluation-profile-2026-context-v1
-    parallel_group: wave-9
   - issue: 263
     phase: F3-F4
     task: source-versus-native-annual-equivalence-v1
-    parallel_group: wave-9
+    pull_request: 266
+    merge_commit: 94535a97666057c886035ff4edddb651e95b4c9c
+  - issue: 262
+    phase: F2-F5
+    task: academic-year-and-evaluation-profile-2026-context-v1
+    pull_request: 267
+    merge_commit: 4584af4e1d20615d3af20bce1f22c4bb24cf1818
+  - issue: 261
+    phase: F2-F4
+    task: d1-local-preview-runtime-migration-runner-and-authorized-backend-v1
+    pull_request: 268
+    merge_commit: 44bde4d683221551e7a0ac3d9904db3c03dbc50e
+
+ready_queue:
+  - issue: 269
+    phase: F2-F5
+    task: complete-d1-local-academic-entity-repository-v1
+    recommended_agent: codex
+    serial_order: 1
+    integration_issue: 272
+  - issue: 270
+    phase: F1-F4
+    task: complete-d1-local-import-repository-v1
+    recommended_agent: codex
+    serial_order: 2
+    integration_issue: 272
+  - issue: 271
+    phase: F4
+    task: complete-d1-local-audit-and-reconciliation-repository-v1
+    recommended_agent: codex
+    serial_order: 3
+    integration_issue: 272
 
 planned_queue:
   - issue: 220
     area: admin-center
     task: global-health-and-limits
     blocked_by:
-      - d1-bindings
+      - remote-d1-binding
       - authorized-metrics-backend
 
 manual_gates:
@@ -430,11 +448,6 @@ manual_gates:
     phase: F1
     status: approved-by-operator-evidence
     evidence_date: 2026-08-31
-    observed:
-      - two-xlsb-files-recognized
-      - abbreviated-sha256-visible
-      - manifest-origin-size-parser-and-read-time-visible
-      - academic-class-term-and-recovery-reading-preserved
   - gate: production-manifest-ui-complete-smoke
     phase: F1
     status: pending
@@ -443,49 +456,45 @@ manual_gates:
       - observe-transient-hash-stage
       - verify-isolated-failure-diagnostic
     does_not_block:
-      - 261
-      - 262
-      - 263
+      - 269
+      - 270
+      - 271
 
 integration:
   previous:
-    issue: 256
-    wave: 8
-    status: completed
-    merged_pull_requests:
-      - 258
-      - 259
-      - 260
-    merged_commits:
-      - d254e9421b85e8bac28e2c9c5e1a91838bd7865d
-      - f18ccc780c8b7ab566da2717f137b7ad6989c76c
-      - ee0518c98682665c4ee8f32a639abbd893872f40
-    verified_runtime_commit: ee0518c98682665c4ee8f32a639abbd893872f40
-    deploy_run: 33491736646
-    combined_test_files: 40
-    combined_tests: 417
-    importer_regression_test_files: 8
-    importer_regression_tests: 75
-  current:
     issue: 264
     wave: 9
+    status: completed
+    merged_pull_requests:
+      - 266
+      - 267
+      - 268
+    merged_commits:
+      - 94535a97666057c886035ff4edddb651e95b4c9c
+      - 4584af4e1d20615d3af20bce1f22c4bb24cf1818
+      - 44bde4d683221551e7a0ac3d9904db3c03dbc50e
+    verified_runtime_commit: 44bde4d683221551e7a0ac3d9904db3c03dbc50e
+    deploy_run: 33500153831
+  current:
+    issue: 272
+    wave: 10
     status: waiting-for-pull-requests
     watches:
-      - 261
-      - 262
-      - 263
+      - 269
+      - 270
+      - 271
     responsibilities:
-      - d1-runtime-migration-runner-and-authorization-review
-      - academic-year-context-and-profile-review
-      - source-native-annual-equivalence-review
-      - merge-and-production-verification
+      - repository-diff-and-contract-review
+      - complete-persistence-unit-of-work-composition
+      - combined-verification
+      - merge-and-production-smoke
       - state-and-issue-map-update
       - next-wave-definition-and-unlock
 
 next_integrator_actions:
-  - wait-for-issues-261-262-and-263
-  - verify-d1-runtime-authorization-and-migration-idempotency
-  - verify-academic-year-context-profile-coherence-and-local-versioning
-  - verify-source-native-equivalence-with-imported-source-authority
-  - confirm-no-remote-d1-resource-or-secret-created-silently
-  - create-wave-10-integration-issue-and-release-next-safe-units
+  - wait-for-issues-269-270-and-271
+  - verify-no-duplicate-operation-implementation
+  - compose-one-complete-persistence-unit-of-work
+  - preserve-local-preview-only-runtime-and-production-fail-closed
+  - confirm-no-remote-resource-or-secret
+  - create-wave-11-and-update-session-273

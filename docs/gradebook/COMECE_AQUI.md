@@ -4,76 +4,81 @@
 
 **Agente de implementação só começa em issue marcada `[PRONTA]`.**
 
-Não atribua a agente comum:
+Não atribua como tarefa comum:
 
 - `#182` — painel geral do programa;
 - `#184` a `#192` — acompanhamento das fases;
 - `#220` — Saúde e limites, ainda planejada;
-- `#264` — integração da nona onda.
+- `#272` — integração da décima onda.
 
-As integrações `#203`, `#210`, `#214`, `#221`, `#229`, `#237`, `#246` e `#256` já foram concluídas.
+As integrações `#203`, `#210`, `#214`, `#221`, `#229`, `#237`, `#246`, `#256` e `#264` foram concluídas.
 
-## Onda 8 — concluída e integrada
+## Nona onda — concluída e integrada
 
 | Issue | Entrega | PR/merge |
 |---:|---|---|
-| `#245` | Escrita e promoção transacional D1 local | `#258` / `d254e94` |
-| `#254` | Regressões de isolamento restauradas | `#259` / `f18ccc7` |
-| `#255` | Resultado anual e elegibilidade básica | `#260` / `ee0518c` |
+| `#261` | Runtime D1 local/preview, runner e backend autorizado | `#268` / `44bde4d` |
+| `#262` | Contexto acadêmico único de 2026 | `#267` / `4584af4` |
+| `#263` | Equivalência anual fonte × motor | `#266` / `94535a9` |
 
-As três entregas respeitaram caminhos exclusivos. A #245 foi integrada antecipadamente e revalidada no fechamento da onda; #254 e #255 foram revisadas nos SHAs finais antes dos merges pequenos.
+A produção continua sem banco, binding ou migration D1 remota. A autoridade permanece `imported-source`.
 
-Código funcional vigente da onda: `ee0518c98682665c4ee8f32a639abbd893872f40`. Deploy: `33491736646`.
+## Décima onda — executar agora
 
-## Onda 9 — executar agora, simultaneamente
+| Ordem da sessão serial | Issue | Trabalho | Agente recomendado |
+|---:|---:|---|---|
+| 1 | `#269` | Repositório D1 local de entidades acadêmicas | **Codex** |
+| 2 | `#270` | Repositório D1 local de importações | **Codex** |
+| 3 | `#271` | Repositório D1 local de Auditoria e reconciliação | **Codex** |
+| 4 | `#272` | Integração, composição e liberação da próxima onda | **Pro**; Codex 5.6 High autorizado somente pela sessão `#273` |
 
-| Agente | Issue | Trabalho |
-|---|---:|---|
-| 1 | `#261` | Runtime D1 local/preview, runner e backend autorizado |
-| 2 | `#262` | Contexto acadêmico global e perfil 2026 |
-| 3 | `#263` | Equivalência anual fonte × motor |
+As três implementações escrevem em caminhos disjuntos. No fluxo normal podem trabalhar em paralelo; durante a sessão temporária `#273`, o mesmo Codex as executa **em série**, uma por branch e PR.
 
-As três issues escrevem em áreas diferentes. A integração será feita exclusivamente pela `#264`.
+## Sessão temporária
 
-## O que cada tarefa libera
+A issue `#273` autoriza uma única sessão do Codex 5.6 High a percorrer a fila, mantendo o processo oficial:
 
 ```text
-#261 → runtime autorizado sem produção silenciosa
-#262 → ano/perfil único para os próximos fluxos
-#263 → comparação auditável preservando imported-source
+issue → branch → PR → verify → handoff
+onda concluída → integração → main → deploy → próxima onda
 ```
+
+Ela não cria App Factory, workflow, subagente ou orquestrador. Os comandos do responsável são `PAUSAR`, `PARAR`, `RETOMAR` e `ENCERRAR MODO AUTÔNOMO`.
 
 ## Estado real do D1
 
-Já existem migrations 0001–0003, 21 tabelas, leitura e escrita locais, compare-and-set, savepoints e promoção física fonte → registro → associação com rollback integral. Ainda não existem banco/binding remoto, migration aplicada em ambiente, runner/runtime autorizado ou persistência no site.
+Já existem:
 
-A `#261` prepara somente runtime local/preview e autorização; não autoriza provisionamento ou migration de produção.
+- migrations 0001–0003 e 21 tabelas;
+- leitura/escrita local de ano, fonte, registros e associações;
+- promoção transacional local com CAS, savepoints e rollback;
+- runtime injetado permitido somente em local/preview;
+- runner canônico e idempotente das migrations;
+- capability administrativa no servidor e rotas `no-store`.
 
-## Gates manuais que não bloqueiam a onda 9
+Ainda não existem:
 
-- Executar `REAL_DATA_VALIDATION.md` com o corpus real em ambiente privado antes de fechar definitivamente a F1.
-- O happy path visual do manifesto foi aprovado com dois arquivos XLSB. Ainda faltam expandir o SHA-256, observar a etapa transitória de hash e conferir uma falha isolada.
+- banco D1 remoto/persistente;
+- binding remoto ou migration remota;
+- persistência acadêmica ativa no site oficial;
+- repositórios D1 completos de entidades, lotes e Auditoria;
+- interface funcional de revisão/Auditoria.
+
+## Gates manuais que não bloqueiam a décima onda
+
+- executar `REAL_DATA_VALIDATION.md` com o corpus real em ambiente privado;
+- expandir o SHA-256 completo no smoke autenticado;
+- observar a etapa transitória de hash;
+- conferir falha isolada controlada.
 
 Nunca publicar arquivos, nomes, notas, hashes ou caminhos privados.
 
-## Fluxo visual
+## Instrução para execução comum
 
-```text
-CONCLUÍDO
-#245 + #254 + #255 ──> integração #256
-
-AGORA
-#261 ─┐
-#262 ─┼──> integração #264 ──> décima onda
-#263 ─┘
-```
-
-## Instrução simples para iniciar
-
-1. Escolha `#261`, `#262` ou `#263`.
-2. Entregue somente essa issue ao agente.
-3. O agente lê `AGENTS.md`, `docs/gradebook/` e a própria issue.
-4. Executa diretamente, sem App Factory ou agentes auxiliares.
-5. Cria branch curta e PR, executa `npm run verify` e registra o handoff.
+1. Entregue somente uma issue `[PRONTA]` ao agente indicado.
+2. O agente lê `AGENTS.md`, `docs/gradebook/`, a issue e os contratos citados.
+3. Executa diretamente, sem App Factory ou agentes auxiliares.
+4. Cria branch curta e um único PR.
+5. Executa `npm run verify` no SHA final e registra o handoff.
 6. Não faz merge, deploy, provisionamento nem altera `PROJECT_STATE.yaml`.
-7. Depois das três entregas, execute a integração pela `#264`.
+7. O integrador executa a issue própria da onda.
