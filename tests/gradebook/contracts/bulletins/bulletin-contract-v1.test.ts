@@ -404,13 +404,17 @@ describe('bulletin contract v1', () => {
 
     expect(historical.snapshotVersion).toBe(1);
     expect(historical.dataVersion).toBe('data:synthetic:v1');
+    expect(current.snapshotVersion).toBe(2);
+    expect(current.dataVersion).toBe('data:synthetic:v2');
+
+    if (historical.model.modelKind !== 'composition' || current.model.modelKind !== 'composition') {
+      throw new Error('unexpected synthetic fixture');
+    }
+
     expect(historical.model.subjects[0]?.terms[0]?.officialGrade.imported).toEqual({
       state: 'numeric',
       value: 8,
     });
-
-    expect(current.snapshotVersion).toBe(2);
-    expect(current.dataVersion).toBe('data:synthetic:v2');
     expect(current.model.subjects[0]?.terms[0]?.officialGrade.imported).toEqual({
       state: 'numeric',
       value: 9,
