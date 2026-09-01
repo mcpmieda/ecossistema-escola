@@ -21,6 +21,7 @@ import {
   type PlatformRoute,
   type PlatformSnapshotContract,
 } from '../shared/platform-contract';
+import { AuditWorkspacePage } from './features/gradebook/audit-workspace/audit-workspace-page';
 import { OperationalWorkspacePage } from './features/gradebook/operational-workspace/operational-workspace-page';
 import { SidebarContent } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
@@ -469,6 +470,7 @@ function AdminShell({ identity }: { identity: Identity }) {
               )}
               <PageContent route={route} snapshot={loadState.snapshot} />
               {route === 'banco-de-notas' && <OperationalWorkspacePage />}
+              {route === 'banco-de-notas' && <AuditWorkspacePage />}
               <Separator className="mt-8" />
               <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center">
                 <span>Centro de Administração · Escola Iêda Alves de Oliveira</span>
