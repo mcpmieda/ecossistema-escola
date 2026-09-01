@@ -25,43 +25,32 @@ import type {
 import type { SourceCellEvidenceV1 } from '../../../../shared/gradebook-contracts/source/source-contract-v1';
 import type {
   AcademicPersistenceContextV1,
+  AcademicRecordStreamV1,
   AcademicRecordV1,
   BatchPromotionRequestV1,
   BatchPromotionTransactionPortV1,
   LogicalSourceIdV1,
-  LogicalSourceRelationV1,
+  LogicalSourceRecordAssociationV1,
   PersistenceUnitOfWorkV1,
-  VersionedRecordV1,
+  SourceFileVersionV1,
 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import {
   academicRecordStreamForV1,
   academicRecordStreamKeyV1,
-  type ImportChangeCountsV1,
+  logicalSourceRecordAssociationStreamForV1,
+  planImportReconciliation,
   type ImportChangePlanItemV1,
   type ImportChangePlanV1,
-  type ImportFileChangePlanStatusV1,
   type ImportFileChangePlanV1,
-  type PlannedSourceFileWriteV1,
 } from '../../../../server/gradebook/application/import/import-reconciliation-v1';
 import { executeImportChangePlan } from '../../../../server/gradebook/application/import/execution/execute-import-change-plan-v1';
 import { MemoryPersistenceAdapter } from '../../persistence/ports/memory-persistence-adapter';
 
 const academicYearId = 'academic-year:2026' as AcademicYearId;
 const context = { academicYearId } satisfies AcademicPersistenceContextV1;
-const batchId = 'import-batch:execution:synthetic' as ImportBatchId;
-const logicalSourceId = 'logical-source:execution:synthetic' as LogicalSourceIdV1;
-const confirmedLogicalSource = {
-  state: 'confirmed',
-  logicalSourceId,
-} satisfies LogicalSourceRelationV1;
-
-function planReason(code: string) {
-  return {
-    code,
-    message: `Razão sintética: ${code}`,
-    diagnosticIds: [],
-  } as const;
-}
+const batchId = 'import-batch:association-execution:synthetic' as ImportBatchId;
+const logicalSourceId =
+  'logical-source:association-execution:synthetic' as LogicalSourceIdV1;
 
 function manifest(input: {
   id: string;
@@ -81,7 +70,7 @@ function manifest(input: {
     parserVersion: 'synthetic-parser-v1',
     readAt: input.readAt ?? '2026-08-31T10:05:00Z',
     confirmedAcademicYearId: academicYearId,
-    confirmedTeacherId: 'teacher:execution:synthetic' as TeacherId,
+    confirmedTeacherId: 'teacher:association-execution:synthetic' as TeacherId,
   };
 }
 
@@ -129,11 +118,14 @@ function gradeRecord(input: {
   technicalVersion?: number;
 }): AcademicRecordV1 {
   const record = {
-    id: (input.technicalId ?? `grade-entry:execution:${input.key}`) as GradeEntryId,
+    id: (input.technicalId ??
+      `grade-entry:association-execution:${input.key}`) as GradeEntryId,
     academicYearId,
-    studentId: `student:execution:${input.key}` as StudentId,
-    enrollmentId: `enrollment:execution:${input.key}` as EnrollmentId,
-    assessmentComponentId: `assessment:execution:${input.key}` as AssessmentComponentId,
+    studentId: `student:association-execution:${input.key}` as StudentId,
+    enrollmentId:
+      `enrollment:association-execution:${input.key}` as EnrollmentId,
+    assessmentComponentId:
+      `assessment:association-execution:${input.key}` as AssessmentComponentId,
     value: comparedValue({
       fileName: input.fileName,
       sha256: input.sha256,
@@ -141,237 +133,169 @@ function gradeRecord(input: {
       cellAddress: `R${input.key}`,
     }),
     authorityMode: 'imported-source',
-    ruleVersion: 'rule:execution:synthetic-v1',
+    ruleVersion: 'rule:association-execution:synthetic-v1',
     version: input.technicalVersion ?? 1,
   } satisfies GradeEntryV1;
 
   return { kind: 'grade-entry', value: record };
 }
 
-function versionedRecord(
-  value: AcademicRecordV1,
-  version: number,
-): VersionedRecordV1<AcademicRecordV1> {
-  return {
-    value,
-    version,
-    recordedAt: `2026-08-31T10:${String(version).padStart(2, '0')}:00Z`,
-  };
-}
-
-function countItems(items: readonly ImportChangePlanItemV1[]): ImportChangeCountsV1 {
-  const counts: Record<ImportChangePlanItemV1['state'], number> = {
-    unchanged: 0,
-    new: 0,
-    changed: 0,
-    'missing-from-new-source': 0,
-    blocked: 0,
-  };
-  for (const item of items) counts[item.state] += 1;
-  return counts;
-}
-
-function sourceWrite(
-  sourceManifest: SourceFileManifestV1,
-  expectedVersion: number | null = null,
-): PlannedSourceFileWriteV1 {
-  return {
-    kind: 'append-version',
-    value: {
-      manifest: sourceManifest,
-      logicalSource: confirmedLogicalSource,
-    },
-    expectedVersion,
-    reason: planReason('source-write'),
-  };
-}
-
-function filePlan(input: {
-  importFileId: string;
-  manifest: SourceFileManifestV1 | null;
-  status: ImportFileChangePlanStatusV1;
-  items: readonly ImportChangePlanItemV1[];
-  sourceFileWrite?: PlannedSourceFileWriteV1;
-  batchFileStatus?: ImportFileChangePlanV1['batchFileStatus'];
-  logicalSource?: LogicalSourceRelationV1;
-}): ImportFileChangePlanV1 {
-  const sourceFileWrite = input.sourceFileWrite ?? ({ kind: 'none' } as const);
-  const counts = countItems(input.items);
-  const sourceFileVersions = sourceFileWrite.kind === 'append-version' ? 1 : 0;
-  const academicRecordVersions = counts.new + counts.changed;
-
-  return {
-    importFileId: input.importFileId as ImportFileId,
-    sourceFileManifestId: input.manifest?.id ?? null,
-    fileName: input.manifest?.fileName ?? 'arquivo-sintetico-bloqueado.xlsx',
-    sha256: input.manifest?.sha256 ?? null,
-    batchFileStatus: input.batchFileStatus ?? 'approved',
-    logicalSource: input.logicalSource ?? confirmedLogicalSource,
-    contentIdentity:
-      input.status === 'unchanged'
-        ? {
-            state: 'known-identical',
-            knownManifestId: input.manifest?.id ?? ('manifest:known' as SourceFileManifestId),
-            knownManifestVersion: 1,
-            observedFileNameChanged: false,
-          }
-        : { state: 'new-content' },
-    status: input.status,
-    diagnostics: [],
-    reasons: [planReason(`file-${input.status}`)],
-    items: input.items,
-    counts,
-    sourceFileWrite,
-    estimatedWrites: {
-      sourceFileVersions,
-      academicRecordVersions,
-      totalPlannedVersionWrites: sourceFileVersions + academicRecordVersions,
-    },
-  };
-}
-
-function derivePlanStatus(files: readonly ImportFileChangePlanV1[]): ImportChangePlanV1['status'] {
-  const hasReady = files.some((file) => file.status === 'ready-for-promotion');
-  const hasReview = files.some((file) => file.status === 'review-required');
-  const hasBlocked = files.some((file) => file.status === 'blocked');
-  if (hasReady && (hasReview || hasBlocked)) return 'partially-ready';
-  if (hasReady) return 'ready-for-promotion';
-  if (hasReview) return 'review-required';
-  if (hasBlocked) return 'blocked';
-  return 'no-changes';
-}
-
-function changePlan(
-  files: readonly ImportFileChangePlanV1[],
-  expectedBatchVersion = 1,
-): ImportChangePlanV1 {
-  const items = files.flatMap((file) => file.items);
-  const counts = countItems(items);
-  const readyFiles = files.filter((file) => file.status === 'ready-for-promotion');
-  const reviewFiles = files.filter((file) => file.status === 'review-required');
-  const sourceFileVersions = files.filter(
-    (file) => file.sourceFileWrite.kind === 'append-version',
-  ).length;
-  const academicRecordVersions = files.reduce(
-    (total, file) => total + file.counts.new + file.counts.changed,
-    0,
-  );
-  const readyForPromotionVersionWrites = readyFiles.reduce(
-    (total, file) => total + file.estimatedWrites.totalPlannedVersionWrites,
-    0,
-  );
-  const pendingReviewVersionWrites = reviewFiles.reduce(
-    (total, file) => total + file.estimatedWrites.totalPlannedVersionWrites,
-    0,
-  );
-
-  return {
-    importBatchId: batchId,
-    academicYearId,
-    expectedBatchVersion,
-    status: derivePlanStatus(files),
-    files,
-    items,
-    counts,
-    estimatedWrites: {
-      sourceFileVersions,
-      academicRecordVersions,
-      totalPlannedVersionWrites: sourceFileVersions + academicRecordVersions,
-      readyForPromotionVersionWrites,
-      pendingReviewVersionWrites,
-      exactCloudflareQuota: false,
-      basis: 'planned-version-appends-only',
-    },
-    promotionRequest: {
-      importBatchId: batchId,
-      approvedImportFileIds: readyFiles.map((file) => file.importFileId),
-      expectedBatchVersion,
-    },
-    reviewRequiredImportFileIds: reviewFiles.map((file) => file.importFileId),
-    blockedImportFileIds: files
-      .filter((file) => file.status === 'blocked')
-      .map((file) => file.importFileId),
-    planningEvidence: {
-      writesPerformed: 0,
-      repositoriesExposeReadOperationsOnly: true,
-      deterministicWithoutClockNetworkOrGlobalEnvironment: true,
-    },
-  };
-}
-
-function batchFile(
+function approvedFile(
   importFileId: ImportFileId,
-  sourceManifest: SourceFileManifestV1 | null,
-  status: ImportBatchFileResultV1['status'] = 'approved',
+  sourceManifest: SourceFileManifestV1,
 ): ImportBatchFileResultV1 {
   return {
     id: importFileId,
     sourceFile: {
-      fileName: sourceManifest?.fileName ?? 'arquivo-sintetico-bloqueado.xlsx',
-      extension: sourceManifest?.extension ?? 'xlsx',
-      reportedMimeType: sourceManifest?.reportedMimeType ?? null,
-      sizeBytes: sourceManifest?.sizeBytes ?? 128,
-      lastModifiedAt: sourceManifest?.lastModifiedAt ?? null,
+      fileName: sourceManifest.fileName,
+      extension: sourceManifest.extension,
+      reportedMimeType: sourceManifest.reportedMimeType,
+      sizeBytes: sourceManifest.sizeBytes,
+      lastModifiedAt: sourceManifest.lastModifiedAt,
     },
     manifest: sourceManifest,
-    status,
+    status: 'approved',
     diagnosticIds: [],
   };
 }
 
-function importBatch(files: readonly ImportBatchFileResultV1[]): ImportBatchResultV1 {
-  const approvedFileCount = files.filter((file) => file.status === 'approved').length;
-  const reviewRequiredFileCount = files.filter(
-    (file) => file.status === 'review-required',
-  ).length;
-  const rejectedFileCount = files.filter((file) => file.status === 'rejected').length;
-  const failedFileCount = files.filter((file) => file.status === 'failed').length;
-  const hasExcluded = reviewRequiredFileCount + rejectedFileCount + failedFileCount > 0;
-
+function batch(file: ImportBatchFileResultV1): ImportBatchResultV1 {
   return {
     id: batchId,
-    status: hasExcluded ? 'partially-approved' : 'approved',
-    files,
+    status: 'approved',
+    files: [file],
     diagnostics: [],
     receivedAt: '2026-08-31T10:00:00Z',
     updatedAt: '2026-08-31T10:10:00Z',
     summary: {
-      totalFileCount: files.length,
-      processedFileCount: files.length,
-      approvedFileCount,
-      reviewRequiredFileCount,
-      rejectedFileCount,
-      failedFileCount,
+      totalFileCount: 1,
+      processedFileCount: 1,
+      approvedFileCount: 1,
+      reviewRequiredFileCount: 0,
+      rejectedFileCount: 0,
+      failedFileCount: 0,
       informationCount: 0,
       warningCount: 0,
-      blockingErrorCount: failedFileCount + rejectedFileCount,
+      blockingErrorCount: 0,
       criticalErrorCount: 0,
     },
   } as ImportBatchResultV1;
 }
 
+function association(
+  stream: AcademicRecordStreamV1,
+  sourceManifestId: SourceFileManifestId,
+  sourceManifestVersion: number,
+  state: LogicalSourceRecordAssociationV1['state'] = 'active',
+): LogicalSourceRecordAssociationV1 {
+  return {
+    academicYearId,
+    logicalSourceId,
+    academicRecordStream: stream,
+    stableKey: academicRecordStreamKeyV1(stream),
+    state,
+    sourceManifestId,
+    sourceManifestVersion,
+  };
+}
+
+function planningRepositories(adapter: MemoryPersistenceAdapter) {
+  return {
+    imports: adapter.unitOfWork.imports,
+    academicRecords: adapter.unitOfWork.academicRecords,
+    logicalSourceRecords: adapter.unitOfWork.logicalSourceRecords,
+  };
+}
+
 async function seedBatch(
   adapter: MemoryPersistenceAdapter,
-  files: readonly ImportBatchFileResultV1[],
+  importFile: ImportBatchFileResultV1,
 ): Promise<void> {
   const result = await adapter.unitOfWork.imports.appendImportBatchVersion(
     context,
-    importBatch(files),
+    batch(importFile),
     { expectedVersion: null },
   );
   expect(result.status).toBe('written');
 }
 
-async function appendAcademicVersion(
+async function seedSource(
   adapter: MemoryPersistenceAdapter,
-  record: AcademicRecordV1,
-  expectedVersion: number | null,
-) {
-  return adapter.unitOfWork.academicRecords.appendVersion(
+  sourceManifest: SourceFileManifestV1,
+): Promise<void> {
+  const value = {
+    manifest: sourceManifest,
+    logicalSource: { state: 'confirmed', logicalSourceId },
+  } satisfies SourceFileVersionV1;
+  const result = await adapter.unitOfWork.imports.appendSourceFileVersion(
     context,
-    academicRecordStreamForV1(record),
-    record,
-    { expectedVersion },
+    value,
+    { expectedVersion: null },
+  );
+  expect(result.status).toBe('written');
+}
+
+async function seedRecordAndAssociation(input: {
+  adapter: MemoryPersistenceAdapter;
+  record: AcademicRecordV1;
+  sourceManifestId: SourceFileManifestId;
+  sourceManifestVersion: number;
+}): Promise<AcademicRecordStreamV1> {
+  const stream = academicRecordStreamForV1(input.record);
+  const recordWrite = await input.adapter.unitOfWork.academicRecords.appendVersion(
+    context,
+    stream,
+    input.record,
+    { expectedVersion: null },
+  );
+  expect(recordWrite.status).toBe('written');
+  const associationWrite =
+    await input.adapter.unitOfWork.logicalSourceRecords.appendVersion(
+      context,
+      logicalSourceRecordAssociationStreamForV1(logicalSourceId, stream),
+      association(
+        stream,
+        input.sourceManifestId,
+        input.sourceManifestVersion,
+      ),
+      { expectedVersion: null },
+    );
+  expect(associationWrite.status).toBe('written');
+  return stream;
+}
+
+async function planIncrementalChange(input: {
+  adapter: MemoryPersistenceAdapter;
+  oldManifest: SourceFileManifestV1;
+  incomingManifest: SourceFileManifestV1;
+  currentRecord: AcademicRecordV1;
+  incomingRecords: readonly AcademicRecordV1[];
+  importFileId: ImportFileId;
+}): Promise<ImportChangePlanV1> {
+  await seedSource(input.adapter, input.oldManifest);
+  await seedRecordAndAssociation({
+    adapter: input.adapter,
+    record: input.currentRecord,
+    sourceManifestId: input.oldManifest.id,
+    sourceManifestVersion: 1,
+  });
+  const importFile = approvedFile(input.importFileId, input.incomingManifest);
+  await seedBatch(input.adapter, importFile);
+
+  return planImportReconciliation(
+    {
+      context,
+      batch: batch(importFile),
+      expectedBatchVersion: 1,
+      files: [
+        {
+          importFileId: input.importFileId,
+          logicalSource: { state: 'confirmed', logicalSourceId },
+          records: input.incomingRecords,
+        },
+      ],
+    },
+    planningRepositories(input.adapter),
   );
 }
 
@@ -400,40 +324,40 @@ class FailingTransactionPort implements BatchPromotionTransactionPortV1 {
   }
 }
 
-describe('transactional import change plan executor v1', () => {
-  it('returns no-changes without opening a transaction for an identical hash plan', async () => {
+describe('transactional import change plan executor with source associations v1', () => {
+  it('returns no-changes without opening a transaction for an identical hash', async () => {
+    const adapter = new MemoryPersistenceAdapter();
     const sourceManifest = manifest({
-      id: 'manifest:no-op',
+      id: 'manifest:association-execution:no-op',
       fileName: 'notas-sinteticas.xlsx',
       sha256: 'hash-identical',
     });
+    await seedSource(adapter, sourceManifest);
+    const importFileId = 'import-file:association-execution:no-op' as ImportFileId;
+    const importFile = approvedFile(importFileId, sourceManifest);
+    await seedBatch(adapter, importFile);
     const incoming = gradeRecord({
       key: '10',
       value: 8,
       fileName: sourceManifest.fileName,
       sha256: sourceManifest.sha256,
     });
-    const stream = academicRecordStreamForV1(incoming);
-    const importFileId = 'import-file:no-op' as ImportFileId;
-    const plan = changePlan([
-      filePlan({
-        importFileId,
-        manifest: sourceManifest,
-        status: 'unchanged',
-        items: [
+    const plan = await planImportReconciliation(
+      {
+        context,
+        batch: batch(importFile),
+        expectedBatchVersion: 1,
+        files: [
           {
-            state: 'unchanged',
             importFileId,
-            stableKey: academicRecordStreamKeyV1(stream),
-            stream,
-            incomingRecord: incoming,
-            currentVersion: null,
-            reason: planReason('identical-content'),
+            logicalSource: { state: 'confirmed', logicalSourceId },
+            records: [incoming],
           },
         ],
-      }),
-    ]);
-    const transactionPort = new CountingTransactionPort(new MemoryPersistenceAdapter());
+      },
+      planningRepositories(adapter),
+    );
+    const transactionPort = new CountingTransactionPort(adapter);
 
     const result = await executeImportChangePlan(plan, transactionPort);
 
@@ -444,211 +368,56 @@ describe('transactional import change plan executor v1', () => {
       plannedWrites: {
         sourceFileVersions: 0,
         academicRecordVersions: 0,
-        totalVersionWrites: 0,
-      },
-      committedWrites: {
-        sourceFileVersions: 0,
-        academicRecordVersions: 0,
+        logicalSourceRecordAssociationVersions: 0,
         totalVersionWrites: 0,
       },
     });
     expect(transactionPort.calls).toBe(0);
   });
 
-  it('commits only the planned source metadata append for a renamed identical file', async () => {
+  it('commits source, academic records and associations in one transaction', async () => {
     const adapter = new MemoryPersistenceAdapter();
-    const sourceManifest = manifest({
-      id: 'manifest:renamed',
-      fileName: 'notas-sinteticas-renomeadas.xlsx',
-      sha256: 'hash-identical-renamed',
+    const oldManifest = manifest({
+      id: 'manifest:association-execution:commit',
+      fileName: 'notas-v1.xlsx',
+      sha256: 'hash-v1',
     });
-    const incoming = gradeRecord({
-      key: '11',
-      value: 7,
-      fileName: sourceManifest.fileName,
-      sha256: sourceManifest.sha256,
-    });
-    const stream = academicRecordStreamForV1(incoming);
-    const importFileId = 'import-file:renamed' as ImportFileId;
-    const plan = changePlan([
-      filePlan({
-        importFileId,
-        manifest: sourceManifest,
-        status: 'ready-for-promotion',
-        sourceFileWrite: sourceWrite(sourceManifest),
-        items: [
-          {
-            state: 'unchanged',
-            importFileId,
-            stableKey: academicRecordStreamKeyV1(stream),
-            stream,
-            incomingRecord: incoming,
-            currentVersion: null,
-            reason: planReason('renamed-identical-content'),
-          },
-        ],
-      }),
-    ]);
-    await seedBatch(adapter, [batchFile(importFileId, sourceManifest)]);
-
-    const result = await executeImportChangePlan(plan, adapter);
-
-    expect(result.status).toBe('applied');
-    if (result.status !== 'applied') throw new Error('expected applied result');
-    expect(result.committedWrites).toEqual({
-      sourceFileVersions: 1,
-      academicRecordVersions: 0,
-      totalVersionWrites: 1,
-    });
-    expect(result.appliedVersions).toEqual({
-      sourceFiles: [
-        {
-          importFileId,
-          sourceFileManifestId: sourceManifest.id,
-          version: 1,
-        },
-      ],
-      academicRecords: [],
-    });
-    expect(
-      await adapter.unitOfWork.imports.getSourceFileVersion(context, sourceManifest.id),
-    ).toMatchObject({ version: 1 });
-    expect(await adapter.unitOfWork.academicRecords.getCurrent(context, stream)).toBeNull();
-  });
-
-  it('commits new and changed items while excluding unchanged, missing and blocked files', async () => {
-    const adapter = new MemoryPersistenceAdapter();
-    const readyManifest = manifest({
-      id: 'manifest:ready',
-      fileName: 'arquivo-pronto.xlsx',
-      sha256: 'hash-ready',
-    });
-    const reviewManifest = manifest({
-      id: 'manifest:review',
-      fileName: 'arquivo-revisao.xlsx',
-      sha256: 'hash-review',
-    });
-    const newRecord = gradeRecord({
+    const incomingManifest = {
+      ...oldManifest,
+      fileName: 'notas-v2.xlsx',
+      sha256: 'hash-v2',
+      readAt: '2026-08-31T11:00:00Z',
+    };
+    const currentRecord = gradeRecord({
       key: '20',
-      value: 9,
-      fileName: readyManifest.fileName,
-      sha256: readyManifest.sha256,
-    });
-    const changedPrevious = gradeRecord({
-      key: '21',
       value: 5,
-      fileName: 'arquivo-anterior.xlsx',
-      sha256: 'hash-anterior',
-      technicalId: 'grade-entry:execution:21:v1',
+      fileName: oldManifest.fileName,
+      sha256: oldManifest.sha256,
+      technicalId: 'grade-entry:association-execution:20:v1',
     });
-    const changedIncoming = gradeRecord({
-      key: '21',
+    const changedRecord = gradeRecord({
+      key: '20',
       value: 6,
-      fileName: readyManifest.fileName,
-      sha256: readyManifest.sha256,
-      technicalId: 'grade-entry:execution:21:v2',
+      fileName: incomingManifest.fileName,
+      sha256: incomingManifest.sha256,
+      technicalId: 'grade-entry:association-execution:20:v2',
       technicalVersion: 2,
     });
-    const unchangedRecord = gradeRecord({
-      key: '22',
-      value: 8,
-      fileName: readyManifest.fileName,
-      sha256: readyManifest.sha256,
+    const newRecord = gradeRecord({
+      key: '21',
+      value: 9,
+      fileName: incomingManifest.fileName,
+      sha256: incomingManifest.sha256,
     });
-    const missingRecord = gradeRecord({
-      key: '23',
-      value: 4,
-      fileName: 'arquivo-anterior.xlsx',
-      sha256: 'hash-anterior',
+    const importFileId = 'import-file:association-execution:commit' as ImportFileId;
+    const plan = await planIncrementalChange({
+      adapter,
+      oldManifest,
+      incomingManifest,
+      currentRecord,
+      incomingRecords: [changedRecord, newRecord],
+      importFileId,
     });
-
-    const changedSeed = await appendAcademicVersion(adapter, changedPrevious, null);
-    const unchangedSeed = await appendAcademicVersion(adapter, unchangedRecord, null);
-    const missingSeed = await appendAcademicVersion(adapter, missingRecord, null);
-    expect(changedSeed.status).toBe('written');
-    expect(unchangedSeed.status).toBe('written');
-    expect(missingSeed.status).toBe('written');
-
-    const readyFileId = 'import-file:ready' as ImportFileId;
-    const reviewFileId = 'import-file:review' as ImportFileId;
-    const blockedFileId = 'import-file:blocked' as ImportFileId;
-    const changedStream = academicRecordStreamForV1(changedIncoming);
-    const unchangedStream = academicRecordStreamForV1(unchangedRecord);
-    const missingStream = academicRecordStreamForV1(missingRecord);
-    const newStream = academicRecordStreamForV1(newRecord);
-    const readyFilePlan = filePlan({
-      importFileId: readyFileId,
-      manifest: readyManifest,
-      status: 'ready-for-promotion',
-      sourceFileWrite: sourceWrite(readyManifest),
-      items: [
-        {
-          state: 'new',
-          importFileId: readyFileId,
-          stableKey: academicRecordStreamKeyV1(newStream),
-          stream: newStream,
-          incomingRecord: newRecord,
-          expectedVersion: null,
-          reason: planReason('new-record'),
-        },
-        {
-          state: 'changed',
-          importFileId: readyFileId,
-          stableKey: academicRecordStreamKeyV1(changedStream),
-          stream: changedStream,
-          incomingRecord: changedIncoming,
-          currentRecord: versionedRecord(changedPrevious, 1),
-          expectedVersion: 1,
-          reason: planReason('changed-record'),
-        },
-        {
-          state: 'unchanged',
-          importFileId: readyFileId,
-          stableKey: academicRecordStreamKeyV1(unchangedStream),
-          stream: unchangedStream,
-          incomingRecord: unchangedRecord,
-          currentVersion: 1,
-          reason: planReason('unchanged-record'),
-        },
-      ],
-    });
-    const reviewFilePlan = filePlan({
-      importFileId: reviewFileId,
-      manifest: reviewManifest,
-      status: 'review-required',
-      sourceFileWrite: sourceWrite(reviewManifest),
-      items: [
-        {
-          state: 'missing-from-new-source',
-          importFileId: reviewFileId,
-          stableKey: academicRecordStreamKeyV1(missingStream),
-          stream: missingStream,
-          currentRecord: versionedRecord(missingRecord, 1),
-          expectedVersion: 1,
-          reason: planReason('missing-record'),
-        },
-      ],
-    });
-    const blockedFilePlan = filePlan({
-      importFileId: blockedFileId,
-      manifest: null,
-      status: 'blocked',
-      batchFileStatus: 'failed',
-      logicalSource: { state: 'unmatched' },
-      items: [
-        {
-          state: 'blocked',
-          importFileId: blockedFileId,
-          reason: planReason('blocked-file'),
-        },
-      ],
-    });
-    const plan = changePlan([readyFilePlan, reviewFilePlan, blockedFilePlan]);
-    await seedBatch(adapter, [
-      batchFile(readyFileId, readyManifest),
-      batchFile(reviewFileId, reviewManifest),
-      batchFile(blockedFileId, null, 'failed'),
-    ]);
 
     const result = await executeImportChangePlan(plan, adapter);
 
@@ -657,187 +426,188 @@ describe('transactional import change plan executor v1', () => {
     expect(result.plannedWrites).toEqual({
       sourceFileVersions: 1,
       academicRecordVersions: 2,
-      totalVersionWrites: 3,
+      logicalSourceRecordAssociationVersions: 2,
+      totalVersionWrites: 5,
     });
     expect(result.committedWrites).toEqual(result.plannedWrites);
-    expect(result.appliedVersions.sourceFiles).toEqual([
+    expect(result.appliedVersions.logicalSourceRecordAssociations).toHaveLength(2);
+    expect(
+      result.appliedVersions.logicalSourceRecordAssociations.map((entry) => ({
+        state: entry.state,
+        sourceManifestId: entry.sourceManifestId,
+        sourceManifestVersion: entry.sourceManifestVersion,
+      })),
+    ).toEqual([
       {
-        importFileId: readyFileId,
-        sourceFileManifestId: readyManifest.id,
-        version: 1,
+        state: 'active',
+        sourceManifestId: incomingManifest.id,
+        sourceManifestVersion: 2,
+      },
+      {
+        state: 'active',
+        sourceManifestId: incomingManifest.id,
+        sourceManifestVersion: 2,
       },
     ]);
-    expect(result.appliedVersions.academicRecords).toEqual([
-      {
-        importFileId: readyFileId,
-        changeState: 'new',
-        stableKey: academicRecordStreamKeyV1(newStream),
-        recordKind: 'grade-entry',
-        version: 1,
-      },
-      {
-        importFileId: readyFileId,
-        changeState: 'changed',
-        stableKey: academicRecordStreamKeyV1(changedStream),
-        recordKind: 'grade-entry',
-        version: 2,
-      },
-    ]);
-    expect((await adapter.unitOfWork.academicRecords.getCurrent(context, newStream))?.version).toBe(
-      1,
-    );
-    expect(
-      (await adapter.unitOfWork.academicRecords.getCurrent(context, changedStream))?.version,
-    ).toBe(2);
-    expect(
-      (await adapter.unitOfWork.academicRecords.getCurrent(context, unchangedStream))?.version,
-    ).toBe(1);
-    expect(
-      (await adapter.unitOfWork.academicRecords.getCurrent(context, missingStream))?.version,
-    ).toBe(1);
-    expect(
-      await adapter.unitOfWork.imports.getSourceFileVersion(context, reviewManifest.id),
-    ).toBeNull();
+
+    for (const record of [changedRecord, newRecord]) {
+      const stream = academicRecordStreamForV1(record);
+      const currentAssociation =
+        await adapter.unitOfWork.logicalSourceRecords.getCurrent(
+          context,
+          logicalSourceRecordAssociationStreamForV1(logicalSourceId, stream),
+        );
+      expect(currentAssociation?.value).toMatchObject({
+        academicYearId,
+        logicalSourceId,
+        stableKey: academicRecordStreamKeyV1(stream),
+        state: 'active',
+        sourceManifestId: incomingManifest.id,
+        sourceManifestVersion: 2,
+      });
+    }
   });
 
-  it('returns an explicit conflict and rolls back source and academic appends', async () => {
+  it('reports an association conflict and rolls back earlier source and record appends', async () => {
     const adapter = new MemoryPersistenceAdapter();
-    const sourceManifest = manifest({
-      id: 'manifest:rollback',
-      fileName: 'arquivo-rollback.xlsx',
-      sha256: 'hash-rollback',
+    const oldManifest = manifest({
+      id: 'manifest:association-execution:conflict',
+      fileName: 'notas-v1.xlsx',
+      sha256: 'hash-conflict-v1',
     });
-    const newRecord = gradeRecord({
+    const incomingManifest = {
+      ...oldManifest,
+      fileName: 'notas-v2.xlsx',
+      sha256: 'hash-conflict-v2',
+      readAt: '2026-08-31T11:00:00Z',
+    };
+    const currentRecord = gradeRecord({
       key: '30',
-      value: 10,
-      fileName: sourceManifest.fileName,
-      sha256: sourceManifest.sha256,
-    });
-    const changedV1 = gradeRecord({
-      key: '31',
       value: 5,
-      fileName: 'arquivo-v1.xlsx',
-      sha256: 'hash-v1',
-      technicalId: 'grade-entry:execution:31:v1',
+      fileName: oldManifest.fileName,
+      sha256: oldManifest.sha256,
+      technicalId: 'grade-entry:association-execution:30:v1',
     });
-    const changedV2 = gradeRecord({
-      key: '31',
-      value: 5.5,
-      fileName: 'arquivo-v2.xlsx',
-      sha256: 'hash-v2',
-      technicalId: 'grade-entry:execution:31:v2',
+    const changedRecord = gradeRecord({
+      key: '30',
+      value: 6,
+      fileName: incomingManifest.fileName,
+      sha256: incomingManifest.sha256,
+      technicalId: 'grade-entry:association-execution:30:v2',
       technicalVersion: 2,
     });
-    const changedIncoming = gradeRecord({
-      key: '31',
-      value: 6,
-      fileName: sourceManifest.fileName,
-      sha256: sourceManifest.sha256,
-      technicalId: 'grade-entry:execution:31:v3',
-      technicalVersion: 3,
+    const importFileId = 'import-file:association-execution:conflict' as ImportFileId;
+    const plan = await planIncrementalChange({
+      adapter,
+      oldManifest,
+      incomingManifest,
+      currentRecord,
+      incomingRecords: [changedRecord],
+      importFileId,
     });
-    expect((await appendAcademicVersion(adapter, changedV1, null)).status).toBe('written');
-    expect((await appendAcademicVersion(adapter, changedV2, 1)).status).toBe('written');
-
-    const importFileId = 'import-file:rollback' as ImportFileId;
-    const newStream = academicRecordStreamForV1(newRecord);
-    const changedStream = academicRecordStreamForV1(changedIncoming);
-    const plan = changePlan([
-      filePlan({
-        importFileId,
-        manifest: sourceManifest,
-        status: 'ready-for-promotion',
-        sourceFileWrite: sourceWrite(sourceManifest),
-        items: [
-          {
-            state: 'new',
-            importFileId,
-            stableKey: academicRecordStreamKeyV1(newStream),
-            stream: newStream,
-            incomingRecord: newRecord,
-            expectedVersion: null,
-            reason: planReason('new-before-conflict'),
-          },
-          {
-            state: 'changed',
-            importFileId,
-            stableKey: academicRecordStreamKeyV1(changedStream),
-            stream: changedStream,
-            incomingRecord: changedIncoming,
-            currentRecord: versionedRecord(changedV1, 1),
-            expectedVersion: 1,
-            reason: planReason('stale-change'),
-          },
-        ],
-      }),
-    ]);
-    await seedBatch(adapter, [batchFile(importFileId, sourceManifest)]);
+    const stream = academicRecordStreamForV1(currentRecord);
+    const associationStream = logicalSourceRecordAssociationStreamForV1(
+      logicalSourceId,
+      stream,
+    );
+    const concurrentWrite =
+      await adapter.unitOfWork.logicalSourceRecords.appendVersion(
+        context,
+        associationStream,
+        association(stream, oldManifest.id, 1, 'inactive'),
+        { expectedVersion: 1 },
+      );
+    expect(concurrentWrite.status).toBe('written');
 
     const result = await executeImportChangePlan(plan, adapter);
 
     expect(result.status).toBe('version-conflict');
     if (result.status !== 'version-conflict') throw new Error('expected conflict result');
     expect(result.conflict).toEqual({
-      scope: 'academic-record',
+      scope: 'logical-source-record-association',
       importFileId,
-      stableKey: academicRecordStreamKeyV1(changedStream),
+      stableKey: academicRecordStreamKeyV1(stream),
       expectedVersion: 1,
       currentVersion: 2,
     });
     expect(result.attemptedWritesBeforeRollback).toEqual({
       sourceFileVersions: 1,
       academicRecordVersions: 1,
+      logicalSourceRecordAssociationVersions: 0,
       totalVersionWrites: 2,
     });
-    expect(result.committedWrites).toEqual({
-      sourceFileVersions: 0,
-      academicRecordVersions: 0,
-      totalVersionWrites: 0,
-    });
     expect(
-      await adapter.unitOfWork.imports.getSourceFileVersion(context, sourceManifest.id),
-    ).toBeNull();
-    expect(await adapter.unitOfWork.academicRecords.getCurrent(context, newStream)).toBeNull();
+      await adapter.unitOfWork.imports.getSourceFileVersion(context, oldManifest.id),
+    ).toMatchObject({ version: 1 });
     expect(
-      (await adapter.unitOfWork.academicRecords.getCurrent(context, changedStream))?.version,
-    ).toBe(2);
+      await adapter.unitOfWork.academicRecords.getCurrent(context, stream),
+    ).toMatchObject({ version: 1 });
+    expect(
+      await adapter.unitOfWork.logicalSourceRecords.getCurrent(context, associationStream),
+    ).toMatchObject({ version: 2, value: { state: 'inactive' } });
   });
 
-  it('rejects tampered promotion membership and write estimates before the transaction', async () => {
-    const sourceManifest = manifest({
-      id: 'manifest:tampered',
-      fileName: 'arquivo-adulterado.xlsx',
-      sha256: 'hash-tampered',
+  it('rejects tampered association provenance before opening the transaction', async () => {
+    const adapter = new MemoryPersistenceAdapter();
+    const oldManifest = manifest({
+      id: 'manifest:association-execution:tampered',
+      fileName: 'notas-v1.xlsx',
+      sha256: 'hash-tampered-v1',
     });
-    const importFileId = 'import-file:tampered' as ImportFileId;
-    const reviewFileId = 'import-file:review-not-approved' as ImportFileId;
-    const ready = filePlan({
+    const incomingManifest = {
+      ...oldManifest,
+      fileName: 'notas-v2.xlsx',
+      sha256: 'hash-tampered-v2',
+      readAt: '2026-08-31T11:00:00Z',
+    };
+    const currentRecord = gradeRecord({
+      key: '40',
+      value: 5,
+      fileName: oldManifest.fileName,
+      sha256: oldManifest.sha256,
+    });
+    const changedRecord = gradeRecord({
+      key: '40',
+      value: 6,
+      fileName: incomingManifest.fileName,
+      sha256: incomingManifest.sha256,
+      technicalId: 'grade-entry:association-execution:40:v2',
+      technicalVersion: 2,
+    });
+    const importFileId = 'import-file:association-execution:tampered' as ImportFileId;
+    const validPlan = await planIncrementalChange({
+      adapter,
+      oldManifest,
+      incomingManifest,
+      currentRecord,
+      incomingRecords: [changedRecord],
       importFileId,
-      manifest: sourceManifest,
-      status: 'ready-for-promotion',
-      sourceFileWrite: sourceWrite(sourceManifest),
-      items: [],
     });
-    const review = filePlan({
-      importFileId: reviewFileId,
-      manifest: sourceManifest,
-      status: 'review-required',
-      sourceFileWrite: sourceWrite(sourceManifest),
-      items: [],
-    });
-    const validPlan = changePlan([ready, review]);
+    const file = validPlan.files[0];
+    const item = file?.items[0];
+    if (!file || !item || (item.state !== 'new' && item.state !== 'changed')) {
+      throw new Error('missing writable item');
+    }
+    const tamperedItem = {
+      ...item,
+      associationWrite: {
+        ...item.associationWrite,
+        value: {
+          ...item.associationWrite.value,
+          sourceManifestVersion: 999,
+        },
+      },
+    } satisfies ImportChangePlanItemV1;
+    const tamperedFile = {
+      ...file,
+      items: [tamperedItem],
+    } satisfies ImportFileChangePlanV1;
     const tamperedPlan = {
       ...validPlan,
-      promotionRequest: {
-        ...validPlan.promotionRequest,
-        approvedImportFileIds: [importFileId, reviewFileId],
-      },
-      estimatedWrites: {
-        ...validPlan.estimatedWrites,
-        readyForPromotionVersionWrites: 99,
-      },
-    } as ImportChangePlanV1;
-    const transactionPort = new CountingTransactionPort(new MemoryPersistenceAdapter());
+      files: [tamperedFile],
+      items: [tamperedItem],
+    } satisfies ImportChangePlanV1;
+    const transactionPort = new CountingTransactionPort(adapter);
 
     const result = await executeImportChangePlan(tamperedPlan, transactionPort);
 
@@ -845,34 +615,51 @@ describe('transactional import change plan executor v1', () => {
     if (result.status !== 'rejected-invalid-plan') {
       throw new Error('expected invalid plan result');
     }
-    expect(result.transactionStarted).toBe(false);
-    expect(result.validationIssues.map((issue) => issue.code)).toEqual(
-      expect.arrayContaining(['promotion-request-mismatch', 'plan-write-estimate-mismatch']),
+    expect(result.validationIssues.map((issue) => issue.code)).toContain(
+      'association-source-provenance-mismatch',
     );
+    expect(result.transactionStarted).toBe(false);
     expect(transactionPort.calls).toBe(0);
   });
 
-  it('sanitizes transaction failures and keeps provider-specific APIs out of the executor', async () => {
-    const sourceManifest = manifest({
-      id: 'manifest:failure',
-      fileName: 'arquivo-falha.xlsx',
-      sha256: 'hash-failure',
+  it('sanitizes transaction failures and keeps provider APIs out of the executor', async () => {
+    const adapter = new MemoryPersistenceAdapter();
+    const oldManifest = manifest({
+      id: 'manifest:association-execution:failure',
+      fileName: 'notas-v1.xlsx',
+      sha256: 'hash-failure-v1',
     });
-    const importFileId = 'import-file:failure' as ImportFileId;
-    const plan = changePlan([
-      filePlan({
-        importFileId,
-        manifest: sourceManifest,
-        status: 'ready-for-promotion',
-        sourceFileWrite: sourceWrite(sourceManifest),
-        items: [],
-      }),
-    ]);
+    const incomingManifest = {
+      ...oldManifest,
+      fileName: 'notas-v2.xlsx',
+      sha256: 'hash-failure-v2',
+      readAt: '2026-08-31T11:00:00Z',
+    };
+    const currentRecord = gradeRecord({
+      key: '50',
+      value: 5,
+      fileName: oldManifest.fileName,
+      sha256: oldManifest.sha256,
+    });
+    const changedRecord = gradeRecord({
+      key: '50',
+      value: 6,
+      fileName: incomingManifest.fileName,
+      sha256: incomingManifest.sha256,
+    });
+    const plan = await planIncrementalChange({
+      adapter,
+      oldManifest,
+      incomingManifest,
+      currentRecord,
+      incomingRecords: [changedRecord],
+      importFileId: 'import-file:association-execution:failure' as ImportFileId,
+    });
 
     const result = await executeImportChangePlan(plan, new FailingTransactionPort());
 
     expect(result.status).toBe('transaction-failed');
-    if (result.status !== 'transaction-failed') throw new Error('expected transaction failure');
+    if (result.status !== 'transaction-failed') throw new Error('expected failure');
     expect(result.failure).toEqual({
       code: 'transaction-failed',
       message: 'A promoção transacional falhou sem confirmar alterações.',

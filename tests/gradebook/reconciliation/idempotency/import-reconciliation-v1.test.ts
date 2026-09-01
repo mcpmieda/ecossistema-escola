@@ -9,12 +9,10 @@ import type {
 import type {
   ImportBatchFileResultV1,
   ImportBatchResultV1,
-  ImportFileDiagnosticV1,
   SourceFileManifestV1,
 } from '../../../../shared/gradebook-contracts/imports/import-contract-v1';
 import type {
   ImportBatchId,
-  ImportFileDiagnosticId,
   ImportFileId,
   SourceFileManifestId,
 } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
@@ -30,21 +28,24 @@ import type {
   AcademicRecordStreamV1,
   AcademicRecordV1,
   LogicalSourceIdV1,
+  LogicalSourceRecordAssociationStreamV1,
+  LogicalSourceRecordAssociationV1,
   SourceFileVersionV1,
   VersionedRecordV1,
 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import {
   academicRecordStreamForV1,
   academicRecordStreamKeyV1,
+  logicalSourceRecordAssociationStreamForV1,
   planImportReconciliation,
   type ImportReconciliationRepositoriesV1,
 } from '../../../../server/gradebook/application/import/import-reconciliation-v1';
 
 const academicYearId = 'academic-year:2026' as AcademicYearId;
 const context = { academicYearId } satisfies AcademicPersistenceContextV1;
-const batchId = 'import-batch:reconciliation:synthetic' as ImportBatchId;
-const logicalSourceA = 'logical-source:synthetic:teacher-a' as LogicalSourceIdV1;
-const logicalSourceB = 'logical-source:synthetic:teacher-b' as LogicalSourceIdV1;
+const batchId = 'import-batch:association-planner:synthetic' as ImportBatchId;
+const logicalSourceA = 'logical-source:association:teacher-a' as LogicalSourceIdV1;
+const logicalSourceB = 'logical-source:association:teacher-b' as LogicalSourceIdV1;
 
 function manifest(input: {
   id: string;
@@ -84,48 +85,25 @@ function approvedFile(id: string, sourceManifest: SourceFileManifestV1): ImportB
   };
 }
 
-function failedFile(id: string, diagnosticId: ImportFileDiagnosticId): ImportBatchFileResultV1 {
-  return {
-    id: id as ImportFileId,
-    sourceFile: {
-      fileName: 'arquivo-sintetico-invalido.xlsx',
-      extension: 'xlsx',
-      reportedMimeType: null,
-      sizeBytes: 128,
-      lastModifiedAt: null,
-    },
-    manifest: null,
-    status: 'failed',
-    diagnosticIds: [diagnosticId],
-  };
-}
-
-function batch(
-  files: readonly ImportBatchFileResultV1[],
-  diagnostics: readonly ImportFileDiagnosticV1[] = [],
-): ImportBatchResultV1 {
-  const approvedFileCount = files.filter((file) => file.status === 'approved').length;
-  const failedFileCount = files.filter((file) => file.status === 'failed').length;
+function batch(files: readonly ImportBatchFileResultV1[]): ImportBatchResultV1 {
   return {
     id: batchId,
-    status: failedFileCount > 0 ? 'partially-approved' : 'approved',
+    status: 'approved',
     files,
-    diagnostics,
+    diagnostics: [],
     receivedAt: '2026-08-31T10:00:00Z',
     updatedAt: '2026-08-31T10:10:00Z',
     summary: {
       totalFileCount: files.length,
       processedFileCount: files.length,
-      approvedFileCount,
+      approvedFileCount: files.length,
       reviewRequiredFileCount: 0,
       rejectedFileCount: 0,
-      failedFileCount,
+      failedFileCount: 0,
       informationCount: 0,
       warningCount: 0,
-      blockingErrorCount: failedFileCount,
-      criticalErrorCount: diagnostics.filter(
-        (diagnostic) => diagnostic.severity === 'critical-error',
-      ).length,
+      blockingErrorCount: 0,
+      criticalErrorCount: 0,
     },
   } as ImportBatchResultV1;
 }
@@ -172,14 +150,14 @@ function gradeRecord(input: {
   sha256: string;
   technicalId?: string;
   technicalVersion?: number;
-  ruleVersion?: string;
 }): AcademicRecordV1 {
   const gradeEntry = {
-    id: (input.technicalId ?? `grade-entry:${input.key}`) as GradeEntryId,
+    id: (input.technicalId ?? `grade-entry:association:${input.key}`) as GradeEntryId,
     academicYearId,
-    studentId: `student:synthetic:${input.key}` as StudentId,
-    enrollmentId: `enrollment:synthetic:${input.key}` as EnrollmentId,
-    assessmentComponentId: `assessment:synthetic:${input.key}` as AssessmentComponentId,
+    studentId: `student:association:${input.key}` as StudentId,
+    enrollmentId: `enrollment:association:${input.key}` as EnrollmentId,
+    assessmentComponentId:
+      `assessment:association:${input.key}` as AssessmentComponentId,
     value: comparedValue({
       fileName: input.fileName,
       sha256: input.sha256,
@@ -187,17 +165,14 @@ function gradeRecord(input: {
       cellAddress: `R${input.key}`,
     }),
     authorityMode: 'imported-source',
-    ruleVersion: input.ruleVersion ?? 'rule:synthetic-v1',
+    ruleVersion: 'rule:association:synthetic-v1',
     version: input.technicalVersion ?? 1,
   } satisfies GradeEntryV1;
 
   return { kind: 'grade-entry', value: gradeEntry };
 }
 
-function versionedAcademicRecord(
-  value: AcademicRecordV1,
-  version: number,
-): VersionedRecordV1<AcademicRecordV1> {
+function versioned<T>(value: T, version: number): VersionedRecordV1<T> {
   return {
     value,
     version,
@@ -205,14 +180,20 @@ function versionedAcademicRecord(
   };
 }
 
-function versionedSource(
-  value: SourceFileVersionV1,
-  version: number,
-): VersionedRecordV1<SourceFileVersionV1> {
+function association(
+  logicalSourceId: LogicalSourceIdV1,
+  stream: AcademicRecordStreamV1,
+  sourceManifestId: SourceFileManifestId,
+  sourceManifestVersion: number,
+): LogicalSourceRecordAssociationV1 {
   return {
-    value,
-    version,
-    recordedAt: `2026-08-31T09:${String(version).padStart(2, '0')}:00Z`,
+    academicYearId,
+    logicalSourceId,
+    academicRecordStream: stream,
+    stableKey: academicRecordStreamKeyV1(stream),
+    state: 'active',
+    sourceManifestId,
+    sourceManifestVersion,
   };
 }
 
@@ -226,33 +207,30 @@ class SyntheticReconciliationAdapter {
     LogicalSourceIdV1,
     readonly AcademicRecordStreamV1[]
   >();
-  private readonly failingAcademicReads = new Set<string>();
+  private readonly associations = new Map<
+    string,
+    VersionedRecordV1<LogicalSourceRecordAssociationV1>
+  >();
 
-  readonly academicReadKeys: string[] = [];
+  readonly associationReadKeys: string[] = [];
   readonly logicalSourceReadIds: LogicalSourceIdV1[] = [];
-  readonly sourceHashReads: string[] = [];
-  readonly sourceManifestReads: SourceFileManifestId[] = [];
+  readonly academicReadKeys: string[] = [];
   writeCalls = 0;
 
   readonly imports = {
     findSourceFileByHash: async (
       _context: AcademicPersistenceContextV1,
       sha256: string,
-    ): Promise<VersionedRecordV1<SourceFileVersionV1> | null> => {
-      this.sourceHashReads.push(sha256);
-      return this.sourceVersions.find((record) => record.value.manifest.sha256 === sha256) ?? null;
-    },
+    ): Promise<VersionedRecordV1<SourceFileVersionV1> | null> =>
+      this.sourceVersions.find((record) => record.value.manifest.sha256 === sha256) ??
+      null,
     getSourceFileVersion: async (
       _context: AcademicPersistenceContextV1,
       manifestId: SourceFileManifestId,
-    ): Promise<VersionedRecordV1<SourceFileVersionV1> | null> => {
-      this.sourceManifestReads.push(manifestId);
-      return (
-        [...this.sourceVersions]
-          .reverse()
-          .find((record) => record.value.manifest.id === manifestId) ?? null
-      );
-    },
+    ): Promise<VersionedRecordV1<SourceFileVersionV1> | null> =>
+      [...this.sourceVersions]
+        .reverse()
+        .find((record) => record.value.manifest.id === manifestId) ?? null,
     appendSourceFileVersion: async (): Promise<never> => {
       this.writeCalls += 1;
       throw new Error('planning must not write source versions');
@@ -266,7 +244,6 @@ class SyntheticReconciliationAdapter {
     ): Promise<VersionedRecordV1<AcademicRecordV1> | null> => {
       const key = academicRecordStreamKeyV1(stream);
       this.academicReadKeys.push(key);
-      if (this.failingAcademicReads.has(key)) throw new Error('synthetic read failure');
       return this.academicRecords.get(key) ?? null;
     },
     appendVersion: async (): Promise<never> => {
@@ -276,6 +253,14 @@ class SyntheticReconciliationAdapter {
   };
 
   readonly logicalSourceRecords = {
+    getCurrent: async (
+      _context: AcademicPersistenceContextV1,
+      stream: LogicalSourceRecordAssociationStreamV1,
+    ): Promise<VersionedRecordV1<LogicalSourceRecordAssociationV1> | null> => {
+      const key = `${stream.logicalSourceId}:${stream.stableKey}`;
+      this.associationReadKeys.push(key);
+      return this.associations.get(key) ?? null;
+    },
     listCurrentStreams: async (
       _context: AcademicPersistenceContextV1,
       logicalSourceId: LogicalSourceIdV1,
@@ -294,16 +279,25 @@ class SyntheticReconciliationAdapter {
   }
 
   seedSource(value: SourceFileVersionV1, version = 1): void {
-    this.sourceVersions.push(versionedSource(value, version));
+    this.sourceVersions.push(versioned(value, version));
   }
 
   seedAcademicRecord(record: AcademicRecordV1, version: number): AcademicRecordStreamV1 {
     const stream = academicRecordStreamForV1(record);
-    this.academicRecords.set(
-      academicRecordStreamKeyV1(stream),
-      versionedAcademicRecord(record, version),
-    );
+    this.academicRecords.set(academicRecordStreamKeyV1(stream), versioned(record, version));
     return stream;
+  }
+
+  seedAssociation(
+    logicalSourceId: LogicalSourceIdV1,
+    stream: AcademicRecordStreamV1,
+    value: LogicalSourceRecordAssociationV1,
+    version: number,
+  ): void {
+    this.associations.set(
+      `${logicalSourceId}:${academicRecordStreamKeyV1(stream)}`,
+      versioned(value, version),
+    );
   }
 
   setLogicalSourceStreams(
@@ -311,10 +305,6 @@ class SyntheticReconciliationAdapter {
     streams: readonly AcademicRecordStreamV1[],
   ): void {
     this.streamsByLogicalSource.set(logicalSourceId, streams);
-  }
-
-  failAcademicRead(stream: AcademicRecordStreamV1): void {
-    this.failingAcademicReads.add(academicRecordStreamKeyV1(stream));
   }
 }
 
@@ -340,20 +330,145 @@ function fileInput(input: {
   };
 }
 
-function itemByState<TState extends 'new' | 'changed' | 'missing-from-new-source'>(
-  items: Awaited<ReturnType<typeof planImportReconciliation>>['items'],
-  state: TState,
-): Extract<(typeof items)[number], { readonly state: TState }> {
-  const item = items.find((candidate) => candidate.state === state);
-  if (!item || item.state !== state) throw new Error(`missing ${state} item`);
-  return item as Extract<(typeof items)[number], { readonly state: TState }>;
-}
+describe('idempotent import reconciliation with source associations v1', () => {
+  it('plans source, academic and association versions only for new and changed records', async () => {
+    const adapter = new SyntheticReconciliationAdapter();
+    const incomingManifest = manifest({
+      id: 'manifest:association:incremental',
+      fileName: 'professor-atualizado.xlsx',
+      sha256: 'hash-new-content',
+    });
+    adapter.seedSource(
+      {
+        manifest: {
+          ...incomingManifest,
+          fileName: 'professor-anterior.xlsx',
+          sha256: 'hash-old-content',
+        },
+        logicalSource: { state: 'confirmed', logicalSourceId: logicalSourceA },
+      },
+      4,
+    );
 
-describe('idempotent import reconciliation v1', () => {
-  it('short-circuits a known hash and records only renamed source metadata', async () => {
+    const unchangedCurrent = gradeRecord({
+      key: '11',
+      value: 8,
+      fileName: 'professor-anterior.xlsx',
+      sha256: 'hash-old-content',
+      technicalId: 'grade-entry:association:old:11',
+    });
+    const unchangedIncoming = gradeRecord({
+      key: '11',
+      value: 8,
+      fileName: incomingManifest.fileName,
+      sha256: incomingManifest.sha256,
+      technicalId: 'grade-entry:association:new:11',
+      technicalVersion: 99,
+    });
+    const changedCurrent = gradeRecord({
+      key: '12',
+      value: 5,
+      fileName: 'professor-anterior.xlsx',
+      sha256: 'hash-old-content',
+    });
+    const changedIncoming = gradeRecord({
+      key: '12',
+      value: 6,
+      fileName: incomingManifest.fileName,
+      sha256: incomingManifest.sha256,
+      technicalId: 'grade-entry:association:new:12',
+    });
+    const newIncoming = gradeRecord({
+      key: '13',
+      value: 9,
+      fileName: incomingManifest.fileName,
+      sha256: incomingManifest.sha256,
+    });
+
+    const unchangedStream = adapter.seedAcademicRecord(unchangedCurrent, 2);
+    const changedStream = adapter.seedAcademicRecord(changedCurrent, 7);
+    adapter.setLogicalSourceStreams(logicalSourceA, [changedStream, unchangedStream]);
+    adapter.seedAssociation(
+      logicalSourceA,
+      changedStream,
+      association(logicalSourceA, changedStream, incomingManifest.id, 4),
+      3,
+    );
+
+    const importFile = approvedFile('import-file:association:incremental', incomingManifest);
+    const plan = await planImportReconciliation(
+      {
+        context,
+        batch: batch([importFile]),
+        expectedBatchVersion: 6,
+        files: [
+          fileInput({
+            importFileId: importFile.id,
+            logicalSourceId: logicalSourceA,
+            records: [newIncoming, changedIncoming, unchangedIncoming],
+          }),
+        ],
+      },
+      adapter.repositories,
+    );
+
+    expect(plan.status).toBe('ready-for-promotion');
+    expect(plan.counts).toEqual({
+      unchanged: 1,
+      new: 1,
+      changed: 1,
+      'missing-from-new-source': 0,
+      blocked: 0,
+    });
+    expect(plan.estimatedWrites).toEqual({
+      sourceFileVersions: 1,
+      academicRecordVersions: 2,
+      logicalSourceRecordAssociationVersions: 2,
+      totalPlannedVersionWrites: 5,
+      readyForPromotionVersionWrites: 5,
+      pendingReviewVersionWrites: 0,
+      exactCloudflareQuota: false,
+      basis: 'planned-version-appends-only',
+    });
+
+    const writableItems = plan.items.filter(
+      (item) => item.state === 'new' || item.state === 'changed',
+    );
+    expect(writableItems).toHaveLength(2);
+    for (const item of writableItems) {
+      if (item.state !== 'new' && item.state !== 'changed') continue;
+      expect(item.associationWrite.kind).toBe('append-version');
+      expect(item.associationWrite.value).toMatchObject({
+        academicYearId,
+        logicalSourceId: logicalSourceA,
+        stableKey: item.stableKey,
+        state: 'active',
+        sourceManifestId: incomingManifest.id,
+        sourceManifestVersion: 5,
+      });
+      expect(item.associationWrite.stream).toEqual(
+        logicalSourceRecordAssociationStreamForV1(logicalSourceA, item.stream),
+      );
+    }
+
+    const changedItem = plan.items.find((item) => item.state === 'changed');
+    if (!changedItem || changedItem.state !== 'changed') {
+      throw new Error('missing changed item');
+    }
+    expect(changedItem.associationWrite.expectedVersion).toBe(3);
+    expect(changedItem.associationWrite.currentAssociation?.value.sourceManifestVersion).toBe(4);
+
+    const newItem = plan.items.find((item) => item.state === 'new');
+    if (!newItem || newItem.state !== 'new') throw new Error('missing new item');
+    expect(newItem.associationWrite.expectedVersion).toBeNull();
+    expect(newItem.associationWrite.currentAssociation).toBeNull();
+    expect(adapter.writeCalls).toBe(0);
+  });
+
+  it('keeps identical and renamed hashes free of academic association versions', async () => {
     const adapter = new SyntheticReconciliationAdapter();
     const knownManifest = manifest({
-      id: 'manifest:known',
+      id: 'manifest:association:known',
       fileName: 'notas-professor.xlsx',
       sha256: 'hash-identical',
     });
@@ -364,29 +479,25 @@ describe('idempotent import reconciliation v1', () => {
       },
       4,
     );
-
-    const sameNameManifest = manifest({
-      id: 'manifest:same-name-observation',
+    const incomingRecord = gradeRecord({
+      key: '20',
+      value: 8,
       fileName: knownManifest.fileName,
       sha256: knownManifest.sha256,
-      readAt: '2026-08-31T11:00:00Z',
-    });
-    const sameNameFile = approvedFile('import-file:same-name', sameNameManifest);
-    const incomingRecord = gradeRecord({
-      key: '10',
-      value: 9,
-      fileName: sameNameManifest.fileName,
-      sha256: sameNameManifest.sha256,
     });
 
-    const noOpPlan = await planImportReconciliation(
+    const sameFile = approvedFile(
+      'import-file:association:same',
+      { ...knownManifest, readAt: '2026-08-31T11:00:00Z' },
+    );
+    const samePlan = await planImportReconciliation(
       {
         context,
-        batch: batch([sameNameFile]),
-        expectedBatchVersion: 3,
+        batch: batch([sameFile]),
+        expectedBatchVersion: 1,
         files: [
           fileInput({
-            importFileId: sameNameFile.id,
+            importFileId: sameFile.id,
             logicalSourceId: logicalSourceB,
             records: [incomingRecord],
           }),
@@ -394,40 +505,20 @@ describe('idempotent import reconciliation v1', () => {
       },
       adapter.repositories,
     );
-
-    expect(noOpPlan.status).toBe('no-changes');
-    expect(noOpPlan.counts).toEqual({
-      unchanged: 1,
-      new: 0,
-      changed: 0,
-      'missing-from-new-source': 0,
-      blocked: 0,
-    });
-    expect(noOpPlan.estimatedWrites).toMatchObject({
-      academicRecordVersions: 0,
-      sourceFileVersions: 0,
-      totalPlannedVersionWrites: 0,
-    });
-    expect(noOpPlan.files[0]?.logicalSource).toEqual({
-      state: 'confirmed',
-      logicalSourceId: logicalSourceA,
-    });
-    expect(noOpPlan.files[0]?.sourceFileWrite).toEqual({ kind: 'none' });
-    expect(adapter.academicReadKeys).toEqual([]);
-    expect(adapter.logicalSourceReadIds).toEqual([]);
+    expect(samePlan.status).toBe('no-changes');
+    expect(samePlan.estimatedWrites.logicalSourceRecordAssociationVersions).toBe(0);
 
     const renamedManifest = manifest({
-      id: 'manifest:renamed-observation',
+      id: 'manifest:association:renamed',
       fileName: 'notas-professor-renomeado.xlsx',
       sha256: knownManifest.sha256,
-      readAt: '2026-08-31T12:00:00Z',
     });
-    const renamedFile = approvedFile('import-file:renamed', renamedManifest);
+    const renamedFile = approvedFile('import-file:association:renamed', renamedManifest);
     const renamedPlan = await planImportReconciliation(
       {
         context,
         batch: batch([renamedFile]),
-        expectedBatchVersion: 4,
+        expectedBatchVersion: 2,
         files: [
           fileInput({
             importFileId: renamedFile.id,
@@ -441,206 +532,81 @@ describe('idempotent import reconciliation v1', () => {
 
     expect(renamedPlan.status).toBe('ready-for-promotion');
     expect(renamedPlan.estimatedWrites).toMatchObject({
-      academicRecordVersions: 0,
       sourceFileVersions: 1,
+      academicRecordVersions: 0,
+      logicalSourceRecordAssociationVersions: 0,
       totalPlannedVersionWrites: 1,
     });
-    expect(renamedPlan.promotionRequest).toEqual({
-      importBatchId: batchId,
-      approvedImportFileIds: [renamedFile.id],
-      expectedBatchVersion: 4,
-    });
-
-    const sourceWrite = renamedPlan.files[0]?.sourceFileWrite;
-    expect(sourceWrite?.kind).toBe('append-version');
-    if (sourceWrite?.kind !== 'append-version') throw new Error('missing renamed source write');
-    expect(sourceWrite.expectedVersion).toBeNull();
-    expect(sourceWrite.value.manifest.fileName).toBe(renamedManifest.fileName);
-    expect(sourceWrite.value.logicalSource).toEqual({
-      state: 'confirmed',
-      logicalSourceId: logicalSourceA,
-    });
-    expect(adapter.academicReadKeys).toEqual([]);
-    expect(adapter.writeCalls).toBe(0);
-    expect(renamedPlan.planningEvidence.writesPerformed).toBe(0);
+    expect(adapter.associationReadKeys).toEqual([]);
+    expect(adapter.logicalSourceReadIds).toEqual([]);
   });
 
-  it('compares a confirmed source by stable academic keys and plans only semantic changes', async () => {
+  it('never deactivates an association for a record missing from the new source', async () => {
     const adapter = new SyntheticReconciliationAdapter();
     const incomingManifest = manifest({
-      id: 'manifest:incremental',
-      fileName: 'professor-atualizado.xlsx',
-      sha256: 'hash-new-content',
+      id: 'manifest:association:missing',
+      fileName: 'notas-atualizadas.xlsx',
+      sha256: 'hash-missing-new',
     });
     adapter.seedSource(
       {
-        manifest: manifest({
-          id: incomingManifest.id,
-          fileName: 'professor-versao-anterior.xlsx',
-          sha256: 'hash-old-content',
-          readAt: '2026-08-30T10:00:00Z',
-        }),
+        manifest: { ...incomingManifest, sha256: 'hash-missing-old' },
         logicalSource: { state: 'confirmed', logicalSourceId: logicalSourceA },
       },
-      4,
+      1,
     );
-
-    const unchangedCurrent = gradeRecord({
-      key: '11',
-      value: 8,
-      fileName: 'professor-versao-anterior.xlsx',
-      sha256: 'hash-old-content',
-      technicalId: 'grade-entry:old:11',
-      technicalVersion: 2,
-    });
-    const unchangedIncoming = gradeRecord({
-      key: '11',
-      value: 8,
-      fileName: incomingManifest.fileName,
-      sha256: incomingManifest.sha256,
-      technicalId: 'grade-entry:new:11',
-      technicalVersion: 99,
-    });
-    const changedCurrent = gradeRecord({
-      key: '12',
-      value: 5,
-      fileName: 'professor-versao-anterior.xlsx',
-      sha256: 'hash-old-content',
-    });
-    const changedIncoming = gradeRecord({
-      key: '12',
-      value: 6,
-      fileName: incomingManifest.fileName,
-      sha256: incomingManifest.sha256,
-      technicalId: 'grade-entry:new:12',
-    });
-    const missingCurrent = gradeRecord({
-      key: '13',
-      value: 4,
-      fileName: 'professor-versao-anterior.xlsx',
-      sha256: 'hash-old-content',
-    });
-    const replicatedCurrent = gradeRecord({
-      key: '14',
+    const missingRecord = gradeRecord({
+      key: '30',
       value: 7,
-      fileName: 'turma-origem.xlsx',
-      sha256: 'hash-transfer-origin',
+      fileName: 'notas-anteriores.xlsx',
+      sha256: 'hash-missing-old',
     });
-    const replicatedIncoming = gradeRecord({
-      key: '14',
-      value: 7,
-      fileName: incomingManifest.fileName,
-      sha256: incomingManifest.sha256,
-      technicalId: 'grade-entry:destination-copy:14',
-    });
-    const newIncoming = gradeRecord({
-      key: '15',
-      value: 9,
-      fileName: incomingManifest.fileName,
-      sha256: incomingManifest.sha256,
-    });
+    const missingStream = adapter.seedAcademicRecord(missingRecord, 2);
+    adapter.setLogicalSourceStreams(logicalSourceA, [missingStream]);
+    adapter.seedAssociation(
+      logicalSourceA,
+      missingStream,
+      association(logicalSourceA, missingStream, incomingManifest.id, 1),
+      2,
+    );
+    const importFile = approvedFile('import-file:association:missing', incomingManifest);
 
-    const unchangedStream = adapter.seedAcademicRecord(unchangedCurrent, 2);
-    const changedStream = adapter.seedAcademicRecord(changedCurrent, 7);
-    const missingStream = adapter.seedAcademicRecord(missingCurrent, 3);
-    adapter.seedAcademicRecord(replicatedCurrent, 5);
-    adapter.setLogicalSourceStreams(logicalSourceA, [missingStream, changedStream, unchangedStream]);
-
-    const importFile = approvedFile('import-file:incremental', incomingManifest);
-    const inputRecords = [newIncoming, changedIncoming, replicatedIncoming, unchangedIncoming];
-    const firstPlan = await planImportReconciliation(
+    const plan = await planImportReconciliation(
       {
         context,
         batch: batch([importFile]),
-        expectedBatchVersion: 6,
+        expectedBatchVersion: 3,
         files: [
           fileInput({
             importFileId: importFile.id,
             logicalSourceId: logicalSourceA,
-            records: inputRecords,
+            records: [],
           }),
         ],
       },
       adapter.repositories,
     );
 
-    expect(firstPlan.status).toBe('review-required');
-    expect(firstPlan.counts).toEqual({
-      unchanged: 2,
-      new: 1,
-      changed: 1,
-      'missing-from-new-source': 1,
-      blocked: 0,
-    });
-    expect(firstPlan.reviewRequiredImportFileIds).toEqual([importFile.id]);
-    expect(firstPlan.promotionRequest.approvedImportFileIds).toEqual([]);
-    expect(firstPlan.estimatedWrites).toEqual({
+    expect(plan.status).toBe('review-required');
+    expect(plan.counts['missing-from-new-source']).toBe(1);
+    expect(plan.estimatedWrites).toMatchObject({
       sourceFileVersions: 1,
-      academicRecordVersions: 2,
-      totalPlannedVersionWrites: 3,
-      readyForPromotionVersionWrites: 0,
-      pendingReviewVersionWrites: 3,
-      exactCloudflareQuota: false,
-      basis: 'planned-version-appends-only',
+      academicRecordVersions: 0,
+      logicalSourceRecordAssociationVersions: 0,
+      pendingReviewVersionWrites: 1,
     });
-
-    const newItem = itemByState(firstPlan.items, 'new');
-    expect(newItem.expectedVersion).toBeNull();
-    expect(newItem.stableKey).toBe(
-      academicRecordStreamKeyV1(academicRecordStreamForV1(newIncoming)),
-    );
-
-    const changedItem = itemByState(firstPlan.items, 'changed');
-    expect(changedItem.expectedVersion).toBe(7);
-    expect(changedItem.currentRecord.value).toEqual(changedCurrent);
-    expect(changedItem.incomingRecord).toEqual(changedIncoming);
-
-    const missingItem = itemByState(firstPlan.items, 'missing-from-new-source');
-    expect(missingItem.expectedVersion).toBe(3);
-    expect(missingItem.currentRecord.value).toEqual(missingCurrent);
-    expect(missingItem.reason.code).toBe('academic-record-missing-from-new-source');
-
-    const filePlan = firstPlan.files[0];
-    expect(filePlan?.sourceFileWrite.kind).toBe('append-version');
-    if (filePlan?.sourceFileWrite.kind !== 'append-version') {
-      throw new Error('missing incremental source write');
-    }
-    expect(filePlan.sourceFileWrite.expectedVersion).toBe(4);
-
-    adapter.setLogicalSourceStreams(logicalSourceA, [unchangedStream, changedStream, missingStream]);
-    const secondPlan = await planImportReconciliation(
-      {
-        context,
-        batch: batch([importFile]),
-        expectedBatchVersion: 6,
-        files: [
-          fileInput({
-            importFileId: importFile.id,
-            logicalSourceId: logicalSourceA,
-            records: [...inputRecords].reverse(),
-          }),
-        ],
-      },
-      adapter.repositories,
-    );
-
-    expect(secondPlan).toEqual(firstPlan);
-    expect(firstPlan.items.map((item) => item.stableKey ?? '')).toEqual(
-      [...firstPlan.items.map((item) => item.stableKey ?? '')].sort((left, right) =>
-        left.localeCompare(right),
-      ),
-    );
-    expect(adapter.writeCalls).toBe(0);
+    expect(JSON.stringify(plan)).not.toContain('inactive');
+    expect(adapter.associationReadKeys).toEqual([]);
   });
 
-  it('requires review for a new hash with candidate logical sources and plans no writes', async () => {
+  it('plans no association for an ambiguous logical source', async () => {
     const adapter = new SyntheticReconciliationAdapter();
     const sourceManifest = manifest({
-      id: 'manifest:ambiguous',
-      fileName: 'professor-sintetico.xlsx',
-      sha256: 'hash-ambiguous-new',
+      id: 'manifest:association:ambiguous',
+      fileName: 'notas-ambiguas.xlsx',
+      sha256: 'hash-ambiguous',
     });
-    const importFile = approvedFile('import-file:ambiguous', sourceManifest);
+    const importFile = approvedFile('import-file:association:ambiguous', sourceManifest);
 
     const plan = await planImportReconciliation(
       {
@@ -653,7 +619,7 @@ describe('idempotent import reconciliation v1', () => {
             candidateLogicalSourceIds: [logicalSourceA, logicalSourceB],
             records: [
               gradeRecord({
-                key: '20',
+                key: '40',
                 value: 8,
                 fileName: sourceManifest.fileName,
                 sha256: sourceManifest.sha256,
@@ -666,148 +632,73 @@ describe('idempotent import reconciliation v1', () => {
     );
 
     expect(plan.status).toBe('review-required');
-    expect(plan.counts.blocked).toBe(1);
-    expect(plan.files[0]?.logicalSource).toEqual({
-      state: 'candidate',
-      candidateLogicalSourceIds: [logicalSourceA, logicalSourceB],
-    });
-    expect(plan.files[0]?.items[0]?.reason.code).toBe(
-      'candidate-logical-source-requires-review',
-    );
-    expect(plan.promotionRequest.approvedImportFileIds).toEqual([]);
     expect(plan.estimatedWrites.totalPlannedVersionWrites).toBe(0);
+    expect(plan.estimatedWrites.logicalSourceRecordAssociationVersions).toBe(0);
     expect(adapter.logicalSourceReadIds).toEqual([]);
-    expect(adapter.academicReadKeys).toEqual([]);
-    expect(adapter.sourceManifestReads).toEqual([]);
-    expect(adapter.writeCalls).toBe(0);
+    expect(adapter.associationReadKeys).toEqual([]);
   });
 
-  it('isolates a failed file with critical diagnostics while preserving an approved plan', async () => {
+  it('blocks a file when the association repository returns an incompatible stream', async () => {
     const adapter = new SyntheticReconciliationAdapter();
-    const failedFileId = 'import-file:a-failed' as ImportFileId;
-    const diagnosticId = 'diagnostic:critical:synthetic' as ImportFileDiagnosticId;
-    const diagnostic = {
-      id: diagnosticId,
-      importBatchId: batchId,
-      importFileId: failedFileId,
-      severity: 'critical-error',
-      code: 'synthetic-invalid-file',
-      message: 'Arquivo sintético inválido.',
-      location: { kind: 'file' },
-    } satisfies ImportFileDiagnosticV1;
-    const invalidFile = failedFile(failedFileId, diagnosticId);
-
-    const validManifest = manifest({
-      id: 'manifest:valid',
-      fileName: 'arquivo-sintetico-valido.xlsx',
-      sha256: 'hash-valid-new',
+    const incomingManifest = manifest({
+      id: 'manifest:association:broken',
+      fileName: 'notas-broken.xlsx',
+      sha256: 'hash-broken-new',
     });
-    const validFile = approvedFile('import-file:b-valid', validManifest);
-    const validRecord = gradeRecord({
-      key: '30',
-      value: 10,
-      fileName: validManifest.fileName,
-      sha256: validManifest.sha256,
-    });
-
-    const plan = await planImportReconciliation(
+    adapter.seedSource(
       {
-        context,
-        batch: batch([validFile, invalidFile], [diagnostic]),
-        expectedBatchVersion: 9,
-        files: [
-          fileInput({
-            importFileId: validFile.id,
-            logicalSourceId: logicalSourceA,
-            records: [validRecord],
-          }),
-        ],
+        manifest: { ...incomingManifest, sha256: 'hash-broken-old' },
+        logicalSource: { state: 'confirmed', logicalSourceId: logicalSourceA },
       },
-      adapter.repositories,
+      1,
     );
-
-    expect(plan.status).toBe('partially-ready');
-    expect(plan.files.map((file) => file.importFileId)).toEqual([
-      invalidFile.id,
-      validFile.id,
-    ]);
-    expect(plan.counts).toMatchObject({ blocked: 1, new: 1 });
-    expect(plan.blockedImportFileIds).toEqual([invalidFile.id]);
-    expect(plan.promotionRequest).toEqual({
-      importBatchId: batchId,
-      approvedImportFileIds: [validFile.id],
-      expectedBatchVersion: 9,
+    const current = gradeRecord({
+      key: '50',
+      value: 5,
+      fileName: 'notas-old.xlsx',
+      sha256: 'hash-broken-old',
     });
-    expect(plan.files[0]?.diagnostics).toEqual([diagnostic]);
-    expect(plan.files[0]?.reasons[0]?.diagnosticIds).toEqual([diagnosticId]);
-    expect(plan.estimatedWrites).toMatchObject({
-      sourceFileVersions: 1,
-      academicRecordVersions: 1,
-      totalPlannedVersionWrites: 2,
-      readyForPromotionVersionWrites: 2,
-    });
-    expect(adapter.writeCalls).toBe(0);
-  });
-
-  it('isolates a repository read failure without discarding another approved file', async () => {
-    const adapter = new SyntheticReconciliationAdapter();
-    const blockedManifest = manifest({
-      id: 'manifest:a-read-failure',
-      fileName: 'arquivo-a.xlsx',
-      sha256: 'hash-a-new',
-    });
-    const readyManifest = manifest({
-      id: 'manifest:b-ready',
-      fileName: 'arquivo-b.xlsx',
-      sha256: 'hash-b-new',
-    });
-    const blockedFile = approvedFile('import-file:a-read-failure', blockedManifest);
-    const readyFile = approvedFile('import-file:b-ready', readyManifest);
-    const blockedRecord = gradeRecord({
-      key: '40',
+    const incoming = gradeRecord({
+      key: '50',
       value: 6,
-      fileName: blockedManifest.fileName,
-      sha256: blockedManifest.sha256,
+      fileName: incomingManifest.fileName,
+      sha256: incomingManifest.sha256,
     });
-    const readyRecord = gradeRecord({
-      key: '41',
-      value: 7,
-      fileName: readyManifest.fileName,
-      sha256: readyManifest.sha256,
-    });
-    adapter.failAcademicRead(academicRecordStreamForV1(blockedRecord));
+    const stream = adapter.seedAcademicRecord(current, 1);
+    adapter.setLogicalSourceStreams(logicalSourceA, [stream]);
+    adapter.seedAssociation(
+      logicalSourceA,
+      stream,
+      {
+        ...association(logicalSourceA, stream, incomingManifest.id, 1),
+        logicalSourceId: logicalSourceB,
+      },
+      1,
+    );
+    const importFile = approvedFile('import-file:association:broken', incomingManifest);
 
     const plan = await planImportReconciliation(
       {
         context,
-        batch: batch([readyFile, blockedFile]),
-        expectedBatchVersion: 5,
+        batch: batch([importFile]),
+        expectedBatchVersion: 1,
         files: [
           fileInput({
-            importFileId: blockedFile.id,
+            importFileId: importFile.id,
             logicalSourceId: logicalSourceA,
-            records: [blockedRecord],
-          }),
-          fileInput({
-            importFileId: readyFile.id,
-            logicalSourceId: logicalSourceB,
-            records: [readyRecord],
+            records: [incoming],
           }),
         ],
       },
       adapter.repositories,
     );
 
-    expect(plan.status).toBe('partially-ready');
-    expect(plan.blockedImportFileIds).toEqual([blockedFile.id]);
-    expect(plan.promotionRequest.approvedImportFileIds).toEqual([readyFile.id]);
-    expect(plan.files[0]?.reasons[0]?.code).toBe('reconciliation-read-failed');
-    expect(plan.files[0]?.estimatedWrites.totalPlannedVersionWrites).toBe(0);
-    expect(plan.files[1]?.counts.new).toBe(1);
-    expect(adapter.writeCalls).toBe(0);
+    expect(plan.status).toBe('blocked');
+    expect(plan.files[0]?.reasons[0]?.code).toBe('persisted-association-mismatch');
+    expect(plan.estimatedWrites.totalPlannedVersionWrites).toBe(0);
   });
 
-  it('does not depend on clock, network, D1 or global environment during planning', async () => {
+  it('remains deterministic and provider-independent during planning', () => {
     const source = readFileSync(
       'server/gradebook/application/import/import-reconciliation-v1.ts',
       'utf8',

@@ -18,6 +18,9 @@ import type {
   BatchPromotionRequestV1,
   ImportPersistenceRepositoryV1,
   LogicalSourceIdV1,
+  LogicalSourceRecordAssociationStreamV1,
+  LogicalSourceRecordAssociationV1,
+  LogicalSourceRecordRepositoryV1,
   LogicalSourceRelationV1,
   SourceFileVersionV1,
   VersionedRecordV1,
@@ -37,6 +40,15 @@ export interface ImportPlanReasonV1 {
   readonly code: string;
   readonly message: string;
   readonly diagnosticIds: readonly ImportFileDiagnosticId[];
+}
+
+export interface PlannedLogicalSourceRecordAssociationWriteV1 {
+  readonly kind: 'append-version';
+  readonly stream: LogicalSourceRecordAssociationStreamV1;
+  readonly value: LogicalSourceRecordAssociationV1;
+  readonly currentAssociation: VersionedRecordV1<LogicalSourceRecordAssociationV1> | null;
+  readonly expectedVersion: number | null;
+  readonly reason: ImportPlanReasonV1;
 }
 
 interface ImportChangePlanItemBaseV1 {
@@ -59,6 +71,7 @@ export type ImportChangePlanItemV1 =
       readonly stream: AcademicRecordStreamV1;
       readonly incomingRecord: AcademicRecordV1;
       readonly expectedVersion: null;
+      readonly associationWrite: PlannedLogicalSourceRecordAssociationWriteV1;
     })
   | (ImportChangePlanItemBaseV1 & {
       readonly state: 'changed';
@@ -67,6 +80,7 @@ export type ImportChangePlanItemV1 =
       readonly incomingRecord: AcademicRecordV1;
       readonly currentRecord: VersionedRecordV1<AcademicRecordV1>;
       readonly expectedVersion: number;
+      readonly associationWrite: PlannedLogicalSourceRecordAssociationWriteV1;
     })
   | (ImportChangePlanItemBaseV1 & {
       readonly state: 'missing-from-new-source';
@@ -117,6 +131,7 @@ export type PlannedSourceFileWriteV1 =
 export interface ImportFileWriteEstimateV1 {
   readonly sourceFileVersions: number;
   readonly academicRecordVersions: number;
+  readonly logicalSourceRecordAssociationVersions: number;
   readonly totalPlannedVersionWrites: number;
 }
 
@@ -146,6 +161,7 @@ export interface ImportFileChangePlanV1 {
 export interface ImportChangeWriteEstimateV1 {
   readonly sourceFileVersions: number;
   readonly academicRecordVersions: number;
+  readonly logicalSourceRecordAssociationVersions: number;
   readonly totalPlannedVersionWrites: number;
   readonly readyForPromotionVersionWrites: number;
   readonly pendingReviewVersionWrites: number;
@@ -196,25 +212,16 @@ export interface ImportReconciliationInputV1 {
   readonly files: readonly ImportReconciliationFileInputV1[];
 }
 
-/**
- * Narrow application read model required to discover records that disappeared
- * from a new version. Values and optimistic versions still come from the
- * provider-independent AcademicRecordRepositoryV1.
- */
-export interface LogicalSourceRecordCatalogV1 {
-  listCurrentStreams(
-    context: AcademicPersistenceContextV1,
-    logicalSourceId: LogicalSourceIdV1,
-  ): Promise<readonly AcademicRecordStreamV1[]>;
-}
-
 export interface ImportReconciliationRepositoriesV1 {
   readonly imports: Pick<
     ImportPersistenceRepositoryV1,
     'findSourceFileByHash' | 'getSourceFileVersion'
   >;
   readonly academicRecords: Pick<AcademicRecordRepositoryV1, 'getCurrent'>;
-  readonly logicalSourceRecords: LogicalSourceRecordCatalogV1;
+  readonly logicalSourceRecords: Pick<
+    LogicalSourceRecordRepositoryV1,
+    'getCurrent' | 'listCurrentStreams'
+  >;
 }
 
 class FilePlanningBlockedError extends Error {
@@ -309,6 +316,17 @@ export function academicRecordStreamForV1(record: AcademicRecordV1): AcademicRec
   }
 }
 
+export function logicalSourceRecordAssociationStreamForV1(
+  logicalSourceId: LogicalSourceIdV1,
+  academicRecordStream: AcademicRecordStreamV1,
+): LogicalSourceRecordAssociationStreamV1 {
+  return {
+    logicalSourceId,
+    academicRecordStream,
+    stableKey: academicRecordStreamKeyV1(academicRecordStream),
+  };
+}
+
 function stableSerialize(value: unknown): string {
   if (value === null) return 'null';
 
@@ -371,10 +389,15 @@ export function academicRecordsSemanticallyEqualV1(
   left: AcademicRecordV1,
   right: AcademicRecordV1,
 ): boolean {
-  return stableSerialize(semanticAcademicRecord(left)) === stableSerialize(semanticAcademicRecord(right));
+  return (
+    stableSerialize(semanticAcademicRecord(left)) ===
+    stableSerialize(semanticAcademicRecord(right))
+  );
 }
 
-function recordAcademicYearId(record: AcademicRecordV1): AcademicPersistenceContextV1['academicYearId'] {
+function recordAcademicYearId(
+  record: AcademicRecordV1,
+): AcademicPersistenceContextV1['academicYearId'] {
   return record.value.academicYearId;
 }
 
@@ -391,16 +414,30 @@ function countsFor(items: readonly ImportChangePlanItemV1[]): ImportChangeCounts
   return counts;
 }
 
+function associationWriteCount(items: readonly ImportChangePlanItemV1[]): number {
+  return items.reduce(
+    (total, item) =>
+      total + (item.state === 'new' || item.state === 'changed' ? 1 : 0),
+    0,
+  );
+}
+
 function estimateFileWrites(
   sourceFileWrite: PlannedSourceFileWriteV1,
   counts: ImportChangeCountsV1,
+  items: readonly ImportChangePlanItemV1[],
 ): ImportFileWriteEstimateV1 {
   const sourceFileVersions = sourceFileWrite.kind === 'append-version' ? 1 : 0;
   const academicRecordVersions = counts.new + counts.changed;
+  const logicalSourceRecordAssociationVersions = associationWriteCount(items);
   return {
     sourceFileVersions,
     academicRecordVersions,
-    totalPlannedVersionWrites: sourceFileVersions + academicRecordVersions,
+    logicalSourceRecordAssociationVersions,
+    totalPlannedVersionWrites:
+      sourceFileVersions +
+      academicRecordVersions +
+      logicalSourceRecordAssociationVersions,
   };
 }
 
@@ -461,7 +498,7 @@ function blockedFilePlan(input: {
     items,
     counts,
     sourceFileWrite,
-    estimatedWrites: estimateFileWrites(sourceFileWrite, counts),
+    estimatedWrites: estimateFileWrites(sourceFileWrite, counts, items),
   };
 }
 
@@ -525,13 +562,102 @@ function assertCurrentRecordMatchesStream(
   }
 }
 
+function associationValueMatchesStream(
+  context: AcademicPersistenceContextV1,
+  stream: LogicalSourceRecordAssociationStreamV1,
+  value: LogicalSourceRecordAssociationV1,
+): boolean {
+  return (
+    value.academicYearId === context.academicYearId &&
+    value.logicalSourceId === stream.logicalSourceId &&
+    value.stableKey === stream.stableKey &&
+    academicRecordStreamKeyV1(value.academicRecordStream) === stream.stableKey &&
+    academicRecordStreamKeyV1(stream.academicRecordStream) === stream.stableKey
+  );
+}
+
+function assertCurrentAssociationMatchesStream(
+  context: AcademicPersistenceContextV1,
+  stream: LogicalSourceRecordAssociationStreamV1,
+  current: VersionedRecordV1<LogicalSourceRecordAssociationV1>,
+): void {
+  if (
+    !Number.isInteger(current.version) ||
+    current.version <= 0 ||
+    !associationValueMatchesStream(context, stream, current.value)
+  ) {
+    throw new FilePlanningBlockedError(
+      reason(
+        'persisted-association-mismatch',
+        'O repositório retornou uma associação incompatível com a fonte lógica e o stream consultados.',
+      ),
+    );
+  }
+}
+
+async function associationWriteFor(input: {
+  context: AcademicPersistenceContextV1;
+  logicalSourceId: LogicalSourceIdV1;
+  stream: AcademicRecordStreamV1;
+  sourceManifestId: SourceFileManifestId;
+  sourceManifestVersion: number;
+  changeState: 'new' | 'changed';
+  repositories: ImportReconciliationRepositoriesV1;
+}): Promise<PlannedLogicalSourceRecordAssociationWriteV1> {
+  const associationStream = logicalSourceRecordAssociationStreamForV1(
+    input.logicalSourceId,
+    input.stream,
+  );
+  const value = {
+    academicYearId: input.context.academicYearId,
+    logicalSourceId: input.logicalSourceId,
+    academicRecordStream: input.stream,
+    stableKey: associationStream.stableKey,
+    state: 'active',
+    sourceManifestId: input.sourceManifestId,
+    sourceManifestVersion: input.sourceManifestVersion,
+  } satisfies LogicalSourceRecordAssociationV1;
+  const currentAssociation = await input.repositories.logicalSourceRecords.getCurrent(
+    input.context,
+    associationStream,
+  );
+
+  if (currentAssociation) {
+    assertCurrentAssociationMatchesStream(input.context, associationStream, currentAssociation);
+    if (stableSerialize(currentAssociation.value) === stableSerialize(value)) {
+      throw new FilePlanningBlockedError(
+        reason(
+          'association-version-already-current',
+          'A associação já aponta para a versão de fonte que ainda seria promovida; o estado persistido exige revisão.',
+        ),
+      );
+    }
+  }
+
+  return {
+    kind: 'append-version',
+    stream: associationStream,
+    value,
+    currentAssociation,
+    expectedVersion: currentAssociation?.version ?? null,
+    reason: reason(
+      input.changeState === 'new'
+        ? 'activate-logical-source-record-association'
+        : 'version-logical-source-record-association',
+      input.changeState === 'new'
+        ? 'A nova chave acadêmica será associada explicitamente à fonte lógica confirmada.'
+        : 'A associação ativa será versionada para registrar a fonte que originou a alteração.',
+    ),
+  };
+}
+
 async function sourceFileWriteFor(
   context: AcademicPersistenceContextV1,
   manifest: SourceFileManifestV1,
   logicalSource: Extract<LogicalSourceRelationV1, { readonly state: 'confirmed' }>,
   writeReason: ImportPlanReasonV1,
   repositories: ImportReconciliationRepositoriesV1,
-): Promise<PlannedSourceFileWriteV1> {
+): Promise<Extract<PlannedSourceFileWriteV1, { readonly kind: 'append-version' }>> {
   const current = await repositories.imports.getSourceFileVersion(context, manifest.id);
   return {
     kind: 'append-version',
@@ -578,6 +704,7 @@ async function planConfirmedNewContent(input: {
     ),
     input.repositories,
   );
+  const sourceManifestVersion = (sourceFileWrite.expectedVersion ?? 0) + 1;
 
   const indexedStreams = await input.repositories.logicalSourceRecords.listCurrentStreams(
     input.context,
@@ -592,7 +719,9 @@ async function planConfirmedNewContent(input: {
   }
 
   const items: ImportChangePlanItemV1[] = [];
-  for (const stableKey of [...streamsByKey.keys()].sort((left, right) => left.localeCompare(right))) {
+  for (const stableKey of [...streamsByKey.keys()].sort((left, right) =>
+    left.localeCompare(right),
+  )) {
     const incoming = input.recordsByKey.get(stableKey);
     const stream = incoming?.stream ?? streamsByKey.get(stableKey);
     if (!stream) {
@@ -606,6 +735,15 @@ async function planConfirmedNewContent(input: {
 
     if (incoming) {
       if (!current) {
+        const associationWrite = await associationWriteFor({
+          context: input.context,
+          logicalSourceId: input.logicalSource.logicalSourceId,
+          stream,
+          sourceManifestId: input.batchFile.manifest.id,
+          sourceManifestVersion,
+          changeState: 'new',
+          repositories: input.repositories,
+        });
         items.push({
           state: 'new',
           importFileId: input.batchFile.id,
@@ -613,6 +751,7 @@ async function planConfirmedNewContent(input: {
           stream,
           incomingRecord: incoming.record,
           expectedVersion: null,
+          associationWrite,
           reason: reason(
             'new-academic-record',
             'Nenhuma versão atual existe para a chave acadêmica; um append inicial foi planejado.',
@@ -637,6 +776,15 @@ async function planConfirmedNewContent(input: {
         continue;
       }
 
+      const associationWrite = await associationWriteFor({
+        context: input.context,
+        logicalSourceId: input.logicalSource.logicalSourceId,
+        stream,
+        sourceManifestId: input.batchFile.manifest.id,
+        sourceManifestVersion,
+        changeState: 'changed',
+        repositories: input.repositories,
+      });
       items.push({
         state: 'changed',
         importFileId: input.batchFile.id,
@@ -645,6 +793,7 @@ async function planConfirmedNewContent(input: {
         incomingRecord: incoming.record,
         currentRecord: current,
         expectedVersion: current.version,
+        associationWrite,
         reason: reason(
           'academic-value-changed',
           'O valor acadêmico mudou; foi planejado append preservando a versão atual.',
@@ -671,7 +820,7 @@ async function planConfirmedNewContent(input: {
       expectedVersion: current.version,
       reason: reason(
         'academic-record-missing-from-new-source',
-        'O registro existia na fonte lógica e não aparece na nova versão; revisão humana é obrigatória e nenhuma exclusão foi planejada.',
+        'O registro existia na fonte lógica e não aparece na nova versão; revisão humana é obrigatória e nenhuma exclusão ou desativação foi planejada.',
       ),
     });
   }
@@ -700,7 +849,7 @@ async function planConfirmedNewContent(input: {
     items,
     counts,
     sourceFileWrite,
-    estimatedWrites: estimateFileWrites(sourceFileWrite, counts),
+    estimatedWrites: estimateFileWrites(sourceFileWrite, counts, items),
   };
 }
 
@@ -763,7 +912,7 @@ async function planApprovedFile(input: {
       : ({ kind: 'none' } as const);
     const itemReason = reason(
       'identical-content',
-      'O SHA-256 já é conhecido; nenhuma consulta ou versão acadêmica nova é necessária.',
+      'O SHA-256 já é conhecido; nenhuma consulta ou versão acadêmica ou de associação é necessária.',
     );
     const items = [...recordsByKey.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
@@ -780,7 +929,7 @@ async function planApprovedFile(input: {
     const fileReason = reason(
       renamed ? 'identical-content-renamed' : 'identical-content-no-op',
       renamed
-        ? 'O arquivo foi renomeado, sem duplicação de registros acadêmicos.'
+        ? 'O arquivo foi renomeado, sem duplicação de registros ou associações acadêmicas.'
         : 'O conteúdo e o nome já são conhecidos; o planejamento é um no-op.',
     );
 
@@ -798,7 +947,7 @@ async function planApprovedFile(input: {
       items,
       counts,
       sourceFileWrite,
-      estimatedWrites: estimateFileWrites(sourceFileWrite, counts),
+      estimatedWrites: estimateFileWrites(sourceFileWrite, counts, items),
     };
   }
 
@@ -855,6 +1004,11 @@ function aggregateWriteEstimate(
     (total, file) => total + file.estimatedWrites.academicRecordVersions,
     0,
   );
+  const logicalSourceRecordAssociationVersions = files.reduce(
+    (total, file) =>
+      total + file.estimatedWrites.logicalSourceRecordAssociationVersions,
+    0,
+  );
   const readyForPromotionVersionWrites = files
     .filter((file) => file.status === 'ready-for-promotion')
     .reduce((total, file) => total + file.estimatedWrites.totalPlannedVersionWrites, 0);
@@ -865,7 +1019,11 @@ function aggregateWriteEstimate(
   return {
     sourceFileVersions,
     academicRecordVersions,
-    totalPlannedVersionWrites: sourceFileVersions + academicRecordVersions,
+    logicalSourceRecordAssociationVersions,
+    totalPlannedVersionWrites:
+      sourceFileVersions +
+      academicRecordVersions +
+      logicalSourceRecordAssociationVersions,
     readyForPromotionVersionWrites,
     pendingReviewVersionWrites,
     exactCloudflareQuota: false,
@@ -890,7 +1048,8 @@ export async function planImportReconciliation(
   for (const batchFile of orderedBatchFiles) {
     const diagnostics = sortDiagnostics(input.batch.diagnostics, batchFile.id);
     const fileInput = indexedInput.byId.get(batchFile.id);
-    const fallbackLogicalSource = fileInput?.logicalSource ?? ({ state: 'unmatched' } as const);
+    const fallbackLogicalSource =
+      fileInput?.logicalSource ?? ({ state: 'unmatched' } as const);
 
     if (indexedInput.duplicates.has(batchFile.id)) {
       files.push(
