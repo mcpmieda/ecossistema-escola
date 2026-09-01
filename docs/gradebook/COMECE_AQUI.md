@@ -9,75 +9,78 @@ Não atribua como tarefa comum:
 - `#182` — painel geral do programa;
 - `#184` a `#192` — acompanhamento das fases;
 - `#220` — Saúde e limites, ainda planejada;
-- `#306` — integração da próxima onda, bloqueada pelas quatro frentes.
+- `#318` — integração da próxima onda, bloqueada pelas quatro frentes.
 
-As integrações `#203`, `#210`, `#214`, `#221`, `#229`, `#237`, `#246`, `#256`, `#264`, `#272`, `#281`, `#288` e `#297` pertencem às ondas já integradas quando este documento estiver na `main`.
+As integrações `#203`, `#210`, `#214`, `#221`, `#229`, `#237`, `#246`, `#256`, `#264`, `#272`, `#281`, `#288`, `#297` e `#306` pertencem às ondas já integradas quando este documento estiver na `main`.
 
-## Décima terceira onda — contratos integrados
+## Décima quarta onda — implementações integradas
 
-|  Issue | Entrega                                                | PR / merge       |
-| -----: | ------------------------------------------------------ | ---------------- |
-| `#293` | Contrato V1 da experiência operacional F5              | `#298` / `8452199` |
-| `#294` | Contrato V1 do workspace de Auditoria/revisão F4       | `#301` / `a78e410` |
-| `#295` | Contrato V1 do read model de Desempenho F6             | `#299` / `706426b` |
-| `#296` | `BulletinModelV1` e emissão versionada F8              | `#300` / `e7b9298` |
+| Frente | Issue | Entrega | PR / merge |
+| :----: | ----: | ------- | ---------- |
+| A | `#302` | Operational Workspace F5, transporte, catálogo de anos, bridge local/preview e HeroUI | `#312` / `af67eae` |
+| B | `#303` | Audit Workspace provider-independent + read-source D1 | `#313` / `b488a88` |
+| C | `#304` | Read model provider-independent de Desempenho | `#310` / `e919e18` |
+| D | `#305` | Emissão provider-independent de Boletins | `#311` / `292cf17` |
 
-A integração #297 verifica os quatro juntos. Invariantes comuns:
+A #306/PR #319 integra os quatro. A composição autorizada é deliberadamente assimétrica:
 
-- ano acadêmico explícito, sem fallback pelo relógio;
-- autorização efetiva e identidade de ator/emissor no servidor;
-- cursores opacos e ausência de totais quando o contrato assim define;
-- ausência, não aplicabilidade e insuficiência preservadas sem virar zero;
-- `authorityMode: imported-source`, inclusive nas projeções internas de Boletins;
-- nenhuma fórmula, regra acadêmica ou executor de promoção concorrente.
+- Operational Workspace: mantém **um único** bridge HTTP local/preview;
+- Audit Workspace: composto internamente em `GradebookD1RuntimeV1`, na mesma UoW e sob a autorização opaca existente, mas sem HTTP/UI;
+- Desempenho: somente aplicação provider-independent; nenhum adapter físico/runtime/endpoint nesta onda;
+- Boletins: somente aplicação provider-independent; nenhum PDF, endpoint ou persistência remota de snapshot nesta onda.
 
-Nenhum desses contratos, sozinho ou em conjunto, ativa UI, endpoint, persistência acadêmica ou recurso remoto em produção.
+Invariantes preservados:
+
+- ano acadêmico explícito, sem relógio;
+- `gradebook.persistence.admin` e autorização efetiva no servidor;
+- produção fail-closed antes de tocar no binding;
+- `authorityMode: imported-source`;
+- nenhum motor/regra acadêmica concorrente;
+- nenhum recurso remoto, migration, capability ou papel novo.
 
 ## Próxima onda — quatro frentes grandes e paralelas
 
-As issues foram criadas pela #297. **O título atual da issue é a autoridade de execução:** enquanto estiver `[BLOQUEADA]`, não iniciar; depois que a #297 concluir CI, merge, deploy e smokes, o integrador muda as quatro para `[PRONTA]`.
+As issues foram pré-criadas bloqueadas pela #306. Depois que #306 concluir merge, deploy e smokes, os títulos são liberados para `[PRONTA]`.
 
 | Frente | Issue | Trabalho | Executor | Caminhos reservados principais |
 | :----: | ----: | -------- | -------- | ------------------------------ |
-| A | `#302` | Experiência operacional local/preview F5, Centrais, ano, pesquisa e HeroUI | **Extra Alto** | `src/features/gradebook/operational-workspace/**`, `server/gradebook/application/operational-workspace/**` |
-| B | `#303` | Workspace de Auditoria local/preview F4 | **Codex GPT-5.6 Sol, esforço max** | `server/gradebook/application/audit-workspace/**` |
-| C | `#304` | Read model provider-independent de Desempenho F6 | **Codex GPT-5.6 Sol, esforço max** | `server/gradebook/application/read-models/performance/**` |
-| D | `#305` | Emissão provider-independent de Boletins F8 | **Codex GPT-5.6 Sol, esforço max** | `server/gradebook/application/bulletins/**` |
+| A | `#314` | Audit Workspace HeroUI + HTTP local/preview | **Extra Alto** | `src/features/gradebook/audit-workspace/**`, `server/gradebook/http/audit-workspace-routes-v1.ts`, `functions/[[path]].ts`, `src/App.tsx` |
+| B | `#315` | Fonte física D1 em lote para Desempenho sem N+1 | **GPT-5.6 Sol, esforço máximo** | `server/gradebook/persistence/d1/performance/**` |
+| C | `#316` | Hardening/materialização agregada e snapshots locais de Boletins | **GPT-5.6 Sol, esforço máximo** | `server/gradebook/application/bulletins/**` |
+| D | `#317` | Evolução/hardening do Operational Workspace | **Extra Alto** | `src/features/gradebook/operational-workspace/**` |
 
-A integração seguinte é `#306`, bloqueada pelas quatro.
+A integração seguinte é `#318`, bloqueada pelas quatro.
 
-As quatro frentes não editam contratos compartilhados silenciosamente e foram desenhadas para começar em paralelo depois da liberação da #297. Separar trabalho adicional somente quando surgir conflito real de caminho, contrato, persistência, renderização ou decisão arquitetural.
+### Frente A — #314
 
-### Frente A — #302
+- consome o Audit Workspace já composto pela #306;
+- cria apenas bridge/UI local/preview;
+- reutiliza `requireAuth`, autorização opaca e `gradebook.persistence.admin`;
+- ator e instante permanecem server-side;
+- promoção continua informativa; planejador/executor existentes continuam exclusivos;
+- produção permanece fechada antes do binding.
 
-- consome o contrato #293 e a fachada/read models existentes;
-- implementa experiência das Centrais com seleção explícita de ano e pesquisa acadêmica;
-- usa HeroUI React v3 no shell existente;
-- não cria regra acadêmica no frontend;
-- não ativa endpoint/UI acadêmica em produção nesta onda.
+### Frente B — #315
 
-### Frente B — #303
+- implementa `ClassPerformanceSourceV1` físico em lote sobre o schema existente;
+- mede/limita quantidade de queries e proíbe N+1 por aluno/componente;
+- não compõe runtime/HTTP/UI;
+- hard stop se exigir migration/schema novo ou regra acadêmica.
 
-- consome #294;
-- implementa listas, filtros, detalhe, pendências e resolução versionada;
-- reutiliza repositórios existentes;
-- promoção continua exclusivamente em `planImportReconciliation` + `executeImportChangePlan`;
-- ator, autorização e instante efetivos permanecem no servidor.
+### Frente C — #316
 
-### Frente C — #304
+- reduz leituras repetidas da emissão em lote;
+- mantém snapshots imutáveis/versionados e reimpressão sem recálculo;
+- trabalha apenas com snapshots locais/descartáveis ou porta já autorizada;
+- nenhum PDF, endpoint ou snapshot remoto;
+- hard stop se durabilidade exigir migration/tabela nova.
 
-- consome #295;
-- implementa matriz, quatro lentes, paginação, cobertura, comparabilidade e detalhe sob demanda;
-- preserva lados importado/calculado e `authorityMode: imported-source`;
-- não cria fórmula, arredondamento, recuperação, classificação ou tolerância concorrente.
+### Frente D — #317
 
-### Frente D — #305
-
-- consome #296;
-- materializa `BulletinModelV1`, emissão/snapshot, reimpressão e lote;
-- `imported-source` é invariável no modelo e em todas as projeções internas;
-- reimpressão usa snapshot histórico e não recalcula silenciosamente;
-- PDF/renderização e persistência remota ficam fora se exigirem decisão ou caminho próprios.
+- endurece UX, acessibilidade, paginação e descarte de respostas antigas;
+- mantém o bridge único existente;
+- não toca Functions/runtime/contratos;
+- produção acadêmica continua fechada.
 
 ## Sessão temporária #273
 
@@ -85,33 +88,35 @@ A #273 não é orquestrador paralelo e não recebe a nova fila. Cada issue execu
 
 ```text
 issue → branch curta → PR → npm run verify → handoff
-quatro frentes verdes → integração #306 → main → deploy → próxima onda
+quatro frentes verdes → #318 → main → deploy → próxima onda
 ```
 
 Não usar App Factory, Factory Runs, subagentes ou automação permanente.
 
 ## Estado real do D1
 
-Já existem:
+Já existem localmente:
 
 - migrations 0001–0003 e 21 tabelas;
-- leitura/escrita local de ano, entidades, fonte, lotes, registros, associações e Auditoria;
+- leitura/escrita de ano, entidades, fonte, lotes, registros, associações e Auditoria;
 - promoção transacional local com CAS, savepoints e rollback;
 - runtime injetado permitido somente em local/preview;
-- runner canônico e idempotente das migrations;
-- capability administrativa no servidor e rotas `no-store`;
-- quatro read models operacionais e pesquisa acadêmica na mesma fachada autorizada;
-- contratos V1 integrados para experiência operacional, Auditoria, Desempenho e Boletins.
+- runner canônico e idempotente;
+- capability administrativa no servidor;
+- quatro read models operacionais e pesquisa na mesma fachada;
+- Operational Workspace com transporte/bridge/UI local-preview;
+- Audit Workspace composto internamente no runtime;
+- read model provider-independent de Desempenho;
+- emissão provider-independent de Boletins.
 
 Ainda não existem em produção:
 
 - banco D1 acadêmico remoto/persistente;
 - binding remoto ou migration remota;
-- persistência ou consulta acadêmica ativa no site oficial;
-- experiência HeroUI das Centrais consumindo os novos contratos;
-- workspace funcional de Auditoria/revisão;
-- matriz executável de Desempenho;
-- emissão executável de boletim/PDF ou persistência de snapshots.
+- consulta/persistência acadêmica ativa;
+- Audit Workspace HTTP/UI;
+- fonte física/endpoint/UI de Desempenho;
+- PDF ou persistência remota de snapshots de Boletins.
 
 ## Gates manuais que não bloqueiam o trabalho local seguro
 
