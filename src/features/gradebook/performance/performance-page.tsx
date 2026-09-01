@@ -13,6 +13,7 @@ import {
   PERFORMANCE_LENSES_V1,
   PERFORMANCE_ROW_ORDER_V1,
   type ClassPerformanceReadModelV1,
+  type PerformanceCellDetailRefV1,
   type PerformanceCellV1,
   type PerformanceColumnCursorV1,
   type PerformanceComparedGradeValueV1,
@@ -21,14 +22,16 @@ import {
   type PerformancePeriodV1,
   type PerformanceRowCursorV1,
   type PerformanceStudentDetailRefV1,
-  type PerformanceCellDetailRefV1,
 } from '../../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
 import {
   PERFORMANCE_TRANSPORT_VERSION_V1,
   type PerformanceCellDetailTransportV1,
   type PerformanceStudentDetailTransportV1,
 } from '../../../../shared/gradebook-contracts/performance/performance-transport-v1';
-import type { AcademicGradeValueV1, AcademicTermV1 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
+import type {
+  AcademicGradeValueV1,
+  AcademicTermV1,
+} from '../../../../shared/gradebook-contracts/results/results-contract-v1';
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
 import { requestPerformanceV1 } from './performance-client';
 import { createPerformanceRequestGateV1 } from './performance-request-gate';
@@ -44,14 +47,6 @@ const LENS_LABELS: Record<PerformanceLensV1, string> = {
   quantitative: 'Quantitativo',
   qualitative: 'Qualitativo',
   assessments: 'Avaliações',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  active: 'Ativo',
-  transferred: 'Transferido',
-  withdrawn: 'Desistente',
-  deceased: 'Falecido',
-  other: 'Outro',
 };
 
 function gradeValueLabel(value: AcademicGradeValueV1): string {
@@ -88,66 +83,50 @@ function coverageLabel(cell: PerformanceCellV1): string {
 }
 
 function cellPrimaryLabel(cell: PerformanceCellV1): string {
-  switch (cell.lens) {
-    case 'result':
-      switch (cell.projection.source) {
-        case 'term-result':
-          return comparedGradeLabel(cell.projection.officialGrade);
-        case 'final-recovery':
-          return comparedGradeLabel(cell.projection.replacementTermGrade);
-        case 'annual-result':
-          return comparedGradeLabel(cell.projection.postRecoveryTotal);
-      }
-    case 'quantitative':
-      return comparedGradeLabel(cell.projection.considered);
-    case 'qualitative':
-      return comparedGradeLabel(cell.projection.operational);
-    case 'assessments':
-      return cell.projection.items.length === 1
-        ? '1 avaliação'
-        : `${cell.projection.items.length} avaliações`;
+  if (cell.lens === 'result') {
+    switch (cell.projection.source) {
+      case 'term-result':
+        return comparedGradeLabel(cell.projection.officialGrade);
+      case 'final-recovery':
+        return comparedGradeLabel(cell.projection.replacementTermGrade);
+      case 'annual-result':
+        return comparedGradeLabel(cell.projection.postRecoveryTotal);
+    }
   }
+  if (cell.lens === 'quantitative') return comparedGradeLabel(cell.projection.considered);
+  if (cell.lens === 'qualitative') return comparedGradeLabel(cell.projection.operational);
+  return cell.projection.items.length === 1
+    ? '1 avaliação'
+    : `${cell.projection.items.length} avaliações`;
 }
 
 function periodLabel(period: PerformancePeriodV1): string {
   return period.kind === 'annual' ? 'Anual' : `${period.term}º trimestre`;
 }
 
-function ErrorState({ state }: { state: Extract<LoadState, 'empty' | 'unavailable' | 'not-authorized'> }) {
-  if (state === 'not-authorized') {
-    return (
-      <Alert status="warning">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>Acesso não autorizado</Alert.Title>
-          <Alert.Description>
-            Sua sessão não possui autorização para consultar Desempenho.
-          </Alert.Description>
-        </Alert.Content>
-      </Alert>
-    );
-  }
-  if (state === 'unavailable') {
-    return (
-      <Alert status="danger">
-        <Alert.Indicator />
-        <Alert.Content>
-          <Alert.Title>Desempenho indisponível</Alert.Title>
-          <Alert.Description>
-            A consulta acadêmica não está disponível neste ambiente agora. Nenhum resultado antigo é reutilizado.
-          </Alert.Description>
-        </Alert.Content>
-      </Alert>
-    );
-  }
+function ErrorState({
+  state,
+}: {
+  state: Extract<LoadState, 'empty' | 'unavailable' | 'not-authorized'>;
+}) {
+  const title =
+    state === 'not-authorized'
+      ? 'Acesso não autorizado'
+      : state === 'unavailable'
+        ? 'Desempenho indisponível'
+        : 'Nenhum dado encontrado';
+  const description =
+    state === 'not-authorized'
+      ? 'Sua sessão não possui autorização para consultar Desempenho.'
+      : state === 'unavailable'
+        ? 'A consulta acadêmica não está disponível neste ambiente agora. Nenhum resultado antigo é reutilizado.'
+        : 'Não há matriz disponível para o contexto selecionado.';
   return (
-    <Alert status="default">
+    <Alert status={state === 'unavailable' ? 'danger' : state === 'not-authorized' ? 'warning' : 'default'}>
       <Alert.Indicator />
       <Alert.Content>
-        <Alert.Title>Nenhum dado encontrado</Alert.Title>
-        <Alert.Description>
-          Não há matriz disponível para o contexto selecionado.
-        </Alert.Description>
+        <Alert.Title>{title}</Alert.Title>
+        <Alert.Description>{description}</Alert.Description>
       </Alert.Content>
     </Alert>
   );
@@ -174,61 +153,56 @@ function CellDetailBody({ detail }: { detail: PerformanceCellDetailTransportV1 }
         <p className="mt-1 text-xs text-muted">{coverageLabel(cell)}</p>
         <ComparisonNote cell={cell} />
       </Surface>
-
-      {cell.lens === 'result' && cell.projection.source === 'term-result' && (
-        <div className="grid gap-2 text-sm">
-          <p><span className="text-muted">Resultado oficial:</span> {comparedGradeLabel(cell.projection.officialGrade)}</p>
-          <p><span className="text-muted">Percentual oficial:</span> {comparedGradeLabel(cell.projection.percentage)}</p>
-        </div>
-      )}
       {cell.lens === 'result' && cell.projection.source === 'final-recovery' && (
         <div className="grid gap-2 text-sm">
-          <p><span className="text-muted">Original:</span> {comparedGradeLabel(cell.projection.originalTermGrade)}</p>
-          <p><span className="text-muted">Recuperação:</span> {comparedGradeLabel(cell.projection.recoveryGrade)}</p>
-          <p><span className="text-muted">Substituição oficial:</span> {comparedGradeLabel(cell.projection.replacementTermGrade)}</p>
+          <p>Original: {comparedGradeLabel(cell.projection.originalTermGrade)}</p>
+          <p>Recuperação: {comparedGradeLabel(cell.projection.recoveryGrade)}</p>
+          <p>Substituição oficial: {comparedGradeLabel(cell.projection.replacementTermGrade)}</p>
+        </div>
+      )}
+      {cell.lens === 'result' && cell.projection.source === 'term-result' && (
+        <div className="grid gap-2 text-sm">
+          <p>Resultado oficial: {comparedGradeLabel(cell.projection.officialGrade)}</p>
+          <p>Percentual oficial: {comparedGradeLabel(cell.projection.percentage)}</p>
         </div>
       )}
       {cell.lens === 'result' && cell.projection.source === 'annual-result' && (
         <div className="grid gap-2 text-sm">
-          <p><span className="text-muted">Total original:</span> {comparedGradeLabel(cell.projection.originalTotal)}</p>
-          <p><span className="text-muted">Total pós-recuperação:</span> {comparedGradeLabel(cell.projection.postRecoveryTotal)}</p>
-          <p><span className="text-muted">Situação importada:</span> {cell.projection.academicState.imported}</p>
-          <p><span className="text-muted">Situação nativa:</span> {cell.projection.academicState.calculated}</p>
+          <p>Total original: {comparedGradeLabel(cell.projection.originalTotal)}</p>
+          <p>Total pós-recuperação: {comparedGradeLabel(cell.projection.postRecoveryTotal)}</p>
+          <p>Situação importada: {cell.projection.academicState.imported}</p>
+          <p>Situação nativa: {cell.projection.academicState.calculated}</p>
         </div>
       )}
       {cell.lens === 'quantitative' && (
         <div className="grid gap-2 text-sm">
-          <p><span className="text-muted">Original:</span> {comparedGradeLabel(cell.projection.original)}</p>
-          <p><span className="text-muted">Recuperação paralela:</span> {comparedGradeLabel(cell.projection.parallelRecovery)}</p>
-          <p><span className="text-muted">Considerado oficial:</span> {comparedGradeLabel(cell.projection.considered)}</p>
+          <p>Original: {comparedGradeLabel(cell.projection.original)}</p>
+          <p>Recuperação paralela: {comparedGradeLabel(cell.projection.parallelRecovery)}</p>
+          <p>Considerado oficial: {comparedGradeLabel(cell.projection.considered)}</p>
         </div>
       )}
       {cell.lens === 'qualitative' && (
-        <p className="text-sm"><span className="text-muted">Operacional:</span> {comparedGradeLabel(cell.projection.operational)}</p>
+        <p className="text-sm">Operacional: {comparedGradeLabel(cell.projection.operational)}</p>
       )}
       {cell.lens === 'assessments' && (
         <ul className="grid gap-2" aria-label="Avaliações desta célula">
           {cell.projection.items.map((item) => (
             <li key={item.assessmentComponentId} className="rounded-xl border border-border p-3 text-sm">
               <p className="font-medium">{item.name}</p>
-              <p className="mt-1 text-xs text-muted">Máximo oficial: {String(item.maximum)}</p>
-              <p className="mt-1">{comparedGradeLabel(item.value)}</p>
+              <p className="text-xs text-muted">Máximo oficial: {String(item.maximum)}</p>
+              <p>{comparedGradeLabel(item.value)}</p>
             </li>
           ))}
         </ul>
       )}
-
       {cell.signals.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Sinais explicativos</p>
-          <ul className="mt-2 grid gap-2 text-sm">
-            {cell.signals.map((signal) => (
-              <li key={`${signal.code}:${signal.explanation}`} className="rounded-xl border border-border p-3">
-                <span className="font-medium">{signal.code}</span> — {signal.explanation}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ul className="grid gap-2 text-sm" aria-label="Sinais explicativos">
+          {cell.signals.map((signal) => (
+            <li key={`${signal.code}:${signal.explanation}`} className="rounded-xl border border-border p-3">
+              <span className="font-medium">{signal.code}</span> — {signal.explanation}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
@@ -254,7 +228,7 @@ function StudentDetailBody({ detail }: { detail: PerformanceStudentDetailTranspo
             {detail.statusHistory.map((event) => (
               <li key={event.id}>
                 <Chip size="sm" variant="soft">
-                  {STATUS_LABELS[event.status] ?? event.status}{event.occurredOn ? ` · ${event.occurredOn}` : ''}
+                  {event.status}{event.occurredOn ? ` · ${event.occurredOn}` : ''}
                 </Chip>
               </li>
             ))}
@@ -277,7 +251,9 @@ export function PerformancePage() {
   const [mode, setMode] = useState<PerformanceModeV1>('regular');
   const [periodKind, setPeriodKind] = useState<'term' | 'annual'>('term');
   const [term, setTerm] = useState<AcademicTermV1>(1);
-  const [comparisonChoice, setComparisonChoice] = useState<'none' | 'term-1' | 'term-2' | 'term-3' | 'annual'>('none');
+  const [comparisonChoice, setComparisonChoice] = useState<
+    'none' | 'term-1' | 'term-2' | 'term-3' | 'annual'
+  >('none');
   const [matrixState, setMatrixState] = useState<LoadState>('idle');
   const [matrix, setMatrix] = useState<ClassPerformanceReadModelV1 | null>(null);
   const [rowHistory, setRowHistory] = useState<readonly (PerformanceRowCursorV1 | null)[]>([null]);
@@ -310,21 +286,14 @@ export function PerformancePage() {
   useEffect(() => {
     const ticket = bootstrapGate.current.begin('performance-context-bootstrap');
     if (ticket === null) return;
-    setBootstrapState('loading');
     void requestOperationalWorkspaceV1(
       { contractVersion: 1, operation: 'bootstrap' },
       ticket.signal,
     )
       .then((response) => {
         if (!ticket.isCurrent()) return;
-        if (response.state === 'not-authorized') {
-          setBootstrapState('not-authorized');
-          return;
-        }
-        if (response.state === 'unavailable') {
-          setBootstrapState('unavailable');
-          return;
-        }
+        if (response.state === 'not-authorized') return setBootstrapState('not-authorized');
+        if (response.state === 'unavailable') return setBootstrapState('unavailable');
         if ('availableAcademicYears' in response) {
           setAcademicYears(response.availableAcademicYears);
           setBootstrapState(response.availableAcademicYears.length === 0 ? 'empty' : 'ready');
@@ -337,7 +306,6 @@ export function PerformancePage() {
         setBootstrapState('unavailable');
       })
       .finally(() => ticket.complete());
-
     return () => bootstrapGate.current.invalidate();
   }, []);
 
@@ -350,11 +318,10 @@ export function PerformancePage() {
     [],
   );
 
-  async function searchClasses(): Promise<void> {
+  async function searchClasses() {
     const query = classQuery.trim();
     if (!academicYearId || !query) return;
-    const key = JSON.stringify({ academicYearId, query });
-    const ticket = classSearchGate.current.begin(key);
+    const ticket = classSearchGate.current.begin(JSON.stringify({ academicYearId, query }));
     if (ticket === null) return;
     setClassSearchState('loading');
     try {
@@ -375,11 +342,11 @@ export function PerformancePage() {
       );
       if (!ticket.isCurrent()) return;
       if (response.state === 'not-authorized') {
+        setClassResults([]);
         setClassSearchState('not-authorized');
-        setClassResults([]);
       } else if (response.state === 'unavailable') {
-        setClassSearchState('unavailable');
         setClassResults([]);
+        setClassSearchState('unavailable');
       } else if ('search' in response && response.search.outcome === 'results') {
         const items = response.search.items.filter((item) => item.kind === 'class-group');
         setClassResults(items);
@@ -390,8 +357,8 @@ export function PerformancePage() {
       }
     } catch (cause) {
       if (!ticket.isCurrent() || (cause instanceof DOMException && cause.name === 'AbortError')) return;
-      setClassSearchState('unavailable');
       setClassResults([]);
+      setClassSearchState('unavailable');
     } finally {
       ticket.complete();
     }
@@ -410,7 +377,7 @@ export function PerformancePage() {
   async function loadMatrix(
     rowCursor: PerformanceRowCursorV1 | null,
     columnCursor: PerformanceColumnCursorV1 | null,
-  ): Promise<void> {
+  ) {
     if (!academicYearId || !selectedClass) return;
     const request = {
       contractVersion: CLASS_PERFORMANCE_CONTRACT_VERSION_V1,
@@ -424,8 +391,7 @@ export function PerformancePage() {
       columns: { limit: 6, cursor: columnCursor },
       order: { rows: PERFORMANCE_ROW_ORDER_V1, columns: PERFORMANCE_COLUMN_ORDER_V1 },
     } as const;
-    const key = JSON.stringify(request);
-    const ticket = matrixGate.current.begin(key);
+    const ticket = matrixGate.current.begin(JSON.stringify(request));
     if (ticket === null) return;
     setMatrixState('loading');
     try {
@@ -567,17 +533,14 @@ export function PerformancePage() {
 
   return (
     <Surface className="rounded-3xl border border-border p-4 sm:p-6" aria-label="Desempenho da turma">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-2xl">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">
-            <BarChart3 className="size-4" aria-hidden="true" />
-            Desempenho
-          </div>
-          <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">Matriz da turma</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Escolha ano, turma, período, modo e lente explicitamente. A tela apenas apresenta resultados oficiais; não recalcula notas.
-          </p>
+      <div className="max-w-2xl">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+          <BarChart3 className="size-4" aria-hidden="true" /> Desempenho
         </div>
+        <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">Matriz da turma</h2>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          Escolha ano, turma, período, modo e lente explicitamente. A tela apenas apresenta resultados oficiais; não recalcula notas.
+        </p>
       </div>
 
       <div className="mt-6" aria-live="polite" aria-busy={bootstrapState === 'loading'}>
@@ -594,7 +557,7 @@ export function PerformancePage() {
       {bootstrapState === 'ready' && (
         <div className="mt-6 grid gap-5">
           <Surface variant="secondary" className="rounded-2xl p-4 sm:p-5">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-end">
               <div>
                 <Label htmlFor="performance-academic-year" className="mb-1.5 block text-sm font-medium">Ano acadêmico</Label>
                 <select
@@ -615,26 +578,22 @@ export function PerformancePage() {
                 </select>
                 <p className="mt-1 text-xs text-muted">O sistema não escolhe o ano automaticamente.</p>
               </div>
-
-              <div className="md:col-span-1 xl:col-span-3">
-                <form onSubmit={(event) => { event.preventDefault(); void searchClasses(); }}>
-                  <SearchField fullWidth value={classQuery} onChange={setClassQuery} onClear={() => setClassQuery('')} isDisabled={!academicYearId}>
-                    <Label>Pesquisar turma</Label>
-                    <SearchField.Group>
-                      <SearchField.SearchIcon />
-                      <SearchField.Input placeholder={academicYearId ? 'Código da turma' : 'Selecione o ano primeiro'} />
-                      <SearchField.ClearButton />
-                      <Button type="submit" size="sm" variant="primary" isDisabled={!academicYearId || !classQuery.trim() || classSearchState === 'loading'}>
-                        <Search className="size-4" aria-hidden="true" /> Buscar
-                      </Button>
-                    </SearchField.Group>
-                  </SearchField>
-                </form>
-              </div>
+              <form onSubmit={(event) => { event.preventDefault(); void searchClasses(); }}>
+                <SearchField fullWidth value={classQuery} onChange={setClassQuery} onClear={() => setClassQuery('')} isDisabled={!academicYearId}>
+                  <Label>Pesquisar turma</Label>
+                  <SearchField.Group>
+                    <SearchField.SearchIcon />
+                    <SearchField.Input placeholder={academicYearId ? 'Código da turma' : 'Selecione o ano primeiro'} />
+                    <SearchField.ClearButton />
+                    <Button type="submit" size="sm" variant="primary" isDisabled={!academicYearId || !classQuery.trim() || classSearchState === 'loading'}>
+                      <Search className="size-4" aria-hidden="true" /> Buscar
+                    </Button>
+                  </SearchField.Group>
+                </SearchField>
+              </form>
             </div>
-
             <div className="mt-3" aria-live="polite" aria-busy={classSearchState === 'loading'}>
-              {classSearchState === 'loading' && <p className="text-sm text-muted" role="status">Pesquisando turmas…</p>}
+              {classSearchState === 'loading' && <p role="status" className="text-sm text-muted">Pesquisando turmas…</p>}
               {classSearchState === 'empty' && <p className="text-sm text-muted">Nenhuma turma encontrada.</p>}
               {classSearchState === 'unavailable' && <p className="text-sm text-danger">A pesquisa de turmas está indisponível.</p>}
               {classSearchState === 'not-authorized' && <p className="text-sm text-warning">A pesquisa de turmas não foi autorizada.</p>}
@@ -645,10 +604,7 @@ export function PerformancePage() {
                       key={result.id}
                       size="sm"
                       variant={selectedClass?.id === result.id ? 'primary' : 'outline'}
-                      onPress={() => {
-                        setSelectedClass({ id: result.id, label: result.code });
-                        resetMatrixContext();
-                      }}
+                      onPress={() => { setSelectedClass({ id: result.id, label: result.code }); resetMatrixContext(); }}
                     >
                       {result.code}
                     </Button>
@@ -669,7 +625,10 @@ export function PerformancePage() {
                   onChange={(event) => {
                     const value = event.currentTarget.value;
                     if (value === 'annual') setPeriodKind('annual');
-                    else { setPeriodKind('term'); setTerm(Number(value.slice(-1)) as AcademicTermV1); }
+                    else {
+                      setPeriodKind('term');
+                      setTerm(Number(value.slice(-1)) as AcademicTermV1);
+                    }
                     resetMatrixContext();
                   }}
                 >
@@ -747,7 +706,7 @@ export function PerformancePage() {
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-medium">{selectedClass?.label} · {periodLabel(matrix.period)} · {LENS_LABELS[matrix.lens]}</p>
-                    <p className="text-xs text-muted">Autoridade: fonte importada · página de alunos {rowPage + 1} · página de componentes {columnPage + 1}</p>
+                    <p className="text-xs text-muted">Autoridade: fonte importada · alunos {rowPage + 1} · componentes {columnPage + 1}</p>
                   </div>
                   <Chip size="sm" variant="soft">{matrix.coverage.state}</Chip>
                 </div>
@@ -769,19 +728,18 @@ export function PerformancePage() {
                       </thead>
                       <tbody>
                         {matrix.rows.items.map((row) => (
-                          <tr key={row.studentId} className="border-t border-border">
+                          <tr key={row.studentId}>
                             <th scope="row" className="sticky left-0 z-10 bg-surface px-2 py-2 text-left align-top">
                               <Button variant="ghost" size="sm" className="h-auto justify-start text-left" onPress={() => void openStudentDetail(row.detailRef)}>
-                                <UserRound className="size-4 shrink-0" aria-hidden="true" />
-                                <span>{row.displayName}</span>
+                                <UserRound className="size-4 shrink-0" aria-hidden="true" /> {row.displayName}
                               </Button>
                             </th>
-                            {row.cells.map((cell) => (
+                            {row.cells.map((cell, index) => (
                               <td key={cell.teachingAssignmentId} className="min-w-44 px-2 py-2 align-top">
                                 <Button
                                   variant="ghost"
                                   className="h-auto w-full justify-start rounded-xl p-2 text-left"
-                                  aria-label={`Abrir detalhe de ${row.displayName} em ${matrix.columns.items.find((column) => column.teachingAssignmentId === cell.teachingAssignmentId)?.displayName ?? 'componente'}`}
+                                  aria-label={`Abrir detalhe de ${row.displayName} em ${matrix.columns.items[index]?.displayName ?? 'componente'}`}
                                   onPress={() => void openCellDetail(cell.detailRef)}
                                 >
                                   <span className="block">
@@ -808,7 +766,7 @@ export function PerformancePage() {
                         {row.cells.map((cell, index) => (
                           <Button key={cell.teachingAssignmentId} variant="outline" fullWidth className="h-auto justify-between gap-3 p-3 text-left" onPress={() => void openCellDetail(cell.detailRef)}>
                             <span className="min-w-0">
-                              <span className="block text-xs font-medium">{matrix.columns.items[index]?.displayName ?? matrix.columns.items[index]?.code}</span>
+                              <span className="block text-xs font-medium">{matrix.columns.items[index]?.displayName ?? 'Componente'}</span>
                               <span className="mt-1 block text-xs text-muted">{coverageLabel(cell)}</span>
                             </span>
                             <span className="shrink-0 text-xs">{cellPrimaryLabel(cell)}</span>
@@ -823,15 +781,15 @@ export function PerformancePage() {
                   <Surface variant="secondary" className="flex items-center justify-between gap-3 rounded-2xl p-3">
                     <span className="text-xs text-muted">Alunos · página {rowPage + 1}</span>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" isDisabled={rowPage === 0 || matrixState === 'loading'} onPress={() => moveRows('previous')}>Anteriores</Button>
-                      <Button size="sm" variant="outline" isDisabled={matrix.rows.nextCursor === null || matrixState === 'loading'} onPress={() => moveRows('next')}>Próximos</Button>
+                      <Button size="sm" variant="outline" isDisabled={rowPage === 0} onPress={() => moveRows('previous')}>Anteriores</Button>
+                      <Button size="sm" variant="outline" isDisabled={matrix.rows.nextCursor === null} onPress={() => moveRows('next')}>Próximos</Button>
                     </div>
                   </Surface>
                   <Surface variant="secondary" className="flex items-center justify-between gap-3 rounded-2xl p-3">
                     <span className="text-xs text-muted">Componentes · página {columnPage + 1}</span>
                     <div className="flex gap-2">
-                      <Button size="sm" variant="outline" isDisabled={columnPage === 0 || matrixState === 'loading'} onPress={() => moveColumns('previous')}>Anteriores</Button>
-                      <Button size="sm" variant="outline" isDisabled={matrix.columns.nextCursor === null || matrixState === 'loading'} onPress={() => moveColumns('next')}>Próximos</Button>
+                      <Button size="sm" variant="outline" isDisabled={columnPage === 0} onPress={() => moveColumns('previous')}>Anteriores</Button>
+                      <Button size="sm" variant="outline" isDisabled={matrix.columns.nextCursor === null} onPress={() => moveColumns('next')}>Próximos</Button>
                     </div>
                   </Surface>
                 </div>
@@ -843,12 +801,7 @@ export function PerformancePage() {
 
       {detailState !== 'idle' && (
         <div className="fixed inset-0 z-40 flex items-end justify-end bg-black/20 p-2 sm:p-4" onMouseDown={(event) => { if (event.currentTarget === event.target) closeDetail(); }}>
-          <Surface
-            role="dialog"
-            aria-modal="false"
-            aria-labelledby="performance-detail-heading"
-            className="max-h-[85vh] w-full overflow-y-auto rounded-3xl border border-border p-4 shadow-xl sm:max-w-xl sm:p-6"
-          >
+          <Surface role="dialog" aria-modal="false" aria-labelledby="performance-detail-heading" className="max-h-[85vh] w-full overflow-y-auto rounded-3xl border border-border p-4 shadow-xl sm:max-w-xl sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">Detalhe sob demanda</p>
