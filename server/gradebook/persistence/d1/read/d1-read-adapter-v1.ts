@@ -33,10 +33,7 @@ export interface D1ReadDatabaseV1 {
 }
 
 export type GradebookD1ReadErrorCodeV1 =
-  | 'database-read-failed'
-  | 'invalid-json'
-  | 'incompatible-row'
-  | 'broken-reference';
+  'database-read-failed' | 'invalid-json' | 'incompatible-row' | 'broken-reference';
 
 const ERROR_MESSAGES: Record<GradebookD1ReadErrorCodeV1, string> = {
   'database-read-failed': 'Não foi possível consultar os dados acadêmicos persistidos.',
@@ -102,6 +99,54 @@ function sorted(values: readonly string[]): readonly string[] {
   return [...values].sort((left, right) => left.localeCompare(right));
 }
 
+const MAXIMUM_HISTORY_PAGE_SIZE_V1 = 100;
+
+function encodeHistoryCursor(parts: readonly (string | number)[]): string {
+  const bytes = new TextEncoder().encode(JSON.stringify([1, ...parts]));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function decodeHistoryCursor(cursor: string, expected: readonly string[]): number {
+  try {
+    if (cursor.length === 0 || cursor.length % 2 !== 0 || !/^[0-9a-f]+$/u.test(cursor)) {
+      return fail('incompatible-row');
+    }
+    const bytes = new Uint8Array(cursor.length / 2);
+    for (let index = 0; index < cursor.length; index += 2) {
+      bytes[index / 2] = Number.parseInt(cursor.slice(index, index + 2), 16);
+    }
+    const parsed: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length !== expected.length + 2 ||
+      parsed[0] !== 1 ||
+      !expected.every((value, index) => parsed[index + 1] === value)
+    ) {
+      return fail('incompatible-row');
+    }
+    return positiveInteger(parsed.at(-1));
+  } catch (cause) {
+    if (cause instanceof GradebookD1ReadErrorV1) throw cause;
+    return fail('incompatible-row');
+  }
+}
+
+function historyAfterVersion(
+  page: CursorPageRequestV1,
+  expectedCursorParts: readonly string[],
+): number {
+  if (
+    !Number.isInteger(page.limit) ||
+    page.limit < 1 ||
+    page.limit > MAXIMUM_HISTORY_PAGE_SIZE_V1
+  ) {
+    return fail('incompatible-row');
+  }
+  if (page.cursor === undefined || page.cursor === null) return 0;
+  if (typeof page.cursor !== 'string') return fail('incompatible-row');
+  return decodeHistoryCursor(page.cursor, expectedCursorParts);
+}
+
 function validateManifest(value: unknown): SourceFileManifestV1 {
   if (!isObject(value)) return fail('incompatible-row');
 
@@ -139,10 +184,7 @@ function validateManifest(value: unknown): SourceFileManifestV1 {
   ) {
     return fail('incompatible-row');
   }
-  if (
-    value.suggestedTeacherName !== undefined &&
-    typeof value.suggestedTeacherName !== 'string'
-  ) {
+  if (value.suggestedTeacherName !== undefined && typeof value.suggestedTeacherName !== 'string') {
     return fail('incompatible-row');
   }
   if (value.confirmedTeacherId !== undefined && typeof value.confirmedTeacherId !== 'string') {
@@ -246,9 +288,12 @@ function mapAcademicRecord(
   row: D1Row,
   context: AcademicPersistenceContextV1,
   requestedStream: AcademicRecordStreamV1,
+  requireCurrent = true,
 ): VersionedRecordV1<AcademicRecordV1> {
   const persistedVersion = positiveInteger(row.persisted_version);
-  if (positiveInteger(row.current_version) !== persistedVersion) return fail('broken-reference');
+  if (requireCurrent && positiveInteger(row.current_version) !== persistedVersion) {
+    return fail('broken-reference');
+  }
 
   const record = validateAcademicRecordShape(parsePayload(row.payload_json));
   if (record.kind !== row.persisted_record_kind || record.kind !== requestedStream.kind) {
@@ -339,12 +384,17 @@ function mapAssociation(
   row: D1Row,
   context: AcademicPersistenceContextV1,
   requestedStream: LogicalSourceRecordAssociationStreamV1,
+  requireCurrent = true,
 ): VersionedRecordV1<LogicalSourceRecordAssociationV1> {
   const persistedVersion = positiveInteger(row.persisted_version);
-  if (positiveInteger(row.current_version) !== persistedVersion) return fail('broken-reference');
+  if (requireCurrent && positiveInteger(row.current_version) !== persistedVersion) {
+    return fail('broken-reference');
+  }
 
   const persistedState = associationState(row.association_state);
-  if (associationState(row.current_state) !== persistedState) return fail('broken-reference');
+  if (requireCurrent && associationState(row.current_state) !== persistedState) {
+    return fail('broken-reference');
+  }
 
   const logicalSourceId = requiredString(row.logical_source_id) as LogicalSourceIdV1;
   const academicRecordStream = mapCatalogStream(row);
@@ -485,6 +535,52 @@ class GradebookD1ReaderV1 {
     });
   }
 
+  listAcademicRecordVersions(
+    context: AcademicPersistenceContextV1,
+    stream: AcademicRecordStreamV1,
+    page: CursorPageRequestV1,
+  ): Promise<Awaited<ReturnType<AcademicRecordRepositoryV1['listVersions']>>> {
+    const streamKey = academicRecordStreamKeyV1(stream);
+    const cursorParts = [context.academicYearId, stream.kind, streamKey];
+    const afterVersion = historyAfterVersion(page, cursorParts);
+    return this.safely(async () => {
+      const rows = await this.database
+        .prepare(
+          `SELECT
+             s.current_version,
+             s.stream_key,
+             v.record_kind AS persisted_record_kind,
+             v.version AS persisted_version,
+             v.record_id,
+             v.authority_mode,
+             v.rule_version,
+             v.payload_json,
+             v.recorded_at
+           FROM academic_record_versions v
+           INNER JOIN academic_record_streams s
+             ON s.academic_year_id = v.academic_year_id
+            AND s.record_kind = v.record_kind
+            AND s.stream_key = v.stream_key
+           WHERE v.academic_year_id = ? AND v.record_kind = ? AND v.stream_key = ?
+             AND v.version > ?
+           ORDER BY v.version
+           LIMIT ?`,
+        )
+        .bind(context.academicYearId, stream.kind, streamKey, afterVersion, page.limit + 1)
+        .all<D1Row>();
+      const selected = rows.results.slice(0, page.limit);
+      const items = selected.map((row) => mapAcademicRecord(row, context, stream, false));
+      const last = selected.at(-1);
+      return {
+        items,
+        nextCursor:
+          rows.results.length > page.limit && last
+            ? encodeHistoryCursor([...cursorParts, positiveInteger(last.persisted_version)])
+            : null,
+      };
+    });
+  }
+
   getCurrentAssociation(
     context: AcademicPersistenceContextV1,
     stream: LogicalSourceRecordAssociationStreamV1,
@@ -539,6 +635,79 @@ class GradebookD1ReaderV1 {
     });
   }
 
+  listAssociationVersions(
+    context: AcademicPersistenceContextV1,
+    stream: LogicalSourceRecordAssociationStreamV1,
+    page: CursorPageRequestV1,
+  ): Promise<Awaited<ReturnType<LogicalSourceRecordRepositoryV1['listVersions']>>> {
+    const cursorParts = [
+      context.academicYearId,
+      stream.logicalSourceId,
+      stream.academicRecordStream.kind,
+      stream.stableKey,
+    ];
+    const afterVersion = historyAfterVersion(page, cursorParts);
+    return this.safely(async () => {
+      const rows = await this.database
+        .prepare(
+          `SELECT
+             c.logical_source_id,
+             c.record_kind AS association_record_kind,
+             c.stream_key AS association_stream_key,
+             c.current_version,
+             c.current_state,
+             v.version AS persisted_version,
+             v.association_state,
+             v.source_manifest_id,
+             v.source_manifest_version,
+             v.recorded_at,
+             r.record_kind AS linked_record_kind,
+             r.stream_key AS linked_stream_key,
+             r.student_id,
+             r.enrollment_id,
+             r.assessment_component_id,
+             r.teaching_assignment_id,
+             r.term
+           FROM logical_source_record_versions v
+           INNER JOIN logical_source_record_streams c
+             ON c.academic_year_id = v.academic_year_id
+            AND c.logical_source_id = v.logical_source_id
+            AND c.record_kind = v.record_kind
+            AND c.stream_key = v.stream_key
+           LEFT JOIN academic_record_streams r
+             ON r.academic_year_id = c.academic_year_id
+            AND r.record_kind = c.record_kind
+            AND r.stream_key = c.stream_key
+           WHERE v.academic_year_id = ?
+             AND v.logical_source_id = ?
+             AND v.record_kind = ?
+             AND v.stream_key = ?
+             AND v.version > ?
+           ORDER BY v.version
+           LIMIT ?`,
+        )
+        .bind(
+          context.academicYearId,
+          stream.logicalSourceId,
+          stream.academicRecordStream.kind,
+          stream.stableKey,
+          afterVersion,
+          page.limit + 1,
+        )
+        .all<D1Row>();
+      const selected = rows.results.slice(0, page.limit);
+      const items = selected.map((row) => mapAssociation(row, context, stream, false));
+      const last = selected.at(-1);
+      return {
+        items,
+        nextCursor:
+          rows.results.length > page.limit && last
+            ? encodeHistoryCursor([...cursorParts, positiveInteger(last.persisted_version)])
+            : null,
+      };
+    });
+  }
+
   listCurrentStreams(
     context: AcademicPersistenceContextV1,
     logicalSourceId: LogicalSourceIdV1,
@@ -574,9 +743,16 @@ class GradebookD1ReaderV1 {
 }
 
 type AcademicYearV1 = import('../../../../../shared/gradebook-contracts/entities').AcademicYearV1;
-type AcademicEntityRecordV1 = import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').AcademicEntityRecordV1;
-type AcademicEntityRepositoryV1 = import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').AcademicEntityRepositoryV1;
-type CursorPageRequestV1 = import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').CursorPageRequestV1;
+type AcademicEntityRecordV1 =
+  import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').AcademicEntityRecordV1;
+type AcademicEntityRepositoryV1 =
+  import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').AcademicEntityRepositoryV1;
+type CursorPageRequestV1 =
+  import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').CursorPageRequestV1;
+type AcademicRecordRepositoryV1 =
+  import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').AcademicRecordRepositoryV1;
+type LogicalSourceRecordRepositoryV1 =
+  import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').LogicalSourceRecordRepositoryV1;
 
 function academicYearStatus(value: unknown): AcademicYearV1['status'] {
   if (value !== 'planned' && value !== 'active' && value !== 'closed') {
@@ -732,6 +908,23 @@ export function createGradebookD1ReadAdapterV1(
       getCurrent: (context, stream) => reader.getCurrentAssociation(context, stream),
       listCurrentStreams: (context, logicalSourceId) =>
         reader.listCurrentStreams(context, logicalSourceId),
+    },
+  };
+}
+
+export function createGradebookD1HistoryReadAdapterV1(database: D1ReadDatabaseV1): {
+  readonly academicRecords: Pick<AcademicRecordRepositoryV1, 'listVersions'>;
+  readonly logicalSourceRecords: Pick<LogicalSourceRecordRepositoryV1, 'listVersions'>;
+} {
+  const reader = new GradebookD1ReaderV1(database);
+  return {
+    academicRecords: {
+      listVersions: (context, stream, page) =>
+        reader.listAcademicRecordVersions(context, stream, page),
+    },
+    logicalSourceRecords: {
+      listVersions: (context, stream, page) =>
+        reader.listAssociationVersions(context, stream, page),
     },
   };
 }

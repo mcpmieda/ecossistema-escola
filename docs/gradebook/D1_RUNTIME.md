@@ -21,11 +21,11 @@ Uma sessão válida é convertida no servidor em um contexto opaco de autorizaç
 
 O backend reconhece três modos explícitos:
 
-| `RUNTIME_ENVIRONMENT` | `OFFICIAL_ORIGIN` aceito | Runtime acadêmico |
-| --- | --- | --- |
-| `local` | origem `localhost`, `127.0.0.1` ou `[::1]` | permitido com binding estrutural válido |
-| `preview` | origem HTTPS `*.pages.dev` | permitido com binding estrutural válido |
-| `production` ou ausente | `https://admin.escolaieda.com` | desabilitado |
+| `RUNTIME_ENVIRONMENT`   | `OFFICIAL_ORIGIN` aceito                   | Runtime acadêmico                       |
+| ----------------------- | ------------------------------------------ | --------------------------------------- |
+| `local`                 | origem `localhost`, `127.0.0.1` ou `[::1]` | permitido com binding estrutural válido |
+| `preview`               | origem HTTPS `*.pages.dev`                 | permitido com binding estrutural válido |
+| `production` ou ausente | `https://admin.escolaieda.com`             | desabilitado                            |
 
 O binding é recebido somente como `env.GRADEBOOK_D1`. O runtime valida, antes de compor qualquer adaptador, a presença de `prepare` e `exec` e o shape do statement necessário a leitura e escrita (`bind`, `first`, `all` e `run`). O objeto não é retornado ao navegador nem incluído em respostas ou logs.
 
@@ -35,9 +35,14 @@ A configuração ou criação concreta de um banco/binding local ou de preview p
 
 Depois da autorização, da validação do ambiente e da validação estrutural do binding, `createGradebookD1RuntimeV1` compõe:
 
-- `createGradebookD1ReadAdapterV1` para o planejamento de reconciliação;
+- `createGradebookD1PersistenceUnitOfWorkV1` para todas as famílias das portas V1;
+- uma visão restrita dessa mesma UoW para o planejamento de reconciliação;
 - `GradebookD1BatchPromotionTransactionV1`, que cria a unidade de escrita já integrada;
 - `GradebookD1MigrationRunnerV1` para conferir e aplicar o schema.
+
+O método administrativo `persistenceUnitOfWork()` expõe a composição integral somente depois da
+autorização opaca já validada. Não há segunda implementação de `academic-year`, fonte, registro ou
+associação. Históricos de registros e associações usam paginação keyset vinculada ao ano e ao stream.
 
 A única operação de promoção exposta pela composição chama `executeImportChangePlan`. Portanto, a ordem continua sendo:
 
@@ -68,10 +73,10 @@ Nenhum comando Wrangler, API de controle ou conexão remota faz parte do runner 
 
 ## Rotas administrativas mínimas
 
-| Método | Rota | Operação |
-| --- | --- | --- |
-| `GET` | `/api/gradebook/admin/persistence/status` | resumo de versão corrente e migrations pendentes |
-| `POST` | `/api/gradebook/admin/persistence/migrations` | aplicação idempotente das migrations pendentes |
+| Método | Rota                                          | Operação                                         |
+| ------ | --------------------------------------------- | ------------------------------------------------ |
+| `GET`  | `/api/gradebook/admin/persistence/status`     | resumo de versão corrente e migrations pendentes |
+| `POST` | `/api/gradebook/admin/persistence/migrations` | aplicação idempotente das migrations pendentes   |
 
 As duas rotas exigem sessão válida e `gradebook.persistence.admin`. A escrita exige `Origin` exatamente igual a `OFFICIAL_ORIGIN` e não aceita corpo. Métodos incorretos recebem 405.
 
@@ -93,7 +98,10 @@ As suites desta entrega usam somente:
 - doubles estruturais do binding;
 - sessões e dados acadêmicos sintéticos.
 
-Elas cobrem autorização antes do binding, bloqueio de produção, shape do binding, aplicação/reaplicação 0001–0003, catálogo incompatível, sanitização, `no-store`, método/origem/corpo e a promoção `fonte → registro → associação` pelo executor existente em uma única transação.
+Elas cobrem autorização antes do binding, bloqueio de produção, shape do binding,
+aplicação/reaplicação 0001–0003, catálogo incompatível, sanitização, `no-store`, método/origem/corpo,
+a UoW integral e a promoção `fonte → registro → associação` pelo executor existente em uma única
+transação.
 
 ## Limites preservados
 

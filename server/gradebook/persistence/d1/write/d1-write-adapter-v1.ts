@@ -17,6 +17,7 @@ import {
 } from '../../../application/import/import-reconciliation-v1';
 import {
   createGradebookD1AcademicEntityReadAdapterV1,
+  createGradebookD1HistoryReadAdapterV1,
   createGradebookD1ReadAdapterV1,
   type D1ReadDatabaseV1,
   type D1ReadResultV1,
@@ -249,8 +250,7 @@ function validAcademicYear(
     (value.startsOn === undefined || nonEmptyString(value.startsOn)) &&
     (value.endsOn === undefined || nonEmptyString(value.endsOn)) &&
     value.activeEvaluationProfileId === ACADEMIC_CONTEXT_2026_IDENTITY_V1.evaluationProfileId &&
-    value.configurationVersion ===
-      String(ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationVersion)
+    value.configurationVersion === String(ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationVersion)
   );
 }
 
@@ -412,11 +412,9 @@ class GradebookD1WriterV1 {
       }
 
       if (rootChanges !== 1) {
-        const persisted = await this.readCurrentVersion(
-          'academic_years',
-          'academic_year_id = ?',
-          [value.id],
-        );
+        const persisted = await this.readCurrentVersion('academic_years', 'academic_year_id = ?', [
+          value.id,
+        ]);
         return { status: 'version-conflict', currentVersion: persisted };
       }
 
@@ -829,6 +827,7 @@ export function createGradebookD1WriteUnitOfWorkV1(
   options: GradebookD1WriteAdapterOptionsV1 = {},
 ): PersistenceUnitOfWorkV1 {
   const reads = createGradebookD1ReadAdapterV1(database);
+  const historyReads = createGradebookD1HistoryReadAdapterV1(database);
   const entityReads = createGradebookD1AcademicEntityReadAdapterV1(database);
   const writer = new GradebookD1WriterV1(database, options.now ?? (() => new Date().toISOString()));
 
@@ -854,14 +853,14 @@ export function createGradebookD1WriteUnitOfWorkV1(
     },
     academicRecords: {
       getCurrent: reads.academicRecords.getCurrent,
-      listVersions: async () => unsupported(),
+      listVersions: historyReads.academicRecords.listVersions,
       appendVersion: (context, stream, record, expectation) =>
         writer.appendAcademicRecordVersion(context, stream, record, expectation),
     },
     logicalSourceRecords: {
       getCurrent: reads.logicalSourceRecords.getCurrent,
       listCurrentStreams: reads.logicalSourceRecords.listCurrentStreams,
-      listVersions: async () => unsupported(),
+      listVersions: historyReads.logicalSourceRecords.listVersions,
       appendVersion: (context, stream, association, expectation) =>
         writer.appendAssociationVersion(context, stream, association, expectation),
     },

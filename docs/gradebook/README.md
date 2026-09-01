@@ -12,37 +12,38 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 
 ## Estado atual
 
-Nove ondas foram integradas. A nona entregou:
+Dez ondas foram integradas. A décima entregou:
 
-- #261/PR #268 — runtime D1 local/preview, runner canônico e backend administrativo autorizado;
-- #262/PR #267 — contexto acadêmico único de 2026 e versionamento local do ano/configuração;
-- #263/PR #266 — equivalência anual fonte × motor, preservando `imported-source`.
+- #269/PR #275 — repositório D1 local das oito entidades além do ano acadêmico;
+- #270/PR #276 — lotes de importação e histórico por fonte lógica;
+- #271/PR #277 — ocorrências de Auditoria e reconciliações;
+- #272 — composição integral em uma única `PersistenceUnitOfWorkV1`.
 
 Merges funcionais:
 
 ```text
-#263  94535a97666057c886035ff4edddb651e95b4c9c
-#262  4584af4e1d20615d3af20bce1f22c4bb24cf1818
-#261  44bde4d683221551e7a0ac3d9904db3c03dbc50e
+#269  57e7a98585b825926b7d39e7cd63b884a5bb212b
+#270  2f5ed83ccb470e88b57a82bdf950aa158c59ab74
+#271  79a24263eb416ffd2218de7e3a263da700435679
 ```
 
 A produção continua sem D1 acadêmico provisionado, binding remoto ou migration remota. Nenhuma nova tela ou persistência oficial foi ativada.
 
-## Décima onda
+## Décima primeira onda
 
-- [#269 — repositório D1 local de entidades](https://github.com/mcpmieda/ecossistema-escola/issues/269) — **Codex**;
-- [#270 — repositório D1 local de importações](https://github.com/mcpmieda/ecossistema-escola/issues/270) — **Codex**;
-- [#271 — repositório D1 local de Auditoria/reconciliação](https://github.com/mcpmieda/ecossistema-escola/issues/271) — **Codex**;
-- [#272 — integração da décima onda](https://github.com/mcpmieda/ecossistema-escola/issues/272) — **Pro** no fluxo normal; Codex 5.6 High autorizado somente pela sessão temporária #273.
+- [#278 — read model local da Central do Aluno](https://github.com/mcpmieda/ecossistema-escola/issues/278) — **Codex**;
+- [#279 — read model local da Central da Turma](https://github.com/mcpmieda/ecossistema-escola/issues/279) — **Codex**;
+- [#280 — read models locais de Professor e Componente](https://github.com/mcpmieda/ecossistema-escola/issues/280) — **Codex**;
+- [#281 — integração da décima primeira onda](https://github.com/mcpmieda/ecossistema-escola/issues/281) — **Pro**, sem autorização atual ao Codex.
 
-As implementações possuem caminhos disjuntos. O integrador comporá todas as operações em uma única `PersistenceUnitOfWorkV1` sem duplicar o `academic-year` da #262 ou as operações de fonte já existentes.
+As implementações possuem caminhos disjuntos e consomem a porta de entidades por injeção. Não criam UI, endpoint, contrato compartilhado ou acesso remoto.
 
 ## Sessão temporária serial
 
 A #273 não substitui issues, branches, PRs, testes, integração ou deploy. Ela apenas permite que uma única sessão do Codex 5.6 High execute a fila oficial em série:
 
 ```text
-#269 → #270 → #271 → #272
+#278 → #279 → #280
 ```
 
 Cada implementação continua com branch e PR próprios; os merges permanecem reservados à issue de integração. `PAUSAR`, `PARAR`, `RETOMAR` e `ENCERRAR MODO AUTÔNOMO` controlam a sessão. Hard stops impedem recursos remotos, dados reais, mudança de autoridade, migrations destrutivas ou decisões humanas não documentadas.
@@ -87,16 +88,17 @@ Existe uma única composição oficial de 2026. Ela referencia diretamente os pe
 - Cloudflare D1 aprovado como armazenamento físico;
 - portas independentes do fornecedor;
 - migrations locais 0001–0003 e 21 tabelas;
-- leitura/escrita local de ano, fonte, registros e associações;
+- leitura/escrita local completa de ano, entidades, fonte, lotes, registros, associações e Auditoria;
 - planejamento idempotente de reimportação;
 - promoção transacional com compare-and-set, savepoints e rollback;
 - runtime local/preview explicitamente injetado;
 - produção bloqueada antes de inspecionar o binding;
 - capability `gradebook.persistence.admin` somente no servidor;
 - rotas administrativas autenticadas, autorizadas e `no-store`;
-- runner idempotente que consome o catálogo canônico das migrations.
+- runner idempotente que consome o catálogo canônico das migrations;
+- uma única composição local da `PersistenceUnitOfWorkV1`, com histórico paginado para todas as portas versionadas.
 
-Ainda faltam os repositórios locais completos de entidades, lotes e Auditoria, sua composição central e, posteriormente, autorização explícita para qualquer recurso remoto.
+Ainda faltam os read models funcionais, sua ligação posterior à interface e autorização explícita para qualquer recurso remoto.
 
 ## Validação da fonte
 

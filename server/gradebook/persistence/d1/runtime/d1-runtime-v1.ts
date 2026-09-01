@@ -5,7 +5,8 @@ import type {
   ImportChangePlanV1,
   ImportReconciliationRepositoriesV1,
 } from '../../../application/import/import-reconciliation-v1';
-import { createGradebookD1ReadAdapterV1 } from '../read/d1-read-adapter-v1';
+import type { PersistenceUnitOfWorkV1 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import { createGradebookD1PersistenceUnitOfWorkV1 } from '../composition/d1-persistence-unit-of-work-v1';
 import { GradebookD1BatchPromotionTransactionV1 } from '../transaction/d1-batch-promotion-transaction-v1';
 import type { D1WriteDatabaseV1 } from '../write/d1-write-adapter-v1';
 import {
@@ -20,9 +21,7 @@ import {
 } from './d1-migration-runner-v1';
 
 export type GradebookD1RuntimeErrorCodeV1 =
-  | 'runtime-environment-disabled'
-  | 'runtime-storage-missing'
-  | 'runtime-storage-incompatible';
+  'runtime-environment-disabled' | 'runtime-storage-missing' | 'runtime-storage-incompatible';
 
 const ERROR_MESSAGES: Record<GradebookD1RuntimeErrorCodeV1, string> = {
   'runtime-environment-disabled': 'A persistência acadêmica não está disponível neste ambiente.',
@@ -40,10 +39,7 @@ export class GradebookD1RuntimeErrorV1 extends Error {
   }
 }
 
-export type GradebookD1RuntimeEnvironmentV1 = Extract<
-  RuntimeEnvironment,
-  'local' | 'preview'
->;
+export type GradebookD1RuntimeEnvironmentV1 = Extract<RuntimeEnvironment, 'local' | 'preview'>;
 
 export interface GradebookD1RuntimeOptionsV1 extends GradebookD1MigrationRunnerOptionsV1 {
   readonly now?: () => string;
@@ -102,14 +98,31 @@ export class GradebookD1RuntimeV1 {
   constructor(
     readonly environment: GradebookD1RuntimeEnvironmentV1,
     private readonly authorization: GradebookD1RuntimeAuthorizationV1,
-    private readonly repositories: ImportReconciliationRepositoriesV1,
+    private readonly unitOfWork: PersistenceUnitOfWorkV1,
     private readonly transaction: GradebookD1BatchPromotionTransactionV1,
     private readonly migrations: GradebookD1MigrationRunnerV1,
   ) {}
 
   planningRepositories(): ImportReconciliationRepositoriesV1 {
     requireGradebookD1RuntimeAuthorizationV1(this.authorization);
-    return this.repositories;
+    return {
+      imports: {
+        findSourceFileByHash: this.unitOfWork.imports.findSourceFileByHash,
+        getSourceFileVersion: this.unitOfWork.imports.getSourceFileVersion,
+      },
+      academicRecords: {
+        getCurrent: this.unitOfWork.academicRecords.getCurrent,
+      },
+      logicalSourceRecords: {
+        getCurrent: this.unitOfWork.logicalSourceRecords.getCurrent,
+        listCurrentStreams: this.unitOfWork.logicalSourceRecords.listCurrentStreams,
+      },
+    };
+  }
+
+  persistenceUnitOfWork(): PersistenceUnitOfWorkV1 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    return this.unitOfWork;
   }
 
   inspectSchema(): Promise<GradebookD1MigrationStatusV1> {
@@ -136,16 +149,12 @@ export function createGradebookD1RuntimeV1(
   requireGradebookD1RuntimeAuthorizationV1(authorization);
   const environment = runtimeEnvironment(env);
   const database = requireDatabase(env.GRADEBOOK_D1);
-  const repositories = createGradebookD1ReadAdapterV1(database);
+  const unitOfWork = createGradebookD1PersistenceUnitOfWorkV1(database, {
+    now: options.now,
+  });
   const transaction = new GradebookD1BatchPromotionTransactionV1(database, { now: options.now });
   const migrations = new GradebookD1MigrationRunnerV1(database, {
     migrationSql: options.migrationSql,
   });
-  return new GradebookD1RuntimeV1(
-    environment,
-    authorization,
-    repositories,
-    transaction,
-    migrations,
-  );
+  return new GradebookD1RuntimeV1(environment, authorization, unitOfWork, transaction, migrations);
 }

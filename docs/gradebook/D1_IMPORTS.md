@@ -9,8 +9,8 @@ Este documento descreve o módulo independente em
 - `appendImportBatchVersion`.
 
 As operações já integradas `findSourceFileByHash`, `getSourceFileVersion` e
-`appendSourceFileVersion` não são reimplementadas nem alteradas. A composição de todas as operações
-em uma única `PersistenceUnitOfWorkV1` pertence à issue de integração da onda.
+`appendSourceFileVersion` não são reimplementadas nem alteradas. A composição da #272 reúne essas
+operações e as três extensões deste módulo em uma única `PersistenceUnitOfWorkV1`.
 
 ## Limites e autoridade
 
@@ -99,3 +99,6 @@ Os testes em `tests/gradebook/persistence/d1-imports/` usam somente dados sinté
 - determinismo e não mutação das entradas.
 
 A validação final deve executar `npm run verify` no SHA final do PR.
+
+O teste composto em `tests/gradebook/persistence/d1-composition/` confirma fonte, histórico e lote
+pelo mesmo objeto usado por entidades, registros, associações e Auditoria.
