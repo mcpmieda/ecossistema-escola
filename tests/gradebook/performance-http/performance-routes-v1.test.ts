@@ -13,6 +13,7 @@ import {
   type PerformanceStudentDetailRefV1,
 } from '../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
 import { PERFORMANCE_TRANSPORT_VERSION_V1 } from '../../../shared/gradebook-contracts/performance/performance-transport-v1';
+import { AuthorizationError } from '../../../server/auth/roles';
 import { AuthenticationError } from '../../../server/auth/session';
 import type { RuntimeEnv } from '../../../server/env';
 import {
@@ -89,12 +90,32 @@ describe('Performance HTTP V1', () => {
     expect(await json(response as Response)).toEqual({ transportVersion: 1, state: 'not-authorized' });
   });
 
-  it('valida payload e cursor antes de materializar a fonte e sanitiza erro de cursor', async () => {
+  it('exige autorização server-side e não constrói provider após 403', async () => {
+    let created = false;
+    const route = createPerformanceRequestHandlerV1({
+      async authorizeRequest() { throw new AuthorizationError(); },
+      createProvider() { created = true; return fakeProvider(); },
+    });
+    const response = await route(request({
+      transportVersion: PERFORMANCE_TRANSPORT_VERSION_V1,
+      operation: 'matrix',
+      request: matrixRequest(),
+    }), env);
+
+    expect(response?.status).toBe(403);
+    expect(response?.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate, private');
+    expect(created).toBe(false);
+    expect(await json(response as Response)).toEqual({ transportVersion: 1, state: 'not-authorized' });
+  });
+
+  it('valida payload e sanitiza cursores de linha/coluna inválidos sem expor detalhes', async () => {
     let providerCalls = 0;
     const route = handler(fakeProvider({
-      async get() {
+      async get(value) {
         providerCalls += 1;
-        throw new ClassPerformanceReadModelErrorV1('invalid-row-cursor');
+        if (value.rows.cursor !== null) throw new ClassPerformanceReadModelErrorV1('invalid-row-cursor');
+        if (value.columns.cursor !== null) throw new ClassPerformanceReadModelErrorV1('invalid-column-cursor');
+        return null;
       },
     }));
 
@@ -102,18 +123,30 @@ describe('Performance HTTP V1', () => {
     expect(invalid?.status).toBe(400);
     expect(providerCalls).toBe(0);
 
-    const cursorFailure = await route(request({
+    const rowFailure = await route(request({
       transportVersion: 1,
       operation: 'matrix',
-      request: matrixRequest({ rows: { limit: 20, cursor: 'opaque-invalid' as never } }),
+      request: matrixRequest({ rows: { limit: 20, cursor: 'opaque-invalid-row' as never } }),
     }), env);
-    expect(cursorFailure?.status).toBe(400);
-    expect(providerCalls).toBe(1);
-    expect(await json(cursorFailure as Response)).toEqual({
+    expect(rowFailure?.status).toBe(400);
+    expect(await json(rowFailure as Response)).toEqual({
       transportVersion: 1,
       state: 'invalid-request',
       reason: 'invalid-row-cursor',
     });
+
+    const columnFailure = await route(request({
+      transportVersion: 1,
+      operation: 'matrix',
+      request: matrixRequest({ columns: { limit: 6, cursor: 'opaque-invalid-column' as never } }),
+    }), env);
+    expect(columnFailure?.status).toBe(400);
+    expect(await json(columnFailure as Response)).toEqual({
+      transportVersion: 1,
+      state: 'invalid-request',
+      reason: 'invalid-column-cursor',
+    });
+    expect(providerCalls).toBe(2);
   });
 
   it('passa contexto, lente, modo, período e comparação ao read model sem criar semântica HTTP', async () => {
@@ -132,6 +165,7 @@ describe('Performance HTTP V1', () => {
     for (const value of cases) {
       const response = await route(request({ transportVersion: 1, operation: 'matrix', request: value }), env);
       expect(response?.status).toBe(200);
+      expect(response?.headers.get('Cache-Control')).toBe('no-store, no-cache, must-revalidate, private');
     }
     expect(seen).toEqual(cases);
   });
