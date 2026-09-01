@@ -1,37 +1,35 @@
 # Schema D1 V1 do Banco de Notas
 
-## Estado e limite desta entrega
+## Estado e limite
 
-**Estado:** base integrada pela issue #227/PR #233 e catálogo/leitura local integrados pela issue #235/PR #241.
+**Estado:** base integrada por #227/PR #233, catálogo/leitura local por #235/PR #241 e contrato transacional da associação por #243/PR #249.
 
-Este documento descreve o schema relacional inicial compatível com Cloudflare D1 e com as portas de persistência V1. A entrega contém somente SQL versionado, registro das migrations e testes sobre SQLite descartável. Nenhum banco, binding, secret, recurso remoto ou migration de produção foi criado ou executado.
+Este documento descreve o schema relacional local compatível com Cloudflare D1. Nenhum banco, binding, secret, recurso remoto ou migration de produção foi criado ou executado.
 
-O domínio permanece independente de D1. O adaptador converte contratos e portas em comandos SQL sem expor tabelas aos consumidores.
+O domínio permanece independente de D1. Adaptadores convertem contratos e portas em SQL sem expor tabelas aos consumidores.
 
 ## Migrations registradas
 
-O registro TypeScript fica em `server/gradebook/persistence/d1/schema/migrations.ts`:
-
 | Versão | Arquivo | Responsabilidade |
 |---:|---|---|
-| 1 | `0001_gradebook_context_entities_imports_v1.sql` | anos/configurações, entidades, fontes lógicas, manifestos, versões de arquivo, lotes, arquivos e diagnósticos |
-| 2 | `0002_gradebook_records_audit_v1.sql` | streams de lançamentos/resultados, reconciliações, ocorrências e transições de Auditoria |
-| 3 | `0003_logical_source_record_catalog_v1.sql` | associação explícita, versionada e anual entre fontes lógicas e streams acadêmicos |
+| 1 | `0001_gradebook_context_entities_imports_v1.sql` | anos/configurações, entidades, fontes, manifestos, lotes e diagnósticos |
+| 2 | `0002_gradebook_records_audit_v1.sql` | registros acadêmicos, reconciliação, ocorrências e transições de Auditoria |
+| 3 | `0003_logical_source_record_catalog_v1.sql` | associação anual e versionada entre fonte lógica e stream acadêmico |
 
-As três migrations usam criação condicional e registro idempotente em `gradebook_schema_migrations`. A ordem é obrigatória porque as versões posteriores referenciam tabelas anteriores.
+As migrations usam criação condicional e registro idempotente em `gradebook_schema_migrations`. A ordem 0001–0003 é obrigatória.
 
-`GRADEBOOK_D1_MIGRATIONS` permanece como catálogo congelado da base 0001–0002 para compatibilidade com #227. `GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS` contém a ordem completa 0001–0003. O futuro runner operacional deverá usar explicitamente o catálogo integral aceito pelo integrador, sem omitir a migration 0003.
+`GRADEBOOK_D1_MIGRATIONS` preserva a base 0001–0002. `GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS` contém a ordem integral 0001–0003 e deve ser a referência do futuro runner operacional.
 
 ## Princípios físicos
 
-- Identificadores de domínio são `TEXT` opacos; nomes de exibição não participam de chaves técnicas.
-- Relações acadêmicas relevantes incluem `academic_year_id`; FKs compostas impedem referências entre anos.
-- Streams mantêm `current_version` como ponteiro de controle otimista.
-- Conteúdo histórico fica em tabelas `*_versions` e não é apagado pelo fluxo normal.
+- IDs de domínio são `TEXT` opacos; nomes não participam de chaves técnicas.
+- Relações acadêmicas incluem `academic_year_id` e impedem referências entre anos.
+- Streams mantêm `current_version` para controle otimista.
+- Histórico fica em tabelas `*_versions` append-only.
 - Nenhuma FK usa `ON DELETE CASCADE`.
-- Campos consultados e relações são normalizados; o payload contratual completo também é preservado em JSON válido.
-- Nome do arquivo é metadado versionado. SHA-256 identifica conteúdo.
-- Arquivos binários não fazem parte do schema.
+- Relações consultáveis são normalizadas; o payload contratual completo também é preservado em JSON válido.
+- Nome do arquivo é metadado versionado; SHA-256 identifica conteúdo.
+- Binários não fazem parte do schema.
 
 ## Catálogo de tabelas
 
@@ -39,167 +37,162 @@ As três migrations usam criação condicional e registro idempotente em `gradeb
 
 | Tabela | Papel |
 |---|---|
-| `gradebook_schema_migrations` | versões de schema aplicadas |
-| `academic_years` | identidade estável do ano por escola e ponteiro CAS atual |
-| `academic_year_configuration_versions` | versões append-only do perfil/configuração anual |
-| `academic_year_versions` | estado e calendário versionados do ano |
-| `academic_entity_streams` | identidade e versão atual das entidades acadêmicas |
-| `academic_entity_versions` | payload histórico e relações tipadas de cada entidade |
-
-`academic_entity_versions` aceita professor, turma, componente curricular, atribuição, estudante, matrícula, evento de situação e componente avaliativo. Checks por tipo exigem as relações corretas e impedem que um ID de outra categoria ou ano satisfaça a referência.
+| `gradebook_schema_migrations` | versões aplicadas |
+| `academic_years` | identidade do ano e ponteiro atual |
+| `academic_year_configuration_versions` | perfil/configuração anual versionado |
+| `academic_year_versions` | estado/calendário do ano |
+| `academic_entity_streams` | identidade e versão atual das entidades |
+| `academic_entity_versions` | histórico e relações tipadas |
 
 ### Fonte e importação
 
 | Tabela | Papel |
 |---|---|
-| `logical_sources` | continuidade lógica confirmável por ano/contexto, independente de nome e hash |
-| `source_file_streams` | identidade do manifesto, versão atual e SHA-256 atual |
-| `source_file_versions` | nomes observados, manifesto, hash, parser, leitura e relação `unmatched`/`candidate`/`confirmed` |
+| `logical_sources` | continuidade lógica por ano/contexto |
+| `source_file_streams` | identidade do manifesto e hash atual |
+| `source_file_versions` | nomes, hash, parser, leitura e relação lógica versionados |
 | `source_file_logical_source_candidates` | candidatos explícitos para associação ambígua |
 | `import_batch_streams` | identidade e versão atual do lote |
-| `import_batch_versions` | estados, resumo e payload histórico do lote |
-| `import_batch_files` | arquivo do lote ligado à versão exata do manifesto quando existente |
-| `import_diagnostics` | diagnóstico ligado a lote, arquivo, manifesto, localização, entidade e evidência |
+| `import_batch_versions` | histórico do lote |
+| `import_batch_files` | arquivos do lote e manifesto correspondente |
+| `import_diagnostics` | diagnósticos por lote/arquivo/origem |
 
-`source_file_streams` possui unicidade por ano e hash atual. O mesmo conteúdo renomeado permanece na mesma continuidade lógica; hash diferente pode ser candidato ou confirmação explícita, nunca decisão automática baseada no nome.
+Mesmo hash renomeado não cria outra identidade acadêmica. Hash diferente exige confirmação de fonte lógica quando o contexto não for inequívoco.
 
 ### Registros acadêmicos
 
 | Tabela | Papel |
 |---|---|
-| `academic_record_streams` | chave estável e versão atual de lançamento, resultado trimestral, recuperação final ou resultado anual |
-| `academic_record_versions` | histórico append-only com ID, autoridade, versão da regra e payload |
+| `academic_record_streams` | chave estável e versão atual de lançamento/resultado |
+| `academic_record_versions` | histórico append-only com autoridade, regra e payload |
 
-Checks estruturais seguem `AcademicRecordStreamV1`:
+Tipos:
 
-- `grade-entry`: estudante, matrícula e componente avaliativo;
-- `term-result` e `final-recovery`: estudante, matrícula, atribuição e trimestre;
-- `annual-result`: estudante, matrícula e atribuição, sem trimestre.
+- `grade-entry`;
+- `term-result`;
+- `final-recovery`;
+- `annual-result`.
 
-### Catálogo de registros por fonte lógica
+### Catálogo por fonte lógica
 
 | Tabela | Papel |
 |---|---|
-| `logical_source_record_streams` | estado e versão atuais da associação anual entre fonte lógica e stream acadêmico |
-| `logical_source_record_versions` | histórico append-only da associação, com estado e manifesto/versão de origem |
+| `logical_source_record_streams` | estado e versão atuais da associação fonte ↔ stream |
+| `logical_source_record_versions` | histórico da associação com manifesto/versão de origem |
 
-A chave contém `academic_year_id`, `logical_source_id`, `record_kind` e `stream_key`. FKs compostas exigem que fonte, stream e manifesto confirmado pertençam ao mesmo ano e contexto.
+A chave inclui ano, fonte lógica, tipo e chave do stream. FKs exigem fonte, stream e manifesto confirmado no mesmo ano/contexto.
 
-Uma nova versão de arquivo não desativa associações ausentes. Mudança para `inactive` exige decisão explícita e nova versão; nunca ocorre apenas porque um item desapareceu da planilha.
+Item ausente em uma nova versão não é desativado automaticamente. Estado `inactive` exige decisão explícita e nova versão da associação.
 
 ### Reconciliação e Auditoria
 
 | Tabela | Papel |
 |---|---|
-| `audit_record_streams` | identidade e versão atual de ocorrência ou reconciliação |
-| `audit_record_versions` | payload histórico, estado/gravidade, alvo acadêmico e proveniência |
-| `audit_occurrence_transitions` | sequência imutável de mudanças de estado, ator, data e justificativa |
-
-Reconciliações exigem alvo acadêmico e versão de regra. Estados comparáveis exigem diferença e tolerância; `not-comparable` exige diferença nula. Resolução ou descarte de ocorrência exige justificativa.
+| `audit_record_streams` | identidade e versão atual de ocorrência/reconciliação |
+| `audit_record_versions` | histórico, gravidade, alvo e proveniência |
+| `audit_occurrence_transitions` | mudanças imutáveis de estado, ator e justificativa |
 
 ## Versionamento e compare-and-set
 
-As raízes `*_streams` e `academic_years` materializam a versão atual. O adaptador de escrita deve executar em uma transação:
+O adaptador de escrita deve executar, na mesma transação:
 
-1. Para `expectedVersion: null`, inserir a raiz com versão 1; conflito significa que o stream já existe.
-2. Para stream existente, atualizar a raiz somente quando `current_version = expectedVersion`.
-3. Exigir exatamente uma linha alterada; zero linhas produz `version-conflict`.
-4. Inserir a nova linha histórica com versão seguinte e `previous_version` correta.
-5. Confirmar raiz e histórico no mesmo commit; qualquer erro reverte ambos.
+1. `expectedVersion: null`: criar somente stream ausente com versão 1;
+2. stream existente: atualizar raiz somente quando `current_version = expectedVersion`;
+3. zero linhas atualizadas: retornar `version-conflict`;
+4. acrescentar a nova linha histórica com `previous_version` correta;
+5. confirmar raiz e histórico juntos; qualquer erro reverte tudo.
 
-As tabelas históricas exigem:
+Continuidade obrigatória:
 
 ```text
 versão 1  → previous_version IS NULL
 versão N  → previous_version = N - 1
 ```
 
-O SQL não implementa sozinho a unidade de trabalho. Atomicidade e retorno de `VersionedWriteResultV1` pertencem ao adaptador.
+## Associação transacional — contrato integrado
+
+A #243 tornou a associação explícita também fora do SQL:
+
+- `LogicalSourceRecordAssociationStreamV1`;
+- `LogicalSourceRecordAssociationV1`;
+- `LogicalSourceRecordRepositoryV1`;
+- repositório disponível em `PersistenceUnitOfWorkV1`;
+- versões de associação representadas no plano e na estimativa;
+- execução na mesma unidade de trabalho de fonte e registro acadêmico.
+
+Ordem planejada:
+
+```text
+versão de fonte
+      ↓
+versão do registro acadêmico
+      ↓
+versão da associação fonte ↔ stream
+      ↓
+commit único
+```
+
+Conflito em qualquer etapa provoca rollback integral. A associação não pode ser um efeito colateral oculto do append acadêmico.
 
 ## Índices críticos
 
 Os índices cobrem:
 
-- ano/tipo/ID e paginação por cursor;
+- ano/tipo/ID e paginação;
 - históricos por versão descendente;
 - SHA-256 atual por ano;
 - fonte lógica e versões de arquivo;
-- lote/arquivo/status e diagnósticos;
-- registros atuais por estudante/matrícula e por atribuição/trimestre;
-- ocorrências por estado/gravidade;
-- reconciliações por alvo;
-- proveniência por manifesto/versão;
-- associações atuais/ativas por ano, fonte lógica, tipo e stream;
-- histórico de associação e proveniência do manifesto.
+- lotes, arquivos e diagnósticos;
+- registros atuais por estudante/matrícula e atribuição/trimestre;
+- ocorrências e reconciliações;
+- associações atuais/ativas por fonte lógica e stream;
+- histórico/proveniência da associação.
 
-Cursores futuros usam colunas estáveis dos índices, não offsets globais.
+## Leitura local integrada
 
-## Datas e UTC
-
-Instantes são `TEXT` ISO 8601 em UTC terminados em `Z`. Datas civis acadêmicas usam `YYYY-MM-DD`. O adaptador gera `recorded_at` no servidor autorizado; o relógio SQLite nas migrations registra somente a aplicação do schema.
-
-## Leitura D1 local integrada
-
-`server/gradebook/persistence/d1/read/d1-read-adapter-v1.ts` implementa sobre uma interface estrutural de leitura:
+O adaptador local implementa:
 
 - `findSourceFileByHash`;
 - `getSourceFileVersion`;
 - `AcademicRecordRepositoryV1.getCurrent`;
+- `LogicalSourceRecordRepositoryV1.getCurrent`;
 - `listCurrentStreams` por fonte lógica.
 
-O adaptador:
+Ele filtra por ano, reconstrói contratos, confere colunas normalizadas e produz erros sanitizados. Nome de arquivo e varredura de JSON não são usados para descobrir relações.
 
-- filtra obrigatoriamente por ano;
-- reconstrói contratos e versões;
-- confere hash, manifesto, autoridade, regra e chave estável;
-- lista somente associações atuais/ativas;
-- produz erros sanitizados para leitura, JSON, shape e referência quebrada;
-- não usa nome de arquivo nem varredura de JSON para descobrir associação.
+## Verificação local
 
-## Verificação local descartável
+As suites aplicam/reaplicam 0001–0003 em SQLite em memória e verificam:
 
-A suíte aplica/reaplica as migrations 0001–0003 em SQLite em memória e verifica:
-
-- catálogo e idempotência das migrations;
+- idempotência das migrations;
+- FKs e isolamento anual;
 - ausência de cascades destrutivos;
-- FKs tipadas e isolamento anual;
-- histórico, continuidade de versão e compare-and-set;
-- hash, renomeação e candidatos de fonte lógica;
-- vínculos de lote, arquivo, diagnóstico e manifesto;
-- shape e índices dos streams acadêmicos;
-- reconciliação, Auditoria e UTC;
-- associação fonte lógica ↔ stream, histórico, proveniência e índice de atuais;
-- reconstrução dos contratos e falhas controladas.
+- histórico e continuidade de versão;
+- hash, renomeação e fontes candidatas;
+- registros acadêmicos e Auditoria;
+- associação fonte ↔ stream, proveniência e índice de atuais;
+- reconstrução dos contratos e referências quebradas.
 
-Todos os dados são sintéticos. Nenhum binding ou banco remoto é necessário.
+Somente dados sintéticos são usados.
 
-## Adaptação contratual pendente — issue #243
+## Próxima entrega — #245
 
-A migration 0003 e a leitura local representam a associação fonte lógica ↔ stream. O executor da #236, contudo, opera contra `PersistenceUnitOfWorkV1`, que ainda não expõe uma porta pública para **versionar a associação**. O plano da #228 também não estima nem ordena esse write.
+A #245 está pronta para implementar:
 
-A solução correta é a #243:
+- `appendSourceFileVersion` local;
+- `AcademicRecordRepositoryV1.appendVersion` local;
+- `LogicalSourceRecordRepositoryV1.appendVersion` local;
+- `BatchPromotionTransactionPortV1` concreto local;
+- compare-and-set, commit e rollback sobre 0001–0003;
+- integração do executor da #236/#243 com o adaptador físico local.
 
-- formalizar associação, stream e repositório independentes do D1;
-- adicionar a porta à unidade de trabalho;
-- incluir a associação no plano e na estimativa;
-- aplicar a associação na mesma transação de fonte e registro acadêmico;
-- preservar controle otimista e rollback;
-- não desativar automaticamente item ausente.
+Ainda permanecem fora do escopo:
 
-É proibido resolver isso como efeito colateral escondido do append acadêmico ou inferência por JSON/nome de arquivo.
-
-## Lacunas deliberadas para as próximas issues
-
-Ainda não existem:
-
-- operações físicas de escrita das portas;
-- implementação D1 de `BatchPromotionTransactionPortV1`;
-- binding em `wrangler.jsonc` ou configuração por ambiente;
-- banco persistente/remoto e migrations fora dos testes;
-- autorização/capabilities e endpoints;
+- binding em `wrangler.jsonc`;
+- banco persistente/remoto;
+- migrations fora dos testes;
+- endpoints, autenticação e capabilities;
 - runner operacional, rollout, backup e recuperação;
-- política humana de confirmação de fonte lógica;
-- armazenamento de binários;
 - métricas de Saúde e limites.
 
-A #245 implementará a escrita/promoção transacional local somente depois que a #243 for integrada. Provisionamento e bindings continuarão em issues separadas e explícitas.
+A #245 não autoriza provisionamento. Binding/preview e backend autorizado serão issues posteriores e separadas.
