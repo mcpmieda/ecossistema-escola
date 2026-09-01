@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { DatabaseSync, StatementSync } from 'node:sqlite';
+
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type {
   AcademicYearId,
   EnrollmentId,
@@ -12,6 +16,7 @@ import {
   type D1ReadResultV1,
   type D1ReadStatementV1,
 } from '../../../../server/gradebook/persistence/d1/read/d1-read-adapter-v1';
+import { GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS } from '../../../../server/gradebook/persistence/d1/schema/migrations';
 import {
   academicRecordStreamKeyV1,
   logicalSourceRecordAssociationStreamForV1,
@@ -56,6 +61,46 @@ class StaticDatabase implements D1ReadDatabaseV1 {
     return new StaticStatement(this.row);
   }
 }
+
+class SqliteD1Statement implements D1ReadStatementV1 {
+  constructor(
+    private readonly statement: StatementSync,
+    private readonly values: readonly ReadValue[] = [],
+  ) {}
+
+  bind(...values: ReadValue[]): D1ReadStatementV1 {
+    return new SqliteD1Statement(this.statement, values);
+  }
+
+  async first<Result extends Row>(): Promise<Result | null> {
+    return (this.statement.get(...this.values) as Result | undefined) ?? null;
+  }
+
+  async all<Result extends Row>(): Promise<D1ReadResultV1<Result>> {
+    return { results: this.statement.all(...this.values) as Result[] };
+  }
+}
+
+class SqliteD1Database implements D1ReadDatabaseV1 {
+  constructor(private readonly database: DatabaseSync) {}
+
+  prepare(query: string): D1ReadStatementV1 {
+    return new SqliteD1Statement(this.database.prepare(query));
+  }
+}
+
+let DatabaseSyncConstructor: typeof DatabaseSync;
+const databases: DatabaseSync[] = [];
+
+beforeAll(async () => {
+  const sqliteModuleName = 'node:sqlite';
+  const sqlite = await import(/* @vite-ignore */ sqliteModuleName);
+  DatabaseSyncConstructor = sqlite.DatabaseSync;
+});
+
+afterEach(() => {
+  for (const database of databases.splice(0)) database.close();
+});
 
 const academicYearId = 'academic-year:d1-association:2026' as AcademicYearId;
 const context = { academicYearId } satisfies AcademicPersistenceContextV1;
@@ -124,6 +169,149 @@ describe('D1 logical source record association read adapter v1', () => {
     expect(database.queries[0]).toContain('LEFT JOIN academic_record_streams r');
     expect(database.queries[0]).not.toContain('json_extract');
     expect(database.queries[0]).not.toContain('file_name');
+  });
+
+  it('executes the official association query against migrations 0001–0003', async () => {
+    const database = new DatabaseSyncConstructor(':memory:');
+    databases.push(database);
+    database.exec('PRAGMA foreign_keys = ON;');
+    const migrationDirectory = join(process.cwd(), 'migrations', 'gradebook');
+    for (const migration of GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS) {
+      database.exec(readFileSync(join(migrationDirectory, migration.fileName), 'utf8'));
+    }
+
+    const instant = '2026-08-31T18:00:00.000Z';
+    const hash = 'a'.repeat(64);
+    database
+      .prepare(
+        `INSERT INTO academic_years (
+          academic_year_id, school_id, year, current_version, created_at
+        ) VALUES (?, 'school:d1-association:001', 2026, 1, ?)`,
+      )
+      .run(academicYearId, instant);
+    database
+      .prepare(
+        `INSERT INTO logical_sources (
+          academic_year_id, logical_source_id, source_context, created_at
+        ) VALUES (?, ?, 'synthetic-association-context', ?)`,
+      )
+      .run(academicYearId, logicalSourceId, instant);
+    for (const [kind, id] of [
+      ['student', stream.studentId],
+      ['enrollment', stream.enrollmentId],
+      ['assessment-component', stream.assessmentComponentId],
+    ] as const) {
+      database
+        .prepare(
+          `INSERT INTO academic_entity_streams (
+            academic_year_id, entity_kind, entity_id, current_version, created_at
+          ) VALUES (?, ?, ?, 1, ?)`,
+        )
+        .run(academicYearId, kind, id, instant);
+    }
+    database
+      .prepare(
+        `INSERT INTO source_file_streams (
+          academic_year_id, manifest_id, current_version, current_sha256, created_at
+        ) VALUES (?, ?, 1, ?, ?)`,
+      )
+      .run(academicYearId, sourceManifestId, hash, instant);
+    const sourceFileVersion = {
+      manifest: {
+        id: sourceManifestId,
+        fileName: 'synthetic-association.xlsx',
+        extension: 'xlsx',
+        reportedMimeType: null,
+        sizeBytes: 1,
+        lastModifiedAt: null,
+        sha256: hash,
+        sourceContractVersion: 1,
+        parserVersion: 'synthetic-parser-v1',
+        readAt: instant,
+        confirmedAcademicYearId: academicYearId,
+      },
+      logicalSource: { state: 'confirmed', logicalSourceId },
+    } as const;
+    database
+      .prepare(
+        `INSERT INTO source_file_versions (
+          academic_year_id, manifest_id, version, previous_version, file_name, extension,
+          size_bytes, sha256, source_contract_version, parser_version, read_at,
+          confirmed_academic_year_id, logical_source_state, confirmed_logical_source_id,
+          payload_json, recorded_at
+        ) VALUES (
+          ?, ?, 1, NULL, 'synthetic-association.xlsx', 'xlsx', 1, ?, 1,
+          'synthetic-parser-v1', ?, ?, 'confirmed', ?, ?, ?
+        )`,
+      )
+      .run(
+        academicYearId,
+        sourceManifestId,
+        hash,
+        instant,
+        academicYearId,
+        logicalSourceId,
+        JSON.stringify(sourceFileVersion),
+        instant,
+      );
+    database
+      .prepare(
+        `INSERT INTO academic_record_streams (
+          academic_year_id, record_kind, stream_key, current_version,
+          student_id, enrollment_id, assessment_component_ref_kind,
+          assessment_component_id, created_at
+        ) VALUES (?, 'grade-entry', ?, 1, ?, ?, 'assessment-component', ?, ?)`,
+      )
+      .run(
+        academicYearId,
+        stableKey,
+        stream.studentId,
+        stream.enrollmentId,
+        stream.assessmentComponentId,
+        instant,
+      );
+    database
+      .prepare(
+        `INSERT INTO logical_source_record_streams (
+          academic_year_id, logical_source_id, record_kind, stream_key,
+          current_version, current_state, created_at
+        ) VALUES (?, ?, 'grade-entry', ?, 1, 'active', ?)`,
+      )
+      .run(academicYearId, logicalSourceId, stableKey, instant);
+    database
+      .prepare(
+        `INSERT INTO logical_source_record_versions (
+          academic_year_id, logical_source_id, record_kind, stream_key,
+          version, previous_version, association_state,
+          source_manifest_id, source_manifest_version, recorded_at
+        ) VALUES (?, ?, 'grade-entry', ?, 1, NULL, 'active', ?, 1, ?)`,
+      )
+      .run(
+        academicYearId,
+        logicalSourceId,
+        stableKey,
+        sourceManifestId,
+        instant,
+      );
+
+    const adapter = createGradebookD1ReadAdapterV1(
+      new SqliteD1Database(database),
+    );
+    await expect(
+      adapter.logicalSourceRecords.getCurrent(context, associationStream),
+    ).resolves.toEqual({
+      value: {
+        academicYearId,
+        logicalSourceId,
+        academicRecordStream: stream,
+        stableKey,
+        state: 'active',
+        sourceManifestId,
+        sourceManifestVersion: 1,
+      },
+      version: 1,
+      recordedAt: instant,
+    });
   });
 
   it('returns null for an absent association and rejects broken current-version pointers', async () => {
