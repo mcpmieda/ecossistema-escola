@@ -576,7 +576,7 @@ export function isBulletinSnapshotCoherentV1(snapshot: BulletinSnapshotV1): bool
     snapshot.model.contractVersion === BULLETIN_CONTRACT_VERSION_V1 &&
     snapshot.model.modelVersion === snapshot.modelVersion &&
     snapshot.model.authorityMode === BULLETIN_AUTHORITY_MODE_V1 &&
-    snapshot.model.academicYearId === snapshot.model.academicYearId &&
+    snapshot.model.academicYearId.trim().length > 0 &&
     snapshot.snapshotId.trim().length > 0 &&
     snapshot.dataVersion.trim().length > 0 &&
     snapshot.emittedAt.trim().length > 0 &&
