@@ -5,10 +5,7 @@ import type {
   AcademicYearV1,
   SchoolId,
 } from '../../../../shared/gradebook-contracts/entities';
-import {
-  createGradebookD1WriteUnitOfWorkV1,
-  GradebookD1WriteErrorV1,
-} from '../../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
+import { createGradebookD1WriteUnitOfWorkV1 } from '../../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import { ACADEMIC_CONTEXT_2026_IDENTITY_V1 } from '../../../../src/gradebook-domain/context/academic-context-2026-v1';
 import type {
   AcademicEntityRecordV1,
@@ -194,7 +191,7 @@ describe('contexto acadêmico D1 local V1', () => {
 
     await expect(
       persistence.entities.appendVersion(contextA, invalid, { expectedVersion: null }),
-    ).rejects.toMatchObject<Partial<GradebookD1WriteErrorV1>>({
+    ).rejects.toMatchObject({
       code: 'database-write-failed',
     });
 
@@ -225,7 +222,7 @@ describe('contexto acadêmico D1 local V1', () => {
 
     await expect(
       persistence.entities.appendVersion(contextA, record, { expectedVersion: 1 }),
-    ).rejects.toMatchObject<Partial<GradebookD1WriteErrorV1>>({ code: 'incompatible-write' });
+    ).rejects.toMatchObject({ code: 'incompatible-write' });
 
     expect(
       database.raw
@@ -281,7 +278,7 @@ describe('contexto acadêmico D1 local V1', () => {
     for (const record of incompatibleRecords) {
       await expect(
         persistence.entities.appendVersion(contextA, record, { expectedVersion: null }),
-      ).rejects.toMatchObject<Partial<GradebookD1WriteErrorV1>>({ code: 'incompatible-write' });
+      ).rejects.toMatchObject({ code: 'incompatible-write' });
     }
 
     expect(
