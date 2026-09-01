@@ -49,8 +49,8 @@ import { MemoryPersistenceAdapter } from '../../persistence/ports/memory-persist
 const academicYearId = 'academic-year:2026' as AcademicYearId;
 const context = { academicYearId } satisfies AcademicPersistenceContextV1;
 const batchId = 'import-batch:association-execution:synthetic' as ImportBatchId;
-const logicalSourceId =
-  'logical-source:association-execution:synthetic' as LogicalSourceIdV1;
+const logicalSourceId = 'logical-source:association-execution:synthetic' as LogicalSourceIdV1;
+const reviewLogicalSourceId = 'logical-source:association-execution:review' as LogicalSourceIdV1;
 
 function manifest(input: {
   id: string;
@@ -118,14 +118,11 @@ function gradeRecord(input: {
   technicalVersion?: number;
 }): AcademicRecordV1 {
   const record = {
-    id: (input.technicalId ??
-      `grade-entry:association-execution:${input.key}`) as GradeEntryId,
+    id: (input.technicalId ?? `grade-entry:association-execution:${input.key}`) as GradeEntryId,
     academicYearId,
     studentId: `student:association-execution:${input.key}` as StudentId,
-    enrollmentId:
-      `enrollment:association-execution:${input.key}` as EnrollmentId,
-    assessmentComponentId:
-      `assessment:association-execution:${input.key}` as AssessmentComponentId,
+    enrollmentId: `enrollment:association-execution:${input.key}` as EnrollmentId,
+    assessmentComponentId: `assessment:association-execution:${input.key}` as AssessmentComponentId,
     value: comparedValue({
       fileName: input.fileName,
       sha256: input.sha256,
@@ -159,24 +156,45 @@ function approvedFile(
   };
 }
 
-function batch(file: ImportBatchFileResultV1): ImportBatchResultV1 {
+function failedFile(importFileId: ImportFileId): ImportBatchFileResultV1 {
+  return {
+    id: importFileId,
+    sourceFile: {
+      fileName: 'arquivo-sintetico-bloqueado.xlsx',
+      extension: 'xlsx',
+      reportedMimeType: null,
+      sizeBytes: 128,
+      lastModifiedAt: null,
+    },
+    manifest: null,
+    status: 'failed',
+    diagnosticIds: [],
+  };
+}
+
+function batch(
+  fileOrFiles: ImportBatchFileResultV1 | readonly ImportBatchFileResultV1[],
+): ImportBatchResultV1 {
+  const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+  const approvedFileCount = files.filter((file) => file.status === 'approved').length;
+  const failedFileCount = files.filter((file) => file.status === 'failed').length;
   return {
     id: batchId,
-    status: 'approved',
-    files: [file],
+    status: failedFileCount > 0 ? 'partially-approved' : 'approved',
+    files,
     diagnostics: [],
     receivedAt: '2026-08-31T10:00:00Z',
     updatedAt: '2026-08-31T10:10:00Z',
     summary: {
-      totalFileCount: 1,
-      processedFileCount: 1,
-      approvedFileCount: 1,
+      totalFileCount: files.length,
+      processedFileCount: files.length,
+      approvedFileCount,
       reviewRequiredFileCount: 0,
       rejectedFileCount: 0,
-      failedFileCount: 0,
+      failedFileCount,
       informationCount: 0,
       warningCount: 0,
-      blockingErrorCount: 0,
+      blockingErrorCount: failedFileCount,
       criticalErrorCount: 0,
     },
   } as ImportBatchResultV1;
@@ -187,10 +205,11 @@ function association(
   sourceManifestId: SourceFileManifestId,
   sourceManifestVersion: number,
   state: LogicalSourceRecordAssociationV1['state'] = 'active',
+  associationLogicalSourceId: LogicalSourceIdV1 = logicalSourceId,
 ): LogicalSourceRecordAssociationV1 {
   return {
     academicYearId,
-    logicalSourceId,
+    logicalSourceId: associationLogicalSourceId,
     academicRecordStream: stream,
     stableKey: academicRecordStreamKeyV1(stream),
     state,
@@ -209,11 +228,11 @@ function planningRepositories(adapter: MemoryPersistenceAdapter) {
 
 async function seedBatch(
   adapter: MemoryPersistenceAdapter,
-  importFile: ImportBatchFileResultV1,
+  importFileOrFiles: ImportBatchFileResultV1 | readonly ImportBatchFileResultV1[],
 ): Promise<void> {
   const result = await adapter.unitOfWork.imports.appendImportBatchVersion(
     context,
-    batch(importFile),
+    batch(importFileOrFiles),
     { expectedVersion: null },
   );
   expect(result.status).toBe('written');
@@ -222,16 +241,15 @@ async function seedBatch(
 async function seedSource(
   adapter: MemoryPersistenceAdapter,
   sourceManifest: SourceFileManifestV1,
+  sourceLogicalSourceId: LogicalSourceIdV1 = logicalSourceId,
 ): Promise<void> {
   const value = {
     manifest: sourceManifest,
-    logicalSource: { state: 'confirmed', logicalSourceId },
+    logicalSource: { state: 'confirmed', logicalSourceId: sourceLogicalSourceId },
   } satisfies SourceFileVersionV1;
-  const result = await adapter.unitOfWork.imports.appendSourceFileVersion(
-    context,
-    value,
-    { expectedVersion: null },
-  );
+  const result = await adapter.unitOfWork.imports.appendSourceFileVersion(context, value, {
+    expectedVersion: null,
+  });
   expect(result.status).toBe('written');
 }
 
@@ -240,7 +258,9 @@ async function seedRecordAndAssociation(input: {
   record: AcademicRecordV1;
   sourceManifestId: SourceFileManifestId;
   sourceManifestVersion: number;
+  logicalSourceId?: LogicalSourceIdV1;
 }): Promise<AcademicRecordStreamV1> {
+  const sourceLogicalSourceId = input.logicalSourceId ?? logicalSourceId;
   const stream = academicRecordStreamForV1(input.record);
   const recordWrite = await input.adapter.unitOfWork.academicRecords.appendVersion(
     context,
@@ -249,17 +269,18 @@ async function seedRecordAndAssociation(input: {
     { expectedVersion: null },
   );
   expect(recordWrite.status).toBe('written');
-  const associationWrite =
-    await input.adapter.unitOfWork.logicalSourceRecords.appendVersion(
-      context,
-      logicalSourceRecordAssociationStreamForV1(logicalSourceId, stream),
-      association(
-        stream,
-        input.sourceManifestId,
-        input.sourceManifestVersion,
-      ),
-      { expectedVersion: null },
-    );
+  const associationWrite = await input.adapter.unitOfWork.logicalSourceRecords.appendVersion(
+    context,
+    logicalSourceRecordAssociationStreamForV1(sourceLogicalSourceId, stream),
+    association(
+      stream,
+      input.sourceManifestId,
+      input.sourceManifestVersion,
+      'active',
+      sourceLogicalSourceId,
+    ),
+    { expectedVersion: null },
+  );
   expect(associationWrite.status).toBe('written');
   return stream;
 }
@@ -452,11 +473,10 @@ describe('transactional import change plan executor with source associations v1'
 
     for (const record of [changedRecord, newRecord]) {
       const stream = academicRecordStreamForV1(record);
-      const currentAssociation =
-        await adapter.unitOfWork.logicalSourceRecords.getCurrent(
-          context,
-          logicalSourceRecordAssociationStreamForV1(logicalSourceId, stream),
-        );
+      const currentAssociation = await adapter.unitOfWork.logicalSourceRecords.getCurrent(
+        context,
+        logicalSourceRecordAssociationStreamForV1(logicalSourceId, stream),
+      );
       expect(currentAssociation?.value).toMatchObject({
         academicYearId,
         logicalSourceId,
@@ -466,6 +486,131 @@ describe('transactional import change plan executor with source associations v1'
         sourceManifestVersion: 2,
       });
     }
+  });
+
+  it('promotes only ready files and leaves missing or blocked items without appends', async () => {
+    const adapter = new MemoryPersistenceAdapter();
+    const readyManifest = manifest({
+      id: 'manifest:association-execution:ready',
+      fileName: 'arquivo-pronto.xlsx',
+      sha256: 'hash-ready',
+    });
+    const reviewPreviousManifest = manifest({
+      id: 'manifest:association-execution:review',
+      fileName: 'arquivo-revisao-v1.xlsx',
+      sha256: 'hash-review-v1',
+    });
+    const reviewIncomingManifest = {
+      ...reviewPreviousManifest,
+      fileName: 'arquivo-revisao-v2.xlsx',
+      sha256: 'hash-review-v2',
+      readAt: '2026-08-31T11:00:00Z',
+    };
+    const readyRecord = gradeRecord({
+      key: '25',
+      value: 9,
+      fileName: readyManifest.fileName,
+      sha256: readyManifest.sha256,
+    });
+    const missingRecord = gradeRecord({
+      key: '26',
+      value: 4,
+      fileName: reviewPreviousManifest.fileName,
+      sha256: reviewPreviousManifest.sha256,
+    });
+    await seedSource(adapter, reviewPreviousManifest, reviewLogicalSourceId);
+    const missingStream = await seedRecordAndAssociation({
+      adapter,
+      record: missingRecord,
+      sourceManifestId: reviewPreviousManifest.id,
+      sourceManifestVersion: 1,
+      logicalSourceId: reviewLogicalSourceId,
+    });
+
+    const readyFileId = 'import-file:association-execution:ready' as ImportFileId;
+    const reviewFileId = 'import-file:association-execution:review' as ImportFileId;
+    const blockedFileId = 'import-file:association-execution:blocked' as ImportFileId;
+    const readyFile = approvedFile(readyFileId, readyManifest);
+    const reviewFile = approvedFile(reviewFileId, reviewIncomingManifest);
+    const blockedFile = failedFile(blockedFileId);
+    const importFiles = [readyFile, reviewFile, blockedFile];
+    await seedBatch(adapter, importFiles);
+
+    const plan = await planImportReconciliation(
+      {
+        context,
+        batch: batch(importFiles),
+        expectedBatchVersion: 1,
+        files: [
+          {
+            importFileId: readyFileId,
+            logicalSource: { state: 'confirmed', logicalSourceId },
+            records: [readyRecord],
+          },
+          {
+            importFileId: reviewFileId,
+            logicalSource: {
+              state: 'confirmed',
+              logicalSourceId: reviewLogicalSourceId,
+            },
+            records: [],
+          },
+        ],
+      },
+      planningRepositories(adapter),
+    );
+
+    expect(plan.status).toBe('partially-ready');
+    expect(plan.promotionRequest.approvedImportFileIds).toEqual([readyFileId]);
+    expect(plan.reviewRequiredImportFileIds).toEqual([reviewFileId]);
+    expect(plan.blockedImportFileIds).toEqual([blockedFileId]);
+
+    const result = await executeImportChangePlan(plan, adapter);
+
+    expect(result.status).toBe('applied');
+    if (result.status !== 'applied') throw new Error('expected applied result');
+    expect(result.plannedWrites).toEqual({
+      sourceFileVersions: 1,
+      academicRecordVersions: 1,
+      logicalSourceRecordAssociationVersions: 1,
+      totalVersionWrites: 3,
+    });
+    expect(result.committedWrites).toEqual(result.plannedWrites);
+    expect(result.appliedVersions.sourceFiles.map((entry) => entry.importFileId)).toEqual([
+      readyFileId,
+    ]);
+    expect(result.appliedVersions.academicRecords.map((entry) => entry.importFileId)).toEqual([
+      readyFileId,
+    ]);
+    expect(
+      result.appliedVersions.logicalSourceRecordAssociations.map((entry) => entry.importFileId),
+    ).toEqual([readyFileId]);
+
+    const readyStream = academicRecordStreamForV1(readyRecord);
+    expect(await adapter.unitOfWork.academicRecords.getCurrent(context, readyStream)).toMatchObject(
+      { version: 1 },
+    );
+    expect(
+      await adapter.unitOfWork.logicalSourceRecords.getCurrent(
+        context,
+        logicalSourceRecordAssociationStreamForV1(logicalSourceId, readyStream),
+      ),
+    ).toMatchObject({ version: 1 });
+    expect(
+      await adapter.unitOfWork.imports.getSourceFileVersion(context, reviewPreviousManifest.id),
+    ).toMatchObject({
+      version: 1,
+      value: { manifest: { sha256: reviewPreviousManifest.sha256 } },
+    });
+    expect(
+      await adapter.unitOfWork.academicRecords.getCurrent(context, missingStream),
+    ).toMatchObject({ version: 1 });
+    expect(
+      await adapter.unitOfWork.logicalSourceRecords.getCurrent(
+        context,
+        logicalSourceRecordAssociationStreamForV1(reviewLogicalSourceId, missingStream),
+      ),
+    ).toMatchObject({ version: 1 });
   });
 
   it('reports an association conflict and rolls back earlier source and record appends', async () => {
@@ -506,17 +651,13 @@ describe('transactional import change plan executor with source associations v1'
       importFileId,
     });
     const stream = academicRecordStreamForV1(currentRecord);
-    const associationStream = logicalSourceRecordAssociationStreamForV1(
-      logicalSourceId,
-      stream,
+    const associationStream = logicalSourceRecordAssociationStreamForV1(logicalSourceId, stream);
+    const concurrentWrite = await adapter.unitOfWork.logicalSourceRecords.appendVersion(
+      context,
+      associationStream,
+      association(stream, oldManifest.id, 1, 'inactive'),
+      { expectedVersion: 1 },
     );
-    const concurrentWrite =
-      await adapter.unitOfWork.logicalSourceRecords.appendVersion(
-        context,
-        associationStream,
-        association(stream, oldManifest.id, 1, 'inactive'),
-        { expectedVersion: 1 },
-      );
     expect(concurrentWrite.status).toBe('written');
 
     const result = await executeImportChangePlan(plan, adapter);
@@ -539,9 +680,9 @@ describe('transactional import change plan executor with source associations v1'
     expect(
       await adapter.unitOfWork.imports.getSourceFileVersion(context, oldManifest.id),
     ).toMatchObject({ version: 1 });
-    expect(
-      await adapter.unitOfWork.academicRecords.getCurrent(context, stream),
-    ).toMatchObject({ version: 1 });
+    expect(await adapter.unitOfWork.academicRecords.getCurrent(context, stream)).toMatchObject({
+      version: 1,
+    });
     expect(
       await adapter.unitOfWork.logicalSourceRecords.getCurrent(context, associationStream),
     ).toMatchObject({ version: 2, value: { state: 'inactive' } });
