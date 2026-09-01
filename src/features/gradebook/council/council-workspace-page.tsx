@@ -18,6 +18,7 @@ import {
   type CouncilDecisionSelectionV1,
   type CouncilOfficialPeriodResultV1,
   type CouncilQueueItemV1,
+  type CouncilQueueRequestV1,
   type CouncilQueueStateV1,
   type CouncilStudentDetailV1,
   type CouncilStudentReferenceV1,
