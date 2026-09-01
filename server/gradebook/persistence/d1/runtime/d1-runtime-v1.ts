@@ -11,6 +11,10 @@ import {
 } from '../../../application/read-models/composition/operational-read-models-v1';
 import type { PersistenceUnitOfWorkV1 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import { createGradebookD1PersistenceUnitOfWorkV1 } from '../composition/d1-persistence-unit-of-work-v1';
+import {
+  createOperationalWorkspaceAcademicYearCatalogV1,
+  type OperationalWorkspaceAcademicYearCatalogV1,
+} from '../operational-workspace/academic-year-catalog-v1';
 import { GradebookD1BatchPromotionTransactionV1 } from '../transaction/d1-batch-promotion-transaction-v1';
 import type { D1WriteDatabaseV1 } from '../write/d1-write-adapter-v1';
 import {
@@ -104,6 +108,7 @@ export class GradebookD1RuntimeV1 {
     private readonly authorization: GradebookD1RuntimeAuthorizationV1,
     private readonly unitOfWork: PersistenceUnitOfWorkV1,
     private readonly readModels: GradebookOperationalReadModelsV1,
+    private readonly operationalAcademicYears: OperationalWorkspaceAcademicYearCatalogV1,
     private readonly transaction: GradebookD1BatchPromotionTransactionV1,
     private readonly migrations: GradebookD1MigrationRunnerV1,
   ) {}
@@ -135,6 +140,11 @@ export class GradebookD1RuntimeV1 {
     return this.readModels;
   }
 
+  operationalWorkspaceAcademicYears(): OperationalWorkspaceAcademicYearCatalogV1 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    return this.operationalAcademicYears;
+  }
+
   inspectSchema(): Promise<GradebookD1MigrationStatusV1> {
     requireGradebookD1RuntimeAuthorizationV1(this.authorization);
     return this.migrations.inspect(this.authorization);
@@ -163,6 +173,7 @@ export function createGradebookD1RuntimeV1(
     now: options.now,
   });
   const readModels = createGradebookOperationalReadModelsV1(unitOfWork);
+  const operationalAcademicYears = createOperationalWorkspaceAcademicYearCatalogV1(database);
   const transaction = new GradebookD1BatchPromotionTransactionV1(database, { now: options.now });
   const migrations = new GradebookD1MigrationRunnerV1(database, {
     migrationSql: options.migrationSql,
@@ -172,6 +183,7 @@ export function createGradebookD1RuntimeV1(
     authorization,
     unitOfWork,
     readModels,
+    operationalAcademicYears,
     transaction,
     migrations,
   );

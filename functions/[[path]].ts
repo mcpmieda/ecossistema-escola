@@ -24,6 +24,7 @@ import {
 } from '../server/http/security';
 import { sharePointHealth } from '../server/graph/sharepoint';
 import { handleGradebookD1AdminRequestV1 } from '../server/gradebook/http/d1-admin-routes-v1';
+import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
@@ -285,6 +286,9 @@ async function route(context: Context, correlationId: string): Promise<Response>
       capabilities: capabilitiesForRoles(session.roles),
     });
   }
+
+  const operationalWorkspaceResponse = await handleOperationalWorkspaceRequestV1(request, env);
+  if (operationalWorkspaceResponse) return operationalWorkspaceResponse;
 
   const gradebookD1AdminResponse = await handleGradebookD1AdminRequestV1(request, env);
   if (gradebookD1AdminResponse) return gradebookD1AdminResponse;
