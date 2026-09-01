@@ -117,4 +117,4 @@ Todos os identificadores, hashes, nomes e valores são sintéticos.
 - nenhum endpoint, autorização, capability, UI, backup, rollout ou métrica;
 - uma conexão local não aceita promoções aninhadas ou concorrentes.
 
-Binding/preview, runner operacional de migrations e contexto anual persistente permanecem em issues posteriores.
+Runtime/binding local ou preview e runner autorizado seguem na #261; o contexto acadêmico global/perfil 2026 segue na #262. Banco, binding e migrations de produção permanecem fora de escopo sem autorização explícita própria.

@@ -11,27 +11,27 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 
 ## Estado atual
 
-Sete ondas foram integradas. A mais recente entregou:
+Oito ondas foram integradas. A mais recente entregou:
 
-- #242/PR #252 — resultado trimestral nativo consolidado;
-- #243/PR #249 — associação transacional explícita entre fonte lógica e stream acadêmico;
-- #244/PR #253 — recuperação final nativa.
+- #245/PR #258 — escrita e promoção transacional D1 local;
+- #254/PR #259 — regressões de isolamento da reconciliação restauradas;
+- #255/PR #260 — resultado anual, elegibilidade básica e precedência formal explícita.
 
-O código vigente da onda está no commit `40dd21c08336919206bafcb556d6764f5570e6f9`; o deploy Cloudflare Pages `33456232765` foi concluído com sucesso.
+O código funcional vigente da onda está no commit `ee0518c98682665c4ee8f32a639abbd893872f40`; o deploy Cloudflare Pages `33491736646` foi concluído com sucesso.
 
-A oitava onda está pronta para três agentes independentes:
+A nona onda está pronta para três agentes independentes:
 
-- [#245 — adaptador D1 local de escrita e promoção transacional](https://github.com/mcpmieda/ecossistema-escola/issues/245);
-- [#254 — restauração das regressões de isolamento da reconciliação](https://github.com/mcpmieda/ecossistema-escola/issues/254);
-- [#255 — resultado anual, elegibilidade básica e precedências explícitas](https://github.com/mcpmieda/ecossistema-escola/issues/255).
+- [#261 — runtime D1 local/preview e runner autorizado](https://github.com/mcpmieda/ecossistema-escola/issues/261);
+- [#262 — contexto acadêmico global e perfil 2026](https://github.com/mcpmieda/ecossistema-escola/issues/262);
+- [#263 — equivalência anual fonte × motor](https://github.com/mcpmieda/ecossistema-escola/issues/263).
 
-A integração fica reservada à [#256](https://github.com/mcpmieda/ecossistema-escola/issues/256).
+A integração fica reservada à [#264](https://github.com/mcpmieda/ecossistema-escola/issues/264).
 
 ## Correção realizada na conferência
 
 O PR #248 reunia as issues #242 e #244. O conteúdo funcional estava validado, mas o formato contrariava a regra de uma issue e um PR por entrega. Ele foi fechado sem merge e substituído por #252 e #253, mantendo os mesmos arquivos funcionais separados e novamente validados.
 
-A revisão da #243 também identificou que alguns cenários herdados de isolamento deixaram de estar explicitamente cobertos após a reorganização dos testes. Nenhuma falha funcional foi observada; a restauração da cobertura está rastreada na #254 antes do fechamento da F4.
+A revisão da #243 identificou cenários herdados de isolamento sem cobertura explícita após a reorganização dos testes. A #254 restaurou lote misto, falha isolada, determinismo e zero writes indevidos sem revelar defeito funcional.
 
 ## Objetivo
 
@@ -58,7 +58,8 @@ Construir um Banco de Notas funcional, modular, auditável e acessível a usuár
 - composição trimestral 30/30/40 e 45%/55%;
 - recuperação paralela pelo quantitativo abaixo de 60% do próprio máximo;
 - resultado trimestral com nota bruta, nota nativa, percentual, cobertura e achados;
-- recuperação final com corte anual 60, limites 18/18/24 e substituição obrigatória mesmo quando menor.
+- recuperação final com corte anual 60, limites 18/18/24 e substituição obrigatória mesmo quando menor;
+- resultado anual com limites 59,9/60/60,1, aprovação direta/pós-REC, contagem 0/1/2/3+ e precedência somente de decisão formal registrada.
 
 A autoridade continua `imported-source`. O motor permanece separável e comparável; não assume a nota oficial silenciosamente.
 
@@ -67,24 +68,25 @@ A autoridade continua `imported-source`. O motor permanece separável e compará
 - Cloudflare D1 aprovado como armazenamento físico;
 - portas independentes do fornecedor;
 - migrations locais 0001–0003 e 21 tabelas;
-- adaptador local de leitura;
+- adaptadores locais de leitura e escrita;
 - planejamento idempotente de reimportação;
-- executor transacional abstrato;
-- associação fonte lógica ↔ stream representada nas portas, plano, estimativa e executor.
+- executor transacional abstrato exercitado contra a promoção D1 local;
+- associação fonte lógica ↔ stream representada nas portas, plano, estimativa, executor e transação física;
+- regressões de isolamento por arquivo restauradas.
 
-Ainda não existem banco/binding D1 operacional, migration remota, adaptador físico de escrita, endpoint autorizado ou persistência no site.
+Ainda não existem banco/binding D1 operacional, migration remota, runner/runtime autorizado ou persistência no site. A implementação D1 continua local e descartável.
 
 ## Próximas entregas
 
 ```text
-#245 → escrita/transação D1 local
-#254 → regressões de isolamento restauradas
-#255 → resultado anual e elegibilidade básica
+#261 → runtime D1 local/preview + runner autorizado
+#262 → contexto acadêmico global e perfil 2026
+#263 → equivalência anual fonte × motor
        ↓
-integração #256
+integração #264
 ```
 
-Depois da #245 serão criadas issues separadas para binding/preview, runner de migrations e contexto anual. Depois da #255 será liberada a equivalência fonte × motor.
+Nenhuma dessas issues autoriza provisionamento de produção, migration remota silenciosa ou mudança da autoridade `imported-source`.
 
 ## Validação da fonte
 
