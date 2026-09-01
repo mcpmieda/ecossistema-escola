@@ -5,6 +5,10 @@ import type {
   ImportChangePlanV1,
   ImportReconciliationRepositoriesV1,
 } from '../../../application/import/import-reconciliation-v1';
+import {
+  createGradebookOperationalReadModelsV1,
+  type GradebookOperationalReadModelsV1,
+} from '../../../application/read-models/composition/operational-read-models-v1';
 import type { PersistenceUnitOfWorkV1 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import { createGradebookD1PersistenceUnitOfWorkV1 } from '../composition/d1-persistence-unit-of-work-v1';
 import { GradebookD1BatchPromotionTransactionV1 } from '../transaction/d1-batch-promotion-transaction-v1';
@@ -99,6 +103,7 @@ export class GradebookD1RuntimeV1 {
     readonly environment: GradebookD1RuntimeEnvironmentV1,
     private readonly authorization: GradebookD1RuntimeAuthorizationV1,
     private readonly unitOfWork: PersistenceUnitOfWorkV1,
+    private readonly readModels: GradebookOperationalReadModelsV1,
     private readonly transaction: GradebookD1BatchPromotionTransactionV1,
     private readonly migrations: GradebookD1MigrationRunnerV1,
   ) {}
@@ -123,6 +128,11 @@ export class GradebookD1RuntimeV1 {
   persistenceUnitOfWork(): PersistenceUnitOfWorkV1 {
     requireGradebookD1RuntimeAuthorizationV1(this.authorization);
     return this.unitOfWork;
+  }
+
+  operationalReadModels(): GradebookOperationalReadModelsV1 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    return this.readModels;
   }
 
   inspectSchema(): Promise<GradebookD1MigrationStatusV1> {
@@ -152,9 +162,17 @@ export function createGradebookD1RuntimeV1(
   const unitOfWork = createGradebookD1PersistenceUnitOfWorkV1(database, {
     now: options.now,
   });
+  const readModels = createGradebookOperationalReadModelsV1(unitOfWork);
   const transaction = new GradebookD1BatchPromotionTransactionV1(database, { now: options.now });
   const migrations = new GradebookD1MigrationRunnerV1(database, {
     migrationSql: options.migrationSql,
   });
-  return new GradebookD1RuntimeV1(environment, authorization, unitOfWork, transaction, migrations);
+  return new GradebookD1RuntimeV1(
+    environment,
+    authorization,
+    unitOfWork,
+    readModels,
+    transaction,
+    migrations,
+  );
 }

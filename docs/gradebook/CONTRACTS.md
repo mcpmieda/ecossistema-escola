@@ -16,7 +16,8 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Leitura/escrita/transação D1 local:** implementadas para contexto anual, fonte, registros e associações.
 - **Runtime D1 local/preview:** implementado por #261/PR #268, com produção fechada.
 - **Repositórios completos de entidades, lotes e Auditoria:** integrados pela décima onda #269–#272.
-- **Read models:** propostos; serão detalhados nas issues consumidoras.
+- **Read models operacionais:** implementados localmente pela décima primeira onda, sem contrato
+  compartilhado novo; pesquisa global permanece proposta para a issue de contrato #286.
 
 ## Estados de maturidade
 
@@ -309,6 +310,15 @@ Read models são contratos de consulta, não bancos paralelos:
 - `CouncilStudentRecordV1`;
 - `BulletinModelV1`;
 - `GlobalSearchResultV1`.
+
+A décima primeira onda implementou tipos locais e consultas provider-independent para as Centrais do
+Aluno, da Turma, do Professor e do Componente. `createGradebookOperationalReadModelsV1` compõe os
+quatro sobre `PersistenceUnitOfWorkV1.entities`; não existe segunda consulta ou regra na fachada.
+
+Esses modelos preservam versão/instante das entidades, contexto anual explícito, paginação por cursor,
+ordenação determinística e ausência como `null` ou lista vazia. Não consultam notas/resultados, não
+alteram `confirmationOrigin` ou `authorityMode` e não inferem relações por nome. `GlobalSearchResultV1`
+continua somente proposto até a #286 congelar forma e autorização em contrato próprio.
 
 ## Regras de evolução
 

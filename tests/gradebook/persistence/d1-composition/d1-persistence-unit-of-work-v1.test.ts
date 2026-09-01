@@ -383,7 +383,7 @@ describe('composição D1 local da PersistenceUnitOfWorkV1', () => {
     ).resolves.toMatchObject({ value: reconciliation, version: 1 });
   });
 
-  it('expõe a UoW completa no runtime autorizado e continua fail-closed em produção', () => {
+  it('expõe a UoW e a fachada operacional no runtime autorizado e continua fail-closed', async () => {
     const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
     const runtime = createGradebookD1RuntimeV1(
       { RUNTIME_ENVIRONMENT: 'preview', GRADEBOOK_D1: database } as RuntimeEnv,
@@ -396,6 +396,28 @@ describe('composição D1 local da PersistenceUnitOfWorkV1', () => {
       academicRecords: expect.any(Object),
       logicalSourceRecords: expect.any(Object),
       audit: expect.any(Object),
+    });
+    const unit = runtime.persistenceUnitOfWork();
+    await unit.entities.appendVersion(context, academicYear(), { expectedVersion: null });
+    for (const entity of academicEntities()) {
+      await unit.entities.appendVersion(context, entity, { expectedVersion: null });
+    }
+    const readModels = runtime.operationalReadModels();
+    await expect(readModels.students.get(context, studentId)).resolves.toMatchObject({
+      student: { value: { id: studentId } },
+      enrollments: [{ enrollment: { value: { id: enrollmentId } } }],
+    });
+    await expect(readModels.classGroups.get(context, classGroupId)).resolves.toMatchObject({
+      classGroup: { value: { id: classGroupId } },
+      students: [{ student: { value: { id: studentId } } }],
+    });
+    await expect(readModels.teachers.get(context, teacherId)).resolves.toMatchObject({
+      teacher: { value: { id: teacherId } },
+      assignments: [{ assignment: { value: { id: assignmentId } } }],
+    });
+    await expect(readModels.subjects.get(context, subjectId)).resolves.toMatchObject({
+      subject: { value: { id: subjectId } },
+      assignments: [{ assignment: { value: { id: assignmentId } } }],
     });
 
     const prepare = vi.fn();

@@ -9,7 +9,7 @@ Não atribua como tarefa comum:
 - `#182` — painel geral do programa;
 - `#184` a `#192` — acompanhamento das fases;
 - `#220` — Saúde e limites, ainda planejada;
-- `#281` — integração da décima primeira onda.
+- `#288` — integração planejada da décima segunda onda.
 
 As integrações `#203`, `#210`, `#214`, `#221`, `#229`, `#237`, `#246`, `#256` e `#264` foram concluídas.
 
@@ -32,16 +32,25 @@ A produção continua sem banco, binding ou migration D1 remota. A autoridade pe
 | `#271` | Repositório D1 local de Auditoria e reconciliação                  | `#277` / `79a2426`       |
 | `#272` | UoW integral, verificação, integração e liberação da onda seguinte | PR próprio de integração |
 
-## Décima primeira onda — executar agora
+## Décima primeira onda — concluída e integrada
 
-| Ordem da sessão serial |  Issue | Trabalho                                     | Agente recomendado                            |
-| ---------------------: | -----: | -------------------------------------------- | --------------------------------------------- |
-|                      1 | `#278` | Read model local da Central do Aluno         | **Codex**                                     |
-|                      2 | `#279` | Read model local da Central da Turma         | **Codex**                                     |
-|                      3 | `#280` | Read models locais de Professor e Componente | **Codex**                                     |
-|                      — | `#281` | Integração e liberação da próxima onda       | **Pro**; não autorizado ao Codex nesta sessão |
+|  Issue | Entrega                                   | PR/merge           |
+| -----: | ----------------------------------------- | ------------------ |
+| `#278` | Read model local da Central do Aluno     | `#283` / `1e79af0` |
+| `#279` | Read model local da Central da Turma     | `#284` / `5483fe5` |
+| `#280` | Read models de Professor e Componente    | `#285` / `3dd300f` |
+| `#281` | Fachada única, integração e próxima onda | PR de integração   |
 
-As três implementações escrevem em caminhos disjuntos e consomem somente portas por injeção. Durante a sessão temporária `#273`, o mesmo Codex executa apenas `#278 → #279 → #280`, em série, uma por branch e PR. A #281 exige autorização explícita nova.
+## Décima segunda onda — fila condicionada
+
+| Ordem |  Issue | Trabalho                                         | Agente recomendado |
+| ----: | -----: | ------------------------------------------------ | ------------------ |
+|     1 | `#286` | Contrato da pesquisa global acadêmica autorizada | **Pro**            |
+|     2 | `#287` | Read model local da pesquisa, bloqueado por #286 | **Codex**          |
+|     3 | `#288` | Integração, bloqueada por #286 e #287            | **Pro**            |
+
+A sessão #273 deve parar depois da #281: a primeira tarefa é exclusiva para Pro e a #287 ainda não
+está pronta nem explicitamente autorizada ao Codex.
 
 ## Sessão temporária
 
@@ -64,16 +73,17 @@ Já existem:
 - runtime injetado permitido somente em local/preview;
 - runner canônico e idempotente das migrations;
 - capability administrativa no servidor e rotas `no-store`.
+- quatro read models operacionais e uma fachada única no runtime local/preview autorizado.
 
 Ainda não existem:
 
 - banco D1 remoto/persistente;
 - binding remoto ou migration remota;
 - persistência acadêmica ativa no site oficial;
-- read models das centrais operacionais;
+- contrato e read model da pesquisa global acadêmica autorizada;
 - interface funcional de revisão/Auditoria.
 
-## Gates manuais que não bloqueiam a décima primeira onda
+## Gates manuais que não bloqueiam o trabalho local seguro
 
 - executar `REAL_DATA_VALIDATION.md` com o corpus real em ambiente privado;
 - expandir o SHA-256 completo no smoke autenticado;

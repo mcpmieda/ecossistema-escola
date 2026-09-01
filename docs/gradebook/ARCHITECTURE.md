@@ -141,7 +141,8 @@ Funções TypeScript puras e determinísticas para semântica, arredondamento, t
 
 ### Aplicação
 
-Orquestra contexto, planejamento, revisão e execução contra portas. Não executa SQL e não importa UI.
+Orquestra contexto, planejamento, revisão, execução e read models contra portas. Não executa SQL e
+não importa UI.
 
 ### Persistência
 
@@ -179,6 +180,12 @@ Compara fonte, versões persistidas e motor. A equivalência anual da #263 produ
 ### Read models
 
 Consultas compactas e específicas por experiência. Evitam N+1 e impedem que componentes HeroUI reconstruam regras acadêmicas.
+
+A décima primeira onda integrou quatro consultas locais — Aluno, Turma, Professor e Componente — e
+`createGradebookOperationalReadModelsV1`, a única fachada que as injeta com o repositório de entidades
+da `PersistenceUnitOfWorkV1`. Cada consulta preserva contexto anual, paginação completa, ordenação
+determinística e referências ausentes explícitas. A fachada não consulta persistência, não cria regra
+acadêmica e só é exposta pelo runtime local/preview depois da autorização existente.
 
 ### Interface HeroUI
 
@@ -224,15 +231,17 @@ concluído:
   runner idempotente
   capability e rotas administrativas protegidas
 
-concluído na décima onda:
+concluído na décima e na décima primeira ondas:
   repositório local de entidades
   repositório local de importações
   repositório local de Auditoria
   composição integral da unidade de trabalho
+  read models locais de aluno, turma, professor e componente
+  fachada operacional única no runtime autorizado
 
 agora:
-  read models locais das centrais de aluno e turma
-  read models locais das centrais de professor e componente
+  contrato da pesquisa global acadêmica autorizada (#286, Pro)
+  implementação local posterior bloqueada pelo contrato (#287)
 
 posteriormente, somente com autorização explícita:
   recurso D1 remoto/preview
