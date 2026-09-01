@@ -1,10 +1,10 @@
 # Contratos compartilhados — Banco de Notas
 
-Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma segunda definição com significado diferente.
+Este documento congela o vocabulário e registra quais contratos possuem implementação executável. Nenhum módulo pode criar uma segunda definição com significado diferente.
 
 ## Estado de implementação
 
-- **Fonte:** `SourceContractV1` e suíte sintética integrados; validação privada do corpus real permanece como gate da F1.
+- **Fonte:** `SourceContractV1` e suíte sintética integrados; validação privada do corpus real permanece gate da F1.
 - **Entidades acadêmicas:** `congelado-v1`, integradas por #194/PR #208.
 - **Lançamentos e resultados:** `congelado-v1`, integrados por #196/PR #212.
 - **Lote, manifesto, reconciliação e Auditoria:** `congelado-v1`, integrados por #197/PR #216.
@@ -14,29 +14,27 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Portas de persistência:** `congelado-v1`, incluindo associação fonte lógica ↔ stream.
 - **Schema D1:** migrations locais 0001–0003 integradas; nenhum recurso remoto criado.
 - **Leitura/escrita/transação D1 local:** implementadas para contexto, entidades, fontes, lotes, registros, associações e Auditoria.
-- **Runtime D1 local/preview:** implementado por #261/PR #268, com produção fechada.
+- **Runtime D1 local/preview:** implementado, com produção fechada antes do binding.
 - **Read models operacionais:** implementados e compostos pela #281.
-- **Pesquisa global acadêmica autorizada:** contrato congelado pela #286, read model implementado pela #287 e composto localmente pela #288; sem endpoint, UI ou ativação em produção.
-- **Experiência operacional F5:** contrato V1 congelado pela #293/PR #298.
-- **Workspace de Auditoria/revisão F4:** contrato V1 congelado pela #294/PR #301.
-- **Desempenho F6:** contrato V1 congelado pela #295/PR #299.
-- **Boletins/emissão F8:** contrato V1 congelado pela #296/PR #300, com `imported-source` invariável também nas projeções internas.
-- **Próximas implementações:** #302 experiência operacional, #303 Auditoria, #304 Desempenho e #305 emissão de Boletins; integração #306.
+- **Pesquisa global acadêmica:** contrato #286, implementação #287, composição #288.
+- **Operational Workspace F5:** contrato #293 + transporte/bridge/UI local-preview #302; integração #306 preserva bridge único.
+- **Audit Workspace F4:** contrato #294 + implementação/read-source D1 #303; integração #306 compõe internamente no runtime, sem HTTP/UI.
+- **Desempenho F6:** contrato #295 + read model provider-independent #304; sem fonte física/runtime/HTTP.
+- **Boletins F8:** contrato #296 + emissão provider-independent #305; sem PDF/HTTP/snapshot remoto.
 
 ## Estados de maturidade
 
 - **proposto:** ainda pode mudar sem migração;
 - **congelado-v1:** consumidores podem implementar em paralelo;
 - **implementado-v1:** comportamento executável coberto por testes;
-- **implementado-local-v1:** schema/adaptador/read model testado localmente, sem provisionamento;
+- **implementado-local-v1:** adaptador/read model testado localmente, sem provisionamento;
+- **implementado-local-preview-v1:** composição disponível no runtime permitido apenas em local/preview;
 - **deprecated:** permanece durante migração;
 - **retirado:** não pode ser usado.
 
 ## Identificadores e entidades
 
-Identificadores técnicos são opacos e não dependem de nomes de exibição. A fonte preserva ano, turma, nome e marcas significativas; o modelo interno usa IDs próprios e aliases separados.
-
-Entidades V1:
+Identificadores técnicos são opacos e não dependem de nomes de exibição. Ano letivo participa de todas as relações acadêmicas persistentes. Entidades V1:
 
 - `AcademicYearV1`;
 - `TeacherV1`;
@@ -48,45 +46,13 @@ Entidades V1:
 - `StudentStatusEventV1`;
 - `AssessmentComponentV1`.
 
-Ano letivo participa de todas as relações acadêmicas persistentes. Transferências mantêm origem histórica e posição vigente separadas.
+Transferências mantêm origem histórica e posição vigente separadas. Nomes não se tornam chaves técnicas e matching aproximado não decide identidade.
 
-## Contexto acadêmico 2026
+## Contexto acadêmico
 
-A #262/PR #267 integrou uma única composição oficial:
+A composição oficial da #262 exige ano, perfil e versão de configuração explícitos. Nenhum módulo escolhe ano pelo relógio. Os perfis nativos são referenciados, não copiados. Contexto ausente, duplicado, inativo ou incompatível falha. `authorityMode` permanece `imported-source`.
 
-```ts
-createAcademicContext2026V1(academicYear);
-createActiveAcademicContextServiceV1(dependencies);
-```
-
-Regras:
-
-- ano, perfil e versão de configuração são explícitos;
-- nenhum módulo escolhe ano pelo relógio;
-- os perfis de composição, paralela, resultado trimestral, REC final e resultado anual são referenciados diretamente, sem copiar pesos, máximos, cortes ou limites;
-- contexto ausente, duplicado, inativo ou incompatível falha explicitamente;
-- `authorityMode` permanece `imported-source`;
-- o `academic-year` é lido e versionado localmente por `AcademicEntityRepositoryV1`, com compare-and-set e histórico append-only.
-
-Nenhuma onda pode criar uma segunda implementação concorrente do `academic-year`.
-
-## Evidência de origem
-
-### `SourceCellEvidenceV1`
-
-Preserva arquivo/hash, guia, célula, valor bruto, cache, fórmula, classificação semântica e proveniência. Vazio, fórmula zero, zero oficial `0,1`, zero legado, erro, texto inválido e não aplicável permanecem distintos.
-
-### `SourceFileManifestV1`
-
-Preserva ID, nome, extensão, MIME informado, tamanho, modificação, SHA-256, versão do contrato/parser, instante de leitura e confirmações de ano/professor quando disponíveis.
-
-Regras:
-
-- SHA-256 é calculado antes do reconhecimento;
-- nome do arquivo é metadado, não identidade permanente;
-- mesmo hash com outro nome não duplica conteúdo;
-- hash diferente não confirma sozinho outra fonte lógica;
-- nenhum caminho local faz parte do contrato.
+O `academic-year` é lido/versionado localmente pelo repositório oficial. A #302 adiciona somente um catálogo read-only do workspace que enumera `academic_year_id + year` já persistidos; ele não cria segunda implementação do ano.
 
 ## Valores e resultados acadêmicos
 
@@ -101,115 +67,13 @@ not-applicable
 insufficient-data
 ```
 
-Todo valor comparado preserva simultaneamente fonte importada e cálculo nativo. `authorityMode` seleciona a autoridade sem apagar o outro lado.
+Todo valor comparável preserva simultaneamente fonte importada e cálculo nativo. Cobertura usa `complete | partial | insufficient-data | not-applicable`. A decisão final humana permanece separada do estado calculado.
 
-Cobertura usa:
+O motor nativo continua sendo a única implementação de semântica, arredondamento, composição, recuperações e resultado anual. Interfaces, Auditoria, Desempenho e Boletins não podem reimplementar regras.
 
-```text
-complete
-partial
-insufficient-data
-not-applicable
-```
+## Persistência e runtime
 
-Contratos centrais:
-
-- `GradeEntryV1`;
-- `TermResultV1`;
-- `FinalRecoveryV1`;
-- `AnnualResultV1`.
-
-Estados acadêmicos internos:
-
-```text
-in-progress
-approved-direct
-approved-after-recovery
-eligible-for-council
-approved-by-council
-failed-after-council-vote
-failed-by-council-decision
-failed-by-attendance
-not-eligible-for-council
-special-status
-insufficient-data
-```
-
-A decisão final humana permanece em `AnnualFinalDecisionV1`, separada do estado calculado.
-
-## Importação, reconciliação e Auditoria
-
-### `ImportBatchResultV1`
-
-Estados:
-
-```text
-received
-processing
-review-required
-partially-approved
-approved
-rejected
-failed
-```
-
-Falha de um arquivo não equivale a falha total. Erro crítico impede aparência de sucesso completo.
-
-### `ReconciliationResultV1`
-
-Estados:
-
-```text
-match
-expected-difference
-mismatch
-not-comparable
-```
-
-### `AuditOccurrenceV1`
-
-Preserva gravidade, categoria, alvo, origem, ação recomendada e histórico de estado. Resolução exige ator, data e justificativa.
-
-## Motor nativo — implementado
-
-### Semântica e arredondamento
-
-`interpretSourceCell` converte evidência em valor acadêmico sem apagar proveniência. `roundAcademicGrade` aplica faixas 0,00–0,24, 0,25–0,74 e 0,75–0,99, com comportamento negativo simétrico e proteção contra ruído decimal.
-
-### Composição trimestral e paralela
-
-`composeNativeTermResult` implementa máximos 30/30/40 e peso 45% quantitativo / 55% qualitativo. `resolveNativeParallelRecovery` usa cortes 8,1/8,1/10,8 e preserva original, paralela e valor considerado.
-
-### Resultado trimestral e recuperação final
-
-`composeNativeTermOutcome` produz nota bruta, nota nativa, percentual, cobertura e achados. `resolveNativeFinalRecovery` usa corte anual 60, limites 18/18/24 e substitui obrigatoriamente a nota aplicável pela REC, inclusive quando menor, preservando o original.
-
-### Resultado anual
-
-`resolveNativeAnnualOutcome` distingue aprovação direta, aprovação após REC, componente não aprovado, elegibilidade com 1–2 componentes e não elegibilidade com 3+, sem fabricar estado quando a cobertura é insuficiente. Decisão formal registrada permanece separada e somente seu `resultingState` explícito prevalece.
-
-### Equivalência anual fonte × motor
-
-A #263/PR #266 integrou:
-
-```ts
-compareImportedAndNativeAnnualOutcome(input, profile);
-```
-
-Classificações:
-
-- `match`: valores comparáveis idênticos;
-- `expected-difference`: somente diferença explícita de estado de origem entre zeros semanticamente equivalentes;
-- `mismatch`: valores comparáveis diferentes, sem tolerância ou correção;
-- `not-comparable`: ausência, não aplicabilidade, cobertura parcial, dado insuficiente ou componente nativo sem base segura.
-
-A função preserva valor/evidência importados, resultado nativo, coberturas e versões. Não cria arredondamento, tolerância, decisão de Conselho ou mudança de autoridade.
-
-## Portas de persistência — congelado-v1
-
-Implementação pública: `src/gradebook-domain/ports/persistence/persistence-ports-v1.ts`.
-
-Portas:
+Portas públicas:
 
 - `AcademicEntityRepositoryV1`;
 - `ImportPersistenceRepositoryV1`;
@@ -222,86 +86,17 @@ Portas:
 Conceitos transversais:
 
 - contexto exige `academicYearId`;
-- consultas listáveis usam paginação por cursor;
+- consultas listáveis usam cursor;
 - versões usam expectativa otimista;
-- registros são append-only;
-- promoção ocorre em unidade de trabalho atômica;
-- apenas arquivos previamente aprovados entram na promoção.
+- históricos são append-only;
+- promoção ocorre em UoW atômica;
+- somente arquivos previamente aprovados entram na promoção.
 
-### Associação fonte lógica ↔ stream
+O schema continua exatamente em 0001–0003/21 tabelas. Nenhuma implementação da onda 14 adiciona migration, binding ou recurso remoto.
 
-A associação contém ano, fonte lógica confirmada, stream/chave estável, estado `active` ou `inactive`, manifesto/versão de origem e versão otimista.
+O runtime reconhece `local | preview | production`; produção falha antes de inspecionar `GRADEBOOK_D1`. A capability `gradebook.persistence.admin` permanece concedida somente ao papel já existente `ADMINISTRADOR`. Uma autorização opaca emitida no servidor é obrigatória antes de construir/expor o runtime.
 
-- item `new` planeja ativação inicial;
-- item `changed` mantém/versiona quando necessário;
-- item igual, mesmo hash ou renomeado não cria associação nova;
-- item ausente não é desativado automaticamente;
-- fonte ambígua ou arquivo bloqueado não planeja associação;
-- fonte, registro e associação são aplicados na mesma transação;
-- conflito reverte toda a promoção.
-
-## Schema e adaptadores D1
-
-Migrations locais:
-
-1. contexto, entidades, fontes e lotes;
-2. registros acadêmicos, reconciliação e Auditoria;
-3. catálogo versionado fonte lógica ↔ stream.
-
-O schema possui 21 tabelas, FKs por ano, histórico append-only, índices e ausência de cascades destrutivos.
-
-Implementado e composto localmente:
-
-- leitura por hash/manifesto;
-- leitura/escrita do `academic-year`;
-- leitura/escrita de registros acadêmicos;
-- leitura/escrita das associações;
-- leitura/escrita das oito demais entidades acadêmicas;
-- lotes e histórico de versões por fonte lógica;
-- ocorrências de Auditoria e resultados de reconciliação;
-- históricos paginados de registros e associações;
-- promoção `fonte → registro → associação` em uma transação;
-- compare-and-set, savepoints e rollback integral.
-
-A #272 compõe exatamente um fornecedor por operação em uma única unidade de trabalho. Nenhum valor importado ou nativo é substituído.
-
-## Runtime D1 local/preview
-
-A #261/PR #268 integrou:
-
-- runtime explicitamente injetado;
-- ambientes `local`, `preview` e `production` distintos;
-- produção bloqueada antes de tocar no binding;
-- validação estrutural do binding;
-- runner que consome a lista canônica das migrations 0001–0003;
-- conferência idempotente do catálogo aplicado;
-- capability `gradebook.persistence.admin`, concedida somente a `ADMINISTRADOR`;
-- rotas administrativas autenticadas, autorizadas, same-origin e `Cache-Control: no-store`;
-- erros e logs sem binding, SQL, parâmetros, payload acadêmico ou secret.
-
-Nenhum banco, binding, secret ou migration remota foi criado. Persistência e consulta acadêmica do site oficial permanecem desativadas.
-
-## Planejamento e execução da reimportação
-
-`planImportReconciliation` distingue:
-
-```text
-unchanged
-new
-changed
-missing-from-new-source
-blocked
-```
-
-O plano discrimina versões de fonte, registros acadêmicos e associações. `executeImportChangePlan` valida antes da transação e aplica somente arquivos prontos e itens novos/alterados. Itens iguais, ausentes, bloqueados ou em revisão não são escritos automaticamente.
-
-## Read models operacionais
-
-A décima primeira onda implementou tipos locais e consultas provider-independent para as Centrais do Aluno, da Turma, do Professor e do Componente. `createGradebookOperationalReadModelsV1` compõe os quatro sobre `PersistenceUnitOfWorkV1.entities`; não existe segunda consulta ou regra na fachada.
-
-Esses modelos preservam versão/instante das entidades, contexto anual explícito, paginação por cursor, ordenação determinística e ausência como `null` ou lista vazia. Não consultam notas/resultados, não alteram `confirmationOrigin` ou `authorityMode` e não inferem relações por nome.
-
-## Pesquisa global acadêmica autorizada — congelado-v1 e implementado-local-v1
+## Pesquisa acadêmica V1
 
 Implementação pública do contrato:
 `shared/gradebook-contracts/search/global-search-contract-v1.ts`.
@@ -312,118 +107,142 @@ Implementação provider-independent:
 Composição única:
 `createGradebookOperationalReadModelsV1(...).search`.
 
-`GlobalSearchRequestV1` exige explicitamente:
+`GlobalSearchRequestV1` exige ano explícito, query, escopo, limite, cursor opaco e ordem oficial. O request não transporta papel, capabilities, booleano `authorized` ou token.
 
-- `contractVersion: 1`;
-- `academicYearId` opaco, sem escolha pelo relógio;
-- `query` original, usada pelo contrato somente para distinguir vazio de não vazio;
-- `scope.kinds` não vazio e sem duplicatas, limitado a `student`, `class-group`, `teacher` e `subject`;
-- `page.limit` inteiro entre 1 e 100 e `page.cursor` opaco ou `null`;
-- ordem fixa `kind-presentation-id-ascending-code-unit`.
-
-A autorização continua pertencendo ao servidor. O contrato reutiliza a capability pública existente `gradebook.persistence.admin`, atualmente concedida apenas a `ADMINISTRADOR`, e exige contexto opaco emitido/verificado pelo servidor antes de qualquer consulta acadêmica. O pedido não transporta papel, lista de capabilities, booleano `authorized`, token ou outra alegação do navegador.
-
-`GlobalSearchResultV1` contém estes campos exatos:
+Resultados contêm somente:
 
 - aluno: `kind`, `id`, `displayName`;
 - turma: `kind`, `id`, `code`;
 - professor: `kind`, `id`, `displayName`;
 - componente: `kind`, `id`, `displayName`.
 
-O resultado não contém nota, resultado, matrícula, atribuição docente, status, evidência ou alias de origem, marca de identidade, `confirmationOrigin`, `authorityMode`, total, rota, URL, `href`, `searchText` ou payload acadêmico.
+A implementação faz inclusão literal após normalização de caixa/diacríticos, sem fuzzy matching, heurística de identidade ou segundo ranking. Falha/incompatibilidade vira não divulgação.
 
-A ordem é determinística: `student → class-group → teacher → subject`, depois apresentação bruta e ID opaco por unidade de código. Páginas usam cursor opaco, respeitam o limite e não informam total.
+## Operational Workspace F5
 
-A implementação local:
-
-- recebe exclusivamente `AcademicEntityRepositoryV1`;
-- preserva `academicYearId` em cada listagem;
-- lista somente tipos solicitados e não usa `repository.get`;
-- percorre a paginação interna, ordena com `compareGlobalSearchResultsV1` e pagina externamente;
-- faz matching por inclusão literal depois de normalizar caixa e diacríticos;
-- não usa fuzzy matching, distância textual, ranking aproximado ou heurística de identidade;
-- não pesquisa IDs, aliases, marcas de origem, série, seção, turno, status ou payload acadêmico;
-- converte falha/incompatibilidade do repositório em `insufficient-data`, sem exceção bruta.
-
-Consulta vazia, ausência, dado insuficiente, escopo insuficiente, pedido inválido e não autorização usam a mesma forma sem dados: `contractVersion`, `outcome`, `items: []` e `nextCursor: null`.
-
-O runtime local/preview retorna a pesquisa pela mesma `operationalReadModels()` autorizada. Produção falha antes de inspecionar o binding. A #288 não criou endpoint, UI ou nova política de autorização; portanto `Cache-Control: no-store` continua aplicado somente às rotas administrativas existentes.
-
-Este contrato não substitui nem duplica `PlatformSearchItem`, `normalizeSearch` ou `filterSearchItems`, usados pela pesquisa de navegação do Centro.
-
-## Contratos da décima terceira onda — congelados-v1
-
-A #297 integrou os quatro contratos sem alteração de semântica:
-
-### Experiência operacional F5 — #293/PR #298
-
-Implementação pública:
+Contrato base:
 `shared/gradebook-contracts/operational-workspace/operational-workspace-contract-v1.ts`.
 
-- ano selecionado explicitamente e sem fallback por relógio;
-- navegação por `kind` + ID opaco;
-- pesquisa é alias direto do `GlobalSearch...V1`, sem matching ou paginação paralelos;
+Transporte integrado pela #302:
+`shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v1.ts`.
+
+Invariantes:
+
 - estados `loading | ready | empty | unavailable | not-authorized`;
-- autorização no servidor e alegações do cliente proibidas;
-- rota, nota, resultado, evidência e `authorityMode` não são aceitos como payload operacional.
+- ano sempre explícito;
+- navegação `kind + id` opaco;
+- pesquisa é alias direto do `GlobalSearch...V1`;
+- autorização efetiva no servidor;
+- rota física, token, role, capability list, nota, resultado, evidência bruta e `authorityMode` selecionável são proibidos no payload.
 
-### Workspace de Auditoria/revisão F4 — #294/PR #301
+A implementação #302 adiciona:
 
-Implementação pública:
+- catálogo read-only de anos persistidos;
+- projeções mínimas das quatro Centrais;
+- único bridge `POST /api/gradebook/operational-workspace`;
+- `requireAuth` + autorização opaca + `no-store`;
+- HeroUI no shell atual.
+
+Produção continua indisponível porque o runtime falha antes do binding. A #306 não cria segundo bridge.
+
+## Audit Workspace F4
+
+Contrato:
 `shared/gradebook-contracts/audit-workspace/audit-workspace-contract-v1.ts`.
 
-- listas separadas de lotes, ocorrências e reconciliações, com ano explícito, cursor opaco e sem total;
-- filtros combinados por AND e detalhe explícito;
-- resolução reutiliza as transições existentes de `AuditOccurrenceV1`, com ator e instante fornecidos pelo servidor;
-- promoção é somente projeção do plano existente;
-- `planImportReconciliation` e `executeImportChangePlan` continuam sendo o planejador/executor exclusivos.
+Implementação #303:
 
-### Desempenho F6 — #295/PR #299
+- `AuditWorkspaceSourceV1` como porta CQRS provider-independent;
+- `GradebookD1AuditWorkspaceSourceV1` para listas correntes em D1;
+- `createAuditWorkspaceV1` para listagem, detalhe e resolução;
+- filtros combinados por AND, ordem estável e cursor keyset vinculado ao escopo;
+- detalhe reutiliza `ImportPersistenceRepositoryV1.getImportBatch` e `AuditPersistenceRepositoryV1.getCurrent`;
+- resolução reutiliza `AuditPersistenceRepositoryV1.appendVersion`/CAS;
+- ator/instante são fornecidos pelo servidor e sobrescrevem qualquer tentativa de alegação do cliente;
+- promoção é somente `promotionEligibility` informativa a partir de `ImportChangePlanV1` já existente.
 
-Implementação pública:
+Composição #306:
+
+```text
+GradebookD1RuntimeV1.auditWorkspace(resolutionIdentity, existingPlans?)
+  → requireGradebookD1RuntimeAuthorizationV1
+  → GradebookD1AuditWorkspaceSourceV1
+  → mesma PersistenceUnitOfWorkV1.imports/audit
+  → createAuditWorkspaceV1
+```
+
+O runtime constrói `isAuthorized()` internamente a partir da autorização opaca. O caller não fornece booleano de autorização; fornece somente identidade/instante server-side da resolução. Não existe rota HTTP nem UI de Auditoria nesta onda.
+
+Promoção continua exclusivamente em `planImportReconciliation` + `executeImportChangePlan`.
+
+## Desempenho F6
+
+Contrato:
 `shared/gradebook-contracts/performance/class-performance-read-model-v1.ts`.
 
-- matriz e lentes `result | quantitative | qualitative | assessments`;
-- paginação independente de linhas/colunas por cursores opacos;
-- cobertura e comparabilidade explícitas;
-- lados importado/calculado preservados;
-- `PerformanceAuthorityModeV1` é restrito a `imported-source`;
-- cálculo, arredondamento, recuperação, classificação anual, tolerância e mutação por sinal são proibidos.
+Implementação #304:
+`server/gradebook/application/read-models/performance/class-performance-read-model-v1.ts`.
 
-### Boletins/emissão F8 — #296/PR #300
+Superfície provider-independent:
 
-Implementação pública:
+```ts
+createClassPerformanceReadModelV1(source: ClassPerformanceSourceV1)
+```
+
+`ClassPerformanceSourceV1.loadMatrix` fornece uma projeção em lote já resolvida. A camada de aplicação:
+
+- suporta lentes `result | quantitative | qualitative | assessments`;
+- pagina linhas/colunas por cursores opacos;
+- ordena pelos comparadores do contrato;
+- preserva `imported` e `calculated` separados;
+- exige `PERFORMANCE_AUTHORITY_MODE_V1 === 'imported-source'`;
+- carrega detalhe de aluno/célula sob demanda;
+- não contém fórmula, arredondamento, recuperação, classificação ou tolerância.
+
+A #306 não cria fonte D1, adapter físico, runtime, endpoint ou UI. A fonte física em lote é #315 e deve evitar N+1 por aluno/componente.
+
+## Boletins F8
+
+Contrato:
 `shared/gradebook-contracts/bulletins/bulletin-contract-v1.ts`.
 
-- `BulletinModelV1` único para `synthetic | composition | detailed`;
-- snapshot versionado e imutável, reimpressão histórica e lote parcial explícitos;
-- prévia e PDF compartilham exatamente o mesmo snapshot canônico;
-- fórmula, peso, corte, regra acadêmica, autorização/ator do cliente e renderização ficam fora do contrato;
-- `BulletinAuthorityModeV1 = Extract<AuthorityModeV1, 'imported-source'>`;
-- `imported-source` é invariável no modelo principal, resultado trimestral, resultado anual, composição e avaliação; `isBulletinSnapshotCoherentV1` rejeita `native-engine` também internamente.
+Implementação #305:
 
-### Compatibilidade conjunta
+- `createBulletinModelMaterializerV1` materializa `synthetic | composition | detailed` sobre read models/registros oficiais;
+- `createBulletinEmissionServiceV1` emite snapshots versionados por porta;
+- snapshots são profundamente imutáveis;
+- reimpressão usa somente snapshot histórico e não recalcula;
+- mesma emissão idêntica pode reutilizar a versão; mudança relevante cria nova versão;
+- lote parcial mantém `ready` e `blocked` separados;
+- autorização, emissor, relógio e ID são server-side;
+- `BULLETIN_AUTHORITY_MODE_V1 === 'imported-source'` e `native-engine` é rejeitado também em projeções internas.
 
-O teste `tests/gradebook/contracts/integration/wave-13-contracts.integration.test.ts` importa os quatro contratos simultaneamente e fixa:
+A implementação inclui apenas repositório em memória/local de teste. A #306 não cria PDF, HTML, endpoint, persistência remota de snapshots ou composição física de lote em alta escala. O hardening/materialização agregada é #316.
 
-- ano acadêmico explícito;
-- autorização efetiva no servidor;
-- ausência sem fabricação de valor;
-- paginação por cursor opaco e sem total inventado;
-- `authorityMode: imported-source` onde aplicável;
-- nenhuma regra acadêmica, cálculo ou promoção concorrente.
+## Compatibilidade conjunta da onda 14
 
-As implementações seguintes são #302, #303, #304 e #305; nenhuma pode alterar esses contratos silenciosamente. A integração da onda de implementações será #306.
+O teste `tests/gradebook/integration/wave-14-implementations.integration.test.ts` fixa simultaneamente:
+
+- implementações de Auditoria, Desempenho e Boletins disponíveis;
+- `PERFORMANCE_AUTHORITY_MODE_V1` e `BULLETIN_AUTHORITY_MODE_V1` em `imported-source`;
+- somente Audit Workspace composto no runtime físico;
+- nenhum import físico de Desempenho/Boletins no runtime;
+- Functions preservando somente o bridge do Operational Workspace;
+- ausência de rota HTTP de Auditoria, Desempenho ou Boletins.
+
+O teste de composição `tests/gradebook/persistence/d1-composition/audit-workspace-runtime-v1.test.ts` cobre a UoW real sintética, listagem, resolução CAS/ator server-side, não autorização e produção antes do binding.
 
 ## Regras de evolução
 
-1. Campo opcional novo pode permanecer na mesma versão.
-2. Mudança obrigatória, remoção ou mudança de significado exige nova versão.
-3. Adaptador temporário precisa de issue e condição de retirada.
-4. Alteração acadêmica exige decisão oficial antes do código.
-5. Consumidores usam contratos públicos, não tabelas internas.
-6. Interface, Desempenho, Conselho e Boletins não recriam regras.
-7. Schema/adaptador D1 não altera semântica para acomodar SQL.
-8. Toda escrita necessária à integridade aparece explicitamente no plano e na unidade de trabalho.
-9. O mesmo contrato não recebe implementações concorrentes na composição D1.
-10. Implementação não altera contrato compartilhado dentro da mesma issue.
+1. Campo opcional novo pode permanecer na mesma versão quando não muda significado.
+2. Mudança obrigatória, remoção ou mudança de significado exige nova versão/adaptador.
+3. Alteração acadêmica exige decisão oficial antes do código.
+4. Consumidores usam contratos públicos, não tabelas internas.
+5. Interface, Desempenho, Conselho e Boletins não recriam regras.
+6. Schema/adaptador D1 não altera semântica para acomodar SQL.
+7. Toda escrita necessária à integridade aparece explicitamente no plano/UoW.
+8. O mesmo contrato não recebe implementações concorrentes na composição D1.
+9. Operational Workspace mantém um único bridge HTTP.
+10. Produção acadêmica permanece fail-closed até autorização própria.
+11. `authorityMode: imported-source` não muda silenciosamente.
+12. Novas migrations, capabilities, papéis, bindings, secrets ou recursos remotos exigem escopo/decisão próprios.

@@ -8,49 +8,48 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 - [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — acompanhamento humano.
 - [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, ondas e dependências.
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina.
-- [Issue #306](https://github.com/mcpmieda/ecossistema-escola/issues/306) — integração planejada da próxima onda de implementações.
+- [Issue #318](https://github.com/mcpmieda/ecossistema-escola/issues/318) — integração planejada da próxima onda.
 
 ## Estado atual
 
-Treze ondas de trabalho contratual/fundacional foram integradas. A décima terceira entregou quatro contratos amplos e independentes:
+Quatorze ondas foram integradas. A onda 14 materializou as implementações amplas dos contratos da onda anterior:
 
-- #293/PR #298 — contrato V1 da experiência operacional F5;
-- #294/PR #301 — contrato V1 do workspace de Auditoria/revisão F4;
-- #295/PR #299 — contrato V1 do read model de Desempenho F6;
-- #296/PR #300 — `BulletinModelV1` e emissão versionada F8.
+- #302/PR #312 — Operational Workspace F5 local/preview, contrato de transporte, catálogo explícito de anos, único bridge HTTP acadêmico autorizado e HeroUI no shell;
+- #303/PR #313 — Audit Workspace provider-independent + read-source D1 para lotes, ocorrências e reconciliações;
+- #304/PR #310 — read model provider-independent de Desempenho, com fonte em lote obrigatória e sem N+1 na fronteira;
+- #305/PR #311 — emissão provider-independent de Boletins, snapshots versionados por porta e reimpressão histórica sem recálculo;
+- #306/PR #319 — composição segura da onda: Auditoria ligada internamente ao runtime D1 autorizado, sem endpoint/UI; Desempenho e Boletins permanecem sem composição física.
 
-Merges funcionais da onda:
+Merges das quatro frentes:
 
 ```text
-#293  8452199541111d669a3ea84733c6c85678d6501b
-#294  a78e410d149bbbc03e5cc374d0c1913c8dcffcc3
-#295  706426be7a7aabe5682e301cfd9e38b2c4a7e857
-#296  e7b92987fe2781d55606783e432a69c02828970f
+#302 / #312  af67eae671a3f76e7394e2951fb240a599a86d81
+#303 / #313  b488a887a980d999cb5c3687f4dcf3e47b125e29
+#304 / #310  e919e18e3d00c175b736200265adb4ac3986e5b0
+#305 / #311  292cf17703f1e5d24f8c6c24cdb0fc9a8fa90d67
 ```
 
-A #297 valida a coexistência desses contratos sem duplicar ano, autorização, paginação, ausência, regra acadêmica ou autoridade. `authorityMode` continua `imported-source`; em Boletins essa invariância também vale para todas as projeções internas e é verificada em runtime.
+A produção continua sem D1 acadêmico provisionado, binding remoto ou migration remota. O código do Operational Workspace pode existir no bundle, mas o runtime acadêmico permanece fail-closed em `production` antes de inspecionar o binding. Auditoria, Desempenho e Boletins não ganharam endpoint acadêmico de produção nesta onda.
 
-A produção continua sem D1 acadêmico provisionado, binding remoto ou migration remota. A décima terceira onda não ativa UI, endpoint, consulta ou persistência acadêmica nova no site oficial.
+## Próxima onda — quatro frentes grandes e paralelas
 
-## Próxima onda — implementações grandes e paralelas
+As issues abaixo foram pré-criadas bloqueadas pela #306 e são liberadas somente depois do merge, deploy e smokes desta integração:
 
-Depois da integração #297, as quatro frentes abaixo ficam independentes e podem iniciar em paralelo porque possuem caminhos reservados disjuntos e consomem contratos já congelados:
+- [#314 — Audit Workspace UI/HTTP local/preview](https://github.com/mcpmieda/ecossistema-escola/issues/314) — **Extra Alto**;
+- [#315 — fonte física em lote de Desempenho sem N+1](https://github.com/mcpmieda/ecossistema-escola/issues/315) — **GPT-5.6 Sol, esforço máximo**;
+- [#316 — hardening/materialização agregada e snapshots locais de Boletins](https://github.com/mcpmieda/ecossistema-escola/issues/316) — **GPT-5.6 Sol, esforço máximo**;
+- [#317 — evolução/hardening do Operational Workspace](https://github.com/mcpmieda/ecossistema-escola/issues/317) — **Extra Alto**;
+- [#318 — integração da próxima onda](https://github.com/mcpmieda/ecossistema-escola/issues/318) — **Extra Alto**, bloqueada pelas quatro frentes.
 
-- [#302 — experiência operacional local/preview F5](https://github.com/mcpmieda/ecossistema-escola/issues/302) — **Extra Alto**;
-- [#303 — workspace de Auditoria local/preview F4](https://github.com/mcpmieda/ecossistema-escola/issues/303) — **Codex GPT-5.6 Sol, esforço max**;
-- [#304 — read model provider-independent de Desempenho F6](https://github.com/mcpmieda/ecossistema-escola/issues/304) — **Codex GPT-5.6 Sol, esforço max**;
-- [#305 — emissão provider-independent de Boletins F8](https://github.com/mcpmieda/ecossistema-escola/issues/305) — **Codex GPT-5.6 Sol, esforço max**;
-- [#306 — integração da onda](https://github.com/mcpmieda/ecossistema-escola/issues/306) — **Extra Alto**, bloqueada pelas quatro frentes.
-
-As implementações não alteram contratos compartilhados silenciosamente. PDF/renderização e persistência remota de snapshots permanecem separados quando exigirem caminho, armazenamento ou decisão arquitetural próprios.
+Os caminhos foram separados para permitir execução paralela: a frente A possui shell/Functions/HTTP de Auditoria; B possui o adaptador físico de Desempenho; C permanece em Boletins; D fica restrita ao módulo cliente do Operational Workspace.
 
 ## Sessão temporária #273
 
-A #273 não é orquestrador da nova onda e não possui fila paralela autorizada. O processo oficial permanece:
+A #273 é histórica e não orquestra a fila. O processo oficial permanece:
 
 ```text
 uma issue → uma branch curta → um PR → npm run verify → handoff
-onda concluída → integração própria → main → deploy → próxima onda
+quatro frentes verdes → integração própria → main → deploy → próxima onda
 ```
 
 Não usar App Factory, Factory Runs, agentes auxiliares ou automação permanente.
@@ -69,9 +68,10 @@ Construir um Banco de Notas funcional, modular, auditável e acessível a usuár
 - reconhecimento de turmas, alunos, disciplinas, trimestres, quantitativo, qualitativo e recuperação;
 - SHA-256 calculado no navegador;
 - manifesto, progresso e diagnóstico por arquivo;
-- processamento somente em memória, sem persistência acadêmica.
+- processamento somente em memória no fluxo publicado;
+- código do Operational Workspace presente, mas sem acesso a dados acadêmicos enquanto o runtime de produção permanecer fechado.
 
-A pesquisa acadêmica e os quatro contratos da décima terceira onda ainda não representam novos fluxos de produção.
+Não existem em produção banco D1 acadêmico remoto, persistência acadêmica, Audit Workspace HTTP/UI, Desempenho físico/HTTP/UI ou emissão/PDF de Boletins.
 
 ## Núcleo integrado
 
@@ -90,7 +90,7 @@ A autoridade continua `imported-source`. O motor permanece separável e compará
 
 ### Contexto acadêmico
 
-Existe uma única composição oficial de 2026. Ela referencia diretamente os perfis nativos integrados, não escolhe ano pelo relógio e falha para contexto ausente, duplicado, inativo ou incompatível.
+Existe uma única composição oficial de 2026. Ela referencia diretamente os perfis nativos integrados, não escolhe ano pelo relógio e falha para contexto ausente, duplicado, inativo ou incompatível. O Operational Workspace enumera IDs/anos persistidos e exige seleção explícita; não usa relógio nem convenção de ID.
 
 ### Persistência, reconciliação e consulta
 
@@ -103,11 +103,13 @@ Existe uma única composição oficial de 2026. Ela referencia diretamente os pe
 - runtime local/preview explicitamente injetado;
 - produção bloqueada antes de inspecionar o binding;
 - capability `gradebook.persistence.admin` somente no servidor;
+- autorização opaca emitida e validada no servidor;
 - rotas administrativas autenticadas, autorizadas e `no-store`;
-- runner idempotente que consome o catálogo canônico das migrations;
-- uma única `PersistenceUnitOfWorkV1` local;
-- uma única fachada operacional com Centrais de Aluno, Turma, Professor e Componente;
-- pesquisa acadêmica autorizada composta nessa mesma fachada, sem endpoint ou consulta paralela.
+- uma única fachada operacional com Aluno, Turma, Professor, Componente e pesquisa acadêmica;
+- um único bridge HTTP do Operational Workspace, local/preview;
+- Audit Workspace composto internamente no mesmo runtime e na mesma UoW, sem endpoint;
+- Desempenho implementado apenas na camada provider-independent;
+- Boletins implementados apenas na camada provider-independent, sem PDF ou snapshot remoto.
 
 ## Validação da fonte
 
