@@ -13,7 +13,10 @@ import {
 import type {
   CouncilActorReferenceV1,
   CouncilClassReferenceV1,
+  CouncilDecisionResponseV1,
+  CouncilQueueResponseV1,
   CouncilStudentReferenceV1,
+  CouncilStudentResponseV1,
 } from '../../../shared/gradebook-contracts/council/council-workspace-contract-v1';
 import type { AcademicYearId } from '../../../shared/gradebook-contracts/entities';
 import { testEnv } from '../../fixtures';
@@ -165,13 +168,14 @@ describe('Council Workspace HTTP V1', () => {
     const response = await handler(await request(queueBody(), { role: 'ADMINISTRADOR' }), env());
     expect(response?.status).toBe(200);
     expect(response?.headers.get('Cache-Control')).toContain('no-store');
-    const payload = await response?.json();
+    const payload = (await response?.json()) as CouncilQueueResponseV1;
     expect(payload).toMatchObject({
       contractVersion: 1,
       outcome: 'items',
       academicYearId,
       classReference,
     });
+    if (payload.outcome !== 'items') throw new Error('Expected Council queue items.');
     expect(payload.items).toHaveLength(1);
   });
 
@@ -199,14 +203,16 @@ describe('Council Workspace HTTP V1', () => {
     const { handler } = fixture();
     const applied = await handler(await request(decisionBody(), { role: 'ADMINISTRADOR' }), env());
     expect(applied?.status).toBe(200);
-    const appliedPayload = await applied?.json();
+    const appliedPayload = (await applied?.json()) as CouncilDecisionResponseV1;
     expect(appliedPayload.outcome).toBe('applied');
+    if (appliedPayload.outcome !== 'applied') throw new Error('Expected applied Council decision.');
     expect(appliedPayload.record.actorReference).toBe(SESSION_OID as CouncilActorReferenceV1);
     expect(appliedPayload.record.decidedAt).toBe(SERVER_INSTANT);
     expect(appliedPayload.record.annualFinalDecision.basis).toBe('class-council');
 
     const detail = await handler(await request(studentBody(), { role: 'ADMINISTRADOR' }), env());
-    const detailPayload = await detail?.json();
+    const detailPayload = (await detail?.json()) as CouncilStudentResponseV1;
+    if (detailPayload.outcome !== 'detail') throw new Error('Expected Council student detail.');
     expect(detailPayload.detail.version).toBe(1);
     expect(detailPayload.detail.history).toHaveLength(1);
   });
