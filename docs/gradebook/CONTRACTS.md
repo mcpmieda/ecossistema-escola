@@ -13,20 +13,18 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Contexto acadêmico 2026:** implementado por #262/PR #267.
 - **Portas de persistência:** `congelado-v1`, incluindo associação fonte lógica ↔ stream.
 - **Schema D1:** migrations locais 0001–0003 integradas; nenhum recurso remoto criado.
-- **Leitura/escrita/transação D1 local:** implementadas para contexto anual, fonte, registros e associações.
+- **Leitura/escrita/transação D1 local:** implementadas para contexto, entidades, fontes, lotes, registros, associações e Auditoria.
 - **Runtime D1 local/preview:** implementado por #261/PR #268, com produção fechada.
-- **Repositórios completos de entidades, lotes e Auditoria:** integrados pela décima onda #269–#272.
-- **Read models operacionais:** implementados localmente pela décima primeira onda; a fachada única
-  continua sem contrato compartilhado próprio.
-- **Pesquisa global acadêmica autorizada:** `congelado-v1` pela #286, sem endpoint, UI ou ativação em
-  produção.
+- **Read models operacionais:** implementados e compostos pela #281.
+- **Pesquisa global acadêmica autorizada:** contrato congelado pela #286, read model implementado pela #287 e composto localmente pela #288; sem endpoint, UI ou ativação em produção.
+- **Próximos contratos:** #293 experiência operacional, #294 Auditoria/revisão, #295 Desempenho e #296 Boletins/emissão.
 
 ## Estados de maturidade
 
 - **proposto:** ainda pode mudar sem migração;
 - **congelado-v1:** consumidores podem implementar em paralelo;
 - **implementado-v1:** comportamento executável coberto por testes;
-- **implementado-local-v1:** schema/adaptador testado localmente, sem provisionamento;
+- **implementado-local-v1:** schema/adaptador/read model testado localmente, sem provisionamento;
 - **deprecated:** permanece durante migração;
 - **retirado:** não pode ser usado.
 
@@ -66,7 +64,7 @@ Regras:
 - `authorityMode` permanece `imported-source`;
 - o `academic-year` é lido e versionado localmente por `AcademicEntityRepositoryV1`, com compare-and-set e histórico append-only.
 
-A décima onda não pode criar uma segunda implementação concorrente do `academic-year`.
+Nenhuma onda pode criar uma segunda implementação concorrente do `academic-year`.
 
 ## Evidência de origem
 
@@ -261,15 +259,7 @@ Implementado e composto localmente:
 - promoção `fonte → registro → associação` em uma transação;
 - compare-and-set, savepoints e rollback integral.
 
-A décima onda completou, em módulos independentes:
-
-- #269: demais entidades acadêmicas;
-- #270: lotes e versões de fonte por fonte lógica;
-- #271: ocorrências e reconciliações.
-
-A #272 compõe exatamente um fornecedor por operação em uma única unidade de trabalho. `academic-year`
-continua pertencendo à implementação oficial da #262; fonte, registros e associações continuam nas
-implementações previamente integradas. Nenhum valor importado ou nativo é substituído.
+A #272 compõe exatamente um fornecedor por operação em uma única unidade de trabalho. Nenhum valor importado ou nativo é substituído.
 
 ## Runtime D1 local/preview
 
@@ -285,7 +275,7 @@ A #261/PR #268 integrou:
 - rotas administrativas autenticadas, autorizadas, same-origin e `Cache-Control: no-store`;
 - erros e logs sem binding, SQL, parâmetros, payload acadêmico ou secret.
 
-Nenhum banco, binding, secret ou migration remota foi criado. Persistência acadêmica do site oficial permanece desativada.
+Nenhum banco, binding, secret ou migration remota foi criado. Persistência e consulta acadêmica do site oficial permanecem desativadas.
 
 ## Planejamento e execução da reimportação
 
@@ -301,74 +291,72 @@ blocked
 
 O plano discrimina versões de fonte, registros acadêmicos e associações. `executeImportChangePlan` valida antes da transação e aplica somente arquivos prontos e itens novos/alterados. Itens iguais, ausentes, bloqueados ou em revisão não são escritos automaticamente.
 
-## Read models
+## Read models operacionais
 
-Read models são contratos de consulta, não bancos paralelos:
+A décima primeira onda implementou tipos locais e consultas provider-independent para as Centrais do Aluno, da Turma, do Professor e do Componente. `createGradebookOperationalReadModelsV1` compõe os quatro sobre `PersistenceUnitOfWorkV1.entities`; não existe segunda consulta ou regra na fachada.
 
-- `StudentAcademicRecordV1`;
-- `ClassPerformanceReadModelV1`;
-- `TeacherOverviewReadModelV1`;
-- `SubjectOverviewReadModelV1`;
-- `CouncilStudentRecordV1`;
-- `BulletinModelV1`;
-- `GlobalSearchResultV1`.
+Esses modelos preservam versão/instante das entidades, contexto anual explícito, paginação por cursor, ordenação determinística e ausência como `null` ou lista vazia. Não consultam notas/resultados, não alteram `confirmationOrigin` ou `authorityMode` e não inferem relações por nome.
 
-A décima primeira onda implementou tipos locais e consultas provider-independent para as Centrais do
-Aluno, da Turma, do Professor e do Componente. `createGradebookOperationalReadModelsV1` compõe os
-quatro sobre `PersistenceUnitOfWorkV1.entities`; não existe segunda consulta ou regra na fachada.
+## Pesquisa global acadêmica autorizada — congelado-v1 e implementado-local-v1
 
-Esses modelos preservam versão/instante das entidades, contexto anual explícito, paginação por cursor,
-ordenação determinística e ausência como `null` ou lista vazia. Não consultam notas/resultados, não
-alteram `confirmationOrigin` ou `authorityMode` e não inferem relações por nome.
-
-## Pesquisa global acadêmica autorizada — congelado-v1
-
-Implementação pública:
+Implementação pública do contrato:
 `shared/gradebook-contracts/search/global-search-contract-v1.ts`.
+
+Implementação provider-independent:
+`server/gradebook/application/read-models/search/academic-global-search-read-model-v1.ts`.
+
+Composição única:
+`createGradebookOperationalReadModelsV1(...).search`.
 
 `GlobalSearchRequestV1` exige explicitamente:
 
 - `contractVersion: 1`;
 - `academicYearId` opaco, sem escolha pelo relógio;
 - `query` original, usada pelo contrato somente para distinguir vazio de não vazio;
-- `scope.kinds` não vazio e sem duplicatas, limitado a `student`, `class-group`, `teacher` e
-  `subject`;
+- `scope.kinds` não vazio e sem duplicatas, limitado a `student`, `class-group`, `teacher` e `subject`;
 - `page.limit` inteiro entre 1 e 100 e `page.cursor` opaco ou `null`;
 - ordem fixa `kind-presentation-id-ascending-code-unit`.
 
-A autorização continua pertencendo ao servidor. O contrato reutiliza a capability pública existente
-`gradebook.persistence.admin`, atualmente concedida apenas a `ADMINISTRADOR`, e exige contexto opaco
-emitido/verificado pelo servidor antes de qualquer consulta acadêmica. O pedido não transporta papel,
-lista de capabilities, booleano `authorized`, token ou outra alegação do navegador. O mapeamento de
-papéis permanece na plataforma; nenhum papel, capability ou autorização concorrente é criado.
+A autorização continua pertencendo ao servidor. O contrato reutiliza a capability pública existente `gradebook.persistence.admin`, atualmente concedida apenas a `ADMINISTRADOR`, e exige contexto opaco emitido/verificado pelo servidor antes de qualquer consulta acadêmica. O pedido não transporta papel, lista de capabilities, booleano `authorized`, token ou outra alegação do navegador.
 
-`GlobalSearchResultV1` é uma união discriminada com estes campos exatos de apresentação:
+`GlobalSearchResultV1` contém estes campos exatos:
 
 - aluno: `kind`, `id`, `displayName`;
 - turma: `kind`, `id`, `code`;
 - professor: `kind`, `id`, `displayName`;
-- componente/disciplina: `kind`, `id`, `displayName`.
+- componente: `kind`, `id`, `displayName`.
 
-O resultado não contém nota, resultado, matrícula, atribuição docente, status, evidência ou alias de
-origem, marca de identidade, `confirmationOrigin`, `authorityMode`, total, rota, URL, `href`,
-`searchText` ou payload acadêmico. O ano aparece apenas no envelope de uma página autorizada com
-resultados; cada item não o repete.
+O resultado não contém nota, resultado, matrícula, atribuição docente, status, evidência ou alias de origem, marca de identidade, `confirmationOrigin`, `authorityMode`, total, rota, URL, `href`, `searchText` ou payload acadêmico.
 
-Páginas com resultados são não vazias, respeitam o limite, usam cursor opaco e não informam total. A
-ordem é determinística: primeiro a sequência `student → class-group → teacher → subject`, depois o
-campo mínimo de apresentação bruto e, em empate, o ID opaco, sempre por unidade de código e sem
-locale. O contrato não normaliza a consulta, não implementa matching, fuzzy matching, heurística de
-identidade ou regra acadêmica.
+A ordem é determinística: `student → class-group → teacher → subject`, depois apresentação bruta e ID opaco por unidade de código. Páginas usam cursor opaco, respeitam o limite e não informam total.
 
-Consulta vazia, ausência de resultados, dado insuficiente, escopo insuficiente, pedido inválido e não
-autorização usam a mesma forma sem dados: `contractVersion`, `outcome`, `items: []` e
-`nextCursor: null`. Essa forma não devolve ano, consulta, contagem, total, entidade parcial ou pista de
-continuação.
+A implementação local:
 
-Este contrato não substitui nem duplica `PlatformSearchItem`, `normalizeSearch` ou
-`filterSearchItems`, usados pela pesquisa de navegação do Centro. Ele não conhece React, D1, rota,
-URL ou comportamento visual; a composição com a pesquisa global da plataforma pertence a tarefa
-posterior autorizada.
+- recebe exclusivamente `AcademicEntityRepositoryV1`;
+- preserva `academicYearId` em cada listagem;
+- lista somente tipos solicitados e não usa `repository.get`;
+- percorre a paginação interna, ordena com `compareGlobalSearchResultsV1` e pagina externamente;
+- faz matching por inclusão literal depois de normalizar caixa e diacríticos;
+- não usa fuzzy matching, distância textual, ranking aproximado ou heurística de identidade;
+- não pesquisa IDs, aliases, marcas de origem, série, seção, turno, status ou payload acadêmico;
+- converte falha/incompatibilidade do repositório em `insufficient-data`, sem exceção bruta.
+
+Consulta vazia, ausência, dado insuficiente, escopo insuficiente, pedido inválido e não autorização usam a mesma forma sem dados: `contractVersion`, `outcome`, `items: []` e `nextCursor: null`.
+
+O runtime local/preview retorna a pesquisa pela mesma `operationalReadModels()` autorizada. Produção falha antes de inspecionar o binding. A #288 não criou endpoint, UI ou nova política de autorização; portanto `Cache-Control: no-store` continua aplicado somente às rotas administrativas existentes.
+
+Este contrato não substitui nem duplica `PlatformSearchItem`, `normalizeSearch` ou `filterSearchItems`, usados pela pesquisa de navegação do Centro.
+
+## Contratos da décima terceira onda
+
+As issues seguintes alteram somente subdiretórios próprios e testes próprios; documentação central será atualizada pela integração #297:
+
+- #293 — `shared/gradebook-contracts/operational-workspace/**`;
+- #294 — `shared/gradebook-contracts/audit-workspace/**`;
+- #295 — `shared/gradebook-contracts/performance/**`;
+- #296 — `shared/gradebook-contracts/bulletins/**`.
+
+Nenhuma implementação de UI, Auditoria, Desempenho ou Boletim pode misturar mudança nesses contratos.
 
 ## Regras de evolução
 
@@ -381,3 +369,4 @@ posterior autorizada.
 7. Schema/adaptador D1 não altera semântica para acomodar SQL.
 8. Toda escrita necessária à integridade aparece explicitamente no plano e na unidade de trabalho.
 9. O mesmo contrato não recebe implementações concorrentes na composição D1.
+10. Implementação não altera contrato compartilhado dentro da mesma issue.

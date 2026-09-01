@@ -29,7 +29,7 @@ Motor nativo + equivalência fonte × motor
           ↓
 Resultados + Auditoria
           ↓
-Read models
+Read models + pesquisa autorizada
           ↓
 Centrais / Desempenho / Conselho / Boletins
 ```
@@ -50,7 +50,7 @@ A #262 integrou o contexto oficial de 2026:
 - contexto ausente, duplicado, inativo ou incompatível falha;
 - ano/configuração são versionados localmente com histórico append-only e CAS.
 
-O `academic-year` possui uma implementação oficial. Repositórios posteriores devem compô-la, não recriá-la.
+O `academic-year` possui uma implementação oficial. Repositórios e read models posteriores devem compô-la, não recriá-la.
 
 ## Armazenamento
 
@@ -77,14 +77,14 @@ O domínio não importa `D1Database`, SQL, Wrangler ou bindings. Banco, bindings
 A #261 integrou separação explícita:
 
 ```text
-local   → binding injetado e permitido
-a preview → binding injetado e permitido
+local      → binding injetado e permitido
+preview    → binding injetado e permitido
 production → bloqueada antes de inspecionar o binding
 ```
 
-O runtime valida o shape do binding, compõe leitura/escrita/transação e utiliza o runner canônico das migrations 0001–0003. As rotas administrativas exigem sessão e `gradebook.persistence.admin`, usam same-origin/método correto e `Cache-Control: no-store`.
+O runtime valida o shape do binding, compõe leitura/escrita/transação e utiliza o runner canônico das migrations 0001–0003. As rotas administrativas existentes exigem sessão e `gradebook.persistence.admin`, usam same-origin/método correto e `Cache-Control: no-store`.
 
-Nenhum binding remoto ou banco foi criado. A presença do código não ativa persistência no site oficial.
+Nenhum binding remoto ou banco foi criado. A presença do código não ativa persistência ou consulta acadêmica no site oficial.
 
 ## Identidade da fonte
 
@@ -125,7 +125,7 @@ associação versionada e ativa
 
 ### Plataforma
 
-Shell, autenticação Entra, capabilities, navegação, pesquisa global, Saúde e limites e publicação. Não contém regra de nota.
+Shell, autenticação Entra, capabilities, navegação, pesquisa global de rotas, Saúde e limites e publicação. Não contém regra de nota.
 
 ### Importação
 
@@ -133,7 +133,7 @@ Arquivos, leitura binária, hash, manifesto, mapeamento, classificação de cél
 
 ### Contratos
 
-Vocabulário compartilhado. Mudança incompatível exige issue de contrato, versão e adaptação explícita.
+Vocabulário compartilhado. Mudança incompatível exige issue de contrato, versão e adaptação explícita. Contratos não conhecem React, D1, SQL, rotas ou fornecedor.
 
 ### Domínio e motor
 
@@ -141,8 +141,7 @@ Funções TypeScript puras e determinísticas para semântica, arredondamento, t
 
 ### Aplicação
 
-Orquestra contexto, planejamento, revisão, execução e read models contra portas. Não executa SQL e
-não importa UI.
+Orquestra contexto, planejamento, revisão, execução e read models contra portas. Não executa SQL e não importa UI.
 
 ### Persistência
 
@@ -160,40 +159,70 @@ Já implementados:
 - leitura/escrita de manifestos/fontes;
 - leitura/escrita de registros acadêmicos;
 - leitura/escrita de associações;
+- leitura/escrita das oito demais entidades acadêmicas;
+- lotes e versões por fonte lógica;
+- ocorrências de Auditoria e reconciliações;
+- históricos paginados;
 - promoção física local com CAS, savepoints e rollback;
 - runtime local/preview e runner de migrations.
 
-Décima onda integrada:
-
-- #269 completa as demais entidades;
-- #270 completa lotes e listagem de versões por fonte lógica;
-- #271 completa Auditoria/reconciliação;
-- #272 compõe tudo em uma única `PersistenceUnitOfWorkV1` e completa as leituras históricas de
-  registros e associações.
-
-Nenhum módulo deve reimplementar uma operação já integrada. A composição central escolhe exatamente um fornecedor por operação da porta.
+A #272 compôs exatamente um fornecedor por operação em uma única `PersistenceUnitOfWorkV1`. Nenhum módulo deve reimplementar operação já integrada.
 
 ### Reconciliação e Auditoria
 
 Compara fonte, versões persistidas e motor. A equivalência anual da #263 produz `match`, `expected-difference`, `mismatch` ou `not-comparable` sem tolerância concorrente e sem mudar `imported-source`.
 
-### Read models
+### Read models operacionais
 
-Consultas compactas e específicas por experiência. Evitam N+1 e impedem que componentes HeroUI reconstruam regras acadêmicas.
+A décima primeira onda integrou quatro consultas provider-independent — Aluno, Turma, Professor e Componente — e `createGradebookOperationalReadModelsV1`, a única fachada que as injeta com `PersistenceUnitOfWorkV1.entities`.
 
-A décima primeira onda integrou quatro consultas locais — Aluno, Turma, Professor e Componente — e
-`createGradebookOperationalReadModelsV1`, a única fachada que as injeta com o repositório de entidades
-da `PersistenceUnitOfWorkV1`. Cada consulta preserva contexto anual, paginação completa, ordenação
-determinística e referências ausentes explícitas. A fachada não consulta persistência, não cria regra
-acadêmica e só é exposta pelo runtime local/preview depois da autorização existente.
+A décima segunda onda integrou a pesquisa acadêmica nessa mesma fachada:
+
+```text
+PersistenceUnitOfWorkV1.entities
+              ↓
+createGradebookOperationalReadModelsV1
+              ├── students
+              ├── classGroups
+              ├── teachers
+              ├── subjects
+              └── search
+```
+
+`search` é criada por `createAcademicGlobalSearchReadModelV1` e consome diretamente o contrato V1 da #286. A fachada não executa segunda consulta, normalização, matching, autorização ou regra acadêmica.
+
+A pesquisa:
+
+- recebe ano, escopo, limite, cursor e ordem explícitos;
+- lista somente os tipos solicitados por `AcademicEntityRepositoryV1`;
+- não usa `get`, evitando N+1;
+- percorre a paginação interna, ordena pelo comparador oficial e pagina externamente com cursor opaco;
+- usa inclusão literal após normalização de caixa/diacríticos, sem fuzzy matching ou heurística de identidade;
+- retorna somente `kind`, ID e `displayName`/`code`;
+- falha fechada para vazio, ausência, escopo insuficiente, cursor inválido e dado incompatível.
+
+`GradebookD1RuntimeV1.operationalReadModels()` expõe a fachada somente após validar a autorização opaca. Como o runtime falha em produção antes de inspecionar o binding, a pesquisa também fica indisponível em produção. A onda não criou endpoint nem UI.
 
 ### Interface HeroUI
 
 Apresenta fluxo, comandos e resultados. Não calcula nota, recuperação, elegibilidade ou decisão de Conselho.
 
+A próxima experiência operacional ainda depende do contrato #293 para ano, navegação, pesquisa e estados. A UI não pode importar tipos de `server/**` nem inventar transporte, rota ou autorização.
+
 ### Saúde e limites
 
 Área global futura do Centro, registrada na #220. Métricas chegam por backend autorizado; tokens e payload acadêmico não chegam ao navegador.
+
+## Próxima camada contratual
+
+A décima terceira onda congela quatro contratos amplos, em caminhos disjuntos:
+
+- #293 — experiência operacional F5;
+- #294 — workspace de Auditoria e revisão F4;
+- #295 — matriz/lentes de Desempenho F6;
+- #296 — `BulletinModelV1` e emissão versionada F8.
+
+A integração #297 valida a coexistência. UI, endpoints, implementação de Auditoria, read model de Desempenho e emissão/PDF só podem avançar depois dos respectivos contratos.
 
 ## Estado do motor
 
@@ -217,36 +246,27 @@ equivalência fonte × motor
 
 O Conselho permanece humano. A equivalência preserva os dois lados e somente classifica a comparação.
 
-## Estado da persistência
+## Estado da persistência e consulta
 
 ```text
-concluído:
+concluído localmente:
   portas independentes
   migrations 0001–0003
   contexto acadêmico 2026
-  leitura/escrita local de ano, fonte, registros e associações
+  leitura/escrita completa
   planejamento idempotente
   executor transacional
   runtime local/preview
   runner idempotente
   capability e rotas administrativas protegidas
-
-concluído na décima e na décima primeira ondas:
-  repositório local de entidades
-  repositório local de importações
-  repositório local de Auditoria
-  composição integral da unidade de trabalho
-  read models locais de aluno, turma, professor e componente
-  fachada operacional única no runtime autorizado
-
-agora:
-  contrato da pesquisa global acadêmica autorizada (#286, Pro)
-  implementação local posterior bloqueada pelo contrato (#287)
+  quatro read models operacionais
+  pesquisa acadêmica autorizada na fachada única
 
 posteriormente, somente com autorização explícita:
   recurso D1 remoto/preview
   binding remoto
   migrations em ambiente
+  endpoints acadêmicos
   ligação à interface
   produção
 ```
@@ -277,19 +297,9 @@ shared/gradebook-contracts/
 server/gradebook/
 ├── application/
 ├── persistence/d1/
-│   ├── schema/
-│   ├── read/
-│   ├── write/
-│   ├── transaction/
-│   ├── runtime/
-│   ├── entities/
-│   ├── imports/
-│   ├── audit/
-│   └── composition/
 ├── queries/
 └── http/
 
-migrations/gradebook/
 tests/gradebook/
 ```
 
@@ -305,16 +315,16 @@ tests/gradebook/
 - Microsoft Graph/SharePoint não é acessado diretamente pelo navegador para dados acadêmicos;
 - produção permanece fail-closed até issue e autorização específicas.
 
-## Sessão temporária de execução
+## Coordenação
 
-A #273 permite uma única sessão do Codex 5.6 High executar issues oficiais em série. Ela não cria automação permanente e não altera o processo:
+A #273 não é orquestrador paralelo. O processo continua:
 
 ```text
 uma issue → uma branch → um PR → verify → handoff
 onda → integração → main → deploy → próxima onda
 ```
 
-Hard stops impedem recursos remotos, dados reais, mudança de autoridade, migrations destrutivas e decisões humanas não documentadas. O fluxo comum retorna imediatamente quando o responsável usar `ENCERRAR MODO AUTÔNOMO`.
+Hard stops impedem recursos remotos, dados reais, mudança de autoridade, migrations destrutivas e decisões humanas não documentadas.
 
 ## Publicação
 
