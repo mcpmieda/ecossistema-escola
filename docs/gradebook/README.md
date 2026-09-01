@@ -8,47 +8,49 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 - [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — acompanhamento humano.
 - [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, ondas e dependências.
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina.
-- [Sessão temporária #273](https://github.com/mcpmieda/ecossistema-escola/issues/273) — execução serial opcional pelo Codex 5.6 High.
+- [Issue #297](https://github.com/mcpmieda/ecossistema-escola/issues/297) — integração planejada da décima terceira onda.
 
 ## Estado atual
 
-Onze ondas foram integradas. A décima primeira entregou:
+Doze ondas foram integradas. A décima segunda entregou:
 
-- #278/PR #283 — read model local da Central do Aluno;
-- #279/PR #284 — read model local da Central da Turma;
-- #280/PR #285 — read models locais das Centrais do Professor e do Componente;
-- #281 — fachada operacional única sobre a `PersistenceUnitOfWorkV1` e runtime local/preview.
+- #286/PR #290 — contrato V1 da pesquisa global acadêmica autorizada;
+- #287/PR #291 — read model local e provider-independent da pesquisa;
+- #288/PR #292 — composição da pesquisa na fachada operacional única e no runtime local/preview.
 
-Merges funcionais:
-
-```text
-#278  1e79af0977501ac2bfc03b61808856902f983c0a
-#279  5483fe566f568ed5e869410187b7eb3b95ae67fc
-#280  3dd300f8aa45225772b7133dfe9a4968d9438271
-```
-
-A produção continua sem D1 acadêmico provisionado, binding remoto ou migration remota. Nenhuma nova tela ou persistência oficial foi ativada.
-
-## Décima segunda onda
-
-- [#286 — contrato da pesquisa global acadêmica autorizada](https://github.com/mcpmieda/ecossistema-escola/issues/286) — **Pro**;
-- [#287 — read model local da pesquisa acadêmica](https://github.com/mcpmieda/ecossistema-escola/issues/287) — **Codex**, bloqueada por #286;
-- [#288 — integração da décima segunda onda](https://github.com/mcpmieda/ecossistema-escola/issues/288) — **Pro**, bloqueada por #286 e #287.
-
-A fila inicia pela #286 porque pesquisa e autorização exigem contrato próprio. A #287 não pode começar
-antes desse merge e de autorização explícita na #273. Nenhuma tarefa cria UI, endpoint ou acesso remoto.
-
-## Sessão temporária serial
-
-A #273 não substitui issues, branches, PRs, testes, integração ou deploy. Ela permite que uma única
-sessão do Codex 5.6 High execute apenas a fila explicitamente autorizada. Depois da #281 não existe
-nova issue Codex liberada:
+Merges funcionais da onda:
 
 ```text
-#286 (Pro) → #287 (Codex bloqueada) → #288 (Pro bloqueada)
+#286  d9640dbc0e807af324116c549f825c3d13ecdf89
+#287  9e17abb4c2386cbfb03451c402a8c4282e9b4181
 ```
 
-Cada implementação continua com branch e PR próprios; os merges permanecem reservados à issue de integração. `PAUSAR`, `PARAR`, `RETOMAR` e `ENCERRAR MODO AUTÔNOMO` controlam a sessão. Hard stops impedem recursos remotos, dados reais, mudança de autoridade, migrations destrutivas ou decisões humanas não documentadas.
+A pesquisa acadêmica usa somente aluno, turma, professor e componente, com ano explícito, campos mínimos, ordem determinística e cursor opaco. Não usa fuzzy matching, heurística de identidade, nota, resultado ou evidência de origem. A autorização continua no servidor pela capability `gradebook.persistence.admin`.
+
+A produção continua sem D1 acadêmico provisionado, binding remoto ou migration remota. Nenhuma UI, endpoint ou consulta acadêmica foi ativada no site oficial pela décima segunda onda.
+
+## Décima terceira onda — contratos amplos
+
+As quatro frentes podem executar em paralelo depois da integração da #288 porque usam caminhos disjuntos e não editam documentação central:
+
+- [#293 — contrato da experiência operacional F5](https://github.com/mcpmieda/ecossistema-escola/issues/293) — **Pro**;
+- [#294 — contrato do workspace de Auditoria/revisão F4](https://github.com/mcpmieda/ecossistema-escola/issues/294) — **Pro**;
+- [#295 — contrato do read model de Desempenho F6](https://github.com/mcpmieda/ecossistema-escola/issues/295) — **Pro**;
+- [#296 — `BulletinModelV1` e emissão versionada F8](https://github.com/mcpmieda/ecossistema-escola/issues/296) — **Pro**;
+- [#297 — integração da onda](https://github.com/mcpmieda/ecossistema-escola/issues/297) — **Pro**, bloqueada pelas quatro anteriores.
+
+Cada frente congela uma capacidade coerente e verificável. Implementação HeroUI, endpoints, resolução persistida, matriz de Desempenho, prévia/PDF e snapshots pertencem a ondas posteriores, somente depois dos contratos correspondentes entrarem na `main`.
+
+## Sessão temporária #273
+
+A #273 não é orquestrador da nova onda e não possui fila paralela autorizada. O processo oficial permanece:
+
+```text
+uma issue → uma branch curta → um PR → npm run verify → handoff
+onda concluída → integração própria → main → deploy → próxima onda
+```
+
+Não usar App Factory, Factory Runs, agentes auxiliares ou automação permanente.
 
 ## Objetivo
 
@@ -58,13 +60,15 @@ Construir um Banco de Notas funcional, modular, auditável e acessível a usuár
 
 - área `Banco de notas` no mesmo shell do Centro;
 - interface HeroUI React v3;
-- pesquisa global integrada;
+- pesquisa global de navegação do Centro;
 - importação local de até 50 arquivos por lote;
 - leitura sequencial de XLSB, XLSX e XLS;
 - reconhecimento de turmas, alunos, disciplinas, trimestres, quantitativo, qualitativo e recuperação;
 - SHA-256 calculado no navegador;
 - manifesto, progresso e diagnóstico por arquivo;
 - processamento somente em memória, sem persistência acadêmica.
+
+A pesquisa acadêmica integrada nesta onda não é a pesquisa de navegação já visível e permanece indisponível em produção.
 
 ## Núcleo integrado
 
@@ -85,7 +89,7 @@ A autoridade continua `imported-source`. O motor permanece separável e compará
 
 Existe uma única composição oficial de 2026. Ela referencia diretamente os perfis nativos integrados, não escolhe ano pelo relógio e falha para contexto ausente, duplicado, inativo ou incompatível.
 
-### Persistência e reconciliação
+### Persistência, reconciliação e consulta
 
 - Cloudflare D1 aprovado como armazenamento físico;
 - portas independentes do fornecedor;
@@ -98,11 +102,9 @@ Existe uma única composição oficial de 2026. Ela referencia diretamente os pe
 - capability `gradebook.persistence.admin` somente no servidor;
 - rotas administrativas autenticadas, autorizadas e `no-store`;
 - runner idempotente que consome o catálogo canônico das migrations;
-- uma única composição local da `PersistenceUnitOfWorkV1`, com histórico paginado para todas as portas versionadas.
-
-Os quatro read models operacionais e sua fachada única estão integrados localmente. Ainda faltam o
-contrato/pesquisa global autorizada, a ligação posterior à interface e autorização explícita para
-qualquer recurso remoto.
+- uma única `PersistenceUnitOfWorkV1` local;
+- uma única fachada operacional com Centrais de Aluno, Turma, Professor e Componente;
+- pesquisa acadêmica autorizada composta nessa mesma fachada, sem endpoint ou consulta paralela.
 
 ## Validação da fonte
 
