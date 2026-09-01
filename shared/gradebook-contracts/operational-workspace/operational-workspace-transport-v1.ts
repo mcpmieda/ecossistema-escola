@@ -13,6 +13,7 @@ import type {
 } from '../entities';
 import {
   GLOBAL_SEARCH_CONTRACT_VERSION_V1,
+  GLOBAL_SEARCH_NON_DISCLOSURE_OUTCOMES_V1,
   GLOBAL_SEARCH_ORDER_V1,
   GLOBAL_SEARCH_RESULT_KINDS_V1,
   inspectGlobalSearchRequestV1,
@@ -254,7 +255,6 @@ function hasOwnKeys(
   required: readonly string[],
   optional: readonly string[] = [],
 ): boolean {
-  const requiredSet = new Set(required);
   const allowed = new Set([...required, ...optional]);
   const actual = Object.keys(value);
   return required.every((key) => Object.hasOwn(value, key)) && actual.every((key) => allowed.has(key));
@@ -281,6 +281,19 @@ function isAcademicYearOptions(value: unknown): value is readonly OperationalWor
     ids.add(option.id);
   }
   return true;
+}
+
+function isAcademicYearContext(value: unknown): value is OperationalWorkspaceAcademicYearContextV1 {
+  return (
+    isRecord(value) &&
+    hasOwnKeys(value, ['selectedAcademicYearId', 'availableAcademicYears']) &&
+    nonEmptyString(value.selectedAcademicYearId) &&
+    isAcademicYearOptions(value.availableAcademicYears) &&
+    value.availableAcademicYears.length > 0 &&
+    isOperationalWorkspaceAcademicYearContextValidV1(
+      value as unknown as OperationalWorkspaceAcademicYearContextV1,
+    )
+  );
 }
 
 function isGlobalSearchRequest(value: unknown): value is GlobalSearchRequestV1 {
@@ -462,6 +475,49 @@ function isCenterView(value: unknown): value is OperationalWorkspaceCenterViewV1
   return false;
 }
 
+function isSearchResult(value: unknown): boolean {
+  if (!isRecord(value) || !nonEmptyString(value.kind) || !nonEmptyString(value.id)) return false;
+  if (!(GLOBAL_SEARCH_RESULT_KINDS_V1 as readonly string[]).includes(value.kind)) return false;
+  return value.kind === 'class-group' ? nonEmptyString(value.code) : nonEmptyString(value.displayName);
+}
+
+function isGlobalSearchResponse(value: unknown): value is GlobalSearchResponseV1 {
+  if (!isRecord(value) || typeof value.outcome !== 'string') return false;
+  if (value.outcome === 'results') {
+    if (
+      !hasOwnKeys(value, [
+        'contractVersion',
+        'outcome',
+        'academicYearId',
+        'order',
+        'limit',
+        'items',
+        'nextCursor',
+      ]) ||
+      value.contractVersion !== GLOBAL_SEARCH_CONTRACT_VERSION_V1 ||
+      !nonEmptyString(value.academicYearId) ||
+      value.order !== GLOBAL_SEARCH_ORDER_V1 ||
+      typeof value.limit !== 'number' ||
+      !Array.isArray(value.items) ||
+      !value.items.every(isSearchResult) ||
+      (value.nextCursor !== null && !nonEmptyString(value.nextCursor))
+    ) {
+      return false;
+    }
+  } else if (
+    !hasOwnKeys(value, ['contractVersion', 'outcome', 'items', 'nextCursor']) ||
+    value.contractVersion !== GLOBAL_SEARCH_CONTRACT_VERSION_V1 ||
+    !(GLOBAL_SEARCH_NON_DISCLOSURE_OUTCOMES_V1 as readonly string[]).includes(value.outcome) ||
+    !Array.isArray(value.items) ||
+    value.items.length !== 0 ||
+    value.nextCursor !== null
+  ) {
+    return false;
+  }
+
+  return isOperationalWorkspaceSearchResponseValidV1(value as unknown as GlobalSearchResponseV1);
+}
+
 function isSearchNonDisclosure(value: GlobalSearchResponseV1): value is GlobalSearchNonDisclosureV1 {
   return value.outcome !== 'results';
 }
@@ -489,26 +545,22 @@ export function isOperationalWorkspaceTransportResponseV1(
     return value.state === 'ready' && value.availableAcademicYears.length > 0;
   }
 
-  if (
-    (value.state !== 'ready' && value.state !== 'empty') ||
-    !isRecord(value.context) ||
-    !isOperationalWorkspaceAcademicYearContextValidV1(
-      value.context as unknown as OperationalWorkspaceAcademicYearContextV1,
-    )
-  ) {
+  if ((value.state !== 'ready' && value.state !== 'empty') || !isAcademicYearContext(value.context)) {
     return false;
   }
 
   if (Object.hasOwn(value, 'search')) {
-    const response = value.search as GlobalSearchResponseV1;
-    if (!isOperationalWorkspaceSearchResponseValidV1(response)) return false;
+    if (!isGlobalSearchResponse(value.search)) return false;
     if (value.state === 'ready') {
-      return hasOwnKeys(value, ['contractVersion', 'state', 'context', 'search']) && isGlobalSearchResultsPageValidV1(response as GlobalSearchResultsPageV1);
+      return (
+        hasOwnKeys(value, ['contractVersion', 'state', 'context', 'search']) &&
+        isGlobalSearchResultsPageValidV1(value.search as GlobalSearchResultsPageV1)
+      );
     }
     return (
       hasOwnKeys(value, ['contractVersion', 'state', 'context', 'search']) &&
-      isSearchNonDisclosure(response) &&
-      (response.outcome === 'empty-query' || response.outcome === 'no-results')
+      isSearchNonDisclosure(value.search) &&
+      (value.search.outcome === 'empty-query' || value.search.outcome === 'no-results')
     );
   }
 
