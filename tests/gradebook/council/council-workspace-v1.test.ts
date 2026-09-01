@@ -41,24 +41,34 @@ function coverage(state: ResultCoverageV1['state'] = 'complete'): ResultCoverage
 
 function annualView(seed: string): readonly CouncilAnnualComponentViewV1[] {
   const componentReference = `component:${seed}` as CouncilComponentReferenceV1;
+  const periodResult = (
+    period: (typeof COUNCIL_ANNUAL_PERIODS_V1)[number],
+    index: number,
+  ): CouncilAnnualComponentViewV1['periods'][number] => ({
+    period,
+    value:
+      period === 'REC'
+        ? { state: 'not-applicable', reason: 'synthetic-no-recovery' }
+        : { state: 'numeric', value: 18 + index },
+    coverage: period === 'REC' ? coverage('not-applicable') : coverage(),
+    evidence: [
+      {
+        label: `Evidência oficial ${period}`,
+        reference: `official:${seed}:${period}`,
+      },
+    ],
+  });
+  const [t1, t2, t3, rec] = COUNCIL_ANNUAL_PERIODS_V1;
   return [
     {
       componentReference,
       componentLabel: `Componente ${seed}`,
-      periods: COUNCIL_ANNUAL_PERIODS_V1.map((period, index) => ({
-        period,
-        value:
-          period === 'REC'
-            ? { state: 'not-applicable' as const, reason: 'synthetic-no-recovery' }
-            : { state: 'numeric' as const, value: 18 + index },
-        coverage: period === 'REC' ? coverage('not-applicable') : coverage(),
-        evidence: [
-          {
-            label: `Evidência oficial ${period}`,
-            reference: `official:${seed}:${period}`,
-          },
-        ],
-      })) as CouncilAnnualComponentViewV1['periods'],
+      periods: [
+        periodResult(t1, 0),
+        periodResult(t2, 1),
+        periodResult(t3, 2),
+        periodResult(rec, 3),
+      ],
       annualState: 'approved-direct',
       annualCoverage: coverage(),
     },
