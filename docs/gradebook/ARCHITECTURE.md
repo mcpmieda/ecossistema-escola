@@ -2,7 +2,7 @@
 
 ## Princípio
 
-O Banco de Notas é um produto modular dentro do Centro de Administração. Não é outro aplicativo e não cresce como um único componente/página. O shell global permanece em `src/platform`; as funções do Banco evoluem por módulos, contratos, portas e rotas próprias.
+O Banco de Notas é um produto modular dentro do Centro de Administração. Não é outro aplicativo e não cresce como uma página única. O shell global permanece em `src/platform`; importação, domínio, persistência, Auditoria e experiências evoluem em módulos separados.
 
 ## Fluxo de dados
 
@@ -13,350 +13,262 @@ Leitura local + SHA-256 + manifesto
           ↓
 Reconhecimento e evidência de origem
           ↓
-Planejamento de reconciliação/idempotência
+Planejamento idempotente
           ↓
-Revisão humana dos itens pendentes
+Revisão humana dos pendentes
           ↓
-Executor de promoção contra portas transacionais
+Executor transacional
           ↓
 Adaptador D1 autorizado
           ↓
-Modelo acadêmico versionado no D1
+Modelo acadêmico versionado
           ↓
 Motor nativo versionado
           ↓
-Resultados oficiais + Auditoria
+Resultados + Auditoria
           ↓
-Read models por experiência
+Read models
           ↓
-Centrais / Desempenho / Conselho / Boletins / Relatórios
+Centrais / Desempenho / Conselho / Boletins
 ```
 
-O valor importado e o valor calculado pelo motor nunca se sobrescrevem silenciosamente. A origem conserva arquivo, hash, versão, guia, célula, fórmula, cache, classificação, lote, usuário e data.
+Planejamento, revisão e execução são etapas distintas. O planejador não grava; o executor não resolve ambiguidades; o adaptador não cria regras acadêmicas.
 
-Planejamento, revisão e execução são etapas diferentes. O planejador não grava; o executor não decide automaticamente itens ambíguos ou ausentes; a persistência não cria regras acadêmicas.
+## Separação de autoridade
 
-## Decisão de armazenamento
+O valor importado e o calculado pelo motor permanecem separados. `authorityMode` seleciona a autoridade vigente sem apagar o outro lado. A autoridade continua `imported-source` até aceite explícito.
 
-Cloudflare D1 é o armazenamento físico aprovado para a base acadêmica.
+## Armazenamento
+
+Cloudflare D1 é o armazenamento físico aprovado, mas o domínio permanece independente do fornecedor:
 
 ```text
 Domínio/aplicação
        ↓
-Portas V1 de persistência e transação
+Portas V1
        ↓
 Adaptador D1
        ↓
-Schema/migrations D1
+Migrations/schema
        ↓
 D1
 ```
 
-O domínio não importa `D1Database`, SQL, Wrangler ou bindings. O acesso real ao banco ocorre somente pelo backend autorizado do Centro. Banco, bindings, migrations remotas e recursos de produção exigem issues próprias.
+O domínio não importa `D1Database`, SQL, Wrangler ou bindings. Banco, bindings, migrations remotas e endpoints exigem issues próprias.
 
-## Identidade e atualização da fonte
+## Identidade da fonte
 
 O sistema separa:
 
-- **nome do arquivo:** metadado observado;
-- **SHA-256:** identidade exata dos bytes;
-- **fonte lógica:** continuidade confirmada de professor/ano/contexto;
-- **stream acadêmico:** chave estável de um lançamento ou resultado;
-- **versão acadêmica:** alteração real do conteúdo desse stream.
+- nome do arquivo: metadado observado;
+- SHA-256: identidade exata dos bytes;
+- fonte lógica: continuidade confirmada de professor/ano/contexto;
+- versão acadêmica: mudança real de entidade, lançamento ou resultado.
 
 Consequências:
 
-- mesmo hash com outro nome não duplica conteúdo;
-- hash diferente não prova sozinho que exista outra fonte lógica;
-- contexto ambíguo exige confirmação;
-- reimportação idêntica não cria versões acadêmicas;
-- somente valores novos/alterados geram nova versão;
-- valores desaparecidos da nova fonte não são apagados silenciosamente;
-- histórico anterior permanece imutável/auditável.
+- mesmo hash renomeado não duplica conteúdo;
+- hash diferente não confirma sozinho nova fonte lógica;
+- fonte ambígua exige confirmação;
+- somente valores novos/alterados geram versão acadêmica;
+- item desaparecido não é apagado nem desativado automaticamente;
+- histórico anterior permanece auditável.
 
-Para detectar itens que desapareceram, é necessário saber quais streams acadêmicos pertencem à mesma fonte lógica. Essa associação é relacional, anual, indexada e versionada; não pode ser inferida por nome de arquivo nem por varredura de JSON.
+## Associação fonte lógica ↔ stream
+
+A migration 0003 materializa a relação entre fonte lógica e stream acadêmico. A #243 tornou sua escrita explícita também nas portas, no plano, na estimativa e no executor.
+
+```text
+arquivo/fonte confirmada
+        +
+registro acadêmico promovível
+        ↓
+associação versionada e ativa
+```
+
+Regras arquiteturais:
+
+- a associação não é inferida por nome do arquivo;
+- a associação não é descoberta por varredura de JSON;
+- ela possui expectativa otimista própria;
+- versão de fonte, registro e associação pertencem à mesma unidade de trabalho;
+- conflito em qualquer etapa reverte a promoção inteira;
+- ausência em uma nova planilha não gera desativação automática.
 
 ## Limites dos módulos
 
 ### Plataforma
 
-Responsável pelo shell, autenticação Entra, capabilities, navegação, pesquisa global, Saúde e limites e publicação. Não contém regras de nota.
+Shell, autenticação Entra, capabilities, navegação, pesquisa global, Saúde e limites e publicação. Não contém regra de nota.
 
 ### Importação
 
-Responsável por arquivos, leitura binária, SHA-256, manifesto, mapeamento, classificação de células, diagnósticos e criação de registros de entrada. O arquivo permanece local nesta etapa. O importador não decide resultado acadêmico final e não grava diretamente no D1.
+Arquivos, leitura binária, hash, manifesto, mapeamento, classificação de células e diagnósticos. O arquivo permanece local na etapa atual e o importador não grava diretamente no D1.
 
 ### Contratos
 
-Vocabulário e formatos compartilhados. Alteração incompatível exige issue específica, versão e plano de migração/adaptação.
+Vocabulário compartilhado. Mudança incompatível exige issue de contrato, versão e adaptação explícita.
 
 ### Domínio e motor
 
-Responsável por semântica de célula, composição de nota, recuperação, arredondamento, resultado anual, situações e precedências. É TypeScript puro, determinístico e independente de React/HeroUI, browser, banco físico e APIs externas.
+Funções TypeScript puras e determinísticas para:
 
-Implementações atuais:
+- semântica de célula;
+- arredondamento;
+- composição trimestral;
+- recuperação paralela;
+- resultado trimestral;
+- recuperação final;
+- resultado anual e elegibilidade, na #255.
 
-- interpretação semântica de células;
-- arredondamento acadêmico;
-- composição trimestral 30/30/40 e 45%/55%;
-- recuperação paralela por quantitativo abaixo de 60% do próprio máximo.
-
-A #242 consolidará paralela + composição + percentual. A #244 implementará recuperação final.
+Não acessa React, HeroUI, DOM, banco, rede ou relógio global.
 
 ### Aplicação
 
-Orquestra casos de uso contra contratos e portas. Aqui ficam planejamento de reimportação, reconciliação, promoção de lote e montagem de comandos. Não conhece componentes HeroUI nem executa SQL diretamente.
+Orquestra planejamento, revisão e execução contra portas. Não executa SQL e não importa UI.
 
-O planejador produz um `ImportChangePlanV1` com itens:
+`planImportReconciliation` produz itens iguais, novos, alterados, ausentes ou bloqueados, mais versões planejadas de fonte, registro e associação.
 
-```text
-unchanged
-new
-changed
-missing-from-new-source
-blocked
-```
-
-O executor:
-
-- valida o plano antes de qualquer write;
-- aplica somente versões de fonte e registros `new`/`changed` de arquivos prontos;
-- não escreve itens inalterados, ausentes ou bloqueados;
-- exige rollback integral para conflito ou falha;
-- permanece independente do D1.
+`executeImportChangePlan` valida o plano e executa os appends aprovados na mesma unidade de trabalho.
 
 ### Persistência
 
-Responsável por transações, histórico, idempotência e consulta. O domínio conhece portas/interfaces, não o fornecedor físico.
-
-Portas integradas:
-
-- entidades acadêmicas;
-- arquivos/fontes/lotes;
-- lançamentos e resultados;
-- ocorrências e reconciliações;
-- unidade de trabalho;
-- promoção atômica de lote;
-- paginação e concorrência otimista.
-
-A #243 adicionará a porta versionada da associação fonte lógica ↔ stream e a tornará parte explícita da unidade de trabalho, do plano e da estimativa.
+Responsável por paginação, versionamento, compare-and-set, histórico e atomicidade. As portas públicas abrangem entidades, importações, registros acadêmicos, Auditoria e associações de fonte.
 
 ### Schema D1
 
-As migrations 0001–0003 estão integradas e testadas localmente. Elas modelam:
+Migrations locais 0001–0003, 21 tabelas, FKs por ano, índices, ponteiros de versão atual e histórico append-only. Não há cascades destrutivos.
 
-- ano/configuração;
-- entidades acadêmicas;
-- fontes lógicas, manifestos e lotes;
-- registros acadêmicos versionados;
-- reconciliação e Auditoria;
-- associação versionada entre fonte lógica e stream acadêmico.
+### Adaptador D1
 
-São 21 tabelas, com histórico append-only, FKs por ano e índices. Nenhuma migration foi aplicada em banco remoto. O schema físico não substitui contratos e não é consumido diretamente pela interface.
-
-### Adaptador D1 de leitura
-
-`server/gradebook/persistence/d1/read/d1-read-adapter-v1.ts` implementa localmente:
-
-- busca de fonte por SHA-256;
-- leitura da versão atual do manifesto;
-- leitura do registro acadêmico atual;
-- listagem dos streams ativos de uma fonte lógica.
-
-O adaptador reconstrói contratos, confere colunas normalizadas e sanitiza falhas. Ele não usa nome de arquivo nem `json_extract` para descobrir associações.
-
-### Adaptador D1 de escrita
-
-Ainda não existe. A #245 está bloqueada até a #243 formalizar a escrita da associação.
-
-Quando liberado, o adaptador deve:
-
-- implementar compare-and-set para raízes e versões;
-- gravar fonte, registro acadêmico e associação explicitamente;
-- usar uma única transação por promoção;
-- reverter tudo em conflito ou constraint;
-- não provisionar produção silenciosamente.
+A leitura local está implementada. A #245 implementará escrita/transação local para fonte, registro e associação. O adaptador pode conhecer D1/SQL, mas não exporta esses tipos ao domínio.
 
 ### Reconciliação e Auditoria
 
-Compara fonte, versões persistidas e motor; produz ocorrências explícitas. Erro crítico não pode ser mascarado por sucesso geral. Resoluções mantêm ator, data, justificativa e estado anterior.
-
-O planejador é somente leitura. Itens ausentes permanecem pendentes de decisão. O executor aplica somente o conjunto previamente aprovado.
+Compara fonte, versões persistidas e motor. Erro crítico não pode ser mascarado por sucesso geral. A #254 restaura explicitamente cenários herdados de isolamento antes do fechamento da F4.
 
 ### Read models
 
-Modelos compactos e específicos para cada experiência. Evitam N+1 e impedem que a interface carregue o ano inteiro ou reconstrua regras acadêmicas.
+Consultas compactas e específicas por experiência. Evitam N+1 e impedem que componentes HeroUI reconstruam regras acadêmicas.
 
 ### Interface HeroUI
 
-Responsável por fluxo, comandos, consulta e apresentação. HeroUI React v3 é obrigatório. A interface não calcula nota oficial, elegibilidade ou recuperação.
+Apresenta fluxo, comandos e resultados. Não calcula nota, recuperação, elegibilidade ou decisão de Conselho.
 
 ### Saúde e limites
 
-Área global futura do Centro de Administração, registrada na #220. Receberá métricas de Cloudflare/D1 e consumo por módulo por meio de backend autorizado. Tokens e dados acadêmicos não chegam ao navegador. O Banco poderá fornecer estimativa de impacto de importação, mas não manterá painel de infraestrutura isolado.
+Área global futura do Centro, registrada na #220. Métricas chegam por backend autorizado; tokens e payload acadêmico não chegam ao navegador.
+
+## Estado do motor
+
+Implementado:
+
+```text
+célula
+  ↓
+arredondamento
+  ↓
+composição 30/30/40 e 45%/55%
+  ↓
+recuperação paralela
+  ↓
+resultado trimestral + percentual
+  ↓
+recuperação final + total pós-REC
+```
+
+A #255 acrescentará resultado anual, contagem de componentes não aprovados, elegibilidade básica e precedência somente de decisão formal explícita. A decisão humana do Conselho não será automatizada.
+
+## Estado da persistência
+
+```text
+concluído:
+  portas independentes
+  migrations 0001–0003
+  leitura D1 local
+  planejamento idempotente
+  executor transacional abstrato
+  contrato explícito da associação
+
+agora:
+  #245 escrita/transação D1 local
+
+posteriormente:
+  binding/preview
+  runner de migrations
+  backend autorizado
+  contexto anual/perfil 2026
+  ligação à interface
+```
+
+Não existe ainda banco D1 persistente ou de produção.
 
 ## Estrutura-alvo
-
-A migração é incremental; não mover tudo em um único PR.
 
 ```text
 src/
 ├── platform/
-│   ├── auth/
-│   ├── navigation/
-│   ├── search/
-│   └── shell/
-├── features/
-│   └── gradebook/
-│       ├── import/
-│       ├── audit/
-│       ├── students/
-│       ├── classes/
-│       ├── teachers/
-│       ├── subjects/
-│       ├── performance/
-│       ├── council/
-│       ├── bulletins/
-│       ├── reports/
-│       └── settings/
+├── features/gradebook/
+│   ├── import/
+│   ├── audit/
+│   ├── students/
+│   ├── classes/
+│   ├── teachers/
+│   ├── subjects/
+│   ├── performance/
+│   ├── council/
+│   ├── bulletins/
+│   ├── reports/
+│   └── settings/
 └── gradebook-domain/
     ├── source/
-    ├── entities/
     ├── rules/
     ├── calculations/
     │   ├── term/
     │   ├── parallel-recovery/
     │   ├── term-result/
-    │   └── final-recovery/
-    ├── reconciliation/
-    ├── validation/
-    └── ports/
-        └── persistence/
+    │   ├── final-recovery/
+    │   └── annual-result/
+    └── ports/persistence/
 
-shared/
-└── gradebook-contracts/
-    ├── source/
-    ├── entities/
-    ├── results/
-    ├── imports/
-    ├── audit/
-    └── read-models/
+shared/gradebook-contracts/
+server/gradebook/
+├── application/import/
+├── persistence/d1/
+│   ├── schema/
+│   ├── read/
+│   ├── write/
+│   └── transaction/
+├── queries/
+└── http/
 
-server/
-└── gradebook/
-    ├── application/
-    │   └── import/
-    │       └── execution/
-    ├── persistence/
-    │   └── d1/
-    │       ├── schema/
-    │       ├── read/
-    │       ├── write/
-    │       └── transaction/
-    ├── queries/
-    └── http/
-
-migrations/
-└── gradebook/
-
-tests/
-└── gradebook/
-    ├── source/
-    ├── import/
-    ├── engine/
-    ├── persistence/
-    ├── reconciliation/
-    └── integration/
+migrations/gradebook/
+tests/gradebook/
 ```
 
 ## Regras de dependência
 
-- `src/gradebook-domain/**` não importa React, HeroUI, DOM, Cloudflare ou Microsoft Graph.
-- `shared/gradebook-contracts/**` não depende de interface ou persistência.
-- `src/features/gradebook/**` consome contratos/read models; não acessa D1/tabelas diretamente.
-- `server/gradebook/application/**` consome domínio e portas; não importa UI nem SQL.
-- `server/gradebook/persistence/d1/**` implementa portas e pode importar tipos Cloudflare, mas não exporta esses tipos para o domínio.
-- `server/gradebook/http/**` aplica autenticação/capabilities antes de acessar dados acadêmicos.
-- Desempenho, Conselho e Boletins não importam código entre si para obter regras; todos dependem do núcleo.
-- Microsoft Graph/SharePoint nunca é acessado diretamente pelo navegador para dados acadêmicos.
-- Nome de arquivo nunca é chave técnica única de fonte.
-- O adaptador não pode preencher lacunas relacionais por varredura de JSON.
-- Escrita que afeta integridade precisa aparecer no contrato, no plano, na estimativa e na unidade de trabalho.
+- domínio não importa UI, Cloudflare ou Microsoft Graph;
+- contratos não dependem de interface ou persistência;
+- interface consome contratos/read models, nunca tabelas D1;
+- aplicação consome domínio e portas, nunca SQL;
+- adaptador D1 não altera o significado dos contratos;
+- toda escrita necessária à integridade aparece no plano e na unidade de trabalho;
+- Desempenho, Conselho e Boletins não mantêm motores próprios;
+- Microsoft Graph/SharePoint não é acessado diretamente pelo navegador para dados acadêmicos.
 
-## Estado implementado
+## Paralelismo e correção de processo
 
-### Importação
+Uma issue declara caminhos exclusivos. A integração da sétima onda identificou um PR que reunia #242 e #244. O conteúdo foi separado nos PRs #252 e #253 antes do merge, preservando rastreabilidade.
 
-- até 50 arquivos sequenciais;
-- XLSB/XLSX/XLS;
-- leitura local em memória;
-- SHA-256 via Web Crypto;
-- manifesto e diagnóstico por arquivo;
-- progresso `preparing` → `recognizing`;
-- proveniência exibida em HeroUI;
-- nenhum upload ou persistência ainda.
-
-### Motor
-
-- interpretação semântica de célula V1;
-- arredondamento acadêmico V1;
-- composição trimestral V1;
-- recuperação paralela V1;
-- resultado trimestral consolidado e recuperação final pendentes na onda 7.
-
-### Persistência
-
-- decisão D1 aprovada;
-- portas V1 integradas;
-- migrations 0001–0003 e testes locais integrados;
-- adaptador local de leitura integrado;
-- banco, bindings e adaptador de escrita ainda não existem;
-- contrato de escrita da associação será formalizado em #243.
-
-### Reconciliação
-
-- contratos V1 integrados;
-- planejamento idempotente implementado;
-- executor abstrato transacional implementado;
-- associação transacional explícita pendente em #243;
-- promoção física D1 pendente em #245.
-
-## Rotas-alvo
-
-```text
-#/banco-de-notas/importacao
-#/banco-de-notas/auditoria
-#/banco-de-notas/desempenho
-#/banco-de-notas/conselho
-#/banco-de-notas/boletins
-#/banco-de-notas/relatorios
-#/banco-de-notas/configuracoes
-
-#/banco-de-notas/alunos/:id
-#/banco-de-notas/turmas/:id
-#/banco-de-notas/professores/:id
-#/banco-de-notas/componentes/:id
-#/banco-de-notas/importacoes/:loteId
-```
-
-Somente rotas utilizáveis aparecem no menu. Entidades são abertas por pesquisa, matrizes e relações contextuais.
-
-## Contratos e compatibilidade
-
-Mudança compatível adiciona campos opcionais ou novos estados sem alterar o significado existente. Mudança incompatível cria nova versão ou adaptador temporário. Mudança pedagógica nunca é adaptada silenciosamente: exige decisão oficial.
-
-Schema e adaptador D1 devem seguir os contratos/portas. Caso uma incompatibilidade real seja descoberta, ela exige issue de contrato ou migration aditiva explícita; não deve ser escondida em SQL, JSON, efeito colateral ou interface.
-
-A sexta onda detectou uma diferença entre a leitura física e a escrita abstrata da associação fonte lógica ↔ stream. A #243 é a adaptação controlada. Isso mantém as fases independentes sem permitir que diferenças pequenas se transformem em comportamento implícito na junção final.
-
-## Paralelismo seguro
-
-- Uma issue declara caminhos de escrita exclusivos.
-- Contratos congelados permitem que UI use fixtures enquanto backend/motor avançam.
-- Resultado trimestral, contrato transacional de associação e recuperação final podem avançar em paralelo porque ocupam áreas distintas.
-- Arquivos centrais, navegação, contratos compartilhados e estado global são coordenados pelo integrador.
-- Não manter branches de fase por meses; PRs pequenos entram continuamente na `main`.
+A integração também registrou a #254 para restaurar regressões de isolamento removidas durante a evolução da #243. Dívida de teste identificada não é escondida nem confundida com falha funcional comprovada.
 
 ## Publicação
 
-O único caminho de produção é `main` → workflow `Deploy Cloudflare Pages` → `admin.escolaieda.com`. Agentes de tarefa não alteram o workflow nem publicam diretamente. A issue só muda para `Publicada` depois da verificação aplicável pelo integrador. Quando a verificação exigir autenticação e seleção de arquivo real, o gate manual é registrado em vez de ser presumido como concluído.
+O único caminho de produção é:
+
+```text
+main → Deploy Cloudflare Pages → admin.escolaieda.com
+```
+
+Agentes de tarefa não publicam diretamente. Entrega sem mudança visual ainda deve preservar build, testes e site.

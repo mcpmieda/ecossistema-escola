@@ -2,7 +2,7 @@ schema_version: 1
 project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
 production_url: https://admin.escolaieda.com/#/banco-de-notas
-updated_at: 2026-08-31
+updated_at: 2026-09-01
 
 coordination:
   canonical_decisions: docs/gradebook/DECISIONS.md
@@ -11,9 +11,9 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 237
-  current_integrator_issue: 246
-  current_wave: 7
+  previous_integrator_issue: 246
+  current_integrator_issue: 256
+  current_wave: 8
   integrator_required: true
   recommended_parallel_agents: 3
   central_state_editor: integrator-only
@@ -23,8 +23,8 @@ coordination:
   coordination_bootstrap_commit: ec6c712e287e97269375c6f5c4790c1529ea4309
 
 runtime:
-  last_verified_runtime_commit: e8be42bd65b0a59d837ee6ca8283d9564967a6db
-  last_verified_deploy_run: 33441758173
+  last_verified_runtime_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
+  last_verified_deploy_run: 33456232765
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
@@ -46,7 +46,10 @@ runtime:
     - native-academic-rounding-v1
     - native-term-composition-v1
     - native-parallel-recovery-v1
+    - native-term-outcome-v1
+    - native-final-recovery-v1
     - provider-independent-persistence-ports-v1
+    - logical-source-record-association-contract-v1
     - d1-schema-local-migrations-0001-0003
     - d1-logical-source-record-catalog-v1
     - d1-local-read-adapter-v1
@@ -57,9 +60,8 @@ runtime:
   current_limitations:
     - academic-data-is-not-persisted
     - d1-database-bindings-and-write-adapter-not-yet-implemented
-    - logical-source-record-association-write-contract-not-yet-formalized
-    - native-term-outcome-not-yet-consolidated
-    - native-final-recovery-not-yet-implemented
+    - annual-result-and-council-eligibility-not-yet-implemented
+    - inherited-reconciliation-isolation-regressions-await-explicit-restoration
     - controlled-real-corpus-validation-not-yet-recorded
     - complete-manifest-failure-smoke-not-yet-recorded
     - audit-workspace-not-yet-implemented
@@ -77,7 +79,7 @@ scope:
     domain_dependency: provider-independent-ports
     schema_status: local-v1-migrations-0001-0003-integrated
     read_adapter_status: local-v1-integrated
-    write_adapter_status: not-yet-implemented
+    write_adapter_status: ready-for-implementation
     production_provisioning: not-yet-authorized-or-created
   excluded_for_now:
     - smecel
@@ -129,12 +131,32 @@ contracts:
     issue: 234
     pull_request: 240
     merge_commit: 810880c9686394e39786e12ad958457102bbeedf
+  native_term_outcome:
+    status: implemented-v1
+    issue: 242
+    pull_request: 252
+    merge_commit: b41054a5097f292add93550961fd93058caa04d6
+  native_final_recovery:
+    status: implemented-v1
+    issue: 244
+    pull_request: 253
+    merge_commit: fa62bdd7583c255b58f3c60be0e0b794cb3a1293
+  native_annual_outcome:
+    status: ready-for-implementation
+    issue: 255
   persistence_ports:
-    status: frozen-v1-association-write-extension-pending
-    issue: 219
-    pull_request: 223
-    merge_commit: 65af08fbbd4ded85375a13a90c4cb0151844ae1e
+    status: frozen-v1-with-association-repository
+    base_issue: 219
     extension_issue: 243
+    base_pull_request: 223
+    extension_pull_request: 249
+    base_merge_commit: 65af08fbbd4ded85375a13a90c4cb0151844ae1e
+    extension_merge_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
+  logical_source_record_association:
+    status: frozen-and-executable-v1
+    issue: 243
+    pull_request: 249
+    merge_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
   d1_schema:
     status: implemented-local-v1
     base_issue: 227
@@ -154,28 +176,35 @@ contracts:
     issue: 235
     pull_request: 241
     merge_commit: b9bdeff27b40099e60fe25a492be7bda9231c4cd
+  d1_write_adapter:
+    status: ready-for-implementation
+    issue: 245
   idempotent_reimport_planner:
-    status: implemented-v1-association-plan-extension-pending
-    issue: 228
-    pull_request: 232
-    merge_commit: 9b4e4fa5474b45b40784c89035a546132643319b
+    status: implemented-v1-with-explicit-association-writes
+    base_issue: 228
     extension_issue: 243
+    base_pull_request: 232
+    extension_pull_request: 249
+    base_merge_commit: 9b4e4fa5474b45b40784c89035a546132643319b
+    extension_merge_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
   transactional_change_plan_executor:
-    status: implemented-v1-association-write-extension-pending
-    issue: 236
-    pull_request: 239
-    merge_commit: e8be42bd65b0a59d837ee6ca8283d9564967a6db
+    status: implemented-v1-with-explicit-association-writes
+    base_issue: 236
     extension_issue: 243
+    base_pull_request: 239
+    extension_pull_request: 249
+    base_merge_commit: e8be42bd65b0a59d837ee6ca8283d9564967a6db
+    extension_merge_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
 
-known_compatibility_gaps:
-  - id: logical-source-record-association-write-contract
-    description: >-
-      Migration 0003 and the local read adapter now expose the logical-source-to-record
-      catalog, but the provider-independent unit of work, change plan and executor do
-      not yet represent association version writes explicitly.
-    resolution_issue: 243
-    blocked_delivery: 245
-    forbidden_workaround: hidden-d1-side-effect-or-json-file-name-inference
+quality_followups:
+  - issue: 254
+    description: restore inherited mixed-batch-and-read-failure-isolation-regressions
+    status: ready
+    blocks:
+      - F4-final-validation
+    does_not_block:
+      - 245
+      - 255
 
 phases:
   F0:
@@ -202,14 +231,14 @@ phases:
   F3:
     name: native-engine
     status: in-progress
-    completed_units: 4
+    completed_units: 6
     total_units: 7
     issue: 186
     visible_result: none
   F4:
     name: reconciliation-and-audit
     status: in-progress
-    completed_units: 4
+    completed_units: 5
     total_units: 6
     issue: 187
     visible_result: manifest-and-file-diagnostics-only
@@ -330,27 +359,35 @@ completed_queue:
     task: transactional-import-change-plan-executor-v1
     pull_request: 239
     merge_commit: e8be42bd65b0a59d837ee6ca8283d9564967a6db
-
-ready_queue:
   - issue: 242
     phase: F3
-    task: consolidate-native-term-outcome-v1
-    parallel_group: wave-7
+    task: native-term-outcome-v1
+    pull_request: 252
+    merge_commit: b41054a5097f292add93550961fd93058caa04d6
   - issue: 243
     phase: F2-F4
-    task: formalize-logical-source-record-association-transaction-contract-v1
-    parallel_group: wave-7
+    task: logical-source-record-association-transaction-contract-v1
+    pull_request: 249
+    merge_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
   - issue: 244
     phase: F3
     task: native-final-recovery-v1
-    parallel_group: wave-7
+    pull_request: 253
+    merge_commit: fa62bdd7583c255b58f3c60be0e0b794cb3a1293
 
-blocked_queue:
+ready_queue:
   - issue: 245
     phase: F2-F4
     task: d1-local-write-and-transaction-adapter-v1
-    blocked_by:
-      - 243
+    parallel_group: wave-8
+  - issue: 254
+    phase: F4
+    task: restore-reconciliation-isolation-regressions-v1
+    parallel_group: wave-8
+  - issue: 255
+    phase: F3-F7
+    task: native-annual-outcome-eligibility-and-precedence-v1
+    parallel_group: wave-8
 
 planned_queue:
   - issue: 220
@@ -359,6 +396,15 @@ planned_queue:
     blocked_by:
       - d1-bindings
       - authorized-metrics-backend
+  - task: d1-local-preview-binding-and-migration-runner
+    blocked_by:
+      - 245
+  - task: academic-year-and-evaluation-profile-2026-context
+    blocked_by:
+      - 245
+  - task: source-versus-native-equivalence
+    blocked_by:
+      - 255
 
 manual_gates:
   - gate: controlled-real-corpus-validation
@@ -384,46 +430,49 @@ manual_gates:
       - observe-transient-hash-stage
       - verify-isolated-failure-diagnostic
     does_not_block:
-      - 242
-      - 243
-      - 244
+      - 245
+      - 254
+      - 255
 
 integration:
   previous:
-    issue: 237
-    wave: 6
-    status: completed
-    merged_pull_requests:
-      - 240
-      - 241
-      - 239
-    merged_commits:
-      - 810880c9686394e39786e12ad958457102bbeedf
-      - b9bdeff27b40099e60fe25a492be7bda9231c4cd
-      - e8be42bd65b0a59d837ee6ca8283d9564967a6db
-    verified_runtime_commit: e8be42bd65b0a59d837ee6ca8283d9564967a6db
-    deploy_run: 33441758173
-  current:
     issue: 246
     wave: 7
+    status: completed
+    merged_pull_requests:
+      - 252
+      - 249
+      - 253
+    merged_commits:
+      - b41054a5097f292add93550961fd93058caa04d6
+      - 40dd21c08336919206bafcb556d6764f5570e6f9
+      - fa62bdd7583c255b58f3c60be0e0b794cb3a1293
+    superseded_pull_request: 248
+    process_correction_issue: 250
+    verified_runtime_commit: 40dd21c08336919206bafcb556d6764f5570e6f9
+    deploy_run: 33456232765
+  current:
+    issue: 256
+    wave: 8
     status: waiting-for-pull-requests
     watches:
-      - 242
-      - 243
-      - 244
+      - 245
+      - 254
+      - 255
     responsibilities:
-      - native-term-outcome-review
-      - logical-source-record-association-contract-review
-      - native-final-recovery-review
+      - d1-local-write-and-transaction-review
+      - inherited-reconciliation-regression-review
+      - native-annual-outcome-and-eligibility-review
       - merge-and-production-verification
       - state-and-issue-map-update
       - next-wave-definition-and-unlock
 
 next_integrator_actions:
-  - wait-for-issues-242-243-and-244
-  - confirm-native-term-outcome-reuses-integrated-rules
-  - confirm-final-recovery-replaces-applicable-term-even-when-lower
-  - confirm-association-write-is-explicit-in-plan-unit-of-work-and-estimate
-  - unlock-issue-245-only-after-243-integration
-  - create-native-annual-result-issue-after-242-and-244
-  - create-wave-8-integration-issue
+  - wait-for-issues-245-254-and-255
+  - verify-d1-physical-local-transaction-and-rollback
+  - verify-restored-mixed-batch-and-read-failure-regressions
+  - verify-annual-result-and-council-eligibility-without-human-decision-automation
+  - create-d1-preview-binding-and-authorized-backend-issue-after-245
+  - create-academic-year-context-and-profile-issue-after-245
+  - create-source-versus-native-equivalence-issue-after-255
+  - create-wave-9-integration-issue
