@@ -41,6 +41,7 @@ export function createActiveAcademicContextServiceV1(
 
       const record = page.items[0];
       if (
+        record === undefined ||
         record.value.kind !== 'academic-year' ||
         record.value.value.id !== dependencies.academicYearId
       ) {
