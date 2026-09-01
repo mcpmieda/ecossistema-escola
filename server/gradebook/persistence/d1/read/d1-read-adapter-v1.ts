@@ -573,6 +573,148 @@ class GradebookD1ReaderV1 {
   }
 }
 
+type AcademicYearV1 = import('../../../../../shared/gradebook-contracts/entities').AcademicYearV1;
+type AcademicEntityRecordV1 = import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').AcademicEntityRecordV1;
+type AcademicEntityRepositoryV1 = import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').AcademicEntityRepositoryV1;
+type CursorPageRequestV1 = import('../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1').CursorPageRequestV1;
+
+function academicYearStatus(value: unknown): AcademicYearV1['status'] {
+  if (value !== 'planned' && value !== 'active' && value !== 'closed') {
+    return fail('incompatible-row');
+  }
+  return value;
+}
+
+function optionalString(value: unknown): string | undefined {
+  if (value === null || value === undefined) return undefined;
+  return requiredString(value);
+}
+
+function mapAcademicYear(
+  row: D1Row,
+  context: AcademicPersistenceContextV1,
+): VersionedRecordV1<AcademicEntityRecordV1> {
+  const persistedVersion = positiveInteger(row.persisted_version);
+  if (positiveInteger(row.current_version) !== persistedVersion) return fail('broken-reference');
+
+  const academicYearId = requiredString(row.academic_year_id);
+  if (academicYearId !== context.academicYearId) return fail('incompatible-row');
+
+  parsePayload(row.year_payload_json);
+  parsePayload(row.configuration_payload_json);
+
+  const configurationId = requiredString(row.configuration_id);
+  const configurationVersion = positiveInteger(row.configuration_version);
+  if (
+    configurationId !== requiredString(row.persisted_configuration_id) ||
+    configurationVersion !== positiveInteger(row.persisted_configuration_version) ||
+    requiredString(row.active_evaluation_profile_id) !==
+      requiredString(row.configuration_evaluation_profile_id)
+  ) {
+    return fail('broken-reference');
+  }
+
+  const startsOn = optionalString(row.starts_on);
+  const endsOn = optionalString(row.ends_on);
+  const value: AcademicYearV1 = {
+    id: academicYearId as AcademicYearV1['id'],
+    schoolId: requiredString(row.school_id) as AcademicYearV1['schoolId'],
+    year: positiveInteger(row.academic_year),
+    status: academicYearStatus(row.status),
+    ...(startsOn === undefined ? {} : { startsOn }),
+    ...(endsOn === undefined ? {} : { endsOn }),
+    activeEvaluationProfileId: requiredString(row.active_evaluation_profile_id),
+    configurationVersion: String(configurationVersion),
+  };
+
+  return {
+    value: { kind: 'academic-year', value },
+    version: persistedVersion,
+    recordedAt: requiredString(row.recorded_at),
+  };
+}
+
+class GradebookD1AcademicYearReaderV1 {
+  constructor(private readonly database: D1ReadDatabaseV1) {}
+
+  private async safely<T>(operation: () => Promise<T>): Promise<T> {
+    try {
+      return await operation();
+    } catch (cause) {
+      if (cause instanceof GradebookD1ReadErrorV1) throw cause;
+      throw new GradebookD1ReadErrorV1('database-read-failed');
+    }
+  }
+
+  get(
+    context: AcademicPersistenceContextV1,
+    reference: Parameters<AcademicEntityRepositoryV1['get']>[1],
+  ): Promise<VersionedRecordV1<AcademicEntityRecordV1> | null> {
+    if (reference.kind !== 'academic-year') return fail('incompatible-row');
+    if (reference.id !== context.academicYearId) return Promise.resolve(null);
+
+    return this.safely(async () => {
+      const row = await this.database
+        .prepare(
+          `SELECT
+             y.academic_year_id,
+             y.school_id,
+             y.year AS academic_year,
+             y.current_version,
+             v.version AS persisted_version,
+             v.status,
+             v.starts_on,
+             v.ends_on,
+             v.active_evaluation_profile_id,
+             v.configuration_id,
+             v.configuration_version,
+             v.payload_json AS year_payload_json,
+             v.recorded_at,
+             c.configuration_id AS persisted_configuration_id,
+             c.version AS persisted_configuration_version,
+             c.evaluation_profile_id AS configuration_evaluation_profile_id,
+             c.payload_json AS configuration_payload_json
+           FROM academic_years y
+           LEFT JOIN academic_year_versions v
+             ON v.academic_year_id = y.academic_year_id
+            AND v.version = y.current_version
+           LEFT JOIN academic_year_configuration_versions c
+             ON c.academic_year_id = v.academic_year_id
+            AND c.configuration_id = v.configuration_id
+            AND c.version = v.configuration_version
+           WHERE y.academic_year_id = ?`,
+        )
+        .bind(context.academicYearId)
+        .first<D1Row>();
+
+      if (!row) return null;
+      if (row.persisted_version === null || row.persisted_configuration_version === null) {
+        return fail('broken-reference');
+      }
+      return mapAcademicYear(row, context);
+    });
+  }
+
+  async list(
+    context: AcademicPersistenceContextV1,
+    kind: Parameters<AcademicEntityRepositoryV1['list']>[1],
+    page: CursorPageRequestV1,
+  ): Promise<Awaited<ReturnType<AcademicEntityRepositoryV1['list']>>> {
+    if (kind !== 'academic-year' || !Number.isInteger(page.limit) || page.limit < 1) {
+      return fail('incompatible-row');
+    }
+    if (page.cursor !== undefined && page.cursor !== null) {
+      return { items: [], nextCursor: null };
+    }
+
+    const record = await this.get(context, { kind: 'academic-year', id: context.academicYearId });
+    return {
+      items: record === null ? [] : [record],
+      nextCursor: null,
+    };
+  }
+}
+
 export function createGradebookD1ReadAdapterV1(
   database: D1ReadDatabaseV1,
 ): ImportReconciliationRepositoriesV1 {
@@ -591,5 +733,15 @@ export function createGradebookD1ReadAdapterV1(
       listCurrentStreams: (context, logicalSourceId) =>
         reader.listCurrentStreams(context, logicalSourceId),
     },
+  };
+}
+
+export function createGradebookD1AcademicEntityReadAdapterV1(
+  database: D1ReadDatabaseV1,
+): Pick<AcademicEntityRepositoryV1, 'get' | 'list'> {
+  const reader = new GradebookD1AcademicYearReaderV1(database);
+  return {
+    get: (context, reference) => reader.get(context, reference),
+    list: (context, kind, page) => reader.list(context, kind, page),
   };
 }
