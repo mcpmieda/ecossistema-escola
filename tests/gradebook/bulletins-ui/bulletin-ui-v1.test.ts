@@ -21,7 +21,10 @@ describe('Boletins HeroUI local/preview V1', () => {
     expect(page).toContain('1º trimestre');
     expect(page).toContain('Anual');
     expect(page).toContain('BULLETIN_MODEL_KINDS_V1.map');
-    for (const kind of ['synthetic', 'composition', 'detailed']) expect(page).toContain(`'${kind}'`);
+    expect(page).toContain("model === 'synthetic'");
+    expect(page).toContain("model === 'composition'");
+    expect(page).toContain("model.modelKind !== 'synthetic'");
+    expect(page).toContain("'assessments' in term");
   });
 
   it('renderiza a prévia somente do BulletinModelV1 canônico e preserva imported/calculated e estados sem recalcular', () => {
