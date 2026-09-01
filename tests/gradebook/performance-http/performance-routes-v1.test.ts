@@ -7,7 +7,6 @@ import {
   PERFORMANCE_AUTHORITY_MODE_V1,
   PERFORMANCE_COLUMN_ORDER_V1,
   PERFORMANCE_ROW_ORDER_V1,
-  type ClassPerformanceReadModelV1,
   type ClassPerformanceRequestV1,
   type PerformanceCellDetailRefV1,
   type PerformanceCellV1,
