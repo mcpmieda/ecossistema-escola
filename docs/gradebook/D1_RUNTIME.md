@@ -2,56 +2,43 @@
 
 ## Escopo
 
-O runtime conecta os adaptadores D1 integrados a uma composição de backend para desenvolvimento local e previews controlados. Ele não cria banco, binding, secret ou recurso remoto, não aplica migration remota e não habilita persistência ou consulta acadêmica no site oficial.
+O runtime compõe adaptadores D1 para desenvolvimento local e previews controlados. Ele não cria banco, binding, secret ou recurso remoto e não habilita consulta/persistência acadêmica em produção.
 
-Produção permanece fechada por padrão: `RUNTIME_ENVIRONMENT=production` impede a construção do runtime antes de qualquer inspeção de `GRADEBOOK_D1`, mesmo que um objeto de armazenamento seja apresentado. O `wrangler.jsonc` de produção continua sem binding D1 acadêmico.
+```text
+local      → binding injetado permitido
+preview    → binding injetado permitido
+production → fail-closed antes de inspecionar GRADEBOOK_D1
+```
 
-A onda 14 adicionou duas capacidades sem mudar esse limite:
-
-- Operational Workspace F5 com catálogo explícito de anos, serviço/bridge local-preview e HeroUI;
-- Audit Workspace F4 composto **internamente** no runtime após a #306, sem endpoint/UI.
-
-Desempenho #304 e Boletins #305 permanecem aplicações provider-independent e não são compostos fisicamente neste runtime.
+O `wrangler.jsonc` de produção continua sem binding D1 acadêmico.
 
 ## Autorização
 
-A capability `gradebook.persistence.admin` faz parte do contrato público da plataforma e é concedida somente a `ADMINISTRADOR`.
+A capability existente `gradebook.persistence.admin` é concedida ao papel institucional já existente `ADMINISTRADOR`.
 
-Uma sessão válida é convertida no servidor em um contexto opaco de autorização depois da verificação dessa capability. O contexto não contém nome, e-mail, nota, payload ou credencial e não pode ser reconstruído a partir de JSON. Sem ele:
+Uma sessão autorizada gera no servidor um contexto opaco. Sem ele:
 
-- o runtime não é construído;
-- o binding não é inspecionado;
-- o runner não consulta nem aplica migrations;
-- a promoção não alcança o adaptador transacional;
-- os read models, pesquisa, Operational Workspace e Audit Workspace não são expostos.
+- runtime não é construído;
+- binding não é inspecionado;
+- read models/workspaces não são expostos;
+- runner/promoção não alcançam D1.
 
-O Audit Workspace não aceita um booleano de autorização do caller. `GradebookD1RuntimeV1.auditWorkspace(...)` valida a autorização opaca e cria internamente `isAuthorized()`. O caller pode fornecer apenas `resolutionIdentity()` com ator/instante efetivos server-side e, opcionalmente, uma fonte de plano de importação **já existente** para a projeção informativa de elegibilidade.
+Cada método do runtime revalida o contexto opaco. Roles/capabilities, `actorId` ou timestamps confiáveis não são aceitos do navegador.
 
-## Ambientes e binding
+## Composição após a onda 15
 
-| `RUNTIME_ENVIRONMENT`   | `OFFICIAL_ORIGIN` aceito                   | Runtime acadêmico                       |
-| ----------------------- | ------------------------------------------ | --------------------------------------- |
-| `local`                 | origem `localhost`, `127.0.0.1` ou `[::1]` | permitido com binding estrutural válido |
-| `preview`               | origem HTTPS `*.pages.dev`                 | permitido com binding estrutural válido |
-| `production` ou ausente | `https://admin.escolaieda.com`             | desabilitado antes do binding           |
+Depois de autorização, gate de ambiente e validação estrutural do binding, `createGradebookD1RuntimeV1` compõe:
 
-O binding é recebido somente como `env.GRADEBOOK_D1`. O runtime valida `prepare`/`exec` e o shape do statement (`bind`, `first`, `all`, `run`) antes de compor adaptadores. O objeto não é retornado ao navegador nem incluído em respostas ou logs.
+- `createGradebookD1PersistenceUnitOfWorkV1`;
+- `createGradebookOperationalReadModelsV1`;
+- `createOperationalWorkspaceAcademicYearCatalogV1`;
+- `GradebookD1AuditWorkspaceSourceV1`;
+- `createGradebookD1ClassPerformanceSourceV1`;
+- `createClassPerformanceReadModelV1`;
+- `GradebookD1BatchPromotionTransactionV1`;
+- `GradebookD1MigrationRunnerV1`.
 
-A configuração/criação concreta de banco ou binding local/preview pertence ao integrador/ambiente apropriado; nenhum identificador remoto é versionado.
-
-## Composição do runtime
-
-Depois da autorização, validação do ambiente e validação estrutural do binding, `createGradebookD1RuntimeV1` compõe:
-
-- `createGradebookD1PersistenceUnitOfWorkV1` para as portas V1;
-- `createGradebookOperationalReadModelsV1` sobre `unitOfWork.entities`;
-- `createOperationalWorkspaceAcademicYearCatalogV1` sobre o catálogo persistido de anos;
-- `GradebookD1AuditWorkspaceSourceV1` sobre o mesmo database;
-- visão restrita da UoW para planejamento de reconciliação;
-- `GradebookD1BatchPromotionTransactionV1` para a unidade de escrita integrada;
-- `GradebookD1MigrationRunnerV1` para conferir/aplicar o schema local autorizado.
-
-Superfícies do runtime:
+Superfícies:
 
 ```text
 GradebookD1RuntimeV1
@@ -59,167 +46,188 @@ GradebookD1RuntimeV1
   ├── operationalReadModels()
   ├── operationalWorkspaceAcademicYears()
   ├── auditWorkspace(resolutionIdentity, existingPlans?)
+  ├── classPerformanceReadModel()
   ├── planningRepositories()
   ├── inspectSchema()
   ├── runMigrations()
   └── promoteImportChangePlan()
 ```
 
-Cada método valida novamente a autorização opaca aplicável.
+A ordem obrigatória continua:
+
+```text
+require opaque authorization
+  ↓
+runtimeEnvironment(env)
+  ↓
+requireDatabase(env.GRADEBOOK_D1)
+```
+
+Logo `production` falha antes do binding, inclusive para a composição de Desempenho.
 
 ## Operational Workspace
 
-`operationalReadModels()` retorna uma única fachada com:
+`operationalReadModels()` fornece Aluno, Turma, Professor, Componente e pesquisa.
 
-- `students`;
-- `classGroups`;
-- `teachers`;
-- `subjects`;
-- `search`.
+`operationalWorkspaceAcademicYears()` enumera somente IDs/anos persistidos, sem relógio.
 
-`operationalWorkspaceAcademicYears()` retorna somente a leitura `academic_year_id + year`, ordenada deterministicamente. Não existe fallback por relógio nem inferência por convenção de ID.
+Bridge único:
 
-A #302 adicionou o único bridge acadêmico HTTP desta etapa:
-
-| Método | Rota                                    | Operação |
-| ------ | --------------------------------------- | -------- |
-| `POST` | `/api/gradebook/operational-workspace` | bootstrap, quatro Centrais e pesquisa discriminada |
+| Método | Rota |
+| --- | --- |
+| `POST` | `/api/gradebook/operational-workspace` |
 
 Regras:
 
 - same-origin;
-- `requireAuth`;
-- autorização opaca de `gradebook.persistence.admin`;
-- runtime construído somente depois da autorização;
-- respostas acadêmicas `no-store`;
-- sem roles/capabilities/tokens do cliente;
-- produção retorna indisponibilidade sem tocar no binding;
-- nenhuma mutation acadêmica.
+- `requireAuth` + autorização opaca;
+- `no-store`;
+- produção indisponível antes do binding;
+- nenhuma mutation acadêmica;
+- request gate no cliente aborta/deduplica e descarta respostas obsoletas;
+- troca de ano invalida contexto anterior;
+- paginação é deduplicada.
 
-A #306 preserva esse bridge como **único**. Nenhum segundo handler/rota operacional é criado.
+## Audit Workspace
 
-### Pesquisa acadêmica
-
-`search` é a instância integrada da #287. Ela:
-
-- consome `GlobalSearchRequestV1` e retorna `GlobalSearchResponseV1`;
-- preserva ano explícito;
-- lista somente tipos solicitados;
-- usa ordem oficial e cursor opaco;
-- faz matching literal após normalização de caixa/diacríticos;
-- não usa fuzzy matching/heurística de identidade;
-- não retorna nota, resultado, evidência ou alias de origem;
-- converte falhas em resposta sem divulgação.
-
-Não existe segundo matching/ranking/normalização no transport, bridge ou React.
-
-## Audit Workspace interno
-
-A #303 integrou:
-
-- `AuditWorkspaceSourceV1` provider-independent;
-- `GradebookD1AuditWorkspaceSourceV1` para lotes, ocorrências e reconciliações atuais;
-- `createAuditWorkspaceV1` para listagem, detalhe e resolução.
-
-A #306 compõe o workspace em `GradebookD1RuntimeV1.auditWorkspace(...)`:
+Composição:
 
 ```text
-autorização opaca já emitida
-        ↓
-requireGradebookD1RuntimeAuthorizationV1
-        ↓
-GradebookD1AuditWorkspaceSourceV1 + mesma UoW imports/audit
-        ↓
+GradebookD1AuditWorkspaceSourceV1
+  + PersistenceUnitOfWorkV1.imports/audit
+  ↓
 createAuditWorkspaceV1
-        ↓
-list / detail / resolve (somente uso interno local/preview)
+  ↓
+GradebookD1RuntimeV1.auditWorkspace(...)
 ```
 
-Regras preservadas:
+Bridge único após #314:
 
-- consultas de lista são batch/keyset, sem N+1 por item;
-- detalhe reutiliza os repositórios existentes;
-- resolução reutiliza `AuditPersistenceRepositoryV1.appendVersion` com CAS;
-- ator/instante efetivos vêm de `resolutionIdentity()` server-side;
-- pedidos não transportam autorização efetiva;
-- elegibilidade de promoção é apenas informativa e somente pode refletir `ImportChangePlanV1` já produzido;
-- não existe método `promote` no Audit Workspace;
-- promoção real continua em `planImportReconciliation` + `executeImportChangePlan`;
-- **nenhuma rota HTTP ou UI de Auditoria existe nesta integração**.
+| Método | Rota |
+| --- | --- |
+| `POST` | `/api/gradebook/audit-workspace` |
 
-A exposição HeroUI/HTTP local-preview é tarefa #314.
+Regras:
 
-## Desempenho e Boletins deliberadamente fora da composição física
+- `requireAuth` + `gradebook.persistence.admin`;
+- `no-store`;
+- listas D1 batch/keyset, sem N+1 por item;
+- detalhe por ID conhecido;
+- resolução via `appendVersion`/CAS;
+- ator efetivo = `session.oid`;
+- instante efetivo = servidor;
+- promoção apenas informativa no workspace;
+- executor de promoção continua separado.
 
-### Desempenho
+## Desempenho — nova composição da #318
 
-A #304 implementa `createClassPerformanceReadModelV1(source)` e `ClassPerformanceSourceV1`. A #306 não cria:
+A #315 integrou a fonte física:
 
-- adapter D1;
-- método no runtime;
-- endpoint;
-- UI.
+```text
+GradebookD1ClassPerformanceSourceV1
+  ↓
+loadMatrix(...)
+```
 
-A fonte física em lote sem N+1 é #315.
+A fonte faz **seis queries em lote por materialização** e entrega ao read model uma projeção já resolvida, evitando D1 por aluno/célula.
 
-### Boletins
+A #318 compõe:
 
-A #305 implementa materialização/emissão provider-independent e snapshots por porta, incluindo somente repositório em memória/local de teste. A #306 não cria:
+```text
+GradebookD1ClassPerformanceSourceV1
+  ↓
+createClassPerformanceReadModelV1
+  ↓
+GradebookD1RuntimeV1.classPerformanceReadModel()
+```
 
-- método físico no runtime;
-- endpoint;
-- PDF/renderer;
-- tabela/migration;
-- persistência remota de snapshots;
-- exposição de lote de alta escala.
+`classPerformanceReadModel()` revalida a mesma autorização opaca.
 
-O hardening/materialização agregada e snapshots locais é #316.
+Invariantes físicas/semânticas:
+
+- zero N+1;
+- comparação solicitada sem resolvedor oficial → `not-comparable`;
+- adapter não escolhe basis/current/reference de comparação;
+- anual non-result sem projeção oficial → `insufficient-data`;
+- `recovery + result` usa `FinalRecoveryV1`;
+- outras lentes recovery continuam trimestrais;
+- `authorityMode: imported-source`.
+
+**Não existe rota HTTP/UI de Performance na #318.** #325 fará o end-to-end local/preview e #328 fará wiring central da próxima onda.
+
+## Boletins
+
+A #316 endureceu materialização/snapshots, mas a #318 não compõe handler/runtime de Boletins.
+
+Estado:
+
+- materialização agregada por turma;
+- snapshots provider-independent locais, imutáveis e versionados;
+- reimpressão sem leitura acadêmica atual;
+- sem endpoint;
+- sem PDF/renderer;
+- sem tabela/migration/persistência remota.
+
+#326 implementa a experiência local/preview. Se PDF exigir renderer/runtime/biblioteca nova, registra um único bloqueio explícito em vez de improvisar recurso.
 
 ## Runner de migrations
 
-O runner continua consumindo `GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS` como catálogo canônico de 0001–0003. A onda 14 não adiciona migration.
+`GradebookD1MigrationRunnerV1` continua usando o catálogo canônico 0001–0003. Nenhuma migration foi adicionada nas ondas 14/15.
 
-Antes de executar SQL, o runner verifica sequência, unicidade, correspondência de catálogo e prefixo exato já aplicado. Reexecução sobre catálogo atual retorna `up-to-date`.
+O runner verifica sequência, unicidade e prefixo aplicado. Reexecução sobre catálogo atual é idempotente.
 
-Nenhum comando Wrangler, API de controle ou conexão remota faz parte do runner/testes.
+Nenhum Wrangler/API de controle/conexão remota faz parte do runner de testes.
 
-## Rotas administrativas mínimas existentes
+## Rotas administrativas
 
-| Método | Rota                                          | Operação                                          |
-| ------ | --------------------------------------------- | ------------------------------------------------- |
-| `GET`  | `/api/gradebook/admin/persistence/status`     | resumo de versão corrente e migrations pendentes |
-| `POST` | `/api/gradebook/admin/persistence/migrations` | aplicação idempotente das migrations pendentes   |
+| Método | Rota | Operação |
+| --- | --- | --- |
+| `GET` | `/api/gradebook/admin/persistence/status` | resumo do schema local |
+| `POST` | `/api/gradebook/admin/persistence/migrations` | aplica migrations locais pendentes no ambiente autorizado |
 
-Essas rotas exigem sessão válida e `gradebook.persistence.admin`. A escrita exige `Origin` exatamente igual a `OFFICIAL_ORIGIN` e não aceita corpo. Todas usam `no-store` e payload sanitizado.
+Exigem sessão + `gradebook.persistence.admin`; escrita exige origin oficial; respostas `no-store` e sanitizadas.
 
-## Erros e logs
+## Erros/logs
 
-Erros do runtime/runner usam códigos e mensagens fixos. Exceções brutas do driver são descartadas. Logs não incluem nomes, notas, payload acadêmico, SQL, parâmetros, binding ou secrets.
+Não expor:
 
-Operational Workspace converte não autorização/indisponibilidade para estados contratuais sem revelar ano/entidade/total/continuação. Audit Workspace converte falhas para outcomes contratuais sem exceção bruta.
+- SQL;
+- parâmetros/binding;
+- secrets;
+- nomes/notas/payload acadêmico;
+- exceção bruta do driver.
 
-## Verificação
+Workspaces convertem erro/autorização em estados/outcomes não divulgadores.
 
-As suites usam somente SQLite em memória, doubles estruturais e dados sintéticos. Depois da #306 cobrem também:
+## Verificação combinada da onda 15
 
-- Operational Workspace completo e bridge único;
-- catálogo explícito de anos;
-- Audit Workspace real sobre a mesma UoW/D1;
-- resolução CAS com ator/instante server-side;
-- não autorização antes do binding;
+Testes cobrem:
+
+- Operational/Audit bridges únicos;
+- auth antes do binding;
 - produção antes do binding;
-- ausência de composição física de Desempenho/Boletins;
-- ausência de HTTP para Auditoria/Desempenho/Boletins;
-- `authorityMode: imported-source` conjunto.
+- composição real do Audit Workspace;
+- composição real do Class Performance provider;
+- 6 queries / sem N+1 na fonte F6;
+- comparison/anual/recovery fail-closed conforme contrato;
+- hardening de Boletins;
+- stale-response/year/pagination do F5;
+- nenhum Performance/Bulletin HTTP na #318;
+- `authorityMode: imported-source`.
+
+## Próxima onda
+
+- #325 — Performance transporte/HTTP/UI;
+- #326 — Boletins HTTP/UI/preview/emissão/reimpressão/lote;
+- #327 — Conselho V1;
+- #328 — wiring central/runtime/Functions/App e integração.
 
 ## Limites preservados
 
-- nenhum banco/binding remoto criado;
-- nenhuma migration remota ou nova migration local;
-- nenhum secret criado/versionado;
-- nenhuma capability/papel novo;
-- nenhum fluxo de escrita acadêmica novo;
-- `authorityMode` permanece `imported-source`;
-- produção continua sem persistência/consulta acadêmica ativa;
-- Audit Workspace permanece interno;
-- Desempenho/Boletins permanecem provider-independent até suas issues físicas específicas.
+- nenhum D1/binding remoto;
+- nenhuma migration nova/remota;
+- nenhum secret/capability/papel novo;
+- nenhuma ativação acadêmica em produção;
+- nenhuma mudança de `authorityMode`;
+- nenhuma regra acadêmica no adapter/HTTP/UI;
+- somente dados sintéticos em testes públicos.
