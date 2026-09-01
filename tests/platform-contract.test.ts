@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PLATFORM_ROUTES, normalizePlatformRoute } from '../shared/platform-contract';
+import {
+  PLATFORM_CAPABILITIES,
+  PLATFORM_ROUTES,
+  normalizePlatformRoute,
+} from '../shared/platform-contract';
+import { capabilityGrantsByRole } from '../server/auth/capabilities';
 import { coreModuleSchema, coreModules } from '../server/platform/manifest';
 import { withNotesModule } from '../src/platform/notes-module';
 
@@ -23,6 +28,14 @@ describe('Centro de Administração module contract', () => {
   it('requires explicit capabilities in every server module manifest', () => {
     expect(coreModules.every((module) => module.capabilities.length > 0)).toBe(true);
     for (const module of coreModules) expect(coreModuleSchema.parse(module)).toEqual(module);
+  });
+
+  it('reserves gradebook persistence administration for administrators', () => {
+    expect(PLATFORM_CAPABILITIES).toContain('gradebook.persistence.admin');
+    expect(capabilityGrantsByRole.ADMINISTRADOR).toContain('gradebook.persistence.admin');
+    for (const role of ['PROFESSOR', 'ALUNO', 'APOIO', 'VISITANTE'] as const) {
+      expect(capabilityGrantsByRole[role]).not.toContain('gradebook.persistence.admin');
+    }
   });
 
   it('keeps future content domains planned and the released administrative core ready', () => {

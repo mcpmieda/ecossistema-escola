@@ -18,6 +18,7 @@ export const PLATFORM_CAPABILITIES = [
   'platform.modules.read',
   'platform.audit.read',
   'platform.settings.read',
+  'gradebook.persistence.admin',
 ] as const;
 
 export const MODULE_REGISTRY_STATUSES = ['installed', 'disabled', 'deprecated', 'unknown'] as const;
