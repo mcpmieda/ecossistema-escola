@@ -8,16 +8,14 @@ Este documento congela o vocabulário inicial. Nenhum módulo pode criar uma seg
 - **Entidades acadêmicas:** `congelado-v1`, integradas por #194/PR #208.
 - **Lançamentos e resultados:** `congelado-v1`, integrados por #196/PR #212.
 - **Lote, manifesto, reconciliação e Auditoria:** `congelado-v1`, integrados por #197/PR #216.
-- **Manifesto no fluxo real:** implementado por #199/PR #225.
-- **Motor:** célula, arredondamento, composição, paralela, resultado trimestral e recuperação final implementados.
-- **Portas de persistência:** `congelado-v1`, incluindo associação fonte lógica ↔ stream pela #243/PR #249.
+- **Motor nativo:** célula, arredondamento, composição, paralela, resultado trimestral, REC final e resultado anual implementados.
+- **Equivalência anual:** implementada por #263/PR #266.
+- **Contexto acadêmico 2026:** implementado por #262/PR #267.
+- **Portas de persistência:** `congelado-v1`, incluindo associação fonte lógica ↔ stream.
 - **Schema D1:** migrations locais 0001–0003 integradas; nenhum recurso remoto criado.
-- **Leitura D1 local:** implementada pela #235/PR #241.
-- **Planejamento/executor de reimportação:** implementados, incluindo associação explícita pela #243.
-- **Escrita/transação D1 local:** implementada por #245/PR #258, sem recurso remoto.
-- **Regressões de isolamento:** restauradas por #254/PR #259 contra a porta oficial de associação.
-- **Resultado anual/elegibilidade:** implementado por #255/PR #260.
-- **Runtime D1, contexto 2026 e equivalência anual:** prontos para #261, #262 e #263.
+- **Leitura/escrita/transação D1 local:** implementadas para contexto anual, fonte, registros e associações.
+- **Runtime D1 local/preview:** implementado por #261/PR #268, com produção fechada.
+- **Repositórios completos de entidades, lotes e Auditoria:** fila da décima onda #269–#271.
 - **Read models:** propostos; serão detalhados nas issues consumidoras.
 
 ## Estados de maturidade
@@ -47,11 +45,31 @@ Entidades V1:
 
 Ano letivo participa de todas as relações acadêmicas persistentes. Transferências mantêm origem histórica e posição vigente separadas.
 
+## Contexto acadêmico 2026
+
+A #262/PR #267 integrou uma única composição oficial:
+
+```ts
+createAcademicContext2026V1(academicYear)
+createActiveAcademicContextServiceV1(dependencies)
+```
+
+Regras:
+
+- ano, perfil e versão de configuração são explícitos;
+- nenhum módulo escolhe ano pelo relógio;
+- os perfis de composição, paralela, resultado trimestral, REC final e resultado anual são referenciados diretamente, sem copiar pesos, máximos, cortes ou limites;
+- contexto ausente, duplicado, inativo ou incompatível falha explicitamente;
+- `authorityMode` permanece `imported-source`;
+- o `academic-year` é lido e versionado localmente por `AcademicEntityRepositoryV1`, com compare-and-set e histórico append-only.
+
+A décima onda não pode criar uma segunda implementação concorrente do `academic-year`.
+
 ## Evidência de origem
 
 ### `SourceCellEvidenceV1`
 
-Preserva arquivo/hash, guia, célula, valor bruto, cache, fórmula, classificação semântica e proveniência. Estados como vazio, fórmula zero, zero oficial `0,1`, zero legado, erro, texto inválido e não aplicável permanecem distintos.
+Preserva arquivo/hash, guia, célula, valor bruto, cache, fórmula, classificação semântica e proveniência. Vazio, fórmula zero, zero oficial `0,1`, zero legado, erro, texto inválido e não aplicável permanecem distintos.
 
 ### `SourceFileManifestV1`
 
@@ -149,64 +167,38 @@ Preserva gravidade, categoria, alvo, origem, ação recomendada e histórico de 
 
 ## Motor nativo — implementado
 
-### Semântica de célula
+### Semântica e arredondamento
 
-`interpretSourceCell` converte evidência em valor acadêmico sem apagar proveniência e sem acessar UI, banco, rede ou relógio.
+`interpretSourceCell` converte evidência em valor acadêmico sem apagar proveniência. `roundAcademicGrade` aplica faixas 0,00–0,24, 0,25–0,74 e 0,75–0,99, com comportamento negativo simétrico e proteção contra ruído decimal.
 
-### Arredondamento
+### Composição trimestral e paralela
 
-`roundAcademicGrade` aplica:
+`composeNativeTermResult` implementa máximos 30/30/40 e peso 45% quantitativo / 55% qualitativo. `resolveNativeParallelRecovery` usa cortes 8,1/8,1/10,8 e preserva original, paralela e valor considerado.
 
-- 0,00–0,24: inteiro inferior;
-- 0,25–0,74: meio ponto;
-- 0,75–0,99: inteiro superior;
-- comportamento negativo simétrico;
-- proteção contra ruído comum de ponto flutuante.
+### Resultado trimestral e recuperação final
 
-### Composição trimestral
-
-`composeNativeTermResult` implementa máximos 30/30/40, peso 45% quantitativo e 55% qualitativo operacional, preservando nota bruta e arredondada separadas.
-
-### Recuperação paralela
-
-`resolveNativeParallelRecovery` deriva máximos quantitativos 13,5/13,5/18 e cortes 8,1/8,1/10,8. A paralela é aplicável somente abaixo de 60% do máximo quantitativo; quando válida, prevalece o maior valor, preservando ambos.
-
-### Resultado trimestral consolidado
-
-`composeNativeTermOutcome`, integrado pela #242/PR #252, reutiliza paralela e composição para produzir:
-
-- quantitativo original, paralela e considerado;
-- qualitativo operacional;
-- nota bruta;
-- nota nativa arredondada;
-- percentual pelo máximo do trimestre;
-- cobertura consolidada;
-- achados por etapa, sem duplicar regras.
-
-### Recuperação final
-
-`resolveNativeFinalRecovery`, integrado pela #244/PR #253, reutiliza o perfil 30/30/40 e aplica:
-
-- corte anual 60;
-- limites trimestrais 18/18/24;
-- REC apenas quando o total original é inferior a 60 e o trimestre está abaixo do próprio limite;
-- substituição obrigatória pela REC aplicável, mesmo quando menor;
-- preservação de original, REC, substituta, total original e total pós-REC;
-- ausência de REC obrigatória não vira zero.
+`composeNativeTermOutcome` produz nota bruta, nota nativa, percentual, cobertura e achados. `resolveNativeFinalRecovery` usa corte anual 60, limites 18/18/24 e substitui obrigatoriamente a nota aplicável pela REC, inclusive quando menor, preservando o original.
 
 ### Resultado anual
 
-`resolveNativeAnnualOutcome`, integrado por #255/PR #260, produz resultados por componente, cobertura e contagens anuais:
+`resolveNativeAnnualOutcome` distingue aprovação direta, aprovação após REC, componente não aprovado, elegibilidade com 1–2 componentes e não elegibilidade com 3+, sem fabricar estado quando a cobertura é insuficiente. Decisão formal registrada permanece separada e somente seu `resultingState` explícito prevalece.
 
-- total original `>= 60`: `approved-direct`;
-- original `< 60` e pós-REC `>= 60`: `approved-after-recovery`;
-- pós-REC `< 60`: componente não aprovado;
-- 0 componentes não aprovados: aprovação direta ou pós-REC;
-- 1 ou 2: `eligible-for-council`;
-- 3 ou mais: `not-eligible-for-council`;
-- cobertura incompleta: `insufficient-data`, sem reprovação inventada.
+### Equivalência anual fonte × motor
 
-Decisão `pending` não altera o cálculo. Decisão `recorded` preserva cálculo e decisão separadamente e usa somente o `resultingState` explícito como estado efetivo. O Conselho não é automatizado.
+A #263/PR #266 integrou:
+
+```ts
+compareImportedAndNativeAnnualOutcome(input, profile)
+```
+
+Classificações:
+
+- `match`: valores comparáveis idênticos;
+- `expected-difference`: somente diferença explícita de estado de origem entre zeros semanticamente equivalentes;
+- `mismatch`: valores comparáveis diferentes, sem tolerância ou correção;
+- `not-comparable`: ausência, não aplicabilidade, cobertura parcial, dado insuficiente ou componente nativo sem base segura.
+
+A função preserva valor/evidência importados, resultado nativo, coberturas e versões. Não cria arredondamento, tolerância, decisão de Conselho ou mudança de autoridade.
 
 ## Portas de persistência — congelado-v1
 
@@ -233,23 +225,15 @@ Conceitos transversais:
 
 ### Associação fonte lógica ↔ stream
 
-A #243/PR #249 definiu uma única representação pública:
-
-- `LogicalSourceRecordAssociationStreamV1`;
-- `LogicalSourceRecordAssociationV1`;
-- `LogicalSourceRecordRepositoryV1`.
-
-A associação contém ano, fonte lógica confirmada, stream acadêmico/chave estável, estado `active` ou `inactive`, manifesto/versão de origem e versão otimista.
-
-Regras:
+A associação contém ano, fonte lógica confirmada, stream/chave estável, estado `active` ou `inactive`, manifesto/versão de origem e versão otimista.
 
 - item `new` planeja ativação inicial;
-- item `changed` mantém/versiona a associação quando necessário;
-- item `unchanged`, mesmo hash ou renomeação não cria associação nova;
+- item `changed` mantém/versiona quando necessário;
+- item igual, mesmo hash ou renomeado não cria associação nova;
 - item ausente não é desativado automaticamente;
 - fonte ambígua ou arquivo bloqueado não planeja associação;
 - fonte, registro e associação são aplicados na mesma transação;
-- conflito de associação reverte toda a promoção.
+- conflito reverte toda a promoção.
 
 ## Schema e adaptadores D1
 
@@ -261,9 +245,38 @@ Migrations locais:
 
 O schema possui 21 tabelas, FKs por ano, histórico append-only, índices e ausência de cascades destrutivos.
 
-O adaptador de leitura local implementa manifesto por hash/ID, registro atual e associações atuais por fonte lógica. Não descobre vínculos por nome de arquivo nem por varredura de JSON.
+Implementado localmente:
 
-A #245/PR #258 implementou escrita e transação físicas locais para fonte, registro e associação, com compare-and-set, savepoint por append e rollback integral. Binding, banco remoto, runner de migrations e backend autorizado continuam inexistentes; a #261 tratará apenas runtime local/preview e autorização explícita, sem produção silenciosa.
+- leitura por hash/manifesto;
+- leitura/escrita do `academic-year`;
+- leitura/escrita de registros acadêmicos;
+- leitura/escrita das associações;
+- promoção `fonte → registro → associação` em uma transação;
+- compare-and-set, savepoints e rollback integral.
+
+A décima onda completa, em módulos independentes:
+
+- #269: demais entidades acadêmicas;
+- #270: lotes e versões de fonte por fonte lógica;
+- #271: ocorrências e reconciliações.
+
+A #272 comporá todas as operações em uma única unidade de trabalho, sem duplicar implementações.
+
+## Runtime D1 local/preview
+
+A #261/PR #268 integrou:
+
+- runtime explicitamente injetado;
+- ambientes `local`, `preview` e `production` distintos;
+- produção bloqueada antes de tocar no binding;
+- validação estrutural do binding;
+- runner que consome a lista canônica das migrations 0001–0003;
+- conferência idempotente do catálogo aplicado;
+- capability `gradebook.persistence.admin`, concedida somente a `ADMINISTRADOR`;
+- rotas administrativas autenticadas, autorizadas, same-origin e `Cache-Control: no-store`;
+- erros e logs sem binding, SQL, parâmetros, payload acadêmico ou secret.
+
+Nenhum banco, binding, secret ou migration remota foi criado. Persistência acadêmica do site oficial permanece desativada.
 
 ## Planejamento e execução da reimportação
 
@@ -277,21 +290,7 @@ missing-from-new-source
 blocked
 ```
 
-O plano discrimina estimativas de:
-
-- versões de fonte;
-- versões acadêmicas;
-- versões de associação.
-
-`executeImportChangePlan` valida o plano antes da transação e aplica, nesta ordem:
-
-1. versão de fonte;
-2. registro acadêmico novo/alterado;
-3. associação fonte lógica ↔ stream.
-
-Itens iguais, ausentes, bloqueados ou em revisão não são escritos automaticamente. Conflito/falha exige rollback integral.
-
-A #254/PR #259 restaurou explicitamente regressões herdadas de isolamento de arquivos, falhas de leitura, determinismo e promoção parcial, discriminando versões de fonte, registro e associação. Nenhum defeito funcional foi revelado.
+O plano discrimina versões de fonte, registros acadêmicos e associações. `executeImportChangePlan` valida antes da transação e aplica somente arquivos prontos e itens novos/alterados. Itens iguais, ausentes, bloqueados ou em revisão não são escritos automaticamente.
 
 ## Read models
 
@@ -314,4 +313,5 @@ Read models são contratos de consulta, não bancos paralelos:
 5. Consumidores usam contratos públicos, não tabelas internas.
 6. Interface, Desempenho, Conselho e Boletins não recriam regras.
 7. Schema/adaptador D1 não altera semântica para acomodar SQL.
-8. Toda escrita necessária à integridade deve aparecer explicitamente no plano e na unidade de trabalho.
+8. Toda escrita necessária à integridade aparece explicitamente no plano e na unidade de trabalho.
+9. O mesmo contrato não recebe implementações concorrentes na composição D1.
