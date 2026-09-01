@@ -175,16 +175,22 @@ As suites aplicam/reaplicam 0001–0003 em SQLite em memória e verificam:
 
 Somente dados sintéticos são usados.
 
-## Próxima entrega — #245
+## Escrita e promoção transacional local — #245
 
-A #245 está pronta para implementar:
+A #245 implementa localmente:
 
-- `appendSourceFileVersion` local;
-- `AcademicRecordRepositoryV1.appendVersion` local;
-- `LogicalSourceRecordRepositoryV1.appendVersion` local;
-- `BatchPromotionTransactionPortV1` concreto local;
-- compare-and-set, commit e rollback sobre 0001–0003;
+- `appendSourceFileVersion`;
+- `AcademicRecordRepositoryV1.appendVersion`;
+- `LogicalSourceRecordRepositoryV1.appendVersion`;
+- `BatchPromotionTransactionPortV1` concreto;
+- compare-and-set, savepoint por append, commit e rollback sobre 0001–0003;
 - integração do executor da #236/#243 com o adaptador físico local.
+
+O ambiente descartável habilita `PRAGMA foreign_keys = ON` e aplica o catálogo integral `GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS` na ordem 0001–0003. A promoção usa `BEGIN IMMEDIATE`, valida a versão corrente do lote e os arquivos aprovados, executa fonte → registro → associação e confirma um único `COMMIT`. Conflito ou falha em qualquer etapa executa `ROLLBACK` integral.
+
+Cada append usa `SAVEPOINT`: a raiz é criada ou avançada por compare-and-set antes da linha histórica, e qualquer falha subsequente restaura o ponteiro. `expectedVersion: null` usa inserção condicional da raiz; stream existente retorna conflito. Versões existentes atualizam somente quando `current_version = expectedVersion` e acrescentam uma única linha com `previous_version` correspondente.
+
+A API, as mensagens de erro sanitizadas, a ordem SQL e a matriz local estão detalhadas em [`D1_WRITE_ADAPTER.md`](D1_WRITE_ADAPTER.md).
 
 Ainda permanecem fora do escopo:
 
