@@ -11,109 +11,90 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 
 ## Estado atual
 
-Seis ondas foram integradas. As entregas mais recentes são:
+Sete ondas foram integradas. A mais recente entregou:
 
-- #234/PR #240: recuperação paralela nativa V1;
-- #235/PR #241: migration 0003, catálogo fonte lógica ↔ stream e adaptador D1 local de leitura;
-- #236/PR #239: executor transacional abstrato do plano de reimportação.
+- #242/PR #252 — resultado trimestral nativo consolidado;
+- #243/PR #249 — associação transacional explícita entre fonte lógica e stream acadêmico;
+- #244/PR #253 — recuperação final nativa.
 
-O código vigente da sexta onda está no commit `e8be42bd65b0a59d837ee6ca8283d9564967a6db`; o deploy Cloudflare Pages `33441758173` foi concluído com sucesso.
+O código vigente da onda está no commit `40dd21c08336919206bafcb556d6764f5570e6f9`; o deploy Cloudflare Pages `33456232765` foi concluído com sucesso.
 
-A sétima onda está pronta para três agentes independentes:
+A oitava onda está pronta para três agentes independentes:
 
-- [#242 — consolidar resultado trimestral nativo V1](https://github.com/mcpmieda/ecossistema-escola/issues/242);
-- [#243 — formalizar associação transacional fonte lógica ↔ stream V1](https://github.com/mcpmieda/ecossistema-escola/issues/243);
-- [#244 — implementar recuperação final nativa V1](https://github.com/mcpmieda/ecossistema-escola/issues/244).
+- [#245 — adaptador D1 local de escrita e promoção transacional](https://github.com/mcpmieda/ecossistema-escola/issues/245);
+- [#254 — restauração das regressões de isolamento da reconciliação](https://github.com/mcpmieda/ecossistema-escola/issues/254);
+- [#255 — resultado anual, elegibilidade básica e precedências explícitas](https://github.com/mcpmieda/ecossistema-escola/issues/255).
 
-A integração da sétima onda fica reservada à [#246](https://github.com/mcpmieda/ecossistema-escola/issues/246). A [#245](https://github.com/mcpmieda/ecossistema-escola/issues/245), de escrita/transação D1 local, permanece bloqueada até a integração da #243.
+A integração fica reservada à [#256](https://github.com/mcpmieda/ecossistema-escola/issues/256).
 
-## Decisão de armazenamento
+## Correção realizada na conferência
 
-A issue #200 aprovou **Cloudflare D1** como armazenamento físico principal da base acadêmica. O domínio continua independente do fornecedor por meio das portas de persistência.
+O PR #248 reunia as issues #242 e #244. O conteúdo funcional estava validado, mas o formato contrariava a regra de uma issue e um PR por entrega. Ele foi fechado sem merge e substituído por #252 e #253, mantendo os mesmos arquivos funcionais separados e novamente validados.
 
-Estado real:
-
-- migrations locais 0001–0003 integradas;
-- 21 tabelas para contexto, entidades, fontes, lotes, registros, catálogo por fonte, reconciliação e Auditoria;
-- histórico append-only, chaves estrangeiras por ano, índices e controle otimista;
-- adaptador local de leitura integrado;
-- executor de promoção validado contra porta transacional em memória;
-- nenhum banco D1, binding, secret ou migration remota de produção criado;
-- nenhum adaptador D1 de escrita operacional ainda.
+A revisão da #243 também identificou que alguns cenários herdados de isolamento deixaram de estar explicitamente cobertos após a reorganização dos testes. Nenhuma falha funcional foi observada; a restauração da cobertura está rastreada na #254 antes do fechamento da F4.
 
 ## Objetivo
 
-Construir um Banco de Notas funcional, modular, auditável e acessível a usuários leigos, integrado ao Centro de Administração e alimentado inicialmente pelas planilhas atuais dos professores. O sistema preserva a origem dos dados, implementa o motor nativo junto com o núcleo e publica progressivamente cada entrega independente no site oficial.
+Construir um Banco de Notas funcional, modular, auditável e acessível a usuários leigos, integrado ao Centro de Administração e alimentado inicialmente pelas planilhas atuais dos professores. O sistema preserva a origem, implementa o motor nativo junto com o núcleo e publica progressivamente cada entrega independente.
 
 ## Em produção
 
 - área `Banco de notas` no mesmo shell do Centro;
 - interface HeroUI React v3;
-- pesquisa global integrada ao módulo;
+- pesquisa global integrada;
 - importação local de até 50 arquivos por lote;
 - leitura sequencial de XLSB, XLSX e XLS;
 - reconhecimento de turmas, alunos, disciplinas, trimestres, quantitativo, qualitativo e recuperação;
-- SHA-256 calculado no navegador antes do reconhecimento;
-- manifesto por arquivo com nome, tipo, tamanho, modificação, versões e instante de leitura;
-- progresso separado entre preparação/hash e reconhecimento;
-- hash abreviado com acesso ao valor completo;
-- falha e diagnóstico isolados por arquivo;
-- processamento somente em memória, sem upload nem persistência acadêmica.
-
-O operador confirmou o happy path da interface com dois arquivos XLSB. O smoke completo ainda precisa observar a etapa transitória de hash, expandir o valor completo e provocar uma falha isolada controlada.
+- SHA-256 calculado no navegador;
+- manifesto, progresso e diagnóstico por arquivo;
+- processamento somente em memória, sem persistência acadêmica.
 
 ## Núcleo já integrado
 
-### Fonte e importação
-
-- contratos de fonte, manifestos, lotes, diagnósticos, reconciliação e Auditoria;
-- reconhecedor modular e suíte sintética;
-- SHA-256 e proveniência visível;
-- planejador de reimportação que separa igual, novo, alterado, ausente e bloqueado.
-
 ### Motor nativo
 
-- interpretação semântica de células;
-- arredondamento acadêmico V1;
+- semântica das células;
+- arredondamento acadêmico;
 - composição trimestral 30/30/40 e 45%/55%;
-- recuperação paralela vinculada ao quantitativo abaixo de 60% do próprio máximo;
-- original, paralela, valor considerado, ganho, cobertura e achados preservados.
+- recuperação paralela pelo quantitativo abaixo de 60% do próprio máximo;
+- resultado trimestral com nota bruta, nota nativa, percentual, cobertura e achados;
+- recuperação final com corte anual 60, limites 18/18/24 e substituição obrigatória mesmo quando menor.
 
-### Persistência
+A autoridade continua `imported-source`. O motor permanece separável e comparável; não assume a nota oficial silenciosamente.
 
-- contratos de entidades e resultados;
+### Persistência e reconciliação
+
+- Cloudflare D1 aprovado como armazenamento físico;
 - portas independentes do fornecedor;
-- schema D1 local 0001–0003;
-- catálogo relacional de streams por fonte lógica;
-- adaptador D1 local de leitura;
-- executor abstrato que valida o plano, aplica somente versões autorizadas e exige rollback em conflito.
+- migrations locais 0001–0003 e 21 tabelas;
+- adaptador local de leitura;
+- planejamento idempotente de reimportação;
+- executor transacional abstrato;
+- associação fonte lógica ↔ stream representada nas portas, plano, estimativa e executor.
 
-Ainda não existem persistência acadêmica operacional, adaptador D1 de escrita, binding, endpoints autorizados, recuperação final, resultado anual ou área HeroUI de Auditoria.
+Ainda não existem banco/binding D1 operacional, migration remota, adaptador físico de escrita, endpoint autorizado ou persistência no site.
 
-## Adaptação de contrato em andamento
+## Próximas entregas
 
-A migration 0003 e a leitura local já representam a associação fonte lógica ↔ stream acadêmico. Porém, a porta de unidade de trabalho, o plano de reconciliação e o executor ainda não possuem uma operação explícita para **versionar essa associação durante a promoção**.
+```text
+#245 → escrita/transação D1 local
+#254 → regressões de isolamento restauradas
+#255 → resultado anual e elegibilidade básica
+       ↓
+integração #256
+```
 
-A #243 corrige isso antes da escrita física. A associação não pode ser um efeito colateral escondido do adaptador, nem ser inferida por nome de arquivo ou varredura de JSON.
+Depois da #245 serão criadas issues separadas para binding/preview, runner de migrations e contexto anual. Depois da #255 será liberada a equivalência fonte × motor.
 
 ## Validação da fonte
 
-A suíte pública sintética cobre D1, D2, D3, VG, trimestres, REC, estados especiais de célula, posições históricas, transferências, lotes de 1/20/50 arquivos, hash e falha isolada. O procedimento `REAL_DATA_VALIDATION.md` define como conferir o corpus real fora do Git.
+A suíte sintética cobre D1/D2/D3, VG, trimestres, REC, estados especiais de célula, posições históricas, transferências, lotes de 1/20/50 arquivos, hash e falha isolada. O procedimento `REAL_DATA_VALIDATION.md` define a conferência privada do corpus real.
 
-A execução controlada desse procedimento ainda precisa ser registrada antes do fechamento definitivo da F1. Isso não bloqueia a sétima onda.
+Essa execução ainda precisa ser registrada antes do fechamento definitivo da F1.
 
 ## Saúde e limites
 
-A #220 registra a futura área global `Centro de Administração → Configurações → Saúde e limites`. Ela permanece planejada até existirem bindings D1, uso real e backend autorizado de métricas. O painel não pertence exclusivamente ao Banco de Notas.
-
-## Fontes de referência revisadas
-
-- `Relatorio_Completo_Banco_de_Notas_v1.6_consolidado.docx`;
-- `PAINEL DESEMPENHO.docx`;
-- `BANCO DE NOTAS 2026.xlsb`;
-- planilhas reais de professores de 2026 usadas em validação controlada.
-
-Esses arquivos não devem ser adicionados ao repositório público quando contiverem dados reais. As decisões e os contratos derivados ficam registrados neste diretório.
+A #220 registra a futura área global `Centro de Administração → Configurações → Saúde e limites`. Ela permanece planejada até existirem bindings D1, uso real e backend autorizado de métricas.
 
 ## Leitura obrigatória do agente
 
@@ -127,10 +108,6 @@ Esses arquivos não devem ser adicionados ao repositório público quando contiv
 
 A issue deve ser executada diretamente. App Factory, Factory Runs, orquestradores e agentes auxiliares só podem ser usados quando a própria issue autorizar expressamente.
 
-## Regra de publicação
+## Segurança
 
-Uma entrega independente e utilizável não espera o restante do sistema. Depois de testes, revisão e merge na `main`, o workflow oficial publica no Cloudflare Pages. Funcionalidade incompleta só pode ser integrada quando não quebra a aplicação e permanece inacessível até cumprir os critérios de aceite.
-
-## Regra de segurança
-
-O repositório é público. Nunca usar dados reais de estudantes em fixtures, screenshots, logs, issues, pull requests ou commits. Arquivos reais servem apenas para validação controlada fora do repositório; resultados publicados devem ser agregados ou anonimizados.
+O repositório é público. Nunca usar dados reais de estudantes em fixtures, screenshots, logs, issues, PRs ou commits. Arquivos reais servem apenas para validação controlada fora do Git.
