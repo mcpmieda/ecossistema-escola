@@ -98,6 +98,7 @@ describe('platform search model', () => {
       'notes:audit',
       'notes:performance',
       'notes:bulletins',
+      'notes:reports',
       'notes:council',
       'config:config-1',
     ]);
@@ -113,6 +114,7 @@ describe('platform search model', () => {
     expect(filterSearchItems(items, 'importar planilha')[0]?.href).toBe('#/banco-de-notas');
     expect(filterSearchItems(items, 'conselho classe')[0]?.id).toBe('notes:council');
     expect(filterSearchItems(items, 'desempenho resultado')[0]?.id).toBe('notes:performance');
+    expect(filterSearchItems(items, 'relatórios recuperação')[0]?.id).toBe('notes:reports');
   });
 
   it('enforces the result limit', () => {
