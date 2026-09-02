@@ -35,6 +35,43 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Configure private production binding
+        shell: bash
+        env:
+          GRADEBOOK_D1_BINDING_CONFIG: ${{ secrets.GRADEBOOK_D1_BINDING_CONFIG }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+
+          const configPath = 'wrangler.jsonc';
+          const config = JSON.parse(await readFile(configPath, 'utf8'));
+          const rawBinding = process.env.GRADEBOOK_D1_BINDING_CONFIG;
+
+          if (!rawBinding) {
+            throw new Error('GRADEBOOK_D1_BINDING_CONFIG is not configured.');
+          }
+
+          const binding = JSON.parse(rawBinding);
+          if (
+            binding?.binding !== 'GRADEBOOK_D1' ||
+            typeof binding.database_name !== 'string' ||
+            binding.database_name.length === 0 ||
+            typeof binding.database_id !== 'string' ||
+            binding.database_id.length === 0
+          ) {
+            throw new Error('GRADEBOOK_D1_BINDING_CONFIG is invalid.');
+          }
+
+          config.env ??= {};
+          config.env.production = {
+            ...(config.env.production ?? {}),
+            vars: config.vars ?? {},
+            d1_databases: [binding],
+          };
+
+          await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+          NODE
+
       - name: Deploy Cloudflare Pages
         run: >-
           npx wrangler pages deploy dist
