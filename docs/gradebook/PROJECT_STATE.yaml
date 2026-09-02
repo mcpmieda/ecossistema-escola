@@ -11,20 +11,19 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 343
-  current_integrator_issue: 356
-  current_wave: 19
-  next_wave: 20
-  next_parallel_fronts:
-    - 360
-  next_integrator_issue: 361
-  integrator_required: true
-  recommended_parallel_agents: 1
+  previous_integrator_issue: 356
+  current_integrator_issue: 361
+  current_wave: 20
+  next_wave: null
+  next_parallel_fronts: []
+  next_integrator_issue: null
+  integrator_required: false
+  recommended_parallel_agents: 0
   central_state_editor: integrator-only
   branch_model: short-lived-per-issue
   merge_target: main
   publication: automatic-after-main
-  executable_issue_status: PRONTA
+  executable_issue_status: manual-authorization-required
   issue_status_is_authoritative: true
   prohibited_orchestration:
     - app-factory
@@ -41,6 +40,7 @@ runtime:
   production_d1_binding_present: false
   production_remote_resources_created: false
   production_gate: before-binding
+  readiness_status: prepared-for-manual-authorization
   authorization:
     capability: gradebook.persistence.admin
     granted_role:
@@ -317,9 +317,17 @@ features:
     tie_break_director_identity: fail-closed-not-formalized
     session_cross_restart_durability: false
   f9:
-    status: hardening-integrated-readiness-next
+    status: readiness-prepared-for-manual-authorization
     readiness_issue: 360
     readiness_integrator_issue: 361
+    readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts
+    readiness_runbook: docs/gradebook/PRODUCTION_READINESS.md
+    preparation_evidence_count: 6
+    production_hard_stop_count: 5
+    synthetic_scenarios: 5
+    future_smoke_steps: 5
+    future_smoke_plan_inert: true
+    readiness_source_merge: 000a6988565419d9c1f2c638e929af4e0dff1491
     no_store_audited: true
     browser_storage_audited: true
     lazy_surfaces: true
@@ -413,12 +421,26 @@ wave_19:
     native_engine_activation: false
 
 wave_20:
-  status: released-after-wave-19
+  status: completed-integrated
+  strategy: one-large-readiness-front-plus-integrator
+  integration_issue: 361
   parallel_fronts:
     - issue: 360
       executor: extra-high
-      result_target: f9-readiness-rollback-private-pilot-protocol
-  integration_issue: 361
+      pull_request: 363
+      final_head: 3a49d50e0abbf1bb4b352fe9e4da57cd528adcd0
+      merge_commit: 000a6988565419d9c1f2c638e929af4e0dff1491
+      result: f9-readiness-rollback-private-pilot-protocol
+  integration_features:
+    readiness_manifest_inert: true
+    readiness_prepared_for_manual_authorization: true
+    synthetic_rehearsals_only: true
+    production_smoke_executed: false
+    production_resources_created: false
+    remote_migration_applied: false
+    real_pilot_executed: false
+    production_activation: false
+    native_engine_activation: false
 
 phases:
   F0:
@@ -450,7 +472,7 @@ phases:
     status: bulletins-reports-batch-artifacts-plus-durable-snapshots-local-preview
   F9:
     issue: 192
-    status: hardening-integrated-readiness-next-360-production-pilot-and-authority-switch-pending
+    status: readiness-prepared-production-pilot-and-authority-switch-require-separate-authorization
 
 security_invariants:
   public_repository_no_real_student_data: required
@@ -472,9 +494,10 @@ historical_real_validation:
   remaining_old_real_gates: 0
 
 manual_gates:
-  - production-academic-runtime-requires-explicit-authorization
-  - production-d1-provisioning-and-remote-migrations-require-own-authorization
-  - future-production-smokes-only-with-explicit-authorization-and-no-real-data-in-public-artifacts
-  - native-engine-authority-switch-requires-explicit-institutional-confirmation
+  - production-resource-and-binding-authorization
+  - remote-migration-authorization
+  - production-academic-smoke-authorization
+  - private-real-pilot-authorization
+  - native-authority-separate-authorization
   - council-tie-break-requires-formal-director-identity-capability
   - f6-comparison-requires-canonical-semantics
