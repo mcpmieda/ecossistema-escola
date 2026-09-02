@@ -65,7 +65,7 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
       .map(source)
       .join('\n');
 
-    expect(functions.match(/\/api\/gradebook\/operational-workspace/g)).toHaveLength(0);
+    expect(functions.match(/\/api\/gradebook\/operational-workspace/g) ?? []).toHaveLength(0);
     expect(shell).toContain("id: 'operational'");
     expect(f5Frontend).not.toMatch(/localStorage|sessionStorage|indexedDB|caches\.open|serviceWorker/u);
     expect(source('docs/gradebook/PROJECT_STATE.yaml')).toContain('0004_bulletin_council_durability_v1.sql');
