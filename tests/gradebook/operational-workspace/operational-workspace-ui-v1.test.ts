@@ -12,14 +12,14 @@ describe('operational workspace HeroUI experience v1', () => {
     const app = source('src/App.tsx');
     const workspacePage = source('src/platform/gradebook-workspace-page.tsx');
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
+    const operationalSurface = source('src/platform/gradebook-operational-surface.tsx');
 
     expect(app).toContain('<PageContent route={route} snapshot={loadState.snapshot} />');
     expect(app).not.toContain('OperationalWorkspacePage');
     expect(workspacePage).toContain('<GradebookWorkspaceShell />');
     expect(shell).toContain('<NotesImportPanel />');
-    expect(shell).toContain(
-      "import('../features/gradebook/operational-workspace/operational-workspace-page')",
-    );
+    expect(shell).toContain("import('./gradebook-operational-surface')");
+    expect(operationalSurface).toContain('<OperationalWorkspacePage />');
   });
 
   it('uses HeroUI actions, explicit year selection, keyboard submit and visible focus transfer', () => {
