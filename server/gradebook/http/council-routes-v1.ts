@@ -1,4 +1,15 @@
 import {
+  COUNCIL_INSTITUTIONAL_CONTRACT_VERSION_V2,
+  COUNCIL_INSTITUTIONAL_OPERATIONS_V2,
+  inspectCouncilInstitutionalRequestV2,
+  type CouncilClosureCloseRequestV2,
+  type CouncilClosureHistoryRequestV2,
+  type CouncilClosureReviewRequestV2,
+  type CouncilInstitutionalOperationV2,
+  type CouncilTieBreakRequestV2,
+  type CouncilVoteRequestV2,
+} from '../../../shared/gradebook-contracts/council/council-institutional-contract-v2';
+import {
   COUNCIL_WORKSPACE_CONTRACT_VERSION_V1,
   inspectCouncilDecisionRequestV1,
   inspectCouncilQueueRequestV1,
@@ -18,6 +29,10 @@ import {
   readBoundedJson,
 } from '../../http/security';
 import type {
+  CouncilInstitutionalServerContextV2,
+  CouncilInstitutionalWorkspaceV2,
+} from '../application/council/council-institutional-workspace-v2';
+import type {
   CouncilWorkspaceServerContextV1,
   CouncilWorkspaceV1,
 } from '../application/council/council-workspace-v1';
@@ -25,14 +40,23 @@ import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runt
 
 export const GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1 = '/api/gradebook/council-workspace';
 
-type CouncilHttpOperationV1 = 'queue' | 'student' | 'decision';
+type CouncilHttpOperationV1 =
+  | 'queue'
+  | 'student'
+  | 'decision'
+  | CouncilInstitutionalOperationV2;
 
 export interface CouncilWorkspaceHttpDependenciesV1 {
-  /** #328 may compose the runtime here. Returning null keeps the endpoint fail-closed. */
+  /** #328 composes the V1 runtime. Returning null keeps the endpoint fail-closed. */
   createWorkspace(
     env: RuntimeEnv,
     server: CouncilWorkspaceServerContextV1,
   ): CouncilWorkspaceV1 | null;
+  /** #343 owns central composition. When present, V1 decisions are guarded by V2 closure state. */
+  createInstitutionalWorkspace?(
+    env: RuntimeEnv,
+    server: CouncilInstitutionalServerContextV2,
+  ): CouncilInstitutionalWorkspaceV2 | null;
   now?: () => Date;
 }
 
@@ -64,9 +88,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function operationFromPayload(value: unknown): CouncilHttpOperationV1 | null {
   if (!isRecord(value)) return null;
-  return value.operation === 'queue' || value.operation === 'student' || value.operation === 'decision'
-    ? value.operation
-    : null;
+  if (value.operation === 'queue' || value.operation === 'student' || value.operation === 'decision') {
+    return value.operation;
+  }
+  return (
+    COUNCIL_INSTITUTIONAL_OPERATIONS_V2.find((operation) => operation === value.operation) ?? null
+  );
+}
+
+function isInstitutionalOperation(
+  operation: CouncilHttpOperationV1,
+): operation is CouncilInstitutionalOperationV2 {
+  return COUNCIL_INSTITUTIONAL_OPERATIONS_V2.some((candidate) => candidate === operation);
 }
 
 function invalidQueue(outcome: 'invalid-request' | 'invalid-cursor'): Response {
@@ -96,6 +129,17 @@ function invalidDecision(): Response {
   return noStoreJson(
     {
       contractVersion: COUNCIL_WORKSPACE_CONTRACT_VERSION_V1,
+      outcome: 'invalid-request',
+      currentVersion: null,
+    },
+    400,
+  );
+}
+
+function invalidInstitutional(): Response {
+  return noStoreJson(
+    {
+      contractVersion: COUNCIL_INSTITUTIONAL_CONTRACT_VERSION_V2,
       outcome: 'invalid-request',
       currentVersion: null,
     },
@@ -138,32 +182,70 @@ export function createCouncilWorkspaceRequestHandlerV1(
       if (readiness !== 'ready') return invalidQueue(readiness);
     } else if (operation === 'student') {
       if (inspectCouncilStudentRequestV1(payload) !== 'ready') return invalidStudent();
-    } else if (inspectCouncilDecisionRequestV1(payload) !== 'ready') {
-      return invalidDecision();
+    } else if (operation === 'decision') {
+      if (inspectCouncilDecisionRequestV1(payload) !== 'ready') return invalidDecision();
+    } else if (inspectCouncilInstitutionalRequestV2(payload) !== 'ready') {
+      return invalidInstitutional();
     }
 
-    // The academic production runtime remains explicitly closed in this front and is wired only by #328.
+    // Academic production remains explicitly closed. #343 may only compose local/preview providers.
     if (env.RUNTIME_ENVIRONMENT === 'production') return unavailable();
 
     const now = dependencies.now ?? (() => new Date());
-    const server: CouncilWorkspaceServerContextV1 = {
+    const server: CouncilInstitutionalServerContextV2 = {
       isAuthorized: () => true,
       decisionIdentity: () => ({
         actorReference: session.oid as CouncilActorReferenceV1,
         decidedAt: now().toISOString(),
       }),
+      institutionalIdentity: () => ({
+        actorReference: session.oid as CouncilActorReferenceV1,
+        occurredAt: now().toISOString(),
+      }),
     };
-    const workspace = dependencies.createWorkspace(env, server);
-    if (workspace === null) return unavailable();
 
     try {
-      if (operation === 'queue') {
-        return noStoreJson(await workspace.queue(payload as CouncilQueueRequestV1));
-      }
-      if (operation === 'student') {
+      if (operation === 'queue' || operation === 'student') {
+        const workspace = dependencies.createWorkspace(env, server);
+        if (workspace === null) return unavailable();
+        if (operation === 'queue') {
+          return noStoreJson(await workspace.queue(payload as CouncilQueueRequestV1));
+        }
         return noStoreJson(await workspace.student(payload as CouncilStudentRequestV1));
       }
-      return noStoreJson(await workspace.decide(payload as CouncilDecisionRequestV1));
+
+      if (operation === 'decision') {
+        if (dependencies.createInstitutionalWorkspace !== undefined) {
+          const institutional = dependencies.createInstitutionalWorkspace(env, server);
+          if (institutional === null) return unavailable();
+          return noStoreJson(await institutional.decide(payload as CouncilDecisionRequestV1));
+        }
+        const workspace = dependencies.createWorkspace(env, server);
+        if (workspace === null) return unavailable();
+        return noStoreJson(await workspace.decide(payload as CouncilDecisionRequestV1));
+      }
+
+      if (!isInstitutionalOperation(operation) || dependencies.createInstitutionalWorkspace === undefined) {
+        return unavailable();
+      }
+      const institutional = dependencies.createInstitutionalWorkspace(env, server);
+      if (institutional === null) return unavailable();
+      switch (operation) {
+        case 'closure-review':
+          return noStoreJson(
+            await institutional.review(payload as CouncilClosureReviewRequestV2),
+          );
+        case 'vote':
+          return noStoreJson(await institutional.vote(payload as CouncilVoteRequestV2));
+        case 'tie-break':
+          return noStoreJson(await institutional.resolveTie(payload as CouncilTieBreakRequestV2));
+        case 'closure-close':
+          return noStoreJson(await institutional.close(payload as CouncilClosureCloseRequestV2));
+        case 'closure-history':
+          return noStoreJson(
+            await institutional.history(payload as CouncilClosureHistoryRequestV2),
+          );
+      }
     } catch {
       return unavailable();
     }
@@ -171,8 +253,8 @@ export function createCouncilWorkspaceRequestHandlerV1(
 }
 
 /**
- * Safe default until #328 composes an academic source/runtime. Presence of this file alone never
- * activates Council data access.
+ * Safe default until central integration composes an academic source/runtime. Presence of this file
+ * alone never activates Council data access or institutional closure.
  */
 export const handleCouncilWorkspaceRequestV1 = createCouncilWorkspaceRequestHandlerV1({
   createWorkspace: () => null,
