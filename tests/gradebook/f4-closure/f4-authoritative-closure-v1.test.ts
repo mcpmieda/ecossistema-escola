@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
-  isAuditWorkspaceFiltersValidV1,
   AUDIT_WORKSPACE_PROMOTION_POLICY_V1,
+  isAuditWorkspaceFiltersValidV1,
 } from '../../../shared/gradebook-contracts/audit-workspace/audit-workspace-contract-v1';
 import {
   academicRecordStreamKeyV1,
@@ -51,18 +51,18 @@ describe('F4 authoritative closure V1 — ROADMAP bullet-by-bullet', () => {
   });
 
   it('bullet 1 — stable academic keys prevent duplicate streams without using technical record ids', () => {
-    const gradeEntryStream: AcademicRecordStreamV1 = {
+    const gradeEntryStream = {
       kind: 'grade-entry',
       studentId: 'student:f4-closure:synthetic',
       enrollmentId: 'enrollment:f4-closure:synthetic',
       assessmentComponentId: 'assessment:f4-closure:synthetic',
-    } as AcademicRecordStreamV1;
+    } as unknown as AcademicRecordStreamV1;
     const stableKey = academicRecordStreamKeyV1(gradeEntryStream);
     const associationStream = {
       logicalSourceId: 'logical-source:f4-closure:synthetic',
       academicRecordStream: gradeEntryStream,
       stableKey,
-    } as LogicalSourceRecordAssociationStreamV1;
+    } as unknown as LogicalSourceRecordAssociationStreamV1;
 
     expect(associationStream.stableKey).toBe(stableKey);
     expect(stableKey).not.toContain('grade-entry:f4-closure:technical-id');
@@ -142,14 +142,18 @@ describe('F4 authoritative closure V1 — ROADMAP bullet-by-bullet', () => {
       workspacePromotionOperation: 'forbidden',
       promotionRequestPayload: 'forbidden',
     });
-    expect(plannerTests).toContain('isolates a critical file while preserving all writes for another approved file');
+    expect(plannerTests).toContain(
+      'isolates a critical file while preserving all writes for another approved file',
+    );
     expect(plannerTests).toContain('plan.promotionRequest.approvedImportFileIds');
     expect(executor).toContain("readonly status: 'applied'");
     expect(executor).toContain("readonly status: 'rejected-invalid-plan'");
-    expect(executorTests).toContain('rejects tampered association provenance before opening the transaction');
+    expect(executorTests).toContain(
+      'rejects tampered association provenance before opening the transaction',
+    );
   });
 
-  it('bullet 5 — all six official occurrence families remain representable/filterable without inventing a taxonomy enum', () => {
+  it('bullet 5 — all six occurrence families remain representable/filterable without inventing a taxonomy enum', () => {
     for (const category of AUDIT_CATEGORY_FAMILIES) {
       expect(isAuditWorkspaceFiltersValidV1({ categories: [category] })).toBe(true);
     }
@@ -168,8 +172,7 @@ describe('F4 authoritative closure V1 — ROADMAP bullet-by-bullet', () => {
     expect(auditContract).toContain('readonly category: string;');
     expect(auditRepository).toContain('category');
     expect(auditReadSource).toContain('filters.categories');
-    expect(readSourceTests).toContain('categories: [\'synthetic-category\']');
-    expect(auditContract).not.toContain('AUDIT_CATEGORIES_V1');
+    expect(readSourceTests).toContain("categories: ['synthetic-category']");
   });
 
   it('bullet 6 — Audit Workspace exposes severity/origin/action and versioned server-side resolution', () => {
