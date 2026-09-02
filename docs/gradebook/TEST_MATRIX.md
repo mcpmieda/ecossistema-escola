@@ -120,3 +120,17 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `REL-004`: rota/fluxo novo verificado no site oficial.
 - `REL-005`: issue, fase e `PROJECT_STATE.yaml` atualizados pelo integrador.
 - `REL-006`: recurso incompleto não aparece como disponível.
+
+## RDY — Readiness F9 sem ativação
+
+- `RDY-001`: preparação completa mantém todos os hard stops produtivos explícitos.
+- `RDY-002`: autoridade alterada, binding presente, migration remota ou piloto real são violações de
+  escopo, nunca evidência de readiness.
+- `RDY-003`: lote máximo de 50 workbooks sintéticos permanece bounded e sequencial.
+- `RDY-004`: migrations locais 0001–0004 são idempotentes e recuperam schema V4/25 tabelas.
+- `RDY-005`: 30 séries sintéticas de Boletim preservam duas versões e sobrevivem a restart.
+- `RDY-006`: fila sintética de 30 estudantes resolve versões em lote e CAS concorrente tem um vencedor.
+- `RDY-007`: falha entre raiz/versão faz rollback sem versão órfã e mantém histórico recuperável.
+- `RDY-008`: produção recusa antes de consultar binding mesmo quando ele é apresentado.
+- `RDY-009`: plano de smoke futuro é inerte, usa nenhum dado ou dados sintéticos e não aplica migration.
+- `RDY-010`: protocolo privado não publica nomes, notas, hashes, caminhos, payloads ou IDs remotos.
