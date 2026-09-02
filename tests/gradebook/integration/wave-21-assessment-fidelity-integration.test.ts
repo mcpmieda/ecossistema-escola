@@ -162,8 +162,8 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
     );
 
     expect(performanceContract).toContain('AssessmentComponentTypeV1 | AssessmentComponentTypeV2');
-    expect(performanceSource).toContain("state: 'not-comparable'");
-    expect(performanceSource.match(/comparison-semantics-not-integrated/gu)).toHaveLength(1);
+    expect(performanceSource).toContain('resolvePerformanceComparisonProjectionV2');
+    expect(performanceSource).not.toContain('tolerance');
     expect(performanceTests).toContain('expect(small.count).toBe(6)');
     expect(performanceTests).toContain('expect(large.count).toBe(6)');
     expect(bulletinContract).toContain('AssessmentComponentTypeV1 | AssessmentComponentTypeV2');

@@ -64,14 +64,13 @@ describe('Performance official charts V1', () => {
   it('não fabrica gráfico quando o contexto não fornece percentual oficial trimestral', () => {
     expect(charts).toContain('chartSourceIsOfficialPercentage');
     expect(charts).toContain('Este contexto não fornece percentual oficial trimestral.');
-    expect(charts).toContain(
-      'Nenhum gráfico é derivado de nota,\n          total anual, recuperação, qualitativo ou avaliações.',
-    );
+    expect(charts).toContain('Nenhum gráfico é derivado de nota,');
+    expect(charts).toContain('total anual, recuperação, qualitativo ou avaliações.');
   });
 
-  it('mantém um único hard stop canônico para comparabilidade não formalizada', () => {
-    expect(physicalSource.match(/comparison-semantics-not-integrated/g)).toHaveLength(1);
-    expect(physicalSource).toContain("state: 'not-comparable'");
-    expect(physicalSource).toContain("reason: 'comparison-semantics-not-integrated'");
+  it('mantém comparação proporcional no resolvedor canônico sem criar gráfico novo', () => {
+    expect(physicalSource).toContain('resolvePerformanceComparisonProjectionV2');
+    expect(physicalSource).toContain("basis: 'percentage'");
+    expect(physicalSource).not.toContain('tolerance');
   });
 });

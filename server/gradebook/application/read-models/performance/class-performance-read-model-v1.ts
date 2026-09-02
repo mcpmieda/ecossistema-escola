@@ -41,6 +41,15 @@ import {
   type PerformanceValueComparisonV1,
 } from '../../../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
 import {
+  PERFORMANCE_COMPARISON_CONFIGURATION_KEY_V1,
+  PERFORMANCE_COMPARISON_CONFIGURATION_SCOPE_V1,
+  PERFORMANCE_PROPORTIONAL_RELATIONS_V2,
+  type PerformanceComparisonConfigurationV1,
+  type PerformanceComparisonProfileRefV2,
+  type PerformanceComparisonProjectionV2,
+  type PerformanceProfileCompatibilityV2,
+} from '../../../../../shared/gradebook-contracts/performance/performance-comparison-contract-v2';
+import {
   ACADEMIC_RESULT_STATES_V1,
   RESULT_COVERAGE_STATES_V1,
   type AcademicGradeValueV1,
@@ -105,6 +114,8 @@ interface PerformanceMatrixSourceCellBaseV1 {
   readonly comparison: PerformanceValueComparisonV1 | null;
   readonly signals: readonly PerformanceSourceSignalV1[];
   readonly detailKey: string;
+  /** Additive V2 runtime projection; the frozen V1 comparison remains separately interpretable. */
+  readonly proportionalComparison?: PerformanceComparisonProjectionV2;
 }
 
 export type PerformanceMatrixSourceCellV1 =
@@ -545,6 +556,163 @@ function cloneCoverage(value: ResultCoverageV1): ResultCoverageV1 {
   };
 }
 
+function cloneComparisonConfiguration(
+  value: PerformanceComparisonConfigurationV1,
+): PerformanceComparisonConfigurationV1 {
+  if (
+    value.key !== PERFORMANCE_COMPARISON_CONFIGURATION_KEY_V1 ||
+    value.scope !== PERFORMANCE_COMPARISON_CONFIGURATION_SCOPE_V1
+  ) {
+    return fail('incompatible-source-result');
+  }
+  if (value.source === 'canonical-default') {
+    if (
+      value.enabled !== true ||
+      value.platformConfigurationId !== null ||
+      value.version !== null ||
+      value.effectiveFrom !== null ||
+      value.effectiveUntil !== null ||
+      value.updatedAt !== null
+    ) {
+      return fail('incompatible-source-result');
+    }
+    return { ...value };
+  }
+  if (
+    value.source !== 'platform-configuration' ||
+    typeof value.enabled !== 'boolean' ||
+    requireNonEmpty(value.platformConfigurationId).length === 0 ||
+    requireNonEmpty(value.version).length === 0 ||
+    typeof value.effectiveFrom !== 'string' ||
+    typeof value.effectiveUntil !== 'string' ||
+    typeof value.updatedAt !== 'string'
+  ) {
+    return fail('incompatible-source-result');
+  }
+  return { ...value };
+}
+
+function cloneComparisonProfile(
+  value: PerformanceComparisonProfileRefV2,
+): PerformanceComparisonProfileRefV2 {
+  return {
+    profileId: requireNonEmpty(value.profileId),
+    profileVersion: requireNonEmpty(value.profileVersion),
+    percentageSemanticsVersion: requireNonEmpty(value.percentageSemanticsVersion),
+  };
+}
+
+function cloneProfileCompatibility(
+  value: PerformanceProfileCompatibilityV2,
+): PerformanceProfileCompatibilityV2 {
+  const currentProfile = cloneComparisonProfile(value.currentProfile);
+  const referenceProfile = cloneComparisonProfile(value.referenceProfile);
+  if (value.state === 'not-compatible') {
+    if (
+      value.reason !== 'profile-semantics-not-declared-compatible' ||
+      (value.ruleVersion !== null && value.ruleVersion.trim().length === 0)
+    ) {
+      return fail('incompatible-source-result');
+    }
+    return { ...value, currentProfile, referenceProfile };
+  }
+  if (
+    value.state !== 'compatible' ||
+    !['same-profile-semantics', 'declared-cross-profile-compatibility'].includes(value.source)
+  ) {
+    return fail('incompatible-source-result');
+  }
+  return {
+    ...value,
+    ruleVersion: requireNonEmpty(value.ruleVersion),
+    currentProfile,
+    referenceProfile,
+  };
+}
+
+function cloneProportionalComparison(
+  value: PerformanceComparisonProjectionV2,
+  request: PerformanceMatrixSourceRequestV1,
+): PerformanceComparisonProjectionV2 {
+  const configuration = cloneComparisonConfiguration(value.configuration);
+  if (value.state === 'not-requested') {
+    if (request.comparisonPeriod !== null) return fail('incompatible-source-result');
+    return { state: 'not-requested', configuration };
+  }
+  if (
+    request.comparisonPeriod === null ||
+    !samePeriod(value.selection.current, request.period) ||
+    !samePeriod(value.selection.reference, request.comparisonPeriod)
+  ) {
+    return fail('incompatible-source-result');
+  }
+  const selection = {
+    current: clonePeriod(value.selection.current),
+    reference: clonePeriod(value.selection.reference),
+  };
+  if (value.state === 'disabled') {
+    if (configuration.enabled) return fail('incompatible-source-result');
+    return { state: 'disabled', selection, configuration };
+  }
+  if (value.state !== 'resolved' || !configuration.enabled) {
+    return fail('incompatible-source-result');
+  }
+  const comparison = value.comparison;
+  const current = {
+    period: clonePeriod(comparison.current.period),
+    percentage: cloneGrade(comparison.current.percentage),
+    coverage: cloneCoverage(comparison.current.coverage),
+  };
+  const reference = {
+    period: clonePeriod(comparison.reference.period),
+    percentage: cloneGrade(comparison.reference.percentage),
+    coverage: cloneCoverage(comparison.reference.coverage),
+  };
+  if (
+    comparison.basis !== 'percentage' ||
+    !samePeriod(current.period, selection.current) ||
+    !samePeriod(reference.period, selection.reference)
+  ) {
+    return fail('incompatible-source-result');
+  }
+  const compatibility = cloneProfileCompatibility(comparison.compatibility);
+  if (comparison.state === 'not-comparable') {
+    return {
+      state: 'resolved',
+      selection,
+      configuration,
+      comparison: {
+        state: 'not-comparable',
+        basis: 'percentage',
+        reason: comparison.reason,
+        current,
+        reference,
+        compatibility,
+      },
+    };
+  }
+  if (
+    comparison.state !== 'comparable' ||
+    compatibility.state !== 'compatible' ||
+    !PERFORMANCE_PROPORTIONAL_RELATIONS_V2.includes(comparison.relation)
+  ) {
+    return fail('incompatible-source-result');
+  }
+  return {
+    state: 'resolved',
+    selection,
+    configuration,
+    comparison: {
+      state: 'comparable',
+      basis: 'percentage',
+      relation: comparison.relation,
+      current,
+      reference,
+      compatibility,
+    },
+  };
+}
+
 function cloneComparison(
   value: PerformanceValueComparisonV1 | null,
   comparisonPeriod: PerformancePeriodV1 | null,
@@ -730,6 +898,14 @@ function cloneCell(
     comparison: cloneComparison(source.comparison, request.comparisonPeriod),
     signals: cloneSignals(source.signals, detailRef),
     detailRef,
+    ...(source.proportionalComparison === undefined
+      ? {}
+      : {
+          proportionalComparison: cloneProportionalComparison(
+            source.proportionalComparison,
+            request,
+          ),
+        }),
   } as const;
   switch (source.lens) {
     case 'result':

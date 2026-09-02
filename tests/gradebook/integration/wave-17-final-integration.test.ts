@@ -109,7 +109,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     );
     const workspace = source('server/gradebook/application/council/council-workspace-v1.ts');
 
-    expect(performance).toContain('comparison-semantics-not-integrated');
+    expect(performance).toContain('resolvePerformanceComparisonProjectionV2');
     expect(council).toContain('resolveNativeAnnualOutcome');
     expect(council).toContain('record.officialGrade.imported.value');
     expect(workspace).not.toContain('resolveNativeAnnualOutcome');

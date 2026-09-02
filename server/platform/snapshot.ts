@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { PlatformCapability } from '../../shared/platform-contract';
+import type { PlatformConfiguration } from '../../shared/platform-contract';
+import { requireCapability } from '../auth/capabilities';
 import type { RuntimeEnv } from '../env';
 import { graphRequest } from '../graph/client';
 import { resolveRegisteredModules } from '../modules/registry';
@@ -94,17 +96,8 @@ async function readListItems(
   });
 }
 
-export function buildPlatformSnapshot(
-  source: SnapshotSource,
-  capabilities: readonly PlatformCapability[],
-) {
-  const byName = new Map(source.lists.map((list) => [list.displayName, list.id]));
-
-  const allRegisteredModules = resolveRegisteredModules(source.moduleItems, capabilities).filter(
-    (module) => module.contractVersion !== null,
-  );
-
-  const allConfigurations = source.configurationItems
+function platformConfigurationsFromItems(items: readonly PlatformItem[]): PlatformConfiguration[] {
+  return items
     .flatMap((item) => {
       const parsed = configurationFieldsSchema.safeParse(item.fields);
       if (!parsed.success) return [];
@@ -123,6 +116,19 @@ export function buildPlatformSnapshot(
       ];
     })
     .sort((left, right) => left.key.localeCompare(right.key, 'pt-BR'));
+}
+
+export function buildPlatformSnapshot(
+  source: SnapshotSource,
+  capabilities: readonly PlatformCapability[],
+) {
+  const byName = new Map(source.lists.map((list) => [list.displayName, list.id]));
+
+  const allRegisteredModules = resolveRegisteredModules(source.moduleItems, capabilities).filter(
+    (module) => module.contractVersion !== null,
+  );
+
+  const allConfigurations = platformConfigurationsFromItems(source.configurationItems);
 
   const allRecentAudit = source.auditItems
     .flatMap((item) => {
@@ -279,4 +285,26 @@ export async function getPlatformSnapshot(
     },
     capabilities,
   );
+}
+
+/** Minimal canonical settings read for server features that must not load the full platform snapshot. */
+export async function getPlatformConfigurations(
+  env: RuntimeEnv,
+  capabilities: readonly PlatformCapability[],
+): Promise<PlatformConfiguration[]> {
+  requireCapability(capabilities, 'platform.settings.read');
+  const response = await graphRequest<{ value: unknown[] }>({
+    env,
+    path: `/sites/${env.SHAREPOINT_SITE_ID}/lists?$select=id,displayName&$top=50`,
+  });
+  const lists = response.data.value.flatMap((value) => {
+    const parsed = listSchema.safeParse(value);
+    return parsed.success ? [parsed.data] : [];
+  });
+  const configurations = await readListItems(
+    env,
+    lists.find((list) => list.displayName === 'PLATAFORMA_CONFIGURACOES')?.id,
+    'Chave,Escopo,Versao,Ativo,VigenciaInicioUTC,VigenciaFimUTC,AtualizadoEmUTC',
+  );
+  return platformConfigurationsFromItems(configurations);
 }
