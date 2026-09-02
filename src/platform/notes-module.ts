@@ -61,11 +61,18 @@ export const notesSections: NotesSection[] = [
     searchTerms: 'boletim boletins preview emissão pdf histórico reimpressão',
   },
   {
+    id: 'reports',
+    label: 'Relatórios',
+    description: 'Abrir relatórios institucionais e artefatos PDF em lote bounded.',
+    href: notesAreaHref('reports'),
+    searchTerms: 'relatório relatórios institucional resultados composição recuperação conselho auditoria pdf lote',
+  },
+  {
     id: 'council',
     label: 'Conselho',
-    description: 'Abrir fila de Conselho de Classe e decisões formais autorizadas.',
+    description: 'Abrir fila, decisões e fechamento institucional do Conselho de Classe.',
     href: notesAreaHref('council'),
-    searchTerms: 'conselho classe fila elegibilidade decisão anual',
+    searchTerms: 'conselho classe fila elegibilidade decisão anual fechamento votação histórico',
   },
 ];
 
