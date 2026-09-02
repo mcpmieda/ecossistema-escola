@@ -28,4 +28,9 @@ export const GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS = [
     name: 'logical_source_record_catalog_v1',
     fileName: '0003_logical_source_record_catalog_v1.sql',
   },
+  {
+    version: 4,
+    name: 'bulletin_council_durability_v1',
+    fileName: '0004_bulletin_council_durability_v1.sql',
+  },
 ] as const satisfies readonly GradebookD1Migration[];
