@@ -54,7 +54,6 @@ function notAuthorized(status: 401 | 403): Response {
     {
       contractVersion: INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V1,
       state: 'not-authorized',
-      family: 'audit',
       report: null,
       hardStop: null,
     } satisfies InstitutionalReportResponseV1,
@@ -67,7 +66,6 @@ function unavailable(): Response {
     {
       contractVersion: INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V1,
       state: 'unavailable',
-      family: 'audit',
       report: null,
       hardStop: null,
     } satisfies InstitutionalReportResponseV1,
