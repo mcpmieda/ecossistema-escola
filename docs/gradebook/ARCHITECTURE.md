@@ -2,7 +2,7 @@
 
 ## Princípio
 
-O Banco de Notas é um produto modular dentro do Centro de Administração. O shell, identidade e publicação são os mesmos do Centro; domínio, persistência e experiências acadêmicas permanecem separados e testáveis.
+O Banco de Notas é um produto modular dentro do Centro de Administração. O shell, identidade e publicação são compartilhados com o Centro; domínio, persistência e experiências acadêmicas permanecem separados e testáveis.
 
 ## Fluxo principal
 
@@ -15,9 +15,7 @@ reconhecimento + evidência de origem
   ↓
 contexto acadêmico explícito
   ↓
-planejamento idempotente
-  ↓
-revisão humana
+planejamento idempotente + revisão humana
   ↓
 executor transacional
   ↓
@@ -27,7 +25,7 @@ modelo acadêmico versionado
   ↓
 motor nativo + equivalência
   ↓
-read models / workspaces
+read models / projeções oficiais / workspaces
   ↓
 Centrais / Auditoria / Desempenho / Conselho / Boletins
 ```
@@ -36,11 +34,11 @@ Planejamento não grava; revisão não promove; executor não resolve ambiguidad
 
 ## Autoridade
 
-`authorityMode` continua `imported-source`. O motor nativo permanece comparativo. Nenhuma onda atual autoriza mudança automática ou implícita de autoridade.
+`authorityMode` continua `imported-source`. O motor nativo permanece comparativo. A projeção oficial do Conselho pode usar o motor nativo upstream para produzir a classificação calculada, mas o lado calculated nunca substitui a autoridade importada dos resultados exibidos nem autoriza uma decisão humana implícita.
 
 ## Contexto acadêmico
 
-Ano/perfil são dependências explícitas. Nenhum módulo escolhe “ano atual” pelo relógio. O Operational Workspace enumera anos persistidos e exige seleção explícita.
+Ano/perfil são dependências explícitas. Nenhum módulo escolhe “ano atual” pelo relógio. As superfícies reutilizam o catálogo/pesquisa do Operational Workspace para localizar contexto, sem criar bridge acadêmico paralelo.
 
 ## D1 e ambientes
 
@@ -62,21 +60,31 @@ preview    → binding injetado permitido
 production → falha antes de inspecionar GRADEBOOK_D1
 ```
 
-Migrations locais continuam 0001–0003, 21 tabelas. Não existe D1 acadêmico remoto, binding ou migration de produção.
+Migrations locais continuam 0001–0003, 21 tabelas. A onda 16 e a #332 não criaram migration/schema novo. Não existe D1 acadêmico remoto, binding ou migration de produção.
 
-## Autorização
+## Autorização e HTTP
 
-Todas as superfícies físicas acadêmicas reutilizam:
+Todas as superfícies acadêmicas expostas reutilizam:
 
-- `requireAuth` quando expostas por HTTP;
+- `requireAuth`;
 - `authorizeGradebookD1RuntimeV1`;
 - capability existente `gradebook.persistence.admin`;
 - contexto opaco emitido/validado no servidor;
-- `Cache-Control: no-store` para HTTP acadêmico.
+- `Cache-Control: no-store`.
 
 Roles/capabilities, ator e timestamps confiáveis não vêm do navegador.
 
-## GradebookD1RuntimeV1 após a onda 15
+Bridges únicos:
+
+```text
+POST /api/gradebook/operational-workspace
+POST /api/gradebook/audit-workspace
+POST /api/gradebook/performance
+POST /api/gradebook/bulletins
+POST /api/gradebook/council-workspace
+```
+
+## GradebookD1RuntimeV1 após a onda 16
 
 ```text
 GradebookD1RuntimeV1
@@ -85,55 +93,35 @@ GradebookD1RuntimeV1
   ├── operationalWorkspaceAcademicYears()
   ├── auditWorkspace(serverResolutionIdentity, existingPlans?)
   ├── classPerformanceReadModel()
+  ├── councilWorkspace(serverDecisionIdentity)
   ├── planningRepositories()
   ├── inspectSchema()/runMigrations()
   └── promoteImportChangePlan()
 ```
 
-A composição de todas essas superfícies ocorre somente depois do gate de ambiente e da autorização opaca. A #318 acrescenta apenas `classPerformanceReadModel()` e sua fonte D1; não cria HTTP/UI de Performance.
+A composição física só ocorre depois do gate de ambiente e da autorização opaca. `councilWorkspace()` recebe como source a projeção oficial D1 da #332 e usa um store de decisão process-local/preview, append-only e descartável.
 
 ## Operational Workspace F5
-
-Arquitetura:
 
 ```text
 PersistenceUnitOfWorkV1.entities
   ↓
 createGradebookOperationalReadModelsV1
-  ├── students
-  ├── classGroups
-  ├── teachers
-  ├── subjects
-  └── search
   ↓
-OperationalWorkspace service/transport
+Operational Workspace
   ↓
 POST /api/gradebook/operational-workspace
   ↓
 HeroUI
 ```
 
-Invariantes:
-
-- exatamente um bridge;
-- ano explícito;
-- navegação `kind + id` opaca;
-- pesquisa acadêmica reutiliza o matching existente;
-- request gate aborta/deduplica e descarta respostas obsoletas;
-- troca de ano invalida contexto anterior;
-- paginação não duplica itens.
+Ano é explícito; navegação é `kind + id` opaca; request gates abortam/deduplicam e descartam respostas obsoletas; troca de ano invalida o contexto anterior.
 
 ## Audit Workspace F4
 
-Arquitetura:
-
 ```text
-AuditWorkspaceV1
-  ↑
-AuditWorkspaceSourceV1
-  ↑
 GradebookD1AuditWorkspaceSourceV1
-  ↑
+  ↓
 GradebookD1RuntimeV1.auditWorkspace(...)
   ↓
 POST /api/gradebook/audit-workspace
@@ -141,9 +129,9 @@ POST /api/gradebook/audit-workspace
 HeroUI
 ```
 
-Listas são em lote/keyset; detalhe usa IDs conhecidos; resolução usa CAS/`appendVersion`. Ator = `session.oid`; instante = servidor. Promoção é apenas informativa no workspace e continua exclusiva de `planImportReconciliation` + `executeImportChangePlan`.
+Listas são em lote/keyset; resolução usa CAS. Ator = `session.oid`; instante = servidor. Promoção continua exclusiva de `planImportReconciliation` + `executeImportChangePlan`.
 
-## Desempenho F6 após #315/#318
+## Desempenho F6 end-to-end
 
 ```text
 D1 existente
@@ -153,88 +141,116 @@ GradebookD1ClassPerformanceSourceV1
 createClassPerformanceReadModelV1
   ↓
 GradebookD1RuntimeV1.classPerformanceReadModel()
+  ↓
+POST /api/gradebook/performance
+  ↓
+PerformancePage
 ```
-
-A fonte física carrega a matriz em seis queries por materialização e não consulta D1 por célula/aluno.
 
 Semântica congelada:
 
+- quatro lentes: resultado, quantitativo, qualitativo e avaliações;
+- regular/recovery;
+- linhas/colunas paginadas independentemente;
+- detalhe aluno/célula sob demanda;
+- raw source evidence/`officialRecords` não atravessam HTTP;
 - `comparisonPeriod: null` → sem comparação;
 - comparação solicitada sem resolvedor oficial → `not-comparable`;
 - anual em lente não-result sem projeção oficial → `insufficient-data`;
 - `recovery + result` usa `FinalRecoveryV1`;
 - outras lentes recovery continuam trimestrais;
-- nenhuma comparação é inventada no adapter.
+- UI possui abort/dedupe/stale-response discard e não calcula regra acadêmica.
 
-A #318 **não** cria transport/HTTP/UI de Performance. Isso pertence à #325.
-
-## Boletins F8 após #316
+## Boletins F8 end-to-end
 
 ```text
-read models/resultados oficiais
+resultados/read models oficiais
   ↓
 Bulletin materializer
   ↓
 BulletinModelV1
+  ├── preview
+  └── emission → local snapshot repository
+                  ↓
+                history/reprint
   ↓
-emission service
+POST /api/gradebook/bulletins
   ↓
-local snapshot repository
+BulletinPage
 ```
 
-A materialização de lote compartilha a base da turma, evitando repetir a Central por aluno. Snapshots são profundamente imutáveis, append-only e versionados; reimpressão lê somente o snapshot histórico e não recalcula dados atuais.
+Preview e emissão usam a mesma materialização canônica. Lote compartilha leitura agregada e isola alunos bloqueados. Snapshots são profundamente imutáveis, append-only e versionados; reimpressão lê exclusivamente o snapshot histórico e faz zero leitura acadêmica atual.
 
-Ainda não existem handler HTTP, UI, PDF ou persistência remota. A #326 leva essa capacidade até local/preview. O repositório não possui renderer PDF aprovado hoje; se incluir renderer exigir decisão nova, #326 registra um único bloqueio explícito de PDF.
+O armazenamento permanece process-local/preview e descartável. **PDF/renderização pendente por decisão arquitetural**: a #328 não adiciona renderer, biblioteca, worker, fontes ou storage de PDF.
 
-## Conselho F7
+## Conselho F7 end-to-end
 
-A fundação anual já define apenas:
+A #332 resolveu o hard stop de composição por introduzir uma projeção oficial upstream:
 
-- 0 componentes não aprovados → estado anual aprovado conforme cálculo;
-- 1–2 → elegibilidade básica quando a cobertura é suficiente;
-- 3+ → não elegível por esse fundamento;
-- cobertura insuficiente → nenhuma elegibilidade final inventada;
-- `AnnualFinalDecisionV1` formal permanece separado do estado calculado.
+```text
+D1 0001–0003 existente
+  ↓  seis consultas read-only em lote
+GradebookD1CouncilOfficialProjectionRecordsSourceV1
+  ↓
+createCouncilOfficialProjectionSourceV1
+  ├── resolveNativeAnnualOutcome (somente aqui, upstream)
+  ├── queueState 0/1/2/3+/insuficiente
+  ├── T1/T2/T3 imported
+  └── REC imported, somente aplicável + unívoca
+  ↓
+CouncilWorkspaceSourceV1
+  ↓
+createCouncilWorkspaceV1
+  ├── decisão humana separada
+  └── CouncilDecisionStoreV1 local/preview
+  ↓
+POST /api/gradebook/council-workspace
+  ↓
+CouncilWorkspacePage
+```
 
-A #327 pode construir fila, visão T1/T2/T3/REC, decisão humana, justificativa, histórico e CAS. Não pode inventar votação, desempate, frequência, participantes ou exceções.
+Invariantes:
+
+- Council Workspace **não** chama `resolveNativeAnnualOutcome` e não recebe callback de cálculo;
+- 0 componentes não aprovados → segue resultado anual oficial;
+- 1–2 → elegível apenas pela projeção oficial resolvida;
+- 3+ → não elegível pela projeção oficial;
+- cobertura incompleta → `insufficient-data`, sem decisão inventada;
+- T1/T2/T3 vêm de `TermResultV1.officialGrade.imported`;
+- REC vem de `FinalRecoveryV1.recoveryGrade.imported` somente quando aplicável e unívoca;
+- REC ausente → `not-applicable`;
+- REC ambígua/incompatível → `insufficient-data`;
+- alteração apenas do lado calculated não muda a elegibilidade projetada;
+- decisão formal coerente preexistente não abre segunda decisão;
+- decisão humana exige justificativa e `expectedVersion`/CAS;
+- ator e instante vêm do servidor;
+- votação, desempate, frequência, participantes e exceções não formalizadas continuam fora da V1.
+
+## F1 — confiança da fonte
+
+A F1 está definitivamente concluída em **7/7**. A #184 foi fechada como `completed` depois de protocolo privado controlado e smoke autenticado completos, incluindo falha isolada. O registro sanitizado confirma zero arquivo real modificado, zero dado identificável publicado e zero gate histórico real antigo restante.
+
+Essa conclusão retira apenas os antigos gates históricos da F1; políticas gerais de segurança e futuros gates de ativação de produção permanecem vigentes.
 
 ## Limites dos módulos
 
 ### Plataforma
-
 Shell, autenticação, navegação e publicação. Não contém regra de nota.
 
 ### Contratos
-
 Vocabulário compartilhado e transportes mínimos. Não conhecem SQL/D1/React.
 
 ### Domínio/motor
-
 Funções puras para semântica, arredondamento, trimestre, recuperação, anual e equivalência.
 
 ### Aplicação
-
 Orquestra read models/workspaces/emissão contra portas. Não executa SQL.
 
 ### Persistência
-
-SQL, keyset/cursor físico, versionamento, CAS, histórico e atomicidade.
+SQL, keyset/cursor físico, versionamento, CAS, histórico e atomicidade. A projeção D1 do Conselho só materializa dados existentes e não altera schema.
 
 ### UI
-
 Apresenta e navega. Nunca implementa cálculo acadêmico concorrente.
-
-## Próxima onda e paralelismo
-
-```text
-#325 Performance E2E ─┐
-#326 Boletins E2E    ─┼─> #328 integração
-#327 Conselho V1     ─┘
-```
-
-As frentes mantêm módulos próprios; wiring central em `functions/[[path]].ts`, `src/App.tsx` e runtime fica preferencialmente reservado à #328 para reduzir conflitos.
-
-F9 transversal é reavaliada depois da #328; segurança/no-store/a11y/recuperação continuam requisitos obrigatórios em todas as frentes.
 
 ## Regras de dependência
 

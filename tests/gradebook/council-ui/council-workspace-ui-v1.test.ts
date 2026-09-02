@@ -13,15 +13,16 @@ describe('Council Workspace HeroUI V1', () => {
   const app = source('src/App.tsx');
   const functions = source('functions/[[path]].ts');
 
-  it('usa HeroUI em componente isolado e mantém wiring central reservado à #328', () => {
+  it('usa HeroUI em componente isolado e está ligado pelo wiring central da #328', () => {
     expect(page).toContain("from '@heroui/react'");
     expect(page).toContain('<Surface');
     expect(page).toContain('<Card');
     expect(page).toContain('<Button');
     expect(page).toContain('<Alert');
     expect(page).toContain('<Spinner');
-    expect(app).not.toContain('council-workspace-page');
-    expect(functions).not.toContain('handleCouncilWorkspaceRequestV1');
+    expect(app).toContain('council-workspace-page');
+    expect(app).toContain('CouncilWorkspaceMount');
+    expect(functions).toContain('createCouncilWorkspaceRequestHandlerV1');
   });
 
   it('mantém fila compacta, aluno em foco e resumo anual T1/T2/T3/REC antes das evidências', () => {

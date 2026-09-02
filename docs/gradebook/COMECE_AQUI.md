@@ -6,24 +6,17 @@
 
 Issues-pai (`#182`, `#184`–`#192`) são acompanhamento. Integrações são executadas apenas pela issue de integração da onda.
 
-## Onda 15 — estado integrado
+## Onda 16 — estado integrado
 
 | Frente | Issue / PR | Resultado |
 | :----: | ---------- | --------- |
-| A | `#314 / #321` | Audit Workspace HeroUI + HTTP local/preview |
-| B | `#315 / #323` | fonte D1 física de Desempenho em lote, 6 queries, sem N+1 |
-| C | `#316 / #322` | materialização agregada + snapshots locais imutáveis/versionados de Boletins |
-| D | `#317 / #320` | hardening do Operational Workspace |
-| Integração | `#318 / #324` | composição interna do Desempenho no runtime; sem HTTP/UI F6 nesta onda |
+| 1 | `#325 / #329` | Desempenho end-to-end local/preview: transporte, HTTP e HeroUI |
+| 2 | `#326 / #331` | Boletins end-to-end: preview, emissão/lote, snapshots, histórico e reimpressão |
+| 3 | `#327 / #330` | Council Workspace/Decision V1, decisão humana, histórico/CAS e HeroUI |
+| Fundação | `#332 / #333` | projeção anual oficial upstream do Conselho, sem schema nem nova regra |
+| Integração | `#328` | wiring central de F6/F7/F8 e sincronização canônica |
 
-Merges das quatro frentes:
-
-```text
-#321  fd3fdc32d85227fa12a84477feaca0892e773816
-#323  a101819daef4791e5a1f5a5a64b554ab97d59263
-#322  2875749517ea0c145d73c3dc1df9aa11a8dc18a3
-#320  d7f984e8753e5ad102f8aeb6a135f4870b8298e6
-```
+Os merges anteriores #329/#331/#330 permanecem válidos. A #332 foi integrada depois do hard stop inicial da #328 para disponibilizar a projeção oficial agregada que o Conselho precisava sem recalcular elegibilidade no workspace.
 
 ## Invariantes atuais
 
@@ -32,111 +25,84 @@ Merges das quatro frentes:
 - autorização efetiva no servidor;
 - capability existente `gradebook.persistence.admin`;
 - produção acadêmica fail-closed antes de `GRADEBOOK_D1`;
-- nenhum banco/binding/migration/secret/recurso remoto acadêmico em produção;
-- nenhuma regra acadêmica na UI/HTTP;
+- nenhum banco/binding/migration/secret/recurso remoto acadêmico novo;
+- nenhuma regra acadêmica na UI/HTTP/wiring;
+- nenhuma heurística de REC ou comparabilidade inventada;
 - somente dados sintéticos no repositório/CI.
 
-## Capacidades já utilizáveis em local/preview
+## Bridges únicos
+
+- `POST /api/gradebook/operational-workspace`;
+- `POST /api/gradebook/audit-workspace`;
+- `POST /api/gradebook/performance`;
+- `POST /api/gradebook/bulletins`;
+- `POST /api/gradebook/council-workspace`.
+
+Todos os dados acadêmicos enviados por esses bridges usam `no-store`. Claims de papel/capability/ator/instante vindos do navegador não substituem autorização ou identidade server-side.
+
+## Capacidades utilizáveis em local/preview
+
+### Operational Workspace
+
+- Centrais de Aluno, Turma, Professor e Componente;
+- ano explícito, pesquisa acadêmica e navegação `kind + id` opaca;
+- abort/dedupe/stale-response discard e paginação resiliente.
 
 ### Audit Workspace
 
 - lotes, ocorrências, reconciliações, filtros, cursor, detalhe e pendências;
-- resolução versionada/CAS;
-- ator e instante server-side;
-- `POST /api/gradebook/audit-workspace` único e `no-store`;
-- HeroUI e estados acessíveis.
+- resolução versionada/CAS com ator e instante server-side.
 
-### Operational Workspace
+### Desempenho — F6
 
-- Aluno, Turma, Professor e Componente;
-- ano explícito e pesquisa acadêmica;
-- navegação `kind + id`;
-- `POST /api/gradebook/operational-workspace` único;
-- request gate com abort/dedupe/stale-response discard;
-- troca de ano segura e paginação deduplicada.
+- `PerformancePage` ligada ao shell;
+- quatro lentes, regular/recovery e período explícito;
+- paginação independente de linhas/colunas;
+- drill-down de aluno/célula;
+- raw source evidence não atravessa HTTP;
+- `recovery + result` continua `FinalRecoveryV1`;
+- recovery das demais lentes continua trimestral;
+- annual non-result continua `insufficient-data`;
+- comparação continua fail-closed (`not-comparable`) enquanto a semântica oficial não estiver integrada.
 
-## Capacidades integradas, ainda não expostas
+### Conselho — F7
 
-### Desempenho
+- `CouncilWorkspacePage` ligada ao shell com seleção explícita de ano/turma;
+- fonte real local/preview é `createGradebookD1CouncilOfficialProjectionSourceV1(...)` da #332;
+- 0/1/2/3+/insuficiente vêm somente dessa projeção upstream;
+- T1/T2/T3 usam o lado importado de `TermResultV1`;
+- REC usa `FinalRecoveryV1.recoveryGrade.imported` somente quando aplicável e unívoca;
+- REC ausente é `not-applicable`; REC ambígua é `insufficient-data`;
+- Council Workspace não chama `resolveNativeAnnualOutcome`;
+- decisão humana, justificativa, histórico append-only e CAS permanecem separados do cálculo;
+- ator e instante são server-side;
+- decisão formal coerente preexistente bloqueia segunda decisão;
+- votação, desempate, frequência, participantes e exceções continuam fora da V1.
 
-- `GradebookD1ClassPerformanceSourceV1` físico;
-- `ClassPerformanceReadModelV1`;
-- composição interna em `GradebookD1RuntimeV1.classPerformanceReadModel()`;
-- 6 queries em lote / zero N+1;
-- comparação continua fail-closed sem resolvedor oficial;
-- ainda sem HTTP/UI.
+O store de decisões continua process-local/preview e descartável; não existe garantia cross-restart.
 
-### Boletins
+### Boletins — F8
 
-- materialização agregada;
-- emissão provider-independent;
-- snapshots locais, imutáveis e versionados;
-- reimpressão sem recálculo;
-- ainda sem HTTP/UI/PDF/persistência remota.
+- `BulletinPage` ligada ao shell;
+- seleção explícita de ano/turma/aluno(s)/período/modelo;
+- preview e emissão usam o mesmo `BulletinModelV1` canônico;
+- emissão individual e lote agregado, com falha isolada por aluno;
+- snapshots locais append-only, versionados e imutáveis;
+- histórico e reimpressão usam exclusivamente snapshot histórico, sem leitura acadêmica atual.
 
-## Próxima onda — três frentes grandes em paralelo
+**PDF:** `PDF/renderização pendente por decisão arquitetural`. Nenhuma biblioteca/renderer foi escolhida na #328.
 
-O estado da própria issue define quando `[BLOQUEADA]` muda para `[PRONTA]` após deploy/smokes da #318.
+## F1 — concluída definitivamente
 
-| Frente | Issue | Objetivo | Executor |
-| :----: | ----: | -------- | -------- |
-| 1 | `#325` | Desempenho end-to-end local/preview | **Extra Alto** |
-| 2 | `#326` | Boletins end-to-end local/preview | **Extra Alto** |
-| 3 | `#327` | Conselho de Classe V1 sem regras novas | **Extra Alto** |
-| Integração | `#328` | wiring, revisão, merge, deploy e estado | **Extra Alto** |
+F1 está **7/7** e a #184 está fechada como `completed`. O handoff sanitizado confirma que o protocolo real aplicável, o smoke autenticado completo e a falha isolada passaram; nenhum arquivo real foi modificado, nenhum dado identificável foi publicado e nenhum gate histórico real antigo permanece pendente.
 
-As três frentes reservam wiring central para #328 sempre que isso melhora o paralelismo.
-
-### #325 — Desempenho end-to-end
-
-- transporte/HTTP local-preview;
-- matriz HeroUI;
-- quatro lentes;
-- regular/recovery;
-- paginação linhas/colunas;
-- detalhe aluno/célula;
-- stale-response discard e a11y;
-- comparabilidade permanece `not-comparable` quando solicitada sem resolvedor oficial.
-
-### #326 — Boletins end-to-end
-
-- seleção, preview, emissão, reimpressão e lote;
-- snapshots históricos no ciclo local/preview suportado;
-- HTTP/UI;
-- preview e emissão usam o mesmo `BulletinModelV1`;
-- PDF entra no mesmo PR apenas se não exigir decisão/runtime/biblioteca nova; caso contrário há **um único bloqueio explícito de PDF**, sem microissues.
-
-### #327 — Conselho V1
-
-- fila e elegibilidade derivadas apenas do resultado anual já integrado;
-- visão anual T1/T2/T3/REC;
-- decisão humana separada do cálculo;
-- justificativa, histórico e CAS;
-- nenhuma votação, desempate, frequência, participantes ou exceção inventada.
-
-### F9
-
-Não há frente F9 nesta onda. Segurança/a11y/recovery continuam requisitos transversais dos três PRs; uma frente F9 grande será reavaliada depois de F6/F7/F8 ganharem massa visível adicional.
+Os gates históricos de validação real controlada e smoke completo foram satisfeitos e não devem reaparecer como pendências. Políticas gerais de privacidade, segurança e futuros gates próprios de produção continuam vigentes.
 
 ## Estado real do D1
 
-Local/preview já possui:
+Local/preview possui migrations 0001–0003, runtime autorizado, UoW acadêmica, fontes/read models e as experiências F4–F8 acima.
 
-- migrations 0001–0003 e 21 tabelas;
-- contexto, entidades, fonte, lotes, registros, associações e Auditoria;
-- promoção transacional com CAS/savepoints/rollback;
-- runtime autorizado;
-- Operational/Audit Workspaces;
-- fonte/read model físico de Desempenho composto internamente.
-
-Produção ainda não possui:
-
-- D1 acadêmico remoto;
-- binding/migration remota;
-- consulta ou persistência acadêmica ativa;
-- Performance HTTP/UI;
-- Boletins HTTP/UI/PDF;
-- Conselho operacional.
+Produção ainda não possui D1 acadêmico remoto, binding/migration remota ou consulta/persistência acadêmica ativa. A presença das páginas/handlers no código não significa ativação de produção: o runtime falha fechado antes de inspecionar `GRADEBOOK_D1`.
 
 ## Fluxo de execução
 
@@ -158,11 +124,8 @@ frentes verdes
   → docs/PROJECT_STATE/issues-pai
 ```
 
-Não usar App Factory, Factory Runs, subagentes ou orquestração.
+Não usar App Factory, Factory Runs, subagentes ou orquestração salvo autorização explícita da issue.
 
-## Gates manuais que não bloqueiam trabalho sintético seguro
+## Próxima onda
 
-- `REAL_DATA_VALIDATION.md` em ambiente privado;
-- smoke autenticado completo quando houver ambiente/dados autorizados.
-
-Nunca publicar arquivos, nomes, notas, hashes ou caminhos privados.
+A próxima onda só deve ser liberada depois do fechamento da #328, deploy e smokes aplicáveis. Deve voltar a usar **2 a 4 frentes grandes, verticalmente coerentes, mais uma integradora**, sem microissues. Prioridades naturais pós-onda 16: PDF canônico de Boletins como uma decisão grande única, F9/hardening institucional e acabamento operacional/UX das experiências agora visíveis.

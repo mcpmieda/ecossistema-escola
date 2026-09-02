@@ -8,79 +8,97 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 - [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — acompanhamento humano.
 - [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, ondas e dependências.
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina.
-- [Issue #318](https://github.com/mcpmieda/ecossistema-escola/issues/318) — integração da onda 15.
+- [Issue #328](https://github.com/mcpmieda/ecossistema-escola/issues/328) — integração da onda 16.
 
-## Estado atual — onda 15
+## Estado atual — onda 16 integrada
 
-A onda 15 integrou as quatro frentes abertas pela #306 e compõe apenas o que já possui fronteira física segura:
+A onda 16 levou Desempenho, Boletins e Conselho de Classe até experiências end-to-end local/preview, sem ativar persistência acadêmica em produção:
 
-- #314 / PR #321 — Audit Workspace HeroUI + `POST /api/gradebook/audit-workspace` local/preview;
-- #315 / PR #323 — fonte física D1 de Desempenho em seis queries em lote, sem N+1 e sem semântica local de comparabilidade;
-- #316 / PR #322 — materialização agregada e snapshots locais imutáveis/versionados de Boletins, com reimpressão sem recálculo;
-- #317 / PR #320 — hardening do Operational Workspace com descarte de respostas obsoletas, troca de ano segura e paginação deduplicada;
-- #318 / PR #324 — integração: Desempenho passa a estar composto internamente em `GradebookD1RuntimeV1.classPerformanceReadModel()`, sem HTTP/UI nesta onda.
+- #325 / PR #329 — Performance Transport V1, `POST /api/gradebook/performance` e `PerformancePage`;
+- #326 / PR #331 — Boletins com seleção, preview, emissão individual/lote, snapshots, histórico e reimpressão por `POST /api/gradebook/bulletins`;
+- #327 / PR #330 — Council Workspace/Decision V1, decisão humana, histórico/CAS e HeroUI;
+- #332 / PR #333 — projeção anual oficial upstream do Conselho, materializada sem nova regra e sem schema;
+- #328 — wiring central das três superfícies, runtime do Conselho e sincronização canônica.
 
-Merges das frentes na `main` antes do PR de integração:
+A autoridade acadêmica continua `imported-source`. Produção permanece **fail-closed antes de `GRADEBOOK_D1`**. Não existe banco acadêmico remoto, binding, migration, secret ou recurso remoto novo decorrente desta onda.
 
-```text
-#314 / #321  fd3fdc32d85227fa12a84477feaca0892e773816
-#315 / #323  a101819daef4791e5a1f5a5a64b554ab97d59263
-#316 / #322  2875749517ea0c145d73c3dc1df9aa11a8dc18a3
-#317 / #320  d7f984e8753e5ad102f8aeb6a135f4870b8298e6
-```
+## Bridges acadêmicos
 
-A autoridade acadêmica continua `imported-source`. Produção continua **fail-closed antes de `GRADEBOOK_D1`** e não possui banco D1 acadêmico remoto, binding, migration ou endpoint acadêmico funcional novo.
+A composição central mantém exatamente um bridge de cada superfície:
+
+- `POST /api/gradebook/operational-workspace`;
+- `POST /api/gradebook/audit-workspace`;
+- `POST /api/gradebook/performance`;
+- `POST /api/gradebook/bulletins`;
+- `POST /api/gradebook/council-workspace`.
+
+Todos os bridges acadêmicos usam autorização efetiva server-side, a capability existente `gradebook.persistence.admin` e respostas `no-store`. Claims de papel, capability, ator ou instante vindos do navegador não constituem autoridade.
 
 ## Capacidades locais/preview
 
 ### F4 — Auditoria
 
-- listas de lotes, ocorrências e reconciliações;
-- filtros, cursor, detalhe e pendências;
-- resolução CAS usando ator e instante exclusivamente server-side;
-- HeroUI com estados `loading | ready | empty | unavailable | not-authorized`;
-- um único bridge `POST /api/gradebook/audit-workspace`;
-- promoção continua fora do workspace e exclusiva de `planImportReconciliation` + `executeImportChangePlan`.
+- lotes, ocorrências, reconciliações, detalhe e pendências;
+- resolução CAS com ator e instante server-side;
+- HeroUI acessível e responsiva;
+- um único bridge Audit Workspace.
 
 ### F5 — Operational Workspace
 
 - Centrais de Aluno, Turma, Professor e Componente;
-- ano explícito e pesquisa acadêmica autorizada;
-- navegação `kind + id` opaca;
-- um único bridge `POST /api/gradebook/operational-workspace`;
-- abort/dedupe/descarte de resposta antiga, troca segura de ano e paginação sem duplicação.
+- ano explícito, pesquisa acadêmica autorizada e navegação `kind + id` opaca;
+- abort/dedupe/descarte de resposta obsoleta e paginação resiliente;
+- um único bridge Operational Workspace.
 
 ### F6 — Desempenho
 
-- `ClassPerformanceReadModelV1` e fonte D1 física compostos internamente no runtime;
-- seis queries em lote por materialização; zero N+1 na matriz;
-- quatro lentes preservadas;
-- `recovery + result` usa `FinalRecoveryV1`; demais lentes recovery continuam trimestrais;
-- anual sem projeção oficial em lente não-result continua `insufficient-data`;
-- comparação solicitada continua `not-comparable` enquanto não existir resolvedor oficial;
-- **ainda sem HTTP/UI** nesta onda.
+- quatro lentes: Resultado, Quantitativo, Qualitativo e Avaliações;
+- modos regular e recovery;
+- paginação independente de linhas e colunas;
+- detalhe de aluno/célula sob demanda;
+- cancelamento, dedupe e stale-response discard;
+- raw source evidence não atravessa HTTP;
+- `recovery + result` usa `FinalRecoveryV1`; demais lentes recovery permanecem trimestrais;
+- anual sem projeção oficial em lente não-result permanece `insufficient-data`;
+- comparação continua fail-closed como `not-comparable` enquanto não existir semântica oficial integrada.
+
+### F7 — Conselho de Classe V1
+
+- fila em lote e aluno em foco;
+- classificação 0/1/2/3+/insuficiente fornecida pela projeção oficial upstream da #332;
+- T1/T2/T3 projetados de `TermResultV1` importado;
+- REC projetada apenas de `FinalRecoveryV1.recoveryGrade.imported` quando aplicável e unívoca;
+- REC ausente vira `not-applicable`; REC ambígua vira `insufficient-data`;
+- Council Workspace não chama `resolveNativeAnnualOutcome` e não recalcula elegibilidade;
+- decisão humana separada do cálculo, justificativa obrigatória, histórico append-only e CAS;
+- decisão formal coerente já registrada impede uma segunda decisão;
+- nenhum voto, desempate, frequência, participante ou exceção foi inventado.
+
+O store de decisão é process-local/preview e descartável; durabilidade cross-restart não é declarada.
 
 ### F8 — Boletins
 
-- materialização individual e agregada por turma;
-- snapshots provider-independent locais, profundamente imutáveis e versionados;
-- reimpressão histórica sem recálculo nem leitura acadêmica atual;
-- **ainda sem HTTP/UI/PDF/persistência remota**.
+- três modelos canônicos sobre `BulletinModelV1`;
+- preview e emissão usam a mesma materialização;
+- emissão individual e lote agregado, com isolamento de aluno bloqueado;
+- snapshots locais append-only, versionados e profundamente imutáveis;
+- histórico e reimpressão exclusivamente do snapshot, sem leitura acadêmica atual;
+- armazenamento local/preview descartável.
 
-## Próxima onda — grandes passos
+**Bloqueio pós-onda:** `PDF/renderização pendente por decisão arquitetural`. A #328 não escolhe biblioteca, renderer, worker, fontes ou storage para PDF.
 
-Foram pré-criadas três frentes grandes, verticalmente coerentes e paralelizáveis, mais uma integração. O estado da própria issue é a autoridade para saber se já foi liberada após deploy/smokes da #318:
+## F1 — fonte e importação
 
-- [#325 — Desempenho end-to-end local/preview](https://github.com/mcpmieda/ecossistema-escola/issues/325) — **Extra Alto**;
-- [#326 — Boletins end-to-end local/preview](https://github.com/mcpmieda/ecossistema-escola/issues/326) — **Extra Alto**;
-- [#327 — Conselho de Classe V1 sem regras novas](https://github.com/mcpmieda/ecossistema-escola/issues/327) — **Extra Alto**;
-- [#328 — integração da próxima onda](https://github.com/mcpmieda/ecossistema-escola/issues/328) — **Extra Alto**, bloqueada pelas três frentes.
+F1 está **definitivamente concluída — 7/7**. A #184 foi fechada como `completed` após validação privada controlada e smoke autenticado completos. O registro sanitizado confirma:
 
-F9 transversal foi deliberadamente adiada: segurança, acessibilidade e recuperação já são testadas continuamente, mas uma frente F9 grande terá maior valor após F6/F7/F8 possuírem massa visível adicional. Não criar uma quarta frente artificial apenas para preencher a onda.
+- protocolo real aplicável aprovado;
+- smoke de hash/manifesto/progresso/diagnóstico e falha isolada aprovado;
+- arquivos reais modificados: 0;
+- dados identificáveis publicados: 0;
+- divergências funcionais bloqueantes: 0;
+- gates históricos reais antigos restantes: 0.
 
-### PDF de Boletins
-
-O repositório não possui renderer/biblioteca PDF integrada. A #326 deve incluir PDF no mesmo PR **somente** se isso não exigir decisão arquitetural/runtime nova; caso contrário, registra um único bloqueio explícito de renderização/PDF e entrega o restante da experiência sem fragmentar microissues.
+Os gates históricos de validação real controlada e smoke completo foram satisfeitos e deixaram de ser pendências. Isso não remove as políticas gerais de privacidade, segurança ou futuros gates próprios de ativação de produção.
 
 ## Processo oficial
 
@@ -89,26 +107,7 @@ uma issue → uma branch curta → um PR → npm run verify → handoff
 frentes verdes → integração própria → main → deploy/smokes → próxima onda
 ```
 
-Não usar App Factory, Factory Runs, orquestradores ou agentes auxiliares.
-
-## Objetivo
-
-Construir um Banco de Notas funcional, modular, auditável e acessível a usuários leigos, integrado ao Centro de Administração e alimentado inicialmente pelas planilhas atuais dos professores. O sistema preserva a origem, implementa o motor nativo junto com o núcleo e publica progressivamente cada entrega independente.
-
-## Em produção
-
-- área `Banco de notas` no mesmo shell do Centro;
-- interface HeroUI React v3;
-- pesquisa global de navegação do Centro;
-- importação local de até 50 arquivos por lote;
-- leitura sequencial de XLSB, XLSX e XLS;
-- reconhecimento de turmas, alunos, disciplinas, trimestres, quantitativo, qualitativo e recuperação;
-- SHA-256 calculado no navegador;
-- manifesto, progresso e diagnóstico por arquivo;
-- processamento somente em memória no fluxo publicado;
-- código dos workspaces pode existir no bundle, mas o runtime acadêmico de produção permanece fechado antes do binding.
-
-A integração/deploy de código **não** significa ativação de dados acadêmicos em produção.
+Não usar App Factory, Factory Runs, orquestradores ou agentes auxiliares salvo autorização explícita da issue.
 
 ## Núcleo integrado
 
@@ -128,23 +127,18 @@ A autoridade continua `imported-source`. O motor permanece separável e compará
 ### Contexto acadêmico e persistência
 
 - uma única composição oficial de 2026, sem seleção por relógio;
-- Cloudflare D1 aprovado como armazenamento físico local/preview;
+- Cloudflare D1 aprovado apenas como armazenamento físico local/preview no estado atual;
 - portas independentes do fornecedor;
-- migrations locais 0001–0003 e 21 tabelas;
+- migrations locais 0001–0003 e 21 tabelas, sem migration nova nesta onda;
 - leitura/escrita local de contexto, entidades, fonte, lotes, registros, associações e Auditoria;
-- planejamento idempotente de reimportação;
-- promoção transacional com compare-and-set, savepoints e rollback;
+- planejamento idempotente de reimportação e promoção transacional com CAS/rollback;
 - runtime local/preview explicitamente injetado;
 - produção bloqueada antes de inspecionar o binding;
-- capability `gradebook.persistence.admin` somente no servidor;
-- autorização opaca emitida e validada no servidor;
 - rotas acadêmicas autorizadas sempre `no-store`.
 
-## Validação da fonte
+## Em produção
 
-A suíte sintética cobre D1/D2/D3, VG, trimestres, REC, estados especiais de célula, posições históricas, transferências, lotes de 1/20/50 arquivos, hash e falha isolada. O procedimento `REAL_DATA_VALIDATION.md` define a conferência privada do corpus real.
-
-Essa execução ainda precisa ser registrada antes do fechamento definitivo da F1.
+O shell do Centro e o importador em memória permanecem publicados. A presença das páginas de Desempenho, Boletins e Conselho no bundle **não** ativa dados acadêmicos em produção: seus runtimes permanecem fail-closed até uma autorização própria de produção e um binding explicitamente aprovado.
 
 ## Leitura obrigatória do agente
 
@@ -156,8 +150,6 @@ Essa execução ainda precisa ser registrada antes do fechamento definitivo da F
 6. [`ARCHITECTURE.md`](ARCHITECTURE.md), [`CONTRACTS.md`](CONTRACTS.md), [`SOURCE_CONTRACT.md`](SOURCE_CONTRACT.md), [`D1_SCHEMA.md`](D1_SCHEMA.md), [`D1_RUNTIME.md`](D1_RUNTIME.md) e [`TEST_MATRIX.md`](TEST_MATRIX.md) conforme o escopo;
 7. [`AGENT_PROTOCOL.md`](AGENT_PROTOCOL.md).
 
-A issue deve ser executada diretamente. App Factory, Factory Runs, orquestradores e agentes auxiliares só podem ser usados quando a própria issue autorizar expressamente.
-
 ## Segurança
 
-O repositório é público. Nunca usar dados reais de estudantes em fixtures, screenshots, logs, issues, PRs ou commits. Arquivos reais servem apenas para validação controlada fora do Git.
+O repositório é público. Nunca usar dados reais de estudantes em fixtures, screenshots, logs, issues, PRs ou commits. Arquivos reais servem apenas para validação controlada fora do Git. Nenhuma ativação acadêmica de produção pode ser inferida de um merge de código.

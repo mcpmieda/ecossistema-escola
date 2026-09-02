@@ -24,8 +24,16 @@ import {
 } from '../server/http/security';
 import { sharePointHealth } from '../server/graph/sharepoint';
 import { handleAuditWorkspaceRequestV1 } from '../server/gradebook/http/audit-workspace-routes-v1';
+import { handleBulletinRequestV1 } from '../server/gradebook/http/bulletin-routes-v1';
+import {
+  createCouncilWorkspaceRequestHandlerV1,
+  GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1,
+} from '../server/gradebook/http/council-routes-v1';
 import { handleGradebookD1AdminRequestV1 } from '../server/gradebook/http/d1-admin-routes-v1';
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
+import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
+import { authorizeGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
+import { createGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-v1';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
@@ -130,6 +138,30 @@ function authFailureResponse({
   const headers = new Headers({ Location: location.toString() });
   headers.append('Set-Cookie', authCookie);
   return new Response(null, { status: 303, headers });
+}
+
+async function handleComposedCouncilWorkspaceRequestV1(
+  request: Request,
+  env: RuntimeEnv,
+): Promise<Response | null> {
+  if (new URL(request.url).pathname !== GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1) return null;
+
+  let authorization: ReturnType<typeof authorizeGradebookD1RuntimeV1> | null = null;
+  try {
+    const session = await requireAuth(request, env);
+    authorization = authorizeGradebookD1RuntimeV1(session);
+  } catch {
+    // The dedicated Council handler below owns the opaque 401/403 response.
+    authorization = null;
+  }
+
+  const handler = createCouncilWorkspaceRequestHandlerV1({
+    createWorkspace(runtimeEnv, server) {
+      if (authorization === null) return null;
+      return createGradebookD1RuntimeV1(runtimeEnv, authorization).councilWorkspace(server);
+    },
+  });
+  return handler(request, env);
 }
 
 async function route(context: Context, correlationId: string): Promise<Response> {
@@ -293,6 +325,15 @@ async function route(context: Context, correlationId: string): Promise<Response>
 
   const auditWorkspaceResponse = await handleAuditWorkspaceRequestV1(request, env);
   if (auditWorkspaceResponse) return auditWorkspaceResponse;
+
+  const performanceResponse = await handlePerformanceRequestV1(request, env);
+  if (performanceResponse) return performanceResponse;
+
+  const bulletinResponse = await handleBulletinRequestV1(request, env);
+  if (bulletinResponse) return bulletinResponse;
+
+  const councilResponse = await handleComposedCouncilWorkspaceRequestV1(request, env);
+  if (councilResponse) return councilResponse;
 
   const gradebookD1AdminResponse = await handleGradebookD1AdminRequestV1(request, env);
   if (gradebookD1AdminResponse) return gradebookD1AdminResponse;
