@@ -1,0 +1,177 @@
+name: Issue 383 integrate wave 23 v2
+
+on:
+  push:
+    branches:
+      - integration/bn-383-wave-23
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-383-integrate-wave-23-v2
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    name: Integrate inert Wave 23 closure v2
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Consolidate canonical Wave 23 state
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+          import re
+
+          def read(path): return Path(path).read_text(encoding='utf-8')
+          def write(path, value): Path(path).write_text(value, encoding='utf-8')
+          def replace_once(value, old, new, path):
+              if value.count(old) != 1:
+                  raise SystemExit(f'{path}: expected once: {old[:100]!r}; count={value.count(old)}')
+              return value.replace(old, new, 1)
+          def sub_once(value, pattern, replacement, path, flags=0):
+              result, count = re.subn(pattern, replacement, value, count=1, flags=flags)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected regex once: {pattern!r}')
+              return result
+
+          # README
+          path='docs/gradebook/README.md'; value=read(path)
+          value=replace_once(value,
+            '- [Issue #374](https://github.com/mcpmieda/ecossistema-escola/issues/374) — integração da onda 22.',
+            '- [Issue #383](https://github.com/mcpmieda/ecossistema-escola/issues/383) — integração/fechamento da onda 23.', path)
+          replacement='''## Estado atual — onda 23 concluída\n\nA onda 23 executou produção controlada de forma estritamente sequencial:\n\n- #380 — D1 acadêmico produtivo e binding `GRADEBOOK_D1` confirmados, com gate server-side fail-closed;\n- #381 — migrations canônicas 0001–0004 aplicadas remotamente, schema version 4 / 25 tabelas e zero pendência;\n- #382 — cinco smokes produtivos com corpus exclusivamente sintético, snapshot/reprint duráveis e recovery validado;\n- #383 — consolidação canônica, sem novo acesso D1, migration, smoke acadêmico ou mudança de autoridade.\n\nO SHA usado no smoke final foi `2fdefa87f186e84ed40637437d4b0199baff82c6`. Ao final da janela, o corpus sintético foi restaurado para **zero raízes residuais** e o production gate voltou a **OFF**.\n\nO readiness V1 permanece histórico e continua descrevendo o estado pré-produção `prepared-for-manual-authorization`. A partir desta integração, `controlled-production-readiness-v2.ts` representa o estado autorizado pós-onda 23: **`production-infrastructure-smoke-validated-awaiting-private-pilot`**.\n\n## Invariantes ativos\n\n- `authorityMode: imported-source`;\n- D1 acadêmico produtivo e binding `GRADEBOOK_D1`: presentes;\n- migrations remotas: 0001–0004, schema version 4 / 25 tabelas, zero pendência;\n- production gate: OFF entre janelas autorizadas;\n- produção acadêmica real: não iniciada;\n- piloto real: não iniciado;\n- corpus sintético residual do smoke: zero;\n- `native-engine`: não ativo;\n- somente dados sintéticos no repositório/CI.\n\n## Readiness F9\n\nO V1 continua congelado como memória da preparação anterior e não é enfraquecido para aceitar binding/migrations. O V2 distingue infraestrutura produtiva autorizada e smoke-validada de piloto real e autoridade nativa. Depois da onda 23 restam dois gates independentes: piloto privado real e mudança de autoridade pela trilha própria.\n\nLimitações conhecidas a revisar antes do piloto, sem solução inventada nesta integração:\n\n- `reconciliation_v2.case_store` ainda é provider-independent/process-local;\n- sessão/reunião institucional do Conselho V2 ainda é process-local e sem durabilidade cross-restart;\n- write administrativo da configuração de comparação continua `not-integrated-hard-stop`.\n\nA #384 / PR #385 ainda não está integrada à `main` nesta consolidação; portanto BN-DEC-019 continua a decisão canônica vigente. A direção da #384 só deve ser consumida depois de integração própria.\n\n## Estado funcional\n\n- **F1:** concluída e validada 7/7; fidelidade prospectiva V2 preservada;\n- **F2:** D1 produtivo provisionado, schema 4/25 aplicado e gate final OFF;\n- **F3:** motor V1 comparativo; autoridade continua importada;\n- **F4/F5/F6:** concluídas, com write da configuração de comparação ainda bloqueado;\n- **F7/F8:** durabilidade D1 integrada; Boletins/snapshot/reprint validados no smoke produtivo;\n- **F9:** infraestrutura produtiva smoke-validada, aguardando piloto privado real.\n\n## Próximo gate\n\n`onda 23 concluída → onda 24 piloto privado real → #347 autoridade nativa`\n\nA onda 24 deve começar por revisão explícita de escopo contra as limitações conhecidas, manter `imported-source` durante a validação e não abrir o gate com dados reais sem autorização própria.\n\n'''
+          value=sub_once(value,r'## Estado atual — onda 22\n.*?(?=## Processo oficial)',replacement,path,re.S); write(path,value)
+
+          # Start-here: intentionally current and compact.
+          write('docs/gradebook/COMECE_AQUI.md','''# Comece aqui — mapa curto para agentes\n\n## Regra principal\n\n**Agente de implementação só começa em issue marcada `[PRONTA]`.** Issues-pai são acompanhamento; integrações rodam somente pela issue integradora correspondente.\n\n## Onda 23 — produção controlada concluída\n\n| Etapa | Issue | Resultado |\n| --- | ---: | --- |\n| Recurso/binding | #380 | D1 produtivo único + `GRADEBOOK_D1`, gate OFF |\n| Migrations | #381 | 0001–0004, schema 4 / 25, pendentes 0 |\n| Smoke | #382 | 5/5 passos verdes, corpus sintético restaurado a zero |\n| Integração | #383 | memória canônica + readiness V2, sem nova operação D1 |\n\nSHA/deployment testado pelo smoke: `2fdefa87f186e84ed40637437d4b0199baff82c6`.\n\n## Invariantes atuais\n\n- `authorityMode: imported-source`;\n- D1/binding produtivos presentes;\n- schema remoto version 4 / 25 tabelas;\n- production gate OFF entre janelas autorizadas;\n- nenhum dado real usado na onda 23;\n- resíduo sintético após smoke: zero;\n- piloto real: não iniciado;\n- `native-engine`: não ativo;\n- #347 permanece bloqueada.\n\n## Readiness\n\n- V1: memória histórica de preparação `prepared-for-manual-authorization`; não foi enfraquecido.\n- V2: `production-infrastructure-smoke-validated-awaiting-private-pilot`.\n- gates restantes: piloto privado real e autoridade nativa separada.\n\n## Limitações a revisar antes da onda 24\n\n- `reconciliation_v2.case_store`: process-local;\n- Conselho V2 sessão/reunião: process-local, sem durabilidade cross-restart;\n- write administrativo da configuração de comparação: `not-integrated-hard-stop`.\n\nA #384 / PR #385 ainda não está integrada; não tratá-la como decisão canônica até seu merge próprio.\n\n## Próximo passo\n\n1. **onda 24 — piloto privado real:** revisão de escopo e execução somente por autorização própria, ainda com `imported-source`;\n2. investigar/reconciliar divergências representativas encontradas;\n3. **#347 — autoridade nativa:** somente após piloto, contratos/gates aplicáveis, vigência e aceite explícitos.\n\n## Fluxo\n\n```text\nissue [PRONTA]\n  → branch curta\n  → um PR\n  → npm run verify\n  → handoff\n\nfrente verde\n  → integradora\n  → merge fixado\n  → testes/docs mínimos\n  → verify\n  → PR de integração\n  → merge/deploy/smokes públicos sem dados\n  → gate manual explícito\n```\n\nNão usar App Factory, Factory Runs, subagentes ou orquestração salvo autorização explícita da issue. Nunca publicar dados acadêmicos reais, identificadores remotos, secrets, bookmarks, payloads ou screenshots acadêmicos.\n''')
+
+          # Issue map.
+          path='docs/gradebook/ISSUE_MAP.md'; value=read(path)
+          value=replace_once(value,
+            '- **Onda 22:** #349 / PR #375 → #371 / PR #376 → (#372 / PR #377 + #373 / PR #378) → #374 / PR #379\n- **Armazenamento:** Cloudflare D1 local/preview, migrations 0001–0004 / 25 tabelas\n- **Produção acadêmica:** sem D1 remoto, binding ou migration remota; consultas/persistência desativadas',
+            '- **Onda 22:** #349 / PR #375 → #371 / PR #376 → (#372 / PR #377 + #373 / PR #378) → #374 / PR #379\n- **Onda 23:** #380 → #381 → #382 → #383\n- **Armazenamento:** Cloudflare D1 local/preview + produção; migrations 0001–0004 / 25 tabelas\n- **Produção acadêmica:** recurso/binding/schema presentes e smoke-validados; gate final OFF, operação real ainda não iniciada',path)
+          value=replace_once(value,'| F2 Persistência        |  #185 | D1 local + durabilidade Bulletin/Council                        | produção somente por autorização própria |','| F2 Persistência        |  #185 | D1 produtivo + schema 4/25; gate final OFF                       | piloto somente por autorização própria    |',path)
+          value=replace_once(value,'| F9 Piloto/segurança    |  #192 | readiness preparado; onda 23 é o próximo gate controlado        | produção → piloto → autoridade           |','| F9 Piloto/segurança    |  #192 | infraestrutura produtiva smoke-validada; gate final OFF          | piloto → autoridade                      |',path)
+          wave23='''\n## Onda 23 — produção controlada\n\n| Etapa | Issue | Evidência sanitizada |\n| --- | ---: | --- |\n| Recurso/binding | #380 | D1 produtivo e `GRADEBOOK_D1` presentes; gate OFF |\n| Migrations | #381 | 4/4, schema version 4, 25 tabelas, pendentes 0 |\n| Smoke | #382 | 5 passos verdes; snapshot/reprint/recovery; resíduo sintético final 0 |\n| Integração | #383 | readiness V2 + memória canônica, sem nova operação remota |\n\nEstado consolidado: `production-infrastructure-smoke-validated-awaiting-private-pilot`. O SHA usado no smoke final foi `2fdefa87f186e84ed40637437d4b0199baff82c6`; o production gate terminou OFF e `authorityMode` continua `imported-source`.\n\nLimitações conhecidas para revisão de escopo na onda 24: case store de reconciliação V2 process-local, sessão/reunião do Conselho V2 process-local e write da configuração de comparação ainda não integrado. A integração #383 não cria solução por conveniência.\n\nA #384 / PR #385 segue sem merge nesta consolidação e, portanto, não altera ainda a decisão canônica em `DECISIONS.md`.\n\nPróxima ordem: `onda 23 concluída → onda 24 piloto privado real → #347 autoridade nativa`.\n\n'''
+          value=replace_once(value,'\n## Como iniciar agente\n',wave23+'## Como iniciar agente\n',path)
+          value=value.replace('Próxima ordem: `onda 23 produção controlada → onda 24 piloto real → #347 autoridade nativa`.','Próxima ordem histórica após a onda 22: `onda 23 produção controlada → onda 24 piloto real → #347 autoridade nativa`.')
+          write(path,value)
+
+          # D1 runtime.
+          path='docs/gradebook/D1_RUNTIME.md'; value=read(path)
+          for old,new in [
+            ('# Runtime D1 local/preview e runner autorizado V1','# Runtime D1 autorizado e gate produtivo V1'),
+            ('O runtime compõe adaptadores D1 para desenvolvimento local e previews controlados. Ele não cria banco, binding, secret ou recurso remoto e não habilita consulta/persistência acadêmica em produção.','O runtime compõe adaptadores D1 para ambientes autorizados. A onda 23 provisionou o D1 acadêmico produtivo e o binding server-side sem versionar identificadores remotos; o acesso acadêmico de produção continua condicionado ao gate explícito e à autorização opaca.'),
+            ('local      → binding injetado permitido\npreview    → binding injetado permitido\nproduction → fail-closed antes de inspecionar GRADEBOOK_D1','local      → binding injetado permitido\npreview    → binding injetado permitido\nproduction → gate OFF: fail-closed antes de usar GRADEBOOK_D1\nproduction → gate ON: somente em janela autorizada, após auth/capability'),
+            ('O `wrangler.jsonc` de produção continua sem binding D1 acadêmico.','O binding lógico `GRADEBOOK_D1` é injetado na publicação por configuração protegida de produção; IDs remotos não são versionados. `GRADEBOOK_PRODUCTION_ENABLED` permanece ausente/`false` entre janelas autorizadas.'),
+            ('Logo `production` falha antes do binding para todas as superfícies acadêmicas.','Logo, com o gate OFF, `production` falha antes do uso acadêmico do binding. Abrir o gate não elimina `requireAuth`, `gradebook.persistence.admin`, origin ou `no-store`.'),
+            ('A 0004 cria quatro tabelas e índices de paginação/history. Total local após runner: 25 tabelas. Reexecução permanece idempotente. Não existe DDL dos adapters/factory e nenhuma migration remota foi aplicada.','A 0004 cria quatro tabelas e índices de paginação/history. O catálogo canônico totaliza 25 tabelas. Na onda 23, as migrations 0001–0004 foram aplicadas remotamente em ordem, resultando em schema version 4 / 25 tabelas e zero pendência; nenhuma DDL extra foi criada.'),
+            ('## F9 / shell\n\nA rota e as superfícies são lazy; entrar no Banco dispara zero requests acadêmicos automáticos. A busca global seleciona área por hash query, sem bridge paralelo. Produção e autoridade nativa continuam desativadas.','## F9 / produção controlada\n\nA rota e as superfícies são lazy; entrar no Banco dispara zero requests acadêmicos automáticos. A busca global seleciona área por hash query, sem bridge paralelo.\n\nA #382 executou uma janela produtiva sintética controlada no SHA `2fdefa87f186e84ed40637437d4b0199baff82c6`: shell público, status anônimo, status autorizado, Performance e Boletins/snapshot/reprint passaram. O corpus foi restaurado para zero raízes residuais e o production gate terminou OFF. Nenhum piloto real foi executado e `authorityMode` permaneceu `imported-source`.\n\nBindings D1 remotos que expõem `batch()` usam batches guardados para promoção e durabilidade de snapshots/decisões; SQLite local preserva transações/savepoints. CAS, rollback e o planner/executor oficiais continuam sendo as únicas fronteiras de write.')]:
+              value=replace_once(value,old,new,path)
+          value=sub_once(value,r'## Limites preservados\n.*?\Z','''## Limites preservados\n\n- D1/binding/schema produtivos existem, mas o gate permanece OFF fora de janelas autorizadas;\n- nenhum secret, ID remoto ou bookmark é versionado;\n- nenhuma mudança de `authorityMode`;\n- nenhum piloto real executado;\n- nenhuma regra acadêmica no adapter/HTTP/UI/renderer/wiring;\n- `reconciliation_v2.case_store` permanece process-local;\n- sessão/reunião institucional V2 ainda não tem durabilidade cross-restart;\n- write administrativo da configuração de comparação permanece hard stop;\n- PDF permanece raster/client-side;\n- somente dados sintéticos em testes públicos.\n''',path,re.S); write(path,value)
+
+          # D1 schema.
+          path='docs/gradebook/D1_SCHEMA.md'; value=read(path)
+          value=replace_once(value,'O schema local/preview está integrado até a migration 0004. Nenhum banco, binding, secret, recurso remoto ou migration de produção foi criado ou executado.','O schema canônico está integrado até a migration 0004 em local/preview e produção. A onda 23 confirmou D1/binding produtivos, aplicou remotamente 0001–0004 e validou schema version 4 / 25 tabelas com zero migration pendente. Identificadores remotos permanecem fora do repositório.',path)
+          value=replace_once(value,'## Leitura/escrita local integrada','## Leitura/escrita integrada',path)
+          value=sub_once(value,r'## Produção\n.*?\Z','''## Produção\n\nEstado consolidado pela onda 23:\n\n- D1 acadêmico produtivo: presente e inequivocamente associado ao binding protegido;\n- binding `GRADEBOOK_D1`: presente;\n- migrations remotas: 0001–0004, 4/4;\n- schema: version 4 / **25 tabelas de domínio**, zero pendência;\n- tabela interna reservada do provedor, quando presente, não integra a contagem contratual das 25 tabelas;\n- smoke sintético de Performance e Boletins/snapshot/reprint: verde;\n- recovery pós-smoke: corpus sintético restaurado para zero raízes residuais;\n- production gate final: OFF;\n- piloto real: não iniciado;\n- `authorityMode: imported-source`.\n\nA presença do schema remoto não autoriza operação acadêmica real. Toda nova janela depende do gate server-side, auth/capability existentes e autorização própria.\n''',path,re.S); write(path,value)
+
+          # Production readiness: V1 historical + V2 current; keep private-pilot/recovery protocol.
+          path='docs/gradebook/PRODUCTION_READINESS.md'; value=read(path)
+          prefix='''# Readiness F9 — produção controlada e próximo piloto\n\n## Estado e autoridade deste documento\n\nEste runbook preserva a preparação histórica e registra o fechamento controlado da onda 23. Ele não autoriza piloto real nem troca de autoridade.\n\n### V1 histórico\n\n`server/gradebook/readiness/production-readiness-v1.ts` continua representando o estado anterior à produção. Seu resultado positivo máximo permanece `prepared-for-manual-authorization` e binding/migration remotos continuam `scope-violation` **nesse modelo histórico**. O V1 não foi enfraquecido nem reinterpretado.\n\n### V2 pós-onda 23\n\n`server/gradebook/readiness/controlled-production-readiness-v2.ts` representa a sequência explicitamente autorizada #380 → #381 → #382 e só retorna `production-infrastructure-smoke-validated-awaiting-private-pilot` quando D1/binding, schema 4/25, smoke sintético, resíduo zero, recovery, gate OFF e `imported-source` estão confirmados, sem piloto real ou autoridade nativa.\n\nO V2 é um avaliador puro de estado. Não contém cliente HTTP, API Cloudflare, Wrangler, SQL, executor de migration, smoke, piloto ou autoridade.\n\n## Evidência consolidada da onda 23\n\n| Gate | Issue | Resultado sanitizado |\n| --- | ---: | --- |\n| recurso/binding | #380 | presente; gate OFF |\n| migrations | #381 | 4/4; schema 4/25; pendentes 0 |\n| smoke | #382 | 5/5; somente corpus sintético; recovery para resíduo 0 |\n| integração | #383 | memória canônica + readiness V2; nenhuma nova operação D1 |\n\nSHA/deployment usado no smoke final: `2fdefa87f186e84ed40637437d4b0199baff82c6`. A janela terminou com `production-gate-final: off` e `authorityMode: imported-source`.\n\n## Hard stops depois da onda 23\n\nOs três primeiros gates produtivos históricos estão fechados. Restam independentes:\n\n1. `private-real-pilot-authorization`;\n2. `native-authority-separate-authorization`.\n\nA #384 / PR #385 ainda não está integrada nesta consolidação; BN-DEC-019 permanece a decisão canônica vigente até integração própria.\n\n## Limitações conhecidas para revisão da onda 24\n\n- `reconciliation_v2.case_store` provider-independent/process-local;\n- sessão/reunião institucional do Conselho V2 process-local e sem durabilidade cross-restart;\n- write administrativo da configuração de comparação ainda `not-integrated-hard-stop`.\n\nA revisão da onda 24 deve decidir se o escopo real autorizado depende dessas limitações; esta integração não cria schema/capability por conveniência.\n\n## Ensaios locais permanecem obrigatórios\n\n`npm run test:gradebook-readiness` cobre V1 histórico, V2 controlado e cenários sintéticos. `npm run verify` permanece obrigatório no SHA final. Repo/CI públicos continuam usando somente dados sintéticos.\n\n'''
+          value=sub_once(value,r'\A# Readiness F9.*?(?=## Protocolo privado de piloto paralelo)',prefix,path,re.S); write(path,value)
+
+          # Architecture.
+          path='docs/gradebook/ARCHITECTURE.md'; value=read(path)
+          for old,new in [
+            ('`authorityMode` continua `imported-source` após a onda 22. A BN-DEC-019 registra `native-engine` apenas como autoridade-alvo futura; a troca efetiva pertence à #347 depois de produção controlada, piloto e vigência explícita. Conselho continua separando cálculo de decisão humana.','`authorityMode` continua `imported-source` após a onda 23. A produção controlada validou infraestrutura e smoke, não mudou autoridade. A BN-DEC-019 segue canônica na `main`; a #384/PR #385 ainda não está integrada. A troca efetiva permanece separada em #347 depois do piloto e dos gates aplicáveis. Conselho continua separando cálculo de decisão humana.'),
+            ('local      → binding injetado permitido\npreview    → binding injetado permitido\nproduction → falha antes de inspecionar GRADEBOOK_D1','local      → binding injetado permitido\npreview    → binding injetado permitido\nproduction → binding presente + gate OFF: falha antes do uso acadêmico do D1\nproduction → gate ON: janela explícita, ainda atrás de auth/capability'),
+            ('Os quatro históricos são append-only, sem cascade/purge inventado. Nenhuma migration 0004 foi aplicada remotamente.','Os quatro históricos são append-only, sem cascade/purge inventado. Na onda 23, 0001–0004 foram aplicadas remotamente: schema version 4 / 25 tabelas, zero pendência.'),
+            ('A composição física ocorre somente depois de autorização opaca e do gate de ambiente. Snapshots de Boletins e decisões de Conselho usam a factory D1 durável da #340. A sessão/reunião institucional V2 permanece provider-independent/process-local nesta versão porque a 0004 não define armazenamento para esse agregado.','A composição física ocorre somente depois de autorização opaca e do gate de ambiente. Em produção, o gate explícito deve estar ON apenas durante janela autorizada; OFF falha antes do uso acadêmico do binding. Snapshots de Boletins e decisões de Conselho usam a factory D1 durável da #340; bindings remotos com `batch()` usam batch guardado para atomicidade. A sessão/reunião institucional V2 permanece provider-independent/process-local porque a 0004 não define armazenamento para esse agregado.'),
+            ('- snapshots são imutáveis, append-only, versionados e duráveis em D1 local/preview;','- snapshots são imutáveis, append-only e versionados; o caminho D1 remoto foi smoke-validado e depois restaurado a resíduo sintético zero;'),
+            ('- produção permanece fail-closed até autorização própria;','- produção possui D1/binding/schema, mas permanece fail-closed com o gate OFF entre janelas autorizadas;'),
+            ('Publicação de código não ativa dados acadêmicos: sem D1/binding acadêmico de produção, superfícies físicas continuam indisponíveis antes do binding.','Publicação de código não ativa dados acadêmicos: D1/binding existem, mas `GRADEBOOK_PRODUCTION_ENABLED` ausente/`false` mantém as superfícies acadêmicas produtivas fail-closed. A onda 23 terminou nesse estado.')]:
+              value=replace_once(value,old,new,path)
+          write(path,value)
+
+          # Project state.
+          path='docs/gradebook/PROJECT_STATE.yaml'; value=read(path)
+          for old,new in {
+            '  previous_integrator_issue: 374':'  previous_integrator_issue: 383',
+            '  current_wave: 22':'  current_wave: 23',
+            '  next_wave: 23':'  next_wave: 24',
+            '  executable_issue_status: manual-authorization-required':'  executable_issue_status: wave-24-scope-review-required',
+            '  production_d1_binding_present: false':'  production_d1_binding_present: true',
+            '  production_remote_resources_created: false':'  production_remote_resources_created: true',
+            '  production_gate: before-binding':'  production_gate: explicit-server-gate-off-between-authorized-windows',
+            '  readiness_status: prepared-for-manual-authorization':'  readiness_status: production-infrastructure-smoke-validated-awaiting-private-pilot',
+            '    production: fail-closed-before-binding':'    production: binding-present-gate-off-fail-closed',
+            '  academic_d1_database: absent':'  academic_d1_database: present',
+            '  academic_d1_binding: absent':'  academic_d1_binding: present-protected',
+            '  remote_migrations_applied: false':'  remote_migrations_applied: true',
+            '  remote_bulletin_snapshot_storage: absent':'  remote_bulletin_snapshot_storage: schema-present-smoke-validated-restored-zero-gate-off',
+            '  remote_council_decision_storage: absent':'  remote_council_decision_storage: schema-present-not-smoke-validated-gate-off',
+            '  schema_status: local-v1-plus-bulletin-council-durability':'  schema_status: production-version-4-smoke-validated',
+            '  production_provisioned: false':'  production_provisioned: true',
+            '    remote_snapshot_persistence: absent':'    remote_snapshot_persistence: smoke-validated-restored-zero-gate-off',
+            '    status: readiness-prepared-next-gate-wave-23-controlled-production':'    status: production-infrastructure-smoke-validated-awaiting-private-pilot',
+          }.items(): value=replace_once(value,old,new,path)
+          value=sub_once(value,r'(storage:\n.*?  production_provisioned: true\n)  remote_migration_applied: false',r'\1  remote_migration_applied: true',path,re.S)
+          value=sub_once(value,r'  excluded_for_now:\n(?:    - .*\n)+\n(?=storage:)','''  excluded_for_now:\n    - smecel\n    - additional-cadastral-sources\n    - automatic-onedrive-sync\n    - standardized-technical-spreadsheet\n    - private-real-pilot\n    - automatic-authority-switch\n\n''',path)
+          value=replace_once(value,'    readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts','    readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts\n    controlled_production_readiness_manifest: server/gradebook/readiness/controlled-production-readiness-v2.ts',path)
+          value=replace_once(value,'    production_pilot_completed: false\n    authority_switch_completed: false','''    production_pilot_completed: false\n    authority_switch_completed: false\n    production_resource_present: true\n    production_binding_present: true\n    remote_migrations_applied_count: 4\n    remote_schema_version: 4\n    remote_table_count: 25\n    remote_pending_migrations: 0\n    production_synthetic_smoke_steps_passed: 5\n    synthetic_residue_after_smoke: 0\n    production_gate_final: off\n    post_wave_23_hard_stops:\n      - private-real-pilot-authorization\n      - native-authority-separate-authorization''',path)
+          wave23_yaml='''\nwave_23:\n  status: completed-integrated\n  integration_issue: 383\n  sequence:\n    - 380\n    - 381\n    - 382\n    - 383\n  smoke_tested_sha: 2fdefa87f186e84ed40637437d4b0199baff82c6\n  production_resource_present: true\n  production_binding_present: true\n  remote_migrations_applied: 4\n  schema_version: 4\n  table_count: 25\n  pending_migrations: 0\n  production_synthetic_smoke_steps_passed: 5\n  synthetic_residue_after_smoke: 0\n  production_gate_final: off\n  real_pilot_completed: false\n  authority_mode: imported-source\n  native_engine_active: false\n  next_wave: 24\n  known_limitations_for_pilot_scope_review:\n    - reconciliation-v2-case-store-process-local\n    - council-v2-session-store-process-local\n    - performance-comparison-config-write-not-integrated\n  authority_scope_decision_issue: 384\n  authority_scope_decision_pull_request: 385\n  authority_scope_decision_integrated: false\n\n'''
+          value=replace_once(value,'\nbundle_wave_17:\n',wave23_yaml+'bundle_wave_17:\n',path); write(path,value)
+
+          # Historical integration tests should preserve historical evaluators but not freeze current docs at old waves.
+          path='tests/gradebook/integration/wave-20-readiness-integration.test.ts'; value=read(path)
+          value=sub_once(value,r"  it\('sincroniza o estado canônico sem ativar produção nem antecipar a #347', \(\) => \{.*?\n  \}\);(?=\n\}\);)",'''  it('preserva o V1 histórico sem congelar a memória canônica no estado pré-produção', () => {\n    const projectState = source('docs/gradebook/PROJECT_STATE.yaml');\n    const startHere = source('docs/gradebook/COMECE_AQUI.md');\n\n    expect(projectState).toContain(\n      'readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts',\n    );\n    expect(projectState).toContain(\n      'controlled_production_readiness_manifest: server/gradebook/readiness/controlled-production-readiness-v2.ts',\n    );\n    expect(projectState).toContain('academic_authority_mode: imported-source');\n    expect(projectState).toContain('production_academic_runtime_enabled: false');\n    expect(projectState).toContain('production_d1_binding_present: true');\n    expect(projectState).toContain('production_gate_final: off');\n    expect(projectState).toContain('authority_transition_issue: 347');\n    expect(startHere).toContain('V1: memória histórica de preparação');\n    expect(startHere).toContain('#347 permanece bloqueada');\n  });''',path,re.S); write(path,value)
+
+          path='tests/gradebook/integration/wave-22-final-integration.test.ts'; value=read(path)
+          value=sub_once(value,r"  it\('registra a onda 23 como próximo gate sem antecipar piloto ou autoridade', \(\) => \{.*?\n  \}\);(?=\n\}\);)",'''  it('preserva a onda 22 como histórico e aceita o fechamento canônico da onda 23', () => {\n    const projectState = source('docs/gradebook/PROJECT_STATE.yaml');\n    const startHere = source('docs/gradebook/COMECE_AQUI.md');\n    const readiness = source('docs/gradebook/PRODUCTION_READINESS.md');\n\n    expect(projectState).toContain('current_wave: 23');\n    expect(projectState).toContain('next_wave: 24');\n    expect(projectState).toContain('academic_authority_mode: imported-source');\n    expect(projectState).toContain('production_academic_runtime_enabled: false');\n    expect(projectState).toContain('production_d1_binding_present: true');\n    expect(projectState).toContain('remote_migration_applied: true');\n    expect(projectState).toContain('production_gate_final: off');\n    expect(startHere).toContain('Onda 23 — produção controlada concluída');\n    expect(readiness).toContain(\n      'production-infrastructure-smoke-validated-awaiting-private-pilot',\n    );\n  });''',path,re.S); write(path,value)
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Gradebook readiness
+        run: npm run test:gradebook-readiness
+
+      - name: Verify
+        run: npm run verify
+
+      - name: Diff check
+        run: git diff --check
+
+      - name: Commit inert integration state
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/issue-383-integrate-v2.yml
+          git config user.name 'mcpmieda'
+          git config user.email '268288370+mcpmieda@users.noreply.github.com'
+          git add server/gradebook/readiness/controlled-production-readiness-v2.ts \
+            tests/gradebook/readiness/controlled-production-readiness-v2.test.ts \
+            tests/gradebook/integration/wave-20-readiness-integration.test.ts \
+            tests/gradebook/integration/wave-22-final-integration.test.ts \
+            docs/gradebook/README.md docs/gradebook/COMECE_AQUI.md \
+            docs/gradebook/ISSUE_MAP.md docs/gradebook/PROJECT_STATE.yaml \
+            docs/gradebook/D1_RUNTIME.md docs/gradebook/D1_SCHEMA.md \
+            docs/gradebook/PRODUCTION_READINESS.md docs/gradebook/ARCHITECTURE.md \
+            .github/workflows/issue-383-integrate-v2.yml
+          git commit -m 'docs(#383): consolidate controlled production wave 23'
+          git push origin HEAD:integration/bn-383-wave-23
