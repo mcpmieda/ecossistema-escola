@@ -11,9 +11,15 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 318
-  current_integrator_issue: 328
-  current_wave: 16
+  previous_integrator_issue: 328
+  current_integrator_issue: 337
+  current_wave: 17
+  next_wave: 18
+  next_parallel_fronts:
+    - 340
+    - 341
+    - 342
+  next_integrator_issue: 343
   integrator_required: true
   recommended_parallel_agents: 3
   central_state_editor: integrator-only
@@ -29,12 +35,10 @@ coordination:
     - permanent-orchestrators
 
 runtime:
-  wave_15_integration_issue: 318
-  wave_15_integration_pull_request: 324
-  wave_16_integration_issue: 328
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
+  scoped_area_navigation: '#/banco-de-notas?area=<surface-id>'
   production_academic_runtime_enabled: false
   production_d1_binding_present: false
   production_remote_resources_created: false
@@ -66,6 +70,13 @@ runtime:
     council_workspace:
       route: POST /api/gradebook/council-workspace
       count: 1
+  shell_hardening:
+    gradebook_route_lazy: true
+    academic_surfaces_lazy: true
+    automatic_academic_requests_on_entry: 0
+    surface_error_boundaries: true
+    persistent_academic_browser_storage: forbidden
+    deep_link_area_validation: closed-list
 
 production:
   academic_d1_database: absent
@@ -75,13 +86,12 @@ production:
   academic_persistence_enabled: false
   remote_bulletin_snapshot_storage: absent
   remote_council_decision_storage: absent
+  native_engine_authority_enabled: false
   rule: code-presence-does-not-imply-data-access
 
 scope:
   operational_sources:
     - teacher-grade-spreadsheets
-  functional_reference:
-    - BANCO_DE_NOTAS_2026_XLSB
   excluded_for_now:
     - smecel
     - additional-cadastral-sources
@@ -90,7 +100,6 @@ scope:
     - production-academic-d1
     - remote-bulletin-snapshot-storage
     - remote-council-decision-storage
-    - unapproved-pdf-renderer
     - automatic-authority-switch
 
 storage:
@@ -104,15 +113,13 @@ storage:
     - 0001_gradebook_context_entities_imports_v1.sql
     - 0002_gradebook_records_audit_v1.sql
     - 0003_logical_source_record_catalog_v1.sql
-  wave_16_schema_changed: false
+  wave_17_schema_changed: false
   production_provisioned: false
+  next_durability_issue: 340
 
 contracts:
   source_contract_v1:
     status: frozen-real-validation-complete
-    schema_issue: 193
-    validation_issue: 198
-    runtime_manifest_issue: 199
     final_validation_issue: 184
     validation_status: complete-7-of-7
   academic_entities_v1:
@@ -125,32 +132,19 @@ contracts:
     status: frozen
     issue: 197
   operational_workspace_v1:
-    status: implemented-local-preview-http-ui
-    contract_issue: 293
-    implementation_issue: 302
-    hardening_issue: 317
+    status: implemented-local-preview-http-ui-hardened-lazy
     http_route: POST /api/gradebook/operational-workspace
     bridge_count: 1
     navigation: opaque-kind-plus-id
     year_selection: explicit
   audit_workspace_v1:
-    status: implemented-local-preview-http-ui
-    contract_issue: 294
-    implementation_issue: 303
-    ui_http_issue: 314
+    status: implemented-local-preview-http-ui-hardened-lazy
     http_route: POST /api/gradebook/audit-workspace
     bridge_count: 1
     actor_source: server-session-oid
     occurred_at_source: server
-    promotion: informational-only
   class_performance_v1:
-    status: implemented-local-preview-http-ui
-    contract_issue: 295
-    provider_issue: 304
-    physical_source_issue: 315
-    end_to_end_issue: 325
-    runtime_composition_issue: 318
-    integration_issue: 328
+    status: implemented-local-preview-http-ui-hardened-lazy
     http_route: POST /api/gradebook/performance
     bridge_count: 1
     authority_mode: imported-source
@@ -162,25 +156,24 @@ contracts:
     recovery_other_lenses_source: term-results
     raw_source_evidence_over_http: forbidden
   bulletin_v1:
-    status: implemented-local-preview-http-ui-no-pdf
+    status: implemented-local-preview-http-ui-pdf-individual
     contract_issue: 296
-    implementation_issue: 305
-    hardening_issue: 316
     end_to_end_issue: 326
-    integration_issue: 328
+    pdf_issue: 335
     http_route: POST /api/gradebook/bulletins
     bridge_count: 1
     authority_mode: imported-source
     batch_materialization: aggregated
     snapshots: local-immutable-versioned-disposable
     reprint: historical-snapshot-only-no-current-academic-read
+    pdf_renderer: client-side-canonical-snapshot-only-lazy
+    pdf_batch: false
+    pdf_raster: true
     remote_snapshot_persistence: absent
-    pdf_renderer: pending-architectural-decision
   council_workspace_v1:
-    status: implemented-local-preview-http-ui
+    status: implemented-local-preview-http-ui-hardened-lazy
     implementation_issue: 327
     official_projection_issue: 332
-    integration_issue: 328
     http_route: POST /api/gradebook/council-workspace
     bridge_count: 1
     upstream_projection: createGradebookD1CouncilOfficialProjectionSourceV1
@@ -188,29 +181,12 @@ contracts:
     decision_store: local-preview-append-only-versioned-disposable
     actor_source: server-session-oid
     decided_at_source: server
-    unsupported_semantics:
-      - voting
-      - tie-break
-      - attendance-inference
-      - participant-rules
-      - undocumented-exceptions
 
 native_engine:
   status: implemented-v1
   official_authority: imported-source
   authority_change: manual-future-decision-only
-  components:
-    - source-cell-semantics
-    - rounding
-    - term-composition
-    - parallel-recovery
-    - term-outcome
-    - final-recovery
-    - annual-outcome
-    - annual-equivalence
   council_foundation:
-    direct_approval: integrated
-    approved_after_recovery: integrated
     failed_components_0: follows-official-annual-result
     failed_components_1_or_2: eligible-for-council-when-coverage-complete
     failed_components_3_plus: not-eligible-for-council
@@ -231,50 +207,16 @@ features:
       - xlsb
       - xlsx
       - xls
-  academic_context:
-    status: implemented-local-v1
-    issue: 262
-    clock_fallback: forbidden
-  persistence_unit_of_work:
-    status: complete-local-v1
-  reimport_planner:
-    status: integrated-idempotent-v1
-  promotion_executor:
-    status: integrated-transactional-v1
-    concurrency: compare-and-set
-    savepoints: true
-    rollback: true
   operational_workspace:
-    status: usable-local-preview
-    centers:
-      - student
-      - class-group
-      - teacher
-      - subject
-    search: authorized-global-search-v1
+    status: usable-local-preview-hardened-lazy
     stale_response_discard: true
     request_abort: true
     in_flight_dedupe: true
-    safe_year_switch: true
-    pagination_dedupe: true
   audit_workspace:
-    status: usable-local-preview
-    collections:
-      - import-batches
-      - audit-occurrences
-      - reconciliations
-    filters: true
-    cursor_pagination: true
-    detail: true
-    pending_items: true
+    status: usable-local-preview-hardened-lazy
     resolution_cas: true
   performance:
-    status: usable-local-preview
-    physical_source: true
-    read_model: true
-    runtime_method: classPerformanceReadModel
-    http: true
-    ui: true
+    status: usable-local-preview-hardened-lazy
     lenses:
       - result
       - quantitative
@@ -283,98 +225,91 @@ features:
     regular_recovery: true
     independent_row_column_pagination: true
     student_cell_drilldown: true
-    stale_response_discard: true
   bulletins:
-    status: usable-local-preview-without-pdf
-    provider_independent_emission: true
+    status: usable-local-preview-with-canonical-pdf
     preview_uses_canonical_model: true
     aggregated_batch_materialization: true
     immutable_versioned_local_snapshots: true
     historical_reprint_without_recalculation: true
     historical_reprint_current_academic_reads: 0
-    http: true
-    ui: true
-    pdf: false
+    pdf_individual: true
+    pdf_source: BulletinSnapshotV1
+    pdf_renderer_lazy: true
+    pdf_batch: false
   council:
-    status: usable-local-preview
+    status: usable-local-preview-hardened-lazy
     official_projection_source: true
-    operational_workspace: true
-    queue_batch: true
     eligibility_recalculation_in_workspace: false
     decision_human: true
     history_append_only: true
     cas: true
-    http: true
-    ui: true
   f9:
-    status: transversal-requirements-active-dedicated-large-front-now-justified
+    status: first-large-hardening-integrated
+    no_store_audited: true
+    browser_storage_audited: true
+    lazy_surfaces: true
+    isolated_error_boundaries: true
+    entry_requests_before: 2
+    entry_requests_after: 0
+    production_pilot_completed: false
+    authority_switch_completed: false
 
-wave_15:
-  integration_issue: 318
-  integration_pull_request: 324
-  implementation_merges:
-    - issue: 314
-      pull_request: 321
-      head_sha: a0197e41a68bffe920630dcd8237edb7e9d2764d
-      merge_commit: fd3fdc32d85227fa12a84477feaca0892e773816
-      result: audit-workspace-http-ui-local-preview
-    - issue: 315
-      pull_request: 323
-      head_sha: d56af4f6891b112cbb78b3843c126b0e692af0b0
-      merge_commit: a101819daef4791e5a1f5a5a64b554ab97d59263
-      result: d1-performance-source-six-batch-queries
-    - issue: 316
-      pull_request: 322
-      head_sha: bc982ae01b81d76fb10b9838222be64c9a42dfb2
-      merge_commit: 2875749517ea0c145d73c3dc1df9aa11a8dc18a3
-      result: bulletin-aggregate-materialization-local-snapshots
-    - issue: 317
-      pull_request: 320
-      head_sha: 58429246b3b6fdea10f9719189c34a5326d6f1cb
-      merge_commit: d7f984e8753e5ad102f8aeb6a135f4870b8298e6
-      result: operational-workspace-hardening
-  integration_composition:
-    performance_source_plus_read_model_in_runtime: true
-    audit_bridge_preserved: true
-    operational_bridge_preserved: true
-    production_gate_before_binding: true
+bundle_wave_17:
+  baseline_entry_min_kb: 820.68
+  baseline_entry_gzip_kb: 235.71
+  combined_entry_min_kb: 552.28
+  combined_entry_gzip_kb: 167.15
+  conservative_initial_path_min_kb: 661.25
+  conservative_initial_path_gzip_kb: 202.82
+  pdf_renderer_chunk_min_kb: 9.71
+  pdf_renderer_chunk_gzip_kb: 3.81
+  vite_chunk_warning_over_500kb: true
 
 wave_16:
-  strategy: large-vertical-parallel-fronts
   integration_issue: 328
   integration_pull_request: 334
-  implementation_merges:
-    - issue: 325
-      pull_request: 329
-      head_sha: 8c76f7f6924e0260c28655a60ae0f3811274c6be
-      merge_commit: 4d1932053d7d0c5d6083164e3662d653b7c4293e
-      result: performance-end-to-end-local-preview
-    - issue: 326
-      pull_request: 331
-      head_sha: b47ec86fd488679be2df722353dcbefba5e36bd1
-      merge_commit: 71dec5984124854d894e6f370018600456ea76f3
-      result: bulletins-end-to-end-local-preview-no-pdf
-    - issue: 327
-      pull_request: 330
-      head_sha: 7d16f6772e3a5c6d4201c46ad8ab0c9219cb0e67
-      merge_commit: d86fa40ac4b6127fce270052a4fa3a1af6827fe8
-      result: council-workspace-decision-v1
-  unblock_foundation:
-    issue: 332
-    pull_request: 333
-    head_sha: f89ea6f1b8caf0c70bb431a2a958bf33759221bb
-    merge_commit: 6a5c79e99bab74ad373b26ddfdb268b470ff3ff6
-    result: council-official-annual-projection
-  integration_composition:
-    performance_http_ui: true
-    bulletins_http_ui: true
-    council_http_ui: true
-    council_official_projection_source: true
-    five_unique_academic_bridges: true
-    production_gate_before_binding: true
-    pdf_renderer: false
-  dedicated_f9_front: false
-  f9_reassessment: justified-after-wave-16-visible-functional-mass
+  integration_merge: bd16944293d76a2c0b1d90a2a14f489121adec14
+  result: performance-bulletins-council-end-to-end
+
+wave_17:
+  strategy: two-large-parallel-fronts-plus-integrator
+  integration_issue: 337
+  integration_pull_request: pending
+  source_merges:
+    - issue: 335
+      pull_request: 338
+      final_head: 130ab72cdfba30e68ca55f1f6feb718e3249758b
+      merge_commit: 6fa35b845cfcb22f606a6aa50088695857eb85d5
+      result: canonical-client-pdf
+    - issue: 336
+      pull_request: 339
+      original_head: 734ede73eab848fb71ab0a83fc05c7cf93ffc925
+      recomposed_head: f870ebb8d0ebb0bbaafc1d7b9e0acae5827cc5d8
+      recomposed_workflow: 33590936931
+      merge_commit: 4d49ef3f9744934b97a2a3ff53a1971c0100a8e3
+      result: f9-hardening-lazy-shell
+  combined_validation_before_integration:
+    test_files: 100
+    tests: 819
+    status: green
+  integration_features:
+    scoped_search_deep_link: true
+    new_bridge: false
+    production_activation: false
+
+wave_18:
+  status: released-after-wave-17
+  parallel_fronts:
+    - issue: 340
+      executor: codex-max
+      result_target: durable-d1-bulletin-council-history-local-preview
+    - issue: 341
+      executor: extra-high
+      result_target: council-v2-institutional-closure
+    - issue: 342
+      executor: extra-high
+      result_target: institutional-reports-and-bounded-batch-artifacts
+  integration_issue: 343
 
 phases:
   F0:
@@ -385,28 +320,28 @@ phases:
     status: complete-validated-7-of-7
   F2:
     issue: 185
-    status: local-persistence-complete-production-disabled
+    status: local-persistence-complete-production-disabled-durability-extension-next
   F3:
     issue: 186
     status: native-engine-v1-complete-comparative-only
   F4:
     issue: 187
-    status: audit-workspace-usable-local-preview
+    status: audit-workspace-usable-local-preview-hardened
   F5:
     issue: 188
     status: operational-workspace-usable-local-preview-hardened
   F6:
     issue: 189
-    status: performance-usable-local-preview
+    status: performance-usable-local-preview-hardened
   F7:
     issue: 190
-    status: council-usable-local-preview-official-projection
+    status: council-v1-usable-local-preview-v2-and-durability-next
   F8:
     issue: 191
-    status: bulletins-usable-local-preview-pdf-pending
+    status: bulletins-pdf-individual-complete-reports-durability-next
   F9:
     issue: 192
-    status: transversal-planned-dedicated-large-front-now-justified
+    status: hardening-integrated-production-pilot-and-authority-switch-pending
 
 security_invariants:
   public_repository_no_real_student_data: required
@@ -428,4 +363,7 @@ historical_real_validation:
   remaining_old_real_gates: 0
 
 manual_gates:
+  - production-academic-runtime-requires-explicit-authorization
+  - production-d1-provisioning-and-remote-migrations-require-own-authorization
   - future-production-smokes-only-with-explicit-authorization-and-no-real-data-in-public-artifacts
+  - native-engine-authority-switch-requires-explicit-institutional-confirmation
