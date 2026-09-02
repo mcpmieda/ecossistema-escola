@@ -17,7 +17,7 @@ A onda 21 corrige prospectivamente a fidelidade das definições trimestrais ant
 
 - #365 / PR #368 — `SourceContractV2` e `AssessmentComponentV2` para R/S e AA:AJ, preservando V1 histórico;
 - #366 / PR #369 — reconhecimento, materialização, versionamento, D1 e consumidores ponta a ponta;
-- #367 — regressão transversal, memória canônica e nova readiness sintética.
+- #367 / PR #370 — regressão transversal, memória canônica e nova readiness sintética.
 
 A F1 7/7 continua sendo evidência correta do contrato vigente à época. A onda 21 é manutenção prospectiva pós-validação, não reinterpretação retroativa. O resultado máximo de readiness continua **`prepared-for-manual-authorization`**.
 

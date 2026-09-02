@@ -7,7 +7,7 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 - **Programa:** #182
 - **Onda 19:** #353 + #354 + #355 → #356 / PR #362
 - **Onda 20:** #360 / PR #363 → #361
-- **Onda 21:** #365 / PR #368 + #366 / PR #369 → #367
+- **Onda 21:** #365 / PR #368 + #366 / PR #369 → #367 / PR #370
 - **Armazenamento:** Cloudflare D1 local/preview, migrations 0001–0004 / 25 tabelas
 - **Produção acadêmica:** sem D1 remoto, binding ou migration remota; consultas/persistência desativadas
 - **Autoridade ativa:** `imported-source`
@@ -68,7 +68,7 @@ Nenhum desses gates é consequência automática da #361. Nova execução exige 
 | ------------- | ----------- | ----------------------------------------------------------------------------------------- |
 | Contrato V2   | #365 / #368 | definições R/S e AA:AJ prospectivas, identidade estável e compatibilidade V1             |
 | Implementação | #366 / #369 | reconhecimento, materialização, versionamento, D1, Desempenho e consumidores compatíveis |
-| Integração    | #367        | regressão transversal, readiness e memória canônica                                      |
+| Integração    | #367 / #370 | regressão transversal, readiness e memória canônica                                      |
 
 Merges das frentes:
 

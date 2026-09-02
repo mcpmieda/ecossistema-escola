@@ -468,6 +468,7 @@ wave_21:
   status: completed-integrated
   strategy: contract-plus-implementation-plus-integrator
   integration_issue: 367
+  integration_pull_request: 370
   source_merges:
     - issue: 365
       pull_request: 368

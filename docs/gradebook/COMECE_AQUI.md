@@ -10,7 +10,7 @@
 | ------------- | ------------- | ---------------------------------------------------------------------------------------- |
 | Contrato V2   | `#365 / #368` | R3/S3, R/S e AA3:AJ4 formalizados sem reinterpretar V1 histórico                         |
 | Implementação | `#366 / #369` | recognizer, componentes, GradeEntry, reconciliação e consumidores V1/V2                  |
-| Integração    | `#367`        | regressão transversal, readiness sintética e memória canônica sem ativação produtiva     |
+| Integração    | `#367 / #370` | regressão transversal, readiness sintética e memória canônica sem ativação produtiva     |
 
 Heads e merges validados:
 
