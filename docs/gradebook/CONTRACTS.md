@@ -15,9 +15,11 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 
 | Contrato | Estado atual |
 | --- | --- |
-| `SourceContractV1` | congelado; F1 validada definitivamente 7/7 |
+| `SourceContractV1` | histórico congelado; F1 validada definitivamente 7/7; sem reinterpretação retroativa |
+| `SourceContractV2` | contrato de fidelidade de avaliações fixado pela #365; consumo/implementação reservado à #366 e integração à #367 |
 | entidades acadêmicas V1 | congelado + persistência D1 local |
-| resultados acadêmicos V1 | congelado + motor nativo/equivalência |
+| resultados acadêmicos V1 | histórico congelado + motor nativo/equivalência; tipos `written/simulation` continuam interpretáveis somente sob V1 |
+| `AssessmentComponent/Results V2` | evolução mínima da #365 com `quantitative-assessment`, identidade estrutural estável e componente completo somente quando a definição estiver resolvida |
 | import/reconciliação/Auditoria V1 | congelado + planejador/executor/persistência |
 | `OperationalWorkspace V1` | HTTP/UI local-preview + hardening |
 | `AuditWorkspace V1` | D1/runtime/HTTP/UI local-preview |
@@ -27,15 +29,84 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 | `Council Workspace/Decision V1` | projeção oficial upstream + decisões duráveis/history/CAS |
 | `Council Institutional V2` | revisão/fechamento/fotografia/histórico + votação opcional, mesmo bridge V1 |
 
-Migrations D1 locais: 0001–0004 / 25 tabelas. A 0004 é exclusiva da durabilidade de snapshots de Boletins e decisões de Conselho.
+Migrations D1 locais: 0001–0004 / 25 tabelas. A 0004 é exclusiva da durabilidade de snapshots de Boletins e decisões de Conselho. A #365 não altera schema/migration.
 
 ## F1 — contrato da fonte
 
-A #184 está `completed` e F1 = **7/7**. O protocolo privado controlado, smoke autenticado completo e falha isolada passaram; nenhum arquivo real foi modificado, nenhum dado identificável foi publicado e não resta gate histórico real antigo.
+A #184 está `completed` e F1 = **7/7** segundo o contrato e protocolo então vigentes. O protocolo privado controlado, smoke autenticado completo e falha isolada passaram; nenhum arquivo real foi modificado e nenhum dado identificável foi publicado.
+
+A descoberta posterior que originou a #365 é uma omissão de modelagem dos cabeçalhos de avaliação. Ela não invalida nem reescreve retroativamente a F1: `SourceContractV1` continua sendo a autoridade para interpretar evidência histórica V1, enquanto `SourceContractV2` é prospectivo.
+
+## Onda 21 — fidelidade das definições de avaliação
+
+A sequência pré-piloto é `#365 contrato → #366 implementação → #367 integração/readiness`. Nenhum gate produtivo F9 pode ser exercido entre essas etapas.
+
+### SourceContractV2
+
+Nos trimestres regulares:
+
+- `R3` = máximo/configuração da `Avaliação quantitativa 1`;
+- `S3` = máximo/configuração da `Avaliação quantitativa 2`;
+- `R/S` linhas `5+` = lançamentos individuais;
+- `AA3:AJ3` = máximo/configuração bruta dos slots qualitativos;
+- `AA4:AJ4` = nome/descrição livre;
+- `AA5:AJ...` = lançamentos individuais dos mesmos slots.
+
+O contrato V2 preserva máximo/configuração como estado documental:
+
+- `numeric` — número bruto preservado;
+- `ambiguous-empty` — vazio preservado;
+- `ambiguous-marker` — `*` preservado;
+- `missing-field` — campo ausente;
+- `unrecognized` — valor bruto não reconhecido para esse cabeçalho.
+
+Somente máximo numérico finito e positivo, junto das demais evidências suficientes, permite resolução. Vazio, `*`, campo ausente, valor não reconhecido ou máximo não positivo ficam `insufficient-data`; não viram `not-applicable` sem evidência explícita e não recebem `maximum = 0` artificial.
+
+O texto livre qualitativo é preservado mesmo se a definição estiver incompleta. R/S não possuem nome pedagógico livre na fonte; seus únicos rótulos seguros são estruturais. É proibido inferir `S => simulation` ou `R => written` por posição física.
+
+### AssessmentComponent/Results V2
+
+`ASSESSMENT_COMPONENT_TYPES_V2` usa:
+
+- `quantitative-assessment`;
+- `qualitative-activity`;
+- `parallel-recovery`.
+
+`written` e `simulation` permanecem no vocabulário V1 apenas para interpretar registros históricos que foram materializados sob V1. V2 não os usa para classificar R/S.
+
+`AssessmentComponentV2.maximum` continua numérico porque V2 só materializa componente acadêmico completo quando a definição da fonte está resolvida. Cabeçalho incompleto permanece como `SourceAssessmentDefinitionV2`/resolução `insufficient-data`, preservando evidência sem fabricar componente.
+
+### Identidade/versionamento dos componentes
+
+A identidade de origem V2 é estrutural e inclui:
+
+- referência da fonte lógica confirmada;
+- `academicYearId`;
+- `teachingAssignmentId` resolvido;
+- trimestre;
+- slot de origem `R | S | AA...AJ`.
+
+`TeachingAssignmentV1` já vincula professor, turma, componente e ano; esses campos não são duplicados na chave para evitar duas fontes de verdade. O ID acadêmico externo continua opaco.
+
+Nome e máximo são **excluídos** da chave. Assim, mudança de nome/máximo no mesmo slot pode versionar a mesma definição; omissão/ambiguidade posterior não autoriza apagar histórico; contextos/trimestres/slots/fontes diferentes não colidem.
+
+### Agregados e regras que não mudam
+
+A granularidade nova não recalcula nem redefine:
+
+- `T` total quantitativo importado;
+- `Z` avaliação/recuperação paralela;
+- `AK` total qualitativo importado;
+- `AM` nota oficial trimestral importada;
+- `AN` acumulado anual importado.
+
+Também não cria pesos, percentuais por atividade, médias, rankings, comparação entre períodos, materialidade ou tolerância. O hard stop F6 `comparison-semantics-not-integrated` permanece independente.
 
 ## Valores/resultados
 
 `AcademicGradeValueV1` mantém estados distintos para ausência, numérico, zero oficial/legado, não aplicável e dado insuficiente. Cobertura não é convertida silenciosamente em zero ou reprovação.
+
+`ApplicabilityV1` continua distinguindo `applicable | not-applicable | insufficient-data`. A evolução V2 usa esse vocabulário existente e não inventa outro estado acadêmico.
 
 `AnnualFinalDecisionV1` permanece separado do estado calculado. Uma decisão `recorded` pode registrar `basis: 'class-council'`, mas motor/projeção não fabricam deliberação humana.
 
@@ -74,6 +145,8 @@ Resolução usa `expectedVersion`/CAS; ator e instante server-side. Promoção p
 - `recovery + result` usa `FinalRecoveryV1`; demais lentes recovery são trimestrais;
 - raw source evidence/`officialRecords` não atravessam HTTP;
 - UI possui cancelamento/dedupe/stale discard sem cálculo acadêmico.
+
+A #365 apenas fixa o contrato que permitirá à #366 alimentar a lente `assessments` com fidelidade. Não altera read model, HTTP ou UI nesta frente.
 
 ## Boletins F8
 
@@ -193,4 +266,5 @@ Testes de integração congelam:
 6. não criar implementação concorrente da mesma regra;
 7. não criar bridge concorrente para a mesma superfície;
 8. produção acadêmica só muda mediante autorização própria;
-9. migrations, capabilities, papéis, bindings, secrets ou recursos remotos exigem escopo/decisão próprios.
+9. migrations, capabilities, papéis, bindings, secrets ou recursos remotos exigem escopo/decisão próprios;
+10. snapshots, registros e evidências históricas continuam interpretados pela versão contratual que os produziu.
