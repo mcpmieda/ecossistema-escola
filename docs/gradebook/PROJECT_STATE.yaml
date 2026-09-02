@@ -274,7 +274,7 @@ wave_16:
 wave_17:
   strategy: two-large-parallel-fronts-plus-integrator
   integration_issue: 337
-  integration_pull_request: pending
+  integration_pull_request: 344
   source_merges:
     - issue: 335
       pull_request: 338
