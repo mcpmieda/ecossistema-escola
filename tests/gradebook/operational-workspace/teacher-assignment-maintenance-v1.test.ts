@@ -16,6 +16,7 @@ import {
 } from '../../../server/gradebook/application/operational-workspace/teacher-assignment-maintenance-v1';
 import { createTeachingCenterQueriesV1 } from '../../../server/gradebook/application/read-models/teaching/teaching-center-read-models-v1';
 import { createGradebookD1PersistenceUnitOfWorkV1 } from '../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
+import { ACADEMIC_CONTEXT_2026_IDENTITY_V1 } from '../../../src/gradebook-domain/context/academic-context-2026-v1';
 import { SqliteD1Database } from '../persistence/d1-transaction/d1-write-test-support';
 
 const academicYearId = 'academic-year:maintenance:2026' as AcademicYearId;
@@ -50,12 +51,12 @@ async function fixture() {
       value: {
         id: academicYearId,
         schoolId,
-        year: 2026,
+        year: ACADEMIC_CONTEXT_2026_IDENTITY_V1.academicYear,
         status: 'active',
         startsOn: '2026-02-01',
         endsOn: '2026-12-20',
-        activeEvaluationProfileId: 'profile:maintenance:synthetic',
-        configurationVersion: 'maintenance-v1',
+        activeEvaluationProfileId: ACADEMIC_CONTEXT_2026_IDENTITY_V1.evaluationProfileId,
+        configurationVersion: String(ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationVersion),
       },
     },
     { expectedVersion: null },
