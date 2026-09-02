@@ -5,6 +5,7 @@ import {
   type ComponentType,
   type KeyboardEvent,
   type ReactNode,
+  useEffect,
   useRef,
   useState,
 } from 'react';
@@ -35,7 +36,7 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
   {
     id: 'bulletins',
     label: 'Boletins',
-    description: 'Consulte preview, emissão e histórico baseados no modelo canônico existente.',
+    description: 'Consulte preview, emissão, PDF e histórico baseados no modelo canônico existente.',
   },
   {
     id: 'council',
@@ -47,6 +48,25 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
 export type GradebookWorkspaceSurfaceId = (typeof GRADEBOOK_WORKSPACE_SURFACES)[number]['id'];
 
 const DEFAULT_SURFACE: GradebookWorkspaceSurfaceId = 'importacao';
+
+function workspaceSurfaceFromHash(): GradebookWorkspaceSurfaceId {
+  const query = window.location.hash.split('?')[1] ?? '';
+  const requested = new URLSearchParams(query).get('area');
+  return GRADEBOOK_WORKSPACE_SURFACES.some((surface) => surface.id === requested)
+    ? (requested as GradebookWorkspaceSurfaceId)
+    : DEFAULT_SURFACE;
+}
+
+function workspaceSurfaceHash(surfaceId: GradebookWorkspaceSurfaceId): string {
+  return surfaceId === DEFAULT_SURFACE
+    ? '#/banco-de-notas'
+    : `#/banco-de-notas?area=${encodeURIComponent(surfaceId)}`;
+}
+
+function replaceWorkspaceSurfaceHash(surfaceId: GradebookWorkspaceSurfaceId): void {
+  const nextHash = workspaceSurfaceHash(surfaceId);
+  if (window.location.hash !== nextHash) window.history.replaceState(null, '', nextHash);
+}
 
 const OperationalWorkspacePage = lazy(async () => {
   const module = await import('../features/gradebook/operational-workspace/operational-workspace-page');
@@ -154,9 +174,11 @@ function nextSurfaceFromKey(
 }
 
 export function GradebookWorkspaceShell() {
-  const [activeSurface, setActiveSurface] = useState<GradebookWorkspaceSurfaceId>(DEFAULT_SURFACE);
+  const [activeSurface, setActiveSurface] = useState<GradebookWorkspaceSurfaceId>(() =>
+    workspaceSurfaceFromHash(),
+  );
   const [visitedSurfaces, setVisitedSurfaces] = useState<ReadonlySet<GradebookWorkspaceSurfaceId>>(
-    () => new Set([DEFAULT_SURFACE]),
+    () => new Set([workspaceSurfaceFromHash()]),
   );
   const tabRefs = useRef(new Map<GradebookWorkspaceSurfaceId, HTMLButtonElement>());
 
@@ -168,7 +190,23 @@ export function GradebookWorkspaceShell() {
       return next;
     });
     setActiveSurface(surfaceId);
+    replaceWorkspaceSurfaceHash(surfaceId);
   };
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const requested = workspaceSurfaceFromHash();
+      setVisitedSurfaces((current) => {
+        if (current.has(requested)) return current;
+        const next = new Set(current);
+        next.add(requested);
+        return next;
+      });
+      setActiveSurface(requested);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   const handleTabKeyDown = (
     surfaceId: GradebookWorkspaceSurfaceId,
