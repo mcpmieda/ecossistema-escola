@@ -13,6 +13,8 @@ leitura local + SHA-256 + manifesto
   ↓
 reconhecimento + evidência de origem
   ↓
+definições V2 resolvidas → AssessmentComponentV2 + GradeEntry
+  ↓
 contexto acadêmico explícito
   ↓
 planejamento idempotente + revisão humana
@@ -34,7 +36,15 @@ Planejamento não grava; revisão não promove; executor não resolve ambiguidad
 
 ## Autoridade
 
-`authorityMode` continua `imported-source` na onda 18. O motor nativo permanece comparativo e a eventual troca de autoridade pertence a F9/#347. Conselho continua separando cálculo de decisão humana.
+`authorityMode` continua `imported-source` após a onda 21. O motor nativo permanece comparativo e a eventual troca de autoridade pertence a F9/#347. Conselho continua separando cálculo de decisão humana.
+
+## Fidelidade das avaliações V2
+
+`SourceContractV1` permanece histórico. O caminho prospectivo integrado pela onda 21 lê R3/S3 e AA3:AJ4 antes dos estudantes da linha 5, materializa somente definições resolvidas e associa cada lançamento ao componente estrutural correto.
+
+R/S usam `quantitative-assessment`; posição física não implica prova ou simulado. Nome/máximo são atributos versionáveis, não identidade. Definições incompletas permanecem evidência fail-closed e não criam componente, máximo zero ou GradeEntry órfão.
+
+A reconciliação V2 estende `planImportReconciliation` e `executeImportChangePlan`; não existe segundo planejador, executor, bridge ou motor. T/Z/AK/AM/AN continuam agregados importados e não são recompostos a partir dos slots.
 
 ## Contexto acadêmico
 
@@ -199,7 +209,7 @@ POST /api/gradebook/council-workspace
 
 ## F1 — confiança da fonte
 
-F1 está definitivamente concluída em **7/7**. #184 está `completed`; protocolo privado controlado, smoke autenticado e falha isolada passaram; zero arquivo real modificado, zero dado identificável publicado e zero gate histórico antigo restante.
+F1 está definitivamente concluída em **7/7** sob o contrato vigente à época. #184 está `completed`; protocolo privado controlado, smoke autenticado e falha isolada passaram; zero arquivo real modificado, zero dado identificável publicado e zero gate histórico antigo restante. A onda 21 é manutenção prospectiva integrada e não reinterpreta essa evidência histórica.
 
 ## Limites dos módulos
 

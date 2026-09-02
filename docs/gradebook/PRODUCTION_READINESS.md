@@ -14,6 +14,8 @@ Estado fechado pela #360:
 - dados do repositório e da CI exclusivamente sintéticos;
 - ativação do motor nativo separada em #347 e na trilha normativa BN-DEC-019/#349/#350.
 
+A #367 revalidou estes mesmos gates depois da evolução prospectiva de fidelidade das avaliações da onda 21 (#365/#366). A manutenção preserva o resultado histórico F1 7/7, não cria recurso/binding/migration remota e devolve o projeto ao mesmo estado máximo `prepared-for-manual-authorization`.
+
 `server/gradebook/readiness/production-readiness-v1.ts` materializa os gates preparatórios e os
 hard stops como dados puros. Ele não contém cliente HTTP, API Cloudflare, Wrangler, SQL ou executor
 de produção. `npm run test:gradebook-readiness` executa os ensaios locais.
@@ -43,8 +45,8 @@ O avaliador retorna `scope-violation` se observar qualquer um destes estados:
 | `private-pilot-protocol-review`     | revisão humana deste protocolo                      | revisão aprovada ou pendente, sem identidade privada         |
 | `future-smoke-plan-review`          | revisão da ordem e dos hard stops abaixo            | revisão aprovada ou pendente; nenhuma credencial/ID remoto   |
 
-Para o PR da #360, evidência de CI somente conta quando o workflow oficial estiver verde no mesmo
-SHA final. A integradora #361 pode compor/publicar esta preparação, mas não remove os gates manuais.
+Para o PR da #360, a evidência de CI contou somente após o workflow oficial ficar verde no mesmo
+SHA final. A #361 compôs/publicou a preparação, e a #367 a revalidou sem remover os gates manuais.
 
 ## Ensaios sintéticos representativos
 

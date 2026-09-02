@@ -4,17 +4,18 @@
 
 **Agente de implementação só começa em issue marcada `[PRONTA]`.** Issues-pai (`#182`, `#184`–`#192`) são acompanhamento; integrações rodam somente pela issue integradora correspondente.
 
-## Onda 20 — integração #361
+## Onda 21 — integração #367
 
-|    Frente    | Issue / PR    | Resultado                                                                             |
-| :----------: | ------------- | ------------------------------------------------------------------------------------- |
-| F9 readiness | `#360 / #363` | manifesto inerte, ensaios sintéticos, rollback/recuperação e protocolo privado futuro |
-|  Integração  | `#361`        | regressão transversal, memória canônica e publicação sem ativação produtiva           |
+| Frente        | Issue / PR    | Resultado                                                                                |
+| ------------- | ------------- | ---------------------------------------------------------------------------------------- |
+| Contrato V2   | `#365 / #368` | R3/S3, R/S e AA3:AJ4 formalizados sem reinterpretar V1 histórico                         |
+| Implementação | `#366 / #369` | recognizer, componentes, GradeEntry, reconciliação e consumidores V1/V2                  |
+| Integração    | `#367`        | regressão transversal, readiness sintética e memória canônica sem ativação produtiva     |
 
-Head validado da frente:
+Heads e merges validados:
 
-- #360: `3a49d50e0abbf1bb4b352fe9e4da57cd528adcd0`;
-- merge em `main`: `000a6988565419d9c1f2c638e929af4e0dff1491`.
+- #365: `c5d6c3c4e799a99413ebf104d737ab62a6749457` → merge `7b59a226b557153d6e3094b64f268ce5e9373cc3`;
+- #366: `7aad372412cfdf10a66a4e29c342bb1d39d6ef0c` → merge `70748d527f0ebf11803dab748a6d5d5dbe6c082a`.
 
 ## Invariantes atuais
 
@@ -28,6 +29,7 @@ Head validado da frente:
 
 ## Estado funcional
 
+- **F1:** validação histórica 7/7 preservada e evolução prospectiva V2 integrada.
 - **F4/F5:** concluídas.
 - **F6:** gráficos oficiais entregues; comparação proporcional permanece fail-closed sem semântica canônica.
 - **F7/F8:** Conselho V2, decisões/snapshots duráveis, PDF e Relatórios permanecem integrados em local/preview.
@@ -35,7 +37,7 @@ Head validado da frente:
 
 ## Próximo passo
 
-Depois da publicação da #361, não iniciar ativação automaticamente. Cada ação abaixo exige autorização própria:
+Depois da publicação da #367, não iniciar ativação automaticamente. Cada ação abaixo exige autorização própria:
 
 1. criar recurso/binding produtivo;
 2. aplicar migration remota;

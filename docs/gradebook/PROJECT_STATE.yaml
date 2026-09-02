@@ -11,9 +11,9 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 356
-  current_integrator_issue: 361
-  current_wave: 20
+  previous_integrator_issue: 361
+  current_integrator_issue: 367
+  current_wave: 21
   next_wave: null
   next_parallel_fronts: []
   next_integrator_issue: null
@@ -130,9 +130,27 @@ storage:
 
 contracts:
   source_contract_v1:
-    status: frozen-real-validation-complete
+    status: frozen-historical-real-validation-complete
     final_validation_issue: 184
     validation_status: complete-7-of-7
+  source_contract_v2:
+    status: integrated-prospective-assessment-fidelity
+    contract_issue: 365
+    implementation_issue: 366
+    integration_issue: 367
+    quantitative_slots:
+      - R
+      - S
+    qualitative_slots: AA-AJ
+    student_rows_start_at: 5
+    physical_slot_implies_simulation: false
+    incomplete_definition_policy: insufficient-data-no-component-no-orphan-grade-entry
+  assessment_components_v2:
+    status: integrated-local-preview-compatible
+    identity: logical-source-year-teaching-assignment-term-source-slot
+    name_is_identity: false
+    maximum_is_identity: false
+    historical_v1_compatible: true
   academic_entities_v1:
     status: frozen
     issue: 194
@@ -255,12 +273,15 @@ native_engine:
 
 features:
   importer:
-    status: production-ui-memory-only
+    status: production-ui-memory-only-with-v2-assessment-fidelity
     batch_limit: 50
     formats:
       - xlsb
       - xlsx
       - xls
+    assessment_definition_contract: SourceContractV2
+    assessment_component_contract: AssessmentComponentV2
+    aggregate_recalculation_from_assessment_slots: false
   operational_workspace:
     status: usable-local-preview-hardened-lazy-with-teacher-maintenance
     stale_response_discard: true
@@ -320,6 +341,7 @@ features:
     status: readiness-prepared-for-manual-authorization
     readiness_issue: 360
     readiness_integrator_issue: 361
+    readiness_revalidation_issue: 367
     readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts
     readiness_runbook: docs/gradebook/PRODUCTION_READINESS.md
     preparation_evidence_count: 6
@@ -442,13 +464,39 @@ wave_20:
     production_activation: false
     native_engine_activation: false
 
+wave_21:
+  status: completed-integrated
+  strategy: contract-plus-implementation-plus-integrator
+  integration_issue: 367
+  source_merges:
+    - issue: 365
+      pull_request: 368
+      final_head: c5d6c3c4e799a99413ebf104d737ab62a6749457
+      merge_commit: 7b59a226b557153d6e3094b64f268ce5e9373cc3
+      result: source-and-assessment-contract-v2
+    - issue: 366
+      pull_request: 369
+      final_head: 7aad372412cfdf10a66a4e29c342bb1d39d6ef0c
+      merge_commit: 70748d527f0ebf11803dab748a6d5d5dbe6c082a
+      result: assessment-definition-fidelity-end-to-end
+  integration_features:
+    historical_f1_validation_preserved: true
+    source_contract_v2_integrated: true
+    assessment_component_v2_integrated: true
+    simulation_inference_from_s_removed: true
+    incomplete_definition_fail_closed: true
+    aggregate_authority_preserved: true
+    readiness_revalidated: true
+    production_activation: false
+    native_engine_activation: false
+
 phases:
   F0:
     issue: 183
     status: complete
   F1:
     issue: 184
-    status: complete-validated-7-of-7
+    status: complete-validated-7-of-7-with-prospective-v2-maintenance
   F2:
     issue: 185
     status: local-persistence-plus-bulletin-council-durability-complete-production-disabled
@@ -492,6 +540,11 @@ historical_real_validation:
   identifiable_data_published: 0
   blocking_functional_divergences: 0
   remaining_old_real_gates: 0
+  prospective_assessment_fidelity_maintenance:
+    contract_issue: 365
+    implementation_issue: 366
+    integration_issue: 367
+    retroactive_reinterpretation: false
 
 manual_gates:
   - production-resource-and-binding-authorization

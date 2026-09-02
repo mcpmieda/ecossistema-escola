@@ -16,7 +16,7 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 | Contrato | Estado atual |
 | --- | --- |
 | `SourceContractV1` | histórico congelado; F1 validada definitivamente 7/7; sem reinterpretação retroativa |
-| `SourceContractV2` | contrato de fidelidade de avaliações fixado pela #365; consumo/implementação reservado à #366 e integração à #367 |
+| `SourceContractV2` | contrato prospectivo fixado pela #365, implementado pela #366 e integrado/revalidado pela #367 |
 | entidades acadêmicas V1 | congelado + persistência D1 local |
 | resultados acadêmicos V1 | histórico congelado + motor nativo/equivalência; tipos `written/simulation` continuam interpretáveis somente sob V1 |
 | `AssessmentComponent/Results V2` | evolução mínima da #365 com `quantitative-assessment`, identidade estrutural estável e componente completo somente quando a definição estiver resolvida |
@@ -39,7 +39,7 @@ A descoberta posterior que originou a #365 é uma omissão de modelagem dos cabe
 
 ## Onda 21 — fidelidade das definições de avaliação
 
-A sequência pré-piloto é `#365 contrato → #366 implementação → #367 integração/readiness`. Nenhum gate produtivo F9 pode ser exercido entre essas etapas.
+A sequência pré-piloto `#365 contrato → #366 implementação → #367 integração/readiness` foi concluída. O projeto retorna aos gates manuais F9 sem ativação automática.
 
 ### SourceContractV2
 
@@ -146,7 +146,20 @@ Resolução usa `expectedVersion`/CAS; ator e instante server-side. Promoção p
 - raw source evidence/`officialRecords` não atravessam HTTP;
 - UI possui cancelamento/dedupe/stale discard sem cálculo acadêmico.
 
-A #365 apenas fixa o contrato que permitirá à #366 alimentar a lente `assessments` com fidelidade. Não altera read model, HTTP ou UI nesta frente.
+A #366 passou a alimentar a lente `assessments` com componentes oficiais V2, preservando o read model/HTTP/UI V1, seis queries físicas e o hard stop de comparação. A #367 revalidou a composição sem criar métrica nova.
+
+## Compatibilidade conjunta da onda 21
+
+Testes de integração congelam:
+
+- R3/S3 e AA3:AJ4 separados dos lançamentos da linha 5+;
+- R/S como `quantitative-assessment`, sem inferência `simulation`;
+- definição incompleta sem `maximum = 0`, componente fictício ou GradeEntry órfão;
+- identidade estável, CAS, append-only e executor transacional únicos;
+- T/Z/AK/AM/AN e motor 2026 sem recomposição granular;
+- Centrais, Desempenho, Boletins e Relatórios compatíveis com V1/V2;
+- snapshots/reprints V1 históricos sem reinterpretação;
+- migrations 0001–0004, produção fail-closed e readiness `prepared-for-manual-authorization`.
 
 ## Boletins F8
 
