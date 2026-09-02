@@ -476,7 +476,7 @@ function CouncilWorkspaceMount() {
                 <Button
                   key={result.id}
                   size="sm"
-                  variant={selectedClass?.reference === result.id ? 'primary' : 'outline'}
+                  variant={selectedClass?.label === result.code ? 'primary' : 'outline'}
                   onPress={() => setSelectedClass({
                     reference: result.id as CouncilClassReferenceV1,
                     label: result.code,
