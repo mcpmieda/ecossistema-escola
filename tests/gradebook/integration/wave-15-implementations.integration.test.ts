@@ -35,7 +35,7 @@ describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
     expect(runtime).toContain('classPerformanceReadModel()');
     expect(runtime).toContain('requireGradebookD1RuntimeAuthorizationV1(this.authorization)');
     expect(runtime).not.toContain('createBulletinEmissionServiceV1');
-    expect(performanceSource).toContain("reason: 'comparison-semantics-not-integrated'");
+    expect(performanceSource).toContain('resolvePerformanceComparisonProjectionV2');
     expect(performanceSource).toContain("reasons: ['official-projection-unavailable']");
     expect(PERFORMANCE_AUTHORITY_MODE_V1).toBe('imported-source');
     expect(BULLETIN_AUTHORITY_MODE_V1).toBe('imported-source');

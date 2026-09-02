@@ -26,13 +26,14 @@ describe('Performance HeroUI local/preview V1', () => {
     for (const label of ['Resultado', 'Quantitativo', 'Qualitativo', 'Avaliações']) {
       expect(page).toContain(label);
     }
-    expect(page).toContain("value=\"regular\"");
-    expect(page).toContain("value=\"recovery\"");
+    expect(page).toContain('value="regular"');
+    expect(page).toContain('value="recovery"');
     expect(page).toContain('1º trimestre');
     expect(page).toContain('2º trimestre');
     expect(page).toContain('3º trimestre');
     expect(page).toContain('Anual');
-    expect(page).toContain('A tela apenas apresenta resultados oficiais; não recalcula notas.');
+    expect(page).toContain('A tela apenas apresenta');
+    expect(page).toContain('resultados oficiais; não recalcula notas.');
     expect(page).not.toContain('Math.round');
     expect(page).not.toContain('toFixed(');
     expect(page).not.toContain('0.45');
@@ -40,11 +41,15 @@ describe('Performance HeroUI local/preview V1', () => {
     expect(page).not.toContain('0.6');
   });
 
-  it('mantém comparação fail-closed e apenas apresenta a decisão do read model', () => {
-    expect(page).toContain('Sem resolvedor oficial, a resposta permanece “não comparável”.');
-    expect(page).toContain("cell.comparison.state === 'not-comparable'");
-    expect(page).toContain('Comparação oficial disponível.');
-    expect(page).not.toContain('comparison.basis ===');
+  it('apresenta comparação proporcional resolvida no servidor, com referência explícita e sem depender de cor', () => {
+    expect(page).toContain('A referência é sempre escolhida explicitamente');
+    expect(page).toContain("projection.comparison.state === 'not-comparable'");
+    expect(page).toContain('Base: percentual oficial.');
+    expect(page).toContain('Período em foco:');
+    expect(page).toContain('Referência escolhida:');
+    expect(page).toContain('Comparação: {comparisonSummary(cell)}');
+    expect(page).toContain('Comparação desativada institucionalmente');
+    expect(page).not.toContain('backgroundColor');
     expect(page).not.toContain('tolerance');
   });
 
@@ -78,7 +83,7 @@ describe('Performance HeroUI local/preview V1', () => {
     expect(page).toContain('ticket.isCurrent()');
     expect(page).toContain('ticket.signal');
     expect(gate).toContain('active?.controller.abort()');
-    expect(gate).toContain("active?.key === key");
+    expect(gate).toContain('active?.key === key');
     expect(gate).toContain('generation === requestGeneration');
     expect(client).toContain('signal,');
     expect(client).toContain("cache: 'no-store'");

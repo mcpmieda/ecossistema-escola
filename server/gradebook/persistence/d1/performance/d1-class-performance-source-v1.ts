@@ -1,4 +1,5 @@
 import type {
+  AcademicYearV1,
   AcademicYearId,
   ClassGroupId,
   EnrollmentV1,
@@ -7,6 +8,13 @@ import type {
   SubjectV1,
   TeachingAssignmentV1,
 } from '../../../../../shared/gradebook-contracts/entities';
+import {
+  DEFAULT_PERFORMANCE_COMPARISON_CONFIGURATION_V1,
+  type PerformanceComparisonConfigurationV1,
+  type PerformanceComparisonOperandV2,
+  type PerformanceComparisonProfileRefV2,
+  type PerformanceComparisonProjectionV2,
+} from '../../../../../shared/gradebook-contracts/performance/performance-comparison-contract-v2';
 import {
   PERFORMANCE_AUTHORITY_MODE_V1,
   comparePerformanceComponentColumnsV1,
@@ -38,6 +46,11 @@ import type {
   PerformanceStudentDetailSourceRequestV1,
   PerformanceStudentDetailSourceV1,
 } from '../../../application/read-models/performance/class-performance-read-model-v1';
+import {
+  PERFORMANCE_PERCENTAGE_SEMANTICS_2026_V1,
+  resolvePerformanceComparisonProjectionV2,
+  type PerformanceDeclaredProfileCompatibilityV2,
+} from '../../../application/read-models/performance/performance-comparison-resolver-v2';
 import type { D1ReadDatabaseV1 } from '../read/d1-read-adapter-v1';
 
 type Row = Record<string, unknown>;
@@ -195,6 +208,7 @@ function compareRows(
 }
 
 interface Materialized {
+  readonly academicYear: Pick<AcademicYearV1, 'activeEvaluationProfileId' | 'configurationVersion'>;
   readonly enrollments: readonly EnrollmentV1[];
   readonly students: ReadonlyMap<string, StudentV1>;
   readonly histories: ReadonlyMap<string, readonly StudentStatusEventV1[]>;
@@ -202,6 +216,11 @@ interface Materialized {
   readonly subjects: ReadonlyMap<string, SubjectV1>;
   readonly components: readonly PersistedAssessmentComponentV1[];
   readonly records: readonly AcademicRecordV1[];
+}
+
+export interface GradebookD1ClassPerformanceSourceOptionsV2 {
+  readonly comparisonConfiguration?: PerformanceComparisonConfigurationV1;
+  readonly profileCompatibilityDeclarations?: readonly PerformanceDeclaredProfileCompatibilityV2[];
 }
 
 function detailKey(kind: 'student' | 'cell', values: readonly string[]): string {
@@ -253,15 +272,116 @@ function periodRecord(
   );
 }
 
-function comparisonFor(
-  referencePeriod: PerformancePeriodV1 | null,
-): PerformanceValueComparisonV1 | null {
-  if (referencePeriod === null) return null;
+function periodPercentageResult(
+  records: readonly AcademicRecordV1[],
+  studentId: string,
+  assignmentId: string,
+  period: PerformancePeriodV1,
+): TermResultV1 | null {
+  if (period.kind === 'annual') return null;
+  return (
+    records.find(
+      (item): item is { readonly kind: 'term-result'; readonly value: TermResultV1 } =>
+        item.kind === 'term-result' &&
+        item.value.studentId === studentId &&
+        item.value.teachingAssignmentId === assignmentId &&
+        item.value.term === period.term,
+    )?.value ?? null
+  );
+}
+
+function comparisonProfile(
+  academicYear: Materialized['academicYear'],
+): PerformanceComparisonProfileRefV2 {
+  const isKnown2026Profile =
+    academicYear.activeEvaluationProfileId === 'evaluation-profile:2026' &&
+    academicYear.configurationVersion === '1';
   return {
-    state: 'not-comparable',
-    referencePeriod,
-    reason: 'comparison-semantics-not-integrated',
+    profileId: academicYear.activeEvaluationProfileId,
+    profileVersion: academicYear.configurationVersion,
+    percentageSemanticsVersion: isKnown2026Profile
+      ? PERFORMANCE_PERCENTAGE_SEMANTICS_2026_V1
+      : 'not-declared',
   };
+}
+
+function percentageOperand(
+  period: PerformancePeriodV1,
+  result: TermResultV1 | null,
+): PerformanceComparisonOperandV2 | null {
+  return result === null
+    ? null
+    : {
+        period,
+        percentage: result.percentage.imported.value,
+        coverage: result.coverage,
+      };
+}
+
+function legacyComparison(
+  projection: PerformanceComparisonProjectionV2,
+  current: TermResultV1 | null,
+  reference: TermResultV1 | null,
+): PerformanceValueComparisonV1 | null {
+  if (projection.state !== 'resolved') return null;
+  if (projection.comparison.state === 'not-comparable') {
+    return {
+      state: 'not-comparable',
+      referencePeriod: projection.selection.reference,
+      reason: projection.comparison.reason,
+    };
+  }
+  if (current === null || reference === null) return null;
+  return {
+    state: 'comparable',
+    referencePeriod: projection.selection.reference,
+    basis: 'percentage',
+    current: compared(current.percentage),
+    reference: compared(reference.percentage),
+  };
+}
+
+const COMPARISON_EXPLANATIONS = {
+  'proportionally-higher': 'O percentual oficial do período em foco é maior que o da referência.',
+  'proportionally-equal': 'Os percentuais oficiais do período em foco e da referência são iguais.',
+  'proportionally-lower': 'O percentual oficial do período em foco é menor que o da referência.',
+} as const;
+
+function comparisonSignals(projection: PerformanceComparisonProjectionV2): readonly {
+  readonly code: string;
+  readonly explanation: string;
+  readonly source: 'comparison';
+  readonly detail: 'cell';
+}[] {
+  if (projection.state === 'not-requested') return [];
+  if (projection.state === 'disabled') {
+    return [
+      {
+        code: 'comparison-disabled',
+        explanation: 'A comparação proporcional está desativada pela configuração institucional.',
+        source: 'comparison',
+        detail: 'cell',
+      },
+    ];
+  }
+  if (projection.comparison.state === 'not-comparable') {
+    return [
+      {
+        code: 'not-comparable',
+        explanation: projection.comparison.reason,
+        source: 'comparison',
+        detail: 'cell',
+      },
+    ];
+  }
+  return [
+    {
+      code: `comparison-${projection.comparison.relation}`,
+      explanation: COMPARISON_EXPLANATIONS[projection.comparison.relation],
+      source: 'comparison',
+      detail: 'cell',
+    },
+  ];
 }
 
 function projection(
@@ -270,6 +390,7 @@ function projection(
   studentId: string,
   enrollmentId: string,
   assignment: TeachingAssignmentV1,
+  options: Required<GradebookD1ClassPerformanceSourceOptionsV2>,
 ): PerformanceMatrixSourceCellV1 {
   const isResultLens = request.lens === 'result';
   const current = isResultLens
@@ -295,7 +416,42 @@ function projection(
     : requestedTerm === null
       ? unavailableProjectionCoverage
       : (termResult?.value.coverage ?? missingCoverage);
-  const comparison = comparisonFor(request.comparisonPeriod);
+  const currentPercentageResult = periodPercentageResult(
+    materialized.records,
+    studentId,
+    assignment.id,
+    request.period,
+  );
+  const referencePercentageResult =
+    request.comparisonPeriod === null
+      ? null
+      : periodPercentageResult(
+          materialized.records,
+          studentId,
+          assignment.id,
+          request.comparisonPeriod,
+        );
+  const profile = comparisonProfile(materialized.academicYear);
+  const proportionalComparison = resolvePerformanceComparisonProjectionV2({
+    selection:
+      request.comparisonPeriod === null
+        ? null
+        : { current: request.period, reference: request.comparisonPeriod },
+    configuration: options.comparisonConfiguration,
+    current: percentageOperand(request.period, currentPercentageResult),
+    reference:
+      request.comparisonPeriod === null
+        ? null
+        : percentageOperand(request.comparisonPeriod, referencePercentageResult),
+    currentProfile: profile,
+    referenceProfile: profile,
+    declarations: options.profileCompatibilityDeclarations,
+  });
+  const comparison = legacyComparison(
+    proportionalComparison,
+    currentPercentageResult,
+    referencePercentageResult,
+  );
   const projectionUnavailable = !isResultLens && requestedTerm === null;
   const projectedRecordAbsent = isResultLens ? current === null : termResult === null;
   const signals = [
@@ -328,22 +484,14 @@ function projection(
             detail: 'cell' as const,
           },
         ]),
-    ...(comparison?.state === 'not-comparable'
-      ? [
-          {
-            code: 'not-comparable',
-            explanation: comparison.reason,
-            source: 'comparison' as const,
-            detail: 'cell' as const,
-          },
-        ]
-      : []),
+    ...comparisonSignals(proportionalComparison),
   ];
   const base = {
     teachingAssignmentId: assignment.id,
     authorityMode: PERFORMANCE_AUTHORITY_MODE_V1,
     coverage,
     comparison,
+    proportionalComparison,
     signals,
     detailKey: detailKey('cell', [studentId, enrollmentId, assignment.id]),
   } as const;
@@ -456,7 +604,18 @@ function projection(
 }
 
 export class GradebookD1ClassPerformanceSourceV1 implements ClassPerformanceSourceV1 {
-  constructor(private readonly database: D1ReadDatabaseV1) {}
+  private readonly options: Required<GradebookD1ClassPerformanceSourceOptionsV2>;
+
+  constructor(
+    private readonly database: D1ReadDatabaseV1,
+    options: GradebookD1ClassPerformanceSourceOptionsV2 = {},
+  ) {
+    this.options = {
+      comparisonConfiguration:
+        options.comparisonConfiguration ?? DEFAULT_PERFORMANCE_COMPARISON_CONFIGURATION_V1,
+      profileCompatibilityDeclarations: options.profileCompatibilityDeclarations ?? [],
+    };
+  }
 
   private async all(query: string, ...values: (string | number | null)[]): Promise<readonly Row[]> {
     try {
@@ -479,7 +638,25 @@ export class GradebookD1ClassPerformanceSourceV1 implements ClassPerformanceSour
     const [classes, enrollmentRows, historyRows, assignmentRows, componentRows, recordRows] =
       await Promise.all([
         this.all(
-          `SELECT v.payload_json FROM academic_entity_streams s JOIN academic_entity_versions v ON v.academic_year_id=s.academic_year_id AND v.entity_kind=s.entity_kind AND v.entity_id=s.entity_id AND v.version=s.current_version WHERE s.academic_year_id=? AND s.entity_kind='class-group' AND s.entity_id=?`,
+          `SELECT v.payload_json,
+                  yv.active_evaluation_profile_id,
+                  yv.configuration_version,
+                  yc.evaluation_profile_id AS configuration_evaluation_profile_id
+             FROM academic_entity_streams s
+             JOIN academic_entity_versions v
+               ON v.academic_year_id=s.academic_year_id
+              AND v.entity_kind=s.entity_kind
+              AND v.entity_id=s.entity_id
+              AND v.version=s.current_version
+             JOIN academic_years y ON y.academic_year_id=s.academic_year_id
+             JOIN academic_year_versions yv
+               ON yv.academic_year_id=y.academic_year_id
+              AND yv.version=y.current_version
+             JOIN academic_year_configuration_versions yc
+               ON yc.academic_year_id=yv.academic_year_id
+              AND yc.configuration_id=yv.configuration_id
+              AND yc.version=yv.configuration_version
+            WHERE s.academic_year_id=? AND s.entity_kind='class-group' AND s.entity_id=?`,
           year,
           classGroupId,
         ),
@@ -511,7 +688,17 @@ export class GradebookD1ClassPerformanceSourceV1 implements ClassPerformanceSour
       ]);
     if (classes.length === 0) return null;
     if (classes.length !== 1) return fail('incompatible-row');
-    entity(classes[0]!, 'class-group', year);
+    const classRow = classes[0]!;
+    entity(classRow, 'class-group', year);
+    if (
+      typeof classRow.active_evaluation_profile_id !== 'string' ||
+      classRow.active_evaluation_profile_id.trim().length === 0 ||
+      !Number.isInteger(classRow.configuration_version) ||
+      Number(classRow.configuration_version) <= 0 ||
+      classRow.configuration_evaluation_profile_id !== classRow.active_evaluation_profile_id
+    ) {
+      return fail('incompatible-row');
+    }
     const students = new Map<string, StudentV1>();
     const enrollments = enrollmentRows.map((row) => {
       const enrollment = entity<EnrollmentV1>(row, 'enrollment', year);
@@ -555,6 +742,10 @@ export class GradebookD1ClassPerformanceSourceV1 implements ClassPerformanceSour
       return assignment;
     });
     return {
+      academicYear: {
+        activeEvaluationProfileId: classRow.active_evaluation_profile_id,
+        configurationVersion: String(classRow.configuration_version),
+      },
       enrollments,
       students,
       histories,
@@ -598,7 +789,14 @@ export class GradebookD1ClassPerformanceSourceV1 implements ClassPerformanceSour
             : { state: 'absent' as const },
           detailKey: detailKey('student', [enrollment.studentId, enrollment.id]),
           cells: data.assignments.map((assignment) =>
-            projection(request, data, enrollment.studentId, enrollment.id, assignment),
+            projection(
+              request,
+              data,
+              enrollment.studentId,
+              enrollment.id,
+              assignment,
+              this.options,
+            ),
           ),
         };
       })
@@ -661,7 +859,14 @@ export class GradebookD1ClassPerformanceSourceV1 implements ClassPerformanceSour
     return {
       ...request,
       studentId: enrollment.studentId,
-      cell: projection(request, data, enrollment.studentId, enrollment.id, assignment),
+      cell: projection(
+        request,
+        data,
+        enrollment.studentId,
+        enrollment.id,
+        assignment,
+        this.options,
+      ),
       officialRecords,
     };
   }
@@ -669,6 +874,7 @@ export class GradebookD1ClassPerformanceSourceV1 implements ClassPerformanceSour
 
 export function createGradebookD1ClassPerformanceSourceV1(
   database: D1ReadDatabaseV1,
+  options: GradebookD1ClassPerformanceSourceOptionsV2 = {},
 ): ClassPerformanceSourceV1 {
-  return new GradebookD1ClassPerformanceSourceV1(database);
+  return new GradebookD1ClassPerformanceSourceV1(database, options);
 }

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 const root = process.cwd();
 function source(path: string): string {
-  return readFileSync(join(root, path), 'utf8');
+  return readFileSync(join(root, path), 'utf8').replace(/\r\n/gu, '\n');
 }
 
 const page = source('src/features/gradebook/operational-workspace/operational-workspace-page.tsx');

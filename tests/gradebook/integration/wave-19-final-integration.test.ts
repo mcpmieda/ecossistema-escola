@@ -48,8 +48,8 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(performancePage).toContain('<PerformanceOfficialCharts matrix={matrix} />');
     expect(charts).toContain('cell.projection.percentage.imported');
     expect(charts).not.toContain('.calculated');
-    expect(physicalSource.match(/comparison-semantics-not-integrated/g)).toHaveLength(1);
-    expect(physicalSource).toContain("state: 'not-comparable'");
+    expect(physicalSource).toContain('resolvePerformanceComparisonProjectionV2');
+    expect(physicalSource).not.toContain('tolerance');
   });
 
   it('não adiciona bridge, migration ou persistência acadêmica no navegador', () => {

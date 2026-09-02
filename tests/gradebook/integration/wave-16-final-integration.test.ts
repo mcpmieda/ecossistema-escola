@@ -68,7 +68,7 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(projection).toContain('follows-official-annual-result');
   });
 
-  it('preserva F6: quatro lentes, recovery oficial, comparison fail-closed, paginação/drill-down e raw evidence fora do HTTP', () => {
+  it('preserva F6: quatro lentes, recovery oficial, comparação canônica, paginação/drill-down e raw evidence fora do HTTP', () => {
     const page = source('src/features/gradebook/performance/performance-page.tsx');
     const route = source('server/gradebook/http/performance-routes-v1.ts');
     const physicalSource = source(
@@ -84,7 +84,7 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(page).toContain('openCellDetail');
     expect(page).toContain('ticket.isCurrent()');
     expect(physicalSource).toContain("source: 'final-recovery'");
-    expect(physicalSource).toContain('comparison-semantics-not-integrated');
+    expect(physicalSource).toContain('resolvePerformanceComparisonProjectionV2');
     expect(physicalSource).toContain('official-projection-unavailable');
     expect(route).not.toContain('officialRecords: detail.officialRecords');
     expect(route).not.toContain('rawSourceEvidence');

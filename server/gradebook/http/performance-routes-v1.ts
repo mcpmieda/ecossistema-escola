@@ -7,6 +7,12 @@ import {
   type PerformanceTransportOperationV1,
   type PerformanceTransportRequestV1,
 } from '../../../shared/gradebook-contracts/performance/performance-transport-v1';
+import type { PlatformCapability } from '../../../shared/platform-contract';
+import {
+  DEFAULT_PERFORMANCE_COMPARISON_CONFIGURATION_V1,
+  type PerformanceComparisonConfigurationV1,
+} from '../../../shared/gradebook-contracts/performance/performance-comparison-contract-v2';
+import { capabilitiesForRoles, requireCapability } from '../../auth/capabilities';
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
 import type { RuntimeEnv } from '../../env';
@@ -22,11 +28,13 @@ import {
   type PerformanceCellDetailV1,
   type PerformanceStudentDetailV1,
 } from '../application/read-models/performance/class-performance-read-model-v1';
+import { resolveCurrentPerformanceComparisonConfigurationV1 } from '../application/read-models/performance/performance-comparison-configuration-v1';
 import {
   authorizeGradebookD1RuntimeV1,
   type GradebookD1RuntimeAuthorizationV1,
 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
+import { getPlatformConfigurations } from '../../platform/snapshot';
 
 export const GRADEBOOK_PERFORMANCE_ROUTE_V1 = '/api/gradebook/performance';
 
@@ -66,7 +74,11 @@ function invalidRequest(reason: PerformanceInvalidRequestReasonV1): Response {
 }
 
 function empty(operation: PerformanceTransportOperationV1): Response {
-  return noStoreJson({ transportVersion: PERFORMANCE_TRANSPORT_VERSION_V1, state: 'empty', operation });
+  return noStoreJson({
+    transportVersion: PERFORMANCE_TRANSPORT_VERSION_V1,
+    state: 'empty',
+    operation,
+  });
 }
 
 function studentDetailTransport(
@@ -113,20 +125,42 @@ export interface PerformanceRequestHandlerDependenciesV1 {
   authorizeRequest(
     request: Request,
     env: RuntimeEnv,
-  ): Promise<GradebookD1RuntimeAuthorizationV1>;
+  ): Promise<{
+    readonly runtimeAuthorization: GradebookD1RuntimeAuthorizationV1;
+    readonly capabilities: readonly PlatformCapability[];
+  }>;
+  resolveComparisonConfiguration(
+    env: RuntimeEnv,
+    capabilities: readonly PlatformCapability[],
+  ): Promise<PerformanceComparisonConfigurationV1>;
   createProvider(
     env: RuntimeEnv,
     authorization: GradebookD1RuntimeAuthorizationV1,
+    configuration: PerformanceComparisonConfigurationV1,
   ): ClassPerformanceReadModelProviderV1;
 }
 
 const defaultDependencies: PerformanceRequestHandlerDependenciesV1 = {
   async authorizeRequest(request, env) {
     const session = await requireAuth(request, env);
-    return authorizeGradebookD1RuntimeV1(session);
+    const capabilities = capabilitiesForRoles(session.roles);
+    requireCapability(capabilities, 'platform.settings.read');
+    return {
+      runtimeAuthorization: authorizeGradebookD1RuntimeV1(session),
+      capabilities,
+    };
   },
-  createProvider(env, authorization) {
-    const runtime = createGradebookD1RuntimeV1(env, authorization);
+  async resolveComparisonConfiguration(env, capabilities) {
+    const configurations = await getPlatformConfigurations(env, capabilities);
+    return resolveCurrentPerformanceComparisonConfigurationV1(
+      configurations,
+      new Date().toISOString(),
+    );
+  },
+  createProvider(env, authorization, configuration) {
+    const runtime = createGradebookD1RuntimeV1(env, authorization, {
+      performanceComparisonConfiguration: configuration,
+    });
     return runtime.classPerformanceReadModel();
   },
 };
@@ -155,7 +189,9 @@ export function createPerformanceRequestHandlerV1(
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
     enforceWriteOrigin(request, env);
 
-    let authorization: GradebookD1RuntimeAuthorizationV1;
+    let authorization: Awaited<
+      ReturnType<PerformanceRequestHandlerDependenciesV1['authorizeRequest']>
+    >;
     try {
       authorization = await dependencies.authorizeRequest(request, env);
     } catch (cause) {
@@ -171,16 +207,24 @@ export function createPerformanceRequestHandlerV1(
       return invalidRequest(cause instanceof HttpError ? 'invalid-request' : 'invalid-request');
     }
     if (!isPerformanceTransportRequestV1(payload)) return invalidRequest('invalid-request');
+    const transportRequest: PerformanceTransportRequestV1 = payload;
 
     let provider: ClassPerformanceReadModelProviderV1;
     try {
-      provider = dependencies.createProvider(env, authorization);
+      const configuration =
+        transportRequest.operation === 'student-detail'
+          ? DEFAULT_PERFORMANCE_COMPARISON_CONFIGURATION_V1
+          : await dependencies.resolveComparisonConfiguration(env, authorization.capabilities);
+      provider = dependencies.createProvider(
+        env,
+        authorization.runtimeAuthorization,
+        configuration,
+      );
     } catch {
       return unavailable();
     }
 
     try {
-      const transportRequest: PerformanceTransportRequestV1 = payload;
       if (transportRequest.operation === 'matrix') {
         const matrix = await provider.get(transportRequest.request);
         return matrix === null

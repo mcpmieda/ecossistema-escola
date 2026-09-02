@@ -1,4 +1,5 @@
 import type { RuntimeEnv, RuntimeEnvironment } from '../../../../env';
+import type { PerformanceComparisonConfigurationV1 } from '../../../../../shared/gradebook-contracts/performance/performance-comparison-contract-v2';
 import {
   createAuditWorkspaceV1,
   type AuditWorkspaceServerContextV1,
@@ -85,6 +86,7 @@ export type GradebookD1RuntimeEnvironmentV1 = Extract<RuntimeEnvironment, 'local
 
 export interface GradebookD1RuntimeOptionsV1 extends GradebookD1MigrationRunnerOptionsV1 {
   readonly now?: () => string;
+  readonly performanceComparisonConfiguration?: PerformanceComparisonConfigurationV1;
 }
 
 const councilSessionStores = new WeakMap<object, CouncilSessionStoreV2>();
@@ -299,7 +301,11 @@ export function createGradebookD1RuntimeV1(
   const operationalAcademicYears = createOperationalWorkspaceAcademicYearCatalogV1(database);
   const auditWorkspaceSource = new GradebookD1AuditWorkspaceSourceV1(database);
   const performanceReadModel = createClassPerformanceReadModelV1(
-    createGradebookD1ClassPerformanceSourceV1(database),
+    createGradebookD1ClassPerformanceSourceV1(database, {
+      ...(options.performanceComparisonConfiguration === undefined
+        ? {}
+        : { comparisonConfiguration: options.performanceComparisonConfiguration }),
+    }),
   );
   const councilWorkspaceSource = createGradebookD1CouncilOfficialProjectionSourceV1(database);
   const durability = createGradebookD1BulletinCouncilDurabilityV1(database);

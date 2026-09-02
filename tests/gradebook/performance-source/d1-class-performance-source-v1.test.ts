@@ -15,6 +15,7 @@ import {
   type ClassPerformanceRequestV1,
   type PerformanceLensV1,
 } from '../../../shared/gradebook-contracts/performance/class-performance-read-model-v1';
+import type { PerformanceComparisonProjectionV2 } from '../../../shared/gradebook-contracts/performance/performance-comparison-contract-v2';
 import type {
   AcademicGradeValueV1,
   AnnualResultV1,
@@ -111,6 +112,23 @@ function insertYear(database: SqliteD1Database, id: AcademicYearId, numericYear:
       `INSERT INTO academic_years (academic_year_id, school_id, year, current_version, created_at) VALUES (?, ?, ?, 1, ?)`,
     )
     .run(id, `school:performance:${numericYear}`, numericYear, instant);
+  database.raw
+    .prepare(
+      `INSERT INTO academic_year_configuration_versions (
+        academic_year_id, configuration_id, version, previous_version,
+        evaluation_profile_id, payload_json, recorded_at
+      ) VALUES (?, ?, 1, NULL, 'evaluation-profile:2026', '{}', ?)`,
+    )
+    .run(id, `academic-year-configuration:${numericYear}`, instant);
+  database.raw
+    .prepare(
+      `INSERT INTO academic_year_versions (
+        academic_year_id, version, previous_version, status, starts_on, ends_on,
+        active_evaluation_profile_id, configuration_id, configuration_version,
+        payload_json, recorded_at
+      ) VALUES (?, 1, NULL, 'active', NULL, NULL, 'evaluation-profile:2026', ?, 1, '{}', ?)`,
+    )
+    .run(id, `academic-year-configuration:${numericYear}`, instant);
 }
 
 interface EntitySeed {
@@ -466,6 +484,11 @@ class CountingDatabase implements D1ReadDatabaseV1 {
   }
 }
 
+function proportionalComparison(cell: unknown): PerformanceComparisonProjectionV2 | undefined {
+  return (cell as { readonly proportionalComparison?: PerformanceComparisonProjectionV2 })
+    .proportionalComparison;
+}
+
 describe('fonte D1 em lote de Desempenho V1', () => {
   it.each(['result', 'quantitative', 'qualitative', 'assessments'] as const)(
     'materializa múltiplas linhas/colunas e a lente %s preservando os lados oficiais',
@@ -492,15 +515,12 @@ describe('fonte D1 em lote de Desempenho V1', () => {
         expect(new Set(cells.map((cell) => cell.coverage.state))).toEqual(
           new Set(['complete', 'partial', 'insufficient-data', 'not-applicable']),
         );
-        expect(
-          cells.every(
-            (cell) =>
-              cell.comparison?.state === 'not-comparable' &&
-              cell.comparison.reason === 'comparison-semantics-not-integrated',
-          ),
-        ).toBe(true);
-        expect(JSON.stringify(cells.map((cell) => cell.comparison))).not.toMatch(
-          /"basis"|"current"|"reference"/u,
+        expect(cells.every((cell) => proportionalComparison(cell)?.state === 'resolved')).toBe(
+          true,
+        );
+        expect(cells.some((cell) => cell.comparison?.state === 'comparable')).toBe(true);
+        expect(JSON.stringify(cells.map(proportionalComparison))).not.toMatch(
+          /"tolerance"|"epsilon"/u,
         );
         const projection = cells[0]!.projection;
         expect(projection).toHaveProperty('officialGrade.imported');
@@ -582,7 +602,7 @@ describe('fonte D1 em lote de Desempenho V1', () => {
     },
   );
 
-  it('mantém comparison null sem período de referência e fail-closed com referência', async () => {
+  it('mantém V1 histórico e projeta a comparação V2 somente com referência explícita', async () => {
     const source = createGradebookD1ClassPerformanceSourceV1(await fixture());
     const withoutReference = await source.loadMatrix({
       contractVersion: 1,
@@ -595,6 +615,11 @@ describe('fonte D1 em lote de Desempenho V1', () => {
     });
     expect(
       withoutReference?.rows.flatMap((row) => row.cells).every((cell) => cell.comparison === null),
+    ).toBe(true);
+    expect(
+      withoutReference?.rows
+        .flatMap((row) => row.cells)
+        .every((cell) => proportionalComparison(cell)?.state === 'not-requested'),
     ).toBe(true);
 
     for (const lens of ['result', 'quantitative', 'qualitative', 'assessments'] as const) {
@@ -610,15 +635,45 @@ describe('fonte D1 em lote de Desempenho V1', () => {
       const comparisons = withReference!.rows
         .flatMap((row) => row.cells)
         .map((cell) => cell.comparison);
+      expect(comparisons.every((comparison) => comparison !== null)).toBe(true);
       expect(
-        comparisons.every(
-          (comparison) =>
-            comparison?.state === 'not-comparable' &&
-            comparison.reason === 'comparison-semantics-not-integrated',
-        ),
+        withReference!.rows
+          .flatMap((row) => row.cells)
+          .every((cell) => proportionalComparison(cell)?.state === 'resolved'),
       ).toBe(true);
-      expect(JSON.stringify(comparisons)).not.toMatch(/"basis"|"current"|"reference"/u);
+      expect(JSON.stringify(comparisons)).not.toMatch(/"tolerance"|"epsilon"/u);
     }
+  });
+
+  it('não produz comparação acadêmica quando a configuração server-side está desativada', async () => {
+    const source = createGradebookD1ClassPerformanceSourceV1(await fixture(), {
+      comparisonConfiguration: {
+        source: 'platform-configuration',
+        key: 'gradebook.performance.proportional-comparison',
+        scope: 'global',
+        enabled: false,
+        platformConfigurationId: 'platform-configuration:synthetic:disabled',
+        version: '2',
+        effectiveFrom: '2026-09-02T00:00:00.000Z',
+        effectiveUntil: '',
+        updatedAt: '2026-09-02T00:00:00.000Z',
+      },
+    });
+    const snapshot = await source.loadMatrix({
+      contractVersion: 1,
+      academicYearId: year,
+      classGroupId: classGroup,
+      period: { kind: 'term', term: 1 },
+      mode: 'regular',
+      lens: 'result',
+      comparisonPeriod: { kind: 'term', term: 2 },
+    });
+    const cells = snapshot!.rows.flatMap((row) => row.cells);
+    expect(cells.every((cell) => proportionalComparison(cell)?.state === 'disabled')).toBe(true);
+    expect(cells.every((cell) => cell.comparison === null)).toBe(true);
+    expect(
+      cells.every((cell) => cell.signals.some((signal) => signal.code === 'comparison-disabled')),
+    ).toBe(true);
   });
 
   it('seleciona a recuperação oficial trimestral sem recalcular valores', async () => {
