@@ -251,22 +251,36 @@ export function classifySourceAssessmentNameV2(
   return { state: 'unrecognized', rawValue, provenance };
 }
 
-function maximumInsufficientReason(
+type MaximumResolutionV2 =
+  | { readonly state: 'resolved'; readonly maximum: number }
+  | {
+      readonly state: 'insufficient-data';
+      readonly reason: Extract<
+        SourceAssessmentInsufficientReasonV2,
+        | 'maximum-ambiguous-empty'
+        | 'maximum-ambiguous-marker'
+        | 'maximum-missing-field'
+        | 'maximum-unrecognized'
+        | 'maximum-not-positive'
+      >;
+    };
+
+function resolveMaximumConfigurationV2(
   configuration: SourceAssessmentMaximumConfigurationV2,
-): SourceAssessmentInsufficientReasonV2 | null {
+): MaximumResolutionV2 {
   switch (configuration.state) {
     case 'numeric':
       return Number.isFinite(configuration.rawValue) && configuration.rawValue > 0
-        ? null
-        : 'maximum-not-positive';
+        ? { state: 'resolved', maximum: configuration.rawValue }
+        : { state: 'insufficient-data', reason: 'maximum-not-positive' };
     case 'ambiguous-empty':
-      return 'maximum-ambiguous-empty';
+      return { state: 'insufficient-data', reason: 'maximum-ambiguous-empty' };
     case 'ambiguous-marker':
-      return 'maximum-ambiguous-marker';
+      return { state: 'insufficient-data', reason: 'maximum-ambiguous-marker' };
     case 'missing-field':
-      return 'maximum-missing-field';
+      return { state: 'insufficient-data', reason: 'maximum-missing-field' };
     case 'unrecognized':
-      return 'maximum-unrecognized';
+      return { state: 'insufficient-data', reason: 'maximum-unrecognized' };
   }
 }
 
@@ -278,19 +292,19 @@ function observedName(definition: SourceAssessmentDefinitionV2): string | null {
 export function resolveSourceAssessmentDefinitionV2(
   definition: SourceAssessmentDefinitionV2,
 ): SourceAssessmentDefinitionResolutionV2 {
-  const maximumReason = maximumInsufficientReason(definition.maximumConfiguration);
-  if (maximumReason !== null) {
+  const maximumResolution = resolveMaximumConfigurationV2(definition.maximumConfiguration);
+  if (maximumResolution.state === 'insufficient-data') {
     return {
       state: 'insufficient-data',
       kind: definition.kind,
       sourceSlot: definition.sourceSlot,
       order: definition.order,
       observedName: observedName(definition),
-      reason: maximumReason,
+      reason: maximumResolution.reason,
     };
   }
 
-  const maximum = definition.maximumConfiguration.rawValue;
+  const maximum = maximumResolution.maximum;
   if (definition.kind === 'quantitative-assessment') {
     return {
       state: 'resolved',
