@@ -56,7 +56,7 @@ describe('gate produtivo D1 V1', () => {
       validateEnv({
         ...productionEnv(undefined),
         GRADEBOOK_PRODUCTION_ENABLED: 'TRUE',
-      } as RuntimeEnv),
+      } as unknown as RuntimeEnv),
     ).toThrow('Runtime environment is invalid.');
   });
 
