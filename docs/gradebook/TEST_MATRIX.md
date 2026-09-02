@@ -2,16 +2,36 @@
 
 Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são usados somente em validação controlada fora do repositório e produzem relatórios agregados sem nomes/notas identificáveis.
 
-## SRC — Contrato da fonte
+## SRC — Contrato da fonte V1 histórico
 
 - `SRC-001`: guia D1 reconhecida sem sufixo.
 - `SRC-002`: guias D2 e D3 reconhecidas e vinculadas à disciplina correta.
 - `SRC-003`: `J1`, `K2`, `K3` e `K4` lidos corretamente.
-- `SRC-004`: atividade com nome `*` ou máximo zero não é aplicável.
+- `SRC-004`: sob V1 histórico, atividade com nome `*` ou máximo zero não é aplicável; artefatos V1 continuam interpretados por essa versão, sem transportar essa heurística para V2.
 - `SRC-005`: guia protegida pode ser lida sem remover proteção.
 - `SRC-006`: guia oculta/auxiliar é classificada sem virar guia de nota.
 - `SRC-007`: nome inesperado gera diagnóstico, não descarte silencioso.
 - `SRC-008`: arquivo original não é modificado.
+
+## SRC2 — Definições trimestrais SourceContractV2
+
+- `SRC2-001`: `R3`/`S3` são máximo/configuração das avaliações quantitativas 1/2 e `R/S` de estudante começam na linha 5.
+- `SRC2-002`: `AA3:AJ3`, `AA4:AJ4` e `AA5:AJ...` permanecem naturezas distintas: máximo/configuração, nome livre e valor do estudante.
+- `SRC2-003`: máximo/configuração preserva número, vazio e `*` sem coerção destrutiva.
+- `SRC2-004`: vazio, `*` e máximo não positivo permanecem `insufficient-data`; nenhum produz `not-applicable` ou `maximum: 0` por heurística.
+- `SRC2-005`: nome qualitativo preserva texto livre, Unicode, acentuação e nome longo.
+- `SRC2-006`: `R/S` resolvem como `quantitative-assessment` com rótulos estruturais; `S` nunca vira `simulation` por posição.
+- `SRC2-007`: `SourceContractV1` permanece interpretável e não é reescrito retroativamente por V2.
+- `SRC2-008`: `T`, `Z`, `AK`, `AM` e `AN` permanecem agregados importados; a definição granular não os recalcula.
+
+## RES2 — AssessmentComponent/Results V2
+
+- `RES2-001`: V2 publica `quantitative-assessment | qualitative-activity | parallel-recovery`, sem `written/simulation` para R/S.
+- `RES2-002`: tipos V1 históricos `written | simulation | qualitative-activity | parallel-recovery` continuam interpretáveis sob V1.
+- `RES2-003`: componentes R/S resolvidos usam ID opaco, tipo quantitativo genérico e ordem estrutural 1/2.
+- `RES2-004`: nome e máximo são versionáveis e não alteram a chave estável do mesmo slot/contexto.
+- `RES2-005`: chave estável isola fonte lógica, ano, teaching assignment, trimestre e slot estrutural.
+- `RES2-006`: autoridade e estados acadêmicos existentes permanecem herdados de V1; a evolução não cria regra de resultado.
 
 ## CELL — Semântica de célula
 
