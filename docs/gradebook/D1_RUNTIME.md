@@ -1,16 +1,17 @@
-# Runtime D1 local/preview e runner autorizado V1
+# Runtime D1 autorizado e gate produtivo V1
 
 ## Escopo
 
-O runtime compõe adaptadores D1 para desenvolvimento local e previews controlados. Ele não cria banco, binding, secret ou recurso remoto e não habilita consulta/persistência acadêmica em produção.
+O runtime compõe adaptadores D1 para ambientes autorizados. A onda 23 provisionou o D1 acadêmico produtivo e o binding server-side sem versionar identificadores remotos; o acesso acadêmico de produção continua condicionado ao gate explícito e à autorização opaca.
 
 ```text
 local      → binding injetado permitido
 preview    → binding injetado permitido
-production → fail-closed antes de inspecionar GRADEBOOK_D1
+production → gate OFF: fail-closed antes de usar GRADEBOOK_D1
+production → gate ON: somente em janela autorizada, após auth/capability
 ```
 
-O `wrangler.jsonc` de produção continua sem binding D1 acadêmico.
+O binding lógico `GRADEBOOK_D1` é injetado na publicação por configuração protegida de produção; IDs remotos não são versionados. `GRADEBOOK_PRODUCTION_ENABLED` permanece ausente/`false` entre janelas autorizadas.
 
 ## Autorização
 
@@ -26,7 +27,7 @@ runtimeEnvironment(env)
 requireDatabase(env.GRADEBOOK_D1)
 ```
 
-Logo `production` falha antes do binding para todas as superfícies acadêmicas.
+Logo, com o gate OFF, `production` falha antes do uso acadêmico do binding. Abrir o gate não elimina `requireAuth`, `gradebook.persistence.admin`, origin ou `no-store`.
 
 ## Composição D1 após a onda 18
 
@@ -151,7 +152,7 @@ Catálogo local:
 3. `0003_logical_source_record_catalog_v1.sql`;
 4. `0004_bulletin_council_durability_v1.sql`.
 
-A 0004 cria quatro tabelas e índices de paginação/history. Total local após runner: 25 tabelas. Reexecução permanece idempotente. Não existe DDL dos adapters/factory e nenhuma migration remota foi aplicada.
+A 0004 cria quatro tabelas e índices de paginação/history. O catálogo canônico totaliza 25 tabelas. Na onda 23, as migrations 0001–0004 foram aplicadas remotamente em ordem, resultando em schema version 4 / 25 tabelas e zero pendência; nenhuma DDL extra foi criada.
 
 Não há `ON DELETE CASCADE`, purge automático ou prazo de retenção inventado; o V1 é append-only.
 
@@ -164,9 +165,13 @@ Não há `ON DELETE CASCADE`, purge automático ou prazo de retenção inventado
 
 Exigem sessão + `gradebook.persistence.admin`; escrita exige origin oficial; respostas `no-store` e sanitizadas.
 
-## F9 / shell
+## F9 / produção controlada
 
-A rota e as superfícies são lazy; entrar no Banco dispara zero requests acadêmicos automáticos. A busca global seleciona área por hash query, sem bridge paralelo. Produção e autoridade nativa continuam desativadas.
+A rota e as superfícies são lazy; entrar no Banco dispara zero requests acadêmicos automáticos. A busca global seleciona área por hash query, sem bridge paralelo.
+
+A #382 executou uma janela produtiva sintética controlada no SHA `2fdefa87f186e84ed40637437d4b0199baff82c6`: shell público, status anônimo, status autorizado, Performance e Boletins/snapshot/reprint passaram. O corpus foi restaurado para zero raízes residuais e o production gate terminou OFF. Nenhum piloto real foi executado e `authorityMode` permaneceu `imported-source`.
+
+Bindings D1 remotos que expõem `batch()` usam batches guardados para promoção e durabilidade de snapshots/decisões; SQLite local preserva transações/savepoints. CAS, rollback e o planner/executor oficiais continuam sendo as únicas fronteiras de write.
 
 ## F1 — sincronização de confiança
 
@@ -180,12 +185,13 @@ A auditoria F9 trava em teste a ausência de persistência acadêmica via localS
 
 ## Limites preservados
 
-- nenhum D1/binding remoto;
-- nenhuma migration remota;
-- nenhum secret/capability/papel novo;
-- nenhuma ativação acadêmica em produção;
+- D1/binding/schema produtivos existem, mas o gate permanece OFF fora de janelas autorizadas;
+- nenhum secret, ID remoto ou bookmark é versionado;
 - nenhuma mudança de `authorityMode`;
+- nenhum piloto real executado;
 - nenhuma regra acadêmica no adapter/HTTP/UI/renderer/wiring;
-- sessão institucional V2 ainda não tem durabilidade cross-restart;
+- `reconciliation_v2.case_store` permanece process-local;
+- sessão/reunião institucional V2 ainda não tem durabilidade cross-restart;
+- write administrativo da configuração de comparação permanece hard stop;
 - PDF permanece raster/client-side;
 - somente dados sintéticos em testes públicos.

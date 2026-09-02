@@ -11,10 +11,10 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 374
+  previous_integrator_issue: 383
   current_integrator_issue: null
-  current_wave: 22
-  next_wave: 23
+  current_wave: 23
+  next_wave: 24
   next_parallel_fronts: []
   next_integrator_issue: null
   integrator_required: false
@@ -23,7 +23,7 @@ coordination:
   branch_model: short-lived-per-issue
   merge_target: main
   publication: automatic-after-main
-  executable_issue_status: manual-authorization-required
+  executable_issue_status: wave-24-scope-review-required
   issue_status_is_authoritative: true
   prohibited_orchestration:
     - app-factory
@@ -37,10 +37,10 @@ runtime:
   current_route: '#/banco-de-notas'
   scoped_area_navigation: '#/banco-de-notas?area=<surface-id>'
   production_academic_runtime_enabled: false
-  production_d1_binding_present: false
-  production_remote_resources_created: false
-  production_gate: before-binding
-  readiness_status: prepared-for-manual-authorization
+  production_d1_binding_present: true
+  production_remote_resources_created: true
+  production_gate: explicit-server-gate-off-between-authorized-windows
+  readiness_status: production-infrastructure-smoke-validated-awaiting-private-pilot
   authorization:
     capability: gradebook.persistence.admin
     granted_role:
@@ -50,7 +50,7 @@ runtime:
   environments:
     local: allowed-with-injected-binding
     preview: allowed-with-injected-binding
-    production: fail-closed-before-binding
+    production: binding-present-gate-off-fail-closed
   academic_authority_mode: imported-source
   academic_bridges:
     operational_workspace:
@@ -88,13 +88,13 @@ runtime:
       - council
 
 production:
-  academic_d1_database: absent
-  academic_d1_binding: absent
-  remote_migrations_applied: false
+  academic_d1_database: present
+  academic_d1_binding: present-protected
+  remote_migrations_applied: true
   academic_query_enabled: false
   academic_persistence_enabled: false
-  remote_bulletin_snapshot_storage: absent
-  remote_council_decision_storage: absent
+  remote_bulletin_snapshot_storage: schema-present-smoke-validated-restored-zero-gate-off
+  remote_council_decision_storage: schema-present-not-smoke-validated-gate-off
   native_engine_authority_enabled: false
   rule: code-presence-does-not-imply-data-access
 
@@ -106,9 +106,7 @@ scope:
     - additional-cadastral-sources
     - automatic-onedrive-sync
     - standardized-technical-spreadsheet
-    - production-academic-d1
-    - remote-bulletin-snapshot-storage
-    - remote-council-decision-storage
+    - private-real-pilot
     - automatic-authority-switch
 
 storage:
@@ -116,7 +114,7 @@ storage:
   decision_issue: 200
   access: authorized-backend-only
   domain_dependency: provider-independent-ports
-  schema_status: local-v1-plus-bulletin-council-durability
+  schema_status: production-version-4-smoke-validated
   table_count: 25
   migrations:
     - 0001_gradebook_context_entities_imports_v1.sql
@@ -124,8 +122,8 @@ storage:
     - 0003_logical_source_record_catalog_v1.sql
     - 0004_bulletin_council_durability_v1.sql
   wave_19_schema_changed: false
-  production_provisioned: false
-  remote_migration_applied: false
+  production_provisioned: true
+  remote_migration_applied: true
   retention_policy: not-invented-append-only-v1
 
 contracts:
@@ -226,7 +224,7 @@ contracts:
     pdf_batch_max_total_pages: 72
     pdf_batch_concurrent_documents: 1
     pdf_raster: true
-    remote_snapshot_persistence: absent
+    remote_snapshot_persistence: smoke-validated-restored-zero-gate-off
   reports_v1:
     status: implemented-local-preview-http-ui-lazy
     implementation_issue: 342
@@ -359,17 +357,19 @@ features:
     tie_break_director_identity: fail-closed-not-formalized
     session_cross_restart_durability: false
   f9:
-    status: readiness-prepared-next-gate-wave-23-controlled-production
+    status: production-infrastructure-smoke-validated-awaiting-private-pilot
     readiness_issue: 360
     readiness_integrator_issue: 361
-    readiness_revalidation_issue: 374
+    historical_readiness_revalidation_issue: 374
     readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts
+    controlled_production_readiness_manifest: server/gradebook/readiness/controlled-production-readiness-v2.ts
     readiness_runbook: docs/gradebook/PRODUCTION_READINESS.md
     preparation_evidence_count: 6
-    production_hard_stop_count: 5
+    historical_pre_wave_23_hard_stop_count: 5
     synthetic_scenarios: 5
-    future_smoke_steps: 5
-    future_smoke_plan_inert: true
+    historical_smoke_plan_steps: 5
+    production_smoke_completed: true
+    post_wave_23_hard_stop_count: 2
     readiness_source_merge: 000a6988565419d9c1f2c638e929af4e0dff1491
     no_store_audited: true
     browser_storage_audited: true
@@ -379,6 +379,48 @@ features:
     entry_requests_after: 0
     production_pilot_completed: false
     authority_switch_completed: false
+    production_resource_present: true
+    production_binding_present: true
+    remote_migrations_applied_count: 4
+    remote_schema_version: 4
+    remote_table_count: 25
+    remote_pending_migrations: 0
+    production_synthetic_smoke_steps_passed: 5
+    synthetic_residue_after_smoke: 0
+    production_gate_final: off
+    post_wave_23_hard_stops:
+      - private-real-pilot-authorization
+      - native-authority-separate-authorization
+
+wave_23:
+  status: completed-integrated
+  integration_issue: 383
+  sequence:
+    - 380
+    - 381
+    - 382
+    - 383
+  smoke_tested_sha: 2fdefa87f186e84ed40637437d4b0199baff82c6
+  production_resource_present: true
+  production_binding_present: true
+  remote_migrations_applied: 4
+  schema_version: 4
+  table_count: 25
+  pending_migrations: 0
+  production_synthetic_smoke_steps_passed: 5
+  synthetic_residue_after_smoke: 0
+  production_gate_final: off
+  real_pilot_completed: false
+  authority_mode: imported-source
+  native_engine_active: false
+  next_wave: 24
+  known_limitations_for_pilot_scope_review:
+    - reconciliation-v2-case-store-process-local
+    - council-v2-session-store-process-local
+    - performance-comparison-config-write-not-integrated
+  authority_scope_decision_issue: 384
+  authority_scope_decision_pull_request: 385
+  authority_scope_decision_integrated: false
 
 bundle_wave_17:
   baseline_entry_min_kb: 820.68

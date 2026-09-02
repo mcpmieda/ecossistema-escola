@@ -53,18 +53,22 @@ describe('integração final da onda 20 — readiness F9 inerte', () => {
     expect(shell).not.toContain('production-readiness-v1');
   });
 
-  it('sincroniza o estado canônico sem ativar produção nem antecipar a #347', () => {
+  it('preserva o V1 histórico sem congelar a memória canônica no estado pré-produção', () => {
     const projectState = source('docs/gradebook/PROJECT_STATE.yaml');
     const startHere = source('docs/gradebook/COMECE_AQUI.md');
 
-    expect(projectState).toContain('readiness_status: prepared-for-manual-authorization');
+    expect(projectState).toContain(
+      'readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts',
+    );
+    expect(projectState).toContain(
+      'controlled_production_readiness_manifest: server/gradebook/readiness/controlled-production-readiness-v2.ts',
+    );
     expect(projectState).toContain('academic_authority_mode: imported-source');
     expect(projectState).toContain('production_academic_runtime_enabled: false');
-    expect(projectState).toContain('production_d1_binding_present: false');
-    expect(projectState).toContain('remote_migration_applied: false');
-    expect(projectState).toContain('real_pilot_executed: false');
+    expect(projectState).toContain('production_d1_binding_present: true');
+    expect(projectState).toContain('production_gate_final: off');
     expect(projectState).toContain('authority_transition_issue: 347');
-    expect(startHere).toContain('readiness está `prepared-for-manual-authorization`');
-    expect(startHere).toContain('#347 permanece separada e não autorizada');
+    expect(startHere).toContain('V1: memória histórica de preparação');
+    expect(startHere).toContain('#347 permanece bloqueada');
   });
 });

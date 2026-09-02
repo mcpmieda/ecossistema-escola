@@ -2,7 +2,7 @@
 
 ## Estado e limite
 
-O schema local/preview está integrado até a migration 0004. Nenhum banco, binding, secret, recurso remoto ou migration de produção foi criado ou executado.
+O schema canônico está integrado até a migration 0004 em local/preview e produção. A onda 23 confirmou D1/binding produtivos, aplicou remotamente 0001–0004 e validou schema version 4 / 25 tabelas com zero migration pendente. Identificadores remotos permanecem fora do repositório.
 
 O domínio permanece independente de D1. Adaptadores convertem contratos e portas em SQL sem expor tabelas aos consumidores.
 
@@ -116,7 +116,7 @@ commit único
 
 Conflito em qualquer etapa provoca rollback integral. A 0004 não altera essa semântica.
 
-## Leitura/escrita local integrada
+## Leitura/escrita integrada
 
 O runtime local/preview dispõe de:
 
@@ -150,12 +150,17 @@ Somente dados sintéticos são usados.
 
 ## Produção
 
-Continuam fora do escopo:
+Estado consolidado pela onda 23:
 
-- binding acadêmico em `wrangler.jsonc`;
-- banco D1 acadêmico remoto;
-- aplicação remota das migrations 0001–0004;
-- rollout/backup/recuperação produtivos;
-- ativação de consultas/persistência acadêmica em produção.
+- D1 acadêmico produtivo: presente e inequivocamente associado ao binding protegido;
+- binding `GRADEBOOK_D1`: presente;
+- migrations remotas: 0001–0004, 4/4;
+- schema: version 4 / **25 tabelas de domínio**, zero pendência;
+- tabela interna reservada do provedor, quando presente, não integra a contagem contratual das 25 tabelas;
+- smoke sintético de Performance e Boletins/snapshot/reprint: verde;
+- recovery pós-smoke: corpus sintético restaurado para zero raízes residuais;
+- production gate final: OFF;
+- piloto real: não iniciado;
+- `authorityMode: imported-source`.
 
-A presença da 0004 no repositório não autoriza provisionamento. Produção continua fail-closed antes do binding.
+A presença do schema remoto não autoriza operação acadêmica real. Toda nova janela depende do gate server-side, auth/capability existentes e autorização própria.

@@ -178,20 +178,19 @@ describe('integração final da onda 22 — comparação e correção determiní
     );
   });
 
-  it('registra a onda 23 como próximo gate sem antecipar piloto ou autoridade', () => {
+  it('preserva a onda 22 como histórico e aceita o fechamento canônico da onda 23', () => {
     const projectState = source('docs/gradebook/PROJECT_STATE.yaml');
     const startHere = source('docs/gradebook/COMECE_AQUI.md');
     const readiness = source('docs/gradebook/PRODUCTION_READINESS.md');
 
-    expect(projectState).toContain('current_wave: 22');
-    expect(projectState).toContain('next_wave: 23');
+    expect(projectState).toContain('current_wave: 23');
+    expect(projectState).toContain('next_wave: 24');
     expect(projectState).toContain('academic_authority_mode: imported-source');
     expect(projectState).toContain('production_academic_runtime_enabled: false');
-    expect(projectState).toContain('remote_migration_applied: false');
-    expect(projectState).toContain('real_pilot_executed: false');
-    expect(startHere).toContain('onda 23 — produção controlada');
-    expect(readiness).toContain(
-      'onda 22 concluída → onda 23 produção controlada → onda 24 piloto real → #347 autoridade nativa',
-    );
+    expect(projectState).toContain('production_d1_binding_present: true');
+    expect(projectState).toContain('remote_migration_applied: true');
+    expect(projectState).toContain('production_gate_final: off');
+    expect(startHere).toContain('Onda 23 — produção controlada concluída');
+    expect(readiness).toContain('production-infrastructure-smoke-validated-awaiting-private-pilot');
   });
 });

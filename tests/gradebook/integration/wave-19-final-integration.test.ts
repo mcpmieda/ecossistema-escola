@@ -72,14 +72,15 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(source('docs/gradebook/PROJECT_STATE.yaml')).not.toContain('0005_');
   });
 
-  it('mantém autoridade imported-source e produção acadêmica fail-closed', () => {
+  it('mantém autoridade imported-source e produção acadêmica fail-closed após a evolução do binding', () => {
     const projectState = source('docs/gradebook/PROJECT_STATE.yaml');
     const academicContext = source('docs/gradebook/ACADEMIC_CONTEXT.md');
     const route = source('server/gradebook/http/operational-workspace-routes-v1.ts');
 
     expect(projectState).toContain('academic_authority_mode: imported-source');
     expect(projectState).toContain('production_academic_runtime_enabled: false');
-    expect(projectState).toContain('production_d1_binding_present: false');
+    expect(projectState).toContain('production_d1_binding_present: true');
+    expect(projectState).toContain('production_gate_final: off');
     expect(academicContext).toContain('authorityMode: imported-source');
     expect(route).toContain('createGradebookD1RuntimeV1(env, authorization)');
   });

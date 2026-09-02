@@ -2,50 +2,50 @@
 
 ## Regra principal
 
-**Agente de implementação só começa em issue marcada `[PRONTA]`.** Issues-pai (`#182`, `#184`–`#192`) são acompanhamento; integrações rodam somente pela issue integradora correspondente.
+**Agente de implementação só começa em issue marcada `[PRONTA]`.** Issues-pai são acompanhamento; integrações rodam somente pela issue integradora correspondente.
 
-## Onda 22 — integração #374
+## Onda 23 — produção controlada concluída
 
-| Frente                 | Issue / PR    | Resultado                                                                                       |
-| ---------------------- | ------------- | ----------------------------------------------------------------------------------------------- |
-| Decisão                | `#349 / #375` | BN-DEC-019 consolidada                                                                           |
-| Contratos V2           | `#371 / #376` | comparação percentual profile-aware e correção determinística fail-closed                       |
-| Comparação             | `#372 / #377` | F6 no bridge existente, configuração server-side e sem write path inventado                     |
-| Correção determinística | `#373 / #378` | Audit Workspace, planner/executor/CAS/rollback oficiais                                          |
-| Integração             | `#374 / #379` | regressão transversal, readiness sintética e memória canônica sem ativação produtiva             |
+| Etapa | Issue | Resultado |
+| --- | ---: | --- |
+| Recurso/binding | #380 | D1 produtivo único + `GRADEBOOK_D1`, gate OFF |
+| Migrations | #381 | 0001–0004, schema 4 / 25, pendentes 0 |
+| Smoke | #382 | 5/5 passos verdes, corpus sintético restaurado a zero |
+| Integração | #383 | memória canônica + readiness V2, sem nova operação D1 |
 
-Heads e merges validados:
-
-- #349: `24d40efce8a6c5a8eb26e9ca6aa3e0eef0601da7` → merge `a49b05de243353d1aea9452d0cdc108c75a1221a`;
-- #371: `b3063b4498cb70f6b9b754e736cb45ad94da8eb0` → merge `92c0760ff8735e11f94ba61c148f8b789d53929d`;
-- #372 recomposta: `c5811ed5dc3543b834598162ac9362752a63ff15` → merge `da73b8cabc30fd5479c00683c36cef481076b286`;
-- #373 recomposta: `98684ded7cfc986789bcf0d11680a04576b43a5a` → merge `9cc998225c612722fcbe2ebc64bbf35d2d9dbd1b`.
+SHA/deployment testado pelo smoke: `2fdefa87f186e84ed40637437d4b0199baff82c6`.
 
 ## Invariantes atuais
 
 - `authorityMode: imported-source`;
-- produção acadêmica fail-closed antes de `GRADEBOOK_D1`;
-- nenhum D1/binding/secret/recurso acadêmico remoto;
-- nenhuma migration remota, restore ou export executado;
-- nenhum smoke acadêmico produtivo ou piloto real executado;
-- somente dados sintéticos no repositório/CI;
-- #347 permanece separada e não autorizada antes do piloto.
+- D1/binding produtivos presentes;
+- schema remoto version 4 / 25 tabelas;
+- production gate OFF entre janelas autorizadas;
+- nenhum dado real usado na onda 23;
+- resíduo sintético após smoke: zero;
+- piloto real: não iniciado;
+- `native-engine`: não ativo;
+- #347 permanece bloqueada.
 
-## Estado funcional
+## Readiness
 
-- **F1:** validação histórica 7/7 preservada e evolução prospectiva V2 integrada.
-- **F4/F5:** concluídas.
-- **F6:** concluída com comparação proporcional profile-aware; escrita administrativa da configuração permanece hard stop explícito.
-- **F7/F8:** Conselho V2, decisões/snapshots duráveis, PDF e Relatórios permanecem integrados em local/preview.
-- **F9:** readiness está `prepared-for-manual-authorization`; isso não equivale a produção ou piloto aprovados.
+- V1: memória histórica de preparação `prepared-for-manual-authorization`; não foi enfraquecido.
+- V2: `production-infrastructure-smoke-validated-awaiting-private-pilot`.
+- gates restantes: piloto privado real e autoridade nativa separada.
+
+## Limitações a revisar antes da onda 24
+
+- `reconciliation_v2.case_store`: process-local;
+- Conselho V2 sessão/reunião: process-local, sem durabilidade cross-restart;
+- write administrativo da configuração de comparação: `not-integrated-hard-stop`.
+
+A #384 / PR #385 ainda não está integrada; não tratá-la como decisão canônica até seu merge próprio.
 
 ## Próximo passo
 
-Depois da publicação da #374, seguir a ordem sem antecipar gates:
-
-1. **onda 23 — produção controlada:** recurso/binding → migration remota → smoke acadêmico produtivo, cada ação em issue/gate próprio;
-2. **onda 24 — piloto real:** execução privada e controlada, ainda com `imported-source`;
-3. **#347 — autoridade nativa:** somente após piloto, vigência e autorização explícitas.
+1. **onda 24 — piloto privado real:** revisão de escopo e execução somente por autorização própria, ainda com `imported-source`;
+2. investigar/reconciliar divergências representativas encontradas;
+3. **#347 — autoridade nativa:** somente após piloto, contratos/gates aplicáveis, vigência e aceite explícitos.
 
 ## Fluxo
 
@@ -66,4 +66,4 @@ frente verde
   → gate manual explícito
 ```
 
-Não usar App Factory, Factory Runs, subagentes ou orquestração salvo autorização explícita da issue. Nunca publicar arquivos, nomes, notas, hashes ou caminhos privados.
+Não usar App Factory, Factory Runs, subagentes ou orquestração salvo autorização explícita da issue. Nunca publicar dados acadêmicos reais, identificadores remotos, secrets, bookmarks, payloads ou screenshots acadêmicos.
