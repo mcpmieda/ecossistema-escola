@@ -90,7 +90,9 @@ describe('Performance HeroUI local/preview V1', () => {
   });
 
   it('mantém teclado, foco, anúncios acessíveis e layout móvel não comprimido', () => {
-    expect(page).toContain('onSubmit={(event) =>');
+    expect(page).toContain('onSubmit={() =>');
+    expect(page).toContain('type="button"');
+    expect(page).toContain('void searchClasses();');
     expect(page).toContain('aria-live="polite"');
     expect(page).toContain('role="status"');
     expect(page).toContain('focus-visible:ring-2');
