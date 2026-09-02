@@ -11,6 +11,11 @@ import {
   createGradebookD1BulletinSnapshotRepositoryV1,
   GradebookD1BulletinSnapshotErrorV1,
 } from '../../../../server/gradebook/persistence/d1/bulletins/d1-bulletin-snapshot-repository-v1';
+import type {
+  D1WriteDatabaseV1,
+  D1WriteRunResultV1,
+  D1WriteStatementV1,
+} from '../../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import type { AcademicRecordRepositoryV1 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import {
   durabilityClassA,
@@ -29,6 +34,43 @@ import {
 
 const openedDatabases: Awaited<ReturnType<typeof openDurabilityDatabase>>[] = [];
 
+class RemoteBatchDatabaseV1 implements D1WriteDatabaseV1 {
+  batchCalls = 0;
+  failAfterFirstMutation = false;
+
+  constructor(private readonly local: Awaited<ReturnType<typeof openDurabilityDatabase>>) {}
+
+  prepare(query: string): D1WriteStatementV1 {
+    return this.local.prepare(query);
+  }
+
+  exec(): never {
+    throw new Error('remote-d1-does-not-support-savepoints');
+  }
+
+  async batch(
+    statements: readonly D1WriteStatementV1[],
+  ): Promise<readonly D1WriteRunResultV1[]> {
+    this.batchCalls += 1;
+    this.local.raw.exec('BEGIN');
+    try {
+      const results: D1WriteRunResultV1[] = [];
+      for (let index = 0; index < statements.length; index += 1) {
+        if (this.failAfterFirstMutation && index === 1) {
+          this.failAfterFirstMutation = false;
+          throw new Error('synthetic-remote-batch-failure');
+        }
+        results.push(await statements[index]!.run());
+      }
+      this.local.raw.exec('COMMIT');
+      return results;
+    } catch (cause) {
+      this.local.raw.exec('ROLLBACK');
+      throw cause;
+    }
+  }
+}
+
 async function database() {
   const value = await openDurabilityDatabase();
   openedDatabases.push(value);
@@ -40,6 +82,32 @@ afterEach(() => {
 });
 
 describe('repositório D1 de snapshots de Boletins V1', () => {
+  it('usa batch atômico no D1 remoto e reverte integralmente uma falha intermediária', async () => {
+    const local = await database();
+    const remote = new RemoteBatchDatabaseV1(local);
+    const repository = createGradebookD1BulletinSnapshotRepositoryV1(remote);
+
+    remote.failAfterFirstMutation = true;
+    await expect(repository.append(durabilitySeriesA, durabilitySnapshot(1), 0)).resolves.toEqual({
+      status: 'version-conflict',
+    });
+    await expect(repository.getLatest(durabilitySeriesA)).resolves.toBeNull();
+    await expect(
+      repository.listHistory({
+        academicYearId: durabilityYear2026,
+        classGroupId: durabilityClassA,
+        studentIds: [durabilityStudentA],
+      }),
+    ).resolves.toEqual([]);
+
+    const appended = await repository.append(durabilitySeriesA, durabilitySnapshot(1), 0);
+    expect(appended.status).toBe('appended');
+    expect(remote.batchCalls).toBe(2);
+    await expect(repository.getLatest(durabilitySeriesA)).resolves.toMatchObject({
+      snapshotVersion: 1,
+    });
+  });
+
   it('faz append inicial/subsequente com CAS, histórico imutável e payload canônico idêntico', async () => {
     const db = await database();
     const repository = createGradebookD1BulletinSnapshotRepositoryV1(db);
