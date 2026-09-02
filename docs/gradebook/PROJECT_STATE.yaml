@@ -383,7 +383,7 @@ wave_18:
     native_engine_activation: false
 
 wave_19:
-  status: integration-pr-open
+  status: completed-integrated
   strategy: three-large-closure-fronts-plus-integrator
   integration_issue: 356
   integration_pull_request: 362
@@ -413,7 +413,7 @@ wave_19:
     native_engine_activation: false
 
 wave_20:
-  status: blocked-until-wave-19-completed
+  status: released-after-wave-19
   parallel_fronts:
     - issue: 360
       executor: extra-high
@@ -435,10 +435,10 @@ phases:
     status: native-engine-v1-complete-comparative-only
   F4:
     issue: 187
-    status: complete-authoritative-review-7-of-7-pending-wave19-publication
+    status: complete-authoritative-review-7-of-7
   F5:
     issue: 188
-    status: complete-local-preview-teacher-registration-confirmation-assignments-pending-wave19-publication
+    status: complete-local-preview-teacher-registration-confirmation-assignments
   F6:
     issue: 189
     status: performance-official-charts-delivered-comparison-semantics-hard-stop-open
