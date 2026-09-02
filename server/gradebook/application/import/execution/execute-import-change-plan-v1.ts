@@ -7,6 +7,8 @@ import type {
   AcademicEntityRecordV1,
   AcademicRecordStreamV1,
   AcademicRecordV1,
+  AuditRecordStreamV1,
+  AuditRecordV1,
   BatchPromotionTransactionPortV1,
   LogicalSourceIdV1,
   LogicalSourceRecordAssociationStreamV1,
@@ -76,6 +78,20 @@ export interface AppliedAcademicEntityVersionV2 {
   readonly stableKey: string;
   readonly entityKind: 'assessment-component';
   readonly version: number;
+}
+
+export interface ImportChangeExecutionAuditAppendV1 {
+  readonly stream: Extract<AuditRecordStreamV1, { readonly kind: 'occurrence' }>;
+  readonly record: Extract<AuditRecordV1, { readonly kind: 'occurrence' }>;
+  readonly expectedVersion: number | null;
+}
+
+export interface ImportChangeExecutionOptionsV1 {
+  /**
+   * Optional sanitized occurrence appended inside the same official promotion transaction. This
+   * is deliberately narrower than a generic callback or arbitrary repository mutation.
+   */
+  readonly auditAppend?: ImportChangeExecutionAuditAppendV1;
 }
 
 export type ImportChangePlanValidationScopeV1 = 'plan' | 'file' | 'item';
@@ -1457,6 +1473,7 @@ function baseResult(
 export async function executeImportChangePlan(
   plan: ImportChangePlanV1 | AssessmentImportChangePlanV2,
   transactionPort: BatchPromotionTransactionPortV1,
+  options: ImportChangeExecutionOptionsV1 = {},
 ): Promise<ImportChangeExecutionResultV1> {
   let validation: PlanValidationResultV1;
   const componentPlan = 'assessmentComponentPlanV2' in plan ? plan.assessmentComponentPlanV2 : null;
@@ -1578,6 +1595,37 @@ export async function executeImportChangePlan(
               message: 'As contagens aplicadas divergem da estimativa validada do plano.',
             }),
           );
+        }
+
+        if (options.auditAppend) {
+          const auditResult = await unitOfWork.audit.appendVersion(
+            context,
+            options.auditAppend.stream,
+            options.auditAppend.record,
+            { expectedVersion: options.auditAppend.expectedVersion },
+          );
+          if (auditResult.status === 'version-conflict') {
+            throw new InvalidExecutionSignalV1(
+              validationIssue({
+                code: 'correction-audit-version-conflict',
+                scope: 'plan',
+                message: 'A ocorrência sanitizada da correção não pôde ser versionada.',
+              }),
+            );
+          }
+          const expectedAuditVersion = (options.auditAppend.expectedVersion ?? 0) + 1;
+          if (
+            auditResult.record.version !== expectedAuditVersion ||
+            !sameStructure(auditResult.record.value, options.auditAppend.record)
+          ) {
+            throw new InvalidExecutionSignalV1(
+              validationIssue({
+                code: 'correction-audit-write-result-mismatch',
+                scope: 'plan',
+                message: 'A ocorrência sanitizada retornou uma versão incompatível.',
+              }),
+            );
+          }
         }
 
         return {

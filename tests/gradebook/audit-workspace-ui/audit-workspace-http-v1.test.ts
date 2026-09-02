@@ -10,9 +10,26 @@ import {
 } from '../../../server/gradebook/http/audit-workspace-routes-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../../../server/gradebook/persistence/d1/runtime/d1-runtime-v1';
-import type { AuditOccurrenceId, AuditOccurrenceV1 } from '../../../shared/gradebook-contracts/audit/audit-contract-v1';
+import type {
+  AuditOccurrenceId,
+  AuditOccurrenceV1,
+  ReconciliationResultId,
+  ReconciliationResultV1,
+} from '../../../shared/gradebook-contracts/audit/audit-contract-v1';
+import type { EnrollmentId, StudentId } from '../../../shared/gradebook-contracts/entities';
 import type { ImportBatchResultV1 } from '../../../shared/gradebook-contracts/imports/import-contract-v1';
-import type { ImportBatchId, ImportFileId } from '../../../shared/gradebook-contracts/imports/import-ids-v1';
+import type {
+  ImportBatchId,
+  ImportFileId,
+} from '../../../shared/gradebook-contracts/imports/import-ids-v1';
+import type {
+  AssessmentComponentId,
+  ComparedGradeValueV1,
+  GradeEntryId,
+  GradeEntryV1,
+} from '../../../shared/gradebook-contracts/results/results-contract-v1';
+import type { SourceCellEvidenceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
+import { academicRecordStreamForV1 } from '../../../server/gradebook/application/import/import-reconciliation-v1';
 import { testEnv } from '../../fixtures';
 import {
   academicYearId,
@@ -30,6 +47,8 @@ const batchB = 'import-batch:audit-http:b' as ImportBatchId;
 const fileA = 'import-file:audit-http:a' as ImportFileId;
 const fileB = 'import-file:audit-http:b' as ImportFileId;
 const occurrenceId = 'audit-occurrence:audit-http:a' as AuditOccurrenceId;
+const reconciliationId = 'reconciliation-result:audit-http:a' as ReconciliationResultId;
+const gradeEntryId = 'grade-entry:audit-http:a' as GradeEntryId;
 type TestRole = 'ADMINISTRADOR' | 'PROFESSOR';
 
 let database: SqliteD1Database;
@@ -170,6 +189,53 @@ function occurrence(): AuditOccurrenceV1 {
   };
 }
 
+function sourceEvidence(): SourceCellEvidenceV1 {
+  return {
+    classification: 'manual-positive-number',
+    rawValue: 7,
+    provenance: {
+      fileName: 'synthetic-audit-http.xlsx',
+      fileSha256: 'b'.repeat(64),
+      sheetName: '6A1º',
+      cellAddress: 'R5',
+    },
+  };
+}
+
+function comparedValue(): ComparedGradeValueV1 {
+  return {
+    imported: { value: { state: 'numeric', value: 7 }, evidence: [sourceEvidence()] },
+    calculated: { value: { state: 'numeric', value: 8 } },
+  };
+}
+
+function gradeEntry(): GradeEntryV1 {
+  return {
+    id: gradeEntryId,
+    academicYearId,
+    studentId: 'student:audit-http:a' as StudentId,
+    enrollmentId: 'enrollment:audit-http:a' as EnrollmentId,
+    assessmentComponentId: 'assessment-component:audit-http:a' as AssessmentComponentId,
+    value: comparedValue(),
+    authorityMode: 'imported-source',
+    ruleVersion: 'source-normalization:synthetic:v2',
+    version: 1,
+  };
+}
+
+function reconciliation(): ReconciliationResultV1 {
+  return {
+    id: reconciliationId,
+    target: { kind: 'grade-entry', id: gradeEntryId },
+    value: comparedValue(),
+    ruleVersion: 'reconciliation:synthetic:v1',
+    status: 'mismatch',
+    difference: 1,
+    tolerance: 0,
+    explanation: 'Divergência sintética para investigação.',
+  };
+}
+
 async function seedAuditData(): Promise<ReturnType<typeof createGradebookD1RuntimeV1>> {
   const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
   const runtime = createGradebookD1RuntimeV1(localEnv(), authorization, { now: () => instant });
@@ -180,6 +246,38 @@ async function seedAuditData(): Promise<ReturnType<typeof createGradebookD1Runti
     context,
     { kind: 'occurrence', id: occurrenceId },
     { kind: 'occurrence', value: occurrence() },
+    { expectedVersion: null },
+  );
+  return runtime;
+}
+
+async function seedReconciliationData(): Promise<ReturnType<typeof createGradebookD1RuntimeV1>> {
+  const runtime = await seedAuditData();
+  for (const [kind, id] of [
+    ['student', gradeEntry().studentId],
+    ['enrollment', gradeEntry().enrollmentId],
+    ['assessment-component', gradeEntry().assessmentComponentId],
+  ] as const) {
+    database.raw
+      .prepare(
+        `INSERT INTO academic_entity_streams (
+           academic_year_id, entity_kind, entity_id, current_version, created_at
+         ) VALUES (?, ?, ?, 1, ?)`,
+      )
+      .run(academicYearId, kind, id, instant);
+  }
+  const unit = runtime.persistenceUnitOfWork();
+  const grade = gradeEntry();
+  await unit.academicRecords.appendVersion(
+    context,
+    academicRecordStreamForV1({ kind: 'grade-entry', value: grade }),
+    { kind: 'grade-entry', value: grade },
+    { expectedVersion: null },
+  );
+  await unit.audit.appendVersion(
+    context,
+    { kind: 'reconciliation', id: reconciliationId },
+    { kind: 'reconciliation', value: reconciliation() },
     { expectedVersion: null },
   );
   return runtime;
@@ -367,7 +465,8 @@ describe('Audit Workspace HTTP bridge V1', () => {
     const persisted = await runtime
       .persistenceUnitOfWork()
       .audit.getCurrent(context, { kind: 'occurrence', id: occurrenceId });
-    if (!persisted || persisted.value.kind !== 'occurrence') throw new Error('Expected persisted occurrence.');
+    if (!persisted || persisted.value.kind !== 'occurrence')
+      throw new Error('Expected persisted occurrence.');
     const last = persisted.value.value.stateHistory.at(-1);
     expect(last).toMatchObject({ actorId: SESSION_OID, nextState: 'resolved' });
     expect(last?.occurredAt).toEqual(expect.any(String));
@@ -399,6 +498,96 @@ describe('Audit Workspace HTTP bridge V1', () => {
       contractVersion: 1,
       outcome: 'invalid-request',
       currentVersion: null,
+    });
+    expect(prepare).not.toHaveBeenCalled();
+  });
+
+  it('projeta investigação fail-closed no mesmo bridge sem divulgar prova ou evidência bruta', async () => {
+    await seedReconciliationData();
+    const inspected = await invoke(
+      await auditRequest(
+        {
+          contractVersion: 2,
+          operation: 'inspect-deterministic-correction',
+          academicYearId,
+          reconciliationId,
+        },
+        { role: 'ADMINISTRADOR' },
+      ),
+      localEnv(),
+    );
+    expect(inspected.status).toBe(200);
+    expect(inspected.headers.get('Cache-Control')).toContain('no-store');
+    const payload = (await inspected.json()) as {
+      outcome: string;
+      case: {
+        reference: string;
+        version: number;
+        automaticCorrection: { state: string; reason: string };
+        pilotFlow: { state: string; authorityMode: string };
+      };
+    };
+    expect(payload).toMatchObject({
+      outcome: 'case',
+      case: {
+        version: 1,
+        automaticCorrection: {
+          state: 'not-eligible',
+          reason: 'root-cause-not-identified',
+        },
+        pilotFlow: { state: 'stop', authorityMode: 'imported-source' },
+      },
+    });
+    expect(JSON.stringify(payload)).not.toContain('officialEvidenceReferences');
+    expect(JSON.stringify(payload)).not.toContain('proof');
+    expect(JSON.stringify(payload)).not.toContain('reconciliationInput');
+
+    const blocked = await invoke(
+      await auditRequest(
+        {
+          contractVersion: 2,
+          operation: 'execute-deterministic-correction',
+          academicYearId,
+          caseReference: payload.case.reference,
+          expectedVersion: payload.case.version,
+        },
+        { role: 'ADMINISTRADOR' },
+      ),
+      localEnv(),
+    );
+    await expect(blocked.json()).resolves.toMatchObject({
+      outcome: 'not-eligible',
+      case: { automaticCorrection: { reason: 'root-cause-not-identified' } },
+    });
+  });
+
+  it('rejeita mutação, prova e identidade alegadas pelo cliente antes do binding', async () => {
+    const prepare = vi.fn(() => {
+      throw new Error('synthetic-sensitive-binding');
+    });
+    const response = await invoke(
+      await auditRequest(
+        {
+          contractVersion: 2,
+          operation: 'execute-deterministic-correction',
+          academicYearId,
+          caseReference: 'deterministic-correction:synthetic',
+          expectedVersion: 1,
+          proof: { state: 'eligible' },
+          patch: { arbitrary: true },
+          actorId: 'actor:client',
+          occurredAt: '2020-01-01T00:00:00.000Z',
+        },
+        { role: 'ADMINISTRADOR' },
+      ),
+      localEnv({ prepare, exec: vi.fn() }),
+    );
+    expect(response.status).toBe(400);
+    expect(response.headers.get('Cache-Control')).toContain('no-store');
+    await expect(response.json()).resolves.toEqual({
+      contractVersion: 2,
+      outcome: 'invalid-request',
+      case: null,
     });
     expect(prepare).not.toHaveBeenCalled();
   });
