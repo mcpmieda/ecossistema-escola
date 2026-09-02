@@ -35,10 +35,15 @@ export class BulletinPdfActionErrorV1 extends Error {
   }
 }
 
+function withoutControlCharacters(value: string): string {
+  return Array.from(value, (character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 0x1f || codePoint === 0x7f ? ' ' : character;
+  }).join('');
+}
+
 function sanitizeSegment(value: string, fallback: string): string {
-  const normalized = value
-    .normalize('NFC')
-    .replace(/[\u0000-\u001f\u007f]/gu, ' ')
+  const normalized = withoutControlCharacters(value.normalize('NFC'))
     .replace(/[\\/<>:"|?*]/gu, '-')
     .replace(/\s+/gu, ' ')
     .replace(/\.{2,}/gu, '.')
@@ -117,6 +122,7 @@ async function generateBulletinPdfV1(
 function requireBrowserDownloadApis(): void {
   if (
     typeof document === 'undefined' ||
+    typeof window === 'undefined' ||
     typeof URL === 'undefined' ||
     typeof URL.createObjectURL !== 'function' ||
     typeof URL.revokeObjectURL !== 'function'
@@ -162,13 +168,6 @@ export async function printBulletinPdfV1(
   importer?: BulletinPdfRendererImporterV1,
 ): Promise<BulletinPdfActionResultV1> {
   requireBrowserDownloadApis();
-  if (typeof window === 'undefined') {
-    throw new BulletinPdfActionErrorV1(
-      'print-unavailable',
-      'Impressão de PDF indisponível neste navegador.',
-    );
-  }
-
   const artifact = await generateBulletinPdfV1(snapshot, importer);
   const filename = bulletinPdfFilenameV1(snapshot);
   const objectUrl = URL.createObjectURL(artifact.blob);
