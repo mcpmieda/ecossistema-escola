@@ -1,0 +1,80 @@
+name: Issue 383 canonical doc polish
+
+on:
+  push:
+    branches:
+      - integration/bn-383-wave-23
+
+permissions:
+  contents: write
+
+concurrency:
+  group: issue-383-canonical-doc-polish
+  cancel-in-progress: false
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Remove stale pre-wave-23 wording
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if text.count(old) != 1:
+                  raise SystemExit(f'{path}: expected once: {old!r}; count={text.count(old)}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'docs/gradebook/PRODUCTION_READINESS.md',
+              'O piloto real só começa quando A–D estiverem aprovados, o ambiente estiver autorizado e houver uma\ndecisão institucional registrando escopo temporal, amostra, operadores e critérios de parada.',
+              'O piloto real só começa quando os gates pós-onda 23 e a revisão de escopo estiverem aprovados, o\nambiente estiver autorizado e houver uma decisão institucional registrando escopo temporal, amostra,\noperadores e critérios de parada.',
+          )
+          replace_once(
+              'docs/gradebook/PRODUCTION_READINESS.md',
+              '## Evidência de encerramento da #360',
+              '## Evidência histórica de encerramento da #360 — não é checklist atual',
+          )
+          replace_once(
+              'docs/gradebook/PROJECT_STATE.yaml',
+              '    readiness_revalidation_issue: 374',
+              '    historical_readiness_revalidation_issue: 374',
+          )
+          replace_once(
+              'docs/gradebook/PROJECT_STATE.yaml',
+              '    production_hard_stop_count: 5',
+              '    historical_pre_wave_23_hard_stop_count: 5',
+          )
+          replace_once(
+              'docs/gradebook/PROJECT_STATE.yaml',
+              '    future_smoke_steps: 5\n    future_smoke_plan_inert: true',
+              '    historical_smoke_plan_steps: 5\n    production_smoke_completed: true\n    post_wave_23_hard_stop_count: 2',
+          )
+          PY
+      - run: npm ci
+      - name: Gradebook readiness
+        run: npm run test:gradebook-readiness
+      - name: Verify
+        run: npm run verify
+      - name: Diff check
+        run: git diff --check
+      - name: Commit polish
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/issue-383-doc-polish.yml
+          git config user.name 'mcpmieda'
+          git config user.email '268288370+mcpmieda@users.noreply.github.com'
+          git add docs/gradebook/PRODUCTION_READINESS.md docs/gradebook/PROJECT_STATE.yaml .github/workflows/issue-383-doc-polish.yml
+          git commit -m 'docs(#383): remove stale pre-wave-23 wording'
+          git push origin HEAD:integration/bn-383-wave-23
