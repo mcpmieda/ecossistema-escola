@@ -55,13 +55,13 @@ function association(
 }
 
 describe('adaptador D1 local de escrita V1', () => {
-  it('consome 0001–0003 com FKs ativas e grava fonte, registro e associação iniciais', async () => {
+  it('consome 0001–0004 com FKs ativas e grava fonte, registro e associação iniciais', async () => {
     expect(database.raw.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 });
     expect(
       database.raw
         .prepare('SELECT version FROM gradebook_schema_migrations ORDER BY version')
         .all(),
-    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }]);
+    ).toEqual([{ version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }]);
 
     const unit = createGradebookD1WriteUnitOfWorkV1(database, { now: () => instant });
     const source = sourceFileVersion();
