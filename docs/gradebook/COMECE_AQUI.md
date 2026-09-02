@@ -96,7 +96,7 @@ O store de decisões continua process-local/preview e descartável; não existe 
 
 F1 está **7/7** e a #184 está fechada como `completed`. O handoff sanitizado confirma que o protocolo real aplicável, o smoke autenticado completo e a falha isolada passaram; nenhum arquivo real foi modificado, nenhum dado identificável foi publicado e nenhum gate histórico real antigo permanece pendente.
 
-Os marcadores históricos `controlled-real-corpus-validation-not-yet-recorded` e `complete-manifest-failure-smoke-not-yet-recorded` foram satisfeitos e não devem reaparecer como gates pendentes. Políticas gerais de privacidade, segurança e futuros gates próprios de produção continuam vigentes.
+Os gates históricos de validação real controlada e smoke completo foram satisfeitos e não devem reaparecer como pendências. Políticas gerais de privacidade, segurança e futuros gates próprios de produção continuam vigentes.
 
 ## Estado real do D1
 
