@@ -64,7 +64,7 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
     expect(batch).toContain('maxTotalPages: 72');
     expect(batch).toContain('concurrentDocuments: 1');
     expect(batch).not.toContain('Promise.all');
-    expect(batch).toContain("source: 'historical-snapshot'");
+    expect(batch).toContain("result.source !== 'historical-snapshot'");
   });
 
   it('mantém produção e autoridade acadêmica fechadas na onda 18', () => {
