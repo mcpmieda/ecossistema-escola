@@ -5,86 +5,69 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 ## Visão geral
 
 - **Programa:** #182
-- **Onda 16:** #325/#326/#327 + #332 → integração #328
-- **Onda 17:** #335 + #336 → integração #337
-- **Onda 18:** #340 + #341 + #342 → integração #343 / PR #352
-- **Onda 19:** #353 + #354 + #355 → integração #356
-- **Armazenamento físico atual:** Cloudflare D1 local/preview, migrations 0001–0004
-- **Produção acadêmica:** sem D1 remoto, binding, migration remota ou ativação de consultas
+- **Onda 18:** #340 + #341 + #342 → #343 / PR #352
+- **Onda 19:** #353 + #354 + #355 → #356 / PR #362
+- **Próximo ciclo:** #360 → #361
+- **Armazenamento:** Cloudflare D1 local/preview, migrations 0001–0004 / 25 tabelas
+- **Produção acadêmica:** sem D1 remoto, binding ou migration remota; consultas/persistência continuam desativadas
 - **Autoridade ativa:** `imported-source`
-- **Autoridade-alvo futura:** `native-engine`, somente após F9/readiness e #347
+- **Autoridade-alvo futura:** `native-engine`, separada em #347/F9
 - **Autorização acadêmica:** `gradebook.persistence.admin`, server-side
 
-## Fases — estado funcional após onda 18
+## Fases após onda 19
 
 | Fase | Issue | Estado | Próximo grande passo |
 | --- | ---: | --- | --- |
 | F0 Fundação | #183 | concluída | manutenção |
 | F1 Fonte/importação | #184 | **concluída/validada 7/7** | manutenção |
-| F2 Persistência | #185 | D1 local V1 + UoW/runtime + durabilidade Bulletin/Council | produção somente em F9 |
-| F3 Motor | #186 | concluído, comparativo | autoridade futura via #347/F9 |
-| F4 Auditoria | #187 | V1 operacional/hardened; fechamento literal pendente | #353 |
-| F5 Centrais | #188 | V1 operacional/hardened; cadastro/confirmação docente pendente | #354 |
-| F6 Desempenho | #189 | V1 end-to-end; comparison/gráficos pendentes | #355 |
-| F7 Conselho | #190 | V2 institucional + decisões duráveis local/preview | resíduos de roadmap/F9 fora da onda 18 |
-| F8 Boletins/Relatórios | #191 | PDF individual + batch bounded + reports + snapshots duráveis local/preview | produção em F9 |
-| F9 Piloto/segurança | #192 | hardening integrado; piloto/produção/autoridade pendentes | após fechamento F4–F6 |
+| F2 Persistência | #185 | D1 local + durabilidade Bulletin/Council | produção somente por gate F9 |
+| F3 Motor | #186 | V1 concluída, comparativa | futura autoridade via #347/F9 |
+| F4 Auditoria | #187 | revisão autoritativa 7/7 concluída | fechar após #356 publicada |
+| F5 Centrais | #188 | cadastro/confirmação docente + atribuições anuais concluídos | fechar após #356 publicada |
+| F6 Desempenho | #189 | gráficos oficiais entregues; comparação proporcional bloqueada | decisão canônica de semântica |
+| F7 Conselho | #190 | V2 institucional + decisões duráveis local/preview | gates residuais próprios |
+| F8 Boletins/Relatórios | #191 | snapshots duráveis + PDF individual/batch + reports | produção em F9 |
+| F9 Piloto/segurança | #192 | hardening integrado; readiness/piloto/produção/autoridade pendentes | #360 → #361 |
 
-## F1
-
-#184 está `completed`, F1 = **7/7**. Protocolo privado controlado, smoke autenticado e falha isolada passaram; arquivos reais modificados 0, dados identificáveis publicados 0, gates históricos antigos restantes 0.
-
-## Onda 18 — durabilidade + Conselho V2 + Relatórios
+## Onda 19
 
 | Frente | Issue / PR | Entrega |
 | --- | --- | --- |
-| Durabilidade | #340 / #351 | migration 0004, 4 tabelas, snapshots Bulletin + decisões Council duráveis, append-only/CAS |
-| Conselho V2 | #341 / #345 | revisão/fechamento, fotografia e histórico imutáveis, votação opcional, desempate fail-closed |
-| Relatórios | #342 / #346 | cinco famílias de relatório + artefatos PDF bounded/sequenciais |
-| Integração | #343 / #352 | providers no runtime, Council V2/Reports no shell, bridges, testes/docs/deploy |
+| F4 | #353 / #357 | revisão rastreável dos sete bullets do ROADMAP; nenhuma regra/taxonomia nova |
+| F5 | #354 / #358 | Professor e atribuições anuais no bridge Operational existente, CAS e ano explícito |
+| F6 | #355 / #359 | dois gráficos sobre percentual oficial importado; comparison permanece fail-closed |
+| Integração | #356 / #362 | montagem F5 na superfície lazy, regressões combinadas, docs e publicação |
 
 Merges das frentes:
 
 ```text
-#351 → 27774b98f3e70eae32b917093a6954d6ccc9ec07
-#345 → 6c87092b0829d5346d3bb86fe71ae03e15b771b9
-#346 → a75f94deb86c8b8721e0f8fbbbeb4cc7be8f7f52
+#357 → 1ca4db62c073073de3e251628eb658213cdcd77e
+#358 → f7e4bd069b73d551362676789a4c87e157b3975d
+#359 → 149efde8387d120a1f68225d095772dd16850e9f
 ```
 
-### Invariantes pós-onda 18
+### Invariantes pós-onda 19
 
 - exatamente um bridge Operational/Audit/Performance/Bulletins/Reports/Council;
-- auth server-side, `gradebook.persistence.admin`, `no-store`;
+- auth server-side + `no-store`;
 - produção fail-closed antes de `GRADEBOOK_D1`;
 - zero browser persistent storage acadêmico;
-- rota e superfícies lazy/isoladas;
-- PDF individual e batch continuam snapshot/model-only, sem segundo motor;
-- batch PDF: máximo 3 documentos, 72 páginas totais, uma geração concorrente;
-- reprint batch: somente snapshots históricos;
-- snapshots Bulletin e decisões Council: D1 local/preview duráveis;
-- Council V2: fechamento imutável e bloqueio pós-fechamento; sessão V2 permanece provider-independent/process-local nesta versão;
-- desempate sem identidade formal de diretor continua fail-closed;
-- Performance comparison continua `not-comparable` sem semântica oficial;
+- F5 usa a superfície Operational lazy existente e só ativa manutenção por ação humana;
+- F6 gráficos usam somente `term-result.percentage.imported` e não criam agregações;
+- F6 comparison continua `not-comparable` com `comparison-semantics-not-integrated`;
+- nenhuma migration/schema na onda 19;
 - `authorityMode` continua `imported-source`.
 
-## Onda 19 — fechamento F4/F5/F6
+## F6 — hard stop remanescente
 
-As próximas frentes grandes ficam bloqueadas até #343 concluir:
+A #355 confirmou que a documentação/contratos atuais não autorizam escolher `basis`, `current`, `reference` ou tolerância para a comparação proporcional. Portanto #189 **não deve ser fechada por checklist**. Gráficos estão entregues; resta somente uma decisão canônica de semântica antes de implementar a comparação.
 
-1. **#353 — F4 fechamento / Extra Alto:** revisão autoritativa bullet-a-bullet de Reconciliação/Auditoria e correção de eventual lacuna real sem microissues.
-2. **#354 — F5 fechamento / Extra Alto:** cadastro/confirmação de Professor e atribuições anuais, reutilizando as portas e entidades oficiais.
-3. **#355 — F6 fechamento / Extra Alto:** comparabilidade proporcional somente se a semântica estiver oficialmente fechada + poucos gráficos úteis sem métricas inventadas.
-4. **#356 — Integração / Extra Alto:** merges, composição, verify/deploy/docs e preparação de F9.
+## Próximo ciclo — F9 readiness
 
-```text
-#353 ─┐
-#354 ─┼──> #356
-#355 ─┘
-```
+1. **#360 / Extra Alto:** readiness, rollback/recuperação, protocolo privado de piloto e ensaios sintéticos, sem provisionamento ou ativação produtiva.
+2. **#361 / Extra Alto:** integração/publicação inerte dessa preparação; o gate de piloto/produção continua manual.
 
-## F9 e autoridade futura
-
-A produção acadêmica continua desativada. Não existe banco/binding/migration remota. A futura transição para o motor nativo como autoridade está concentrada na #347 e só pode ocorrer após readiness/piloto F9, perfil/versionamento congelados, rollback e vigência explicitamente autorizada. Nenhuma onda anterior altera resultados históricos silenciosamente.
+A #347 permanece separada: nenhuma troca de autoridade ocorre até readiness/piloto, versionamento/vigência e autorização explícita.
 
 ## Como iniciar agente
 

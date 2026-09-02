@@ -11,17 +11,15 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 337
-  current_integrator_issue: 343
-  current_wave: 18
-  next_wave: 19
+  previous_integrator_issue: 343
+  current_integrator_issue: 356
+  current_wave: 19
+  next_wave: 20
   next_parallel_fronts:
-    - 353
-    - 354
-    - 355
-  next_integrator_issue: 356
+    - 360
+  next_integrator_issue: 361
   integrator_required: true
-  recommended_parallel_agents: 3
+  recommended_parallel_agents: 1
   central_state_editor: integrator-only
   branch_model: short-lived-per-issue
   merge_target: main
@@ -125,8 +123,7 @@ storage:
     - 0002_gradebook_records_audit_v1.sql
     - 0003_logical_source_record_catalog_v1.sql
     - 0004_bulletin_council_durability_v1.sql
-  wave_18_schema_changed: true
-  wave_18_schema_issue: 340
+  wave_19_schema_changed: false
   production_provisioned: false
   remote_migration_applied: false
   retention_policy: not-invented-append-only-v1
@@ -146,25 +143,32 @@ contracts:
     status: frozen
     issue: 197
   operational_workspace_v1:
-    status: implemented-local-preview-http-ui-hardened-lazy
+    status: implemented-local-preview-http-ui-hardened-lazy-with-teacher-maintenance
     http_route: POST /api/gradebook/operational-workspace
     bridge_count: 1
     navigation: opaque-kind-plus-id
     year_selection: explicit
+    teacher_registration_confirmation: integrated
+    annual_assignment_maintenance: integrated
+    teacher_assignment_cas: true
   audit_workspace_v1:
-    status: implemented-local-preview-http-ui-hardened-lazy
+    status: implemented-local-preview-http-ui-hardened-authoritatively-reviewed-7-of-7
     http_route: POST /api/gradebook/audit-workspace
     bridge_count: 1
     actor_source: server-session-oid
     occurred_at_source: server
+    f4_authoritative_closure_issue: 353
   class_performance_v1:
-    status: implemented-local-preview-http-ui-hardened-lazy
+    status: implemented-local-preview-http-ui-hardened-lazy-with-official-charts
     http_route: POST /api/gradebook/performance
     bridge_count: 1
     authority_mode: imported-source
     physical_query_count_per_matrix_load: 6
     n_plus_one: forbidden
     comparison_without_official_resolver: not-comparable
+    comparison_hard_stop: comparison-semantics-not-integrated
+    official_charts: 2
+    chart_source: term-result-percentage-imported
     annual_non_result_without_official_projection: insufficient-data
     recovery_result_source: FinalRecoveryV1
     recovery_other_lenses_source: term-results
@@ -234,6 +238,8 @@ native_engine:
   official_authority: imported-source
   authority_change: future-f9-explicit-only
   authority_transition_issue: 347
+  authority_decision_issue: 349
+  authority_decision_pull_request: 350
   council_foundation:
     failed_components_0: follows-official-annual-result
     failed_components_1_or_2: eligible-for-council-when-coverage-complete
@@ -256,15 +262,20 @@ features:
       - xlsx
       - xls
   operational_workspace:
-    status: usable-local-preview-hardened-lazy
+    status: usable-local-preview-hardened-lazy-with-teacher-maintenance
     stale_response_discard: true
     request_abort: true
     in_flight_dedupe: true
+    teacher_registration_confirmation: true
+    annual_assignment_maintenance: true
+    maintenance_lazy_on_action: true
+    maintenance_bridge: operational-workspace-existing
   audit_workspace:
-    status: usable-local-preview-hardened-lazy
+    status: usable-local-preview-hardened-f4-authoritatively-closed
     resolution_cas: true
+    roadmap_review: complete-7-of-7
   performance:
-    status: usable-local-preview-hardened-lazy
+    status: usable-local-preview-hardened-lazy-with-official-charts-comparison-hard-stop
     lenses:
       - result
       - quantitative
@@ -273,6 +284,8 @@ features:
     regular_recovery: true
     independent_row_column_pagination: true
     student_cell_drilldown: true
+    official_interactive_charts: 2
+    chart_aggregation_invented: false
     comparison: fail-closed-without-official-semantics
   bulletins:
     status: usable-local-preview-with-canonical-pdf-and-durable-snapshots
@@ -304,7 +317,9 @@ features:
     tie_break_director_identity: fail-closed-not-formalized
     session_cross_restart_durability: false
   f9:
-    status: first-large-hardening-integrated
+    status: hardening-integrated-readiness-next
+    readiness_issue: 360
+    readiness_integrator_issue: 361
     no_store_audited: true
     browser_storage_audited: true
     lazy_surfaces: true
@@ -368,18 +383,42 @@ wave_18:
     native_engine_activation: false
 
 wave_19:
-  status: released-after-wave-18
-  parallel_fronts:
-    - issue: 353
-      executor: extra-high
-      result_target: f4-authoritative-closure
-    - issue: 354
-      executor: extra-high
-      result_target: f5-teacher-assignment-registration-confirmation
-    - issue: 355
-      executor: extra-high
-      result_target: f6-comparability-and-useful-charts-or-single-hard-stop
+  status: completed-integrated
+  strategy: three-large-closure-fronts-plus-integrator
   integration_issue: 356
+  integration_pull_request: 362
+  source_merges:
+    - issue: 353
+      pull_request: 357
+      final_head: f701a3dfdf1f7d330b82988859110e296df7e5e4
+      merge_commit: 1ca4db62c073073de3e251628eb658213cdcd77e
+      result: f4-authoritative-review-7-of-7
+    - issue: 354
+      pull_request: 358
+      final_head: 1a001e41158782eab633ccf600e4b97280d08453
+      merge_commit: f7e4bd069b73d551362676789a4c87e157b3975d
+      result: teacher-registration-confirmation-and-annual-assignments
+    - issue: 355
+      pull_request: 359
+      final_head: a95a90319f5f955fb8ece16b8d26f1b2f9a78452
+      merge_commit: 149efde8387d120a1f68225d095772dd16850e9f
+      result: official-performance-charts-plus-comparison-hard-stop
+  integration_features:
+    f4_authoritative_closure: true
+    f5_teacher_maintenance_mounted: true
+    f6_official_charts: true
+    f6_comparison_semantics_resolved: false
+    f6_comparison_hard_stop_preserved: true
+    production_activation: false
+    native_engine_activation: false
+
+wave_20:
+  status: released-after-wave-19
+  parallel_fronts:
+    - issue: 360
+      executor: extra-high
+      result_target: f9-readiness-rollback-private-pilot-protocol
+  integration_issue: 361
 
 phases:
   F0:
@@ -396,13 +435,13 @@ phases:
     status: native-engine-v1-complete-comparative-only
   F4:
     issue: 187
-    status: audit-workspace-usable-local-preview-hardened-authoritative-closure-next-353
+    status: complete-authoritative-review-7-of-7
   F5:
     issue: 188
-    status: operational-workspace-usable-local-preview-hardened-teacher-confirmation-next-354
+    status: complete-local-preview-teacher-registration-confirmation-assignments
   F6:
     issue: 189
-    status: performance-usable-local-preview-hardened-comparability-charts-next-355
+    status: performance-official-charts-delivered-comparison-semantics-hard-stop-open
   F7:
     issue: 190
     status: council-v2-institutional-closure-plus-durable-decisions-local-preview
@@ -411,7 +450,7 @@ phases:
     status: bulletins-reports-batch-artifacts-plus-durable-snapshots-local-preview
   F9:
     issue: 192
-    status: hardening-integrated-production-pilot-and-authority-switch-pending
+    status: hardening-integrated-readiness-next-360-production-pilot-and-authority-switch-pending
 
 security_invariants:
   public_repository_no_real_student_data: required
@@ -438,3 +477,4 @@ manual_gates:
   - future-production-smokes-only-with-explicit-authorization-and-no-real-data-in-public-artifacts
   - native-engine-authority-switch-requires-explicit-institutional-confirmation
   - council-tie-break-requires-formal-director-identity-capability
+  - f6-comparison-requires-canonical-semantics

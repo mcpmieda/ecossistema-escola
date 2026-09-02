@@ -42,13 +42,14 @@ describe('F9 — shell, isolamento e code splitting', () => {
     const notesPage = source('src/platform/notes-page.tsx');
     const workspacePage = source('src/platform/gradebook-workspace-page.tsx');
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
+    const operationalSurface = source('src/platform/gradebook-operational-surface.tsx');
 
     expect(notesPage).toContain("import('./gradebook-workspace-page')");
     expect(workspacePage).toContain('<GradebookWorkspaceShell />');
     expect(notesPage).not.toContain('gradebook-workspace-shell');
     expect(notesPage).not.toContain('../features/gradebook/import/import-batch');
     for (const featurePath of [
-      'operational-workspace/operational-workspace-page',
+      'gradebook-operational-surface',
       'audit-workspace/audit-workspace-page',
       'performance/performance-page',
       'bulletins/bulletin-page',
@@ -56,6 +57,8 @@ describe('F9 — shell, isolamento e code splitting', () => {
     ]) {
       expect(shell).toContain(`import('${featurePath.startsWith('gradebook-') ? `./${featurePath}` : `../features/gradebook/${featurePath}`}')`);
     }
+    expect(operationalSurface).toContain('<OperationalWorkspacePage />');
+    expect(operationalSurface).toContain('<TeacherAssignmentMaintenanceWorkspace />');
 
     expect(app).not.toMatch(/features\/gradebook\/(?:operational-workspace|audit-workspace|performance|bulletins|council)/u);
     expect(shell).toContain("const DEFAULT_SURFACE: GradebookWorkspaceSurfaceId = 'importacao'");

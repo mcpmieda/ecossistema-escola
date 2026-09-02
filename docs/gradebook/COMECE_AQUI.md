@@ -2,123 +2,52 @@
 
 ## Regra principal
 
-**Agente de implementação só começa em issue marcada `[PRONTA]`.**
+**Agente de implementação só começa em issue marcada `[PRONTA]`.** Issues-pai (`#182`, `#184`–`#192`) são acompanhamento; integrações rodam somente pela issue integradora correspondente.
 
-Issues-pai (`#182`, `#184`–`#192`) são acompanhamento. Integrações são executadas apenas pela issue de integração da onda.
-
-## Onda 18 — integração #343
+## Onda 19 — integração #356
 
 | Frente | Issue / PR | Resultado |
 | :----: | ---------- | --------- |
-| A | `#340 / #351` | snapshots de Boletins e decisões de Conselho duráveis em D1 local/preview, migration 0004, append-only/CAS |
-| B | `#341 / #345` | Conselho V2: revisão, fechamento explícito, fotografia/histórico imutável e votação opcional fail-closed no desempate |
-| C | `#342 / #346` | Relatórios institucionais sobre dados oficiais e PDF em lote bounded/sequencial |
-| Integração | `#343 / #352` | providers duráveis, Council V2/Reports no shell, bridges, verify/deploy/docs e liberação da onda 19 |
+| F4 | `#353 / #357` | revisão autoritativa 7/7 de Reconciliação/Auditoria, sem taxonomia inventada |
+| F5 | `#354 / #358` | cadastro/confirmação de Professor + atribuições anuais no Operational Workspace existente |
+| F6 | `#355 / #359` | dois gráficos oficiais; comparação proporcional permanece fail-closed sem semântica canônica |
+| Integração | `#356 / #362` | composição F5, testes combinados, docs e publicação |
 
 Heads validados das frentes:
 
-- #340: `a7be6d44591b2212205455934a20a7e4ce307e53`;
-- #341: `ca87c81b098cd5b43111aa8684d5285b9666e988`;
-- #342: `540d408196f3a7a9d71337315100efc4245b9c10`.
+- #353: `f701a3dfdf1f7d330b82988859110e296df7e5e4`;
+- #354: `1a001e41158782eab633ccf600e4b97280d08453`;
+- #355: `a95a90319f5f955fb8ece16b8d26f1b2f9a78452`.
 
 ## Invariantes atuais
 
-- `authorityMode: imported-source` continua ativo nesta onda;
-- ano acadêmico sempre explícito;
-- autorização efetiva no servidor;
-- capability existente `gradebook.persistence.admin`;
+- `authorityMode: imported-source`;
+- ano acadêmico explícito;
+- autorização efetiva no servidor + `gradebook.persistence.admin`;
 - produção acadêmica fail-closed antes de `GRADEBOOK_D1`;
-- nenhuma migration remota, binding, secret ou recurso acadêmico remoto;
-- nenhuma regra acadêmica na UI/HTTP/wiring;
-- nenhuma heurística de REC, comparação, taxa, média ou ranking inventada;
+- nenhuma migration/binding/secret/recurso acadêmico remoto na onda 19;
+- comparação F6 continua `not-comparable` quando solicitada sem semântica oficial;
+- nenhuma média, ranking, taxa, tolerância ou regra acadêmica inventada;
 - somente dados sintéticos no repositório/CI.
 
-## Bridges únicos
+## Estado funcional
 
-- `POST /api/gradebook/operational-workspace`;
-- `POST /api/gradebook/audit-workspace`;
-- `POST /api/gradebook/performance`;
-- `POST /api/gradebook/bulletins`;
-- `POST /api/gradebook/reports`;
-- `POST /api/gradebook/council-workspace`.
+- **F4:** revisão autoritativa concluída 7/7; pode fechar após a publicação da #356.
+- **F5:** Centrais + cadastro/confirmação docente + atribuições anuais; pode fechar após a publicação da #356.
+- **F6:** gráficos oficiais entregues; fase permanece aberta exclusivamente pelo hard stop de semântica da comparação proporcional.
+- **F7/F8:** Conselho V2, decisões/snapshots duráveis, PDF e Relatórios permanecem integrados.
+- **F9:** hardening integrado; produção/piloto/autoridade continuam não autorizados.
 
-Todos os dados acadêmicos enviados por esses bridges usam `no-store`. Claims de papel/capability/ator/instante vindos do navegador não substituem autorização ou identidade server-side.
+## Próximo passo
 
-## Shell do Banco
+Após #356 concluída:
 
-- rota do Banco lazy;
-- Importação, Centrais, Auditoria, Desempenho, Boletins, Relatórios e Conselho em navegação compacta por tabs;
-- superfícies acadêmicas carregadas apenas quando ativadas;
-- zero requests acadêmicos automáticos ao entrar no Banco;
-- error boundary da rota e boundary isolado por superfície;
-- áreas inativas fora do foco/a11y e estado React apenas efêmero;
-- busca global pode apontar diretamente para `#/banco-de-notas?area=operational|audit|performance|bulletins|reports|council`;
-- nenhum storage acadêmico em `localStorage`, `sessionStorage`, IndexedDB, Cache API ou service worker.
+- **#360** — readiness F9, rollback/recuperação e protocolo de piloto, sem ativar produção;
+- **#361** — integradora de readiness, bloqueada pela #360.
 
-## Capacidades utilizáveis em local/preview
+A #347 continua separada para a futura transição segura de autoridade e não pode ser antecipada.
 
-### Operational Workspace
-
-- Centrais de Aluno, Turma, Professor e Componente;
-- ano explícito, pesquisa acadêmica e navegação `kind + id` opaca;
-- abort/dedupe/stale-response discard e paginação resiliente.
-
-### Audit Workspace
-
-- lotes, ocorrências, reconciliações, filtros, cursor, detalhe e pendências;
-- resolução versionada/CAS com ator e instante server-side.
-
-### Desempenho — F6
-
-- quatro lentes, regular/recovery e período explícito;
-- paginação independente de linhas/colunas e drill-down aluno/célula;
-- raw source evidence não atravessa HTTP;
-- comparação continua fail-closed (`not-comparable`) enquanto a semântica oficial não estiver integrada.
-
-### Conselho — F7 V2
-
-- fonte oficial #332 para 0/1/2/3+/insuficiente, sem recálculo no workspace;
-- decisões duráveis em D1 local/preview, append-only e CAS;
-- fechamento explícito da turma, revisão pré-fechamento e fotografia histórica imutável;
-- edição de decisão/contagem rejeitada após fechamento;
-- votação numérica é opcional e nunca fabrica decisão;
-- empate permanece fail-closed enquanto identidade/capability oficial de diretor não existir;
-- estado da sessão/reunião V2 permanece provider-independent e process-local/preview nesta versão; a migration 0004 não inventa persistência para sessão/fechamento.
-
-### Boletins e Relatórios — F8
-
-- três modelos canônicos sobre `BulletinModelV1`;
-- preview/emissão mesma materialização;
-- snapshots/histórico duráveis em D1 local/preview;
-- reimpressão exclusivamente de snapshot histórico, sem leitura acadêmica atual;
-- PDF individual canônico, client-side/lazy;
-- PDF em lote bounded e sequencial: até 3 documentos, 72 páginas totais e uma geração concorrente;
-- reimpressão em lote usa somente snapshots históricos;
-- workspace de Relatórios cobre resultados/aproveitamento oficial, composição, recuperação, Conselho e Auditoria;
-- indicador derivado sem semântica oficial permanece fail-closed.
-
-## F1 — concluída definitivamente
-
-F1 está **7/7** e a #184 está fechada como `completed`. Protocolo real, smoke autenticado e falha isolada passaram; nenhum arquivo real foi modificado, nenhum dado identificável foi publicado e nenhum gate histórico real antigo permanece pendente.
-
-## Estado real do D1
-
-Local/preview possui migrations 0001–0004 e 25 tabelas. A 0004 adiciona somente os streams/versions necessários para snapshots de Boletins e decisões de Conselho. Não existe purge automático nem política de retenção inventada.
-
-Produção ainda não possui D1 acadêmico remoto, binding/migration remota ou consulta/persistência acadêmica ativa. A presença das páginas/handlers/PDF no código não significa ativação de produção: o runtime falha fechado antes de inspecionar `GRADEBOOK_D1`.
-
-## Próxima onda — 19
-
-Após a conclusão da #343:
-
-- #353 — fechamento autoritativo F4 Reconciliação/Auditoria;
-- #354 — cadastro/confirmação de Professor e atribuições anuais para fechar F5;
-- #355 — comparabilidade oficial e gráficos úteis de F6, sem métrica inventada;
-- #356 — integradora da onda 19.
-
-A transição futura para `native-engine` como autoridade está especificada na #347 e **não** é parte da onda 18/19 enquanto os gates F9 não forem satisfeitos.
-
-## Fluxo de execução
+## Fluxo
 
 ```text
 issue [PRONTA]
@@ -129,14 +58,13 @@ issue [PRONTA]
   → sem merge individual
 
 frentes verdes
-  → issue de integração
+  → integradora
   → merges fixados
-  → composição/wiring
+  → wiring/testes/docs mínimos
   → verify
-  → PR único de integração
+  → PR de integração
   → merge/deploy/smokes
-  → docs/PROJECT_STATE/issues-pai
-  → próxima onda em grandes passos
+  → parents/PROJECT_STATE
 ```
 
 Não usar App Factory, Factory Runs, subagentes ou orquestração salvo autorização explícita da issue.
