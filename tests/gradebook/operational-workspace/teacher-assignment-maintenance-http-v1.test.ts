@@ -102,6 +102,8 @@ async function seed(database: SqliteD1Database) {
         schoolId,
         year: 2026,
         status: 'active',
+        startsOn: '2026-02-01',
+        endsOn: '2026-12-20',
         activeEvaluationProfileId: 'profile:maintenance-http',
         configurationVersion: 'maintenance-http-v1',
       },
