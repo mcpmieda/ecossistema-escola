@@ -1,5 +1,17 @@
+import {
+  SOURCE_CONTRACT_VERSION_V2,
+  SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
+  SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
+  classifySourceAssessmentMaximumConfigurationV2,
+  classifySourceAssessmentNameV2,
+  type SourceAssessmentDefinitionV2,
+} from '../../../../shared/gradebook-contracts/source/source-contract-v2';
+import type {
+  SourceCellProvenanceV1,
+  SourceCellRawValueV1,
+} from '../../../../shared/gradebook-contracts/source/source-contract-v1';
+
 export const ACCEPTED_EXTENSIONS = ['xlsx', 'xlsb', 'xls'] as const;
-const QUALITATIVE_COLUMNS = ['AA', 'AB', 'AC', 'AD', 'AE', 'AF', 'AG', 'AH', 'AI', 'AJ'] as const;
 
 type Cell = {
   v?: unknown;
@@ -54,8 +66,7 @@ export type StudentRecognition = {
   number: string;
   name: string;
   status: string;
-  written: NoteValue | null;
-  simulation: NoteValue | null;
+  quantitativeAssessments: readonly [NoteValue | null, NoteValue | null];
   quantitativeTotal: NoteValue | null;
   parallel: NoteValue | null;
   qualitative: Array<NoteValue | null>;
@@ -64,6 +75,10 @@ export type StudentRecognition = {
   annual: NoteValue | null;
   recovery: RecoveryRecognition | null;
 };
+
+export interface WorkbookRecognitionSourceV2 {
+  readonly fileSha256: string;
+}
 
 export type GradeStage = 'overview' | 'trimester-1' | 'trimester-2' | 'trimester-3' | 'recovery';
 
@@ -78,6 +93,7 @@ export type GradeSheetRecognition = {
   stage: GradeStage;
   declaredStage: string;
   declaredStudents: number | null;
+  assessmentDefinitions: readonly SourceAssessmentDefinitionV2[];
   students: StudentRecognition[];
   formulas: number;
   officialZeros: number;
@@ -127,6 +143,22 @@ function normalizeText(value: string): string {
 function cellAt(sheet: Worksheet, address: string): Cell | undefined {
   const value = sheet[address];
   return value && typeof value === 'object' ? value : undefined;
+}
+
+function rawValueAt(sheet: Worksheet, address: string): SourceCellRawValueV1 | undefined {
+  const value = cellAt(sheet, address)?.v;
+  return value === null || ['string', 'number', 'boolean'].includes(typeof value)
+    ? (value as SourceCellRawValueV1)
+    : undefined;
+}
+
+function provenance(
+  fileName: string,
+  fileSha256: string,
+  sheetName: string,
+  cellAddress: string,
+): SourceCellProvenanceV1 {
+  return { fileName, fileSha256, sheetName, cellAddress };
 }
 
 function textAt(sheet: Worksheet, address: string): string {
@@ -253,6 +285,45 @@ function recognizeRecovery(sheet: Worksheet, row: number): RecoveryRecognition {
   };
 }
 
+function recognizeAssessmentDefinitions(
+  fileName: string,
+  fileSha256: string,
+  sheetName: string,
+  sheet: Worksheet,
+  stage: GradeStage,
+): readonly SourceAssessmentDefinitionV2[] {
+  if (stage !== 'trimester-1' && stage !== 'trimester-2' && stage !== 'trimester-3') return [];
+
+  const quantitative = SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2.map((slot) => ({
+    contractVersion: SOURCE_CONTRACT_VERSION_V2,
+    kind: 'quantitative-assessment' as const,
+    sourceSlot: slot.sourceSlot,
+    order: slot.order,
+    structuralLabel: slot.structuralLabel,
+    maximumConfiguration: classifySourceAssessmentMaximumConfigurationV2(
+      rawValueAt(sheet, slot.maximumCell),
+      provenance(fileName, fileSha256, sheetName, slot.maximumCell),
+    ),
+  }));
+
+  const qualitative = SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) => ({
+    contractVersion: SOURCE_CONTRACT_VERSION_V2,
+    kind: 'qualitative-activity' as const,
+    sourceSlot: slot.sourceSlot,
+    order: slot.order,
+    maximumConfiguration: classifySourceAssessmentMaximumConfigurationV2(
+      rawValueAt(sheet, slot.maximumCell),
+      provenance(fileName, fileSha256, sheetName, slot.maximumCell),
+    ),
+    name: classifySourceAssessmentNameV2(
+      rawValueAt(sheet, slot.nameCell),
+      provenance(fileName, fileSha256, sheetName, slot.nameCell),
+    ),
+  }));
+
+  return [...quantitative, ...qualitative];
+}
+
 function recognizeStudents(
   sheet: Worksheet,
   stage: GradeStage,
@@ -277,12 +348,15 @@ function recognizeStudents(
       number,
       name,
       status: textAt(sheet, `G${row}`),
-      written: readGrades ? readNote(sheet, `R${row}`) : null,
-      simulation: readGrades ? readNote(sheet, `S${row}`) : null,
+      quantitativeAssessments: readGrades
+        ? [readNote(sheet, `R${row}`), readNote(sheet, `S${row}`)]
+        : [null, null],
       quantitativeTotal: readGrades ? readNote(sheet, `T${row}`) : null,
       parallel: readGrades ? readNote(sheet, `Z${row}`) : null,
       qualitative: readGrades
-        ? QUALITATIVE_COLUMNS.map((column) => readNote(sheet, `${column}${row}`))
+        ? SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) =>
+            readNote(sheet, `${slot.studentValueColumn}${row}`),
+          )
         : [],
       qualitativeTotal: readGrades ? readNote(sheet, `AK${row}`) : null,
       official: readGrades ? readNote(sheet, `AM${row}`) : null,
@@ -296,8 +370,7 @@ function recognizeStudents(
 
 function recognitionValues(student: StudentRecognition): Array<NoteValue | null> {
   const values: Array<NoteValue | null> = [
-    student.written,
-    student.simulation,
+    ...student.quantitativeAssessments,
     student.quantitativeTotal,
     student.parallel,
     ...student.qualitative,
@@ -323,6 +396,8 @@ function recognitionValues(student: StudentRecognition): Array<NoteValue | null>
 }
 
 function recognizeGradeSheet(
+  fileName: string,
+  fileSha256: string,
   name: string,
   sheet: Worksheet,
   xlsx: SheetJs,
@@ -335,6 +410,13 @@ function recognizeGradeSheet(
   const discipline = textAt(sheet, 'K2');
   const declaredStage = textAt(sheet, 'K4');
   const declaredStudentsValue = numberAt(sheet, 'J1');
+  const assessmentDefinitions = recognizeAssessmentDefinitions(
+    fileName,
+    fileSha256,
+    name,
+    sheet,
+    pattern.stage,
+  );
   const students = recognizeStudents(sheet, pattern.stage, xlsx);
   let formulas = 0;
   let officialZeros = 0;
@@ -360,6 +442,7 @@ function recognizeGradeSheet(
       declaredStudentsValue !== null && declaredStudentsValue >= 0
         ? Math.round(declaredStudentsValue)
         : null,
+    assessmentDefinitions,
     students,
     formulas,
     officialZeros,
@@ -398,7 +481,11 @@ function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] 
     }
     if (sheet.declaredStudents !== null) current.declared.push(sheet.declaredStudents);
     if (sheet.discipline) current.disciplines.add(sheet.discipline);
-    if (sheet.stage === 'trimester-1' || sheet.stage === 'trimester-2' || sheet.stage === 'trimester-3') {
+    if (
+      sheet.stage === 'trimester-1' ||
+      sheet.stage === 'trimester-2' ||
+      sheet.stage === 'trimester-3'
+    ) {
       current.trimesters.add(stageShortLabel(sheet.stage));
     }
     if (sheet.stage === 'recovery') current.recovery = true;
@@ -419,7 +506,12 @@ function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] 
     .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { numeric: true }));
 }
 
-export function recognizeWorkbook(file: File, workbook: Workbook, xlsx: SheetJs): WorkbookSummary {
+export function recognizeWorkbook(
+  file: File,
+  workbook: Workbook,
+  xlsx: SheetJs,
+  source: WorkbookRecognitionSourceV2,
+): WorkbookSummary {
   const sheets = workbook.SheetNames.map((name) => {
     const dimensions = worksheetDimensions(workbook.Sheets[name] ?? {}, xlsx);
     return { ...dimensions, name };
@@ -428,7 +520,7 @@ export function recognizeWorkbook(file: File, workbook: Workbook, xlsx: SheetJs)
   const gradeSheets = workbook.SheetNames.flatMap((name) => {
     const sheet = workbook.Sheets[name];
     if (!sheet) return [];
-    const recognized = recognizeGradeSheet(name, sheet, xlsx);
+    const recognized = recognizeGradeSheet(file.name, source.fileSha256, name, sheet, xlsx);
     return recognized ? [recognized] : [];
   });
   const recognizedNames = new Set(gradeSheets.map((sheet) => sheet.name));

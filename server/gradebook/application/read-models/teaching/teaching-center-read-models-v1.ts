@@ -6,13 +6,13 @@ import type {
   TeacherV1,
   TeachingAssignmentV1,
 } from '../../../../../shared/gradebook-contracts/entities';
-import type { AssessmentComponentV1 } from '../../../../../shared/gradebook-contracts/results/results-contract-v1';
 import type {
   AcademicEntityKindV1,
   AcademicEntityRecordV1,
   AcademicEntityRepositoryV1,
   AcademicPersistenceContextV1,
   VersionedRecordV1,
+  PersistedAssessmentComponentV1,
 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 
 const DEFAULT_PAGE_SIZE = 100;
@@ -48,14 +48,14 @@ export interface TeacherCenterAssignmentV1 {
   readonly assignment: TeachingCenterVersionedValueV1<TeachingAssignmentV1>;
   readonly classGroup: TeachingCenterVersionedValueV1<ClassGroupV1> | null;
   readonly subject: TeachingCenterVersionedValueV1<SubjectV1> | null;
-  readonly assessmentComponents: readonly TeachingCenterVersionedValueV1<AssessmentComponentV1>[];
+  readonly assessmentComponents: readonly TeachingCenterVersionedValueV1<PersistedAssessmentComponentV1>[];
 }
 
 export interface SubjectCenterAssignmentV1 {
   readonly assignment: TeachingCenterVersionedValueV1<TeachingAssignmentV1>;
   readonly classGroup: TeachingCenterVersionedValueV1<ClassGroupV1> | null;
   readonly teacher: TeachingCenterVersionedValueV1<TeacherV1> | null;
-  readonly assessmentComponents: readonly TeachingCenterVersionedValueV1<AssessmentComponentV1>[];
+  readonly assessmentComponents: readonly TeachingCenterVersionedValueV1<PersistedAssessmentComponentV1>[];
 }
 
 export interface TeacherCenterReadModelV1 {
@@ -174,8 +174,8 @@ function byId<Value extends { readonly id: string }>(
 }
 
 function byAssessmentComponent(
-  left: TeachingCenterVersionedValueV1<AssessmentComponentV1>,
-  right: TeachingCenterVersionedValueV1<AssessmentComponentV1>,
+  left: TeachingCenterVersionedValueV1<PersistedAssessmentComponentV1>,
+  right: TeachingCenterVersionedValueV1<PersistedAssessmentComponentV1>,
 ): number {
   return (
     left.value.term - right.value.term || left.value.order - right.value.order || byId(left, right)
@@ -190,7 +190,7 @@ interface TeachingGraphV1 {
   >;
   readonly teachers: ReadonlyMap<TeacherV1['id'], TeachingCenterVersionedValueV1<TeacherV1>>;
   readonly subjects: ReadonlyMap<SubjectV1['id'], TeachingCenterVersionedValueV1<SubjectV1>>;
-  readonly assessmentComponents: readonly TeachingCenterVersionedValueV1<AssessmentComponentV1>[];
+  readonly assessmentComponents: readonly TeachingCenterVersionedValueV1<PersistedAssessmentComponentV1>[];
 }
 
 async function loadTeachingGraph(
@@ -224,15 +224,15 @@ async function loadTeachingGraph(
 }
 
 function componentsByAssignment(
-  components: readonly TeachingCenterVersionedValueV1<AssessmentComponentV1>[],
+  components: readonly TeachingCenterVersionedValueV1<PersistedAssessmentComponentV1>[],
   assignmentIds: ReadonlySet<TeachingAssignmentV1['id']>,
 ): ReadonlyMap<
   TeachingAssignmentV1['id'],
-  readonly TeachingCenterVersionedValueV1<AssessmentComponentV1>[]
+  readonly TeachingCenterVersionedValueV1<PersistedAssessmentComponentV1>[]
 > {
   const result = new Map<
     TeachingAssignmentV1['id'],
-    TeachingCenterVersionedValueV1<AssessmentComponentV1>[]
+    TeachingCenterVersionedValueV1<PersistedAssessmentComponentV1>[]
   >();
   for (const component of components) {
     if (!assignmentIds.has(component.value.teachingAssignmentId)) continue;

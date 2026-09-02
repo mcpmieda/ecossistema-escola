@@ -8,13 +8,13 @@ import type {
   TeacherV1,
   TeachingAssignmentV1,
 } from '../../../../../shared/gradebook-contracts/entities';
-import type { AssessmentComponentV1 } from '../../../../../shared/gradebook-contracts/results/results-contract-v1';
 import type {
   AcademicEntityKindV1,
   AcademicEntityRecordV1,
   AcademicEntityRepositoryV1,
   AcademicPersistenceContextV1,
   VersionedRecordV1,
+  PersistedAssessmentComponentV1,
 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 
 const DEFAULT_PAGE_SIZE = 100;
@@ -56,7 +56,7 @@ export interface ClassGroupCenterAssignmentV1 {
   readonly assignment: ClassGroupCenterVersionedValueV1<TeachingAssignmentV1>;
   readonly teacher: ClassGroupCenterVersionedValueV1<TeacherV1> | null;
   readonly subject: ClassGroupCenterVersionedValueV1<SubjectV1> | null;
-  readonly assessmentComponents: readonly ClassGroupCenterVersionedValueV1<AssessmentComponentV1>[];
+  readonly assessmentComponents: readonly ClassGroupCenterVersionedValueV1<PersistedAssessmentComponentV1>[];
 }
 
 export interface ClassGroupCenterReadModelV1 {
@@ -167,8 +167,8 @@ function byStatusHistory(
 }
 
 function byAssessmentComponent(
-  left: ClassGroupCenterVersionedValueV1<AssessmentComponentV1>,
-  right: ClassGroupCenterVersionedValueV1<AssessmentComponentV1>,
+  left: ClassGroupCenterVersionedValueV1<PersistedAssessmentComponentV1>,
+  right: ClassGroupCenterVersionedValueV1<PersistedAssessmentComponentV1>,
 ): number {
   return (
     left.value.term - right.value.term || left.value.order - right.value.order || byId(left, right)
@@ -241,7 +241,7 @@ export function createClassGroupCenterQueryV1(
       >();
       const componentsByAssignment = new Map<
         TeachingAssignmentV1['id'],
-        ClassGroupCenterVersionedValueV1<AssessmentComponentV1>[]
+        ClassGroupCenterVersionedValueV1<PersistedAssessmentComponentV1>[]
       >();
 
       for (const eventRecord of allStatusEvents) {

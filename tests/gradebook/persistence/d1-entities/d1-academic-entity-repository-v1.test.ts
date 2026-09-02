@@ -240,6 +240,64 @@ async function appendAll(
 }
 
 describe('createGradebookD1AcademicEntityRepositoryV1', () => {
+  it('persiste e versiona AssessmentComponentV2 no payload existente sem DDL novo', async () => {
+    await seedAcademicYear(contextA, 'school:d1-entities:a' as SchoolId);
+    const repository = createGradebookD1AcademicEntityRepositoryV1(database, {
+      now: () => instant,
+    });
+    const foundation = records().slice(0, 4);
+    await appendAll(repository, contextA, foundation);
+    const assignment = foundation[3];
+    if (assignment?.kind !== 'teaching-assignment')
+      throw new Error('Assignment sintética ausente.');
+    const component: AcademicEntityRecordV1 = {
+      kind: 'assessment-component',
+      value: {
+        id: 'assessment-component:v2:0123456789abcdef0123456789abcdef' as AssessmentComponentId,
+        academicYearId: academicYearIdA,
+        teachingAssignmentId: assignment.value.id,
+        term: 1,
+        type: 'quantitative-assessment',
+        name: 'Avaliação quantitativa 1',
+        maximum: 8,
+        order: 1,
+        applicability: { state: 'applicable' },
+      },
+    };
+    await expect(
+      repository.appendVersion(contextA, component, { expectedVersion: null }),
+    ).resolves.toMatchObject({ status: 'written', record: { version: 1, value: component } });
+    const changed: AcademicEntityRecordV1 = {
+      ...component,
+      value: { ...component.value, maximum: 10, name: 'Avaliação quantitativa 1 revisada' },
+    };
+    await expect(
+      repository.appendVersion(contextA, changed, { expectedVersion: 1 }),
+    ).resolves.toMatchObject({ status: 'written', record: { version: 2, value: changed } });
+    await expect(repository.get(contextA, reference(component))).resolves.toEqual({
+      value: changed,
+      version: 2,
+      recordedAt: instant,
+    });
+    expect(
+      database.raw
+        .prepare(
+          `SELECT version, display_code, lifecycle_state
+           FROM academic_entity_versions
+           WHERE academic_year_id = ? AND entity_kind = 'assessment-component'
+           ORDER BY version`,
+        )
+        .all(academicYearIdA),
+    ).toEqual([
+      { version: 1, display_code: 'Avaliação quantitativa 1', lifecycle_state: 'applicable' },
+      {
+        version: 2,
+        display_code: 'Avaliação quantitativa 1 revisada',
+        lifecycle_state: 'applicable',
+      },
+    ]);
+  });
+
   it('grava, atualiza e reconstrói os oito tipos sem perder relações ou histórico', async () => {
     await seedAcademicYear(contextA, 'school:d1-entities:a' as SchoolId);
     const repository = createGradebookD1AcademicEntityRepositoryV1(database, {

@@ -4,6 +4,7 @@ import type {
 } from '../../../../../shared/gradebook-contracts/imports/import-ids-v1';
 import type {
   AcademicPersistenceContextV1,
+  AcademicEntityRecordV1,
   AcademicRecordStreamV1,
   AcademicRecordV1,
   BatchPromotionTransactionPortV1,
@@ -14,6 +15,11 @@ import type {
   VersionedRecordV1,
   VersionedWriteResultV1,
 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import type {
+  AssessmentComponentChangePlanV2,
+  AssessmentComponentPlanItemV2,
+  AssessmentImportChangePlanV2,
+} from '../assessment-import-reconciliation-v2';
 import {
   academicRecordStreamForV1,
   academicRecordStreamKeyV1,
@@ -25,6 +31,7 @@ import {
 } from '../import-reconciliation-v1';
 
 export interface ImportChangeExecutionWriteCountsV1 {
+  readonly academicEntityVersions?: number;
   readonly sourceFileVersions: number;
   readonly academicRecordVersions: number;
   readonly logicalSourceRecordAssociationVersions: number;
@@ -57,9 +64,18 @@ export interface AppliedLogicalSourceRecordAssociationVersionV1 {
 }
 
 export interface AppliedImportChangeVersionsV1 {
+  readonly academicEntities?: readonly AppliedAcademicEntityVersionV2[];
   readonly sourceFiles: readonly AppliedSourceFileVersionV1[];
   readonly academicRecords: readonly AppliedAcademicRecordVersionV1[];
   readonly logicalSourceRecordAssociations: readonly AppliedLogicalSourceRecordAssociationVersionV1[];
+}
+
+export interface AppliedAcademicEntityVersionV2 {
+  readonly importFileId: ImportFileId;
+  readonly changeState: 'new' | 'changed';
+  readonly stableKey: string;
+  readonly entityKind: 'assessment-component';
+  readonly version: number;
 }
 
 export type ImportChangePlanValidationScopeV1 = 'plan' | 'file' | 'item';
@@ -74,9 +90,7 @@ export interface ImportChangePlanValidationIssueV1 {
 
 export interface ImportChangeVersionConflictV1 {
   readonly scope:
-    | 'source-file'
-    | 'academic-record'
-    | 'logical-source-record-association';
+    'source-file' | 'academic-entity' | 'academic-record' | 'logical-source-record-association';
   readonly importFileId: ImportFileId;
   readonly stableKey?: string;
   readonly expectedVersion: number | null;
@@ -138,6 +152,7 @@ interface PlanValidationResultV1 {
 }
 
 interface MutableAppliedVersionsV1 {
+  academicEntities?: AppliedAcademicEntityVersionV2[];
   sourceFiles: AppliedSourceFileVersionV1[];
   academicRecords: AppliedAcademicRecordVersionV1[];
   logicalSourceRecordAssociations: AppliedLogicalSourceRecordAssociationVersionV1[];
@@ -163,8 +178,9 @@ class InvalidExecutionSignalV1 extends Error {
   }
 }
 
-function zeroWriteCounts(): ImportChangeExecutionWriteCountsV1 {
+function zeroWriteCounts(includeAcademicEntities = false): ImportChangeExecutionWriteCountsV1 {
   return {
+    ...(includeAcademicEntities ? { academicEntityVersions: 0 } : {}),
     sourceFileVersions: 0,
     academicRecordVersions: 0,
     logicalSourceRecordAssociationVersions: 0,
@@ -172,8 +188,9 @@ function zeroWriteCounts(): ImportChangeExecutionWriteCountsV1 {
   };
 }
 
-function emptyAppliedVersions(): AppliedImportChangeVersionsV1 {
+function emptyAppliedVersions(includeAcademicEntities = false): AppliedImportChangeVersionsV1 {
   return {
+    ...(includeAcademicEntities ? { academicEntities: [] } : {}),
     sourceFiles: [],
     academicRecords: [],
     logicalSourceRecordAssociations: [],
@@ -183,15 +200,28 @@ function emptyAppliedVersions(): AppliedImportChangeVersionsV1 {
 function attemptedWriteCounts(
   applied: MutableAppliedVersionsV1,
 ): ImportChangeExecutionWriteCountsV1 {
+  const academicEntityVersions = applied.academicEntities?.length ?? 0;
   return {
+    ...(applied.academicEntities === undefined ? {} : { academicEntityVersions }),
     sourceFileVersions: applied.sourceFiles.length,
     academicRecordVersions: applied.academicRecords.length,
-    logicalSourceRecordAssociationVersions:
-      applied.logicalSourceRecordAssociations.length,
+    logicalSourceRecordAssociationVersions: applied.logicalSourceRecordAssociations.length,
     totalVersionWrites:
+      academicEntityVersions +
       applied.sourceFiles.length +
       applied.academicRecords.length +
       applied.logicalSourceRecordAssociations.length,
+  };
+}
+
+function appliedVersions(applied: MutableAppliedVersionsV1): AppliedImportChangeVersionsV1 {
+  return {
+    ...(applied.academicEntities === undefined
+      ? {}
+      : { academicEntities: [...applied.academicEntities] }),
+    sourceFiles: [...applied.sourceFiles],
+    academicRecords: [...applied.academicRecords],
+    logicalSourceRecordAssociations: [...applied.logicalSourceRecordAssociations],
   };
 }
 
@@ -202,10 +232,7 @@ function validationIssue(
 }
 
 function sameOrderedStrings(left: readonly string[], right: readonly string[]): boolean {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
-  );
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function isPositiveInteger(value: number): boolean {
@@ -264,10 +291,7 @@ function countItems(items: readonly ImportChangePlanItemV1[]): ImportChangeCount
   return counts;
 }
 
-function sameChangeCounts(
-  left: ImportChangeCountsV1,
-  right: ImportChangeCountsV1,
-): boolean {
+function sameChangeCounts(left: ImportChangeCountsV1, right: ImportChangeCountsV1): boolean {
   return (
     left.unchanged === right.unchanged &&
     left.new === right.new &&
@@ -279,15 +303,12 @@ function sameChangeCounts(
 
 function associationWritesForFile(file: ImportFileChangePlanV1): number {
   return file.items.reduce(
-    (total, item) =>
-      total + (item.state === 'new' || item.state === 'changed' ? 1 : 0),
+    (total, item) => total + (item.state === 'new' || item.state === 'changed' ? 1 : 0),
     0,
   );
 }
 
-function expectedFileWrites(
-  file: ImportFileChangePlanV1,
-): ImportChangeExecutionWriteCountsV1 {
+function expectedFileWrites(file: ImportFileChangePlanV1): ImportChangeExecutionWriteCountsV1 {
   const sourceFileVersions = file.sourceFileWrite.kind === 'append-version' ? 1 : 0;
   const academicRecordVersions = file.counts.new + file.counts.changed;
   const logicalSourceRecordAssociationVersions = associationWritesForFile(file);
@@ -296,15 +317,11 @@ function expectedFileWrites(
     academicRecordVersions,
     logicalSourceRecordAssociationVersions,
     totalVersionWrites:
-      sourceFileVersions +
-      academicRecordVersions +
-      logicalSourceRecordAssociationVersions,
+      sourceFileVersions + academicRecordVersions + logicalSourceRecordAssociationVersions,
   };
 }
 
-function derivedPlanStatus(
-  files: readonly ImportFileChangePlanV1[],
-): ImportChangePlanV1['status'] {
+function derivedPlanStatus(files: readonly ImportFileChangePlanV1[]): ImportChangePlanV1['status'] {
   const hasReady = files.some((file) => file.status === 'ready-for-promotion');
   const hasReview = files.some((file) => file.status === 'review-required');
   const hasBlocked = files.some((file) => file.status === 'blocked');
@@ -325,10 +342,7 @@ function recordAcademicYearId(
 function validateStreamAndRecord(input: {
   plan: ImportChangePlanV1;
   file: ImportFileChangePlanV1;
-  item: Extract<
-    ImportChangePlanItemV1,
-    { readonly stream: AcademicRecordStreamV1 }
-  >;
+  item: Extract<ImportChangePlanItemV1, { readonly stream: AcademicRecordStreamV1 }>;
   record: AcademicRecordV1;
   recordLabel: 'incoming' | 'current';
   issues: ImportChangePlanValidationIssueV1[];
@@ -375,10 +389,7 @@ function validateStreamAndRecord(input: {
 
 function associationStreamMatchesItem(
   stream: LogicalSourceRecordAssociationStreamV1,
-  item: Extract<
-    ImportChangePlanItemV1,
-    { readonly state: 'new' | 'changed' }
-  >,
+  item: Extract<ImportChangePlanItemV1, { readonly state: 'new' | 'changed' }>,
   logicalSourceId: LogicalSourceIdV1,
 ): boolean {
   return (
@@ -391,10 +402,7 @@ function associationStreamMatchesItem(
 
 function associationValueMatchesItem(
   plan: ImportChangePlanV1,
-  item: Extract<
-    ImportChangePlanItemV1,
-    { readonly state: 'new' | 'changed' }
-  >,
+  item: Extract<ImportChangePlanItemV1, { readonly state: 'new' | 'changed' }>,
   logicalSourceId: LogicalSourceIdV1,
   value: LogicalSourceRecordAssociationV1,
 ): boolean {
@@ -410,10 +418,7 @@ function associationValueMatchesItem(
 function validateCurrentAssociation(input: {
   plan: ImportChangePlanV1;
   file: ImportFileChangePlanV1;
-  item: Extract<
-    ImportChangePlanItemV1,
-    { readonly state: 'new' | 'changed' }
-  >;
+  item: Extract<ImportChangePlanItemV1, { readonly state: 'new' | 'changed' }>;
   logicalSourceId: LogicalSourceIdV1;
   write: PlannedLogicalSourceRecordAssociationWriteV1;
   issues: ImportChangePlanValidationIssueV1[];
@@ -425,8 +430,7 @@ function validateCurrentAssociation(input: {
         validationIssue({
           code: 'association-version-expectation-invalid',
           scope: 'item',
-          message:
-            'Uma associação sem versão corrente deve usar expectativa otimista nula.',
+          message: 'Uma associação sem versão corrente deve usar expectativa otimista nula.',
           importFileId: input.file.importFileId,
           stableKey: input.item.stableKey,
         }),
@@ -435,36 +439,24 @@ function validateCurrentAssociation(input: {
     return;
   }
 
-  if (
-    !isPositiveInteger(current.version) ||
-    input.write.expectedVersion !== current.version
-  ) {
+  if (!isPositiveInteger(current.version) || input.write.expectedVersion !== current.version) {
     input.issues.push(
       validationIssue({
         code: 'association-version-expectation-invalid',
         scope: 'item',
-        message:
-          'A expectativa otimista da associação não corresponde à versão corrente.',
+        message: 'A expectativa otimista da associação não corresponde à versão corrente.',
         importFileId: input.file.importFileId,
         stableKey: input.item.stableKey,
       }),
     );
   }
 
-  if (
-    !associationValueMatchesItem(
-      input.plan,
-      input.item,
-      input.logicalSourceId,
-      current.value,
-    )
-  ) {
+  if (!associationValueMatchesItem(input.plan, input.item, input.logicalSourceId, current.value)) {
     input.issues.push(
       validationIssue({
         code: 'current-association-stream-mismatch',
         scope: 'item',
-        message:
-          'A associação corrente não corresponde à fonte lógica e ao stream planejados.',
+        message: 'A associação corrente não corresponde à fonte lógica e ao stream planejados.',
         importFileId: input.file.importFileId,
         stableKey: input.item.stableKey,
       }),
@@ -475,10 +467,7 @@ function validateCurrentAssociation(input: {
 function validateAssociationWrite(input: {
   plan: ImportChangePlanV1;
   file: ImportFileChangePlanV1;
-  item: Extract<
-    ImportChangePlanItemV1,
-    { readonly state: 'new' | 'changed' }
-  >;
+  item: Extract<ImportChangePlanItemV1, { readonly state: 'new' | 'changed' }>;
   issues: ImportChangePlanValidationIssueV1[];
 }): void {
   const write = input.item.associationWrite;
@@ -488,8 +477,7 @@ function validateAssociationWrite(input: {
       validationIssue({
         code: 'association-logical-source-unconfirmed',
         scope: 'item',
-        message:
-          'Uma associação automática exige uma fonte lógica confirmada no arquivo.',
+        message: 'Uma associação automática exige uma fonte lógica confirmada no arquivo.',
         importFileId: input.file.importFileId,
         stableKey: input.item.stableKey,
       }),
@@ -500,12 +488,7 @@ function validateAssociationWrite(input: {
   const logicalSourceId = input.file.logicalSource.logicalSourceId;
   if (
     !associationStreamMatchesItem(write.stream, input.item, logicalSourceId) ||
-    !associationValueMatchesItem(
-      input.plan,
-      input.item,
-      logicalSourceId,
-      write.value,
-    )
+    !associationValueMatchesItem(input.plan, input.item, logicalSourceId, write.value)
   ) {
     input.issues.push(
       validationIssue({
@@ -524,8 +507,7 @@ function validateAssociationWrite(input: {
       validationIssue({
         code: 'association-state-invalid',
         scope: 'item',
-        message:
-          'A promoção automática somente pode planejar uma associação ativa.',
+        message: 'A promoção automática somente pode planejar uma associação ativa.',
         importFileId: input.file.importFileId,
         stableKey: input.item.stableKey,
       }),
@@ -603,8 +585,7 @@ function validateAssociationWrite(input: {
       validationIssue({
         code: 'association-write-unnecessary',
         scope: 'item',
-        message:
-          'Uma associação idêntica à versão corrente não deve gerar nova versão.',
+        message: 'Uma associação idêntica à versão corrente não deve gerar nova versão.',
         importFileId: input.file.importFileId,
         stableKey: input.item.stableKey,
       }),
@@ -625,8 +606,7 @@ function validateItem(input: {
         scope: 'item',
         message: 'O item não pertence ao arquivo que o contém.',
         importFileId: input.file.importFileId,
-        stableKey:
-          'stableKey' in input.item ? input.item.stableKey : undefined,
+        stableKey: 'stableKey' in input.item ? input.item.stableKey : undefined,
       }),
     );
   }
@@ -675,8 +655,7 @@ function validateItem(input: {
           validationIssue({
             code: 'changed-item-version-expectation-invalid',
             scope: 'item',
-            message:
-              'A expectativa de versão do item alterado não corresponde à versão atual.',
+            message: 'A expectativa de versão do item alterado não corresponde à versão atual.',
             importFileId: input.file.importFileId,
             stableKey: input.item.stableKey,
           }),
@@ -691,10 +670,7 @@ function validateItem(input: {
         record: input.item.incomingRecord,
         recordLabel: 'incoming',
       });
-      if (
-        input.item.currentVersion !== null &&
-        !isPositiveInteger(input.item.currentVersion)
-      ) {
+      if (input.item.currentVersion !== null && !isPositiveInteger(input.item.currentVersion)) {
         input.issues.push(
           validationIssue({
             code: 'unchanged-item-version-invalid',
@@ -721,8 +697,7 @@ function validateItem(input: {
           validationIssue({
             code: 'missing-item-version-expectation-invalid',
             scope: 'item',
-            message:
-              'A expectativa de versão do item ausente não corresponde à versão atual.',
+            message: 'A expectativa de versão do item ausente não corresponde à versão atual.',
             importFileId: input.file.importFileId,
             stableKey: input.item.stableKey,
           }),
@@ -737,8 +712,7 @@ function validateItem(input: {
           validationIssue({
             code: 'blocked-item-reference-incomplete',
             scope: 'item',
-            message:
-              'Um item bloqueado deve informar stream e chave estável juntos.',
+            message: 'Um item bloqueado deve informar stream e chave estável juntos.',
             importFileId: input.file.importFileId,
             stableKey: input.item.stableKey,
           }),
@@ -750,8 +724,7 @@ function validateItem(input: {
             validationIssue({
               code: 'blocked-item-stable-key-mismatch',
               scope: 'item',
-              message:
-                'A chave estável do item bloqueado não corresponde ao stream.',
+              message: 'A chave estável do item bloqueado não corresponde ao stream.',
               importFileId: input.file.importFileId,
               stableKey: input.item.stableKey,
             }),
@@ -777,8 +750,7 @@ function validateFile(input: {
       validationIssue({
         code: 'file-counts-mismatch',
         scope: 'file',
-        message:
-          'As contagens do arquivo não correspondem aos itens planejados.',
+        message: 'As contagens do arquivo não correspondem aos itens planejados.',
         importFileId: input.file.importFileId,
       }),
     );
@@ -786,21 +758,17 @@ function validateFile(input: {
 
   const expectedWrites = expectedFileWrites(input.file);
   if (
-    input.file.estimatedWrites.sourceFileVersions !==
-      expectedWrites.sourceFileVersions ||
-    input.file.estimatedWrites.academicRecordVersions !==
-      expectedWrites.academicRecordVersions ||
+    input.file.estimatedWrites.sourceFileVersions !== expectedWrites.sourceFileVersions ||
+    input.file.estimatedWrites.academicRecordVersions !== expectedWrites.academicRecordVersions ||
     input.file.estimatedWrites.logicalSourceRecordAssociationVersions !==
       expectedWrites.logicalSourceRecordAssociationVersions ||
-    input.file.estimatedWrites.totalPlannedVersionWrites !==
-      expectedWrites.totalVersionWrites
+    input.file.estimatedWrites.totalPlannedVersionWrites !== expectedWrites.totalVersionWrites
   ) {
     input.issues.push(
       validationIssue({
         code: 'file-write-estimate-mismatch',
         scope: 'file',
-        message:
-          'A estimativa de versões do arquivo diverge dos appends planejados.',
+        message: 'A estimativa de versões do arquivo diverge dos appends planejados.',
         importFileId: input.file.importFileId,
       }),
     );
@@ -820,8 +788,7 @@ function validateFile(input: {
           validationIssue({
             code: 'duplicate-file-stream',
             scope: 'item',
-            message:
-              'O arquivo contém mais de um item para o mesmo stream acadêmico.',
+            message: 'O arquivo contém mais de um item para o mesmo stream acadêmico.',
             importFileId: input.file.importFileId,
             stableKey: item.stableKey,
           }),
@@ -851,8 +818,7 @@ function validateFile(input: {
         validationIssue({
           code: 'source-manifest-id-mismatch',
           scope: 'file',
-          message:
-            'O manifesto do append não corresponde à identidade do arquivo planejado.',
+          message: 'O manifesto do append não corresponde à identidade do arquivo planejado.',
           importFileId: input.file.importFileId,
         }),
       );
@@ -865,24 +831,17 @@ function validateFile(input: {
         validationIssue({
           code: 'source-manifest-metadata-mismatch',
           scope: 'file',
-          message:
-            'Os metadados do manifesto divergem do arquivo planejado.',
+          message: 'Os metadados do manifesto divergem do arquivo planejado.',
           importFileId: input.file.importFileId,
         }),
       );
     }
-    if (
-      !sameStructure(
-        sourceWrite.value.logicalSource,
-        input.file.logicalSource,
-      )
-    ) {
+    if (!sameStructure(sourceWrite.value.logicalSource, input.file.logicalSource)) {
       input.issues.push(
         validationIssue({
           code: 'source-logical-relation-mismatch',
           scope: 'file',
-          message:
-            'A relação lógica do append diverge da relação revisada do arquivo.',
+          message: 'A relação lógica do append diverge da relação revisada do arquivo.',
           importFileId: input.file.importFileId,
         }),
       );
@@ -900,8 +859,7 @@ function validateFile(input: {
           validationIssue({
             code: 'unchanged-file-has-writes',
             scope: 'file',
-            message:
-              'Um arquivo inalterado não pode conter appends planejados.',
+            message: 'Um arquivo inalterado não pode conter appends planejados.',
             importFileId: input.file.importFileId,
           }),
         );
@@ -914,17 +872,14 @@ function validateFile(input: {
         input.file.sourceFileManifestId === null ||
         expectedWrites.totalVersionWrites <= 0 ||
         input.file.items.some(
-          (item) =>
-            item.state === 'missing-from-new-source' ||
-            item.state === 'blocked',
+          (item) => item.state === 'missing-from-new-source' || item.state === 'blocked',
         )
       ) {
         input.issues.push(
           validationIssue({
             code: 'ready-file-not-promotable',
             scope: 'file',
-            message:
-              'O arquivo marcado como pronto contém estado incompatível com promoção.',
+            message: 'O arquivo marcado como pronto contém estado incompatível com promoção.',
             importFileId: input.file.importFileId,
           }),
         );
@@ -936,8 +891,7 @@ function validateFile(input: {
             validationIssue({
               code: 'duplicate-promotion-stream',
               scope: 'item',
-              message:
-                'A promoção contém mais de um append para o mesmo stream acadêmico.',
+              message: 'A promoção contém mais de um append para o mesmo stream acadêmico.',
               importFileId: input.file.importFileId,
               stableKey: item.stableKey,
             }),
@@ -967,8 +921,7 @@ function validateFile(input: {
             validationIssue({
               code: 'duplicate-promotion-source-manifest',
               scope: 'file',
-              message:
-                'A promoção contém mais de um append para o mesmo manifesto.',
+              message: 'A promoção contém mais de um append para o mesmo manifesto.',
               importFileId: input.file.importFileId,
             }),
           );
@@ -979,16 +932,12 @@ function validateFile(input: {
     case 'review-required':
       break;
     case 'blocked':
-      if (
-        expectedWrites.totalVersionWrites !== 0 ||
-        input.file.sourceFileWrite.kind !== 'none'
-      ) {
+      if (expectedWrites.totalVersionWrites !== 0 || input.file.sourceFileWrite.kind !== 'none') {
         input.issues.push(
           validationIssue({
             code: 'blocked-file-has-writes',
             scope: 'file',
-            message:
-              'Um arquivo bloqueado não pode conter appends planejados.',
+            message: 'Um arquivo bloqueado não pode conter appends planejados.',
             importFileId: input.file.importFileId,
           }),
         );
@@ -997,9 +946,7 @@ function validateFile(input: {
   }
 }
 
-function validateImportChangePlan(
-  plan: ImportChangePlanV1,
-): PlanValidationResultV1 {
+function validateImportChangePlan(plan: ImportChangePlanV1): PlanValidationResultV1 {
   const issues: ImportChangePlanValidationIssueV1[] = [];
   const readyWriteKeys = new Set<string>();
   const readyAssociationKeys = new Set<string>();
@@ -1024,8 +971,7 @@ function validateImportChangePlan(
       validationIssue({
         code: 'planning-evidence-invalid',
         scope: 'plan',
-        message:
-          'As garantias de planejamento sem escrita não foram preservadas.',
+        message: 'As garantias de planejamento sem escrita não foram preservadas.',
       }),
     );
   }
@@ -1059,8 +1005,7 @@ function validateImportChangePlan(
       validationIssue({
         code: 'plan-items-mismatch',
         scope: 'plan',
-        message:
-          'A lista global de itens diverge dos itens dos arquivos.',
+        message: 'A lista global de itens diverge dos itens dos arquivos.',
       }),
     );
   }
@@ -1081,40 +1026,28 @@ function validateImportChangePlan(
       validationIssue({
         code: 'plan-status-mismatch',
         scope: 'plan',
-        message:
-          'O estado global do plano diverge dos estados dos arquivos.',
+        message: 'O estado global do plano diverge dos estados dos arquivos.',
       }),
     );
   }
 
-  const readyFiles = plan.files.filter(
-    (file) => file.status === 'ready-for-promotion',
-  );
-  const reviewFiles = plan.files.filter(
-    (file) => file.status === 'review-required',
-  );
-  const blockedFiles = plan.files.filter(
-    (file) => file.status === 'blocked',
-  );
+  const readyFiles = plan.files.filter((file) => file.status === 'ready-for-promotion');
+  const reviewFiles = plan.files.filter((file) => file.status === 'review-required');
+  const blockedFiles = plan.files.filter((file) => file.status === 'blocked');
   const readyIds = readyFiles.map((file) => file.importFileId);
   const reviewIds = reviewFiles.map((file) => file.importFileId);
   const blockedIds = blockedFiles.map((file) => file.importFileId);
 
   if (
     plan.promotionRequest.importBatchId !== plan.importBatchId ||
-    plan.promotionRequest.expectedBatchVersion !==
-      plan.expectedBatchVersion ||
-    !sameOrderedStrings(
-      plan.promotionRequest.approvedImportFileIds,
-      readyIds,
-    )
+    plan.promotionRequest.expectedBatchVersion !== plan.expectedBatchVersion ||
+    !sameOrderedStrings(plan.promotionRequest.approvedImportFileIds, readyIds)
   ) {
     issues.push(
       validationIssue({
         code: 'promotion-request-mismatch',
         scope: 'plan',
-        message:
-          'A requisição de promoção não corresponde exatamente aos arquivos prontos.',
+        message: 'A requisição de promoção não corresponde exatamente aos arquivos prontos.',
       }),
     );
   }
@@ -1124,8 +1057,7 @@ function validateImportChangePlan(
       validationIssue({
         code: 'review-file-list-mismatch',
         scope: 'plan',
-        message:
-          'A lista de arquivos em revisão diverge dos estados do plano.',
+        message: 'A lista de arquivos em revisão diverge dos estados do plano.',
       }),
     );
   }
@@ -1135,8 +1067,7 @@ function validateImportChangePlan(
       validationIssue({
         code: 'blocked-file-list-mismatch',
         scope: 'plan',
-        message:
-          'A lista de arquivos bloqueados diverge dos estados do plano.',
+        message: 'A lista de arquivos bloqueados diverge dos estados do plano.',
       }),
     );
   }
@@ -1162,20 +1093,13 @@ function validateImportChangePlan(
   );
 
   if (
-    plan.estimatedWrites.sourceFileVersions !==
-      expectedAllSourceWrites ||
-    plan.estimatedWrites.academicRecordVersions !==
-      expectedAllAcademicWrites ||
-    plan.estimatedWrites.logicalSourceRecordAssociationVersions !==
-      expectedAllAssociationWrites ||
+    plan.estimatedWrites.sourceFileVersions !== expectedAllSourceWrites ||
+    plan.estimatedWrites.academicRecordVersions !== expectedAllAcademicWrites ||
+    plan.estimatedWrites.logicalSourceRecordAssociationVersions !== expectedAllAssociationWrites ||
     plan.estimatedWrites.totalPlannedVersionWrites !==
-      expectedAllSourceWrites +
-        expectedAllAcademicWrites +
-        expectedAllAssociationWrites ||
-    plan.estimatedWrites.readyForPromotionVersionWrites !==
-      expectedReadyWrites ||
-    plan.estimatedWrites.pendingReviewVersionWrites !==
-      expectedReviewWrites ||
+      expectedAllSourceWrites + expectedAllAcademicWrites + expectedAllAssociationWrites ||
+    plan.estimatedWrites.readyForPromotionVersionWrites !== expectedReadyWrites ||
+    plan.estimatedWrites.pendingReviewVersionWrites !== expectedReviewWrites ||
     plan.estimatedWrites.exactCloudflareQuota !== false ||
     plan.estimatedWrites.basis !== 'planned-version-appends-only'
   ) {
@@ -1183,33 +1107,153 @@ function validateImportChangePlan(
       validationIssue({
         code: 'plan-write-estimate-mismatch',
         scope: 'plan',
-        message:
-          'A estimativa global diverge dos appends representados pelo plano.',
+        message: 'A estimativa global diverge dos appends representados pelo plano.',
       }),
     );
   }
 
-  const plannedWrites =
-    readyFiles.reduce<ImportChangeExecutionWriteCountsV1>(
-      (counts, file) => {
-        const fileWrites = expectedFileWrites(file);
-        return {
-          sourceFileVersions:
-            counts.sourceFileVersions + fileWrites.sourceFileVersions,
-          academicRecordVersions:
-            counts.academicRecordVersions +
-            fileWrites.academicRecordVersions,
-          logicalSourceRecordAssociationVersions:
-            counts.logicalSourceRecordAssociationVersions +
-            fileWrites.logicalSourceRecordAssociationVersions,
-          totalVersionWrites:
-            counts.totalVersionWrites + fileWrites.totalVersionWrites,
-        };
-      },
-      zeroWriteCounts(),
-    );
+  const plannedWrites = readyFiles.reduce<ImportChangeExecutionWriteCountsV1>((counts, file) => {
+    const fileWrites = expectedFileWrites(file);
+    return {
+      sourceFileVersions: counts.sourceFileVersions + fileWrites.sourceFileVersions,
+      academicRecordVersions: counts.academicRecordVersions + fileWrites.academicRecordVersions,
+      logicalSourceRecordAssociationVersions:
+        counts.logicalSourceRecordAssociationVersions +
+        fileWrites.logicalSourceRecordAssociationVersions,
+      totalVersionWrites: counts.totalVersionWrites + fileWrites.totalVersionWrites,
+    };
+  }, zeroWriteCounts());
 
   return { issues, readyFiles, plannedWrites };
+}
+
+function validateAssessmentComponentPlanV2(
+  plan: AssessmentImportChangePlanV2,
+  componentPlan: AssessmentComponentChangePlanV2,
+): readonly ImportChangePlanValidationIssueV1[] {
+  const issues: ImportChangePlanValidationIssueV1[] = [];
+  const fileIds = new Set(plan.files.map((file) => file.importFileId));
+  const keys = new Set<string>();
+  const counts = { unchanged: 0, new: 0, changed: 0, blocked: 0 };
+
+  if (
+    componentPlan.planningEvidence.writesPerformed !== 0 ||
+    !componentPlan.planningEvidence.repositoryExposesGetOnly
+  ) {
+    issues.push(
+      validationIssue({
+        code: 'assessment-component-planning-evidence-invalid',
+        scope: 'plan',
+        message: 'As garantias do planejamento de componentes não foram preservadas.',
+      }),
+    );
+  }
+
+  for (const item of componentPlan.items) {
+    counts[item.state] += 1;
+    const key = `${item.importFileId}:${item.stableKey}`;
+    if (!fileIds.has(item.importFileId) || item.stableKey.trim().length === 0 || keys.has(key)) {
+      issues.push(
+        validationIssue({
+          code: 'assessment-component-plan-item-invalid',
+          scope: 'item',
+          message: 'O item de componente não corresponde univocamente a um arquivo do plano.',
+          importFileId: item.importFileId,
+          stableKey: item.stableKey,
+        }),
+      );
+    }
+    keys.add(key);
+
+    if (item.state === 'new' || item.state === 'changed' || item.state === 'unchanged') {
+      const record: AcademicEntityRecordV1 = item.incomingRecord;
+      if (
+        record.kind !== 'assessment-component' ||
+        record.value.academicYearId !== plan.academicYearId ||
+        !record.value.id.startsWith('assessment-component:v2:')
+      ) {
+        issues.push(
+          validationIssue({
+            code: 'assessment-component-write-invalid',
+            scope: 'item',
+            message: 'O componente planejado é incompatível com o contexto V2.',
+            importFileId: item.importFileId,
+            stableKey: item.stableKey,
+          }),
+        );
+      }
+    }
+    if (
+      (item.state === 'new' && item.expectedVersion !== null) ||
+      (item.state === 'changed' && !isPositiveInteger(item.expectedVersion))
+    ) {
+      issues.push(
+        validationIssue({
+          code: 'assessment-component-version-expectation-invalid',
+          scope: 'item',
+          message: 'A expectativa CAS do componente é inválida.',
+          importFileId: item.importFileId,
+          stableKey: item.stableKey,
+        }),
+      );
+    }
+  }
+
+  if (
+    !sameStructure(componentPlan.counts, counts) ||
+    componentPlan.plannedVersionWrites !== counts.new + counts.changed
+  ) {
+    issues.push(
+      validationIssue({
+        code: 'assessment-component-plan-counts-mismatch',
+        scope: 'plan',
+        message: 'As contagens do plano de componentes divergem de seus itens.',
+      }),
+    );
+  }
+  return issues;
+}
+
+async function applyAssessmentComponentItemsV2(input: {
+  readonly context: AcademicPersistenceContextV1;
+  readonly items: readonly AssessmentComponentPlanItemV2[];
+  readonly unitOfWork: PersistenceUnitOfWorkV1;
+  readonly applied: MutableAppliedVersionsV1;
+}): Promise<void> {
+  for (const item of input.items) {
+    if (item.state !== 'new' && item.state !== 'changed') continue;
+    const result = await input.unitOfWork.entities.appendVersion(
+      input.context,
+      item.incomingRecord,
+      { expectedVersion: item.expectedVersion },
+    );
+    const record = assertWrittenRecord({
+      result,
+      expectedValue: item.incomingRecord,
+      expectedVersion: item.expectedVersion,
+      conflict: {
+        scope: 'academic-entity',
+        importFileId: item.importFileId,
+        stableKey: item.stableKey,
+        expectedVersion: item.expectedVersion,
+        currentVersion: null,
+      },
+      mismatchIssue: validationIssue({
+        code: 'assessment-component-write-result-mismatch',
+        scope: 'item',
+        message: 'O repositório retornou uma versão de componente incompatível com o append.',
+        importFileId: item.importFileId,
+        stableKey: item.stableKey,
+      }),
+    });
+    input.applied.academicEntities?.push({
+      importFileId: item.importFileId,
+      changeState: item.state,
+      stableKey: item.stableKey,
+      entityKind: 'assessment-component',
+      version: record.version,
+    });
+  }
 }
 
 function assertWrittenRecord<T>(input: {
@@ -1246,12 +1290,11 @@ async function applySourceFileWrite(input: {
   if (input.file.sourceFileWrite.kind === 'none') return;
 
   const sourceWrite = input.file.sourceFileWrite;
-  const result =
-    await input.unitOfWork.imports.appendSourceFileVersion(
-      input.context,
-      sourceWrite.value,
-      { expectedVersion: sourceWrite.expectedVersion },
-    );
+  const result = await input.unitOfWork.imports.appendSourceFileVersion(
+    input.context,
+    sourceWrite.value,
+    { expectedVersion: sourceWrite.expectedVersion },
+  );
   const record = assertWrittenRecord({
     result,
     expectedValue: sourceWrite.value,
@@ -1265,8 +1308,7 @@ async function applySourceFileWrite(input: {
     mismatchIssue: validationIssue({
       code: 'source-write-result-mismatch',
       scope: 'file',
-      message:
-        'O repositório retornou uma versão de arquivo incompatível com o append.',
+      message: 'O repositório retornou uma versão de arquivo incompatível com o append.',
       importFileId: input.file.importFileId,
     }),
   });
@@ -1281,20 +1323,16 @@ async function applySourceFileWrite(input: {
 async function applyAcademicItem(input: {
   context: AcademicPersistenceContextV1;
   file: ImportFileChangePlanV1;
-  item: Extract<
-    ImportChangePlanItemV1,
-    { readonly state: 'new' | 'changed' }
-  >;
+  item: Extract<ImportChangePlanItemV1, { readonly state: 'new' | 'changed' }>;
   unitOfWork: PersistenceUnitOfWorkV1;
   applied: MutableAppliedVersionsV1;
 }): Promise<void> {
-  const result =
-    await input.unitOfWork.academicRecords.appendVersion(
-      input.context,
-      input.item.stream,
-      input.item.incomingRecord,
-      { expectedVersion: input.item.expectedVersion },
-    );
+  const result = await input.unitOfWork.academicRecords.appendVersion(
+    input.context,
+    input.item.stream,
+    input.item.incomingRecord,
+    { expectedVersion: input.item.expectedVersion },
+  );
   const record = assertWrittenRecord({
     result,
     expectedValue: input.item.incomingRecord,
@@ -1309,8 +1347,7 @@ async function applyAcademicItem(input: {
     mismatchIssue: validationIssue({
       code: 'academic-write-result-mismatch',
       scope: 'item',
-      message:
-        'O repositório retornou uma versão acadêmica incompatível com o append.',
+      message: 'O repositório retornou uma versão acadêmica incompatível com o append.',
       importFileId: input.file.importFileId,
       stableKey: input.item.stableKey,
     }),
@@ -1328,22 +1365,18 @@ async function applyAcademicItem(input: {
 async function applyAssociationWrite(input: {
   context: AcademicPersistenceContextV1;
   file: ImportFileChangePlanV1;
-  item: Extract<
-    ImportChangePlanItemV1,
-    { readonly state: 'new' | 'changed' }
-  >;
+  item: Extract<ImportChangePlanItemV1, { readonly state: 'new' | 'changed' }>;
   unitOfWork: PersistenceUnitOfWorkV1;
   applied: MutableAppliedVersionsV1;
 }): Promise<void> {
   const associationWrite = input.item.associationWrite;
 
-  const result =
-    await input.unitOfWork.logicalSourceRecords.appendVersion(
-      input.context,
-      associationWrite.stream,
-      associationWrite.value,
-      { expectedVersion: associationWrite.expectedVersion },
-    );
+  const result = await input.unitOfWork.logicalSourceRecords.appendVersion(
+    input.context,
+    associationWrite.stream,
+    associationWrite.value,
+    { expectedVersion: associationWrite.expectedVersion },
+  );
   const record = assertWrittenRecord({
     result,
     expectedValue: associationWrite.value,
@@ -1358,8 +1391,7 @@ async function applyAssociationWrite(input: {
     mismatchIssue: validationIssue({
       code: 'association-write-result-mismatch',
       scope: 'item',
-      message:
-        'O repositório retornou uma versão de associação incompatível com o append.',
+      message: 'O repositório retornou uma versão de associação incompatível com o append.',
       importFileId: input.file.importFileId,
       stableKey: input.item.stableKey,
     }),
@@ -1400,11 +1432,9 @@ async function applyReadyFile(input: {
           validationIssue({
             code: 'non-writable-item-in-promotion',
             scope: 'item',
-            message:
-              'A promoção contém um item que não pode gerar append automático.',
+            message: 'A promoção contém um item que não pode gerar append automático.',
             importFileId: input.file.importFileId,
-            stableKey:
-              'stableKey' in item ? item.stableKey : undefined,
+            stableKey: 'stableKey' in item ? item.stableKey : undefined,
           }),
         );
     }
@@ -1425,21 +1455,30 @@ function baseResult(
 }
 
 export async function executeImportChangePlan(
-  plan: ImportChangePlanV1,
+  plan: ImportChangePlanV1 | AssessmentImportChangePlanV2,
   transactionPort: BatchPromotionTransactionPortV1,
 ): Promise<ImportChangeExecutionResultV1> {
   let validation: PlanValidationResultV1;
+  const componentPlan = 'assessmentComponentPlanV2' in plan ? plan.assessmentComponentPlanV2 : null;
+  const includeAcademicEntities = componentPlan !== null;
+  let componentValidationIssues: readonly ImportChangePlanValidationIssueV1[] = [];
   try {
     validation = validateImportChangePlan(plan);
+    if (componentPlan) {
+      componentValidationIssues = validateAssessmentComponentPlanV2(
+        plan as AssessmentImportChangePlanV2,
+        componentPlan,
+      );
+    }
   } catch {
     return {
       ...baseResult(plan),
       status: 'rejected-invalid-plan',
       transactionStarted: false,
       transactionCommitted: false,
-      attemptedWritesBeforeRollback: zeroWriteCounts(),
-      committedWrites: zeroWriteCounts(),
-      appliedVersions: emptyAppliedVersions(),
+      attemptedWritesBeforeRollback: zeroWriteCounts(includeAcademicEntities),
+      committedWrites: zeroWriteCounts(includeAcademicEntities),
+      appliedVersions: emptyAppliedVersions(includeAcademicEntities),
       validationIssues: [
         validationIssue({
           code: 'invalid-plan-shape',
@@ -1450,28 +1489,43 @@ export async function executeImportChangePlan(
     };
   }
 
-  if (validation.issues.length > 0) {
+  const validationIssues = [...validation.issues, ...componentValidationIssues];
+  if (validationIssues.length > 0) {
     return {
       ...baseResult(plan),
       status: 'rejected-invalid-plan',
       transactionStarted: false,
       transactionCommitted: false,
-      attemptedWritesBeforeRollback: zeroWriteCounts(),
-      committedWrites: zeroWriteCounts(),
-      appliedVersions: emptyAppliedVersions(),
-      validationIssues: validation.issues,
+      attemptedWritesBeforeRollback: zeroWriteCounts(includeAcademicEntities),
+      committedWrites: zeroWriteCounts(includeAcademicEntities),
+      appliedVersions: emptyAppliedVersions(includeAcademicEntities),
+      validationIssues,
     };
   }
 
-  if (validation.plannedWrites.totalVersionWrites === 0) {
+  const readyFileIds = new Set(validation.readyFiles.map((file) => file.importFileId));
+  const componentItems =
+    componentPlan?.items.filter(
+      (item) =>
+        readyFileIds.has(item.importFileId) && (item.state === 'new' || item.state === 'changed'),
+    ) ?? [];
+  const plannedWrites: ImportChangeExecutionWriteCountsV1 = componentPlan
+    ? {
+        ...validation.plannedWrites,
+        academicEntityVersions: componentItems.length,
+        totalVersionWrites: validation.plannedWrites.totalVersionWrites + componentItems.length,
+      }
+    : validation.plannedWrites;
+
+  if (plannedWrites.totalVersionWrites === 0) {
     return {
       ...baseResult(plan),
       status: 'no-changes',
       transactionStarted: false,
       transactionCommitted: false,
-      plannedWrites: validation.plannedWrites,
-      committedWrites: zeroWriteCounts(),
-      appliedVersions: emptyAppliedVersions(),
+      plannedWrites,
+      committedWrites: zeroWriteCounts(includeAcademicEntities),
+      appliedVersions: emptyAppliedVersions(includeAcademicEntities),
       reason: 'no-promotable-writes',
     };
   }
@@ -1480,6 +1534,7 @@ export async function executeImportChangePlan(
     academicYearId: plan.academicYearId,
   } satisfies AcademicPersistenceContextV1;
   const applied: MutableAppliedVersionsV1 = {
+    ...(componentPlan ? { academicEntities: [] } : {}),
     sourceFiles: [],
     academicRecords: [],
     logicalSourceRecordAssociations: [],
@@ -1490,6 +1545,14 @@ export async function executeImportChangePlan(
       context,
       plan.promotionRequest,
       async (unitOfWork) => {
+        if (componentPlan) {
+          await applyAssessmentComponentItemsV2({
+            context,
+            items: componentItems,
+            unitOfWork,
+            applied,
+          });
+        }
         for (const file of validation.readyFiles) {
           await applyReadyFile({
             context,
@@ -1501,35 +1564,25 @@ export async function executeImportChangePlan(
 
         const actualWrites = attemptedWriteCounts(applied);
         if (
-          actualWrites.sourceFileVersions !==
-            validation.plannedWrites.sourceFileVersions ||
-          actualWrites.academicRecordVersions !==
-            validation.plannedWrites.academicRecordVersions ||
+          actualWrites.academicEntityVersions !== plannedWrites.academicEntityVersions ||
+          actualWrites.sourceFileVersions !== plannedWrites.sourceFileVersions ||
+          actualWrites.academicRecordVersions !== plannedWrites.academicRecordVersions ||
           actualWrites.logicalSourceRecordAssociationVersions !==
-            validation.plannedWrites
-              .logicalSourceRecordAssociationVersions ||
-          actualWrites.totalVersionWrites !==
-            validation.plannedWrites.totalVersionWrites
+            plannedWrites.logicalSourceRecordAssociationVersions ||
+          actualWrites.totalVersionWrites !== plannedWrites.totalVersionWrites
         ) {
           throw new InvalidExecutionSignalV1(
             validationIssue({
               code: 'applied-write-count-mismatch',
               scope: 'plan',
-              message:
-                'As contagens aplicadas divergem da estimativa validada do plano.',
+              message: 'As contagens aplicadas divergem da estimativa validada do plano.',
             }),
           );
         }
 
         return {
           counts: actualWrites,
-          versions: {
-            sourceFiles: [...applied.sourceFiles],
-            academicRecords: [...applied.academicRecords],
-            logicalSourceRecordAssociations: [
-              ...applied.logicalSourceRecordAssociations,
-            ],
-          } satisfies AppliedImportChangeVersionsV1,
+          versions: appliedVersions(applied),
         };
       },
     );
@@ -1539,7 +1592,7 @@ export async function executeImportChangePlan(
       status: 'applied',
       transactionStarted: true,
       transactionCommitted: true,
-      plannedWrites: validation.plannedWrites,
+      plannedWrites,
       committedWrites: committed.counts,
       appliedVersions: committed.versions,
     };
@@ -1553,8 +1606,8 @@ export async function executeImportChangePlan(
         transactionStarted: true,
         transactionCommitted: false,
         attemptedWritesBeforeRollback,
-        committedWrites: zeroWriteCounts(),
-        appliedVersions: emptyAppliedVersions(),
+        committedWrites: zeroWriteCounts(includeAcademicEntities),
+        appliedVersions: emptyAppliedVersions(includeAcademicEntities),
         conflict: error.conflict,
       };
     }
@@ -1566,8 +1619,8 @@ export async function executeImportChangePlan(
         transactionStarted: true,
         transactionCommitted: false,
         attemptedWritesBeforeRollback,
-        committedWrites: zeroWriteCounts(),
-        appliedVersions: emptyAppliedVersions(),
+        committedWrites: zeroWriteCounts(includeAcademicEntities),
+        appliedVersions: emptyAppliedVersions(includeAcademicEntities),
         validationIssues: [error.issue],
       };
     }
@@ -1578,12 +1631,11 @@ export async function executeImportChangePlan(
       transactionStarted: true,
       transactionCommitted: false,
       attemptedWritesBeforeRollback,
-      committedWrites: zeroWriteCounts(),
-      appliedVersions: emptyAppliedVersions(),
+      committedWrites: zeroWriteCounts(includeAcademicEntities),
+      appliedVersions: emptyAppliedVersions(includeAcademicEntities),
       failure: {
         code: 'transaction-failed',
-        message:
-          'A promoção transacional falhou sem confirmar alterações.',
+        message: 'A promoção transacional falhou sem confirmar alterações.',
       },
     };
   }

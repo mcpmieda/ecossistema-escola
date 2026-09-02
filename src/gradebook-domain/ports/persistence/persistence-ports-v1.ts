@@ -26,6 +26,7 @@ import type {
   GradeEntryV1,
   TermResultV1,
 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
+import type { AssessmentComponentV2 } from '../../../../shared/gradebook-contracts/results/results-contract-v2';
 import type {
   ImportBatchResultV1,
   SourceFileManifestV1,
@@ -77,6 +78,8 @@ export type VersionedWriteResultV1<T> =
       readonly currentVersion: number | null;
     };
 
+export type PersistedAssessmentComponentV1 = AssessmentComponentV1 | AssessmentComponentV2;
+
 export type AcademicEntityRecordV1 =
   | { readonly kind: 'academic-year'; readonly value: AcademicYearV1 }
   | { readonly kind: 'teacher'; readonly value: TeacherV1 }
@@ -86,7 +89,7 @@ export type AcademicEntityRecordV1 =
   | { readonly kind: 'student'; readonly value: StudentV1 }
   | { readonly kind: 'enrollment'; readonly value: EnrollmentV1 }
   | { readonly kind: 'student-status-event'; readonly value: StudentStatusEventV1 }
-  | { readonly kind: 'assessment-component'; readonly value: AssessmentComponentV1 };
+  | { readonly kind: 'assessment-component'; readonly value: PersistedAssessmentComponentV1 };
 
 export type AcademicEntityKindV1 = AcademicEntityRecordV1['kind'];
 

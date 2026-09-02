@@ -649,7 +649,13 @@ function cloneAssessmentsProjection(
     requireNonEmpty(item.name);
     if (
       seen.has(item.assessmentComponentId) ||
-      !['written', 'simulation', 'qualitative-activity', 'parallel-recovery'].includes(item.type) ||
+      ![
+        'written',
+        'simulation',
+        'quantitative-assessment',
+        'qualitative-activity',
+        'parallel-recovery',
+      ].includes(item.type) ||
       !Number.isInteger(item.order) ||
       item.order < 0 ||
       !Number.isFinite(item.maximum) ||
