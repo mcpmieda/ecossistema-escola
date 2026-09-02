@@ -1,6 +1,8 @@
 # Contrato da fonte — planilhas de notas
 
-**Estado:** estrutura TypeScript V1, validação sintética e manifesto SHA-256 no fluxo real integrados pelas issues #193, #198 e #199. O contrato está disponível para consumidores; a execução controlada com o corpus real continua como gate de confiança antes do fechamento definitivo da F1.
+**Estado:** `SourceContractV1` permanece histórico e interpretável sob a semântica que produziu a validação F1 7/7 da #184. A #365 introduz `SourceContractV2` para corrigir, de forma prospectiva e explícita, a modelagem dos cabeçalhos de avaliações trimestrais descoberta depois daquela validação. A implementação consumidora pertence à #366 e a integração pré-piloto à #367.
+
+Esta evolução não reabre nem reescreve retroativamente a evidência histórica da F1. Também não autoriza D1 produtivo, migration remota, piloto real ou mudança de `authorityMode`.
 
 ## Escopo inicial
 
@@ -33,6 +35,8 @@ O índice sem sufixo é tratado como `D1`; não inferir que o nome do arquivo de
 
 ## Células e colunas confirmadas
 
+### Metadados e estudantes
+
 | Informação | Local |
 |---|---|
 | Quantidade declarada de alunos | `J1` |
@@ -42,16 +46,95 @@ O índice sem sufixo é tratado como `D1`; não inferir que o nome do arquivo de
 | Situação do aluno | coluna `G` |
 | Número do aluno | coluna `J` |
 | Nome do aluno | coluna `K` |
-| Avaliação escrita | coluna `R` |
-| Simulado/segunda avaliação | coluna `S` |
-| Total quantitativo | coluna `T` |
-| Avaliação paralela | coluna `Z` |
-| Atividades qualitativas | colunas `AA:AJ` |
-| Total qualitativo | coluna `AK` |
-| Nota oficial do trimestre | coluna `AM` |
-| Total anual/acumulado | coluna `AN` |
 
-Os máximos vêm dos cabeçalhos. Uma atividade qualitativa é aplicável quando possui máximo maior que zero e nome diferente de `*`.
+### Trimestres regulares — definições e valores
+
+As linhas de estudante continuam começando em **5**. Cabeçalhos e lançamentos possuem naturezas diferentes e não podem ser confundidos.
+
+| Informação | Definição/cabeçalho | Valor do estudante |
+|---|---|---|
+| Avaliação quantitativa 1 | `R3` = máximo/configuração | `R5:R...` |
+| Avaliação quantitativa 2 | `S3` = máximo/configuração | `S5:S...` |
+| Atividade qualitativa AA | `AA3` = máximo/configuração; `AA4` = nome livre | `AA5:AA...` |
+| Atividades qualitativas seguintes | mesmo padrão em `AB:AJ` | linhas `5+` no mesmo slot |
+| Total quantitativo importado | — | coluna `T` |
+| Avaliação/recuperação paralela importada | — | coluna `Z` |
+| Total qualitativo importado | — | coluna `AK` |
+| Nota oficial trimestral importada | — | coluna `AM` |
+| Acumulado anual importado | — | coluna `AN` |
+
+### Quantitativo R/S
+
+- `R` e `S` são **slots estruturais**, não classificações pedagógicas.
+- Os nomes seguros no sistema são `Avaliação quantitativa 1` e `Avaliação quantitativa 2`.
+- A posição `S` não autoriza `simulation`/`simulado`; a posição `R` não autoriza uma classificação mais específica.
+- Uma eventual classificação pedagógica futura exige evidência, metadado ou regra institucional explícita e versionada.
+- `R3`/`S3` nunca são lançamentos de estudante.
+
+### Qualitativo AA:AJ
+
+- `AA3:AJ3` preserva a configuração bruta de máximo de cada slot.
+- `AA4:AJ4` preserva o texto livre informado pelo professor, inclusive Unicode, acentuação e nomes longos.
+- `AA5:AJ...` contém os lançamentos individuais dos estudantes.
+- O máximo/configuração da linha 3 pode ser número, vazio ou `*`.
+- Vazio ou `*` é ambíguo: pode representar atividade não aplicada ou ainda não configurada. Sem outro sinal oficial inequívoco, o estado é `insufficient-data`.
+- Vazio/`*` não vira `not-applicable` por heurística e nunca recebe `maximum = 0` artificial.
+- O nome livre é preservado mesmo quando o máximo estiver incompleto; isso não significa que um `AssessmentComponentV2` completo já possa ser materializado.
+
+## Versionamento do contrato
+
+### V1 — histórico
+
+`shared/gradebook-contracts/source/source-contract-v1.ts` permanece imutável para interpretar artefatos/evidências produzidos sob V1. O helper histórico `isSourceQualitativeActivityApplicableV1(...)` não é a semântica prospectiva dos cabeçalhos V2.
+
+Não converter nem reinterpretar snapshots, registros ou validações V1 como se tivessem sido produzidos pelo conhecimento posterior da #365.
+
+### V2 — prospectivo
+
+`shared/gradebook-contracts/source/source-contract-v2.ts` formaliza:
+
+- `R3` e `S3` como máximo/configuração das avaliações quantitativas 1 e 2;
+- `R/S` linhas `5+` como valores dos estudantes;
+- dez slots qualitativos `AA...AJ`, cada um com célula de máximo/configuração na linha 3, nome na linha 4 e valores a partir da linha 5;
+- proveniência por célula para máximo/configuração e nome;
+- estados brutos de máximo `numeric | ambiguous-empty | ambiguous-marker | missing-field | unrecognized`;
+- resolução fail-closed: somente máximo numérico finito e positivo, junto das demais evidências suficientes, produz definição resolvida;
+- `not-applicable` somente mediante evidência explícita suficiente; os sinais atualmente conhecidos vazio/`*` não são suficientes;
+- preservação dos agregados oficiais `T`, `Z`, `AK`, `AM` e `AN`, sem recomposição a partir dos slots.
+
+## Identidade estável da definição de avaliação
+
+Nome e máximo são atributos versionáveis, não identidade.
+
+A chave estrutural V2 considera:
+
+1. referência da fonte lógica confirmada;
+2. ano acadêmico explícito;
+3. `teachingAssignmentId` resolvido — que já fixa professor, turma e componente no ano;
+4. trimestre;
+5. slot estrutural de origem (`R`, `S`, `AA`...`AJ`).
+
+O identificador acadêmico exposto continua opaco. A referência física do slot serve à identidade/proveniência interna e não vira identidade acadêmica pública.
+
+Consequências:
+
+- renomear a atividade no mesmo slot não cria outra identidade estrutural;
+- alterar o máximo no mesmo slot não cria outra identidade estrutural;
+- essas mudanças podem produzir nova versão da mesma definição quando a implementação/reconciliação assim determinar;
+- omissão ou ambiguidade em uma reimportação não apaga automaticamente versões anteriores;
+- nomes idênticos em slots/contextos diferentes não colidem.
+
+## Campos importados que permanecem autoritativos
+
+A granularidade V2 não cria fórmula para os agregados já importados:
+
+- `T` = total quantitativo;
+- `Z` = avaliação/recuperação paralela conforme contrato vigente;
+- `AK` = total qualitativo;
+- `AM` = nota oficial do trimestre;
+- `AN` = acumulado anual.
+
+É proibido, nesta evolução, recalcular `T` por R/S, recalcular `AK` por AA:AJ, alterar `AM`/`AN`, inferir pesos, percentuais, médias, rankings, materialidade ou tolerâncias.
 
 ## Recuperação final
 
@@ -71,9 +154,9 @@ Nas guias `REC`:
 | REC aplicável ao 2º trimestre | `AD = 1` |
 | REC aplicável ao 3º trimestre | `AE = 1` |
 
-A recuperação final substitui a nota do trimestre aplicável no total pós-REC, mesmo quando for menor. O valor anterior permanece no histórico.
+A recuperação final substitui a nota do trimestre aplicável no total pós-REC, mesmo quando for menor. O valor anterior permanece no histórico. A #365 não altera essa regra.
 
-## Semântica das células
+## Semântica das células de lançamento
 
 | Origem | Tratamento |
 |---|---|
@@ -89,9 +172,11 @@ A recuperação final substitui a nota do trimestre aplicável no total pós-REC
 | Texto em campo numérico | inválido, salvo regra explicitamente documentada |
 | Não aplicável | excluído do cálculo correspondente, sem virar zero |
 
+Essa tabela continua tratando células de **lançamento**. A classificação específica dos cabeçalhos de máximo/configuração V2 é separada para preservar vazio/`*` como ambiguidade documental.
+
 A interface nunca converte ausência em zero. `Não lançada`, `não aplicável`, zero real e campo inexistente são estados diferentes.
 
-A função `src/gradebook-domain/source/interpret-source-cell.ts`, integrada pela #201, materializa essa semântica em código puro e determinístico.
+A função `src/gradebook-domain/source/interpret-source-cell.ts`, integrada pela #201, materializa a semântica V1 de lançamentos em código puro e determinístico. Sua evolução consumidora V2 pertence à #366.
 
 ## Estudantes e movimentações
 
@@ -117,7 +202,7 @@ Cada arquivo importado registra:
 - guias classificadas, auxiliares e não reconhecidas;
 - diagnósticos por arquivo.
 
-Cada lançamento futuro deve apontar para arquivo/hash/guia/célula, fórmula, valor em cache, valor bruto e valor semântico.
+Cada lançamento e cada definição V2 devem manter a proveniência necessária para distinguir arquivo/hash/guia/célula e o valor bruto observado. O contrato V2 não transforma o nome do arquivo em identidade permanente.
 
 ## Fluxo runtime integrado pela #199
 
@@ -137,7 +222,7 @@ Reconhecimento SheetJS
 Resultado ou diagnóstico isolado por arquivo
 ```
 
-Comportamento:
+Comportamento vigente:
 
 - progresso diferencia `preparing` e `recognizing`;
 - falha de leitura/hash/reconhecimento não cancela os demais arquivos;
@@ -146,6 +231,8 @@ Comportamento:
 - nenhum caminho local é exibido ou persistido;
 - nenhum byte é enviado ao servidor nesta etapa;
 - o arquivo original permanece inalterado.
+
+A #365 não altera o recognizer/runtime; a leitura dos novos cabeçalhos será implementada exclusivamente pela #366.
 
 ## Identidade lógica e reimportação
 
@@ -161,28 +248,26 @@ O contrato distingue nome, hash e fonte lógica:
 - valores novos/alterados geram versão e preservam a anterior;
 - valores que desaparecem não são apagados silenciosamente.
 
-As portas da #219 representam essa separação. O planejamento idempotente será implementado pela #228; a persistência física dependerá do schema/adaptador D1.
+A identidade estrutural das avaliações V2 segue a mesma política: fonte lógica e contexto resolvido precedem atributos mutáveis como nome e máximo.
 
-## Implementação e testes integrados
+## Implementação e testes
 
-- Contrato da fonte: `shared/gradebook-contracts/source/source-contract-v1.ts`.
+- Contrato histórico da fonte: `shared/gradebook-contracts/source/source-contract-v1.ts`.
+- Contrato prospectivo das definições: `shared/gradebook-contracts/source/source-contract-v2.ts`.
+- Contrato acadêmico V2 de componentes: `shared/gradebook-contracts/results/results-contract-v2.ts`.
+- Testes V1 históricos: `tests/gradebook/source-contract/source-contract-v1.test.ts`.
+- Testes V2: `tests/gradebook/source-contract/source-contract-v2.test.ts` e `tests/gradebook/result-contracts/results-contract-v2.test.ts`.
 - Contrato do manifesto/lote: `shared/gradebook-contracts/imports/import-contract-v1.ts`.
 - Manifesto runtime: `src/features/gradebook/import/file-manifest.ts`.
-- Orquestração: `src/features/gradebook/import/import-batch.ts`.
-- Testes básicos: `tests/gradebook/source-contract/source-contract-v1.test.ts`.
-- Massa sintética: `tests/gradebook/fixtures/synthetic-teacher-workbooks.ts`.
-- Testes ampliados da fonte/importação: `tests/gradebook/source/**` e `tests/gradebook/import/**`.
-- Testes do manifesto: `tests/gradebook/import-manifest/import-manifest.test.ts`.
-- Protocolo privado: `docs/gradebook/REAL_DATA_VALIDATION.md`.
-- Integrações: #193/PR #207, #198/PR #213 e #199/PR #225.
+- Orquestração vigente: `src/features/gradebook/import/import-batch.ts`.
+- Massa sintética vigente: `tests/gradebook/fixtures/synthetic-teacher-workbooks.ts`.
+- Protocolo privado histórico F1: `docs/gradebook/REAL_DATA_VALIDATION.md`.
 
-A massa sintética cobre D1, D2, D3, VG, 1º, 2º, 3º, REC, tipos especiais de célula, atividades não aplicáveis, `J1` divergente, posições históricas, movimentações, lotes de 1/20/50 arquivos, SHA-256 e falha isolada.
-
-As fixtures são objetos de workbook em memória. Elas não substituem a conferência de serialização binária, macros, cache real de fórmulas ou metadados nativos de proteção/ocultação. Esses pontos permanecem no protocolo controlado.
+A massa sintética de implementação será ampliada pela #366. A #365 usa somente dados sintéticos de contrato e não lê arquivo real.
 
 ## Banco central XLSB como referência funcional
 
-A varredura do `BANCO DE NOTAS 2026.xlsb` mostrou uma aplicação Excel composta por configuração, relação, vínculo de notas, base de controle, aproveitamento, boletim, ficha do aluno, Conselho e ata/resultados. No sistema novo:
+A aplicação Excel de referência contém configuração, relação, vínculo de notas, base de controle, aproveitamento, boletim, ficha do aluno, Conselho e ata/resultados. No sistema novo:
 
 | Excel de referência | Responsabilidade nova |
 |---|---|
@@ -201,13 +286,15 @@ Não reproduzir fórmulas, nomes definidos, ActiveX ou guias como arquitetura we
 
 ## Estado dos critérios de confiança
 
-- [x] Testes sintéticos cobrindo os tipos de célula aplicáveis.
-- [x] D1 e D2 validados sinteticamente, com fixture representativa de D3.
-- [x] SHA-256 e manifesto integrados no fluxo real do importador.
-- [x] REC e movimentações cobertas pela massa sintética.
-- [x] Falha individual e lotes de 1/20/50 arquivos cobertos.
-- [x] Nenhum dado pessoal real versionado.
-- [ ] Execução registrada do protocolo com as planilhas reais no commit vigente.
-- [ ] Smoke manual autenticado da interface de manifesto/hash com arquivo selecionado no site oficial.
+A F1/#184 permanece **historicamente concluída 7/7** segundo o contrato e o protocolo então vigentes. A descoberta da #365 é uma correção de modelagem posterior e não invalida retroativamente esse resultado.
 
-Os itens pendentes não bloqueiam contratos, motor, schema D1 ou planejamento de reimportação, mas bloqueiam declarar a F1 definitivamente validada em ambiente real.
+Para a onda 21 pré-piloto, a sequência obrigatória é:
+
+```text
+#365 contrato V2 verde
+  → #366 implementação ponta a ponta sobre V2
+  → #367 integração + nova regressão de readiness
+  → somente então gates manuais F9 próprios
+```
+
+Até a #367, nenhum piloto real, D1 acadêmico produtivo, migration remota, smoke acadêmico produtivo ou ativação de `native-engine` é autorizado.
