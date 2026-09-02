@@ -89,7 +89,7 @@ export class GradebookD1RuntimeErrorV1 extends Error {
   }
 }
 
-export type GradebookD1RuntimeEnvironmentV1 = Extract<RuntimeEnvironment, 'local' | 'preview'>;
+export type GradebookD1RuntimeEnvironmentV1 = RuntimeEnvironment;
 
 export interface GradebookD1RuntimeOptionsV1 extends GradebookD1MigrationRunnerOptionsV1 {
   readonly now?: () => string;
@@ -142,6 +142,12 @@ function requireDatabase(binding: unknown): D1WriteDatabaseV1 {
 
 function runtimeEnvironment(env: RuntimeEnv): GradebookD1RuntimeEnvironmentV1 {
   const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
+  if (environment === 'production') {
+    if (env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') {
+      return fail('runtime-environment-disabled');
+    }
+    return environment;
+  }
   if (environment !== 'local' && environment !== 'preview') {
     return fail('runtime-environment-disabled');
   }
