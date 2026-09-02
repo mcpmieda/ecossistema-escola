@@ -68,15 +68,15 @@ describe('Boletins HeroUI local/preview V1', () => {
     expect(page).toContain('bloqueada(s)/insuficiente(s)');
   });
 
-  it('usa HeroUI e mantém o wiring central reservado à #328', () => {
+  it('usa HeroUI e está ligado ao wiring central único da #328', () => {
     expect(page).toContain("from '@heroui/react'");
     expect(page).toContain('<Surface');
     expect(page).toContain('<Card');
     expect(page).toContain('<Button');
     expect(page).toContain('<Alert');
     expect(client).toContain("const BULLETIN_ENDPOINT = '/api/gradebook/bulletins'");
-    expect(app).not.toContain('BulletinPage');
-    expect(functions).not.toContain('handleBulletinRequestV1');
+    expect(app).toContain('BulletinPage');
+    expect(functions.match(/handleBulletinRequestV1/gu)).toHaveLength(2);
   });
 
   it('registra somente o bloqueio arquitetural de PDF sem criar segundo template', () => {
