@@ -14,7 +14,7 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     const auditContract = source('shared/gradebook-contracts/audit/audit-contract-v1.ts');
 
     expect(closure).toContain('F4 authoritative closure V1');
-    expect(closure).toContain('ROADMAP_F4_BULLETS').toBeTruthy;
+    expect(closure).toContain('ROADMAP_F4_BULLETS');
     expect(closure).toContain('FOI PARA');
     expect(closure).toContain('ESTAVA NO');
     expect(auditContract).toContain('readonly category: string;');
