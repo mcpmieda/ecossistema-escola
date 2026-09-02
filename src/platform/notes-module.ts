@@ -22,6 +22,7 @@ export type NotesSection = {
 export const defaultNotesSectionId = 'importacao';
 
 const notesHref = platformHref('banco-de-notas');
+const notesAreaHref = (area: string): string => `${notesHref}?area=${encodeURIComponent(area)}`;
 
 export const notesSections: NotesSection[] = [
   {
@@ -35,35 +36,35 @@ export const notesSections: NotesSection[] = [
     id: 'operational',
     label: 'Centrais',
     description: 'Consultar alunos, turmas, professores e componentes por ano acadêmico.',
-    href: notesHref,
+    href: notesAreaHref('operational'),
     searchTerms: 'central aluno turma professor componente operacional pesquisa acadêmica',
   },
   {
     id: 'audit',
     label: 'Auditoria',
     description: 'Revisar ocorrências, reconciliações, histórico e resoluções.',
-    href: notesHref,
+    href: notesAreaHref('audit'),
     searchTerms: 'auditoria ocorrência reconciliação resolução divergência histórico',
   },
   {
     id: 'performance',
     label: 'Desempenho',
     description: 'Analisar resultado, quantitativo, qualitativo e avaliações por turma.',
-    href: notesHref,
+    href: notesAreaHref('performance'),
     searchTerms: 'desempenho performance resultado quantitativo qualitativo avaliações turma',
   },
   {
     id: 'bulletins',
     label: 'Boletins',
-    description: 'Abrir preview, emissão, histórico e reimpressão de boletins.',
-    href: notesHref,
-    searchTerms: 'boletim boletins preview emissão histórico reimpressão',
+    description: 'Abrir preview, emissão, PDF, histórico e reimpressão de boletins.',
+    href: notesAreaHref('bulletins'),
+    searchTerms: 'boletim boletins preview emissão pdf histórico reimpressão',
   },
   {
     id: 'council',
     label: 'Conselho',
     description: 'Abrir fila de Conselho de Classe e decisões formais autorizadas.',
-    href: notesHref,
+    href: notesAreaHref('council'),
     searchTerms: 'conselho classe fila elegibilidade decisão anual',
   },
 ];
