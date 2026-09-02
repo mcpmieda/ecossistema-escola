@@ -17,11 +17,12 @@ export type RuntimeSecrets = {
 
 export type RuntimeEnv = Omit<
   Cloudflare.Env,
-  'GRADEBOOK_D1' | 'OFFICIAL_ORIGIN' | 'RUNTIME_ENVIRONMENT'
+  'GRADEBOOK_D1' | 'GRADEBOOK_PRODUCTION_ENABLED' | 'OFFICIAL_ORIGIN' | 'RUNTIME_ENVIRONMENT'
 > &
   RuntimeSecrets & {
     OFFICIAL_ORIGIN: string;
     RUNTIME_ENVIRONMENT?: RuntimeEnvironment;
+    GRADEBOOK_PRODUCTION_ENABLED?: 'true' | 'false';
     GRADEBOOK_D1?: unknown;
   };
 
@@ -49,6 +50,7 @@ const envSchema = z
     GRAPH_CREDENTIAL_A: z.string().min(256).optional(),
     GRAPH_CREDENTIAL_B: z.string().min(256).optional(),
     SESSION_SECRET: z.string().min(43),
+    GRADEBOOK_PRODUCTION_ENABLED: z.enum(['true', 'false']).optional(),
     GRADEBOOK_D1: z.unknown().optional(),
   })
   .superRefine((value, context) => {
