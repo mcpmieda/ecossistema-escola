@@ -5,6 +5,13 @@ import {
   type AuditWorkspaceV1,
   type ExistingImportChangePlanSourceV1,
 } from '../../../application/audit-workspace/audit-workspace-v1';
+import { createLocalCouncilDecisionStoreV1 } from '../../../application/council/council-decision-store-v1';
+import type { CouncilWorkspaceSourceV1 } from '../../../application/council/council-workspace-source-v1';
+import {
+  createCouncilWorkspaceV1,
+  type CouncilWorkspaceServerContextV1,
+  type CouncilWorkspaceV1,
+} from '../../../application/council/council-workspace-v1';
 import type { ImportChangeExecutionResultV1 } from '../../../application/import/execution/execute-import-change-plan-v1';
 import { executeImportChangePlan } from '../../../application/import/execution/execute-import-change-plan-v1';
 import type {
@@ -22,6 +29,7 @@ import {
 import type { PersistenceUnitOfWorkV1 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import { GradebookD1AuditWorkspaceSourceV1 } from '../audit-workspace/d1-audit-workspace-source-v1';
 import { createGradebookD1PersistenceUnitOfWorkV1 } from '../composition/d1-persistence-unit-of-work-v1';
+import { createGradebookD1CouncilOfficialProjectionSourceV1 } from '../council/d1-council-official-projection-source-v1';
 import {
   createOperationalWorkspaceAcademicYearCatalogV1,
   type OperationalWorkspaceAcademicYearCatalogV1,
@@ -64,6 +72,8 @@ export type GradebookD1RuntimeEnvironmentV1 = Extract<RuntimeEnvironment, 'local
 export interface GradebookD1RuntimeOptionsV1 extends GradebookD1MigrationRunnerOptionsV1 {
   readonly now?: () => string;
 }
+
+const localCouncilDecisionStoreV1 = createLocalCouncilDecisionStoreV1();
 
 function fail(code: GradebookD1RuntimeErrorCodeV1): never {
   throw new GradebookD1RuntimeErrorV1(code);
@@ -123,6 +133,7 @@ export class GradebookD1RuntimeV1 {
     private readonly operationalAcademicYears: OperationalWorkspaceAcademicYearCatalogV1,
     private readonly auditWorkspaceSource: GradebookD1AuditWorkspaceSourceV1,
     private readonly performanceReadModel: ClassPerformanceReadModelProviderV1,
+    private readonly councilWorkspaceSource: CouncilWorkspaceSourceV1,
     private readonly transaction: GradebookD1BatchPromotionTransactionV1,
     private readonly migrations: GradebookD1MigrationRunnerV1,
   ) {}
@@ -184,6 +195,23 @@ export class GradebookD1RuntimeV1 {
     return this.performanceReadModel;
   }
 
+  councilWorkspace(
+    server: Pick<CouncilWorkspaceServerContextV1, 'decisionIdentity'>,
+  ): CouncilWorkspaceV1 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    return createCouncilWorkspaceV1({
+      source: this.councilWorkspaceSource,
+      decisions: localCouncilDecisionStoreV1,
+      server: {
+        isAuthorized: () => {
+          requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+          return true;
+        },
+        decisionIdentity: () => server.decisionIdentity(),
+      },
+    });
+  }
+
   inspectSchema(): Promise<GradebookD1MigrationStatusV1> {
     requireGradebookD1RuntimeAuthorizationV1(this.authorization);
     return this.migrations.inspect(this.authorization);
@@ -217,6 +245,7 @@ export function createGradebookD1RuntimeV1(
   const performanceReadModel = createClassPerformanceReadModelV1(
     createGradebookD1ClassPerformanceSourceV1(database),
   );
+  const councilWorkspaceSource = createGradebookD1CouncilOfficialProjectionSourceV1(database);
   const transaction = new GradebookD1BatchPromotionTransactionV1(database, { now: options.now });
   const migrations = new GradebookD1MigrationRunnerV1(database, {
     migrationSql: options.migrationSql,
@@ -229,6 +258,7 @@ export function createGradebookD1RuntimeV1(
     operationalAcademicYears,
     auditWorkspaceSource,
     performanceReadModel,
+    councilWorkspaceSource,
     transaction,
     migrations,
   );
