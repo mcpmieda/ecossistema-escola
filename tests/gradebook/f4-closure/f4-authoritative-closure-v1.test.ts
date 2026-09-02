@@ -101,7 +101,7 @@ describe('F4 authoritative closure V1 — ROADMAP bullet-by-bullet', () => {
     expect(executorTests).toContain(
       'commits source, academic records and associations in one transaction',
     );
-    expect(executorTests).toContain("status: 'version-conflict'");
+    expect(executorTests).toContain("expect(result.status).toBe('version-conflict')");
     expect(writeAdapter).toContain('previous_version');
   });
 
