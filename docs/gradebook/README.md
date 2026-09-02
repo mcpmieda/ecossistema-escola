@@ -98,7 +98,7 @@ F1 está **definitivamente concluída — 7/7**. A #184 foi fechada como `comple
 - divergências funcionais bloqueantes: 0;
 - gates históricos reais antigos restantes: 0.
 
-Os antigos marcadores `controlled-real-corpus-validation-not-yet-recorded` e `complete-manifest-failure-smoke-not-yet-recorded` não são mais pendências. Isso não remove as políticas gerais de privacidade, segurança ou futuros gates próprios de ativação de produção.
+Os gates históricos de validação real controlada e smoke completo foram satisfeitos e deixaram de ser pendências. Isso não remove as políticas gerais de privacidade, segurança ou futuros gates próprios de ativação de produção.
 
 ## Processo oficial
 
