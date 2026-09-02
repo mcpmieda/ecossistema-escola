@@ -17,21 +17,13 @@ import {
   readBoundedJson,
 } from '../../http/security';
 import { createBulletinWorkspaceServiceV1 } from '../application/bulletins/bulletin-workspace-service-v1';
-import {
-  createLocalBulletinSnapshotRepositoryV1,
-  type BulletinSnapshotSeriesKeyV1,
-} from '../application/bulletins/bulletin-snapshot-repository-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
 
 export const GRADEBOOK_BULLETIN_ROUTE_V1 = '/api/gradebook/bulletins';
 
-const localSnapshots = createLocalBulletinSnapshotRepositoryV1();
-let localSnapshotSequence = 0;
-
-function localSnapshotId(_seriesKey: BulletinSnapshotSeriesKeyV1): BulletinSnapshotIdV1 {
-  localSnapshotSequence += 1;
-  return `bulletin-snapshot:local-preview:${localSnapshotSequence}` as BulletinSnapshotIdV1;
+function durableSnapshotId(): BulletinSnapshotIdV1 {
+  return `bulletin-snapshot:${crypto.randomUUID()}` as BulletinSnapshotIdV1;
 }
 
 function noStoreResponse(body: BodyInit | null, status: number, contentType?: string): Response {
@@ -106,9 +98,9 @@ export async function handleBulletinRequestV1(
       entities: unit.entities,
       classGroups: readModels.classGroups,
       academicRecords: unit.academicRecords,
-      snapshots: localSnapshots,
+      snapshots: runtime.bulletinSnapshotRepository(),
       now: () => new Date().toISOString(),
-      createSnapshotId: localSnapshotId,
+      createSnapshotId: durableSnapshotId,
     });
     const response = await workspace.execute(payload as BulletinWorkspaceTransportRequestV1, {
       decision: 'allowed',
