@@ -58,7 +58,7 @@ function OfficialPercentageMark({
       {visualValue === null ? (
         <p className="mt-2 text-xs text-muted">Sem barra para estado oficial não numérico.</p>
       ) : (
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-default-100" aria-hidden="true">
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-default/50" aria-hidden="true">
           <div
             className="h-full max-w-full rounded-full bg-accent"
             style={{ width: `${visualValue}%` }}
