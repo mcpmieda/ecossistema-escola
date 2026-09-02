@@ -140,5 +140,6 @@ export function isPlatformRoute(value: string): value is PlatformRoute {
 }
 
 export function normalizePlatformRoute(value: string): PlatformRoute {
-  return isPlatformRoute(value) ? value : 'visao-geral';
+  const route = value.split(/[?#]/u)[0] ?? '';
+  return isPlatformRoute(route) ? route : 'visao-geral';
 }
