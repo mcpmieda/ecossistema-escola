@@ -6,7 +6,7 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 
 - **Programa:** #182
 - **Integração da onda 15:** #318 / PR #324
-- **Próxima onda:** #325, #326 e #327 em paralelo; integração #328
+- **Onda 16:** #325, #326 e #327; desbloqueio #332; integração #328
 - **Armazenamento físico aprovado:** Cloudflare D1 local/preview
 - **Produção acadêmica:** sem D1 remoto, binding, migration remota ou ativação de consultas
 - **Autoridade:** `imported-source`
@@ -14,18 +14,24 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 
 ## Fases — estado funcional atual
 
-| Fase | Issue | Estado após onda 15 | Próximo grande passo |
+| Fase | Issue | Estado após onda 16 | Próximo grande passo |
 | --- | ---: | --- | --- |
 | F0 Fundação | #183 | concluída | manutenção |
-| F1 Fonte/importação | #184 | sintético completo; validação privada final pendente | validação real controlada |
+| F1 Fonte/importação | #184 | **concluída e validada 7/7** | manutenção/novos formatos somente por demanda |
 | F2 Persistência | #185 | D1 local V1 + UoW/runtime | produção continua fechada |
 | F3 Motor | #186 | núcleo/equivalência V1 | sem mudança de autoridade |
 | F4 Auditoria | #187 | Audit Workspace local/preview com HTTP/UI | hardening transversal posterior |
-| F5 Centrais | #188 | Operational Workspace local/preview endurecido | hardening transversal posterior |
-| F6 Desempenho | #189 | fonte D1 + read model compostos internamente; sem HTTP/UI | #325 end-to-end |
-| F7 Conselho | #190 | elegibilidade anual V1 integrada | #327 Conselho V1 |
-| F8 Boletins | #191 | emissão + materialização agregada + snapshots locais; sem HTTP/UI/PDF | #326 end-to-end |
-| F9 Piloto/segurança | #192 | requisitos transversais aplicados continuamente | frente grande reavaliada depois de F6/F7/F8 visíveis |
+| F5 Centrais | #188 | Operational Workspace local/preview endurecido | acabamento/hardening posterior |
+| F6 Desempenho | #189 | HTTP/UI end-to-end local/preview | hardening/validação operacional |
+| F7 Conselho | #190 | projeção oficial + workspace/decisão/HTTP/UI local-preview | durabilidade futura somente se formalmente exigida |
+| F8 Boletins | #191 | preview/emissão/lote/snapshots/histórico/reimpressão HTTP/UI | PDF/renderer como frente grande própria |
+| F9 Piloto/segurança | #192 | requisitos transversais aplicados continuamente | frente grande agora justificada pela massa F4–F8 |
+
+## F1 — gate histórico concluído
+
+A #184 está `completed` e F1 chegou a **7/7**. O protocolo privado controlado, o smoke autenticado completo e a falha isolada passaram. Arquivos reais modificados: 0; dados identificáveis publicados: 0; gates históricos reais antigos restantes: 0.
+
+Os marcadores `controlled-real-corpus-validation-not-yet-recorded` e `complete-manifest-failure-smoke-not-yet-recorded` foram satisfeitos. Não os tratar como pendência futura. Isso não remove políticas gerais de segurança ou futuros gates próprios de produção.
 
 ## Onda 13 — contratos amplos
 
@@ -49,92 +55,93 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 
 ## Onda 15 — superfícies e hardening
 
-| Frente | Issue / PR | Entrega | Merge da frente |
-| :---: | --- | --- | --- |
-| A | #314 / #321 | Audit Workspace HeroUI + HTTP local/preview | `fd3fdc32d85227fa12a84477feaca0892e773816` |
-| B | #315 / #323 | fonte D1 de Desempenho, 6 queries, sem N+1 | `a101819daef4791e5a1f5a5a64b554ab97d59263` |
-| C | #316 / #322 | materialização agregada + snapshots locais imutáveis/versionados | `2875749517ea0c145d73c3dc1df9aa11a8dc18a3` |
-| D | #317 / #320 | hardening/stale-response/year/pagination do Operational Workspace | `d7f984e8753e5ad102f8aeb6a135f4870b8298e6` |
-| Integração | #318 / #324 | compõe F6 internamente no runtime, sem HTTP/UI | PR de integração |
+| Frente | Issue / PR | Entrega |
+| :---: | --- | --- |
+| A | #314 / #321 | Audit Workspace HeroUI + HTTP local/preview |
+| B | #315 / #323 | fonte D1 de Desempenho, 6 queries, sem N+1 |
+| C | #316 / #322 | materialização agregada + snapshots locais imutáveis/versionados |
+| D | #317 / #320 | hardening/stale-response/year/pagination do Operational Workspace |
+| Integração | #318 / #324 | compõe F6 internamente no runtime |
 
-### Invariantes congeladas na onda 15
+## Onda 16 — end-to-end F6/F7/F8
 
-- exatamente um `POST /api/gradebook/operational-workspace`;
-- exatamente um `POST /api/gradebook/audit-workspace`;
-- nenhum Performance/Bulletin HTTP na integração #318;
-- Performance: comparação solicitada sem resolvedor oficial continua `not-comparable`;
-- Performance: anual non-result continua `insufficient-data`;
-- `recovery + result` usa `FinalRecoveryV1`; outras lentes recovery usam trimestre;
-- 6 queries em lote / zero N+1 na fonte física F6;
-- Boletins: snapshot imutável/versionado; reimpressão não recalcula;
-- F5: resposta obsoleta não substitui contexto novo; paginação deduplicada;
-- produção fail-closed antes de `GRADEBOOK_D1`.
+| Frente | Issue / PR | Entrega | Integração |
+| :---: | --- | --- | ---: |
+| 1 | #325 / #329 | Performance Transport V1, bridge e `PerformancePage` | #328 |
+| 2 | #326 / #331 | Boletins: preview/emissão/lote/snapshots/histórico/reimpressão | #328 |
+| 3 | #327 / #330 | Council Workspace/Decision V1, histórico/CAS e HeroUI | #328 |
+| Fundação | #332 / #333 | projeção anual oficial upstream do Conselho | #328 |
+| Integração | #328 | runtime/Functions/App, testes combinados e docs | — |
 
-## Próxima onda — grandes frentes verticais
-
-As issues foram pré-criadas bloqueadas pela #318 e passam a `[PRONTA]` somente após deploy/smokes finais. A própria issue é a autoridade do estado.
-
-| Frente | Issue | Objetivo | Executor | Integração |
-| :---: | ---: | --- | --- | ---: |
-| 1 | #325 | Desempenho end-to-end local/preview | **Extra Alto** | #328 |
-| 2 | #326 | Boletins end-to-end local/preview | **Extra Alto** | #328 |
-| 3 | #327 | Conselho de Classe V1 sem regras novas | **Extra Alto** | #328 |
-| Integração | #328 | wiring central, revisão, merge, deploy e estado | **Extra Alto** | — |
-
-### #325 — F6 end-to-end
-
-Transporte/HTTP, matriz HeroUI, quatro lentes, regular/recovery, paginação, detalhes aluno/célula, a11y/mobile e stale-response discard. Comparabilidade continua fail-closed até semântica oficial própria.
-
-### #326 — F8 end-to-end
-
-Seleção, preview, emissão, reimpressão, lote, snapshots históricos locais, HTTP/UI e mesma base canônica para futuro PDF. Como não há renderer PDF integrado hoje, a issue aceita **um único bloqueio explícito de PDF** se incluir renderer exigir decisão/runtime/biblioteca nova.
-
-### #327 — F7 Conselho V1
-
-Fila, elegibilidade, visão T1/T2/T3/REC, decisão humana separada do cálculo, justificativa, histórico e CAS. Não implementar votação, desempate, frequência, participantes ou exceções não formalizadas.
-
-### F9
-
-Não há quarta frente artificial nesta onda. Reavaliar #192 depois da integração #328, quando F6/F7/F8 adicionarem massa funcional visível. Segurança, no-store, sanitização, a11y e recuperação de falhas continuam critérios obrigatórios de todas as frentes.
-
-## Dependências atuais
+Merges das três frentes já preservados:
 
 ```text
-#314 ─┬─ #315 ─┬─ #316 ─┬─ #317
-      └────────┴────────┴──────> #318
-                                   ↓
-#325 ─┬─ #326 ─┬─ #327
-      └────────┴───────────────> #328
+#329  4d1932053d7d0c5d6083164e3662d653b7c4293e
+#331  71dec5984124854d894e6f370018600456ea76f3
+#330  d86fa40ac4b6127fce270052a4fa3a1af6827fe8
 ```
+
+A fundação #332/PR #333 foi integrada depois do hard stop inicial da #328 para disponibilizar ao Conselho uma projeção oficial agregada sem recalcular elegibilidade no workspace.
+
+### Invariantes congeladas pós-onda 16
+
+- exatamente um bridge Operational, Audit, Performance, Boletins e Conselho;
+- Performance: quatro lentes, regular/recovery, paginação independente e drill-down;
+- Performance: comparação sem resolvedor oficial continua `not-comparable`;
+- Performance: annual non-result continua `insufficient-data`;
+- Performance: `recovery + result` usa `FinalRecoveryV1`; outras lentes recovery usam trimestre;
+- raw source evidence não atravessa HTTP de Desempenho;
+- Boletins: preview e emissão usam o mesmo `BulletinModelV1`;
+- Boletins: lote isola bloqueados; snapshot histórico é imutável/versionado; reimpressão não relê academia atual;
+- Conselho: 0/1/2/3+/insuficiente vêm da projeção #332, não do workspace;
+- Conselho: T1/T2/T3 usam imported; REC usa imported somente quando unívoca;
+- REC ausente é `not-applicable`; REC ambígua falha fechada como `insufficient-data`;
+- decisão humana permanece separada do cálculo, com justificativa, histórico/CAS e ator/instante server-side;
+- nenhuma votação, desempate, frequência, participante ou exceção nova;
+- produção fail-closed antes de `GRADEBOOK_D1`.
 
 ## D1 e superfícies
 
 ### Local/preview
 
-- migrations 0001–0003 / 21 tabelas;
+- migrations 0001–0003 / 21 tabelas, sem migration nova na onda 16;
 - UoW única e promoção transacional CAS/savepoint/rollback;
 - Operational Workspace HTTP/UI;
 - Audit Workspace HTTP/UI;
-- Desempenho físico + read model interno;
-- Boletins provider-independent + snapshots locais.
+- Desempenho HTTP/UI;
+- Conselho HTTP/UI com projeção oficial upstream;
+- Boletins HTTP/UI, snapshots locais e reimpressão histórica.
 
 ### Produção
 
-Não existem:
+Não existem D1 acadêmico remoto, binding/migration remota ou consulta/persistência acadêmica ativa. Os handlers/páginas presentes no código permanecem fail-closed quando o runtime acadêmico está em produção sem autorização própria.
 
-- D1 acadêmico remoto;
-- binding/migration remota;
-- consulta/persistência acadêmica ativa;
-- Performance HTTP/UI;
-- Boletins HTTP/UI/PDF;
-- Conselho operacional.
+## Limitações pós-onda
 
-## Gates manuais
+- Boletins: `PDF/renderização pendente por decisão arquitetural`;
+- snapshots de Boletins: local/preview descartáveis, sem durabilidade cross-restart;
+- decisões de Conselho: local/preview descartáveis, sem durabilidade cross-restart;
+- comparabilidade de Desempenho: permanece fail-closed enquanto não houver semântica oficial integrada;
+- produção acadêmica continua desativada.
 
-- `REAL_DATA_VALIDATION.md` em ambiente privado;
-- smoke autenticado somente quando houver autorização/ambiente apropriado.
+## Próxima onda — regra de tamanho
 
-Nenhum gate autoriza publicar arquivos, nomes, notas, hashes ou caminhos privados.
+Somente depois do fechamento/deploy/smokes da #328: criar **2 a 4 frentes grandes, verticalmente coerentes, mais uma integradora**. Priorizar:
+
+1. PDF/renderer canônico de Boletins como uma decisão grande única;
+2. F9/hardening institucional agora que F4–F8 possuem massa funcional visível;
+3. acabamento operacional/UX das experiências expostas;
+4. durabilidade futura de snapshots/decisões apenas quando formalmente necessária.
+
+Não abrir cadeias de microissues.
+
+## Dependências atuais
+
+```text
+#325 ─┬─ #326 ─┬─ #327
+      └────────┴───────> #328
+#332 ─────────────────> #328
+```
 
 ## Como iniciar agente
 
@@ -145,3 +152,5 @@ Nenhum gate autoriza publicar arquivos, nomes, notas, hashes ou caminhos privado
 5. handoff completo;
 6. sem merge/deploy/provisionamento/`PROJECT_STATE.yaml` em frente comum;
 7. integração apenas pela issue integradora.
+
+Nunca publicar arquivos, nomes, notas, hashes ou caminhos privados.
