@@ -11,7 +11,10 @@ import type {
   BulletinSnapshotRepositoryV1,
   BulletinSnapshotSeriesKeyV1,
 } from '../../../application/bulletins/bulletin-snapshot-repository-v1';
-import { runGradebookD1DurabilitySavepointV1 } from '../durability/d1-durability-transaction-v1';
+import {
+  GradebookD1DurabilityConflictV1,
+  runGradebookD1DurabilitySavepointV1,
+} from '../durability/d1-durability-transaction-v1';
 import type { D1WriteDatabaseV1, D1WriteRunResultV1 } from '../write/d1-write-adapter-v1';
 
 export const D1_BULLETIN_HISTORY_MIN_LIMIT_V1 = 1 as const;
@@ -224,8 +227,8 @@ export class GradebookD1BulletinSnapshotRepositoryV1 implements BulletinSnapshot
 
     const payload = serializeSnapshot(candidate);
     try {
-      return await runGradebookD1DurabilitySavepointV1(this.database, async () => {
-        const current = await this.database
+      return await runGradebookD1DurabilitySavepointV1(this.database, async (database) => {
+        const current = await database
           .prepare(
             `SELECT current_version, snapshot_id, academic_year_id, class_group_id,
                     student_id, enrollment_id
@@ -240,7 +243,7 @@ export class GradebookD1BulletinSnapshotRepositoryV1 implements BulletinSnapshot
             return { status: 'version-conflict' } as const;
           }
           const inserted = changes(
-            await this.database
+            await database
               .prepare(
                 `INSERT OR IGNORE INTO bulletin_snapshot_streams (
                    series_key, academic_year_id, snapshot_id, current_version,
@@ -272,7 +275,7 @@ export class GradebookD1BulletinSnapshotRepositoryV1 implements BulletinSnapshot
             return { status: 'version-conflict' } as const;
           }
           const advanced = changes(
-            await this.database
+            await database
               .prepare(
                 `UPDATE bulletin_snapshot_streams
                     SET current_version = ?
@@ -285,7 +288,7 @@ export class GradebookD1BulletinSnapshotRepositoryV1 implements BulletinSnapshot
         }
 
         const appended = changes(
-          await this.database
+          await database
             .prepare(
               `INSERT INTO bulletin_snapshot_versions (
                  series_key, academic_year_id, snapshot_id, version, previous_version,
@@ -322,6 +325,9 @@ export class GradebookD1BulletinSnapshotRepositoryV1 implements BulletinSnapshot
         } as const;
       });
     } catch (cause) {
+      if (cause instanceof GradebookD1DurabilityConflictV1) {
+        return { status: 'version-conflict' };
+      }
       if (cause instanceof GradebookD1BulletinSnapshotErrorV1) throw cause;
       return fail('database-write-failed');
     }

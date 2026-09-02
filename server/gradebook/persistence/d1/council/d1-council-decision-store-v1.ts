@@ -10,7 +10,10 @@ import type {
   CouncilDecisionStoreV1,
   CouncilDecisionVersionV1,
 } from '../../../application/council/council-decision-store-v1';
-import { runGradebookD1DurabilitySavepointV1 } from '../durability/d1-durability-transaction-v1';
+import {
+  GradebookD1DurabilityConflictV1,
+  runGradebookD1DurabilitySavepointV1,
+} from '../durability/d1-durability-transaction-v1';
 import type { D1WriteDatabaseV1, D1WriteRunResultV1 } from '../write/d1-write-adapter-v1';
 
 export const D1_COUNCIL_HISTORY_MIN_LIMIT_V1 = 1 as const;
@@ -414,8 +417,8 @@ export class GradebookD1CouncilDecisionStoreV1 implements CouncilDecisionStoreV1
     const payload = serializeRecord(record);
 
     try {
-      return await runGradebookD1DurabilitySavepointV1(this.database, async () => {
-        const current = await this.database
+      return await runGradebookD1DurabilitySavepointV1(this.database, async (database) => {
+        const current = await database
           .prepare(
             `SELECT current_version
                FROM council_decision_streams
@@ -437,7 +440,7 @@ export class GradebookD1CouncilDecisionStoreV1 implements CouncilDecisionStoreV1
 
         if (current === null) {
           const inserted = changes(
-            await this.database
+            await database
               .prepare(
                 `INSERT OR IGNORE INTO council_decision_streams (
                    academic_year_id, class_reference, student_reference,
@@ -458,7 +461,7 @@ export class GradebookD1CouncilDecisionStoreV1 implements CouncilDecisionStoreV1
           }
         } else {
           const advanced = changes(
-            await this.database
+            await database
               .prepare(
                 `UPDATE council_decision_streams
                     SET current_version = ?
@@ -483,7 +486,7 @@ export class GradebookD1CouncilDecisionStoreV1 implements CouncilDecisionStoreV1
         }
 
         const appended = changes(
-          await this.database
+          await database
             .prepare(
               `INSERT INTO council_decision_versions (
                  academic_year_id, class_reference, student_reference,
@@ -511,6 +514,12 @@ export class GradebookD1CouncilDecisionStoreV1 implements CouncilDecisionStoreV1
         return { status: 'applied', record } as const;
       });
     } catch (cause) {
+      if (cause instanceof GradebookD1DurabilityConflictV1) {
+        return {
+          status: 'version-conflict',
+          currentVersion: await this.readCurrentVersion(input),
+        };
+      }
       if (cause instanceof GradebookD1CouncilDecisionErrorV1) throw cause;
       return fail('database-write-failed');
     }
