@@ -6,7 +6,7 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 
 - `authorityMode` continua `imported-source`;
 - ano acadêmico é explícito;
-- UI/HTTP não implementam regra de nota;
+- UI/HTTP/renderer não implementam regra de nota;
 - adapters físicos não reinterpretam contratos;
 - autorização efetiva pertence ao servidor;
 - produção acadêmica permanece fail-closed antes do binding.
@@ -22,166 +22,140 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 | `OperationalWorkspace V1` | HTTP/UI local-preview + hardening |
 | `AuditWorkspace V1` | D1/runtime/HTTP/UI local-preview |
 | `ClassPerformanceReadModelV1` + Performance Transport V1 | D1/read model/runtime/HTTP/UI local-preview |
-| `BulletinModelV1` + Bulletin Transport V1 | preview/emissão/lote/snapshots/histórico/reimpressão HTTP/UI; sem PDF |
+| `BulletinModelV1` + Bulletin Transport V1 | preview/emissão/lote/snapshots/histórico/reimpressão/PDF individual canônico |
 | `Council Workspace/Decision V1` | projeção oficial upstream + workspace/decisão/history/CAS HTTP/UI local-preview |
 
-Migrations D1 continuam 0001–0003 / 21 tabelas. A onda 16 e a #332 não alteram schema.
+Migrations D1 continuam 0001–0003 / 21 tabelas. A onda 17 não altera schema.
 
 ## F1 — contrato da fonte
 
 A #184 está `completed` e F1 = **7/7**. O protocolo privado controlado, smoke autenticado completo e falha isolada passaram; nenhum arquivo real foi modificado, nenhum dado identificável foi publicado e não resta gate histórico real antigo.
 
-Os gates históricos de validação real controlada e smoke completo foram satisfeitos. Políticas gerais de segurança e futuros gates próprios de produção continuam fora dessa conclusão histórica.
-
 ## Valores/resultados
 
 `AcademicGradeValueV1` mantém estados distintos para ausência, numérico, zero oficial/legado, não aplicável e dado insuficiente. Cobertura não é convertida silenciosamente em zero ou reprovação.
 
-`AnnualFinalDecisionV1` permanece separado do estado calculado. Uma decisão `recorded` pode registrar `basis: 'class-council'`, mas o motor/projeção não fabrica deliberação humana.
+`AnnualFinalDecisionV1` permanece separado do estado calculado. Uma decisão `recorded` pode registrar `basis: 'class-council'`, mas motor/projeção não fabricam deliberação humana.
 
-## Pesquisa acadêmica
+## Pesquisa acadêmica e navegação
 
-`GlobalSearchRequestV1` exige ano, query, escopo, página/cursor e ordem. O request não transporta autorização confiável do cliente. A implementação de matching permanece única; nenhuma experiência cria fuzzy/ranking paralelo.
+`GlobalSearchRequestV1` exige ano, query, escopo, página/cursor e ordem. O request não transporta autorização confiável do cliente. A implementação de matching permanece única.
+
+A navegação do shell não cria novo contrato acadêmico: resultados de áreas do Banco usam `#/banco-de-notas?area=<id>`. `normalizePlatformRoute` considera apenas a parte de rota antes de `?/#`, e o shell valida `area` contra a enumeração fechada de superfícies.
 
 ## Operational Workspace F5
 
 - um único `POST /api/gradebook/operational-workspace`;
-- estados explícitos e ano explícito;
+- estados/ano explícitos;
 - navegação `kind + id` opaca;
-- request gate com abort/dedupe/stale-response discard;
-- troca de ano invalida contexto anterior;
-- paginação não duplica resultados;
-- nenhuma regra acadêmica ou evidência bruta no payload.
+- abort/dedupe/stale-response discard;
+- paginação sem duplicação;
+- nenhuma regra acadêmica/evidência bruta no payload.
 
 ## Audit Workspace F4
 
-```text
-GradebookD1AuditWorkspaceSourceV1
-  ↓
-GradebookD1RuntimeV1.auditWorkspace(...)
-  ↓
-POST /api/gradebook/audit-workspace
-```
+`GradebookD1AuditWorkspaceSourceV1 → GradebookD1RuntimeV1.auditWorkspace(...) → POST /api/gradebook/audit-workspace`.
 
-Resolução usa `expectedVersion`/CAS; ator e instante são server-side; claims do navegador são proibidos. Promoção permanece exclusiva de `planImportReconciliation` + `executeImportChangePlan`.
+Resolução usa `expectedVersion`/CAS; ator e instante server-side. Promoção permanece exclusiva de `planImportReconciliation` + `executeImportChangePlan`.
 
 ## Performance F6
 
-Contratos:
-
-- `performance/class-performance-read-model-v1.ts` — contrato acadêmico/read model;
-- `performance/performance-transport-v1.ts` — única fronteira serializável HTTP da superfície.
-
-Composição:
-
-```text
-GradebookD1ClassPerformanceSourceV1
-  ↓
-createClassPerformanceReadModelV1
-  ↓
-GradebookD1RuntimeV1.classPerformanceReadModel()
-  ↓
-POST /api/gradebook/performance
-```
-
-Invariantes:
-
-- quatro lentes: `result | quantitative | qualitative | assessments`;
+- contrato acadêmico/read model `ClassPerformanceReadModelV1`;
+- transporte serializável único `performance-transport-v1.ts`;
+- quatro lentes `result | quantitative | qualitative | assessments`;
 - `regular | recovery`;
-- rows/columns usam cursores opacos independentes;
+- cursores rows/columns independentes;
 - detalhe aluno/célula sob demanda;
-- imported/calculated permanecem separados;
+- imported/calculated separados;
 - `PERFORMANCE_AUTHORITY_MODE_V1 === 'imported-source'`;
-- sem `comparisonPeriod` → sem comparação;
 - comparação solicitada sem resolvedor oficial → `not-comparable`;
-- anual em lente não-result sem projeção oficial → `insufficient-data`;
-- `recovery + result` usa `FinalRecoveryV1`;
-- demais lentes recovery continuam trimestrais;
-- `officialRecords`, raw source evidence e proveniência bruta não atravessam HTTP;
-- UI possui cancelamento/dedupe/stale discard, sem cálculo acadêmico.
+- annual non-result sem projeção oficial → `insufficient-data`;
+- `recovery + result` usa `FinalRecoveryV1`; demais lentes recovery são trimestrais;
+- raw source evidence/`officialRecords` não atravessam HTTP;
+- UI possui cancelamento/dedupe/stale discard sem cálculo acadêmico.
 
 ## Boletins F8
 
 Contratos:
 
-- `bulletins/bulletin-contract-v1.ts` — `BulletinModelV1`, emissão e snapshots;
-- `bulletins/bulletin-transport-v1.ts` — único transporte HTTP da experiência.
+- `bulletins/bulletin-contract-v1.ts` — `BulletinModelV1`, emissão, snapshots e `BulletinArtifactInputV1`/`BulletinPdfInputV1`;
+- `bulletins/bulletin-transport-v1.ts` — transporte HTTP da experiência.
 
-Invariantes pós-#326/#328:
+Invariantes:
 
-- modelos `synthetic | composition | detailed` continuam derivados de resultados oficiais;
-- preview chama o mesmo materializador de `BulletinModelV1` usado pela emissão;
-- lote compartilha materialização agregada e isola resultados por aluno;
-- aluno bloqueado não invalida aluno válido;
-- snapshots são profundamente imutáveis, append-only e versionados;
-- emissão idêntica reutiliza versão conforme contrato; mudança efetiva cria nova versão;
-- histórico lista snapshots do registry local/preview;
-- reimpressão usa exclusivamente snapshot histórico, com zero leitura acadêmica atual e sem criar novo snapshot;
+- `synthetic | composition | detailed` derivados de resultados oficiais;
+- preview e emissão usam o mesmo materializador;
+- lote acadêmico compartilha materialização agregada e isola resultados por aluno;
+- snapshots profundamente imutáveis, append-only e versionados;
+- emissão idêntica reutiliza versão; mudança efetivamente impressa cria nova versão;
+- reimpressão usa exclusivamente snapshot histórico e faz zero leitura acadêmica atual;
 - `BULLETIN_AUTHORITY_MODE_V1 === 'imported-source'`;
-- `native-engine` continua rejeitado como autoridade;
+- `native-engine` rejeitado como autoridade;
 - storage de snapshot permanece local/preview descartável.
 
-### PDF
+### PDF canônico — #335
 
-`PDF/renderização pendente por decisão arquitetural`. Não existe renderer/biblioteca PDF aprovada nesta integração. A próxima evolução deve tratar PDF como uma única decisão/frente grande e continuar consumindo o mesmo `BulletinModelV1`/snapshot canônico, sem segundo motor de template.
+PDF não cria novo modelo acadêmico.
+
+```text
+BulletinSnapshotV1
+  ↓
+BulletinPdfInputV1 / BulletinArtifactInputV1
+  ↓
+renderer client-side lazy
+  ↓
+PDF
+```
+
+- PDF oficial recebe somente snapshot canônico;
+- reimpressão PDF usa o mesmo snapshot histórico, sem nova leitura/materialização e sem nova versão;
+- renderer não faz fetch acadêmico e não calcula nota/REC/resultado;
+- presentation helpers são compartilhados com a tela para manter semântica;
+- renderer é carregado por `import()`;
+- fonte Geist já empacotada; sem CDN/fonte privada/fonte do SO;
+- Blob URLs temporárias/revogadas; nenhum storage acadêmico persistente no navegador;
+- PDF em lote não faz parte desta versão; geração de arquivo é individual por snapshot;
+- PDF raster não é tagged/text-selectable; essa limitação não altera o conteúdo canônico.
 
 ## Conselho F7
 
-Contrato: `council/council-workspace-contract-v1.ts`.
-
-A #327 definiu uma única fronteira `CouncilWorkspaceSourceV1` que **recebe projeções oficiais já resolvidas** e deliberadamente não oferece callback de cálculo. A #332 fornece sua fonte real local/preview:
+`CouncilWorkspaceSourceV1` recebe projeções oficiais já resolvidas e não oferece callback de cálculo. #332 fornece a fonte local/preview:
 
 ```text
-D1 existente
-  ↓
-createGradebookD1CouncilOfficialProjectionSourceV1(...)
-  ↓
-CouncilWorkspaceSourceV1
-  ↓
-createCouncilWorkspaceV1
-  ↓
-POST /api/gradebook/council-workspace
+D1 → createGradebookD1CouncilOfficialProjectionSourceV1(...)
+   → CouncilWorkspaceSourceV1 → createCouncilWorkspaceV1
+   → POST /api/gradebook/council-workspace
 ```
 
-Invariantes da projeção #332:
-
-- `resolveNativeAnnualOutcome` fica somente na projeção oficial upstream;
+- `resolveNativeAnnualOutcome` fica somente upstream;
 - Council Workspace não chama o resolvedor;
-- o resolvedor usa o perfil 2026 existente, sem alteração;
-- elegibilidade 0/1/2/3+/insuficiente vem de `NativeAnnualOutcomeV1`, não de contagem no workspace/UI;
-- alterar somente o lado calculated dos registros não altera a autoridade importada projetada;
-- `officialAnnualState` preserva o lado imported do `AnnualResultV1`;
-- T1/T2/T3 usam `TermResultV1.officialGrade.imported.value`;
-- REC usa `FinalRecoveryV1.recoveryGrade.imported.value` somente quando aplicável e unívoca;
-- REC ausente → `not-applicable`;
-- REC ambígua/incompatível → `insufficient-data`, nunca heurística;
-- decisão formal coerente preexistente impede segunda decisão; incoerência falha fechada.
+- 0/1/2/3+/insuficiente vêm de `NativeAnnualOutcomeV1`;
+- lado calculated não vira autoridade;
+- T1/T2/T3 usam `officialGrade.imported.value`;
+- REC usa `recoveryGrade.imported.value` apenas quando aplicável/unívoca;
+- REC ausente `not-applicable`; REC ambígua `insufficient-data`;
+- decisão formal coerente preexistente impede segunda decisão;
+- decisão humana requer justificativa + expectedVersion/CAS + histórico append-only;
+- ator/instante server-side;
+- store atual process-local/preview e sem durabilidade cross-restart.
 
-Invariantes do workspace/decisão:
+## Compatibilidade conjunta da onda 17
 
-- decisão formal humana é separada do cálculo;
-- decisão só pode ser registrada quando `queueState` oficial é `eligible-for-council`;
-- justificativa obrigatória em toda versão;
-- `expectedVersion`/CAS e histórico append-only;
-- ator vem da sessão server-side e instante do servidor;
-- projeção para `AnnualFinalDecisionV1` usa somente `basis: 'class-council'` e campos existentes;
-- nenhuma votação, contagem de votos, desempate, abstenção, frequência, participante/papel ou exceção nova.
+A composição #335+#336 foi revalidada após resolução dos dois testes compartilhados. CI combinado: **100 arquivos / 819 testes**.
 
-O store atual é process-local/preview e descartável; não há promessa de durabilidade cross-restart.
+Testes congelam:
 
-## Compatibilidade conjunta da onda 16
-
-Testes de integração congelam:
-
-- bridges Operational, Audit, Performance, Boletins e Conselho únicos;
-- autorização opaca, `gradebook.persistence.admin` e `no-store`;
-- produção bloqueada antes de `GRADEBOOK_D1`;
-- F6 quatro lentes/comparison fail-closed/raw evidence ausente/recovery correto;
-- F8 preview e emissão sobre a mesma base, lote, snapshot/history e reimpressão histórica;
-- F7 fonte #332 realmente composta, workspace sem callback/resolver, decisão/histórico/CAS;
-- wiring das três páginas no shell;
-- stale-response, teclado/foco/a11y;
-- ausência de semântica acadêmica nova no wiring.
+- cinco bridges únicos, auth server-side e no-store;
+- produção antes do binding;
+- F6 comparison fail-closed e recovery correto;
+- F7 projeção #332 e workspace sem resolver elegibilidade;
+- F8 preview/emissão/PDF/reprint sobre modelo/snapshot canônico;
+- renderer PDF sob demanda e fora do entry inicial;
+- shell/5 superfícies lazy e isoladas;
+- ausência de storage acadêmico persistente no browser;
+- ausência de retry silencioso de writes;
+- deep-link da busca para área do Banco sem nova rota/bridge;
+- foco/teclado/a11y/reduced-motion preservados.
 
 ## Regras de evolução
 
@@ -189,7 +163,7 @@ Testes de integração congelam:
 2. regra acadêmica exige decisão oficial antes do código;
 3. consumidores usam contratos públicos, não tabelas;
 4. adapters não alteram semântica por conveniência física;
-5. toda escrita de integridade aparece em plano/UoW/CAS explícito;
+5. escrita de integridade aparece em plano/UoW/CAS explícito;
 6. não criar implementação concorrente da mesma regra;
 7. não criar bridge concorrente para a mesma superfície;
 8. produção acadêmica só muda mediante autorização própria;

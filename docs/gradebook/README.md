@@ -8,17 +8,15 @@ Este diretório é a memória oficial para que uma pessoa ou inteligência artif
 - [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — acompanhamento humano.
 - [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, ondas e dependências.
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina.
-- [Issue #328](https://github.com/mcpmieda/ecossistema-escola/issues/328) — integração da onda 16.
+- [Issue #337](https://github.com/mcpmieda/ecossistema-escola/issues/337) — integração da onda 17.
 
-## Estado atual — onda 16 integrada
+## Estado atual — onda 17
 
-A onda 16 levou Desempenho, Boletins e Conselho de Classe até experiências end-to-end local/preview, sem ativar persistência acadêmica em produção:
+A onda 17 combina o PDF canônico de Boletins com o primeiro hardening institucional grande do Banco de Notas:
 
-- #325 / PR #329 — Performance Transport V1, `POST /api/gradebook/performance` e `PerformancePage`;
-- #326 / PR #331 — Boletins com seleção, preview, emissão individual/lote, snapshots, histórico e reimpressão por `POST /api/gradebook/bulletins`;
-- #327 / PR #330 — Council Workspace/Decision V1, decisão humana, histórico/CAS e HeroUI;
-- #332 / PR #333 — projeção anual oficial upstream do Conselho, materializada sem nova regra e sem schema;
-- #328 — wiring central das três superfícies, runtime do Conselho e sincronização canônica.
+- #335 / PR #338 — PDF oficial client-side sob demanda, sempre derivado de `BulletinSnapshotV1`, sem segundo motor acadêmico;
+- #336 / PR #339 — lazy loading da rota e das cinco superfícies, isolamento de falhas, segurança/storage auditada e zero requests acadêmicos automáticos na entrada;
+- #337 — composição final, navegação direta da busca para cada área, testes combinados e atualização da memória canônica.
 
 A autoridade acadêmica continua `imported-source`. Produção permanece **fail-closed antes de `GRADEBOOK_D1`**. Não existe banco acadêmico remoto, binding, migration, secret ou recurso remoto novo decorrente desta onda.
 
@@ -32,7 +30,22 @@ A composição central mantém exatamente um bridge de cada superfície:
 - `POST /api/gradebook/bulletins`;
 - `POST /api/gradebook/council-workspace`.
 
-Todos os bridges acadêmicos usam autorização efetiva server-side, a capability existente `gradebook.persistence.admin` e respostas `no-store`. Claims de papel, capability, ator ou instante vindos do navegador não constituem autoridade.
+Todos usam autorização efetiva server-side, a capability existente `gradebook.persistence.admin` e respostas `no-store`. Claims de papel, capability, ator ou instante vindos do navegador não constituem autoridade.
+
+## Shell e hardening F9
+
+O Banco de Notas deixou de montar todas as experiências na entrada:
+
+- a própria rota do Banco é lazy;
+- Importação, Centrais, Auditoria, Desempenho, Boletins e Conselho possuem navegação compacta por áreas;
+- Operational, Audit, Performance, Boletins e Conselho são chunks lazy independentes;
+- entrar no Banco dispara **zero requests acadêmicos automáticos**; cada superfície inicia seu contexto apenas quando ativada;
+- uma falha de chunk/superfície fica isolada e não derruba o Centro nem outra área do Banco;
+- áreas inativas ficam fora do foco/a11y, mas uma área visitada pode preservar estado React efêmero;
+- a busca global pode abrir diretamente uma área por `#/banco-de-notas?area=<id>` sem criar nova rota ou bridge;
+- `localStorage`, `sessionStorage`, IndexedDB, Cache API e service-worker/cache não são usados para persistir dados acadêmicos.
+
+Baseline pós-#328: 820,68 kB minificados / 235,71 kB gzip de JS inicial. Na composição #335+#336, o entry ficou em 552,28 kB / 167,15 kB gzip; contabilizando conservadoramente o chunk `alert` usado pelo shell, o caminho inicial efetivo é 661,25 kB / 202,82 kB gzip. O renderer PDF permanece separado em aproximadamente 9,71 kB / 3,81 kB gzip. O warning Vite de chunk acima de 500 kB ainda existe e é tratado como limitação mensurada, não como gate arbitrário.
 
 ## Capacidades locais/preview
 
@@ -72,20 +85,23 @@ Todos os bridges acadêmicos usam autorização efetiva server-side, a capabilit
 - Council Workspace não chama `resolveNativeAnnualOutcome` e não recalcula elegibilidade;
 - decisão humana separada do cálculo, justificativa obrigatória, histórico append-only e CAS;
 - decisão formal coerente já registrada impede uma segunda decisão;
-- nenhum voto, desempate, frequência, participante ou exceção foi inventado.
+- nenhuma votação/desempate/frequência/participante adicional foi introduzida na V1.
 
-O store de decisão é process-local/preview e descartável; durabilidade cross-restart não é declarada.
+O store de decisão ainda é process-local/preview e descartável; durabilidade cross-restart não é declarada.
 
 ### F8 — Boletins
 
 - três modelos canônicos sobre `BulletinModelV1`;
 - preview e emissão usam a mesma materialização;
-- emissão individual e lote agregado, com isolamento de aluno bloqueado;
+- emissão individual e lote acadêmico agregado, com isolamento de aluno bloqueado;
 - snapshots locais append-only, versionados e profundamente imutáveis;
 - histórico e reimpressão exclusivamente do snapshot, sem leitura acadêmica atual;
-- armazenamento local/preview descartável.
-
-**Bloqueio pós-onda:** `PDF/renderização pendente por decisão arquitetural`. A #328 não escolhe biblioteca, renderer, worker, fontes ou storage para PDF.
+- PDF oficial aceita somente `BulletinPdfInputV1`/`BulletinSnapshotV1`;
+- renderer client-side P&B/raster, carregado por `import()` apenas ao pedir PDF;
+- emissão oficial segue `snapshot → PDF`; reimpressão usa o snapshot histórico e não cria nova versão;
+- Blob URLs são temporárias e revogadas; não há storage acadêmico persistente no navegador;
+- PDF em lote não é disparado nesta versão: o arquivo é gerado por snapshot individual;
+- armazenamento de snapshots continua local/preview descartável.
 
 ## F1 — fonte e importação
 
@@ -98,7 +114,7 @@ F1 está **definitivamente concluída — 7/7**. A #184 foi fechada como `comple
 - divergências funcionais bloqueantes: 0;
 - gates históricos reais antigos restantes: 0.
 
-Os gates históricos de validação real controlada e smoke completo foram satisfeitos e deixaram de ser pendências. Isso não remove as políticas gerais de privacidade, segurança ou futuros gates próprios de ativação de produção.
+Isso não remove políticas gerais de privacidade, segurança ou futuros gates próprios de ativação de produção.
 
 ## Processo oficial
 
@@ -129,7 +145,7 @@ A autoridade continua `imported-source`. O motor permanece separável e compará
 - uma única composição oficial de 2026, sem seleção por relógio;
 - Cloudflare D1 aprovado apenas como armazenamento físico local/preview no estado atual;
 - portas independentes do fornecedor;
-- migrations locais 0001–0003 e 21 tabelas, sem migration nova nesta onda;
+- migrations locais 0001–0003 e 21 tabelas; a onda 17 não cria migration/schema;
 - leitura/escrita local de contexto, entidades, fonte, lotes, registros, associações e Auditoria;
 - planejamento idempotente de reimportação e promoção transacional com CAS/rollback;
 - runtime local/preview explicitamente injetado;
@@ -138,7 +154,7 @@ A autoridade continua `imported-source`. O motor permanece separável e compará
 
 ## Em produção
 
-O shell do Centro e o importador em memória permanecem publicados. A presença das páginas de Desempenho, Boletins e Conselho no bundle **não** ativa dados acadêmicos em produção: seus runtimes permanecem fail-closed até uma autorização própria de produção e um binding explicitamente aprovado.
+O shell do Centro e o importador em memória permanecem publicados. A presença das superfícies e do renderer PDF no código **não** ativa dados acadêmicos em produção: runtimes acadêmicos permanecem fail-closed até autorização própria de produção e um binding explicitamente aprovado.
 
 ## Leitura obrigatória do agente
 

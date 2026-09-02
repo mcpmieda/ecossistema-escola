@@ -59,7 +59,8 @@ describe('F9 — shell, isolamento e code splitting', () => {
 
     expect(app).not.toMatch(/features\/gradebook\/(?:operational-workspace|audit-workspace|performance|bulletins|council)/u);
     expect(shell).toContain("const DEFAULT_SURFACE: GradebookWorkspaceSurfaceId = 'importacao'");
-    expect(shell).toContain('new Set([DEFAULT_SURFACE])');
+    expect(shell).toContain('workspaceSurfaceFromHash()');
+    expect(shell).toContain('new Set([workspaceSurfaceFromHash()])');
     expect(shell).toContain('if (!visitedSurfaces.has(surface.id)) return null');
     expect(shell).not.toMatch(/prefetch|Promise\.all|import\.meta\.glob/u);
   });

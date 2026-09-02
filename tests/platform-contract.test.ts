@@ -55,10 +55,12 @@ describe('Centro de Administração module contract', () => {
     expect(operation?.capabilities).toContain('platform.health.read');
   });
 
-  it('restores known routes and falls back safely', () => {
+  it('restores known routes, accepts scoped hash query data and falls back safely', () => {
     expect(normalizePlatformRoute('operacao')).toBe('operacao');
     expect(normalizePlatformRoute('auditoria')).toBe('auditoria');
     expect(normalizePlatformRoute('banco-de-notas')).toBe('banco-de-notas');
-    expect(normalizePlatformRoute('rota-inexistente')).toBe('visao-geral');
+    expect(normalizePlatformRoute('banco-de-notas?area=bulletins')).toBe('banco-de-notas');
+    expect(normalizePlatformRoute('banco-de-notas#council')).toBe('banco-de-notas');
+    expect(normalizePlatformRoute('rota-inexistente?area=bulletins')).toBe('visao-geral');
   });
 });

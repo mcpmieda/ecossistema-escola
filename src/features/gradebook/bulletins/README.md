@@ -1,6 +1,6 @@
 # Boletins local/preview V1
 
-Esta frente entrega componentes isolados para a integração central da #328: transporte serializável, serviço provider-independent, handler autorizado e página HeroUI. O wiring de `functions/[[path]].ts`, `src/App.tsx` e do runtime central permanece intocado.
+A experiência de Boletins está integrada ao shell do Banco de Notas com transporte serializável, serviço provider-independent, handler autorizado, página HeroUI e PDF canônico sob demanda.
 
 ## Invariantes
 
@@ -17,6 +17,15 @@ Esta frente entrega componentes isolados para a integração central da #328: tr
 
 ## PDF
 
-`PDF/renderização pendente por decisão arquitetural`
+A #335 integrou renderer **client-side** sob demanda, sem biblioteca PDF adicional.
 
-Não existe no projeto renderer, biblioteca/runtime ou política de fontes/impressão aprovada suficiente para gerar PDF sem introduzir uma nova decisão arquitetural. Esta frente não adiciona dependência nem segundo motor de template. Quando a arquitetura for decidida, o renderer deverá consumir o mesmo `BulletinModelV1`/snapshot canônico da prévia.
+- PDF oficial aceita exclusivamente `BulletinPdfInputV1`, isto é, um `BulletinSnapshotV1` canônico;
+- emissão oficial segue `snapshot → renderer → PDF`;
+- reimpressão PDF usa exclusivamente snapshot histórico, com zero leitura/materialização acadêmica atual e sem criar nova versão;
+- renderer é carregado por `import()` e permanece fora do chunk inicial;
+- layout é P&B/raster, com `Geist Variable` já empacotada no projeto e sem CDN/fonte privada/fonte do sistema;
+- Blob URLs são temporárias e revogadas; não há `localStorage`, `sessionStorage`, IndexedDB ou Cache API para modelo/snapshot;
+- bounds atuais: 32 componentes, 96 períodos, 320 avaliações, 160 mil caracteres canônicos, 24 páginas, 12 MiB e um documento concorrente;
+- geração de PDF em lote não é disparada nesta versão; a emissão acadêmica em lote continua disponível, mas o arquivo PDF é gerado por snapshot individual.
+
+O PDF é uma apresentação do snapshot canônico. O renderer não calcula nota, percentual, REC, média, arredondamento, resultado ou elegibilidade.
