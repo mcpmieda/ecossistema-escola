@@ -16,6 +16,11 @@ export const ASSESSMENT_COMPONENT_TYPES_V2 = [
 ] as const;
 export type AssessmentComponentTypeV2 = (typeof ASSESSMENT_COMPONENT_TYPES_V2)[number];
 
+export type ResolvedAssessmentApplicabilityV2 = Exclude<
+  ApplicabilityV1,
+  { readonly state: 'insufficient-data' }
+>;
+
 export interface AssessmentComponentSourceIdentityV2 {
   readonly logicalSourceReference: string;
   readonly academicYearId: AcademicYearId;
@@ -47,7 +52,7 @@ export interface AssessmentComponentV2 {
   readonly name: string;
   readonly maximum: number;
   readonly order: number;
-  readonly applicability: ApplicabilityV1;
+  readonly applicability: ResolvedAssessmentApplicabilityV2;
 }
 
 export const RESULTS_CONTRACT_V2 = {
@@ -66,6 +71,10 @@ export const RESULTS_CONTRACT_V2 = {
   academicResultStates: RESULTS_CONTRACT_V1.academicResultStates,
   annualFinalDecisionOutcomes: RESULTS_CONTRACT_V1.annualFinalDecisionOutcomes,
   annualFinalDecisionBases: RESULTS_CONTRACT_V1.annualFinalDecisionBases,
+  assessmentMaterialization: {
+    incompleteDefinition: 'source-evidence-only',
+    academicComponentRequiresResolvedDefinition: true,
+  },
   assessmentIdentity: {
     externalIdentity: 'opaque-assessment-component-id',
     stableSourceKeyFields: [
