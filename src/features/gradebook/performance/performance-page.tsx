@@ -716,38 +716,40 @@ export function PerformancePage() {
                   O sistema não escolhe o ano automaticamente.
                 </p>
               </div>
-              <SearchField
-                fullWidth
-                value={classQuery}
-                onChange={setClassQuery}
-                onClear={() => setClassQuery('')}
-                isDisabled={!academicYearId}
-                onSubmit={() => {
-                  void searchClasses();
-                }}
-              >
-                <Label>Pesquisar turma</Label>
-                <SearchField.Group>
-                  <SearchField.SearchIcon />
-                  <SearchField.Input
-                    placeholder={academicYearId ? 'Código da turma' : 'Selecione o ano primeiro'}
-                  />
-                  <SearchField.ClearButton />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="primary"
-                    isDisabled={
-                      !academicYearId || !classQuery.trim() || classSearchState === 'loading'
-                    }
-                    onPress={() => {
-                      void searchClasses();
-                    }}
-                  >
-                    <Search className="size-4" aria-hidden="true" /> Buscar
-                  </Button>
-                </SearchField.Group>
-              </SearchField>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <SearchField
+                  fullWidth
+                  value={classQuery}
+                  onChange={setClassQuery}
+                  onClear={() => setClassQuery('')}
+                  isDisabled={!academicYearId}
+                  onSubmit={() => {
+                    void searchClasses();
+                  }}
+                >
+                  <Label>Pesquisar turma</Label>
+                  <SearchField.Group>
+                    <SearchField.SearchIcon />
+                    <SearchField.Input
+                      placeholder={academicYearId ? 'Código da turma' : 'Selecione o ano primeiro'}
+                    />
+                    <SearchField.ClearButton />
+                  </SearchField.Group>
+                </SearchField>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="primary"
+                  isDisabled={
+                    !academicYearId || !classQuery.trim() || classSearchState === 'loading'
+                  }
+                  onPress={() => {
+                    void searchClasses();
+                  }}
+                >
+                  <Search className="size-4" aria-hidden="true" /> Buscar
+                </Button>
+              </div>
             </div>
             <div className="mt-3" aria-live="polite" aria-busy={classSearchState === 'loading'}>
               {classSearchState === 'loading' && (

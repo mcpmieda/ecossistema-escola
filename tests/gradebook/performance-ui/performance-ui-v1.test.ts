@@ -93,6 +93,9 @@ describe('Performance HeroUI local/preview V1', () => {
     expect(page).toContain('onSubmit={() =>');
     expect(page).toContain('type="button"');
     expect(page).toContain('void searchClasses();');
+    const searchFieldEnd = page.indexOf('</SearchField>');
+    expect(searchFieldEnd).toBeGreaterThan(-1);
+    expect(page.indexOf('type="button"', searchFieldEnd)).toBeGreaterThan(searchFieldEnd);
     expect(page).toContain('aria-live="polite"');
     expect(page).toContain('role="status"');
     expect(page).toContain('focus-visible:ring-2');
