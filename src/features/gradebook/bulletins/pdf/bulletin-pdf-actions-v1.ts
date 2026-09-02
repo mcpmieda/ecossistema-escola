@@ -1,3 +1,5 @@
+/// <reference lib="dom" />
+
 import type { BulletinSnapshotV1 } from '../../../../../shared/gradebook-contracts/bulletins/bulletin-contract-v1';
 import { bulletinModelLabelV1, bulletinPeriodLabelV1 } from '../bulletin-presentation-v1';
 
