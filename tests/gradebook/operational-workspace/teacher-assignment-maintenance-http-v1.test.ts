@@ -17,6 +17,7 @@ import type {
   TeacherId,
   TeachingAssignmentId,
 } from '../../../shared/gradebook-contracts/entities';
+import { ACADEMIC_CONTEXT_2026_IDENTITY_V1 } from '../../../src/gradebook-domain/context/academic-context-2026-v1';
 import { SqliteD1Database } from '../persistence/d1-transaction/d1-write-test-support';
 import { testEnv } from '../../fixtures';
 
@@ -100,12 +101,12 @@ async function seed(database: SqliteD1Database) {
       value: {
         id: academicYearId,
         schoolId,
-        year: 2026,
+        year: ACADEMIC_CONTEXT_2026_IDENTITY_V1.academicYear,
         status: 'active',
         startsOn: '2026-02-01',
         endsOn: '2026-12-20',
-        activeEvaluationProfileId: 'profile:maintenance-http',
-        configurationVersion: 'maintenance-http-v1',
+        activeEvaluationProfileId: ACADEMIC_CONTEXT_2026_IDENTITY_V1.evaluationProfileId,
+        configurationVersion: String(ACADEMIC_CONTEXT_2026_IDENTITY_V1.configurationVersion),
       },
     },
     { expectedVersion: null },
