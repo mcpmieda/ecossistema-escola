@@ -21,6 +21,8 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 | resultados acadêmicos V1 | histórico congelado + motor nativo/equivalência; tipos `written/simulation` continuam interpretáveis somente sob V1 |
 | `AssessmentComponent/Results V2` | evolução mínima da #365 com `quantitative-assessment`, identidade estrutural estável e componente completo somente quando a definição estiver resolvida |
 | import/reconciliação/Auditoria V1 | congelado + planejador/executor/persistência |
+| `Performance Comparison V2` | contrato compartilhado da #371; percentual profile-aware/configuração server-side; runtime ainda não integrado |
+| `Reconciliation V2` | contrato compartilhado da #371; correção determinística auditável sem reinterpretar V1; runtime ainda não integrado |
 | `OperationalWorkspace V1` | HTTP/UI local-preview + hardening |
 | `AuditWorkspace V1` | D1/runtime/HTTP/UI local-preview |
 | `ClassPerformanceReadModelV1` + Performance Transport V1 | D1/read model/runtime/HTTP/UI local-preview |
@@ -268,6 +270,44 @@ Testes de integração congelam:
 - ausência de storage acadêmico persistente no browser;
 - ausência de retry silencioso de writes;
 - foco/teclado/a11y preservados.
+
+## Onda 22 — comparação proporcional e correção determinística
+
+A #371 congela somente os contratos compartilhados que implementações posteriores consumirão. Não altera runtime, persistência física, UI, produção, piloto ou `authorityMode`.
+
+### Performance Comparison V2
+
+`shared/gradebook-contracts/performance/performance-comparison-contract-v2.ts` preserva `ClassPerformanceReadModelV1` e adiciona uma evolução explícita para a comparação:
+
+- `basis = percentage` exclusivamente sobre percentual oficial já resolvido pelo perfil aplicável a cada período;
+- `current` é o período em foco e `reference` é o período explicitamente selecionado; não existe referência oculta;
+- relação `proportionally-higher | proportionally-equal | proportionally-lower` sem epsilon/tolerância;
+- perfil diferente continua comparável quando a compatibilidade semântica é oficialmente declarada; identidade de perfil não cria compatibilidade por heurística;
+- cobertura parcial/insuficiente/não aplicável e percentual ausente/não aplicável/insuficiente permanecem `not-comparable` com razão fechada e sanitizada;
+- zero continua valor comparável, nunca ausência;
+- nenhuma média, ranking, tendência composta, índice ou percentual por atividade é criado.
+
+A configuração usa a forma já existente de `PlatformConfiguration`/`PLATAFORMA_CONFIGURACOES`: chave `gradebook.performance.proportional-comparison`, escopo `global`, versão/vigência e `active` mapeado server-side para `enabled`. Sem linha aplicável, o default canônico é `enabled: true`. Estado desabilitado é explícito e não vira `match` nem `not-comparable`.
+
+O snapshot atual possui somente leitura por `platform.settings.read`; busca no repositório encontra `PLATAFORMA_CONFIGURACOES` apenas no leitor de snapshot e testes. Portanto a escrita administrativa permanece `not-integrated-hard-stop` para #372/#373: a representação está fechada, mas nenhuma capability/role ou write path é inventada nesta frente.
+
+### Reconciliation V2
+
+`shared/gradebook-contracts/audit/reconciliation-contract-v2.ts` preserva os estados `match | expected-difference | mismatch | not-comparable`, mantém o V1 histórico intacto e remove `tolerance` da nova forma V2. O caso V2 separa explicitamente:
+
+1. divergência;
+2. impacto acadêmico oficial ou potencialmente material quando não resolvível com segurança;
+3. investigação;
+4. elegibilidade para correção automática;
+5. resultado da correção/reprocessamento;
+6. liberação institucional;
+7. stop/continuidade do piloto.
+
+Uma prova elegível exige causa raiz identificada, evidência oficial não vazia, exatamente uma operação candidata, zero julgamento humano, destino interno versionável e precondição CAS ou conjunto imutável de inputs. As únicas classes contratuais são `renormalize-imported-record`, `reprocess-derived-result` e `reapply-official-reconciliation`; mutação arbitrária, edição da fonte documental, decisão de Conselho e alteração de código/regra em runtime são proibidas.
+
+Defeito de software permanece `not-eligible / software-change-required`; após correção normal do código, um reprocessamento determinístico pode produzir nova referência de versão preservando a anterior e a evidência. Materialidade numérica heurística continua proibida.
+
+Durante futuro piloto, o gate contratual mantém `imported-source`. `mismatch` com impacto acadêmico oficial interrompe o fluxo; impacto não resolvido é tratado como `potentially-material` e também interrompe. Retomada só é representável depois de `reconciled` ou `accepted-with-reason`. A #371 não executa piloto e não ativa `native-engine`.
 
 ## Regras de evolução
 
