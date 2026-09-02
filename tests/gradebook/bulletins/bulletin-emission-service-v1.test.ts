@@ -30,7 +30,6 @@ import type {
   AnnualResultV1,
   ApplicabilityV1,
   AssessmentComponentId,
-  AssessmentComponentV1,
   AuthorityModeV1,
   ComparedApplicabilityV1,
   ComparedGradeValueV1,
@@ -40,6 +39,7 @@ import type {
   TermResultId,
   TermResultV1,
 } from '../../../shared/gradebook-contracts/results/results-contract-v1';
+import type { AssessmentComponentV2 } from '../../../shared/gradebook-contracts/results/results-contract-v2';
 import type { SourceCellEvidenceV1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
 import type {
   AcademicRecordRepositoryV1,
@@ -126,15 +126,15 @@ function versioned<Value>(value: Value, version = 1): ClassGroupCenterVersionedV
   return { value, version, recordedAt: `2026-09-01T10:0${version}:00.000Z` };
 }
 
-function component(term: AcademicTermV1): AssessmentComponentV1 {
+function component(term: AcademicTermV1): AssessmentComponentV2 {
   const notApplicable = term === 2;
   return {
     id: `assessment:synthetic:t${term}` as AssessmentComponentId,
     academicYearId,
     teachingAssignmentId: assignmentId,
     term,
-    type: notApplicable ? 'qualitative-activity' : 'written',
-    name: notApplicable ? 'Atividade Sintética Não Aplicável' : `Avaliação Sintética ${term}`,
+    type: notApplicable ? 'qualitative-activity' : 'quantitative-assessment',
+    name: notApplicable ? 'Atividade Sintética Não Aplicável' : `Avaliação quantitativa ${term}`,
     maximum: notApplicable ? 0 : 10,
     order: 1,
     applicability: notApplicable
@@ -507,6 +507,10 @@ describe('provider-independent bulletin emission v1', () => {
     expect(models[1]?.modelKind === 'composition' && models[1].subjects[0]?.terms).toHaveLength(3);
     if (models[2]?.modelKind === 'detailed') {
       expect(models[2].subjects[0]?.terms).toHaveLength(3);
+      expect(models[2].subjects[0]?.terms[0]?.assessments[0]).toMatchObject({
+        type: 'quantitative-assessment',
+        name: 'Avaliação quantitativa 1',
+      });
       expect(models[2].subjects[0]?.terms[0]?.assessments[0]?.value).toEqual({
         imported: { state: 'absent' },
         calculated: { state: 'numeric', value: 8 },

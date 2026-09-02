@@ -296,7 +296,7 @@ export async function importWorkbookBatch(
     await (runtime.yieldBeforeRecognition?.() ?? yieldToBrowser());
 
     try {
-      const summary = readWorkbookData(file, data, xlsx);
+      const summary = readWorkbookData(file, data, xlsx, manifest);
       successes.push({ id: importFileId, summary, manifest });
       fileResults.push({
         id: importFileId,

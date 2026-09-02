@@ -1,6 +1,6 @@
 import type { SourceFileManifestV1 } from '../../../../shared/gradebook-contracts/imports/import-contract-v1';
 import type { SourceFileManifestId } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
-import { SOURCE_CONTRACT_V1 } from '../../../../shared/gradebook-contracts/source/source-contract-v1';
+import { SOURCE_CONTRACT_V2 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
 import type { SourceFileExtensionV1 } from '../../../../shared/gradebook-contracts/source/source-contract-v1';
 import { fileExtension } from './spreadsheet-recognizer';
 
@@ -47,7 +47,7 @@ export async function createSourceFileManifest(
     sizeBytes: file.size,
     lastModifiedAt: asIsoTimestamp(file.lastModified),
     sha256,
-    sourceContractVersion: SOURCE_CONTRACT_V1.version,
+    sourceContractVersion: SOURCE_CONTRACT_V2.version,
     parserVersion,
     readAt,
   };

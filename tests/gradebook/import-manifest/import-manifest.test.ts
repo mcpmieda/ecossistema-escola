@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { SOURCE_CONTRACT_V1 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
+import { SOURCE_CONTRACT_V2 } from '../../../shared/gradebook-contracts/source/source-contract-v2';
 import { importWorkbookBatch } from '../../../src/features/gradebook/import/import-batch';
 import type {
   SheetJs,
@@ -84,7 +84,7 @@ describe('manifesto e proveniência do lote de importação', () => {
       sizeBytes: 3,
       lastModifiedAt: modifiedAt.toISOString(),
       sha256: 'ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad',
-      sourceContractVersion: SOURCE_CONTRACT_V1.version,
+      sourceContractVersion: SOURCE_CONTRACT_V2.version,
       parserVersion: 'synthetic-parser-1.0.0',
       readAt: fixedNow.toISOString(),
     });

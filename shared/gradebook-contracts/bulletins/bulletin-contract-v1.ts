@@ -22,6 +22,7 @@ import {
   type ResultCoverageV1,
   type TermResultId,
 } from '../results/results-contract-v1';
+import type { AssessmentComponentTypeV2 } from '../results/results-contract-v2';
 
 export const BULLETIN_CONTRACT_VERSION_V1 = 1 as const;
 export const BULLETIN_MODEL_VERSION_V1 = 1 as const;
@@ -32,16 +33,11 @@ export const BULLETIN_AUTHORITY_MODE_V1 =
 export const BULLETIN_MODEL_KINDS_V1 = ['synthetic', 'composition', 'detailed'] as const;
 export type BulletinModelKindV1 = (typeof BULLETIN_MODEL_KINDS_V1)[number];
 
-export const BULLETIN_EMISSION_STATUSES_V1 = [
-  'ready',
-  'blocked',
-  'insufficient-data',
-] as const;
+export const BULLETIN_EMISSION_STATUSES_V1 = ['ready', 'blocked', 'insufficient-data'] as const;
 export type BulletinEmissionStatusV1 = (typeof BULLETIN_EMISSION_STATUSES_V1)[number];
 
 export const BULLETIN_PRESENTATION_DATE_STYLES_V1 = ['short', 'long'] as const;
-export type BulletinPresentationDateStyleV1 =
-  (typeof BULLETIN_PRESENTATION_DATE_STYLES_V1)[number];
+export type BulletinPresentationDateStyleV1 = (typeof BULLETIN_PRESENTATION_DATE_STYLES_V1)[number];
 
 export interface BulletinPresentationOptionsV1 {
   readonly locale: string;
@@ -153,7 +149,7 @@ export interface BulletinTermCompositionV1 {
 export interface BulletinAssessmentEntryV1 {
   readonly assessmentComponentId: AssessmentComponentId;
   readonly gradeEntryId: GradeEntryId;
-  readonly type: AssessmentComponentTypeV1;
+  readonly type: AssessmentComponentTypeV1 | AssessmentComponentTypeV2;
   readonly name: string;
   readonly applicability: ApplicabilityV1;
   readonly value: BulletinComparedGradeValueV1;
@@ -265,9 +261,7 @@ export interface BulletinEmissionInsufficientDataV1 {
 }
 
 export type BulletinEmissionResultV1 =
-  | BulletinEmissionReadyV1
-  | BulletinEmissionBlockedV1
-  | BulletinEmissionInsufficientDataV1;
+  BulletinEmissionReadyV1 | BulletinEmissionBlockedV1 | BulletinEmissionInsufficientDataV1;
 
 export interface BulletinReprintRequestV1 {
   readonly contractVersion: typeof BULLETIN_CONTRACT_VERSION_V1;
@@ -406,10 +400,7 @@ export const BULLETIN_CONTRACT_V1 = {
 
 export type BulletinContractV1 = typeof BULLETIN_CONTRACT_V1;
 
-export type BulletinRequestReadinessV1 =
-  | 'ready'
-  | 'invalid-request'
-  | 'forbidden-client-payload';
+export type BulletinRequestReadinessV1 = 'ready' | 'invalid-request' | 'forbidden-client-payload';
 
 function canonicalFieldName(field: string): string {
   return field.replace(/[-_]/gu, '').toLowerCase();
@@ -422,9 +413,7 @@ function normalizedFieldSet(fields: readonly string[]): ReadonlySet<string> {
 const FORBIDDEN_CLIENT_REQUEST_FIELD_SET_V1 = normalizedFieldSet(
   BULLETIN_FORBIDDEN_CLIENT_REQUEST_FIELDS_V1,
 );
-const FORBIDDEN_ARTIFACT_FIELD_SET_V1 = normalizedFieldSet(
-  BULLETIN_FORBIDDEN_ARTIFACT_FIELDS_V1,
-);
+const FORBIDDEN_ARTIFACT_FIELD_SET_V1 = normalizedFieldSet(BULLETIN_FORBIDDEN_ARTIFACT_FIELDS_V1);
 
 function containsFieldFromSet(
   input: unknown,
@@ -530,9 +519,7 @@ export function inspectBulletinEmissionRequestV1(input: unknown): BulletinReques
   return 'ready';
 }
 
-export function inspectBulletinBatchEmissionRequestV1(
-  input: unknown,
-): BulletinRequestReadinessV1 {
+export function inspectBulletinBatchEmissionRequestV1(input: unknown): BulletinRequestReadinessV1 {
   if (hasForbiddenBulletinClientPayloadV1(input)) return 'forbidden-client-payload';
   if (
     !isRecord(input) ||
@@ -594,7 +581,8 @@ function hasCoherentBulletinAuthorityModesV1(model: BulletinModelV1): boolean {
           assessments.every(
             (assessment) => assessment.authorityMode === BULLETIN_AUTHORITY_MODE_V1,
           ),
-      ) && (annualResult === null || annualResult.authorityMode === BULLETIN_AUTHORITY_MODE_V1),
+      ) &&
+      (annualResult === null || annualResult.authorityMode === BULLETIN_AUTHORITY_MODE_V1),
   );
 }
 

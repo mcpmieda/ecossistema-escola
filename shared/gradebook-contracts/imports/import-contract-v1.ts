@@ -1,5 +1,6 @@
 import type { AcademicYearId, TeacherId } from '../entities';
 import { SOURCE_CONTRACT_V1 } from '../source/source-contract-v1';
+import type { SourceContractV2 } from '../source/source-contract-v2';
 import type {
   SourceCellEvidenceV1,
   SourceContractV1,
@@ -29,7 +30,8 @@ export interface SourceFileManifestV1 {
   readonly sizeBytes: number;
   readonly lastModifiedAt: string | null;
   readonly sha256: string;
-  readonly sourceContractVersion: SourceContractV1['version'];
+  /** Version of the source contract that produced this manifest. V1 envelopes also carry V2 reads. */
+  readonly sourceContractVersion: SourceContractV1['version'] | SourceContractV2['version'];
   readonly parserVersion: string;
   readonly readAt: string;
   readonly suggestedAcademicYear?: number;

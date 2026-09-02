@@ -18,6 +18,7 @@ import {
   type ComparedAcademicStateV1,
   type ResultCoverageV1,
 } from '../results/results-contract-v1';
+import type { AssessmentComponentTypeV2 } from '../results/results-contract-v2';
 
 export const CLASS_PERFORMANCE_CONTRACT_VERSION_V1 = 1 as const;
 
@@ -45,8 +46,7 @@ export type PerformancePeriodV1 =
     };
 
 export const PERFORMANCE_COMPARABILITY_STATES_V1 = ['comparable', 'not-comparable'] as const;
-export type PerformanceComparabilityStateV1 =
-  (typeof PERFORMANCE_COMPARABILITY_STATES_V1)[number];
+export type PerformanceComparabilityStateV1 = (typeof PERFORMANCE_COMPARABILITY_STATES_V1)[number];
 
 export const PERFORMANCE_COMPARISON_BASES_V1 = ['official-value', 'percentage'] as const;
 export type PerformanceComparisonBasisV1 = (typeof PERFORMANCE_COMPARISON_BASES_V1)[number];
@@ -59,8 +59,7 @@ export const PERFORMANCE_COLUMN_ORDER_V1 =
   'subject-code-display-name-assignment-id-ascending-code-unit' as const;
 
 export type PerformanceAuthorityModeV1 = Extract<AuthorityModeV1, 'imported-source'>;
-export const PERFORMANCE_AUTHORITY_MODE_V1 =
-  'imported-source' satisfies PerformanceAuthorityModeV1;
+export const PERFORMANCE_AUTHORITY_MODE_V1 = 'imported-source' satisfies PerformanceAuthorityModeV1;
 
 declare const performanceRowCursorBrand: unique symbol;
 declare const performanceColumnCursorBrand: unique symbol;
@@ -198,7 +197,7 @@ export interface PerformanceQualitativeProjectionV1 {
 export interface PerformanceAssessmentValueV1 {
   readonly assessmentComponentId: AssessmentComponentId;
   readonly name: string;
-  readonly type: AssessmentComponentTypeV1;
+  readonly type: AssessmentComponentTypeV1 | AssessmentComponentTypeV2;
   readonly order: number;
   readonly maximum: number;
   readonly applicability: ApplicabilityV1;
@@ -427,9 +426,7 @@ export function comparePerformanceComponentColumnsV1(
   );
 }
 
-export function isPerformanceStudentRowOrderV1(
-  items: readonly PerformanceStudentRowV1[],
-): boolean {
+export function isPerformanceStudentRowOrderV1(items: readonly PerformanceStudentRowV1[]): boolean {
   for (let index = 1; index < items.length; index += 1) {
     const previous = items[index - 1];
     const current = items[index];

@@ -37,6 +37,7 @@ function gradeSheet(input: {
   stage: string;
   declaredStudents: number;
   students: SyntheticStudent[];
+  assessmentHeaders?: Record<string, SyntheticCell>;
 }): Worksheet {
   const sheet: Worksheet = {
     '!ref': `A1:AN${Math.max(10, ...input.students.map((student) => student.row))}`,
@@ -44,6 +45,7 @@ function gradeSheet(input: {
     [metadata.subject]: { v: input.subject },
     [metadata.classGroup]: { v: input.classGroup },
     [metadata.stage]: { v: input.stage },
+    ...input.assessmentHeaders,
   };
 
   for (const student of input.students) {
@@ -57,6 +59,38 @@ function gradeSheet(input: {
 
   return sheet;
 }
+
+const LONG_UNICODE_ACTIVITY_NAME =
+  'Produção científica — investigação sobre frações, proporções e aplicações no cotidiano escolar sintético';
+
+const TERM_1_ASSESSMENT_HEADERS: Record<string, SyntheticCell> = {
+  R3: { v: 8 },
+  S3: { v: 5.5 },
+  AA3: { v: 3 },
+  AA4: { v: 'Pesquisa sobre frações' },
+  AB3: { v: 4 },
+  AB4: { v: 'Seminário' },
+  AC3: { v: '' },
+  AC4: { v: 'Atividade nomeada sem máximo' },
+  AD3: { v: '*' },
+  AD4: { v: LONG_UNICODE_ACTIVITY_NAME },
+  AE3: { v: 2.5 },
+  AE4: { v: 'Leitura e síntese' },
+};
+
+const TERM_2_ASSESSMENT_HEADERS: Record<string, SyntheticCell> = {
+  ...TERM_1_ASSESSMENT_HEADERS,
+  S3: { v: '*' },
+  AA3: { v: 4 },
+  AA4: { v: 'Pesquisa sobre frações — versão revisada' },
+};
+
+const TERM_3_ASSESSMENT_HEADERS: Record<string, SyntheticCell> = {
+  S3: { v: 6 },
+  AA4: { v: 'Pesquisa com definição ausente' },
+  AB3: { v: 5 },
+  AB4: { v: 'Apresentação final' },
+};
 
 const primaryStudents: SyntheticStudent[] = [
   {
@@ -73,6 +107,7 @@ const primaryStudents: SyntheticStudent[] = [
       AB: { v: 'texto-sintetico-invalido' },
       AC: { f: 'SUM(AA5:AB5)', w: '#N/A' },
       AD: { v: null },
+      AE: { v: 2.5 },
       [termColumns.qualitativeTotal]: { v: 8 },
       [termColumns.officialTermGrade]: { v: 9.5 },
       [termColumns.annualAccumulatedTotal]: { v: 20 },
@@ -203,6 +238,7 @@ export const SYNTHETIC_TEACHER_WORKBOOK: Workbook = {
       stage: '1º trimestre',
       declaredStudents: 2,
       students: primaryStudents,
+      assessmentHeaders: TERM_1_ASSESSMENT_HEADERS,
     }),
     '6B1º': gradeSheet({
       subject: 'Matemática Sintética',
@@ -210,6 +246,7 @@ export const SYNTHETIC_TEACHER_WORKBOOK: Workbook = {
       stage: '1º trimestre',
       declaredStudents: 1,
       students: [transferredStudentAtDestination],
+      assessmentHeaders: TERM_1_ASSESSMENT_HEADERS,
     }),
     '6A2º': gradeSheet({
       subject: 'Matemática Sintética',
@@ -217,6 +254,7 @@ export const SYNTHETIC_TEACHER_WORKBOOK: Workbook = {
       stage: '2º trimestre',
       declaredStudents: 2,
       students: primaryStudents.slice(0, 2),
+      assessmentHeaders: TERM_2_ASSESSMENT_HEADERS,
     }),
     '6A2ºD2': gradeSheet({
       subject: 'Ciências Sintéticas',
@@ -224,6 +262,7 @@ export const SYNTHETIC_TEACHER_WORKBOOK: Workbook = {
       stage: '2º trimestre',
       declaredStudents: 2,
       students: primaryStudents.slice(0, 2),
+      assessmentHeaders: TERM_2_ASSESSMENT_HEADERS,
     }),
     '6A3º': gradeSheet({
       subject: 'Matemática Sintética',
@@ -231,6 +270,7 @@ export const SYNTHETIC_TEACHER_WORKBOOK: Workbook = {
       stage: '3º trimestre',
       declaredStudents: 2,
       students: primaryStudents.slice(0, 2),
+      assessmentHeaders: TERM_3_ASSESSMENT_HEADERS,
     }),
     '6A3ºD3': gradeSheet({
       subject: 'Projeto Sintético',
@@ -238,6 +278,7 @@ export const SYNTHETIC_TEACHER_WORKBOOK: Workbook = {
       stage: '3º trimestre',
       declaredStudents: 2,
       students: primaryStudents.slice(0, 2),
+      assessmentHeaders: TERM_3_ASSESSMENT_HEADERS,
     }),
     '6AREC': gradeSheet({
       subject: 'Matemática Sintética',

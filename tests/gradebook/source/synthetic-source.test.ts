@@ -4,6 +4,10 @@ import {
   isSourceQualitativeActivityApplicableV1,
 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
 import {
+  resolveSourceAssessmentDefinitionV2,
+  type SourceAssessmentSlotV2,
+} from '../../../shared/gradebook-contracts/source/source-contract-v2';
+import {
   recognizeWorkbook,
   type GradeSheetRecognition,
   type StudentRecognition,
@@ -18,12 +22,23 @@ import {
   createSyntheticSheetJs,
 } from '../fixtures/synthetic-teacher-workbooks';
 
+const SYNTHETIC_SHA256 = 'a'.repeat(64);
+
 function recognizeSyntheticWorkbook() {
   return recognizeWorkbook(
     createSyntheticFile(SYNTHETIC_FILES.xlsx),
     SYNTHETIC_TEACHER_WORKBOOK,
     createSyntheticSheetJs(),
+    { fileSha256: SYNTHETIC_SHA256 },
   );
+}
+
+function requiredDefinition(sheetName: string, sourceSlot: SourceAssessmentSlotV2) {
+  const definition = requiredSheet(sheetName).assessmentDefinitions.find(
+    (candidate) => candidate.sourceSlot === sourceSlot,
+  );
+  if (!definition) throw new Error(`Fixture sintética perdeu a definição ${sourceSlot}.`);
+  return definition;
 }
 
 function requiredSheet(name: string): GradeSheetRecognition {
@@ -100,18 +115,22 @@ describe('massa sintética — semântica observável das células', () => {
   it('CELL-001/CELL-010: vazio e campo ausente não viram zero no leitor atual', () => {
     const student = requiredStudent('6A1º', 5);
     expect(student.qualitative[3]).toBeNull();
-    expect(student.qualitative[4]).toBeNull();
+    expect(student.qualitative[5]).toBeNull();
     expect(SOURCE_CONTRACT_V1.semantics.empty).toBe('absence');
     expect(SOURCE_CONTRACT_V1.semantics.notApplicable).toBe('not-applicable');
     expect(SOURCE_CONTRACT_V1.semantics.missingField).toBe('missing-field');
   });
 
   it('CELL-002: preserva 0,1 na origem e expõe zero oficial', () => {
-    expect(requiredStudent('6A1º', 5).written).toEqual(SYNTHETIC_EXPECTATIONS.cells.officialZero);
+    expect(requiredStudent('6A1º', 5).quantitativeAssessments[0]).toEqual(
+      SYNTHETIC_EXPECTATIONS.cells.officialZero,
+    );
   });
 
   it('CELL-003: mantém zero manual legado distinto', () => {
-    expect(requiredStudent('6A1º', 5).simulation).toEqual(SYNTHETIC_EXPECTATIONS.cells.legacyZero);
+    expect(requiredStudent('6A1º', 5).quantitativeAssessments[1]).toEqual(
+      SYNTHETIC_EXPECTATIONS.cells.legacyZero,
+    );
   });
 
   it('CELL-004/CELL-005: preserva números manuais positivos e negativos', () => {
@@ -179,15 +198,39 @@ describe('massa sintética — posições, movimentações e recuperação', () 
       { ...createSyntheticFile(SYNTHETIC_FILES.xlsx), name: 'massa-sintetica-ano-a.xlsx' },
       SYNTHETIC_TEACHER_WORKBOOK,
       createSyntheticSheetJs(),
+      { fileSha256: SYNTHETIC_SHA256 },
     );
     const second = recognizeWorkbook(
       { ...createSyntheticFile(SYNTHETIC_FILES.xlsx), name: 'massa-sintetica-ano-b.xlsx' },
       SYNTHETIC_TEACHER_WORKBOOK,
       createSyntheticSheetJs(),
+      { fileSha256: SYNTHETIC_SHA256 },
     );
 
     expect(first.fileName).not.toBe(second.fileName);
-    expect(first.classes).toEqual(second.classes);
+    expect(
+      first.classes.map(
+        ({ name, students, declaredStudents, disciplines, trimesters, recovery }) => ({
+          name,
+          students,
+          declaredStudents,
+          disciplines,
+          trimesters,
+          recovery,
+        }),
+      ),
+    ).toEqual(
+      second.classes.map(
+        ({ name, students, declaredStudents, disciplines, trimesters, recovery }) => ({
+          name,
+          students,
+          declaredStudents,
+          disciplines,
+          trimesters,
+          recovery,
+        }),
+      ),
+    );
   });
 
   it('REC-001/REC-002/REC-003/REC-004: lê originais, aplicabilidade, REC e total pós-REC', () => {
@@ -217,5 +260,92 @@ describe('massa sintética — posições, movimentações e recuperação', () 
     const recovery = requiredStudent('6AREC', 6).recovery;
     if (!recovery) throw new Error('Fixture sintética perdeu a leitura de recuperação da linha 6.');
     expect(recovery.trimester2).toBeNull();
+  });
+});
+
+describe('massa sintética — definições trimestrais V2', () => {
+  it('lê R3/S3 antes dos alunos e mantém R/S como slots quantitativos genéricos', () => {
+    const sheet = requiredSheet('6A1º');
+    expect(sheet.students.every((student) => student.row >= 5)).toBe(true);
+    expect(sheet.assessmentDefinitions).toHaveLength(12);
+    expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A1º', 'R'))).toMatchObject({
+      state: 'resolved',
+      kind: 'quantitative-assessment',
+      sourceSlot: 'R',
+      name: 'Avaliação quantitativa 1',
+      maximum: 8,
+    });
+    expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A1º', 'S'))).toMatchObject({
+      state: 'resolved',
+      kind: 'quantitative-assessment',
+      sourceSlot: 'S',
+      name: 'Avaliação quantitativa 2',
+      maximum: 5.5,
+    });
+    expect(JSON.stringify(sheet)).not.toContain('simulation');
+  });
+
+  it('separa AA3, AA4 e AA5 sem normalizar destrutivamente o nome livre', () => {
+    const definition = requiredDefinition('6A1º', 'AA');
+    if (definition.kind !== 'qualitative-activity')
+      throw new Error('AA deixou de ser qualitativa.');
+    expect(definition.maximumConfiguration).toMatchObject({
+      state: 'numeric',
+      rawValue: 3,
+      provenance: { cellAddress: 'AA3', fileSha256: SYNTHETIC_SHA256 },
+    });
+    expect(definition.name).toMatchObject({
+      state: 'text',
+      rawValue: 'Pesquisa sobre frações',
+      provenance: { cellAddress: 'AA4' },
+    });
+    expect(requiredStudent('6A1º', 5).qualitative[0]).toEqual(
+      SYNTHETIC_EXPECTATIONS.cells.manualNegative,
+    );
+  });
+
+  it('preserva vazio, *, Unicode e definição nomeada incompleta como insufficient-data', () => {
+    const empty = requiredDefinition('6A1º', 'AC');
+    const marker = requiredDefinition('6A1º', 'AD');
+    expect(empty.maximumConfiguration).toMatchObject({ state: 'ambiguous-empty', rawValue: '' });
+    expect(marker.maximumConfiguration).toMatchObject({ state: 'ambiguous-marker', rawValue: '*' });
+    expect(resolveSourceAssessmentDefinitionV2(empty)).toMatchObject({
+      state: 'insufficient-data',
+      observedName: 'Atividade nomeada sem máximo',
+      reason: 'maximum-ambiguous-empty',
+    });
+    expect(resolveSourceAssessmentDefinitionV2(marker)).toMatchObject({
+      state: 'insufficient-data',
+      reason: 'maximum-ambiguous-marker',
+    });
+    if (marker.kind !== 'qualitative-activity' || marker.name.state !== 'text') {
+      throw new Error('Nome Unicode sintético não foi preservado.');
+    }
+    expect(marker.name.rawValue).toContain('Produção científica — investigação');
+    expect(marker.name.rawValue.length).toBeGreaterThan(80);
+  });
+
+  it('observa mudança de nome/máximo e regressão de slot resolvido para ambíguo/ausente', () => {
+    expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A2º', 'AA'))).toMatchObject({
+      state: 'resolved',
+      name: 'Pesquisa sobre frações — versão revisada',
+      maximum: 4,
+    });
+    expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A2º', 'S'))).toMatchObject({
+      state: 'insufficient-data',
+      reason: 'maximum-ambiguous-marker',
+    });
+    expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A3º', 'R'))).toMatchObject({
+      state: 'insufficient-data',
+      reason: 'maximum-missing-field',
+    });
+  });
+
+  it('preserva T, AK, AM e AN do estudante sem recomposição pelos novos detalhes', () => {
+    const student = requiredStudent('6A1º', 5);
+    expect(student.quantitativeTotal).toEqual(SYNTHETIC_EXPECTATIONS.cells.formulaNonzero);
+    expect(student.qualitativeTotal).toEqual(SYNTHETIC_EXPECTATIONS.cells.manualPositive);
+    expect(student.official?.value).toBe(9.5);
+    expect(student.annual?.value).toBe(20);
   });
 });

@@ -243,6 +243,7 @@ function validEntityShape(record: AcademicEntityRecordV1): boolean {
         (value.term === 1 || value.term === 2 || value.term === 3) &&
         (value.type === 'written' ||
           value.type === 'simulation' ||
+          value.type === 'quantitative-assessment' ||
           value.type === 'qualitative-activity' ||
           value.type === 'parallel-recovery') &&
         typeof value.name === 'string' &&

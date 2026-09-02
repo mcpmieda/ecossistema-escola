@@ -343,10 +343,10 @@ async function fixture(): Promise<SqliteD1Database> {
         academicYearId: year,
         teachingAssignmentId: assignments[index],
         term: 1,
-        type: 'written',
-        name: `Avaliação ${index + 1}`,
-        maximum: 10,
-        order: 1,
+        type: index ? 'qualitative-activity' : 'quantitative-assessment',
+        name: index ? 'Pesquisa sobre frações' : 'Avaliação quantitativa 1',
+        maximum: index ? 3 : 8,
+        order: index ? 3 : 1,
         applicability: { state: 'applicable' },
       },
       teachingAssignmentId: assignments[index],
@@ -507,6 +507,19 @@ describe('fonte D1 em lote de Desempenho V1', () => {
         expect(projection).toHaveProperty('officialGrade.calculated');
       }
       if (lens === 'assessments') {
+        const assessmentItems = model!.rows.items
+          .flatMap((row) => row.cells)
+          .flatMap((cell) => (cell.lens === 'assessments' ? cell.projection.items : []));
+        expect(assessmentItems).toContainEqual(
+          expect.objectContaining({
+            assessmentComponentId: components[0],
+            name: 'Avaliação quantitativa 1',
+            type: 'quantitative-assessment',
+            order: 1,
+            maximum: 8,
+            applicability: { state: 'applicable' },
+          }),
+        );
         const values = model!.rows.items
           .flatMap((row) => row.cells)
           .flatMap((cell) =>

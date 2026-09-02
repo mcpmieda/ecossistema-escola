@@ -20,12 +20,14 @@ import type {
 import type {
   AcademicGradeValueV1,
   ApplicabilityV1,
-  AssessmentComponentV1,
   GradeEntryV1,
   ResultCoverageV1,
   TermResultV1,
 } from '../../../../../shared/gradebook-contracts/results/results-contract-v1';
-import type { AcademicRecordV1 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import type {
+  AcademicRecordV1,
+  PersistedAssessmentComponentV1,
+} from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import type {
   ClassPerformanceSourceV1,
   PerformanceCellDetailSourceRequestV1,
@@ -198,7 +200,7 @@ interface Materialized {
   readonly histories: ReadonlyMap<string, readonly StudentStatusEventV1[]>;
   readonly assignments: readonly TeachingAssignmentV1[];
   readonly subjects: ReadonlyMap<string, SubjectV1>;
-  readonly components: readonly AssessmentComponentV1[];
+  readonly components: readonly PersistedAssessmentComponentV1[];
   readonly records: readonly AcademicRecordV1[];
 }
 
@@ -559,7 +561,7 @@ export class GradebookD1ClassPerformanceSourceV1 implements ClassPerformanceSour
       assignments,
       subjects,
       components: componentRows.map((row) =>
-        entity<AssessmentComponentV1>(row, 'assessment-component', year),
+        entity<PersistedAssessmentComponentV1>(row, 'assessment-component', year),
       ),
       records: recordRows.map((row) => record(row, year)),
     };
