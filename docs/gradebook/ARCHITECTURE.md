@@ -36,7 +36,7 @@ Planejamento não grava; revisão não promove; executor não resolve ambiguidad
 
 ## Autoridade
 
-`authorityMode` continua `imported-source` após a onda 21. O motor nativo permanece comparativo e a eventual troca de autoridade pertence a F9/#347. Conselho continua separando cálculo de decisão humana.
+`authorityMode` continua `imported-source` após a onda 22. A BN-DEC-019 registra `native-engine` apenas como autoridade-alvo futura; a troca efetiva pertence à #347 depois de produção controlada, piloto e vigência explícita. Conselho continua separando cálculo de decisão humana.
 
 ## Fidelidade das avaliações V2
 
@@ -110,6 +110,7 @@ GradebookD1RuntimeV1
   ├── operationalReadModels()
   ├── operationalWorkspaceAcademicYears()
   ├── auditWorkspace(...)
+  ├── deterministicCorrectionWorkspace(...)
   ├── classPerformanceReadModel()
   ├── bulletinSnapshotRepository()
   ├── councilDecisionStore()
@@ -128,7 +129,7 @@ Ano explícito; pesquisa autorizada; navegação `kind + id` opaca; abort/dedupe
 
 ## Audit Workspace F4
 
-Listas batch/keyset; resolução CAS; ator = `session.oid`; instante = servidor. Promoção continua exclusiva de `planImportReconciliation` + `executeImportChangePlan`. Fechamento autoritativo bullet-a-bullet: #353.
+Listas batch/keyset; resolução CAS; ator = `session.oid`; instante = servidor. A onda 22 adiciona investigação V2 e stop fail-closed no mesmo `POST /api/gradebook/audit-workspace`. Correção automática só ocorre com prova determinística, um alvo exato e precondição CAS/inputs imutáveis; promoção continua exclusiva de `planImportReconciliation` + `executeImportChangePlan`, com ocorrência sanitizada na mesma transação. A planilha original e decisões humanas nunca entram no corretor.
 
 ## Desempenho F6
 
@@ -143,12 +144,14 @@ D1 → GradebookD1ClassPerformanceSourceV1 → createClassPerformanceReadModelV1
 - paginação independente rows/columns;
 - drill-down aluno/célula;
 - raw source evidence não atravessa HTTP;
-- comparison sem resolvedor oficial continua `not-comparable`;
+- comparação proporcional usa percentual oficial, current/reference explícitos e compatibilidade de perfil declarada;
+- configuração institucional é server-side, default habilitado e pode desabilitar a projeção sem alterar notas;
+- a tabela global de Configurações expõe linhas de `PLATAFORMA_CONFIGURACOES`; o write administrativo permanece `not-integrated-hard-stop` porque não há capability/rota autorizada;
 - annual non-result sem projeção oficial continua `insufficient-data`;
 - `recovery + result` usa `FinalRecoveryV1`; demais lentes usam trimestre;
 - UI não calcula regra acadêmica.
 
-Comparabilidade proporcional e gráficos úteis ficam para #355, sem criar métricas por conveniência.
+Os dois gráficos oficiais permanecem sobre o percentual já resolvido. A comparação não cria média, ranking, índice, epsilon ou percentual por atividade e preserva o orçamento bounded de seis queries físicas.
 
 ## Boletins F8 + PDF
 

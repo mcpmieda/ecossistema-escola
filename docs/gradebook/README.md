@@ -9,17 +9,19 @@ Este diretório é a memória oficial do Banco de Notas. Para execução, preval
 - [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, ondas e dependências;
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina;
 - [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) — gates, ensaios e protocolo F9;
-- [Issue #367](https://github.com/mcpmieda/ecossistema-escola/issues/367) — integração da onda 21.
+- [Issue #374](https://github.com/mcpmieda/ecossistema-escola/issues/374) — integração da onda 22.
 
-## Estado atual — onda 21
+## Estado atual — onda 22
 
-A onda 21 corrige prospectivamente a fidelidade das definições trimestrais antes do piloto:
+A onda 22 integrou a decisão institucional, os contratos e as duas fundações operacionais:
 
-- #365 / PR #368 — `SourceContractV2` e `AssessmentComponentV2` para R/S e AA:AJ, preservando V1 histórico;
-- #366 / PR #369 — reconhecimento, materialização, versionamento, D1 e consumidores ponta a ponta;
-- #367 / PR #370 — regressão transversal, memória canônica e nova readiness sintética.
+- #349 / PR #375 — BN-DEC-019 consolidada, sem ativar produção ou autoridade;
+- #371 / PR #376 — contratos V2 de comparação proporcional e reconciliação determinística;
+- #372 / PR #377 — comparação profile-aware no bridge existente de Desempenho;
+- #373 / PR #378 — investigação/correção determinística no Audit Workspace existente;
+- #374 / PR #379 — regressão transversal, memória canônica e publicação da composição.
 
-A F1 7/7 continua sendo evidência correta do contrato vigente à época. A onda 21 é manutenção prospectiva pós-validação, não reinterpretação retroativa. O resultado máximo de readiness continua **`prepared-for-manual-authorization`**.
+A F1 7/7 e a fidelidade prospectiva da onda 21 permanecem intactas. O resultado máximo de readiness continua **`prepared-for-manual-authorization`**.
 
 ## Invariantes ativos
 
@@ -48,13 +50,17 @@ Cinco hard stops continuam obrigatórios e independentes:
 - **F2:** persistência e durabilidade completas em local/preview; produção desativada;
 - **F3:** motor V1 comparativo; autoridade continua importada;
 - **F4/F5:** concluídas;
-- **F6:** gráficos oficiais entregues; comparação proporcional segue bloqueada sem semântica canônica;
+- **F6:** concluída; gráficos oficiais e comparação proporcional profile-aware integrados, com configuração server-side e write administrativo ainda em hard stop;
 - **F7/F8:** Conselho V2, decisões/snapshots duráveis, PDF e Relatórios integrados em local/preview;
 - **F9:** preparação de readiness concluída; piloto, produção e mudança de autoridade não autorizados.
 
 ## Próximo gate
 
-Não há ativação automática após a onda 21. O projeto retorna aos gates manuais F9. Qualquer provisionamento, binding, migration remota, smoke acadêmico produtivo ou piloto real exige issue/autorização própria. A #347 não pode ser antecipada e depende de autorização institucional separada.
+Não há ativação automática após a onda 22. A ordem recomendada é:
+
+`onda 22 concluída → onda 23 produção controlada → onda 24 piloto real → #347 autoridade nativa`
+
+A onda 23 deve usar issues próprias e gates independentes para recurso/binding, migration remota e smoke acadêmico produtivo. Piloto real e mudança de autoridade continuam proibidos até suas etapas posteriores.
 
 ## Processo oficial
 

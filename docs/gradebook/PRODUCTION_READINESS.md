@@ -12,9 +12,11 @@ Estado fechado pela #360:
 - produção acadêmica fail-closed antes de `GRADEBOOK_D1`;
 - D1 acadêmico de produção, binding e migrations remotas ausentes;
 - dados do repositório e da CI exclusivamente sintéticos;
-- ativação do motor nativo separada em #347 e na trilha normativa BN-DEC-019/#349/#350.
+- ativação do motor nativo separada em #347 e na trilha normativa BN-DEC-019/#349/PR #375.
 
 A #367 revalidou estes mesmos gates depois da evolução prospectiva de fidelidade das avaliações da onda 21 (#365/#366). A manutenção preserva o resultado histórico F1 7/7, não cria recurso/binding/migration remota e devolve o projeto ao mesmo estado máximo `prepared-for-manual-authorization`.
+
+A #374 revalida os gates depois da onda 22. Comparação proporcional e correção determinística estão integradas apenas em código/local/preview; possível impacto acadêmico permanece `stop`, `imported-source` continua autoridade e nenhum D1/binding/migration/smoke acadêmico produtivo ou piloto real foi executado.
 
 `server/gradebook/readiness/production-readiness-v1.ts` materializa os gates preparatórios e os
 hard stops como dados puros. Ele não contém cliente HTTP, API Cloudflare, Wrangler, SQL ou executor
@@ -33,6 +35,12 @@ O avaliador retorna `scope-violation` se observar qualquer um destes estados:
 - binding D1 acadêmico produtivo presente;
 - migration remota aplicada;
 - piloto real executado.
+
+Próxima ordem autorizada de trabalho, sem autorização implícita para executar os passos:
+
+`onda 22 concluída → onda 23 produção controlada → onda 24 piloto real → #347 autoridade nativa`
+
+A onda 23 deve separar recurso/binding, migration remota e smoke acadêmico produtivo em gates/issues próprios. A presença da BN-DEC-019 permite planejar essas issues, mas não remove os hard stops abaixo.
 
 ## Gates preparatórios executáveis
 
