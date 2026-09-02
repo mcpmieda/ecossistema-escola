@@ -8,6 +8,9 @@ import {
   createGradebookD1WriteUnitOfWorkV1,
   type D1WriteDatabaseV1,
   type GradebookD1WriteAdapterOptionsV1,
+  type D1WriteRunResultV1,
+  type D1WriteStatementV1,
+  type D1WriteValueV1,
 } from '../write/d1-write-adapter-v1';
 
 type D1TransactionRowV1 = Record<string, unknown>;
@@ -62,13 +65,83 @@ function validRequest(
   );
 }
 
+interface D1AtomicBatchDatabaseV1 extends D1WriteDatabaseV1 {
+  batch(statements: readonly D1WriteStatementV1[]): Promise<readonly D1WriteRunResultV1[]>;
+}
+
+function supportsAtomicBatch(database: D1WriteDatabaseV1): database is D1AtomicBatchDatabaseV1 {
+  return typeof database.batch === 'function';
+}
+
+const MUTATION_GUARD_SQL =
+  "SELECT CASE WHEN changes() = ? THEN 1 ELSE json('gradebook_atomic_batch_guard_failure') END AS gradebook_atomic_batch_guard";
+
+class GradebookD1RecordedStatementV1 implements D1WriteStatementV1 {
+  constructor(
+    private readonly owner: GradebookD1AtomicBatchRecorderV1,
+    private readonly statement: D1WriteStatementV1,
+  ) {}
+
+  bind(...values: D1WriteValueV1[]): D1WriteStatementV1 {
+    return new GradebookD1RecordedStatementV1(this.owner, this.statement.bind(...values));
+  }
+
+  first<Row extends Record<string, unknown>>(): Promise<Row | null> {
+    return this.statement.first<Row>();
+  }
+
+  all<Row extends Record<string, unknown>>(): Promise<{ readonly results: readonly Row[] }> {
+    return this.statement.all<Row>();
+  }
+
+  async run(): Promise<D1WriteRunResultV1> {
+    this.owner.recordMutation(this.statement, 1);
+    return { success: true, meta: { changes: 1 } };
+  }
+}
+
+class GradebookD1AtomicBatchRecorderV1 implements D1WriteDatabaseV1 {
+  private readonly statements: D1WriteStatementV1[] = [];
+
+  constructor(private readonly database: D1AtomicBatchDatabaseV1) {}
+
+  prepare(query: string): D1WriteStatementV1 {
+    return new GradebookD1RecordedStatementV1(this, this.database.prepare(query));
+  }
+
+  exec(query: string): void {
+    if (/^(SAVEPOINT|RELEASE SAVEPOINT|ROLLBACK TO SAVEPOINT)\b/.test(query.trim())) return;
+    fail('transaction-failed');
+  }
+
+  recordMutation(statement: D1WriteStatementV1, expectedChanges: number): void {
+    this.statements.push(
+      statement,
+      this.database.prepare(MUTATION_GUARD_SQL).bind(expectedChanges),
+    );
+  }
+
+  async commit(): Promise<void> {
+    if (this.statements.length === 0) return;
+    let results: readonly D1WriteRunResultV1[];
+    try {
+      results = await this.database.batch(this.statements);
+    } catch {
+      return fail('transaction-failed');
+    }
+    if (results.length !== this.statements.length || results.some(({ success }) => success === false)) {
+      return fail('transaction-failed');
+    }
+  }
+}
+
 export class GradebookD1BatchPromotionTransactionV1 implements BatchPromotionTransactionPortV1 {
   private active = false;
   private readonly unitOfWork: PersistenceUnitOfWorkV1;
 
   constructor(
     private readonly database: D1WriteDatabaseV1,
-    options: GradebookD1WriteAdapterOptionsV1 = {},
+    private readonly options: GradebookD1WriteAdapterOptionsV1 = {},
   ) {
     this.unitOfWork = createGradebookD1WriteUnitOfWorkV1(database, options);
   }
@@ -143,6 +216,48 @@ export class GradebookD1BatchPromotionTransactionV1 implements BatchPromotionTra
     }
   }
 
+  private async runAtomicBatch<T>(
+    context: AcademicPersistenceContextV1,
+    request: BatchPromotionRequestV1,
+    operation: (unitOfWork: PersistenceUnitOfWorkV1) => Promise<T>,
+  ): Promise<T> {
+    if (!supportsAtomicBatch(this.database)) return fail('transaction-failed');
+    const recorder = new GradebookD1AtomicBatchRecorderV1(this.database);
+    recorder.recordMutation(
+      this.database
+        .prepare(
+          `UPDATE import_batch_streams
+           SET current_version = current_version
+           WHERE academic_year_id = ? AND import_batch_id = ? AND current_version = ?`,
+        )
+        .bind(context.academicYearId, request.importBatchId, request.expectedBatchVersion),
+      1,
+    );
+    for (const importFileId of request.approvedImportFileIds) {
+      recorder.recordMutation(
+        this.database
+          .prepare(
+            `UPDATE import_batch_files
+             SET status = status
+             WHERE academic_year_id = ? AND import_batch_id = ? AND batch_version = ?
+               AND import_file_id = ? AND status = 'approved'`,
+          )
+          .bind(
+            context.academicYearId,
+            request.importBatchId,
+            request.expectedBatchVersion,
+            importFileId,
+          ),
+        1,
+      );
+    }
+    const result = await operation(
+      createGradebookD1WriteUnitOfWorkV1(recorder, this.options),
+    );
+    await recorder.commit();
+    return result;
+  }
+
   async runBatchPromotion<T>(
     context: AcademicPersistenceContextV1,
     request: BatchPromotionRequestV1,
@@ -153,6 +268,11 @@ export class GradebookD1BatchPromotionTransactionV1 implements BatchPromotionTra
 
     this.active = true;
     try {
+      if (supportsAtomicBatch(this.database)) {
+        await this.assertPromotable(context, request);
+        return await this.runAtomicBatch(context, request, operation);
+      }
+
       await this.control('BEGIN IMMEDIATE');
 
       try {
