@@ -6,26 +6,31 @@
 
 Issues-pai (`#182`, `#184`–`#192`) são acompanhamento. Integrações são executadas apenas pela issue de integração da onda.
 
-## Onda 17 — integração #337
+## Onda 18 — integração #343
 
 | Frente | Issue / PR | Resultado |
 | :----: | ---------- | --------- |
-| A | `#335 / #338` | PDF canônico de Boletins, client-side e lazy, sempre sobre snapshot oficial |
-| B | `#336 / #339` | F9: shell lazy, isolamento, segurança/storage, a11y e redução de carga inicial |
-| Integração | `#337` | composição final, deep-link por área, verify/deploy/docs e próxima onda |
+| A | `#340 / #351` | snapshots de Boletins e decisões de Conselho duráveis em D1 local/preview, migration 0004, append-only/CAS |
+| B | `#341 / #345` | Conselho V2: revisão, fechamento explícito, fotografia/histórico imutável e votação opcional fail-closed no desempate |
+| C | `#342 / #346` | Relatórios institucionais sobre dados oficiais e PDF em lote bounded/sequencial |
+| Integração | `#343 / #352` | providers duráveis, Council V2/Reports no shell, bridges, verify/deploy/docs e liberação da onda 19 |
 
-A composição validada de #335+#336 passou com **100 arquivos / 819 testes**. O renderer PDF fica em chunk separado (~9,71 kB / 3,81 kB gzip). O entry combinado permanece 552,28 kB / 167,15 kB gzip; contabilizando o chunk compartilhado `alert`, o caminho inicial conservador é 661,25 kB / 202,82 kB gzip, abaixo do baseline pós-#328 de 820,68 kB / 235,71 kB gzip.
+Heads validados das frentes:
+
+- #340: `a7be6d44591b2212205455934a20a7e4ce307e53`;
+- #341: `ca87c81b098cd5b43111aa8684d5285b9666e988`;
+- #342: `540d408196f3a7a9d71337315100efc4245b9c10`.
 
 ## Invariantes atuais
 
-- `authorityMode: imported-source`;
+- `authorityMode: imported-source` continua ativo nesta onda;
 - ano acadêmico sempre explícito;
 - autorização efetiva no servidor;
 - capability existente `gradebook.persistence.admin`;
 - produção acadêmica fail-closed antes de `GRADEBOOK_D1`;
-- nenhum banco/binding/migration/secret/recurso remoto acadêmico novo;
+- nenhuma migration remota, binding, secret ou recurso acadêmico remoto;
 - nenhuma regra acadêmica na UI/HTTP/wiring;
-- nenhuma heurística de REC ou comparabilidade inventada;
+- nenhuma heurística de REC, comparação, taxa, média ou ranking inventada;
 - somente dados sintéticos no repositório/CI.
 
 ## Bridges únicos
@@ -34,6 +39,7 @@ A composição validada de #335+#336 passou com **100 arquivos / 819 testes**. O
 - `POST /api/gradebook/audit-workspace`;
 - `POST /api/gradebook/performance`;
 - `POST /api/gradebook/bulletins`;
+- `POST /api/gradebook/reports`;
 - `POST /api/gradebook/council-workspace`.
 
 Todos os dados acadêmicos enviados por esses bridges usam `no-store`. Claims de papel/capability/ator/instante vindos do navegador não substituem autorização ou identidade server-side.
@@ -41,12 +47,12 @@ Todos os dados acadêmicos enviados por esses bridges usam `no-store`. Claims de
 ## Shell do Banco
 
 - rota do Banco lazy;
-- Importação, Centrais, Auditoria, Desempenho, Boletins e Conselho em navegação compacta por tabs;
+- Importação, Centrais, Auditoria, Desempenho, Boletins, Relatórios e Conselho em navegação compacta por tabs;
 - superfícies acadêmicas carregadas apenas quando ativadas;
 - zero requests acadêmicos automáticos ao entrar no Banco;
 - error boundary da rota e boundary isolado por superfície;
 - áreas inativas fora do foco/a11y e estado React apenas efêmero;
-- busca global pode apontar diretamente para `#/banco-de-notas?area=operational|audit|performance|bulletins|council`;
+- busca global pode apontar diretamente para `#/banco-de-notas?area=operational|audit|performance|bulletins|reports|council`;
 - nenhum storage acadêmico em `localStorage`, `sessionStorage`, IndexedDB, Cache API ou service worker.
 
 ## Capacidades utilizáveis em local/preview
@@ -67,31 +73,29 @@ Todos os dados acadêmicos enviados por esses bridges usam `no-store`. Claims de
 - quatro lentes, regular/recovery e período explícito;
 - paginação independente de linhas/colunas e drill-down aluno/célula;
 - raw source evidence não atravessa HTTP;
-- `recovery + result` continua `FinalRecoveryV1`;
-- demais lentes recovery continuam trimestrais;
-- annual non-result continua `insufficient-data`;
 - comparação continua fail-closed (`not-comparable`) enquanto a semântica oficial não estiver integrada.
 
-### Conselho — F7
+### Conselho — F7 V2
 
-- fonte oficial `createGradebookD1CouncilOfficialProjectionSourceV1(...)` da #332;
-- 0/1/2/3+/insuficiente vêm somente da projeção upstream;
-- T1/T2/T3 e REC preservam autoridade importada; REC ambígua falha fechada;
-- Council Workspace não chama `resolveNativeAnnualOutcome`;
-- decisão humana, justificativa, histórico append-only e CAS separados do cálculo;
-- store de decisões ainda process-local/preview e descartável.
+- fonte oficial #332 para 0/1/2/3+/insuficiente, sem recálculo no workspace;
+- decisões duráveis em D1 local/preview, append-only e CAS;
+- fechamento explícito da turma, revisão pré-fechamento e fotografia histórica imutável;
+- edição de decisão/contagem rejeitada após fechamento;
+- votação numérica é opcional e nunca fabrica decisão;
+- empate permanece fail-closed enquanto identidade/capability oficial de diretor não existir;
+- estado da sessão/reunião V2 permanece provider-independent e process-local/preview nesta versão; a migration 0004 não inventa persistência para sessão/fechamento.
 
-### Boletins — F8
+### Boletins e Relatórios — F8
 
-- três modelos sobre `BulletinModelV1`;
+- três modelos canônicos sobre `BulletinModelV1`;
 - preview/emissão mesma materialização;
-- emissão individual e lote acadêmico agregado;
-- snapshots locais append-only/versionados/imutáveis;
-- reimpressão exclusivamente de snapshot histórico;
-- PDF oficial exclusivamente de `BulletinPdfInputV1` / `BulletinSnapshotV1`;
-- renderer client-side P&B/raster lazy, sem fetch acadêmico nem storage persistente no navegador;
-- reimpressão PDF faz zero leitura/materialização acadêmica atual e não cria nova versão;
-- PDF em lote não é disparado nesta versão; geração de arquivo é individual por snapshot.
+- snapshots/histórico duráveis em D1 local/preview;
+- reimpressão exclusivamente de snapshot histórico, sem leitura acadêmica atual;
+- PDF individual canônico, client-side/lazy;
+- PDF em lote bounded e sequencial: até 3 documentos, 72 páginas totais e uma geração concorrente;
+- reimpressão em lote usa somente snapshots históricos;
+- workspace de Relatórios cobre resultados/aproveitamento oficial, composição, recuperação, Conselho e Auditoria;
+- indicador derivado sem semântica oficial permanece fail-closed.
 
 ## F1 — concluída definitivamente
 
@@ -99,9 +103,20 @@ F1 está **7/7** e a #184 está fechada como `completed`. Protocolo real, smoke 
 
 ## Estado real do D1
 
-Local/preview possui migrations 0001–0003, runtime autorizado, UoW acadêmica, fontes/read models e experiências F4–F8.
+Local/preview possui migrations 0001–0004 e 25 tabelas. A 0004 adiciona somente os streams/versions necessários para snapshots de Boletins e decisões de Conselho. Não existe purge automático nem política de retenção inventada.
 
 Produção ainda não possui D1 acadêmico remoto, binding/migration remota ou consulta/persistência acadêmica ativa. A presença das páginas/handlers/PDF no código não significa ativação de produção: o runtime falha fechado antes de inspecionar `GRADEBOOK_D1`.
+
+## Próxima onda — 19
+
+Após a conclusão da #343:
+
+- #353 — fechamento autoritativo F4 Reconciliação/Auditoria;
+- #354 — cadastro/confirmação de Professor e atribuições anuais para fechar F5;
+- #355 — comparabilidade oficial e gráficos úteis de F6, sem métrica inventada;
+- #356 — integradora da onda 19.
+
+A transição futura para `native-engine` como autoridade está especificada na #347 e **não** é parte da onda 18/19 enquanto os gates F9 não forem satisfeitos.
 
 ## Fluxo de execução
 
@@ -125,7 +140,3 @@ frentes verdes
 ```
 
 Não usar App Factory, Factory Runs, subagentes ou orquestração salvo autorização explícita da issue.
-
-## Próxima onda
-
-A #337 deve abrir a próxima onda somente depois de validar a composição final. Priorizar poucas frentes grandes e verticalmente coerentes; não fragmentar durabilidade, Conselho, relatórios ou produção em microissues.
