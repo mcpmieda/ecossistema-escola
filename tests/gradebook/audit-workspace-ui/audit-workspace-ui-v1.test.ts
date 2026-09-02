@@ -11,6 +11,7 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
   const client = source('src/features/gradebook/audit-workspace/audit-workspace-client.ts');
   const handler = source('server/gradebook/http/audit-workspace-routes-v1.ts');
   const app = source('src/App.tsx');
+  const shell = source('src/platform/gradebook-workspace-shell.tsx');
   const functions = source('functions/[[path]].ts');
 
   it('usa HeroUI no shell existente e cobre os estados operacionais explícitos', () => {
@@ -22,8 +23,8 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
     for (const state of ['loading', 'ready', 'empty', 'unavailable', 'not-authorized']) {
       expect(page).toContain(`'${state}'`);
     }
-    expect(app).toContain("./features/gradebook/audit-workspace/audit-workspace-page");
-    expect(app).toContain("route === 'banco-de-notas' && <AuditWorkspacePage />");
+    expect(app).not.toContain('AuditWorkspacePage');
+    expect(shell).toContain("import('../features/gradebook/audit-workspace/audit-workspace-page')");
   });
 
   it('mantém ano explícito, três coleções, filtros, paginação e detalhe sob demanda', () => {

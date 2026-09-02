@@ -13,6 +13,7 @@ describe('Boletins HeroUI local/preview V1', () => {
   const client = source('src/features/gradebook/bulletins/bulletin-client.ts');
   const service = source('server/gradebook/application/bulletins/bulletin-workspace-service-v1.ts');
   const app = source('src/App.tsx');
+  const shell = source('src/platform/gradebook-workspace-shell.tsx');
   const functions = source('functions/[[path]].ts');
 
   it('mantém seleção explícita de ano, turma, aluno(s), período e os três modelos', () => {
@@ -75,14 +76,15 @@ describe('Boletins HeroUI local/preview V1', () => {
     expect(page).toContain('bloqueada(s)/insuficiente(s)');
   });
 
-  it('usa HeroUI e mantém o wiring central único da #328', () => {
+  it('usa HeroUI e está ligado ao shell lazy F9 sem criar novo bridge', () => {
     expect(page).toContain("from '@heroui/react'");
     expect(page).toContain('<Surface');
     expect(page).toContain('<Card');
     expect(page).toContain('<Button');
     expect(page).toContain('<Alert');
     expect(client).toContain("const BULLETIN_ENDPOINT = '/api/gradebook/bulletins'");
-    expect(app).toContain('BulletinPage');
+    expect(app).not.toContain('BulletinPage');
+    expect(shell).toContain("import('../features/gradebook/bulletins/bulletin-page')");
     expect(functions.match(/handleBulletinRequestV1/gu)).toHaveLength(2);
   });
 

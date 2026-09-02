@@ -21,13 +21,50 @@ export type NotesSection = {
 
 export const defaultNotesSectionId = 'importacao';
 
+const notesHref = platformHref('banco-de-notas');
+
 export const notesSections: NotesSection[] = [
   {
     id: defaultNotesSectionId,
     label: 'Importação',
     description: 'Importar e reconhecer planilhas de notas XLSB, XLSX e XLS.',
-    href: platformHref('banco-de-notas'),
+    href: notesHref,
     searchTerms: 'importar importação planilha planilhas xlsb xlsx xls leitor reconhecimento',
+  },
+  {
+    id: 'operational',
+    label: 'Centrais',
+    description: 'Consultar alunos, turmas, professores e componentes por ano acadêmico.',
+    href: notesHref,
+    searchTerms: 'central aluno turma professor componente operacional pesquisa acadêmica',
+  },
+  {
+    id: 'audit',
+    label: 'Auditoria',
+    description: 'Revisar ocorrências, reconciliações, histórico e resoluções.',
+    href: notesHref,
+    searchTerms: 'auditoria ocorrência reconciliação resolução divergência histórico',
+  },
+  {
+    id: 'performance',
+    label: 'Desempenho',
+    description: 'Analisar resultado, quantitativo, qualitativo e avaliações por turma.',
+    href: notesHref,
+    searchTerms: 'desempenho performance resultado quantitativo qualitativo avaliações turma',
+  },
+  {
+    id: 'bulletins',
+    label: 'Boletins',
+    description: 'Abrir preview, emissão, histórico e reimpressão de boletins.',
+    href: notesHref,
+    searchTerms: 'boletim boletins preview emissão histórico reimpressão',
+  },
+  {
+    id: 'council',
+    label: 'Conselho',
+    description: 'Abrir fila de Conselho de Classe e decisões formais autorizadas.',
+    href: notesHref,
+    searchTerms: 'conselho classe fila elegibilidade decisão anual',
   },
 ];
 

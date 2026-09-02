@@ -76,12 +76,20 @@ describe('gradebook importer structure', () => {
       expect(existsSync(join(root, 'src/features/gradebook/import', module))).toBe(true);
     }
 
-    const page = source('src/platform/notes-page.tsx');
-    expect(page).toContain(
+    const notesPage = source('src/platform/notes-page.tsx');
+    const workspacePage = source('src/platform/gradebook-workspace-page.tsx');
+    const shell = source('src/platform/gradebook-workspace-shell.tsx');
+
+    expect(notesPage).toContain("import('./gradebook-workspace-page')");
+    expect(notesPage).not.toContain('NotesImportPanel');
+    expect(workspacePage).toContain('<GradebookWorkspaceShell />');
+    expect(shell).toContain(
       "import { NotesImportPanel } from '../features/gradebook/import/import-panel';",
     );
-    expect(page).toContain('<NotesImportPanel />');
-    expect(page).not.toMatch(/xlsx\.read|recognizeWorkbook|loadSheetJs|useState/u);
+    expect(shell).toContain('<NotesImportPanel />');
+    expect(`${notesPage}\n${workspacePage}\n${shell}`).not.toMatch(
+      /xlsx\.read|recognizeWorkbook|loadSheetJs/u,
+    );
 
     const compatibilityExport = source('src/platform/notes-spreadsheet-recognizer.ts').trim();
     expect(compatibilityExport).toBe(

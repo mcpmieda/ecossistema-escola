@@ -10,9 +10,16 @@ function source(path: string): string {
 describe('operational workspace HeroUI experience v1', () => {
   it('mounts inside the existing Banco de notas shell without replacing the importer', () => {
     const app = source('src/App.tsx');
+    const workspacePage = source('src/platform/gradebook-workspace-page.tsx');
+    const shell = source('src/platform/gradebook-workspace-shell.tsx');
+
     expect(app).toContain('<PageContent route={route} snapshot={loadState.snapshot} />');
-    expect(app).toContain("route === 'banco-de-notas' && <OperationalWorkspacePage />");
-    expect(app).toContain("./features/gradebook/operational-workspace/operational-workspace-page");
+    expect(app).not.toContain('OperationalWorkspacePage');
+    expect(workspacePage).toContain('<GradebookWorkspaceShell />');
+    expect(shell).toContain('<NotesImportPanel />');
+    expect(shell).toContain(
+      "import('../features/gradebook/operational-workspace/operational-workspace-page')",
+    );
   });
 
   it('uses HeroUI actions, explicit year selection, keyboard submit and visible focus transfer', () => {
