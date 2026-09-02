@@ -40,7 +40,11 @@ export type CouncilSessionVoteResultV2 =
       readonly vote: CouncilVoteTallyV2;
     }
   | {
-      readonly status: 'version-conflict' | 'closed';
+      readonly status: 'version-conflict';
+      readonly currentVersion: number;
+    }
+  | {
+      readonly status: 'closed';
       readonly currentVersion: number;
     };
 
@@ -59,7 +63,11 @@ export type CouncilSessionCloseResultV2 =
       readonly snapshot: CouncilClosureSnapshotV2;
     }
   | {
-      readonly status: 'version-conflict' | 'already-closed';
+      readonly status: 'version-conflict';
+      readonly currentVersion: number;
+    }
+  | {
+      readonly status: 'already-closed';
       readonly currentVersion: number;
     };
 
