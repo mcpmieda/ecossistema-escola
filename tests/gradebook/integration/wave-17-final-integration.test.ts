@@ -42,10 +42,11 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
   it('mantém a rota e as cinco superfícies acadêmicas lazy e isoladas', () => {
     const notesPage = source('src/platform/notes-page.tsx');
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
+    const operationalSurface = source('src/platform/gradebook-operational-surface.tsx');
 
     expect(notesPage).toContain("import('./gradebook-workspace-page')");
     for (const imported of [
-      'operational-workspace-page',
+      'gradebook-operational-surface',
       'audit-workspace-page',
       'performance-page',
       'bulletin-page',
@@ -53,6 +54,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     ]) {
       expect(shell).toContain(imported);
     }
+    expect(operationalSurface).toContain('operational-workspace-page');
     expect(shell).toContain('class GradebookSurfaceBoundary');
     expect(shell).toContain('role="tablist"');
     expect(shell).toContain('aria-selected={selected}');
