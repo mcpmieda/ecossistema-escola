@@ -39,7 +39,9 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
 
     expect(runtime).toContain('createGradebookD1CouncilOfficialProjectionSourceV1(database)');
     expect(runtime).toContain('councilWorkspace(');
-    expect(runtime).toContain('createLocalCouncilDecisionStoreV1');
+    expect(runtime).toContain('createGradebookD1BulletinCouncilDurabilityV1(database)');
+    expect(runtime).toContain('decisions: this.durability.councilDecisions');
+    expect(runtime).not.toContain('createLocalCouncilDecisionStoreV1');
     expect(projection).toContain('resolveNativeAnnualOutcome');
     expect(projection).toContain('NATIVE_ANNUAL_OUTCOME_PROFILE_2026_V1');
     expect(projection).toContain('record.officialGrade.imported.value');
