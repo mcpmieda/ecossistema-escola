@@ -121,6 +121,13 @@ export type InstitutionalReportNonReadyV1 = {
   readonly hardStop: null;
 };
 
+export type InstitutionalReportTransportFailureV1 = {
+  readonly contractVersion: typeof INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V1;
+  readonly state: 'not-authorized' | 'unavailable';
+  readonly report: null;
+  readonly hardStop: null;
+};
+
 export type InstitutionalReportInvalidRequestV1 = {
   readonly contractVersion: typeof INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V1;
   readonly state: 'invalid-request';
@@ -133,6 +140,7 @@ export type InstitutionalReportResponseV1 =
   | InstitutionalCouncilReportReadyV1
   | InstitutionalAuditReportReadyV1
   | InstitutionalReportNonReadyV1
+  | InstitutionalReportTransportFailureV1
   | InstitutionalReportInvalidRequestV1;
 
 export type InstitutionalReportRequestReadinessV1 = 'ready' | 'invalid-request' | 'bounds-exceeded';
