@@ -150,7 +150,7 @@ export async function downloadBulletinPdfV1(
     anchor.download = filename;
     anchor.rel = 'noopener';
     anchor.hidden = true;
-    document.body.append(anchor);
+    document.body.appendChild(anchor);
     anchor.click();
   } catch (cause) {
     throw new BulletinPdfActionErrorV1(
@@ -228,7 +228,7 @@ export async function printBulletinPdfV1(
         },
         { once: true },
       );
-      document.body.append(frame);
+      document.body.appendChild(frame);
     });
   } finally {
     window.setTimeout(() => {
