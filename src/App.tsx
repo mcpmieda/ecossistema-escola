@@ -478,7 +478,7 @@ function CouncilWorkspaceMount() {
                   size="sm"
                   variant={selectedClass?.label === result.code ? 'primary' : 'outline'}
                   onPress={() => setSelectedClass({
-                    reference: result.id as CouncilClassReferenceV1,
+                    reference: result.id as unknown as CouncilClassReferenceV1,
                     label: result.code,
                   })}
                 >
