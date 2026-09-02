@@ -2,7 +2,7 @@ schema_version: 1
 project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
 production_url: https://admin.escolaieda.com/#/banco-de-notas
-updated_at: 2026-09-01
+updated_at: 2026-09-02
 
 coordination:
   canonical_decisions: docs/gradebook/DECISIONS.md
@@ -31,6 +31,7 @@ coordination:
 runtime:
   wave_15_integration_issue: 318
   wave_15_integration_pull_request: 324
+  wave_16_integration_issue: 328
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   current_route: '#/banco-de-notas'
@@ -49,6 +50,22 @@ runtime:
     preview: allowed-with-injected-binding
     production: fail-closed-before-binding
   academic_authority_mode: imported-source
+  academic_bridges:
+    operational_workspace:
+      route: POST /api/gradebook/operational-workspace
+      count: 1
+    audit_workspace:
+      route: POST /api/gradebook/audit-workspace
+      count: 1
+    performance:
+      route: POST /api/gradebook/performance
+      count: 1
+    bulletins:
+      route: POST /api/gradebook/bulletins
+      count: 1
+    council_workspace:
+      route: POST /api/gradebook/council-workspace
+      count: 1
 
 production:
   academic_d1_database: absent
@@ -57,6 +74,7 @@ production:
   academic_query_enabled: false
   academic_persistence_enabled: false
   remote_bulletin_snapshot_storage: absent
+  remote_council_decision_storage: absent
   rule: code-presence-does-not-imply-data-access
 
 scope:
@@ -71,6 +89,7 @@ scope:
     - standardized-technical-spreadsheet
     - production-academic-d1
     - remote-bulletin-snapshot-storage
+    - remote-council-decision-storage
     - unapproved-pdf-renderer
     - automatic-authority-switch
 
@@ -85,16 +104,17 @@ storage:
     - 0001_gradebook_context_entities_imports_v1.sql
     - 0002_gradebook_records_audit_v1.sql
     - 0003_logical_source_record_catalog_v1.sql
-  wave_15_schema_changed: false
+  wave_16_schema_changed: false
   production_provisioned: false
 
 contracts:
   source_contract_v1:
-    status: frozen
+    status: frozen-real-validation-complete
     schema_issue: 193
     validation_issue: 198
     runtime_manifest_issue: 199
-    manual_gate: controlled-real-corpus-validation
+    final_validation_issue: 184
+    validation_status: complete-7-of-7
   academic_entities_v1:
     status: frozen
     issue: 194
@@ -105,7 +125,7 @@ contracts:
     status: frozen
     issue: 197
   operational_workspace_v1:
-    status: implemented-local-preview
+    status: implemented-local-preview-http-ui
     contract_issue: 293
     implementation_issue: 302
     hardening_issue: 317
@@ -124,11 +144,15 @@ contracts:
     occurred_at_source: server
     promotion: informational-only
   class_performance_v1:
-    status: d1-source-and-runtime-composed-no-http-ui
+    status: implemented-local-preview-http-ui
     contract_issue: 295
     provider_issue: 304
     physical_source_issue: 315
+    end_to_end_issue: 325
     runtime_composition_issue: 318
+    integration_issue: 328
+    http_route: POST /api/gradebook/performance
+    bridge_count: 1
     authority_mode: imported-source
     physical_query_count_per_matrix_load: 6
     n_plus_one: forbidden
@@ -136,17 +160,40 @@ contracts:
     annual_non_result_without_official_projection: insufficient-data
     recovery_result_source: FinalRecoveryV1
     recovery_other_lenses_source: term-results
+    raw_source_evidence_over_http: forbidden
   bulletin_v1:
-    status: provider-independent-hardened-no-http-ui-pdf
+    status: implemented-local-preview-http-ui-no-pdf
     contract_issue: 296
     implementation_issue: 305
     hardening_issue: 316
+    end_to_end_issue: 326
+    integration_issue: 328
+    http_route: POST /api/gradebook/bulletins
+    bridge_count: 1
     authority_mode: imported-source
     batch_materialization: aggregated
-    snapshots: local-immutable-versioned
-    reprint: no-recalculation-no-current-academic-read
+    snapshots: local-immutable-versioned-disposable
+    reprint: historical-snapshot-only-no-current-academic-read
     remote_snapshot_persistence: absent
-    pdf_renderer: absent
+    pdf_renderer: pending-architectural-decision
+  council_workspace_v1:
+    status: implemented-local-preview-http-ui
+    implementation_issue: 327
+    official_projection_issue: 332
+    integration_issue: 328
+    http_route: POST /api/gradebook/council-workspace
+    bridge_count: 1
+    upstream_projection: createGradebookD1CouncilOfficialProjectionSourceV1
+    workspace_calls_annual_resolver: false
+    decision_store: local-preview-append-only-versioned-disposable
+    actor_source: server-session-oid
+    decided_at_source: server
+    unsupported_semantics:
+      - voting
+      - tie-break
+      - attendance-inference
+      - participant-rules
+      - undocumented-exceptions
 
 native_engine:
   status: implemented-v1
@@ -164,11 +211,17 @@ native_engine:
   council_foundation:
     direct_approval: integrated
     approved_after_recovery: integrated
-    failed_components_0: approved-by-annual-result
+    failed_components_0: follows-official-annual-result
     failed_components_1_or_2: eligible-for-council-when-coverage-complete
     failed_components_3_plus: not-eligible-for-council
     insufficient_coverage: no-final-eligibility-invention
     formal_decision: separate-from-calculation
+    official_projection_issue: 332
+    workspace_recalculation: forbidden
+    term_view_authority: imported
+    recovery_view_authority: imported-unambiguous-only
+    recovery_absent: not-applicable
+    recovery_ambiguous: insufficient-data
 
 features:
   importer:
@@ -216,26 +269,45 @@ features:
     pending_items: true
     resolution_cas: true
   performance:
-    status: integrated-internal-not-exposed
+    status: usable-local-preview
     physical_source: true
     read_model: true
     runtime_method: classPerformanceReadModel
-    http: false
-    ui: false
+    http: true
+    ui: true
+    lenses:
+      - result
+      - quantitative
+      - qualitative
+      - assessments
+    regular_recovery: true
+    independent_row_column_pagination: true
+    student_cell_drilldown: true
+    stale_response_discard: true
   bulletins:
-    status: integrated-internal-not-exposed
+    status: usable-local-preview-without-pdf
     provider_independent_emission: true
+    preview_uses_canonical_model: true
     aggregated_batch_materialization: true
     immutable_versioned_local_snapshots: true
     historical_reprint_without_recalculation: true
-    http: false
-    ui: false
+    historical_reprint_current_academic_reads: 0
+    http: true
+    ui: true
     pdf: false
   council:
-    status: foundation-only
-    operational_workspace: false
+    status: usable-local-preview
+    official_projection_source: true
+    operational_workspace: true
+    queue_batch: true
+    eligibility_recalculation_in_workspace: false
+    decision_human: true
+    history_append_only: true
+    cas: true
+    http: true
+    ui: true
   f9:
-    status: transversal-requirements-active-no-dedicated-wave-16-front
+    status: transversal-requirements-active-dedicated-large-front-now-justified
 
 wave_15:
   integration_issue: 318
@@ -263,72 +335,46 @@ wave_15:
       result: operational-workspace-hardening
   integration_composition:
     performance_source_plus_read_model_in_runtime: true
-    performance_http_ui: false
-    bulletins_runtime_http_ui: false
     audit_bridge_preserved: true
     operational_bridge_preserved: true
     production_gate_before_binding: true
 
 wave_16:
   strategy: large-vertical-parallel-fronts
-  release_condition: wave-15-integration-deploy-and-smokes
-  fronts:
+  integration_issue: 328
+  integration_pull_request: pending
+  implementation_merges:
     - issue: 325
-      phase: F6
-      title: performance-end-to-end-local-preview
-      recommended_executor: extra-high
-      integration_issue: 328
-      expected_outputs:
-        - transport-http
-        - heroui-matrix
-        - four-lenses
-        - regular-recovery
-        - row-column-pagination
-        - student-cell-detail
-        - stale-response-discard
-      hard_invariant: comparison-remains-fail-closed-without-official-resolver
+      pull_request: 329
+      head_sha: 8c76f7f6924e0260c28655a60ae0f3811274c6be
+      merge_commit: 4d1932053d7d0c5d6083164e3662d653b7c4293e
+      result: performance-end-to-end-local-preview
     - issue: 326
-      phase: F8
-      title: bulletins-end-to-end-local-preview
-      recommended_executor: extra-high
-      integration_issue: 328
-      expected_outputs:
-        - selection
-        - preview
-        - emission
-        - reprint
-        - batch
-        - local-snapshot-history
-        - http-ui
-      pdf_policy: same-front-if-no-new-architecture-otherwise-one-explicit-blocker
+      pull_request: 331
+      head_sha: b47ec86fd488679be2df722353dcbefba5e36bd1
+      merge_commit: 71dec5984124854d894e6f370018600456ea76f3
+      result: bulletins-end-to-end-local-preview-no-pdf
     - issue: 327
-      phase: F7
-      title: class-council-v1-no-new-rules
-      recommended_executor: extra-high
-      integration_issue: 328
-      expected_outputs:
-        - queue
-        - eligibility
-        - annual-t1-t2-t3-rec-view
-        - human-decision-separated-from-calculation
-        - justification
-        - history
-        - cas
-      forbidden_semantics:
-        - voting
-        - tie-break
-        - attendance-inference
-        - participant-rules
-        - undocumented-exceptions
-  integration:
-    issue: 328
-    recommended_executor: extra-high
-    blocked_by:
-      - 325
-      - 326
-      - 327
+      pull_request: 330
+      head_sha: 7d16f6772e3a5c6d4201c46ad8ab0c9219cb0e67
+      merge_commit: d86fa40ac4b6127fce270052a4fa3a1af6827fe8
+      result: council-workspace-decision-v1
+  unblock_foundation:
+    issue: 332
+    pull_request: 333
+    head_sha: f89ea6f1b8caf0c70bb431a2a958bf33759221bb
+    merge_commit: 6a5c79e99bab74ad373b26ddfdb268b470ff3ff6
+    result: council-official-annual-projection
+  integration_composition:
+    performance_http_ui: true
+    bulletins_http_ui: true
+    council_http_ui: true
+    council_official_projection_source: true
+    five_unique_academic_bridges: true
+    production_gate_before_binding: true
+    pdf_renderer: false
   dedicated_f9_front: false
-  f9_reassessment: after-wave-16-visible-functional-mass
+  f9_reassessment: justified-after-wave-16-visible-functional-mass
 
 phases:
   F0:
@@ -336,7 +382,7 @@ phases:
     status: complete
   F1:
     issue: 184
-    status: synthetic-complete-private-real-validation-pending
+    status: complete-validated-7-of-7
   F2:
     issue: 185
     status: local-persistence-complete-production-disabled
@@ -351,19 +397,16 @@ phases:
     status: operational-workspace-usable-local-preview-hardened
   F6:
     issue: 189
-    status: d1-source-read-model-runtime-composed-ui-http-next
-    next_issue: 325
+    status: performance-usable-local-preview
   F7:
     issue: 190
-    status: eligibility-foundation-integrated-operational-next
-    next_issue: 327
+    status: council-usable-local-preview-official-projection
   F8:
     issue: 191
-    status: emission-snapshots-integrated-ui-http-next
-    next_issue: 326
+    status: bulletins-usable-local-preview-pdf-pending
   F9:
     issue: 192
-    status: transversal-planned-dedicated-front-deferred
+    status: transversal-planned-dedicated-large-front-now-justified
 
 security_invariants:
   public_repository_no_real_student_data: required
@@ -373,6 +416,16 @@ security_invariants:
   academic_data_browser_persistent_storage: forbidden
   production_academic_binding_access: forbidden-before-explicit-activation
 
+historical_real_validation:
+  f1_status: complete-7-of-7
+  issue: 184
+  controlled_real_protocol: approved
+  authenticated_manifest_progress_diagnostic_smoke: approved
+  isolated_failure_smoke: approved
+  real_files_modified: 0
+  identifiable_data_published: 0
+  blocking_functional_divergences: 0
+  remaining_old_real_gates: 0
+
 manual_gates:
-  - controlled-real-corpus-validation-in-private-environment
-  - authenticated-production-smokes-only-with-authorized-environment-and-no-real-data-in-public-artifacts
+  - future-production-smokes-only-with-explicit-authorization-and-no-real-data-in-public-artifacts
