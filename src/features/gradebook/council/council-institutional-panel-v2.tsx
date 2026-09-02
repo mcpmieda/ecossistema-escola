@@ -71,6 +71,11 @@ export function CouncilInstitutionalPanelV2({
   const sequence = useRef(0);
   const confirmationRef = useRef<HTMLDivElement>(null);
   const conflictRef = useRef<HTMLDivElement>(null);
+  const onMeetingClosedChangeRef = useRef(onMeetingClosedChange);
+
+  useEffect(() => {
+    onMeetingClosedChangeRef.current = onMeetingClosedChange;
+  }, [onMeetingClosedChange]);
 
   const loadInstitutionalState = useCallback(
     async (signal?: AbortSignal) => {
@@ -105,14 +110,14 @@ export function CouncilInstitutionalPanelV2({
         setReview(reviewResponse);
         setHistory(historyResponse.outcome === 'closure-history' ? historyResponse.entries : []);
         setPanelState('ready');
-        onMeetingClosedChange(reviewResponse.meeting.state === 'closed');
+        onMeetingClosedChangeRef.current(reviewResponse.meeting.state === 'closed');
       } catch (error) {
         if (signal?.aborted || requestSequence !== sequence.current) return;
         setPanelState(clientState(error));
         setReview(null);
       }
     },
-    [academicYearId, classReference, onMeetingClosedChange],
+    [academicYearId, classReference],
   );
 
   useEffect(() => {
@@ -211,7 +216,7 @@ export function CouncilInstitutionalPanelV2({
       if (response.outcome === 'closed') {
         setConfirmingClose(false);
         setLiveMessage(`Conselho fechado na versão institucional ${response.version}.`);
-        onMeetingClosedChange(true);
+        onMeetingClosedChangeRef.current(true);
         await loadInstitutionalState();
         return;
       }
