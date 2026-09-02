@@ -144,3 +144,58 @@ A reimportação será idempotente, incremental e auditável. Não se adotará a
 Quotas, consumo, disponibilidade e saúde de Cloudflare, D1, Workers e integrações pertencem ao Centro de Administração, em área administrativa global `Configurações → Saúde e limites`.
 
 Cada módulo pode fornecer métricas próprias, inclusive impacto estimado de importações do Banco de Notas, mas não mantém um painel isolado de infraestrutura. Tokens e credenciais nunca chegam ao navegador; métricas são obtidas por backend autorizado e não podem conter nomes, notas ou payload acadêmico. A indisponibilidade da fonte de métricas deve gerar estado parcial/desatualizado, não indisponibilidade do ambiente inteiro.
+
+## BN-DEC-019 — Autoridade nativa, comparação proporcional e correção determinística
+
+**Data:** 2026-09-02  
+**Status:** vigente  
+**Origem:** issue #349  
+**Complementa:** BN-DEC-007; não altera a autoridade ativa antes do rollout autorizado
+
+O motor nativo do Banco Online é a autoridade-alvo dos resultados acadêmicos determinísticos cobertos por perfil oficial versionado. A planilha permanece fonte documental/de importação e referência independente de Auditoria. Valores e estados `imported` e `calculated` permanecem separados, versionados, preservados e auditáveis. Conselho de Classe e demais decisões explicitamente humanas permanecem fora da autoridade automática do motor.
+
+A mudança efetiva de autoridade continua temporal, versionada, reversível e não retroativa por padrão. O ano, período e data exatos de vigência somente serão definidos após piloto real aprovado e pelos gates próprios de ativação. Histórico, snapshots, boletins, reimpressões e decisões emitidos sob autoridade anterior permanecem reproduzíveis segundo a autoridade e a versão vigentes quando foram produzidos.
+
+### Comparação proporcional de desempenho
+
+A comparação entre trimestres ou períodos comparáveis usa `basis = percentage`, com base percentual normalizada pela semântica oficial do perfil/versionamento aplicável a cada lado. Pontos brutos de escalas diferentes não são base válida para comparação proporcional.
+
+Assim, por exemplo, `24/30 = 80%` e `32/40 = 80%` são equivalentes para essa comparação. A regra não fixa `T3 = 40`: cada período usa o máximo e a semântica percentual oficiais do respectivo perfil versionado, preservando a correção quando a distribuição institucional mudar.
+
+Mudança apenas do máximo do período não impede a comparação quando os dois lados podem ser normalizados oficialmente. Se diferenças de perfil alterarem a semântica além da escala, os períodos somente são comparáveis quando houver compatibilidade oficialmente declarada; na ausência dela, o estado é `not-comparable`.
+
+Esta decisão não autoriza tolerância ou epsilon. Também não autoriza percentual por atividade, média, ranking, índice ou outra métrica derivada. A comparação proporcional deve poder ser desativada por configuração administrativa server-side e auditável, nunca por decisão local do navegador.
+
+### Divergência entre Banco e planilha
+
+A verificação preserva exclusivamente os estados oficiais `match | expected-difference | mismatch | not-comparable`.
+
+Um `mismatch` com possível impacto acadêmico interrompe o fluxo ou piloto afetado para investigação e impede liberação, publicação ou fechamento definitivo enquanto não houver reconciliação autorizada. A investigação não presume que a planilha esteja errada nem que o Banco esteja errado. Divergência também não devolve automaticamente autoridade à planilha após futura ativação do motor nativo.
+
+O resultado calculado pelo motor, o estado de verificação contra a fonte importada e o estado de liberação institucional permanecem separados. Um resultado pode estar calculado e ainda assim permanecer bloqueado para liberação por reconciliação pendente.
+
+### Correção automática determinística
+
+Correção automática é autorizada somente quando todas as condições abaixo forem simultaneamente verdadeiras:
+
+1. a causa raiz estiver identificada por evidência oficial suficiente;
+2. existir exatamente uma correção legítima derivável dos contratos e regras vigentes;
+3. a correção não exigir julgamento pedagógico ou administrativo;
+4. a operação gerar nova versão ou registro auditável e preservar a evidência anterior;
+5. CAS, idempotência, transação e rollback aplicáveis forem preservados.
+
+Quando inequivocamente demonstráveis, são exemplos permitidos: corrigir estado normalizado interno produzido incorretamente pelo importador quando a célula ou fonte observada determina univocamente o valor correto; recomputar e versionar resultado derivado obsoleto a partir de inputs oficiais e regra versionada já vigente; e reaplicar transformação determinística corrigida sem apagar o histórico anterior.
+
+Não é correção automática autorizada: editar silenciosamente o arquivo Excel original; escolher entre duas interpretações plausíveis; inventar valor ausente; transformar decisão humana em cálculo; alterar código ou regra em runtime por auto-modificação; sobrescrever manualmente resultado calculado sem fluxo oficial; ou corrigir automaticamente a planilha quando a própria fonte documental estiver errada. Nesse último caso, deve existir ocorrência registrada e correção da fonte por fluxo autorizado.
+
+Se a causa for defeito de código do motor ou do importador que exija mudança de regra ou implementação, o sistema bloqueia o caso e registra a evidência. O código é corrigido pelo processo normal de desenvolvimento e, somente depois, os dados são reprocessados e versionados pelos fluxos oficiais.
+
+### Produção, piloto e autoridade futura
+
+Fica autorizada a continuidade futura, somente após contratos, implementações e gates técnicos correspondentes estarem verdes e por issues operacionais próprias, para criação/configuração do D1 acadêmico produtivo e binding, migrations remotas controladas, smoke acadêmico produtivo e piloto privado real Banco × planilha. Essa autorização de direção não executa nem dispensa readiness, evidência, rollback ou autorização controlada de cada gate. Dados reais continuam proibidos no repositório e na CI públicos.
+
+Durante o piloto, `imported-source` permanece autoridade. O Banco calcula em paralelo e compara de forma independente com a planilha; divergências relevantes interrompem o piloto até investigação e reconciliação conforme esta decisão.
+
+Com piloto aprovado e todos os gates satisfeitos, a #347 poderá ativar `native-engine` somente para vigência explicitamente definida. A partir dessa futura ativação, o Banco determinará os resultados determinísticos cobertos pelo perfil vigente, enquanto a planilha continuará preservada e comparada como referência independente. Um `mismatch` material poderá bloquear publicação ou fechamento até reconciliação, mas não devolverá automaticamente autoridade à planilha.
+
+A presença desta decisão no repositório não altera o `authorityMode`, não provisiona produção, não aplica migrations, não executa smoke ou piloto e não implementa a #347. A remoção do hard stop `comparison-semantics-not-integrated` da #189 ainda exige contrato compartilhado, implementação e integração próprios.
