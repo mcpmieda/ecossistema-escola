@@ -1,6 +1,6 @@
 # Contrato da fonte — planilhas de notas
 
-**Estado:** `SourceContractV1` permanece histórico e interpretável sob a semântica que produziu a validação F1 7/7 da #184. A #365 introduz `SourceContractV2` para corrigir, de forma prospectiva e explícita, a modelagem dos cabeçalhos de avaliações trimestrais descoberta depois daquela validação. A implementação consumidora pertence à #366 e a integração pré-piloto à #367.
+**Estado:** `SourceContractV1` permanece histórico e interpretável sob a semântica que produziu a validação F1 7/7 da #184. A #365 introduziu `SourceContractV2` para corrigir, de forma prospectiva e explícita, a modelagem dos cabeçalhos de avaliações trimestrais descoberta depois daquela validação. A #366 implementou o consumo ponta a ponta e a #367 integrou/revalidou a onda antes do retorno aos gates manuais F9.
 
 Esta evolução não reabre nem reescreve retroativamente a evidência histórica da F1. Também não autoriza D1 produtivo, migration remota, piloto real ou mudança de `authorityMode`.
 
@@ -176,7 +176,7 @@ Essa tabela continua tratando células de **lançamento**. A classificação esp
 
 A interface nunca converte ausência em zero. `Não lançada`, `não aplicável`, zero real e campo inexistente são estados diferentes.
 
-A função `src/gradebook-domain/source/interpret-source-cell.ts`, integrada pela #201, materializa a semântica V1 de lançamentos em código puro e determinístico. Sua evolução consumidora V2 pertence à #366.
+A função `src/gradebook-domain/source/interpret-source-cell.ts`, integrada pela #201, materializa a semântica V1 de lançamentos em código puro e determinístico. O recognizer/materializador V2 integrado pela #366 preserva a mesma separação de estados sem reinterpretar V1.
 
 ## Estudantes e movimentações
 
@@ -232,7 +232,7 @@ Comportamento vigente:
 - nenhum byte é enviado ao servidor nesta etapa;
 - o arquivo original permanece inalterado.
 
-A #365 não altera o recognizer/runtime; a leitura dos novos cabeçalhos será implementada exclusivamente pela #366.
+A #365 não alterou o recognizer/runtime. A #366 passou a ler os novos cabeçalhos antes do loop da linha 5 e a #367 congelou essa composição em regressão transversal.
 
 ## Identidade lógica e reimportação
 
@@ -261,9 +261,13 @@ A identidade estrutural das avaliações V2 segue a mesma política: fonte lógi
 - Manifesto runtime: `src/features/gradebook/import/file-manifest.ts`.
 - Orquestração vigente: `src/features/gradebook/import/import-batch.ts`.
 - Massa sintética vigente: `tests/gradebook/fixtures/synthetic-teacher-workbooks.ts`.
+- Recognizer V2: `src/features/gradebook/import/spreadsheet-recognizer.ts`.
+- Materialização V2: `src/features/gradebook/import/assessment-definition-materializer-v2.ts`.
+- Reconciliação V2 sobre o planejador/executor oficial: `server/gradebook/application/import/assessment-import-reconciliation-v2.ts`.
+- Regressão transversal: `tests/gradebook/integration/wave-21-assessment-fidelity-integration.test.ts`.
 - Protocolo privado histórico F1: `docs/gradebook/REAL_DATA_VALIDATION.md`.
 
-A massa sintética de implementação será ampliada pela #366. A #365 usa somente dados sintéticos de contrato e não lê arquivo real.
+A massa sintética foi ampliada pela #366 exclusivamente com dados sintéticos. #365–#367 não leram arquivo real.
 
 ## Banco central XLSB como referência funcional
 
@@ -288,13 +292,13 @@ Não reproduzir fórmulas, nomes definidos, ActiveX ou guias como arquitetura we
 
 A F1/#184 permanece **historicamente concluída 7/7** segundo o contrato e o protocolo então vigentes. A descoberta da #365 é uma correção de modelagem posterior e não invalida retroativamente esse resultado.
 
-Para a onda 21 pré-piloto, a sequência obrigatória é:
+A onda 21 pré-piloto foi integrada na sequência obrigatória:
 
 ```text
-#365 contrato V2 verde
-  → #366 implementação ponta a ponta sobre V2
+#365 contrato V2 verde / PR #368
+  → #366 implementação ponta a ponta sobre V2 / PR #369
   → #367 integração + nova regressão de readiness
-  → somente então gates manuais F9 próprios
+  → gates manuais F9 próprios
 ```
 
-Até a #367, nenhum piloto real, D1 acadêmico produtivo, migration remota, smoke acadêmico produtivo ou ativação de `native-engine` é autorizado.
+Após a #367, nenhum piloto real, D1 acadêmico produtivo, migration remota, smoke acadêmico produtivo ou ativação de `native-engine` é automático. Cada ação continua exigindo autorização própria.

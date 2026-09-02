@@ -9,16 +9,17 @@ Este diretório é a memória oficial do Banco de Notas. Para execução, preval
 - [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, ondas e dependências;
 - [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina;
 - [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) — gates, ensaios e protocolo F9;
-- [Issue #361](https://github.com/mcpmieda/ecossistema-escola/issues/361) — integração da onda 20.
+- [Issue #367](https://github.com/mcpmieda/ecossistema-escola/issues/367) — integração da onda 21.
 
-## Estado atual — onda 20
+## Estado atual — onda 21
 
-A onda 20 integra a preparação de readiness F9 sem ativar produção:
+A onda 21 corrige prospectivamente a fidelidade das definições trimestrais antes do piloto:
 
-- #360 / PR #363 — manifesto puro de readiness, seis evidências preparatórias, cinco hard stops manuais, plano de smoke futuro e ensaios sintéticos;
-- #361 — composição transversal, regressão de integração, memória canônica e publicação dos artefatos inertes.
+- #365 / PR #368 — `SourceContractV2` e `AssessmentComponentV2` para R/S e AA:AJ, preservando V1 histórico;
+- #366 / PR #369 — reconhecimento, materialização, versionamento, D1 e consumidores ponta a ponta;
+- #367 / PR #370 — regressão transversal, memória canônica e nova readiness sintética.
 
-O único resultado positivo da preparação é **`prepared-for-manual-authorization`**. Ele não significa `production-ready`, piloto aprovado, recurso provisionado ou autoridade alterada.
+A F1 7/7 continua sendo evidência correta do contrato vigente à época. A onda 21 é manutenção prospectiva pós-validação, não reinterpretação retroativa. O resultado máximo de readiness continua **`prepared-for-manual-authorization`**.
 
 ## Invariantes ativos
 
@@ -43,7 +44,7 @@ Cinco hard stops continuam obrigatórios e independentes:
 
 ## Estado funcional
 
-- **F1:** concluída e validada 7/7;
+- **F1:** concluída e validada 7/7; fidelidade prospectiva V2 de avaliações integrada pela onda 21;
 - **F2:** persistência e durabilidade completas em local/preview; produção desativada;
 - **F3:** motor V1 comparativo; autoridade continua importada;
 - **F4/F5:** concluídas;
@@ -53,7 +54,7 @@ Cinco hard stops continuam obrigatórios e independentes:
 
 ## Próximo gate
 
-Não há ativação automática após esta publicação. Qualquer provisionamento, binding, migration remota, smoke acadêmico produtivo ou piloto real exige issue/autorização própria. A #347 não pode ser antecipada e depende de autorização institucional separada.
+Não há ativação automática após a onda 21. O projeto retorna aos gates manuais F9. Qualquer provisionamento, binding, migration remota, smoke acadêmico produtivo ou piloto real exige issue/autorização própria. A #347 não pode ser antecipada e depende de autorização institucional separada.
 
 ## Processo oficial
 

@@ -154,3 +154,14 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `RDY-008`: produção recusa antes de consultar binding mesmo quando ele é apresentado.
 - `RDY-009`: plano de smoke futuro é inerte, usa nenhum dado ou dados sintéticos e não aplica migration.
 - `RDY-010`: protocolo privado não publica nomes, notas, hashes, caminhos, payloads ou IDs remotos.
+
+## W21 — Integração da fidelidade de avaliações
+
+- `W21-001`: recognizer separa R3/S3 e AA3:AJ4 dos estudantes iniciados na linha 5.
+- `W21-002`: materialização produz R/S genéricos e associa R/S/AA:AJ somente ao slot correto.
+- `W21-003`: definição incompleta preserva evidência sem máximo zero, componente ou GradeEntry órfão.
+- `W21-004`: planejador/executor/CAS/transação oficiais permanecem o único fluxo de promoção.
+- `W21-005`: T/Z/AK/AM/AN, perfil 2026, 30/30/40, 45/55 e arredondamento não mudam.
+- `W21-006`: Desempenho mantém seis queries, comparação fail-closed e projeção fiel dos componentes.
+- `W21-007`: Boletins/Relatórios preservam componentes V1/V2 e reprint histórico sem leitura atual.
+- `W21-008`: readiness segue `prepared-for-manual-authorization`, migrations 0001–0004 e cinco hard stops.

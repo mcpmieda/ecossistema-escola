@@ -7,18 +7,19 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 - **Programa:** #182
 - **Onda 19:** #353 + #354 + #355 → #356 / PR #362
 - **Onda 20:** #360 / PR #363 → #361
+- **Onda 21:** #365 / PR #368 + #366 / PR #369 → #367 / PR #370
 - **Armazenamento:** Cloudflare D1 local/preview, migrations 0001–0004 / 25 tabelas
 - **Produção acadêmica:** sem D1 remoto, binding ou migration remota; consultas/persistência desativadas
 - **Autoridade ativa:** `imported-source`
 - **Autoridade-alvo futura:** `native-engine`, separada em #347/F9
 - **Autorização acadêmica:** `gradebook.persistence.admin`, server-side
 
-## Fases após onda 20
+## Fases após onda 21
 
 | Fase                   | Issue | Estado                                                          | Próximo grande passo                     |
 | ---------------------- | ----: | --------------------------------------------------------------- | ---------------------------------------- |
 | F0 Fundação            |  #183 | concluída                                                       | manutenção                               |
-| F1 Fonte/importação    |  #184 | **concluída/validada 7/7**                                      | manutenção                               |
+| F1 Fonte/importação    |  #184 | **7/7 histórico + fidelidade V2 integrada**                     | manutenção                               |
 | F2 Persistência        |  #185 | D1 local + durabilidade Bulletin/Council                        | produção somente por autorização própria |
 | F3 Motor               |  #186 | V1 concluída, comparativa                                       | futura autoridade via #347/F9            |
 | F4 Auditoria           |  #187 | revisão autoritativa 7/7 concluída                              | manutenção                               |
@@ -60,6 +61,30 @@ Merge da frente:
 5. autoridade nativa, pela trilha separada #347.
 
 Nenhum desses gates é consequência automática da #361. Nova execução exige autorização própria e escopo explícito.
+
+## Onda 21 — fidelidade das avaliações trimestrais
+
+| Frente        | Issue / PR  | Entrega                                                                                   |
+| ------------- | ----------- | ----------------------------------------------------------------------------------------- |
+| Contrato V2   | #365 / #368 | definições R/S e AA:AJ prospectivas, identidade estável e compatibilidade V1             |
+| Implementação | #366 / #369 | reconhecimento, materialização, versionamento, D1, Desempenho e consumidores compatíveis |
+| Integração    | #367 / #370 | regressão transversal, readiness e memória canônica                                      |
+
+Merges das frentes:
+
+```text
+#368 → 7b59a226b557153d6e3094b64f268ce5e9373cc3
+#369 → 70748d527f0ebf11803dab748a6d5d5dbe6c082a
+```
+
+### Resultado integrado
+
+- `SourceContractV1` e snapshots V1 permanecem históricos, sem reinterpretação;
+- R/S são avaliações quantitativas genéricas e S não implica `simulation`;
+- definições incompletas ficam fail-closed, sem máximo zero ou GradeEntry órfão;
+- T/Z/AK/AM/AN, motor 2026, autoridade importada e resultados oficiais permanecem inalterados;
+- Desempenho, Centrais, Boletins e Relatórios aceitam componentes V2 sem métrica ou motor novo;
+- readiness retorna a `prepared-for-manual-authorization` com todos os gates produtivos fechados.
 
 ## Como iniciar agente
 
