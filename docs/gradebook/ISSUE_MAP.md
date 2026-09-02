@@ -31,7 +31,7 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 
 A #184 está `completed` e F1 chegou a **7/7**. O protocolo privado controlado, o smoke autenticado completo e a falha isolada passaram. Arquivos reais modificados: 0; dados identificáveis publicados: 0; gates históricos reais antigos restantes: 0.
 
-Os marcadores `controlled-real-corpus-validation-not-yet-recorded` e `complete-manifest-failure-smoke-not-yet-recorded` foram satisfeitos. Não os tratar como pendência futura. Isso não remove políticas gerais de segurança ou futuros gates próprios de produção.
+Os gates históricos de validação real controlada e smoke completo foram satisfeitos e não devem ser tratados como pendências futuras. Isso não remove políticas gerais de segurança ou futuros gates próprios de produção.
 
 ## Onda 13 — contratos amplos
 
