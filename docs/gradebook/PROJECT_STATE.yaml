@@ -342,7 +342,7 @@ wave_15:
 wave_16:
   strategy: large-vertical-parallel-fronts
   integration_issue: 328
-  integration_pull_request: pending
+  integration_pull_request: 334
   implementation_merges:
     - issue: 325
       pull_request: 329
