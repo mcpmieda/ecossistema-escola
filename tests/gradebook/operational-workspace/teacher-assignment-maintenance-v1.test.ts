@@ -52,6 +52,8 @@ async function fixture() {
         schoolId,
         year: 2026,
         status: 'active',
+        startsOn: '2026-02-01',
+        endsOn: '2026-12-20',
         activeEvaluationProfileId: 'profile:maintenance:synthetic',
         configurationVersion: 'maintenance-v1',
       },
