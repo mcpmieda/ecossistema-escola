@@ -353,7 +353,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
     const session = await requireAuth(request, env);
     const capabilities = capabilitiesForRoles(session.roles);
     requireCapability(capabilities, 'platform.health.read');
-    return json(await sharePointHealth(env, capabilities));
+    return json(await sharePointHealth(env));
   }
 
   if (url.pathname === '/api/platform/snapshot') {
