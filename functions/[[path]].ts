@@ -30,6 +30,7 @@ import {
   GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1,
 } from '../server/gradebook/http/council-routes-v1';
 import { handleGradebookD1AdminRequestV1 } from '../server/gradebook/http/d1-admin-routes-v1';
+import { handleInstitutionalReportsRequestV1 } from '../server/gradebook/http/institutional-reports-routes-v1';
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
@@ -159,6 +160,12 @@ async function handleComposedCouncilWorkspaceRequestV1(
     createWorkspace(runtimeEnv, server) {
       if (authorization === null) return null;
       return createGradebookD1RuntimeV1(runtimeEnv, authorization).councilWorkspace(server);
+    },
+    createInstitutionalWorkspace(runtimeEnv, server) {
+      if (authorization === null) return null;
+      return createGradebookD1RuntimeV1(runtimeEnv, authorization).councilInstitutionalWorkspace(
+        server,
+      );
     },
   });
   return handler(request, env);
@@ -335,6 +342,9 @@ async function route(context: Context, correlationId: string): Promise<Response>
   const councilResponse = await handleComposedCouncilWorkspaceRequestV1(request, env);
   if (councilResponse) return councilResponse;
 
+  const reportsResponse = await handleInstitutionalReportsRequestV1(request, env);
+  if (reportsResponse) return reportsResponse;
+
   const gradebookD1AdminResponse = await handleGradebookD1AdminRequestV1(request, env);
   if (gradebookD1AdminResponse) return gradebookD1AdminResponse;
 
@@ -343,7 +353,7 @@ async function route(context: Context, correlationId: string): Promise<Response>
     const session = await requireAuth(request, env);
     const capabilities = capabilitiesForRoles(session.roles);
     requireCapability(capabilities, 'platform.health.read');
-    return json(await sharePointHealth(env));
+    return json(await sharePointHealth(env, capabilities));
   }
 
   if (url.pathname === '/api/platform/snapshot') {
