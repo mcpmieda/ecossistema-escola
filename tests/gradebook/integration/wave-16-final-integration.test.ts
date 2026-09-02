@@ -111,18 +111,25 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(page).not.toContain('jspdf');
   });
 
-  it('monta as três páginas no shell com contexto explícito e estados acessíveis', () => {
+  it('preserva contexto explícito e estados acessíveis após mover F6/F7/F8 para o shell lazy', () => {
     const app = source('src/App.tsx');
+    const notesPage = source('src/platform/notes-page.tsx');
+    const workspacePage = source('src/platform/gradebook-workspace-page.tsx');
+    const shell = source('src/platform/gradebook-workspace-shell.tsx');
+    const councilSurface = source('src/platform/gradebook-council-surface.tsx');
     const councilPage = source('src/features/gradebook/council/council-workspace-page.tsx');
 
-    expect(app).toContain('<PerformancePage />');
-    expect(app).toContain('<BulletinPage />');
-    expect(app).toContain('<CouncilWorkspaceMount />');
-    expect(app).toContain('requestOperationalWorkspaceV1');
-    expect(app).toContain("scope: { kinds: ['class-group'] }");
-    expect(app).toContain('searchSequenceRef.current');
-    expect(app).toContain('classSearchControllerRef.current?.abort()');
-    expect(app).toContain('aria-live="polite"');
+    expect(app).not.toMatch(/features\/gradebook\/(?:performance|bulletins|council)/u);
+    expect(notesPage).toContain("import('./gradebook-workspace-page')");
+    expect(workspacePage).toContain('<GradebookWorkspaceShell />');
+    expect(shell).toContain("import('../features/gradebook/performance/performance-page')");
+    expect(shell).toContain("import('../features/gradebook/bulletins/bulletin-page')");
+    expect(shell).toContain("import('./gradebook-council-surface')");
+    expect(councilSurface).toContain('requestOperationalWorkspaceV1');
+    expect(councilSurface).toContain("scope: { kinds: ['class-group'] }");
+    expect(councilSurface).toContain('searchSequenceRef.current');
+    expect(councilSurface).toContain('classSearchControllerRef.current?.abort()');
+    expect(councilSurface).toContain('aria-live="polite"');
     expect(councilPage).toContain('headingRef.current?.focus()');
     expect(councilPage).toContain('conflictRef.current?.focus()');
   });

@@ -11,17 +11,21 @@ describe('Council Workspace HeroUI V1', () => {
   const client = source('src/features/gradebook/council/council-workspace-client.ts');
   const handler = source('server/gradebook/http/council-routes-v1.ts');
   const app = source('src/App.tsx');
+  const shell = source('src/platform/gradebook-workspace-shell.tsx');
+  const councilSurface = source('src/platform/gradebook-council-surface.tsx');
   const functions = source('functions/[[path]].ts');
 
-  it('usa HeroUI em componente isolado e está ligado pelo wiring central da #328', () => {
+  it('usa HeroUI em componente isolado e está ligado pelo shell lazy F9', () => {
     expect(page).toContain("from '@heroui/react'");
     expect(page).toContain('<Surface');
     expect(page).toContain('<Card');
     expect(page).toContain('<Button');
     expect(page).toContain('<Alert');
     expect(page).toContain('<Spinner');
-    expect(app).toContain('council-workspace-page');
-    expect(app).toContain('CouncilWorkspaceMount');
+    expect(app).not.toContain('CouncilWorkspaceMount');
+    expect(app).not.toContain('council-workspace-page');
+    expect(shell).toContain("import('./gradebook-council-surface')");
+    expect(councilSurface).toContain('CouncilWorkspacePage');
     expect(functions).toContain('createCouncilWorkspaceRequestHandlerV1');
   });
 
@@ -71,12 +75,14 @@ describe('Council Workspace HeroUI V1', () => {
   });
 
   it('não persiste dados acadêmicos no navegador e usa fetch no-store', () => {
+    const frontend = `${client}\n${councilSurface}`;
     expect(client).toContain("const COUNCIL_WORKSPACE_ENDPOINT = '/api/gradebook/council-workspace'");
     expect(client).toContain("cache: 'no-store'");
-    expect(client).not.toContain('localStorage');
-    expect(client).not.toContain('sessionStorage');
-    expect(client).not.toContain('indexedDB');
-    expect(client).not.toContain('caches.open');
+    expect(frontend).not.toContain('localStorage');
+    expect(frontend).not.toContain('sessionStorage');
+    expect(frontend).not.toContain('indexedDB');
+    expect(frontend).not.toContain('caches.open');
+    expect(frontend).not.toContain('serviceWorker');
   });
 
   it('expõe explicitamente os limites sem oferecer votação, desempate, frequência ou participantes', () => {
