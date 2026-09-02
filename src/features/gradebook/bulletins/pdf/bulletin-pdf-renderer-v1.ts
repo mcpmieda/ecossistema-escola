@@ -1,6 +1,7 @@
 import {
   isBulletinArtifactPayloadSafeV1,
   isBulletinSnapshotCoherentV1,
+  type BulletinAnnualResultV1,
   type BulletinComparedApplicabilityV1,
   type BulletinComparedGradeValueV1,
   type BulletinPdfInputV1,
@@ -40,10 +41,7 @@ const PDF_CONTENT_WIDTH = BULLETIN_PDF_LIMITS_V1.canvasWidthPixels - PDF_LEFT - 
 
 export type BulletinPdfInputReadinessV1 =
   | { readonly status: 'ready' }
-  | {
-      readonly status: 'invalid-input' | 'bounds-exceeded';
-      readonly reason: string;
-    };
+  | { readonly status: 'invalid-input' | 'bounds-exceeded'; readonly reason: string };
 
 export type BulletinPdfLineV1 =
   | {
@@ -77,8 +75,15 @@ export class BulletinPdfRendererErrorV1 extends Error {
   }
 }
 
+function withoutControlCharacters(value: string): string {
+  return Array.from(value, (character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    return codePoint <= 0x1f || codePoint === 0x7f ? ' ' : character;
+  }).join('');
+}
+
 function visibleText(value: string): string {
-  return value.normalize('NFC').replace(/[\u0000-\u001f\u007f]/gu, ' ').replace(/\s+/gu, ' ').trim();
+  return withoutControlCharacters(value.normalize('NFC')).replace(/\s+/gu, ' ').trim();
 }
 
 function contentCounts(snapshot: BulletinSnapshotV1) {
@@ -170,24 +175,28 @@ function appendComparedApplicability(
 
 function appendAnnualResult(
   lines: BulletinPdfLineV1[],
-  annualResult: Extract<
-    BulletinSnapshotV1['model'],
-    { readonly modelKind: 'composition' | 'detailed' }
-  >['subjects'][number]['annualResult'],
+  annualResult: BulletinAnnualResultV1 | null,
 ): void {
   if (annualResult === null) return;
   appendText(lines, 'subsection', 'Resultado anual');
   appendComparedGrade(lines, 'Total original', annualResult.originalTotal);
   appendComparedGrade(lines, 'Total pós-recuperação', annualResult.postRecoveryTotal);
-  appendText(lines, 'body', `Estado acadêmico — ${bulletinAcademicStateLabelV1(annualResult.academicState)}`, 20);
-  appendText(lines, 'body', `Decisão final — ${bulletinFinalDecisionLabelV1(annualResult.finalDecision)}`, 20);
+  appendText(
+    lines,
+    'body',
+    `Estado acadêmico — ${bulletinAcademicStateLabelV1(annualResult.academicState)}`,
+    20,
+  );
+  appendText(
+    lines,
+    'body',
+    `Decisão final — ${bulletinFinalDecisionLabelV1(annualResult.finalDecision)}`,
+    20,
+  );
   appendText(lines, 'meta', bulletinCoverageLabelV1(annualResult.coverage), 20);
 }
 
-/**
- * Presentation-only projection. It walks the canonical snapshot directly and never derives an
- * academic value. The same labels are shared with the on-screen preview to prevent semantic drift.
- */
+/** Presentation-only projection over the canonical snapshot. No academic value is derived here. */
 export function buildBulletinPdfLinesV1(input: BulletinPdfInputV1): readonly BulletinPdfLineV1[] {
   assertReadyInput(input);
   const { snapshot } = input;
@@ -222,8 +231,18 @@ export function buildBulletinPdfLinesV1(input: BulletinPdfInputV1): readonly Bul
         appendText(lines, 'subsection', 'Resultado anual');
         appendComparedGrade(lines, 'Total original', result.originalTotal);
         appendComparedGrade(lines, 'Total pós-recuperação', result.postRecoveryTotal);
-        appendText(lines, 'body', `Estado acadêmico — ${bulletinAcademicStateLabelV1(result.academicState)}`, 20);
-        appendText(lines, 'body', `Decisão final — ${bulletinFinalDecisionLabelV1(result.finalDecision)}`, 20);
+        appendText(
+          lines,
+          'body',
+          `Estado acadêmico — ${bulletinAcademicStateLabelV1(result.academicState)}`,
+          20,
+        );
+        appendText(
+          lines,
+          'body',
+          `Decisão final — ${bulletinFinalDecisionLabelV1(result.finalDecision)}`,
+          20,
+        );
       }
       appendText(lines, 'meta', bulletinCoverageLabelV1(result.coverage), 20);
       lines.push({ kind: 'space', height: 12 }, { kind: 'rule' }, { kind: 'space', height: 12 });
@@ -284,7 +303,7 @@ function concatBytes(chunks: readonly Uint8Array[]): Uint8Array {
   return output;
 }
 
-/** Minimal PDF envelope: every page is a canvas-generated JPEG, with no hidden academic metadata. */
+/** Minimal PDF envelope: every page is a canvas-generated JPEG and /Info metadata is omitted. */
 export function assembleBulletinRasterPdfV1(pages: readonly BulletinPdfRasterPageV1[]): Uint8Array {
   if (pages.length === 0 || pages.length > BULLETIN_PDF_LIMITS_V1.maxPages) {
     throw new BulletinPdfRendererErrorV1('bounds-exceeded', 'page-limit');
@@ -295,7 +314,6 @@ export function assembleBulletinRasterPdfV1(pages: readonly BulletinPdfRasterPag
   const offsets: number[] = [0];
   let byteOffset = 0;
   const objectCount = 2 + pages.length * 3;
-
   const appendBytes = (bytes: Uint8Array) => {
     chunks.push(bytes);
     byteOffset += bytes.length;
@@ -360,7 +378,9 @@ export function assembleBulletinRasterPdfV1(pages: readonly BulletinPdfRasterPag
   for (let id = 1; id <= objectCount; id += 1) {
     appendAscii(`${String(offsets[id] ?? 0).padStart(10, '0')} 00000 n \n`);
   }
-  appendAscii(`trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
+  appendAscii(
+    `trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`,
+  );
 
   const output = concatBytes(chunks);
   if (output.length > BULLETIN_PDF_LIMITS_V1.maxOutputBytes) {
@@ -614,8 +634,12 @@ export async function renderBulletinPdfV1(input: BulletinPdfInputV1): Promise<Bu
   const lines = buildBulletinPdfLinesV1(input);
   const pages = await renderLinesToRasterPages(lines, input.snapshot);
   const bytes = assembleBulletinRasterPdfV1(pages);
+  const arrayBuffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
   return {
-    blob: new Blob([bytes], { type: 'application/pdf' }),
+    blob: new Blob([arrayBuffer], { type: 'application/pdf' }),
     byteLength: bytes.length,
     pageCount: pages.length,
   };
