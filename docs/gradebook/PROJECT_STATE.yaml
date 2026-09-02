@@ -360,15 +360,16 @@ features:
     status: production-infrastructure-smoke-validated-awaiting-private-pilot
     readiness_issue: 360
     readiness_integrator_issue: 361
-    readiness_revalidation_issue: 374
+    historical_readiness_revalidation_issue: 374
     readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts
     controlled_production_readiness_manifest: server/gradebook/readiness/controlled-production-readiness-v2.ts
     readiness_runbook: docs/gradebook/PRODUCTION_READINESS.md
     preparation_evidence_count: 6
-    production_hard_stop_count: 5
+    historical_pre_wave_23_hard_stop_count: 5
     synthetic_scenarios: 5
-    future_smoke_steps: 5
-    future_smoke_plan_inert: true
+    historical_smoke_plan_steps: 5
+    production_smoke_completed: true
+    post_wave_23_hard_stop_count: 2
     readiness_source_merge: 000a6988565419d9c1f2c638e929af4e0dff1491
     no_store_audited: true
     browser_storage_audited: true

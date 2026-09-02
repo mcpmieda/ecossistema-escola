@@ -50,8 +50,9 @@ A revisão da onda 24 deve decidir se o escopo real autorizado depende dessas li
 
 ### Pré-condições
 
-O piloto real só começa quando A–D estiverem aprovados, o ambiente estiver autorizado e houver uma
-decisão institucional registrando escopo temporal, amostra, operadores e critérios de parada. Esses
+O piloto real só começa quando os gates pós-onda 23 e a revisão de escopo estiverem aprovados, o
+ambiente estiver autorizado e houver uma decisão institucional registrando escopo temporal, amostra,
+operadores e critérios de parada. Esses
 detalhes privados não são versionados. A ausência de qualquer decisão é hard stop.
 
 ### Execução
@@ -141,7 +142,7 @@ mas um export real contém dados acadêmicos: destino, criptografia, acesso e re
 decisão própria e o arquivo nunca entra no clone/CI. Confirmar a documentação e a janela vigente do
 plano no momento da execução; a janela do provedor não define retenção acadêmica.
 
-## Evidência de encerramento da #360
+## Evidência histórica de encerramento da #360 — não é checklist atual
 
 Antes do handoff:
 
