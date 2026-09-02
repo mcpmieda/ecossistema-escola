@@ -1,3 +1,5 @@
+/// <reference lib="dom" />
+
 import {
   isBulletinArtifactPayloadSafeV1,
   isBulletinSnapshotCoherentV1,
@@ -90,12 +92,13 @@ function contentCounts(snapshot: BulletinSnapshotV1) {
   const model = snapshot.model;
   let termCount = 0;
   let assessmentCount = 0;
-  if (model.modelKind !== 'synthetic') {
+  if (model.modelKind === 'composition') {
+    for (const subject of model.subjects) termCount += subject.terms.length;
+  }
+  if (model.modelKind === 'detailed') {
     for (const subject of model.subjects) {
       termCount += subject.terms.length;
-      if (model.modelKind === 'detailed') {
-        for (const term of subject.terms) assessmentCount += term.assessments.length;
-      }
+      for (const term of subject.terms) assessmentCount += term.assessments.length;
     }
   }
   return {
@@ -467,13 +470,13 @@ function canvasToJpegBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> {
       return;
     }
     canvas.toBlob(
-      (blob) => {
+      (blob: Blob | null) => {
         if (blob === null) {
           reject(new BulletinPdfRendererErrorV1('renderer-unavailable', 'canvas-encode-failed'));
           return;
         }
         void blob.arrayBuffer().then(
-          (buffer) => resolve(new Uint8Array(buffer)),
+          (buffer: ArrayBuffer) => resolve(new Uint8Array(buffer)),
           () => reject(new BulletinPdfRendererErrorV1('renderer-unavailable', 'canvas-encode-failed')),
         );
       },
