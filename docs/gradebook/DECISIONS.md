@@ -144,3 +144,46 @@ A reimportação será idempotente, incremental e auditável. Não se adotará a
 Quotas, consumo, disponibilidade e saúde de Cloudflare, D1, Workers e integrações pertencem ao Centro de Administração, em área administrativa global `Configurações → Saúde e limites`.
 
 Cada módulo pode fornecer métricas próprias, inclusive impacto estimado de importações do Banco de Notas, mas não mantém um painel isolado de infraestrutura. Tokens e credenciais nunca chegam ao navegador; métricas são obtidas por backend autorizado e não podem conter nomes, notas ou payload acadêmico. A indisponibilidade da fonte de métricas deve gerar estado parcial/desatualizado, não indisponibilidade do ambiente inteiro.
+
+## BN-DEC-019 — Motor nativo como autoridade-alvo com reconciliação independente da fonte
+
+**Data:** 2026-09-02  
+**Status:** vigente  
+**Origem:** issues #349 e #347  
+**Complementa:** BN-DEC-007; não altera a autoridade ativa antes do rollout autorizado
+
+O destino institucional do Banco de Notas é o motor nativo do Banco Online como autoridade dos resultados acadêmicos determinísticos cobertos por um perfil oficial versionado. As planilhas permanecem fonte documental/de importação e referência independente de Auditoria; depois da transição autorizada, o resultado derivado da planilha não determina automaticamente aprovação, reprovação ou outro resultado calculável.
+
+A autoridade nativa não apaga a fonte. Valores e estados `imported` e `calculated` permanecem separados, preservados e auditáveis. Divergência entre fonte e motor não é presumida automaticamente como erro da planilha nem como erro do Banco. A comparação usa somente semântica oficial e versionada; nenhuma UI, relatório, adapter ou workflow pode inventar tolerância, arredondamento ou regra de equivalência.
+
+A verificação fonte × motor preserva os estados oficiais já existentes:
+
+- `match`: comparação aplicável sem divergência;
+- `expected-difference`: somente diferença cuja equivalência ou causa já esteja oficialmente documentada;
+- `not-comparable`: dados, cobertura ou semântica não permitem concluir concordância nem erro;
+- `mismatch`: divergência comparável sem justificativa oficial.
+
+Um `mismatch` material capaz de alterar resultado acadêmico deve gerar ou alimentar a Auditoria e impedir publicação ou fechamento acadêmico definitivo enquanto não houver reconciliação autorizada. A planilha não vence a divergência por precedência e o motor também não pode ignorá-la silenciosamente.
+
+O Banco distingue três estados independentes:
+
+1. **resultado calculado** pelo motor nativo;
+2. **estado de verificação** desse resultado contra a fonte importada;
+3. **estado de liberação institucional** para fechamento, boletim definitivo ou outra publicação oficial.
+
+Um resultado pode estar calculado pelo motor e ainda permanecer bloqueado para liberação quando a reconciliação for obrigatória. Correções devem atuar na origem legítima do problema e produzir novo cálculo/versão auditável; não existe correção silenciosa de planilha nem sobrescrita manual do resultado calculado fora de fluxo oficialmente definido.
+
+A autoridade do motor cobre somente regras determinísticas oficialmente formalizadas. Conselho de Classe e outras decisões explicitamente humanas permanecem separadas do cálculo e nunca são fabricadas pelo motor.
+
+A troca efetiva de `imported-source` para autoridade nativa deve ser temporal, versionada e reversível. Ela exige, no mínimo:
+
+- conclusão e integração da onda 18/#343;
+- readiness e piloto F9 com execução paralela ainda segura;
+- perfil acadêmico e versão do motor congelados para o rollout;
+- divergências representativas classificadas e investigáveis;
+- ausência de hard stop acadêmico no domínio que será tornado autoritativo;
+- plano formal de rollback/recuperação;
+- definição explícita do ano/período/data a partir da qual a nova autoridade vale;
+- aceite institucional explícito da ativação.
+
+A mudança não reinterpreta silenciosamente históricos, snapshots, boletins ou decisões emitidos sob autoridade anterior. Reimpressões continuam reproduzindo a versão histórica correspondente. A presença desta decisão no repositório não ativa produção, não provisiona D1 e não muda sozinha o `authorityMode` atual; a implementação e o rollout pertencem à #347 e aos gates de F9.
