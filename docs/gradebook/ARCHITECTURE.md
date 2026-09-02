@@ -27,18 +27,18 @@ motor nativo + equivalência
   ↓
 read models / projeções oficiais / workspaces
   ↓
-Centrais / Auditoria / Desempenho / Conselho / Boletins
+Centrais / Auditoria / Desempenho / Conselho / Boletins / Relatórios
 ```
 
 Planejamento não grava; revisão não promove; executor não resolve ambiguidades; adaptador físico não cria regra acadêmica; UI/renderer não recalculam notas.
 
 ## Autoridade
 
-`authorityMode` continua `imported-source`. O motor nativo permanece comparativo. A projeção oficial do Conselho pode usar o motor upstream para produzir classificação calculada, mas o lado calculated nunca substitui a autoridade importada nem cria decisão humana implícita.
+`authorityMode` continua `imported-source` na onda 18. O motor nativo permanece comparativo e a eventual troca de autoridade pertence a F9/#347. Conselho continua separando cálculo de decisão humana.
 
 ## Contexto acadêmico
 
-Ano/perfil são dependências explícitas. Nenhum módulo escolhe “ano atual” pelo relógio. As superfícies reutilizam catálogo/pesquisa do Operational Workspace para localizar contexto, sem bridge paralelo.
+Ano/perfil são dependências explícitas. Nenhum módulo escolhe “ano atual” pelo relógio. Superfícies reutilizam catálogo/pesquisa autorizados para localizar contexto sem criar bridge acadêmico paralelo.
 
 ## D1 e ambientes
 
@@ -52,7 +52,16 @@ preview    → binding injetado permitido
 production → falha antes de inspecionar GRADEBOOK_D1
 ```
 
-Migrations locais continuam 0001–0003, 21 tabelas. A onda 17 não cria migration/schema/binding/secret/recurso remoto.
+Migrations locais: 0001–0004, 25 tabelas. A 0004 adiciona somente:
+
+```text
+bulletin_snapshot_streams
+bulletin_snapshot_versions
+council_decision_streams
+council_decision_versions
+```
+
+Os quatro históricos são append-only, sem cascade/purge inventado. Nenhuma migration 0004 foi aplicada remotamente.
 
 ## Autorização e HTTP
 
@@ -65,22 +74,23 @@ POST /api/gradebook/operational-workspace
 POST /api/gradebook/audit-workspace
 POST /api/gradebook/performance
 POST /api/gradebook/bulletins
+POST /api/gradebook/reports
 POST /api/gradebook/council-workspace
 ```
 
-## Shell após F9 / onda 17
+Council V1 e V2 compartilham o mesmo bridge; V2 não cria segundo endpoint.
 
-A rota `banco-de-notas` é carregada sob demanda. O shell do Banco possui as áreas Importação, Centrais, Auditoria, Desempenho, Boletins e Conselho; as cinco superfícies acadêmicas são `React.lazy` independentes.
+## Shell após onda 18
 
-- entrada do Banco: zero requests acadêmicos automáticos;
-- uma superfície inicia contexto somente quando ativada;
+A rota `banco-de-notas` é carregada sob demanda. Áreas: Importação, Centrais, Auditoria, Desempenho, Boletins, Relatórios e Conselho.
+
+- zero requests acadêmicos automáticos na entrada;
+- superfícies acadêmicas iniciam contexto somente quando ativadas;
 - error boundary da rota e boundary por superfície;
-- painéis inativos ficam fora do foco/a11y, preservando somente estado React efêmero quando já visitados;
-- busca global usa `#/banco-de-notas?area=<id>` para ativar diretamente uma área sem criar rota ou bridge novo;
-- query `area` é validada contra a lista fechada de superfícies;
+- painéis inativos ficam fora do foco/a11y;
+- busca global usa `#/banco-de-notas?area=<id>`;
+- `area` é validada contra lista fechada;
 - dados acadêmicos não são persistidos em localStorage/sessionStorage/IndexedDB/Cache API/service worker.
-
-Medição combinada #335+#336: entry 552,28 kB / 167,15 kB gzip; caminho inicial conservador com `alert` 661,25 / 202,82 kB gzip, contra baseline 820,68 / 235,71 kB gzip. O warning Vite >500 kB permanece como limitação mensurada.
 
 ## GradebookD1RuntimeV1
 
@@ -91,21 +101,24 @@ GradebookD1RuntimeV1
   ├── operationalWorkspaceAcademicYears()
   ├── auditWorkspace(...)
   ├── classPerformanceReadModel()
+  ├── bulletinSnapshotRepository()
+  ├── councilDecisionStore()
   ├── councilWorkspace(...)
+  ├── councilInstitutionalWorkspace(...)
   ├── planningRepositories()
   ├── inspectSchema()/runMigrations()
   └── promoteImportChangePlan()
 ```
 
-A composição física só ocorre depois do gate de ambiente e autorização opaca. `councilWorkspace()` recebe a projeção oficial D1 da #332 e usa store de decisão process-local/preview, append-only e descartável.
+A composição física ocorre somente depois de autorização opaca e do gate de ambiente. Snapshots de Boletins e decisões de Conselho usam a factory D1 durável da #340. A sessão/reunião institucional V2 permanece provider-independent/process-local nesta versão porque a 0004 não define armazenamento para esse agregado.
 
 ## Operational Workspace F5
 
-Ano explícito; pesquisa autorizada; navegação `kind + id` opaca; abort/dedupe/stale discard; troca de ano invalida contexto; paginação deduplica resultados.
+Ano explícito; pesquisa autorizada; navegação `kind + id` opaca; abort/dedupe/stale discard; paginação resiliente. Cadastro/confirmação docente e atribuições anuais ficam para #354.
 
 ## Audit Workspace F4
 
-Listas batch/keyset; resolução CAS; ator = `session.oid`; instante = servidor. Promoção continua exclusiva de `planImportReconciliation` + `executeImportChangePlan`.
+Listas batch/keyset; resolução CAS; ator = `session.oid`; instante = servidor. Promoção continua exclusiva de `planImportReconciliation` + `executeImportChangePlan`. Fechamento autoritativo bullet-a-bullet: #353.
 
 ## Desempenho F6
 
@@ -125,7 +138,9 @@ D1 → GradebookD1ClassPerformanceSourceV1 → createClassPerformanceReadModelV1
 - `recovery + result` usa `FinalRecoveryV1`; demais lentes usam trimestre;
 - UI não calcula regra acadêmica.
 
-## Boletins F8 + PDF canônico
+Comparabilidade proporcional e gráficos úteis ficam para #355, sem criar métricas por conveniência.
+
+## Boletins F8 + PDF
 
 ```text
 resultados/read models oficiais
@@ -134,40 +149,53 @@ Bulletin materializer
   ↓
 BulletinModelV1
   ├── preview
-  └── emissão → BulletinSnapshotV1
+  └── emissão → D1 BulletinSnapshotV1
                   ├── history/reprint
-                  └── BulletinPdfInputV1 → renderer browser lazy → PDF
+                  ├── PDF individual
+                  └── batch PDF bounded/sequencial
 ```
 
-Preview e emissão usam a mesma materialização. Snapshots são imutáveis, append-only e versionados; reimpressão usa somente snapshot histórico e faz zero leitura acadêmica atual.
+- preview e emissão usam a mesma materialização;
+- snapshots são imutáveis, append-only, versionados e duráveis em D1 local/preview;
+- reimpressão usa somente snapshot histórico e faz zero leitura acadêmica atual;
+- renderer client-side P&B/raster, lazy e sem fetch acadêmico;
+- batch PDF: máximo 3 documentos, 72 páginas totais e uma geração concorrente;
+- reprint batch: somente snapshots históricos;
+- nenhum queue/worker/storage remoto foi criado.
 
-A #335 fechou a decisão de PDF:
-
-- renderer client-side, P&B/raster, Canvas → JPEG por página → PDF 1.4 mínimo;
-- PDF oficial aceita exclusivamente `BulletinPdfInputV1`/`BulletinSnapshotV1`;
-- renderer carregado por `import()`; chunk combinado ~9,71 kB / 3,81 kB gzip;
-- usa Geist já empacotada, sem CDN/fonte privada/fonte do sistema;
-- não faz fetch, não persiste snapshot no navegador e revoga Blob URLs;
-- não calcula nota, percentual, REC, média, arredondamento, resultado ou elegibilidade;
-- reimpressão PDF não cria versão nova;
-- arquivo PDF é individual por snapshot; não há fan-out de PDF em lote nesta versão;
-- snapshots continuam process-local/preview e descartáveis cross-restart.
-
-## Conselho F7
+## Relatórios F8
 
 ```text
-D1 → fonte D1 #332 (6 queries) → createCouncilOfficialProjectionSourceV1
-   → CouncilWorkspaceSourceV1 → createCouncilWorkspaceV1
-   → POST /api/gradebook/council-workspace → CouncilWorkspacePage
+read models/resultados/snapshots oficiais
+  ↓
+InstitutionalReportsServiceV1
+  ↓
+POST /api/gradebook/reports
+  ↓
+InstitutionalReportsPage
+```
+
+Famílias: resultados/aproveitamento oficial, composição, recuperação, Conselho e Auditoria. Qualquer indicador derivado sem semântica oficial usa hard stop fail-closed; o serviço não cria média, ranking ou taxa acadêmica por conta própria.
+
+## Conselho F7 V2
+
+```text
+D1 → projeção oficial #332 → CouncilWorkspaceSourceV1
+   ├── Council Workspace V1 → decisões duráveis D1
+   └── Council Institutional V2 → revisão/fechamento/fotografia
+          ↓
+POST /api/gradebook/council-workspace
 ```
 
 - `resolveNativeAnnualOutcome` fica somente na projeção upstream;
 - Council Workspace não recalcula elegibilidade;
 - 0/1/2/3+/insuficiente vêm da projeção oficial;
-- T1/T2/T3 usam imported; REC imported apenas quando aplicável e unívoca;
-- REC ausente `not-applicable`; ambígua `insufficient-data`;
-- decisão humana separada, justificativa, expectedVersion/CAS, ator/instante server-side;
-- store atual process-local/preview e sem durabilidade cross-restart.
+- T1/T2/T3 e REC usam somente autoridade imported já resolvida;
+- decisões humanas têm justificativa, expectedVersion/CAS e ator/instante server-side;
+- fechamento cria fotografia histórica imutável e bloqueia mutações posteriores;
+- votação numérica é opcional e não cria decisão;
+- empate sem identidade/capability formal de diretor permanece fail-closed;
+- `ADMINISTRADOR` nunca é inferido como diretor.
 
 ## F1 — confiança da fonte
 
@@ -188,7 +216,7 @@ F1 está definitivamente concluída em **7/7**. #184 está `completed`; protocol
 - contratos não dependem de persistência concreta;
 - UI não acessa SQL/tabelas;
 - adapters não alteram significado do contrato;
-- Desempenho/Conselho/Boletins não mantêm motores acadêmicos próprios;
+- Desempenho/Conselho/Boletins/Relatórios não mantêm motores acadêmicos próprios;
 - Graph/SharePoint não é acessado diretamente pelo navegador para dados acadêmicos;
 - produção permanece fail-closed até autorização própria;
 - não criar bridges concorrentes.
@@ -199,4 +227,4 @@ F1 está definitivamente concluída em **7/7**. #184 está `completed`; protocol
 main → Deploy Cloudflare Pages → admin.escolaieda.com
 ```
 
-Publicação de código não ativa dados acadêmicos: sem D1/binding acadêmico de produção, as superfícies físicas continuam indisponíveis antes do binding.
+Publicação de código não ativa dados acadêmicos: sem D1/binding acadêmico de produção, superfícies físicas continuam indisponíveis antes do binding.

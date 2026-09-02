@@ -5,7 +5,17 @@ import {
   type AuditWorkspaceV1,
   type ExistingImportChangePlanSourceV1,
 } from '../../../application/audit-workspace/audit-workspace-v1';
-import { createLocalCouncilDecisionStoreV1 } from '../../../application/council/council-decision-store-v1';
+import type { BulletinSnapshotRepositoryV1 } from '../../../application/bulletins/bulletin-snapshot-repository-v1';
+import {
+  createCouncilInstitutionalWorkspaceV2,
+  type CouncilInstitutionalServerContextV2,
+  type CouncilInstitutionalWorkspaceV2,
+} from '../../../application/council/council-institutional-workspace-v2';
+import type { CouncilDecisionStoreV1 } from '../../../application/council/council-decision-store-v1';
+import {
+  createLocalCouncilSessionStoreV2,
+  type CouncilSessionStoreV2,
+} from '../../../application/council/council-session-store-v2';
 import type { CouncilWorkspaceSourceV1 } from '../../../application/council/council-workspace-source-v1';
 import {
   createCouncilWorkspaceV1,
@@ -30,6 +40,10 @@ import type { PersistenceUnitOfWorkV1 } from '../../../../../src/gradebook-domai
 import { GradebookD1AuditWorkspaceSourceV1 } from '../audit-workspace/d1-audit-workspace-source-v1';
 import { createGradebookD1PersistenceUnitOfWorkV1 } from '../composition/d1-persistence-unit-of-work-v1';
 import { createGradebookD1CouncilOfficialProjectionSourceV1 } from '../council/d1-council-official-projection-source-v1';
+import {
+  createGradebookD1BulletinCouncilDurabilityV1,
+  type GradebookD1BulletinCouncilDurabilityV1,
+} from '../durability/d1-bulletin-council-durability-v1';
 import {
   createOperationalWorkspaceAcademicYearCatalogV1,
   type OperationalWorkspaceAcademicYearCatalogV1,
@@ -73,7 +87,7 @@ export interface GradebookD1RuntimeOptionsV1 extends GradebookD1MigrationRunnerO
   readonly now?: () => string;
 }
 
-const localCouncilDecisionStoreV1 = createLocalCouncilDecisionStoreV1();
+const councilSessionStores = new WeakMap<object, CouncilSessionStoreV2>();
 
 function fail(code: GradebookD1RuntimeErrorCodeV1): never {
   throw new GradebookD1RuntimeErrorV1(code);
@@ -124,6 +138,15 @@ function runtimeEnvironment(env: RuntimeEnv): GradebookD1RuntimeEnvironmentV1 {
   return environment;
 }
 
+function councilSessionStore(database: D1WriteDatabaseV1): CouncilSessionStoreV2 {
+  const key = database as unknown as object;
+  const existing = councilSessionStores.get(key);
+  if (existing !== undefined) return existing;
+  const created = createLocalCouncilSessionStoreV2();
+  councilSessionStores.set(key, created);
+  return created;
+}
+
 export class GradebookD1RuntimeV1 {
   constructor(
     readonly environment: GradebookD1RuntimeEnvironmentV1,
@@ -134,6 +157,8 @@ export class GradebookD1RuntimeV1 {
     private readonly auditWorkspaceSource: GradebookD1AuditWorkspaceSourceV1,
     private readonly performanceReadModel: ClassPerformanceReadModelProviderV1,
     private readonly councilWorkspaceSource: CouncilWorkspaceSourceV1,
+    private readonly durability: GradebookD1BulletinCouncilDurabilityV1,
+    private readonly councilSessions: CouncilSessionStoreV2,
     private readonly transaction: GradebookD1BatchPromotionTransactionV1,
     private readonly migrations: GradebookD1MigrationRunnerV1,
   ) {}
@@ -195,19 +220,50 @@ export class GradebookD1RuntimeV1 {
     return this.performanceReadModel;
   }
 
+  bulletinSnapshotRepository(): BulletinSnapshotRepositoryV1 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    return this.durability.bulletinSnapshots;
+  }
+
+  councilDecisionStore(): CouncilDecisionStoreV1 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    return this.durability.councilDecisions;
+  }
+
   councilWorkspace(
     server: Pick<CouncilWorkspaceServerContextV1, 'decisionIdentity'>,
   ): CouncilWorkspaceV1 {
     requireGradebookD1RuntimeAuthorizationV1(this.authorization);
     return createCouncilWorkspaceV1({
       source: this.councilWorkspaceSource,
-      decisions: localCouncilDecisionStoreV1,
+      decisions: this.durability.councilDecisions,
       server: {
         isAuthorized: () => {
           requireGradebookD1RuntimeAuthorizationV1(this.authorization);
           return true;
         },
         decisionIdentity: () => server.decisionIdentity(),
+      },
+    });
+  }
+
+  councilInstitutionalWorkspace(
+    server: CouncilInstitutionalServerContextV2,
+  ): CouncilInstitutionalWorkspaceV2 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    const workspace = this.councilWorkspace(server);
+    return createCouncilInstitutionalWorkspaceV2({
+      source: this.councilWorkspaceSource,
+      decisions: this.durability.councilDecisions,
+      workspace,
+      sessions: this.councilSessions,
+      server: {
+        isAuthorized: () => {
+          requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+          return true;
+        },
+        decisionIdentity: () => server.decisionIdentity(),
+        institutionalIdentity: () => server.institutionalIdentity(),
       },
     });
   }
@@ -246,6 +302,8 @@ export function createGradebookD1RuntimeV1(
     createGradebookD1ClassPerformanceSourceV1(database),
   );
   const councilWorkspaceSource = createGradebookD1CouncilOfficialProjectionSourceV1(database);
+  const durability = createGradebookD1BulletinCouncilDurabilityV1(database);
+  const sessions = councilSessionStore(database);
   const transaction = new GradebookD1BatchPromotionTransactionV1(database, { now: options.now });
   const migrations = new GradebookD1MigrationRunnerV1(database, {
     migrationSql: options.migrationSql,
@@ -259,6 +317,8 @@ export function createGradebookD1RuntimeV1(
     auditWorkspaceSource,
     performanceReadModel,
     councilWorkspaceSource,
+    durability,
+    sessions,
     transaction,
     migrations,
   );

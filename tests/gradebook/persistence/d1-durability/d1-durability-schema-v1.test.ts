@@ -168,7 +168,7 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
     expect(migration).not.toMatch(/\bDELETE\b|ON DELETE CASCADE/iu);
   });
 
-  it('expõe uma factory isolável sem alterar o wiring do runtime central', async () => {
+  it('expõe a factory isolável e a compõe no runtime central somente após a #343', async () => {
     const { raw, database } = await blankDatabase();
     try {
       const durability = createGradebookD1BulletinCouncilDurabilityV1(database);
@@ -182,7 +182,9 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
         join(process.cwd(), 'server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts'),
         'utf8',
       );
-      expect(runtimeSource).not.toContain('createGradebookD1BulletinCouncilDurabilityV1');
+      expect(runtimeSource).toContain('createGradebookD1BulletinCouncilDurabilityV1(database)');
+      expect(runtimeSource).toContain('this.durability.bulletinSnapshots');
+      expect(runtimeSource).toContain('this.durability.councilDecisions');
     } finally {
       raw.close();
     }

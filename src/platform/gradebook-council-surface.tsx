@@ -7,6 +7,7 @@ import {
   GLOBAL_SEARCH_ORDER_V1,
   type GlobalSearchResultV1,
 } from '../../shared/gradebook-contracts/search/global-search-contract-v1';
+import { CouncilInstitutionalPanelV2 } from '../features/gradebook/council/council-institutional-panel-v2';
 import { CouncilWorkspacePage } from '../features/gradebook/council/council-workspace-page';
 import { requestOperationalWorkspaceV1 } from '../features/gradebook/operational-workspace/operational-workspace-client';
 
@@ -29,6 +30,7 @@ export function GradebookCouncilSurface() {
   const [classSearchState, setClassSearchState] = useState<CouncilSearchState>('idle');
   const [classResults, setClassResults] = useState<readonly GlobalSearchResultV1[]>([]);
   const [selectedClass, setSelectedClass] = useState<CouncilSelectedClass | null>(null);
+  const [meetingClosed, setMeetingClosed] = useState(false);
   const bootstrapControllerRef = useRef<AbortController | null>(null);
   const classSearchControllerRef = useRef<AbortController | null>(null);
   const searchSequenceRef = useRef(0);
@@ -84,6 +86,7 @@ export function GradebookCouncilSurface() {
     const sequence = ++searchSequenceRef.current;
     setClassSearchState('loading');
     setSelectedClass(null);
+    setMeetingClosed(false);
 
     try {
       const response = await requestOperationalWorkspaceV1(
@@ -186,6 +189,7 @@ export function GradebookCouncilSurface() {
                   setClassResults([]);
                   setClassSearchState('idle');
                   setSelectedClass(null);
+                  setMeetingClosed(false);
                 }}
               >
                 <option value="">Selecione o ano</option>
@@ -253,12 +257,13 @@ export function GradebookCouncilSurface() {
                       key={result.id}
                       size="sm"
                       variant={selectedClass?.label === result.code ? 'primary' : 'outline'}
-                      onPress={() =>
+                      onPress={() => {
+                        setMeetingClosed(false);
                         setSelectedClass({
                           reference: result.id as unknown as CouncilClassReferenceV1,
                           label: result.code,
-                        })
-                      }
+                        });
+                      }}
                     >
                       {result.code}
                     </Button>
@@ -270,11 +275,32 @@ export function GradebookCouncilSurface() {
       </Surface>
 
       {academicYearId !== null && selectedClass !== null && (
-        <CouncilWorkspacePage
-          academicYearId={academicYearId}
-          classReference={selectedClass.reference}
-          classLabel={selectedClass.label}
-        />
+        <>
+          {meetingClosed && (
+            <Alert status="default">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>Conselho fechado</Alert.Title>
+                <Alert.Description>
+                  O servidor bloqueia novas decisões e contagens; a fotografia histórica permanece disponível no painel institucional.
+                </Alert.Description>
+              </Alert.Content>
+            </Alert>
+          )}
+          <CouncilWorkspacePage
+            academicYearId={academicYearId}
+            classReference={selectedClass.reference}
+            classLabel={selectedClass.label}
+          />
+          <CouncilInstitutionalPanelV2
+            academicYearId={academicYearId}
+            classReference={selectedClass.reference}
+            classLabel={selectedClass.label}
+            focusedStudentReference={null}
+            refreshToken={0}
+            onMeetingClosedChange={setMeetingClosed}
+          />
+        </>
       )}
     </div>
   );

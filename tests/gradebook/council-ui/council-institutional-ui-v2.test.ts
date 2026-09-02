@@ -16,16 +16,18 @@ describe('Council institutional HeroUI V2', () => {
   const functions = source('functions/[[path]].ts');
   const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
 
-  it('entrega painel HeroUI isolado sem antecipar wiring central da #343', () => {
+  it('entrega painel HeroUI e o monta pelo wiring central da #343 no bridge existente', () => {
     expect(panel).toContain("from '@heroui/react'");
     expect(panel).toContain('<Card>');
     expect(panel).toContain('<Button');
     expect(panel).toContain('<Alert');
     expect(panel).toContain('<Surface');
     expect(panel).toContain('Fechamento institucional');
-    expect(surface).not.toContain('CouncilInstitutionalPanelV2');
-    expect(functions).not.toContain('CouncilInstitutionalWorkspaceV2');
-    expect(runtime).not.toContain('CouncilInstitutionalWorkspaceV2');
+    expect(surface).toContain('CouncilInstitutionalPanelV2');
+    expect(functions).toContain('createInstitutionalWorkspace(runtimeEnv, server)');
+    expect(functions).toContain('.councilInstitutionalWorkspace(');
+    expect(runtime).toContain('CouncilInstitutionalWorkspaceV2');
+    expect(runtime).toContain('createCouncilInstitutionalWorkspaceV2');
   });
 
   it('mostra revisão pré-fechamento, confirmação explícita, conflitos e histórico', () => {

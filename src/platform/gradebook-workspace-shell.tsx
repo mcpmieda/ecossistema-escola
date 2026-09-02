@@ -39,9 +39,14 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
     description: 'Consulte preview, emissão, PDF e histórico baseados no modelo canônico existente.',
   },
   {
+    id: 'reports',
+    label: 'Relatórios',
+    description: 'Produza relatórios institucionais e lotes PDF bounded somente sobre dados oficiais.',
+  },
+  {
     id: 'council',
     label: 'Conselho',
-    description: 'Abra a fila oficial e registre somente decisões humanas autorizadas.',
+    description: 'Abra a fila oficial, registre decisões humanas e feche a turma institucionalmente.',
   },
 ] as const;
 
@@ -88,6 +93,11 @@ const BulletinPage = lazy(async () => {
   return { default: module.BulletinPage };
 });
 
+const InstitutionalReportsPage = lazy(async () => {
+  const module = await import('../features/gradebook/reports/institutional-reports-page');
+  return { default: module.GradebookInstitutionalReportsPage };
+});
+
 const CouncilWorkspaceSurface = lazy(async () => {
   const module = await import('./gradebook-council-surface');
   return { default: module.GradebookCouncilSurface };
@@ -101,6 +111,7 @@ const SURFACE_COMPONENTS: Record<
   audit: AuditWorkspacePage,
   performance: PerformancePage,
   bulletins: BulletinPage,
+  reports: InstitutionalReportsPage,
   council: CouncilWorkspaceSurface,
 };
 
