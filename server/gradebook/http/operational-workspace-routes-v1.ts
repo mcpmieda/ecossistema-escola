@@ -1,3 +1,4 @@
+import type { TeacherId, TeachingAssignmentId } from '../../../shared/gradebook-contracts/entities';
 import {
   OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
   type OperationalWorkspaceNotAuthorizedV1,
@@ -17,6 +18,10 @@ import {
   readBoundedJson,
 } from '../../http/security';
 import { createOperationalWorkspaceServiceV1 } from '../application/operational-workspace/operational-workspace-service-v1';
+import {
+  createTeacherAssignmentMaintenanceV1,
+  isTeacherAssignmentMaintenanceRequestV1,
+} from '../application/operational-workspace/teacher-assignment-maintenance-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
 
@@ -50,6 +55,18 @@ function notAuthorized(status: 401 | 403): Response {
   return noStoreJson(response, status);
 }
 
+function isMaintenanceCandidate(value: unknown): boolean {
+  return value !== null && typeof value === 'object' && Object.hasOwn(value, 'maintenanceVersion');
+}
+
+function newTeacherId(): TeacherId {
+  return `teacher:${crypto.randomUUID()}` as TeacherId;
+}
+
+function newTeachingAssignmentId(): TeachingAssignmentId {
+  return `teaching-assignment:${crypto.randomUUID()}` as TeachingAssignmentId;
+}
+
 export async function handleOperationalWorkspaceRequestV1(
   request: Request,
   env: RuntimeEnv,
@@ -76,10 +93,29 @@ export async function handleOperationalWorkspaceRequestV1(
   } catch (cause) {
     return unavailable(cause instanceof HttpError ? cause.status : 400);
   }
-  if (!isOperationalWorkspaceTransportRequestV1(payload)) return unavailable(400);
+
+  const maintenanceCandidate = isMaintenanceCandidate(payload);
+  if (maintenanceCandidate) {
+    if (!isTeacherAssignmentMaintenanceRequestV1(payload)) return unavailable(400);
+  } else if (!isOperationalWorkspaceTransportRequestV1(payload)) {
+    return unavailable(400);
+  }
 
   try {
     const runtime = createGradebookD1RuntimeV1(env, authorization);
+    if (maintenanceCandidate) {
+      if (!isTeacherAssignmentMaintenanceRequestV1(payload)) return unavailable(400);
+      const readModels = runtime.operationalReadModels();
+      const maintenance = createTeacherAssignmentMaintenanceV1({
+        entities: runtime.persistenceUnitOfWork().entities,
+        teachers: readModels.teachers,
+        createTeacherId: newTeacherId,
+        createTeachingAssignmentId: newTeachingAssignmentId,
+      });
+      return noStoreJson(await maintenance.execute(payload));
+    }
+
+    if (!isOperationalWorkspaceTransportRequestV1(payload)) return unavailable(400);
     const service = createOperationalWorkspaceServiceV1({
       academicYears: runtime.operationalWorkspaceAcademicYears(),
       readModels: runtime.operationalReadModels(),
