@@ -57,7 +57,8 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
     const contract = source('shared/gradebook-contracts/reports/institutional-reports-contract-v1.ts');
     const batch = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-batch-actions-v1.ts');
 
-    expect(reports).toContain('official-semantics-not-integrated');
+    expect(reports).toContain('INSTITUTIONAL_REPORT_DERIVED_INDICATORS_HARD_STOP_V1');
+    expect(contract).toContain('official-semantics-not-integrated');
     expect(contract).toContain('derived-academic-indicators');
     expect(batch).toContain('maxDocuments: 3');
     expect(batch).toContain('maxTotalPages: 72');
