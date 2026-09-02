@@ -516,7 +516,7 @@ wave_22:
   status: completed-integrated
   strategy: sequential-decision-contract-parallel-implementations-integrator
   integration_issue: 374
-  integration_pull_request: pending
+  integration_pull_request: 379
   source_merges:
     - issue: 349
       pull_request: 375

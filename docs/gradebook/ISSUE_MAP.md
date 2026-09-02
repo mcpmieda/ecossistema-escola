@@ -8,7 +8,7 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 - **Onda 19:** #353 + #354 + #355 → #356 / PR #362
 - **Onda 20:** #360 / PR #363 → #361
 - **Onda 21:** #365 / PR #368 + #366 / PR #369 → #367 / PR #370
-- **Onda 22:** #349 / PR #375 → #371 / PR #376 → (#372 / PR #377 + #373 / PR #378) → #374
+- **Onda 22:** #349 / PR #375 → #371 / PR #376 → (#372 / PR #377 + #373 / PR #378) → #374 / PR #379
 - **Armazenamento:** Cloudflare D1 local/preview, migrations 0001–0004 / 25 tabelas
 - **Produção acadêmica:** sem D1 remoto, binding ou migration remota; consultas/persistência desativadas
 - **Autoridade ativa:** `imported-source`
@@ -95,7 +95,7 @@ Merges das frentes:
 | Contratos compartilhados | #371 / #376 | comparação proporcional V2 e reconciliação determinística V2                            |
 | Desempenho              | #372 / #377 | comparação profile-aware, referência explícita e configuração server-side               |
 | Auditoria               | #373 / #378 | investigação, stop e correção determinística pelo planner/executor oficiais              |
-| Integração              | #374        | regressão, documentação, publicação e retorno aos gates produtivos                       |
+| Integração              | #374 / #379 | regressão, documentação, publicação e retorno aos gates produtivos                       |
 
 Merges das frentes:
 

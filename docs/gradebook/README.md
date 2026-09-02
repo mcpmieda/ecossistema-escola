@@ -19,7 +19,7 @@ A onda 22 integrou a decisão institucional, os contratos e as duas fundações 
 - #371 / PR #376 — contratos V2 de comparação proporcional e reconciliação determinística;
 - #372 / PR #377 — comparação profile-aware no bridge existente de Desempenho;
 - #373 / PR #378 — investigação/correção determinística no Audit Workspace existente;
-- #374 — regressão transversal, memória canônica e publicação da composição.
+- #374 / PR #379 — regressão transversal, memória canônica e publicação da composição.
 
 A F1 7/7 e a fidelidade prospectiva da onda 21 permanecem intactas. O resultado máximo de readiness continua **`prepared-for-manual-authorization`**.
 

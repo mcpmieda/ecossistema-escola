@@ -12,7 +12,7 @@
 | Contratos V2           | `#371 / #376` | comparação percentual profile-aware e correção determinística fail-closed                       |
 | Comparação             | `#372 / #377` | F6 no bridge existente, configuração server-side e sem write path inventado                     |
 | Correção determinística | `#373 / #378` | Audit Workspace, planner/executor/CAS/rollback oficiais                                          |
-| Integração             | `#374`        | regressão transversal, readiness sintética e memória canônica sem ativação produtiva             |
+| Integração             | `#374 / #379` | regressão transversal, readiness sintética e memória canônica sem ativação produtiva             |
 
 Heads e merges validados:
 
