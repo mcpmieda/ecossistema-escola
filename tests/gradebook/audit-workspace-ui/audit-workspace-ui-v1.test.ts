@@ -68,8 +68,28 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
     expect(page).toContain('focus-visible:ring-2');
   });
 
+  it('explica investigação, elegibilidade, stop e correção no mesmo Audit Workspace', () => {
+    expect(page).toContain('Investigação e correção determinística');
+    expect(page).toContain('Divergência observada');
+    expect(page).toContain('Impacto acadêmico');
+    expect(page).toContain('Causa / bloqueio');
+    expect(page).toContain('Liberação institucional');
+    expect(page).toContain('Política do futuro piloto');
+    expect(page).toContain('Fluxo bloqueado para investigação');
+    expect(page).toContain('Executar correção determinística');
+    expect(page).toContain('não altera a planilha');
+    expect(page).toContain('requestDeterministicCorrectionInspectionV2');
+    expect(page).toContain('requestDeterministicCorrectionExecutionV2');
+    expect(client).toContain("const AUDIT_WORKSPACE_ENDPOINT = '/api/gradebook/audit-workspace'");
+    expect(client).toContain("!serialized.includes('officialEvidenceReferences')");
+    expect(page).not.toContain('localStorage');
+    expect(page).not.toContain('sessionStorage');
+  });
+
   it('liga apenas o bridge de Auditoria autorizado e preserva autorização server-side', () => {
-    expect(handler).toContain("GRADEBOOK_AUDIT_WORKSPACE_ROUTE_V1 = '/api/gradebook/audit-workspace'");
+    expect(handler).toContain(
+      "GRADEBOOK_AUDIT_WORKSPACE_ROUTE_V1 = '/api/gradebook/audit-workspace'",
+    );
     expect(handler).toContain('session = await requireAuth(request, env)');
     expect(handler).toContain('authorization = authorizeGradebookD1RuntimeV1(session)');
     expect(handler).toContain('const runtime = createGradebookD1RuntimeV1(env, authorization)');

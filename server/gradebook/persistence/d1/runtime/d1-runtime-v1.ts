@@ -6,6 +6,13 @@ import {
   type AuditWorkspaceV1,
   type ExistingImportChangePlanSourceV1,
 } from '../../../application/audit-workspace/audit-workspace-v1';
+import {
+  createDeterministicCorrectionWorkspaceV2,
+  createLocalDeterministicCorrectionCaseStoreV2,
+  type DeterministicCorrectionCaseStoreV2,
+  type DeterministicCorrectionServerContextV2,
+  type DeterministicCorrectionWorkspaceV2,
+} from '../../../application/audit-workspace/deterministic-correction-v2';
 import type { BulletinSnapshotRepositoryV1 } from '../../../application/bulletins/bulletin-snapshot-repository-v1';
 import {
   createCouncilInstitutionalWorkspaceV2,
@@ -90,6 +97,7 @@ export interface GradebookD1RuntimeOptionsV1 extends GradebookD1MigrationRunnerO
 }
 
 const councilSessionStores = new WeakMap<object, CouncilSessionStoreV2>();
+const deterministicCorrectionStores = new WeakMap<object, DeterministicCorrectionCaseStoreV2>();
 
 function fail(code: GradebookD1RuntimeErrorCodeV1): never {
   throw new GradebookD1RuntimeErrorV1(code);
@@ -149,6 +157,18 @@ function councilSessionStore(database: D1WriteDatabaseV1): CouncilSessionStoreV2
   return created;
 }
 
+function deterministicCorrectionStore(
+  database: D1WriteDatabaseV1,
+  now?: () => string,
+): DeterministicCorrectionCaseStoreV2 {
+  const key = database as unknown as object;
+  const existing = deterministicCorrectionStores.get(key);
+  if (existing !== undefined) return existing;
+  const created = createLocalDeterministicCorrectionCaseStoreV2(now);
+  deterministicCorrectionStores.set(key, created);
+  return created;
+}
+
 export class GradebookD1RuntimeV1 {
   constructor(
     readonly environment: GradebookD1RuntimeEnvironmentV1,
@@ -157,6 +177,7 @@ export class GradebookD1RuntimeV1 {
     private readonly readModels: GradebookOperationalReadModelsV1,
     private readonly operationalAcademicYears: OperationalWorkspaceAcademicYearCatalogV1,
     private readonly auditWorkspaceSource: GradebookD1AuditWorkspaceSourceV1,
+    private readonly deterministicCorrections: DeterministicCorrectionCaseStoreV2,
     private readonly performanceReadModel: ClassPerformanceReadModelProviderV1,
     private readonly councilWorkspaceSource: CouncilWorkspaceSourceV1,
     private readonly durability: GradebookD1BulletinCouncilDurabilityV1,
@@ -214,6 +235,25 @@ export class GradebookD1RuntimeV1 {
         resolutionIdentity: () => server.resolutionIdentity(),
       },
       ...(existingPlans === undefined ? {} : { existingPlans }),
+    });
+  }
+
+  deterministicCorrectionWorkspace(
+    server: Pick<DeterministicCorrectionServerContextV2, 'correctionIdentity'>,
+  ): DeterministicCorrectionWorkspaceV2 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    return createDeterministicCorrectionWorkspaceV2({
+      store: this.deterministicCorrections,
+      audit: this.unitOfWork.audit,
+      planningRepositories: this.planningRepositories(),
+      transaction: this.transaction,
+      server: {
+        isAuthorized: () => {
+          requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+          return true;
+        },
+        correctionIdentity: () => server.correctionIdentity(),
+      },
     });
   }
 
@@ -300,6 +340,7 @@ export function createGradebookD1RuntimeV1(
   const readModels = createGradebookOperationalReadModelsV1(unitOfWork);
   const operationalAcademicYears = createOperationalWorkspaceAcademicYearCatalogV1(database);
   const auditWorkspaceSource = new GradebookD1AuditWorkspaceSourceV1(database);
+  const deterministicCorrections = deterministicCorrectionStore(database, options.now);
   const performanceReadModel = createClassPerformanceReadModelV1(
     createGradebookD1ClassPerformanceSourceV1(database, {
       ...(options.performanceComparisonConfiguration === undefined
@@ -321,6 +362,7 @@ export function createGradebookD1RuntimeV1(
     readModels,
     operationalAcademicYears,
     auditWorkspaceSource,
+    deterministicCorrections,
     performanceReadModel,
     councilWorkspaceSource,
     durability,

@@ -9,6 +9,7 @@ import {
   RotateCcw,
   Scale,
   ShieldAlert,
+  Wrench,
 } from 'lucide-react';
 import type { AcademicYearId } from '../../../../shared/gradebook-contracts/entities';
 import {
@@ -16,6 +17,7 @@ import {
   AUDIT_SEVERITIES_V1,
   RECONCILIATION_STATUSES_V1,
   type AuditOccurrenceStateV1,
+  type ReconciliationResultId,
   type ReconciliationTargetV1,
 } from '../../../../shared/gradebook-contracts/audit/audit-contract-v1';
 import {
@@ -40,9 +42,13 @@ import {
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
 import {
   AuditWorkspaceClientErrorV1,
+  DETERMINISTIC_CORRECTION_TRANSPORT_VERSION_V2,
   requestAuditWorkspaceDetailV1,
   requestAuditWorkspaceListV1,
   requestAuditWorkspaceResolutionV1,
+  requestDeterministicCorrectionExecutionV2,
+  requestDeterministicCorrectionInspectionV2,
+  type DeterministicCorrectionCaseSummaryV2,
 } from './audit-workspace-client';
 
 type ViewState = 'idle' | 'loading' | 'ready' | 'empty' | 'unavailable' | 'not-authorized';
@@ -86,7 +92,10 @@ const COLLECTION_LABELS: Record<AuditWorkspaceCollectionV1, string> = {
 };
 
 function friendlyInstant(value: string): string {
-  return value.replace('T', ' ').replace(/\.\d{3}Z$/u, ' UTC').replace(/Z$/u, ' UTC');
+  return value
+    .replace('T', ' ')
+    .replace(/\.\d{3}Z$/u, ' UTC')
+    .replace(/Z$/u, ' UTC');
 }
 
 function presentationLabel(value: string): string {
@@ -99,7 +108,10 @@ function clientFailureState(error: unknown): Extract<ViewState, 'unavailable' | 
     : 'unavailable';
 }
 
-function filtersFromDraft(collection: AuditWorkspaceCollectionV1, draft: FilterDraft): AuditWorkspaceFiltersV1 {
+function filtersFromDraft(
+  collection: AuditWorkspaceCollectionV1,
+  draft: FilterDraft,
+): AuditWorkspaceFiltersV1 {
   const period =
     draft.fromInclusive || draft.toExclusive
       ? {
@@ -114,7 +126,11 @@ function filtersFromDraft(collection: AuditWorkspaceCollectionV1, draft: FilterD
         ? { importBatchId: draft.importBatchId.trim() as ImportBatchId }
         : {}),
       ...(draft.importBatchStatus
-        ? { importBatchStatuses: [draft.importBatchStatus as (typeof IMPORT_BATCH_STATUSES_V1)[number]] }
+        ? {
+            importBatchStatuses: [
+              draft.importBatchStatus as (typeof IMPORT_BATCH_STATUSES_V1)[number],
+            ],
+          }
         : {}),
       ...(period ? { period } : {}),
     };
@@ -126,7 +142,11 @@ function filtersFromDraft(collection: AuditWorkspaceCollectionV1, draft: FilterD
         ? { importBatchId: draft.importBatchId.trim() as ImportBatchId }
         : {}),
       ...(draft.occurrenceState
-        ? { occurrenceStates: [draft.occurrenceState as (typeof AUDIT_OCCURRENCE_STATES_V1)[number]] }
+        ? {
+            occurrenceStates: [
+              draft.occurrenceState as (typeof AUDIT_OCCURRENCE_STATES_V1)[number],
+            ],
+          }
         : {}),
       ...(draft.severity
         ? { severities: [draft.severity as (typeof AUDIT_SEVERITIES_V1)[number]] }
@@ -189,7 +209,11 @@ function listRequest(
   }
 }
 
-function WorkspaceStateAlert({ state }: { state: Extract<ViewState, 'empty' | 'unavailable' | 'not-authorized'> }) {
+function WorkspaceStateAlert({
+  state,
+}: {
+  state: Extract<ViewState, 'empty' | 'unavailable' | 'not-authorized'>;
+}) {
   if (state === 'not-authorized') {
     return (
       <Alert status="warning">
@@ -210,7 +234,8 @@ function WorkspaceStateAlert({ state }: { state: Extract<ViewState, 'empty' | 'u
         <Alert.Content>
           <Alert.Title>Auditoria indisponível neste ambiente</Alert.Title>
           <Alert.Description>
-            O workspace permanece fechado quando o runtime acadêmico local ou de preview não está disponível.
+            O workspace permanece fechado quando o runtime acadêmico local ou de preview não está
+            disponível.
           </Alert.Description>
         </Alert.Content>
       </Alert>
@@ -221,7 +246,9 @@ function WorkspaceStateAlert({ state }: { state: Extract<ViewState, 'empty' | 'u
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>Nenhum ano acadêmico disponível</Alert.Title>
-        <Alert.Description>Não há contexto acadêmico configurado para revisar neste ambiente.</Alert.Description>
+        <Alert.Description>
+          Não há contexto acadêmico configurado para revisar neste ambiente.
+        </Alert.Description>
       </Alert.Content>
     </Alert>
   );
@@ -283,7 +310,9 @@ function FilterPanel({
             >
               <option value="">Todas</option>
               {IMPORT_BATCH_STATUSES_V1.map((status) => (
-                <option key={status} value={status}>{presentationLabel(status)}</option>
+                <option key={status} value={status}>
+                  {presentationLabel(status)}
+                </option>
               ))}
             </select>
           </div>
@@ -292,7 +321,10 @@ function FilterPanel({
         {collection === 'audit-occurrences' && (
           <>
             <div>
-              <Label htmlFor="audit-filter-occurrence-state" className="mb-1.5 block text-sm font-medium">
+              <Label
+                htmlFor="audit-filter-occurrence-state"
+                className="mb-1.5 block text-sm font-medium"
+              >
                 Estado da ocorrência
               </Label>
               <select
@@ -303,7 +335,9 @@ function FilterPanel({
               >
                 <option value="">Todos</option>
                 {AUDIT_OCCURRENCE_STATES_V1.map((state) => (
-                  <option key={state} value={state}>{presentationLabel(state)}</option>
+                  <option key={state} value={state}>
+                    {presentationLabel(state)}
+                  </option>
                 ))}
               </select>
             </div>
@@ -319,7 +353,9 @@ function FilterPanel({
               >
                 <option value="">Todas</option>
                 {AUDIT_SEVERITIES_V1.map((severity) => (
-                  <option key={severity} value={severity}>{presentationLabel(severity)}</option>
+                  <option key={severity} value={severity}>
+                    {presentationLabel(severity)}
+                  </option>
                 ))}
               </select>
             </div>
@@ -341,7 +377,10 @@ function FilterPanel({
         {collection === 'reconciliations' && (
           <>
             <div>
-              <Label htmlFor="audit-filter-record-type" className="mb-1.5 block text-sm font-medium">
+              <Label
+                htmlFor="audit-filter-record-type"
+                className="mb-1.5 block text-sm font-medium"
+              >
                 Tipo de registro
               </Label>
               <select
@@ -352,12 +391,17 @@ function FilterPanel({
               >
                 <option value="">Todos</option>
                 {RECORD_TYPES.map((kind) => (
-                  <option key={kind} value={kind}>{presentationLabel(kind)}</option>
+                  <option key={kind} value={kind}>
+                    {presentationLabel(kind)}
+                  </option>
                 ))}
               </select>
             </div>
             <div>
-              <Label htmlFor="audit-filter-reconciliation-status" className="mb-1.5 block text-sm font-medium">
+              <Label
+                htmlFor="audit-filter-reconciliation-status"
+                className="mb-1.5 block text-sm font-medium"
+              >
                 Resultado da reconciliação
               </Label>
               <select
@@ -368,7 +412,9 @@ function FilterPanel({
               >
                 <option value="">Todos</option>
                 {RECONCILIATION_STATUSES_V1.map((status) => (
-                  <option key={status} value={status}>{presentationLabel(status)}</option>
+                  <option key={status} value={status}>
+                    {presentationLabel(status)}
+                  </option>
                 ))}
               </select>
             </div>
@@ -423,39 +469,70 @@ function ListItemButton({
 }) {
   if (item.kind === 'import-batch') {
     return (
-      <Button variant="ghost" fullWidth className="h-auto justify-start px-3 py-3 text-left" onPress={() => onOpen(item.reference)}>
+      <Button
+        variant="ghost"
+        fullWidth
+        className="h-auto justify-start px-3 py-3 text-left"
+        onPress={() => onOpen(item.reference)}
+      >
         <ClipboardCheck className="size-4 shrink-0 text-muted" />
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{item.reference.id}</span>
-          <span className="block text-xs text-muted">Atualizado em {friendlyInstant(item.updatedAt)}</span>
+          <span className="block text-xs text-muted">
+            Atualizado em {friendlyInstant(item.updatedAt)}
+          </span>
         </span>
-        <Chip size="sm" variant="soft">{presentationLabel(item.status)}</Chip>
+        <Chip size="sm" variant="soft">
+          {presentationLabel(item.status)}
+        </Chip>
       </Button>
     );
   }
   if (item.kind === 'audit-occurrence') {
     return (
-      <Button variant="ghost" fullWidth className="h-auto justify-start px-3 py-3 text-left" onPress={() => onOpen(item.reference)}>
+      <Button
+        variant="ghost"
+        fullWidth
+        className="h-auto justify-start px-3 py-3 text-left"
+        onPress={() => onOpen(item.reference)}
+      >
         <ShieldAlert className="size-4 shrink-0 text-muted" />
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium">{item.category}</span>
-          <span className="block truncate text-xs text-muted">{item.reference.id} · {friendlyInstant(item.createdAt)}</span>
+          <span className="block truncate text-xs text-muted">
+            {item.reference.id} · {friendlyInstant(item.createdAt)}
+          </span>
         </span>
         <span className="flex flex-wrap justify-end gap-1">
-          <Chip size="sm" variant="soft">{presentationLabel(item.severity)}</Chip>
-          <Chip size="sm" variant="soft">{presentationLabel(item.state)}</Chip>
+          <Chip size="sm" variant="soft">
+            {presentationLabel(item.severity)}
+          </Chip>
+          <Chip size="sm" variant="soft">
+            {presentationLabel(item.state)}
+          </Chip>
         </span>
       </Button>
     );
   }
   return (
-    <Button variant="ghost" fullWidth className="h-auto justify-start px-3 py-3 text-left" onPress={() => onOpen(item.reference)}>
+    <Button
+      variant="ghost"
+      fullWidth
+      className="h-auto justify-start px-3 py-3 text-left"
+      onPress={() => onOpen(item.reference)}
+    >
       <Scale className="size-4 shrink-0 text-muted" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium">{presentationLabel(item.target.kind)} · {item.target.id}</span>
-        <span className="block truncate text-xs text-muted">Regra {item.ruleVersion} · {friendlyInstant(item.recordedAt)}</span>
+        <span className="block truncate font-medium">
+          {presentationLabel(item.target.kind)} · {item.target.id}
+        </span>
+        <span className="block truncate text-xs text-muted">
+          Regra {item.ruleVersion} · {friendlyInstant(item.recordedAt)}
+        </span>
       </span>
-      <Chip size="sm" variant="soft">{presentationLabel(item.status)}</Chip>
+      <Chip size="sm" variant="soft">
+        {presentationLabel(item.status)}
+      </Chip>
     </Button>
   );
 }
@@ -506,7 +583,10 @@ function PendingItems({
           );
         }
         return (
-          <li key={`${pending.kind}:${pending.importFileId}:${index}`} className="rounded-xl bg-default/40 px-3 py-2 text-sm">
+          <li
+            key={`${pending.kind}:${pending.importFileId}:${index}`}
+            className="rounded-xl bg-default/40 px-3 py-2 text-sm"
+          >
             Revisão de arquivo · {pending.importFileId}
           </li>
         );
@@ -541,6 +621,136 @@ function transitionFor(
     : { previousState: state, nextState: 'dismissed-with-reason', justification: text.trim() };
 }
 
+function DeterministicCorrectionPanel({
+  value,
+  state,
+  notice,
+  onExecute,
+}: {
+  value: DeterministicCorrectionCaseSummaryV2 | null;
+  state: ViewState;
+  notice: string | null;
+  onExecute: () => void;
+}) {
+  if (state === 'loading') {
+    return (
+      <Surface variant="secondary" className="rounded-2xl p-4" role="status">
+        <div className="flex items-center gap-2 text-sm text-muted">
+          <Spinner size="sm" color="accent" />
+          Carregando investigação determinística…
+        </div>
+      </Surface>
+    );
+  }
+  if (state === 'empty') {
+    return (
+      <Surface variant="secondary" className="rounded-2xl p-4">
+        <p className="text-sm text-muted">
+          Nenhum caso de investigação determinística foi encontrado para esta reconciliação.
+        </p>
+      </Surface>
+    );
+  }
+  if ((state === 'unavailable' || state === 'not-authorized') && value === null) {
+    return (
+      <Alert status="warning">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Investigação indisponível</Alert.Title>
+          <Alert.Description>
+            O caso permanece bloqueado; nenhuma correção foi executada.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
+    );
+  }
+  if (!value) return null;
+
+  const eligible = value.automaticCorrection.state === 'eligible';
+  const completed = value.correctionOutcome.state === 'completed';
+  return (
+    <Surface variant="secondary" className="rounded-2xl p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Wrench className="size-4 text-muted" />
+        <h3 className="font-medium">Investigação e correção determinística</h3>
+        <Chip size="sm" variant="soft">
+          {presentationLabel(value.investigation.state)}
+        </Chip>
+        <Chip size="sm" variant="soft">
+          {eligible ? 'elegível' : 'não elegível'}
+        </Chip>
+      </div>
+      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-muted">Divergência observada</dt>
+          <dd className="font-medium">{presentationLabel(value.divergence.status)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted">Impacto acadêmico</dt>
+          <dd className="font-medium">{presentationLabel(value.academicImpact.state)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted">Causa / bloqueio</dt>
+          <dd className="font-medium">
+            {eligible
+              ? presentationLabel(value.automaticCorrection.rootCauseCode)
+              : presentationLabel(value.automaticCorrection.reason)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted">Resultado da correção</dt>
+          <dd className="font-medium">{presentationLabel(value.correctionOutcome.state)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted">Liberação institucional</dt>
+          <dd className="font-medium">{presentationLabel(value.institutionalRelease.state)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted">Política do futuro piloto</dt>
+          <dd className="font-medium">{presentationLabel(value.pilotFlow.state)}</dd>
+        </div>
+      </dl>
+      {!eligible && (
+        <p className="mt-3 text-sm text-muted">{value.automaticCorrection.explanation}</p>
+      )}
+      {value.pilotFlow.state === 'stop' && (
+        <Alert status="danger" className="mt-4">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Fluxo bloqueado para investigação</Alert.Title>
+            <Alert.Description>
+              A autoridade continua imported-source e o caso não pode ser liberado enquanto o stop
+              estiver ativo.
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
+      {eligible && !completed && (
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button size="sm" variant="primary" onPress={onExecute}>
+            <Wrench className="size-4" />
+            Executar correção determinística
+          </Button>
+          <p className="text-xs text-muted">
+            A operação usa CAS, planner, executor e transação oficiais; não altera a planilha.
+          </p>
+        </div>
+      )}
+      {notice && (
+        <Alert status={completed ? 'success' : 'warning'} className="mt-4">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>
+              {completed ? 'Correção registrada' : 'Correção não concluída'}
+            </Alert.Title>
+            <Alert.Description>{notice}</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
+    </Surface>
+  );
+}
+
 function DetailCard({
   detail,
   headingRef,
@@ -552,6 +762,10 @@ function DetailCard({
   onResolutionText,
   onResolve,
   onOpenPending,
+  correctionCase,
+  correctionState,
+  correctionNotice,
+  onExecuteCorrection,
 }: {
   detail: AuditWorkspaceDetailV1;
   headingRef: React.RefObject<HTMLHeadingElement | null>;
@@ -563,6 +777,10 @@ function DetailCard({
   onResolutionText: (value: string) => void;
   onResolve: () => void;
   onOpenPending: (reference: AuditWorkspaceDetailReferenceV1) => void;
+  correctionCase: DeterministicCorrectionCaseSummaryV2 | null;
+  correctionState: ViewState;
+  correctionNotice: string | null;
+  onExecuteCorrection: () => void;
 }) {
   const inputClass =
     'w-full rounded-xl border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-focus';
@@ -585,7 +803,9 @@ function DetailCard({
             <p className="mt-1 font-medium">{presentationLabel(detail.kind)}</p>
           </Surface>
           <Surface variant="secondary" className="rounded-2xl p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Registrado em</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+              Registrado em
+            </p>
             <p className="mt-1 font-medium">{friendlyInstant(detail.recordedAt)}</p>
           </Surface>
         </div>
@@ -597,16 +817,29 @@ function DetailCard({
                 <div>
                   <p className="font-medium">Lote de importação</p>
                   <p className="mt-1 text-sm text-muted">
-                    {detail.record.summary.processedFileCount}/{detail.record.summary.totalFileCount} arquivos processados
+                    {detail.record.summary.processedFileCount}/
+                    {detail.record.summary.totalFileCount} arquivos processados
                   </p>
                 </div>
                 <Chip variant="soft">{presentationLabel(detail.record.status)}</Chip>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-                <div><span className="text-muted">Aprovados</span><strong className="block">{detail.record.summary.approvedFileCount}</strong></div>
-                <div><span className="text-muted">Em revisão</span><strong className="block">{detail.record.summary.reviewRequiredFileCount}</strong></div>
-                <div><span className="text-muted">Rejeitados</span><strong className="block">{detail.record.summary.rejectedFileCount}</strong></div>
-                <div><span className="text-muted">Falhos</span><strong className="block">{detail.record.summary.failedFileCount}</strong></div>
+                <div>
+                  <span className="text-muted">Aprovados</span>
+                  <strong className="block">{detail.record.summary.approvedFileCount}</strong>
+                </div>
+                <div>
+                  <span className="text-muted">Em revisão</span>
+                  <strong className="block">{detail.record.summary.reviewRequiredFileCount}</strong>
+                </div>
+                <div>
+                  <span className="text-muted">Rejeitados</span>
+                  <strong className="block">{detail.record.summary.rejectedFileCount}</strong>
+                </div>
+                <div>
+                  <span className="text-muted">Falhos</span>
+                  <strong className="block">{detail.record.summary.failedFileCount}</strong>
+                </div>
               </div>
             </Surface>
             <Alert status="default">
@@ -618,8 +851,8 @@ function DetailCard({
                     ? 'Nenhum plano de importação já produzido foi disponibilizado para esta projeção.'
                     : detail.promotionEligibility.eligible
                       ? 'O plano já existente informa elegibilidade.'
-                      : 'O plano já existente informa que o lote ainda não está elegível.'}
-                  {' '}Este workspace não executa promoção.
+                      : 'O plano já existente informa que o lote ainda não está elegível.'}{' '}
+                  Este workspace não executa promoção.
                 </Alert.Description>
               </Alert.Content>
             </Alert>
@@ -635,23 +868,33 @@ function DetailCard({
             </div>
             <p className="mt-4 text-sm leading-6">{detail.record.message}</p>
             {detail.record.recommendedAction && (
-              <p className="mt-3 text-sm text-muted">Ação recomendada: {detail.record.recommendedAction}</p>
+              <p className="mt-3 text-sm text-muted">
+                Ação recomendada: {detail.record.recommendedAction}
+              </p>
             )}
           </Surface>
         )}
 
         {detail.kind === 'reconciliation' && (
-          <Surface variant="secondary" className="rounded-2xl p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Chip variant="soft">{presentationLabel(detail.record.status)}</Chip>
-              <Chip variant="soft">{presentationLabel(detail.record.target.kind)}</Chip>
-            </div>
-            <p className="mt-3 break-all text-sm">Alvo: {detail.record.target.id}</p>
-            <p className="mt-1 text-sm text-muted">Regra: {detail.record.ruleVersion}</p>
-            {'explanation' in detail.record && detail.record.explanation && (
-              <p className="mt-3 text-sm leading-6 text-muted">{detail.record.explanation}</p>
-            )}
-          </Surface>
+          <div className="grid gap-4">
+            <Surface variant="secondary" className="rounded-2xl p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Chip variant="soft">{presentationLabel(detail.record.status)}</Chip>
+                <Chip variant="soft">{presentationLabel(detail.record.target.kind)}</Chip>
+              </div>
+              <p className="mt-3 break-all text-sm">Alvo: {detail.record.target.id}</p>
+              <p className="mt-1 text-sm text-muted">Regra: {detail.record.ruleVersion}</p>
+              {'explanation' in detail.record && detail.record.explanation && (
+                <p className="mt-3 text-sm leading-6 text-muted">{detail.record.explanation}</p>
+              )}
+            </Surface>
+            <DeterministicCorrectionPanel
+              value={correctionCase}
+              state={correctionState}
+              notice={correctionNotice}
+              onExecute={onExecuteCorrection}
+            />
+          </div>
         )}
 
         <div>
@@ -659,69 +902,98 @@ function DetailCard({
           <PendingItems detail={detail} onOpen={onOpenPending} />
         </div>
 
-        {detail.kind === 'audit-occurrence' && resolutionOptions(detail.record.state).length > 0 && (
-          <Surface variant="secondary" className="rounded-2xl p-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="size-4 text-muted" />
-              <h3 className="font-medium">Registrar resolução</h3>
-            </div>
-            <form
-              className="mt-4 grid gap-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                onResolve();
-              }}
-            >
-              <div>
-                <Label htmlFor="audit-resolution-action" className="mb-1.5 block text-sm font-medium">Ação</Label>
-                <select
-                  id="audit-resolution-action"
-                  className={inputClass}
-                  value={resolutionAction}
-                  onChange={(event) => onResolutionAction(event.currentTarget.value as ResolutionAction)}
+        {detail.kind === 'audit-occurrence' &&
+          resolutionOptions(detail.record.state).length > 0 && (
+            <Surface variant="secondary" className="rounded-2xl p-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-muted" />
+                <h3 className="font-medium">Registrar resolução</h3>
+              </div>
+              <form
+                className="mt-4 grid gap-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  onResolve();
+                }}
+              >
+                <div>
+                  <Label
+                    htmlFor="audit-resolution-action"
+                    className="mb-1.5 block text-sm font-medium"
+                  >
+                    Ação
+                  </Label>
+                  <select
+                    id="audit-resolution-action"
+                    className={inputClass}
+                    value={resolutionAction}
+                    onChange={(event) =>
+                      onResolutionAction(event.currentTarget.value as ResolutionAction)
+                    }
+                  >
+                    {resolutionOptions(detail.record.state).map((action) => (
+                      <option key={action} value={action}>
+                        {presentationLabel(action)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label
+                    htmlFor="audit-resolution-text"
+                    className="mb-1.5 block text-sm font-medium"
+                  >
+                    {resolutionAction === 'acknowledged' ? 'Observação opcional' : 'Justificativa'}
+                  </Label>
+                  <textarea
+                    id="audit-resolution-text"
+                    className={`${inputClass} min-h-24 resize-y`}
+                    value={resolutionText}
+                    onChange={(event) => onResolutionText(event.currentTarget.value)}
+                    required={resolutionAction !== 'acknowledged'}
+                    placeholder={
+                      resolutionAction === 'acknowledged'
+                        ? 'Observação da conferência'
+                        : 'Justificativa obrigatória'
+                    }
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    isDisabled={
+                      resolutionState === 'loading' ||
+                      (resolutionAction !== 'acknowledged' && !resolutionText.trim())
+                    }
+                  >
+                    {resolutionState === 'loading' && <Spinner size="sm" />}
+                    Confirmar ação
+                  </Button>
+                  <p className="text-xs text-muted">
+                    Identidade e instante efetivos são definidos pelo servidor.
+                  </p>
+                </div>
+              </form>
+              {resolutionNotice && (
+                <Alert
+                  status={resolutionState === 'ready' ? 'success' : 'warning'}
+                  className="mt-4"
                 >
-                  {resolutionOptions(detail.record.state).map((action) => (
-                    <option key={action} value={action}>{presentationLabel(action)}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="audit-resolution-text" className="mb-1.5 block text-sm font-medium">
-                  {resolutionAction === 'acknowledged' ? 'Observação opcional' : 'Justificativa'}
-                </Label>
-                <textarea
-                  id="audit-resolution-text"
-                  className={`${inputClass} min-h-24 resize-y`}
-                  value={resolutionText}
-                  onChange={(event) => onResolutionText(event.currentTarget.value)}
-                  required={resolutionAction !== 'acknowledged'}
-                  placeholder={resolutionAction === 'acknowledged' ? 'Observação da conferência' : 'Justificativa obrigatória'}
-                />
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  isDisabled={resolutionState === 'loading' || (resolutionAction !== 'acknowledged' && !resolutionText.trim())}
-                >
-                  {resolutionState === 'loading' && <Spinner size="sm" />}
-                  Confirmar ação
-                </Button>
-                <p className="text-xs text-muted">Identidade e instante efetivos são definidos pelo servidor.</p>
-              </div>
-            </form>
-            {resolutionNotice && (
-              <Alert status={resolutionState === 'ready' ? 'success' : 'warning'} className="mt-4">
-                <Alert.Indicator />
-                <Alert.Content>
-                  <Alert.Title>{resolutionState === 'ready' ? 'Resolução registrada' : 'Resolução não concluída'}</Alert.Title>
-                  <Alert.Description>{resolutionNotice}</Alert.Description>
-                </Alert.Content>
-              </Alert>
-            )}
-          </Surface>
-        )}
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>
+                      {resolutionState === 'ready'
+                        ? 'Resolução registrada'
+                        : 'Resolução não concluída'}
+                    </Alert.Title>
+                    <Alert.Description>{resolutionNotice}</Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
+            </Surface>
+          )}
       </Card.Content>
     </Card>
   );
@@ -744,6 +1016,11 @@ export function AuditWorkspacePage() {
   const [resolutionText, setResolutionText] = useState('');
   const [resolutionState, setResolutionState] = useState<ViewState>('idle');
   const [resolutionNotice, setResolutionNotice] = useState<string | null>(null);
+  const [correctionCase, setCorrectionCase] = useState<DeterministicCorrectionCaseSummaryV2 | null>(
+    null,
+  );
+  const [correctionState, setCorrectionState] = useState<ViewState>('idle');
+  const [correctionNotice, setCorrectionNotice] = useState<string | null>(null);
   const listSequence = useRef(0);
   const detailSequence = useRef(0);
   const detailHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -755,6 +1032,9 @@ export function AuditWorkspacePage() {
     setResolutionState('idle');
     setResolutionNotice(null);
     setResolutionText('');
+    setCorrectionCase(null);
+    setCorrectionState('idle');
+    setCorrectionNotice(null);
   };
 
   const loadBootstrap = async () => {
@@ -793,7 +1073,7 @@ export function AuditWorkspacePage() {
       );
       if (sequence !== listSequence.current) return;
       if (response.outcome === 'items') {
-        setItems((current) => append ? [...current, ...response.items] : response.items);
+        setItems((current) => (append ? [...current, ...response.items] : response.items));
         setNextCursor(response.nextCursor);
         setListState('ready');
         return;
@@ -857,6 +1137,32 @@ export function AuditWorkspacePage() {
     if (selectedYear) void loadList(selectedYear, collection, {});
   };
 
+  const loadCorrectionCase = async (
+    year: AcademicYearId,
+    reconciliationId: ReconciliationResultId,
+  ) => {
+    setCorrectionState('loading');
+    setCorrectionNotice(null);
+    try {
+      const response = await requestDeterministicCorrectionInspectionV2({
+        contractVersion: DETERMINISTIC_CORRECTION_TRANSPORT_VERSION_V2,
+        operation: 'inspect-deterministic-correction',
+        academicYearId: year,
+        reconciliationId,
+      });
+      if (response.outcome === 'case') {
+        setCorrectionCase(response.case);
+        setCorrectionState('ready');
+        return;
+      }
+      setCorrectionCase(null);
+      setCorrectionState(response.outcome === 'not-found' ? 'empty' : 'unavailable');
+    } catch (error) {
+      setCorrectionCase(null);
+      setCorrectionState(clientFailureState(error));
+    }
+  };
+
   const loadDetail = async (reference: AuditWorkspaceDetailReferenceV1) => {
     if (!selectedYear) return;
     const sequence = ++detailSequence.current;
@@ -865,6 +1171,9 @@ export function AuditWorkspacePage() {
     setResolutionState('idle');
     setResolutionNotice(null);
     setResolutionText('');
+    setCorrectionCase(null);
+    setCorrectionState('idle');
+    setCorrectionNotice(null);
     try {
       const response = await requestAuditWorkspaceDetailV1({
         contractVersion: AUDIT_WORKSPACE_CONTRACT_VERSION_V1,
@@ -878,6 +1187,8 @@ export function AuditWorkspacePage() {
         if (response.detail.kind === 'audit-occurrence') {
           const actions = resolutionOptions(response.detail.record.state);
           setResolutionAction(actions[0] ?? 'resolved');
+        } else if (response.detail.kind === 'reconciliation') {
+          void loadCorrectionCase(selectedYear, response.detail.record.id);
         }
         window.requestAnimationFrame(() => detailHeadingRef.current?.focus());
         return;
@@ -927,7 +1238,9 @@ export function AuditWorkspacePage() {
       if (response.outcome === 'version-conflict') {
         await loadDetail(reference);
         setResolutionState('unavailable');
-        setResolutionNotice('O registro foi atualizado por outra operação. Revise a versão atual antes de tentar novamente.');
+        setResolutionNotice(
+          'O registro foi atualizado por outra operação. Revise a versão atual antes de tentar novamente.',
+        );
         return;
       }
       setResolutionState('unavailable');
@@ -943,11 +1256,61 @@ export function AuditWorkspacePage() {
     }
   };
 
+  const executeDeterministicCorrection = async () => {
+    if (!selectedYear || !correctionCase) return;
+    const current = correctionCase;
+    setCorrectionState('loading');
+    setCorrectionNotice(null);
+    try {
+      const response = await requestDeterministicCorrectionExecutionV2({
+        contractVersion: DETERMINISTIC_CORRECTION_TRANSPORT_VERSION_V2,
+        operation: 'execute-deterministic-correction',
+        academicYearId: selectedYear,
+        caseReference: current.reference,
+        expectedVersion: current.version,
+      });
+      if (
+        response.outcome === 'applied' ||
+        response.outcome === 'already-completed' ||
+        response.outcome === 'not-eligible' ||
+        response.outcome === 'blocked'
+      ) {
+        setCorrectionCase(response.case);
+        setCorrectionState('ready');
+        setCorrectionNotice(
+          response.outcome === 'applied'
+            ? 'Nova versão criada e reconciliação pós-reprocessamento registrada.'
+            : response.outcome === 'already-completed'
+              ? 'A correção já havia sido concluída; nenhuma nova versão foi criada.'
+              : 'O caso permanece bloqueado e nenhuma escrita foi executada.',
+        );
+        if (detail?.kind === 'reconciliation') {
+          void loadList(selectedYear, collection, appliedFilters);
+        }
+        return;
+      }
+      if (response.outcome === 'version-conflict') {
+        await loadCorrectionCase(selectedYear, current.divergence.id);
+        setCorrectionNotice(
+          'O caso foi atualizado por outra operação. Revise a versão atual antes de tentar novamente.',
+        );
+        return;
+      }
+      setCorrectionState(response.outcome === 'not-authorized' ? 'not-authorized' : 'unavailable');
+      setCorrectionNotice('A correção não pôde ser executada com segurança.');
+    } catch (error) {
+      setCorrectionState(clientFailureState(error));
+      setCorrectionNotice('A correção não pôde ser executada com segurança.');
+    }
+  };
+
   return (
     <Surface
       variant="default"
       className="mt-6 rounded-[2rem] border border-border/70 p-5 shadow-sm sm:p-7"
-      aria-busy={workspaceState === 'loading' || listState === 'loading' || detailState === 'loading'}
+      aria-busy={
+        workspaceState === 'loading' || listState === 'loading' || detailState === 'loading'
+      }
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
@@ -959,7 +1322,8 @@ export function AuditWorkspacePage() {
             Revise lotes, ocorrências e reconciliações
           </h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Consulte pendências, abra detalhes e registre somente as transições de Auditoria já previstas no contrato.
+            Consulte pendências, abra detalhes e registre somente as transições de Auditoria já
+            previstas no contrato.
           </p>
         </div>
         {!activated && (
@@ -977,16 +1341,23 @@ export function AuditWorkspacePage() {
         </div>
       )}
 
-      {activated && (workspaceState === 'empty' || workspaceState === 'unavailable' || workspaceState === 'not-authorized') && (
-        <div className="mt-6"><WorkspaceStateAlert state={workspaceState} /></div>
-      )}
+      {activated &&
+        (workspaceState === 'empty' ||
+          workspaceState === 'unavailable' ||
+          workspaceState === 'not-authorized') && (
+          <div className="mt-6">
+            <WorkspaceStateAlert state={workspaceState} />
+          </div>
+        )}
 
       {activated && workspaceState === 'ready' && (
         <div className="mt-6 grid gap-5">
           <Surface variant="secondary" className="rounded-2xl p-4 sm:p-5">
             <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
               <div>
-                <Label htmlFor="audit-academic-year" className="mb-1.5 block text-sm font-medium">Ano acadêmico</Label>
+                <Label htmlFor="audit-academic-year" className="mb-1.5 block text-sm font-medium">
+                  Ano acadêmico
+                </Label>
                 <select
                   id="audit-academic-year"
                   className="h-10 w-full rounded-xl border border-border bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-focus"
@@ -994,9 +1365,15 @@ export function AuditWorkspacePage() {
                   onChange={(event) => selectYear(event.currentTarget.value)}
                 >
                   <option value="">Selecione o ano</option>
-                  {years.map((year) => <option key={year.id} value={year.id}>{year.label}</option>)}
+                  {years.map((year) => (
+                    <option key={year.id} value={year.id}>
+                      {year.label}
+                    </option>
+                  ))}
                 </select>
-                <p className="mt-1 text-xs text-muted">O sistema não escolhe o ano automaticamente.</p>
+                <p className="mt-1 text-xs text-muted">
+                  O sistema não escolhe o ano automaticamente.
+                </p>
               </div>
               <div className="min-w-0">
                 <nav aria-label="Coleções da Auditoria" className="flex flex-wrap gap-2">
@@ -1008,7 +1385,13 @@ export function AuditWorkspacePage() {
                       aria-current={collection === value ? 'page' : undefined}
                       onPress={() => selectCollection(value)}
                     >
-                      {value === 'import-batches' ? <ClipboardCheck className="size-4" /> : value === 'audit-occurrences' ? <ShieldAlert className="size-4" /> : <Scale className="size-4" />}
+                      {value === 'import-batches' ? (
+                        <ClipboardCheck className="size-4" />
+                      ) : value === 'audit-occurrences' ? (
+                        <ShieldAlert className="size-4" />
+                      ) : (
+                        <Scale className="size-4" />
+                      )}
                       {COLLECTION_LABELS[value]}
                     </Button>
                   ))}
@@ -1020,7 +1403,9 @@ export function AuditWorkspacePage() {
           {!selectedYear && (
             <Surface variant="secondary" className="rounded-2xl p-6 text-center">
               <p className="font-medium">Selecione um ano acadêmico</p>
-              <p className="mt-1 text-sm text-muted">Listas, filtros e resolução sempre permanecem isolados no ano escolhido.</p>
+              <p className="mt-1 text-sm text-muted">
+                Listas, filtros e resolução sempre permanecem isolados no ano escolhido.
+              </p>
             </Surface>
           )}
 
@@ -1037,7 +1422,11 @@ export function AuditWorkspacePage() {
                 />
               </Surface>
 
-              <section aria-label={COLLECTION_LABELS[collection]} aria-live="polite" className="grid gap-3">
+              <section
+                aria-label={COLLECTION_LABELS[collection]}
+                aria-live="polite"
+                className="grid gap-3"
+              >
                 {listState === 'loading' && (
                   <div className="flex items-center gap-2 text-sm text-muted" role="status">
                     <Spinner size="sm" color="accent" />
@@ -1047,17 +1436,25 @@ export function AuditWorkspacePage() {
                 {listState === 'empty' && (
                   <Surface variant="secondary" className="rounded-2xl p-6 text-center">
                     <p className="font-medium">Nenhum item encontrado</p>
-                    <p className="mt-1 text-sm text-muted">Ajuste os filtros ou escolha outra coleção.</p>
+                    <p className="mt-1 text-sm text-muted">
+                      Ajuste os filtros ou escolha outra coleção.
+                    </p>
                   </Surface>
                 )}
                 {listState === 'not-authorized' && <WorkspaceStateAlert state="not-authorized" />}
                 {listState === 'unavailable' && <WorkspaceStateAlert state="unavailable" />}
                 {items.length > 0 && (
                   <Surface variant="secondary" className="rounded-2xl p-2">
-                    <ul className="grid gap-1" aria-label={`Itens de ${COLLECTION_LABELS[collection]}`}>
+                    <ul
+                      className="grid gap-1"
+                      aria-label={`Itens de ${COLLECTION_LABELS[collection]}`}
+                    >
                       {items.map((item) => (
                         <li key={`${item.kind}:${item.reference.id}`}>
-                          <ListItemButton item={item} onOpen={(reference) => void loadDetail(reference)} />
+                          <ListItemButton
+                            item={item}
+                            onOpen={(reference) => void loadDetail(reference)}
+                          />
                         </li>
                       ))}
                     </ul>
@@ -1066,7 +1463,9 @@ export function AuditWorkspacePage() {
                         <Button
                           size="sm"
                           variant="outline"
-                          onPress={() => void loadList(selectedYear, collection, appliedFilters, nextCursor)}
+                          onPress={() =>
+                            void loadList(selectedYear, collection, appliedFilters, nextCursor)
+                          }
                           isDisabled={listState === 'loading'}
                         >
                           Carregar mais
@@ -1088,7 +1487,9 @@ export function AuditWorkspacePage() {
                   <Surface variant="secondary" className="rounded-2xl p-6 text-center">
                     <Eye className="mx-auto size-5 text-muted" />
                     <p className="mt-2 font-medium">Abra um item para revisar</p>
-                    <p className="mt-1 text-sm text-muted">O detalhe é carregado somente quando solicitado.</p>
+                    <p className="mt-1 text-sm text-muted">
+                      O detalhe é carregado somente quando solicitado.
+                    </p>
                   </Surface>
                 )}
                 {detailState === 'empty' && (
@@ -1115,6 +1516,10 @@ export function AuditWorkspacePage() {
                     onResolutionText={setResolutionText}
                     onResolve={() => void resolveOccurrence()}
                     onOpenPending={(reference) => void loadDetail(reference)}
+                    correctionCase={correctionCase}
+                    correctionState={correctionState}
+                    correctionNotice={correctionNotice}
+                    onExecuteCorrection={() => void executeDeterministicCorrection()}
                   />
                 )}
               </section>

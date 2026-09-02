@@ -136,10 +136,7 @@ export interface ImportFileWriteEstimateV1 {
 }
 
 export type ImportFileChangePlanStatusV1 =
-  | 'unchanged'
-  | 'ready-for-promotion'
-  | 'review-required'
-  | 'blocked';
+  'unchanged' | 'ready-for-promotion' | 'review-required' | 'blocked';
 
 export interface ImportFileChangePlanV1 {
   readonly importFileId: ImportFileId;
@@ -170,11 +167,7 @@ export interface ImportChangeWriteEstimateV1 {
 }
 
 export type ImportChangePlanStatusV1 =
-  | 'no-changes'
-  | 'ready-for-promotion'
-  | 'partially-ready'
-  | 'review-required'
-  | 'blocked';
+  'no-changes' | 'ready-for-promotion' | 'partially-ready' | 'review-required' | 'blocked';
 
 export interface ImportChangePlanV1 {
   readonly importBatchId: ImportBatchResultV1['id'];
@@ -224,6 +217,21 @@ export interface ImportReconciliationRepositoriesV1 {
   >;
 }
 
+/**
+ * Narrow opt-in used by the deterministic correction workflow. It asks the official planner to
+ * re-evaluate exactly one already-known stream instead of applying the normal identical-hash
+ * short-circuit. The caller cannot supply an arbitrary write or bypass the regular plan shape.
+ */
+export interface DeterministicReprocessPlanningV2 {
+  readonly importFileId: ImportFileId;
+  readonly targetStableKey: string;
+  readonly operationReference: string;
+}
+
+export interface ImportReconciliationPlanningOptionsV1 {
+  readonly deterministicReprocess?: DeterministicReprocessPlanningV2;
+}
+
 class FilePlanningBlockedError extends Error {
   readonly reason: ImportPlanReasonV1;
 
@@ -245,12 +253,7 @@ function reason(
 function streamTuple(stream: AcademicRecordStreamV1): readonly (string | number)[] {
   switch (stream.kind) {
     case 'grade-entry':
-      return [
-        stream.kind,
-        stream.studentId,
-        stream.enrollmentId,
-        stream.assessmentComponentId,
-      ];
+      return [stream.kind, stream.studentId, stream.enrollmentId, stream.assessmentComponentId];
     case 'term-result':
       return [
         stream.kind,
@@ -268,12 +271,7 @@ function streamTuple(stream: AcademicRecordStreamV1): readonly (string | number)
         stream.recoveredTerm,
       ];
     case 'annual-result':
-      return [
-        stream.kind,
-        stream.studentId,
-        stream.enrollmentId,
-        stream.teachingAssignmentId,
-      ];
+      return [stream.kind, stream.studentId, stream.enrollmentId, stream.teachingAssignmentId];
   }
 }
 
@@ -390,8 +388,7 @@ export function academicRecordsSemanticallyEqualV1(
   right: AcademicRecordV1,
 ): boolean {
   return (
-    stableSerialize(semanticAcademicRecord(left)) ===
-    stableSerialize(semanticAcademicRecord(right))
+    stableSerialize(semanticAcademicRecord(left)) === stableSerialize(semanticAcademicRecord(right))
   );
 }
 
@@ -416,8 +413,7 @@ function countsFor(items: readonly ImportChangePlanItemV1[]): ImportChangeCounts
 
 function associationWriteCount(items: readonly ImportChangePlanItemV1[]): number {
   return items.reduce(
-    (total, item) =>
-      total + (item.state === 'new' || item.state === 'changed' ? 1 : 0),
+    (total, item) => total + (item.state === 'new' || item.state === 'changed' ? 1 : 0),
     0,
   );
 }
@@ -435,9 +431,7 @@ function estimateFileWrites(
     academicRecordVersions,
     logicalSourceRecordAssociationVersions,
     totalPlannedVersionWrites:
-      sourceFileVersions +
-      academicRecordVersions +
-      logicalSourceRecordAssociationVersions,
+      sourceFileVersions + academicRecordVersions + logicalSourceRecordAssociationVersions,
   };
 }
 
@@ -853,12 +847,159 @@ async function planConfirmedNewContent(input: {
   };
 }
 
+async function planConfirmedDeterministicReprocess(input: {
+  context: AcademicPersistenceContextV1;
+  batchFile: ImportBatchFileResultV1 & { readonly manifest: SourceFileManifestV1 };
+  logicalSource: Extract<LogicalSourceRelationV1, { readonly state: 'confirmed' }>;
+  diagnostics: readonly ImportFileDiagnosticV1[];
+  contentIdentity: Extract<ImportContentIdentityV1, { readonly state: 'known-identical' }>;
+  recordsByKey: ReadonlyMap<
+    string,
+    { readonly stream: AcademicRecordStreamV1; readonly record: AcademicRecordV1 }
+  >;
+  deterministicReprocess: DeterministicReprocessPlanningV2;
+  repositories: ImportReconciliationRepositoriesV1;
+}): Promise<ImportFileChangePlanV1> {
+  const { targetStableKey } = input.deterministicReprocess;
+  if (input.recordsByKey.size !== 1 || !input.recordsByKey.has(targetStableKey)) {
+    throw new FilePlanningBlockedError(
+      reason(
+        'deterministic-reprocess-target-not-unique',
+        'O reprocessamento determinístico exige exatamente o registro-alvo contratado.',
+      ),
+    );
+  }
+
+  const incoming = input.recordsByKey.get(targetStableKey);
+  if (!incoming) {
+    throw new FilePlanningBlockedError(
+      reason(
+        'deterministic-reprocess-target-missing',
+        'O registro-alvo não foi encontrado na projeção determinística recebida.',
+      ),
+    );
+  }
+  const current = await input.repositories.academicRecords.getCurrent(
+    input.context,
+    incoming.stream,
+  );
+  if (!current) {
+    throw new FilePlanningBlockedError(
+      reason(
+        'deterministic-reprocess-current-version-missing',
+        'O reprocessamento automático exige uma versão interna anterior preservada.',
+      ),
+    );
+  }
+  assertCurrentRecordMatchesStream(input.context, incoming.stream, current);
+
+  if (academicRecordsSemanticallyEqualV1(current.value, incoming.record)) {
+    const items: readonly ImportChangePlanItemV1[] = [
+      {
+        state: 'unchanged',
+        importFileId: input.batchFile.id,
+        stableKey: targetStableKey,
+        stream: incoming.stream,
+        incomingRecord: incoming.record,
+        currentVersion: current.version,
+        reason: reason(
+          'deterministic-reprocess-already-current',
+          'A versão interna já corresponde à saída determinística; nenhum append é necessário.',
+        ),
+      },
+    ];
+    const counts = countsFor(items);
+    const sourceFileWrite = { kind: 'none' } as const;
+    return {
+      importFileId: input.batchFile.id,
+      sourceFileManifestId: input.batchFile.manifest.id,
+      fileName: input.batchFile.sourceFile.fileName,
+      sha256: input.batchFile.manifest.sha256,
+      batchFileStatus: input.batchFile.status,
+      logicalSource: input.logicalSource,
+      contentIdentity: input.contentIdentity,
+      status: 'unchanged',
+      diagnostics: input.diagnostics,
+      reasons: [
+        reason(
+          'deterministic-reprocess-idempotent-no-op',
+          'A reaplicação determinística confirmou que o estado versionado já está correto.',
+        ),
+      ],
+      items,
+      counts,
+      sourceFileWrite,
+      estimatedWrites: estimateFileWrites(sourceFileWrite, counts, items),
+    };
+  }
+
+  const sourceFileWrite = await sourceFileWriteFor(
+    input.context,
+    input.batchFile.manifest,
+    input.logicalSource,
+    reason(
+      'deterministic-reprocess-source-observation',
+      'A mesma evidência oficial será preservada em nova versão interna de reprocessamento.',
+    ),
+    input.repositories,
+  );
+  const sourceManifestVersion = (sourceFileWrite.expectedVersion ?? 0) + 1;
+  const associationWrite = await associationWriteFor({
+    context: input.context,
+    logicalSourceId: input.logicalSource.logicalSourceId,
+    stream: incoming.stream,
+    sourceManifestId: input.batchFile.manifest.id,
+    sourceManifestVersion,
+    changeState: 'changed',
+    repositories: input.repositories,
+  });
+  const items: readonly ImportChangePlanItemV1[] = [
+    {
+      state: 'changed',
+      importFileId: input.batchFile.id,
+      stableKey: targetStableKey,
+      stream: incoming.stream,
+      incomingRecord: incoming.record,
+      currentRecord: current,
+      expectedVersion: current.version,
+      associationWrite,
+      reason: reason(
+        'deterministic-reprocess-academic-record',
+        'A saída determinística será promovida por append, preservando a versão anterior.',
+      ),
+    },
+  ];
+  const counts = countsFor(items);
+  return {
+    importFileId: input.batchFile.id,
+    sourceFileManifestId: input.batchFile.manifest.id,
+    fileName: input.batchFile.sourceFile.fileName,
+    sha256: input.batchFile.manifest.sha256,
+    batchFileStatus: input.batchFile.status,
+    logicalSource: input.logicalSource,
+    contentIdentity: input.contentIdentity,
+    status: 'ready-for-promotion',
+    diagnostics: input.diagnostics,
+    reasons: [
+      reason(
+        'deterministic-reprocess-ready',
+        'Uma única correção interna versionada foi planejada sobre evidência oficial conhecida.',
+      ),
+    ],
+    items,
+    counts,
+    sourceFileWrite,
+    estimatedWrites: estimateFileWrites(sourceFileWrite, counts, items),
+  };
+}
+
 async function planApprovedFile(input: {
   context: AcademicPersistenceContextV1;
   batchFile: ImportBatchFileResultV1;
   fileInput: ImportReconciliationFileInputV1;
   diagnostics: readonly ImportFileDiagnosticV1[];
   repositories: ImportReconciliationRepositoriesV1;
+  deterministicReprocess?: DeterministicReprocessPlanningV2;
 }): Promise<ImportFileChangePlanV1> {
   const manifest = input.batchFile.manifest;
   if (!manifest) {
@@ -894,6 +1035,30 @@ async function planApprovedFile(input: {
         blockedReason: sourceReason,
         contentIdentity,
         status: 'review-required',
+      });
+    }
+
+    if (input.deterministicReprocess) {
+      if (
+        input.fileInput.logicalSource.state !== 'confirmed' ||
+        input.fileInput.logicalSource.logicalSourceId !== knownLogicalSource.logicalSourceId
+      ) {
+        throw new FilePlanningBlockedError(
+          reason(
+            'deterministic-reprocess-logical-source-mismatch',
+            'A fonte lógica confirmada não corresponde à evidência oficial já conhecida.',
+          ),
+        );
+      }
+      return planConfirmedDeterministicReprocess({
+        context: input.context,
+        batchFile: { ...input.batchFile, manifest },
+        logicalSource: knownLogicalSource,
+        diagnostics: input.diagnostics,
+        contentIdentity,
+        recordsByKey,
+        deterministicReprocess: input.deterministicReprocess,
+        repositories: input.repositories,
       });
     }
 
@@ -951,6 +1116,15 @@ async function planApprovedFile(input: {
     };
   }
 
+  if (input.deterministicReprocess) {
+    throw new FilePlanningBlockedError(
+      reason(
+        'deterministic-reprocess-source-not-known',
+        'A correção automática não pode operar sem uma versão oficial da fonte já preservada.',
+      ),
+    );
+  }
+
   if (input.fileInput.logicalSource.state !== 'confirmed') {
     const sourceReason = reason(
       input.fileInput.logicalSource.state === 'candidate'
@@ -1005,8 +1179,7 @@ function aggregateWriteEstimate(
     0,
   );
   const logicalSourceRecordAssociationVersions = files.reduce(
-    (total, file) =>
-      total + file.estimatedWrites.logicalSourceRecordAssociationVersions,
+    (total, file) => total + file.estimatedWrites.logicalSourceRecordAssociationVersions,
     0,
   );
   const readyForPromotionVersionWrites = files
@@ -1021,9 +1194,7 @@ function aggregateWriteEstimate(
     academicRecordVersions,
     logicalSourceRecordAssociationVersions,
     totalPlannedVersionWrites:
-      sourceFileVersions +
-      academicRecordVersions +
-      logicalSourceRecordAssociationVersions,
+      sourceFileVersions + academicRecordVersions + logicalSourceRecordAssociationVersions,
     readyForPromotionVersionWrites,
     pendingReviewVersionWrites,
     exactCloudflareQuota: false,
@@ -1034,9 +1205,19 @@ function aggregateWriteEstimate(
 export async function planImportReconciliation(
   input: ImportReconciliationInputV1,
   repositories: ImportReconciliationRepositoriesV1,
+  options: ImportReconciliationPlanningOptionsV1 = {},
 ): Promise<ImportChangePlanV1> {
   if (!Number.isInteger(input.expectedBatchVersion) || input.expectedBatchVersion <= 0) {
     throw new RangeError('expectedBatchVersion must be a positive integer');
+  }
+  const deterministicReprocess = options.deterministicReprocess;
+  if (
+    deterministicReprocess !== undefined &&
+    (deterministicReprocess.importFileId.trim().length === 0 ||
+      deterministicReprocess.targetStableKey.trim().length === 0 ||
+      deterministicReprocess.operationReference.trim().length === 0)
+  ) {
+    throw new RangeError('deterministicReprocess must identify one file, stream and operation');
   }
 
   const indexedInput = inputIndex(input.files);
@@ -1048,8 +1229,7 @@ export async function planImportReconciliation(
   for (const batchFile of orderedBatchFiles) {
     const diagnostics = sortDiagnostics(input.batch.diagnostics, batchFile.id);
     const fileInput = indexedInput.byId.get(batchFile.id);
-    const fallbackLogicalSource =
-      fileInput?.logicalSource ?? ({ state: 'unmatched' } as const);
+    const fallbackLogicalSource = fileInput?.logicalSource ?? ({ state: 'unmatched' } as const);
 
     if (indexedInput.duplicates.has(batchFile.id)) {
       files.push(
@@ -1121,6 +1301,9 @@ export async function planImportReconciliation(
           fileInput,
           diagnostics,
           repositories,
+          ...(deterministicReprocess?.importFileId === batchFile.id
+            ? { deterministicReprocess }
+            : {}),
         }),
       );
     } catch (error: unknown) {
