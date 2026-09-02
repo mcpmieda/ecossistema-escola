@@ -11,8 +11,8 @@ function source(path: string): string {
   return readFileSync(join(root, path), 'utf8');
 }
 
-describe('integração da onda 15 F4/F5/F6/F8', () => {
-  it('preserva os dois bridges autorizados e não expõe Desempenho ou Boletins por HTTP', () => {
+describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
+  it('preserva os bridges Operational/Audit originais e mantém PDF fora do wiring central', () => {
     const functions = source('functions/[[path]].ts');
     const auditRoute = source('server/gradebook/http/audit-workspace-routes-v1.ts');
     const operationalRoute = source('server/gradebook/http/operational-workspace-routes-v1.ts');
@@ -21,12 +21,10 @@ describe('integração da onda 15 F4/F5/F6/F8', () => {
     expect(operationalRoute.match(/'\/api\/gradebook\/operational-workspace'/gu)).toHaveLength(1);
     expect(functions.match(/handleAuditWorkspaceRequestV1/gu)).toHaveLength(2);
     expect(functions.match(/handleOperationalWorkspaceRequestV1/gu)).toHaveLength(2);
-    expect(functions).not.toMatch(/performance.*request/iu);
-    expect(functions).not.toMatch(/bulletin.*request/iu);
     expect(functions).not.toMatch(/bulletin.*pdf|pdf.*bulletin/iu);
   });
 
-  it('compõe Desempenho apenas no runtime interno e preserva a autoridade imported-source', () => {
+  it('preserva a composição física de Desempenho e a autoridade imported-source', () => {
     const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const performanceSource = source(
       'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
