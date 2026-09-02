@@ -338,7 +338,7 @@ wave_17:
   result: canonical-pdf-plus-f9-hardening
 
 wave_18:
-  status: integration-pr-open
+  status: completed-integrated
   strategy: three-large-parallel-fronts-plus-integrator
   integration_issue: 343
   integration_pull_request: 352
@@ -368,7 +368,7 @@ wave_18:
     native_engine_activation: false
 
 wave_19:
-  status: blocked-until-wave-18-completed
+  status: released-after-wave-18
   parallel_fronts:
     - issue: 353
       executor: extra-high
