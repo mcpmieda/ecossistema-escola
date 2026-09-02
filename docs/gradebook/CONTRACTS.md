@@ -22,10 +22,12 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 | `OperationalWorkspace V1` | HTTP/UI local-preview + hardening |
 | `AuditWorkspace V1` | D1/runtime/HTTP/UI local-preview |
 | `ClassPerformanceReadModelV1` + Performance Transport V1 | D1/read model/runtime/HTTP/UI local-preview |
-| `BulletinModelV1` + Bulletin Transport V1 | preview/emissão/lote/snapshots/histórico/reimpressão/PDF individual canônico |
-| `Council Workspace/Decision V1` | projeção oficial upstream + workspace/decisão/history/CAS HTTP/UI local-preview |
+| `BulletinModelV1` + Bulletin Transport V1 | preview/emissão/snapshots duráveis/history/reprint/PDF individual + batch bounded |
+| `Institutional Reports V1` | cinco famílias oficiais + HTTP/UI; indicadores derivados sem semântica ficam fail-closed |
+| `Council Workspace/Decision V1` | projeção oficial upstream + decisões duráveis/history/CAS |
+| `Council Institutional V2` | revisão/fechamento/fotografia/histórico + votação opcional, mesmo bridge V1 |
 
-Migrations D1 continuam 0001–0003 / 21 tabelas. A onda 17 não altera schema.
+Migrations D1 locais: 0001–0004 / 25 tabelas. A 0004 é exclusiva da durabilidade de snapshots de Boletins e decisões de Conselho.
 
 ## F1 — contrato da fonte
 
@@ -41,7 +43,7 @@ A #184 está `completed` e F1 = **7/7**. O protocolo privado controlado, smoke a
 
 `GlobalSearchRequestV1` exige ano, query, escopo, página/cursor e ordem. O request não transporta autorização confiável do cliente. A implementação de matching permanece única.
 
-A navegação do shell não cria novo contrato acadêmico: resultados de áreas do Banco usam `#/banco-de-notas?area=<id>`. `normalizePlatformRoute` considera apenas a parte de rota antes de `?/#`, e o shell valida `area` contra a enumeração fechada de superfícies.
+A navegação usa `#/banco-de-notas?area=<id>`; o shell valida `area` contra a enumeração fechada `importacao | operational | audit | performance | bulletins | reports | council`.
 
 ## Operational Workspace F5
 
@@ -60,8 +62,7 @@ Resolução usa `expectedVersion`/CAS; ator e instante server-side. Promoção p
 
 ## Performance F6
 
-- contrato acadêmico/read model `ClassPerformanceReadModelV1`;
-- transporte serializável único `performance-transport-v1.ts`;
+- `ClassPerformanceReadModelV1` + transporte serializável único;
 - quatro lentes `result | quantitative | qualitative | assessments`;
 - `regular | recovery`;
 - cursores rows/columns independentes;
@@ -86,16 +87,13 @@ Invariantes:
 - `synthetic | composition | detailed` derivados de resultados oficiais;
 - preview e emissão usam o mesmo materializador;
 - lote acadêmico compartilha materialização agregada e isola resultados por aluno;
-- snapshots profundamente imutáveis, append-only e versionados;
+- snapshots profundamente imutáveis, append-only, versionados e persistidos em D1 local/preview;
 - emissão idêntica reutiliza versão; mudança efetivamente impressa cria nova versão;
 - reimpressão usa exclusivamente snapshot histórico e faz zero leitura acadêmica atual;
 - `BULLETIN_AUTHORITY_MODE_V1 === 'imported-source'`;
-- `native-engine` rejeitado como autoridade;
-- storage de snapshot permanece local/preview descartável.
+- `native-engine` não é autoridade ativa nesta onda.
 
-### PDF canônico — #335
-
-PDF não cria novo modelo acadêmico.
+### PDF canônico
 
 ```text
 BulletinSnapshotV1
@@ -104,58 +102,86 @@ BulletinPdfInputV1 / BulletinArtifactInputV1
   ↓
 renderer client-side lazy
   ↓
-PDF
+PDF individual ou batch bounded
 ```
 
-- PDF oficial recebe somente snapshot canônico;
-- reimpressão PDF usa o mesmo snapshot histórico, sem nova leitura/materialização e sem nova versão;
+- PDF oficial recebe somente snapshot/modelo canônico;
 - renderer não faz fetch acadêmico e não calcula nota/REC/resultado;
-- presentation helpers são compartilhados com a tela para manter semântica;
-- renderer é carregado por `import()`;
 - fonte Geist já empacotada; sem CDN/fonte privada/fonte do SO;
 - Blob URLs temporárias/revogadas; nenhum storage acadêmico persistente no navegador;
-- PDF em lote não faz parte desta versão; geração de arquivo é individual por snapshot;
-- PDF raster não é tagged/text-selectable; essa limitação não altera o conteúdo canônico.
+- batch PDF é sequencial e bounded: `maxDocuments: 3`, `maxTotalPages: 72`, `concurrentDocuments: 1`;
+- reprint batch aceita exclusivamente snapshots históricos;
+- falha de um snapshot não corrompe artefatos válidos;
+- nenhum queue/worker/storage remoto foi criado.
 
-## Conselho F7
+## Relatórios institucionais F8
 
-`CouncilWorkspaceSourceV1` recebe projeções oficiais já resolvidas e não oferece callback de cálculo. #332 fornece a fonte local/preview:
+`Institutional Reports V1` projeta somente dados/read models/snapshots oficiais e usa um único `POST /api/gradebook/reports`.
+
+Famílias:
+
+- resultados/aproveitamento oficial por turma;
+- composição;
+- recuperação;
+- Conselho;
+- Auditoria.
+
+O contrato registra o hard stop de indicadores derivados: taxas, médias, rankings ou agregações que exigem semântica acadêmica não congelada permanecem `official-semantics-not-integrated`; nenhum consumidor pode substituí-lo por heurística local.
+
+## Conselho F7 V1/V2
+
+`CouncilWorkspaceSourceV1` recebe projeções oficiais já resolvidas. #332 fornece a fonte D1 upstream:
 
 ```text
 D1 → createGradebookD1CouncilOfficialProjectionSourceV1(...)
-   → CouncilWorkspaceSourceV1 → createCouncilWorkspaceV1
+   → CouncilWorkspaceSourceV1
+      ├── createCouncilWorkspaceV1
+      └── createCouncilInstitutionalWorkspaceV2
    → POST /api/gradebook/council-workspace
 ```
 
+### V1
+
 - `resolveNativeAnnualOutcome` fica somente upstream;
 - Council Workspace não chama o resolvedor;
-- 0/1/2/3+/insuficiente vêm de `NativeAnnualOutcomeV1`;
+- 0/1/2/3+/insuficiente vêm da projeção oficial;
 - lado calculated não vira autoridade;
 - T1/T2/T3 usam `officialGrade.imported.value`;
 - REC usa `recoveryGrade.imported.value` apenas quando aplicável/unívoca;
-- REC ausente `not-applicable`; REC ambígua `insufficient-data`;
-- decisão formal coerente preexistente impede segunda decisão;
 - decisão humana requer justificativa + expectedVersion/CAS + histórico append-only;
-- ator/instante server-side;
-- store atual process-local/preview e sem durabilidade cross-restart.
+- decisões persistem em D1 local/preview pela #340;
+- ator/instante server-side.
 
-## Compatibilidade conjunta da onda 17
+### V2 institucional
 
-A composição #335+#336 foi revalidada após resolução dos dois testes compartilhados. CI combinado: **100 arquivos / 819 testes**.
+- revisão explícita antes do fechamento;
+- reunião `open | closed` ou equivalente do contrato;
+- fechamento cria fotografia imutável da fila/decisões;
+- histórico de fechamentos não é reinterpretado retroativamente;
+- edição/contagem depois do fechamento é rejeitada;
+- votação numérica é opcional, com inteiros não negativos;
+- não existe campo de abstenção;
+- votação não cria decisão;
+- empate nunca é resolvido automaticamente;
+- identidade de diretor permanece `not-formalized-fail-closed` e `ADMINISTRADOR` não é inferido como diretor;
+- sessão/reunião V2 continua provider-independent/process-local nesta versão; a 0004 não adiciona persistência para esse agregado.
 
-Testes congelam:
+## Compatibilidade conjunta da onda 18
 
-- cinco bridges únicos, auth server-side e no-store;
+Testes de integração congelam:
+
+- seis bridges únicos, auth server-side e no-store;
 - produção antes do binding;
-- F6 comparison fail-closed e recovery correto;
-- F7 projeção #332 e workspace sem resolver elegibilidade;
-- F8 preview/emissão/PDF/reprint sobre modelo/snapshot canônico;
-- renderer PDF sob demanda e fora do entry inicial;
-- shell/5 superfícies lazy e isoladas;
+- migration 0004 apenas local/preview;
+- snapshots Bulletin + decisões Council duráveis e CAS;
+- F6 comparison fail-closed;
+- F7 V2 no bridge existente, sem diretor inventado;
+- F8 PDF individual/batch e reprint sobre snapshot canônico;
+- Reports sem indicador acadêmico novo;
+- superfícies lazy/isoladas e deep-link de Reports;
 - ausência de storage acadêmico persistente no browser;
 - ausência de retry silencioso de writes;
-- deep-link da busca para área do Banco sem nova rota/bridge;
-- foco/teclado/a11y/reduced-motion preservados.
+- foco/teclado/a11y preservados.
 
 ## Regras de evolução
 
