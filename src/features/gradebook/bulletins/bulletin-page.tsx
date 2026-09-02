@@ -4,6 +4,7 @@ import {
   BULLETIN_CONTRACT_VERSION_V1,
   BULLETIN_MODEL_KINDS_V1,
   type BulletinBatchEmissionResultV1,
+  type BulletinComparedApplicabilityV1,
   type BulletinComparedGradeValueV1,
   type BulletinEmissionRequestV1,
   type BulletinModelKindV1,
@@ -17,12 +18,24 @@ import type {
   BulletinSnapshotHistoryItemV1,
   BulletinStudentOptionV1,
 } from '../../../../shared/gradebook-contracts/bulletins/bulletin-transport-v1';
-import type { AcademicGradeValueV1 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
+import type { ResultCoverageV1 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
 import { BulletinClientErrorV1, requestBulletinWorkspaceV1 } from './bulletin-client';
+import {
+  bulletinAcademicStateLabelV1,
+  bulletinApplicabilityLabelV1,
+  bulletinCoverageLabelV1,
+  bulletinFinalDecisionLabelV1,
+  bulletinGradeValueLabelV1,
+  bulletinModelLabelV1,
+  bulletinPeriodLabelV1,
+} from './bulletin-presentation-v1';
+import { downloadBulletinPdfV1, printBulletinPdfV1 } from './pdf/bulletin-pdf-actions-v1';
 
 type ViewState = 'idle' | 'loading' | 'ready' | 'empty' | 'unavailable' | 'not-authorized';
 type PeriodSelection = 'term-1' | 'term-2' | 'term-3' | 'annual';
 type ArtifactMode = 'preview' | 'emission' | 'reprint';
+type PdfState = 'idle' | 'loading' | 'success' | 'error';
+type PdfAction = 'download' | 'print';
 
 const inputClass =
   'w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-foreground/40';
@@ -38,54 +51,38 @@ function periodFromSelection(value: PeriodSelection): BulletinPeriodV1 {
   return { kind: 'term', term: Number(value.slice(-1)) as 1 | 2 | 3 };
 }
 
-function periodLabel(period: BulletinPeriodV1): string {
-  return period.kind === 'annual' ? 'Anual' : `${period.term}º trimestre`;
-}
-
-function modelLabel(model: BulletinModelKindV1): string {
-  if (model === 'synthetic') return 'Sintético';
-  if (model === 'composition') return 'Composição';
-  return 'Detalhado';
-}
-
-function gradeValueLabel(value: AcademicGradeValueV1): string {
-  switch (value.state) {
-    case 'numeric':
-      return String(value.value);
-    case 'official-zero':
-      return '0 — zero oficial';
-    case 'legacy-zero':
-      return '0 — zero legado';
-    case 'absent':
-      return 'Ausente';
-    case 'not-applicable':
-      return value.reason ? `Não aplicável — ${value.reason}` : 'Não aplicável';
-    case 'insufficient-data':
-      return `Dados insuficientes — ${value.reason}`;
-  }
-}
-
 function ComparedGrade({ value }: { value: BulletinComparedGradeValueV1 }) {
   return (
     <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
       <div className="rounded-lg border border-border/70 p-2">
         <dt className="text-xs font-medium uppercase tracking-wide text-muted">Importado</dt>
-        <dd className="mt-1 font-medium">{gradeValueLabel(value.imported)}</dd>
+        <dd className="mt-1 font-medium">{bulletinGradeValueLabelV1(value.imported)}</dd>
       </div>
       <div className="rounded-lg border border-border/70 p-2">
         <dt className="text-xs font-medium uppercase tracking-wide text-muted">Calculado</dt>
-        <dd className="mt-1 font-medium">{gradeValueLabel(value.calculated)}</dd>
+        <dd className="mt-1 font-medium">{bulletinGradeValueLabelV1(value.calculated)}</dd>
       </div>
     </dl>
   );
 }
 
-function Coverage({ state, resolved, expected }: { state: string; resolved: number; expected: number }) {
+function ComparedApplicability({ value }: { value: BulletinComparedApplicabilityV1 }) {
   return (
-    <p className="text-xs text-muted">
-      Cobertura: <span className="font-medium text-foreground">{state}</span> · {resolved}/{expected} itens resolvidos
-    </p>
+    <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+      <div className="rounded-lg border border-border/70 p-2">
+        <dt className="text-xs font-medium uppercase tracking-wide text-muted">Importado</dt>
+        <dd className="mt-1 font-medium">{bulletinApplicabilityLabelV1(value.imported)}</dd>
+      </div>
+      <div className="rounded-lg border border-border/70 p-2">
+        <dt className="text-xs font-medium uppercase tracking-wide text-muted">Calculado</dt>
+        <dd className="mt-1 font-medium">{bulletinApplicabilityLabelV1(value.calculated)}</dd>
+      </div>
+    </dl>
   );
+}
+
+function Coverage({ coverage }: { coverage: ResultCoverageV1 }) {
+  return <p className="text-xs text-muted">{bulletinCoverageLabelV1(coverage)}</p>;
 }
 
 function BulletinModelPreview({ model }: { model: BulletinModelV1 }) {
@@ -94,8 +91,8 @@ function BulletinModelPreview({ model }: { model: BulletinModelV1 }) {
       <div className="grid gap-2 rounded-2xl border border-border p-4 sm:grid-cols-2 lg:grid-cols-4">
         <div><p className="text-xs text-muted">Aluno</p><p className="font-medium">{model.student.displayName}</p></div>
         <div><p className="text-xs text-muted">Turma</p><p className="font-medium">{model.classGroup.code}</p></div>
-        <div><p className="text-xs text-muted">Período</p><p className="font-medium">{periodLabel(model.period)}</p></div>
-        <div><p className="text-xs text-muted">Modelo</p><p className="font-medium">{modelLabel(model.modelKind)}</p></div>
+        <div><p className="text-xs text-muted">Período</p><p className="font-medium">{bulletinPeriodLabelV1(model.period)}</p></div>
+        <div><p className="text-xs text-muted">Modelo</p><p className="font-medium">{bulletinModelLabelV1(model.modelKind)}</p></div>
       </div>
 
       <p className="text-sm">Autoridade acadêmica: <strong>{model.authorityMode}</strong></p>
@@ -113,10 +110,11 @@ function BulletinModelPreview({ model }: { model: BulletinModelV1 }) {
               <>
                 <div><p className="mb-1 text-sm font-medium">Total original</p><ComparedGrade value={result.originalTotal} /></div>
                 <div><p className="mb-1 text-sm font-medium">Total pós-recuperação</p><ComparedGrade value={result.postRecoveryTotal} /></div>
-                <p className="text-sm">Decisão final: <strong>{JSON.stringify(result.finalDecision)}</strong></p>
+                <p className="text-sm">Estado acadêmico: <strong>{bulletinAcademicStateLabelV1(result.academicState)}</strong></p>
+                <p className="text-sm">Decisão final: <strong>{bulletinFinalDecisionLabelV1(result.finalDecision)}</strong></p>
               </>
             )}
-            <Coverage state={result.coverage.state} resolved={result.coverage.resolvedItemCount} expected={result.coverage.expectedItemCount} />
+            <Coverage coverage={result.coverage} />
           </Card.Content>
         </Card>
       ))}
@@ -127,8 +125,11 @@ function BulletinModelPreview({ model }: { model: BulletinModelV1 }) {
           <Card.Content className="grid gap-4">
             {terms.map((term) => (
               <Surface key={term.termResultId} variant="secondary" className="rounded-xl p-4">
-                <h4 className="font-medium">{term.term}º trimestre</h4>
+                <h4 className="font-medium">{bulletinPeriodLabelV1({ kind: 'term', term: term.term })}</h4>
                 <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  <div><p className="mb-1 text-sm font-medium">Quantitativo original</p><ComparedGrade value={term.quantitative.original} /></div>
+                  <div><p className="mb-1 text-sm font-medium">Recuperação paralela</p><ComparedGrade value={term.quantitative.parallelRecovery} /></div>
+                  <div className="lg:col-span-2"><p className="mb-1 text-sm font-medium">Aplicabilidade da recuperação paralela</p><ComparedApplicability value={term.quantitative.parallelRecoveryApplicability} /></div>
                   <div><p className="mb-1 text-sm font-medium">Quantitativo considerado</p><ComparedGrade value={term.quantitative.considered} /></div>
                   <div><p className="mb-1 text-sm font-medium">Qualitativo operacional</p><ComparedGrade value={term.qualitativeOperational} /></div>
                   <div><p className="mb-1 text-sm font-medium">Nota oficial</p><ComparedGrade value={term.officialGrade} /></div>
@@ -142,13 +143,13 @@ function BulletinModelPreview({ model }: { model: BulletinModelV1 }) {
                     ) : term.assessments.map((assessment) => (
                       <div key={assessment.gradeEntryId} className="rounded-lg border border-border/70 p-3">
                         <p className="font-medium">{assessment.name}</p>
-                        <p className="mb-2 text-xs text-muted">{assessment.type} · aplicabilidade: {assessment.applicability.state}</p>
+                        <p className="mb-2 text-xs text-muted">{assessment.type} · aplicabilidade: {bulletinApplicabilityLabelV1(assessment.applicability)}</p>
                         <ComparedGrade value={assessment.value} />
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="mt-3"><Coverage state={term.coverage.state} resolved={term.coverage.resolvedItemCount} expected={term.coverage.expectedItemCount} /></div>
+                <div className="mt-3"><Coverage coverage={term.coverage} /></div>
               </Surface>
             ))}
             {annualResult && (
@@ -158,8 +159,9 @@ function BulletinModelPreview({ model }: { model: BulletinModelV1 }) {
                   <div><p className="mb-1 text-sm font-medium">Total original</p><ComparedGrade value={annualResult.originalTotal} /></div>
                   <div><p className="mb-1 text-sm font-medium">Total pós-recuperação</p><ComparedGrade value={annualResult.postRecoveryTotal} /></div>
                 </div>
-                <p className="mt-3 text-sm">Decisão final: <strong>{JSON.stringify(annualResult.finalDecision)}</strong></p>
-                <div className="mt-2"><Coverage state={annualResult.coverage.state} resolved={annualResult.coverage.resolvedItemCount} expected={annualResult.coverage.expectedItemCount} /></div>
+                <p className="mt-3 text-sm">Estado acadêmico: <strong>{bulletinAcademicStateLabelV1(annualResult.academicState)}</strong></p>
+                <p className="mt-2 text-sm">Decisão final: <strong>{bulletinFinalDecisionLabelV1(annualResult.finalDecision)}</strong></p>
+                <div className="mt-2"><Coverage coverage={annualResult.coverage} /></div>
               </Surface>
             )}
           </Card.Content>
@@ -223,10 +225,18 @@ export function BulletinPage() {
   const [batch, setBatch] = useState<BulletinBatchEmissionResultV1 | null>(null);
   const [historyState, setHistoryState] = useState<ViewState>('idle');
   const [history, setHistory] = useState<readonly BulletinSnapshotHistoryItemV1[]>([]);
+  const [pdfState, setPdfState] = useState<PdfState>('idle');
+  const [pdfNotice, setPdfNotice] = useState<string | null>(null);
   const artifactHeadingRef = useRef<HTMLHeadingElement>(null);
+  const pdfFeedbackRef = useRef<HTMLDivElement>(null);
   const sequence = useRef(0);
 
   const focusArtifact = () => window.requestAnimationFrame(() => artifactHeadingRef.current?.focus());
+  const focusPdfFeedback = () => window.requestAnimationFrame(() => pdfFeedbackRef.current?.focus());
+  const resetPdfFeedback = () => {
+    setPdfState('idle');
+    setPdfNotice(null);
+  };
 
   const bootstrap = async () => {
     setWorkspaceState('loading');
@@ -313,6 +323,7 @@ export function BulletinPage() {
     setArtifactState('loading');
     setArtifactNotice(null);
     setSnapshot(null);
+    resetPdfFeedback();
     try {
       const response = await requestBulletinWorkspaceV1({
         contractVersion: BULLETIN_CONTRACT_VERSION_V1,
@@ -342,6 +353,7 @@ export function BulletinPage() {
   const emitOne = async () => {
     if (!yearId || !classGroupId || !previewStudent) return;
     setArtifactState('loading');
+    resetPdfFeedback();
     try {
       const response = await requestBulletinWorkspaceV1({
         contractVersion: BULLETIN_CONTRACT_VERSION_V1,
@@ -395,6 +407,7 @@ export function BulletinPage() {
 
   const reprint = async (item: BulletinSnapshotHistoryItemV1) => {
     setArtifactState('loading');
+    resetPdfFeedback();
     try {
       const response = await requestBulletinWorkspaceV1({
         contractVersion: BULLETIN_CONTRACT_VERSION_V1,
@@ -421,18 +434,46 @@ export function BulletinPage() {
     }
   };
 
+  const runPdfAction = async (action: PdfAction, sourceSnapshot: BulletinSnapshotV1) => {
+    setPdfState('loading');
+    setPdfNotice(action === 'download' ? 'Gerando PDF oficial…' : 'Preparando PDF oficial para impressão…');
+    try {
+      const result = action === 'download'
+        ? await downloadBulletinPdfV1(sourceSnapshot)
+        : await printBulletinPdfV1(sourceSnapshot);
+      setPdfState('success');
+      setPdfNotice(
+        action === 'download'
+          ? `PDF oficial pronto para download · ${result.pageCount} página(s).`
+          : `PDF oficial enviado à impressão · ${result.pageCount} página(s).`,
+      );
+    } catch {
+      setPdfState('error');
+      setPdfNotice('PDF indisponível. O boletim canônico permanece legível na tela e nenhuma nova emissão foi criada.');
+    } finally {
+      focusPdfFeedback();
+    }
+  };
+
   return (
-    <Surface variant="default" className="mt-6 rounded-[2rem] border border-border/70 p-5 shadow-sm sm:p-7" aria-busy={[workspaceState, classState, studentState, artifactState, batchState, historyState].includes('loading')}>
+    <Surface
+      variant="default"
+      className="mt-6 rounded-[2rem] border border-border/70 p-5 shadow-sm sm:p-7"
+      aria-busy={
+        [workspaceState, classState, studentState, artifactState, batchState, historyState].includes('loading') ||
+        pdfState === 'loading'
+      }
+    >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted">Banco de Notas · Boletins</p>
-          <h2 className="mt-1 text-2xl font-semibold">Seleção → prévia → emissão → histórico</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">A prévia renderiza diretamente o BulletinModelV1 canônico. Emissão e lote usam o mesmo materializador; reimpressão usa exclusivamente o snapshot histórico.</p>
+          <h2 className="mt-1 text-2xl font-semibold">Seleção → prévia → emissão → PDF → histórico</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">A prévia renderiza diretamente o BulletinModelV1 canônico. Emissão e lote usam o mesmo materializador; PDF oficial nasce somente do snapshot emitido e reimpressão usa exclusivamente o snapshot histórico.</p>
         </div>
         {workspaceState === 'idle' && <Button variant="primary" onPress={() => void bootstrap()} className="focus-visible:ring-2">Abrir Boletins</Button>}
       </div>
 
-      <div className="sr-only" aria-live="polite" role="status">Estado dos Boletins: {workspaceState}; prévia/emissão: {artifactState}; lote: {batchState}; histórico: {historyState}.</div>
+      <div className="sr-only" aria-live="polite" role="status">Estado dos Boletins: {workspaceState}; prévia/emissão: {artifactState}; PDF: {pdfState}; lote: {batchState}; histórico: {historyState}.</div>
 
       {workspaceState === 'loading' && <div className="mt-6 flex items-center gap-2"><Spinner size="sm" /><span>Carregando anos disponíveis…</span></div>}
       {(workspaceState === 'empty' || workspaceState === 'unavailable' || workspaceState === 'not-authorized') && <div className="mt-6"><StateAlert state={workspaceState} /></div>}
@@ -448,7 +489,7 @@ export function BulletinPage() {
                   sequence.current += 1;
                   const value = event.currentTarget.value;
                   setYearId(value ? value as BulletinAcademicYearOptionV1['id'] : null);
-                  setClassGroupId(null); setClassGroups([]); setStudents([]); setSelectedStudentIds([]); setPreviewStudentId(''); setHistory([]); setArtifactState('idle');
+                  setClassGroupId(null); setClassGroups([]); setStudents([]); setSelectedStudentIds([]); setPreviewStudentId(''); setHistory([]); setArtifactState('idle'); resetPdfFeedback();
                   if (value) void loadClassGroups(value as BulletinAcademicYearOptionV1['id']); else setClassState('idle');
                 }}>
                   <option value="">Selecione o ano</option>
@@ -461,7 +502,7 @@ export function BulletinPage() {
                 <select id="bulletin-class" className={inputClass} disabled={!yearId || classState === 'loading'} value={classGroupId ?? ''} onChange={(event) => {
                   sequence.current += 1;
                   const value = event.currentTarget.value;
-                  setClassGroupId(value ? value as BulletinClassGroupOptionV1['id'] : null); setStudents([]); setSelectedStudentIds([]); setPreviewStudentId(''); setHistory([]); setArtifactState('idle');
+                  setClassGroupId(value ? value as BulletinClassGroupOptionV1['id'] : null); setStudents([]); setSelectedStudentIds([]); setPreviewStudentId(''); setHistory([]); setArtifactState('idle'); resetPdfFeedback();
                   if (yearId && value) { void loadStudents(yearId, value as BulletinClassGroupOptionV1['id']); } else setStudentState('idle');
                 }}>
                   <option value="">Selecione a turma</option>
@@ -470,8 +511,8 @@ export function BulletinPage() {
                 {classState === 'loading' && <p className="mt-1 text-xs text-muted">Carregando turmas…</p>}
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><Label htmlFor="bulletin-period" className="mb-1.5 block text-sm font-medium">Período</Label><select id="bulletin-period" className={inputClass} value={periodSelection} onChange={(event) => setPeriodSelection(event.currentTarget.value as PeriodSelection)}><option value="term-1">1º trimestre</option><option value="term-2">2º trimestre</option><option value="term-3">3º trimestre</option><option value="annual">Anual</option></select></div>
-                <div><Label htmlFor="bulletin-model" className="mb-1.5 block text-sm font-medium">Modelo</Label><select id="bulletin-model" className={inputClass} value={modelKind} onChange={(event) => setModelKind(event.currentTarget.value as BulletinModelKindV1)}>{BULLETIN_MODEL_KINDS_V1.map((kind) => <option key={kind} value={kind}>{modelLabel(kind)}</option>)}</select></div>
+                <div><Label htmlFor="bulletin-period" className="mb-1.5 block text-sm font-medium">Período</Label><select id="bulletin-period" className={inputClass} value={periodSelection} onChange={(event) => { setPeriodSelection(event.currentTarget.value as PeriodSelection); resetPdfFeedback(); }}><option value="term-1">1º trimestre</option><option value="term-2">2º trimestre</option><option value="term-3">3º trimestre</option><option value="annual">Anual</option></select></div>
+                <div><Label htmlFor="bulletin-model" className="mb-1.5 block text-sm font-medium">Modelo</Label><select id="bulletin-model" className={inputClass} value={modelKind} onChange={(event) => { setModelKind(event.currentTarget.value as BulletinModelKindV1); resetPdfFeedback(); }}>{BULLETIN_MODEL_KINDS_V1.map((kind) => <option key={kind} value={kind}>{bulletinModelLabelV1(kind)}</option>)}</select></div>
               </div>
 
               <div className="lg:col-span-3">
@@ -483,6 +524,7 @@ export function BulletinPage() {
                   return <label key={student.enrollmentId} className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3 focus-within:ring-2"><input type="checkbox" checked={checked} onChange={(event) => {
                     const next = event.currentTarget.checked ? [...selectedStudentIds, student.studentId] : selectedStudentIds.filter((id) => id !== student.studentId);
                     setSelectedStudentIds(next);
+                    resetPdfFeedback();
                     if (event.currentTarget.checked && !previewStudentId) setPreviewStudentId(student.studentId);
                     if (!event.currentTarget.checked && previewStudentId === student.studentId) setPreviewStudentId(next[0] ?? '');
                   }} className="mt-1 size-4" /><span><strong className="block">{student.displayName}</strong><span className="text-xs text-muted">Matrícula {student.enrollmentId} · posição {student.position}</span></span></label>;
@@ -491,7 +533,7 @@ export function BulletinPage() {
 
               <div className="lg:col-span-3">
                 <Label htmlFor="bulletin-preview-student" className="mb-1.5 block text-sm font-medium">Aluno da prévia/emissão individual</Label>
-                <select id="bulletin-preview-student" className={inputClass} disabled={selectedStudents.length === 0} value={previewStudent?.studentId ?? ''} onChange={(event) => setPreviewStudentId(event.currentTarget.value)}><option value="">Selecione ao menos um aluno</option>{selectedStudents.map((student) => <option key={student.studentId} value={student.studentId}>{student.displayName}</option>)}</select>
+                <select id="bulletin-preview-student" className={inputClass} disabled={selectedStudents.length === 0} value={previewStudent?.studentId ?? ''} onChange={(event) => { setPreviewStudentId(event.currentTarget.value); resetPdfFeedback(); }}><option value="">Selecione ao menos um aluno</option>{selectedStudents.map((student) => <option key={student.studentId} value={student.studentId}>{student.displayName}</option>)}</select>
               </div>
             </Card.Content>
           </Card>
@@ -510,12 +552,30 @@ export function BulletinPage() {
               <h3 id="bulletin-artifact-heading" ref={artifactHeadingRef} tabIndex={-1} className="mb-3 text-xl font-semibold outline-none focus-visible:ring-2">{artifactMode === 'preview' ? 'Prévia' : artifactMode === 'emission' ? 'Emissão' : 'Reimpressão'}</h3>
               {snapshot && <p className="mb-3 text-sm">Snapshot <strong>{snapshot.snapshotId}</strong> · versão <strong>{snapshot.snapshotVersion}</strong> · modelVersion {snapshot.modelVersion}</p>}
               <BulletinModelPreview model={snapshot?.model ?? previewModel!} />
+              {snapshot && (
+                <div className="mt-5 grid gap-3">
+                  <div className="flex flex-wrap gap-3" aria-label="Ações de PDF oficial">
+                    <Button variant="primary" isDisabled={pdfState === 'loading'} onPress={() => void runPdfAction('download', snapshot)} className="focus-visible:ring-2">{pdfState === 'loading' && <Spinner size="sm" />}Baixar PDF oficial</Button>
+                    <Button variant="secondary" isDisabled={pdfState === 'loading'} onPress={() => void runPdfAction('print', snapshot)} className="focus-visible:ring-2">Imprimir PDF oficial</Button>
+                  </div>
+                  {pdfNotice && (
+                    <div ref={pdfFeedbackRef} tabIndex={-1} className="outline-none focus-visible:ring-2">
+                      {pdfState === 'error' ? (
+                        <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Title>PDF indisponível</Alert.Title><Alert.Description>{pdfNotice}</Alert.Description></Alert.Content></Alert>
+                      ) : (
+                        <p className="text-sm" role="status">{pdfNotice}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
           )}
 
           <Card>
             <Card.Header><Card.Title>2. Resultado do lote</Card.Title></Card.Header>
-            <Card.Content>
+            <Card.Content className="grid gap-3">
+              <p className="text-sm text-muted">A emissão acadêmica em lote permanece agregada. PDF em lote não é disparado: a geração de arquivo fica limitada a um snapshot por vez para manter memória, CPU e download bounded.</p>
               {batchState === 'idle' && <p className="text-sm text-muted">Nenhum lote emitido nesta sessão.</p>}
               {batchState === 'loading' && <div className="flex items-center gap-2"><Spinner size="sm" />Emitindo lote agregado…</div>}
               {(batchState === 'unavailable' || batchState === 'not-authorized' || batchState === 'empty') && <StateAlert state={batchState} />}
@@ -529,11 +589,11 @@ export function BulletinPage() {
               <p className="text-sm text-muted">Registry descartável deste ciclo local/preview. Não há garantia de durabilidade entre restarts ou isolates.</p>
               {historyState === 'loading' && <div className="flex items-center gap-2"><Spinner size="sm" />Carregando snapshots…</div>}
               {(historyState === 'empty' || historyState === 'unavailable' || historyState === 'not-authorized') && <StateAlert state={historyState} />}
-              {historyState === 'ready' && history.map((item) => <div key={`${item.snapshotId}:${item.snapshotVersion}`} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="font-medium">{item.studentDisplayName} · {modelLabel(item.modelKind)} · {periodLabel(item.period)}</p><p className="text-xs text-muted">Snapshot {item.snapshotId} · versão {item.snapshotVersion} · modelVersion {item.modelVersion} · {item.emittedAt}</p></div><Button size="sm" variant="secondary" onPress={() => void reprint(item)} className="focus-visible:ring-2">Reimprimir esta versão</Button></div>)}
+              {historyState === 'ready' && history.map((item) => <div key={`${item.snapshotId}:${item.snapshotVersion}`} className="grid gap-3 rounded-xl border border-border p-3 sm:grid-cols-[1fr_auto] sm:items-center"><div><p className="font-medium">{item.studentDisplayName} · {bulletinModelLabelV1(item.modelKind)} · {bulletinPeriodLabelV1(item.period)}</p><p className="text-xs text-muted">Snapshot {item.snapshotId} · versão {item.snapshotVersion} · modelVersion {item.modelVersion} · {item.emittedAt}</p></div><Button size="sm" variant="secondary" onPress={() => void reprint(item)} className="focus-visible:ring-2">Reimprimir esta versão</Button></div>)}
             </Card.Content>
           </Card>
 
-          <Alert status="warning"><Alert.Indicator /><Alert.Content><Alert.Title>Limite de PDF</Alert.Title><Alert.Description>PDF/renderização pendente por decisão arquitetural. Não existe renderer/biblioteca/runtime aprovado no projeto; nenhum segundo motor de template foi criado.</Alert.Description></Alert.Content></Alert>
+          <Alert status="default"><Alert.Indicator /><Alert.Content><Alert.Title>PDF canônico sob demanda</Alert.Title><Alert.Description>O renderer é carregado somente ao pedir PDF, usa o snapshot canônico e a fonte Geist já empacotada, não persiste dados acadêmicos no navegador e limita a geração a um documento por vez. Falha de PDF não remove a visualização do boletim.</Alert.Description></Alert.Content></Alert>
         </div>
       )}
     </Surface>

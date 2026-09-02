@@ -88,11 +88,12 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(route).not.toContain('rawSourceEvidence');
   });
 
-  it('preserva F8: mesma base canônica, lote isolado, snapshot histórico e bloqueio explícito de PDF', () => {
+  it('preserva F8: mesma base canônica, lote isolado, snapshot histórico e PDF canônico snapshot-only', () => {
     const service = source('server/gradebook/application/bulletins/bulletin-workspace-service-v1.ts');
     const emission = source('server/gradebook/application/bulletins/bulletin-emission-service-v1.ts');
     const snapshots = source('server/gradebook/application/bulletins/bulletin-snapshot-repository-v1.ts');
     const page = source('src/features/gradebook/bulletins/bulletin-page.tsx');
+    const pdfActions = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-actions-v1.ts');
 
     expect(service).toContain('emission.materialize(request.request, context)');
     expect(service).toContain('emission.emit(request.request, context)');
@@ -101,7 +102,10 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(emission).toContain('materializeBatch');
     expect(snapshots).toContain('freezeBulletinSnapshotV1');
     expect(page).toContain('Cada aluno conserva seu próprio resultado.');
-    expect(page).toContain('PDF/renderização pendente por decisão arquitetural');
+    expect(page).toContain('PDF canônico sob demanda');
+    expect(page).toContain('Baixar PDF oficial');
+    expect(page).toContain('Imprimir PDF oficial');
+    expect(pdfActions).toContain("await import('./bulletin-pdf-renderer-v1')");
     expect(page).not.toContain('@react-pdf');
     expect(page).not.toContain('pdfkit');
     expect(page).not.toContain('jspdf');
