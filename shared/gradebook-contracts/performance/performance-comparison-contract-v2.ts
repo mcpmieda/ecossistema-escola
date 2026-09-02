@@ -219,7 +219,6 @@ export function comparePerformancePercentagesV2(input: {
     basis: PERFORMANCE_COMPARISON_BASIS_V2,
     current: input.current,
     reference: input.reference,
-    compatibility: input.compatibility,
   } as const;
 
   if (input.compatibility.state !== 'compatible') {
@@ -227,27 +226,48 @@ export function comparePerformancePercentagesV2(input: {
       ...base,
       state: 'not-comparable',
       reason: 'profile-semantics-not-declared-compatible',
+      compatibility: input.compatibility,
     };
   }
 
   const currentCoverageReason = unavailableCoverageReason('current', input.current.coverage);
   if (currentCoverageReason !== null) {
-    return { ...base, state: 'not-comparable', reason: currentCoverageReason };
+    return {
+      ...base,
+      state: 'not-comparable',
+      reason: currentCoverageReason,
+      compatibility: input.compatibility,
+    };
   }
 
   const referenceCoverageReason = unavailableCoverageReason('reference', input.reference.coverage);
   if (referenceCoverageReason !== null) {
-    return { ...base, state: 'not-comparable', reason: referenceCoverageReason };
+    return {
+      ...base,
+      state: 'not-comparable',
+      reason: referenceCoverageReason,
+      compatibility: input.compatibility,
+    };
   }
 
   const current = comparablePercentage('current', input.current.percentage);
   if (current.state === 'not-comparable') {
-    return { ...base, state: 'not-comparable', reason: current.reason };
+    return {
+      ...base,
+      state: 'not-comparable',
+      reason: current.reason,
+      compatibility: input.compatibility,
+    };
   }
 
   const reference = comparablePercentage('reference', input.reference.percentage);
   if (reference.state === 'not-comparable') {
-    return { ...base, state: 'not-comparable', reason: reference.reason };
+    return {
+      ...base,
+      state: 'not-comparable',
+      reason: reference.reason,
+      compatibility: input.compatibility,
+    };
   }
 
   const relation: PerformanceProportionalRelationV2 =
@@ -261,6 +281,7 @@ export function comparePerformancePercentagesV2(input: {
     ...base,
     state: 'comparable',
     relation,
+    compatibility: input.compatibility,
   };
 }
 
