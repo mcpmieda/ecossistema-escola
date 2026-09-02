@@ -219,6 +219,7 @@ describe('performance comparison contract v2', () => {
       enabled: false,
       version: '2',
     });
+    if (disabled.enabled) throw new Error('expected disabled synthetic configuration');
     expect(PERFORMANCE_COMPARISON_CONTRACT_V2.configuration).toMatchObject({
       source: 'server-only',
       platformReadCapability: 'platform.settings.read',
