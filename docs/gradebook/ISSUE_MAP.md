@@ -9,8 +9,9 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 - **Onda 20:** #360 / PR #363 → #361
 - **Onda 21:** #365 / PR #368 + #366 / PR #369 → #367 / PR #370
 - **Onda 22:** #349 / PR #375 → #371 / PR #376 → (#372 / PR #377 + #373 / PR #378) → #374 / PR #379
-- **Armazenamento:** Cloudflare D1 local/preview, migrations 0001–0004 / 25 tabelas
-- **Produção acadêmica:** sem D1 remoto, binding ou migration remota; consultas/persistência desativadas
+- **Onda 23:** #380 → #381 → #382 → #383
+- **Armazenamento:** Cloudflare D1 local/preview + produção; migrations 0001–0004 / 25 tabelas
+- **Produção acadêmica:** recurso/binding/schema presentes e smoke-validados; gate final OFF, operação real ainda não iniciada
 - **Autoridade ativa:** `imported-source`
 - **Autoridade-alvo futura:** `native-engine`, separada em #347/F9
 - **Autorização acadêmica:** `gradebook.persistence.admin`, server-side
@@ -21,14 +22,14 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 | ---------------------- | ----: | --------------------------------------------------------------- | ---------------------------------------- |
 | F0 Fundação            |  #183 | concluída                                                       | manutenção                               |
 | F1 Fonte/importação    |  #184 | **7/7 histórico + fidelidade V2 integrada**                     | manutenção                               |
-| F2 Persistência        |  #185 | D1 local + durabilidade Bulletin/Council                        | produção somente por autorização própria |
+| F2 Persistência        |  #185 | D1 produtivo + schema 4/25; gate final OFF                       | piloto somente por autorização própria    |
 | F3 Motor               |  #186 | V1 concluída, comparativa                                       | futura autoridade via #347/F9            |
 | F4 Auditoria           |  #187 | revisão 7/7 + investigação/correção determinística integrada    | produção/piloto por gates próprios       |
 | F5 Centrais            |  #188 | cadastro/confirmação docente + atribuições anuais concluídos    | manutenção                               |
 | F6 Desempenho          |  #189 | **concluída: gráficos + comparação proporcional profile-aware**  | manutenção; write config ainda bloqueado |
 | F7 Conselho            |  #190 | V2 institucional + decisões duráveis local/preview              | gates residuais próprios                 |
 | F8 Boletins/Relatórios |  #191 | snapshots duráveis + PDF individual/batch + reports             | produção somente por autorização própria |
-| F9 Piloto/segurança    |  #192 | readiness preparado; onda 23 é o próximo gate controlado        | produção → piloto → autoridade           |
+| F9 Piloto/segurança    |  #192 | infraestrutura produtiva smoke-validada; gate final OFF          | piloto → autoridade                      |
 
 ## Onda 20 — F9 readiness
 
@@ -115,7 +116,24 @@ Merges das frentes:
 - planilha original, decisões de Conselho, snapshots e histórico não são reescritos;
 - produção acadêmica, piloto real e `native-engine` continuam desativados.
 
-Próxima ordem: `onda 23 produção controlada → onda 24 piloto real → #347 autoridade nativa`.
+Próxima ordem histórica após a onda 22: `onda 23 produção controlada → onda 24 piloto real → #347 autoridade nativa`.
+
+## Onda 23 — produção controlada
+
+| Etapa | Issue | Evidência sanitizada |
+| --- | ---: | --- |
+| Recurso/binding | #380 | D1 produtivo e `GRADEBOOK_D1` presentes; gate OFF |
+| Migrations | #381 | 4/4, schema version 4, 25 tabelas, pendentes 0 |
+| Smoke | #382 | 5 passos verdes; snapshot/reprint/recovery; resíduo sintético final 0 |
+| Integração | #383 | readiness V2 + memória canônica, sem nova operação remota |
+
+Estado consolidado: `production-infrastructure-smoke-validated-awaiting-private-pilot`. O SHA usado no smoke final foi `2fdefa87f186e84ed40637437d4b0199baff82c6`; o production gate terminou OFF e `authorityMode` continua `imported-source`.
+
+Limitações conhecidas para revisão de escopo na onda 24: case store de reconciliação V2 process-local, sessão/reunião do Conselho V2 process-local e write da configuração de comparação ainda não integrado. A integração #383 não cria solução por conveniência.
+
+A #384 / PR #385 segue sem merge nesta consolidação e, portanto, não altera ainda a decisão canônica em `DECISIONS.md`.
+
+Próxima ordem: `onda 23 concluída → onda 24 piloto privado real → #347 autoridade nativa`.
 
 ## Como iniciar agente
 

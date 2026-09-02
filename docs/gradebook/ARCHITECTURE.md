@@ -36,7 +36,7 @@ Planejamento não grava; revisão não promove; executor não resolve ambiguidad
 
 ## Autoridade
 
-`authorityMode` continua `imported-source` após a onda 22. A BN-DEC-019 registra `native-engine` apenas como autoridade-alvo futura; a troca efetiva pertence à #347 depois de produção controlada, piloto e vigência explícita. Conselho continua separando cálculo de decisão humana.
+`authorityMode` continua `imported-source` após a onda 23. A produção controlada validou infraestrutura e smoke, não mudou autoridade. A BN-DEC-019 segue canônica na `main`; a #384/PR #385 ainda não está integrada. A troca efetiva permanece separada em #347 depois do piloto e dos gates aplicáveis. Conselho continua separando cálculo de decisão humana.
 
 ## Fidelidade das avaliações V2
 
@@ -59,7 +59,8 @@ Domínio/aplicação → portas/sources → adapters D1 → GradebookD1RuntimeV1
 ```text
 local      → binding injetado permitido
 preview    → binding injetado permitido
-production → falha antes de inspecionar GRADEBOOK_D1
+production → binding presente + gate OFF: falha antes do uso acadêmico do D1
+production → gate ON: janela explícita, ainda atrás de auth/capability
 ```
 
 Migrations locais: 0001–0004, 25 tabelas. A 0004 adiciona somente:
@@ -71,7 +72,7 @@ council_decision_streams
 council_decision_versions
 ```
 
-Os quatro históricos são append-only, sem cascade/purge inventado. Nenhuma migration 0004 foi aplicada remotamente.
+Os quatro históricos são append-only, sem cascade/purge inventado. Na onda 23, 0001–0004 foram aplicadas remotamente: schema version 4 / 25 tabelas, zero pendência.
 
 ## Autorização e HTTP
 
@@ -121,7 +122,7 @@ GradebookD1RuntimeV1
   └── promoteImportChangePlan()
 ```
 
-A composição física ocorre somente depois de autorização opaca e do gate de ambiente. Snapshots de Boletins e decisões de Conselho usam a factory D1 durável da #340. A sessão/reunião institucional V2 permanece provider-independent/process-local nesta versão porque a 0004 não define armazenamento para esse agregado.
+A composição física ocorre somente depois de autorização opaca e do gate de ambiente. Em produção, o gate explícito deve estar ON apenas durante janela autorizada; OFF falha antes do uso acadêmico do binding. Snapshots de Boletins e decisões de Conselho usam a factory D1 durável da #340; bindings remotos com `batch()` usam batch guardado para atomicidade. A sessão/reunião institucional V2 permanece provider-independent/process-local porque a 0004 não define armazenamento para esse agregado.
 
 ## Operational Workspace F5
 
@@ -169,7 +170,7 @@ BulletinModelV1
 ```
 
 - preview e emissão usam a mesma materialização;
-- snapshots são imutáveis, append-only, versionados e duráveis em D1 local/preview;
+- snapshots são imutáveis, append-only e versionados; o caminho D1 remoto foi smoke-validado e depois restaurado a resíduo sintético zero;
 - reimpressão usa somente snapshot histórico e faz zero leitura acadêmica atual;
 - renderer client-side P&B/raster, lazy e sem fetch acadêmico;
 - batch PDF: máximo 3 documentos, 72 páginas totais e uma geração concorrente;
@@ -231,7 +232,7 @@ F1 está definitivamente concluída em **7/7** sob o contrato vigente à época.
 - adapters não alteram significado do contrato;
 - Desempenho/Conselho/Boletins/Relatórios não mantêm motores acadêmicos próprios;
 - Graph/SharePoint não é acessado diretamente pelo navegador para dados acadêmicos;
-- produção permanece fail-closed até autorização própria;
+- produção possui D1/binding/schema, mas permanece fail-closed com o gate OFF entre janelas autorizadas;
 - não criar bridges concorrentes.
 
 ## Publicação
@@ -240,4 +241,4 @@ F1 está definitivamente concluída em **7/7** sob o contrato vigente à época.
 main → Deploy Cloudflare Pages → admin.escolaieda.com
 ```
 
-Publicação de código não ativa dados acadêmicos: sem D1/binding acadêmico de produção, superfícies físicas continuam indisponíveis antes do binding.
+Publicação de código não ativa dados acadêmicos: D1/binding existem, mas `GRADEBOOK_PRODUCTION_ENABLED` ausente/`false` mantém as superfícies acadêmicas produtivas fail-closed. A onda 23 terminou nesse estado.
