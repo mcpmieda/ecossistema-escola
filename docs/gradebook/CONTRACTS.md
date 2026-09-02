@@ -102,7 +102,7 @@ A granularidade nova não recalcula nem redefine:
 - `AM` nota oficial trimestral importada;
 - `AN` acumulado anual importado.
 
-Também não cria pesos, percentuais por atividade, médias, rankings, comparação entre períodos, materialidade ou tolerância. O hard stop F6 `comparison-semantics-not-integrated` permanece independente.
+Também não cria pesos, percentuais por atividade, médias, rankings, comparação entre períodos, materialidade ou tolerância. A comparação proporcional integrada na onda 22 permanece uma projeção independente sobre percentuais oficiais já resolvidos.
 
 ## Valores/resultados
 
@@ -262,7 +262,7 @@ Testes de integração congelam:
 - produção antes do binding;
 - migration 0004 apenas local/preview;
 - snapshots Bulletin + decisões Council duráveis e CAS;
-- F6 comparison fail-closed;
+- F6 sem comparação inventada nos contratos históricos; a evolução V2 posterior permanece isolada;
 - F7 V2 no bridge existente, sem diretor inventado;
 - F8 PDF individual/batch e reprint sobre snapshot canônico;
 - Reports sem indicador acadêmico novo;
@@ -273,7 +273,7 @@ Testes de integração congelam:
 
 ## Onda 22 — comparação proporcional e correção determinística
 
-A #371 congela somente os contratos compartilhados que implementações posteriores consumirão. Não altera runtime, persistência física, UI, produção, piloto ou `authorityMode`.
+A #371 congelou os contratos compartilhados; #372 e #373 os consomem sem ampliar sua semântica. A composição da #374 preserva produção, piloto e `authorityMode` desativados.
 
 ### Performance Comparison V2
 
@@ -289,7 +289,7 @@ A #371 congela somente os contratos compartilhados que implementações posterio
 
 A configuração usa a forma já existente de `PlatformConfiguration`/`PLATAFORMA_CONFIGURACOES`: chave `gradebook.performance.proportional-comparison`, escopo `global`, versão/vigência e `active` mapeado server-side para `enabled`. Sem linha aplicável, o default canônico é `enabled: true`. Estado desabilitado é explícito e não vira `match` nem `not-comparable`.
 
-O snapshot atual possui somente leitura por `platform.settings.read`; busca no repositório encontra `PLATAFORMA_CONFIGURACOES` apenas no leitor de snapshot e testes. Portanto a escrita administrativa permanece `not-integrated-hard-stop` para #372/#373: a representação está fechada, mas nenhuma capability/role ou write path é inventada nesta frente.
+O snapshot atual possui somente leitura por `platform.settings.read`. A configuração aparece na área global Configurações e alimenta o bridge existente de Desempenho, mas a escrita administrativa permanece `not-integrated-hard-stop`: a representação e o read path estão fechados, sem capability/role ou write path inventado.
 
 ### Reconciliation V2
 
@@ -307,7 +307,9 @@ Uma prova elegível exige causa raiz identificada, evidência oficial não vazia
 
 Defeito de software permanece `not-eligible / software-change-required`; após correção normal do código, um reprocessamento determinístico pode produzir nova referência de versão preservando a anterior e a evidência. Materialidade numérica heurística continua proibida.
 
-Durante futuro piloto, o gate contratual mantém `imported-source`. `mismatch` com impacto acadêmico oficial interrompe o fluxo; impacto não resolvido é tratado como `potentially-material` e também interrompe. Retomada só é representável depois de `reconciled` ou `accepted-with-reason`. A #371 não executa piloto e não ativa `native-engine`.
+Durante futuro piloto, o gate contratual mantém `imported-source`. `mismatch` com impacto acadêmico oficial interrompe o fluxo; impacto não resolvido é tratado como `potentially-material` e também interrompe. Retomada só é representável depois de `reconciled` ou `accepted-with-reason`.
+
+A implementação integrada reutiliza o mesmo Audit Workspace, `planImportReconciliation`, `executeImportChangePlan`, UoW, CAS e rollback. A receita elegível e suas referências de evidência ficam server-only; o transporte sanitizado não expõe prova, evidência bruta ou mutação arbitrária. Nenhum schema/migration foi criado para os estados V2.
 
 ## Regras de evolução
 

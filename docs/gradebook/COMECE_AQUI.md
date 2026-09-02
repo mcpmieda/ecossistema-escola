@@ -4,18 +4,22 @@
 
 **Agente de implementação só começa em issue marcada `[PRONTA]`.** Issues-pai (`#182`, `#184`–`#192`) são acompanhamento; integrações rodam somente pela issue integradora correspondente.
 
-## Onda 21 — integração #367
+## Onda 22 — integração #374
 
-| Frente        | Issue / PR    | Resultado                                                                                |
-| ------------- | ------------- | ---------------------------------------------------------------------------------------- |
-| Contrato V2   | `#365 / #368` | R3/S3, R/S e AA3:AJ4 formalizados sem reinterpretar V1 histórico                         |
-| Implementação | `#366 / #369` | recognizer, componentes, GradeEntry, reconciliação e consumidores V1/V2                  |
-| Integração    | `#367 / #370` | regressão transversal, readiness sintética e memória canônica sem ativação produtiva     |
+| Frente                 | Issue / PR    | Resultado                                                                                       |
+| ---------------------- | ------------- | ----------------------------------------------------------------------------------------------- |
+| Decisão                | `#349 / #375` | BN-DEC-019 consolidada                                                                           |
+| Contratos V2           | `#371 / #376` | comparação percentual profile-aware e correção determinística fail-closed                       |
+| Comparação             | `#372 / #377` | F6 no bridge existente, configuração server-side e sem write path inventado                     |
+| Correção determinística | `#373 / #378` | Audit Workspace, planner/executor/CAS/rollback oficiais                                          |
+| Integração             | `#374`        | regressão transversal, readiness sintética e memória canônica sem ativação produtiva             |
 
 Heads e merges validados:
 
-- #365: `c5d6c3c4e799a99413ebf104d737ab62a6749457` → merge `7b59a226b557153d6e3094b64f268ce5e9373cc3`;
-- #366: `7aad372412cfdf10a66a4e29c342bb1d39d6ef0c` → merge `70748d527f0ebf11803dab748a6d5d5dbe6c082a`.
+- #349: `24d40efce8a6c5a8eb26e9ca6aa3e0eef0601da7` → merge `a49b05de243353d1aea9452d0cdc108c75a1221a`;
+- #371: `b3063b4498cb70f6b9b754e736cb45ad94da8eb0` → merge `92c0760ff8735e11f94ba61c148f8b789d53929d`;
+- #372 recomposta: `c5811ed5dc3543b834598162ac9362752a63ff15` → merge `da73b8cabc30fd5479c00683c36cef481076b286`;
+- #373 recomposta: `98684ded7cfc986789bcf0d11680a04576b43a5a` → merge `9cc998225c612722fcbe2ebc64bbf35d2d9dbd1b`.
 
 ## Invariantes atuais
 
@@ -25,25 +29,23 @@ Heads e merges validados:
 - nenhuma migration remota, restore ou export executado;
 - nenhum smoke acadêmico produtivo ou piloto real executado;
 - somente dados sintéticos no repositório/CI;
-- #347 permanece separada e não autorizada.
+- #347 permanece separada e não autorizada antes do piloto.
 
 ## Estado funcional
 
 - **F1:** validação histórica 7/7 preservada e evolução prospectiva V2 integrada.
 - **F4/F5:** concluídas.
-- **F6:** gráficos oficiais entregues; comparação proporcional permanece fail-closed sem semântica canônica.
+- **F6:** concluída com comparação proporcional profile-aware; escrita administrativa da configuração permanece hard stop explícito.
 - **F7/F8:** Conselho V2, decisões/snapshots duráveis, PDF e Relatórios permanecem integrados em local/preview.
 - **F9:** readiness está `prepared-for-manual-authorization`; isso não equivale a produção ou piloto aprovados.
 
 ## Próximo passo
 
-Depois da publicação da #367, não iniciar ativação automaticamente. Cada ação abaixo exige autorização própria:
+Depois da publicação da #374, seguir a ordem sem antecipar gates:
 
-1. criar recurso/binding produtivo;
-2. aplicar migration remota;
-3. executar smoke acadêmico produtivo;
-4. executar piloto privado real;
-5. alterar autoridade pela trilha separada #347.
+1. **onda 23 — produção controlada:** recurso/binding → migration remota → smoke acadêmico produtivo, cada ação em issue/gate próprio;
+2. **onda 24 — piloto real:** execução privada e controlada, ainda com `imported-source`;
+3. **#347 — autoridade nativa:** somente após piloto, vigência e autorização explícitas.
 
 ## Fluxo
 

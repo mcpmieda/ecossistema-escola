@@ -8,13 +8,14 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 - **Onda 19:** #353 + #354 + #355 → #356 / PR #362
 - **Onda 20:** #360 / PR #363 → #361
 - **Onda 21:** #365 / PR #368 + #366 / PR #369 → #367 / PR #370
+- **Onda 22:** #349 / PR #375 → #371 / PR #376 → (#372 / PR #377 + #373 / PR #378) → #374
 - **Armazenamento:** Cloudflare D1 local/preview, migrations 0001–0004 / 25 tabelas
 - **Produção acadêmica:** sem D1 remoto, binding ou migration remota; consultas/persistência desativadas
 - **Autoridade ativa:** `imported-source`
 - **Autoridade-alvo futura:** `native-engine`, separada em #347/F9
 - **Autorização acadêmica:** `gradebook.persistence.admin`, server-side
 
-## Fases após onda 21
+## Fases após onda 22
 
 | Fase                   | Issue | Estado                                                          | Próximo grande passo                     |
 | ---------------------- | ----: | --------------------------------------------------------------- | ---------------------------------------- |
@@ -22,12 +23,12 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 | F1 Fonte/importação    |  #184 | **7/7 histórico + fidelidade V2 integrada**                     | manutenção                               |
 | F2 Persistência        |  #185 | D1 local + durabilidade Bulletin/Council                        | produção somente por autorização própria |
 | F3 Motor               |  #186 | V1 concluída, comparativa                                       | futura autoridade via #347/F9            |
-| F4 Auditoria           |  #187 | revisão autoritativa 7/7 concluída                              | manutenção                               |
+| F4 Auditoria           |  #187 | revisão 7/7 + investigação/correção determinística integrada    | produção/piloto por gates próprios       |
 | F5 Centrais            |  #188 | cadastro/confirmação docente + atribuições anuais concluídos    | manutenção                               |
-| F6 Desempenho          |  #189 | gráficos oficiais; comparação proporcional bloqueada            | decisão canônica de semântica            |
+| F6 Desempenho          |  #189 | **concluída: gráficos + comparação proporcional profile-aware**  | manutenção; write config ainda bloqueado |
 | F7 Conselho            |  #190 | V2 institucional + decisões duráveis local/preview              | gates residuais próprios                 |
 | F8 Boletins/Relatórios |  #191 | snapshots duráveis + PDF individual/batch + reports             | produção somente por autorização própria |
-| F9 Piloto/segurança    |  #192 | readiness preparado; piloto/produção/autoridade não autorizados | gates manuais independentes              |
+| F9 Piloto/segurança    |  #192 | readiness preparado; onda 23 é o próximo gate controlado        | produção → piloto → autoridade           |
 
 ## Onda 20 — F9 readiness
 
@@ -85,6 +86,36 @@ Merges das frentes:
 - T/Z/AK/AM/AN, motor 2026, autoridade importada e resultados oficiais permanecem inalterados;
 - Desempenho, Centrais, Boletins e Relatórios aceitam componentes V2 sem métrica ou motor novo;
 - readiness retorna a `prepared-for-manual-authorization` com todos os gates produtivos fechados.
+
+## Onda 22 — decisão, comparação e correção determinística
+
+| Frente                  | Issue / PR  | Entrega                                                                                  |
+| ----------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| Decisão normativa       | #349 / #375 | BN-DEC-019 consolidada                                                                   |
+| Contratos compartilhados | #371 / #376 | comparação proporcional V2 e reconciliação determinística V2                            |
+| Desempenho              | #372 / #377 | comparação profile-aware, referência explícita e configuração server-side               |
+| Auditoria               | #373 / #378 | investigação, stop e correção determinística pelo planner/executor oficiais              |
+| Integração              | #374        | regressão, documentação, publicação e retorno aos gates produtivos                       |
+
+Merges das frentes:
+
+```text
+#375 → a49b05de243353d1aea9452d0cdc108c75a1221a
+#376 → 92c0760ff8735e11f94ba61c148f8b789d53929d
+#377 → da73b8cabc30fd5479c00683c36cef481076b286
+#378 → 9cc998225c612722fcbe2ebc64bbf35d2d9dbd1b
+```
+
+### Resultado integrado
+
+- 24/30 e 32/40 são proporcionalmente iguais por percentual oficial, sem hard-code ou tolerância;
+- configuração default habilitada e estado server-side desabilitado são explícitos; escrita administrativa continua `not-integrated-hard-stop`;
+- mismatch não presume culpado e possível impacto acadêmico produz `stop` fail-closed;
+- correção automática exige prova unívoca e usa append-only/CAS/transação/rollback oficiais;
+- planilha original, decisões de Conselho, snapshots e histórico não são reescritos;
+- produção acadêmica, piloto real e `native-engine` continuam desativados.
+
+Próxima ordem: `onda 23 produção controlada → onda 24 piloto real → #347 autoridade nativa`.
 
 ## Como iniciar agente
 
