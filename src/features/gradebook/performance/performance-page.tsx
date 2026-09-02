@@ -34,6 +34,7 @@ import type {
 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
 import { requestPerformanceV1 } from './performance-client';
+import { PerformanceOfficialCharts } from './performance-official-charts';
 import { createPerformanceRequestGateV1 } from './performance-request-gate';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'empty' | 'unavailable' | 'not-authorized';
@@ -710,6 +711,8 @@ export function PerformancePage() {
                   </div>
                   <Chip size="sm" variant="soft">{matrix.coverage.state}</Chip>
                 </div>
+
+                <PerformanceOfficialCharts matrix={matrix} />
 
                 <div className="hidden md:block">
                   <Surface variant="secondary" className="overflow-x-auto rounded-2xl p-1">
