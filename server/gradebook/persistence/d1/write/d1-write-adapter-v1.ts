@@ -43,6 +43,7 @@ export interface D1WriteStatementV1 extends D1ReadStatementV1 {
 export interface D1WriteDatabaseV1 extends D1ReadDatabaseV1 {
   prepare(query: string): D1WriteStatementV1;
   exec(query: string): Promise<unknown> | unknown;
+  batch?(statements: readonly D1WriteStatementV1[]): Promise<readonly D1WriteRunResultV1[]>;
 }
 
 export type GradebookD1WriteErrorCodeV1 =

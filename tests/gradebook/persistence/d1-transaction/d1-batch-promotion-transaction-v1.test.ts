@@ -14,7 +14,12 @@ import {
   GradebookD1BatchPromotionTransactionV1,
   GradebookD1TransactionErrorV1,
 } from '../../../../server/gradebook/persistence/d1/transaction/d1-batch-promotion-transaction-v1';
-import { createGradebookD1WriteUnitOfWorkV1 } from '../../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
+import {
+  createGradebookD1WriteUnitOfWorkV1,
+  type D1WriteDatabaseV1,
+  type D1WriteRunResultV1,
+  type D1WriteStatementV1,
+} from '../../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import type {
   AcademicRecordStreamV1,
   AcademicRecordV1,
@@ -114,6 +119,42 @@ function transaction(): GradebookD1BatchPromotionTransactionV1 {
   return new GradebookD1BatchPromotionTransactionV1(database, { now: () => instant });
 }
 
+class AtomicBatchSqliteDatabase implements D1WriteDatabaseV1 {
+  execCalls = 0;
+  batchCalls = 0;
+
+  constructor(
+    private readonly delegate: SqliteD1Database,
+    private readonly beforeBatch?: () => void,
+  ) {}
+
+  prepare(query: string): D1WriteStatementV1 {
+    return this.delegate.prepare(query);
+  }
+
+  exec(query: string): void {
+    this.execCalls += 1;
+    this.delegate.exec(query);
+  }
+
+  async batch(
+    statements: readonly D1WriteStatementV1[],
+  ): Promise<readonly D1WriteRunResultV1[]> {
+    this.batchCalls += 1;
+    this.beforeBatch?.();
+    this.delegate.raw.exec('BEGIN IMMEDIATE');
+    try {
+      const results: D1WriteRunResultV1[] = [];
+      for (const statement of statements) results.push(await statement.run());
+      this.delegate.raw.exec('COMMIT');
+      return results;
+    } catch (cause) {
+      this.delegate.raw.exec('ROLLBACK');
+      throw cause;
+    }
+  }
+}
+
 function tableCount(table: string): number {
   const row = database.raw.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as {
     count: number;
@@ -138,6 +179,58 @@ function association(
 }
 
 describe('promoção transacional D1 local V1', () => {
+  it('usa batch atômico no binding remoto sem emitir BEGIN ou SAVEPOINT', async () => {
+    const source = sourceFileVersion();
+    const plan = await planFor(source, [gradeRecord(8)]);
+    const remote = new AtomicBatchSqliteDatabase(database);
+
+    await expect(
+      executeImportChangePlan(
+        plan,
+        new GradebookD1BatchPromotionTransactionV1(remote, { now: () => instant }),
+      ),
+    ).resolves.toMatchObject({
+      status: 'applied',
+      transactionCommitted: true,
+      committedWrites: { totalVersionWrites: 3 },
+    });
+
+    expect(remote.batchCalls).toBe(1);
+    expect(remote.execCalls).toBe(0);
+    expect(tableCount('source_file_versions')).toBe(1);
+    expect(tableCount('academic_record_versions')).toBe(1);
+    expect(tableCount('logical_source_record_versions')).toBe(1);
+  });
+
+  it('aborta o batch remoto se a versão do lote mudar entre preflight e commit', async () => {
+    const plan = await planFor(sourceFileVersion(), [gradeRecord(8)]);
+    const remote = new AtomicBatchSqliteDatabase(database, () => {
+      database.raw
+        .prepare(
+          `UPDATE import_batch_streams
+           SET current_version = 2
+           WHERE academic_year_id = ? AND import_batch_id = ?`,
+        )
+        .run(academicYearId, importBatchId);
+    });
+
+    await expect(
+      executeImportChangePlan(
+        plan,
+        new GradebookD1BatchPromotionTransactionV1(remote, { now: () => instant }),
+      ),
+    ).resolves.toMatchObject({
+      status: 'transaction-failed',
+      transactionCommitted: false,
+      committedWrites: { totalVersionWrites: 0 },
+      failure: { code: 'transaction-failed' },
+    });
+
+    expect(tableCount('source_file_versions')).toBe(0);
+    expect(tableCount('academic_record_versions')).toBe(0);
+    expect(tableCount('logical_source_record_versions')).toBe(0);
+  });
+
   it('executa o executor abstrato e confirma fonte, registro e associação no mesmo commit', async () => {
     const source = sourceFileVersion();
     const plan = await planFor(source, [gradeRecord(8)]);
