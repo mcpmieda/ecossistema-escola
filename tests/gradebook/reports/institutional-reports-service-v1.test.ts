@@ -3,11 +3,13 @@ import {
   AUDIT_WORKSPACE_CONTRACT_VERSION_V1,
   AUDIT_WORKSPACE_ORDERS_V1,
   type AuditWorkspaceListRequestV1,
+  type AuditWorkspaceListResponseV1,
 } from '../../../shared/gradebook-contracts/audit-workspace/audit-workspace-contract-v1';
 import type { AuditOccurrenceId } from '../../../shared/gradebook-contracts/audit/audit-contract-v1';
 import {
   COUNCIL_WORKSPACE_CONTRACT_VERSION_V1,
   type CouncilClassReferenceV1,
+  type CouncilQueueResponseV1,
   type CouncilStudentReferenceV1,
 } from '../../../shared/gradebook-contracts/council/council-workspace-contract-v1';
 import type {
@@ -47,6 +49,26 @@ const coverage = {
   missingItemCount: 0,
   reasons: [],
 } as const;
+
+function councilNonDisclosure(
+  outcome: 'no-results' | 'insufficient-data',
+): CouncilQueueResponseV1 {
+  return {
+    contractVersion: COUNCIL_WORKSPACE_CONTRACT_VERSION_V1,
+    outcome,
+    items: [],
+    nextCursor: null,
+  };
+}
+
+function auditNoResults(): AuditWorkspaceListResponseV1 {
+  return {
+    contractVersion: AUDIT_WORKSPACE_CONTRACT_VERSION_V1,
+    outcome: 'no-results',
+    items: [],
+    nextCursor: null,
+  };
+}
 
 function request(mode: PerformanceModeV1, lens: PerformanceLensV1): ClassPerformanceRequestV1 {
   return {
@@ -140,8 +162,8 @@ function resultMatrix(): ClassPerformanceReadModelV1 {
 function serviceWithPerformance(matrix: ClassPerformanceReadModelV1) {
   return createInstitutionalReportsServiceV1({
     performance: { get: vi.fn(async () => matrix) },
-    council: { queue: vi.fn(async () => ({ contractVersion: 1, outcome: 'no-results', items: [], nextCursor: null })) },
-    audit: { list: vi.fn(async () => ({ contractVersion: 1, outcome: 'no-results', items: [], nextCursor: null })) },
+    council: { queue: vi.fn(async () => councilNonDisclosure('no-results')) },
+    audit: { list: vi.fn(async () => auditNoResults()) },
   });
 }
 
@@ -191,8 +213,8 @@ describe('Institutional reports service V1', () => {
     );
     const service = createInstitutionalReportsServiceV1({
       performance: { get },
-      council: { queue: vi.fn(async () => ({ contractVersion: 1, outcome: 'no-results', items: [], nextCursor: null })) },
-      audit: { list: vi.fn(async () => ({ contractVersion: 1, outcome: 'no-results', items: [], nextCursor: null })) },
+      council: { queue: vi.fn(async () => councilNonDisclosure('no-results')) },
+      audit: { list: vi.fn(async () => auditNoResults()) },
     });
 
     const compositionResponse = await service.execute({
@@ -236,7 +258,7 @@ describe('Institutional reports service V1', () => {
     const service = createInstitutionalReportsServiceV1({
       performance: { get: vi.fn(async () => null) },
       council: { queue },
-      audit: { list: vi.fn(async () => ({ contractVersion: 1, outcome: 'no-results', items: [], nextCursor: null })) },
+      audit: { list: vi.fn(async () => auditNoResults()) },
     });
 
     const response = await service.execute({
@@ -294,7 +316,7 @@ describe('Institutional reports service V1', () => {
     }));
     const service = createInstitutionalReportsServiceV1({
       performance: { get: vi.fn(async () => null) },
-      council: { queue: vi.fn(async () => ({ contractVersion: 1, outcome: 'no-results', items: [], nextCursor: null })) },
+      council: { queue: vi.fn(async () => councilNonDisclosure('no-results')) },
       audit: { list },
     });
 
@@ -312,15 +334,8 @@ describe('Institutional reports service V1', () => {
   it('mantém insufficient-data como estado explícito por subrecurso', async () => {
     const service = createInstitutionalReportsServiceV1({
       performance: { get: vi.fn(async () => null) },
-      council: {
-        queue: vi.fn(async () => ({
-          contractVersion: COUNCIL_WORKSPACE_CONTRACT_VERSION_V1,
-          outcome: 'insufficient-data' as const,
-          items: [],
-          nextCursor: null,
-        })),
-      },
-      audit: { list: vi.fn(async () => ({ contractVersion: 1, outcome: 'no-results', items: [], nextCursor: null })) },
+      council: { queue: vi.fn(async () => councilNonDisclosure('insufficient-data')) },
+      audit: { list: vi.fn(async () => auditNoResults()) },
     });
     const response = await service.execute({
       contractVersion: 1,
