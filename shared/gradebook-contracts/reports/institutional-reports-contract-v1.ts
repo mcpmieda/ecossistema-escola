@@ -213,7 +213,11 @@ export function inspectInstitutionalReportRequestV1(
     return 'ready';
   }
 
-  if (inspectAuditWorkspaceListRequestV1(value.request) !== 'ready') return 'invalid-request';
+  if (
+    inspectAuditWorkspaceListRequestV1(value.request as AuditWorkspaceListRequestV1) !== 'ready'
+  ) {
+    return 'invalid-request';
+  }
   const request = value.request as AuditWorkspaceListRequestV1;
   if (
     request.contractVersion !== AUDIT_WORKSPACE_CONTRACT_VERSION_V1 ||
