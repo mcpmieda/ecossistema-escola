@@ -73,9 +73,9 @@ function replaceWorkspaceSurfaceHash(surfaceId: GradebookWorkspaceSurfaceId): vo
   if (window.location.hash !== nextHash) window.history.replaceState(null, '', nextHash);
 }
 
-const OperationalWorkspacePage = lazy(async () => {
-  const module = await import('../features/gradebook/operational-workspace/operational-workspace-page');
-  return { default: module.OperationalWorkspacePage };
+const OperationalWorkspaceSurface = lazy(async () => {
+  const module = await import('./gradebook-operational-surface');
+  return { default: module.GradebookOperationalSurface };
 });
 
 const AuditWorkspacePage = lazy(async () => {
@@ -107,7 +107,7 @@ const SURFACE_COMPONENTS: Record<
   Exclude<GradebookWorkspaceSurfaceId, 'importacao'>,
   ComponentType
 > = {
-  operational: OperationalWorkspacePage,
+  operational: OperationalWorkspaceSurface,
   audit: AuditWorkspacePage,
   performance: PerformancePage,
   bulletins: BulletinPage,
