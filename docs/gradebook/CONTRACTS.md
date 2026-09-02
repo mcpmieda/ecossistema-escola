@@ -31,7 +31,7 @@ Migrations D1 continuam 0001–0003 / 21 tabelas. A onda 16 e a #332 não altera
 
 A #184 está `completed` e F1 = **7/7**. O protocolo privado controlado, smoke autenticado completo e falha isolada passaram; nenhum arquivo real foi modificado, nenhum dado identificável foi publicado e não resta gate histórico real antigo.
 
-Os antigos marcadores `controlled-real-corpus-validation-not-yet-recorded` e `complete-manifest-failure-smoke-not-yet-recorded` foram satisfeitos. Políticas gerais de segurança e futuros gates próprios de produção continuam fora dessa conclusão histórica.
+Os gates históricos de validação real controlada e smoke completo foram satisfeitos. Políticas gerais de segurança e futuros gates próprios de produção continuam fora dessa conclusão histórica.
 
 ## Valores/resultados
 
