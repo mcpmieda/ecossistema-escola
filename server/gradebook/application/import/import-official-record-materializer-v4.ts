@@ -5,6 +5,7 @@ import type {
   FinalRecoveryId,
   ImportedGradeValueV1,
   ResultCoverageV1,
+  SourceEvidenceSetV1,
   TermResultId,
   TermResultV1,
 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
@@ -15,7 +16,9 @@ import type {
 import type {
   GradebookImportPersistenceRequestV4,
   GradebookImportRecoverySheetObservationV4,
+  GradebookImportRecoveryStudentObservationV4,
   GradebookImportTermSheetObservationV4,
+  GradebookImportTermStudentObservationV4,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import type { SourceCellProvenanceV1 } from '../../../../shared/gradebook-contracts/source/source-contract-v1';
 import type {
@@ -64,17 +67,21 @@ interface GroupV4 {
   readonly assignment: TeachingAssignmentV1;
   readonly enrollment: EnrollmentV1;
   readonly studentId: EnrollmentV1['studentId'];
-  readonly termSheets: Map<AcademicTermV1, {
-    readonly sheet: GradebookImportTermSheetObservationV4;
-    readonly student: GradebookImportTermSheetObservationV4['students'][number];
-  }>;
+  readonly termSheets: Map<
+    AcademicTermV1,
+    {
+      readonly sheet: GradebookImportTermSheetObservationV4;
+      readonly student: GradebookImportTermStudentObservationV4;
+    }
+  >;
   recovery: {
     readonly sheet: GradebookImportRecoverySheetObservationV4;
-    readonly student: GradebookImportRecoverySheetObservationV4['students'][number];
+    readonly student: GradebookImportRecoveryStudentObservationV4;
   } | null;
   readonly termResults: Map<AcademicTermV1, TermResultV1>;
   importedFinalOutcome: NativeFinalRecoveryOutcomeV1 | null;
   calculatedFinalOutcome: NativeFinalRecoveryOutcomeV1 | null;
+  importedApplicabilityEvidence: SourceEvidenceSetV1 | null;
   annualImportedComponent: ImportedAnnualComponentV1 | null;
   annualCalculatedComponent: CalculatedAnnualComponentV1 | null;
 }
@@ -119,7 +126,9 @@ function materializedCell(input: {
   readonly row: number;
   readonly column: string;
   readonly maximumValue: number;
-  readonly observation: Parameters<typeof materializeGradebookImportResultCellObservationV4>[0]['observation'];
+  readonly observation: Parameters<
+    typeof materializeGradebookImportResultCellObservationV4
+  >[0]['observation'];
 }): ImportedGradeValueV1 {
   const result = materializeGradebookImportResultCellObservationV4({
     observation: input.observation,
@@ -128,6 +137,13 @@ function materializedCell(input: {
   });
   if (result.status !== 'ready') return review('invalid-academic-shape');
   return result.imported;
+}
+
+function mergeEvidence(
+  first: SourceEvidenceSetV1,
+  ...rest: readonly SourceEvidenceSetV1[]
+): SourceEvidenceSetV1 {
+  return [first[0], ...first.slice(1), ...rest.flat()] as SourceEvidenceSetV1;
 }
 
 function present(value: ImportedGradeValueV1 | null): ImportedGradeValueV1 | null {
@@ -201,10 +217,19 @@ async function validateAndGroup(
     }
   }
   const studentRecords = await Promise.all(
-    [...studentIds].map(async (id) => [id, await unitOfWork.entities.get(context, { kind: 'student', id: id as never })] as const),
+    [...studentIds].map(
+      async (id) =>
+        [id, await unitOfWork.entities.get(context, { kind: 'student', id: id as never })] as const,
+    ),
   );
   const enrollmentRecords = await Promise.all(
-    [...enrollmentIds].map(async (id) => [id, await unitOfWork.entities.get(context, { kind: 'enrollment', id: id as never })] as const),
+    [...enrollmentIds].map(
+      async (id) =>
+        [
+          id,
+          await unitOfWork.entities.get(context, { kind: 'enrollment', id: id as never }),
+        ] as const,
+    ),
   );
   const students = new Map(studentRecords);
   const enrollments = new Map(enrollmentRecords);
@@ -213,6 +238,47 @@ async function validateAndGroup(
   for (const sheet of request.sheets) {
     const assignment = assignments.get(sheet.teachingAssignmentId);
     if (!assignment) return review('incompatible-reference');
+    if (sheet.kind === 'term') {
+      for (const observed of sheet.students) {
+        const studentRecord = students.get(observed.confirmedStudent.studentId);
+        const enrollmentRecord = enrollments.get(observed.confirmedStudent.enrollmentId);
+        if (
+          !studentRecord ||
+          studentRecord.value.kind !== 'student' ||
+          !enrollmentRecord ||
+          enrollmentRecord.value.kind !== 'enrollment'
+        ) {
+          return review('incompatible-reference');
+        }
+        const enrollment = enrollmentRecord.value.value;
+        if (
+          enrollment.academicYearId !== context.academicYearId ||
+          enrollment.studentId !== observed.confirmedStudent.studentId ||
+          enrollment.classGroupId !== assignment.classGroupId
+        ) {
+          return review('incompatible-reference');
+        }
+        const key = groupKey(assignment.id, enrollment.studentId, enrollment.id);
+        const group = groups.get(key) ?? {
+          assignment,
+          enrollment,
+          studentId: enrollment.studentId,
+          termSheets: new Map(),
+          recovery: null,
+          termResults: new Map(),
+          importedFinalOutcome: null,
+          calculatedFinalOutcome: null,
+          importedApplicabilityEvidence: null,
+          annualImportedComponent: null,
+          annualCalculatedComponent: null,
+        } satisfies GroupV4;
+        if (group.termSheets.has(sheet.term)) return review('invalid-academic-shape');
+        group.termSheets.set(sheet.term, { sheet, student: observed });
+        groups.set(key, group);
+      }
+      continue;
+    }
+
     for (const observed of sheet.students) {
       const studentRecord = students.get(observed.confirmedStudent.studentId);
       const enrollmentRecord = enrollments.get(observed.confirmedStudent.enrollmentId);
@@ -242,16 +308,12 @@ async function validateAndGroup(
         termResults: new Map(),
         importedFinalOutcome: null,
         calculatedFinalOutcome: null,
+        importedApplicabilityEvidence: null,
         annualImportedComponent: null,
         annualCalculatedComponent: null,
       } satisfies GroupV4;
-      if (sheet.kind === 'term') {
-        if (group.termSheets.has(sheet.term)) return review('invalid-academic-shape');
-        group.termSheets.set(sheet.term, { sheet, student: observed });
-      } else {
-        if (group.recovery !== null) return review('invalid-academic-shape');
-        group.recovery = { sheet, student: observed };
-      }
+      if (group.recovery !== null) return review('invalid-academic-shape');
+      group.recovery = { sheet, student: observed };
       groups.set(key, group);
     }
   }
@@ -344,7 +406,6 @@ async function materializeFinalRecovery(
   groups: Map<string, GroupV4>,
   records: GradebookImportOfficialRecordV4[],
 ): Promise<void> {
-  const terms = [1, 2, 3] as const;
   for (const group of groups.values()) {
     const calculatedOriginalTermGrades = {
       1: termGrade(group, 1, 'calculated'),
@@ -352,7 +413,11 @@ async function materializeFinalRecovery(
       3: termGrade(group, 3, 'calculated'),
     };
     if (group.recovery === null) {
-      const absentRecovery = { 1: { state: 'absent' }, 2: { state: 'absent' }, 3: { state: 'absent' } } as const;
+      const absentRecovery = {
+        1: { state: 'absent' },
+        2: { state: 'absent' },
+        3: { state: 'absent' },
+      } as const;
       group.importedFinalOutcome = resolveNativeFinalRecovery(
         {
           originalTermGrades: {
@@ -376,35 +441,103 @@ async function materializeFinalRecovery(
     const values = student.recovery;
     const maximums = NATIVE_TERM_COMPOSITION_PROFILE_2026_V1.termMaximums;
     const originalTermGrades = {
-      1: materializedCell({ request, sheetName: sheet.sourceSheetName, row, column: 'X', maximumValue: maximums[1], observation: values.originalTrimester1 }),
-      2: materializedCell({ request, sheetName: sheet.sourceSheetName, row, column: 'Y', maximumValue: maximums[2], observation: values.originalTrimester2 }),
-      3: materializedCell({ request, sheetName: sheet.sourceSheetName, row, column: 'AA', maximumValue: maximums[3], observation: values.originalTrimester3 }),
+      1: materializedCell({
+        request,
+        sheetName: sheet.sourceSheetName,
+        row,
+        column: 'X',
+        maximumValue: maximums[1],
+        observation: values.originalTrimester1,
+      }),
+      2: materializedCell({
+        request,
+        sheetName: sheet.sourceSheetName,
+        row,
+        column: 'Y',
+        maximumValue: maximums[2],
+        observation: values.originalTrimester2,
+      }),
+      3: materializedCell({
+        request,
+        sheetName: sheet.sourceSheetName,
+        row,
+        column: 'AA',
+        maximumValue: maximums[3],
+        observation: values.originalTrimester3,
+      }),
     } as const;
     const recoveryGrades = {
-      1: materializedCell({ request, sheetName: sheet.sourceSheetName, row, column: 'R', maximumValue: maximums[1], observation: values.trimester1 }),
-      2: materializedCell({ request, sheetName: sheet.sourceSheetName, row, column: 'S', maximumValue: maximums[2], observation: values.trimester2 }),
-      3: materializedCell({ request, sheetName: sheet.sourceSheetName, row, column: 'T', maximumValue: maximums[3], observation: values.trimester3 }),
+      1: materializedCell({
+        request,
+        sheetName: sheet.sourceSheetName,
+        row,
+        column: 'R',
+        maximumValue: maximums[1],
+        observation: values.trimester1,
+      }),
+      2: materializedCell({
+        request,
+        sheetName: sheet.sourceSheetName,
+        row,
+        column: 'S',
+        maximumValue: maximums[2],
+        observation: values.trimester2,
+      }),
+      3: materializedCell({
+        request,
+        sheetName: sheet.sourceSheetName,
+        row,
+        column: 'T',
+        maximumValue: maximums[3],
+        observation: values.trimester3,
+      }),
     } as const;
-    const applicability = {
-      1: materializeImportedRecoveryApplicabilityV1({
-        observation: values.applicabilityTrimester1,
-        provenance: provenance(request, sheet.sourceSheetName, row, 'AC'),
-      }),
-      2: materializeImportedRecoveryApplicabilityV1({
-        observation: values.applicabilityTrimester2,
-        provenance: provenance(request, sheet.sourceSheetName, row, 'AD'),
-      }),
-      3: materializeImportedRecoveryApplicabilityV1({
-        observation: values.applicabilityTrimester3,
-        provenance: provenance(request, sheet.sourceSheetName, row, 'AE'),
-      }),
-    } as const;
-    if (terms.some((term) => applicability[term].state !== 'ready'))
+    const applicability1 = materializeImportedRecoveryApplicabilityV1({
+      observation: values.applicabilityTrimester1,
+      provenance: provenance(request, sheet.sourceSheetName, row, 'AC'),
+    });
+    const applicability2 = materializeImportedRecoveryApplicabilityV1({
+      observation: values.applicabilityTrimester2,
+      provenance: provenance(request, sheet.sourceSheetName, row, 'AD'),
+    });
+    const applicability3 = materializeImportedRecoveryApplicabilityV1({
+      observation: values.applicabilityTrimester3,
+      provenance: provenance(request, sheet.sourceSheetName, row, 'AE'),
+    });
+    if (
+      applicability1.state !== 'ready' ||
+      applicability2.state !== 'ready' ||
+      applicability3.state !== 'ready'
+    ) {
       return review('invalid-academic-shape');
+    }
+    group.importedApplicabilityEvidence = mergeEvidence(
+      applicability1.value.evidence,
+      applicability2.value.evidence,
+      applicability3.value.evidence,
+    );
     const ids = {
-      1: (await opaqueId('final-recovery:v1', [request.confirmedContext.academicYearId, group.studentId, group.enrollment.id, group.assignment.id, 1])) as FinalRecoveryId,
-      2: (await opaqueId('final-recovery:v1', [request.confirmedContext.academicYearId, group.studentId, group.enrollment.id, group.assignment.id, 2])) as FinalRecoveryId,
-      3: (await opaqueId('final-recovery:v1', [request.confirmedContext.academicYearId, group.studentId, group.enrollment.id, group.assignment.id, 3])) as FinalRecoveryId,
+      1: (await opaqueId('final-recovery:v1', [
+        request.confirmedContext.academicYearId,
+        group.studentId,
+        group.enrollment.id,
+        group.assignment.id,
+        1,
+      ])) as FinalRecoveryId,
+      2: (await opaqueId('final-recovery:v1', [
+        request.confirmedContext.academicYearId,
+        group.studentId,
+        group.enrollment.id,
+        group.assignment.id,
+        2,
+      ])) as FinalRecoveryId,
+      3: (await opaqueId('final-recovery:v1', [
+        request.confirmedContext.academicYearId,
+        group.studentId,
+        group.enrollment.id,
+        group.assignment.id,
+        3,
+      ])) as FinalRecoveryId,
     };
     const projection = projectImportedFinalRecoveryV1(
       {
@@ -415,9 +548,9 @@ async function materializeFinalRecovery(
         teachingAssignmentId: group.assignment.id,
         originalTermGrades,
         applicability: {
-          1: applicability[1].value,
-          2: applicability[2].value,
-          3: applicability[3].value,
+          1: applicability1.value,
+          2: applicability2.value,
+          3: applicability3.value,
         },
         recoveryGrades,
         calculatedInput: {
@@ -483,24 +616,10 @@ async function materializeAnnualComponents(
           observation: recovery.student.recovery.totalAfterRecovery,
         })
       : null;
-    const applicabilityEvidence =
-      group.recovery === null
-        ? original.value.evidence
-        : ([
-            ...materializeImportedRecoveryApplicabilityV1({
-              observation: group.recovery.student.recovery.applicabilityTrimester1,
-              provenance: provenance(request, group.recovery.sheet.sourceSheetName, group.recovery.student.sourceRow, 'AC'),
-            }).state === 'ready'
-              ? materializeImportedRecoveryApplicabilityV1({
-                  observation: group.recovery.student.recovery.applicabilityTrimester1,
-                  provenance: provenance(request, group.recovery.sheet.sourceSheetName, group.recovery.student.sourceRow, 'AC'),
-                }).value.evidence
-              : [],
-          ] as unknown as ImportedGradeValueV1['evidence']);
     const postRecovery = resolveImportedPostRecoveryTotalV1({
       recoveryTotalAfterRecovery: present(recoveryTotal),
       originalTotal: original.value,
-      applicabilityEvidence,
+      applicabilityEvidence: group.importedApplicabilityEvidence ?? original.value.evidence,
       importedFinalRecoveryOutcome: importedFinal,
     });
     if (postRecovery.state !== 'resolved') continue;
