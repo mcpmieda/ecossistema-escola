@@ -5,13 +5,13 @@ import type {
   TeachingAssignmentId,
 } from '../../../../shared/gradebook-contracts/entities';
 import {
-  GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V2,
-  GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V2,
-  isGradebookImportPersistenceRequestV2,
-  isGradebookImportPersistenceResponseV2,
-  type GradebookImportPersistenceRequestV2,
-  type GradebookImportPersistenceResponseV2,
-} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v2';
+  GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V4,
+  GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+  isGradebookImportPersistenceRequestV4,
+  isGradebookImportPersistenceResponseV4,
+  type GradebookImportPersistenceRequestV4,
+  type GradebookImportPersistenceResponseV4,
+} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
@@ -112,12 +112,12 @@ function assessmentDefinition(
   };
 }
 
-export function createGradebookImportPersistenceRequestV2(
+export function createGradebookImportPersistenceRequestV4(
   result: BatchSuccess,
   confirmed: ConfirmedImportReferencesV2,
-): GradebookImportPersistenceRequestV2 {
+): GradebookImportPersistenceRequestV4 {
   const sheets = result.summary.gradeSheets.flatMap<
-    GradebookImportPersistenceRequestV2['sheets'][number]
+    GradebookImportPersistenceRequestV4['sheets'][number]
   >((sheet) => {
     if (sheet.stage === 'overview') return [];
     const references = confirmed.sheetsByName[sheet.name];
@@ -144,23 +144,20 @@ export function createGradebookImportPersistenceRequestV2(
         {
           ...common,
           kind: 'recovery' as const,
-          students: sheet.students.map((student) => ({
-            sourceRow: student.row,
-            confirmedStudent: studentReference(student.row),
-            recovery: {
-              trimester1: transportNote(student.recovery?.trimester1 ?? null),
-              trimester2: transportNote(student.recovery?.trimester2 ?? null),
-              trimester3: transportNote(student.recovery?.trimester3 ?? null),
-              totalAfterRecovery: transportNote(student.recovery?.totalAfterRecovery ?? null),
-              originalTrimester1: transportNote(student.recovery?.originalTrimester1 ?? null),
-              originalTrimester2: transportNote(student.recovery?.originalTrimester2 ?? null),
-              originalTrimester3: transportNote(student.recovery?.originalTrimester3 ?? null),
-              originalAnnual: transportNote(student.recovery?.originalAnnual ?? null),
-              eligibleTrimester1: student.recovery?.eligibleTrimester1 ?? false,
-              eligibleTrimester2: student.recovery?.eligibleTrimester2 ?? false,
-              eligibleTrimester3: student.recovery?.eligibleTrimester3 ?? false,
-            },
-          })),
+          students: sheet.students.map((student) => {
+            const recovery = student.recovery;
+            if (!recovery) throw new TypeError('missing-recovery-observation');
+            return {
+              sourceRow: student.row,
+              confirmedStudent: studentReference(student.row),
+              recovery: {
+                ...recovery.resultObservations,
+                applicabilityTrimester1: recovery.applicabilityTrimester1,
+                applicabilityTrimester2: recovery.applicabilityTrimester2,
+                applicabilityTrimester3: recovery.applicabilityTrimester3,
+              },
+            };
+          }),
         },
       ];
     const term = Number(sheet.stage.at(-1)) as 1 | 2 | 3;
@@ -170,39 +167,37 @@ export function createGradebookImportPersistenceRequestV2(
         kind: 'term' as const,
         term,
         assessmentDefinitions: sheet.assessmentDefinitions.map(assessmentDefinition),
-        students: sheet.students.map((student) => ({
-          sourceRow: student.row,
-          confirmedStudent: studentReference(student.row),
-          assessmentValues: [
-            ...SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2.map((slot, index) => ({
-              sourceSlot: slot.sourceSlot,
-              value: transportNote(student.quantitativeAssessments[index] ?? null),
-            })),
-            ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot, index) => ({
-              sourceSlot: slot.sourceSlot,
-              value: transportNote(student.qualitative[index] ?? null),
-            })),
-          ].filter(
-            (
-              value,
-            ): value is Exclude<typeof value, { value: null }> & {
-              value: NonNullable<typeof value.value>;
-            } => value.value !== null,
-          ),
-          aggregates: {
-            quantitativeTotal: transportNote(student.quantitativeTotal),
-            parallelAssessment: transportNote(student.parallel),
-            qualitativeTotal: transportNote(student.qualitativeTotal),
-            officialTermGrade: transportNote(student.official),
-            annualAccumulatedTotal: transportNote(student.annual),
-          },
-        })),
+        students: sheet.students.map((student) => {
+          if (!student.termResultObservations)
+            throw new TypeError('missing-term-result-observations');
+          return {
+            sourceRow: student.row,
+            confirmedStudent: studentReference(student.row),
+            assessmentValues: [
+              ...SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2.map((slot, index) => ({
+                sourceSlot: slot.sourceSlot,
+                value: transportNote(student.quantitativeAssessments[index] ?? null),
+              })),
+              ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot, index) => ({
+                sourceSlot: slot.sourceSlot,
+                value: transportNote(student.qualitative[index] ?? null),
+              })),
+            ].filter(
+              (
+                value,
+              ): value is Exclude<typeof value, { value: null }> & {
+                value: NonNullable<typeof value.value>;
+              } => value.value !== null,
+            ),
+            aggregates: student.termResultObservations,
+          };
+        }),
       },
     ];
   });
   const request = {
-    transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V2,
-    operation: GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V2,
+    transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+    operation: GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V4,
     manifest: {
       fileName: result.manifest.fileName,
       extension: result.manifest.extension,
@@ -220,26 +215,26 @@ export function createGradebookImportPersistenceRequestV2(
     sheets,
     diagnostics: [],
   };
-  if (!isGradebookImportPersistenceRequestV2(request))
+  if (!isGradebookImportPersistenceRequestV4(request))
     throw new TypeError('invalid-import-persistence-request');
   return request;
 }
 
-export async function persistRecognizedGradebookFileV2(
+export async function persistRecognizedGradebookFileV4(
   result: BatchSuccess,
   confirmed: ConfirmedImportReferencesV2,
   signal?: AbortSignal,
-): Promise<GradebookImportPersistenceResponseV2> {
+): Promise<GradebookImportPersistenceResponseV4> {
   const response = await fetch(ENDPOINT, {
     method: 'POST',
     credentials: 'same-origin',
     cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(createGradebookImportPersistenceRequestV2(result, confirmed)),
+    body: JSON.stringify(createGradebookImportPersistenceRequestV4(result, confirmed)),
     signal,
   });
   const payload: unknown = await response.json().catch(() => null);
-  if (!isGradebookImportPersistenceResponseV2(payload))
+  if (!isGradebookImportPersistenceResponseV4(payload))
     throw new Error('Resposta de persistência incompatível.');
   return payload;
 }
