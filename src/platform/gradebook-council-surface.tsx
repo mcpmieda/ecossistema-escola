@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Label, Spinner, Surface } from '@heroui/react';
-import type { CouncilClassReferenceV1 } from '../../shared/gradebook-contracts/council/council-workspace-contract-v1';
+import type {
+  CouncilClassReferenceV1,
+  CouncilStudentReferenceV1,
+} from '../../shared/gradebook-contracts/council/council-workspace-contract-v1';
 import type { AcademicYearId } from '../../shared/gradebook-contracts/entities';
 import {
   GLOBAL_SEARCH_CONTRACT_VERSION_V1,
@@ -24,12 +27,16 @@ function isAbortError(error: unknown): boolean {
 
 export function GradebookCouncilSurface() {
   const [workspaceState, setWorkspaceState] = useState<CouncilMountState>('loading');
-  const [academicYears, setAcademicYears] = useState<readonly { id: AcademicYearId; label: string }[]>([]);
+  const [academicYears, setAcademicYears] = useState<
+    readonly { id: AcademicYearId; label: string }[]
+  >([]);
   const [academicYearId, setAcademicYearId] = useState<AcademicYearId | null>(null);
   const [classQuery, setClassQuery] = useState('');
   const [classSearchState, setClassSearchState] = useState<CouncilSearchState>('idle');
   const [classResults, setClassResults] = useState<readonly GlobalSearchResultV1[]>([]);
   const [selectedClass, setSelectedClass] = useState<CouncilSelectedClass | null>(null);
+  const [focusedStudentReference, setFocusedStudentReference] =
+    useState<CouncilStudentReferenceV1 | null>(null);
   const [meetingClosed, setMeetingClosed] = useState(false);
   const bootstrapControllerRef = useRef<AbortController | null>(null);
   const classSearchControllerRef = useRef<AbortController | null>(null);
@@ -86,6 +93,7 @@ export function GradebookCouncilSurface() {
     const sequence = ++searchSequenceRef.current;
     setClassSearchState('loading');
     setSelectedClass(null);
+    setFocusedStudentReference(null);
     setMeetingClosed(false);
 
     try {
@@ -140,10 +148,13 @@ export function GradebookCouncilSurface() {
     <div className="grid gap-4" aria-label="Entrada do Conselho de Classe">
       <Surface className="rounded-3xl border border-border p-4 sm:p-6">
         <div className="max-w-2xl">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">Conselho de Classe</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted">
+            Conselho de Classe
+          </p>
           <h3 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">Abrir turma</h3>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Selecione ano e turma explicitamente. A elegibilidade vem somente da projeção oficial já resolvida.
+            Selecione ano e turma explicitamente. A elegibilidade vem somente da projeção oficial já
+            resolvida.
           </p>
         </div>
 
@@ -189,6 +200,7 @@ export function GradebookCouncilSurface() {
                   setClassResults([]);
                   setClassSearchState('idle');
                   setSelectedClass(null);
+                  setFocusedStudentReference(null);
                   setMeetingClosed(false);
                 }}
               >
@@ -241,7 +253,9 @@ export function GradebookCouncilSurface() {
               Pesquisando turmas…
             </p>
           )}
-          {classSearchState === 'empty' && <p className="text-sm text-muted">Nenhuma turma encontrada.</p>}
+          {classSearchState === 'empty' && (
+            <p className="text-sm text-muted">Nenhuma turma encontrada.</p>
+          )}
           {classSearchState === 'unavailable' && (
             <p className="text-sm text-danger">A pesquisa de turmas está indisponível.</p>
           )}
@@ -249,7 +263,11 @@ export function GradebookCouncilSurface() {
             <p className="text-sm text-warning">A pesquisa de turmas não foi autorizada.</p>
           )}
           {classResults.length > 0 && (
-            <div className="flex flex-wrap gap-2" role="list" aria-label="Turmas disponíveis para o Conselho">
+            <div
+              className="flex flex-wrap gap-2"
+              role="list"
+              aria-label="Turmas disponíveis para o Conselho"
+            >
               {classResults.map(
                 (result) =>
                   result.kind === 'class-group' && (
@@ -258,6 +276,7 @@ export function GradebookCouncilSurface() {
                       size="sm"
                       variant={selectedClass?.label === result.code ? 'primary' : 'outline'}
                       onPress={() => {
+                        setFocusedStudentReference(null);
                         setMeetingClosed(false);
                         setSelectedClass({
                           reference: result.id as unknown as CouncilClassReferenceV1,
@@ -282,7 +301,8 @@ export function GradebookCouncilSurface() {
               <Alert.Content>
                 <Alert.Title>Conselho fechado</Alert.Title>
                 <Alert.Description>
-                  O servidor bloqueia novas decisões e contagens; a fotografia histórica permanece disponível no painel institucional.
+                  O servidor bloqueia novas decisões e contagens; a fotografia histórica permanece
+                  disponível no painel institucional.
                 </Alert.Description>
               </Alert.Content>
             </Alert>
@@ -291,12 +311,13 @@ export function GradebookCouncilSurface() {
             academicYearId={academicYearId}
             classReference={selectedClass.reference}
             classLabel={selectedClass.label}
+            onFocusedStudentReferenceChange={setFocusedStudentReference}
           />
           <CouncilInstitutionalPanelV2
             academicYearId={academicYearId}
             classReference={selectedClass.reference}
             classLabel={selectedClass.label}
-            focusedStudentReference={null}
+            focusedStudentReference={focusedStudentReference}
             refreshToken={0}
             onMeetingClosedChange={setMeetingClosed}
           />

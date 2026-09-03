@@ -35,6 +35,9 @@ export interface CouncilWorkspacePageProps {
   readonly academicYearId: AcademicYearId;
   readonly classReference: CouncilClassReferenceV1;
   readonly classLabel: string;
+  readonly onFocusedStudentReferenceChange: (
+    studentReference: CouncilStudentReferenceV1 | null,
+  ) => void;
 }
 
 type ViewState = 'loading' | 'ready' | 'empty' | 'unavailable' | 'not-authorized';
@@ -153,7 +156,10 @@ function AnnualOverview({ detail }: { detail: CouncilStudentDetailV1 }) {
               <Card.Content>
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                   {component.periods.map((period) => (
-                    <PeriodResult key={`${component.componentReference}:${period.period}`} result={period} />
+                    <PeriodResult
+                      key={`${component.componentReference}:${period.period}`}
+                      result={period}
+                    />
                   ))}
                 </div>
               </Card.Content>
@@ -191,7 +197,9 @@ function EvidenceDetails({ detail }: { detail: CouncilStudentDetailV1 }) {
           {evidence.map((item) => (
             <li key={item.key}>
               <Surface variant="secondary" className="rounded-xl p-3">
-                <p className="text-sm font-medium">{item.component} · {item.period}</p>
+                <p className="text-sm font-medium">
+                  {item.component} · {item.period}
+                </p>
                 <p className="mt-1 text-sm">{item.label}</p>
                 <p className="mt-1 break-all text-xs text-muted">Ref. {item.reference}</p>
               </Surface>
@@ -208,7 +216,9 @@ function DecisionHistory({ detail }: { detail: CouncilStudentDetailV1 }) {
     <section aria-labelledby="council-history-heading" className="grid gap-3">
       <div className="flex items-center gap-2">
         <History className="size-4" aria-hidden="true" />
-        <h3 id="council-history-heading" className="text-base font-semibold">Histórico versionado</h3>
+        <h3 id="council-history-heading" className="text-base font-semibold">
+          Histórico versionado
+        </h3>
       </div>
       {detail.history.length === 0 ? (
         <p className="text-sm text-muted">Nenhuma decisão humana foi registrada.</p>
@@ -219,7 +229,10 @@ function DecisionHistory({ detail }: { detail: CouncilStudentDetailV1 }) {
               <Surface variant="secondary" className="rounded-xl p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <strong className="text-sm">
-                    Versão {entry.version} · {entry.decision.outcome === 'approved' ? 'Aprovado pelo Conselho' : 'Não aprovado pelo Conselho'}
+                    Versão {entry.version} ·{' '}
+                    {entry.decision.outcome === 'approved'
+                      ? 'Aprovado pelo Conselho'
+                      : 'Não aprovado pelo Conselho'}
                   </strong>
                   <span className="text-xs text-muted">{entry.decidedAt}</span>
                 </div>
@@ -234,14 +247,20 @@ function DecisionHistory({ detail }: { detail: CouncilStudentDetailV1 }) {
   );
 }
 
-function WorkspaceFailure({ state }: { state: Extract<ViewState, 'empty' | 'unavailable' | 'not-authorized'> }) {
+function WorkspaceFailure({
+  state,
+}: {
+  state: Extract<ViewState, 'empty' | 'unavailable' | 'not-authorized'>;
+}) {
   if (state === 'not-authorized') {
     return (
       <Alert status="warning">
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Title>Acesso não autorizado</Alert.Title>
-          <Alert.Description>Sua sessão não possui autorização para operar o Conselho.</Alert.Description>
+          <Alert.Description>
+            Sua sessão não possui autorização para operar o Conselho.
+          </Alert.Description>
         </Alert.Content>
       </Alert>
     );
@@ -253,7 +272,8 @@ function WorkspaceFailure({ state }: { state: Extract<ViewState, 'empty' | 'unav
         <Alert.Content>
           <Alert.Title>Conselho indisponível neste ambiente</Alert.Title>
           <Alert.Description>
-            O workspace permanece fechado quando sua fonte oficial não está composta em local/preview.
+            O workspace permanece fechado quando sua fonte oficial não está composta em
+            local/preview.
           </Alert.Description>
         </Alert.Content>
       </Alert>
@@ -264,7 +284,9 @@ function WorkspaceFailure({ state }: { state: Extract<ViewState, 'empty' | 'unav
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>Fila vazia</Alert.Title>
-        <Alert.Description>Não há alunos projetados para esta turma no recorte atual.</Alert.Description>
+        <Alert.Description>
+          Não há alunos projetados para esta turma no recorte atual.
+        </Alert.Description>
       </Alert.Content>
     </Alert>
   );
@@ -274,6 +296,7 @@ export function CouncilWorkspacePage({
   academicYearId,
   classReference,
   classLabel,
+  onFocusedStudentReferenceChange,
 }: CouncilWorkspacePageProps) {
   const [viewState, setViewState] = useState<ViewState>('loading');
   const [items, setItems] = useState<readonly CouncilQueueItemV1[]>([]);
@@ -295,6 +318,7 @@ export function CouncilWorkspacePage({
       const sequence = ++studentSequence.current;
       setStudentLoading(true);
       setVersionConflict(null);
+      onFocusedStudentReferenceChange(null);
       try {
         const response = await requestCouncilStudentV1({
           operation: 'student',
@@ -310,6 +334,7 @@ export function CouncilWorkspacePage({
           return;
         }
         setDetail(response.detail);
+        onFocusedStudentReferenceChange(response.detail.studentReference);
         setJustification('');
         setDecisionChoice('approved');
         setLiveMessage(`Aluno ${response.detail.studentLabel} em foco.`);
@@ -322,13 +347,16 @@ export function CouncilWorkspacePage({
         if (sequence === studentSequence.current) setStudentLoading(false);
       }
     },
-    [academicYearId, classReference],
+    [academicYearId, classReference, onFocusedStudentReferenceChange],
   );
 
   const loadQueue = useCallback(
     async (cursor: CouncilQueueRequestV1['page']['cursor'], append: boolean) => {
       const sequence = ++queueSequence.current;
-      if (!append) setViewState('loading');
+      if (!append) {
+        setViewState('loading');
+        onFocusedStudentReferenceChange(null);
+      }
       try {
         const response = await requestCouncilQueueV1({
           operation: 'queue',
@@ -358,7 +386,7 @@ export function CouncilWorkspacePage({
         setViewState(clientState(error));
       }
     },
-    [academicYearId, classReference, loadStudent],
+    [academicYearId, classReference, loadStudent, onFocusedStudentReferenceChange],
   );
 
   useEffect(() => {
@@ -366,11 +394,12 @@ export function CouncilWorkspacePage({
     studentSequence.current += 1;
     setItems([]);
     setDetail(null);
+    onFocusedStudentReferenceChange(null);
     setNextCursor(null);
     setVersionConflict(null);
     setLiveMessage(`Carregando fila de ${classLabel}.`);
     void loadQueue(null, false);
-  }, [classLabel, loadQueue]);
+  }, [classLabel, loadQueue, onFocusedStudentReferenceChange]);
 
   async function saveDecision() {
     if (detail === null || saving) return;
@@ -444,7 +473,9 @@ export function CouncilWorkspacePage({
 
   return (
     <div className="grid gap-4">
-      <div role="status" aria-live="polite" className="sr-only">{liveMessage}</div>
+      <div role="status" aria-live="polite" className="sr-only">
+        {liveMessage}
+      </div>
       <Surface className="rounded-3xl p-4 sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -470,24 +501,38 @@ export function CouncilWorkspacePage({
               {items.map((item) => (
                 <li key={item.studentReference}>
                   <Button
-                    variant={detail?.studentReference === item.studentReference ? 'secondary' : 'ghost'}
+                    variant={
+                      detail?.studentReference === item.studentReference ? 'secondary' : 'ghost'
+                    }
                     className="h-auto w-full justify-start whitespace-normal px-3 py-3 text-left"
-                    aria-current={detail?.studentReference === item.studentReference ? 'true' : undefined}
+                    aria-current={
+                      detail?.studentReference === item.studentReference ? 'true' : undefined
+                    }
                     onPress={() => void loadStudent(item.studentReference)}
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{item.studentLabel}</span>
-                      <span className="mt-1 block text-xs text-muted">{item.calculated.reason}</span>
-                      <span className="mt-2 inline-flex"><QueueStateChip state={item.calculated.queueState} /></span>
+                      <span className="mt-1 block text-xs text-muted">
+                        {item.calculated.reason}
+                      </span>
+                      <span className="mt-2 inline-flex">
+                        <QueueStateChip state={item.calculated.queueState} />
+                      </span>
                     </span>
-                    <span className="ml-2 shrink-0 text-xs text-muted">v{item.currentDecisionVersion}</span>
+                    <span className="ml-2 shrink-0 text-xs text-muted">
+                      v{item.currentDecisionVersion}
+                    </span>
                   </Button>
                 </li>
               ))}
             </ul>
             {nextCursor !== null && (
               <div className="mt-3 flex justify-center">
-                <Button size="sm" variant="outline" onPress={() => void loadQueue(nextCursor, true)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onPress={() => void loadQueue(nextCursor, true)}
+                >
                   Carregar mais
                 </Button>
               </div>
@@ -505,7 +550,9 @@ export function CouncilWorkspacePage({
               <Alert.Indicator />
               <Alert.Content>
                 <Alert.Title>Selecione um aluno</Alert.Title>
-                <Alert.Description>A fila mantém o aluno principal em foco sem abrir detalhes em lote.</Alert.Description>
+                <Alert.Description>
+                  A fila mantém o aluno principal em foco sem abrir detalhes em lote.
+                </Alert.Description>
               </Alert.Content>
             </Alert>
           ) : (
@@ -514,7 +561,11 @@ export function CouncilWorkspacePage({
                 <Card.Header className="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <Card.Title>
-                      <h2 ref={headingRef} tabIndex={-1} className="outline-none focus-visible:ring-2 focus-visible:ring-focus">
+                      <h2
+                        ref={headingRef}
+                        tabIndex={-1}
+                        className="outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                      >
                         {detail.studentLabel}
                       </h2>
                     </Card.Title>
@@ -525,11 +576,15 @@ export function CouncilWorkspacePage({
                 <Card.Content className="grid gap-3 sm:grid-cols-3">
                   <Surface variant="secondary" className="rounded-xl p-3">
                     <p className="text-xs text-muted">Estado anual oficial</p>
-                    <p className="mt-1 text-sm font-semibold">{detail.calculated.officialAnnualState.replaceAll('-', ' ')}</p>
+                    <p className="mt-1 text-sm font-semibold">
+                      {detail.calculated.officialAnnualState.replaceAll('-', ' ')}
+                    </p>
                   </Surface>
                   <Surface variant="secondary" className="rounded-xl p-3">
                     <p className="text-xs text-muted">Componentes não aprovados</p>
-                    <p className="mt-1 text-sm font-semibold">{detail.calculated.failedComponentCount ?? 'Não concluído'}</p>
+                    <p className="mt-1 text-sm font-semibold">
+                      {detail.calculated.failedComponentCount ?? 'Não concluído'}
+                    </p>
                   </Surface>
                   <Surface variant="secondary" className="rounded-xl p-3">
                     <p className="text-xs text-muted">Cobertura oficial</p>
@@ -570,22 +625,32 @@ export function CouncilWorkspacePage({
                           <Alert.Content>
                             <Alert.Title>Já existe decisão registrada</Alert.Title>
                             <Alert.Description>
-                              Uma edição cria nova versão e exige nova justificativa; o histórico anterior é preservado.
+                              Uma edição cria nova versão e exige nova justificativa; o histórico
+                              anterior é preservado.
                             </Alert.Description>
                           </Alert.Content>
                         </Alert>
                       )}
                       {versionConflict !== null && (
-                        <div ref={conflictRef} tabIndex={-1} className="outline-none focus-visible:ring-2 focus-visible:ring-focus">
+                        <div
+                          ref={conflictRef}
+                          tabIndex={-1}
+                          className="outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        >
                           <Alert status="danger">
                             <Alert.Indicator />
                             <Alert.Content>
                               <Alert.Title>Conflito de versão</Alert.Title>
                               <Alert.Description>
-                                Outra alteração chegou primeiro. Versão atual informada: {versionConflict}.
+                                Outra alteração chegou primeiro. Versão atual informada:{' '}
+                                {versionConflict}.
                               </Alert.Description>
                               <div className="mt-3">
-                                <Button size="sm" variant="outline" onPress={() => void loadStudent(detail.studentReference, false)}>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onPress={() => void loadStudent(detail.studentReference, false)}
+                                >
                                   Recarregar antes de editar
                                 </Button>
                               </div>
@@ -593,7 +658,11 @@ export function CouncilWorkspacePage({
                           </Alert>
                         </div>
                       )}
-                      <div className="grid gap-2 sm:grid-cols-2" role="group" aria-label="Decisão do Conselho">
+                      <div
+                        className="grid gap-2 sm:grid-cols-2"
+                        role="group"
+                        aria-label="Decisão do Conselho"
+                      >
                         <Button
                           variant={decisionChoice === 'approved' ? 'primary' : 'outline'}
                           aria-pressed={decisionChoice === 'approved'}
@@ -612,7 +681,10 @@ export function CouncilWorkspacePage({
                         </Button>
                       </div>
                       <div>
-                        <Label htmlFor="council-justification" className="mb-1.5 block text-sm font-medium">
+                        <Label
+                          htmlFor="council-justification"
+                          className="mb-1.5 block text-sm font-medium"
+                        >
                           Justificativa obrigatória
                         </Label>
                         <textarea
@@ -631,13 +703,21 @@ export function CouncilWorkspacePage({
                       <div className="flex flex-wrap items-center gap-2">
                         <Button
                           variant="primary"
-                          isDisabled={justification.trim().length === 0 || saving || versionConflict !== null}
+                          isDisabled={
+                            justification.trim().length === 0 || saving || versionConflict !== null
+                          }
                           onPress={() => void saveDecision()}
                         >
                           <Save className="size-4" aria-hidden="true" />
-                          {saving ? 'Registrando…' : detail.version === 0 ? 'Registrar decisão' : 'Registrar nova versão'}
+                          {saving
+                            ? 'Registrando…'
+                            : detail.version === 0
+                              ? 'Registrar decisão'
+                              : 'Registrar nova versão'}
                         </Button>
-                        <span className="text-xs text-muted">expectedVersion: {detail.version}</span>
+                        <span className="text-xs text-muted">
+                          expectedVersion: {detail.version}
+                        </span>
                       </div>
                     </>
                   )}

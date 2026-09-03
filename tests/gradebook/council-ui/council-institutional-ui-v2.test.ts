@@ -9,8 +9,12 @@ function source(path: string): string {
 describe('Council institutional HeroUI V2', () => {
   const panel = source('src/features/gradebook/council/council-institutional-panel-v2.tsx');
   const client = source('src/features/gradebook/council/council-institutional-client-v2.ts');
-  const contract = source('shared/gradebook-contracts/council/council-institutional-contract-v2.ts');
-  const service = source('server/gradebook/application/council/council-institutional-workspace-v2.ts');
+  const contract = source(
+    'shared/gradebook-contracts/council/council-institutional-contract-v2.ts',
+  );
+  const service = source(
+    'server/gradebook/application/council/council-institutional-workspace-v2.ts',
+  );
   const route = source('server/gradebook/http/council-routes-v1.ts');
   const surface = source('src/platform/gradebook-council-surface.tsx');
   const functions = source('functions/[[path]].ts');
@@ -24,6 +28,9 @@ describe('Council institutional HeroUI V2', () => {
     expect(panel).toContain('<Surface');
     expect(panel).toContain('Fechamento institucional');
     expect(surface).toContain('CouncilInstitutionalPanelV2');
+    expect(surface).toContain('focusedStudentReference={focusedStudentReference}');
+    expect(surface).toContain('onFocusedStudentReferenceChange={setFocusedStudentReference}');
+    expect(surface).not.toContain('focusedStudentReference={null}');
     expect(functions).toContain('createInstitutionalWorkspace(runtimeEnv, server)');
     expect(functions).toContain('.councilInstitutionalWorkspace(');
     expect(runtime).toContain('CouncilInstitutionalWorkspaceV2');
@@ -93,7 +100,9 @@ describe('Council institutional HeroUI V2', () => {
 
   it('não persiste academia no navegador, usa no-store e mantém um único bridge de Conselho', () => {
     const frontend = `${panel}\n${client}`;
-    expect(client).toContain("const COUNCIL_WORKSPACE_ENDPOINT = '/api/gradebook/council-workspace'");
+    expect(client).toContain(
+      "const COUNCIL_WORKSPACE_ENDPOINT = '/api/gradebook/council-workspace'",
+    );
     expect(client).toContain("cache: 'no-store'");
     expect(frontend).not.toContain('localStorage');
     expect(frontend).not.toContain('sessionStorage');
