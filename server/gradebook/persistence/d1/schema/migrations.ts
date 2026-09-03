@@ -18,7 +18,7 @@ export const GRADEBOOK_D1_MIGRATIONS = [
 ] as const satisfies readonly GradebookD1Migration[];
 
 /**
- * Ordered local schema including the read-catalog extension. The original
+ * Ordered local schema including the read-catalog and durability extensions. The original
  * export remains the frozen 0001–0002 baseline consumed by the #227 suite.
  */
 export const GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS = [
@@ -32,5 +32,10 @@ export const GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS = [
     version: 4,
     name: 'bulletin_council_durability_v1',
     fileName: '0004_bulletin_council_durability_v1.sql',
+  },
+  {
+    version: 5,
+    name: 'council_session_durability_v2',
+    fileName: '0005_council_session_durability_v2.sql',
   },
 ] as const satisfies readonly GradebookD1Migration[];
