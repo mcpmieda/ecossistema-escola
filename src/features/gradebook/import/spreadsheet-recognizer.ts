@@ -11,6 +11,10 @@ import type {
   SourceCellRawValueV1,
 } from '../../../../shared/gradebook-contracts/source/source-contract-v1';
 import type { GradebookImportRecoveryApplicabilityObservationV3 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v3';
+import type {
+  GradebookImportResultCellObservationV4,
+  GradebookImportTermResultObservationsV4,
+} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 
 export const ACCEPTED_EXTENSIONS = ['xlsx', 'xlsb', 'xls'] as const;
 
@@ -48,6 +52,17 @@ export type NoteValue = {
   formula?: string;
 };
 
+export type RecoveryResultObservationsV4 = {
+  readonly trimester1: GradebookImportResultCellObservationV4;
+  readonly trimester2: GradebookImportResultCellObservationV4;
+  readonly trimester3: GradebookImportResultCellObservationV4;
+  readonly totalAfterRecovery: GradebookImportResultCellObservationV4;
+  readonly originalTrimester1: GradebookImportResultCellObservationV4;
+  readonly originalTrimester2: GradebookImportResultCellObservationV4;
+  readonly originalTrimester3: GradebookImportResultCellObservationV4;
+  readonly originalAnnual: GradebookImportResultCellObservationV4;
+};
+
 export type RecoveryRecognition = {
   trimester1: NoteValue | null;
   trimester2: NoteValue | null;
@@ -57,10 +72,11 @@ export type RecoveryRecognition = {
   originalTrimester2: NoteValue | null;
   originalTrimester3: NoteValue | null;
   originalAnnual: NoteValue | null;
+  resultObservations: RecoveryResultObservationsV4;
   applicabilityTrimester1: GradebookImportRecoveryApplicabilityObservationV3;
   applicabilityTrimester2: GradebookImportRecoveryApplicabilityObservationV3;
   applicabilityTrimester3: GradebookImportRecoveryApplicabilityObservationV3;
-  /** Historical convenience projection. V3 transport must use the raw observations above. */
+  /** Historical convenience projection. V3/V4 transports must use the raw observations above. */
   eligibleTrimester1: boolean;
   eligibleTrimester2: boolean;
   eligibleTrimester3: boolean;
@@ -78,6 +94,8 @@ export type StudentRecognition = {
   qualitativeTotal: NoteValue | null;
   official: NoteValue | null;
   annual: NoteValue | null;
+  /** Rich source observations for T/Z/AK/AM/AN. Historical note fields remain unchanged. */
+  termResultObservations: GradebookImportTermResultObservationsV4 | null;
   recovery: RecoveryRecognition | null;
 };
 
@@ -203,6 +221,48 @@ function readNote(sheet: Worksheet, address: string): NoteValue | null {
   return { source, value: source, kind: 'manual' };
 }
 
+function readResultCellObservationV4(
+  sheet: Worksheet,
+  address: string,
+): GradebookImportResultCellObservationV4 {
+  const cell = cellAt(sheet, address);
+  if (!cell || (cell.v === undefined && !cell.f)) return { classification: 'missing-field' };
+  const rawValue =
+    cell.v === null || ['string', 'number', 'boolean'].includes(typeof cell.v)
+      ? (cell.v as SourceCellRawValueV1)
+      : null;
+
+  if (cell.f) {
+    if (typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+      return cell.v === 0
+        ? { classification: 'formula-zero', rawValue, formula: cell.f, cachedValue: 0 }
+        : {
+            classification: 'formula-nonzero',
+            rawValue,
+            formula: cell.f,
+            cachedValue: cell.v,
+          };
+    }
+    return {
+      classification: 'formula-error-or-missing-cache',
+      rawValue,
+      formula: cell.f,
+      cachedValue: null,
+      sourceError: typeof cell.v === 'string' && cell.v.trim() ? cell.v : null,
+    };
+  }
+
+  if (cell.v === null || cell.v === '') return { classification: 'empty', rawValue: cell.v };
+  if (typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+    if (cell.v === 0.1) return { classification: 'manual-official-zero-marker', rawValue: 0.1 };
+    if (cell.v === 0) return { classification: 'manual-legacy-zero', rawValue: 0 };
+    if (cell.v < 0) return { classification: 'manual-negative-number', rawValue: cell.v };
+    return { classification: 'manual-positive-number', rawValue: cell.v };
+  }
+  if (typeof cell.v === 'string') return { classification: 'invalid-text', rawValue: cell.v };
+  return { classification: 'invalid-text', rawValue: String(cell.v) };
+}
+
 function readRecoveryApplicability(
   sheet: Worksheet,
   address: string,
@@ -317,6 +377,16 @@ function recognizeRecovery(sheet: Worksheet, row: number): RecoveryRecognition {
     originalTrimester2: readNote(sheet, `Y${row}`),
     originalTrimester3: readNote(sheet, `AA${row}`),
     originalAnnual: readNote(sheet, `AB${row}`),
+    resultObservations: {
+      trimester1: readResultCellObservationV4(sheet, `R${row}`),
+      trimester2: readResultCellObservationV4(sheet, `S${row}`),
+      trimester3: readResultCellObservationV4(sheet, `T${row}`),
+      totalAfterRecovery: readResultCellObservationV4(sheet, `U${row}`),
+      originalTrimester1: readResultCellObservationV4(sheet, `X${row}`),
+      originalTrimester2: readResultCellObservationV4(sheet, `Y${row}`),
+      originalTrimester3: readResultCellObservationV4(sheet, `AA${row}`),
+      originalAnnual: readResultCellObservationV4(sheet, `AB${row}`),
+    },
     applicabilityTrimester1,
     applicabilityTrimester2,
     applicabilityTrimester3,
@@ -408,6 +478,15 @@ function recognizeStudents(
       qualitativeTotal: readGrades ? readNote(sheet, `AK${row}`) : null,
       official: readGrades ? readNote(sheet, `AM${row}`) : null,
       annual: readGrades ? readNote(sheet, `AN${row}`) : null,
+      termResultObservations: readGrades
+        ? {
+            quantitativeTotal: readResultCellObservationV4(sheet, `T${row}`),
+            parallelAssessment: readResultCellObservationV4(sheet, `Z${row}`),
+            qualitativeTotal: readResultCellObservationV4(sheet, `AK${row}`),
+            officialTermGrade: readResultCellObservationV4(sheet, `AM${row}`),
+            annualAccumulatedTotal: readResultCellObservationV4(sheet, `AN${row}`),
+          }
+        : null,
       recovery: readRecovery ? recognizeRecovery(sheet, row) : null,
     });
   }
