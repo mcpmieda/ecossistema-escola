@@ -25,17 +25,17 @@ async function blankDatabase() {
   return { raw, database: new SqliteD1Database(raw) };
 }
 
-describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
-  it('é canônica e idempotente no runner local autorizado', async () => {
+describe('migrations de durabilidade Bulletin/Council', () => {
+  it('mantém catálogo sequencial e idempotente até a 0005 no runner local autorizado', async () => {
     const { raw, database } = await blankDatabase();
     try {
       expect(GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS.map(({ version }) => version)).toEqual([
-        1, 2, 3, 4,
+        1, 2, 3, 4, 5,
       ]);
       expect(GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS.at(-1)).toEqual({
-        version: 4,
-        name: 'bulletin_council_durability_v1',
-        fileName: '0004_bulletin_council_durability_v1.sql',
+        version: 5,
+        name: 'council_session_durability_v2',
+        fileName: '0005_council_session_durability_v2.sql',
       });
       const runner = new GradebookD1MigrationRunnerV1(database, {
         migrationSql: migrationSql(),
@@ -43,17 +43,17 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
 
       await expect(runner.run(authorization)).resolves.toMatchObject({
         result: 'applied',
-        currentVersion: 4,
-        latestVersion: 4,
-        migrationsApplied: 4,
+        currentVersion: 5,
+        latestVersion: 5,
+        migrationsApplied: 5,
       });
       await expect(runner.run(authorization)).resolves.toMatchObject({
         result: 'up-to-date',
-        currentVersion: 4,
-        latestVersion: 4,
+        currentVersion: 5,
+        latestVersion: 5,
         migrationsApplied: 0,
       });
-      raw.exec(migrationSql()[3] as string);
+      raw.exec(migrationSql()[4] as string);
       expect(
         raw.prepare('SELECT version, name FROM gradebook_schema_migrations ORDER BY version').all(),
       ).toEqual([
@@ -61,6 +61,7 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
         { version: 2, name: 'gradebook_records_audit_v1' },
         { version: 3, name: 'logical_source_record_catalog_v1' },
         { version: 4, name: 'bulletin_council_durability_v1' },
+        { version: 5, name: 'council_session_durability_v2' },
       ]);
       expect(
         raw
@@ -68,13 +69,13 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
             "SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
           )
           .get(),
-      ).toEqual({ count: 25 });
+      ).toEqual({ count: 27 });
     } finally {
       raw.close();
     }
   });
 
-  it('mantém quatro tabelas append-only sem cascade e índices para os access patterns', async () => {
+  it('preserva as quatro tabelas V1 e adiciona somente stream/versões da sessão V2', async () => {
     const { raw, database } = await blankDatabase();
     try {
       const runner = new GradebookD1MigrationRunnerV1(database, { migrationSql: migrationSql() });
@@ -85,7 +86,8 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
             WHERE type = 'table'
               AND name IN (
                 'bulletin_snapshot_streams', 'bulletin_snapshot_versions',
-                'council_decision_streams', 'council_decision_versions'
+                'council_decision_streams', 'council_decision_versions',
+                'council_session_streams', 'council_session_versions'
               )
             ORDER BY name`,
         )
@@ -95,6 +97,8 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
         { name: 'bulletin_snapshot_versions' },
         { name: 'council_decision_streams' },
         { name: 'council_decision_versions' },
+        { name: 'council_session_streams' },
+        { name: 'council_session_versions' },
       ]);
 
       for (const table of [
@@ -102,6 +106,8 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
         'bulletin_snapshot_versions',
         'council_decision_streams',
         'council_decision_versions',
+        'council_session_streams',
+        'council_session_versions',
       ]) {
         const foreignKeys = raw.prepare(`PRAGMA foreign_key_list(${table})`).all() as {
           readonly on_delete: string;
@@ -142,15 +148,26 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
         )
         .all('academic-year:synthetic:2026', 'class:synthetic:a', 'student:synthetic:a', 10);
       expect(JSON.stringify(councilPlan)).toContain('idx_council_decision_versions_history');
+
+      const sessionPlan = raw
+        .prepare(
+          `EXPLAIN QUERY PLAN
+           SELECT version FROM council_session_versions
+            WHERE academic_year_id = ? AND class_reference = ? AND state = 'closed'
+            ORDER BY version DESC LIMIT ?`,
+        )
+        .all('academic-year:synthetic:2026', 'class:synthetic:a', 10);
+      expect(JSON.stringify(sessionPlan)).toContain('idx_council_session_versions_history');
     } finally {
       raw.close();
     }
   });
 
-  it('mantém toda DDL na 0004 e não introduz operação remota nos adapters/factory', () => {
+  it('mantém toda DDL nas migrations e não introduz operação remota nos adapters/factory', () => {
     const sourceFiles = [
       'server/gradebook/persistence/d1/bulletins/d1-bulletin-snapshot-repository-v1.ts',
       'server/gradebook/persistence/d1/council/d1-council-decision-store-v1.ts',
+      'server/gradebook/persistence/d1/durability/d1-council-session-store-v2.ts',
       'server/gradebook/persistence/d1/durability/d1-bulletin-council-durability-v1.ts',
       'server/gradebook/persistence/d1/durability/d1-durability-transaction-v1.ts',
     ];
@@ -160,15 +177,22 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
     expect(source).not.toMatch(/\b(?:CREATE|ALTER|DROP)\s+(?:TABLE|INDEX|TRIGGER)\b/iu);
     expect(source).not.toMatch(/\bfetch\s*\(|https?:\/\/|\bwrangler\b/iu);
 
-    const migration = readFileSync(
+    const migration0004 = readFileSync(
       join(process.cwd(), 'migrations/gradebook/0004_bulletin_council_durability_v1.sql'),
       'utf8',
     );
-    expect(migration.match(/CREATE TABLE IF NOT EXISTS/gu)).toHaveLength(4);
-    expect(migration).not.toMatch(/\bDELETE\b|ON DELETE CASCADE/iu);
+    expect(migration0004.match(/CREATE TABLE IF NOT EXISTS/gu)).toHaveLength(4);
+    expect(migration0004).not.toMatch(/\bDELETE\b|ON DELETE CASCADE/iu);
+
+    const migration0005 = readFileSync(
+      join(process.cwd(), 'migrations/gradebook/0005_council_session_durability_v2.sql'),
+      'utf8',
+    );
+    expect(migration0005.match(/CREATE TABLE IF NOT EXISTS/gu)).toHaveLength(2);
+    expect(migration0005).not.toMatch(/\bDELETE\b|ON DELETE CASCADE/iu);
   });
 
-  it('expõe a factory isolável e a compõe no runtime central somente após a #343', async () => {
+  it('expõe sessão durável na factory e a compõe no runtime central', async () => {
     const { raw, database } = await blankDatabase();
     try {
       const durability = createGradebookD1BulletinCouncilDurabilityV1(database);
@@ -178,6 +202,7 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
       expect(durability.councilDecisions.constructor.name).toBe(
         'GradebookD1CouncilDecisionStoreV1',
       );
+      expect(durability.councilSessions.constructor.name).toBe('GradebookD1CouncilSessionStoreV2');
       const runtimeSource = readFileSync(
         join(process.cwd(), 'server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts'),
         'utf8',
@@ -185,6 +210,8 @@ describe('migration 0004 de durabilidade Bulletin/Council V1', () => {
       expect(runtimeSource).toContain('createGradebookD1BulletinCouncilDurabilityV1(database)');
       expect(runtimeSource).toContain('this.durability.bulletinSnapshots');
       expect(runtimeSource).toContain('this.durability.councilDecisions');
+      expect(runtimeSource).toContain('const sessions = durability.councilSessions;');
+      expect(runtimeSource).not.toContain('createLocalCouncilSessionStoreV2');
     } finally {
       raw.close();
     }

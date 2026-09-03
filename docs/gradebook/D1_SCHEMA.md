@@ -2,7 +2,9 @@
 
 ## Estado e limite
 
-O schema canônico está integrado até a migration 0004 em local/preview e produção. A onda 23 confirmou D1/binding produtivos, aplicou remotamente 0001–0004 e validou schema version 4 / 25 tabelas com zero migration pendente. Identificadores remotos permanecem fora do repositório.
+O catálogo canônico de código/local está integrado até a migration 0005. As migrations 0001–0005 resultam em schema version 5 / 27 tabelas em local/preview e testes sintéticos.
+
+A produção remota permanece deliberadamente no estado validado pela onda 23: migrations 0001–0004, schema version 4 / 25 tabelas. A #395 **não aplica a 0005 remotamente**, não abre o production gate e não executa piloto. Enquanto a 0005 não for aplicada por autorização operacional própria, a sessão institucional V2 durável não pode ser usada em produção.
 
 O domínio permanece independente de D1. Adaptadores convertem contratos e portas em SQL sem expor tabelas aos consumidores.
 
@@ -14,10 +16,11 @@ O domínio permanece independente de D1. Adaptadores convertem contratos e porta
 | 2 | `0002_gradebook_records_audit_v1.sql` | registros acadêmicos, reconciliação, ocorrências e transições de Auditoria |
 | 3 | `0003_logical_source_record_catalog_v1.sql` | associação anual/versionada entre fonte lógica e stream acadêmico |
 | 4 | `0004_bulletin_council_durability_v1.sql` | snapshots de Boletins e decisões de Conselho, streams + versões |
+| 5 | `0005_council_session_durability_v2.sql` | sessão/reunião institucional V2, estado/votos/fechamento/histórico cross-restart |
 
-As migrations usam criação condicional e registro idempotente em `gradebook_schema_migrations`. `GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS` contém a ordem integral 0001–0004 e é a referência do runner local/preview.
+As migrations usam criação condicional e registro idempotente em `gradebook_schema_migrations`. `GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS` contém a ordem integral 0001–0005 e é a referência do runner local/preview e do runtime para detectar pendência.
 
-Após 0004 existem **25 tabelas**.
+Após 0005 existem **27 tabelas** no catálogo local atual. Produção continua em 25 até aplicação remota autorizada da 0005.
 
 ## Princípios físicos
 
@@ -68,9 +71,9 @@ A #340 adiciona exatamente quatro tabelas:
 | `council_decision_streams` | raiz/versionamento da decisão por aluno/turma/ano |
 | `council_decision_versions` | histórico append-only da decisão humana, justificativa, ator e instante |
 
-A 0004 não cria tabela para sessão/reunião institucional do Conselho V2. Esse agregado permanece provider-independent/process-local em local/preview nesta versão; a integração #343 não amplia schema silenciosamente.
+A 0004 não persiste a sessão/reunião institucional V2. Essa limitação histórica foi classificada como `blocks-pilot` pela #394 e é removida no catálogo de código pela 0005/#395, sem reinterpretar as quatro tabelas V1.
 
-### Access patterns e índices
+### Access patterns e índices 0004
 
 A 0004 inclui índices para:
 
@@ -79,17 +82,36 @@ A 0004 inclui índices para:
 - paginação de snapshots por ano/turma;
 - histórico de decisão por ano/turma/aluno e versão.
 
-Os testes usam `EXPLAIN QUERY PLAN` para confirmar os índices e preservar anti-N+1.
+## Migration 0005 — sessão institucional V2 durável
+
+A #395 adiciona exatamente duas tabelas, sem alterar shared contracts:
+
+| Tabela | Papel |
+| --- | --- |
+| `council_session_streams` | raiz por `academic_year_id + class_reference`, estado `open/closed` e versão atual |
+| `council_session_versions` | estado versionado append-only contendo votos opcionais e snapshot de fechamento |
+
+A porta `CouncilSessionStoreV2` permanece provider-independent. O adapter D1 passa a preservar:
+
+- estado da reunião e versão/CAS;
+- votos opcionais já registrados;
+- snapshot imutável de fechamento;
+- histórico de fechamento;
+- bloqueio pós-fechamento após reinstanciação do adapter/runtime.
+
+A versão 0 aberta continua implícita quando não existe stream. O primeiro write cria versão 1; versões seguintes preservam `previous_version = version - 1`. Fechamento não expõe reabertura implícita.
+
+O índice `idx_council_session_versions_history` atende histórico por ano/turma/estado/versão. `closure_reference` possui índice único parcial quando presente. Não há leitura por aluno para carregar sessão ou histórico.
 
 ## Versionamento e compare-and-set
 
 O adaptador de escrita executa atomicamente:
 
-1. `expectedVersion: null`: criar somente stream ausente com versão 1;
-2. stream existente: atualizar raiz somente quando `current_version = expectedVersion`;
-3. zero linhas atualizadas: retornar `version-conflict`;
-4. acrescentar a nova linha histórica com `previous_version` correta;
-5. confirmar raiz e histórico juntos; qualquer erro reverte tudo.
+1. ausência de stream + versão esperada 0: cria raiz em versão 1;
+2. stream existente: atualiza raiz somente quando `current_version` e estado esperado ainda correspondem;
+3. zero linhas atualizadas: conflito de concorrência;
+4. acrescenta a nova versão histórica com `previous_version` correta;
+5. confirma raiz e histórico juntos; qualquer erro reverte tudo.
 
 Continuidade:
 
@@ -98,7 +120,7 @@ versão 1  → previous_version IS NULL
 versão N  → previous_version = N - 1
 ```
 
-A mesma disciplina vale para os novos streams de snapshot/decisão: append-only, imutabilidade e optimistic concurrency transacional.
+A disciplina vale para snapshots, decisões V1 e sessão V2: append-only, imutabilidade e optimistic concurrency transacional. Bindings remotos com `batch()` usam os guards da camada de durabilidade; SQLite local usa savepoint.
 
 ## Associação transacional de fonte
 
@@ -114,27 +136,28 @@ versão da associação fonte ↔ stream
 commit único
 ```
 
-Conflito em qualquer etapa provoca rollback integral. A 0004 não altera essa semântica.
+Conflito em qualquer etapa provoca rollback integral. As migrations 0004/0005 não alteram essa semântica.
 
 ## Leitura/escrita integrada
 
-O runtime local/preview dispõe de:
+O runtime local/preview com schema 5 dispõe de:
 
 - entidades, fontes, lotes, registros e associações;
 - Audit Workspace e transições;
 - read models operacionais e Performance;
 - projeção oficial de Conselho #332;
 - `GradebookD1BulletinSnapshotRepositoryV1`;
-- `GradebookD1CouncilDecisionStoreV1`.
+- `GradebookD1CouncilDecisionStoreV1`;
+- `GradebookD1CouncilSessionStoreV2`.
 
-Boletim histórico/reprint lê o snapshot persistido e não relê dados acadêmicos atuais. Conselho recupera decisão/histórico após reinstanciação do adapter/runtime no mesmo D1.
+Boletim histórico/reprint lê o snapshot persistido e não relê dados acadêmicos atuais. Conselho recupera decisões V1 e sessão institucional V2 após reinstanciação do adapter/runtime no mesmo D1.
 
 ## Verificação local
 
-As suítes aplicam/reaplicam 0001–0004 em SQLite em memória e verificam:
+As suítes aplicam/reaplicam 0001–0005 em SQLite em memória e verificam:
 
 - idempotência das migrations;
-- 25 tabelas após aplicação integral;
+- 27 tabelas após aplicação integral local;
 - FKs e isolamento anual;
 - ausência de cascades destrutivos;
 - histórico e continuidade de versão;
@@ -142,7 +165,8 @@ As suítes aplicam/reaplicam 0001–0004 em SQLite em memória e verificam:
 - registros acadêmicos e Auditoria;
 - associação fonte ↔ stream;
 - snapshot/decision append, CAS e recuperação após reinstanciação;
-- paginação/bounds e índices da 0004;
+- sessão V2, voto, fechamento, histórico e guard pós-fechamento após restart;
+- paginação/bounds e índices aplicáveis;
 - nenhuma DDL fora de migration;
 - nenhuma operação remota.
 
@@ -150,17 +174,17 @@ Somente dados sintéticos são usados.
 
 ## Produção
 
-Estado consolidado pela onda 23:
+Estado remoto consolidado e **inalterado** nesta issue:
 
-- D1 acadêmico produtivo: presente e inequivocamente associado ao binding protegido;
+- D1 acadêmico produtivo: presente e associado ao binding protegido;
 - binding `GRADEBOOK_D1`: presente;
-- migrations remotas: 0001–0004, 4/4;
-- schema: version 4 / **25 tabelas de domínio**, zero pendência;
-- tabela interna reservada do provedor, quando presente, não integra a contagem contratual das 25 tabelas;
-- smoke sintético de Performance e Boletins/snapshot/reprint: verde;
+- migrations remotas aplicadas: 0001–0004, 4/4;
+- schema remoto: version 4 / **25 tabelas de domínio**;
+- migration 0005: integrada no código, **não aplicada remotamente**;
+- smoke sintético da onda 23: verde no schema 4/25 então vigente;
 - recovery pós-smoke: corpus sintético restaurado para zero raízes residuais;
 - production gate final: OFF;
 - piloto real: não iniciado;
 - `authorityMode: imported-source`.
 
-A presença do schema remoto não autoriza operação acadêmica real. Toda nova janela depende do gate server-side, auth/capability existentes e autorização própria.
+A presença da 0005 no repositório não autoriza aplicação remota. Antes de futura janela que use Conselho V2 durável, uma autorização operacional própria deve aplicar/confirmar a migration pendente e revalidar schema. Nenhum dado real pode entrar enquanto o schema exigido estiver pendente.

@@ -4,11 +4,13 @@
 
 O runtime compõe adaptadores D1 para ambientes autorizados. A onda 23 provisionou o D1 acadêmico produtivo e o binding server-side sem versionar identificadores remotos; o acesso acadêmico de produção continua condicionado ao gate explícito e à autorização opaca.
 
+A #395 adiciona ao código a durabilidade D1 da sessão institucional do Conselho V2 e a migration 0005. Essa migration é validada somente em local/CI nesta entrega e **não foi aplicada remotamente**. Produção permanece schema 4/25 e gate OFF.
+
 ```text
 local      → binding injetado permitido
 preview    → binding injetado permitido
 production → gate OFF: fail-closed antes de usar GRADEBOOK_D1
-production → gate ON: somente em janela autorizada, após auth/capability
+production → gate ON: somente em janela autorizada, após auth/capability e schema requerido
 ```
 
 O binding lógico `GRADEBOOK_D1` é injetado na publicação por configuração protegida de produção; IDs remotos não são versionados. `GRADEBOOK_PRODUCTION_ENABLED` permanece ausente/`false` entre janelas autorizadas.
@@ -29,7 +31,7 @@ requireDatabase(env.GRADEBOOK_D1)
 
 Logo, com o gate OFF, `production` falha antes do uso acadêmico do binding. Abrir o gate não elimina `requireAuth`, `gradebook.persistence.admin`, origin ou `no-store`.
 
-## Composição D1 após a onda 18
+## Composição D1 atual
 
 `createGradebookD1RuntimeV1` compõe, após auth/gate/binding:
 
@@ -39,7 +41,7 @@ Logo, com o gate OFF, `production` falha antes do uso acadêmico do binding. Abr
 - `GradebookD1AuditWorkspaceSourceV1`;
 - `createGradebookD1ClassPerformanceSourceV1` + `createClassPerformanceReadModelV1`;
 - `createGradebookD1CouncilOfficialProjectionSourceV1`;
-- `createGradebookD1BulletinCouncilDurabilityV1`;
+- `createGradebookD1BulletinCouncilDurabilityV1`, contendo snapshots, decisões V1 e sessão institucional V2;
 - `GradebookD1BatchPromotionTransactionV1`;
 - `GradebookD1MigrationRunnerV1`.
 
@@ -49,17 +51,18 @@ GradebookD1RuntimeV1
   ├── operationalReadModels()
   ├── operationalWorkspaceAcademicYears()
   ├── auditWorkspace(...)
+  ├── deterministicCorrectionWorkspace(...)
   ├── classPerformanceReadModel()
   ├── bulletinSnapshotRepository()
   ├── councilDecisionStore()
   ├── councilWorkspace(...)
-  ├── councilInstitutionalWorkspace(...)
+  ├── councilInstitutionalWorkspace(...) → D1 CouncilSessionStoreV2
   ├── planningRepositories()
   ├── inspectSchema()/runMigrations()
   └── promoteImportChangePlan()
 ```
 
-PDF continua sem método D1 próprio: o renderer recebe `BulletinSnapshotV1` já autorizado. O runtime apenas fornece o repositório persistente local/preview usado por emissão/histórico/reprint.
+PDF continua sem método D1 próprio: o renderer recebe `BulletinSnapshotV1` já autorizado.
 
 ## Bridges acadêmicos
 
@@ -93,19 +96,22 @@ D1 → 6 queries em lote → GradebookD1CouncilOfficialProjectionRecordsSourceV1
    → createCouncilOfficialProjectionSourceV1
    → CouncilWorkspaceSourceV1
       ├── Council Workspace V1 → D1 CouncilDecisionStoreV1
-      └── Council Institutional V2 → session store provider-independent
+      └── Council Institutional V2 → D1 CouncilSessionStoreV2
 ```
 
 - `resolveNativeAnnualOutcome` fica somente na projeção upstream;
 - Council Workspace não recebe callback de cálculo;
 - 0/1/2/3+/insuficiente vêm da projeção oficial;
 - T1/T2/T3 e REC preservam autoridade importada; REC ambígua falha fechada;
-- decisões/histórico usam `GradebookD1CouncilDecisionStoreV1`, append-only/CAS e recuperam após reinstanciação do runtime;
+- decisões/histórico V1 usam `GradebookD1CouncilDecisionStoreV1`, append-only/CAS;
 - decisão humana usa justificativa/expectedVersion/CAS e identidade server-side;
+- sessão/reunião V2 usa `GradebookD1CouncilSessionStoreV2`, mantendo estado, versão, votos opcionais, fechamento e histórico em stream/versões D1;
+- reinstanciar adapter/runtime sobre o mesmo D1 preserva reunião fechada e o guard que impede mutações posteriores;
 - fechamento V2 cria fotografia histórica imutável e rejeita mutações posteriores;
 - votação é opcional, sem abstenção, e não cria decisão;
-- desempate permanece fail-closed sem identidade/capability formal de diretor;
-- a sessão/reunião V2 não foi adicionada à migration 0004 e permanece process-local/preview nesta versão.
+- desempate permanece fail-closed sem identidade/capability formal de diretor.
+
+A porta `CouncilSessionStoreV2` não mudou. A implementação local process-local continua existindo para testes unitários isolados, mas o runtime D1 central não a usa mais.
 
 ## Boletins F8 e durabilidade
 
@@ -143,35 +149,40 @@ PDF individual ou batch bounded
 
 `POST /api/gradebook/reports` reutiliza runtime/read models/fontes oficiais. Não cria armazenamento paralelo nem novo motor acadêmico. Indicadores derivados sem semântica oficial permanecem fail-closed.
 
-## Migration 0004
+## Migrations
 
-Catálogo local:
+Catálogo de código/local:
 
 1. `0001_gradebook_context_entities_imports_v1.sql`;
 2. `0002_gradebook_records_audit_v1.sql`;
 3. `0003_logical_source_record_catalog_v1.sql`;
-4. `0004_bulletin_council_durability_v1.sql`.
+4. `0004_bulletin_council_durability_v1.sql`;
+5. `0005_council_session_durability_v2.sql`.
 
-A 0004 cria quatro tabelas e índices de paginação/history. O catálogo canônico totaliza 25 tabelas. Na onda 23, as migrations 0001–0004 foram aplicadas remotamente em ordem, resultando em schema version 4 / 25 tabelas e zero pendência; nenhuma DDL extra foi criada.
+A 0004 cria quatro tabelas para snapshots/decisões. A 0005 cria duas tabelas para sessão institucional V2. O catálogo local atual totaliza 27 tabelas.
 
-Não há `ON DELETE CASCADE`, purge automático ou prazo de retenção inventado; o V1 é append-only.
+**Produção remota continua em 0001–0004 / schema 4 / 25 tabelas.** A #395 não aplica 0005 remotamente. Com o novo código, `inspectSchema()` deve identificar essa pendência quando o runtime for autorizado; uma futura janela que dependa do Conselho V2 durável não pode prosseguir antes de uma issue operacional aplicar/confirmar 0005.
+
+Não há `ON DELETE CASCADE`, purge automático ou prazo de retenção inventado; a persistência continua append-only.
 
 ## Rotas administrativas
 
 | Método | Rota | Operação |
 | --- | --- | --- |
-| `GET` | `/api/gradebook/admin/persistence/status` | resumo do schema local |
-| `POST` | `/api/gradebook/admin/persistence/migrations` | aplica migrations locais pendentes no ambiente autorizado |
+| `GET` | `/api/gradebook/admin/persistence/status` | resumo do schema local/autorizado |
+| `POST` | `/api/gradebook/admin/persistence/migrations` | aplica migrations pendentes somente em ambiente/janela explicitamente autorizados |
 
-Exigem sessão + `gradebook.persistence.admin`; escrita exige origin oficial; respostas `no-store` e sanitizadas.
+Exigem sessão + `gradebook.persistence.admin`; escrita exige origin oficial; respostas `no-store` e sanitizadas. A existência desta rota não autoriza aplicação remota na #395.
 
 ## F9 / produção controlada
 
 A rota e as superfícies são lazy; entrar no Banco dispara zero requests acadêmicos automáticos. A busca global seleciona área por hash query, sem bridge paralelo.
 
-A #382 executou uma janela produtiva sintética controlada no SHA `2fdefa87f186e84ed40637437d4b0199baff82c6`: shell público, status anônimo, status autorizado, Performance e Boletins/snapshot/reprint passaram. O corpus foi restaurado para zero raízes residuais e o production gate terminou OFF. Nenhum piloto real foi executado e `authorityMode` permaneceu `imported-source`.
+A #382 executou uma janela produtiva sintética controlada no SHA `2fdefa87f186e84ed40637437d4b0199baff82c6` com schema remoto 4/25: shell público, status anônimo, status autorizado, Performance e Boletins/snapshot/reprint passaram. O corpus foi restaurado para zero raízes residuais e o production gate terminou OFF. Nenhum piloto real foi executado e `authorityMode` permaneceu `imported-source`.
 
-Bindings D1 remotos que expõem `batch()` usam batches guardados para promoção e durabilidade de snapshots/decisões; SQLite local preserva transações/savepoints. CAS, rollback e o planner/executor oficiais continuam sendo as únicas fronteiras de write.
+A #394 classificou a ausência de durabilidade cross-restart da sessão V2 como `blocks-pilot`. A #395 remove esse bloqueio no código/local e cria a migration necessária, mas não autoriza nem executa a etapa operacional remota. Antes de piloto real, a 0005 precisa estar aplicada e revalidada por autorização própria.
+
+Bindings D1 remotos que expõem `batch()` usam batches guardados para promoção e durabilidade; SQLite local preserva transações/savepoints. CAS, rollback e o planner/executor oficiais continuam sendo as únicas fronteiras de write.
 
 ## F1 — sincronização de confiança
 
@@ -186,12 +197,13 @@ A auditoria F9 trava em teste a ausência de persistência acadêmica via localS
 ## Limites preservados
 
 - D1/binding/schema produtivos existem, mas o gate permanece OFF fora de janelas autorizadas;
+- produção remota permanece schema 4/25 até aplicação autorizada da 0005;
 - nenhum secret, ID remoto ou bookmark é versionado;
 - nenhuma mudança de `authorityMode`;
 - nenhum piloto real executado;
 - nenhuma regra acadêmica no adapter/HTTP/UI/renderer/wiring;
-- `reconciliation_v2.case_store` permanece process-local;
-- sessão/reunião institucional V2 ainda não tem durabilidade cross-restart;
-- write administrativo da configuração de comparação permanece hard stop;
+- `reconciliation_v2.case_store` permanece process-local com os controles da #394;
+- sessão/reunião institucional V2 é durável no runtime D1 quando schema 5 estiver disponível;
+- write administrativo da configuração de comparação permanece hard stop fora do escopo do piloto autorizado;
 - PDF permanece raster/client-side;
 - somente dados sintéticos em testes públicos.

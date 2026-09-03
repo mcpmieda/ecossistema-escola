@@ -299,12 +299,12 @@ function seededDatabase(): DatabaseSync {
 }
 
 describe('migration 0003 e adaptador D1 local de leitura V1', () => {
-  it('ordena e reaplica 0001–0004 sem cascades destrutivos', () => {
+  it('ordena e reaplica 0001–0005 sem cascades destrutivos', () => {
     const database = migratedDatabase();
     applyMigrations(database);
 
     expect(GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS.map(({ version }) => version)).toEqual([
-      1, 2, 3, 4,
+      1, 2, 3, 4, 5,
     ]);
     expect(
       database
@@ -315,6 +315,7 @@ describe('migration 0003 e adaptador D1 local de leitura V1', () => {
       { version: 2, name: 'gradebook_records_audit_v1' },
       { version: 3, name: 'logical_source_record_catalog_v1' },
       { version: 4, name: 'bulletin_council_durability_v1' },
+      { version: 5, name: 'council_session_durability_v2' },
     ]);
 
     const tableNames = database

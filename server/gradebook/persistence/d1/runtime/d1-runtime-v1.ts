@@ -20,10 +20,7 @@ import {
   type CouncilInstitutionalWorkspaceV2,
 } from '../../../application/council/council-institutional-workspace-v2';
 import type { CouncilDecisionStoreV1 } from '../../../application/council/council-decision-store-v1';
-import {
-  createLocalCouncilSessionStoreV2,
-  type CouncilSessionStoreV2,
-} from '../../../application/council/council-session-store-v2';
+import type { CouncilSessionStoreV2 } from '../../../application/council/council-session-store-v2';
 import type { CouncilWorkspaceSourceV1 } from '../../../application/council/council-workspace-source-v1';
 import {
   createCouncilWorkspaceV1,
@@ -96,7 +93,6 @@ export interface GradebookD1RuntimeOptionsV1 extends GradebookD1MigrationRunnerO
   readonly performanceComparisonConfiguration?: PerformanceComparisonConfigurationV1;
 }
 
-const councilSessionStores = new WeakMap<object, CouncilSessionStoreV2>();
 const deterministicCorrectionStores = new WeakMap<object, DeterministicCorrectionCaseStoreV2>();
 
 function fail(code: GradebookD1RuntimeErrorCodeV1): never {
@@ -152,15 +148,6 @@ function runtimeEnvironment(env: RuntimeEnv): GradebookD1RuntimeEnvironmentV1 {
     return fail('runtime-environment-disabled');
   }
   return environment;
-}
-
-function councilSessionStore(database: D1WriteDatabaseV1): CouncilSessionStoreV2 {
-  const key = database as unknown as object;
-  const existing = councilSessionStores.get(key);
-  if (existing !== undefined) return existing;
-  const created = createLocalCouncilSessionStoreV2();
-  councilSessionStores.set(key, created);
-  return created;
 }
 
 function deterministicCorrectionStore(
@@ -356,7 +343,7 @@ export function createGradebookD1RuntimeV1(
   );
   const councilWorkspaceSource = createGradebookD1CouncilOfficialProjectionSourceV1(database);
   const durability = createGradebookD1BulletinCouncilDurabilityV1(database);
-  const sessions = councilSessionStore(database);
+  const sessions = durability.councilSessions;
   const transaction = new GradebookD1BatchPromotionTransactionV1(database, { now: options.now });
   const migrations = new GradebookD1MigrationRunnerV1(database, {
     migrationSql: options.migrationSql,
