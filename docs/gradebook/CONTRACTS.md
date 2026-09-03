@@ -21,6 +21,7 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 | resultados acadêmicos V1                                 | histórico congelado + motor nativo/equivalência; tipos `written/simulation` continuam interpretáveis somente sob V1                                     |
 | `AssessmentComponent/Results V2`                         | evolução mínima da #365 com `quantitative-assessment`, identidade estrutural estável e componente completo somente quando a definição estiver resolvida |
 | import/reconciliação/Auditoria V1                        | congelado + planejador/executor/persistência                                                                                                            |
+| `GradebookImportPersistenceTransportV1`                  | contrato #409 fechado; uma fonte reconhecida por request, sem workbook/binário/plano do cliente; implementação reservada à #410                         |
 | `Performance Comparison V2`                              | contrato compartilhado da #371; percentual profile-aware/configuração server-side; runtime ainda não integrado                                          |
 | `Reconciliation V2`                                      | contrato compartilhado da #371; correção determinística auditável sem reinterpretar V1; runtime ainda não integrado                                     |
 | `OperationalWorkspace V1`                                | HTTP/UI local-preview + hardening                                                                                                                       |
@@ -111,6 +112,46 @@ Também não cria pesos, percentuais por atividade, médias, rankings, comparaç
 `ApplicabilityV1` continua distinguindo `applicable | not-applicable | insufficient-data`. A evolução V2 usa esse vocabulário existente e não inventa outro estado acadêmico.
 
 `AnnualFinalDecisionV1` permanece separado do estado calculado. Uma decisão `recorded` pode registrar `basis: 'class-council'`, mas motor/projeção não fabricam deliberação humana.
+
+## Importação → persistência — transporte V1 (#409)
+
+`GradebookImportPersistenceTransportV1`, em `shared/gradebook-contracts/imports/import-persistence-transport-v1.ts`, fecha somente a fronteira serializável para a futura #410. O arquivo continua lido e reconhecido no navegador; XLSB/XLSX/XLS, `File`, `ArrayBuffer`, workbook/worksheet SheetJS, caminho local, estado React e funções não atravessam HTTP.
+
+### Request
+
+A unidade é `one-recognized-source-file-per-request`. O request V1 contém apenas:
+
+- manifesto JSON-safe V2 e SHA-256 observado localmente;
+- sugestões reconhecidas (`academicYear`, `teacherName`) isoladas e não autoritativas;
+- contexto confirmado por referências opacas existentes: `academicYearId` e `logicalSourceId`;
+- por guia acadêmica, labels reconhecidos separados do `teachingAssignmentId` confirmado;
+- por linha, somente `sourceRow`, `studentId`/`enrollmentId` confirmados e observações acadêmicas;
+- definições por slot estrutural R/S/AA:AJ sem ID, tipo, ordem ou proveniência técnica enviados; esses campos são reconstruídos pelo contrato oficial;
+- valores reconhecidos de avaliações/agregados/REC e diagnósticos sanitizados necessários ao fail-closed.
+
+Nome de arquivo, professor, turma, disciplina, aluno e atividade não é chave técnica. O servidor deve buscar e validar as referências opacas contra o ano, assignment, turma, enrollment e fonte lógica atuais. A identidade de componente continua derivada de `logicalSourceId + academicYearId + teachingAssignmentId + term + sourceSlot`; identidade de GradeEntry/registro, lote/versão, estado `new | changed | unchanged`, plano, writes, `expectedVersion`, CAS e `authorityMode` são exclusivamente server-side.
+
+`ImportBatchResultV1`, `AssessmentDefinitionMaterializationV2`, `AssessmentComponentV2`, `GradeEntryV1` e demais `AcademicRecordV1` não atravessam inteiros: eles carregam IDs, versões, lado calculated, autoridade ou decisões de planejamento pertencentes ao servidor. O transporte reutiliza somente o subconjunto JSON-safe do manifesto e as observações de fonte necessárias; o backend deriva o `SourceFileManifestId` do SHA-256 e reconstrói os contratos oficiais antes de chamar os planners.
+
+### Bounds e inspeção
+
+- seleção no navegador: até 50 arquivos, preservada;
+- arquivos por request: exatamente 1;
+- body HTTP máximo contratado: 8 MiB;
+- até 128 guias, 512 observações de aluno por guia e 20.000 observações por request;
+- cada guia trimestral carrega exatamente os 12 slots R/S/AA:AJ, no máximo 12 valores por aluno;
+- até 256 diagnósticos;
+- processamento futuro: bounded e sequencial, sem queue, worker ou storage intermediário remoto.
+
+`inspectGradebookImportPersistenceRequestV1`, `isGradebookImportPersistenceRequestV1`, `containsGradebookImportPersistenceForbiddenClientFieldV1` e `isGradebookImportPersistenceResponseV1` rejeitam chaves desconhecidas e shapes incoerentes. O inspector classifica fail-closed `forbidden-client-payload | payload-too-large | invalid-context | duplicate-identity | blocked-definition | blocking-diagnostic | invalid-academic-shape`; incompatibilidade com D1 exige validação server-side antes de planejar.
+
+São explicitamente proibidos no request: binário/buffer/workbook/worksheet/path; `ImportChangePlanV1`, promotion request, writes/mutações; `expectedVersion`/`expectedBatchVersion`/CAS; SQL/DDL; `authorityMode`/resultado nativo; decisão de Conselho; payload persistido e IDs de recurso/banco Cloudflare.
+
+### Response e segurança
+
+A resposta sanitizada distingue `applied | no-changes | review-required | blocked | conflict | invalid-request | not-authorized | unavailable`. Somente estados de revisão com localização acadêmica mínima e contagens agregadas de definições, componentes, registros e writes planejados/confirmados podem ser devolvidos. SQL, payload bruto, versões/CAS internos, evidência de célula, resource IDs e detalhes D1 não fazem parte da resposta.
+
+A #410 deve usar um único bridge no padrão existente, aplicar `readBoundedJson` com o limite contratado, inspector compartilhado, `requireAuth`, `gradebook.persistence.admin`, `enforceOfficialOrigin`, `enforceWriteOrigin`, `no-store` e `GRADEBOOK_PRODUCTION_ENABLED`; validar todas as referências no D1; reconstruir materialização V2 e registros oficiais; chamar somente `planAssessmentImportReconciliationV2`/`planImportReconciliation` e `executeImportChangePlan`/UoW transacional; mapear apenas a resposta sanitizada. Nenhum storage acadêmico persistente no browser, planner/executor paralelo, migration, schema ou autoridade nova é autorizado.
 
 ## Pesquisa acadêmica e navegação
 
