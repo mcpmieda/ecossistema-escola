@@ -172,13 +172,14 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
     expect(reportsContract).toContain('ClassPerformanceReadModelV1');
   });
 
-  it('mantém schema 0001–0004, produção fail-closed e readiness no gate manual', () => {
+  it('preserva readiness histórico e reconhece o catálogo local atual 0001–0005', () => {
     const migrations = readdirSync(join(root, 'migrations/gradebook')).sort();
     expect(migrations).toEqual([
       '0001_gradebook_context_entities_imports_v1.sql',
       '0002_gradebook_records_audit_v1.sql',
       '0003_logical_source_record_catalog_v1.sql',
       '0004_bulletin_council_durability_v1.sql',
+      '0005_council_session_durability_v2.sql',
     ]);
 
     const readiness = evaluateGradebookProductionReadinessPreparationV1({
