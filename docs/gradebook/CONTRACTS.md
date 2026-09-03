@@ -13,24 +13,25 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 
 ## Estado dos contratos
 
-| Contrato                                                 | Estado atual                                                                                                                                            |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SourceContractV1`                                       | histórico congelado; F1 validada definitivamente 7/7; sem reinterpretação retroativa                                                                    |
-| `SourceContractV2`                                       | contrato prospectivo fixado pela #365, implementado pela #366 e integrado/revalidado pela #367                                                          |
-| entidades acadêmicas V1                                  | congelado + persistência D1 local                                                                                                                       |
-| resultados acadêmicos V1                                 | histórico congelado + motor nativo/equivalência; tipos `written/simulation` continuam interpretáveis somente sob V1                                     |
-| `AssessmentComponent/Results V2`                         | evolução mínima da #365 com `quantitative-assessment`, identidade estrutural estável e componente completo somente quando a definição estiver resolvida |
-| import/reconciliação/Auditoria V1                        | congelado + planejador/executor/persistência                                                                                                            |
-| `GradebookImportPersistenceTransportV1`                  | contrato #409 fechado; uma fonte reconhecida por request, sem workbook/binário/plano do cliente; implementação reservada à #410                         |
-| `Performance Comparison V2`                              | contrato compartilhado da #371; percentual profile-aware/configuração server-side; runtime ainda não integrado                                          |
-| `Reconciliation V2`                                      | contrato compartilhado da #371; correção determinística auditável sem reinterpretar V1; runtime ainda não integrado                                     |
-| `OperationalWorkspace V1`                                | HTTP/UI local-preview + hardening                                                                                                                       |
-| `AuditWorkspace V1`                                      | D1/runtime/HTTP/UI local-preview                                                                                                                        |
-| `ClassPerformanceReadModelV1` + Performance Transport V1 | D1/read model/runtime/HTTP/UI local-preview                                                                                                             |
-| `BulletinModelV1` + Bulletin Transport V1                | preview/emissão/snapshots duráveis/history/reprint/PDF individual + batch bounded                                                                       |
-| `Institutional Reports V1`                               | cinco famílias oficiais + HTTP/UI; indicadores derivados sem semântica ficam fail-closed                                                                |
-| `Council Workspace/Decision V1`                          | projeção oficial upstream + decisões duráveis/history/CAS                                                                                               |
-| `Council Institutional V2`                               | revisão/fechamento/fotografia/histórico + votação opcional, mesmo bridge V1                                                                             |
+| Contrato                                                 | Estado atual                                                                                                                                                  |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SourceContractV1`                                       | histórico congelado; F1 validada definitivamente 7/7; sem reinterpretação retroativa                                                                          |
+| `SourceContractV2`                                       | contrato prospectivo fixado pela #365, implementado pela #366 e integrado/revalidado pela #367                                                                |
+| entidades acadêmicas V1                                  | congelado + persistência D1 local                                                                                                                             |
+| resultados acadêmicos V1                                 | histórico congelado + motor nativo/equivalência; tipos `written/simulation` continuam interpretáveis somente sob V1                                           |
+| `AssessmentComponent/Results V2`                         | evolução mínima da #365 com `quantitative-assessment`, identidade estrutural estável e componente completo somente quando a definição estiver resolvida       |
+| import/reconciliação/Auditoria V1                        | congelado + planejador/executor/persistência                                                                                                                  |
+| `GradebookImportPersistenceTransportV1`                  | contrato #409 fechado; uma fonte reconhecida por request, sem workbook/binário/plano do cliente; implementação reservada à #410                               |
+| `GradebookImportPersistenceTransportV2`                  | evolução #413 para primeiro import: fonte lógica resolvida/criada pelo servidor e bootstrap transacional provider-independent; implementação reservada à #410 |
+| `Performance Comparison V2`                              | contrato compartilhado da #371; percentual profile-aware/configuração server-side; runtime ainda não integrado                                                |
+| `Reconciliation V2`                                      | contrato compartilhado da #371; correção determinística auditável sem reinterpretar V1; runtime ainda não integrado                                           |
+| `OperationalWorkspace V1`                                | HTTP/UI local-preview + hardening                                                                                                                             |
+| `AuditWorkspace V1`                                      | D1/runtime/HTTP/UI local-preview                                                                                                                              |
+| `ClassPerformanceReadModelV1` + Performance Transport V1 | D1/read model/runtime/HTTP/UI local-preview                                                                                                                   |
+| `BulletinModelV1` + Bulletin Transport V1                | preview/emissão/snapshots duráveis/history/reprint/PDF individual + batch bounded                                                                             |
+| `Institutional Reports V1`                               | cinco famílias oficiais + HTTP/UI; indicadores derivados sem semântica ficam fail-closed                                                                      |
+| `Council Workspace/Decision V1`                          | projeção oficial upstream + decisões duráveis/history/CAS                                                                                                     |
+| `Council Institutional V2`                               | revisão/fechamento/fotografia/histórico + votação opcional, mesmo bridge V1                                                                                   |
 
 Migrations D1 locais/remotas: 0001–0005 / 27 tabelas. A 0004 persiste snapshots de Boletins e decisões V1 do Conselho; a 0005 persiste a sessão institucional V2 sem alterar a porta provider-independent. A #399 confirmou schema remoto 5/27 com gate OFF.
 
@@ -152,6 +153,61 @@ São explicitamente proibidos no request: binário/buffer/workbook/worksheet/pat
 A resposta sanitizada distingue `applied | no-changes | review-required | blocked | conflict | invalid-request | not-authorized | unavailable`. Somente estados de revisão com localização acadêmica mínima e contagens agregadas de definições, componentes, registros e writes planejados/confirmados podem ser devolvidos. SQL, payload bruto, versões/CAS internos, evidência de célula, resource IDs e detalhes D1 não fazem parte da resposta.
 
 A #410 deve usar um único bridge no padrão existente, aplicar `readBoundedJson` com o limite contratado, inspector compartilhado, `requireAuth`, `gradebook.persistence.admin`, `enforceOfficialOrigin`, `enforceWriteOrigin`, `no-store` e `GRADEBOOK_PRODUCTION_ENABLED`; validar todas as referências no D1; reconstruir materialização V2 e registros oficiais; chamar somente `planAssessmentImportReconciliationV2`/`planImportReconciliation` e `executeImportChangePlan`/UoW transacional; mapear apenas a resposta sanitizada. Nenhum storage acadêmico persistente no browser, planner/executor paralelo, migration, schema ou autoridade nova é autorizado.
+
+## Importação → persistência — bootstrap V2 (#413)
+
+`GradebookImportPersistenceTransportV1` permanece histórico e imutável. A #410 deve usar
+`GradebookImportPersistenceTransportV2`, em
+`shared/gradebook-contracts/imports/import-persistence-transport-v2.ts`, para o fluxo atual. O V2
+preserva a mesma unidade bounded (um arquivo reconhecido por request), os limites de 8 MiB/128
+guias/20.000 observações, as observações acadêmicas V1 e toda a política de segurança. A única
+mudança de autoridade do request é explícita: `confirmedContext` contém somente `academicYearId` e
+`sourceResolution` aceita apenas `{ mode: 'resolve-or-create' }`. `logicalSourceId` passa a ser campo
+explicitamente proibido no payload do navegador.
+
+### Resolução server-side
+
+`resolveLogicalSourceForImportV2` relê todos os `teachingAssignmentId` no repositório oficial e exige
+o mesmo ano e professor. O contexto estável é `teacher-year-gradebook`: nomes de arquivo/professor,
+labels de turma/componente e ordem de seleção nunca participam da identidade. Um workbook pode conter
+múltiplas turmas e componentes do mesmo professor.
+
+- 0 fontes compatíveis: retorna `new-source` com ID opaco e instante gerados pelo servidor;
+- 1 fonte compatível: retorna `existing-source` e a reutiliza;
+- 2+ fontes, cursor adicional ou assignment/contexto incompatível: `review-required`, sem heurística.
+
+`LogicalSourceRepositoryV2` oferece somente `get`, `listByContext` bounded e `createInitial`. A criação
+acontece dentro da unidade de trabalho; repetição do mesmo ID/contexto é idempotente, enquanto corrida,
+colisão ou incompatibilidade retorna conflito de resolução. Não existe update/delete genérico. A
+migration 0001 já contém `logical_sources`; a #413 não cria schema.
+
+### Planejamento e bootstrap atômico
+
+O servidor deriva `SourceFileManifestId`, `ImportBatchId`, lote aprovado/revisado, relação confirmada e
+CAS. O planner oficial roda contra o estado pré-write. Somente depois
+`createImportBootstrapEnvelopeV2` combina a resolução, o `ImportBatchResultV1` server-side e o
+`ImportChangePlanV1` já produzido. O envelope nunca é DTO HTTP.
+
+`ImportBootstrapTransactionPortV2` recebe esse envelope e uma `PersistenceUnitOfWorkV2`. A ordem
+contratada, em um único commit/rollback, é:
+
+1. `logical-source-if-new`;
+2. `planned-source-file-version`;
+3. `import-batch-version` (`expectedVersion: null`, versão inicial esperada pelo plano = 1);
+4. `assessment-component-version`;
+5. `academic-record-version`;
+6. `logical-source-record-association-version`.
+
+A versão de fonte só é aplicada quando já consta do plano. Portanto o hash novo não é pré-persistido e
+não pode causar `known-identical` artificial. Reimportação idêntica pode registrar a versão do lote
+auditável dentro da mesma transação, mas `no-changes` significa zero versão acadêmica de componente,
+registro ou associação; uma simples renomeação continua metadado de fonte, não mudança acadêmica.
+
+A #410 deve compor a porta V2 no UoW D1 e refatorar minimamente a coordenação do executor para separar
+as fases já existentes de source write e academic writes. Não pode copiar recognizer, materializador,
+`planImportReconciliation`, `planAssessmentImportReconciliationV2`, validação/aplicação do plano, CAS
+ou helpers do executor. O bridge continua único; transport V1 continua interpretável, mas não resolve
+o primeiro import.
 
 ## Pesquisa acadêmica e navegação
 

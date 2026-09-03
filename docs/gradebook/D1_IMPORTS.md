@@ -102,3 +102,20 @@ A validação final deve executar `npm run verify` no SHA final do PR.
 
 O teste composto em `tests/gradebook/persistence/d1-composition/` confirma fonte, histórico e lote
 pelo mesmo objeto usado por entidades, registros, associações e Auditoria.
+
+## Limite de bootstrap V2 — contrato da #413
+
+A migration 0001 já contém `logical_sources`, suas FKs acadêmicas e o índice de contexto. A #413 não
+altera migration nem adaptador D1 concreto; fecha apenas `LogicalSourceRepositoryV2`,
+`PersistenceUnitOfWorkV2` e `ImportBootstrapTransactionPortV2` para implementação pela #410.
+
+O adapter futuro deve listar por `academic_year_id + teacher_id + source_context` com limite 2 para
+distinguir criação, reutilização única e ambiguidade. A criação inicial deve ocorrer dentro da mesma
+transação do manifesto/lote/promoção e ser idempotente para o mesmo ID/contexto. Cross-year, colisão ou
+uma fonte concorrente compatível falham sem commit parcial.
+
+O lote inicial é server-owned, usa `expectedVersion: null` e materializa a versão 1 esperada pelo
+planner. O hash/manifesto não pode ser persistido antes do planejamento. A implementação #410 deve
+aplicar, no mesmo UoW D1, fonte lógica (se nova) → versão de fonte planejada → lote → componentes →
+registros → associações, reutilizando o executor/CAS atual. Este documento não afirma que esse adapter
+ou runtime V2 já esteja operacional.
