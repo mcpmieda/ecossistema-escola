@@ -8,7 +8,7 @@ import type {
 } from '../../../../shared/gradebook-contracts/entities';
 import type { BatchSuccess } from './import-batch';
 import type { ConfirmedImportReferencesV2 } from './import-persistence-client-v2';
-import type { ImportPersistenceStateV2 } from './use-import-batch';
+import type { ImportPersistenceStateV4 } from './use-import-batch';
 
 type Draft = {
   academicYearId: string;
@@ -37,7 +37,7 @@ function complete(result: BatchSuccess, draft: Draft): boolean {
     });
 }
 
-function responseLabel(state: ImportPersistenceStateV2): string {
+function responseLabel(state: ImportPersistenceStateV4): string {
   switch (state.state) {
     case 'recognized':
       return 'Reconhecido localmente';
@@ -71,7 +71,7 @@ export function ImportPersistenceConfirmationV2({
   onPersist,
 }: {
   result: BatchSuccess;
-  persistence: ImportPersistenceStateV2;
+  persistence: ImportPersistenceStateV4;
   externalBusy: boolean;
   onReady: (ready: boolean) => void;
   onPersist: (references: ConfirmedImportReferencesV2) => Promise<void>;
