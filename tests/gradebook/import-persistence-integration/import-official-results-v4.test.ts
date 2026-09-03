@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type {
-  AssessmentComponentId,
   ClassGroupId,
   EnrollmentId,
   SchoolId,
@@ -9,6 +8,7 @@ import type {
   TeacherId,
   TeachingAssignmentId,
 } from '../../../shared/gradebook-contracts/entities';
+import type { AssessmentComponentId } from '../../../shared/gradebook-contracts/results/results-contract-v1';
 import type {
   GradebookImportPersistenceRequestV4,
   GradebookImportResultCellObservationV4,
