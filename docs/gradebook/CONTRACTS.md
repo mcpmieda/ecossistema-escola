@@ -13,25 +13,25 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 
 ## Estado dos contratos
 
-| Contrato | Estado atual |
-| --- | --- |
-| `SourceContractV1` | histórico congelado; F1 validada definitivamente 7/7; sem reinterpretação retroativa |
-| `SourceContractV2` | contrato prospectivo fixado pela #365, implementado pela #366 e integrado/revalidado pela #367 |
-| entidades acadêmicas V1 | congelado + persistência D1 local |
-| resultados acadêmicos V1 | histórico congelado + motor nativo/equivalência; tipos `written/simulation` continuam interpretáveis somente sob V1 |
-| `AssessmentComponent/Results V2` | evolução mínima da #365 com `quantitative-assessment`, identidade estrutural estável e componente completo somente quando a definição estiver resolvida |
-| import/reconciliação/Auditoria V1 | congelado + planejador/executor/persistência |
-| `Performance Comparison V2` | contrato compartilhado da #371; percentual profile-aware/configuração server-side; runtime ainda não integrado |
-| `Reconciliation V2` | contrato compartilhado da #371; correção determinística auditável sem reinterpretar V1; runtime ainda não integrado |
-| `OperationalWorkspace V1` | HTTP/UI local-preview + hardening |
-| `AuditWorkspace V1` | D1/runtime/HTTP/UI local-preview |
-| `ClassPerformanceReadModelV1` + Performance Transport V1 | D1/read model/runtime/HTTP/UI local-preview |
-| `BulletinModelV1` + Bulletin Transport V1 | preview/emissão/snapshots duráveis/history/reprint/PDF individual + batch bounded |
-| `Institutional Reports V1` | cinco famílias oficiais + HTTP/UI; indicadores derivados sem semântica ficam fail-closed |
-| `Council Workspace/Decision V1` | projeção oficial upstream + decisões duráveis/history/CAS |
-| `Council Institutional V2` | revisão/fechamento/fotografia/histórico + votação opcional, mesmo bridge V1 |
+| Contrato                                                 | Estado atual                                                                                                                                            |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SourceContractV1`                                       | histórico congelado; F1 validada definitivamente 7/7; sem reinterpretação retroativa                                                                    |
+| `SourceContractV2`                                       | contrato prospectivo fixado pela #365, implementado pela #366 e integrado/revalidado pela #367                                                          |
+| entidades acadêmicas V1                                  | congelado + persistência D1 local                                                                                                                       |
+| resultados acadêmicos V1                                 | histórico congelado + motor nativo/equivalência; tipos `written/simulation` continuam interpretáveis somente sob V1                                     |
+| `AssessmentComponent/Results V2`                         | evolução mínima da #365 com `quantitative-assessment`, identidade estrutural estável e componente completo somente quando a definição estiver resolvida |
+| import/reconciliação/Auditoria V1                        | congelado + planejador/executor/persistência                                                                                                            |
+| `Performance Comparison V2`                              | contrato compartilhado da #371; percentual profile-aware/configuração server-side; runtime ainda não integrado                                          |
+| `Reconciliation V2`                                      | contrato compartilhado da #371; correção determinística auditável sem reinterpretar V1; runtime ainda não integrado                                     |
+| `OperationalWorkspace V1`                                | HTTP/UI local-preview + hardening                                                                                                                       |
+| `AuditWorkspace V1`                                      | D1/runtime/HTTP/UI local-preview                                                                                                                        |
+| `ClassPerformanceReadModelV1` + Performance Transport V1 | D1/read model/runtime/HTTP/UI local-preview                                                                                                             |
+| `BulletinModelV1` + Bulletin Transport V1                | preview/emissão/snapshots duráveis/history/reprint/PDF individual + batch bounded                                                                       |
+| `Institutional Reports V1`                               | cinco famílias oficiais + HTTP/UI; indicadores derivados sem semântica ficam fail-closed                                                                |
+| `Council Workspace/Decision V1`                          | projeção oficial upstream + decisões duráveis/history/CAS                                                                                               |
+| `Council Institutional V2`                               | revisão/fechamento/fotografia/histórico + votação opcional, mesmo bridge V1                                                                             |
 
-Migrations D1 locais: 0001–0004 / 25 tabelas. A 0004 é exclusiva da durabilidade de snapshots de Boletins e decisões de Conselho. A #365 não altera schema/migration.
+Migrations D1 locais/remotas: 0001–0005 / 27 tabelas. A 0004 persiste snapshots de Boletins e decisões V1 do Conselho; a 0005 persiste a sessão institucional V2 sem alterar a porta provider-independent. A #399 confirmou schema remoto 5/27 com gate OFF.
 
 ## F1 — contrato da fonte
 
@@ -252,7 +252,7 @@ D1 → createGradebookD1CouncilOfficialProjectionSourceV1(...)
 - votação não cria decisão;
 - empate nunca é resolvido automaticamente;
 - identidade de diretor permanece `not-formalized-fail-closed` e `ADMINISTRADOR` não é inferido como diretor;
-- sessão/reunião V2 continua provider-independent/process-local nesta versão; a 0004 não adiciona persistência para esse agregado.
+- sessão/reunião V2 continua provider-independent no contrato e usa o store D1 da 0005 no runtime central; a implementação local permanece apenas para testes isolados.
 
 ## Compatibilidade conjunta da onda 18
 

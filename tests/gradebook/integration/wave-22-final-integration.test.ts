@@ -184,14 +184,14 @@ describe('integração final da onda 22 — comparação e correção determiní
     const startHere = source('docs/gradebook/COMECE_AQUI.md');
     const readiness = source('docs/gradebook/PRODUCTION_READINESS.md');
 
-    expect(projectState).toContain('current_wave: 23');
+    expect(projectState).toContain('current_wave: 24');
     expect(projectState).toContain('next_wave: 24');
     expect(projectState).toContain('academic_authority_mode: imported-source');
     expect(projectState).toContain('production_academic_runtime_enabled: false');
     expect(projectState).toContain('production_d1_binding_present: true');
     expect(projectState).toContain('remote_migration_applied: true');
     expect(projectState).toContain('production_gate_final: off');
-    expect(startHere).toContain('Onda 23 — produção controlada concluída');
+    expect(startHere).toContain('Onda 24 — pré-piloto até schema 5');
     expect(readiness).toContain('production-infrastructure-smoke-validated-awaiting-private-pilot');
   });
 });

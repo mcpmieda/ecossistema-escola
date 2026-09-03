@@ -147,7 +147,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `RDY-002`: autoridade alterada, binding presente, migration remota ou piloto real são violações de
   escopo, nunca evidência de readiness.
 - `RDY-003`: lote máximo de 50 workbooks sintéticos permanece bounded e sequencial.
-- `RDY-004`: migrations locais 0001–0004 são idempotentes e recuperam schema V4/25 tabelas.
+- `RDY-004`: migrations locais 0001–0005 são idempotentes e recuperam schema V5/27 tabelas.
 - `RDY-005`: 30 séries sintéticas de Boletim preservam duas versões e sobrevivem a restart.
 - `RDY-006`: fila sintética de 30 estudantes resolve versões em lote e CAS concorrente tem um vencedor.
 - `RDY-007`: falha entre raiz/versão faz rollback sem versão órfã e mantém histórico recuperável.
@@ -164,4 +164,4 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `W21-005`: T/Z/AK/AM/AN, perfil 2026, 30/30/40, 45/55 e arredondamento não mudam.
 - `W21-006`: Desempenho mantém seis queries, comparação fail-closed e projeção fiel dos componentes.
 - `W21-007`: Boletins/Relatórios preservam componentes V1/V2 e reprint histórico sem leitura atual.
-- `W21-008`: readiness segue `prepared-for-manual-authorization`, migrations 0001–0004 e cinco hard stops.
+- `W21-008`: readiness V1 histórico segue `prepared-for-manual-authorization`; o catálogo corrente reconhece migrations 0001–0005 sem reinterpretar os cinco hard stops históricos.

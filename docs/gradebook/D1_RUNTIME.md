@@ -4,7 +4,7 @@
 
 O runtime compõe adaptadores D1 para ambientes autorizados. A onda 23 provisionou o D1 acadêmico produtivo e o binding server-side sem versionar identificadores remotos; o acesso acadêmico de produção continua condicionado ao gate explícito e à autorização opaca.
 
-A #395 adiciona ao código a durabilidade D1 da sessão institucional do Conselho V2 e a migration 0005. Essa migration é validada somente em local/CI nesta entrega e **não foi aplicada remotamente**. Produção permanece schema 4/25 e gate OFF.
+A #395 / PR #398 adicionou ao código a durabilidade D1 da sessão institucional do Conselho V2 e a migration 0005. A #399 aplicou exclusivamente essa migration ao D1 acadêmico produtivo e confirmou schema 5/27, pendentes 0 e gate OFF.
 
 ```text
 local      → binding injetado permitido
@@ -66,14 +66,14 @@ PDF continua sem método D1 próprio: o renderer recebe `BulletinSnapshotV1` já
 
 ## Bridges acadêmicos
 
-| Método | Rota | Superfície |
-| --- | --- | --- |
+| Método | Rota                                   | Superfície            |
+| ------ | -------------------------------------- | --------------------- |
 | `POST` | `/api/gradebook/operational-workspace` | Operational Workspace |
-| `POST` | `/api/gradebook/audit-workspace` | Audit Workspace |
-| `POST` | `/api/gradebook/performance` | Desempenho |
-| `POST` | `/api/gradebook/bulletins` | Boletins |
-| `POST` | `/api/gradebook/reports` | Relatórios |
-| `POST` | `/api/gradebook/council-workspace` | Conselho V1/V2 |
+| `POST` | `/api/gradebook/audit-workspace`       | Audit Workspace       |
+| `POST` | `/api/gradebook/performance`           | Desempenho            |
+| `POST` | `/api/gradebook/bulletins`             | Boletins              |
+| `POST` | `/api/gradebook/reports`               | Relatórios            |
+| `POST` | `/api/gradebook/council-workspace`     | Conselho V1/V2        |
 
 Existe exatamente um bridge de cada tipo. Council V1/V2 compartilham o mesmo bridge. Todos usam autenticação/autorização server-side e `no-store`.
 
@@ -161,18 +161,18 @@ Catálogo de código/local:
 
 A 0004 cria quatro tabelas para snapshots/decisões. A 0005 cria duas tabelas para sessão institucional V2. O catálogo local atual totaliza 27 tabelas.
 
-**Produção remota continua em 0001–0004 / schema 4 / 25 tabelas.** A #395 não aplica 0005 remotamente. Com o novo código, `inspectSchema()` deve identificar essa pendência quando o runtime for autorizado; uma futura janela que dependa do Conselho V2 durável não pode prosseguir antes de uma issue operacional aplicar/confirmar 0005.
+**Produção remota está em 0001–0005 / schema 5 / 27 tabelas / pendentes 0.** A #399 confirmou registry sequencial, catálogo físico sem faltantes/extras, tabelas, FKs e índices da 0005. O gate permaneceu OFF; nenhum runtime acadêmico, smoke de sessão ou piloto foi executado.
 
 Não há `ON DELETE CASCADE`, purge automático ou prazo de retenção inventado; a persistência continua append-only.
 
 ## Rotas administrativas
 
-| Método | Rota | Operação |
-| --- | --- | --- |
-| `GET` | `/api/gradebook/admin/persistence/status` | resumo do schema local/autorizado |
+| Método | Rota                                          | Operação                                                                          |
+| ------ | --------------------------------------------- | --------------------------------------------------------------------------------- |
+| `GET`  | `/api/gradebook/admin/persistence/status`     | resumo do schema local/autorizado                                                 |
 | `POST` | `/api/gradebook/admin/persistence/migrations` | aplica migrations pendentes somente em ambiente/janela explicitamente autorizados |
 
-Exigem sessão + `gradebook.persistence.admin`; escrita exige origin oficial; respostas `no-store` e sanitizadas. A existência desta rota não autoriza aplicação remota na #395.
+Exigem sessão + `gradebook.persistence.admin`; escrita exige origin oficial; respostas `no-store` e sanitizadas. A operação da #399 usou o canal operacional Wrangler com o runtime fechado, preservando a mesma migration canônica.
 
 ## F9 / produção controlada
 
@@ -180,7 +180,7 @@ A rota e as superfícies são lazy; entrar no Banco dispara zero requests acadê
 
 A #382 executou uma janela produtiva sintética controlada no SHA `2fdefa87f186e84ed40637437d4b0199baff82c6` com schema remoto 4/25: shell público, status anônimo, status autorizado, Performance e Boletins/snapshot/reprint passaram. O corpus foi restaurado para zero raízes residuais e o production gate terminou OFF. Nenhum piloto real foi executado e `authorityMode` permaneceu `imported-source`.
 
-A #394 classificou a ausência de durabilidade cross-restart da sessão V2 como `blocks-pilot`. A #395 remove esse bloqueio no código/local e cria a migration necessária, mas não autoriza nem executa a etapa operacional remota. Antes de piloto real, a 0005 precisa estar aplicada e revalidada por autorização própria.
+A #394 classificou a ausência de durabilidade cross-restart da sessão V2 como `blocks-pilot`. A #395 removeu o bloqueio no código e a #399 fechou o gate de schema remoto. A validação sintética do caminho produtivo e seu recovery permanecem separados na #400 antes de qualquer issue de piloto real.
 
 Bindings D1 remotos que expõem `batch()` usam batches guardados para promoção e durabilidade; SQLite local preserva transações/savepoints. CAS, rollback e o planner/executor oficiais continuam sendo as únicas fronteiras de write.
 
@@ -197,7 +197,7 @@ A auditoria F9 trava em teste a ausência de persistência acadêmica via localS
 ## Limites preservados
 
 - D1/binding/schema produtivos existem, mas o gate permanece OFF fora de janelas autorizadas;
-- produção remota permanece schema 4/25 até aplicação autorizada da 0005;
+- produção remota está em schema 5/27, com 0001–0005 aplicadas e zero pendência;
 - nenhum secret, ID remoto ou bookmark é versionado;
 - nenhuma mudança de `authorityMode`;
 - nenhum piloto real executado;

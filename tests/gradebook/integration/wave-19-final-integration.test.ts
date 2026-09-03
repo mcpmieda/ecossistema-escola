@@ -52,7 +52,7 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(physicalSource).not.toContain('tolerance');
   });
 
-  it('não adiciona bridge, migration ou persistência acadêmica no navegador', () => {
+  it('preserva bridges e browser storage enquanto reconhece o catálogo corrente', () => {
     const functions = source('functions/[[path]].ts');
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
     const f5Frontend = [
@@ -67,9 +67,15 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
 
     expect(functions.match(/\/api\/gradebook\/operational-workspace/g) ?? []).toHaveLength(0);
     expect(shell).toContain("id: 'operational'");
-    expect(f5Frontend).not.toMatch(/localStorage|sessionStorage|indexedDB|caches\.open|serviceWorker/u);
-    expect(source('docs/gradebook/PROJECT_STATE.yaml')).toContain('0004_bulletin_council_durability_v1.sql');
-    expect(source('docs/gradebook/PROJECT_STATE.yaml')).not.toContain('0005_');
+    expect(f5Frontend).not.toMatch(
+      /localStorage|sessionStorage|indexedDB|caches\.open|serviceWorker/u,
+    );
+    expect(source('docs/gradebook/PROJECT_STATE.yaml')).toContain(
+      '0004_bulletin_council_durability_v1.sql',
+    );
+    expect(source('docs/gradebook/PROJECT_STATE.yaml')).toContain(
+      '0005_council_session_durability_v2.sql',
+    );
   });
 
   it('mantém autoridade imported-source e produção acadêmica fail-closed após a evolução do binding', () => {

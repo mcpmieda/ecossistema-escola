@@ -4,19 +4,19 @@
 
 O catálogo canônico de código/local está integrado até a migration 0005. As migrations 0001–0005 resultam em schema version 5 / 27 tabelas em local/preview e testes sintéticos.
 
-A produção remota permanece deliberadamente no estado validado pela onda 23: migrations 0001–0004, schema version 4 / 25 tabelas. A #395 **não aplica a 0005 remotamente**, não abre o production gate e não executa piloto. Enquanto a 0005 não for aplicada por autorização operacional própria, a sessão institucional V2 durável não pode ser usada em produção.
+A #399 aplicou exclusivamente a 0005 ao D1 acadêmico produtivo depois de confirmar registry 0001–0004, schema 4 / 25, ausência das tabelas novas e gate OFF. A produção remota está agora em migrations 0001–0005, schema version 5 / 27 tabelas e zero pendência. A operação não abriu o production gate, não usou dados acadêmicos e não executou piloto.
 
 O domínio permanece independente de D1. Adaptadores convertem contratos e portas em SQL sem expor tabelas aos consumidores.
 
 ## Migrations registradas
 
-| Versão | Arquivo | Responsabilidade |
-| -----: | --- | --- |
-| 1 | `0001_gradebook_context_entities_imports_v1.sql` | anos/configurações, entidades, fontes, manifestos, lotes e diagnósticos |
-| 2 | `0002_gradebook_records_audit_v1.sql` | registros acadêmicos, reconciliação, ocorrências e transições de Auditoria |
-| 3 | `0003_logical_source_record_catalog_v1.sql` | associação anual/versionada entre fonte lógica e stream acadêmico |
-| 4 | `0004_bulletin_council_durability_v1.sql` | snapshots de Boletins e decisões de Conselho, streams + versões |
-| 5 | `0005_council_session_durability_v2.sql` | sessão/reunião institucional V2, estado/votos/fechamento/histórico cross-restart |
+| Versão | Arquivo                                          | Responsabilidade                                                                 |
+| -----: | ------------------------------------------------ | -------------------------------------------------------------------------------- |
+|      1 | `0001_gradebook_context_entities_imports_v1.sql` | anos/configurações, entidades, fontes, manifestos, lotes e diagnósticos          |
+|      2 | `0002_gradebook_records_audit_v1.sql`            | registros acadêmicos, reconciliação, ocorrências e transições de Auditoria       |
+|      3 | `0003_logical_source_record_catalog_v1.sql`      | associação anual/versionada entre fonte lógica e stream acadêmico                |
+|      4 | `0004_bulletin_council_durability_v1.sql`        | snapshots de Boletins e decisões de Conselho, streams + versões                  |
+|      5 | `0005_council_session_durability_v2.sql`         | sessão/reunião institucional V2, estado/votos/fechamento/histórico cross-restart |
 
 As migrations usam criação condicional e registro idempotente em `gradebook_schema_migrations`. `GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS` contém a ordem integral 0001–0005 e é a referência do runner local/preview e do runtime para detectar pendência.
 
@@ -64,12 +64,12 @@ Item ausente em uma nova versão não é desativado automaticamente. Estado `ina
 
 A #340 adiciona exatamente quatro tabelas:
 
-| Tabela | Papel |
-| --- | --- |
-| `bulletin_snapshot_streams` | raiz/versionamento do snapshot de Boletim |
-| `bulletin_snapshot_versions` | histórico imutável do snapshot, contexto e payload canônico |
-| `council_decision_streams` | raiz/versionamento da decisão por aluno/turma/ano |
-| `council_decision_versions` | histórico append-only da decisão humana, justificativa, ator e instante |
+| Tabela                       | Papel                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------- |
+| `bulletin_snapshot_streams`  | raiz/versionamento do snapshot de Boletim                               |
+| `bulletin_snapshot_versions` | histórico imutável do snapshot, contexto e payload canônico             |
+| `council_decision_streams`   | raiz/versionamento da decisão por aluno/turma/ano                       |
+| `council_decision_versions`  | histórico append-only da decisão humana, justificativa, ator e instante |
 
 A 0004 não persiste a sessão/reunião institucional V2. Essa limitação histórica foi classificada como `blocks-pilot` pela #394 e é removida no catálogo de código pela 0005/#395, sem reinterpretar as quatro tabelas V1.
 
@@ -86,10 +86,10 @@ A 0004 inclui índices para:
 
 A #395 adiciona exatamente duas tabelas, sem alterar shared contracts:
 
-| Tabela | Papel |
-| --- | --- |
-| `council_session_streams` | raiz por `academic_year_id + class_reference`, estado `open/closed` e versão atual |
-| `council_session_versions` | estado versionado append-only contendo votos opcionais e snapshot de fechamento |
+| Tabela                     | Papel                                                                              |
+| -------------------------- | ---------------------------------------------------------------------------------- |
+| `council_session_streams`  | raiz por `academic_year_id + class_reference`, estado `open/closed` e versão atual |
+| `council_session_versions` | estado versionado append-only contendo votos opcionais e snapshot de fechamento    |
 
 A porta `CouncilSessionStoreV2` permanece provider-independent. O adapter D1 passa a preservar:
 
@@ -174,17 +174,19 @@ Somente dados sintéticos são usados.
 
 ## Produção
 
-Estado remoto consolidado e **inalterado** nesta issue:
+Estado remoto confirmado pela #399:
 
 - D1 acadêmico produtivo: presente e associado ao binding protegido;
 - binding `GRADEBOOK_D1`: presente;
-- migrations remotas aplicadas: 0001–0004, 4/4;
-- schema remoto: version 4 / **25 tabelas de domínio**;
-- migration 0005: integrada no código, **não aplicada remotamente**;
+- migrations remotas aplicadas: 0001–0005, 5/5;
+- schema remoto: version 5 / **27 tabelas de domínio**;
+- migrations pendentes: 0;
+- `council_session_streams` e `council_session_versions`: presentes com FKs e índices canônicos;
+- catálogo físico remoto: 27/27 tabelas esperadas, sem faltantes ou extras;
 - smoke sintético da onda 23: verde no schema 4/25 então vigente;
 - recovery pós-smoke: corpus sintético restaurado para zero raízes residuais;
 - production gate final: OFF;
 - piloto real: não iniciado;
 - `authorityMode: imported-source`.
 
-A presença da 0005 no repositório não autoriza aplicação remota. Antes de futura janela que use Conselho V2 durável, uma autorização operacional própria deve aplicar/confirmar a migration pendente e revalidar schema. Nenhum dado real pode entrar enquanto o schema exigido estiver pendente.
+A #399 executou somente migration + inspeção. O smoke produtivo sintético da sessão V2, incluindo recovery integral do corpus, permanece na #400. A presença do schema 5 não autoriza piloto nem abertura permanente do runtime.

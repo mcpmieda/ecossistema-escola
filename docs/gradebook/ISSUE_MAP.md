@@ -10,26 +10,26 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 - **Onda 21:** #365 / PR #368 + #366 / PR #369 → #367 / PR #370
 - **Onda 22:** #349 / PR #375 → #371 / PR #376 → (#372 / PR #377 + #373 / PR #378) → #374 / PR #379
 - **Onda 23:** #380 → #381 → #382 → #383
-- **Armazenamento:** Cloudflare D1 local/preview + produção; migrations 0001–0004 / 25 tabelas
-- **Produção acadêmica:** recurso/binding/schema presentes e smoke-validados; gate final OFF, operação real ainda não iniciada
+- **Armazenamento:** Cloudflare D1 local/preview + produção; migrations 0001–0005 / 27 tabelas
+- **Produção acadêmica:** recurso/binding presentes e smoke-validados na onda 23; schema 5/27 aplicado na #399; smoke da sessão V2 pendente na #400; gate final OFF, operação real ainda não iniciada
 - **Autoridade ativa:** `imported-source`
 - **Autoridade-alvo futura:** `native-engine`, separada em #347/F9
 - **Autorização acadêmica:** `gradebook.persistence.admin`, server-side
 
 ## Fases após onda 22
 
-| Fase                   | Issue | Estado                                                          | Próximo grande passo                     |
-| ---------------------- | ----: | --------------------------------------------------------------- | ---------------------------------------- |
-| F0 Fundação            |  #183 | concluída                                                       | manutenção                               |
-| F1 Fonte/importação    |  #184 | **7/7 histórico + fidelidade V2 integrada**                     | manutenção                               |
-| F2 Persistência        |  #185 | D1 produtivo + schema 4/25; gate final OFF                       | piloto somente por autorização própria    |
-| F3 Motor               |  #186 | V1 concluída, comparativa                                       | futura autoridade via #347/F9            |
-| F4 Auditoria           |  #187 | revisão 7/7 + investigação/correção determinística integrada    | produção/piloto por gates próprios       |
-| F5 Centrais            |  #188 | cadastro/confirmação docente + atribuições anuais concluídos    | manutenção                               |
-| F6 Desempenho          |  #189 | **concluída: gráficos + comparação proporcional profile-aware**  | manutenção; write config ainda bloqueado |
-| F7 Conselho            |  #190 | V2 institucional + decisões duráveis local/preview              | gates residuais próprios                 |
-| F8 Boletins/Relatórios |  #191 | snapshots duráveis + PDF individual/batch + reports             | produção somente por autorização própria |
-| F9 Piloto/segurança    |  #192 | infraestrutura produtiva smoke-validada; gate final OFF          | piloto → autoridade                      |
+| Fase                   | Issue | Estado                                                                 | Próximo grande passo                        |
+| ---------------------- | ----: | ---------------------------------------------------------------------- | ------------------------------------------- |
+| F0 Fundação            |  #183 | concluída                                                              | manutenção                                  |
+| F1 Fonte/importação    |  #184 | **7/7 histórico + fidelidade V2 integrada**                            | manutenção                                  |
+| F2 Persistência        |  #185 | D1 produtivo + schema 5/27; gate final OFF                             | #400, depois piloto por autorização própria |
+| F3 Motor               |  #186 | V1 concluída, comparativa                                              | futura autoridade via #347/F9               |
+| F4 Auditoria           |  #187 | revisão 7/7 + investigação/correção determinística integrada           | produção/piloto por gates próprios          |
+| F5 Centrais            |  #188 | cadastro/confirmação docente + atribuições anuais concluídos           | manutenção                                  |
+| F6 Desempenho          |  #189 | **concluída: gráficos + comparação proporcional profile-aware**        | manutenção; write config ainda bloqueado    |
+| F7 Conselho            |  #190 | V2 institucional + decisões/sessão duráveis; schema produtivo presente | #400 smoke/recovery sintético               |
+| F8 Boletins/Relatórios |  #191 | snapshots duráveis + PDF individual/batch + reports                    | produção somente por autorização própria    |
+| F9 Piloto/segurança    |  #192 | infraestrutura base smoke-validada; schema 5/27; gate final OFF        | #400 → piloto → autoridade                  |
 
 ## Onda 20 — F9 readiness
 
@@ -66,8 +66,8 @@ Nenhum desses gates é consequência automática da #361. Nova execução exige 
 
 ## Onda 21 — fidelidade das avaliações trimestrais
 
-| Frente        | Issue / PR  | Entrega                                                                                   |
-| ------------- | ----------- | ----------------------------------------------------------------------------------------- |
+| Frente        | Issue / PR  | Entrega                                                                                  |
+| ------------- | ----------- | ---------------------------------------------------------------------------------------- |
 | Contrato V2   | #365 / #368 | definições R/S e AA:AJ prospectivas, identidade estável e compatibilidade V1             |
 | Implementação | #366 / #369 | reconhecimento, materialização, versionamento, D1, Desempenho e consumidores compatíveis |
 | Integração    | #367 / #370 | regressão transversal, readiness e memória canônica                                      |
@@ -90,13 +90,13 @@ Merges das frentes:
 
 ## Onda 22 — decisão, comparação e correção determinística
 
-| Frente                  | Issue / PR  | Entrega                                                                                  |
-| ----------------------- | ----------- | ---------------------------------------------------------------------------------------- |
-| Decisão normativa       | #349 / #375 | BN-DEC-019 consolidada                                                                   |
-| Contratos compartilhados | #371 / #376 | comparação proporcional V2 e reconciliação determinística V2                            |
-| Desempenho              | #372 / #377 | comparação profile-aware, referência explícita e configuração server-side               |
-| Auditoria               | #373 / #378 | investigação, stop e correção determinística pelo planner/executor oficiais              |
-| Integração              | #374 / #379 | regressão, documentação, publicação e retorno aos gates produtivos                       |
+| Frente                   | Issue / PR  | Entrega                                                                     |
+| ------------------------ | ----------- | --------------------------------------------------------------------------- |
+| Decisão normativa        | #349 / #375 | BN-DEC-019 consolidada                                                      |
+| Contratos compartilhados | #371 / #376 | comparação proporcional V2 e reconciliação determinística V2                |
+| Desempenho               | #372 / #377 | comparação profile-aware, referência explícita e configuração server-side   |
+| Auditoria                | #373 / #378 | investigação, stop e correção determinística pelo planner/executor oficiais |
+| Integração               | #374 / #379 | regressão, documentação, publicação e retorno aos gates produtivos          |
 
 Merges das frentes:
 
@@ -120,20 +120,29 @@ Próxima ordem histórica após a onda 22: `onda 23 produção controlada → on
 
 ## Onda 23 — produção controlada
 
-| Etapa | Issue | Evidência sanitizada |
-| --- | ---: | --- |
-| Recurso/binding | #380 | D1 produtivo e `GRADEBOOK_D1` presentes; gate OFF |
-| Migrations | #381 | 4/4, schema version 4, 25 tabelas, pendentes 0 |
-| Smoke | #382 | 5 passos verdes; snapshot/reprint/recovery; resíduo sintético final 0 |
-| Integração | #383 | readiness V2 + memória canônica, sem nova operação remota |
+| Etapa           | Issue | Evidência sanitizada                                                  |
+| --------------- | ----: | --------------------------------------------------------------------- |
+| Recurso/binding |  #380 | D1 produtivo e `GRADEBOOK_D1` presentes; gate OFF                     |
+| Migrations      |  #381 | 4/4, schema version 4, 25 tabelas, pendentes 0                        |
+| Smoke           |  #382 | 5 passos verdes; snapshot/reprint/recovery; resíduo sintético final 0 |
+| Integração      |  #383 | readiness V2 + memória canônica, sem nova operação remota             |
 
 Estado consolidado: `production-infrastructure-smoke-validated-awaiting-private-pilot`. O SHA usado no smoke final foi `2fdefa87f186e84ed40637437d4b0199baff82c6`; o production gate terminou OFF e `authorityMode` continua `imported-source`.
 
-Limitações conhecidas para revisão de escopo na onda 24: case store de reconciliação V2 process-local, sessão/reunião do Conselho V2 process-local e write da configuração de comparação ainda não integrado. A integração #383 não cria solução por conveniência.
+As limitações registradas pela #383 foram classificadas na #394. O case store de reconciliação V2 permanece process-local com controles; o write da configuração continua fora do escopo autorizado; a sessão V2 ganhou store D1 pela #395 / PR #398.
 
-A #384 / PR #385 segue sem merge nesta consolidação e, portanto, não altera ainda a decisão canônica em `DECISIONS.md`.
+A #384 foi integrada pela PR #393 e publicou a BN-DEC-020.
 
-Próxima ordem: `onda 23 concluída → onda 24 piloto privado real → #347 autoridade nativa`.
+## Onda 24 — gates pré-piloto
+
+| Etapa                    |    Issue/PR | Evidência sanitizada                              |
+| ------------------------ | ----------: | ------------------------------------------------- |
+| Revisão de escopo        | #394 / #397 | sessão V2 era o único `blocks-pilot` técnico      |
+| Store D1 da sessão       | #395 / #398 | durabilidade cross-restart integrada no código    |
+| Migration produtiva      |        #399 | 0005 aplicada; schema 5/27; pendentes 0; gate OFF |
+| Smoke/recovery da sessão |        #400 | separado; não executado pela #399                 |
+
+Próxima ordem: `#399 integrada → #400 sintético verde → piloto privado integral → #347 autoridade nativa`.
 
 ## Como iniciar agente
 
