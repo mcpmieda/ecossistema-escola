@@ -23,6 +23,7 @@ Este documento congela o vocabulário público e registra a maturidade das imple
 | import/reconciliação/Auditoria V1                        | congelado + planejador/executor/persistência                                                                                                                  |
 | `GradebookImportPersistenceTransportV1`                  | contrato #409 fechado; uma fonte reconhecida por request, sem workbook/binário/plano do cliente; implementação reservada à #410                               |
 | `GradebookImportPersistenceTransportV2`                  | evolução #413 para primeiro import: fonte lógica resolvida/criada pelo servidor e bootstrap transacional provider-independent; implementação reservada à #410 |
+| `GradebookImportPersistenceTransportV3`                  | evolução #416: preserva AC/AD/AE brutos/classificados e fecha projeções independentes imported/calculated de Term/REC/Annual; integração reservada à #410     |
 | `Performance Comparison V2`                              | contrato compartilhado da #371; percentual profile-aware/configuração server-side; runtime ainda não integrado                                                |
 | `Reconciliation V2`                                      | contrato compartilhado da #371; correção determinística auditável sem reinterpretar V1; runtime ainda não integrado                                           |
 | `OperationalWorkspace V1`                                | HTTP/UI local-preview + hardening                                                                                                                             |
@@ -208,6 +209,47 @@ as fases já existentes de source write e academic writes. Não pode copiar reco
 `planImportReconciliation`, `planAssessmentImportReconciliationV2`, validação/aplicação do plano, CAS
 ou helpers do executor. O bridge continua único; transport V1 continua interpretável, mas não resolve
 o primeiro import.
+
+## Importação → resultados oficiais — projeções V3 (#416)
+
+`GradebookImportPersistenceTransportV3`, em
+`shared/gradebook-contracts/imports/import-persistence-transport-v3.ts`, sucede o V2 sem reinterpretá-lo.
+Mantém a mesma unidade, bounds, segurança, resolução server-side de fonte e resposta sanitizada. A
+mudança é limitada às células `AC`/`AD`/`AE`: no lugar de booleanos, cada observação preserva
+classificação e valor bruto como `numeric | empty | missing-field | unrecognized | formula`. O valor
+numérico `1` resolve `applicable`; o valor numérico `0`, sustentado pelo histórico sintético do contrato,
+resolve `not-applicable`; vazio, ausente, fórmula, booleano, texto ou qualquer outro número resolve
+`insufficient-data`/revisão. Em particular, `false` não equivale a zero numérico.
+
+O recognizer mantém os booleanos V1/V2 apenas como projeção histórica de compatibilidade e expõe as
+observações V3 separadamente. A retomada da #410 deve emitir exclusivamente o V3. O servidor reconstrói
+a proveniência com manifesto/hash + guia + linha + endereço estrutural (`AC`, `AD` ou `AE`); o navegador
+não envia evidência autoritativa nem decisão de aplicabilidade.
+
+`academic-result-projection-v1.ts` fecha a composição provider-independent dos records existentes sem
+criar fórmula:
+
+- Term imported executa `composeNativeTermOutcome` com T/Z/AK; Term calculated executa a mesma função
+  com os lançamentos nativos. AM permanece observação imported direta e o calculated vem da execução
+  nativa independente.
+- FinalRecovery imported executa o núcleo oficial com X/Y/AA, AC/AD/AE e R/S/T; FinalRecovery calculated
+  executa o mesmo núcleo com inputs nativos. O wrapper histórico `resolveNativeFinalRecovery` conserva
+  a derivação nativa de aplicabilidade.
+- para o total anual original final, somente T3-AN e REC-AB são candidatos. Iguais preservam ambas as
+  evidências; diferentes exigem revisão; apenas um presente é usado. T1/T2-AN são intermediários e nunca
+  são promovidos por ausência de T3.
+- U presente é o total pós-REC imported direto. U ausente só pode projetar o total original quando a
+  execução imported do resolver oficial provar recuperação não aplicável; os demais casos ficam
+  `insufficient-data`.
+- Annual imported executa `resolveNativeAnnualOutcome` com totais imported; Annual calculated executa
+  novamente com totais nativos. Cada lado usa o `calculatedAcademicState` de sua própria execução;
+  `finalDecision` permanece `pending` e `authorityMode` permanece `imported-source`.
+
+O conjunto anual não vem das disciplinas do request. `loadOfficialAnnualCurriculumV1` exige a matrícula
+atual e enumera, em páginas de no máximo 100, todos os assignments oficiais da turma/ano. Cursor cíclico,
+assignment duplicado/incompatível ou conjunto vazio falha fechado. Resultado ausente de qualquer
+componente oficial produz cobertura incompleta e `blocked-incomplete-coverage`; nunca libera Conselho
+silenciosamente.
 
 ## Pesquisa acadêmica e navegação
 

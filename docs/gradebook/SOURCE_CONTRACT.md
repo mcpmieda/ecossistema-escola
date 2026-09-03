@@ -150,11 +150,28 @@ Nas guias `REC`:
 | Nota original do 2º trimestre | `Y` |
 | Nota original do 3º trimestre | `AA` |
 | Total anual original | `AB` |
-| REC aplicável ao 1º trimestre | `AC = 1` |
-| REC aplicável ao 2º trimestre | `AD = 1` |
-| REC aplicável ao 3º trimestre | `AE = 1` |
+| Flag de REC do 1º trimestre | `AC` |
+| Flag de REC do 2º trimestre | `AD` |
+| Flag de REC do 3º trimestre | `AE` |
 
 A recuperação final substitui a nota do trimestre aplicável no total pós-REC, mesmo quando for menor. O valor anterior permanece no histórico. A #365 não altera essa regra.
+
+### Flags AC/AD/AE no transporte V3
+
+O histórico contratual e a fixture sintética original de REC distinguem explicitamente `1`, `0` e
+ausência: `1` significa recuperação aplicável ao trimestre; `0` significa explicitamente não aplicável.
+O V3 preserva o valor bruto e sua classificação antes de resolver essa semântica. Vazio, campo ausente,
+texto, booleano, fórmula ou número diferente de `0`/`1` são dados insuficientes e exigem revisão; nunca se
+usa a regra genérica `valor !== 1 => not-applicable`.
+
+A proveniência de uma flag válida é reconstruída server-side pelo manifesto/hash, guia, linha e coluna
+estrutural AC/AD/AE. Uma observação inválida permanece no request sanitizado para diagnóstico, mas não
+autoriza um `FinalRecoveryV1` como se fosse evidência resolvida.
+
+Para o total anual original, T1/T2-AN são somente acumulados intermediários. Os candidatos finais são
+T3-AN e REC-AB: igualdade preserva as duas evidências; divergência exige revisão; apenas um disponível é
+aceito. U é observação direta do total pós-REC; sua ausência não transforma automaticamente o original
+em pós-REC.
 
 ## Semântica das células de lançamento
 
@@ -258,12 +275,14 @@ A identidade estrutural das avaliações V2 segue a mesma política: fonte lógi
 - Testes V1 históricos: `tests/gradebook/source-contract/source-contract-v1.test.ts`.
 - Testes V2: `tests/gradebook/source-contract/source-contract-v2.test.ts` e `tests/gradebook/result-contracts/results-contract-v2.test.ts`.
 - Contrato do manifesto/lote: `shared/gradebook-contracts/imports/import-contract-v1.ts`.
+- Transporte de persistência V3: `shared/gradebook-contracts/imports/import-persistence-transport-v3.ts`.
 - Manifesto runtime: `src/features/gradebook/import/file-manifest.ts`.
 - Orquestração vigente: `src/features/gradebook/import/import-batch.ts`.
 - Massa sintética vigente: `tests/gradebook/fixtures/synthetic-teacher-workbooks.ts`.
 - Recognizer V2: `src/features/gradebook/import/spreadsheet-recognizer.ts`.
 - Materialização V2: `src/features/gradebook/import/assessment-definition-materializer-v2.ts`.
 - Reconciliação V2 sobre o planejador/executor oficial: `server/gradebook/application/import/assessment-import-reconciliation-v2.ts`.
+- Projeções provider-independent de Term/REC/Annual: `server/gradebook/application/import/academic-result-projection-v1.ts`.
 - Regressão transversal: `tests/gradebook/integration/wave-21-assessment-fidelity-integration.test.ts`.
 - Protocolo privado histórico F1: `docs/gradebook/REAL_DATA_VALIDATION.md`.
 
