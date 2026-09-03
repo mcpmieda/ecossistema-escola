@@ -9,18 +9,18 @@ import type {
   ImportFileId,
   SourceFileManifestId,
 } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
-import {
-  GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V2,
-  type GradebookImportPersistenceIssueV2,
-  type GradebookImportPersistenceRequestV2,
-  type GradebookImportPersistenceResponseV2,
-  type GradebookImportPersistenceSummaryV2,
-  type GradebookImportPersistenceWriteCountsV2,
-} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v2';
 import type {
-  GradebookImportAssessmentDefinitionV1,
-  GradebookImportTermSheetObservationV1,
-} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v1';
+  GradebookImportPersistenceIssueV2,
+  GradebookImportPersistenceSummaryV2,
+  GradebookImportPersistenceWriteCountsV2,
+} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v2';
+import {
+  GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+  type GradebookImportPersistenceRequestV4,
+  type GradebookImportPersistenceResponseV4,
+  type GradebookImportTermSheetObservationV4,
+} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
+import type { GradebookImportAssessmentDefinitionV1 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v1';
 import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
@@ -49,10 +49,16 @@ import { planAssessmentImportReconciliationV2 } from './assessment-import-reconc
 import { createImportBootstrapEnvelopeV2 } from './import-bootstrap-v2';
 import { executeImportBootstrapChangePlanV2 } from './execution/execute-import-change-plan-v1';
 import { resolveLogicalSourceForImportV2 } from './logical-source-resolution-v2';
+import {
+  materializeGradebookImportOfficialRecordsV4,
+  type GradebookImportOfficialRecordMaterializationV4,
+} from './import-official-record-materializer-v4';
+import type { GradebookImportAnnualStateSourceV1 } from '../../persistence/d1/imports/d1-import-annual-state-source-v1';
 
-export interface GradebookImportPersistenceServiceDependenciesV2 {
+export interface GradebookImportPersistenceServiceDependenciesV4 {
   readonly unitOfWork: PersistenceUnitOfWorkV2;
   readonly transaction: ImportBootstrapTransactionPortV2;
+  readonly annualStateSource: GradebookImportAnnualStateSourceV1;
   readonly now: () => string;
   readonly createId: (
     kind: 'logical-source' | 'manifest' | 'import-batch' | 'import-file',
@@ -96,6 +102,21 @@ function issue(
   code: GradebookImportPersistenceIssueV2['code'],
 ): readonly [GradebookImportPersistenceIssueV2] {
   return [{ code, scope: 'file' }];
+}
+
+function reviewFromOfficialMaterialization(
+  result: Extract<GradebookImportOfficialRecordMaterializationV4, { readonly status: 'review-required' }>,
+): GradebookImportPersistenceResponseV4 {
+  return {
+    transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+    state: 'review-required',
+    summary: emptySummary(),
+    issues: issue(
+      result.reason === 'incompatible-reference'
+        ? 'incompatible-reference'
+        : 'invalid-academic-shape',
+    ),
+  };
 }
 
 function definition(
@@ -149,7 +170,7 @@ function definition(
 }
 
 function recognizedStudent(
-  student: GradebookImportTermSheetObservationV1['students'][number],
+  student: GradebookImportTermSheetObservationV4['students'][number],
 ): StudentRecognition {
   const values = new Map(
     student.assessmentValues.map((value) => [value.sourceSlot, value.value as NoteValue]),
@@ -160,25 +181,26 @@ function recognizedStudent(
     name: '',
     status: '',
     quantitativeAssessments: [values.get('R') ?? null, values.get('S') ?? null],
-    quantitativeTotal: student.aggregates.quantitativeTotal as NoteValue | null,
-    parallel: student.aggregates.parallelAssessment as NoteValue | null,
+    quantitativeTotal: null,
+    parallel: null,
     qualitative: SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map(
       (slot) => values.get(slot.sourceSlot) ?? null,
     ),
-    qualitativeTotal: student.aggregates.qualitativeTotal as NoteValue | null,
-    official: student.aggregates.officialTermGrade as NoteValue | null,
-    annual: student.aggregates.annualAccumulatedTotal as NoteValue | null,
+    qualitativeTotal: null,
+    official: null,
+    annual: null,
+    termResultObservations: student.aggregates,
     recovery: null,
   };
 }
 
 function recognizedSheet(
-  sheet: GradebookImportTermSheetObservationV1,
-  request: GradebookImportPersistenceRequestV2,
+  sheet: GradebookImportTermSheetObservationV4,
+  request: GradebookImportPersistenceRequestV4,
 ): GradeSheetRecognition {
   return {
     name: sheet.sourceSheetName,
-    range: 'transport-v2',
+    range: 'transport-v4',
     rows: sheet.students.length,
     columns: 0,
     className: sheet.recognizedContext.classGroupLabel,
@@ -196,52 +218,10 @@ function recognizedSheet(
   };
 }
 
-async function validateReferences(
-  request: GradebookImportPersistenceRequestV2,
-  unitOfWork: PersistenceUnitOfWorkV2,
-): Promise<boolean> {
-  const context = { academicYearId: request.confirmedContext.academicYearId };
-  const year = await unitOfWork.entities.get(context, {
-    kind: 'academic-year',
-    id: context.academicYearId,
-  });
-  if (!year || year.value.kind !== 'academic-year') return false;
-  for (const sheet of request.sheets) {
-    const assignment = await unitOfWork.entities.get(context, {
-      kind: 'teaching-assignment',
-      id: sheet.teachingAssignmentId,
-    });
-    if (
-      !assignment ||
-      assignment.value.kind !== 'teaching-assignment' ||
-      assignment.value.value.academicYearId !== context.academicYearId
-    )
-      return false;
-    for (const observed of sheet.students) {
-      const { studentId, enrollmentId } = observed.confirmedStudent;
-      const [student, enrollment] = await Promise.all([
-        unitOfWork.entities.get(context, { kind: 'student', id: studentId }),
-        unitOfWork.entities.get(context, { kind: 'enrollment', id: enrollmentId }),
-      ]);
-      if (
-        !student ||
-        student.value.kind !== 'student' ||
-        !enrollment ||
-        enrollment.value.kind !== 'enrollment' ||
-        enrollment.value.value.academicYearId !== context.academicYearId ||
-        enrollment.value.value.studentId !== studentId ||
-        enrollment.value.value.classGroupId !== assignment.value.value.classGroupId
-      )
-        return false;
-    }
-  }
-  return true;
-}
-
 function serverBatch(
-  request: GradebookImportPersistenceRequestV2,
+  request: GradebookImportPersistenceRequestV4,
   teacherId: TeacherId,
-  dependencies: GradebookImportPersistenceServiceDependenciesV2,
+  dependencies: GradebookImportPersistenceServiceDependenciesV4,
   knownManifest: SourceFileManifestV1 | null,
 ): { batch: ImportBatchResultV1; importFileId: ImportFileId } {
   const now = dependencies.now();
@@ -352,22 +332,14 @@ function summarizePlan(
   };
 }
 
-export function createGradebookImportPersistenceServiceV2(
-  dependencies: GradebookImportPersistenceServiceDependenciesV2,
+export function createGradebookImportPersistenceServiceV4(
+  dependencies: GradebookImportPersistenceServiceDependenciesV4,
 ) {
   return {
     async execute(
-      request: GradebookImportPersistenceRequestV2,
-    ): Promise<GradebookImportPersistenceResponseV2> {
+      request: GradebookImportPersistenceRequestV4,
+    ): Promise<GradebookImportPersistenceResponseV4> {
       try {
-        if (!(await validateReferences(request, dependencies.unitOfWork))) {
-          return {
-            transportVersion: 2,
-            state: 'review-required',
-            summary: emptySummary(),
-            issues: issue('incompatible-reference'),
-          };
-        }
         const resolution = await resolveLogicalSourceForImportV2(request, {
           entities: dependencies.unitOfWork.entities,
           logicalSources: dependencies.unitOfWork.logicalSources,
@@ -382,12 +354,22 @@ export function createGradebookImportPersistenceServiceV2(
                 ? 'incompatible-logical-source-context'
                 : 'incompatible-reference';
           return {
-            transportVersion: 2,
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
             state: 'review-required',
             summary: emptySummary(),
             issues: issue(code),
           };
         }
+
+        const officialRecords = await materializeGradebookImportOfficialRecordsV4({
+          request,
+          unitOfWork: dependencies.unitOfWork,
+          annualStateSource: dependencies.annualStateSource,
+        });
+        if (officialRecords.status !== 'ready') {
+          return reviewFromOfficialMaterialization(officialRecords);
+        }
+
         const knownSource = await dependencies.unitOfWork.imports.findSourceFileByHash(
           { academicYearId: request.confirmedContext.academicYearId },
           request.manifest.sha256,
@@ -433,6 +415,7 @@ export function createGradebookImportPersistenceServiceV2(
                 importFileId,
                 logicalSource: { state: 'confirmed', logicalSourceId: resolution.source.id },
                 materialization,
+                additionalRecords: officialRecords.records,
               },
             ],
           },
@@ -446,7 +429,7 @@ export function createGradebookImportPersistenceServiceV2(
         const summary = summarizePlan(plan, resolution.status === 'new-source' ? 1 : 0);
         if (plan.assessmentComponentPlanV2.counts.blocked > 0 || plan.counts.blocked > 0) {
           return {
-            transportVersion: 2,
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
             state: 'blocked',
             summary,
             issues: issue('blocked-definition'),
@@ -454,7 +437,7 @@ export function createGradebookImportPersistenceServiceV2(
         }
         if (plan.counts['missing-from-new-source'] > 0 || plan.status === 'review-required') {
           return {
-            transportVersion: 2,
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
             state: 'review-required',
             summary,
             issues: issue('missing-from-new-source'),
@@ -463,7 +446,7 @@ export function createGradebookImportPersistenceServiceV2(
         const envelope = createImportBootstrapEnvelopeV2({ resolution, batch, plan });
         if (envelope.status !== 'ready') {
           return {
-            transportVersion: 2,
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
             state: 'review-required',
             summary,
             issues: issue('planning-failed'),
@@ -474,19 +457,22 @@ export function createGradebookImportPersistenceServiceV2(
           envelope.request,
           dependencies.transaction,
         );
-        if (result.status === 'version-conflict') return { transportVersion: 2, state: 'conflict' };
-        if (result.status === 'transaction-failed')
-          return { transportVersion: 2, state: 'unavailable' };
+        if (result.status === 'version-conflict') {
+          return { transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4, state: 'conflict' };
+        }
+        if (result.status === 'transaction-failed') {
+          return { transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4, state: 'unavailable' };
+        }
         if (result.status === 'rejected-invalid-plan') {
           return {
-            transportVersion: 2,
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
             state: 'blocked',
             summary,
             issues: issue('planning-failed'),
           };
         }
         if (result.status !== 'applied') {
-          return { transportVersion: 2, state: 'unavailable' };
+          return { transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4, state: 'unavailable' };
         }
         const committedWrites = writes({
           logicalSources: result.logicalSourceVersions,
@@ -503,12 +489,15 @@ export function createGradebookImportPersistenceServiceV2(
           committedWrites.academicRecordVersions +
           committedWrites.logicalSourceRecordAssociationVersions;
         return {
-          transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V2,
+          transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
           state: academicWrites > 0 ? 'applied' : 'no-changes',
           summary: finalSummary,
         };
       } catch {
-        return { transportVersion: 2, state: 'unavailable' };
+        return {
+          transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+          state: 'unavailable',
+        };
       }
     },
   };
