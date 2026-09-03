@@ -39,6 +39,10 @@ describe('Council Workspace HeroUI V1', () => {
       page.indexOf('<EvidenceDetails detail={detail} />'),
     );
     expect(page).toContain('requestCouncilStudentV1');
+    expect(page).toContain('onFocusedStudentReferenceChange(response.detail.studentReference)');
+    expect(councilSurface).toContain(
+      'onFocusedStudentReferenceChange={setFocusedStudentReference}',
+    );
     expect(page).toContain('A fila mantém o aluno principal em foco sem abrir detalhes em lote.');
   });
 
@@ -77,7 +81,9 @@ describe('Council Workspace HeroUI V1', () => {
 
   it('não persiste dados acadêmicos no navegador e usa fetch no-store', () => {
     const frontend = `${client}\n${councilSurface}`;
-    expect(client).toContain("const COUNCIL_WORKSPACE_ENDPOINT = '/api/gradebook/council-workspace'");
+    expect(client).toContain(
+      "const COUNCIL_WORKSPACE_ENDPOINT = '/api/gradebook/council-workspace'",
+    );
     expect(client).toContain("cache: 'no-store'");
     expect(frontend).not.toContain('localStorage');
     expect(frontend).not.toContain('sessionStorage');
@@ -95,7 +101,9 @@ describe('Council Workspace HeroUI V1', () => {
   });
 
   it('preserva auth/no-store e fail-closed no handler isolado', () => {
-    expect(handler).toContain("GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1 = '/api/gradebook/council-workspace'");
+    expect(handler).toContain(
+      "GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1 = '/api/gradebook/council-workspace'",
+    );
     expect(handler).toContain('session = await requireAuth(request, env)');
     expect(handler).toContain('authorizeGradebookD1RuntimeV1(session)');
     expect(handler).not.toContain("env.RUNTIME_ENVIRONMENT === 'production'");
