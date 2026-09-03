@@ -18,6 +18,10 @@ import type {
   VersionedWriteResultV1,
 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import type {
+  ImportBootstrapTransactionPortV2,
+  ImportBootstrapTransactionRequestV2,
+} from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
+import type {
   AssessmentComponentChangePlanV2,
   AssessmentComponentPlanItemV2,
   AssessmentImportChangePlanV2,
@@ -1432,7 +1436,15 @@ async function applyReadyFile(input: {
   applied: MutableAppliedVersionsV1;
 }): Promise<void> {
   await applySourceFileWrite(input);
+  await applyReadyFileAcademicWrites(input);
+}
 
+async function applyReadyFileAcademicWrites(input: {
+  context: AcademicPersistenceContextV1;
+  file: ImportFileChangePlanV1;
+  unitOfWork: PersistenceUnitOfWorkV1;
+  applied: MutableAppliedVersionsV1;
+}): Promise<void> {
   for (const item of input.file.items) {
     switch (item.state) {
       case 'new':
@@ -1556,7 +1568,6 @@ export async function executeImportChangePlan(
     academicRecords: [],
     logicalSourceRecordAssociations: [],
   };
-
   try {
     const committed = await transactionPort.runBatchPromotion(
       context,
@@ -1686,5 +1697,155 @@ export async function executeImportChangePlan(
         message: 'A promoção transacional falhou sem confirmar alterações.',
       },
     };
+  }
+}
+
+export type ImportBootstrapChangePlanExecutionResultV2 =
+  | {
+      readonly status: 'applied';
+      readonly logicalSourceVersions: 0 | 1;
+      readonly importBatchVersions: 1;
+      readonly plannedWrites: ImportChangeExecutionWriteCountsV1;
+      readonly committedWrites: ImportChangeExecutionWriteCountsV1;
+    }
+  | {
+      readonly status: 'version-conflict' | 'transaction-failed';
+    }
+  | {
+      readonly status: 'rejected-invalid-plan';
+      readonly validationIssues: readonly ImportChangePlanValidationIssueV1[];
+    };
+
+/**
+ * V2 bootstrap orchestration over the same validation, append and CAS functions used above.
+ * Only the transaction boundary and fixed phase ordering differ from the historical promotion.
+ */
+export async function executeImportBootstrapChangePlanV2(
+  plan: AssessmentImportChangePlanV2,
+  request: ImportBootstrapTransactionRequestV2,
+  transactionPort: ImportBootstrapTransactionPortV2,
+): Promise<ImportBootstrapChangePlanExecutionResultV2> {
+  let validation: PlanValidationResultV1;
+  let componentIssues: readonly ImportChangePlanValidationIssueV1[];
+  try {
+    validation = validateImportChangePlan(plan);
+    componentIssues = validateAssessmentComponentPlanV2(plan, plan.assessmentComponentPlanV2);
+  } catch {
+    return {
+      status: 'rejected-invalid-plan',
+      validationIssues: [
+        validationIssue({
+          code: 'invalid-plan-shape',
+          scope: 'plan',
+          message: 'A estrutura do plano não pôde ser validada.',
+        }),
+      ],
+    };
+  }
+  const validationIssues = [...validation.issues, ...componentIssues];
+  if (validationIssues.length > 0) return { status: 'rejected-invalid-plan', validationIssues };
+
+  const readyFileIds = new Set(validation.readyFiles.map((file) => file.importFileId));
+  const componentItems = plan.assessmentComponentPlanV2.items.filter(
+    (item) =>
+      readyFileIds.has(item.importFileId) && (item.state === 'new' || item.state === 'changed'),
+  );
+  const plannedWrites: ImportChangeExecutionWriteCountsV1 = {
+    ...validation.plannedWrites,
+    academicEntityVersions: componentItems.length,
+    totalVersionWrites: validation.plannedWrites.totalVersionWrites + componentItems.length,
+  };
+  const context = { academicYearId: plan.academicYearId } satisfies AcademicPersistenceContextV1;
+  const applied: MutableAppliedVersionsV1 = {
+    academicEntities: [],
+    sourceFiles: [],
+    academicRecords: [],
+    logicalSourceRecordAssociations: [],
+  };
+  let logicalSourceVersions: 0 | 1 = 0;
+
+  try {
+    await transactionPort.runImportBootstrap(context, request, async (unitOfWork) => {
+      if (request.logicalSource.kind === 'create') {
+        const sourceResult = await unitOfWork.logicalSources.createInitial(
+          context,
+          request.logicalSource.value,
+        );
+        if (sourceResult.status === 'resolution-conflict')
+          throw new VersionConflictSignalV1({
+            scope: 'source-file',
+            importFileId: plan.files[0]?.importFileId ?? request.batchWrite.value.files[0]!.id,
+            expectedVersion: null,
+            currentVersion: null,
+          });
+        logicalSourceVersions = sourceResult.status === 'created' ? 1 : 0;
+      }
+      for (const file of validation.readyFiles) {
+        await applySourceFileWrite({ context, file, unitOfWork, applied });
+      }
+      const batchResult = await unitOfWork.imports.appendImportBatchVersion(
+        context,
+        request.batchWrite.value,
+        { expectedVersion: request.batchWrite.expectedVersion },
+      );
+      if (batchResult.status === 'version-conflict')
+        throw new VersionConflictSignalV1({
+          scope: 'source-file',
+          importFileId: request.batchWrite.value.files[0]!.id,
+          expectedVersion: null,
+          currentVersion: batchResult.currentVersion,
+        });
+      if (
+        batchResult.record.version !== 1 ||
+        !sameStructure(batchResult.record.value, request.batchWrite.value)
+      ) {
+        throw new InvalidExecutionSignalV1(
+          validationIssue({
+            code: 'batch-write-result-mismatch',
+            scope: 'plan',
+            message: 'O lote inicial retornou uma versão incompatível.',
+          }),
+        );
+      }
+      await applyAssessmentComponentItemsV2({
+        context,
+        items: componentItems,
+        unitOfWork,
+        applied,
+      });
+      for (const file of validation.readyFiles) {
+        await applyReadyFileAcademicWrites({ context, file, unitOfWork, applied });
+      }
+      const actual = attemptedWriteCounts(applied);
+      if (!sameStructure(actual, plannedWrites))
+        throw new InvalidExecutionSignalV1(
+          validationIssue({
+            code: 'applied-write-count-mismatch',
+            scope: 'plan',
+            message: 'As contagens aplicadas divergem da estimativa validada do plano.',
+          }),
+        );
+    });
+    return {
+      status: 'applied',
+      logicalSourceVersions,
+      importBatchVersions: 1,
+      plannedWrites,
+      committedWrites: attemptedWriteCounts(applied),
+    };
+  } catch (error) {
+    if (error instanceof VersionConflictSignalV1) return { status: 'version-conflict' };
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'batch-version-conflict'
+    ) {
+      return { status: 'version-conflict' };
+    }
+    if (error instanceof InvalidExecutionSignalV1) {
+      return { status: 'rejected-invalid-plan', validationIssues: [error.issue] };
+    }
+    return { status: 'transaction-failed' };
   }
 }

@@ -1,7 +1,9 @@
 import type { PersistenceUnitOfWorkV1 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import type { PersistenceUnitOfWorkV2 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
 import { createGradebookD1AuditRepositoryV1 } from '../audit/d1-audit-repository-v1';
 import { createGradebookD1AcademicEntityRepositoryV1 } from '../entities/d1-academic-entity-repository-v1';
 import { createGradebookD1ImportRepositoryExtensionV1 } from '../imports/d1-import-repository-extension-v1';
+import { createGradebookD1LogicalSourceRepositoryV2 } from '../imports/d1-logical-source-repository-v2';
 import {
   createGradebookD1WriteUnitOfWorkV1,
   type D1WriteDatabaseV1,
@@ -10,6 +12,7 @@ import {
 export interface GradebookD1PersistenceUnitOfWorkOptionsV1 {
   readonly now?: () => string;
   readonly maximumPageSize?: number;
+  readonly bootstrapManifestVersions?: ReadonlyMap<string, number>;
 }
 
 /**
@@ -52,5 +55,15 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
     academicRecords: integrated.academicRecords,
     logicalSourceRecords: integrated.logicalSourceRecords,
     audit,
+  };
+}
+
+export function createGradebookD1PersistenceUnitOfWorkV2(
+  database: D1WriteDatabaseV1,
+  options: GradebookD1PersistenceUnitOfWorkOptionsV1 = {},
+): PersistenceUnitOfWorkV2 {
+  return {
+    ...createGradebookD1PersistenceUnitOfWorkV1(database, options),
+    logicalSources: createGradebookD1LogicalSourceRepositoryV2(database),
   };
 }

@@ -68,6 +68,8 @@ describe('gradebook importer structure', () => {
       'import-batch.ts',
       'use-import-batch.ts',
       'import-panel.tsx',
+      'import-persistence-client-v2.ts',
+      'import-persistence-confirmation-v2.tsx',
       'workbook-inspector.tsx',
       'spreadsheet-recognizer.ts',
     ];
@@ -171,16 +173,17 @@ describe('gradebook importer structure', () => {
     ]);
   });
 
-  it('keeps the importer local and read-only', () => {
-    const importer = [
+  it('keeps workbook bytes local and browser academic storage empty', () => {
+    const workbookReader = [
       source('src/features/gradebook/import/import-batch.ts'),
       source('src/features/gradebook/import/workbook-reader.ts'),
-      source('src/features/gradebook/import/use-import-batch.ts'),
     ].join('\n');
-
-    expect(importer).not.toMatch(
-      /\bfetch\s*\(|localStorage|sessionStorage|indexedDB|\.write\s*\(/u,
-    );
-    expect(importer).toContain('file.arrayBuffer()');
+    const bridge = source('src/features/gradebook/import/import-persistence-client-v2.ts');
+    const importer = `${workbookReader}\n${bridge}\n${source('src/features/gradebook/import/use-import-batch.ts')}`;
+    expect(workbookReader).not.toMatch(/\bfetch\s*\(/u);
+    expect(bridge).toContain('fetch(ENDPOINT');
+    expect(bridge).not.toMatch(/arrayBuffer|workbook|worksheet|logicalSourceId|expectedVersion/iu);
+    expect(importer).not.toMatch(/localStorage|sessionStorage|indexedDB|\.write\s*\(/u);
+    expect(workbookReader).toContain('file.arrayBuffer()');
   });
 });

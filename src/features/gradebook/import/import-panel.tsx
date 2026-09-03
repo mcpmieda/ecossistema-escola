@@ -5,6 +5,7 @@ import { abbreviateSha256 } from './file-manifest';
 import { MAX_NOTES_IMPORT_FILES } from './import-batch';
 import { useImportBatch } from './use-import-batch';
 import { WorkbookInspector } from './workbook-inspector';
+import { ImportPersistenceConfirmationV2 } from './import-persistence-confirmation-v2';
 
 function FileHash({ sha256 }: { sha256: string }) {
   return (
@@ -25,6 +26,10 @@ export function NotesImportPanel() {
     handleFiles,
     loading,
     progress,
+    persistence,
+    persistenceBusy,
+    persist,
+    markReady,
     results,
     selectedId,
     selectedResult,
@@ -177,7 +182,19 @@ export function NotesImportPanel() {
             </div>
           )}
 
-          {selectedResult && <WorkbookInspector result={selectedResult} />}
+          {selectedResult && (
+            <>
+              <WorkbookInspector result={selectedResult} />
+              <ImportPersistenceConfirmationV2
+                key={selectedResult.id}
+                result={selectedResult}
+                persistence={persistence[selectedResult.id] ?? { state: 'recognized' }}
+                externalBusy={persistenceBusy}
+                onReady={(ready) => markReady(selectedResult.id, ready)}
+                onPersist={(references) => persist(selectedResult, references)}
+              />
+            </>
+          )}
         </div>
       )}
     </Surface>

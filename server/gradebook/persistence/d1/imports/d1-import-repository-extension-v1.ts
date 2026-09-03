@@ -65,6 +65,8 @@ export class GradebookD1ImportRepositoryErrorV1 extends Error {
 export interface GradebookD1ImportRepositoryOptionsV1 {
   readonly now?: () => string;
   readonly maximumPageSize?: number;
+  /** Server-only bootstrap evidence for source versions recorded earlier in the same atomic D1 batch. */
+  readonly bootstrapManifestVersions?: ReadonlyMap<string, number>;
 }
 
 type D1RowV1 = Record<string, unknown>;
@@ -689,6 +691,7 @@ class GradebookD1ImportRepositoryExtensionV1 {
     private readonly database: D1WriteDatabaseV1,
     private readonly now: () => string,
     private readonly maximumPageSize: number,
+    private readonly bootstrapManifestVersions: ReadonlyMap<string, number>,
   ) {}
 
   private async safelyRead<T>(operation: () => Promise<T>): Promise<T> {
@@ -760,6 +763,8 @@ class GradebookD1ImportRepositoryExtensionV1 {
     context: AcademicPersistenceContextV1,
     manifest: SourceFileManifestV1,
   ): Promise<number> {
+    const bootstrapped = this.bootstrapManifestVersions.get(manifest.id);
+    if (bootstrapped !== undefined) return rowVersion(bootstrapped);
     const rows = await this.database
       .prepare(
         `SELECT version, payload_json
@@ -1204,6 +1209,7 @@ export function createGradebookD1ImportRepositoryExtensionV1(
     database,
     options.now ?? (() => new Date().toISOString()),
     maximumPageSize,
+    options.bootstrapManifestVersions ?? new Map(),
   );
   return {
     listLogicalSourceVersions: (context, logicalSourceId, page) =>
