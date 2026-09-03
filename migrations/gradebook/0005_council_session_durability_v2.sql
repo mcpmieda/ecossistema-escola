@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS council_session_versions (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_council_session_versions_history
-  ON council_session_versions (academic_year_id, class_reference, version DESC);
+  ON council_session_versions (academic_year_id, class_reference, state, version DESC);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_council_session_versions_closure_reference
   ON council_session_versions (closure_reference)
