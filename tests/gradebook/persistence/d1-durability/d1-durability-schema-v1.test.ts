@@ -153,7 +153,7 @@ describe('migrations de durabilidade Bulletin/Council', () => {
         .prepare(
           `EXPLAIN QUERY PLAN
            SELECT version FROM council_session_versions
-            WHERE academic_year_id = ? AND class_reference = ?
+            WHERE academic_year_id = ? AND class_reference = ? AND state = 'closed'
             ORDER BY version DESC LIMIT ?`,
         )
         .all('academic-year:synthetic:2026', 'class:synthetic:a', 10);
