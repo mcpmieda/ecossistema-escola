@@ -63,7 +63,7 @@ production → binding presente + gate OFF: falha antes do uso acadêmico do D1
 production → gate ON: janela explícita, ainda atrás de auth/capability
 ```
 
-Migrations locais: 0001–0004, 25 tabelas. A 0004 adiciona somente:
+Migrations locais e remotas: 0001–0005, 27 tabelas. A 0004 adiciona:
 
 ```text
 bulletin_snapshot_streams
@@ -72,7 +72,14 @@ council_decision_streams
 council_decision_versions
 ```
 
-Os quatro históricos são append-only, sem cascade/purge inventado. Na onda 23, 0001–0004 foram aplicadas remotamente: schema version 4 / 25 tabelas, zero pendência.
+A 0005 adiciona:
+
+```text
+council_session_streams
+council_session_versions
+```
+
+Os históricos são append-only, sem cascade/purge inventado. Na onda 23, 0001–0004 foram aplicadas remotamente; a #399 aplicou exclusivamente a 0005 e confirmou schema version 5 / 27 tabelas / zero pendência, com gate OFF.
 
 ## Autorização e HTTP
 
@@ -122,7 +129,7 @@ GradebookD1RuntimeV1
   └── promoteImportChangePlan()
 ```
 
-A composição física ocorre somente depois de autorização opaca e do gate de ambiente. Em produção, o gate explícito deve estar ON apenas durante janela autorizada; OFF falha antes do uso acadêmico do binding. Snapshots de Boletins e decisões de Conselho usam a factory D1 durável da #340; bindings remotos com `batch()` usam batch guardado para atomicidade. A sessão/reunião institucional V2 permanece provider-independent/process-local porque a 0004 não define armazenamento para esse agregado.
+A composição física ocorre somente depois de autorização opaca e do gate de ambiente. Em produção, o gate explícito deve estar ON apenas durante janela autorizada; OFF falha antes do uso acadêmico do binding. Snapshots de Boletins, decisões de Conselho e a sessão institucional V2 usam a factory D1 durável; bindings remotos com `batch()` usam batch guardado para atomicidade. A porta `CouncilSessionStoreV2` permanece provider-independent, mas o runtime D1 central usa `GradebookD1CouncilSessionStoreV2` e as tabelas da 0005.
 
 ## Operational Workspace F5
 
