@@ -1,4 +1,10 @@
-import type { AcademicPersistenceContextV1 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import type {
+  AcademicPersistenceContextV1,
+  LogicalSourceRecordAssociationStreamV1,
+  LogicalSourceRecordAssociationV1,
+  VersionExpectationV1,
+  VersionedWriteResultV1,
+} from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import {
   inspectImportBootstrapTransactionRequestV2,
   type ImportBootstrapTransactionPortV2,
@@ -16,6 +22,75 @@ import type {
   GradebookD1WriteAdapterOptionsV1,
 } from '../write/d1-write-adapter-v1';
 
+interface DeferredAssociationWriteV2 {
+  readonly context: AcademicPersistenceContextV1;
+  readonly stream: LogicalSourceRecordAssociationStreamV1;
+  readonly value: LogicalSourceRecordAssociationV1;
+  readonly expectation: VersionExpectationV1;
+  readonly expectedWrittenVersion: number;
+}
+
+function sameValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function deferAssociationWritesV2(
+  unitOfWork: PersistenceUnitOfWorkV2,
+  now: () => string,
+): {
+  readonly unitOfWork: PersistenceUnitOfWorkV2;
+  readonly flush: () => Promise<void>;
+} {
+  const repository = unitOfWork.logicalSourceRecords;
+  const pending: DeferredAssociationWriteV2[] = [];
+  const deferredRepository = {
+    getCurrent: repository.getCurrent.bind(repository),
+    listCurrentStreams: repository.listCurrentStreams.bind(repository),
+    listVersions: repository.listVersions.bind(repository),
+    async appendVersion(
+      context: AcademicPersistenceContextV1,
+      stream: LogicalSourceRecordAssociationStreamV1,
+      value: LogicalSourceRecordAssociationV1,
+      expectation: VersionExpectationV1,
+    ): Promise<VersionedWriteResultV1<LogicalSourceRecordAssociationV1>> {
+      const current = await repository.getCurrent(context, stream);
+      const currentVersion = current?.version ?? null;
+      if (currentVersion !== expectation.expectedVersion) {
+        return { status: 'version-conflict', currentVersion };
+      }
+      const expectedWrittenVersion = (expectation.expectedVersion ?? 0) + 1;
+      pending.push({ context, stream, value, expectation, expectedWrittenVersion });
+      return {
+        status: 'written',
+        record: { value, version: expectedWrittenVersion, recordedAt: now() },
+      };
+    },
+  };
+
+  return {
+    unitOfWork: { ...unitOfWork, logicalSourceRecords: deferredRepository },
+    async flush() {
+      for (const write of pending) {
+        const result = await repository.appendVersion(
+          write.context,
+          write.stream,
+          write.value,
+          write.expectation,
+        );
+        if (result.status === 'version-conflict') {
+          throw new GradebookD1TransactionErrorV1('batch-version-conflict');
+        }
+        if (
+          result.record.version !== write.expectedWrittenVersion ||
+          !sameValue(result.record.value, write.value)
+        ) {
+          throw new GradebookD1TransactionErrorV1('transaction-failed');
+        }
+      }
+    },
+  };
+}
+
 export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapTransactionPortV2 {
   private active = false;
 
@@ -32,6 +107,10 @@ export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapT
     }
   }
 
+  private now(): string {
+    return this.options.now?.() ?? new Date().toISOString();
+  }
+
   async runImportBootstrap<T>(
     context: AcademicPersistenceContextV1,
     request: ImportBootstrapTransactionRequestV2,
@@ -45,14 +124,15 @@ export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapT
     try {
       if (supportsAtomicBatch(this.database)) {
         const recorder = new GradebookD1AtomicBatchRecorderV1(this.database);
-        const result = await operation(
-          createGradebookD1PersistenceUnitOfWorkV2(recorder, {
-            ...this.options,
-            bootstrapManifestVersions: new Map(
-              request.plannedSourceFileManifestIds.map((id) => [id, 1]),
-            ),
-          }),
-        );
+        const baseUnitOfWork = createGradebookD1PersistenceUnitOfWorkV2(recorder, {
+          ...this.options,
+          bootstrapManifestVersions: new Map(
+            request.plannedSourceFileManifestIds.map((id) => [id, 1]),
+          ),
+        });
+        const ordered = deferAssociationWritesV2(baseUnitOfWork, () => this.now());
+        const result = await operation(ordered.unitOfWork);
+        await ordered.flush();
         try {
           await recorder.commit();
         } catch {
@@ -64,9 +144,10 @@ export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapT
 
       await this.control('BEGIN IMMEDIATE');
       try {
-        const result = await operation(
-          createGradebookD1PersistenceUnitOfWorkV2(this.database, this.options),
-        );
+        const baseUnitOfWork = createGradebookD1PersistenceUnitOfWorkV2(this.database, this.options);
+        const ordered = deferAssociationWritesV2(baseUnitOfWork, () => this.now());
+        const result = await operation(ordered.unitOfWork);
+        await ordered.flush();
         await this.control('COMMIT');
         return result;
       } catch (cause) {
