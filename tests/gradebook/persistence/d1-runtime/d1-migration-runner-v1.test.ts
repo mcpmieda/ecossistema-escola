@@ -34,7 +34,7 @@ async function openDatabase(): Promise<{
 }
 
 describe('runner autorizado de migrations D1 V1', () => {
-  it('aplica 0001–0004 na ordem canônica e reaplica sem efeitos', async () => {
+  it('aplica 0001–0005 na ordem canônica e reaplica sem efeitos', async () => {
     const { raw, database } = await openDatabase();
     try {
       const runner = new GradebookD1MigrationRunnerV1(database, {
@@ -44,25 +44,25 @@ describe('runner autorizado de migrations D1 V1', () => {
       await expect(runner.inspect(authorization)).resolves.toEqual({
         status: 'pending',
         currentVersion: 0,
-        latestVersion: 4,
+        latestVersion: 5,
         appliedCount: 0,
-        pendingCount: 4,
+        pendingCount: 5,
       });
       await expect(runner.run(authorization)).resolves.toEqual({
         result: 'applied',
         status: 'ready',
-        currentVersion: 4,
-        latestVersion: 4,
-        appliedCount: 4,
+        currentVersion: 5,
+        latestVersion: 5,
+        appliedCount: 5,
         pendingCount: 0,
-        migrationsApplied: 4,
+        migrationsApplied: 5,
       });
       await expect(runner.run(authorization)).resolves.toEqual({
         result: 'up-to-date',
         status: 'ready',
-        currentVersion: 4,
-        latestVersion: 4,
-        appliedCount: 4,
+        currentVersion: 5,
+        latestVersion: 5,
+        appliedCount: 5,
         pendingCount: 0,
         migrationsApplied: 0,
       });
