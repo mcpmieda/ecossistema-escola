@@ -133,6 +133,40 @@ function comparisonLabel(cell: PerformanceCellV1): string | null {
     : 'Comparação oficial disponível; nenhum delta é recalculado nesta tela.';
 }
 
+export function InstitutionalReportsClassSearchV1({
+  label,
+  placeholder,
+  query,
+  disabled,
+  loading,
+  onQueryChange,
+  onSearch,
+}: {
+  readonly label: string;
+  readonly placeholder: string;
+  readonly query: string;
+  readonly disabled: boolean;
+  readonly loading: boolean;
+  readonly onQueryChange: (value: string) => void;
+  readonly onSearch: () => void;
+}) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+      <SearchField fullWidth value={query} onChange={onQueryChange} onClear={() => onQueryChange('')} isDisabled={disabled} onSubmit={onSearch}>
+        <Label>{label}</Label>
+        <SearchField.Group>
+          <SearchField.SearchIcon />
+          <SearchField.Input placeholder={placeholder} />
+          <SearchField.ClearButton />
+        </SearchField.Group>
+      </SearchField>
+      <Button type="button" size="sm" variant="primary" isDisabled={disabled || !query.trim() || loading} onPress={onSearch}>
+        <Search className="size-4" aria-hidden="true" /> Buscar
+      </Button>
+    </div>
+  );
+}
+
 function PerformanceReport({ report }: { report: ClassPerformanceReadModelV1 }) {
   return (
     <div className="grid gap-3">
@@ -635,16 +669,16 @@ export function InstitutionalReportsPage() {
                 </select>
               </div>
 
-              <form className="lg:col-span-2" onSubmit={(event) => { event.preventDefault(); void searchClasses(); }}>
-                <SearchField fullWidth value={classQuery} onChange={setClassQuery} onClear={() => setClassQuery('')} isDisabled={!academicYearId}>
-                  <Label>Pesquisar turma {familyNeedsClass ? '(obrigatória para esta família)' : '(opcional para o lote)'}</Label>
-                  <SearchField.Group>
-                    <SearchField.SearchIcon />
-                    <SearchField.Input placeholder={academicYearId ? 'Código da turma' : 'Selecione o ano primeiro'} />
-                    <SearchField.ClearButton />
-                    <Button type="submit" size="sm" variant="primary" isDisabled={!academicYearId || !classQuery.trim() || classSearchState === 'loading'}><Search className="size-4" />Buscar</Button>
-                  </SearchField.Group>
-                </SearchField>
+              <div className="lg:col-span-2">
+                <InstitutionalReportsClassSearchV1
+                  label={`Pesquisar turma ${familyNeedsClass ? '(obrigatória para esta família)' : '(opcional para o lote)'}`}
+                  placeholder={academicYearId ? 'Código da turma' : 'Selecione o ano primeiro'}
+                  query={classQuery}
+                  disabled={!academicYearId}
+                  loading={classSearchState === 'loading'}
+                  onQueryChange={setClassQuery}
+                  onSearch={() => void searchClasses()}
+                />
                 <div className="mt-2" aria-live="polite">
                   {classSearchState === 'loading' && <p className="text-sm text-muted">Pesquisando turmas…</p>}
                   {classSearchState === 'empty' && <p className="text-sm text-muted">Nenhuma turma encontrada.</p>}
@@ -652,7 +686,7 @@ export function InstitutionalReportsPage() {
                   {classSearchState === 'not-authorized' && <p className="text-sm text-warning">Pesquisa de turmas não autorizada.</p>}
                   {classResults.length > 0 && <div className="flex flex-wrap gap-2">{classResults.map((result) => result.kind === 'class-group' && <Button key={result.id} size="sm" variant={selectedClass?.id === result.id ? 'primary' : 'outline'} onPress={() => { setSelectedClass({ id: result.id, label: result.code }); setHistory([]); setHistoryState('idle'); setSelectedSnapshotKeys([]); resetOutput(); }}>{result.code}</Button>)}</div>}
                 </div>
-              </form>
+              </div>
             </Card.Content>
           </Card>
 
