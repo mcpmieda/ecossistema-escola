@@ -11,7 +11,7 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   master_issue: 182
   foundation_issue: 183
-  previous_integrator_issue: 399
+  previous_integrator_issue: 407
   current_integrator_issue: null
   current_wave: 24
   next_wave: 24
@@ -23,7 +23,7 @@ coordination:
   branch_model: short-lived-per-issue
   merge_target: main
   publication: automatic-after-main
-  executable_issue_status: wave-24-council-v2-production-smoke-required
+  executable_issue_status: wave-24-private-real-whole-school-pilot-issue-406
   issue_status_is_authoritative: true
   prohibited_orchestration:
     - app-factory
@@ -95,7 +95,7 @@ production:
   academic_persistence_enabled: false
   remote_bulletin_snapshot_storage: schema-present-smoke-validated-restored-zero-gate-off
   remote_council_decision_storage: schema-present-not-smoke-validated-gate-off
-  remote_council_session_storage: schema-version-5-present-production-smoke-pending-gate-off
+  remote_council_session_storage: smoke-validated-cross-restart-restored-zero-gate-off
   native_engine_authority_enabled: false
   rule: code-presence-does-not-imply-data-access
 
@@ -115,7 +115,7 @@ storage:
   decision_issue: 200
   access: authorized-backend-only
   domain_dependency: provider-independent-ports
-  schema_status: production-version-5-migration-validated-council-smoke-pending
+  schema_status: production-version-5-migration-and-council-smoke-validated
   table_count: 27
   migrations:
     - 0001_gradebook_context_entities_imports_v1.sql
@@ -253,7 +253,7 @@ contracts:
     actor_source: server-session-oid
     decided_at_source: server
   council_institutional_v2:
-    status: implemented-d1-runtime-production-schema-present-smoke-pending
+    status: implemented-d1-runtime-production-smoke-validated
     implementation_issue: 341
     http_route: POST /api/gradebook/council-workspace
     bridge_count_shared_with_v1: 1
@@ -267,7 +267,7 @@ contracts:
     session_store: provider-independent-port-d1-runtime
     session_cross_restart_durability: true
     remote_schema_available: true
-    production_synthetic_smoke_completed: false
+    production_synthetic_smoke_completed: true
 
 native_engine:
   status: implemented-v1
@@ -348,7 +348,7 @@ features:
     report_families: 5
     derived_academic_indicators: fail-closed-without-official-semantics
   council:
-    status: usable-v2-with-durable-decisions-and-d1-session-store
+    status: usable-v2-with-production-smoke-validated-durable-decisions-and-d1-session-store
     official_projection_source: true
     eligibility_recalculation_in_workspace: false
     decision_human: true
@@ -391,10 +391,9 @@ features:
     remote_pending_migrations: 0
     production_synthetic_smoke_steps_passed: 5
     synthetic_residue_after_smoke: 0
-    council_v2_production_synthetic_smoke_completed: false
+    council_v2_production_synthetic_smoke_completed: true
     production_gate_final: off
     post_wave_23_hard_stops:
-      - council-v2-production-synthetic-smoke-and-recovery
       - private-real-pilot-authorization
       - native-authority-separate-authorization
 
@@ -429,7 +428,7 @@ wave_23:
   authority_scope_decision_integrated: true
 
 wave_24:
-  status: schema-gate-completed-council-production-smoke-pending
+  status: council-production-smoke-completed-awaiting-private-pilot
   scope_review_issue: 394
   scope_review_pull_request: 397
   council_session_durability_issue: 395
@@ -448,8 +447,14 @@ wave_24:
   real_pilot_completed: false
   native_engine_active: false
   council_v2_production_smoke_issue: 400
-  council_v2_production_smoke_completed: false
-  next_safe_step: issue-400-synthetic-smoke-and-recovery
+  council_v2_production_smoke_completed: true
+  council_v2_production_smoke_sha: 345103e0ede97f34115c0fc21ecba668e9dc7def
+  council_v2_cross_restart_recovery_validated: true
+  council_v2_cas_without_partial_write_validated: true
+  council_v2_post_close_guards_validated: true
+  synthetic_residue_after_smoke: 0
+  private_real_pilot_issue: 406
+  next_safe_step: issue-406-private-real-whole-school-pilot
 
 bundle_wave_17:
   baseline_entry_min_kb: 820.68
@@ -650,13 +655,13 @@ phases:
     status: complete-official-charts-plus-profile-aware-proportional-comparison
   F7:
     issue: 190
-    status: council-v2-institutional-closure-plus-durable-d1-session-schema-present-smoke-pending
+    status: council-v2-institutional-closure-plus-production-smoke-validated-durable-d1-session
   F8:
     issue: 191
     status: bulletins-reports-batch-artifacts-plus-durable-snapshots-local-preview
   F9:
     issue: 192
-    status: production-schema-v5-council-smoke-next-pilot-and-authority-separate
+    status: production-schema-v5-council-smoke-validated-next-private-pilot-and-authority-separate
 
 security_invariants:
   public_repository_no_real_student_data: required
@@ -686,7 +691,6 @@ manual_gates:
   - production-resource-and-binding-authorization
   - remote-migration-authorization
   - production-academic-smoke-authorization
-  - council-v2-production-synthetic-smoke-and-recovery
   - private-real-pilot-authorization
   - native-authority-separate-authorization
   - council-tie-break-requires-formal-director-identity-capability
