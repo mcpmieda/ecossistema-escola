@@ -14,6 +14,7 @@ describe('Council Workspace HeroUI V1', () => {
   const shell = source('src/platform/gradebook-workspace-shell.tsx');
   const councilSurface = source('src/platform/gradebook-council-surface.tsx');
   const functions = source('functions/[[path]].ts');
+  const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
 
   it('usa HeroUI em componente isolado e está ligado pelo shell lazy F9', () => {
     expect(page).toContain("from '@heroui/react'");
@@ -97,7 +98,8 @@ describe('Council Workspace HeroUI V1', () => {
     expect(handler).toContain("GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1 = '/api/gradebook/council-workspace'");
     expect(handler).toContain('session = await requireAuth(request, env)');
     expect(handler).toContain('authorizeGradebookD1RuntimeV1(session)');
-    expect(handler).toContain("env.RUNTIME_ENVIRONMENT === 'production'");
+    expect(handler).not.toContain("env.RUNTIME_ENVIRONMENT === 'production'");
+    expect(runtime).toContain("env.GRADEBOOK_PRODUCTION_ENABLED !== 'true'");
     expect(handler).toContain("'Cache-Control': 'no-store, no-cache, must-revalidate, private'");
     expect(handler).toContain('actorReference: session.oid');
     expect(handler).toContain('decidedAt: now().toISOString()');

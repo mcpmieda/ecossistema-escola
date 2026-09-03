@@ -188,9 +188,6 @@ export function createCouncilWorkspaceRequestHandlerV1(
       return invalidInstitutional();
     }
 
-    // Academic production remains explicitly closed. #343 may only compose local/preview providers.
-    if (env.RUNTIME_ENVIRONMENT === 'production') return unavailable();
-
     const now = dependencies.now ?? (() => new Date());
     const server: CouncilInstitutionalServerContextV2 = {
       isAuthorized: () => true,

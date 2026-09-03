@@ -168,7 +168,7 @@ function fixture() {
 }
 
 describe('Council institutional HTTP V2', () => {
-  it('reusa o bridge único, exige auth/capability, responde no-store e mantém produção fechada', async () => {
+  it('reusa o bridge único, exige auth/capability e delega produção ao gate D1 central', async () => {
     const { handler, createInstitutionalWorkspace } = fixture();
 
     const unauthenticated = await handler(await request(reviewBody()), env());
@@ -183,11 +183,15 @@ describe('Council institutional HTTP V2', () => {
 
     const production = await handler(
       await request(reviewBody(), { role: 'ADMINISTRADOR', runtime: 'production' }),
-      env('production'),
+      { ...env('production'), GRADEBOOK_PRODUCTION_ENABLED: 'true' },
     );
-    expect(production?.status).toBe(503);
+    expect(production?.status).toBe(200);
     expect(production?.headers.get('Cache-Control')).toContain('no-store');
-    expect(createInstitutionalWorkspace).not.toHaveBeenCalled();
+    expect(createInstitutionalWorkspace).toHaveBeenCalledTimes(1);
+    expect(createInstitutionalWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ RUNTIME_ENVIRONMENT: 'production' }),
+      expect.any(Object),
+    );
   });
 
   it('rejeita identidade, papel, capability e abstenção enviados pelo navegador antes do workspace', async () => {

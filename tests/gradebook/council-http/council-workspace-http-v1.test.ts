@@ -152,15 +152,19 @@ describe('Council Workspace HTTP V1', () => {
     expect(createWorkspace).not.toHaveBeenCalled();
   });
 
-  it('mantém produção fail-closed antes de compor qualquer workspace acadêmico', async () => {
+  it('delega produção autorizada ao runtime central sem duplicar o gate no bridge', async () => {
     const { handler, createWorkspace } = fixture();
     const response = await handler(
       await request(queueBody(), { role: 'ADMINISTRADOR', runtime: 'production' }),
-      env('production'),
+      { ...env('production'), GRADEBOOK_PRODUCTION_ENABLED: 'true' },
     );
-    expect(response?.status).toBe(503);
+    expect(response?.status).toBe(200);
     expect(response?.headers.get('Cache-Control')).toContain('no-store');
-    expect(createWorkspace).not.toHaveBeenCalled();
+    expect(createWorkspace).toHaveBeenCalledTimes(1);
+    expect(createWorkspace).toHaveBeenCalledWith(
+      expect.objectContaining({ RUNTIME_ENVIRONMENT: 'production' }),
+      expect.any(Object),
+    );
   });
 
   it('lista local/preview autorizado e usa o bridge dedicado com no-store', async () => {

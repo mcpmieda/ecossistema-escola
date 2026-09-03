@@ -106,7 +106,8 @@ describe('Council institutional HeroUI V2', () => {
   it('preserva identidade/instante server-side e produção fail-closed no handler existente', () => {
     expect(route).toContain('session = await requireAuth(request, env)');
     expect(route).toContain('authorizeGradebookD1RuntimeV1(session)');
-    expect(route).toContain("env.RUNTIME_ENVIRONMENT === 'production'");
+    expect(route).not.toContain("env.RUNTIME_ENVIRONMENT === 'production'");
+    expect(runtime).toContain("env.GRADEBOOK_PRODUCTION_ENABLED !== 'true'");
     expect(route).toContain("'Cache-Control': 'no-store, no-cache, must-revalidate, private'");
     expect(route).toContain('actorReference: session.oid');
     expect(route).toContain('occurredAt: now().toISOString()');
