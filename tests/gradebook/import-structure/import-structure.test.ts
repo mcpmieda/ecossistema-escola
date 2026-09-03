@@ -121,6 +121,26 @@ describe('gradebook importer structure', () => {
     expect(presentation).toContain('Recuperação final');
   });
 
+  it('resolves persistence references through human labels without per-student requests', () => {
+    const confirmation = source(
+      'src/features/gradebook/import/import-persistence-confirmation-v2.tsx',
+    );
+    expect(confirmation).toContain('requestOperationalWorkspaceV1');
+    expect(confirmation).toContain("operation: 'bootstrap'");
+    expect(confirmation).toContain("operation: 'search'");
+    expect(confirmation).toContain("operation: 'class-group'");
+    expect(confirmation.match(/requestOperationalWorkspaceV1\s*\(/gu)).toHaveLength(3);
+    expect(confirmation).toContain('Ano letivo');
+    expect(confirmation).toContain('Turma oficial');
+    expect(confirmation).toContain('Disciplina e professor');
+    expect(confirmation).toContain('Selecione o aluno oficial');
+    expect(confirmation).toContain('Conferi as correspondências');
+    expect(confirmation).not.toContain('placeholder="StudentId"');
+    expect(confirmation).not.toContain('placeholder="EnrollmentId"');
+    expect(confirmation).not.toContain('>TeachingAssignmentId<');
+    expect(confirmation).not.toContain('>AcademicYearId<');
+  });
+
   it('retains the limit of 50 files before batch processing', () => {
     const files = Array.from(
       { length: MAX_NOTES_IMPORT_FILES + 1 },
