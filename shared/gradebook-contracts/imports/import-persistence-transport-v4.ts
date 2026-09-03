@@ -22,7 +22,6 @@ import {
   type GradebookImportPersistenceRequestInspectionV3,
   type GradebookImportPersistenceRequestRejectionV3,
   type GradebookImportPersistenceRequestV3,
-  type GradebookImportRecoveryApplicabilityObservationV3,
   type GradebookImportRecoverySheetObservationV3,
   type GradebookImportRecoveryStudentObservationV3,
   type GradebookImportRecoveryValuesV3,
