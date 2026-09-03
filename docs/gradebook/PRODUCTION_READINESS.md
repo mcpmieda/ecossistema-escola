@@ -27,7 +27,7 @@ SHA/deployment usado no smoke final: `2fdefa87f186e84ed40637437d4b0199baff82c6`.
 
 A #384 foi integrada pela PR #393 e publicou a BN-DEC-020. O primeiro piloto real passa a ser a **escola inteira**, em janela privada/controlada, ainda com `imported-source` autoritativo durante a validação. Essa decisão não abriu o gate, não executou piloto e não alterou autoridade.
 
-## Estado atual pós-#399
+## Estado atual pós-#400
 
 - #394: revisão de escopo concluída;
 - #395 / PR #398: sessão institucional V2 durável em D1 integrada no código;
@@ -38,15 +38,14 @@ A #384 foi integrada pela PR #393 e publicou a BN-DEC-020. O primeiro piloto rea
 - production gate: OFF;
 - `authorityMode`: `imported-source`;
 - piloto real: não iniciado;
-- smoke produtivo da sessão V2: não executado pela #399; separado na #400.
+- smoke produtivo da sessão V2: concluído pela #400 com voto/reload/CAS/close/history/guards e recovery para resíduo zero.
 
 ## Hard stops depois da onda 23 e da revisão #394
 
-Os gates históricos e o gate de schema 5 estão fechados. Antes da janela real permanecem etapas separadas:
+Os gates históricos, o gate de schema 5 e o smoke sintético da sessão V2 estão fechados. Antes da janela real permanecem etapas separadas:
 
-1. `council-v2-production-synthetic-smoke-and-recovery` — **#400**, depois da integração documental da #399;
-2. `private-real-pilot-authorization` — autorização/execução em issue separada somente depois da #400 verde;
-3. `native-authority-separate-authorization` — trilha posterior, incluindo contrato de autoridade por escopo e #347.
+1. `private-real-pilot-authorization` — **#406**, autorização/execução em janela privada própria;
+2. `native-authority-separate-authorization` — trilha posterior, incluindo contrato de autoridade por escopo e #347.
 
 O production gate permanece OFF. `authorityMode` permanece `imported-source`; `native-engine` permanece inativo.
 
@@ -57,7 +56,7 @@ O production gate permanece OFF. `authorityMode` permanece `imported-source`; `n
 | Limitação                                                         | Classificação                                       | Evidência/efeito                                                                                                                                                                                 | Decisão pré-piloto                                                                                                                      |
 | ----------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `reconciliation_v2.case_store` provider-independent/process-local | `allowed-with-controls`                             | `createLocalDeterministicCorrectionCaseStoreV2` usa `Map`/`Set`; após perda do store, `inspect()` relê a reconciliação durável da Auditoria e recria um caso fail-closed, sem liberar `mismatch` | pode participar do piloto desde que qualquer investigação/receita em voo seja invalidada após restart e reconstituída antes de correção |
-| sessão/reunião institucional do Conselho V2 process-local         | `blocks-pilot` histórico, removido no código/schema | #395 / PR #398 integrou `GradebookD1CouncilSessionStoreV2`; #399 aplicou a 0005 e confirmou schema 5/27                                                                                          | #400 deve provar o caminho produtivo sintético e recovery antes da issue de piloto                                                      |
+| sessão/reunião institucional do Conselho V2 process-local         | `blocks-pilot` histórico, removido e validado        | #395 / PR #398 integrou `GradebookD1CouncilSessionStoreV2`; #399 aplicou a 0005; #400 comprovou durabilidade/recovery produtivos com resíduo zero                                                  | bloqueio encerrado; #406 concentra a autorização e os controles próprios do piloto                                                      |
 | write administrativo da configuração de comparação                | `not-hit-by-authorized-pilot-scope`                 | contrato V2 possui configuração server-only, default canônico `enabled: true` e leitura de `PlatformConfiguration`; somente o write permanece `not-integrated-hard-stop`                         | o piloto não altera configuração; usa a configuração server-side aplicável já resolvida no início da janela                             |
 
 ### Reconciliation V2 — controles obrigatórios
@@ -82,7 +81,7 @@ Se o piloto demonstrar necessidade de preservar investigação/recipe entre rest
 
 Esse estado era incompatível com o piloto integral porque a BN-DEC-020 exige validar Conselho nos limites formalizados junto com restart/recuperação/CAS/histórico. Na implementação antiga, após restart real uma sessão fechada poderia reaparecer como `open` versão 0, perder histórico e deixar de aplicar o guard pós-fechamento. As decisões humanas V1 duráveis não substituíam o estado institucional V2.
 
-A #395 / PR #398 removeu esse bloqueio no código, reutilizando a porta `CouncilSessionStoreV2`, adicionando persistência provider-specific e provando localmente recuperação de estado/fechamento/histórico/CAS após reinstanciação. A #399 aplicou a 0005 remotamente e validou o schema sem abrir o runtime. A #400 ficou reservada ao smoke sintético produtivo e recovery; nenhuma dessas etapas autoriza piloto ou altera autoridade.
+A #395 / PR #398 removeu esse bloqueio no código, reutilizando a porta `CouncilSessionStoreV2`, adicionando persistência provider-specific e provando localmente recuperação de estado/fechamento/histórico/CAS após reinstanciação. A #399 aplicou a 0005 remotamente e validou o schema sem abrir o runtime. A #400 comprovou no caminho produtivo oficial voto, recuperação após reload, CAS sem write parcial, fechamento, snapshot, histórico e guards pós-close, restaurou o corpus a zero e terminou com gate OFF. Nenhuma dessas etapas autoriza piloto ou altera autoridade.
 
 ### Configuração da comparação — limite fora do escopo autorizado
 
@@ -112,24 +111,23 @@ O desempate do Conselho permanece fail-closed sem identidade/capability formal d
 | Desempenho/comparação proporcional      | comparação profile-aware server-side                                 | write de config não integrado                                                | apto com configuração congelada; write fora do escopo |
 | Boletins/snapshots/reprint              | snapshots D1 duráveis; reprint histórico                             | nenhuma das três limitações altera o fluxo                                   | apto, sujeito à autorização da janela                 |
 | Relatórios                              | dados oficiais, fail-closed para semântica ausente                   | nenhuma das três limitações altera o fluxo                                   | apto, sujeito à autorização da janela                 |
-| Conselho/decisões humanas               | decisões V1 + sessão institucional V2 D1 duráveis no código/schema 5 | smoke produtivo/recovery da sessão ainda separado                            | apto após #400 verde e autorização própria da janela  |
-| restart/recuperação/CAS/histórico       | D1/reprint/decisões V1 possuem cobertura; sessão V2 possui store D1  | reconciliação volta fail-closed; sessão V2 aguarda prova produtiva sintética | #400 antes do piloto                                  |
+| Conselho/decisões humanas               | decisões V1 + sessão institucional V2 D1 duráveis e smoke-validadas  | desempate segue fail-closed sem identidade formal de diretor                  | apto para a janela própria da #406                    |
+| restart/recuperação/CAS/histórico       | D1/reprint/decisões V1 e sessão V2 possuem cobertura produtiva       | reconciliação process-local volta fail-closed e exige reinvestigação          | controles preservados na #406                        |
 | gates server-side/stop/RPO/RTO/recovery | gate OFF, auth/capability/no-store e runbook existentes              | nenhuma mudança operacional nesta revisão                                    | preservados; não autorizam piloto por si só           |
 
 ## Ordem segura até a janela real
 
-1. integrar a memória canônica da #399, já com schema remoto 5/27 e gate OFF;
-2. executar #400 com corpus exclusivamente sintético, sessão oficial, recovery para resíduo zero e gate final OFF;
-3. abrir issue **separada** de autorização/execução do piloto privado da escola inteira;
-4. somente nessa issue posterior abrir o gate durante a janela autorizada e usar dados reais privados;
-5. ao fim do piloto, fechar o gate novamente e produzir evidência sanitizada/mapa de escopos elegíveis versus bloqueados;
-6. #347 continua bloqueada até piloto verde, contrato de autoridade por escopo, vigência explícita e demais gates da BN-DEC-020.
+1. manter schema remoto 5/27, pendentes 0 e gate OFF entre janelas;
+2. executar a #406 somente em janela privada/controlada própria;
+3. somente nessa issue abrir o gate durante a janela autorizada e usar dados reais privados;
+4. ao fim do piloto, fechar o gate novamente e produzir evidência sanitizada/mapa de escopos elegíveis versus bloqueados;
+5. #347 continua bloqueada até piloto verde, contrato de autoridade por escopo, vigência explícita e demais gates da BN-DEC-020.
 
 ## Ensaios locais permanecem obrigatórios
 
 `npm run test:gradebook-readiness` cobre V1 histórico, V2 controlado e cenários sintéticos. `npm run verify` permanece obrigatório no SHA final. Repo/CI públicos continuam usando somente dados sintéticos.
 
-## Protocolo privado de piloto paralelo — execução futura, não autorizada pela #394
+## Protocolo privado de piloto paralelo — execução futura concentrada na #406
 
 ### Pré-condições
 
