@@ -114,3 +114,6 @@ export async function handleGradebookImportPersistenceRequestV4(
     return state('unavailable', 503);
   }
 }
+
+/** Central Functions wiring keeps its historical symbol; the accepted transport is V4 only. */
+export const handleGradebookImportPersistenceRequestV2 = handleGradebookImportPersistenceRequestV4;
