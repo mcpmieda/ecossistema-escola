@@ -254,12 +254,43 @@ describe('massa sintética — posições, movimentações e recuperação', () 
       recovery.eligibleTrimester2,
       recovery.eligibleTrimester3,
     ]).toEqual(SYNTHETIC_EXPECTATIONS.recovery.eligible);
+    expect([
+      recovery.applicabilityTrimester1,
+      recovery.applicabilityTrimester2,
+      recovery.applicabilityTrimester3,
+    ]).toEqual([
+      { classification: 'numeric', rawValue: 1 },
+      { classification: 'numeric', rawValue: 0 },
+      { classification: 'numeric', rawValue: 1 },
+    ]);
   });
 
   it('REC-005: ausência de nota REC permanece ausência, não zero', () => {
     const recovery = requiredStudent('6AREC', 6).recovery;
     if (!recovery) throw new Error('Fixture sintética perdeu a leitura de recuperação da linha 6.');
     expect(recovery.trimester2).toBeNull();
+    expect(recovery.applicabilityTrimester2).toEqual({ classification: 'missing-field' });
+  });
+
+  it('preserva fórmula AC/AD/AE sem cache como observação V3, sem inferir aplicabilidade', () => {
+    const workbook = structuredClone(SYNTHETIC_TEACHER_WORKBOOK);
+    workbook.Sheets['6AREC']!.AD6 = { f: '1+0' };
+    const summary = recognizeWorkbook(
+      createSyntheticFile(SYNTHETIC_FILES.xlsx),
+      workbook,
+      createSyntheticSheetJs(),
+      { fileSha256: SYNTHETIC_SHA256 },
+    );
+    const recovery = summary.gradeSheets
+      .find((sheet) => sheet.name === '6AREC')
+      ?.students.find((student) => student.row === 6)?.recovery;
+    expect(recovery?.applicabilityTrimester2).toEqual({
+      classification: 'formula',
+      rawValue: null,
+      formula: '1+0',
+      cachedValue: null,
+    });
+    expect(recovery?.eligibleTrimester2).toBe(false);
   });
 });
 

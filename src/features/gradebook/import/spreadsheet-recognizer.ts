@@ -10,6 +10,7 @@ import type {
   SourceCellProvenanceV1,
   SourceCellRawValueV1,
 } from '../../../../shared/gradebook-contracts/source/source-contract-v1';
+import type { GradebookImportRecoveryApplicabilityObservationV3 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v3';
 
 export const ACCEPTED_EXTENSIONS = ['xlsx', 'xlsb', 'xls'] as const;
 
@@ -56,6 +57,10 @@ export type RecoveryRecognition = {
   originalTrimester2: NoteValue | null;
   originalTrimester3: NoteValue | null;
   originalAnnual: NoteValue | null;
+  applicabilityTrimester1: GradebookImportRecoveryApplicabilityObservationV3;
+  applicabilityTrimester2: GradebookImportRecoveryApplicabilityObservationV3;
+  applicabilityTrimester3: GradebookImportRecoveryApplicabilityObservationV3;
+  /** Historical convenience projection. V3 transport must use the raw observations above. */
   eligibleTrimester1: boolean;
   eligibleTrimester2: boolean;
   eligibleTrimester3: boolean;
@@ -198,6 +203,36 @@ function readNote(sheet: Worksheet, address: string): NoteValue | null {
   return { source, value: source, kind: 'manual' };
 }
 
+function readRecoveryApplicability(
+  sheet: Worksheet,
+  address: string,
+): GradebookImportRecoveryApplicabilityObservationV3 {
+  const cell = cellAt(sheet, address);
+  if (!cell) return { classification: 'missing-field' };
+
+  const rawValue =
+    cell.v === null || ['string', 'number', 'boolean'].includes(typeof cell.v)
+      ? (cell.v as SourceCellRawValueV1)
+      : null;
+  if (cell.f) {
+    return {
+      classification: 'formula',
+      rawValue,
+      formula: cell.f,
+      cachedValue: typeof cell.v === 'number' && Number.isFinite(cell.v) ? cell.v : null,
+    };
+  }
+  if (cell.v === undefined) return { classification: 'missing-field' };
+  if (cell.v === null || cell.v === '') return { classification: 'empty', rawValue: cell.v };
+  if (typeof cell.v === 'number' && Number.isFinite(cell.v)) {
+    return { classification: 'numeric', rawValue: cell.v };
+  }
+  if (typeof cell.v === 'string' || typeof cell.v === 'boolean') {
+    return { classification: 'unrecognized', rawValue: cell.v };
+  }
+  return { classification: 'unrecognized', rawValue: String(cell.v) };
+}
+
 function isStudentNumber(value: string): boolean {
   return /^\d+$/u.test(value.trim());
 }
@@ -270,6 +305,9 @@ function worksheetDimensions(sheet: Worksheet, xlsx: SheetJs): Omit<SheetSummary
 }
 
 function recognizeRecovery(sheet: Worksheet, row: number): RecoveryRecognition {
+  const applicabilityTrimester1 = readRecoveryApplicability(sheet, `AC${row}`);
+  const applicabilityTrimester2 = readRecoveryApplicability(sheet, `AD${row}`);
+  const applicabilityTrimester3 = readRecoveryApplicability(sheet, `AE${row}`);
   return {
     trimester1: readNote(sheet, `R${row}`),
     trimester2: readNote(sheet, `S${row}`),
@@ -279,9 +317,18 @@ function recognizeRecovery(sheet: Worksheet, row: number): RecoveryRecognition {
     originalTrimester2: readNote(sheet, `Y${row}`),
     originalTrimester3: readNote(sheet, `AA${row}`),
     originalAnnual: readNote(sheet, `AB${row}`),
-    eligibleTrimester1: numberAt(sheet, `AC${row}`) === 1,
-    eligibleTrimester2: numberAt(sheet, `AD${row}`) === 1,
-    eligibleTrimester3: numberAt(sheet, `AE${row}`) === 1,
+    applicabilityTrimester1,
+    applicabilityTrimester2,
+    applicabilityTrimester3,
+    eligibleTrimester1:
+      applicabilityTrimester1.classification === 'numeric' &&
+      applicabilityTrimester1.rawValue === 1,
+    eligibleTrimester2:
+      applicabilityTrimester2.classification === 'numeric' &&
+      applicabilityTrimester2.rawValue === 1,
+    eligibleTrimester3:
+      applicabilityTrimester3.classification === 'numeric' &&
+      applicabilityTrimester3.rawValue === 1,
   };
 }
 
