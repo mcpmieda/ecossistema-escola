@@ -69,10 +69,12 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
 
   it('mantém produção e autoridade acadêmica fechadas na onda 18', () => {
     const councilRoute = source('server/gradebook/http/council-routes-v1.ts');
+    const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const reportsRoute = source('server/gradebook/http/institutional-reports-routes-v1.ts');
     const context = source('docs/gradebook/ACADEMIC_CONTEXT.md');
 
-    expect(councilRoute).toContain("env.RUNTIME_ENVIRONMENT === 'production'");
+    expect(councilRoute).not.toContain("env.RUNTIME_ENVIRONMENT === 'production'");
+    expect(runtime).toContain("env.GRADEBOOK_PRODUCTION_ENABLED !== 'true'");
     expect(reportsRoute).toContain('createGradebookD1RuntimeV1');
     expect(context).toContain('authorityMode: imported-source');
     expect(context).not.toContain('authorityMode: native-engine');
