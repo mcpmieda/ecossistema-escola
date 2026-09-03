@@ -115,17 +115,17 @@ describe('F9 synthetic operational rehearsal V1', () => {
 
       await expect(runtime.runMigrations()).resolves.toMatchObject({
         result: 'applied',
-        currentVersion: 4,
-        migrationsApplied: 4,
+        currentVersion: 5,
+        migrationsApplied: 5,
       });
       await expect(runtime.runMigrations()).resolves.toMatchObject({
         result: 'up-to-date',
-        currentVersion: 4,
+        currentVersion: 5,
         migrationsApplied: 0,
       });
       expect(
         raw.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table'").get(),
-      ).toMatchObject({ count: 25 });
+      ).toMatchObject({ count: 27 });
       raw
         .prepare(
           `INSERT INTO academic_years (
@@ -217,7 +217,7 @@ describe('F9 synthetic operational rehearsal V1', () => {
       ).resolves.toMatchObject({ version: 1 });
       await expect(restarted.inspectSchema()).resolves.toMatchObject({
         status: 'ready',
-        currentVersion: 4,
+        currentVersion: 5,
         pendingCount: 0,
       });
     } finally {
