@@ -31,6 +31,7 @@ import {
 } from '../server/gradebook/http/council-routes-v1';
 import { handleGradebookD1AdminRequestV1 } from '../server/gradebook/http/d1-admin-routes-v1';
 import { handleInstitutionalReportsRequestV1 } from '../server/gradebook/http/institutional-reports-routes-v1';
+import { handleGradebookImportPersistenceRequestV2 } from '../server/gradebook/http/import-persistence-routes-v2';
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
@@ -326,6 +327,9 @@ async function route(context: Context, correlationId: string): Promise<Response>
       capabilities: capabilitiesForRoles(session.roles),
     });
   }
+
+  const importPersistenceResponse = await handleGradebookImportPersistenceRequestV2(request, env);
+  if (importPersistenceResponse) return importPersistenceResponse;
 
   const operationalWorkspaceResponse = await handleOperationalWorkspaceRequestV1(request, env);
   if (operationalWorkspaceResponse) return operationalWorkspaceResponse;

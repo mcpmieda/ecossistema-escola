@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   importWorkbookBatch,
   validateBatchSize,
@@ -7,6 +7,16 @@ import {
   type BatchSuccess,
 } from './import-batch';
 import { loadSheetJs } from './sheetjs-loader';
+import {
+  persistRecognizedGradebookFileV4,
+  type ConfirmedImportReferencesV2,
+} from './import-persistence-client-v2';
+import type { GradebookImportPersistenceResponseV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
+
+export type ImportPersistenceStateV4 =
+  | { readonly state: 'recognized' | 'ready' | 'persisting' }
+  | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV4 }
+  | { readonly state: 'failed'; readonly message: string };
 
 export function useImportBatch() {
   const [loading, setLoading] = useState(false);
@@ -15,6 +25,8 @@ export function useImportBatch() {
   const [failures, setFailures] = useState<BatchFailureDetail[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [progress, setProgress] = useState<BatchProgress | null>(null);
+  const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV4>>({});
+  const persistenceLock = useRef(false);
 
   const selectedResult = useMemo(
     () => results.find((result) => result.id === selectedId) ?? results[0] ?? null,
@@ -53,6 +65,7 @@ export function useImportBatch() {
     setResults([]);
     setFailures([]);
     setSelectedId(null);
+    setPersistence({});
 
     try {
       const xlsx = await loadSheetJs();
@@ -60,6 +73,9 @@ export function useImportBatch() {
         onStageProgress: setProgress,
       });
       setResults(batch.successes);
+      setPersistence(
+        Object.fromEntries(batch.successes.map((result) => [result.id, { state: 'recognized' }])),
+      );
       setFailures(batch.failureDetails);
       setSelectedId(batch.successes[0]?.id ?? null);
       if (batch.successes.length === 0) {
@@ -75,12 +91,40 @@ export function useImportBatch() {
     }
   }
 
+  function markReady(id: string, ready: boolean) {
+    setPersistence((current) => ({ ...current, [id]: { state: ready ? 'ready' : 'recognized' } }));
+  }
+
+  async function persist(result: BatchSuccess, references: ConfirmedImportReferencesV2) {
+    if (persistenceLock.current) return;
+    persistenceLock.current = true;
+    setPersistence((current) => ({ ...current, [result.id]: { state: 'persisting' } }));
+    try {
+      const response = await persistRecognizedGradebookFileV4(result, references);
+      setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
+    } catch (cause) {
+      setPersistence((current) => ({
+        ...current,
+        [result.id]: {
+          state: 'failed',
+          message: cause instanceof Error ? cause.message : 'Persistência indisponível.',
+        },
+      }));
+    } finally {
+      persistenceLock.current = false;
+    }
+  }
+
   return {
     error,
     failures,
     handleFiles,
     loading,
     progress,
+    persistence,
+    persistenceBusy: Object.values(persistence).some((value) => value.state === 'persisting'),
+    persist,
+    markReady,
     results,
     selectedId,
     selectedResult,

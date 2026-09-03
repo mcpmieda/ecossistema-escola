@@ -69,7 +69,9 @@ interface D1AtomicBatchDatabaseV1 extends D1WriteDatabaseV1 {
   batch(statements: readonly D1WriteStatementV1[]): Promise<readonly D1WriteRunResultV1[]>;
 }
 
-function supportsAtomicBatch(database: D1WriteDatabaseV1): database is D1AtomicBatchDatabaseV1 {
+export function supportsAtomicBatch(
+  database: D1WriteDatabaseV1,
+): database is D1AtomicBatchDatabaseV1 {
   return typeof database.batch === 'function';
 }
 
@@ -100,7 +102,7 @@ class GradebookD1RecordedStatementV1 implements D1WriteStatementV1 {
   }
 }
 
-class GradebookD1AtomicBatchRecorderV1 implements D1WriteDatabaseV1 {
+export class GradebookD1AtomicBatchRecorderV1 implements D1WriteDatabaseV1 {
   private readonly statements: D1WriteStatementV1[] = [];
 
   constructor(private readonly database: D1AtomicBatchDatabaseV1) {}
@@ -129,7 +131,10 @@ class GradebookD1AtomicBatchRecorderV1 implements D1WriteDatabaseV1 {
     } catch {
       return fail('transaction-failed');
     }
-    if (results.length !== this.statements.length || results.some(({ success }) => success === false)) {
+    if (
+      results.length !== this.statements.length ||
+      results.some(({ success }) => success === false)
+    ) {
       return fail('transaction-failed');
     }
   }
@@ -251,9 +256,7 @@ export class GradebookD1BatchPromotionTransactionV1 implements BatchPromotionTra
         1,
       );
     }
-    const result = await operation(
-      createGradebookD1WriteUnitOfWorkV1(recorder, this.options),
-    );
+    const result = await operation(createGradebookD1WriteUnitOfWorkV1(recorder, this.options));
     await recorder.commit();
     return result;
   }

@@ -5,6 +5,7 @@ import { abbreviateSha256 } from './file-manifest';
 import { MAX_NOTES_IMPORT_FILES } from './import-batch';
 import { useImportBatch } from './use-import-batch';
 import { WorkbookInspector } from './workbook-inspector';
+import { ImportPersistenceConfirmationV2 } from './import-persistence-confirmation-v2';
 
 function FileHash({ sha256 }: { sha256: string }) {
   return (
@@ -25,6 +26,10 @@ export function NotesImportPanel() {
     handleFiles,
     loading,
     progress,
+    persistence,
+    persistenceBusy,
+    persist,
+    markReady,
     results,
     selectedId,
     selectedResult,
@@ -57,8 +62,9 @@ export function NotesImportPanel() {
             <h3 className="text-lg font-semibold">Importar planilhas</h3>
           </div>
           <p className="mt-2 text-sm text-muted">
-            Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. Processamento
-            sequencial, somente em memória e sem upload.
+            Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. Os arquivos são lidos
+            localmente e não são enviados; após sua confirmação, somente as observações acadêmicas
+            estruturadas são gravadas no Banco de Notas.
           </p>
         </div>
         <Button variant="primary" isPending={loading} onPress={() => inputRef.current?.click()}>
@@ -177,7 +183,19 @@ export function NotesImportPanel() {
             </div>
           )}
 
-          {selectedResult && <WorkbookInspector result={selectedResult} />}
+          {selectedResult && (
+            <>
+              <WorkbookInspector result={selectedResult} />
+              <ImportPersistenceConfirmationV2
+                key={selectedResult.id}
+                result={selectedResult}
+                persistence={persistence[selectedResult.id] ?? { state: 'recognized' }}
+                externalBusy={persistenceBusy}
+                onReady={(ready) => markReady(selectedResult.id, ready)}
+                onPersist={(references) => persist(selectedResult, references)}
+              />
+            </>
+          )}
         </div>
       )}
     </Surface>

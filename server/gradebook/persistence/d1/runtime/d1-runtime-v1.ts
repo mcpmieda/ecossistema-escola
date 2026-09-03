@@ -42,8 +42,12 @@ import {
   type ClassPerformanceReadModelProviderV1,
 } from '../../../application/read-models/performance/class-performance-read-model-v1';
 import type { PersistenceUnitOfWorkV1 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import type {
+  ImportBootstrapTransactionPortV2,
+  PersistenceUnitOfWorkV2,
+} from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
 import { GradebookD1AuditWorkspaceSourceV1 } from '../audit-workspace/d1-audit-workspace-source-v1';
-import { createGradebookD1PersistenceUnitOfWorkV1 } from '../composition/d1-persistence-unit-of-work-v1';
+import { createGradebookD1PersistenceUnitOfWorkV2 } from '../composition/d1-persistence-unit-of-work-v1';
 import { createGradebookD1CouncilOfficialProjectionSourceV1 } from '../council/d1-council-official-projection-source-v1';
 import {
   createGradebookD1BulletinCouncilDurabilityV1,
@@ -55,6 +59,7 @@ import {
 } from '../operational-workspace/academic-year-catalog-v1';
 import { createGradebookD1ClassPerformanceSourceV1 } from '../performance/d1-class-performance-source-v1';
 import { GradebookD1BatchPromotionTransactionV1 } from '../transaction/d1-batch-promotion-transaction-v1';
+import { GradebookD1ImportBootstrapTransactionV2 } from '../transaction/d1-import-bootstrap-transaction-v2';
 import type { D1WriteDatabaseV1 } from '../write/d1-write-adapter-v1';
 import {
   requireGradebookD1RuntimeAuthorizationV1,
@@ -166,7 +171,7 @@ export class GradebookD1RuntimeV1 {
   constructor(
     readonly environment: GradebookD1RuntimeEnvironmentV1,
     private readonly authorization: GradebookD1RuntimeAuthorizationV1,
-    private readonly unitOfWork: PersistenceUnitOfWorkV1,
+    private readonly unitOfWork: PersistenceUnitOfWorkV2,
     private readonly readModels: GradebookOperationalReadModelsV1,
     private readonly operationalAcademicYears: OperationalWorkspaceAcademicYearCatalogV1,
     private readonly auditWorkspaceSource: GradebookD1AuditWorkspaceSourceV1,
@@ -176,6 +181,7 @@ export class GradebookD1RuntimeV1 {
     private readonly durability: GradebookD1BulletinCouncilDurabilityV1,
     private readonly councilSessions: CouncilSessionStoreV2,
     private readonly transaction: GradebookD1BatchPromotionTransactionV1,
+    private readonly importBootstrapTransaction: GradebookD1ImportBootstrapTransactionV2,
     private readonly migrations: GradebookD1MigrationRunnerV1,
   ) {}
 
@@ -199,6 +205,16 @@ export class GradebookD1RuntimeV1 {
   persistenceUnitOfWork(): PersistenceUnitOfWorkV1 {
     requireGradebookD1RuntimeAuthorizationV1(this.authorization);
     return this.unitOfWork;
+  }
+
+  persistenceUnitOfWorkV2(): PersistenceUnitOfWorkV2 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    return this.unitOfWork;
+  }
+
+  importBootstrapTransactionV2(): ImportBootstrapTransactionPortV2 {
+    requireGradebookD1RuntimeAuthorizationV1(this.authorization);
+    return this.importBootstrapTransaction;
   }
 
   operationalReadModels(): GradebookOperationalReadModelsV1 {
@@ -327,7 +343,7 @@ export function createGradebookD1RuntimeV1(
   requireGradebookD1RuntimeAuthorizationV1(authorization);
   const environment = runtimeEnvironment(env);
   const database = requireDatabase(env.GRADEBOOK_D1);
-  const unitOfWork = createGradebookD1PersistenceUnitOfWorkV1(database, {
+  const unitOfWork = createGradebookD1PersistenceUnitOfWorkV2(database, {
     now: options.now,
   });
   const readModels = createGradebookOperationalReadModelsV1(unitOfWork);
@@ -345,6 +361,9 @@ export function createGradebookD1RuntimeV1(
   const durability = createGradebookD1BulletinCouncilDurabilityV1(database);
   const sessions = durability.councilSessions;
   const transaction = new GradebookD1BatchPromotionTransactionV1(database, { now: options.now });
+  const importBootstrapTransaction = new GradebookD1ImportBootstrapTransactionV2(database, {
+    now: options.now,
+  });
   const migrations = new GradebookD1MigrationRunnerV1(database, {
     migrationSql: options.migrationSql,
   });
@@ -361,6 +380,7 @@ export function createGradebookD1RuntimeV1(
     durability,
     sessions,
     transaction,
+    importBootstrapTransaction,
     migrations,
   );
 }

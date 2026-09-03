@@ -3,6 +3,7 @@ import type { AssessmentComponentV2 } from '../../../../shared/gradebook-contrac
 import type {
   AcademicEntityRecordV1,
   AcademicEntityRepositoryV1,
+  AcademicRecordV1,
   VersionedRecordV1,
 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import type {
@@ -86,6 +87,11 @@ export interface AssessmentImportReconciliationFileInputV2 extends Omit<
   'records'
 > {
   readonly materialization: AssessmentDefinitionMaterializationV2;
+  /**
+   * Official records derived from the same recognized source file. GradeEntry records remain
+   * materialized above so blocked AssessmentComponents can still suppress their dependents.
+   */
+  readonly additionalRecords?: readonly Exclude<AcademicRecordV1, { readonly kind: 'grade-entry' }>[];
 }
 
 export interface AssessmentImportReconciliationInputV2 extends Omit<
@@ -266,15 +272,18 @@ export async function planAssessmentImportReconciliationV2(
     files: input.files.map((file) => ({
       importFileId: file.importFileId,
       logicalSource: file.logicalSource,
-      records: file.materialization.gradeEntries
-        .filter(
-          (value) =>
-            !blockedComponentKeys.has(`${file.importFileId}:${value.assessmentComponentId}`),
-        )
-        .map((value) => ({
-          kind: 'grade-entry' as const,
-          value,
-        })),
+      records: [
+        ...file.materialization.gradeEntries
+          .filter(
+            (value) =>
+              !blockedComponentKeys.has(`${file.importFileId}:${value.assessmentComponentId}`),
+          )
+          .map((value) => ({
+            kind: 'grade-entry' as const,
+            value,
+          })),
+        ...(file.additionalRecords ?? []),
+      ],
     })),
   };
   const recordPlan = await planImportReconciliation(recordsInput, repositories);
