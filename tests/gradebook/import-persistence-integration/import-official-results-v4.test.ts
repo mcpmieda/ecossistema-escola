@@ -359,9 +359,9 @@ describe('Import persistence official results V4', () => {
       )
       .get() as { payload_json: string };
     const payload = JSON.parse(row.payload_json) as {
-      value: { coverage: { state: string }; academicState: { imported: { state: string } } };
+      value: { coverage: { state: string }; academicState: { imported: string } };
     };
     expect(payload.value.coverage.state).toBe('insufficient-data');
-    expect(payload.value.academicState.imported.state).toBe('insufficient-data');
+    expect(payload.value.academicState.imported).toBe('insufficient-data');
   });
 });
