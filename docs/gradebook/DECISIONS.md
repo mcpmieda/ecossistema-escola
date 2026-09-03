@@ -199,3 +199,66 @@ Durante o piloto, `imported-source` permanece autoridade. O Banco calcula em par
 Com piloto aprovado e todos os gates satisfeitos, a #347 poderá ativar `native-engine` somente para vigência explicitamente definida. A partir dessa futura ativação, o Banco determinará os resultados determinísticos cobertos pelo perfil vigente, enquanto a planilha continuará preservada e comparada como referência independente. Um `mismatch` material poderá bloquear publicação ou fechamento até reconciliação, mas não devolverá automaticamente autoridade à planilha.
 
 A presença desta decisão no repositório não altera o `authorityMode`, não provisiona produção, não aplica migrations, não executa smoke ou piloto e não implementa a #347. A remoção do hard stop `comparison-semantics-not-integrated` da #189 ainda exige contrato compartilhado, implementação e integração próprios.
+
+## BN-DEC-020 — Piloto integral e autoridade nativa imediata por escopo
+
+**Data:** 2026-09-02  
+**Status:** vigente  
+**Origem:** issue #384  
+**Complementa:** BN-DEC-019  
+**Substitui BN-DEC-019:** exclusivamente quanto à suposição de rollout ou vigência única/global da autoridade nativa; todas as demais regras, separações, bloqueios e salvaguardas da BN-DEC-019 permanecem vigentes.
+
+O primeiro piloto acadêmico real deve abranger a escola inteira, e não uma amostra reduzida. A janela continua privada e controlada e, durante a validação, `imported-source` permanece a autoridade. O piloto integral não remove nenhum gate: continuam obrigatórios autorização server-side, runbook de recuperação, RPO/RTO definidos, stop conditions e evidência pública apenas agregada e sanitizada.
+
+### Escopo do piloto integral
+
+No escopo suportado, a validação deve exercitar de ponta a ponta:
+
+- importação e reimportação;
+- Auditoria e reconciliação;
+- Desempenho e comparação proporcional;
+- Boletins, snapshots e reimpressão;
+- Relatórios;
+- Conselho e decisões humanas exclusivamente nos limites já formalizados;
+- restart, recuperação, CAS e histórico;
+- limitações conhecidas process-local quando forem efetivamente atingidas pelo piloto.
+
+Um escopo somente pode ser considerado aprovado para futura ativação nativa quando não houver `mismatch` material não reconciliado nele; qualquer `expected-difference` possuir razão oficial e documentada; `not-comparable` não for tratado como `match`; defeitos de software identificados tiverem sido corrigidos pelo fluxo normal de desenvolvimento e o escopo tiver sido revalidado; e segurança, privacidade, histórico, recuperação e stop conditions permanecerem verdes. Não se exige identidade absoluta quando houver `expected-difference` oficialmente válida.
+
+### Autoridade nativa imediata após aprovação do escopo
+
+Depois que um escopo acadêmico estiver aprovado, `native-engine` deve poder tornar-se a autoridade para novos resultados desse escopo imediatamente a partir do instante de implantação ou ativação oficialmente registrado, inclusive dentro do ano letivo em curso. Não existe espera automática até o próximo trimestre ou próximo ano.
+
+Cada vigência continua obrigatoriamente explícita, temporal, versionada, não retroativa, auditável e reversível conforme o runbook. Resultados, snapshots, boletins, reimpressões e demais registros anteriores à vigência preservam a autoridade histórica sob a qual foram produzidos.
+
+### Rollout progressivo por escopo acadêmico
+
+A transição para `native-engine` é progressiva, por escopo acadêmico formal, e não um flip global obrigatório. A representação final deve preferir identidades acadêmicas já existentes, como `academicYearId` combinado com turma, `teachingAssignment` e/ou disciplina, conforme o contrato versionado final determinar.
+
+Escopos distintos podem, portanto, permanecer temporariamente em autoridades diferentes: um escopo aprovado pode operar com `native-engine` para novos resultados a partir de sua vigência registrada enquanto outro continua em `imported-source` até cumprir seu próprio gate. A seleção de autoridade nunca pode depender de flag local, preferência do navegador ou escolha ad hoc do cliente.
+
+### Evolução contratual obrigatória antes da #347
+
+O contrato V1 já representa `authorityMode` nos resultados e os registros possuem contexto acadêmico suficiente para sustentar uma futura seleção por resultado/escopo. Contudo, consumidores oficiais V1 como `BulletinModelV1` e `ClassPerformanceReadModelV1` ainda restringem sua autoridade a `imported-source`.
+
+Por isso, a #347 não pode ser implementada como simples flag global. Antes de sua implementação final, uma issue própria `[BN][CONTRATO]` deve definir evolução versionada e compatível para seleção de autoridade por escopo e para os consumidores oficiais, preservando a interpretação e o histórico V1. Conversão silenciosa de registros históricos é proibida.
+
+### Papel da planilha após ativação nativa
+
+Depois que um escopo migrar para `native-engine`, upload e reimportação de planilha continuam autorizados como entrada ou atualização de lançamentos e como evidência documental/auditável. Os valores importados permanecem preservados e disponíveis para comparação independente, enquanto o motor nativo recalcula os resultados determinísticos cobertos pelo perfil vigente.
+
+Divergência não devolve automaticamente autoridade à planilha. `Mismatch` material continua bloqueando liberação ou fechamento conforme a BN-DEC-019, e correção automática continua limitada aos casos deterministicamente elegíveis já formalizados.
+
+### Conselho e decisões humanas
+
+Conselho de Classe e demais decisões explicitamente humanas permanecem fora da autoridade automática do motor. O rollout por escopo não transforma decisão humana em cálculo e não cria regra de Conselho.
+
+### Sequenciamento operacional
+
+A Onda 23 permanece inalterada e sequencial: `#380 → #381 → #382 → #383`. Ela prepara recurso/binding, migrations e smoke controlado e deve terminar com o production gate novamente `OFF`. Esta decisão não antecipa dado real, piloto ou ativação antes da conclusão verde da #383.
+
+Depois da #383, a Onda 24 deve começar pela revisão das limitações conhecidas contra o piloto integral, abrir a janela privada da escola inteira ainda com `imported-source` autoritativo, executar comparação e reconciliação completas, corrigir deterministicamente apenas o que for elegível e corrigir defeitos de software pelo fluxo normal, revalidar os escopos e produzir um mapa explícito de escopos `eligible-for-native-activation` versus bloqueados.
+
+A #347 permanece bloqueada até a Onda 23 e a Onda 24 estarem concluídas com evidência suficiente, a evolução contratual de autoridade por escopo estar integrada, o primeiro escopo de ativação estar definido, a vigência imediata estar explicitamente registrada para cada ativação ou lote, rollback/recovery estarem confirmados e não existir hard stop acadêmico material no escopo a ativar. Quando liberada, a #347 deve executar rollout progressivo por escopo, não uma ativação global obrigatória.
+
+Esta decisão não cria critério automático de prontidão por turma ou disciplina, tolerância ou materialidade numérica, retroatividade, seleção de autoridade no cliente, regra de Conselho, fallback automático para a planilha nem conversão silenciosa do histórico V1. Sua publicação, por si só, não altera `authorityMode`, não executa piloto, não abre o runtime acadêmico produtivo, não provisiona recurso, não aplica migration e não implementa a #347.
