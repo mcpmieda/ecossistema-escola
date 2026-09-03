@@ -5,6 +5,7 @@ import type {
   StudentId,
   TeachingAssignmentId,
 } from '../../../shared/gradebook-contracts/entities';
+import type { GradebookImportAssessmentDefinitionV1 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v1';
 import {
   GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V4,
   GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
@@ -17,6 +18,10 @@ import {
   type GradebookImportResultCellObservationV4,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import { inspectGradebookImportPersistenceRequestV3 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v3';
+import {
+  SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
+  SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
+} from '../../../shared/gradebook-contracts/source/source-contract-v2';
 import { materializeGradebookImportResultCellObservationV4 } from '../../../server/gradebook/application/import/result-cell-observation-v4';
 
 const academicYearId = 'academic-year:synthetic-2026' as AcademicYearId;
@@ -28,6 +33,20 @@ const positive = (rawValue: number): GradebookImportResultCellObservationV4 => (
   classification: 'manual-positive-number',
   rawValue,
 });
+
+function definitions(): GradebookImportAssessmentDefinitionV1[] {
+  return [
+    ...SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2.map((slot) => ({
+      sourceSlot: slot.sourceSlot,
+      maximumConfiguration: { state: 'numeric' as const, rawValue: slot.order + 4 },
+    })),
+    ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) => ({
+      sourceSlot: slot.sourceSlot,
+      maximumConfiguration: { state: 'numeric' as const, rawValue: 3 },
+      name: { state: 'text' as const, rawValue: `Atividade sintética ${slot.order}` },
+    })),
+  ];
+}
 
 function request(): GradebookImportPersistenceRequestV4 {
   return {
@@ -58,15 +77,23 @@ function request(): GradebookImportPersistenceRequestV4 {
           disciplineIndex: 'D1',
         },
         teachingAssignmentId: assignmentId,
-        assessmentDefinitions: [],
+        assessmentDefinitions: definitions(),
         students: [
           {
             sourceRow: 5,
             confirmedStudent: { studentId, enrollmentId },
-            assessmentValues: [],
+            assessmentValues: [
+              { sourceSlot: 'R', value: { kind: 'manual', source: 4, value: 4 } },
+              { sourceSlot: 'AA', value: { kind: 'official-zero', source: 0.1, value: 0 } },
+            ],
             aggregates: {
               quantitativeTotal: positive(10),
-              parallelAssessment: { classification: 'formula-zero', rawValue: 0, formula: '=0', cachedValue: 0 },
+              parallelAssessment: {
+                classification: 'formula-zero',
+                rawValue: 0,
+                formula: '=0',
+                cachedValue: 0,
+              },
               qualitativeTotal: positive(12),
               officialTermGrade: positive(22),
               annualAccumulatedTotal: { classification: 'missing-field' },
