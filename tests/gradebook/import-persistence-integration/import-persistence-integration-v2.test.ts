@@ -8,13 +8,17 @@ import type {
   TeachingAssignmentId,
   EnrollmentId,
 } from '../../../shared/gradebook-contracts/entities';
-import type { GradebookImportPersistenceRequestV2 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v2';
+import type {
+  GradebookImportPersistenceRequestV4,
+  GradebookImportResultCellObservationV4,
+} from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
 } from '../../../shared/gradebook-contracts/source/source-contract-v2';
-import { createGradebookImportPersistenceServiceV2 } from '../../../server/gradebook/application/import/import-persistence-service-v2';
+import { createGradebookImportPersistenceServiceV4 } from '../../../server/gradebook/application/import/import-persistence-service-v2';
 import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
+import { createGradebookD1ImportAnnualStateSourceV1 } from '../../../server/gradebook/persistence/d1/imports/d1-import-annual-state-source-v1';
 import { GradebookD1ImportBootstrapTransactionV2 } from '../../../server/gradebook/persistence/d1/transaction/d1-import-bootstrap-transaction-v2';
 import type {
   ImportBootstrapTransactionPortV2,
@@ -34,13 +38,13 @@ import {
   type SqliteD1Database,
 } from '../persistence/d1-transaction/d1-write-test-support';
 
-const schoolId = 'school:import-integration-v2' as SchoolId;
-const teacherId = 'teacher:import-integration-v2' as TeacherId;
-const classGroupId = 'class-group:import-integration-v2' as ClassGroupId;
-const subjectId = 'subject:import-integration-v2' as SubjectId;
-const assignmentId = 'teaching-assignment:import-integration-v2' as TeachingAssignmentId;
-const studentId = 'student:import-integration-v2' as StudentId;
-const enrollmentId = 'enrollment:import-integration-v2' as EnrollmentId;
+const schoolId = 'school:import-integration-v4' as SchoolId;
+const teacherId = 'teacher:import-integration-v4' as TeacherId;
+const classGroupId = 'class-group:import-integration-v4' as ClassGroupId;
+const subjectId = 'subject:import-integration-v4' as SubjectId;
+const assignmentId = 'teaching-assignment:import-integration-v4' as TeachingAssignmentId;
+const studentId = 'student:import-integration-v4' as StudentId;
+const enrollmentId = 'enrollment:import-integration-v4' as EnrollmentId;
 let database: SqliteD1Database;
 
 beforeEach(async () => {
@@ -121,11 +125,18 @@ beforeEach(async () => {
 
 afterEach(() => database.raw.close());
 
+function positive(value: number): GradebookImportResultCellObservationV4 {
+  return { classification: 'manual-positive-number', rawValue: value };
+}
+
+const empty = { classification: 'empty', rawValue: '' } as const;
+const missing = { classification: 'missing-field' } as const;
+
 function request(
   hash = 'a',
   grade: number | null = 7,
   fileName = 'fixture-sintetica.xlsx',
-): GradebookImportPersistenceRequestV2 {
+): GradebookImportPersistenceRequestV4 {
   const definitions = [
     ...SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2.map((slot) => ({
       sourceSlot: slot.sourceSlot,
@@ -138,7 +149,7 @@ function request(
     })),
   ];
   return {
-    transportVersion: 2,
+    transportVersion: 4,
     operation: 'persist-recognized-file',
     manifest: {
       fileName,
@@ -148,7 +159,7 @@ function request(
       lastModifiedAt: null,
       sha256: hash.repeat(64),
       sourceContractVersion: 2,
-      parserVersion: 'synthetic-v2',
+      parserVersion: 'synthetic-v4',
       readAt: instant,
     },
     recognizedSuggestions: { academicYear: 2026, teacherName: 'Sugestão não autoritativa' },
@@ -175,11 +186,11 @@ function request(
                 ? []
                 : [{ sourceSlot: 'R', value: { kind: 'manual', source: grade, value: grade } }],
             aggregates: {
-              quantitativeTotal: null,
-              parallelAssessment: null,
-              qualitativeTotal: null,
-              officialTermGrade: null,
-              annualAccumulatedTotal: null,
+              quantitativeTotal: positive(10),
+              parallelAssessment: empty,
+              qualitativeTotal: positive(12),
+              officialTermGrade: positive(22),
+              annualAccumulatedTotal: missing,
             },
           },
         ],
@@ -192,12 +203,13 @@ function request(
 function service(transaction?: ImportBootstrapTransactionPortV2) {
   let sequence = 0;
   const unitOfWork = createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant });
-  return createGradebookImportPersistenceServiceV2({
+  return createGradebookImportPersistenceServiceV4({
     unitOfWork,
     transaction:
       transaction ?? new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant }),
+    annualStateSource: createGradebookD1ImportAnnualStateSourceV1(database),
     now: () => instant,
-    createId: (kind) => `${kind}:integration-v2:${++sequence}`,
+    createId: (kind) => `${kind}:integration-v4:${++sequence}`,
   });
 }
 
@@ -255,9 +267,9 @@ function tracedUnitOfWork(
   };
 }
 
-describe('Import persistence integration V2', () => {
+describe('Import persistence integration V4', () => {
   it('revalidates opaque student/enrollment references before source resolution and planning', async () => {
-    const incompatible = structuredClone(request()) as GradebookImportPersistenceRequestV2;
+    const incompatible = structuredClone(request()) as GradebookImportPersistenceRequestV4;
     const sheet = incompatible.sheets[0];
     if (!sheet) throw new Error('missing synthetic sheet');
     const student = sheet.students[0];
@@ -265,6 +277,7 @@ describe('Import persistence integration V2', () => {
     (student.confirmedStudent as { enrollmentId: EnrollmentId }).enrollmentId =
       'enrollment:not-compatible' as EnrollmentId;
     expect(await service().execute(incompatible)).toMatchObject({
+      transportVersion: 4,
       state: 'review-required',
       issues: [{ code: 'incompatible-reference' }],
       summary: { committedWrites: { total: 0 } },
@@ -276,7 +289,7 @@ describe('Import persistence integration V2', () => {
         }
       ).count,
     ).toBe(0);
-    expect(await service().execute(request())).toMatchObject({ state: 'applied' });
+    expect(await service().execute(request())).toMatchObject({ transportVersion: 4, state: 'applied' });
     expect(
       (
         database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as {
@@ -287,9 +300,9 @@ describe('Import persistence integration V2', () => {
   });
 
   it('rejects assignments owned by different teachers before source resolution or writes', async () => {
-    const otherTeacherId = 'teacher:import-integration-v2:other' as TeacherId;
+    const otherTeacherId = 'teacher:import-integration-v4:other' as TeacherId;
     const otherAssignmentId =
-      'teaching-assignment:import-integration-v2:other' as TeachingAssignmentId;
+      'teaching-assignment:import-integration-v4:other' as TeachingAssignmentId;
     const unit = createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant });
     for (const entity of [
       {
@@ -320,8 +333,8 @@ describe('Import persistence integration V2', () => {
           .status,
       ).toBe('written');
     }
-    const mixed = structuredClone(request()) as GradebookImportPersistenceRequestV2;
-    (mixed.sheets as GradebookImportPersistenceRequestV2['sheets'][number][]).push({
+    const mixed = structuredClone(request()) as GradebookImportPersistenceRequestV4;
+    (mixed.sheets as GradebookImportPersistenceRequestV4['sheets'][number][]).push({
       ...structuredClone(mixed.sheets[0]!),
       sourceSheetName: '6S1ºD2',
       teachingAssignmentId: otherAssignmentId,
@@ -332,6 +345,7 @@ describe('Import persistence integration V2', () => {
       },
     });
     expect(await service().execute(mixed)).toMatchObject({
+      transportVersion: 4,
       state: 'review-required',
       issues: [{ code: 'incompatible-reference' }],
       summary: { committedWrites: { total: 0 } },
@@ -349,6 +363,7 @@ describe('Import persistence integration V2', () => {
     const persistence = service();
     const first = await persistence.execute(request());
     expect(first).toMatchObject({
+      transportVersion: 4,
       state: 'applied',
       summary: {
         committedWrites: {
@@ -356,14 +371,22 @@ describe('Import persistence integration V2', () => {
           sourceFileVersions: 1,
           importBatchVersions: 1,
           assessmentComponentVersions: 12,
-          academicRecordVersions: 1,
-          logicalSourceRecordAssociationVersions: 1,
+          academicRecordVersions: 2,
+          logicalSourceRecordAssociationVersions: 2,
         },
       },
     });
+    expect(
+      (
+        database.raw
+          .prepare("SELECT COUNT(*) AS count FROM academic_record_streams WHERE record_kind='term-result'")
+          .get() as { count: number }
+      ).count,
+    ).toBe(1);
 
     const identical = await persistence.execute(request());
     expect(identical).toMatchObject({
+      transportVersion: 4,
       state: 'no-changes',
       summary: {
         committedWrites: {
@@ -378,6 +401,7 @@ describe('Import persistence integration V2', () => {
 
     const renamed = await persistence.execute(request('a', 7, 'fixture-sintetica-renomeada.xlsx'));
     expect(renamed).toMatchObject({
+      transportVersion: 4,
       state: 'no-changes',
       summary: {
         committedWrites: {
@@ -390,6 +414,7 @@ describe('Import persistence integration V2', () => {
 
     const changed = await persistence.execute(request('b', 8));
     expect(changed).toMatchObject({
+      transportVersion: 4,
       state: 'applied',
       summary: {
         committedWrites: {
@@ -397,13 +422,13 @@ describe('Import persistence integration V2', () => {
           importBatchVersions: 1,
           assessmentComponentVersions: 0,
           academicRecordVersions: 1,
-          logicalSourceRecordAssociationVersions: 1,
         },
       },
     });
 
     const absent = await persistence.execute(request('c', null));
     expect(absent).toMatchObject({
+      transportVersion: 4,
       state: 'review-required',
       summary: { committedWrites: { total: 0 } },
     });
@@ -420,7 +445,7 @@ describe('Import persistence integration V2', () => {
           count: number;
         }
       ).count,
-    ).toBe(2);
+    ).toBe(3);
   });
 
   it('fails closed with two compatible logical sources before planning/writes', async () => {
@@ -440,6 +465,7 @@ describe('Import persistence integration V2', () => {
     ).count;
     const response = await persistence.execute(request('d', 9));
     expect(response).toMatchObject({
+      transportVersion: 4,
       state: 'review-required',
       issues: [{ code: 'ambiguous-logical-source' }],
     });
@@ -478,7 +504,7 @@ describe('Import persistence integration V2', () => {
       }
     ).count;
     expect(await service(stale).execute(request('e', 9))).toEqual({
-      transportVersion: 2,
+      transportVersion: 4,
       state: 'conflict',
     });
     expect(
@@ -518,7 +544,7 @@ describe('Import persistence integration V2', () => {
     ]);
   });
 
-  it('commits the complete import through the production-style atomic D1 batch path', async () => {
+  it('commits GradeEntry and TermResult through the production-style atomic D1 batch path', async () => {
     const atomic: D1WriteDatabaseV1 & {
       batch(statements: readonly D1WriteStatementV1[]): Promise<readonly D1WriteRunResultV1[]>;
     } = {
@@ -538,22 +564,24 @@ describe('Import persistence integration V2', () => {
       },
     };
     let sequence = 0;
-    const persistence = createGradebookImportPersistenceServiceV2({
+    const persistence = createGradebookImportPersistenceServiceV4({
       unitOfWork: createGradebookD1PersistenceUnitOfWorkV2(atomic, { now: () => instant }),
       transaction: new GradebookD1ImportBootstrapTransactionV2(atomic, { now: () => instant }),
+      annualStateSource: createGradebookD1ImportAnnualStateSourceV1(atomic),
       now: () => instant,
-      createId: (kind) => `${kind}:atomic-integration-v2:${++sequence}`,
+      createId: (kind) => `${kind}:atomic-integration-v4:${++sequence}`,
     });
     expect(await persistence.execute(request())).toMatchObject({
+      transportVersion: 4,
       state: 'applied',
-      summary: { committedWrites: { total: 17 } },
+      summary: { committedWrites: { total: 19 } },
     });
     for (const [table, count] of [
       ['logical_sources', 1],
       ['source_file_versions', 1],
       ['import_batch_versions', 1],
-      ['academic_record_versions', 1],
-      ['logical_source_record_versions', 1],
+      ['academic_record_versions', 2],
+      ['logical_source_record_versions', 2],
     ] as const) {
       expect(
         (database.raw.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number })
