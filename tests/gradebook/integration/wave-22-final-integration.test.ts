@@ -146,12 +146,13 @@ describe('integração final da onda 22 — comparação e correção determiní
     expect(correction).not.toContain('patchArbitrary');
   });
 
-  it('preserva schema, bridges, autoridade importada e readiness antes do binding', () => {
+  it('preserva bridges/autoridade/readiness históricos e reconhece o catálogo local 0001–0005', () => {
     expect(readdirSync(join(root, 'migrations/gradebook')).sort()).toEqual([
       '0001_gradebook_context_entities_imports_v1.sql',
       '0002_gradebook_records_audit_v1.sql',
       '0003_logical_source_record_catalog_v1.sql',
       '0004_bulletin_council_durability_v1.sql',
+      '0005_council_session_durability_v2.sql',
     ]);
     const readiness = evaluateGradebookProductionReadinessPreparationV1({
       authorityMode: 'imported-source',
