@@ -26,6 +26,8 @@ import type {
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v1';
 
 const ENDPOINT = '/api/gradebook/import-persistence';
+export const IMPORT_PERSISTENCE_REQUEST_TIMEOUT_MS = 45_000;
+const IMPORT_PERSISTENCE_REQUEST_ATTEMPTS = 2;
 
 export interface ConfirmedImportStudentReferenceV2 {
   readonly studentId: StudentId;
@@ -225,16 +227,52 @@ export async function persistRecognizedGradebookFileV4(
   confirmed: ConfirmedImportReferencesV2,
   signal?: AbortSignal,
 ): Promise<GradebookImportPersistenceResponseV4> {
-  const response = await fetch(ENDPOINT, {
-    method: 'POST',
-    credentials: 'same-origin',
-    cache: 'no-store',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(createGradebookImportPersistenceRequestV4(result, confirmed)),
-    signal,
-  });
-  const payload: unknown = await response.json().catch(() => null);
-  if (!isGradebookImportPersistenceResponseV4(payload))
-    throw new Error('Resposta de persistência incompatível.');
-  return payload;
+  const body = JSON.stringify(createGradebookImportPersistenceRequestV4(result, confirmed));
+  let lastFailure: unknown = null;
+
+  for (let attempt = 0; attempt < IMPORT_PERSISTENCE_REQUEST_ATTEMPTS; attempt += 1) {
+    if (signal?.aborted) throw signal.reason;
+    const controller = new AbortController();
+    let timedOut = false;
+    const abortFromCaller = () => controller.abort(signal?.reason);
+    signal?.addEventListener('abort', abortFromCaller, { once: true });
+    const timeout = globalThis.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, IMPORT_PERSISTENCE_REQUEST_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(ENDPOINT, {
+        method: 'POST',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        signal: controller.signal,
+      });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!isGradebookImportPersistenceResponseV4(payload)) {
+        throw new Error('Resposta de persistência incompatível.');
+      }
+      return payload;
+    } catch (cause) {
+      lastFailure = cause;
+      if (signal?.aborted) throw signal.reason;
+      const retryable = timedOut || cause instanceof TypeError;
+      if (!retryable || attempt + 1 === IMPORT_PERSISTENCE_REQUEST_ATTEMPTS) break;
+    } finally {
+      globalThis.clearTimeout(timeout);
+      signal?.removeEventListener('abort', abortFromCaller);
+    }
+  }
+
+  if (
+    lastFailure instanceof Error &&
+    lastFailure.message === 'Resposta de persistência incompatível.'
+  ) {
+    throw lastFailure;
+  }
+  throw new Error(
+    'A persistência não respondeu no tempo esperado após uma retomada segura. Recarregue a tela para consultar o estado oficial.',
+  );
 }

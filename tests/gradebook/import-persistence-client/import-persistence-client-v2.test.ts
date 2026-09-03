@@ -11,6 +11,7 @@ import type {
 } from '../../../shared/gradebook-contracts/imports/import-ids-v1';
 import {
   createGradebookImportPersistenceRequestV4,
+  IMPORT_PERSISTENCE_REQUEST_TIMEOUT_MS,
   persistRecognizedGradebookFileV4,
 } from '../../../src/features/gradebook/import/import-persistence-client-v2';
 import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
@@ -199,5 +200,63 @@ describe('Gradebook import persistence client V4', () => {
       }),
     );
     fetchMock.mockRestore();
+  });
+
+  it('retoma uma vez o mesmo request V4 quando a resposta do commit não chega', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockImplementationOnce(
+        (_input, init) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener(
+              'abort',
+              () => reject(new DOMException('Aborted', 'AbortError')),
+              { once: true },
+            );
+          }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ transportVersion: 4, state: 'unavailable' }), {
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+
+    try {
+      const persistence = persistRecognizedGradebookFileV4(result, references);
+      await vi.advanceTimersByTimeAsync(IMPORT_PERSISTENCE_REQUEST_TIMEOUT_MS);
+      await expect(persistence).resolves.toEqual({ transportVersion: 4, state: 'unavailable' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(fetchMock.mock.calls[1]?.[1]?.body);
+    } finally {
+      fetchMock.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it('encerra de forma bounded após duas respostas perdidas', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('Aborted', 'AbortError')),
+            { once: true },
+          );
+        }),
+    );
+
+    try {
+      const persistence = expect(
+        persistRecognizedGradebookFileV4(result, references),
+      ).rejects.toThrow('não respondeu no tempo esperado');
+      await vi.advanceTimersByTimeAsync(IMPORT_PERSISTENCE_REQUEST_TIMEOUT_MS * 2);
+      await persistence;
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      fetchMock.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });
