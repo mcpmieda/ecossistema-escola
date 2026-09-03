@@ -10,10 +10,12 @@ import type {
   SourceFileManifestId,
 } from '../../../shared/gradebook-contracts/imports/import-ids-v1';
 import {
-  createGradebookImportPersistenceRequestV2,
-  persistRecognizedGradebookFileV2,
+  createGradebookImportPersistenceRequestV4,
+  persistRecognizedGradebookFileV4,
 } from '../../../src/features/gradebook/import/import-persistence-client-v2';
 import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
+
+const missing = { classification: 'missing-field' } as const;
 
 const result = {
   id: 'client-file:synthetic' as ImportFileId,
@@ -34,10 +36,10 @@ const result = {
     format: 'XLSX',
     size: 64,
     parserVersion: 'synthetic-parser',
-    sheets: [{ name: '6S1ºD1', range: 'A1:AN5', rows: 5, columns: 40 }],
+    sheets: [{ name: '6SRECD1', range: 'A1:AN5', rows: 5, columns: 40 }],
     gradeSheets: [
       {
-        name: '6S1ºD1',
+        name: '6SRECD1',
         range: 'A1:AN5',
         rows: 5,
         columns: 40,
@@ -54,13 +56,14 @@ const result = {
             number: '1',
             name: 'Estudante sintético',
             status: 'ATIVO',
-            quantitativeAssessments: [{ source: 7, value: 7, kind: 'manual' }, null],
-            quantitativeTotal: { source: 7, value: 7, kind: 'formula', formula: 'SUM(R5:S5)' },
+            quantitativeAssessments: [null, null],
+            quantitativeTotal: null,
             parallel: null,
             qualitative: [],
             qualitativeTotal: null,
-            official: { source: 7, value: 7, kind: 'formula', formula: 'T5+AK5' },
+            official: null,
             annual: null,
+            termResultObservations: null,
             recovery: {
               trimester1: null,
               trimester2: null,
@@ -70,13 +73,26 @@ const result = {
               originalTrimester2: null,
               originalTrimester3: null,
               originalAnnual: null,
+              resultObservations: {
+                trimester1: missing,
+                trimester2: missing,
+                trimester3: missing,
+                totalAfterRecovery: missing,
+                originalTrimester1: missing,
+                originalTrimester2: missing,
+                originalTrimester3: missing,
+                originalAnnual: missing,
+              },
+              applicabilityTrimester1: { classification: 'numeric', rawValue: 0 },
+              applicabilityTrimester2: { classification: 'empty', rawValue: '' },
+              applicabilityTrimester3: { classification: 'missing-field' },
               eligibleTrimester1: false,
               eligibleTrimester2: false,
               eligibleTrimester3: false,
             },
           },
         ],
-        formulas: 2,
+        formulas: 0,
         officialZeros: 0,
       },
     ],
@@ -89,7 +105,7 @@ const result = {
 const references = {
   academicYearId: 'academic-year:synthetic' as AcademicYearId,
   sheetsByName: {
-    '6S1ºD1': {
+    '6SRECD1': {
       teachingAssignmentId: 'teaching-assignment:synthetic' as TeachingAssignmentId,
       studentsByRow: {
         5: {
@@ -101,27 +117,41 @@ const references = {
   },
 };
 
-describe('Gradebook import persistence client V2', () => {
-  it('builds one bounded observation request without browser-owned IDs or workbook bytes', () => {
-    const request = createGradebookImportPersistenceRequestV2(result, references);
+describe('Gradebook import persistence client V4', () => {
+  it('builds one bounded observation request without browser-owned IDs, provenance or workbook bytes', () => {
+    const request = createGradebookImportPersistenceRequestV4(result, references);
     const serialized = JSON.stringify(request);
     expect(request).toMatchObject({
-      transportVersion: 2,
+      transportVersion: 4,
       sourceResolution: { mode: 'resolve-or-create' },
       confirmedContext: { academicYearId: references.academicYearId },
+      sheets: [
+        {
+          kind: 'recovery',
+          students: [
+            {
+              recovery: {
+                trimester1: { classification: 'missing-field' },
+                applicabilityTrimester1: { classification: 'numeric', rawValue: 0 },
+              },
+            },
+          ],
+        },
+      ],
     });
     expect(serialized).not.toContain('logicalSourceId');
     expect(serialized).not.toContain('client-manifest:must-not-cross-http');
+    expect(serialized).not.toContain('provenance');
     expect(serialized).not.toMatch(
       /arrayBuffer|workbook|worksheet|expectedVersion|authorityMode|writes|sql/iu,
     );
   });
 
-  it('uses no-store/same-origin and accepts only a sanitized V2 response', async () => {
+  it('uses no-store/same-origin and accepts only a sanitized V4 response', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(
         JSON.stringify({
-          transportVersion: 2,
+          transportVersion: 4,
           state: 'no-changes',
           summary: {
             assessmentDefinitions: { total: 1, resolved: 1, blocked: 0 },
@@ -156,7 +186,8 @@ describe('Gradebook import persistence client V2', () => {
         { headers: { 'Content-Type': 'application/json' } },
       ),
     );
-    await expect(persistRecognizedGradebookFileV2(result, references)).resolves.toMatchObject({
+    await expect(persistRecognizedGradebookFileV4(result, references)).resolves.toMatchObject({
+      transportVersion: 4,
       state: 'no-changes',
     });
     expect(fetchMock).toHaveBeenCalledWith(
