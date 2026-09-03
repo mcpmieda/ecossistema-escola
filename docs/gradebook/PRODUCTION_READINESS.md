@@ -2,7 +2,7 @@
 
 ## Estado e autoridade deste documento
 
-Este runbook preserva a preparação histórica e registra o fechamento controlado da onda 23. Ele não autoriza piloto real nem troca de autoridade.
+Este runbook preserva a preparação histórica, registra o fechamento controlado da onda 23 e incorpora a revisão de escopo pré-piloto da #394. Ele não autoriza piloto real nem troca de autoridade.
 
 ### V1 histórico
 
@@ -25,50 +25,124 @@ O V2 é um avaliador puro de estado. Não contém cliente HTTP, API Cloudflare, 
 
 SHA/deployment usado no smoke final: `2fdefa87f186e84ed40637437d4b0199baff82c6`. A janela terminou com `production-gate-final: off` e `authorityMode: imported-source`.
 
-## Hard stops depois da onda 23
+A #384 foi integrada pela PR #393 e publicou a BN-DEC-020. O primeiro piloto real passa a ser a **escola inteira**, em janela privada/controlada, ainda com `imported-source` autoritativo durante a validação. Essa decisão não abriu o gate, não executou piloto e não alterou autoridade.
 
-Os três primeiros gates produtivos históricos estão fechados. Restam independentes:
+## Hard stops depois da onda 23 e da revisão #394
 
-1. `private-real-pilot-authorization`;
-2. `native-authority-separate-authorization`.
+Os três primeiros gates produtivos históricos estão fechados. A revisão #394 confirmou que a janela real ainda **não pode começar** porque existe um bloqueio técnico pré-piloto:
 
-A #384 / PR #385 ainda não está integrada nesta consolidação; BN-DEC-019 permanece a decisão canônica vigente até integração própria.
+1. `council-v2-session-cross-restart-durability` — **#395**, obrigatório antes da janela real;
+2. `private-real-pilot-authorization` — autorização/execução em issue separada somente depois de #395 integrada e revalidada;
+3. `native-authority-separate-authorization` — trilha posterior, incluindo contrato de autoridade por escopo e #347.
 
-## Limitações conhecidas para revisão da onda 24
+O production gate permanece OFF. `authorityMode` permanece `imported-source`; `native-engine` permanece inativo.
 
-- `reconciliation_v2.case_store` provider-independent/process-local;
-- sessão/reunião institucional do Conselho V2 process-local e sem durabilidade cross-restart;
-- write administrativo da configuração de comparação ainda `not-integrated-hard-stop`.
+## Revisão de escopo da onda 24 — #394
 
-A revisão da onda 24 deve decidir se o escopo real autorizado depende dessas limitações; esta integração não cria schema/capability por conveniência.
+### Classificação das limitações conhecidas
+
+| Limitação | Classificação | Evidência/efeito | Decisão pré-piloto |
+| --- | --- | --- | --- |
+| `reconciliation_v2.case_store` provider-independent/process-local | `allowed-with-controls` | `createLocalDeterministicCorrectionCaseStoreV2` usa `Map`/`Set`; após perda do store, `inspect()` relê a reconciliação durável da Auditoria e recria um caso fail-closed, sem liberar `mismatch` | pode participar do piloto desde que qualquer investigação/receita em voo seja invalidada após restart e reconstituída antes de correção |
+| sessão/reunião institucional do Conselho V2 process-local | `blocks-pilot` | `createLocalCouncilSessionStoreV2` mantém estado, votos, fechamento e histórico apenas em memória; `close()` e `decide()` dependem desse estado; migration 0004 persiste decisões V1, não a sessão V2 | #395 deve integrar durabilidade cross-restart antes de qualquer janela real |
+| write administrativo da configuração de comparação | `not-hit-by-authorized-pilot-scope` | contrato V2 possui configuração server-only, default canônico `enabled: true` e leitura de `PlatformConfiguration`; somente o write permanece `not-integrated-hard-stop` | o piloto não altera configuração; usa a configuração server-side aplicável já resolvida no início da janela |
+
+### Reconciliation V2 — controles obrigatórios
+
+A limitação process-local não é considerada bloqueadora porque a perda do case store não produz fail-open: `inspect()` consegue reconstruir o caso base a partir da reconciliação persistida e o estado reconstruído volta a exigir investigação quando a divergência não está reconciliada.
+
+Durante futura janela real:
+
+- nunca tratar case/recipe/history do store process-local como evidência institucional durável;
+- se ocorrer restart/deploy durante investigação, considerar perdido todo case/claim/recipe em voo;
+- após restart, executar nova inspeção a partir da reconciliação durável e aceitar o retorno fail-closed como nova base;
+- revalidar evidência, inputs imutáveis e CAS antes de registrar nova prova/receita;
+- nunca atravessar restart entre prova registrada e execução determinística presumindo continuidade do store;
+- `mismatch` com possível impacto acadêmico continua bloqueando liberação/fechamento;
+- quando uma correção for realmente aplicada, o write acadêmico e a ocorrência de Auditoria continuam pelo planner/executor/transação oficiais.
+
+Se o piloto demonstrar necessidade de preservar investigação/recipe entre restarts como requisito operacional, isso deixa de ser `allowed-with-controls` e exige issue própria; não se adiciona persistência por conveniência nesta revisão.
+
+### Conselho V2 — motivo do bloqueio
+
+`CouncilSessionStoreV2` representa por ano/turma o estado `open | closed`, versão/CAS, votos opcionais, snapshot de fechamento e histórico. A implementação atual é explicitamente descartável/process-local. O runtime apenas reutiliza a mesma instância enquanto o objeto de database permanecer vivo no processo; não há tabela D1 para o agregado.
+
+Isso é incompatível com o piloto integral porque a BN-DEC-020 exige validar Conselho nos limites formalizados junto com restart/recuperação/CAS/histórico. Após restart real, uma sessão fechada pode reaparecer como `open` versão 0, o histórico de fechamento fica vazio e o guard institucional que impede `decide()` depois do fechamento deixa de reconhecer o fechamento anterior. As decisões humanas V1 continuam duráveis, mas essa durabilidade não substitui o estado institucional V2.
+
+A #395 foi aberta para remover somente esse bloqueio, reutilizando a porta `CouncilSessionStoreV2`, adicionando persistência provider-specific e provando recuperação de estado/fechamento/histórico/CAS após reinstanciação. #395 não executa piloto, não aplica migration remota e não altera autoridade.
+
+### Configuração da comparação — limite fora do escopo autorizado
+
+O piloto integral deve validar Desempenho e comparação proporcional, mas não precisa exercer alteração administrativa da configuração. A projeção possui default canônico habilitado e aceita snapshot server-side de `PlatformConfiguration`; não existe preferência de navegador.
+
+Na futura janela:
+
+- fixar a configuração server-side aplicável no início da janela;
+- se não houver linha aplicável, usar o default canônico `enabled: true`;
+- não editar configuração por SQL manual, cliente, flag local ou qualquer caminho ad hoc;
+- se surgir necessidade institucional de mudar a configuração durante o piloto, parar a operação afetada e abrir issue própria antes da mudança.
+
+Portanto a ausência de write administrativo não justifica implementação antes do piloto enquanto a janela autorizada não exigir mudança de configuração.
+
+### Outros limites revisados
+
+Não foi identificado outro `blocks-pilot` obrigatório além da sessão institucional V2.
+
+O desempate do Conselho permanece fail-closed sem identidade/capability formal de diretor. A votação é opcional e não cria decisão; por isso o desempate não é requisito obrigatório da janela integral. O piloto não pode inventar identidade de diretor, inferir `ADMINISTRADOR == diretor` ou transformar esse limite em regra nova.
+
+## Mapa do piloto integral por fluxo
+
+| Fluxo | Estado pós-#383 | Efeito da revisão #394 | Situação para futura janela |
+| --- | --- | --- | --- |
+| importação/reimportação | pipeline/versionamento integrados | nenhuma das três limitações altera o fluxo | apto, sujeito à autorização da janela |
+| Auditoria/reconciliação | reconciliação durável + investigação/correção V2 | case store process-local | apto com controles de restart/reinvestigação |
+| Desempenho/comparação proporcional | comparação profile-aware server-side | write de config não integrado | apto com configuração congelada; write fora do escopo |
+| Boletins/snapshots/reprint | snapshots D1 duráveis; reprint histórico | nenhuma das três limitações altera o fluxo | apto, sujeito à autorização da janela |
+| Relatórios | dados oficiais, fail-closed para semântica ausente | nenhuma das três limitações altera o fluxo | apto, sujeito à autorização da janela |
+| Conselho/decisões humanas | decisões V1 D1 duráveis + sessão institucional V2 | sessão V2 perde fechamento/histórico em restart | **bloqueado por #395** |
+| restart/recuperação/CAS/histórico | D1/reprint/decisões V1 possuem cobertura | reconciliação volta fail-closed; sessão V2 perde estado | bloqueado somente pela sessão V2 |
+| gates server-side/stop/RPO/RTO/recovery | gate OFF, auth/capability/no-store e runbook existentes | nenhuma mudança operacional nesta revisão | preservados; não autorizam piloto por si só |
+
+## Ordem segura até a janela real
+
+1. integrar a documentação da #394;
+2. executar/integrar #395 com dados exclusivamente sintéticos e sem operação remota;
+3. revalidar recuperação cross-restart do Conselho V2 e regressões de readiness;
+4. confirmar novamente production gate OFF e `authorityMode: imported-source`;
+5. abrir issue **separada** de autorização/execução do piloto privado da escola inteira;
+6. somente nessa issue posterior abrir o gate durante a janela autorizada e usar dados reais privados;
+7. ao fim do piloto, fechar o gate novamente e produzir evidência sanitizada/mapa de escopos elegíveis versus bloqueados;
+8. #347 continua bloqueada até piloto verde, contrato de autoridade por escopo, vigência explícita e demais gates da BN-DEC-020.
 
 ## Ensaios locais permanecem obrigatórios
 
 `npm run test:gradebook-readiness` cobre V1 histórico, V2 controlado e cenários sintéticos. `npm run verify` permanece obrigatório no SHA final. Repo/CI públicos continuam usando somente dados sintéticos.
 
-## Protocolo privado de piloto paralelo
+## Protocolo privado de piloto paralelo — execução futura, não autorizada pela #394
 
 ### Pré-condições
 
-O piloto real só começa quando os gates pós-onda 23 e a revisão de escopo estiverem aprovados, o
-ambiente estiver autorizado e houver uma decisão institucional registrando escopo temporal, amostra,
-operadores e critérios de parada. Esses
-detalhes privados não são versionados. A ausência de qualquer decisão é hard stop.
+O piloto real só começa quando:
+
+- #394 estiver integrada;
+- #395 estiver integrada e revalidada;
+- production gate estiver confirmado OFF antes da janela;
+- RPO/RTO e recovery continuarem válidos;
+- houver issue própria de autorização/execução registrando janela temporal, operadores, stop conditions e procedimento de encerramento;
+- `authorityMode` continuar `imported-source`.
+
+O escopo institucional é a **escola inteira**, conforme BN-DEC-020. Detalhes privados que identifiquem pessoas, turmas, arquivos, recursos ou corpus não são versionados. A ausência de qualquer pré-condição é hard stop.
 
 ### Execução
 
-1. Selecionar o corpus autorizado fora do clone e fora de pasta sincronizada/rastreada.
-2. Calcular integridade antes/depois apenas localmente, seguindo `REAL_DATA_VALIDATION.md`; nunca
-   publicar caminhos ou hashes.
-3. Importar em lote bounded. `imported-source` permanece o resultado oficial.
-4. Observar o lado calculado já existente apenas como comparação/evidência; não transformar
-   `not-comparable` em match e não inventar tolerância/materialidade.
-5. Exercitar, na amostra autorizada, Centrais, Auditoria, Desempenho, Conselho, Boletins/reprint e
-   Relatórios. Decisões de Conselho continuam humanas.
-6. Para divergência, registrar somente categoria/contagem pública. Investigação detalhada permanece
-   privada; qualquer correção pública nasce de reprodução sintética mínima.
-7. Repetir leitura depois de restart e confirmar histórico/CAS/snapshots sem reinterpretação.
-8. Encerrar a janela sem mudar autoridade. A aprovação de piloto não ativa `native-engine`.
+1. Selecionar o corpus integral autorizado fora do clone e fora de pasta sincronizada/rastreada.
+2. Calcular integridade antes/depois apenas localmente, seguindo `REAL_DATA_VALIDATION.md`; nunca publicar caminhos ou hashes.
+3. Importar em lotes bounded. `imported-source` permanece o resultado oficial.
+4. Observar o lado calculado já existente apenas como comparação/evidência; não transformar `not-comparable` em match e não inventar tolerância/materialidade.
+5. Exercitar, no escopo integral autorizado, Centrais, Auditoria, Desempenho, Conselho, Boletins/reprint e Relatórios. Decisões de Conselho continuam humanas.
+6. Para divergência, registrar somente categoria/contagem pública. Investigação detalhada permanece privada; qualquer correção pública nasce de reprodução sintética mínima.
+7. Repetir leituras depois de restart e confirmar histórico/CAS/snapshots/fechamento institucional sem reinterpretação.
+8. Encerrar a janela sem mudar autoridade e retornar o production gate a OFF. A aprovação de piloto não ativa `native-engine`.
 
 ### Critérios de parada
 
@@ -80,7 +154,9 @@ Parar novas operações acadêmicas e preservar evidência privada quando houver
 - erro com SQL, binding, payload, nome ou nota;
 - divergência material não reconciliada;
 - write parcial, histórico órfão, perda de CAS ou reprint que releia estado atual;
+- perda do fechamento/histórico institucional do Conselho depois de restart;
 - schema inesperado, migration pendente ou indisponibilidade do ponto de recuperação;
+- necessidade de alterar configuração de comparação sem write administrativo formalizado;
 - necessidade de regra acadêmica, precedência humana ou autoridade não formalizada.
 
 ### Relatório sanitizado
@@ -95,8 +171,7 @@ Pode conter somente:
 - quantidade de arquivos alterados, obrigatoriamente zero;
 - decisão `prosseguir`, `repetir` ou `parar`, com gate pendente.
 
-Não pode conter nomes, matrículas, turmas identificáveis, notas, fórmulas, nomes de arquivo/guia,
-hashes, caminhos, IDs de recursos, bookmarks, credenciais, bodies ou screenshots acadêmicos.
+Não pode conter nomes, matrículas, turmas identificáveis, notas, fórmulas, nomes de arquivo/guia, hashes, caminhos, IDs de recursos, bookmarks, credenciais, bodies ou screenshots acadêmicos.
 
 ## Rollback e recuperação formal
 
@@ -111,26 +186,22 @@ hashes, caminhos, IDs de recursos, bookmarks, credenciais, bodies ou screenshots
 
 ### Matriz de decisão
 
-| Sinal                                       | Ação inicial                                              | Recuperação de dados                                                    |
-| ------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------- |
-| regressão de código sem write incorreto     | interromper janela e voltar ao deployment fail-closed     | não restaurar D1 por conveniência                                       |
-| migration falhou sem commit parcial         | manter runtime fechado, inspecionar schema e runner       | restaurar somente se a inspeção provar necessidade e houver autorização |
-| write parcial/órfão ou corrupção confirmada | interromper writes e preservar instante/evidência privada | avaliar Time Travel no ponto anterior ao incidente                      |
-| dado real exposto em artefato público       | interromper piloto e acionar resposta institucional       | recuperação D1 não resolve exposição; tratar separadamente              |
-| divergência acadêmica não reconciliada      | bloquear publicação/fechamento                            | não alterar imported/calculated automaticamente                         |
+| Sinal | Ação inicial | Recuperação de dados |
+| --- | --- | --- |
+| regressão de código sem write incorreto | interromper janela e voltar ao deployment fail-closed | não restaurar D1 por conveniência |
+| migration falhou sem commit parcial | manter runtime fechado, inspecionar schema e runner | restaurar somente se a inspeção provar necessidade e houver autorização |
+| write parcial/órfão ou corrupção confirmada | interromper writes e preservar instante/evidência privada | avaliar Time Travel no ponto anterior ao incidente |
+| dado real exposto em artefato público | interromper piloto e acionar resposta institucional | recuperação D1 não resolve exposição; tratar separadamente |
+| divergência acadêmica não reconciliada | bloquear publicação/fechamento | não alterar imported/calculated automaticamente |
 
 ### Procedimento futuro
 
 1. Interromper a janela e retornar o código ao deployment fail-closed conhecido.
-2. Registrar privadamente o instante do incidente, último write confirmado, deployment e ponto de
-   recuperação; não copiar valores para o repositório.
+2. Registrar privadamente o instante do incidente, último write confirmado, deployment e ponto de recuperação; não copiar valores para o repositório.
 3. Inspecionar schema e contagens agregadas sem executar correção.
-4. Escolher explicitamente entre: somente rollback de código; correção forward autorizada; ou
-   restore point-in-time. Na dúvida, parar.
-5. Antes de restore, obter e guardar privadamente o bookmark vigente. O restore sobrescreve o banco
-   in-place e cancela operações em voo; exige aprovação específica.
-6. Restaurar somente ao bookmark/timestamp aprovado. Guardar também o bookmark anterior retornado
-   pelo provedor para permitir desfazer o restore.
+4. Escolher explicitamente entre: somente rollback de código; correção forward autorizada; ou restore point-in-time. Na dúvida, parar.
+5. Antes de restore, obter e guardar privadamente o bookmark vigente. O restore sobrescreve o banco in-place e cancela operações em voo; exige aprovação específica.
+6. Restaurar somente ao bookmark/timestamp aprovado. Guardar também o bookmark anterior retornado pelo provedor para permitir desfazer o restore.
 7. Revalidar schema, histórico, CAS, contagens agregadas e smokes sintéticos autorizados.
 8. Reabrir somente com novo aceite explícito. Nunca trocar autoridade durante recuperação.
 
