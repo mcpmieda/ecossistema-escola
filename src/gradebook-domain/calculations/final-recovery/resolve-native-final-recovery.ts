@@ -35,6 +35,23 @@ export interface NativeFinalRecoveryInputV1 {
   readonly recoveryGrades: AcademicTermGradeMapV1;
 }
 
+export interface AcademicTermApplicabilityMapV1 {
+  readonly 1: ApplicabilityV1;
+  readonly 2: ApplicabilityV1;
+  readonly 3: ApplicabilityV1;
+}
+
+export type FinalRecoveryApplicabilityInputV1 =
+  | { readonly mode: 'native-derived' }
+  | {
+      readonly mode: 'source-observed';
+      readonly terms: AcademicTermApplicabilityMapV1;
+    };
+
+export interface FinalRecoveryProjectionInputV1 extends NativeFinalRecoveryInputV1 {
+  readonly applicability: FinalRecoveryApplicabilityInputV1;
+}
+
 export const NATIVE_FINAL_RECOVERY_FINDING_CODES_V1 = [
   'original-term-grade-below-zero',
   'original-term-grade-above-maximum',
@@ -276,6 +293,29 @@ function annualApplicability(originalTotal: AcademicGradeValueV1, cutoff: number
   };
 }
 
+function observedAnnualApplicability(terms: AcademicTermApplicabilityMapV1): ApplicabilityV1 {
+  const insufficientTerm = ACADEMIC_TERMS_V1.find(
+    (term) => terms[term].state === 'insufficient-data',
+  );
+  if (insufficientTerm !== undefined) {
+    const value = terms[insufficientTerm];
+    return {
+      state: 'insufficient-data',
+      reason:
+        value.state === 'insufficient-data'
+          ? `source applicability for term ${insufficientTerm} is unresolved: ${value.reason}`
+          : `source applicability for term ${insufficientTerm} is unresolved`,
+    };
+  }
+  if (ACADEMIC_TERMS_V1.some((term) => terms[term].state === 'applicable')) {
+    return { state: 'applicable' };
+  }
+  return {
+    state: 'not-applicable',
+    reason: 'all three source REC flags are explicitly not applicable',
+  };
+}
+
 function termApplicability(
   annual: ApplicabilityV1,
   originalValue: number | null,
@@ -449,8 +489,8 @@ function consolidatedCoverage(
   };
 }
 
-export function resolveNativeFinalRecovery(
-  input: NativeFinalRecoveryInputV1,
+export function resolveFinalRecoveryProjectionV1(
+  input: FinalRecoveryProjectionInputV1,
   profile: NativeFinalRecoveryProfileV1,
 ): NativeFinalRecoveryOutcomeV1 {
   validateProfile(profile);
@@ -483,10 +523,10 @@ export function resolveNativeFinalRecovery(
     annualMaximum * profile.applicabilityRatio,
   );
   const originalTotal = annualOriginalTotal(input, originalValues, originalFindings);
-  const calculatedAnnualApplicability = annualApplicability(
-    originalTotal,
-    annualApplicabilityCutoff,
-  );
+  const calculatedAnnualApplicability =
+    input.applicability.mode === 'native-derived'
+      ? annualApplicability(originalTotal, annualApplicabilityCutoff)
+      : observedAnnualApplicability(input.applicability.terms);
   const findings: NativeFinalRecoveryFindingV1[] = [];
   const termOutcomes = {} as Record<AcademicTermV1, NativeFinalRecoveryTermOutcomeV1>;
 
@@ -495,12 +535,15 @@ export function resolveNativeFinalRecovery(
     const applicabilityCutoff = normalizeDerivedProfileValue(
       termMaximum * profile.applicabilityRatio,
     );
-    const applicability = termApplicability(
-      calculatedAnnualApplicability,
-      originalValues[term],
-      originalFindings[term],
-      applicabilityCutoff,
-    );
+    const applicability =
+      input.applicability.mode === 'native-derived'
+        ? termApplicability(
+            calculatedAnnualApplicability,
+            originalValues[term],
+            originalFindings[term],
+            applicabilityCutoff,
+          )
+        : input.applicability.terms[term];
     const termFindings: NativeFinalRecoveryFindingV1[] = [];
     if (originalFindings[term]) termFindings.push(originalFindings[term]);
     if (recoveryFindings[term]) termFindings.push(recoveryFindings[term]);
@@ -580,4 +623,15 @@ export function resolveNativeFinalRecovery(
     coverage: consolidatedCoverage(calculatedAnnualApplicability, terms),
     findings,
   };
+}
+
+/** Existing native API preserved exactly; it delegates to the shared resolver core. */
+export function resolveNativeFinalRecovery(
+  input: NativeFinalRecoveryInputV1,
+  profile: NativeFinalRecoveryProfileV1,
+): NativeFinalRecoveryOutcomeV1 {
+  return resolveFinalRecoveryProjectionV1(
+    { ...input, applicability: { mode: 'native-derived' } },
+    profile,
+  );
 }
