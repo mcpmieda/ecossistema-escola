@@ -8,14 +8,14 @@ import {
 } from './import-batch';
 import { loadSheetJs } from './sheetjs-loader';
 import {
-  persistRecognizedGradebookFileV2,
+  persistRecognizedGradebookFileV4,
   type ConfirmedImportReferencesV2,
 } from './import-persistence-client-v2';
-import type { GradebookImportPersistenceResponseV2 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v2';
+import type { GradebookImportPersistenceResponseV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 
-export type ImportPersistenceStateV2 =
+export type ImportPersistenceStateV4 =
   | { readonly state: 'recognized' | 'ready' | 'persisting' }
-  | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV2 }
+  | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV4 }
   | { readonly state: 'failed'; readonly message: string };
 
 export function useImportBatch() {
@@ -25,7 +25,7 @@ export function useImportBatch() {
   const [failures, setFailures] = useState<BatchFailureDetail[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [progress, setProgress] = useState<BatchProgress | null>(null);
-  const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV2>>({});
+  const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV4>>({});
   const persistenceLock = useRef(false);
 
   const selectedResult = useMemo(
@@ -100,7 +100,7 @@ export function useImportBatch() {
     persistenceLock.current = true;
     setPersistence((current) => ({ ...current, [result.id]: { state: 'persisting' } }));
     try {
-      const response = await persistRecognizedGradebookFileV2(result, references);
+      const response = await persistRecognizedGradebookFileV4(result, references);
       setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
     } catch (cause) {
       setPersistence((current) => ({
