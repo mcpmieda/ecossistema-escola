@@ -1,8 +1,8 @@
 import type {
+  AcademicYearId,
   TeacherId,
   TeachingAssignmentId,
 } from '../../../../shared/gradebook-contracts/entities';
-import type { GradebookImportPersistenceRequestV2 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v2';
 import type {
   AcademicEntityRepositoryV1,
   AcademicPersistenceContextV1,
@@ -44,6 +44,11 @@ export interface LogicalSourceResolutionDependenciesV2 {
   readonly now: () => string;
 }
 
+export interface LogicalSourceImportRequestV2 {
+  readonly confirmedContext: { readonly academicYearId: AcademicYearId };
+  readonly sheets: readonly { readonly teachingAssignmentId: TeachingAssignmentId }[];
+}
+
 function compatibleSource(
   source: LogicalSourceV2,
   context: TeacherYearGradebookLogicalSourceContextV2,
@@ -56,7 +61,7 @@ function compatibleSource(
 }
 
 export async function resolveLogicalSourceForImportV2(
-  request: GradebookImportPersistenceRequestV2,
+  request: LogicalSourceImportRequestV2,
   dependencies: LogicalSourceResolutionDependenciesV2,
 ): Promise<LogicalSourceResolutionResultV2> {
   const persistenceContext = {
