@@ -364,11 +364,13 @@ function asInspectionOnlyV3(value: Record<string, unknown>): Record<string, unkn
     if (sheet.kind === 'term') {
       const students: unknown[] = [];
       for (const student of sheet.students) {
-        if (!isRecord(student) || !isTermAggregatesV4(student.aggregates)) return null;
+        if (!isRecord(student)) return null;
+        const aggregates = student.aggregates;
+        if (!isTermAggregatesV4(aggregates)) return null;
         students.push({
           ...student,
           aggregates: Object.fromEntries(
-            TERM_AGGREGATE_KEYS_V4.map((key) => [key, observationAsHistoricalNote(student.aggregates[key])]),
+            TERM_AGGREGATE_KEYS_V4.map((key) => [key, observationAsHistoricalNote(aggregates[key])]),
           ),
         });
       }
