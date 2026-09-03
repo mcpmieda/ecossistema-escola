@@ -62,8 +62,9 @@ export function NotesImportPanel() {
             <h3 className="text-lg font-semibold">Importar planilhas</h3>
           </div>
           <p className="mt-2 text-sm text-muted">
-            Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. Processamento
-            sequencial, somente em memória e sem upload.
+            Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. Os arquivos são lidos
+            localmente e não são enviados; após sua confirmação, somente as observações acadêmicas
+            estruturadas são gravadas no Banco de Notas.
           </p>
         </div>
         <Button variant="primary" isPending={loading} onPress={() => inputRef.current?.click()}>
