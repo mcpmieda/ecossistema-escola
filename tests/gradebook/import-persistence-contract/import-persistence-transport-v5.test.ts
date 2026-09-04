@@ -223,6 +223,20 @@ describe('GradebookImportPersistenceTransportV5', () => {
     expect(inspectGradebookImportPersistenceRequestV5(candidate)).toBe('invalid-academic-shape');
   });
 
+  it('does not let the V3 semantic pass mask invalid or duplicate definition slots', () => {
+    const invalidSlot = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ assessmentDefinitions: Array<Record<string, unknown>> }>;
+    };
+    invalidSlot.sheets[0]!.assessmentDefinitions[3]!.sourceSlot = 'ZZ';
+    expect(inspectGradebookImportPersistenceRequestV5(invalidSlot)).toBe('invalid-academic-shape');
+
+    const duplicateSlot = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ assessmentDefinitions: Array<Record<string, unknown>> }>;
+    };
+    duplicateSlot.sheets[0]!.assessmentDefinitions[3]!.sourceSlot = 'AA';
+    expect(inspectGradebookImportPersistenceRequestV5(duplicateSlot)).toBe('duplicate-identity');
+  });
+
   it('does not let the V3 semantic pass mask malformed or duplicate student values', () => {
     const malformed = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
       sheets: Array<{ students: Array<Record<string, unknown>> }>;
@@ -249,6 +263,23 @@ describe('GradebookImportPersistenceTransportV5', () => {
     candidate.sheets[0]!.students[0]!.unexpected = true;
 
     expect(inspectGradebookImportPersistenceRequestV5(candidate)).toBe('invalid-academic-shape');
+  });
+
+  it('rejects invalid source students and duplicate source rows before semantic adaptation', () => {
+    const invalidStudent = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ students: Array<Record<string, unknown>> }>;
+    };
+    invalidStudent.sheets[0]!.students[0]!.sourceStudent = { position: 0, label: '' };
+    expect(inspectGradebookImportPersistenceRequestV5(invalidStudent)).toBe('invalid-request');
+
+    const duplicateRow = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ students: Array<Record<string, unknown>> }>;
+    };
+    duplicateRow.sheets[0]!.students.push({
+      ...structuredClone(duplicateRow.sheets[0]!.students[0]!),
+      sourceStudent: { position: 2, label: 'Outro estudante sintético' },
+    });
+    expect(inspectGradebookImportPersistenceRequestV5(duplicateRow)).toBe('duplicate-identity');
   });
 
   it('preserves V4 bounds before applying the V3 semantic pass', () => {

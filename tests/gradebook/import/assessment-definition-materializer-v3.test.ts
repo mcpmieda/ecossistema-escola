@@ -89,6 +89,18 @@ describe('materialização de definições V3', () => {
         unconfiguredSlots.has(component.sourceDefinition.sourceSlot),
       ),
     ).toBe(false);
+    const materializedSlotsByComponentId = new Map(
+      result.components.map((component) => [
+        component.value.id,
+        component.sourceDefinition.sourceSlot,
+      ]),
+    );
+    expect(
+      result.gradeEntries.every((entry) => {
+        const slot = materializedSlotsByComponentId.get(entry.assessmentComponentId);
+        return slot !== undefined && !unconfiguredSlots.has(slot);
+      }),
+    ).toBe(true);
   });
 
   it.each([0, -1])(
@@ -173,6 +185,10 @@ describe('materialização de definições V3', () => {
   });
 
   it('materializa máximo positivo mesmo com AA4 inválido usando rótulo estrutural', async () => {
+    const baseline = await materializeAssessmentDefinitionsV3(baseSheet(), context);
+    const baselineComponent = baseline.components.find(
+      (candidate) => candidate.sourceDefinition.sourceSlot === 'AA',
+    );
     const sheet = replaceDefinition(baseSheet(), 'AA', (definition) => {
       if (definition.kind !== 'qualitative-activity') return definition;
       return {
@@ -198,6 +214,9 @@ describe('materialização de definições V3', () => {
       component?.sourceDefinition.kind === 'qualitative-activity' &&
         component.sourceDefinition.name.state,
     ).toBe('unrecognized');
+    expect(component?.stableKey).toBe(baselineComponent?.stableKey);
+    expect(component?.value.id).toBe(baselineComponent?.value.id);
+    expect(component?.value.name).not.toBe(baselineComponent?.value.name);
   });
 
   it('trata o mesmo slot de cada trimestre como observação independente', async () => {
@@ -228,15 +247,24 @@ describe('materialização de definições V3', () => {
     expect(t2.components.some((value) => value.sourceDefinition.sourceSlot === 'AA')).toBe(true);
   });
 
-  it('não modifica T nem AK e não cria máximo zero como atalho', async () => {
+  it('não modifica T, Z, AK, AM nem AN e não cria máximo zero como atalho', async () => {
     const sheet = baseSheet();
     const before = sheet.students.map((student) => [
       student.quantitativeTotal,
+      student.parallel,
       student.qualitativeTotal,
+      student.official,
+      student.annual,
     ]);
     const result = await materializeAssessmentDefinitionsV3(sheet, context);
     expect(
-      sheet.students.map((student) => [student.quantitativeTotal, student.qualitativeTotal]),
+      sheet.students.map((student) => [
+        student.quantitativeTotal,
+        student.parallel,
+        student.qualitativeTotal,
+        student.official,
+        student.annual,
+      ]),
     ).toEqual(before);
     expect(result.components.every((component) => component.value.maximum > 0)).toBe(true);
   });

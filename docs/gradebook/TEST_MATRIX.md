@@ -35,7 +35,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `SRC3-007`: cada trimestre resolve seu próprio slot; configuração diferente entre T1/T2/T3 não é conflito por si só.
 - `SRC3-008`: slot com `maximum-not-defined` não gera `AssessmentComponent` nem `GradeEntry`.
 - `SRC3-009`: slot aplicável continua gerando componente e lançamento somente para seu próprio slot.
-- `SRC3-010`: `T` e `AK` permanecem observações autoritativas, sem recomposição granular.
+- `SRC3-010`: `T`, `Z`, `AK`, `AM` e `AN` permanecem observações autoritativas, sem recomposição granular.
 - `SRC3-011`: V1/V2 continuam interpretáveis sob suas versões históricas.
 - `SRC3-012`: Transport V4 conserva o wire shape; V5 vigente delega a política qualitativa ao materializador V3 sem mascarar estrutura, limites, identidade ou trust boundary inválidos.
 

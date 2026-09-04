@@ -24,7 +24,7 @@ type UnconfiguredResolutionV3 = Extract<
   SourceAssessmentDefinitionResolutionV3,
   { readonly state: 'maximum-not-defined' }
 >;
-type ApplicableResolutionV3 = Extract<
+type ConfiguredResolutionV3 = Extract<
   SourceAssessmentDefinitionResolutionV3,
   { readonly maximum: number }
 >;
@@ -78,7 +78,7 @@ function stableKey(
 
 function withResolvedDisplayName(
   definition: SourceAssessmentDefinitionV2,
-  resolution: ApplicableResolutionV3,
+  resolution: ConfiguredResolutionV3,
 ): SourceAssessmentDefinitionV2 {
   if (definition.kind === 'quantitative-assessment') return definition;
   if (definition.name.state === 'text' && definition.name.rawValue.trim().length > 0) {
@@ -102,7 +102,7 @@ export async function materializeAssessmentDefinitionsV3(
   const originals = new Map(
     sheet.assessmentDefinitions.map((definition) => [definition.sourceSlot, definition]),
   );
-  const applicableDefinitions: SourceAssessmentDefinitionV2[] = [];
+  const configuredDefinitions: SourceAssessmentDefinitionV2[] = [];
   const blockedDefinitions: BlockedAssessmentDefinitionV3[] = [];
   const unconfiguredDefinitions: UnconfiguredAssessmentDefinitionV3[] = [];
 
@@ -134,15 +134,15 @@ export async function materializeAssessmentDefinitionsV3(
       });
       continue;
     }
-    applicableDefinitions.push(withResolvedDisplayName(definition, resolution));
+    configuredDefinitions.push(withResolvedDisplayName(definition, resolution));
   }
 
   const materialized = await materializeAssessmentDefinitionsV2(
-    { ...sheet, assessmentDefinitions: applicableDefinitions },
+    { ...sheet, assessmentDefinitions: configuredDefinitions },
     context,
   );
   if (materialized.blockedDefinitions.length > 0) {
-    throw new TypeError('assessment-materialization-v3-applicable-definition-blocked');
+    throw new TypeError('assessment-materialization-v3-configured-definition-blocked');
   }
 
   return {
