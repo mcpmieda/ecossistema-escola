@@ -7,6 +7,7 @@ import type {
   AcademicYearManagementItemV1,
   AcademicYearManagementResponseV1,
 } from '../../../../../shared/gradebook-contracts/operational-workspace/academic-year-management-v1';
+import { supportsAtomicBatch } from '../transaction/d1-batch-promotion-transaction-v1';
 import type { D1WriteDatabaseV1 } from '../write/d1-write-adapter-v1';
 
 type Row = Record<string, unknown>;
@@ -70,17 +71,56 @@ export function createAcademicYearManagementV1(input: {
         configurationVersion: '1',
       });
 
+      const insertYear = input.database
+        .prepare(
+          `INSERT INTO academic_years (
+             academic_year_id, school_id, year, current_version, created_at
+           ) VALUES (?, ?, ?, 1, ?)
+           ON CONFLICT (school_id, year) DO NOTHING`,
+        )
+        .bind(academicYearId, input.schoolId, year, recordedAt);
+      const insertConfiguration = input.database
+        .prepare(
+          `INSERT INTO academic_year_configuration_versions (
+             academic_year_id, configuration_id, version, previous_version,
+             evaluation_profile_id, payload_json, recorded_at
+           ) VALUES (?, ?, 1, NULL, ?, '{}', ?)`,
+        )
+        .bind(academicYearId, configurationId, evaluationProfileId, recordedAt);
+      const insertVersion = input.database
+        .prepare(
+          `INSERT INTO academic_year_versions (
+             academic_year_id, version, previous_version, status, starts_on, ends_on,
+             active_evaluation_profile_id, configuration_id, configuration_version,
+             payload_json, recorded_at
+           ) VALUES (?, 1, NULL, ?, NULL, NULL, ?, ?, 1, ?, ?)`,
+        )
+        .bind(academicYearId, status, evaluationProfileId, configurationId, payload, recordedAt);
+
+      if (supportsAtomicBatch(input.database)) {
+        try {
+          const results = await input.database.batch([
+            insertYear,
+            insertConfiguration,
+            insertVersion,
+          ]);
+          const changes = results[0]?.meta?.changes ?? results[0]?.changes;
+          if (changes !== 1) throw new Error('academic-year-create-conflict');
+        } catch (cause) {
+          const concurrent = (await list()).find((candidate) => candidate.year === year);
+          if (!concurrent) throw cause;
+          return { managementVersion: 1, state: 'already-present', item: concurrent };
+        }
+        return {
+          managementVersion: 1,
+          state: 'created',
+          item: { id: academicYearId, year, status },
+        };
+      }
+
       await input.database.exec('SAVEPOINT gradebook_academic_year_management');
       try {
-        const inserted = await input.database
-          .prepare(
-            `INSERT INTO academic_years (
-               academic_year_id, school_id, year, current_version, created_at
-             ) VALUES (?, ?, ?, 1, ?)
-             ON CONFLICT (school_id, year) DO NOTHING`,
-          )
-          .bind(academicYearId, input.schoolId, year, recordedAt)
-          .run();
+        const inserted = await insertYear.run();
         const changes = inserted.meta?.changes ?? inserted.changes;
         if (changes !== 1) {
           await input.database.exec('ROLLBACK TO SAVEPOINT gradebook_academic_year_management');
@@ -89,25 +129,8 @@ export function createAcademicYearManagementV1(input: {
           if (!concurrent) throw new Error('academic-year-create-conflict');
           return { managementVersion: 1, state: 'already-present', item: concurrent };
         }
-        await input.database
-          .prepare(
-            `INSERT INTO academic_year_configuration_versions (
-               academic_year_id, configuration_id, version, previous_version,
-               evaluation_profile_id, payload_json, recorded_at
-             ) VALUES (?, ?, 1, NULL, ?, '{}', ?)`,
-          )
-          .bind(academicYearId, configurationId, evaluationProfileId, recordedAt)
-          .run();
-        await input.database
-          .prepare(
-            `INSERT INTO academic_year_versions (
-               academic_year_id, version, previous_version, status, starts_on, ends_on,
-               active_evaluation_profile_id, configuration_id, configuration_version,
-               payload_json, recorded_at
-             ) VALUES (?, 1, NULL, ?, NULL, NULL, ?, ?, 1, ?, ?)`,
-          )
-          .bind(academicYearId, status, evaluationProfileId, configurationId, payload, recordedAt)
-          .run();
+        await insertConfiguration.run();
+        await insertVersion.run();
         await input.database.exec('RELEASE SAVEPOINT gradebook_academic_year_management');
       } catch (cause) {
         try {
