@@ -13,6 +13,7 @@ import {
   type GradebookImportPersistenceResponseV4,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import {
+  asGradebookImportPersistenceResponseV5,
   GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V5,
   GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V5,
   isGradebookImportPersistenceRequestV5,
@@ -513,6 +514,21 @@ export function createGradebookImportPersistenceRequestV5(
   return request;
 }
 
+export function normalizeGradebookImportPersistenceResponseV5(
+  value: unknown,
+): GradebookImportPersistenceResponseV5 | null {
+  if (isGradebookImportPersistenceResponseV5(value)) return value;
+  if (!isGradebookImportPersistenceResponseV4(value)) return null;
+  if (
+    value.state !== 'not-authorized' &&
+    value.state !== 'unavailable' &&
+    value.state !== 'invalid-request'
+  ) {
+    return null;
+  }
+  return asGradebookImportPersistenceResponseV5(value);
+}
+
 export async function persistRecognizedGradebookFileV5(
   result: BatchSuccess,
   confirmed: ConfirmedImportContextV5,
@@ -542,10 +558,11 @@ export async function persistRecognizedGradebookFileV5(
         signal: controller.signal,
       });
       const payload: unknown = await response.json().catch(() => null);
-      if (!isGradebookImportPersistenceResponseV5(payload)) {
+      const compatible = normalizeGradebookImportPersistenceResponseV5(payload);
+      if (compatible === null) {
         throw new Error('Resposta de persistência incompatível.');
       }
-      return payload;
+      return compatible;
     } catch (cause) {
       lastFailure = cause;
       if (signal?.aborted) throw signal.reason;
