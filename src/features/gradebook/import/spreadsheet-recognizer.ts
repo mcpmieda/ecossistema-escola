@@ -190,6 +190,34 @@ function rawValueAt(sheet: Worksheet, address: string): SourceCellRawValueV1 | u
     : undefined;
 }
 
+function a1Coordinates(address: string): { readonly row: number; readonly column: number } | null {
+  const match = address.trim().match(/^\$?([A-Z]+)\$?(\d+)$/iu);
+  if (!match?.[1] || !match[2]) return null;
+  let column = 0;
+  for (const character of match[1].toUpperCase()) {
+    column = column * 26 + character.charCodeAt(0) - 64;
+  }
+  const row = Number(match[2]);
+  return Number.isInteger(row) && row > 0 ? { row, column } : null;
+}
+
+function addressWithinWorksheetRange(sheet: Worksheet, address: string): boolean {
+  const reference = sheet['!ref'];
+  if (!reference) return false;
+  const [startReference, endReference = startReference] = reference.split(':');
+  if (!startReference || !endReference) return false;
+  const start = a1Coordinates(startReference);
+  const end = a1Coordinates(endReference);
+  const candidate = a1Coordinates(address);
+  if (!start || !end || !candidate) return false;
+  return (
+    candidate.row >= Math.min(start.row, end.row) &&
+    candidate.row <= Math.max(start.row, end.row) &&
+    candidate.column >= Math.min(start.column, end.column) &&
+    candidate.column <= Math.max(start.column, end.column)
+  );
+}
+
 function provenance(
   fileName: string,
   fileSha256: string,
@@ -241,7 +269,11 @@ function readResultCellObservationV4(
   address: string,
 ): GradebookImportResultCellObservationV4 {
   const cell = cellAt(sheet, address);
-  if (!cell || (cell.v === undefined && !cell.f)) return { classification: 'missing-field' };
+  if (!cell || (cell.v === undefined && !cell.f)) {
+    return addressWithinWorksheetRange(sheet, address)
+      ? { classification: 'empty', rawValue: null }
+      : { classification: 'missing-field' };
+  }
   const rawValue =
     cell.v === null || ['string', 'number', 'boolean'].includes(typeof cell.v)
       ? (cell.v as SourceCellRawValueV1)
@@ -263,7 +295,12 @@ function readResultCellObservationV4(
       rawValue,
       formula: cell.f,
       cachedValue: null,
-      sourceError: typeof cell.v === 'string' && cell.v.trim() ? cell.v : null,
+      sourceError:
+        typeof cell.v === 'string' && cell.v.trim()
+          ? cell.v
+          : typeof cell.w === 'string' && cell.w.trim()
+            ? cell.w
+            : null,
     };
   }
 
@@ -283,12 +320,18 @@ function readRecoveryApplicability(
   address: string,
 ): GradebookImportRecoveryApplicabilityObservationV3 {
   const cell = cellAt(sheet, address);
-  if (!cell) return { classification: 'missing-field' };
+  if (!cell) {
+    return addressWithinWorksheetRange(sheet, address)
+      ? { classification: 'empty', rawValue: null }
+      : { classification: 'missing-field' };
+  }
 
   const rawValue =
     cell.v === null || ['string', 'number', 'boolean'].includes(typeof cell.v)
       ? (cell.v as SourceCellRawValueV1)
-      : null;
+      : typeof cell.w === 'string' && cell.w.trim()
+        ? cell.w
+        : null;
   if (cell.f) {
     return {
       classification: 'formula',
@@ -297,7 +340,11 @@ function readRecoveryApplicability(
       cachedValue: typeof cell.v === 'number' && Number.isFinite(cell.v) ? cell.v : null,
     };
   }
-  if (cell.v === undefined) return { classification: 'missing-field' };
+  if (cell.v === undefined) {
+    return addressWithinWorksheetRange(sheet, address)
+      ? { classification: 'empty', rawValue: null }
+      : { classification: 'missing-field' };
+  }
   if (cell.v === null || cell.v === '') return { classification: 'empty', rawValue: cell.v };
   if (typeof cell.v === 'number' && Number.isFinite(cell.v)) {
     return { classification: 'numeric', rawValue: cell.v };

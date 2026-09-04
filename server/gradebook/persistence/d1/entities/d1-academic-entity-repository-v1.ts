@@ -137,6 +137,19 @@ function finiteNonNegative(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+function validAssessmentMaximum(value: unknown): boolean {
+  if (finiteNonNegative(value)) return true;
+  if (!isObject(value) || typeof value.state !== 'string') return false;
+  if (value.state === 'not-defined') return Object.keys(value).length === 1;
+  return (
+    value.state === 'defined' &&
+    Object.keys(value).length === 2 &&
+    typeof value.value === 'number' &&
+    Number.isFinite(value.value) &&
+    value.value > 0
+  );
+}
+
 function isSupportedKind(value: unknown): value is GradebookD1AcademicEntityKindV1 {
   return GRADEBOOK_D1_ACADEMIC_ENTITY_KINDS_V1.some((kind) => kind === value);
 }
@@ -247,7 +260,7 @@ function validEntityShape(record: AcademicEntityRecordV1): boolean {
           value.type === 'qualitative-activity' ||
           value.type === 'parallel-recovery') &&
         typeof value.name === 'string' &&
-        finiteNonNegative(value.maximum) &&
+        validAssessmentMaximum(value.maximum) &&
         nonNegativeInteger(value.order) &&
         validApplicability(value.applicability)
       );

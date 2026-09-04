@@ -30,9 +30,17 @@ export function gradebookImportResultCellEvidenceV4(
     case 'empty':
       return { classification: 'empty', rawValue: observation.rawValue, provenance };
     case 'manual-positive-number':
-      return { classification: 'manual-positive-number', rawValue: observation.rawValue, provenance };
+      return {
+        classification: 'manual-positive-number',
+        rawValue: observation.rawValue,
+        provenance,
+      };
     case 'manual-negative-number':
-      return { classification: 'manual-negative-number', rawValue: observation.rawValue, provenance };
+      return {
+        classification: 'manual-negative-number',
+        rawValue: observation.rawValue,
+        provenance,
+      };
     case 'manual-legacy-zero':
       return { classification: 'manual-legacy-zero', rawValue: 0, provenance };
     case 'manual-official-zero-marker':
@@ -73,6 +81,26 @@ export function materializeGradebookImportResultCellObservationV4(input: {
   readonly maximumValue: number;
 }): GradebookImportResultCellMaterializationV4 {
   const evidence = gradebookImportResultCellEvidenceV4(input.observation, input.provenance);
+  if (
+    input.observation.classification === 'formula-error-or-missing-cache' &&
+    (input.observation.rawValue === null || input.observation.rawValue === '') &&
+    input.observation.sourceError === null
+  ) {
+    const interpretation: SourceCellInterpretation = {
+      present: false,
+      sourceValue: input.observation.rawValue,
+      semanticValue: { state: 'absent' },
+      valid: true,
+      classification: evidence.classification,
+      evidence,
+      occurrences: [],
+    };
+    return {
+      status: 'ready',
+      imported: { value: interpretation.semanticValue, evidence: [evidence] },
+      interpretation,
+    };
+  }
   const interpretation = interpretSourceCell(evidence, { maximumValue: input.maximumValue });
   if (!interpretation.valid) return { status: 'review-required', interpretation };
   return {

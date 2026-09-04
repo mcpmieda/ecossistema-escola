@@ -18,6 +18,7 @@ import {
 } from '../../../shared/gradebook-contracts/source/source-contract-v2';
 import { createGradebookImportPersistenceServiceV4 } from '../../../server/gradebook/application/import/import-persistence-service-v2';
 import { materializeAssessmentDefinitionsV3 } from '../../../src/features/gradebook/import/assessment-definition-materializer-v3';
+import { materializeAssessmentDefinitionsV4 } from '../../../src/features/gradebook/import/assessment-definition-materializer-v4';
 import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
 import { createGradebookD1ImportAnnualStateSourceV1 } from '../../../server/gradebook/persistence/d1/imports/d1-import-annual-state-source-v1';
 import { GradebookD1ImportBootstrapTransactionV2 } from '../../../server/gradebook/persistence/d1/transaction/d1-import-bootstrap-transaction-v2';
@@ -196,7 +197,10 @@ function request(
   };
 }
 
-function service(transaction?: ImportBootstrapTransactionPortV2, useSourceContractV3 = false) {
+function service(
+  transaction?: ImportBootstrapTransactionPortV2,
+  sourceContract: false | 'v3' | 'v4' = false,
+) {
   let sequence = 0;
   const unitOfWork = createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant });
   return createGradebookImportPersistenceServiceV4(
@@ -209,9 +213,11 @@ function service(transaction?: ImportBootstrapTransactionPortV2, useSourceContra
       now: () => instant,
       createId: (kind) => `${kind}:integration-v4:${++sequence}`,
     },
-    useSourceContractV3
+    sourceContract === 'v3'
       ? { materializeAssessmentDefinitions: materializeAssessmentDefinitionsV3 }
-      : undefined,
+      : sourceContract === 'v4'
+        ? { materializeAssessmentDefinitions: materializeAssessmentDefinitionsV4 }
+        : undefined,
   );
 }
 
@@ -309,7 +315,7 @@ function physicalOrderDatabase(
 
 describe('Import persistence integration V4', () => {
   it('SourceContract V3 accepts configured and explicitly unconfigured slots without fabricating components', async () => {
-    const response = await service(undefined, true).execute(withoutConfiguredQualitativeMaximum());
+    const response = await service(undefined, 'v3').execute(withoutConfiguredQualitativeMaximum());
 
     expect(response).toMatchObject({
       state: 'applied',
@@ -348,7 +354,7 @@ describe('Import persistence integration V4', () => {
       ],
     };
 
-    expect(await service(undefined, true).execute(conflicting)).toMatchObject({
+    expect(await service(undefined, 'v3').execute(conflicting)).toMatchObject({
       state: 'blocked',
       summary: {
         assessmentDefinitions: { total: 12, resolved: 11, blocked: 1 },
@@ -363,6 +369,98 @@ describe('Import persistence integration V4', () => {
         }
       ).count,
     ).toBe(0);
+  });
+
+  it('SourceContract V4 persists a grade without maximum and completes the same component later', async () => {
+    const candidate = withoutConfiguredQualitativeMaximum(request('e'));
+    const firstSheet = candidate.sheets[0];
+    if (!firstSheet || firstSheet.kind !== 'term') throw new Error('missing-synthetic-term');
+    const firstStudent = firstSheet.students[0];
+    if (!firstStudent) throw new Error('missing-synthetic-student');
+    const withoutMaximum = {
+      ...candidate,
+      sheets: [
+        {
+          ...firstSheet,
+          students: [
+            {
+              ...firstStudent,
+              assessmentValues: [
+                ...firstStudent.assessmentValues,
+                {
+                  sourceSlot: 'AA' as const,
+                  value: { kind: 'manual' as const, source: 2, value: 2 },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const persistence = service(undefined, 'v4');
+    expect(await persistence.execute(withoutMaximum)).toMatchObject({
+      state: 'applied',
+      summary: {
+        assessmentDefinitions: { total: 12, resolved: 12, blocked: 0 },
+        assessmentComponents: { new: 12, blocked: 0 },
+      },
+    });
+
+    const aaDefinition = firstSheet.assessmentDefinitions.find(
+      (definition) => definition.sourceSlot === 'AA',
+    );
+    if (!aaDefinition || !('name' in aaDefinition) || aaDefinition.name.state !== 'text') {
+      throw new Error('missing-synthetic-aa');
+    }
+    const withMaximum: GradebookImportPersistenceRequestV4 = {
+      ...withoutMaximum,
+      manifest: { ...withoutMaximum.manifest, sha256: 'f'.repeat(64) },
+      sheets: withoutMaximum.sheets.map((sheet) =>
+        sheet.kind === 'term'
+          ? {
+              ...sheet,
+              assessmentDefinitions: sheet.assessmentDefinitions.map((definition) =>
+                definition.sourceSlot === 'AA'
+                  ? {
+                      ...definition,
+                      maximumConfiguration: { state: 'numeric' as const, rawValue: 3 },
+                    }
+                  : definition,
+              ),
+            }
+          : sheet,
+      ),
+    };
+    expect(await persistence.execute(withMaximum)).toMatchObject({
+      state: 'applied',
+      summary: { assessmentComponents: { changed: 1, blocked: 0 } },
+    });
+
+    const componentHistory = database.raw
+      .prepare(
+        `SELECT version, payload_json
+           FROM academic_entity_versions
+          WHERE entity_kind='assessment-component'
+            AND json_extract(payload_json, '$.value.name')=?
+          ORDER BY version`,
+      )
+      .all(aaDefinition.name.rawValue) as { version: number; payload_json: string }[];
+    expect(componentHistory).toHaveLength(2);
+    expect(JSON.parse(componentHistory[0]!.payload_json)).toMatchObject({
+      value: { maximum: { state: 'not-defined' } },
+    });
+    expect(JSON.parse(componentHistory[1]!.payload_json)).toMatchObject({
+      value: { maximum: { state: 'defined', value: 3 } },
+    });
+    expect(
+      database.raw
+        .prepare(
+          `SELECT COUNT(DISTINCT stream_key) AS count
+             FROM academic_record_versions
+            WHERE record_kind='grade-entry'`,
+        )
+        .get(),
+    ).toEqual({ count: 2 });
   });
 
   it('revalidates opaque references and rejects incompatible teacher context before writes', async () => {

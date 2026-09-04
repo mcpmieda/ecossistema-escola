@@ -474,6 +474,16 @@ O Transport V4 já fornece slot, máximo bruto/classificado, nome, lançamentos 
 
 Por compatibilidade do wire V4/V5, `summary.assessmentDefinitions.resolved` continua sendo o agregado de definições classificadas sem bloqueio (`configured` + `maximum-not-defined`). A materialização acadêmica real é indicada por `assessmentComponents`; uma definição sem máximo permanece explicitamente na coleção interna `unconfiguredDefinitions` e soma zero componentes e zero lançamentos.
 
+## Notas sem máximo — SourceContract V4 / ResultsContract V3 (#431)
+
+`SourceContractV4` preserva V1/V2/V3 como história e substitui, apenas para novas importações V5, a política qualitativa anterior. Em `AA3:AJ3`, número finito positivo produz `maximum: { state: 'defined', value }`; qualquer outro estado produz `maximum: { state: 'not-defined' }`. Ambos materializam `AssessmentComponentV3` e todos os `GradeEntry` observados. A ausência de máximo é metadado visual, não pendência de nota, componente ou importação.
+
+O mesmo slot conserva a chave `assessment-component-source:v2` e o mesmo ID opaco. Uma reimportação com máximo posteriormente definido acrescenta versão à mesma identidade e reconcilia os mesmos IDs de lançamento, sem perda ou duplicação. Nome e máximo continuam fora da identidade.
+
+Leitores oficiais aceitam V1/V2/V3. A lente de avaliações expõe a nota bruta normalmente e mostra `Máximo oficial: não definido`. Percentuais, cortes ou comparações que exigem o denominador ficam indisponíveis até uma versão com máximo definido; nenhum valor substituto pode ser inferido. Os agregados importados T/Z/AK/AM/AN continuam autoritativos e não são recompostos a partir dos lançamentos.
+
+Na recuperação, somente o marcador numérico `1` significa aplicável. Todo outro número finito é `not-applicable`, com fórmula/cache preservados como evidência. Fórmula sem cache e sem valor/erro visível também resolve ausência não aplicável; valor ou erro visível sem cache continua exigindo revisão. Célula esperada dentro do range da guia, mas omitida fisicamente no XLSB, é vazia; endereço fora da estrutura permanece `missing-field`.
+
 ## Regras de evolução
 
 1. mudança de significado exige nova versão/adaptação explícita;

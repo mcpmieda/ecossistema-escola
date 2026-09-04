@@ -196,6 +196,36 @@ describe('GradebookImportPersistenceTransportV4', () => {
     if (formulaZero.status !== 'ready') return;
     expect(formulaZero.imported.evidence[0]?.provenance).toEqual(provenance);
 
+    const formulaWithoutVisibleOrCachedValue = materializeGradebookImportResultCellObservationV4({
+      observation: {
+        classification: 'formula-error-or-missing-cache',
+        rawValue: null,
+        formula: '=SYNTHETIC_EMPTY()',
+        cachedValue: null,
+        sourceError: null,
+      },
+      provenance,
+      maximumValue: 30,
+    });
+    expect(formulaWithoutVisibleOrCachedValue).toMatchObject({
+      status: 'ready',
+      imported: { value: { state: 'absent' } },
+      interpretation: { valid: true, present: false },
+    });
+
+    const formulaWithVisibleError = materializeGradebookImportResultCellObservationV4({
+      observation: {
+        classification: 'formula-error-or-missing-cache',
+        rawValue: '#VALUE!',
+        formula: '=SYNTHETIC_ERROR()',
+        cachedValue: null,
+        sourceError: '#VALUE!',
+      },
+      provenance,
+      maximumValue: 30,
+    });
+    expect(formulaWithVisibleError).toMatchObject({ status: 'review-required' });
+
     const invalid = materializeGradebookImportResultCellObservationV4({
       observation: { classification: 'invalid-text', rawValue: 'invalido' },
       provenance: { ...provenance, cellAddress: 'AM5' },

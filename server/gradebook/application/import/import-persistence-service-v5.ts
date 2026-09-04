@@ -6,7 +6,7 @@ import {
   type GradebookImportPersistenceResponseV5,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
 import type { PersistenceUnitOfWorkV2 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
-import { materializeAssessmentDefinitionsV3 } from '../../../../src/features/gradebook/import/assessment-definition-materializer-v3';
+import { materializeAssessmentDefinitionsV4 } from '../../../../src/features/gradebook/import/assessment-definition-materializer-v4';
 import type { GradebookImportAnnualStateSourceV1 } from '../../persistence/d1/imports/d1-import-annual-state-source-v1';
 import { planAcademicCatalogBootstrapV1 } from './academic-catalog-bootstrap-v1';
 import {
@@ -134,7 +134,7 @@ export function createGradebookImportPersistenceServiceV5(
               catalog,
             ),
           },
-          { materializeAssessmentDefinitions: materializeAssessmentDefinitionsV3 },
+          { materializeAssessmentDefinitions: materializeAssessmentDefinitionsV4 },
         );
         return asGradebookImportPersistenceResponseV5(await service.execute(catalog.request));
       } catch {

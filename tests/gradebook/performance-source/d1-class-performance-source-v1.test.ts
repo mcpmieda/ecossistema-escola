@@ -363,7 +363,7 @@ async function fixture(): Promise<SqliteD1Database> {
         term: 1,
         type: index ? 'qualitative-activity' : 'quantitative-assessment',
         name: index ? 'Pesquisa sobre frações' : 'Avaliação quantitativa 1',
-        maximum: index ? 3 : 8,
+        maximum: index ? { state: 'not-defined' } : 8,
         order: index ? 3 : 1,
         applicability: { state: 'applicable' },
       },
@@ -409,6 +409,19 @@ async function fixture(): Promise<SqliteD1Database> {
   insertRecord(database, year, 'grade-entry', entry as unknown as Record<string, unknown>, {
     componentId: components[0],
   });
+  const entryWithoutMaximum: GradeEntryV1 = {
+    ...entry,
+    id: 'grade-entry:ana:por' as GradeEntryV1['id'],
+    assessmentComponentId: components[1]!,
+    value: numeric(2.5),
+  };
+  insertRecord(
+    database,
+    year,
+    'grade-entry',
+    entryWithoutMaximum as unknown as Record<string, unknown>,
+    { componentId: components[1] },
+  );
   const annual: AnnualResultV1 = {
     id: 'annual:ana:mat' as AnnualResultV1['id'],
     academicYearId: year,
@@ -538,6 +551,17 @@ describe('fonte D1 em lote de Desempenho V1', () => {
             order: 1,
             maximum: 8,
             applicability: { state: 'applicable' },
+          }),
+        );
+        expect(assessmentItems).toContainEqual(
+          expect.objectContaining({
+            assessmentComponentId: components[1],
+            name: 'Pesquisa sobre frações',
+            maximum: { state: 'not-defined' },
+            value: {
+              imported: { state: 'numeric', value: 2.5 },
+              calculated: { state: 'numeric', value: 2.75 },
+            },
           }),
         );
         const values = model!.rows.items

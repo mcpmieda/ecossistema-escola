@@ -240,6 +240,57 @@ async function appendAll(
 }
 
 describe('createGradebookD1AcademicEntityRepositoryV1', () => {
+  it('persiste máximo não definido e o completa na mesma identidade sem DDL novo', async () => {
+    await seedAcademicYear(contextA, 'school:d1-entities:a' as SchoolId);
+    const repository = createGradebookD1AcademicEntityRepositoryV1(database, {
+      now: () => instant,
+    });
+    const foundation = records().slice(0, 4);
+    await appendAll(repository, contextA, foundation);
+    const assignment = foundation[3];
+    if (assignment?.kind !== 'teaching-assignment') {
+      throw new Error('Assignment sintética ausente.');
+    }
+    const component: AcademicEntityRecordV1 = {
+      kind: 'assessment-component',
+      value: {
+        id: 'assessment-component:v2:fedcba9876543210fedcba9876543210' as AssessmentComponentId,
+        academicYearId: academicYearIdA,
+        teachingAssignmentId: assignment.value.id,
+        term: 1,
+        type: 'qualitative-activity',
+        name: 'Atividade sintética',
+        maximum: { state: 'not-defined' },
+        order: 3,
+        applicability: { state: 'applicable' },
+      },
+    };
+    await expect(
+      repository.appendVersion(contextA, component, { expectedVersion: null }),
+    ).resolves.toMatchObject({ status: 'written', record: { version: 1, value: component } });
+    const completed = {
+      kind: 'assessment-component',
+      value: {
+        id: component.value.id,
+        academicYearId: academicYearIdA,
+        teachingAssignmentId: assignment.value.id,
+        term: 1,
+        type: 'qualitative-activity',
+        name: 'Atividade sintética',
+        maximum: { state: 'defined', value: 6 },
+        order: 3,
+        applicability: { state: 'applicable' },
+      },
+    } as const satisfies AcademicEntityRecordV1;
+    await expect(
+      repository.appendVersion(contextA, completed, { expectedVersion: 1 }),
+    ).resolves.toMatchObject({ status: 'written', record: { version: 2, value: completed } });
+    await expect(repository.get(contextA, reference(component))).resolves.toMatchObject({
+      value: completed,
+      version: 2,
+    });
+  });
+
   it('persiste e versiona AssessmentComponentV2 no payload existente sem DDL novo', async () => {
     await seedAcademicYear(contextA, 'school:d1-entities:a' as SchoolId);
     const repository = createGradebookD1AcademicEntityRepositoryV1(database, {

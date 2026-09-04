@@ -37,6 +37,17 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `SRC3-009`: slot aplicável continua gerando componente e lançamento somente para seu próprio slot.
 - `SRC3-010`: `T`, `Z`, `AK`, `AM` e `AN` permanecem observações autoritativas, sem recomposição granular.
 - `SRC3-011`: V1/V2 continuam interpretáveis sob suas versões históricas.
+
+### SourceContract V4 / ResultsContract V3
+
+- `SRC4-001`: máximo qualitativo positivo materializa componente com máximo `defined`.
+- `SRC4-002`: máximo qualitativo vazio, marcador, ausente ou não positivo materializa componente com máximo `not-defined` sem bloquear.
+- `SRC4-003`: nota presente sem máximo produz `GradeEntry` autoritativo e mantém o valor bruto disponível.
+- `SRC4-004`: reimportação com máximo definido conserva stable key, component ID e grade-entry IDs, acrescentando versão sem duplicação.
+- `SRC4-005`: nenhum máximo fictício é usado; indicador dependente de denominador permanece indisponível.
+- `RES3-001`: D1 persiste e versiona `AssessmentComponentV3` no payload JSON sem novo DDL.
+- `RES3-002`: a lente de avaliações retorna nota bruta e máximo `not-defined` após reconstrução provider-independent.
+- `RES3-003`: T/Z/AK/AM/AN não são recompostos a partir dos lançamentos qualitativos.
 - `SRC3-012`: Transport V4 conserva o wire shape; V5 vigente delega a política qualitativa ao materializador V3 sem mascarar estrutura, limites, identidade ou trust boundary inválidos.
 
 ## RES2 — AssessmentComponent/Results V2
@@ -106,8 +117,9 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `REC-003`: notas `R`, `S`, `T` permanecem separadas dos originais.
 - `REC-004`: total pós-REC `U` é conciliável com a regra nativa.
 - `REC-005`: ausência de nota REC não é zero.
-- `REC-006`: AC/AD/AE com fórmula e cache exatamente `0`/`1` preserva evidência de fórmula e resolve a
-  aplicabilidade; qualquer outro cache continua em revisão.
+- `REC-006`: AC/AD/AE com fórmula preserva expressão/cache; somente o resultado numérico `1` é aplicável e qualquer outro número finito é `not-applicable`.
+- `REC-007`: fórmula de aplicabilidade sem cache nem valor/erro visível resolve ausência não aplicável; valor/erro visível sem cache exige revisão.
+- `REC-008`: célula esperada dentro do range da guia e omitida do XLSB é vazia; endereço fora da estrutura permanece `missing-field`.
 
 ## AUD — Reconciliação e Auditoria
 

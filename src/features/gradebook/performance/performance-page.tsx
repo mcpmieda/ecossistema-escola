@@ -281,7 +281,14 @@ function CellDetailBody({ detail }: { detail: PerformanceCellDetailTransportV1 }
               className="rounded-xl border border-border p-3 text-sm"
             >
               <p className="font-medium">{item.name}</p>
-              <p className="text-xs text-muted">Máximo oficial: {String(item.maximum)}</p>
+              <p className="text-xs text-muted">
+                Máximo oficial:{' '}
+                {typeof item.maximum === 'number'
+                  ? String(item.maximum)
+                  : item.maximum.state === 'defined'
+                    ? String(item.maximum.value)
+                    : 'não definido'}
+              </p>
               <p>{comparedGradeLabel(item.value)}</p>
             </li>
           ))}

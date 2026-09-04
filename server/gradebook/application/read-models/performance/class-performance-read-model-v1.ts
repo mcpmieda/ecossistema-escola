@@ -808,6 +808,20 @@ function compareAssessmentValues(
   );
 }
 
+function validAssessmentMaximum(value: unknown): value is PerformanceAssessmentValueV1['maximum'] {
+  if (typeof value === 'number') return Number.isFinite(value) && value >= 0;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.state === 'not-defined') return Object.keys(candidate).length === 1;
+  return (
+    candidate.state === 'defined' &&
+    Object.keys(candidate).length === 2 &&
+    typeof candidate.value === 'number' &&
+    Number.isFinite(candidate.value) &&
+    candidate.value > 0
+  );
+}
+
 function cloneAssessmentsProjection(
   value: PerformanceAssessmentsProjectionV1,
 ): PerformanceAssessmentsProjectionV1 {
@@ -826,8 +840,7 @@ function cloneAssessmentsProjection(
       ].includes(item.type) ||
       !Number.isInteger(item.order) ||
       item.order < 0 ||
-      !Number.isFinite(item.maximum) ||
-      item.maximum < 0
+      !validAssessmentMaximum(item.maximum)
     ) {
       return fail('incompatible-source-result');
     }

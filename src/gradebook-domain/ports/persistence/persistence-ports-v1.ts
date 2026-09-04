@@ -27,6 +27,7 @@ import type {
   TermResultV1,
 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
 import type { AssessmentComponentV2 } from '../../../../shared/gradebook-contracts/results/results-contract-v2';
+import type { AssessmentComponentV3 } from '../../../../shared/gradebook-contracts/results/results-contract-v3';
 import type {
   ImportBatchResultV1,
   SourceFileManifestV1,
@@ -78,7 +79,8 @@ export type VersionedWriteResultV1<T> =
       readonly currentVersion: number | null;
     };
 
-export type PersistedAssessmentComponentV1 = AssessmentComponentV1 | AssessmentComponentV2;
+export type PersistedAssessmentComponentV1 =
+  AssessmentComponentV1 | AssessmentComponentV2 | AssessmentComponentV3;
 
 export type AcademicEntityRecordV1 =
   | { readonly kind: 'academic-year'; readonly value: AcademicYearV1 }

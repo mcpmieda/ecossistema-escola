@@ -116,6 +116,20 @@ O Transport V4 já contém slot, configuração bruta, nome, valores observados 
 
 No resumo público V4/V5, o campo legado `assessmentDefinitions.resolved` é mantido como agregado compatível de definições classificadas sem bloqueio (`configured` + `maximum-not-defined`). Ele não afirma que todas foram configuradas; `assessmentComponents` expressa quantas definições foram efetivamente materializadas.
 
+### SourceContract V4 — máximo ausente não suspende notas
+
+`shared/gradebook-contracts/source/source-contract-v4.ts` mantém a observação V2 e substitui a interpretação V3 nas novas importações:
+
+- máximo qualitativo finito e positivo → componente V3 com máximo `defined`;
+- qualquer outro estado de máximo → componente V3 com máximo `not-defined`;
+- em ambos os casos, todos os lançamentos presentes são materializados e persistidos;
+- máximo `not-defined` é aviso visual, não pendência acadêmica;
+- indicadores que exigem denominador ficam indisponíveis sem impedir a leitura e o uso da nota bruta;
+- reimportação com máximo definido usa a mesma identidade estável e os mesmos IDs de nota, acrescentando a nova versão do componente;
+- T/Z/AK/AM/AN continuam observações autoritativas e não são recompostos.
+
+`AssessmentComponentV3.maximum` é discriminado (`defined` ou `not-defined`), portanto não existe máximo zero, infinito ou fictício para representar ausência.
+
 ## Identidade estável da definição de avaliação
 
 Nome e máximo são atributos versionáveis, não identidade.
@@ -174,12 +188,12 @@ A recuperação final substitui a nota do trimestre aplicável no total pós-REC
 
 O histórico contratual e a fixture sintética original de REC distinguem explicitamente `1`, `0` e
 ausência: `1` significa recuperação aplicável ao trimestre; `0` significa explicitamente não aplicável.
-O V3 preserva o valor bruto e sua classificação antes de resolver essa semântica. Pela decisão
-institucional #429, a projeção importada vigente também aceita uma observação classificada como `formula`
-quando o valor numérico em cache é exatamente `0` ou `1`; a evidência continua classificada como
-`formula-zero` ou `formula-nonzero`, com fórmula e cache preservados. Vazio, campo ausente, texto,
-booleano, fórmula sem cache/erro ou valor diferente de `0`/`1` são dados insuficientes e exigem revisão;
-nunca se usa a regra genérica `valor !== 1 => not-applicable`.
+O V3 preserva o valor bruto e sua classificação antes de resolver essa semântica. A decisão histórica
+#429 aceitava fórmula somente quando o cache era exatamente `0` ou `1`. A #431 evolui a projeção
+vigente: apenas `1` é aplicável; qualquer outro número finito resolve `not-applicable`. A evidência
+continua `formula-zero`/`formula-nonzero` ou manual, com expressão e cache preservados. Fórmula sem cache
+e sem valor/erro visível também resolve ausência não aplicável. Texto, booleano, endereço estrutural
+ausente ou fórmula sem cache com valor/erro visível continuam exigindo revisão.
 
 A proveniência de uma flag válida é reconstruída server-side pelo manifesto/hash, guia, linha e coluna
 estrutural AC/AD/AE. Fórmulas válidas preservam ainda a expressão e o valor em cache como evidência. Uma
@@ -190,6 +204,8 @@ Para o total anual original, T1/T2-AN são somente acumulados intermediários. O
 T3-AN e REC-AB: igualdade preserva as duas evidências; divergência exige revisão; apenas um disponível é
 aceito. U é observação direta do total pós-REC; sua ausência não transforma automaticamente o original
 em pós-REC.
+
+Na semântica vigente da #431, AC/AD/AE usa `1` como único marcador aplicável. Qualquer outro número finito é desconsiderado e resolve `not-applicable`, preservando expressão e cache quando houver fórmula. Fórmula sem cache e sem valor/erro visível também resolve ausência não aplicável; conteúdo ou erro visível sem cache continua em revisão. Uma célula esperada dentro do range estrutural, mas não serializada no XLSB, é vazia; somente endereço fora da estrutura é `missing-field`.
 
 ## Semântica das células de lançamento
 
@@ -301,10 +317,10 @@ O mesmo aluno/matrícula é reutilizado entre componentes da mesma turma e ano. 
 autoriza fusão global de estudantes.
 
 - Contrato histórico da fonte: `shared/gradebook-contracts/source/source-contract-v1.ts`.
-- Contratos prospectivos das definições: `shared/gradebook-contracts/source/source-contract-v2.ts` e `shared/gradebook-contracts/source/source-contract-v3.ts`.
+- Contratos prospectivos das definições: `shared/gradebook-contracts/source/source-contract-v2.ts`, `shared/gradebook-contracts/source/source-contract-v3.ts` e `shared/gradebook-contracts/source/source-contract-v4.ts`.
 - Contrato acadêmico V2 de componentes: `shared/gradebook-contracts/results/results-contract-v2.ts`.
 - Testes V1 históricos: `tests/gradebook/source-contract/source-contract-v1.test.ts`.
-- Testes V2/V3: `tests/gradebook/source-contract/source-contract-v2.test.ts`, `tests/gradebook/source-contract/source-contract-v3.test.ts` e `tests/gradebook/result-contracts/results-contract-v2.test.ts`.
+- Testes V2/V3/V4: `tests/gradebook/source-contract/source-contract-v2.test.ts`, `tests/gradebook/source-contract/source-contract-v3.test.ts`, `tests/gradebook/source-contract/source-contract-v4.test.ts`, `tests/gradebook/result-contracts/results-contract-v2.test.ts` e `tests/gradebook/result-contracts/results-contract-v3.test.ts`.
 - Contrato do manifesto/lote: `shared/gradebook-contracts/imports/import-contract-v1.ts`.
 - Transporte vigente de cadastro/persistência V5: `shared/gradebook-contracts/imports/import-persistence-transport-v5.ts`.
 - Manifesto runtime: `src/features/gradebook/import/file-manifest.ts`.

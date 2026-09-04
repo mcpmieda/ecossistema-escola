@@ -1,5 +1,6 @@
 import type { ImportFileId } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
 import type { AssessmentComponentV2 } from '../../../../shared/gradebook-contracts/results/results-contract-v2';
+import type { AssessmentComponentV3 } from '../../../../shared/gradebook-contracts/results/results-contract-v3';
 import type {
   AcademicEntityRecordV1,
   AcademicEntityRepositoryV1,
@@ -11,6 +12,10 @@ import type {
   BlockedAssessmentDefinitionV2,
   MaterializedAssessmentComponentV2,
 } from '../../../../src/features/gradebook/import/assessment-definition-materializer-v2';
+import type {
+  BlockedAssessmentDefinitionV4,
+  MaterializedAssessmentComponentV4,
+} from '../../../../src/features/gradebook/import/assessment-definition-materializer-v4';
 import {
   planImportReconciliation,
   type ImportChangePlanV1,
@@ -27,7 +32,8 @@ export type AssessmentComponentChangeStateV2 = 'unchanged' | 'new' | 'changed' |
 
 interface AssessmentComponentPlanItemBaseV2 {
   readonly importFileId: ImportFileId;
-  readonly stableKey: MaterializedAssessmentComponentV2['stableKey'];
+  readonly stableKey:
+    MaterializedAssessmentComponentV2['stableKey'] | MaterializedAssessmentComponentV4['stableKey'];
 }
 
 export type AssessmentComponentPlanItemV2 =
@@ -60,6 +66,7 @@ export type AssessmentComponentPlanItemV2 =
       readonly state: 'blocked';
       readonly reason:
         | BlockedAssessmentDefinitionV2['resolution']['reason']
+        | BlockedAssessmentDefinitionV4['resolution']['reason']
         | 'persisted-component-incompatible'
         | 'duplicate-component-identity'
         | 'component-read-failed';
@@ -86,16 +93,29 @@ export type AssessmentImportChangePlanV2 = ImportChangePlanV1 & {
   readonly assessmentComponentPlanV2: AssessmentComponentChangePlanV2;
 };
 
+export interface AssessmentDefinitionMaterializationAcceptedV2 {
+  readonly components: readonly (
+    MaterializedAssessmentComponentV2 | MaterializedAssessmentComponentV4
+  )[];
+  readonly gradeEntries: AssessmentDefinitionMaterializationV2['gradeEntries'];
+  readonly blockedDefinitions: readonly (
+    BlockedAssessmentDefinitionV2 | BlockedAssessmentDefinitionV4
+  )[];
+}
+
 export interface AssessmentImportReconciliationFileInputV2 extends Omit<
   ImportReconciliationFileInputV1,
   'records'
 > {
-  readonly materialization: AssessmentDefinitionMaterializationV2;
+  readonly materialization: AssessmentDefinitionMaterializationAcceptedV2;
   /**
    * Official records derived from the same recognized source file. GradeEntry records remain
    * materialized above so blocked AssessmentComponents can still suppress their dependents.
    */
-  readonly additionalRecords?: readonly Exclude<AcademicRecordV1, { readonly kind: 'grade-entry' }>[];
+  readonly additionalRecords?: readonly Exclude<
+    AcademicRecordV1,
+    { readonly kind: 'grade-entry' }
+  >[];
 }
 
 export interface AssessmentImportReconciliationInputV2 extends Omit<
@@ -128,7 +148,7 @@ function stableSerialize(value: unknown): string {
 
 function isCompatiblePersistedV2(
   record: VersionedRecordV1<AcademicEntityRecordV1>,
-  incoming: AssessmentComponentV2,
+  incoming: AssessmentComponentV2 | AssessmentComponentV3,
 ): boolean {
   if (record.value.kind !== 'assessment-component') return false;
   const value = record.value.value;
@@ -158,7 +178,7 @@ async function planComponents(
   const seenIds = new Set<string>();
   const pending: {
     readonly importFileId: ImportFileId;
-    readonly component: MaterializedAssessmentComponentV2;
+    readonly component: MaterializedAssessmentComponentV2 | MaterializedAssessmentComponentV4;
   }[] = [];
 
   for (const file of [...input.files].sort((left, right) =>
