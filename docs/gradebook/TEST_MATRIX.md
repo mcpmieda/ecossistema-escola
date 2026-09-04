@@ -106,6 +106,8 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `REC-003`: notas `R`, `S`, `T` permanecem separadas dos originais.
 - `REC-004`: total pós-REC `U` é conciliável com a regra nativa.
 - `REC-005`: ausência de nota REC não é zero.
+- `REC-006`: AC/AD/AE com fórmula e cache exatamente `0`/`1` preserva evidência de fórmula e resolve a
+  aplicabilidade; qualquer outro cache continua em revisão.
 
 ## AUD — Reconciliação e Auditoria
 
