@@ -4,6 +4,7 @@ import { createGradebookD1AuditRepositoryV1 } from '../audit/d1-audit-repository
 import { createGradebookD1AcademicEntityRepositoryV1 } from '../entities/d1-academic-entity-repository-v1';
 import { createGradebookD1ImportRepositoryExtensionV1 } from '../imports/d1-import-repository-extension-v1';
 import { createGradebookD1LogicalSourceRepositoryV2 } from '../imports/d1-logical-source-repository-v2';
+import { createGradebookD1ImportPlanningBulkReadAdapterV1 } from '../read/d1-import-planning-bulk-read-v1';
 import {
   createGradebookD1WriteUnitOfWorkV1,
   type D1WriteDatabaseV1,
@@ -28,22 +29,38 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
   const academicEntities = createGradebookD1AcademicEntityRepositoryV1(database, options);
   const importExtension = createGradebookD1ImportRepositoryExtensionV1(database, options);
   const audit = createGradebookD1AuditRepositoryV1(database, options);
+  const planningBulkReads = createGradebookD1ImportPlanningBulkReadAdapterV1(database);
 
-  return {
-    entities: {
-      get: (context, reference) =>
+  const entities = Object.assign(
+    {
+      get: (context: Parameters<typeof academicEntities.get>[0], reference: Parameters<typeof academicEntities.get>[1]) =>
         reference.kind === 'academic-year'
           ? integrated.entities.get(context, reference)
           : academicEntities.get(context, reference),
-      list: (context, kind, page) =>
+      list: (context: Parameters<typeof academicEntities.list>[0], kind: Parameters<typeof academicEntities.list>[1], page: Parameters<typeof academicEntities.list>[2]) =>
         kind === 'academic-year'
           ? integrated.entities.list(context, kind, page)
           : academicEntities.list(context, kind, page),
-      appendVersion: (context, record, expectation) =>
+      appendVersion: (
+        context: Parameters<typeof academicEntities.appendVersion>[0],
+        record: Parameters<typeof academicEntities.appendVersion>[1],
+        expectation: Parameters<typeof academicEntities.appendVersion>[2],
+      ) =>
         record.kind === 'academic-year'
           ? integrated.entities.appendVersion(context, record, expectation)
           : academicEntities.appendVersion(context, record, expectation),
     },
+    planningBulkReads.entities,
+  );
+  const academicRecords = Object.assign({}, integrated.academicRecords, planningBulkReads.academicRecords);
+  const logicalSourceRecords = Object.assign(
+    {},
+    integrated.logicalSourceRecords,
+    planningBulkReads.logicalSourceRecords,
+  );
+
+  return {
+    entities,
     imports: {
       findSourceFileByHash: integrated.imports.findSourceFileByHash,
       getSourceFileVersion: integrated.imports.getSourceFileVersion,
@@ -52,8 +69,8 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
       getImportBatch: importExtension.getImportBatch,
       appendImportBatchVersion: importExtension.appendImportBatchVersion,
     },
-    academicRecords: integrated.academicRecords,
-    logicalSourceRecords: integrated.logicalSourceRecords,
+    academicRecords,
+    logicalSourceRecords,
     audit,
   };
 }

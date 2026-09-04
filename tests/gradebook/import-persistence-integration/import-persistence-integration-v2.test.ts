@@ -251,19 +251,20 @@ class TaggedStatement implements D1WriteStatementV1 {
   constructor(
     readonly tag: 'academic-record' | 'association' | 'association-read' | 'other',
     private readonly delegate: D1WriteStatementV1,
-    private readonly onFirst?: (tag: TaggedStatement['tag']) => void,
+    private readonly onRead?: (tag: TaggedStatement['tag']) => void,
   ) {}
 
   bind(...values: D1WriteValueV1[]): D1WriteStatementV1 {
-    return new TaggedStatement(this.tag, this.delegate.bind(...values), this.onFirst);
+    return new TaggedStatement(this.tag, this.delegate.bind(...values), this.onRead);
   }
 
   first<Row extends Record<string, unknown>>(): Promise<Row | null> {
-    this.onFirst?.(this.tag);
+    this.onRead?.(this.tag);
     return this.delegate.first<Row>();
   }
 
   all<Row extends Record<string, unknown>>(): Promise<{ readonly results: readonly Row[] }> {
+    this.onRead?.(this.tag);
     return this.delegate.all<Row>();
   }
 
@@ -276,7 +277,12 @@ function queryTag(query: string): TaggedStatement['tag'] {
   const normalized = query.replace(/\s+/gu, ' ').trim().toLowerCase();
   if (normalized.includes('insert into academic_record_versions')) return 'academic-record';
   if (normalized.includes('insert into logical_source_record_versions')) return 'association';
-  if (normalized.includes('from logical_source_record_streams')) return 'association-read';
+  if (
+    normalized.includes('from json_each(?)') &&
+    normalized.includes('logical_source_record_streams')
+  ) {
+    return 'association-read';
+  }
   return 'other';
 }
 
@@ -697,7 +703,7 @@ describe('Import persistence integration V4', () => {
     expect(academicPositions).toHaveLength(2);
     expect(associationPositions).toHaveLength(2);
     expect(Math.max(...academicPositions)).toBeLessThan(Math.min(...associationPositions));
-    expect(reads.filter((tag) => tag === 'association-read')).toHaveLength(2);
+    expect(reads.filter((tag) => tag === 'association-read')).toHaveLength(1);
     expect(
       (
         database.raw.prepare('SELECT COUNT(*) AS count FROM academic_record_versions').get() as {

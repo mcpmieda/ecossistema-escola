@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AcademicYearId, SchoolId } from '../../../shared/gradebook-contracts/entities';
 import type { GradebookImportResultCellObservationV4 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
-import type { GradebookImportPersistenceRequestV5 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
+import {
+  isGradebookImportPersistenceResponseV5,
+  type GradebookImportPersistenceRequestV5,
+} from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
 import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
@@ -178,9 +181,11 @@ function count(table: string, where = ''): number {
 
 describe('Import persistence service V5 first bootstrap', () => {
   it('bootstraps catalog and persists T1/T2/T3/REC atomically from only the academic year', async () => {
-    const response = await service().execute(request());
+    const persistence = service();
+    const first = await persistence.execute(request());
 
-    expect(response).toMatchObject({
+    expect(isGradebookImportPersistenceResponseV5(first)).toBe(true);
+    expect(first).toMatchObject({
       transportVersion: 5,
       state: 'applied',
       summary: { committedWrites: { total: expect.any(Number) } },
@@ -195,5 +200,13 @@ describe('Import persistence service V5 first bootstrap', () => {
     expect(count('academic_entity_streams', "WHERE entity_kind='teaching-assignment'")).toBe(1);
     expect(count('academic_entity_streams', "WHERE entity_kind='student'")).toBe(1);
     expect(count('academic_entity_streams', "WHERE entity_kind='enrollment'")).toBe(1);
+
+    const second = await persistence.execute(request());
+    expect(isGradebookImportPersistenceResponseV5(second)).toBe(true);
+    expect(second).toMatchObject({ transportVersion: 5, state: 'no-changes' });
+    expect(count('academic_record_streams', "WHERE record_kind='grade-entry'")).toBe(3);
+    expect(count('academic_record_streams', "WHERE record_kind='term-result'")).toBe(3);
+    expect(count('academic_record_streams', "WHERE record_kind='final-recovery'")).toBe(3);
+    expect(count('academic_record_streams', "WHERE record_kind='annual-result'")).toBe(1);
   });
 });

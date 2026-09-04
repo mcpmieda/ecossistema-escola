@@ -5,6 +5,12 @@ import {
   type GradebookImportPersistenceRequestV5,
   type GradebookImportPersistenceResponseV5,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
+import type {
+  AcademicEntityRecordV1,
+  AcademicEntityReferenceV1,
+  AcademicPersistenceContextV1,
+  VersionedRecordV1,
+} from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import type { PersistenceUnitOfWorkV2 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
 import { materializeAssessmentDefinitionsV4 } from '../../../../src/features/gradebook/import/assessment-definition-materializer-v4';
 import type { GradebookImportAnnualStateSourceV1 } from '../../persistence/d1/imports/d1-import-annual-state-source-v1';
@@ -85,6 +91,13 @@ function annualStateWithPlannedAssignments(
   };
 }
 
+type BulkEntityRepositoryV1 = PersistenceUnitOfWorkV2['entities'] & {
+  readonly getMany?: (
+    context: AcademicPersistenceContextV1,
+    references: readonly AcademicEntityReferenceV1[],
+  ) => Promise<readonly (VersionedRecordV1<AcademicEntityRecordV1> | null)[]>;
+};
+
 export function createGradebookImportPersistenceServiceV5(
   dependencies: GradebookImportPersistenceServiceDependenciesV4,
 ) {
@@ -99,9 +112,22 @@ export function createGradebookImportPersistenceServiceV5(
         });
         if (catalog.status !== 'ready') return review();
 
+        const sourceEntities = dependencies.unitOfWork.entities as BulkEntityRepositoryV1;
+        const planningEntities = Object.assign(
+          {},
+          catalog.repository,
+          sourceEntities.getMany
+            ? {
+                getMany: (
+                  context: AcademicPersistenceContextV1,
+                  references: readonly AcademicEntityReferenceV1[],
+                ) => sourceEntities.getMany!(context, references),
+              }
+            : {},
+        );
         const planningUnitOfWork: PersistenceUnitOfWorkV2 = {
           ...dependencies.unitOfWork,
-          entities: catalog.repository,
+          entities: planningEntities,
         };
         const transaction = {
           runImportBootstrap: async <T>(
