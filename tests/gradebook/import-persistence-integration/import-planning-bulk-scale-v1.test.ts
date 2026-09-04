@@ -23,10 +23,7 @@ import {
   planAssessmentImportReconciliationV2,
   type AssessmentImportReconciliationRepositoriesV2,
 } from '../../../server/gradebook/application/import/assessment-import-reconciliation-v2';
-import {
-  academicRecordStreamKeyV1,
-  type ImportReconciliationRepositoriesV1,
-} from '../../../server/gradebook/application/import/import-reconciliation-v1';
+import { academicRecordStreamKeyV1 } from '../../../server/gradebook/application/import/import-reconciliation-v1';
 import { createGradebookD1ImportPlanningBulkReadAdapterV1 } from '../../../server/gradebook/persistence/d1/read/d1-import-planning-bulk-read-v1';
 import type { D1ReadDatabaseV1 } from '../../../server/gradebook/persistence/d1/read/d1-read-adapter-v1';
 import type {
