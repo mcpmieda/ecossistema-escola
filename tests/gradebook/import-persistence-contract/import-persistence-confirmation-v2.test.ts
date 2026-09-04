@@ -45,6 +45,16 @@ describe('Import persistence confirmation V2', () => {
     expect(responseIssueLabel(response)).toBe('Motivo técnico: blocked-definition.');
   });
 
+  it('projects the sanitized invalid-request reason', () => {
+    const response = {
+      transportVersion: 5,
+      state: 'invalid-request',
+      reason: 'payload-too-large',
+    } satisfies GradebookImportPersistenceResponseV5;
+
+    expect(responseIssueLabel(response)).toBe('Motivo técnico: payload-too-large.');
+  });
+
   it('does not add a diagnostic label to successful responses', () => {
     const response = {
       transportVersion: 5,
