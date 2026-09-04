@@ -212,15 +212,17 @@ function service(transaction?: ImportBootstrapTransactionPortV2) {
 
 class TaggedStatement implements D1WriteStatementV1 {
   constructor(
-    readonly tag: 'academic-record' | 'association' | 'other',
+    readonly tag: 'academic-record' | 'association' | 'association-read' | 'other',
     private readonly delegate: D1WriteStatementV1,
+    private readonly onFirst?: (tag: TaggedStatement['tag']) => void,
   ) {}
 
   bind(...values: D1WriteValueV1[]): D1WriteStatementV1 {
-    return new TaggedStatement(this.tag, this.delegate.bind(...values));
+    return new TaggedStatement(this.tag, this.delegate.bind(...values), this.onFirst);
   }
 
   first<Row extends Record<string, unknown>>(): Promise<Row | null> {
+    this.onFirst?.(this.tag);
     return this.delegate.first<Row>();
   }
 
@@ -237,15 +239,19 @@ function queryTag(query: string): TaggedStatement['tag'] {
   const normalized = query.replace(/\s+/gu, ' ').trim().toLowerCase();
   if (normalized.includes('insert into academic_record_versions')) return 'academic-record';
   if (normalized.includes('insert into logical_source_record_versions')) return 'association';
+  if (normalized.includes('from logical_source_record_streams')) return 'association-read';
   return 'other';
 }
 
-function physicalOrderDatabase(order: TaggedStatement['tag'][]): D1WriteDatabaseV1 & {
+function physicalOrderDatabase(
+  order: TaggedStatement['tag'][],
+  reads: TaggedStatement['tag'][] = [],
+): D1WriteDatabaseV1 & {
   batch(statements: readonly D1WriteStatementV1[]): Promise<readonly D1WriteRunResultV1[]>;
 } {
   return {
     prepare(query) {
-      return new TaggedStatement(queryTag(query), database.prepare(query));
+      return new TaggedStatement(queryTag(query), database.prepare(query), (tag) => reads.push(tag));
     },
     exec: database.exec.bind(database),
     async batch(statements) {
@@ -447,7 +453,8 @@ describe('Import persistence integration V4', () => {
 
   it('physically batches every AcademicRecord before any source-record association', async () => {
     const order: TaggedStatement['tag'][] = [];
-    const atomic = physicalOrderDatabase(order);
+    const reads: TaggedStatement['tag'][] = [];
+    const atomic = physicalOrderDatabase(order, reads);
     let sequence = 0;
     const persistence = createGradebookImportPersistenceServiceV4({
       unitOfWork: createGradebookD1PersistenceUnitOfWorkV2(atomic, { now: () => instant }),
@@ -467,6 +474,7 @@ describe('Import persistence integration V4', () => {
     expect(academicPositions).toHaveLength(2);
     expect(associationPositions).toHaveLength(2);
     expect(Math.max(...academicPositions)).toBeLessThan(Math.min(...associationPositions));
+    expect(reads.filter((tag) => tag === 'association-read')).toHaveLength(2);
     expect(
       (database.raw.prepare('SELECT COUNT(*) AS count FROM academic_record_versions').get() as { count: number })
         .count,

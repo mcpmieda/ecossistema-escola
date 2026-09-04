@@ -25,6 +25,10 @@ import type {
   SourceFileVersionV1,
   VersionedRecordV1,
 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import {
+  IMPORT_PLANNER_READ_CONCURRENCY_V1,
+  mapWithBoundedConcurrencyV1,
+} from './bounded-read-concurrency-v1';
 
 export const IMPORT_CHANGE_STATES_V1 = [
   'unchanged',
@@ -712,32 +716,55 @@ async function planConfirmedNewContent(input: {
     streamsByKey.set(stableKey, incoming.stream);
   }
 
-  const items: ImportChangePlanItemV1[] = [];
-  for (const stableKey of [...streamsByKey.keys()].sort((left, right) =>
-    left.localeCompare(right),
-  )) {
-    const incoming = input.recordsByKey.get(stableKey);
-    const stream = incoming?.stream ?? streamsByKey.get(stableKey);
-    if (!stream) {
-      throw new FilePlanningBlockedError(
-        reason('missing-stream-definition', 'Não foi possível reconstruir a chave acadêmica.'),
+  const orderedStreams = [...streamsByKey.keys()]
+    .sort((left, right) => left.localeCompare(right))
+    .map((stableKey) => {
+      const incoming = input.recordsByKey.get(stableKey);
+      const stream = incoming?.stream ?? streamsByKey.get(stableKey);
+      if (!stream) {
+        throw new FilePlanningBlockedError(
+          reason('missing-stream-definition', 'Não foi possível reconstruir a chave acadêmica.'),
+        );
+      }
+      return { stableKey, incoming, stream };
+    });
+  const plannedStreams = await mapWithBoundedConcurrencyV1(
+    orderedStreams,
+    IMPORT_PLANNER_READ_CONCURRENCY_V1,
+    async ({ stableKey, incoming, stream }) => {
+      const current = await input.repositories.academicRecords.getCurrent(input.context, stream);
+      if (current) assertCurrentRecordMatchesStream(input.context, stream, current);
+      const unchanged = Boolean(
+        incoming && current && academicRecordsSemanticallyEqualV1(current.value, incoming.record),
       );
-    }
+      return { stableKey, incoming, stream, current, unchanged };
+    },
+  );
+  const associationWrites = await mapWithBoundedConcurrencyV1(
+    plannedStreams.filter(({ incoming, current, unchanged }) => incoming && (!current || !unchanged)),
+    IMPORT_PLANNER_READ_CONCURRENCY_V1,
+    async ({ stableKey, stream, current }) => ({
+      stableKey,
+      write: await associationWriteFor({
+        context: input.context,
+        logicalSourceId: input.logicalSource.logicalSourceId,
+        stream,
+        sourceManifestId: input.batchFile.manifest.id,
+        sourceManifestVersion,
+        changeState: current ? 'changed' : 'new',
+        repositories: input.repositories,
+      }),
+    }),
+  );
+  const associationWritesByKey = new Map(
+    associationWrites.map(({ stableKey, write }) => [stableKey, write]),
+  );
 
-    const current = await input.repositories.academicRecords.getCurrent(input.context, stream);
-    if (current) assertCurrentRecordMatchesStream(input.context, stream, current);
-
+  const items: ImportChangePlanItemV1[] = [];
+  for (const { stableKey, incoming, stream, current, unchanged } of plannedStreams) {
     if (incoming) {
       if (!current) {
-        const associationWrite = await associationWriteFor({
-          context: input.context,
-          logicalSourceId: input.logicalSource.logicalSourceId,
-          stream,
-          sourceManifestId: input.batchFile.manifest.id,
-          sourceManifestVersion,
-          changeState: 'new',
-          repositories: input.repositories,
-        });
+        const associationWrite = associationWritesByKey.get(stableKey)!;
         items.push({
           state: 'new',
           importFileId: input.batchFile.id,
@@ -754,7 +781,7 @@ async function planConfirmedNewContent(input: {
         continue;
       }
 
-      if (academicRecordsSemanticallyEqualV1(current.value, incoming.record)) {
+      if (unchanged) {
         items.push({
           state: 'unchanged',
           importFileId: input.batchFile.id,
@@ -770,15 +797,7 @@ async function planConfirmedNewContent(input: {
         continue;
       }
 
-      const associationWrite = await associationWriteFor({
-        context: input.context,
-        logicalSourceId: input.logicalSource.logicalSourceId,
-        stream,
-        sourceManifestId: input.batchFile.manifest.id,
-        sourceManifestVersion,
-        changeState: 'changed',
-        repositories: input.repositories,
-      });
+      const associationWrite = associationWritesByKey.get(stableKey)!;
       items.push({
         state: 'changed',
         importFileId: input.batchFile.id,

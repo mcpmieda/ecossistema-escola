@@ -18,6 +18,10 @@ import {
   type ImportReconciliationInputV1,
   type ImportReconciliationRepositoriesV1,
 } from './import-reconciliation-v1';
+import {
+  IMPORT_PLANNER_READ_CONCURRENCY_V1,
+  mapWithBoundedConcurrencyV1,
+} from './bounded-read-concurrency-v1';
 
 export type AssessmentComponentChangeStateV2 = 'unchanged' | 'new' | 'changed' | 'blocked';
 
@@ -152,6 +156,10 @@ async function planComponents(
 ): Promise<AssessmentComponentChangePlanV2> {
   const items: AssessmentComponentPlanItemV2[] = [];
   const seenIds = new Set<string>();
+  const pending: {
+    readonly importFileId: ImportFileId;
+    readonly component: MaterializedAssessmentComponentV2;
+  }[] = [];
 
   for (const file of [...input.files].sort((left, right) =>
     left.importFileId.localeCompare(right.importFileId),
@@ -166,10 +174,6 @@ async function planComponents(
     }
 
     for (const component of file.materialization.components) {
-      const incomingRecord = {
-        kind: 'assessment-component',
-        value: component.value,
-      } as const satisfies AcademicEntityRecordV1;
       if (seenIds.has(component.value.id)) {
         items.push({
           importFileId: file.importFileId,
@@ -180,58 +184,71 @@ async function planComponents(
         continue;
       }
       seenIds.add(component.value.id);
+      pending.push({ importFileId: file.importFileId, component });
+    }
+  }
 
-      let current: VersionedRecordV1<AcademicEntityRecordV1> | null;
-      try {
-        current = await repository.get(input.context, {
+  items.push(
+    ...(await mapWithBoundedConcurrencyV1(
+      pending,
+      IMPORT_PLANNER_READ_CONCURRENCY_V1,
+      async ({ importFileId, component }): Promise<AssessmentComponentPlanItemV2> => {
+        const incomingRecord = {
           kind: 'assessment-component',
-          id: component.value.id,
-        });
-      } catch {
-        items.push({
-          importFileId: file.importFileId,
-          stableKey: component.stableKey,
-          state: 'blocked',
-          reason: 'component-read-failed',
-        });
-        continue;
-      }
+          value: component.value,
+        } as const satisfies AcademicEntityRecordV1;
+        let current: VersionedRecordV1<AcademicEntityRecordV1> | null;
+        try {
+          current = await repository.get(input.context, {
+            kind: 'assessment-component',
+            id: component.value.id,
+          });
+        } catch {
+          return {
+            importFileId,
+            stableKey: component.stableKey,
+            state: 'blocked',
+            reason: 'component-read-failed',
+          };
+        }
 
-      if (current === null) {
-        items.push({
-          importFileId: file.importFileId,
-          stableKey: component.stableKey,
-          state: 'new',
-          incomingRecord,
-          expectedVersion: null,
-        });
-      } else if (!isCompatiblePersistedV2(current, component.value)) {
-        items.push({
-          importFileId: file.importFileId,
-          stableKey: component.stableKey,
-          state: 'blocked',
-          reason: 'persisted-component-incompatible',
-        });
-      } else if (stableSerialize(current.value) === stableSerialize(incomingRecord)) {
-        items.push({
-          importFileId: file.importFileId,
-          stableKey: component.stableKey,
-          state: 'unchanged',
-          incomingRecord,
-          currentRecord: current,
-        });
-      } else {
-        items.push({
-          importFileId: file.importFileId,
+        if (current === null) {
+          return {
+            importFileId,
+            stableKey: component.stableKey,
+            state: 'new',
+            incomingRecord,
+            expectedVersion: null,
+          };
+        }
+        if (!isCompatiblePersistedV2(current, component.value)) {
+          return {
+            importFileId,
+            stableKey: component.stableKey,
+            state: 'blocked',
+            reason: 'persisted-component-incompatible',
+          };
+        }
+        if (stableSerialize(current.value) === stableSerialize(incomingRecord)) {
+          return {
+            importFileId,
+            stableKey: component.stableKey,
+            state: 'unchanged',
+            incomingRecord,
+            currentRecord: current,
+          };
+        }
+        return {
+          importFileId,
           stableKey: component.stableKey,
           state: 'changed',
           incomingRecord,
           currentRecord: current,
           expectedVersion: current.version,
-        });
-      }
-    }
-  }
+        };
+      },
+    )),
+  );
 
   items.sort(
     (left, right) =>
