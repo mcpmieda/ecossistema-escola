@@ -277,7 +277,12 @@ function queryTag(query: string): TaggedStatement['tag'] {
   const normalized = query.replace(/\s+/gu, ' ').trim().toLowerCase();
   if (normalized.includes('insert into academic_record_versions')) return 'academic-record';
   if (normalized.includes('insert into logical_source_record_versions')) return 'association';
-  if (normalized.includes('logical_source_record_streams')) return 'association-read';
+  if (
+    normalized.includes('from json_each(?)') &&
+    normalized.includes('logical_source_record_streams')
+  ) {
+    return 'association-read';
+  }
   return 'other';
 }
 
