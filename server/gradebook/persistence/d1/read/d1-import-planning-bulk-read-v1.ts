@@ -117,7 +117,7 @@ function validAssessmentMaximum(value: unknown): boolean {
   );
 }
 
-function validApplicability(value: unknown): boolean {
+function validApplicability(value: unknown): value is Record<string, unknown> {
   if (!isObject(value)) return false;
   if (value.state === 'applicable') return true;
   if (value.state === 'not-applicable') {
