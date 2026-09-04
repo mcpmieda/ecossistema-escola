@@ -1,9 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AcademicYearId, SchoolId } from '../../../shared/gradebook-contracts/entities';
-import type {
-  GradebookImportPersistenceRequestV5,
-  GradebookImportResultCellObservationV4,
-} from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
+import type { GradebookImportResultCellObservationV4 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
+import type { GradebookImportPersistenceRequestV5 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
 import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
