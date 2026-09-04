@@ -39,6 +39,24 @@ function responseLabel(state: ImportPersistenceStateV5): string {
   }
 }
 
+function planningFailureBreakdown(response: GradebookImportPersistenceResponseV5): string | null {
+  if (
+    !('issues' in response) ||
+    !('summary' in response) ||
+    !response.issues.some((issue) => issue.code === 'planning-failed')
+  ) {
+    return null;
+  }
+  const parts: string[] = [];
+  if (response.summary.assessmentComponents.blocked > 0) {
+    parts.push(`componentes (${response.summary.assessmentComponents.blocked})`);
+  }
+  if (response.summary.academicRecords.blocked > 0) {
+    parts.push(`registros acadêmicos (${response.summary.academicRecords.blocked})`);
+  }
+  return parts.length > 0 ? ` Planner: ${parts.join(', ')}.` : null;
+}
+
 export function responseIssueLabel(
   response: GradebookImportPersistenceResponseV5,
 ): string | null {
@@ -47,7 +65,7 @@ export function responseIssueLabel(
   }
   if (!('issues' in response) || response.issues.length === 0) return null;
   const codes = [...new Set(response.issues.map((issue) => issue.code))];
-  return `Motivo técnico: ${codes.join(', ')}.`;
+  return `Motivo técnico: ${codes.join(', ')}.${planningFailureBreakdown(response) ?? ''}`;
 }
 
 export function ImportPersistenceConfirmationV2({
