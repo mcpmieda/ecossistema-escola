@@ -174,13 +174,17 @@ A recuperação final substitui a nota do trimestre aplicável no total pós-REC
 
 O histórico contratual e a fixture sintética original de REC distinguem explicitamente `1`, `0` e
 ausência: `1` significa recuperação aplicável ao trimestre; `0` significa explicitamente não aplicável.
-O V3 preserva o valor bruto e sua classificação antes de resolver essa semântica. Vazio, campo ausente,
-texto, booleano, fórmula ou número diferente de `0`/`1` são dados insuficientes e exigem revisão; nunca se
-usa a regra genérica `valor !== 1 => not-applicable`.
+O V3 preserva o valor bruto e sua classificação antes de resolver essa semântica. Pela decisão
+institucional #429, a projeção importada vigente também aceita uma observação classificada como `formula`
+quando o valor numérico em cache é exatamente `0` ou `1`; a evidência continua classificada como
+`formula-zero` ou `formula-nonzero`, com fórmula e cache preservados. Vazio, campo ausente, texto,
+booleano, fórmula sem cache/erro ou valor diferente de `0`/`1` são dados insuficientes e exigem revisão;
+nunca se usa a regra genérica `valor !== 1 => not-applicable`.
 
 A proveniência de uma flag válida é reconstruída server-side pelo manifesto/hash, guia, linha e coluna
-estrutural AC/AD/AE. Uma observação inválida permanece no request sanitizado para diagnóstico, mas não
-autoriza um `FinalRecoveryV1` como se fosse evidência resolvida.
+estrutural AC/AD/AE. Fórmulas válidas preservam ainda a expressão e o valor em cache como evidência. Uma
+observação inválida permanece no request sanitizado para diagnóstico, mas não autoriza um
+`FinalRecoveryV1` como se fosse evidência resolvida.
 
 Para o total anual original, T1/T2-AN são somente acumulados intermediários. Os candidatos finais são
 T3-AN e REC-AB: igualdade preserva as duas evidências; divergência exige revisão; apenas um disponível é

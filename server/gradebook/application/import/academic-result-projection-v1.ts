@@ -48,6 +48,8 @@ import {
 
 export const IMPORTED_RESULT_PROJECTION_RULE_VERSION_V1 =
   'gradebook-imported-result-projection:2026:v1' as const;
+export const IMPORTED_RESULT_PROJECTION_RULE_VERSION_V2 =
+  'gradebook-imported-result-projection:2026:v2' as const;
 export const ANNUAL_CURRICULUM_PAGE_LIMIT_V1 = 100 as const;
 
 export type ImportedRecoveryApplicabilityMaterializationV1 =
@@ -57,16 +59,56 @@ export type ImportedRecoveryApplicabilityMaterializationV1 =
       readonly applicability: ReturnType<typeof resolveGradebookImportRecoveryApplicabilityV3>;
     };
 
-/** Only explicit numeric 1/0 may become authoritative record evidence. */
+/**
+ * Explicit numeric 1/0 and formula-cached 1/0 may become authoritative record evidence.
+ * Formula provenance remains explicit and every other cached result fails closed.
+ */
 export function materializeImportedRecoveryApplicabilityV1(input: {
   readonly observation: GradebookImportRecoveryApplicabilityObservationV3;
   readonly provenance: SourceCellProvenanceV1;
 }): ImportedRecoveryApplicabilityMaterializationV1 {
   const applicability = resolveGradebookImportRecoveryApplicabilityV3(input.observation);
-  if (
-    input.observation.classification !== 'numeric' ||
-    (input.observation.rawValue !== 0 && input.observation.rawValue !== 1)
-  ) {
+  const authoritativeValue =
+    input.observation.classification === 'numeric'
+      ? input.observation.rawValue
+      : input.observation.classification === 'formula'
+        ? input.observation.cachedValue
+        : null;
+  if (authoritativeValue !== 0 && authoritativeValue !== 1) {
+    return { state: 'review-required', applicability };
+  }
+  if (input.observation.classification === 'formula') {
+    return {
+      state: 'ready',
+      value: {
+        value:
+          authoritativeValue === 0
+            ? {
+                state: 'not-applicable',
+                reason: 'source REC formula result is explicitly numeric zero',
+              }
+            : { state: 'applicable' },
+        evidence: [
+          authoritativeValue === 0
+            ? {
+                provenance: input.provenance,
+                classification: 'formula-zero',
+                rawValue: input.observation.rawValue,
+                formula: input.observation.formula,
+                cachedValue: 0,
+              }
+            : {
+                provenance: input.provenance,
+                classification: 'formula-nonzero',
+                rawValue: input.observation.rawValue,
+                formula: input.observation.formula,
+                cachedValue: 1,
+              },
+        ],
+      },
+    };
+  }
+  if (input.observation.classification !== 'numeric') {
     return { state: 'review-required', applicability };
   }
   return {
@@ -206,7 +248,7 @@ export function projectImportedTermResultV1(
       },
       authorityMode: 'imported-source',
       coverage: importedOutcome.coverage,
-      ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V1,
+      ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V2,
     },
   };
 }
@@ -313,7 +355,7 @@ export function projectImportedFinalRecoveryV1(
       },
       authorityMode: 'imported-source',
       coverage: importedTerm.coverage,
-      ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V1,
+      ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V2,
     };
   };
 
@@ -621,7 +663,7 @@ export function projectImportedAnnualResultsV1(
         finalDecision: { status: 'pending' },
         authorityMode: 'imported-source',
         coverage: importedOutcome.coverage,
-        ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V1,
+        ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V2,
       },
     ];
   });

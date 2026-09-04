@@ -316,6 +316,49 @@ describe('Import persistence official results V4', () => {
     expect(grade?.value.kind).toBe('grade-entry');
   });
 
+  it('persists the atomic file when REC applicability formulas cache exact numeric 0/1', async () => {
+    const original = completeRequest('d');
+    const request: GradebookImportPersistenceRequestV4 = {
+      ...original,
+      sheets: original.sheets.map((sheet) =>
+        sheet.kind !== 'recovery'
+          ? sheet
+          : {
+              ...sheet,
+              students: sheet.students.map((student) => ({
+                ...student,
+                recovery: {
+                  ...student.recovery,
+                  applicabilityTrimester1: {
+                    classification: 'formula' as const,
+                    rawValue: 0,
+                    formula: 'SYNTHETIC_ZERO()',
+                    cachedValue: 0,
+                  },
+                  applicabilityTrimester2: {
+                    classification: 'formula' as const,
+                    rawValue: 0,
+                    formula: 'SYNTHETIC_ZERO()',
+                    cachedValue: 0,
+                  },
+                  applicabilityTrimester3: {
+                    classification: 'formula' as const,
+                    rawValue: 0,
+                    formula: 'SYNTHETIC_ZERO()',
+                    cachedValue: 0,
+                  },
+                },
+              })),
+            },
+      ),
+    };
+
+    expect(await service().execute(request)).toMatchObject({ state: 'applied' });
+    expect(recordCount('term-result')).toBe(3);
+    expect(recordCount('final-recovery')).toBe(3);
+    expect(recordCount('annual-result')).toBe(1);
+  });
+
   it('persists an annual result fail-closed when the official curriculum has an unresolved assignment', async () => {
     const secondSubjectId = 'subject:official-results-v4:2' as SubjectId;
     const secondAssignmentId =

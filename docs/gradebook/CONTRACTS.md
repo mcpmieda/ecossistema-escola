@@ -218,8 +218,11 @@ Mantém a mesma unidade, bounds, segurança, resolução server-side de fonte e 
 mudança é limitada às células `AC`/`AD`/`AE`: no lugar de booleanos, cada observação preserva
 classificação e valor bruto como `numeric | empty | missing-field | unrecognized | formula`. O valor
 numérico `1` resolve `applicable`; o valor numérico `0`, sustentado pelo histórico sintético do contrato,
-resolve `not-applicable`; vazio, ausente, fórmula, booleano, texto ou qualquer outro número resolve
-`insufficient-data`/revisão. Em particular, `false` não equivale a zero numérico.
+resolve `not-applicable`. A decisão institucional #429 estende a projeção importada vigente para aceitar
+também fórmula cujo valor numérico em cache seja exatamente `0` ou `1`, preservando a classificação de
+evidência `formula-zero`/`formula-nonzero`. Vazio, ausente, fórmula sem cache/erro, booleano, texto ou
+qualquer outro número resolve `insufficient-data`/revisão. Em particular, `false` não equivale a zero
+numérico.
 
 O recognizer mantém os booleanos V1/V2 apenas como projeção histórica de compatibilidade e expõe as
 observações V3 separadamente. A retomada da #410 deve emitir exclusivamente o V3. O servidor reconstrói
