@@ -1,6 +1,6 @@
 # Contrato da fonte — planilhas de notas
 
-**Estado:** `SourceContractV1` permanece histórico e interpretável sob a semântica que produziu a validação F1 7/7 da #184. A #365 introduziu `SourceContractV2` para corrigir, de forma prospectiva e explícita, a modelagem dos cabeçalhos de avaliações trimestrais descoberta depois daquela validação. A #366 implementou o consumo ponta a ponta e a #367 integrou/revalidou a onda antes do retorno aos gates manuais F9.
+**Estado:** `SourceContractV1` e `SourceContractV2` permanecem históricos e interpretáveis sob suas próprias semânticas. A #427 introduz `SourceContractV3` para formalizar a decisão institucional sobre os cabeçalhos qualitativos `AA3:AJ4`, sem reescrever evidência anterior.
 
 Esta evolução não reabre nem reescreve retroativamente a evidência histórica da F1. Também não autoriza D1 produtivo, migration remota, piloto real ou mudança de `authorityMode`.
 
@@ -73,13 +73,13 @@ As linhas de estudante continuam começando em **5**. Cabeçalhos e lançamentos
 
 ### Qualitativo AA:AJ
 
-- `AA3:AJ3` preserva a configuração bruta de máximo de cada slot.
-- `AA4:AJ4` preserva o texto livre informado pelo professor, inclusive Unicode, acentuação e nomes longos.
+- `AA3:AJ3` preserva a configuração bruta de máximo de cada slot. Somente número finito positivo define um máximo e torna o slot aplicável.
+- Qualquer outro conteúdo em `AA3:AJ3` — `*`, vazio, ausente, texto, booleano, zero, negativo ou número não finito — significa `maximum-not-defined`; não significa `not-applicable`.
+- Sem lançamento de estudante, o slot não configurado preserva esse estado explícito e não gera componente nem nota. Com qualquer lançamento presente, a evidência é conflitante e permanece `insufficient-data`/bloqueada, sem escrita parcial.
+- `AA4:AJ4` preserva texto livre de exibição informado pelo usuário. Nome vazio, ausente ou inválido não muda a aplicabilidade; quando o máximo é válido, o sistema usa rótulo estrutural de exibição como fallback.
 - `AA5:AJ...` contém os lançamentos individuais dos estudantes.
-- O máximo/configuração da linha 3 pode ser número, vazio ou `*`.
-- Vazio ou `*` é ambíguo: pode representar atividade não aplicada ou ainda não configurada. Sem outro sinal oficial inequívoco, o estado é `insufficient-data`.
-- Vazio/`*` não vira `not-applicable` por heurística e nunca recebe `maximum = 0` artificial.
-- O nome livre é preservado mesmo quando o máximo estiver incompleto; isso não significa que um `AssessmentComponentV2` completo já possa ser materializado.
+- `*`, vazio, campo ausente e conteúdo não reconhecido continuam preservados como observação bruta; nenhum deles é convertido em `maximum = 0`.
+- Cada trimestre é uma observação independente. Um mesmo slot pode estar sem máximo em uma guia e configurado em outra sem que isso, isoladamente, constitua conflito.
 
 ## Versionamento do contrato
 
@@ -102,11 +102,25 @@ Não converter nem reinterpretar snapshots, registros ou validações V1 como se
 - `not-applicable` somente mediante evidência explícita suficiente; os sinais atualmente conhecidos vazio/`*` não são suficientes;
 - preservação dos agregados oficiais `T`, `Z`, `AK`, `AM` e `AN`, sem recomposição a partir dos slots.
 
+### V3 — semântica institucional vigente para AA:AJ
+
+`shared/gradebook-contracts/source/source-contract-v3.ts` reutiliza integralmente a observação V2 e acrescenta contexto de presença/ausência de lançamentos no slot:
+
+- máximo qualitativo numérico finito e positivo → `configured/applicable`;
+- qualquer outro máximo qualitativo sem lançamento → `maximum-not-defined`, sem fabricar máximo, componente ou nota;
+- qualquer outro máximo qualitativo com lançamento → `insufficient-data` e bloqueio atômico;
+- nome qualitativo → atributo livre somente de exibição, com fallback estrutural quando ausente/inválido;
+- R/S → semântica V2 inalterada.
+
+O Transport V4 já contém slot, configuração bruta, nome, valores observados e trimestre. Portanto nenhuma nova observação nem nova versão de transporte é necessária. O inspector V4 permanece histórico; o fluxo V5 só executa a adaptação semântica depois que a requisição original passou toda validação estrutural, de limites, identidade e trust boundary e foi recusada exclusivamente pela política histórica de definição.
+
+No resumo público V4/V5, o campo legado `assessmentDefinitions.resolved` é mantido como agregado compatível de definições classificadas sem bloqueio (`configured` + `maximum-not-defined`). Ele não afirma que todas foram configuradas; `assessmentComponents` expressa quantas definições foram efetivamente materializadas.
+
 ## Identidade estável da definição de avaliação
 
 Nome e máximo são atributos versionáveis, não identidade.
 
-A chave estrutural V2 considera:
+A chave estrutural V2/V3 considera:
 
 1. referência da fonte lógica confirmada;
 2. ano acadêmico explícito;
@@ -283,17 +297,17 @@ O mesmo aluno/matrícula é reutilizado entre componentes da mesma turma e ano. 
 autoriza fusão global de estudantes.
 
 - Contrato histórico da fonte: `shared/gradebook-contracts/source/source-contract-v1.ts`.
-- Contrato prospectivo das definições: `shared/gradebook-contracts/source/source-contract-v2.ts`.
+- Contratos prospectivos das definições: `shared/gradebook-contracts/source/source-contract-v2.ts` e `shared/gradebook-contracts/source/source-contract-v3.ts`.
 - Contrato acadêmico V2 de componentes: `shared/gradebook-contracts/results/results-contract-v2.ts`.
 - Testes V1 históricos: `tests/gradebook/source-contract/source-contract-v1.test.ts`.
-- Testes V2: `tests/gradebook/source-contract/source-contract-v2.test.ts` e `tests/gradebook/result-contracts/results-contract-v2.test.ts`.
+- Testes V2/V3: `tests/gradebook/source-contract/source-contract-v2.test.ts`, `tests/gradebook/source-contract/source-contract-v3.test.ts` e `tests/gradebook/result-contracts/results-contract-v2.test.ts`.
 - Contrato do manifesto/lote: `shared/gradebook-contracts/imports/import-contract-v1.ts`.
 - Transporte vigente de cadastro/persistência V5: `shared/gradebook-contracts/imports/import-persistence-transport-v5.ts`.
 - Manifesto runtime: `src/features/gradebook/import/file-manifest.ts`.
 - Orquestração vigente: `src/features/gradebook/import/import-batch.ts`.
 - Massa sintética vigente: `tests/gradebook/fixtures/synthetic-teacher-workbooks.ts`.
 - Recognizer V2: `src/features/gradebook/import/spreadsheet-recognizer.ts`.
-- Materialização V2: `src/features/gradebook/import/assessment-definition-materializer-v2.ts`.
+- Materializações versionadas: `src/features/gradebook/import/assessment-definition-materializer-v2.ts` e `src/features/gradebook/import/assessment-definition-materializer-v3.ts`.
 - Reconciliação V2 sobre o planejador/executor oficial: `server/gradebook/application/import/assessment-import-reconciliation-v2.ts`.
 - Projeções provider-independent de Term/REC/Annual: `server/gradebook/application/import/academic-result-projection-v1.ts`.
 - Regressão transversal: `tests/gradebook/integration/wave-21-assessment-fidelity-integration.test.ts`.

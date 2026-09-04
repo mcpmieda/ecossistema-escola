@@ -15,6 +15,7 @@ import {
   inspectGradebookImportPersistenceRequestV4,
   isGradebookImportPersistenceResponseV4,
 } from './import-persistence-transport-v4';
+import { SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2 } from '../source/source-contract-v2';
 
 /**
  * V5 replaces browser-confirmed technical entity IDs with the canonical roster observed in the
@@ -186,6 +187,40 @@ function serializedByteLength(value: unknown): number | null {
   }
 }
 
+const QUALITATIVE_SLOTS_V5 = new Set<string>(
+  SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((definition) => definition.sourceSlot),
+);
+
+/**
+ * V4 remains frozen. This copy is inspected only after the original request returned exactly
+ * `blocked-definition`, proving that all structural, bounds, identity and trust checks already
+ * passed. V5 can then replace only the historical qualitative policy for a second inspection.
+ */
+function asSourceContractV3InspectionOnlyV4(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...value,
+    sheets: (value.sheets as readonly Record<string, unknown>[]).map((sheet) => {
+      if (sheet.kind !== 'term') return sheet;
+      return {
+        ...sheet,
+        assessmentDefinitions: (
+          sheet.assessmentDefinitions as readonly Record<string, unknown>[]
+        ).map((definition) =>
+          QUALITATIVE_SLOTS_V5.has(String(definition.sourceSlot))
+            ? {
+                ...definition,
+                maximumConfiguration: { state: 'numeric', rawValue: 1 },
+                name: { state: 'text', rawValue: 'SourceContract V3 inspection' },
+              }
+            : definition,
+        ),
+      };
+    }),
+  };
+}
+
 export function inspectGradebookImportPersistenceRequestV5(
   value: unknown,
 ): GradebookImportPersistenceRequestInspectionV5 {
@@ -199,9 +234,13 @@ export function inspectGradebookImportPersistenceRequestV5(
     return 'invalid-request';
   }
   const compatible = asInspectionOnlyV4(value);
-  return compatible === null
-    ? 'invalid-request'
-    : inspectGradebookImportPersistenceRequestV4(compatible);
+  if (compatible === null) return 'invalid-request';
+  const historicalInspection = inspectGradebookImportPersistenceRequestV4(compatible);
+  // Never normalize a structurally invalid request: the second pass is reachable only after V4
+  // found no rejection other than its historical qualitative-definition policy.
+  return historicalInspection === 'blocked-definition'
+    ? inspectGradebookImportPersistenceRequestV4(asSourceContractV3InspectionOnlyV4(compatible))
+    : historicalInspection;
 }
 
 export function isGradebookImportPersistenceRequestV5(

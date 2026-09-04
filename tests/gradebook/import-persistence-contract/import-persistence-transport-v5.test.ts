@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AcademicYearId, AcademicYearV1 } from '../../../shared/gradebook-contracts/entities';
 import {
+  GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V5,
   inspectGradebookImportPersistenceRequestV5,
   isGradebookImportPersistenceRequestV5,
   type GradebookImportPersistenceRequestV5,
@@ -103,6 +104,31 @@ function repository(): AcademicEntityRepositoryV1 {
   };
 }
 
+function withQualitativeSemanticBlocker(): GradebookImportPersistenceRequestV5 {
+  const value = request();
+  return {
+    ...value,
+    sheets: value.sheets.map((sheet) =>
+      sheet.kind === 'term'
+        ? {
+            ...sheet,
+            assessmentDefinitions: sheet.assessmentDefinitions.map((definition) =>
+              definition.sourceSlot === 'AA'
+                ? {
+                    ...definition,
+                    maximumConfiguration: {
+                      state: 'ambiguous-marker' as const,
+                      rawValue: '*' as const,
+                    },
+                  }
+                : definition,
+            ),
+          }
+        : sheet,
+    ),
+  };
+}
+
 describe('GradebookImportPersistenceTransportV5', () => {
   it('accepts source roster labels while excluding browser-owned catalog IDs', () => {
     const value = request();
@@ -150,5 +176,151 @@ describe('GradebookImportPersistenceTransportV5', () => {
       unitOfWork: { entities: repository() },
     });
     expect(planned).toEqual({ status: 'review-required', reason: 'divergent-trimester-roster' });
+  });
+
+  it('accepts V3 qualitative evidence without changing the V4 wire shape', () => {
+    const value = withQualitativeSemanticBlocker();
+    const sheets = value.sheets.map((sheet) => {
+      if (sheet.kind !== 'term') return sheet;
+      return {
+        ...sheet,
+        assessmentDefinitions: sheet.assessmentDefinitions.map((definition) =>
+          definition.sourceSlot === 'AA'
+            ? {
+                ...definition,
+                name: { state: 'unrecognized' as const, rawValue: 17 },
+              }
+            : definition,
+        ),
+      };
+    });
+
+    const candidate = { ...value, sheets };
+    expect(inspectGradebookImportPersistenceRequestV5(candidate)).toBe('ready');
+    expect(isGradebookImportPersistenceRequestV5(candidate)).toBe(true);
+    expect(candidate.manifest.sourceContractVersion).toBe(2);
+    expect(candidate.transportVersion).toBe(5);
+  });
+
+  it('does not let the V3 semantic pass mask unknown definition fields', () => {
+    const candidate = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ assessmentDefinitions: Array<Record<string, unknown>> }>;
+    };
+    candidate.sheets[0]!.assessmentDefinitions[0]!.unexpected = true;
+
+    expect(inspectGradebookImportPersistenceRequestV5(candidate)).toBe('invalid-academic-shape');
+  });
+
+  it('does not let the V3 semantic pass mask a malformed qualitative maximum', () => {
+    const candidate = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ assessmentDefinitions: Array<Record<string, unknown>> }>;
+    };
+    candidate.sheets[0]!.assessmentDefinitions[3]!.maximumConfiguration = {
+      state: 'numeric',
+      rawValue: '3',
+    };
+
+    expect(inspectGradebookImportPersistenceRequestV5(candidate)).toBe('invalid-academic-shape');
+  });
+
+  it('does not let the V3 semantic pass mask invalid or duplicate definition slots', () => {
+    const invalidSlot = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ assessmentDefinitions: Array<Record<string, unknown>> }>;
+    };
+    invalidSlot.sheets[0]!.assessmentDefinitions[3]!.sourceSlot = 'ZZ';
+    expect(inspectGradebookImportPersistenceRequestV5(invalidSlot)).toBe('invalid-academic-shape');
+
+    const duplicateSlot = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ assessmentDefinitions: Array<Record<string, unknown>> }>;
+    };
+    duplicateSlot.sheets[0]!.assessmentDefinitions[3]!.sourceSlot = 'AA';
+    expect(inspectGradebookImportPersistenceRequestV5(duplicateSlot)).toBe('duplicate-identity');
+  });
+
+  it('does not let the V3 semantic pass mask malformed or duplicate student values', () => {
+    const malformed = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ students: Array<Record<string, unknown>> }>;
+    };
+    malformed.sheets[0]!.students[0]!.assessmentValues = [
+      { sourceSlot: 'AA', value: { kind: 'manual', source: 1, value: 1 }, unexpected: true },
+    ];
+    expect(inspectGradebookImportPersistenceRequestV5(malformed)).toBe('invalid-academic-shape');
+
+    const duplicate = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ students: Array<Record<string, unknown>> }>;
+    };
+    duplicate.sheets[0]!.students[0]!.assessmentValues = [
+      { sourceSlot: 'AA', value: { kind: 'manual', source: 1, value: 1 } },
+      { sourceSlot: 'AA', value: { kind: 'manual', source: 2, value: 2 } },
+    ];
+    expect(inspectGradebookImportPersistenceRequestV5(duplicate)).toBe('invalid-academic-shape');
+  });
+
+  it('does not let the V3 semantic pass mask an unknown student field', () => {
+    const candidate = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ students: Array<Record<string, unknown>> }>;
+    };
+    candidate.sheets[0]!.students[0]!.unexpected = true;
+
+    expect(inspectGradebookImportPersistenceRequestV5(candidate)).toBe('invalid-academic-shape');
+  });
+
+  it('rejects invalid source students and duplicate source rows before semantic adaptation', () => {
+    const invalidStudent = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ students: Array<Record<string, unknown>> }>;
+    };
+    invalidStudent.sheets[0]!.students[0]!.sourceStudent = { position: 0, label: '' };
+    expect(inspectGradebookImportPersistenceRequestV5(invalidStudent)).toBe('invalid-request');
+
+    const duplicateRow = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ students: Array<Record<string, unknown>> }>;
+    };
+    duplicateRow.sheets[0]!.students.push({
+      ...structuredClone(duplicateRow.sheets[0]!.students[0]!),
+      sourceStudent: { position: 2, label: 'Outro estudante sintético' },
+    });
+    expect(inspectGradebookImportPersistenceRequestV5(duplicateRow)).toBe('duplicate-identity');
+  });
+
+  it('preserves V4 bounds before applying the V3 semantic pass', () => {
+    const candidate = structuredClone(withQualitativeSemanticBlocker()) as unknown as {
+      sheets: Array<{ students: Array<Record<string, unknown>> }>;
+    };
+    const template = candidate.sheets[0]!.students[0]!;
+    candidate.sheets[0]!.students = Array.from(
+      { length: GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V5.maxStudentsPerSheet + 1 },
+      (_, index) => ({
+        ...structuredClone(template),
+        sourceRow: index + 5,
+        sourceStudent: { position: index + 1, label: `Estudante sintético ${index + 1}` },
+      }),
+    );
+
+    expect(inspectGradebookImportPersistenceRequestV5(candidate)).toBe('payload-too-large');
+  });
+
+  it('keeps nonnumeric R/S fail-closed under their historical rule', () => {
+    const value = request();
+    const sheets = value.sheets.map((sheet) => {
+      if (sheet.kind !== 'term') return sheet;
+      return {
+        ...sheet,
+        assessmentDefinitions: sheet.assessmentDefinitions.map((definition) =>
+          definition.sourceSlot === 'R'
+            ? {
+                ...definition,
+                maximumConfiguration: {
+                  state: 'ambiguous-marker' as const,
+                  rawValue: '*' as const,
+                },
+              }
+            : definition,
+        ),
+      };
+    });
+
+    expect(inspectGradebookImportPersistenceRequestV5({ ...value, sheets })).toBe(
+      'blocked-definition',
+    );
   });
 });

@@ -65,6 +65,11 @@ export interface GradebookImportPersistenceServiceDependenciesV4 {
   ) => string;
 }
 
+export interface GradebookImportPersistenceServiceOptionsV4 {
+  /** V4 keeps V2 semantics by default; the current V5 route opts into SourceContract V3. */
+  readonly materializeAssessmentDefinitions?: typeof materializeAssessmentDefinitionsV2;
+}
+
 const ZERO_STATE_COUNTS = { unchanged: 0, new: 0, changed: 0, blocked: 0 } as const;
 const ZERO_RECORD_COUNTS = {
   unchanged: 0,
@@ -105,7 +110,10 @@ function issue(
 }
 
 function reviewFromOfficialMaterialization(
-  result: Extract<GradebookImportOfficialRecordMaterializationV4, { readonly status: 'review-required' }>,
+  result: Extract<
+    GradebookImportOfficialRecordMaterializationV4,
+    { readonly status: 'review-required' }
+  >,
 ): GradebookImportPersistenceResponseV4 {
   return {
     transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
@@ -295,6 +303,7 @@ function serverBatch(
 function summarizePlan(
   plan: Awaited<ReturnType<typeof planAssessmentImportReconciliationV2>>,
   logicalSources: number,
+  unconfiguredDefinitions = 0,
 ): GradebookImportPersistenceSummaryV2 {
   const definitions = plan.assessmentComponentPlanV2.counts;
   const planned = writes({
@@ -308,8 +317,14 @@ function summarizePlan(
   });
   return {
     assessmentDefinitions: {
-      total: definitions.unchanged + definitions.new + definitions.changed + definitions.blocked,
-      resolved: definitions.unchanged + definitions.new + definitions.changed,
+      total:
+        definitions.unchanged +
+        definitions.new +
+        definitions.changed +
+        definitions.blocked +
+        unconfiguredDefinitions,
+      resolved:
+        definitions.unchanged + definitions.new + definitions.changed + unconfiguredDefinitions,
       blocked: definitions.blocked,
     },
     assessmentComponents: definitions,
@@ -334,6 +349,7 @@ function summarizePlan(
 
 export function createGradebookImportPersistenceServiceV4(
   dependencies: GradebookImportPersistenceServiceDependenciesV4,
+  options: GradebookImportPersistenceServiceOptionsV4 = {},
 ) {
   return {
     async execute(
@@ -380,11 +396,15 @@ export function createGradebookImportPersistenceServiceV4(
           dependencies,
           knownSource?.value.manifest ?? null,
         );
-        const materializations: AssessmentDefinitionMaterializationV2[] = [];
+        const materializeDefinitions =
+          options.materializeAssessmentDefinitions ?? materializeAssessmentDefinitionsV2;
+        const materializations: (AssessmentDefinitionMaterializationV2 & {
+          readonly unconfiguredDefinitions?: readonly unknown[];
+        })[] = [];
         for (const sheet of request.sheets) {
           if (sheet.kind !== 'term') continue;
           materializations.push(
-            await materializeAssessmentDefinitionsV2(recognizedSheet(sheet, request), {
+            await materializeDefinitions(recognizedSheet(sheet, request), {
               logicalSourceReference: resolution.source.id,
               academicYearId: request.confirmedContext.academicYearId,
               teachingAssignmentId: sheet.teachingAssignmentId,
@@ -426,7 +446,14 @@ export function createGradebookImportPersistenceServiceV4(
             entities: dependencies.unitOfWork.entities,
           },
         );
-        const summary = summarizePlan(plan, resolution.status === 'new-source' ? 1 : 0);
+        const summary = summarizePlan(
+          plan,
+          resolution.status === 'new-source' ? 1 : 0,
+          materializations.reduce(
+            (count, value) => count + (value.unconfiguredDefinitions?.length ?? 0),
+            0,
+          ),
+        );
         if (plan.assessmentComponentPlanV2.counts.blocked > 0 || plan.counts.blocked > 0) {
           return {
             transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
@@ -458,10 +485,16 @@ export function createGradebookImportPersistenceServiceV4(
           dependencies.transaction,
         );
         if (result.status === 'version-conflict') {
-          return { transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4, state: 'conflict' };
+          return {
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+            state: 'conflict',
+          };
         }
         if (result.status === 'transaction-failed') {
-          return { transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4, state: 'unavailable' };
+          return {
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+            state: 'unavailable',
+          };
         }
         if (result.status === 'rejected-invalid-plan') {
           return {
@@ -472,7 +505,10 @@ export function createGradebookImportPersistenceServiceV4(
           };
         }
         if (result.status !== 'applied') {
-          return { transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4, state: 'unavailable' };
+          return {
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+            state: 'unavailable',
+          };
         }
         const committedWrites = writes({
           logicalSources: result.logicalSourceVersions,

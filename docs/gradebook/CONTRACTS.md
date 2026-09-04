@@ -461,6 +461,16 @@ As listas de 1º, 2º e 3º trimestre devem coincidir exatamente por turma e ent
 é somente um subconjunto projetado sobre essa lista; `VG` não participa do cadastro. Ambiguidade,
 divergência ou aluno de REC desconhecido resulta em revisão sem escrita parcial.
 
+## Definições qualitativas SourceContract V3 (#427)
+
+`SourceContractV3` preserva V1/V2 históricos e interpreta a mesma observação já transportada pelo V4/V5. Em `AA3:AJ3`, somente número finito positivo define o máximo e torna o slot configurado/aplicável. Qualquer outro conteúdo — inclusive `*`, vazio, campo ausente, texto, booleano, zero, negativo ou número não finito — significa `maximum-not-defined`: sem valor acadêmico observado no slot, a definição não gera `AssessmentComponent` nem `GradeEntry`; com qualquer valor observado, a contradição vira `insufficient-data` e bloqueia toda a importação sem escrita parcial. Esse estado não significa `not-applicable`.
+
+`AA4:AJ4` é texto livre exclusivamente de exibição. Não participa da decisão de aplicabilidade nem da identidade; máximo positivo com nome ausente/inválido usa rótulo estrutural determinístico. R/S mantêm a regra V2. As guias T1/T2/T3 são observações independentes por trimestre, e o contrato não recalcula `T` ou `AK` a partir dos slots.
+
+O Transport V4 já fornece slot, máximo bruto/classificado, nome, lançamentos observados e contexto de trimestre, portanto nenhuma versão nova é criada. O inspector V4 permanece inalterado; no Transport V5 vigente, a primeira inspeção V4 precisa passar limites, estrutura, identidades e trust boundary e retornar exclusivamente `blocked-definition` antes de uma segunda inspeção substituir a política qualitativa histórica. Assim, o V3 não mascara payload estruturalmente inválido. Planner, executor, CAS e bootstrap transacional continuam únicos.
+
+Por compatibilidade do wire V4/V5, `summary.assessmentDefinitions.resolved` continua sendo o agregado de definições classificadas sem bloqueio (`configured` + `maximum-not-defined`). A materialização acadêmica real é indicada por `assessmentComponents`; uma definição sem máximo permanece explicitamente na coleção interna `unconfiguredDefinitions` e soma zero componentes e zero lançamentos.
+
 ## Regras de evolução
 
 1. mudança de significado exige nova versão/adaptação explícita;

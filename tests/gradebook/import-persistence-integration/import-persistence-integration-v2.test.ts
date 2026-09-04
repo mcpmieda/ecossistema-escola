@@ -17,12 +17,11 @@ import {
   SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
 } from '../../../shared/gradebook-contracts/source/source-contract-v2';
 import { createGradebookImportPersistenceServiceV4 } from '../../../server/gradebook/application/import/import-persistence-service-v2';
+import { materializeAssessmentDefinitionsV3 } from '../../../src/features/gradebook/import/assessment-definition-materializer-v3';
 import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
 import { createGradebookD1ImportAnnualStateSourceV1 } from '../../../server/gradebook/persistence/d1/imports/d1-import-annual-state-source-v1';
 import { GradebookD1ImportBootstrapTransactionV2 } from '../../../server/gradebook/persistence/d1/transaction/d1-import-bootstrap-transaction-v2';
-import type {
-  ImportBootstrapTransactionPortV2,
-} from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
+import type { ImportBootstrapTransactionPortV2 } from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
 import type { AcademicEntityRecordV1 } from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import type {
   D1WriteDatabaseV1,
@@ -197,17 +196,49 @@ function request(
   };
 }
 
-function service(transaction?: ImportBootstrapTransactionPortV2) {
+function service(transaction?: ImportBootstrapTransactionPortV2, useSourceContractV3 = false) {
   let sequence = 0;
   const unitOfWork = createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant });
-  return createGradebookImportPersistenceServiceV4({
-    unitOfWork,
-    transaction:
-      transaction ?? new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant }),
-    annualStateSource: createGradebookD1ImportAnnualStateSourceV1(database),
-    now: () => instant,
-    createId: (kind) => `${kind}:integration-v4:${++sequence}`,
-  });
+  return createGradebookImportPersistenceServiceV4(
+    {
+      unitOfWork,
+      transaction:
+        transaction ??
+        new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant }),
+      annualStateSource: createGradebookD1ImportAnnualStateSourceV1(database),
+      now: () => instant,
+      createId: (kind) => `${kind}:integration-v4:${++sequence}`,
+    },
+    useSourceContractV3
+      ? { materializeAssessmentDefinitions: materializeAssessmentDefinitionsV3 }
+      : undefined,
+  );
+}
+
+function withoutConfiguredQualitativeMaximum(
+  value = request(),
+): GradebookImportPersistenceRequestV4 {
+  return {
+    ...value,
+    sheets: value.sheets.map((sheet) =>
+      sheet.kind === 'term'
+        ? {
+            ...sheet,
+            assessmentDefinitions: sheet.assessmentDefinitions.map((definition) =>
+              'name' in definition
+                ? {
+                    ...definition,
+                    maximumConfiguration: {
+                      state: 'ambiguous-marker' as const,
+                      rawValue: '*' as const,
+                    },
+                  }
+                : definition,
+            ),
+          }
+        : sheet,
+    ),
+  };
 }
 
 class TaggedStatement implements D1WriteStatementV1 {
@@ -251,7 +282,9 @@ function physicalOrderDatabase(
 } {
   return {
     prepare(query) {
-      return new TaggedStatement(queryTag(query), database.prepare(query), (tag) => reads.push(tag));
+      return new TaggedStatement(queryTag(query), database.prepare(query), (tag) =>
+        reads.push(tag),
+      );
     },
     exec: database.exec.bind(database),
     async batch(statements) {
@@ -275,6 +308,63 @@ function physicalOrderDatabase(
 }
 
 describe('Import persistence integration V4', () => {
+  it('SourceContract V3 accepts configured and explicitly unconfigured slots without fabricating components', async () => {
+    const response = await service(undefined, true).execute(withoutConfiguredQualitativeMaximum());
+
+    expect(response).toMatchObject({
+      state: 'applied',
+      summary: {
+        assessmentDefinitions: { total: 12, resolved: 12, blocked: 0 },
+        assessmentComponents: { new: 2, blocked: 0 },
+        committedWrites: { assessmentComponentVersions: 2 },
+      },
+    });
+  });
+
+  it('SourceContract V3 keeps a nonnumeric maximum with student value blocked and atomic', async () => {
+    const candidate = withoutConfiguredQualitativeMaximum(request('b'));
+    const firstSheet = candidate.sheets[0];
+    if (!firstSheet || firstSheet.kind !== 'term') throw new Error('missing-synthetic-term');
+    const firstStudent = firstSheet.students[0];
+    if (!firstStudent) throw new Error('missing-synthetic-student');
+    const conflicting = {
+      ...candidate,
+      sheets: [
+        {
+          ...firstSheet,
+          students: [
+            {
+              ...firstStudent,
+              assessmentValues: [
+                ...firstStudent.assessmentValues,
+                {
+                  sourceSlot: 'AA' as const,
+                  value: { kind: 'manual' as const, source: 1, value: 1 },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(await service(undefined, true).execute(conflicting)).toMatchObject({
+      state: 'blocked',
+      summary: {
+        assessmentDefinitions: { total: 12, resolved: 11, blocked: 1 },
+        committedWrites: { total: 0 },
+      },
+      issues: [{ code: 'blocked-definition' }],
+    });
+    expect(
+      (
+        database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as {
+          count: number;
+        }
+      ).count,
+    ).toBe(0);
+  });
+
   it('revalidates opaque references and rejects incompatible teacher context before writes', async () => {
     const incompatible = structuredClone(request()) as GradebookImportPersistenceRequestV4;
     const firstSheet = incompatible.sheets[0];
@@ -339,8 +429,11 @@ describe('Import persistence integration V4', () => {
       summary: { committedWrites: { total: 0 } },
     });
     expect(
-      (database.raw.prepare('SELECT COUNT(*) AS count FROM logical_sources').get() as { count: number })
-        .count,
+      (
+        database.raw.prepare('SELECT COUNT(*) AS count FROM logical_sources').get() as {
+          count: number;
+        }
+      ).count,
     ).toBe(0);
   });
 
@@ -369,7 +462,9 @@ describe('Import persistence integration V4', () => {
         },
       },
     });
-    expect(await persistence.execute(request('a', 7, 'fixture-sintetica-renomeada.xlsx'))).toMatchObject({
+    expect(
+      await persistence.execute(request('a', 7, 'fixture-sintetica-renomeada.xlsx')),
+    ).toMatchObject({
       state: 'no-changes',
       summary: { committedWrites: { logicalSources: 0, sourceFileVersions: 0 } },
     });
@@ -388,12 +483,18 @@ describe('Import persistence integration V4', () => {
       summary: { committedWrites: { total: 0 } },
     });
     expect(
-      (database.raw.prepare('SELECT COUNT(*) AS count FROM source_file_versions').get() as { count: number })
-        .count,
+      (
+        database.raw.prepare('SELECT COUNT(*) AS count FROM source_file_versions').get() as {
+          count: number;
+        }
+      ).count,
     ).toBe(2);
     expect(
-      (database.raw.prepare('SELECT COUNT(*) AS count FROM academic_record_versions').get() as { count: number })
-        .count,
+      (
+        database.raw.prepare('SELECT COUNT(*) AS count FROM academic_record_versions').get() as {
+          count: number;
+        }
+      ).count,
     ).toBe(3);
   });
 
@@ -408,19 +509,26 @@ describe('Import persistence integration V4', () => {
       )
       .run(academicYearId, teacherId, instant);
     const batchesBeforeAmbiguous = (
-      database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as { count: number }
+      database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as {
+        count: number;
+      }
     ).count;
     expect(await persistence.execute(request('d', 9))).toMatchObject({
       state: 'review-required',
       issues: [{ code: 'ambiguous-logical-source' }],
     });
     expect(
-      (database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as { count: number })
-        .count,
+      (
+        database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as {
+          count: number;
+        }
+      ).count,
     ).toBe(batchesBeforeAmbiguous);
 
     database.raw
-      .prepare("DELETE FROM logical_sources WHERE logical_source_id='logical-source:ambiguous:second'")
+      .prepare(
+        "DELETE FROM logical_sources WHERE logical_source_id='logical-source:ambiguous:second'",
+      )
       .run();
     const delegate = new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant });
     const stale: ImportBootstrapTransactionPortV2 = {
@@ -435,19 +543,32 @@ describe('Import persistence integration V4', () => {
       },
     };
     const batchesBefore = (
-      database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as { count: number }
+      database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as {
+        count: number;
+      }
     ).count;
     const sourcesBefore = (
-      database.raw.prepare('SELECT COUNT(*) AS count FROM source_file_versions').get() as { count: number }
+      database.raw.prepare('SELECT COUNT(*) AS count FROM source_file_versions').get() as {
+        count: number;
+      }
     ).count;
-    expect(await service(stale).execute(request('e', 9))).toEqual({ transportVersion: 4, state: 'conflict' });
+    expect(await service(stale).execute(request('e', 9))).toEqual({
+      transportVersion: 4,
+      state: 'conflict',
+    });
     expect(
-      (database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as { count: number })
-        .count,
+      (
+        database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as {
+          count: number;
+        }
+      ).count,
     ).toBe(batchesBefore);
     expect(
-      (database.raw.prepare('SELECT COUNT(*) AS count FROM source_file_versions').get() as { count: number })
-        .count,
+      (
+        database.raw.prepare('SELECT COUNT(*) AS count FROM source_file_versions').get() as {
+          count: number;
+        }
+      ).count,
     ).toBe(sourcesBefore);
   });
 
@@ -469,19 +590,29 @@ describe('Import persistence integration V4', () => {
       summary: { committedWrites: { total: 19 } },
     });
 
-    const academicPositions = order.flatMap((tag, index) => (tag === 'academic-record' ? [index] : []));
-    const associationPositions = order.flatMap((tag, index) => (tag === 'association' ? [index] : []));
+    const academicPositions = order.flatMap((tag, index) =>
+      tag === 'academic-record' ? [index] : [],
+    );
+    const associationPositions = order.flatMap((tag, index) =>
+      tag === 'association' ? [index] : [],
+    );
     expect(academicPositions).toHaveLength(2);
     expect(associationPositions).toHaveLength(2);
     expect(Math.max(...academicPositions)).toBeLessThan(Math.min(...associationPositions));
     expect(reads.filter((tag) => tag === 'association-read')).toHaveLength(2);
     expect(
-      (database.raw.prepare('SELECT COUNT(*) AS count FROM academic_record_versions').get() as { count: number })
-        .count,
+      (
+        database.raw.prepare('SELECT COUNT(*) AS count FROM academic_record_versions').get() as {
+          count: number;
+        }
+      ).count,
     ).toBe(2);
     expect(
-      (database.raw.prepare('SELECT COUNT(*) AS count FROM logical_source_record_versions').get() as { count: number })
-        .count,
+      (
+        database.raw
+          .prepare('SELECT COUNT(*) AS count FROM logical_source_record_versions')
+          .get() as { count: number }
+      ).count,
     ).toBe(2);
   });
 });
