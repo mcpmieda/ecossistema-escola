@@ -17,6 +17,7 @@ import {
   GradebookD1TransactionErrorV1,
   supportsAtomicBatch,
 } from './d1-batch-promotion-transaction-v1';
+import { createGradebookD1ImportBootstrapBulkUnitOfWorkV1 } from './d1-import-bootstrap-bulk-write-v1';
 import type {
   D1WriteDatabaseV1,
   GradebookD1WriteAdapterOptionsV1,
@@ -125,13 +126,18 @@ export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapT
             request.plannedSourceFileManifestIds.map((id) => [id, 1]),
           ),
         });
-        const ordered = deferAssociationWritesV2(baseUnitOfWork, () => this.now());
-        const result = await operation(ordered.unitOfWork);
-        await ordered.flush();
+        const bulk = createGradebookD1ImportBootstrapBulkUnitOfWorkV1({
+          database: this.database,
+          recorder,
+          baseUnitOfWork,
+          now: () => this.now(),
+        });
+        const result = await operation(bulk.unitOfWork);
+        bulk.flush();
         try {
           await recorder.commit();
         } catch {
-          // A recorded optimistic guard or a concurrent bootstrap failed at D1 batch commit.
+          // Any optimistic mismatch or set-based write failure rolls the single D1 batch back.
           throw new GradebookD1TransactionErrorV1('batch-version-conflict');
         }
         return result;
