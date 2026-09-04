@@ -115,6 +115,26 @@ function issue(
   return [{ code, scope: 'file' }];
 }
 
+export function classifyGradebookImportPersistenceBlockedPlanV1(input: {
+  readonly blockedDefinitions: number;
+  readonly blockedComponents: number;
+  readonly blockedAcademicRecords: number;
+}): readonly [GradebookImportPersistenceIssueV2, ...GradebookImportPersistenceIssueV2[]] {
+  const codes: GradebookImportPersistenceIssueV2['code'][] = [];
+  if (input.blockedDefinitions > 0) codes.push('blocked-definition');
+  if (
+    input.blockedAcademicRecords > 0 ||
+    input.blockedComponents > input.blockedDefinitions
+  ) {
+    codes.push('planning-failed');
+  }
+  if (codes.length === 0) throw new TypeError('blocked-plan-without-cause');
+  return codes.map((code) => ({ code, scope: 'file' as const })) as [
+    GradebookImportPersistenceIssueV2,
+    ...GradebookImportPersistenceIssueV2[],
+  ];
+}
+
 function reviewFromOfficialMaterialization(
   result: Extract<
     GradebookImportOfficialRecordMaterializationV4,
@@ -469,7 +489,11 @@ export function createGradebookImportPersistenceServiceV4(
             transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
             state: 'blocked',
             summary,
-            issues: issue('blocked-definition'),
+            issues: classifyGradebookImportPersistenceBlockedPlanV1({
+              blockedDefinitions: materialization.blockedDefinitions.length,
+              blockedComponents: plan.assessmentComponentPlanV2.counts.blocked,
+              blockedAcademicRecords: plan.counts.blocked,
+            }),
           };
         }
         if (plan.counts['missing-from-new-source'] > 0 || plan.status === 'review-required') {
