@@ -137,7 +137,8 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
       'server/gradebook/application/import/execution/execute-import-change-plan-v1.ts',
     );
 
-    expect(reconciliation).toContain('planImportReconciliation(recordsInput, repositories)');
+    expect(reconciliation).toContain('planImportReconciliation(');
+    expect(reconciliation).toContain('planningRepositoriesWithBulkPrefetch(recordsInput, repositories)');
     expect(executor).toContain('runBatchPromotion(');
     expect(executor).toContain('unitOfWork.entities.appendVersion(');
     expect(executor).toContain('unitOfWork.academicRecords.appendVersion(');
