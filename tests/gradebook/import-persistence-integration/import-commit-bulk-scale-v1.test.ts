@@ -46,6 +46,10 @@ const assignmentId = 'teaching-assignment:bulk-commit:001' as TeachingAssignment
 const COMPONENT_COUNT = 468;
 const RECORD_COUNT = 5_399;
 const STUDENT_COUNT = Math.ceil(RECORD_COUNT / COMPONENT_COUNT);
+type AssessmentComponentEntityRecordV1 = Extract<
+  AcademicEntityRecordV1,
+  { readonly kind: 'assessment-component' }
+>;
 
 class AtomicBatchSqliteDatabase implements D1WriteDatabaseV1 {
   batchCalls = 0;
@@ -122,7 +126,7 @@ function seedRoot(database: SqliteD1Database, students = STUDENT_COUNT): void {
     .run(academicYearId, logicalSourceId, teacherId, instant);
 }
 
-function component(index: number): AcademicEntityRecordV1 {
+function component(index: number): AssessmentComponentEntityRecordV1 {
   return {
     kind: 'assessment-component',
     value: {
@@ -307,7 +311,10 @@ describe('Import bootstrap D1 bulk commit at pilot scale', () => {
         for (let index = 0; index < RECORD_COUNT; index += 1) {
           const recordStream = stream(index);
           streams.push(recordStream);
-          const record: AcademicRecordV1 = { kind: 'grade-entry', value: gradeEntry(index, recordStream) };
+          const record: AcademicRecordV1 = {
+            kind: 'grade-entry',
+            value: gradeEntry(index, recordStream),
+          };
           expect(
             (await unitOfWork.academicRecords.appendVersion(context, recordStream, record, {
               expectedVersion: null,
@@ -353,11 +360,11 @@ describe('Import bootstrap D1 bulk commit at pilot scale', () => {
       const changed = {
         ...component(0),
         value: { ...component(0).value, id: existingId as AssessmentComponentId },
-      } satisfies AcademicEntityRecordV1;
+      } satisfies AssessmentComponentEntityRecordV1;
       const created = {
         ...component(1),
         value: { ...component(1).value, id: newId as AssessmentComponentId },
-      } satisfies AcademicEntityRecordV1;
+      } satisfies AssessmentComponentEntityRecordV1;
 
       const remote = new AtomicBatchSqliteDatabase(database, () => {
         database.raw
