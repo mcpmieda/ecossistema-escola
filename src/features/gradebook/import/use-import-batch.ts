@@ -8,14 +8,14 @@ import {
 } from './import-batch';
 import { loadSheetJs } from './sheetjs-loader';
 import {
-  persistRecognizedGradebookFileV4,
-  type ConfirmedImportReferencesV2,
+  persistRecognizedGradebookFileV5,
+  type ConfirmedImportContextV5,
 } from './import-persistence-client-v2';
-import type { GradebookImportPersistenceResponseV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
+import type { GradebookImportPersistenceResponseV5 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
 
-export type ImportPersistenceStateV4 =
+export type ImportPersistenceStateV5 =
   | { readonly state: 'recognized' | 'ready' | 'persisting' }
-  | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV4 }
+  | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV5 }
   | { readonly state: 'failed'; readonly message: string };
 
 export function useImportBatch() {
@@ -25,7 +25,7 @@ export function useImportBatch() {
   const [failures, setFailures] = useState<BatchFailureDetail[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [progress, setProgress] = useState<BatchProgress | null>(null);
-  const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV4>>({});
+  const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV5>>({});
   const persistenceLock = useRef(false);
 
   const selectedResult = useMemo(
@@ -95,12 +95,12 @@ export function useImportBatch() {
     setPersistence((current) => ({ ...current, [id]: { state: ready ? 'ready' : 'recognized' } }));
   }
 
-  async function persist(result: BatchSuccess, references: ConfirmedImportReferencesV2) {
+  async function persist(result: BatchSuccess, references: ConfirmedImportContextV5) {
     if (persistenceLock.current) return;
     persistenceLock.current = true;
     setPersistence((current) => ({ ...current, [result.id]: { state: 'persisting' } }));
     try {
-      const response = await persistRecognizedGradebookFileV4(result, references);
+      const response = await persistRecognizedGradebookFileV5(result, references);
       setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
     } catch (cause) {
       setPersistence((current) => ({

@@ -134,6 +134,17 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 
 ## REL — Release
 
+## CAT — Cadastro acadêmico pela importação
+
+- `CAT-001`: professor e ano são reconhecidos em `CONFIGURAÇÃO!A2/C2`.
+- `CAT-002`: listas 1º/2º/3º divergentes falham sem escrita.
+- `CAT-003`: o mesmo estudante/matrícula é reutilizado entre trimestres e componentes da turma.
+- `CAT-004`: `REC` referencia somente nome oficial único; não cria estudante.
+- `CAT-005`: `VG` não participa do cadastro nem da contagem oficial.
+- `CAT-006`: IDs técnicos são emitidos no servidor e não atravessam o request V5.
+- `CAT-007`: cadastros e registros acadêmicos confirmam ou revertem juntos.
+- `CAT-008`: criação repetida do mesmo ano é idempotente; anos futuros ficam planejados.
+
 - `REL-001`: `npm run verify` aprovado no SHA do PR.
 - `REL-002`: merge somente depois dos critérios de aceite.
 - `REL-003`: workflow de produção aprovado no SHA da `main`.

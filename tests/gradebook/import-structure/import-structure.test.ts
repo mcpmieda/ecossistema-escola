@@ -121,20 +121,19 @@ describe('gradebook importer structure', () => {
     expect(presentation).toContain('Recuperação final');
   });
 
-  it('resolves persistence references through human labels without per-student requests', () => {
+  it('confirms the imported academic context without exposing technical entity IDs', () => {
     const confirmation = source(
       'src/features/gradebook/import/import-persistence-confirmation-v2.tsx',
     );
     expect(confirmation).toContain('requestOperationalWorkspaceV1');
     expect(confirmation).toContain("operation: 'bootstrap'");
-    expect(confirmation).toContain("operation: 'search'");
-    expect(confirmation).toContain("operation: 'class-group'");
-    expect(confirmation.match(/requestOperationalWorkspaceV1\s*\(/gu)).toHaveLength(3);
+    expect(confirmation.match(/requestOperationalWorkspaceV1\s*\(/gu)).toHaveLength(1);
     expect(confirmation).toContain('Ano letivo');
-    expect(confirmation).toContain('Turma oficial');
-    expect(confirmation).toContain('Disciplina e professor');
-    expect(confirmation).toContain('Selecione o aluno oficial');
-    expect(confirmation).toContain('Conferi as correspondências');
+    expect(confirmation).toContain('Professor reconhecido em CONFIGURAÇÃO!A2');
+    expect(confirmation).toContain('cadastro automático');
+    expect(confirmation).toContain('VG será ignorada');
+    expect(confirmation).not.toContain("operation: 'search'");
+    expect(confirmation).not.toContain("operation: 'class-group'");
     expect(confirmation).not.toContain('placeholder="StudentId"');
     expect(confirmation).not.toContain('placeholder="EnrollmentId"');
     expect(confirmation).not.toContain('>TeachingAssignmentId<');

@@ -6,6 +6,12 @@ import {
   isGradebookImportPersistenceResponseV4,
   type GradebookImportPersistenceResponseV4,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
+import {
+  GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V5,
+  inspectGradebookImportPersistenceRequestV5,
+  isGradebookImportPersistenceRequestV5,
+  isGradebookImportPersistenceResponseV5,
+} from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
 import type { RuntimeEnv } from '../../env';
@@ -16,6 +22,7 @@ import {
   readBoundedJson,
 } from '../../http/security';
 import { createGradebookImportPersistenceServiceV4 } from '../application/import/import-persistence-service-v2';
+import { createGradebookImportPersistenceServiceV5 } from '../application/import/import-persistence-service-v5';
 import { createGradebookD1ImportAnnualStateSourceV1 } from '../persistence/d1/imports/d1-import-annual-state-source-v1';
 import type { D1ReadDatabaseV1 } from '../persistence/d1/read/d1-read-adapter-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
@@ -23,7 +30,7 @@ import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime
 
 export const GRADEBOOK_IMPORT_PERSISTENCE_ROUTE_V4 = '/api/gradebook/import-persistence';
 
-function noStore(value: GradebookImportPersistenceResponseV4, status = 200): Response {
+function noStore(value: unknown, status = 200): Response {
   return Response.json(value, {
     status,
     headers: {
@@ -81,12 +88,23 @@ export async function handleGradebookImportPersistenceRequestV4(
     );
   }
   const inspection = inspectGradebookImportPersistenceRequestV4(payload);
-  if (inspection !== 'ready' || !isGradebookImportPersistenceRequestV4(payload)) {
+  const inspectionV5 = inspectGradebookImportPersistenceRequestV5(payload);
+  const requestV5 = inspectionV5 === 'ready' && isGradebookImportPersistenceRequestV5(payload);
+  const requestV4 = inspection === 'ready' && isGradebookImportPersistenceRequestV4(payload);
+  if (!requestV4 && !requestV5) {
+    const version =
+      payload !== null &&
+      typeof payload === 'object' &&
+      'transportVersion' in payload &&
+      payload.transportVersion === GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V5
+        ? GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V5
+        : GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4;
+    const selectedInspection = version === 5 ? inspectionV5 : inspection;
     return noStore(
       {
-        transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+        transportVersion: version,
         state: 'invalid-request',
-        reason: inspection === 'ready' ? 'invalid-request' : inspection,
+        reason: selectedInspection === 'ready' ? 'invalid-request' : selectedInspection,
       },
       400,
     );
@@ -99,21 +117,46 @@ export async function handleGradebookImportPersistenceRequestV4(
     const annualStateSource = createGradebookD1ImportAnnualStateSourceV1(
       env.GRADEBOOK_D1 as D1ReadDatabaseV1,
     );
-    const service = createGradebookImportPersistenceServiceV4({
+    const dependencies = {
       unitOfWork: runtime.persistenceUnitOfWorkV2(),
       transaction: runtime.importBootstrapTransactionV2(),
       annualStateSource,
       now: () => new Date().toISOString(),
       createId: (kind) => `${kind}:${crypto.randomUUID()}`,
-    });
-    const response = await service.execute(payload);
-    return isGradebookImportPersistenceResponseV4(response)
+    } satisfies Parameters<typeof createGradebookImportPersistenceServiceV4>[0];
+    const response = isGradebookImportPersistenceRequestV5(payload)
+      ? await createGradebookImportPersistenceServiceV5(dependencies).execute(payload)
+      : isGradebookImportPersistenceRequestV4(payload)
+        ? await createGradebookImportPersistenceServiceV4(dependencies).execute(payload)
+        : null;
+    if (response === null) return state('unavailable', 500);
+    return (
+      requestV5
+        ? isGradebookImportPersistenceResponseV5(response)
+        : isGradebookImportPersistenceResponseV4(response)
+    )
       ? noStore(response)
-      : state('unavailable', 500);
+      : requestV5
+        ? noStore(
+            {
+              transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V5,
+              state: 'unavailable',
+            },
+            500,
+          )
+        : state('unavailable', 500);
   } catch {
-    return state('unavailable', 503);
+    return requestV5
+      ? noStore(
+          {
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V5,
+            state: 'unavailable',
+          },
+          503,
+        )
+      : state('unavailable', 503);
   }
 }
 
-/** Central Functions wiring keeps its historical symbol; the accepted transport is V4 only. */
+/** Central Functions wiring keeps its historical symbol; the endpoint accepts V4 and V5. */
 export const handleGradebookImportPersistenceRequestV2 = handleGradebookImportPersistenceRequestV4;

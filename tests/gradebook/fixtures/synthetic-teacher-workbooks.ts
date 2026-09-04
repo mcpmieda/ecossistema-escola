@@ -288,7 +288,12 @@ export const SYNTHETIC_TEACHER_WORKBOOK: Workbook = {
       students: recoveryStudents,
     }),
     RELAÇÃO: { '!ref': 'A1:K2', A1: { v: 'Relação sintética' } },
-    CONFIGURAÇÃO: { '!ref': 'A1:B2', A1: { v: 'Configuração sintética' } },
+    CONFIGURAÇÃO: {
+      '!ref': 'A1:C2',
+      A1: { v: 'Configuração sintética' },
+      A2: { v: 'Docente Sintético da Configuração' },
+      C2: { v: 2026 },
+    },
     INICIO: { '!ref': 'A1:B2', A1: { v: 'Início sintético' } },
     'AUXILIAR OCULTA': { '!ref': 'A1:B2', A1: { v: 'Auxiliar sintética' } },
   },

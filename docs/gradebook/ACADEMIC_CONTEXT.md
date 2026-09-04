@@ -108,3 +108,10 @@ As suites novas usam somente dados sintéticos:
 - `tests/gradebook/persistence/d1-context/d1-academic-context-v1.test.ts` cobre leitura, histórico append-only, isolamento por `academicYearId`, expectativa nula/obsoleta e rollback de raiz/configuração/ponteiro.
 
 A validação de entrega é `npm run verify` no SHA final do pull request.
+
+## Evolução administrativa #424
+
+A área global de Configurações ganhou um cadastro guiado de ano letivo. O servidor cria identidade,
+configuração e versão inicial dentro de um savepoint: 2026 nasce `active` com o perfil 2026 já
+congelado; anos posteriores podem ser cadastrados como `planned`, sem ativar cálculo ou autoridade.
+A importação só aceita o ano reconhecido quando existe um contexto ativo correspondente.

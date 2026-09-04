@@ -109,6 +109,13 @@ describe('massa sintética — contrato e guias da fonte', () => {
       SYNTHETIC_EXPECTATIONS.source.unrecognizedSheetNames,
     );
   });
+
+  it('lê ano e professor da guia CONFIGURAÇÃO', () => {
+    expect(recognizeSyntheticWorkbook()).toMatchObject({
+      academicYear: 2026,
+      teacherName: 'Docente Sintético da Configuração',
+    });
+  });
 });
 
 describe('massa sintética — semântica observável das células', () => {
