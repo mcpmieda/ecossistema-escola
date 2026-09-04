@@ -529,6 +529,92 @@ export function normalizeGradebookImportPersistenceResponseV5(
   return asGradebookImportPersistenceResponseV5(value);
 }
 
+export type ImportPersistenceContentTypeFamilyV1 = 'json' | 'non-json' | 'missing';
+export type ImportPersistenceEnvelopeClassV1 =
+  | 'non-json'
+  | 'wrong-transport'
+  | 'unknown-state'
+  | 'invalid-v5-envelope';
+
+export interface ImportPersistenceHttpDiagnosticV1 {
+  readonly status: number;
+  readonly contentType: ImportPersistenceContentTypeFamilyV1;
+  readonly envelope: ImportPersistenceEnvelopeClassV1;
+}
+
+export interface ImportPersistenceHttpFailureInputV1 {
+  readonly status: number;
+  readonly contentType: string | null;
+  readonly payload: unknown;
+  readonly jsonParsed: boolean;
+}
+
+const IMPORT_PERSISTENCE_V5_RESPONSE_STATES = new Set<string>([
+  'applied',
+  'no-changes',
+  'review-required',
+  'blocked',
+  'conflict',
+  'invalid-request',
+  'not-authorized',
+  'unavailable',
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function importPersistenceContentTypeFamily(
+  value: string | null,
+): ImportPersistenceContentTypeFamilyV1 {
+  if (value === null || value.trim().length === 0) return 'missing';
+  const normalized = value.toLowerCase();
+  return normalized.includes('application/json') || normalized.includes('+json')
+    ? 'json'
+    : 'non-json';
+}
+
+function importPersistenceEnvelopeClass(
+  payload: unknown,
+  jsonParsed: boolean,
+): ImportPersistenceEnvelopeClassV1 {
+  if (!jsonParsed) return 'non-json';
+  if (!isRecord(payload)) return 'invalid-v5-envelope';
+  if (payload.transportVersion !== 5) return 'wrong-transport';
+  if (
+    typeof payload.state !== 'string' ||
+    !IMPORT_PERSISTENCE_V5_RESPONSE_STATES.has(payload.state)
+  ) {
+    return 'unknown-state';
+  }
+  return 'invalid-v5-envelope';
+}
+
+export function inspectImportPersistenceHttpFailureV1(
+  input: ImportPersistenceHttpFailureInputV1,
+): ImportPersistenceHttpDiagnosticV1 {
+  return {
+    status: Number.isInteger(input.status) ? input.status : 0,
+    contentType: importPersistenceContentTypeFamily(input.contentType),
+    envelope: importPersistenceEnvelopeClass(input.payload, input.jsonParsed),
+  };
+}
+
+export function describeImportPersistenceHttpFailureV1(
+  input: ImportPersistenceHttpFailureInputV1,
+): string {
+  const diagnostic = inspectImportPersistenceHttpFailureV1(input);
+  return `Resposta de persistência incompatível (HTTP ${diagnostic.status}; conteúdo ${diagnostic.contentType}; envelope ${diagnostic.envelope}).`;
+}
+
+export function resolveGradebookImportPersistenceResponseV5(
+  input: ImportPersistenceHttpFailureInputV1,
+): GradebookImportPersistenceResponseV5 {
+  const compatible = normalizeGradebookImportPersistenceResponseV5(input.payload);
+  if (compatible !== null) return compatible;
+  throw new Error(describeImportPersistenceHttpFailureV1(input));
+}
+
 export async function persistRecognizedGradebookFileV5(
   result: BatchSuccess,
   confirmed: ConfirmedImportContextV5,
@@ -557,12 +643,17 @@ export async function persistRecognizedGradebookFileV5(
         body,
         signal: controller.signal,
       });
-      const payload: unknown = await response.json().catch(() => null);
-      const compatible = normalizeGradebookImportPersistenceResponseV5(payload);
-      if (compatible === null) {
-        throw new Error('Resposta de persistência incompatível.');
-      }
-      return compatible;
+      let jsonParsed = true;
+      const payload: unknown = await response.json().catch(() => {
+        jsonParsed = false;
+        return null;
+      });
+      return resolveGradebookImportPersistenceResponseV5({
+        status: response.status,
+        contentType: response.headers.get('content-type'),
+        payload,
+        jsonParsed,
+      });
     } catch (cause) {
       lastFailure = cause;
       if (signal?.aborted) throw signal.reason;
@@ -576,7 +667,7 @@ export async function persistRecognizedGradebookFileV5(
 
   if (
     lastFailure instanceof Error &&
-    lastFailure.message === 'Resposta de persistência incompatível.'
+    lastFailure.message.startsWith('Resposta de persistência incompatível (HTTP ')
   ) {
     throw lastFailure;
   }
