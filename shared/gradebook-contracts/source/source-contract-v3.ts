@@ -14,15 +14,26 @@ export interface SourceAssessmentDefinitionEvidenceV3 {
   readonly hasObservedStudentValue: boolean;
 }
 
-export type SourceAssessmentNotApplicableMaximumStateV3 = Exclude<
-  SourceAssessmentDefinitionV2['maximumConfiguration']['state'],
-  'numeric'
->;
+export type SourceAssessmentUnconfiguredMaximumStateV3 =
+  SourceAssessmentDefinitionV2['maximumConfiguration']['state'];
 
 export type SourceAssessmentDefinitionResolutionV3 =
   | Extract<SourceAssessmentDefinitionResolutionV2, { readonly state: 'resolved' }>
   | {
-      readonly state: 'resolved';
+      readonly state: 'configured';
+      readonly kind: 'qualitative-activity';
+      readonly sourceSlot: Extract<
+        SourceAssessmentDefinitionV2,
+        { readonly kind: 'qualitative-activity' }
+      >['sourceSlot'];
+      readonly order: number;
+      readonly name: string;
+      readonly maximum: number;
+      readonly applicability: { readonly state: 'applicable' };
+    }
+  | {
+      /** The activity may exist, but its maximum has not been configured in this snapshot. */
+      readonly state: 'maximum-not-defined';
       readonly kind: 'qualitative-activity';
       readonly sourceSlot: Extract<
         SourceAssessmentDefinitionV2,
@@ -30,12 +41,8 @@ export type SourceAssessmentDefinitionResolutionV3 =
       >['sourceSlot'];
       readonly order: number;
       readonly observedName: string | null;
-      readonly maximumConfigurationState: SourceAssessmentNotApplicableMaximumStateV3;
-      readonly applicability: {
-        /** The slot has no configured maximum in this source snapshot. */
-        readonly state: 'not-applicable';
-        readonly reason: 'maximum-not-configured';
-      };
+      readonly maximumConfigurationState: SourceAssessmentUnconfiguredMaximumStateV3;
+      readonly reason: 'maximum-not-defined';
     }
   | {
       readonly state: 'insufficient-data';
@@ -90,19 +97,9 @@ export function resolveSourceAssessmentDefinitionV3(
   }
 
   const maximum = definition.maximumConfiguration;
-  if (maximum.state === 'numeric') {
-    if (!Number.isFinite(maximum.rawValue) || maximum.rawValue <= 0) {
-      return {
-        state: 'insufficient-data',
-        kind: definition.kind,
-        sourceSlot: definition.sourceSlot,
-        order: definition.order,
-        observedName: observedName(definition),
-        reason: 'maximum-not-positive',
-      };
-    }
+  if (maximum.state === 'numeric' && Number.isFinite(maximum.rawValue) && maximum.rawValue > 0) {
     return {
-      state: 'resolved',
+      state: 'configured',
       kind: definition.kind,
       sourceSlot: definition.sourceSlot,
       order: definition.order,
@@ -124,13 +121,13 @@ export function resolveSourceAssessmentDefinitionV3(
   }
 
   return {
-    state: 'resolved',
+    state: 'maximum-not-defined',
     kind: definition.kind,
     sourceSlot: definition.sourceSlot,
     order: definition.order,
     observedName: observedName(definition),
     maximumConfigurationState: maximum.state,
-    applicability: { state: 'not-applicable', reason: 'maximum-not-configured' },
+    reason: 'maximum-not-defined',
   };
 }
 
@@ -148,10 +145,9 @@ export const SOURCE_CONTRACT_V3 = {
     quantitativeRS: 'source-contract-v2-unchanged',
     qualitativeMaximumCells: 'AA3:AJ3',
     qualitativeNameCells: 'AA4:AJ4',
-    positiveNumericMaximum: 'resolved-applicable',
-    nonPositiveNumericMaximum: 'insufficient-data',
-    nonNumericMaximumWithoutStudentValue: 'resolved-not-applicable-for-source-snapshot',
-    nonNumericMaximumWithStudentValue: 'insufficient-data',
+    positiveNumericMaximum: 'configured-applicable',
+    maximumNotPositiveOrNonNumericWithoutStudentValue: 'maximum-not-defined',
+    maximumNotPositiveOrNonNumericWithStudentValue: 'insufficient-data-conflict',
     qualitativeName: 'display-only-with-structural-fallback',
     unknownMaximumAsZero: 'forbidden',
     sourceNameAsIdentity: 'forbidden',

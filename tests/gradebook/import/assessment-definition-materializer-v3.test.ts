@@ -73,21 +73,78 @@ describe('materialização de definições V3', () => {
     };
     const result = await materializeAssessmentDefinitionsV3(sheet, context);
 
-    expect(result.notApplicableDefinitions.length).toBeGreaterThan(0);
+    expect(result.unconfiguredDefinitions.length).toBeGreaterThan(0);
     expect(
-      result.notApplicableDefinitions.every(
+      result.unconfiguredDefinitions.every(
         (definition) =>
           definition.assessmentComponentsMaterialized === 0 &&
           definition.gradeEntriesMaterialized === 0,
       ),
     ).toBe(true);
-    const inactiveSlots = new Set(
-      result.notApplicableDefinitions.map((definition) => definition.sourceDefinition.sourceSlot),
+    const unconfiguredSlots = new Set(
+      result.unconfiguredDefinitions.map((definition) => definition.sourceDefinition.sourceSlot),
     );
     expect(
       result.components.some((component) =>
-        inactiveSlots.has(component.sourceDefinition.sourceSlot),
+        unconfiguredSlots.has(component.sourceDefinition.sourceSlot),
       ),
+    ).toBe(false);
+  });
+
+  it.each([0, -1])(
+    'mantém máximo numérico não positivo sem lançamento como não configurado: %s',
+    async (rawValue) => {
+      const original = replaceDefinition(baseSheet(), 'AA', (definition) => ({
+        ...definition,
+        maximumConfiguration: {
+          state: 'numeric',
+          rawValue,
+          provenance: definition.maximumConfiguration.provenance,
+        },
+      }));
+      const sheet = {
+        ...original,
+        students: original.students.map((student) => ({
+          ...student,
+          qualitative: [null, ...student.qualitative.slice(1)],
+        })),
+      };
+      const result = await materializeAssessmentDefinitionsV3(sheet, context);
+
+      expect(result.unconfiguredDefinitions).toContainEqual(
+        expect.objectContaining({
+          sourceDefinition: expect.objectContaining({ sourceSlot: 'AA' }),
+          resolution: expect.objectContaining({ state: 'maximum-not-defined' }),
+          assessmentComponentsMaterialized: 0,
+          gradeEntriesMaterialized: 0,
+        }),
+      );
+      expect(
+        result.components.some((component) => component.sourceDefinition.sourceSlot === 'AA'),
+      ).toBe(false);
+    },
+  );
+
+  it.each([0, -1])('bloqueia máximo numérico não positivo com lançamento: %s', async (rawValue) => {
+    const sheet = replaceDefinition(baseSheet(), 'AA', (definition) => ({
+      ...definition,
+      maximumConfiguration: {
+        state: 'numeric',
+        rawValue,
+        provenance: definition.maximumConfiguration.provenance,
+      },
+    }));
+    const result = await materializeAssessmentDefinitionsV3(sheet, context);
+
+    expect(result.blockedDefinitions).toContainEqual(
+      expect.objectContaining({
+        sourceDefinition: expect.objectContaining({ sourceSlot: 'AA' }),
+        resolution: expect.objectContaining({ reason: 'maximum-not-positive' }),
+        gradeEntriesMaterialized: 0,
+      }),
+    );
+    expect(
+      result.components.some((component) => component.sourceDefinition.sourceSlot === 'AA'),
     ).toBe(false);
   });
 
@@ -166,7 +223,7 @@ describe('materialização de definições V3', () => {
       materializeAssessmentDefinitionsV3(second, { ...context, term: 2 }),
     ]);
     expect(
-      t1.notApplicableDefinitions.some((value) => value.sourceDefinition.sourceSlot === 'AA'),
+      t1.unconfiguredDefinitions.some((value) => value.sourceDefinition.sourceSlot === 'AA'),
     ).toBe(true);
     expect(t2.components.some((value) => value.sourceDefinition.sourceSlot === 'AA')).toBe(true);
   });

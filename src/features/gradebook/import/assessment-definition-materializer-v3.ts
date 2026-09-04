@@ -20,9 +20,9 @@ type InsufficientResolutionV3 = Extract<
   SourceAssessmentDefinitionResolutionV3,
   { readonly state: 'insufficient-data' }
 >;
-type NotApplicableResolutionV3 = Extract<
+type UnconfiguredResolutionV3 = Extract<
   SourceAssessmentDefinitionResolutionV3,
-  { readonly maximumConfigurationState: unknown }
+  { readonly state: 'maximum-not-defined' }
 >;
 type ApplicableResolutionV3 = Extract<
   SourceAssessmentDefinitionResolutionV3,
@@ -36,10 +36,10 @@ export interface BlockedAssessmentDefinitionV3 {
   readonly gradeEntriesMaterialized: 0;
 }
 
-export interface NotApplicableAssessmentDefinitionV3 {
+export interface UnconfiguredAssessmentDefinitionV3 {
   readonly stableKey: ReturnType<typeof assessmentComponentSourceStableKeyV2>;
   readonly sourceDefinition: SourceAssessmentDefinitionV2;
-  readonly resolution: NotApplicableResolutionV3;
+  readonly resolution: UnconfiguredResolutionV3;
   readonly assessmentComponentsMaterialized: 0;
   readonly gradeEntriesMaterialized: 0;
 }
@@ -49,7 +49,7 @@ export interface AssessmentDefinitionMaterializationV3 extends Omit<
   'blockedDefinitions'
 > {
   readonly blockedDefinitions: readonly BlockedAssessmentDefinitionV3[];
-  readonly notApplicableDefinitions: readonly NotApplicableAssessmentDefinitionV3[];
+  readonly unconfiguredDefinitions: readonly UnconfiguredAssessmentDefinitionV3[];
 }
 
 function noteForSlot(student: StudentRecognition, slot: SourceAssessmentSlotV2): unknown | null {
@@ -94,15 +94,6 @@ function withResolvedDisplayName(
   };
 }
 
-function isNotApplicableResolution(
-  resolution: Exclude<
-    SourceAssessmentDefinitionResolutionV3,
-    { readonly state: 'insufficient-data' }
-  >,
-): resolution is NotApplicableResolutionV3 {
-  return 'maximumConfigurationState' in resolution;
-}
-
 /** Reuses the V2 component/entry materializer after V3 has classified each source slot. */
 export async function materializeAssessmentDefinitionsV3(
   sheet: GradeSheetRecognition,
@@ -113,7 +104,7 @@ export async function materializeAssessmentDefinitionsV3(
   );
   const applicableDefinitions: SourceAssessmentDefinitionV2[] = [];
   const blockedDefinitions: BlockedAssessmentDefinitionV3[] = [];
-  const notApplicableDefinitions: NotApplicableAssessmentDefinitionV3[] = [];
+  const unconfiguredDefinitions: UnconfiguredAssessmentDefinitionV3[] = [];
 
   for (const definition of sheet.assessmentDefinitions) {
     const hasObservedStudentValue = sheet.students.some(
@@ -133,8 +124,8 @@ export async function materializeAssessmentDefinitionsV3(
       });
       continue;
     }
-    if (isNotApplicableResolution(resolution)) {
-      notApplicableDefinitions.push({
+    if (resolution.state === 'maximum-not-defined') {
+      unconfiguredDefinitions.push({
         stableKey: definitionStableKey,
         sourceDefinition: definition,
         resolution,
@@ -164,7 +155,7 @@ export async function materializeAssessmentDefinitionsV3(
     blockedDefinitions: blockedDefinitions.sort((left, right) =>
       left.stableKey.localeCompare(right.stableKey),
     ),
-    notApplicableDefinitions: notApplicableDefinitions.sort((left, right) =>
+    unconfiguredDefinitions: unconfiguredDefinitions.sort((left, right) =>
       left.stableKey.localeCompare(right.stableKey),
     ),
   };

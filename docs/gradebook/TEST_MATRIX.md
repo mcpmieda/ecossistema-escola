@@ -26,18 +26,18 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 
 ## SRC3 — Definições qualitativas SourceContractV3
 
-- `SRC3-001`: máximo numérico positivo em `AA3:AJ3` resolve `applicable`.
-- `SRC3-002`: `*`, vazio, missing ou unrecognized sem lançamento resolvem `not-applicable` somente no snapshot.
-- `SRC3-003`: os mesmos estados não numéricos com lançamento permanecem `insufficient-data`/bloqueados.
-- `SRC3-004`: máximo numérico zero, negativo ou não finito permanece fail-closed e nunca vira máximo zero materializado.
+- `SRC3-001`: máximo numérico positivo em `AA3:AJ3` resolve `configured/applicable`.
+- `SRC3-002`: `*`, vazio, missing, unrecognized, booleano, zero, negativo ou não finito sem lançamento resolvem `maximum-not-defined`, nunca `not-applicable`.
+- `SRC3-003`: os mesmos estados com qualquer lançamento permanecem `insufficient-data`/bloqueados.
+- `SRC3-004`: máximo desconhecido ou não positivo nunca vira `maximum: 0` nem componente materializado.
 - `SRC3-005`: `AA4:AJ4` é texto livre de exibição; nome ausente/inválido não muda aplicabilidade e usa fallback estrutural.
 - `SRC3-006`: R/S preservam integralmente a resolução V2.
 - `SRC3-007`: cada trimestre resolve seu próprio slot; configuração diferente entre T1/T2/T3 não é conflito por si só.
-- `SRC3-008`: slot não aplicável não gera `AssessmentComponent` nem `GradeEntry`.
+- `SRC3-008`: slot com `maximum-not-defined` não gera `AssessmentComponent` nem `GradeEntry`.
 - `SRC3-009`: slot aplicável continua gerando componente e lançamento somente para seu próprio slot.
 - `SRC3-010`: `T` e `AK` permanecem observações autoritativas, sem recomposição granular.
 - `SRC3-011`: V1/V2 continuam interpretáveis sob suas versões históricas.
-- `SRC3-012`: Transport V4 conserva o wire shape; V5 vigente delega a política qualitativa ao materializador V3.
+- `SRC3-012`: Transport V4 conserva o wire shape; V5 vigente delega a política qualitativa ao materializador V3 sem mascarar estrutura, limites, identidade ou trust boundary inválidos.
 
 ## RES2 — AssessmentComponent/Results V2
 

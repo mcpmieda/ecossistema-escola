@@ -192,8 +192,9 @@ const QUALITATIVE_SLOTS_V5 = new Set<string>(
 );
 
 /**
- * V4 remains frozen. When its only rejection is the historical definition policy, this copy lets
- * V5 reuse every V4 structural check while the V5 server materializer applies SourceContract V3.
+ * V4 remains frozen. This copy is inspected only after the original request returned exactly
+ * `blocked-definition`, proving that all structural, bounds, identity and trust checks already
+ * passed. V5 can then replace only the historical qualitative policy for a second inspection.
  */
 function asSourceContractV3InspectionOnlyV4(
   value: Record<string, unknown>,
@@ -235,6 +236,8 @@ export function inspectGradebookImportPersistenceRequestV5(
   const compatible = asInspectionOnlyV4(value);
   if (compatible === null) return 'invalid-request';
   const historicalInspection = inspectGradebookImportPersistenceRequestV4(compatible);
+  // Never normalize a structurally invalid request: the second pass is reachable only after V4
+  // found no rejection other than its historical qualitative-definition policy.
   return historicalInspection === 'blocked-definition'
     ? inspectGradebookImportPersistenceRequestV4(asSourceContractV3InspectionOnlyV4(compatible))
     : historicalInspection;

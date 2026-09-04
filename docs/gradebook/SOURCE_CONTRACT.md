@@ -74,8 +74,8 @@ As linhas de estudante continuam começando em **5**. Cabeçalhos e lançamentos
 ### Qualitativo AA:AJ
 
 - `AA3:AJ3` preserva a configuração bruta de máximo de cada slot. Somente número finito positivo define um máximo e torna o slot aplicável.
-- Qualquer conteúdo não numérico em `AA3:AJ3` significa que o máximo ainda não foi definido. Sem lançamento de estudante, o slot fica `not-applicable` **somente para aquele snapshot da guia**; com lançamento presente, a evidência é conflitante e permanece `insufficient-data`/revisão.
-- Número zero, negativo ou não finito não é ausência de configuração: permanece fail-closed e nunca representa `not-applicable`.
+- Qualquer outro conteúdo em `AA3:AJ3` — `*`, vazio, ausente, texto, booleano, zero, negativo ou número não finito — significa `maximum-not-defined`; não significa `not-applicable`.
+- Sem lançamento de estudante, o slot não configurado preserva esse estado explícito e não gera componente nem nota. Com qualquer lançamento presente, a evidência é conflitante e permanece `insufficient-data`/bloqueada, sem escrita parcial.
 - `AA4:AJ4` preserva texto livre de exibição informado pelo usuário. Nome vazio, ausente ou inválido não muda a aplicabilidade; quando o máximo é válido, o sistema usa rótulo estrutural de exibição como fallback.
 - `AA5:AJ...` contém os lançamentos individuais dos estudantes.
 - `*`, vazio, campo ausente e conteúdo não reconhecido continuam preservados como observação bruta; nenhum deles é convertido em `maximum = 0`.
@@ -106,14 +106,15 @@ Não converter nem reinterpretar snapshots, registros ou validações V1 como se
 
 `shared/gradebook-contracts/source/source-contract-v3.ts` reutiliza integralmente a observação V2 e acrescenta contexto de presença/ausência de lançamentos no slot:
 
-- máximo qualitativo numérico finito e positivo → `resolved/applicable`;
-- máximo qualitativo não numérico sem lançamento → `resolved/not-applicable` no snapshot, sem fabricar máximo;
-- máximo qualitativo não numérico com lançamento → `insufficient-data` e bloqueio;
-- máximo qualitativo numérico zero, negativo ou não finito → `insufficient-data`;
+- máximo qualitativo numérico finito e positivo → `configured/applicable`;
+- qualquer outro máximo qualitativo sem lançamento → `maximum-not-defined`, sem fabricar máximo, componente ou nota;
+- qualquer outro máximo qualitativo com lançamento → `insufficient-data` e bloqueio atômico;
 - nome qualitativo → atributo livre somente de exibição, com fallback estrutural quando ausente/inválido;
 - R/S → semântica V2 inalterada.
 
-O Transport V4 já contém slot, configuração bruta, nome, valores observados e trimestre. Portanto nenhuma nova observação nem nova versão de transporte é necessária. O inspector V4 permanece histórico; o fluxo V5 vigente delega somente a decisão semântica qualitativa ao materializador V3.
+O Transport V4 já contém slot, configuração bruta, nome, valores observados e trimestre. Portanto nenhuma nova observação nem nova versão de transporte é necessária. O inspector V4 permanece histórico; o fluxo V5 só executa a adaptação semântica depois que a requisição original passou toda validação estrutural, de limites, identidade e trust boundary e foi recusada exclusivamente pela política histórica de definição.
+
+No resumo público V4/V5, o campo legado `assessmentDefinitions.resolved` é mantido como agregado compatível de definições classificadas sem bloqueio (`configured` + `maximum-not-defined`). Ele não afirma que todas foram configuradas; `assessmentComponents` expressa quantas definições foram efetivamente materializadas.
 
 ## Identidade estável da definição de avaliação
 

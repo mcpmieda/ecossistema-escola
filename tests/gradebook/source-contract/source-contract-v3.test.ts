@@ -49,7 +49,7 @@ describe('SourceContractV3 — semântica institucional de AA3:AJ4', () => {
         hasObservedStudentValue: false,
       }),
     ).toMatchObject({
-      state: 'resolved',
+      state: 'configured',
       name: 'Rótulo livre',
       maximum: 7.5,
       applicability: { state: 'applicable' },
@@ -60,7 +60,7 @@ describe('SourceContractV3 — semântica institucional de AA3:AJ4', () => {
         hasObservedStudentValue: false,
       }),
     ).toMatchObject({
-      state: 'resolved',
+      state: 'configured',
       name: 'Atividade qualitativa 1',
       maximum: 7.5,
       applicability: { state: 'applicable' },
@@ -74,28 +74,37 @@ describe('SourceContractV3 — semântica institucional de AA3:AJ4', () => {
     [undefined, 'missing-field'],
     ['a definir', 'unrecognized'],
     [true, 'unrecognized'],
+    [0, 'numeric'],
+    [-1, 'numeric'],
+    [Number.NaN, 'numeric'],
   ] as const)(
-    'resolve máximo não numérico %j sem lançamento como not-applicable no snapshot',
+    'classifica máximo não configurado %j sem lançamento de forma explícita',
     (rawMaximum, maximumConfigurationState) => {
       const resolution = resolveSourceAssessmentDefinitionV3(qualitative(rawMaximum), {
         hasObservedStudentValue: false,
       });
       expect(resolution).toMatchObject({
-        state: 'resolved',
+        state: 'maximum-not-defined',
         maximumConfigurationState,
-        applicability: { state: 'not-applicable', reason: 'maximum-not-configured' },
+        reason: 'maximum-not-defined',
       });
       expect('maximum' in resolution).toBe(false);
+      expect('applicability' in resolution).toBe(false);
     },
   );
 
   it.each([
     ['*', 'maximum-ambiguous-marker'],
     ['', 'maximum-ambiguous-empty'],
+    [null, 'maximum-ambiguous-empty'],
     [undefined, 'maximum-missing-field'],
     ['a definir', 'maximum-unrecognized'],
+    [true, 'maximum-unrecognized'],
+    [0, 'maximum-not-positive'],
+    [-1, 'maximum-not-positive'],
+    [Number.NaN, 'maximum-not-positive'],
   ] as const)(
-    'mantém máximo não numérico %j com lançamento em review-required',
+    'bloqueia máximo não configurado %j quando existe lançamento',
     (rawMaximum, reason) => {
       expect(
         resolveSourceAssessmentDefinitionV3(qualitative(rawMaximum), {
@@ -105,14 +114,18 @@ describe('SourceContractV3 — semântica institucional de AA3:AJ4', () => {
     },
   );
 
-  it.each([0, -1, Number.NaN])(
-    'mantém máximo numérico não positivo/inválido fail-closed: %s',
-    (maximum) => {
+  it.each([null, '', '   ', 42, true] as const)(
+    'usa rótulo estrutural quando AA4 não contém texto livre válido: %j',
+    (rawName) => {
       expect(
-        resolveSourceAssessmentDefinitionV3(qualitative(maximum), {
-          hasObservedStudentValue: false,
+        resolveSourceAssessmentDefinitionV3(qualitative(7.5, rawName), {
+          hasObservedStudentValue: true,
         }),
-      ).toMatchObject({ state: 'insufficient-data', reason: 'maximum-not-positive' });
+      ).toMatchObject({
+        state: 'configured',
+        name: 'Atividade qualitativa 1',
+        maximum: 7.5,
+      });
     },
   );
 
