@@ -53,11 +53,6 @@ function deferAssociationWritesV2(
       value: LogicalSourceRecordAssociationV1,
       expectation: VersionExpectationV1,
     ): Promise<VersionedWriteResultV1<LogicalSourceRecordAssociationV1>> {
-      const current = await repository.getCurrent(context, stream);
-      const currentVersion = current?.version ?? null;
-      if (currentVersion !== expectation.expectedVersion) {
-        return { status: 'version-conflict', currentVersion };
-      }
       const expectedWrittenVersion = (expectation.expectedVersion ?? 0) + 1;
       pending.push({ context, stream, value, expectation, expectedWrittenVersion });
       return {

@@ -157,6 +157,109 @@ async function plan(
 }
 
 describe('reconciliação transacional das avaliações V2', () => {
+  it('faz leituras independentes em paralelo bounded sem alterar o plano determinístico', async () => {
+    const adapter = new MemoryPersistenceAdapter();
+    const hash = '0'.repeat(64);
+    const sourceManifest = manifest(hash);
+    const importBatch = batch(1, sourceManifest);
+    await seedBatch(adapter, importBatch);
+    const materialization = await materializeAssessmentDefinitionsV2(
+      recognizedSheet(hash),
+      materializationContext(),
+    );
+    const activity = {
+      components: 0,
+      componentMaximum: 0,
+      records: 0,
+      recordMaximum: 0,
+      associations: 0,
+      associationMaximum: 0,
+    };
+    const pause = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const repositories = {
+      ...adapter.unitOfWork,
+      entities: {
+        ...adapter.unitOfWork.entities,
+        get: async (...args: Parameters<typeof adapter.unitOfWork.entities.get>) => {
+          activity.components += 1;
+          activity.componentMaximum = Math.max(activity.componentMaximum, activity.components);
+          await pause();
+          try {
+            return await adapter.unitOfWork.entities.get(...args);
+          } finally {
+            activity.components -= 1;
+          }
+        },
+      },
+      academicRecords: {
+        ...adapter.unitOfWork.academicRecords,
+        getCurrent: async (...args: Parameters<typeof adapter.unitOfWork.academicRecords.getCurrent>) => {
+          activity.records += 1;
+          activity.recordMaximum = Math.max(activity.recordMaximum, activity.records);
+          await pause();
+          try {
+            return await adapter.unitOfWork.academicRecords.getCurrent(...args);
+          } finally {
+            activity.records -= 1;
+          }
+        },
+      },
+      logicalSourceRecords: {
+        ...adapter.unitOfWork.logicalSourceRecords,
+        getCurrent: async (
+          ...args: Parameters<typeof adapter.unitOfWork.logicalSourceRecords.getCurrent>
+        ) => {
+          activity.associations += 1;
+          activity.associationMaximum = Math.max(
+            activity.associationMaximum,
+            activity.associations,
+          );
+          await pause();
+          try {
+            return await adapter.unitOfWork.logicalSourceRecords.getCurrent(...args);
+          } finally {
+            activity.associations -= 1;
+          }
+        },
+      },
+    };
+
+    const result = await planAssessmentImportReconciliationV2(
+      {
+        context: { academicYearId },
+        batch: importBatch,
+        expectedBatchVersion: 1,
+        files: [
+          {
+            importFileId: importBatch.files[0]!.id,
+            logicalSource: { state: 'confirmed', logicalSourceId },
+            materialization,
+          },
+        ],
+      },
+      repositories,
+    );
+
+    expect(activity).toMatchObject({
+      componentMaximum: 4,
+      recordMaximum: 4,
+      associationMaximum: 4,
+    });
+    expect(result.assessmentComponentPlanV2.counts).toEqual({
+      unchanged: 0,
+      new: 5,
+      changed: 0,
+      blocked: 7,
+    });
+    expect(result.counts).toMatchObject({ new: 4, changed: 0, blocked: 0 });
+    const stableKeys = result.items.flatMap((item) =>
+      item.stableKey === undefined ? [] : [item.stableKey],
+    );
+    expect(stableKeys).toEqual(
+      [...stableKeys].sort((left, right) => left.localeCompare(right)),
+    );
+  });
+
   it('promove componentes e GradeEntry juntos, e reimportação idêntica não cria versão extra', async () => {
     const adapter = new MemoryPersistenceAdapter();
     const hash = '1'.repeat(64);
