@@ -151,4 +151,57 @@ describe('GradebookImportPersistenceTransportV5', () => {
     });
     expect(planned).toEqual({ status: 'review-required', reason: 'divergent-trimester-roster' });
   });
+
+  it('accepts V3 qualitative evidence without changing the V4 wire shape', () => {
+    const value = request();
+    const sheets = value.sheets.map((sheet) => {
+      if (sheet.kind !== 'term') return sheet;
+      return {
+        ...sheet,
+        assessmentDefinitions: sheet.assessmentDefinitions.map((definition) =>
+          definition.sourceSlot === 'AA'
+            ? {
+                ...definition,
+                maximumConfiguration: {
+                  state: 'ambiguous-marker' as const,
+                  rawValue: '*' as const,
+                },
+                name: { state: 'unrecognized' as const, rawValue: 17 },
+              }
+            : definition,
+        ),
+      };
+    });
+
+    const candidate = { ...value, sheets };
+    expect(inspectGradebookImportPersistenceRequestV5(candidate)).toBe('ready');
+    expect(isGradebookImportPersistenceRequestV5(candidate)).toBe(true);
+    expect(candidate.manifest.sourceContractVersion).toBe(2);
+    expect(candidate.transportVersion).toBe(5);
+  });
+
+  it('keeps nonnumeric R/S fail-closed under their historical rule', () => {
+    const value = request();
+    const sheets = value.sheets.map((sheet) => {
+      if (sheet.kind !== 'term') return sheet;
+      return {
+        ...sheet,
+        assessmentDefinitions: sheet.assessmentDefinitions.map((definition) =>
+          definition.sourceSlot === 'R'
+            ? {
+                ...definition,
+                maximumConfiguration: {
+                  state: 'ambiguous-marker' as const,
+                  rawValue: '*' as const,
+                },
+              }
+            : definition,
+        ),
+      };
+    });
+
+    expect(inspectGradebookImportPersistenceRequestV5({ ...value, sheets })).toBe(
+      'blocked-definition',
+    );
+  });
 });

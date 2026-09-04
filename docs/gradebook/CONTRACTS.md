@@ -461,6 +461,14 @@ As listas de 1º, 2º e 3º trimestre devem coincidir exatamente por turma e ent
 é somente um subconjunto projetado sobre essa lista; `VG` não participa do cadastro. Ambiguidade,
 divergência ou aluno de REC desconhecido resulta em revisão sem escrita parcial.
 
+## Definições qualitativas SourceContract V3 (#427)
+
+`SourceContractV3` preserva V1/V2 históricos e interpreta a mesma observação já transportada pelo V4/V5. Em `AA3:AJ3`, somente número finito positivo define o máximo e torna o slot aplicável. Qualquer conteúdo não numérico significa máximo ainda não definido: sem valor acadêmico observado no slot, a definição é `resolved/not-applicable` naquele snapshot e não gera `AssessmentComponent` nem `GradeEntry`; com valor observado, a contradição permanece `insufficient-data` e bloqueia. Número zero, negativo ou não finito também permanece fail-closed e nunca é atalho para não aplicabilidade.
+
+`AA4:AJ4` é texto livre exclusivamente de exibição. Não participa da decisão de aplicabilidade nem da identidade; máximo positivo com nome ausente/inválido usa rótulo estrutural determinístico. R/S mantêm a regra V2. As guias T1/T2/T3 são observações independentes por trimestre, e o contrato não recalcula `T` ou `AK` a partir dos slots.
+
+O Transport V4 já fornece slot, máximo bruto/classificado, nome, lançamentos observados e contexto de trimestre, portanto nenhuma versão nova é criada. O inspector V4 permanece inalterado; no Transport V5 vigente, a validação estrutural continua reutilizando V4, mas a política qualitativa é resolvida server-side pelo materializador V3. Planner, executor, CAS e bootstrap transacional continuam únicos.
+
 ## Regras de evolução
 
 1. mudança de significado exige nova versão/adaptação explícita;

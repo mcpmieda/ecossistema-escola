@@ -17,6 +17,7 @@ import {
   SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
 } from '../../../shared/gradebook-contracts/source/source-contract-v2';
 import { createGradebookImportPersistenceServiceV4 } from '../../../server/gradebook/application/import/import-persistence-service-v2';
+import { materializeAssessmentDefinitionsV3 } from '../../../src/features/gradebook/import/assessment-definition-materializer-v3';
 import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
 import { createGradebookD1ImportAnnualStateSourceV1 } from '../../../server/gradebook/persistence/d1/imports/d1-import-annual-state-source-v1';
 import { GradebookD1ImportBootstrapTransactionV2 } from '../../../server/gradebook/persistence/d1/transaction/d1-import-bootstrap-transaction-v2';
@@ -197,17 +198,49 @@ function request(
   };
 }
 
-function service(transaction?: ImportBootstrapTransactionPortV2) {
+function service(transaction?: ImportBootstrapTransactionPortV2, useSourceContractV3 = false) {
   let sequence = 0;
   const unitOfWork = createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant });
-  return createGradebookImportPersistenceServiceV4({
-    unitOfWork,
-    transaction:
-      transaction ?? new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant }),
-    annualStateSource: createGradebookD1ImportAnnualStateSourceV1(database),
-    now: () => instant,
-    createId: (kind) => `${kind}:integration-v4:${++sequence}`,
-  });
+  return createGradebookImportPersistenceServiceV4(
+    {
+      unitOfWork,
+      transaction:
+        transaction ??
+        new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant }),
+      annualStateSource: createGradebookD1ImportAnnualStateSourceV1(database),
+      now: () => instant,
+      createId: (kind) => `${kind}:integration-v4:${++sequence}`,
+    },
+    useSourceContractV3
+      ? { materializeAssessmentDefinitions: materializeAssessmentDefinitionsV3 }
+      : undefined,
+  );
+}
+
+function withoutConfiguredQualitativeMaximum(
+  value = request(),
+): GradebookImportPersistenceRequestV4 {
+  return {
+    ...value,
+    sheets: value.sheets.map((sheet) =>
+      sheet.kind === 'term'
+        ? {
+            ...sheet,
+            assessmentDefinitions: sheet.assessmentDefinitions.map((definition) =>
+              'name' in definition
+                ? {
+                    ...definition,
+                    maximumConfiguration: {
+                      state: 'ambiguous-marker' as const,
+                      rawValue: '*' as const,
+                    },
+                  }
+                : definition,
+            ),
+          }
+        : sheet,
+    ),
+  };
 }
 
 class TaggedStatement implements D1WriteStatementV1 {
@@ -275,6 +308,63 @@ function physicalOrderDatabase(
 }
 
 describe('Import persistence integration V4', () => {
+  it('SourceContract V3 resolves a file containing only applicable and not-applicable slots', async () => {
+    const response = await service(undefined, true).execute(withoutConfiguredQualitativeMaximum());
+
+    expect(response).toMatchObject({
+      state: 'applied',
+      summary: {
+        assessmentDefinitions: { total: 12, resolved: 12, blocked: 0 },
+        assessmentComponents: { new: 2, blocked: 0 },
+        committedWrites: { assessmentComponentVersions: 2 },
+      },
+    });
+  });
+
+  it('SourceContract V3 keeps a nonnumeric maximum with student value blocked and atomic', async () => {
+    const candidate = withoutConfiguredQualitativeMaximum(request('b'));
+    const firstSheet = candidate.sheets[0];
+    if (!firstSheet || firstSheet.kind !== 'term') throw new Error('missing-synthetic-term');
+    const firstStudent = firstSheet.students[0];
+    if (!firstStudent) throw new Error('missing-synthetic-student');
+    const conflicting = {
+      ...candidate,
+      sheets: [
+        {
+          ...firstSheet,
+          students: [
+            {
+              ...firstStudent,
+              assessmentValues: [
+                ...firstStudent.assessmentValues,
+                {
+                  sourceSlot: 'AA' as const,
+                  value: { kind: 'manual' as const, source: 1, value: 1 },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(await service(undefined, true).execute(conflicting)).toMatchObject({
+      state: 'blocked',
+      summary: {
+        assessmentDefinitions: { total: 12, resolved: 11, blocked: 1 },
+        committedWrites: { total: 0 },
+      },
+      issues: [{ code: 'blocked-definition' }],
+    });
+    expect(
+      (
+        database.raw.prepare('SELECT COUNT(*) AS count FROM import_batch_versions').get() as {
+          count: number;
+        }
+      ).count,
+    ).toBe(0);
+  });
+
   it('revalidates opaque references and rejects incompatible teacher context before writes', async () => {
     const incompatible = structuredClone(request()) as GradebookImportPersistenceRequestV4;
     const firstSheet = incompatible.sheets[0];
