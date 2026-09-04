@@ -450,6 +450,17 @@ Durante futuro piloto, o gate contratual mantém `imported-source`. `mismatch` c
 
 A implementação integrada reutiliza o mesmo Audit Workspace, `planImportReconciliation`, `executeImportChangePlan`, UoW, CAS e rollback. A receita elegível e suas referências de evidência ficam server-only; o transporte sanitizado não expõe prova, evidência bruta ou mutação arbitrária. Nenhum schema/migration foi criado para os estados V2.
 
+## Importação com cadastro acadêmico V5 (#424)
+
+`GradebookImportPersistenceTransportV5` mantém o arquivo no navegador e substitui os IDs técnicos
+confirmados pelo browser por observações de posição e nome. O servidor autorizado resolve ou cria,
+de forma idempotente, professor, turma, componente, estudante, matrícula e atribuição antes da
+materialização V4. Esses cadastros e o lote acadêmico compartilham a mesma transação D1.
+
+As listas de 1º, 2º e 3º trimestre devem coincidir exatamente por turma e entre componentes. `REC`
+é somente um subconjunto projetado sobre essa lista; `VG` não participa do cadastro. Ambiguidade,
+divergência ou aluno de REC desconhecido resulta em revisão sem escrita parcial.
+
 ## Regras de evolução
 
 1. mudança de significado exige nova versão/adaptação explícita;

@@ -144,6 +144,8 @@ export type WorkbookSummary = {
   format: string;
   size: number;
   parserVersion: string;
+  academicYear?: number | null;
+  teacherName?: string | null;
   sheets: SheetSummary[];
   gradeSheets: GradeSheetRecognition[];
   classes: ClassRecognition[];
@@ -153,6 +155,19 @@ export type WorkbookSummary = {
 
 export function fileExtension(name: string): string {
   return name.split('.').pop()?.trim().toLowerCase() ?? '';
+}
+
+export function teacherNameFromFileName(name: string): string | null {
+  const withoutExtension = name.replace(/\.[^.]+$/u, '');
+  const withoutPrefix = withoutExtension.replace(
+    /^(?:BANCO\s+DE\s+NOTAS|CONTROLE\s+DE\s+NOTAS|NOTAS)\s*[-–—_:]*\s*/iu,
+    '',
+  );
+  const candidate = withoutPrefix
+    .replace(/\s*[-–—_:]*\s*20\d{2}\s*$/u, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+  return candidate.length > 0 ? candidate : null;
 }
 
 function normalizeText(value: string): string {
@@ -590,6 +605,7 @@ function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] 
   >();
 
   for (const sheet of gradeSheets) {
+    if (sheet.stage === 'overview') continue;
     const key = normalizeText(sheet.className);
     if (!key) continue;
     const current = grouped.get(key) ?? {
@@ -602,8 +618,14 @@ function buildClasses(gradeSheets: GradeSheetRecognition[]): ClassRecognition[] 
       sheets: [],
     };
 
-    for (const student of sheet.students) {
-      current.students.add(`${student.number}|${normalizeText(student.name)}`);
+    if (
+      sheet.stage === 'trimester-1' ||
+      sheet.stage === 'trimester-2' ||
+      sheet.stage === 'trimester-3'
+    ) {
+      for (const student of sheet.students) {
+        current.students.add(`${student.number}|${normalizeText(student.name)}`);
+      }
     }
     if (sheet.declaredStudents !== null) current.declared.push(sheet.declaredStudents);
     if (sheet.discipline) current.disciplines.add(sheet.discipline);
@@ -654,12 +676,29 @@ export function recognizeWorkbook(
     ['RELACAO', 'CONFIGURACAO', 'INICIO'].includes(normalizeText(name)),
   );
   const auxiliaryNames = new Set(auxiliarySheets);
+  const configurationName = auxiliarySheets.find((name) => normalizeText(name) === 'CONFIGURACAO');
+  const configuredYear = configurationName
+    ? numberAt(workbook.Sheets[configurationName] ?? {}, 'C2')
+    : null;
+  const configuredTeacherName = configurationName
+    ? textAt(workbook.Sheets[configurationName] ?? {}, 'A2')
+    : '';
+  const academicYear =
+    configuredYear !== null &&
+    Number.isSafeInteger(configuredYear) &&
+    configuredYear >= 2000 &&
+    configuredYear <= 9999
+      ? configuredYear
+      : null;
 
   return {
     fileName: file.name,
     format: fileExtension(file.name).toUpperCase(),
     size: file.size,
     parserVersion: xlsx.version,
+    academicYear,
+    teacherName:
+      configuredTeacherName.length > 0 ? configuredTeacherName : teacherNameFromFileName(file.name),
     sheets,
     gradeSheets,
     classes: buildClasses(gradeSheets),

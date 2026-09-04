@@ -37,31 +37,31 @@ O índice sem sufixo é tratado como `D1`; não inferir que o nome do arquivo de
 
 ### Metadados e estudantes
 
-| Informação | Local |
-|---|---|
-| Quantidade declarada de alunos | `J1` |
-| Disciplina | `K2` |
-| Turma | `K3` |
-| Trimestre | `K4` |
-| Situação do aluno | coluna `G` |
-| Número do aluno | coluna `J` |
-| Nome do aluno | coluna `K` |
+| Informação                     | Local      |
+| ------------------------------ | ---------- |
+| Quantidade declarada de alunos | `J1`       |
+| Disciplina                     | `K2`       |
+| Turma                          | `K3`       |
+| Trimestre                      | `K4`       |
+| Situação do aluno              | coluna `G` |
+| Número do aluno                | coluna `J` |
+| Nome do aluno                  | coluna `K` |
 
 ### Trimestres regulares — definições e valores
 
 As linhas de estudante continuam começando em **5**. Cabeçalhos e lançamentos possuem naturezas diferentes e não podem ser confundidos.
 
-| Informação | Definição/cabeçalho | Valor do estudante |
-|---|---|---|
-| Avaliação quantitativa 1 | `R3` = máximo/configuração | `R5:R...` |
-| Avaliação quantitativa 2 | `S3` = máximo/configuração | `S5:S...` |
-| Atividade qualitativa AA | `AA3` = máximo/configuração; `AA4` = nome livre | `AA5:AA...` |
-| Atividades qualitativas seguintes | mesmo padrão em `AB:AJ` | linhas `5+` no mesmo slot |
-| Total quantitativo importado | — | coluna `T` |
-| Avaliação/recuperação paralela importada | — | coluna `Z` |
-| Total qualitativo importado | — | coluna `AK` |
-| Nota oficial trimestral importada | — | coluna `AM` |
-| Acumulado anual importado | — | coluna `AN` |
+| Informação                               | Definição/cabeçalho                             | Valor do estudante        |
+| ---------------------------------------- | ----------------------------------------------- | ------------------------- |
+| Avaliação quantitativa 1                 | `R3` = máximo/configuração                      | `R5:R...`                 |
+| Avaliação quantitativa 2                 | `S3` = máximo/configuração                      | `S5:S...`                 |
+| Atividade qualitativa AA                 | `AA3` = máximo/configuração; `AA4` = nome livre | `AA5:AA...`               |
+| Atividades qualitativas seguintes        | mesmo padrão em `AB:AJ`                         | linhas `5+` no mesmo slot |
+| Total quantitativo importado             | —                                               | coluna `T`                |
+| Avaliação/recuperação paralela importada | —                                               | coluna `Z`                |
+| Total qualitativo importado              | —                                               | coluna `AK`               |
+| Nota oficial trimestral importada        | —                                               | coluna `AM`               |
+| Acumulado anual importado                | —                                               | coluna `AN`               |
 
 ### Quantitativo R/S
 
@@ -140,19 +140,19 @@ A granularidade V2 não cria fórmula para os agregados já importados:
 
 Nas guias `REC`:
 
-| Informação | Local |
-|---|---|
-| Nota REC do 1º trimestre | `R` |
-| Nota REC do 2º trimestre | `S` |
-| Nota REC do 3º trimestre | `T` |
-| Total anual pós-REC | `U` |
-| Nota original do 1º trimestre | `X` |
-| Nota original do 2º trimestre | `Y` |
-| Nota original do 3º trimestre | `AA` |
-| Total anual original | `AB` |
-| Flag de REC do 1º trimestre | `AC` |
-| Flag de REC do 2º trimestre | `AD` |
-| Flag de REC do 3º trimestre | `AE` |
+| Informação                    | Local |
+| ----------------------------- | ----- |
+| Nota REC do 1º trimestre      | `R`   |
+| Nota REC do 2º trimestre      | `S`   |
+| Nota REC do 3º trimestre      | `T`   |
+| Total anual pós-REC           | `U`   |
+| Nota original do 1º trimestre | `X`   |
+| Nota original do 2º trimestre | `Y`   |
+| Nota original do 3º trimestre | `AA`  |
+| Total anual original          | `AB`  |
+| Flag de REC do 1º trimestre   | `AC`  |
+| Flag de REC do 2º trimestre   | `AD`  |
+| Flag de REC do 3º trimestre   | `AE`  |
 
 A recuperação final substitui a nota do trimestre aplicável no total pós-REC, mesmo quando for menor. O valor anterior permanece no histórico. A #365 não altera essa regra.
 
@@ -175,19 +175,19 @@ em pós-REC.
 
 ## Semântica das células de lançamento
 
-| Origem | Tratamento |
-|---|---|
-| Vazia | ausência de lançamento |
-| Campo inexistente | dado insuficiente/estrutura divergente, distinto de vazio |
-| Número manual positivo | lançamento válido, sujeito à faixa |
-| `0,1` manual | marcador institucional de zero oficial; preservar `0,1` na origem e interpretar como `0` em análises |
-| Zero manual legado | zero real preservado e identificado como legado |
-| Número manual negativo | lançamento preservado e ocorrência de Auditoria |
-| Fórmula com resultado não zero | valor válido; preservar fórmula e cache |
-| Fórmula com resultado zero | ausência de lançamento na regra vigente |
-| Fórmula sem cache/erro | ocorrência de origem; não inventar valor |
-| Texto em campo numérico | inválido, salvo regra explicitamente documentada |
-| Não aplicável | excluído do cálculo correspondente, sem virar zero |
+| Origem                         | Tratamento                                                                                           |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Vazia                          | ausência de lançamento                                                                               |
+| Campo inexistente              | dado insuficiente/estrutura divergente, distinto de vazio                                            |
+| Número manual positivo         | lançamento válido, sujeito à faixa                                                                   |
+| `0,1` manual                   | marcador institucional de zero oficial; preservar `0,1` na origem e interpretar como `0` em análises |
+| Zero manual legado             | zero real preservado e identificado como legado                                                      |
+| Número manual negativo         | lançamento preservado e ocorrência de Auditoria                                                      |
+| Fórmula com resultado não zero | valor válido; preservar fórmula e cache                                                              |
+| Fórmula com resultado zero     | ausência de lançamento na regra vigente                                                              |
+| Fórmula sem cache/erro         | ocorrência de origem; não inventar valor                                                             |
+| Texto em campo numérico        | inválido, salvo regra explicitamente documentada                                                     |
+| Não aplicável                  | excluído do cálculo correspondente, sem virar zero                                                   |
 
 Essa tabela continua tratando células de **lançamento**. A classificação específica dos cabeçalhos de máximo/configuração V2 é separada para preservar vazio/`*` como ambiguidade documental.
 
@@ -269,13 +269,26 @@ A identidade estrutural das avaliações V2 segue a mesma política: fonte lógi
 
 ## Implementação e testes
 
+### Metadados e lista oficial para o bootstrap acadêmico
+
+- `CONFIGURAÇÃO!A2`: nome do professor; o nome do arquivo é apenas fallback quando a célula estiver vazia;
+- `CONFIGURAÇÃO!C2`: ano letivo inteiro;
+- `K2`: componente curricular de cada grupo de guias;
+- `K3`: turma de cada grupo de guias;
+- guias `1º`, `2º` e `3º`: lista oficial, obrigatoriamente idêntica;
+- guia `REC`: projeção automatizada e subconjunto da lista oficial, nunca fonte de novos alunos;
+- guia `VG`: ignorada pelo bootstrap acadêmico.
+
+O mesmo aluno/matrícula é reutilizado entre componentes da mesma turma e ano. Nome isolado não
+autoriza fusão global de estudantes.
+
 - Contrato histórico da fonte: `shared/gradebook-contracts/source/source-contract-v1.ts`.
 - Contrato prospectivo das definições: `shared/gradebook-contracts/source/source-contract-v2.ts`.
 - Contrato acadêmico V2 de componentes: `shared/gradebook-contracts/results/results-contract-v2.ts`.
 - Testes V1 históricos: `tests/gradebook/source-contract/source-contract-v1.test.ts`.
 - Testes V2: `tests/gradebook/source-contract/source-contract-v2.test.ts` e `tests/gradebook/result-contracts/results-contract-v2.test.ts`.
 - Contrato do manifesto/lote: `shared/gradebook-contracts/imports/import-contract-v1.ts`.
-- Transporte de persistência V3: `shared/gradebook-contracts/imports/import-persistence-transport-v3.ts`.
+- Transporte vigente de cadastro/persistência V5: `shared/gradebook-contracts/imports/import-persistence-transport-v5.ts`.
 - Manifesto runtime: `src/features/gradebook/import/file-manifest.ts`.
 - Orquestração vigente: `src/features/gradebook/import/import-batch.ts`.
 - Massa sintética vigente: `tests/gradebook/fixtures/synthetic-teacher-workbooks.ts`.
@@ -292,18 +305,18 @@ A massa sintética foi ampliada pela #366 exclusivamente com dados sintéticos. 
 
 A aplicação Excel de referência contém configuração, relação, vínculo de notas, base de controle, aproveitamento, boletim, ficha do aluno, Conselho e ata/resultados. No sistema novo:
 
-| Excel de referência | Responsabilidade nova |
-|---|---|
-| `CONFIGURAÇÕES` | perfil versionado e configurações |
-| `RELAÇÃO` | estudantes, matrículas e situações |
-| `VINCULO NOTAS` | importação/staging |
-| `BASE DE CONTROLE` | modelo normalizado + motor nativo |
-| `APROVEITAMENTO` | Desempenho |
-| `FICHA ALUNO` | Central do Aluno |
-| `BOLETIM` | Boletins |
-| `CONSELHO` | Conselho de Classe |
-| `ATA RESULTADOS` | relatórios/saídas do Conselho |
-| `INICIO` | navegação e estado operacional |
+| Excel de referência | Responsabilidade nova              |
+| ------------------- | ---------------------------------- |
+| `CONFIGURAÇÕES`     | perfil versionado e configurações  |
+| `RELAÇÃO`           | estudantes, matrículas e situações |
+| `VINCULO NOTAS`     | importação/staging                 |
+| `BASE DE CONTROLE`  | modelo normalizado + motor nativo  |
+| `APROVEITAMENTO`    | Desempenho                         |
+| `FICHA ALUNO`       | Central do Aluno                   |
+| `BOLETIM`           | Boletins                           |
+| `CONSELHO`          | Conselho de Classe                 |
+| `ATA RESULTADOS`    | relatórios/saídas do Conselho      |
+| `INICIO`            | navegação e estado operacional     |
 
 Não reproduzir fórmulas, nomes definidos, ActiveX ou guias como arquitetura web. Reproduzir regras, dados, rastreabilidade e fluxos funcionais.
 
