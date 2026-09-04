@@ -276,7 +276,10 @@ describe('massa sintética — posições, movimentações e recuperação', () 
     const recovery = requiredStudent('6AREC', 6).recovery;
     if (!recovery) throw new Error('Fixture sintética perdeu a leitura de recuperação da linha 6.');
     expect(recovery.trimester2).toBeNull();
-    expect(recovery.applicabilityTrimester2).toEqual({ classification: 'missing-field' });
+    expect(recovery.applicabilityTrimester2).toEqual({
+      classification: 'empty',
+      rawValue: null,
+    });
   });
 
   it('preserva fórmula AC/AD/AE sem cache como observação V3, sem inferir aplicabilidade', () => {

@@ -113,7 +113,7 @@ function assignment(id: TeachingAssignmentId, subject: string): TeachingAssignme
 }
 
 describe('projeções de resultados importados V1', () => {
-  it('materializes direct and formula-cached 0/1 REC evidence and keeps every other result under review', () => {
+  it('uses only numeric 1 as REC applicability and disregards other finite markers', () => {
     const provenance = {
       fileName: 'fixture-sintetica.xlsx',
       fileSha256: 'a'.repeat(64),
@@ -153,7 +153,7 @@ describe('projeções de resultados importados V1', () => {
       value: {
         value: {
           state: 'not-applicable',
-          reason: 'source REC formula result is explicitly numeric zero',
+          reason: 'source REC formula result is not the numeric applicability marker 1',
         },
         evidence: [
           {
@@ -191,7 +191,7 @@ describe('projeções de resultados importados V1', () => {
         ],
       },
     });
-    for (const cachedValue of [null, 2, -1]) {
+    for (const cachedValue of [2, -1]) {
       expect(
         materializeImportedRecoveryApplicabilityV1({
           observation: {
@@ -202,8 +202,36 @@ describe('projeções de resultados importados V1', () => {
           },
           provenance,
         }),
-      ).toMatchObject({ state: 'review-required', applicability: { state: 'insufficient-data' } });
+      ).toMatchObject({ state: 'ready', value: { value: { state: 'not-applicable' } } });
     }
+    expect(
+      materializeImportedRecoveryApplicabilityV1({
+        observation: {
+          classification: 'formula',
+          rawValue: null,
+          formula: 'SYNTHETIC_NO_CACHE()',
+          cachedValue: null,
+        },
+        provenance,
+      }),
+    ).toMatchObject({ state: 'ready', value: { value: { state: 'not-applicable' } } });
+    expect(
+      materializeImportedRecoveryApplicabilityV1({
+        observation: { classification: 'numeric', rawValue: 7 },
+        provenance,
+      }),
+    ).toMatchObject({ state: 'ready', value: { value: { state: 'not-applicable' } } });
+    expect(
+      materializeImportedRecoveryApplicabilityV1({
+        observation: {
+          classification: 'formula',
+          rawValue: '#VALUE!',
+          formula: 'SYNTHETIC_VISIBLE_ERROR()',
+          cachedValue: null,
+        },
+        provenance,
+      }),
+    ).toMatchObject({ state: 'review-required' });
   });
 
   it('projects imported T/Z/AK and calculated details through independent term-core executions while AM stays direct', () => {

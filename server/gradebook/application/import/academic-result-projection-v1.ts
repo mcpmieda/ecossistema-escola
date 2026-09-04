@@ -50,6 +50,8 @@ export const IMPORTED_RESULT_PROJECTION_RULE_VERSION_V1 =
   'gradebook-imported-result-projection:2026:v1' as const;
 export const IMPORTED_RESULT_PROJECTION_RULE_VERSION_V2 =
   'gradebook-imported-result-projection:2026:v2' as const;
+export const IMPORTED_RESULT_PROJECTION_RULE_VERSION_V3 =
+  'gradebook-imported-result-projection:2026:v3' as const;
 export const ANNUAL_CURRICULUM_PAGE_LIMIT_V1 = 100 as const;
 
 export type ImportedRecoveryApplicabilityMaterializationV1 =
@@ -59,33 +61,65 @@ export type ImportedRecoveryApplicabilityMaterializationV1 =
       readonly applicability: ReturnType<typeof resolveGradebookImportRecoveryApplicabilityV3>;
     };
 
-/**
- * Explicit numeric 1/0 and formula-cached 1/0 may become authoritative record evidence.
- * Formula provenance remains explicit and every other cached result fails closed.
- */
+/** Numeric 1 is applicable; every other finite numeric marker is not applicable. */
 export function materializeImportedRecoveryApplicabilityV1(input: {
   readonly observation: GradebookImportRecoveryApplicabilityObservationV3;
   readonly provenance: SourceCellProvenanceV1;
 }): ImportedRecoveryApplicabilityMaterializationV1 {
   const applicability = resolveGradebookImportRecoveryApplicabilityV3(input.observation);
-  const authoritativeValue =
-    input.observation.classification === 'numeric'
-      ? input.observation.rawValue
-      : input.observation.classification === 'formula'
-        ? input.observation.cachedValue
-        : null;
-  if (authoritativeValue !== 0 && authoritativeValue !== 1) {
-    return { state: 'review-required', applicability };
+  if (input.observation.classification === 'empty') {
+    return {
+      state: 'ready',
+      value: {
+        value: { state: 'not-applicable', reason: 'source REC applicability is empty' },
+        evidence: [
+          {
+            provenance: input.provenance,
+            classification: 'empty',
+            rawValue: input.observation.rawValue,
+          },
+        ],
+      },
+    };
   }
   if (input.observation.classification === 'formula') {
+    if (
+      input.observation.cachedValue === null &&
+      input.observation.rawValue !== null &&
+      input.observation.rawValue !== ''
+    ) {
+      return { state: 'review-required', applicability };
+    }
+    if (input.observation.cachedValue === null) {
+      return {
+        state: 'ready',
+        value: {
+          value: {
+            state: 'not-applicable',
+            reason: 'source REC formula has no visible or cached applicability marker',
+          },
+          evidence: [
+            {
+              provenance: input.provenance,
+              classification: 'formula-error-or-missing-cache',
+              rawValue: input.observation.rawValue,
+              formula: input.observation.formula,
+              cachedValue: null,
+              sourceError: null,
+            },
+          ],
+        },
+      };
+    }
+    const authoritativeValue = input.observation.cachedValue;
     return {
       state: 'ready',
       value: {
         value:
-          authoritativeValue === 0
+          authoritativeValue !== 1
             ? {
                 state: 'not-applicable',
-                reason: 'source REC formula result is explicitly numeric zero',
+                reason: 'source REC formula result is not the numeric applicability marker 1',
               }
             : { state: 'applicable' },
         evidence: [
@@ -102,7 +136,7 @@ export function materializeImportedRecoveryApplicabilityV1(input: {
                 classification: 'formula-nonzero',
                 rawValue: input.observation.rawValue,
                 formula: input.observation.formula,
-                cachedValue: 1,
+                cachedValue: authoritativeValue,
               },
         ],
       },
@@ -111,22 +145,35 @@ export function materializeImportedRecoveryApplicabilityV1(input: {
   if (input.observation.classification !== 'numeric') {
     return { state: 'review-required', applicability };
   }
+  const authoritativeValue = input.observation.rawValue;
   return {
     state: 'ready',
     value: {
-      value: applicability,
+      value:
+        authoritativeValue === 1
+          ? { state: 'applicable' }
+          : {
+              state: 'not-applicable',
+              reason: 'source REC value is not the numeric applicability marker 1',
+            },
       evidence: [
-        input.observation.rawValue === 0
+        authoritativeValue === 0
           ? {
               provenance: input.provenance,
               classification: 'not-applicable',
               rawValue: 0,
             }
-          : {
-              provenance: input.provenance,
-              classification: 'manual-positive-number',
-              rawValue: 1,
-            },
+          : authoritativeValue < 0
+            ? {
+                provenance: input.provenance,
+                classification: 'manual-negative-number',
+                rawValue: authoritativeValue,
+              }
+            : {
+                provenance: input.provenance,
+                classification: 'manual-positive-number',
+                rawValue: authoritativeValue,
+              },
       ],
     },
   };
@@ -248,7 +295,7 @@ export function projectImportedTermResultV1(
       },
       authorityMode: 'imported-source',
       coverage: importedOutcome.coverage,
-      ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V2,
+      ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V3,
     },
   };
 }
@@ -355,7 +402,7 @@ export function projectImportedFinalRecoveryV1(
       },
       authorityMode: 'imported-source',
       coverage: importedTerm.coverage,
-      ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V2,
+      ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V3,
     };
   };
 
@@ -663,7 +710,7 @@ export function projectImportedAnnualResultsV1(
         finalDecision: { status: 'pending' },
         authorityMode: 'imported-source',
         coverage: importedOutcome.coverage,
-        ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V2,
+        ruleVersion: IMPORTED_RESULT_PROJECTION_RULE_VERSION_V3,
       },
     ];
   });

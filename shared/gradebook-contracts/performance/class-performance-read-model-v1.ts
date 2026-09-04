@@ -19,6 +19,7 @@ import {
   type ResultCoverageV1,
 } from '../results/results-contract-v1';
 import type { AssessmentComponentTypeV2 } from '../results/results-contract-v2';
+import type { AssessmentMaximumV3 } from '../results/results-contract-v3';
 
 export const CLASS_PERFORMANCE_CONTRACT_VERSION_V1 = 1 as const;
 
@@ -199,7 +200,8 @@ export interface PerformanceAssessmentValueV1 {
   readonly name: string;
   readonly type: AssessmentComponentTypeV1 | AssessmentComponentTypeV2;
   readonly order: number;
-  readonly maximum: number;
+  /** Historical V1/V2 components use a number; V3 preserves an explicit not-defined state. */
+  readonly maximum: number | AssessmentMaximumV3;
   readonly applicability: ApplicabilityV1;
   readonly value: PerformanceComparedGradeValueV1;
 }

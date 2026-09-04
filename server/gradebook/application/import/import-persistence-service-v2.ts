@@ -40,12 +40,16 @@ import {
   materializeAssessmentDefinitionsV2,
   type AssessmentDefinitionMaterializationV2,
 } from '../../../../src/features/gradebook/import/assessment-definition-materializer-v2';
+import type { AssessmentDefinitionMaterializationV4 } from '../../../../src/features/gradebook/import/assessment-definition-materializer-v4';
 import type {
   GradeSheetRecognition,
   NoteValue,
   StudentRecognition,
 } from '../../../../src/features/gradebook/import/spreadsheet-recognizer';
-import { planAssessmentImportReconciliationV2 } from './assessment-import-reconciliation-v2';
+import {
+  planAssessmentImportReconciliationV2,
+  type AssessmentDefinitionMaterializationAcceptedV2,
+} from './assessment-import-reconciliation-v2';
 import { createImportBootstrapEnvelopeV2 } from './import-bootstrap-v2';
 import { executeImportBootstrapChangePlanV2 } from './execution/execute-import-change-plan-v1';
 import { resolveLogicalSourceForImportV2 } from './logical-source-resolution-v2';
@@ -66,8 +70,10 @@ export interface GradebookImportPersistenceServiceDependenciesV4 {
 }
 
 export interface GradebookImportPersistenceServiceOptionsV4 {
-  /** V4 keeps V2 semantics by default; the current V5 route opts into SourceContract V3. */
-  readonly materializeAssessmentDefinitions?: typeof materializeAssessmentDefinitionsV2;
+  /** V4 keeps V2 semantics by default; newer routes opt into an explicit materializer. */
+  readonly materializeAssessmentDefinitions?: (
+    ...input: Parameters<typeof materializeAssessmentDefinitionsV2>
+  ) => Promise<AssessmentDefinitionMaterializationV2 | AssessmentDefinitionMaterializationV4>;
 }
 
 const ZERO_STATE_COUNTS = { unchanged: 0, new: 0, changed: 0, blocked: 0 } as const;
@@ -398,7 +404,9 @@ export function createGradebookImportPersistenceServiceV4(
         );
         const materializeDefinitions =
           options.materializeAssessmentDefinitions ?? materializeAssessmentDefinitionsV2;
-        const materializations: (AssessmentDefinitionMaterializationV2 & {
+        const materializations: ((
+          AssessmentDefinitionMaterializationV2 | AssessmentDefinitionMaterializationV4
+        ) & {
           readonly unconfiguredDefinitions?: readonly unknown[];
         })[] = [];
         for (const sheet of request.sheets) {
@@ -417,8 +425,10 @@ export function createGradebookImportPersistenceServiceV4(
             }),
           );
         }
-        const materialization: AssessmentDefinitionMaterializationV2 = {
-          components: materializations.flatMap((value) => value.components),
+        const materialization: AssessmentDefinitionMaterializationAcceptedV2 = {
+          components: materializations.flatMap<
+            AssessmentDefinitionMaterializationAcceptedV2['components'][number]
+          >((value) => [...value.components]),
           gradeEntries: materializations.flatMap((value) => value.gradeEntries),
           blockedDefinitions: materializations.flatMap((value) => value.blockedDefinitions),
         };
