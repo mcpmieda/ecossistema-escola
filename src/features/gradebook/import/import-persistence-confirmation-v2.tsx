@@ -42,6 +42,9 @@ function responseLabel(state: ImportPersistenceStateV5): string {
 export function responseIssueLabel(
   response: GradebookImportPersistenceResponseV5,
 ): string | null {
+  if (response.state === 'invalid-request') {
+    return `Motivo técnico: ${response.reason}.`;
+  }
   if (!('issues' in response) || response.issues.length === 0) return null;
   const codes = [...new Set(response.issues.map((issue) => issue.code))];
   return `Motivo técnico: ${codes.join(', ')}.`;
@@ -235,6 +238,18 @@ export function ImportPersistenceConfirmationV2({
           </Alert.Content>
         </Alert>
       )}
+
+      {persistence.state === 'completed' &&
+        !('summary' in persistence.response) &&
+        responseIssueLabel(persistence.response) && (
+          <Alert status="warning" className="mt-4">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{responseLabel(persistence)}</Alert.Title>
+              <Alert.Description>{responseIssueLabel(persistence.response)}</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        )}
 
       <Button
         className="mt-4"
