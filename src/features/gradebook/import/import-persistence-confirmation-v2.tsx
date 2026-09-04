@@ -9,6 +9,7 @@ import {
 } from './import-persistence-client-v2';
 import type { ImportPersistenceStateV5 } from './use-import-batch';
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
+import type { GradebookImportPersistenceResponseV5 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
 
 type AcademicYearOption = { readonly id: AcademicYearId; readonly label: string };
 
@@ -36,6 +37,14 @@ function responseLabel(state: ImportPersistenceStateV5): string {
       return labels[state.response.state];
     }
   }
+}
+
+export function responseIssueLabel(
+  response: GradebookImportPersistenceResponseV5,
+): string | null {
+  if (!('issues' in response) || response.issues.length === 0) return null;
+  const codes = [...new Set(response.issues.map((issue) => issue.code))];
+  return `Motivo técnico: ${codes.join(', ')}.`;
 }
 
 export function ImportPersistenceConfirmationV2({
@@ -219,6 +228,9 @@ export function ImportPersistenceConfirmationV2({
             <Alert.Description>
               {persistence.response.summary.committedWrites.total} gravação(ões) acadêmicas
               confirmadas no lote atômico.
+              {responseIssueLabel(persistence.response) && (
+                <span className="mt-1 block">{responseIssueLabel(persistence.response)}</span>
+              )}
             </Alert.Description>
           </Alert.Content>
         </Alert>
