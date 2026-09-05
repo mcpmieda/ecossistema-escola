@@ -230,9 +230,12 @@ describe('staged V6 import hardening', () => {
     const { staging } = services();
     const begin = await staging.begin(input, instant);
     const roster = chunks[0]!.rosters[0]!;
-    const students = roster.students.map((student, index) =>
-      index === 0 ? ([student[0], `${student[1]} ALTERADO`, ...(student[2] ? [student[2]] : [])] as typeof student) : student,
-    );
+    const students = roster.students.map((student, index) => {
+      if (index !== 0) return student;
+      return student.length === 3
+        ? ([student[0], `${student[1]} ALTERADO`, student[2]] as const)
+        : ([student[0], `${student[1]} ALTERADO`] as const);
+    });
     const divergent: GradebookImportPersistenceRequestV6 = {
       ...chunks[0]!,
       rosters: [{ ...roster, students }],
