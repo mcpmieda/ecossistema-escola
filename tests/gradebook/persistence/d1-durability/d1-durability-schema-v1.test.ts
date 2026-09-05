@@ -26,16 +26,16 @@ async function blankDatabase() {
 }
 
 describe('migrations de durabilidade Bulletin/Council', () => {
-  it('mantém catálogo sequencial e idempotente até a 0005 no runner local autorizado', async () => {
+  it('mantém catálogo sequencial e idempotente até a 0006 no runner local autorizado', async () => {
     const { raw, database } = await blankDatabase();
     try {
       expect(GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS.map(({ version }) => version)).toEqual([
-        1, 2, 3, 4, 5,
+        1, 2, 3, 4, 5, 6,
       ]);
       expect(GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS.at(-1)).toEqual({
-        version: 5,
-        name: 'council_session_durability_v2',
-        fileName: '0005_council_session_durability_v2.sql',
+        version: 6,
+        name: 'import_staging_v1',
+        fileName: '0006_import_staging_v1.sql',
       });
       const runner = new GradebookD1MigrationRunnerV1(database, {
         migrationSql: migrationSql(),
@@ -43,17 +43,17 @@ describe('migrations de durabilidade Bulletin/Council', () => {
 
       await expect(runner.run(authorization)).resolves.toMatchObject({
         result: 'applied',
-        currentVersion: 5,
-        latestVersion: 5,
-        migrationsApplied: 5,
+        currentVersion: 6,
+        latestVersion: 6,
+        migrationsApplied: 6,
       });
       await expect(runner.run(authorization)).resolves.toMatchObject({
         result: 'up-to-date',
-        currentVersion: 5,
-        latestVersion: 5,
+        currentVersion: 6,
+        latestVersion: 6,
         migrationsApplied: 0,
       });
-      raw.exec(migrationSql()[4] as string);
+      raw.exec(migrationSql()[5] as string);
       expect(
         raw.prepare('SELECT version, name FROM gradebook_schema_migrations ORDER BY version').all(),
       ).toEqual([
@@ -62,6 +62,7 @@ describe('migrations de durabilidade Bulletin/Council', () => {
         { version: 3, name: 'logical_source_record_catalog_v1' },
         { version: 4, name: 'bulletin_council_durability_v1' },
         { version: 5, name: 'council_session_durability_v2' },
+        { version: 6, name: 'import_staging_v1' },
       ]);
       expect(
         raw
@@ -69,7 +70,7 @@ describe('migrations de durabilidade Bulletin/Council', () => {
             "SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
           )
           .get(),
-      ).toEqual({ count: 27 });
+      ).toEqual({ count: 29 });
     } finally {
       raw.close();
     }
