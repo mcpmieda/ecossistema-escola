@@ -216,8 +216,8 @@ describe('GradebookImportPersistenceTransportV6', () => {
     expect(inspectGradebookImportPersistenceRequestV6(value)).toBe('invalid-academic-shape');
   });
 
-  it('omits placeholder qualitative components unless a real definition or observed grade exists', () => {
-    const invalid = structuredClone(compactRequest()) as unknown as {
+  it('omits empty placeholders and requires a fallback name when an unconfigured slot has a grade', () => {
+    const value = structuredClone(compactRequest()) as unknown as {
       courses: Array<{
         terms: Array<{
           assessmentDefinitions: Array<unknown>;
@@ -225,11 +225,16 @@ describe('GradebookImportPersistenceTransportV6', () => {
         }>;
       }>;
     };
-    invalid.courses[0]!.terms[0]!.assessmentDefinitions.push(['AB', null, null]);
-    expect(inspectGradebookImportPersistenceRequestV6(invalid)).toBe('invalid-academic-shape');
+    value.courses[0]!.terms[0]!.assessmentDefinitions.push(['AB', null, null]);
+    expect(inspectGradebookImportPersistenceRequestV6(value)).toBe('invalid-academic-shape');
 
-    invalid.courses[0]!.terms[0]!.rows[0]![1].AB = 2;
-    expect(inspectGradebookImportPersistenceRequestV6(invalid)).toBe('ready');
+    value.courses[0]!.terms[0]!.rows[0]![1].AB = 2;
+    value.courses[0]!.terms[0]!.assessmentDefinitions[3] = [
+      'AB',
+      null,
+      'Atividade qualitativa 2',
+    ];
+    expect(inspectGradebookImportPersistenceRequestV6(value)).toBe('ready');
   });
 
   it('keeps T/Z/AK/AM on every term and restricts annual accumulated AN to T3', () => {
