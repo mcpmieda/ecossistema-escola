@@ -125,7 +125,13 @@ function PersistenceResult({ state }: { state: ImportPersistenceStateV6 | undefi
   );
 }
 
-function TimingDiagnostics({ visible }: { visible: boolean }) {
+function TimingDiagnostics({
+  visible,
+  diagnostics,
+}: {
+  visible: boolean;
+  diagnostics: readonly string[];
+}) {
   if (!visible) return null;
   return (
     <Surface variant="secondary" className="mt-3 rounded-2xl p-4">
@@ -134,16 +140,15 @@ function TimingDiagnostics({ visible }: { visible: boolean }) {
           <p className="text-sm font-medium">Diagnóstico de tempo</p>
           <p className="mt-1 text-xs text-muted">
             Copie e envie o diagnóstico após cada teste. Ele contém somente tempos, contagens e modo
-            de execução.
+            de execução e fica apenas na memória enquanto esta tela estiver aberta.
           </p>
         </div>
         <Button
           size="sm"
           variant="secondary"
+          isDisabled={diagnostics.length === 0}
           onPress={() => {
-            const browser = globalThis.sessionStorage?.getItem('gradebook-import-browser-timings');
-            const staging = globalThis.sessionStorage?.getItem('gradebook-import-last-timing');
-            const text = [browser, staging].filter(Boolean).join('\n');
+            const text = diagnostics.join('\n');
             if (text) void globalThis.navigator.clipboard?.writeText(text);
           }}
         >
@@ -167,6 +172,7 @@ export function NotesImportPanel() {
     selectedId,
     selectedResult,
     setSelectedId,
+    timingDiagnostics,
     totals,
   } = useImportBatch();
 
@@ -328,6 +334,7 @@ export function NotesImportPanel() {
               <PersistenceResult state={selectedPersistence} />
               <TimingDiagnostics
                 visible={selectedPersistence?.state === 'completed' || selectedPersistence?.state === 'failed'}
+                diagnostics={timingDiagnostics}
               />
             </>
           )}
