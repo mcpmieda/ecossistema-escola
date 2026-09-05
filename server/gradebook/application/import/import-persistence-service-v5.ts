@@ -61,8 +61,14 @@ function review(): GradebookImportPersistenceResponseV5 {
   };
 }
 
+type CatalogSnapshotRepositoryV1 = AcademicEntityRepositoryV1 & {
+  readonly getImportCatalogSnapshot?: (
+    context: AcademicPersistenceContextV1,
+  ) => Promise<readonly VersionedRecordV1<AcademicEntityRecordV1>[] | null>;
+};
+
 function captureCatalogAssignmentsV1(base: AcademicEntityRepositoryV1): {
-  readonly repository: AcademicEntityRepositoryV1;
+  readonly repository: CatalogSnapshotRepositoryV1;
   readonly assignments: () => readonly TeachingAssignmentV1[];
 } {
   const assignments = new Map<string, TeachingAssignmentV1>();
@@ -71,23 +77,35 @@ function captureCatalogAssignmentsV1(base: AcademicEntityRepositoryV1): {
       assignments.set(entry.value.value.id, entry.value.value);
     }
   };
-  return {
-    repository: {
-      async get(context, reference) {
-        const entry = await base.get(context, reference);
-        capture(entry as VersionedRecordV1<AcademicEntityRecordV1> | null);
-        return entry;
-      },
-      async list(context, kind, page) {
-        const result = await base.list(context, kind, page);
-        for (const entry of result.items) {
-          capture(entry as VersionedRecordV1<AcademicEntityRecordV1>);
-        }
-        return result;
-      },
-      appendVersion: (context, record, expectation) =>
-        base.appendVersion(context, record, expectation),
+  const snapshotBase = base as CatalogSnapshotRepositoryV1;
+  const repository: CatalogSnapshotRepositoryV1 = {
+    async get(context, reference) {
+      const entry = await base.get(context, reference);
+      capture(entry as VersionedRecordV1<AcademicEntityRecordV1> | null);
+      return entry;
     },
+    async list(context, kind, page) {
+      const result = await base.list(context, kind, page);
+      for (const entry of result.items) {
+        capture(entry as VersionedRecordV1<AcademicEntityRecordV1>);
+      }
+      return result;
+    },
+    appendVersion: (context, record, expectation) => base.appendVersion(context, record, expectation),
+    ...(snapshotBase.getImportCatalogSnapshot
+      ? {
+          async getImportCatalogSnapshot(context: AcademicPersistenceContextV1) {
+            const result = await snapshotBase.getImportCatalogSnapshot!(context);
+            if (result) {
+              for (const entry of result) capture(entry);
+            }
+            return result;
+          },
+        }
+      : {}),
+  };
+  return {
+    repository,
     assignments: () => [...assignments.values()],
   };
 }
@@ -134,8 +152,7 @@ export async function createGradebookImportAnnualStateCacheV1(input: {
         )
         .sort((left, right) => left.id.localeCompare(right.id));
       const items = matching.slice(0, page.limit);
-      const nextCursor =
-        matching.length > page.limit ? (items.at(-1)?.id ?? null) : null;
+      const nextCursor = matching.length > page.limit ? (items.at(-1)?.id ?? null) : null;
       return { items, nextCursor };
     },
     async loadCurrentAnnualResultsForClass(request) {
