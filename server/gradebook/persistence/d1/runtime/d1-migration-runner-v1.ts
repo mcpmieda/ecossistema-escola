@@ -10,6 +10,16 @@ export type GradebookD1MigrationErrorCodeV1 =
   | 'migration-read-failed'
   | 'migration-apply-failed';
 
+export type GradebookD1MigrationApplyFailureDetailV1 =
+  | 'cpu-limit'
+  | 'query-limit'
+  | 'permission'
+  | 'schema-prerequisite'
+  | 'foreign-key'
+  | 'sql-incompatible'
+  | 'database-busy'
+  | 'unknown';
+
 const ERROR_MESSAGES: Record<GradebookD1MigrationErrorCodeV1, string> = {
   'migration-catalog-incompatible': 'O catálogo de migrations acadêmicas é incompatível.',
   'migration-read-failed': 'Não foi possível conferir o schema acadêmico.',
@@ -18,11 +28,16 @@ const ERROR_MESSAGES: Record<GradebookD1MigrationErrorCodeV1, string> = {
 
 export class GradebookD1MigrationErrorV1 extends Error {
   readonly code: GradebookD1MigrationErrorCodeV1;
+  readonly detail: GradebookD1MigrationApplyFailureDetailV1 | null;
 
-  constructor(code: GradebookD1MigrationErrorCodeV1) {
+  constructor(
+    code: GradebookD1MigrationErrorCodeV1,
+    detail: GradebookD1MigrationApplyFailureDetailV1 | null = null,
+  ) {
     super(ERROR_MESSAGES[code]);
     this.name = 'GradebookD1MigrationErrorV1';
     this.code = code;
+    this.detail = detail;
   }
 }
 
@@ -54,6 +69,50 @@ const REGISTRATION_PATTERN =
 
 function fail(code: GradebookD1MigrationErrorCodeV1): never {
   throw new GradebookD1MigrationErrorV1(code);
+}
+
+function errorText(value: unknown, depth = 0): string {
+  if (depth > 3 || value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (value instanceof Error) {
+    const nested = 'cause' in value ? (value as Error & { readonly cause?: unknown }).cause : undefined;
+    return `${value.name} ${value.message} ${errorText(nested, depth + 1)}`;
+  }
+  if (typeof value === 'object') {
+    const candidate = value as {
+      readonly message?: unknown;
+      readonly code?: unknown;
+      readonly cause?: unknown;
+    };
+    return [
+      typeof candidate.message === 'string' ? candidate.message : '',
+      typeof candidate.code === 'string' ? candidate.code : '',
+      errorText(candidate.cause, depth + 1),
+    ].join(' ');
+  }
+  return '';
+}
+
+export function classifyGradebookD1MigrationApplyFailureV1(
+  cause: unknown,
+): GradebookD1MigrationApplyFailureDetailV1 {
+  const text = errorText(cause).toLowerCase();
+  if (/\b1102\b|cpu|time limit|exceeded[^\n]{0,40}time/iu.test(text)) return 'cpu-limit';
+  if (/too many quer|query limit|maximum[^\n]{0,40}quer/iu.test(text)) return 'query-limit';
+  if (/sqlite_auth|not authorized|unauthorized|permission|read[- ]?only|readonly/iu.test(text)) {
+    return 'permission';
+  }
+  if (/no such table|no such column|missing[^\n]{0,30}(table|column)/iu.test(text)) {
+    return 'schema-prerequisite';
+  }
+  if (/foreign key/iu.test(text)) return 'foreign-key';
+  if (/syntax error|sql logic error|statement too long|unsupported|near[^\n]{0,60}syntax/iu.test(text)) {
+    return 'sql-incompatible';
+  }
+  if (/sqlite_busy|database is (busy|locked)|\bbusy\b|\blocked\b/iu.test(text)) {
+    return 'database-busy';
+  }
+  return 'unknown';
 }
 
 function positiveInteger(value: unknown): value is number {
@@ -207,8 +266,11 @@ export class GradebookD1MigrationRunnerV1 {
 
       try {
         await this.database.exec(migration.sql);
-      } catch {
-        return fail('migration-apply-failed');
+      } catch (cause) {
+        throw new GradebookD1MigrationErrorV1(
+          'migration-apply-failed',
+          classifyGradebookD1MigrationApplyFailureV1(cause),
+        );
       }
 
       const applied = await this.readApplied(catalog);
