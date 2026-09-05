@@ -81,9 +81,7 @@ function persistenceLabel(state: ImportPersistenceStateV6 | undefined): string {
 }
 
 function PersistenceResult({ state }: { state: ImportPersistenceStateV6 | undefined }) {
-  if (!state || state.state === 'recognized' || state.state === 'processing' || state.state === 'persisting') {
-    return null;
-  }
+  if (!state) return null;
   if (state.state === 'failed') {
     return (
       <Alert status="danger" className="mt-5">
@@ -95,6 +93,7 @@ function PersistenceResult({ state }: { state: ImportPersistenceStateV6 | undefi
       </Alert>
     );
   }
+  if (state.state !== 'completed') return null;
   const response = state.response;
   const success = response.state === 'applied' || response.state === 'no-changes';
   const issue =
