@@ -46,6 +46,13 @@ const GRADEBOOK_IMPORT_SERVER_MS_HEADER_V1 = 'X-Gradebook-Server-Ms';
 const GRADEBOOK_IMPORT_BENCHMARK_HEADER_V1 = 'X-Gradebook-Benchmark';
 const GRADEBOOK_IMPORT_BENCHMARK_VALUE_V1 = 'paid-direct-v1';
 
+interface GradebookImportBenchmarkPhasesV1 {
+  readonly preServiceMs: number;
+  readonly authMs: number;
+  readonly bodyMs: number;
+  readonly inspectMs: number;
+}
+
 function noStore(
   value: unknown,
   status = 200,
@@ -90,10 +97,17 @@ function benchmarkRequested(request: Request): boolean {
 function benchmarkHeaders(
   serviceStartedAt: number,
   snapshot: GradebookD1BenchmarkSnapshotV1 | null,
+  phases: GradebookImportBenchmarkPhasesV1 | null,
 ): Record<string, string> {
   const headers: Record<string, string> = {
     [GRADEBOOK_IMPORT_SERVER_MS_HEADER_V1]: String(Date.now() - serviceStartedAt),
   };
+  if (phases) {
+    headers['X-Gradebook-Pre-Service-Ms'] = String(phases.preServiceMs);
+    headers['X-Gradebook-Auth-Ms'] = String(phases.authMs);
+    headers['X-Gradebook-Body-Ms'] = String(phases.bodyMs);
+    headers['X-Gradebook-Inspect-Ms'] = String(phases.inspectMs);
+  }
   if (!snapshot) return headers;
   headers['X-Gradebook-D1-Calls'] = String(snapshot.calls);
   headers['X-Gradebook-D1-First-Calls'] = String(snapshot.firstCalls);
@@ -101,6 +115,7 @@ function benchmarkHeaders(
   headers['X-Gradebook-D1-Run-Calls'] = String(snapshot.runCalls);
   headers['X-Gradebook-D1-Batch-Calls'] = String(snapshot.batchCalls);
   headers['X-Gradebook-D1-Exec-Calls'] = String(snapshot.execCalls);
+  headers['X-Gradebook-D1-Catalog-Snapshot-Calls'] = String(snapshot.catalogSnapshotCalls);
   headers['X-Gradebook-D1-Wall-Ms'] = String(snapshot.wallMs);
   headers['X-Gradebook-D1-Max-Ms'] = String(snapshot.maxCallMs);
   if (snapshot.sqlMs !== null) headers['X-Gradebook-D1-Sql-Ms'] = String(snapshot.sqlMs);
@@ -112,10 +127,13 @@ export async function handleGradebookImportPersistenceRequestV4(
   env: RuntimeEnv,
 ): Promise<Response | null> {
   if (new URL(request.url).pathname !== GRADEBOOK_IMPORT_PERSISTENCE_ROUTE_V4) return null;
+  const routeStartedAt = Date.now();
   enforceOfficialOrigin(request, env);
   if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
   enforceWriteOrigin(request, env);
+  const benchmarkMode = benchmarkRequested(request);
 
+  const authStartedAt = Date.now();
   let authorization: ReturnType<typeof authorizeGradebookD1RuntimeV1>;
   try {
     authorization = authorizeGradebookD1RuntimeV1(await requireAuth(request, env));
@@ -124,7 +142,9 @@ export async function handleGradebookImportPersistenceRequestV4(
     if (cause instanceof AuthorizationError) return state('not-authorized', 403);
     return state('unavailable', 500);
   }
+  const authMs = Date.now() - authStartedAt;
 
+  const bodyStartedAt = Date.now();
   let payload: unknown;
   try {
     payload = await readBoundedJson(request, GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V4.maxBodyBytes);
@@ -140,7 +160,9 @@ export async function handleGradebookImportPersistenceRequestV4(
       cause instanceof HttpError ? cause.status : 400,
     );
   }
+  const bodyMs = Date.now() - bodyStartedAt;
 
+  const inspectStartedAt = Date.now();
   const version = declaredVersion(payload);
   const inspection =
     version === 6
@@ -155,6 +177,7 @@ export async function handleGradebookImportPersistenceRequestV4(
       : version === 5
         ? isGradebookImportPersistenceRequestV5(payload)
         : isGradebookImportPersistenceRequestV4(payload));
+  const inspectMs = Date.now() - inspectStartedAt;
   if (!compatible) {
     return noStore(
       {
@@ -167,10 +190,16 @@ export async function handleGradebookImportPersistenceRequestV4(
   }
 
   const serviceStartedAt = Date.now();
-  const rawDatabase = env.GRADEBOOK_D1 as D1WriteDatabaseV1;
-  const benchmark = benchmarkRequested(request)
-    ? instrumentGradebookD1ForBenchmarkV1(rawDatabase)
+  const phases = benchmarkMode
+    ? {
+        preServiceMs: serviceStartedAt - routeStartedAt,
+        authMs,
+        bodyMs,
+        inspectMs,
+      }
     : null;
+  const rawDatabase = env.GRADEBOOK_D1 as D1WriteDatabaseV1;
+  const benchmark = benchmarkMode ? instrumentGradebookD1ForBenchmarkV1(rawDatabase) : null;
   const executionEnv = benchmark
     ? ({ ...env, GRADEBOOK_D1: benchmark.database } as RuntimeEnv)
     : env;
@@ -195,7 +224,11 @@ export async function handleGradebookImportPersistenceRequestV4(
           : isGradebookImportPersistenceRequestV4(payload)
             ? await createGradebookImportPersistenceServiceV4(dependencies).execute(payload)
             : null;
-    const timingHeaders = benchmarkHeaders(serviceStartedAt, benchmark?.snapshot() ?? null);
+    const timingHeaders = benchmarkHeaders(
+      serviceStartedAt,
+      benchmark?.snapshot() ?? null,
+      phases,
+    );
     if (response === null) {
       return noStore({ transportVersion: version, state: 'unavailable' }, 500, timingHeaders);
     }
@@ -213,7 +246,7 @@ export async function handleGradebookImportPersistenceRequestV4(
     return noStore(
       { transportVersion: version, state: 'unavailable' },
       503,
-      benchmarkHeaders(serviceStartedAt, benchmark?.snapshot() ?? null),
+      benchmarkHeaders(serviceStartedAt, benchmark?.snapshot() ?? null, phases),
     );
   }
 }

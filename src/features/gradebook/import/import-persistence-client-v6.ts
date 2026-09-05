@@ -16,7 +16,13 @@ const BENCHMARK_VALUE = 'paid-direct-v1';
 export interface GradebookImportPaidDirectTimingV1 {
   readonly version: 1;
   readonly mode: 'paid-direct';
+  readonly stringifyMs: number;
   readonly requestMs: number;
+  readonly responseJsonMs: number;
+  readonly serverPreServiceMs: number | null;
+  readonly serverAuthMs: number | null;
+  readonly serverBodyMs: number | null;
+  readonly serverInspectMs: number | null;
   readonly serverMs: number | null;
   readonly attempts: number;
   readonly totalMs: number;
@@ -26,6 +32,7 @@ export interface GradebookImportPaidDirectTimingV1 {
   readonly serverD1RunCalls: number | null;
   readonly serverD1BatchCalls: number | null;
   readonly serverD1ExecCalls: number | null;
+  readonly serverCatalogSnapshotCalls: number | null;
   readonly serverD1WallMs: number | null;
   readonly serverD1MaxMs: number | null;
   readonly serverSqlMs: number | null;
@@ -63,9 +70,11 @@ export async function persistCompactGradebookFileV6(
   signal?: AbortSignal,
   onTiming?: (timing: GradebookImportPaidDirectTimingV1) => void,
 ): Promise<GradebookImportPersistenceResponseV6> {
-  const body = JSON.stringify(request);
-  let lastFailure: unknown = null;
   const totalStartedAt = nowMs();
+  const stringifyStartedAt = nowMs();
+  const body = JSON.stringify(request);
+  const stringifyMs = elapsed(stringifyStartedAt);
+  let lastFailure: unknown = null;
 
   for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
     if (signal?.aborted) throw signal.reason;
@@ -92,17 +101,25 @@ export async function persistCompactGradebookFileV6(
         signal: controller.signal,
       });
       const requestMs = elapsed(attemptStartedAt);
+      const responseJsonStartedAt = nowMs();
       let jsonParsed = true;
       const payload: unknown = await response.json().catch(() => {
         jsonParsed = false;
         return null;
       });
+      const responseJsonMs = elapsed(responseJsonStartedAt);
       const compatible = compatibleResponse(payload);
       if (compatible) {
         onTiming?.({
           version: 1,
           mode: 'paid-direct',
+          stringifyMs,
           requestMs,
+          responseJsonMs,
+          serverPreServiceMs: responseNumber(response, 'x-gradebook-pre-service-ms'),
+          serverAuthMs: responseNumber(response, 'x-gradebook-auth-ms'),
+          serverBodyMs: responseNumber(response, 'x-gradebook-body-ms'),
+          serverInspectMs: responseNumber(response, 'x-gradebook-inspect-ms'),
           serverMs: responseNumber(response, SERVER_MS_HEADER),
           attempts: attempt + 1,
           totalMs: elapsed(totalStartedAt),
@@ -112,6 +129,10 @@ export async function persistCompactGradebookFileV6(
           serverD1RunCalls: responseNumber(response, 'x-gradebook-d1-run-calls'),
           serverD1BatchCalls: responseNumber(response, 'x-gradebook-d1-batch-calls'),
           serverD1ExecCalls: responseNumber(response, 'x-gradebook-d1-exec-calls'),
+          serverCatalogSnapshotCalls: responseNumber(
+            response,
+            'x-gradebook-d1-catalog-snapshot-calls',
+          ),
           serverD1WallMs: responseNumber(response, 'x-gradebook-d1-wall-ms'),
           serverD1MaxMs: responseNumber(response, 'x-gradebook-d1-max-ms'),
           serverSqlMs: responseNumber(response, 'x-gradebook-d1-sql-ms'),
