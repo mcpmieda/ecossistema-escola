@@ -12,6 +12,8 @@ import type { D1ReadDatabaseV1 } from '../read/d1-read-adapter-v1';
 
 type Row = Record<string, unknown>;
 
+const MAX_ANNUAL_BULK_CLASS_GROUPS_V1 = 64;
+
 export type GradebookD1ImportAnnualStateErrorCodeV1 =
   | 'database-read-failed'
   | 'invalid-json'
@@ -83,6 +85,10 @@ export interface GradebookImportAnnualStateSourceV1 extends AnnualCurriculumSour
     readonly academicYearId: AcademicYearId;
     readonly classGroupId: ClassGroupId;
   }): Promise<readonly AnnualResultV1[]>;
+  loadCurrentAnnualResultsForClasses?(input: {
+    readonly academicYearId: AcademicYearId;
+    readonly classGroupIds: readonly ClassGroupId[];
+  }): Promise<ReadonlyMap<ClassGroupId, readonly AnnualResultV1[]>>;
 }
 
 export class GradebookD1ImportAnnualStateSourceV1 implements GradebookImportAnnualStateSourceV1 {
@@ -140,12 +146,32 @@ export class GradebookD1ImportAnnualStateSourceV1 implements GradebookImportAnnu
     return { items, nextCursor };
   }
 
-  async loadCurrentAnnualResultsForClass(input: {
+  async loadCurrentAnnualResultsForClasses(input: {
     readonly academicYearId: AcademicYearId;
-    readonly classGroupId: ClassGroupId;
-  }): Promise<readonly AnnualResultV1[]> {
+    readonly classGroupIds: readonly ClassGroupId[];
+  }): Promise<ReadonlyMap<ClassGroupId, readonly AnnualResultV1[]>> {
+    const classGroupIds = [...new Set(input.classGroupIds)];
+    if (classGroupIds.length === 0) return new Map();
+    if (
+      classGroupIds.length > MAX_ANNUAL_BULK_CLASS_GROUPS_V1 ||
+      classGroupIds.some((classGroupId) => classGroupId.trim().length === 0)
+    ) {
+      return fail('incompatible-row');
+    }
+
+    let requestedJson: string;
+    try {
+      requestedJson = JSON.stringify(classGroupIds);
+    } catch {
+      return fail('incompatible-row');
+    }
+
     const rows = await this.all(
-      `SELECT rv.payload_json
+      `WITH requested AS (
+         SELECT CAST(value AS TEXT) AS class_group_id
+           FROM json_each(?)
+       )
+       SELECT e.class_group_id, rv.payload_json
          FROM academic_record_streams rs
          JOIN academic_record_versions rv
            ON rv.academic_year_id=rs.academic_year_id
@@ -161,14 +187,38 @@ export class GradebookD1ImportAnnualStateSourceV1 implements GradebookImportAnnu
           AND es.entity_kind=e.entity_kind
           AND es.entity_id=e.entity_id
           AND es.current_version=e.version
+         JOIN requested
+           ON requested.class_group_id=e.class_group_id
         WHERE rs.academic_year_id=?
           AND rs.record_kind='annual-result'
-          AND e.class_group_id=?
-        ORDER BY rs.student_id, rs.teaching_assignment_id`,
+        ORDER BY e.class_group_id, rs.student_id, rs.teaching_assignment_id`,
+      requestedJson,
       input.academicYearId,
-      input.classGroupId,
     );
-    return rows.map((row) => annualResult(row, input.academicYearId));
+
+    const requested = new Set<string>(classGroupIds);
+    const grouped = new Map<ClassGroupId, AnnualResultV1[]>(
+      classGroupIds.map((classGroupId) => [classGroupId, []]),
+    );
+    for (const row of rows) {
+      if (typeof row.class_group_id !== 'string' || !requested.has(row.class_group_id)) {
+        return fail('incompatible-row');
+      }
+      const classGroupId = row.class_group_id as ClassGroupId;
+      grouped.get(classGroupId)!.push(annualResult(row, input.academicYearId));
+    }
+    return grouped;
+  }
+
+  async loadCurrentAnnualResultsForClass(input: {
+    readonly academicYearId: AcademicYearId;
+    readonly classGroupId: ClassGroupId;
+  }): Promise<readonly AnnualResultV1[]> {
+    const grouped = await this.loadCurrentAnnualResultsForClasses({
+      academicYearId: input.academicYearId,
+      classGroupIds: [input.classGroupId],
+    });
+    return grouped.get(input.classGroupId) ?? [];
   }
 }
 
