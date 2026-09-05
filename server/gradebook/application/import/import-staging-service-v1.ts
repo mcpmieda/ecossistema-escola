@@ -23,7 +23,7 @@ import {
   type StagedImportCaptureV1,
 } from './import-staging-capture-v1';
 
-export const GRADEBOOK_IMPORT_STAGE_MAX_POSITIONS_V1 = 8;
+export const GRADEBOOK_IMPORT_STAGE_MAX_POSITIONS_V1 = 40;
 export const GRADEBOOK_IMPORT_STAGE_SESSION_TTL_MS_V1 = 2 * 60 * 60 * 1000;
 
 export interface GradebookImportStageChunkDescriptorV1 {

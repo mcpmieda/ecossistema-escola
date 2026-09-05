@@ -68,7 +68,7 @@ beforeEach(async () => {
 
 afterEach(() => database.raw.close());
 
-function term(termValue: 1 | 2 | 3) {
+function term(termValue: 1 | 2 | 3, students: number) {
   const official = termValue === 3 ? 25 : 20;
   const quantitative = termValue === 3 ? 12 : 10;
   const qualitative = termValue === 3 ? 13 : 10;
@@ -79,7 +79,7 @@ function term(termValue: 1 | 2 | 3) {
       ['R', 10] as const,
       ['S', 10] as const,
     ],
-    rows: Array.from({ length: 9 }, (_, index) => {
+    rows: Array.from({ length: students }, (_, index) => {
       const position = index + 1;
       return [
         position,
@@ -95,7 +95,7 @@ function term(termValue: 1 | 2 | 3) {
   };
 }
 
-function request(hash = 'a'): GradebookImportPersistenceRequestV6 {
+function request(hash = 'a', students = 9): GradebookImportPersistenceRequestV6 {
   return {
     transportVersion: 6,
     operation: 'persist-recognized-file',
@@ -116,10 +116,10 @@ function request(hash = 'a'): GradebookImportPersistenceRequestV6 {
     rosters: [
       {
         classGroupLabel: '9º ANO SINTÉTICO',
-        students: Array.from({ length: 9 }, (_, index) => [
+        students: Array.from({ length: students }, (_, index) => [
           index + 1,
           `Estudante Sintético ${String(index + 1).padStart(2, '0')}`,
-          index === 8 ? 'TRANSFERIDO' : 'ATIVO',
+          index === students - 1 ? 'TRANSFERIDO' : 'ATIVO',
         ] as const),
       },
     ],
@@ -128,7 +128,7 @@ function request(hash = 'a'): GradebookImportPersistenceRequestV6 {
         classGroupLabel: '9º ANO SINTÉTICO',
         subjectLabel: 'Componente Sintético de Staging',
         disciplineIndex: 'D1',
-        terms: [term(1), term(2), term(3)],
+        terms: [term(1, students), term(2, students), term(3, students)],
         recovery: null,
       },
     ],
@@ -162,16 +162,15 @@ function services() {
 }
 
 describe('staged V6 import', () => {
-  it('prepares bounded chunks without official writes and promotes direct annual approval without REC rows', async () => {
+  it('prepares a class-sized bounded chunk without official writes and promotes direct annual approval without REC rows', async () => {
     const input = request();
     const chunks = splitCompactGradebookImportV6(input);
-    expect(chunks).toHaveLength(2);
-    expect(chunks[0]!.courses[0]!.terms[0].rows).toHaveLength(8);
-    expect(chunks[1]!.courses[0]!.terms[0].rows).toHaveLength(1);
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]!.courses[0]!.terms[0].rows).toHaveLength(9);
 
     const { repository, staging, promotion } = services();
     const begin = await staging.begin(input, instant);
-    expect(begin).toMatchObject({ state: 'ready', chunkCount: 2 });
+    expect(begin).toMatchObject({ state: 'ready', chunkCount: 1 });
 
     const first = await staging.prepare(begin.sessionId, 0, chunks[0]!);
     expect(first.state).toBe('prepared');
@@ -182,11 +181,6 @@ describe('staged V6 import', () => {
     const repeated = await staging.prepare(begin.sessionId, 0, chunks[0]!);
     expect(repeated.state).toBe('already-prepared');
     expect(count('gradebook_import_stage_chunks')).toBe(1);
-
-    const second = await staging.prepare(begin.sessionId, 1, chunks[1]!);
-    expect(second.state).toBe('prepared');
-    expect(count('gradebook_import_stage_chunks')).toBe(2);
-    expect(count('academic_record_streams')).toBe(0);
 
     const session = await repository.getSession(begin.sessionId);
     expect(session).not.toBeNull();
@@ -207,11 +201,16 @@ describe('staged V6 import', () => {
     expect(count('academic_record_streams')).toBe(63);
   });
 
-  it('does not promote an incomplete session', async () => {
-    const input = request('b');
+  it('does not promote an incomplete session when 41 positions require two chunks', async () => {
+    const input = request('b', 41);
     const chunks = splitCompactGradebookImportV6(input);
+    expect(chunks).toHaveLength(2);
+    expect(chunks[0]!.courses[0]!.terms[0].rows).toHaveLength(40);
+    expect(chunks[1]!.courses[0]!.terms[0].rows).toHaveLength(1);
+
     const { repository, staging, promotion } = services();
     const begin = await staging.begin(input, instant);
+    expect(begin.chunkCount).toBe(2);
     await staging.prepare(begin.sessionId, 0, chunks[0]!);
     const session = await repository.getSession(begin.sessionId);
     expect(await promotion.finalize(session!)).toEqual({ transportVersion: 6, state: 'conflict' });
