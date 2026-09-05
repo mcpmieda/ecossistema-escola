@@ -38,6 +38,7 @@ interface GradebookImportStageMetadataV1 {
   readonly version: 1;
   readonly fixedNow: string;
   readonly header: ReturnType<typeof requestHeader>;
+  readonly rosters: readonly GradebookImportRosterV6[];
   readonly chunks: readonly GradebookImportStageChunkDescriptorV1[];
 }
 
@@ -81,6 +82,10 @@ function requestHeader(request: GradebookImportPersistenceRequestV6) {
 
 function sameJson(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function classKey(value: string): string {
+  return value.trim().toUpperCase();
 }
 
 function orderedPositions(course: GradebookImportCourseV6): readonly number[] {
@@ -130,6 +135,8 @@ function metadata(value: string): GradebookImportStageMetadataV1 {
     !('fixedNow' in parsed) ||
     typeof parsed.fixedNow !== 'string' ||
     !('header' in parsed) ||
+    !('rosters' in parsed) ||
+    !Array.isArray(parsed.rosters) ||
     !('chunks' in parsed) ||
     !Array.isArray(parsed.chunks)
   ) {
@@ -138,21 +145,27 @@ function metadata(value: string): GradebookImportStageMetadataV1 {
   return parsed as GradebookImportStageMetadataV1;
 }
 
+function rosterForClass(
+  rosters: readonly GradebookImportRosterV6[],
+  classGroupLabel: string,
+): GradebookImportRosterV6 {
+  const normalized = classKey(classGroupLabel);
+  const roster = rosters.find((candidate) => classKey(candidate.classGroupLabel) === normalized);
+  if (!roster) throw new TypeError('staged-import-roster-missing');
+  return roster;
+}
+
 function rosterForCourse(
   request: GradebookImportPersistenceRequestV6,
   course: GradebookImportCourseV6,
 ): GradebookImportRosterV6 {
-  const normalized = course.classGroupLabel.trim().toUpperCase();
-  const roster = request.rosters.find(
-    (candidate) => candidate.classGroupLabel.trim().toUpperCase() === normalized,
-  );
-  if (!roster) throw new TypeError('staged-import-roster-missing');
-  return roster;
+  return rosterForClass(request.rosters, course.classGroupLabel);
 }
 
 function validateChunkAgainstDescriptor(
   request: GradebookImportPersistenceRequestV6,
   descriptor: GradebookImportStageChunkDescriptorV1,
+  stage: GradebookImportStageMetadataV1,
 ): { readonly course: GradebookImportCourseV6; readonly roster: GradebookImportRosterV6 } {
   if (request.courses.length !== 1 || request.rosters.length !== 1) {
     throw new TypeError('staged-import-chunk-shape-invalid');
@@ -170,6 +183,10 @@ function validateChunkAgainstDescriptor(
     throw new TypeError('staged-import-chunk-coverage-mismatch');
   }
   const roster = rosterForCourse(request, course);
+  const canonicalRoster = rosterForClass(stage.rosters, descriptor.classGroupLabel);
+  if (!sameJson(roster, canonicalRoster)) {
+    throw new TypeError('staged-import-chunk-roster-mismatch');
+  }
   return { course, roster };
 }
 
@@ -278,6 +295,7 @@ export class GradebookImportStagingServiceV1 {
       version: 1,
       fixedNow: now,
       header: requestHeader(request),
+      rosters: request.rosters,
       chunks,
     };
     await this.repository.begin({
@@ -307,7 +325,7 @@ export class GradebookImportStagingServiceV1 {
 
     let selected: ReturnType<typeof validateChunkAgainstDescriptor>;
     try {
-      selected = validateChunkAgainstDescriptor(request, descriptor);
+      selected = validateChunkAgainstDescriptor(request, descriptor, stage);
     } catch {
       return { state: 'conflict' };
     }
