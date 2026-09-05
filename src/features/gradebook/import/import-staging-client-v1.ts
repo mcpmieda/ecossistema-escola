@@ -137,6 +137,27 @@ function schemaReviewMessage(payload: Record<string, unknown>): string {
   return `O schema acadêmico exige revisão antes da importação (atual: ${numeric(schema.currentVersion)}; esperado: ${numeric(schema.latestVersion)}; pendências: ${numeric(schema.pendingCount)}). Nenhuma nota foi enviada.`;
 }
 
+function migrationApplyFailureMessage(payload: Record<string, unknown>): string {
+  switch (payload.detail) {
+    case 'cpu-limit':
+      return 'O D1 informou limite de processamento durante a migration de staging. Nenhuma nota foi enviada.';
+    case 'query-limit':
+      return 'O D1 informou limite de consultas durante a migration de staging. Nenhuma nota foi enviada.';
+    case 'permission':
+      return 'O D1 recusou a migration de staging por autorização/permissão. Nenhuma nota foi enviada.';
+    case 'schema-prerequisite':
+      return 'A migration de staging encontrou uma estrutura anterior do D1 ausente ou incompatível. Nenhuma nota foi enviada.';
+    case 'foreign-key':
+      return 'A migration de staging foi recusada por uma regra de relacionamento do D1. Nenhuma nota foi enviada.';
+    case 'sql-incompatible':
+      return 'O D1 considerou incompatível uma instrução da migration de staging. Nenhuma nota foi enviada.';
+    case 'database-busy':
+      return 'O D1 estava ocupado ou bloqueado ao aplicar a migration de staging. Nenhuma nota foi enviada.';
+    default:
+      return 'A migration de staging falhou no D1 por um motivo ainda não classificado; nenhuma nota foi enviada.';
+  }
+}
+
 export function gradebookImportStagingInitializationFailureMessageV1(
   status: number,
   payload: unknown,
@@ -169,7 +190,7 @@ export function gradebookImportStagingInitializationFailureMessageV1(
       case 'migration-read-failed':
         return 'Não foi possível conferir a versão atual do schema acadêmico no D1.';
       case 'migration-apply-failed':
-        return 'A migration de staging não pôde ser aplicada ao D1; nenhuma nota foi enviada.';
+        return migrationApplyFailureMessage(payload);
       case 'migration-postcondition-failed':
         return 'A migration de staging terminou sem confirmar o schema 6 esperado; nenhuma nota foi enviada.';
       case 'initialize-failed':
