@@ -32,6 +32,19 @@ function noChangesResponse() {
   } as const;
 }
 
+const breakdown = [
+  { category: 'catalog', calls: 1, wallMs: 300.1, sqlMs: 2.5 },
+  { category: 'annual-results', calls: 1, wallMs: 280.2, sqlMs: 1.1 },
+  { category: 'student-status', calls: 1, wallMs: 250.3, sqlMs: 1 },
+  { category: 'assessment-components', calls: 1, wallMs: 310.4, sqlMs: 2 },
+  { category: 'academic-records', calls: 4, wallMs: 700.5, sqlMs: 8.2 },
+  { category: 'associations', calls: 3, wallMs: 450.6, sqlMs: 6.3 },
+  { category: 'source', calls: 3, wallMs: 300.7, sqlMs: 4.4 },
+  { category: 'academic-entities', calls: 2, wallMs: 150.8, sqlMs: null },
+  { category: 'commit', calls: 1, wallMs: 100.9, sqlMs: 10.7 },
+  { category: 'other', calls: 1, wallMs: 31, sqlMs: null },
+] as const;
+
 describe('Gradebook V6 Workers Paid direct benchmark', () => {
   it('requires the explicit hash opt-in flag', () => {
     expect(isGradebookPaidDirectBenchmarkHashV1('#/banco-de-notas')).toBe(false);
@@ -61,6 +74,7 @@ describe('Gradebook V6 Workers Paid direct benchmark', () => {
           'X-Gradebook-D1-Wall-Ms': '2875.4',
           'X-Gradebook-D1-Max-Ms': '412.8',
           'X-Gradebook-D1-Sql-Ms': '36.2',
+          'X-Gradebook-D1-Breakdown': JSON.stringify(breakdown),
         },
       }),
     );
@@ -107,9 +121,39 @@ describe('Gradebook V6 Workers Paid direct benchmark', () => {
         serverD1WallMs: 2875.4,
         serverD1MaxMs: 412.8,
         serverSqlMs: 36.2,
+        serverD1Breakdown: breakdown,
       });
       expect(timing.mock.calls[0]?.[0]).not.toHaveProperty('fileName');
       expect(timing.mock.calls[0]?.[0]).not.toHaveProperty('sha256');
+    } finally {
+      fetchMock.mockRestore();
+    }
+  });
+
+  it('drops an invalid breakdown instead of logging the raw header', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(noChangesResponse()), {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Gradebook-D1-Calls': '2',
+          'X-Gradebook-D1-Breakdown': JSON.stringify([
+            { category: 'source', calls: 1, wallMs: 10, sqlMs: 1, query: 'SELECT secret' },
+          ]),
+        },
+      }),
+    );
+    const timing = vi.fn();
+    try {
+      await persistCompactGradebookFileV6(
+        { transportVersion: 6 } as GradebookImportPersistenceRequestV6,
+        undefined,
+        timing,
+      );
+      expect(timing.mock.calls[0]?.[0]).toMatchObject({
+        serverD1Calls: 2,
+        serverD1Breakdown: null,
+      });
+      expect(JSON.stringify(timing.mock.calls[0]?.[0])).not.toContain('SELECT secret');
     } finally {
       fetchMock.mockRestore();
     }

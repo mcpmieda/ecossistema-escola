@@ -5,6 +5,25 @@ import type {
 } from '../write/d1-write-adapter-v1';
 import type { D1ReadResultV1 } from '../read/d1-read-adapter-v1';
 
+export type GradebookD1BenchmarkCategoryV1 =
+  | 'catalog'
+  | 'annual-results'
+  | 'student-status'
+  | 'assessment-components'
+  | 'academic-records'
+  | 'associations'
+  | 'source'
+  | 'academic-entities'
+  | 'commit'
+  | 'other';
+
+export interface GradebookD1BenchmarkCategorySnapshotV1 {
+  readonly category: GradebookD1BenchmarkCategoryV1;
+  readonly calls: number;
+  readonly wallMs: number;
+  readonly sqlMs: number | null;
+}
+
 export interface GradebookD1BenchmarkSnapshotV1 {
   readonly calls: number;
   readonly firstCalls: number;
@@ -16,6 +35,7 @@ export interface GradebookD1BenchmarkSnapshotV1 {
   readonly wallMs: number;
   readonly maxCallMs: number;
   readonly sqlMs: number | null;
+  readonly categories: readonly GradebookD1BenchmarkCategorySnapshotV1[];
 }
 
 type D1ResultWithMetaV1 = {
@@ -25,6 +45,13 @@ type D1ResultWithMetaV1 = {
     };
   };
 };
+
+interface MutableCategoryMetricsV1 {
+  calls: number;
+  wallMs: number;
+  sqlMs: number;
+  sqlSamples: number;
+}
 
 interface MutableMetricsV1 {
   calls: number;
@@ -38,11 +65,24 @@ interface MutableMetricsV1 {
   maxCallMs: number;
   sqlMs: number;
   sqlSamples: number;
+  categories: Record<GradebookD1BenchmarkCategoryV1, MutableCategoryMetricsV1>;
 }
 
 const rawStatement = Symbol('gradebook-d1-benchmark-raw-statement');
 const CATALOG_SNAPSHOT_SIGNATURE =
   "'teacher', 'class-group', 'subject', 'teaching-assignment', 'student', 'enrollment'";
+const CATEGORIES: readonly GradebookD1BenchmarkCategoryV1[] = [
+  'catalog',
+  'annual-results',
+  'student-status',
+  'assessment-components',
+  'academic-records',
+  'associations',
+  'source',
+  'academic-entities',
+  'commit',
+  'other',
+];
 
 type InstrumentedStatementV1 = D1WriteStatementV1 & {
   readonly [rawStatement]: D1WriteStatementV1;
@@ -62,9 +102,47 @@ function sqlDuration(value: unknown): number | null {
   return typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? duration : null;
 }
 
+function normalizedQuery(query: string): string {
+  return query.toLowerCase().replace(/\s+/gu, ' ');
+}
+
+function queryCategory(query: string): GradebookD1BenchmarkCategoryV1 {
+  const normalized = normalizedQuery(query);
+  if (normalized.includes(CATALOG_SNAPSHOT_SIGNATURE)) return 'catalog';
+  if (/record_kind\s*=\s*'annual-result'/u.test(normalized) && normalized.includes('academic_record_')) {
+    return 'annual-results';
+  }
+  if (normalized.includes('student-status-event')) return 'student-status';
+  if (normalized.includes('assessment-component')) return 'assessment-components';
+  if (normalized.includes('logical_source_record_')) return 'associations';
+  if (normalized.includes('academic_record_')) return 'academic-records';
+  if (
+    normalized.includes('logical_sources') ||
+    normalized.includes('source_file_') ||
+    normalized.includes('import_batch_') ||
+    normalized.includes('import_diagnostics')
+  ) {
+    return 'source';
+  }
+  if (normalized.includes('academic_entity_') || normalized.includes('academic_years')) {
+    return 'academic-entities';
+  }
+  return 'other';
+}
+
+function emptyCategories(): Record<GradebookD1BenchmarkCategoryV1, MutableCategoryMetricsV1> {
+  return Object.fromEntries(
+    CATEGORIES.map((category) => [
+      category,
+      { calls: 0, wallMs: 0, sqlMs: 0, sqlSamples: 0 } satisfies MutableCategoryMetricsV1,
+    ]),
+  ) as Record<GradebookD1BenchmarkCategoryV1, MutableCategoryMetricsV1>;
+}
+
 function record(
   metrics: MutableMetricsV1,
   kind: 'first' | 'all' | 'run' | 'batch' | 'exec',
+  category: GradebookD1BenchmarkCategoryV1,
   startedAt: number,
   sqlMs: number | null,
   catalogSnapshot = false,
@@ -79,28 +157,35 @@ function record(
   if (kind === 'batch') metrics.batchCalls += 1;
   if (kind === 'exec') metrics.execCalls += 1;
   if (kind === 'all' && catalogSnapshot) metrics.catalogSnapshotCalls += 1;
+
+  const categoryMetrics = metrics.categories[category];
+  categoryMetrics.calls += 1;
+  categoryMetrics.wallMs += elapsed;
   if (sqlMs !== null) {
     metrics.sqlMs += sqlMs;
     metrics.sqlSamples += 1;
+    categoryMetrics.sqlMs += sqlMs;
+    categoryMetrics.sqlSamples += 1;
   }
 }
 
 function statement(
   raw: D1WriteStatementV1,
   metrics: MutableMetricsV1,
+  category: GradebookD1BenchmarkCategoryV1,
   catalogSnapshot: boolean,
 ): InstrumentedStatementV1 {
   return {
     [rawStatement]: raw,
     bind(...values) {
-      return statement(raw.bind(...values), metrics, catalogSnapshot);
+      return statement(raw.bind(...values), metrics, category, catalogSnapshot);
     },
     async first<Row extends Record<string, unknown>>(): Promise<Row | null> {
       const startedAt = nowMs();
       try {
         return await raw.first<Row>();
       } finally {
-        record(metrics, 'first', startedAt, null);
+        record(metrics, 'first', category, startedAt, null);
       }
     },
     async all<Row extends Record<string, unknown>>(): Promise<D1ReadResultV1<Row>> {
@@ -110,7 +195,7 @@ function statement(
         result = await raw.all<Row>();
         return result;
       } finally {
-        record(metrics, 'all', startedAt, sqlDuration(result), catalogSnapshot);
+        record(metrics, 'all', category, startedAt, sqlDuration(result), catalogSnapshot);
       }
     },
     async run(): Promise<D1WriteRunResultV1> {
@@ -120,7 +205,7 @@ function statement(
         result = await raw.run();
         return result;
       } finally {
-        record(metrics, 'run', startedAt, sqlDuration(result));
+        record(metrics, 'run', category, startedAt, sqlDuration(result));
       }
     },
   };
@@ -150,14 +235,17 @@ export function instrumentGradebookD1ForBenchmarkV1(database: D1WriteDatabaseV1)
     maxCallMs: 0,
     sqlMs: 0,
     sqlSamples: 0,
+    categories: emptyCategories(),
   };
 
   const instrumented: D1WriteDatabaseV1 = {
     prepare(query: string): D1WriteStatementV1 {
+      const category = queryCategory(query);
       return statement(
         database.prepare(query),
         metrics,
-        query.includes(CATALOG_SNAPSHOT_SIGNATURE),
+        category,
+        category === 'catalog' && query.includes(CATALOG_SNAPSHOT_SIGNATURE),
       );
     },
     async exec(query: string): Promise<unknown> {
@@ -165,7 +253,7 @@ export function instrumentGradebookD1ForBenchmarkV1(database: D1WriteDatabaseV1)
       try {
         return await database.exec(query);
       } finally {
-        record(metrics, 'exec', startedAt, null);
+        record(metrics, 'exec', queryCategory(query), startedAt, null);
       }
     },
     ...(database.batch
@@ -185,6 +273,7 @@ export function instrumentGradebookD1ForBenchmarkV1(database: D1WriteDatabaseV1)
               record(
                 metrics,
                 'batch',
+                'commit',
                 startedAt,
                 measured && measured.length > 0
                   ? measured.reduce((sum, value) => sum + value, 0)
@@ -209,6 +298,19 @@ export function instrumentGradebookD1ForBenchmarkV1(database: D1WriteDatabaseV1)
       wallMs: rounded(metrics.wallMs),
       maxCallMs: rounded(metrics.maxCallMs),
       sqlMs: metrics.sqlSamples > 0 ? rounded(metrics.sqlMs) : null,
+      categories: CATEGORIES.flatMap((category) => {
+        const value = metrics.categories[category];
+        return value.calls === 0
+          ? []
+          : [
+              {
+                category,
+                calls: value.calls,
+                wallMs: rounded(value.wallMs),
+                sqlMs: value.sqlSamples > 0 ? rounded(value.sqlMs) : null,
+              },
+            ];
+      }),
     }),
   };
 }

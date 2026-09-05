@@ -118,6 +118,7 @@ function benchmarkHeaders(
   headers['X-Gradebook-D1-Catalog-Snapshot-Calls'] = String(snapshot.catalogSnapshotCalls);
   headers['X-Gradebook-D1-Wall-Ms'] = String(snapshot.wallMs);
   headers['X-Gradebook-D1-Max-Ms'] = String(snapshot.maxCallMs);
+  headers['X-Gradebook-D1-Breakdown'] = JSON.stringify(snapshot.categories);
   if (snapshot.sqlMs !== null) headers['X-Gradebook-D1-Sql-Ms'] = String(snapshot.sqlMs);
   return headers;
 }
