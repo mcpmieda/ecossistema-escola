@@ -6,6 +6,7 @@ import { createGradebookD1ImportRepositoryExtensionV1 } from '../imports/d1-impo
 import { createGradebookD1LogicalSourceRepositoryV2 } from '../imports/d1-logical-source-repository-v2';
 import { createGradebookD1ImportCatalogBulkReadV1 } from '../read/d1-import-catalog-bulk-read-v1';
 import { createGradebookD1ImportPlanningBulkReadAdapterV1 } from '../read/d1-import-planning-bulk-read-v1';
+import { createGradebookD1SourceFileReadV2 } from '../read/d1-source-file-read-v2';
 import { createGradebookD1StudentStatusBulkReadV1 } from '../read/d1-student-status-bulk-read-v1';
 import {
   createGradebookD1WriteUnitOfWorkV1,
@@ -28,6 +29,7 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
   const audit = createGradebookD1AuditRepositoryV1(database, options);
   const catalogBulkReads = createGradebookD1ImportCatalogBulkReadV1(database);
   const planningBulkReads = createGradebookD1ImportPlanningBulkReadAdapterV1(database);
+  const sourceFileReads = createGradebookD1SourceFileReadV2(database);
   const studentStatusBulkReads = createGradebookD1StudentStatusBulkReadV1(database);
 
   const entities = Object.assign(
@@ -76,8 +78,8 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
   return {
     entities,
     imports: {
-      findSourceFileByHash: integrated.imports.findSourceFileByHash,
-      getSourceFileVersion: integrated.imports.getSourceFileVersion,
+      findSourceFileByHash: sourceFileReads.findSourceFileByHash.bind(sourceFileReads),
+      getSourceFileVersion: sourceFileReads.getSourceFileVersion.bind(sourceFileReads),
       listLogicalSourceVersions: importExtension.listLogicalSourceVersions,
       appendSourceFileVersion: integrated.imports.appendSourceFileVersion,
       getImportBatch: importExtension.getImportBatch,
