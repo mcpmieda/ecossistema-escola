@@ -61,6 +61,19 @@ const KINDS = [
   'student',
   'enrollment',
 ] as const satisfies readonly AcademicEntityKindV1[];
+type CatalogKindV1 = (typeof KINDS)[number];
+const CATALOG_MAXIMUM_PER_KIND_V1 = 1_000;
+
+type CatalogSnapshotRepositoryV1 = AcademicEntityRepositoryV1 & {
+  readonly getImportCatalogSnapshot?: (
+    context: AcademicPersistenceContextV1,
+  ) => Promise<readonly VersionedRecordV1<AcademicEntityRecordV1>[] | null>;
+};
+
+type ListedCatalogEntryV1 = readonly [
+  CatalogKindV1,
+  readonly VersionedRecordV1<AcademicEntityRecordV1>[],
+];
 
 const normalize = (value: string) =>
   value
@@ -99,6 +112,42 @@ async function listKind<K extends (typeof KINDS)[number]>(
     cursor = page.nextCursor;
   }
   return null;
+}
+
+function catalogKind(value: AcademicEntityRecordV1['kind']): value is CatalogKindV1 {
+  return KINDS.some((kind) => kind === value);
+}
+
+async function loadCatalog(
+  repository: AcademicEntityRepositoryV1,
+  context: AcademicPersistenceContextV1,
+): Promise<readonly ListedCatalogEntryV1[] | null> {
+  const snapshotRepository = repository as CatalogSnapshotRepositoryV1;
+  if (typeof snapshotRepository.getImportCatalogSnapshot === 'function') {
+    const snapshot = await snapshotRepository.getImportCatalogSnapshot(context);
+    if (snapshot === null) return null;
+    const grouped = new Map<CatalogKindV1, VersionedRecordV1<AcademicEntityRecordV1>[]>(
+      KINDS.map((kind) => [kind, []]),
+    );
+    for (const entry of snapshot) {
+      if (!catalogKind(entry.value.kind)) return null;
+      const values = grouped.get(entry.value.kind)!;
+      values.push(entry);
+      if (values.length > CATALOG_MAXIMUM_PER_KIND_V1) return null;
+    }
+    return KINDS.map((kind) => [kind, grouped.get(kind)!] as const);
+  }
+
+  const listed = await Promise.all(
+    KINDS.map(
+      async (kind) => [kind, await listKind(repository, context, kind)] as const,
+    ),
+  );
+  if (listed.some(([, records]) => records === null)) return null;
+  return listed.map(
+    ([kind, records]) =>
+      [kind, records as readonly VersionedRecordV1<AcademicEntityRecordV1>[]] as const,
+  );
 }
 
 function unique<T>(values: readonly T[]): T | null | 'ambiguous' {
@@ -170,24 +219,18 @@ export async function planAcademicCatalogBootstrapV1(input: {
     return { status: 'review-required', reason: 'academic-year-mismatch' };
   }
 
-  const listed = await Promise.all(
-    KINDS.map(
-      async (kind) => [kind, await listKind(input.unitOfWork.entities, context, kind)] as const,
-    ),
-  );
-  if (listed.some(([, records]) => records === null)) {
+  const listed = await loadCatalog(input.unitOfWork.entities, context);
+  if (listed === null) {
     return { status: 'review-required', reason: 'catalog-too-large' };
   }
-  const catalog = new Map(listed.map(([kind, records]) => [kind, records ?? []]));
+  const catalog = new Map(listed);
   const values = <K extends (typeof KINDS)[number]>(kind: K) =>
     (catalog.get(kind) ?? []) as readonly VersionedRecordV1<EntityRecord<K>>[];
   const cachedRecords: VersionedRecordV1<AcademicEntityRecordV1>[] = [
     yearRecord as VersionedRecordV1<AcademicEntityRecordV1>,
   ];
   for (const [, records] of listed) {
-    if (records) {
-      cachedRecords.push(...(records as readonly VersionedRecordV1<AcademicEntityRecordV1>[]));
-    }
+    cachedRecords.push(...records);
   }
 
   const termGroups = new Map<
