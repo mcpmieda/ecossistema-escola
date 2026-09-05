@@ -7,8 +7,10 @@ import type {
 } from '../../../shared/gradebook-contracts/entities';
 import type { GradebookImportPersistenceRequestV5 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
 import type {
+  AcademicEntityRecordV1,
   AcademicEntityRepositoryV1,
   AcademicPersistenceContextV1,
+  VersionedRecordV1,
 } from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import { planAcademicCatalogBootstrapV1 } from '../../../server/gradebook/application/import/academic-catalog-bootstrap-v1';
 
@@ -62,6 +64,20 @@ function request(): GradebookImportPersistenceRequestV5 {
   };
 }
 
+function teacherRecord(): VersionedRecordV1<AcademicEntityRecordV1> {
+  const teacher: TeacherV1 = {
+    id: teacherId,
+    displayName: 'Docente Sintético',
+    sourceNames: ['Docente Sintético'],
+    status: 'active',
+  };
+  return {
+    value: { kind: 'teacher', value: teacher },
+    version: 7,
+    recordedAt: '2026-02-01T00:00:00.000Z',
+  };
+}
+
 function repository() {
   const year: AcademicYearV1 = {
     id: academicYearId,
@@ -70,12 +86,6 @@ function repository() {
     status: 'active',
     activeEvaluationProfileId: 'evaluation-profile:2026',
     configurationVersion: '1',
-  };
-  const teacher: TeacherV1 = {
-    id: teacherId,
-    displayName: 'Docente Sintético',
-    sourceNames: ['Docente Sintético'],
-    status: 'active',
   };
   let getCalls = 0;
   const value: AcademicEntityRepositoryV1 = {
@@ -91,16 +101,7 @@ function repository() {
     },
     async list(_context: AcademicPersistenceContextV1, kind) {
       return kind === 'teacher'
-        ? {
-            items: [
-              {
-                value: { kind: 'teacher' as const, value: teacher },
-                version: 7,
-                recordedAt: '2026-02-01T00:00:00.000Z',
-              },
-            ],
-            nextCursor: null,
-          }
+        ? { items: [teacherRecord()], nextCursor: null }
         : { items: [], nextCursor: null };
     },
     async appendVersion() {
@@ -141,5 +142,56 @@ describe('academic catalog bootstrap loaded get cache', () => {
       ),
     ).resolves.toBeNull();
     expect(source.getCalls()).toBe(2);
+  });
+
+  it('prefers one bounded catalog snapshot and does not page the base repository', async () => {
+    const source = repository();
+    let snapshotCalls = 0;
+    let listCalls = 0;
+    const entities = {
+      ...source.value,
+      async list(
+        context: AcademicPersistenceContextV1,
+        kind: Parameters<AcademicEntityRepositoryV1['list']>[1],
+        page: Parameters<AcademicEntityRepositoryV1['list']>[2],
+      ) {
+        listCalls += 1;
+        return source.value.list(context, kind, page);
+      },
+      async getImportCatalogSnapshot() {
+        snapshotCalls += 1;
+        return [teacherRecord()];
+      },
+    } satisfies AcademicEntityRepositoryV1 & {
+      getImportCatalogSnapshot(): Promise<readonly VersionedRecordV1<AcademicEntityRecordV1>[]>;
+    };
+
+    const planned = await planAcademicCatalogBootstrapV1({
+      request: request(),
+      unitOfWork: { entities },
+    });
+
+    expect(planned.status).toBe('ready');
+    if (planned.status !== 'ready') return;
+    expect(snapshotCalls).toBe(1);
+    expect(listCalls).toBe(0);
+    expect(source.getCalls()).toBe(1);
+    expect(planned.records.some((record) => record.kind === 'teacher')).toBe(false);
+  });
+
+  it('keeps catalog-too-large fail-closed when the bounded snapshot rejects the corpus', async () => {
+    const source = repository();
+    const entities = {
+      ...source.value,
+      async getImportCatalogSnapshot() {
+        return null;
+      },
+    } satisfies AcademicEntityRepositoryV1 & {
+      getImportCatalogSnapshot(): Promise<null>;
+    };
+
+    await expect(
+      planAcademicCatalogBootstrapV1({ request: request(), unitOfWork: { entities } }),
+    ).resolves.toEqual({ status: 'review-required', reason: 'catalog-too-large' });
   });
 });
