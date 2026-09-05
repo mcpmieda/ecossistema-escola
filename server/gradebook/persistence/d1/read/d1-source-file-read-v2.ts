@@ -5,11 +5,15 @@ import type {
   VersionedRecordV1,
 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import {
+  createGradebookD1ReadAdapterV1,
   GradebookD1ReadErrorV1,
   type D1ReadDatabaseV1,
+  type D1ReadResultV1,
+  type D1ReadStatementV1,
 } from './d1-read-adapter-v1';
 
 type Row = Record<string, unknown>;
+type ReadValue = string | number | null;
 
 export interface GradebookD1SourceFileReadV2 {
   findSourceFileByHash(
@@ -22,142 +26,40 @@ export interface GradebookD1SourceFileReadV2 {
   ): Promise<VersionedRecordV1<SourceFileVersionV1> | null>;
 }
 
-function fail(
-  code: 'database-read-failed' | 'invalid-json' | 'incompatible-row' | 'broken-reference',
-): never {
-  throw new GradebookD1ReadErrorV1(code);
-}
+class StaticStatement implements D1ReadStatementV1 {
+  constructor(
+    private readonly firstRow: Row | null,
+    private readonly rows: readonly Row[],
+  ) {}
 
-function object(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+  bind(..._values: ReadValue[]): D1ReadStatementV1 {
+    return this;
+  }
 
-function requiredString(value: unknown): string {
-  return typeof value === 'string' && value.length > 0 ? value : fail('incompatible-row');
-}
+  async first<T extends Row>(): Promise<T | null> {
+    return this.firstRow as T | null;
+  }
 
-function positiveInteger(value: unknown): number {
-  return typeof value === 'number' && Number.isInteger(value) && value > 0
-    ? value
-    : fail('incompatible-row');
-}
-
-function parsePayload(value: unknown): Record<string, unknown> {
-  if (typeof value !== 'string') return fail('incompatible-row');
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return object(parsed) ? parsed : fail('incompatible-row');
-  } catch (cause) {
-    if (cause instanceof GradebookD1ReadErrorV1) throw cause;
-    return fail('invalid-json');
+  async all<T extends Row>(): Promise<D1ReadResultV1<T>> {
+    return { results: this.rows as readonly T[] };
   }
 }
 
-function validateManifest(value: unknown): SourceFileManifestV1 {
-  if (!object(value)) return fail('incompatible-row');
-  requiredString(value.id);
-  requiredString(value.fileName);
-  if (value.extension !== 'xlsb' && value.extension !== 'xlsx' && value.extension !== 'xls') {
-    return fail('incompatible-row');
-  }
-  if (value.reportedMimeType !== null && typeof value.reportedMimeType !== 'string') {
-    return fail('incompatible-row');
-  }
-  if (
-    typeof value.sizeBytes !== 'number' ||
-    !Number.isInteger(value.sizeBytes) ||
-    value.sizeBytes < 0
-  ) {
-    return fail('incompatible-row');
-  }
-  if (value.lastModifiedAt !== null && typeof value.lastModifiedAt !== 'string') {
-    return fail('incompatible-row');
-  }
-  requiredString(value.sha256);
-  positiveInteger(value.sourceContractVersion);
-  requiredString(value.parserVersion);
-  requiredString(value.readAt);
-  if (
-    value.suggestedAcademicYear !== undefined &&
-    typeof value.suggestedAcademicYear !== 'number'
-  ) {
-    return fail('incompatible-row');
-  }
-  if (
-    value.confirmedAcademicYearId !== undefined &&
-    typeof value.confirmedAcademicYearId !== 'string'
-  ) {
-    return fail('incompatible-row');
-  }
-  if (value.suggestedTeacherName !== undefined && typeof value.suggestedTeacherName !== 'string') {
-    return fail('incompatible-row');
-  }
-  if (value.confirmedTeacherId !== undefined && typeof value.confirmedTeacherId !== 'string') {
-    return fail('incompatible-row');
-  }
-  return value as unknown as SourceFileManifestV1;
-}
+class PreloadedSourceDatabase implements D1ReadDatabaseV1 {
+  constructor(
+    private readonly sourceRow: Row,
+    private readonly candidateRows: readonly Row[],
+  ) {}
 
-function sorted(values: readonly string[]): readonly string[] {
-  return [...values].sort((left, right) => left.localeCompare(right));
-}
-
-function mapSourceFileVersion(
-  row: Row,
-  context: AcademicPersistenceContextV1,
-  candidateIds: readonly string[],
-): VersionedRecordV1<SourceFileVersionV1> {
-  const persistedVersion = positiveInteger(row.persisted_version);
-  if (positiveInteger(row.current_version) !== persistedVersion) return fail('broken-reference');
-
-  const payload = parsePayload(row.payload_json);
-  const manifest = validateManifest(payload.manifest);
-  if (manifest.id !== requiredString(row.stream_manifest_id)) return fail('incompatible-row');
-  if (manifest.sha256 !== requiredString(row.current_sha256)) return fail('incompatible-row');
-  if (
-    manifest.confirmedAcademicYearId !== undefined &&
-    manifest.confirmedAcademicYearId !== context.academicYearId
-  ) {
-    return fail('incompatible-row');
-  }
-
-  const logicalSource = payload.logicalSource;
-  if (!object(logicalSource) || logicalSource.state !== row.logical_source_state) {
-    return fail('incompatible-row');
-  }
-
-  switch (logicalSource.state) {
-    case 'unmatched':
-      if (candidateIds.length > 0 || row.confirmed_logical_source_id !== null) {
-        return fail('incompatible-row');
-      }
-      break;
-    case 'candidate': {
-      if (!Array.isArray(logicalSource.candidateLogicalSourceIds)) {
-        return fail('incompatible-row');
-      }
-      const payloadCandidates = logicalSource.candidateLogicalSourceIds.map(requiredString);
-      if (JSON.stringify(sorted(payloadCandidates)) !== JSON.stringify(sorted(candidateIds))) {
-        return fail('incompatible-row');
-      }
-      if (row.confirmed_logical_source_id !== null) return fail('incompatible-row');
-      break;
+  prepare(query: string): D1ReadStatementV1 {
+    if (query.includes('source_file_logical_source_candidates')) {
+      return new StaticStatement(null, this.candidateRows);
     }
-    case 'confirmed':
-      if (requiredString(logicalSource.logicalSourceId) !== row.confirmed_logical_source_id) {
-        return fail('incompatible-row');
-      }
-      if (candidateIds.length > 0) return fail('incompatible-row');
-      break;
-    default:
-      return fail('incompatible-row');
+    if (query.includes('source_file_streams')) {
+      return new StaticStatement(this.sourceRow, []);
+    }
+    throw new Error('unexpected-source-read-query');
   }
-
-  return {
-    value: { manifest, logicalSource } as SourceFileVersionV1,
-    version: persistedVersion,
-    recordedAt: requiredString(row.recorded_at),
-  };
 }
 
 function sameSourceRow(left: Row, right: Row): boolean {
@@ -176,21 +78,12 @@ function sameSourceRow(left: Row, right: Row): boolean {
 class GradebookD1SourceFileReaderV2 implements GradebookD1SourceFileReadV2 {
   constructor(private readonly database: D1ReadDatabaseV1) {}
 
-  private async safely<T>(operation: () => Promise<T>): Promise<T> {
-    try {
-      return await operation();
-    } catch (cause) {
-      if (cause instanceof GradebookD1ReadErrorV1) throw cause;
-      throw new GradebookD1ReadErrorV1('database-read-failed');
-    }
-  }
-
-  private sourceFile(
+  private async sourceFile(
     context: AcademicPersistenceContextV1,
     where: 'hash' | 'manifest',
     value: string,
   ): Promise<VersionedRecordV1<SourceFileVersionV1> | null> {
-    return this.safely(async () => {
+    try {
       const predicate = where === 'hash' ? 'current_sha256 = ?' : 'manifest_id = ?';
       const result = await this.database
         .prepare(
@@ -224,18 +117,26 @@ class GradebookD1SourceFileReaderV2 implements GradebookD1SourceFileReadV2 {
         .bind(context.academicYearId, value, context.academicYearId, context.academicYearId)
         .all<Row>();
       if (result.results.length === 0) return null;
-      const first = result.results[0]!;
-      if (first.persisted_version === null) return fail('broken-reference');
-      if (result.results.some((row) => !sameSourceRow(first, row))) {
-        return fail('broken-reference');
+
+      const sourceRow = result.results[0]!;
+      if (result.results.some((row) => !sameSourceRow(sourceRow, row))) {
+        throw new GradebookD1ReadErrorV1('broken-reference');
       }
-      const candidateIds = result.results.flatMap((row) =>
+      const candidateRows = result.results.flatMap<Row>((row) =>
         row.candidate_logical_source_id === null
           ? []
-          : [requiredString(row.candidate_logical_source_id)],
+          : [{ logical_source_id: row.candidate_logical_source_id }],
       );
-      return mapSourceFileVersion(first, context, candidateIds);
-    });
+      const canonical = createGradebookD1ReadAdapterV1(
+        new PreloadedSourceDatabase(sourceRow, candidateRows),
+      );
+      return where === 'hash'
+        ? canonical.imports.findSourceFileByHash(context, value)
+        : canonical.imports.getSourceFileVersion(context, value as SourceFileManifestV1['id']);
+    } catch (cause) {
+      if (cause instanceof GradebookD1ReadErrorV1) throw cause;
+      throw new GradebookD1ReadErrorV1('database-read-failed');
+    }
   }
 
   findSourceFileByHash(
