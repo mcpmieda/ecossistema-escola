@@ -98,8 +98,25 @@ type BulkEntityRepositoryV1 = PersistenceUnitOfWorkV2['entities'] & {
   ) => Promise<readonly (VersionedRecordV1<AcademicEntityRecordV1> | null)[]>;
 };
 
+type ReadyCatalogV1 = Extract<
+  Awaited<ReturnType<typeof planAcademicCatalogBootstrapV1>>,
+  { readonly status: 'ready' }
+>;
+
+export interface GradebookImportPersistenceServiceOptionsV5 {
+  /**
+   * Allows a newer wire adapter to add already-domain-valid catalog entities to the same atomic
+   * import transaction. The callback cannot alter the academic request, CAS or persistence plan.
+   */
+  readonly additionalCatalogRecords?: (input: {
+    readonly request: GradebookImportPersistenceRequestV5;
+    readonly catalog: ReadyCatalogV1;
+  }) => Promise<readonly AcademicEntityRecordV1[]>;
+}
+
 export function createGradebookImportPersistenceServiceV5(
   dependencies: GradebookImportPersistenceServiceDependenciesV4,
+  options: GradebookImportPersistenceServiceOptionsV5 = {},
 ) {
   return {
     async execute(
@@ -111,6 +128,10 @@ export function createGradebookImportPersistenceServiceV5(
           unitOfWork: dependencies.unitOfWork,
         });
         if (catalog.status !== 'ready') return review();
+        const additionalRecords = options.additionalCatalogRecords
+          ? await options.additionalCatalogRecords({ request, catalog })
+          : [];
+        const catalogRecords = [...catalog.records, ...additionalRecords];
 
         const sourceEntities = dependencies.unitOfWork.entities as BulkEntityRepositoryV1;
         const planningEntities = Object.assign(
@@ -140,7 +161,7 @@ export function createGradebookImportPersistenceServiceV5(
             operation: (unitOfWork: PersistenceUnitOfWorkV2) => Promise<T>,
           ): Promise<T> =>
             dependencies.transaction.runImportBootstrap(context, envelope, async (unitOfWork) => {
-              for (const record of catalog.records) {
+              for (const record of catalogRecords) {
                 const result = await unitOfWork.entities.appendVersion(context, record, {
                   expectedVersion: null,
                 });
