@@ -17,12 +17,21 @@ interface GradebookImportStageChunkPreparerV1 {
   ): Promise<GradebookImportStagePrepareResultV1>;
 }
 
+export interface GradebookImportStagePrepareAllTimingV1 {
+  readonly totalMs: number;
+  readonly chunks: readonly {
+    readonly index: number;
+    readonly ms: number;
+  }[];
+}
+
 export type GradebookImportStagePrepareAllResultV1 =
   | {
       readonly state: 'prepared-all';
       readonly sessionId: string;
       readonly preparedCount: number;
       readonly expectedChunkCount: number;
+      readonly timing: GradebookImportStagePrepareAllTimingV1;
     }
   | { readonly state: 'conflict' | 'invalid-session' | 'expired' }
   | { readonly state: 'rejected'; readonly response: GradebookImportPersistenceResponseV6 };
@@ -79,6 +88,25 @@ function chunkRequest(
   };
 }
 
+function timingLog(
+  state: string,
+  expectedChunkCount: number,
+  chunks: readonly { readonly index: number; readonly ms: number }[],
+  startedAt: number,
+): void {
+  console.info(
+    '[gradebook-import-timing]',
+    JSON.stringify({
+      event: 'prepare-all',
+      state,
+      expectedChunkCount,
+      completedChunkCount: chunks.length,
+      totalMs: Date.now() - startedAt,
+      chunks,
+    }),
+  );
+}
+
 export async function prepareAllGradebookImportStageChunksV1(
   preparer: GradebookImportStageChunkPreparerV1,
   sessionId: string,
@@ -90,26 +118,37 @@ export async function prepareAllGradebookImportStageChunksV1(
     return { state: 'conflict' };
   }
 
+  const startedAt = Date.now();
+  const timings: { index: number; ms: number }[] = [];
   for (const descriptor of descriptors) {
+    const chunkStartedAt = Date.now();
     const result = await preparer.prepare(
       sessionId,
       descriptor.index,
       chunkRequest(request, descriptor),
     );
+    timings.push({ index: descriptor.index, ms: Date.now() - chunkStartedAt });
     if (
       result.state === 'conflict' ||
       result.state === 'invalid-session' ||
       result.state === 'expired' ||
       result.state === 'rejected'
     ) {
+      timingLog(result.state, descriptors.length, timings, startedAt);
       return result;
     }
   }
 
+  const timing = {
+    totalMs: Date.now() - startedAt,
+    chunks: timings,
+  } as const;
+  timingLog('prepared-all', descriptors.length, timings, startedAt);
   return {
     state: 'prepared-all',
     sessionId,
     preparedCount: descriptors.length,
     expectedChunkCount: descriptors.length,
+    timing,
   };
 }
