@@ -41,12 +41,21 @@ describe('Gradebook V6 Workers Paid direct benchmark', () => {
     expect(isGradebookPaidDirectBenchmarkHashV1('#/banco-de-notas?area=importacao&paidDirect=1')).toBe(true);
   });
 
-  it('reports sanitized client/server wall timing from the existing direct endpoint', async () => {
+  it('reports sanitized client/server and D1 timing from the existing direct endpoint', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify(noChangesResponse()), {
         headers: {
           'Content-Type': 'application/json',
           'X-Gradebook-Server-Ms': '3210',
+          'X-Gradebook-D1-Calls': '18',
+          'X-Gradebook-D1-First-Calls': '7',
+          'X-Gradebook-D1-All-Calls': '10',
+          'X-Gradebook-D1-Run-Calls': '0',
+          'X-Gradebook-D1-Batch-Calls': '1',
+          'X-Gradebook-D1-Exec-Calls': '0',
+          'X-Gradebook-D1-Wall-Ms': '2875.4',
+          'X-Gradebook-D1-Max-Ms': '412.8',
+          'X-Gradebook-D1-Sql-Ms': '36.2',
         },
       }),
     );
@@ -64,6 +73,10 @@ describe('Gradebook V6 Workers Paid direct benchmark', () => {
           method: 'POST',
           credentials: 'same-origin',
           cache: 'no-store',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'X-Gradebook-Benchmark': 'paid-direct-v1',
+          }),
         }),
       );
       expect(timing).toHaveBeenCalledTimes(1);
@@ -72,6 +85,15 @@ describe('Gradebook V6 Workers Paid direct benchmark', () => {
         mode: 'paid-direct',
         serverMs: 3210,
         attempts: 1,
+        serverD1Calls: 18,
+        serverD1FirstCalls: 7,
+        serverD1AllCalls: 10,
+        serverD1RunCalls: 0,
+        serverD1BatchCalls: 1,
+        serverD1ExecCalls: 0,
+        serverD1WallMs: 2875.4,
+        serverD1MaxMs: 412.8,
+        serverSqlMs: 36.2,
       });
       expect(timing.mock.calls[0]?.[0]).not.toHaveProperty('fileName');
       expect(timing.mock.calls[0]?.[0]).not.toHaveProperty('sha256');
