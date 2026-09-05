@@ -19,6 +19,7 @@ import {
 } from '../persistence/d1-transaction/d1-write-test-support';
 
 const schoolId = 'school:staged-import-v1' as SchoolId;
+const instant = new Date().toISOString();
 let database: AtomicSqliteD1Database;
 
 class AtomicSqliteD1Database extends SqliteD1Database {
@@ -40,7 +41,7 @@ beforeEach(async () => {
   const migrated = await openMigratedDatabase();
   database = new AtomicSqliteD1Database(migrated.raw);
   const unit = createGradebookD1PersistenceUnitOfWorkV2(database, {
-    now: () => '2026-09-05T03:00:00.000Z',
+    now: () => instant,
   });
   expect(
     (
@@ -107,7 +108,7 @@ function request(hash = 'a'): GradebookImportPersistenceRequestV6 {
       sha256: hash.repeat(64),
       sourceContractVersion: 2,
       parserVersion: 'synthetic-staging-v1',
-      readAt: '2026-09-05T03:00:00.000Z',
+      readAt: instant,
     },
     recognizedSuggestions: { academicYear: 2026, teacherName: 'Docente Sintético de Staging' },
     confirmedContext: { academicYearId },
@@ -143,7 +144,7 @@ function count(table: string, where = ''): number {
 
 function services() {
   const unit = createGradebookD1PersistenceUnitOfWorkV2(database, {
-    now: () => '2026-09-05T03:00:00.000Z',
+    now: () => instant,
   });
   const repository = new GradebookD1ImportStagingRepositoryV1(database);
   return {
@@ -155,7 +156,7 @@ function services() {
     ),
     promotion: new GradebookD1ImportStagingPromotionV1(
       database,
-      () => '2026-09-05T03:00:00.000Z',
+      () => instant,
     ),
   };
 }
@@ -169,7 +170,7 @@ describe('staged V6 import', () => {
     expect(chunks[1]!.courses[0]!.terms[0].rows).toHaveLength(1);
 
     const { repository, staging, promotion } = services();
-    const begin = await staging.begin(input, '2026-09-05T03:00:00.000Z');
+    const begin = await staging.begin(input, instant);
     expect(begin).toMatchObject({ state: 'ready', chunkCount: 2 });
 
     const first = await staging.prepare(begin.sessionId, 0, chunks[0]!);
@@ -210,7 +211,7 @@ describe('staged V6 import', () => {
     const input = request('b');
     const chunks = splitCompactGradebookImportV6(input);
     const { repository, staging, promotion } = services();
-    const begin = await staging.begin(input, '2026-09-05T03:00:00.000Z');
+    const begin = await staging.begin(input, instant);
     await staging.prepare(begin.sessionId, 0, chunks[0]!);
     const session = await repository.getSession(begin.sessionId);
     expect(await promotion.finalize(session!)).toEqual({ transportVersion: 6, state: 'conflict' });
