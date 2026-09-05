@@ -56,18 +56,8 @@ function elapsedMs(startedAt: number): number {
   return Math.round((nowMs() - startedAt) * 10) / 10;
 }
 
-function emitBrowserTiming(value: Record<string, number | string>): void {
-  const entry = { version: 1, ...value };
-  console.info('[gradebook-import-browser-timing]', JSON.stringify(entry));
-  try {
-    const raw = globalThis.sessionStorage?.getItem('gradebook-import-browser-timings');
-    const current: unknown = raw ? JSON.parse(raw) : [];
-    const entries = Array.isArray(current) ? current.slice(-18) : [];
-    entries.push(entry);
-    globalThis.sessionStorage?.setItem('gradebook-import-browser-timings', JSON.stringify(entries));
-  } catch {
-    // Diagnostics must never block the import flow.
-  }
+function diagnosticLine(prefix: string, value: unknown): string {
+  return `${prefix} ${JSON.stringify(value)}`;
 }
 
 export function useImportBatch() {
@@ -78,6 +68,13 @@ export function useImportBatch() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [progress, setProgress] = useState<ImportFlowProgressV6 | null>(null);
   const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV6>>({});
+  const [timingDiagnostics, setTimingDiagnostics] = useState<string[]>([]);
+
+  function appendTiming(prefix: string, value: unknown): void {
+    const serialized = JSON.stringify(value);
+    console.info(prefix, serialized);
+    setTimingDiagnostics((current) => [...current.slice(-49), diagnosticLine(prefix, value)]);
+  }
 
   const selectedResult = useMemo(
     () => results.find((result) => result.id === selectedId) ?? results[0] ?? null,
@@ -132,7 +129,8 @@ export function useImportBatch() {
               }),
           },
         );
-        emitBrowserTiming({
+        appendTiming('[gradebook-import-browser-timing]', {
+          version: 1,
           stage: 'compact-file',
           totalMs: elapsedMs(compactStartedAt),
           courseCount: request.courses.length,
@@ -148,14 +146,18 @@ export function useImportBatch() {
           fileName: result.manifest.fileName,
           stage: 'saving',
         });
-        const response = await persistCompactGradebookFileStagedV1(request, ({ prepared, total }) => {
-          setProgress({
-            current: prepared,
-            total,
-            fileName: result.manifest.fileName,
-            stage: 'saving',
-          });
-        });
+        const response = await persistCompactGradebookFileStagedV1(
+          request,
+          ({ prepared, total }) => {
+            setProgress({
+              current: prepared,
+              total,
+              fileName: result.manifest.fileName,
+              stage: 'saving',
+            });
+          },
+          (timing) => appendTiming('[gradebook-import-client-timing]', timing),
+        );
         setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
         setProgress({
           current: index + 1,
@@ -194,6 +196,7 @@ export function useImportBatch() {
     setFailures([]);
     setSelectedId(null);
     setPersistence({});
+    setTimingDiagnostics([]);
 
     try {
       const recognitionStartedAt = nowMs();
@@ -201,7 +204,8 @@ export function useImportBatch() {
       const batch = await importWorkbookBatch(files, xlsx, () => undefined, {
         onStageProgress: (value) => setProgress(value),
       });
-      emitBrowserTiming({
+      appendTiming('[gradebook-import-browser-timing]', {
+        version: 1,
         stage: 'recognition-batch',
         totalMs: elapsedMs(recognitionStartedAt),
         fileCount: files.length,
@@ -252,6 +256,7 @@ export function useImportBatch() {
     selectedId,
     selectedResult,
     setSelectedId,
+    timingDiagnostics,
     totals,
   };
 }
