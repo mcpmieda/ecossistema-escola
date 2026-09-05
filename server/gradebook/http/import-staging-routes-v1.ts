@@ -56,6 +56,23 @@ function nonNegativeInteger(value: string | null): number | null {
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
+async function hasNonEmptyBody(request: Request): Promise<boolean> {
+  if (request.body === null) return false;
+  const reader = request.body.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return false;
+      if ((value?.byteLength ?? 0) > 0) {
+        await reader.cancel();
+        return true;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 function initializeFailure(cause: unknown): Response {
   if (cause instanceof GradebookD1RuntimeErrorV1) {
     switch (cause.code) {
@@ -173,7 +190,7 @@ export async function handleGradebookImportStagingRequestV1(
     const database = env.GRADEBOOK_D1 as D1WriteDatabaseV1;
 
     if (selectedAction === 'initialize') {
-      if (request.body !== null) return noStore({ state: 'invalid-request' }, 400);
+      if (await hasNonEmptyBody(request)) return noStore({ state: 'invalid-request' }, 400);
       const initialized = await initializeStaging(runtime, database);
       return initialized;
     }
