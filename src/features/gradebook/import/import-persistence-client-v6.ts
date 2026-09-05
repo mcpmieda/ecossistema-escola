@@ -12,6 +12,37 @@ const ATTEMPTS = 2;
 const SERVER_MS_HEADER = 'x-gradebook-server-ms';
 const BENCHMARK_HEADER = 'X-Gradebook-Benchmark';
 const BENCHMARK_VALUE = 'paid-direct-v1';
+const D1_BREAKDOWN_CATEGORIES = new Set<GradebookImportPaidDirectD1CategoryV1>([
+  'catalog',
+  'annual-results',
+  'student-status',
+  'assessment-components',
+  'academic-records',
+  'associations',
+  'source',
+  'academic-entities',
+  'commit',
+  'other',
+]);
+
+export type GradebookImportPaidDirectD1CategoryV1 =
+  | 'catalog'
+  | 'annual-results'
+  | 'student-status'
+  | 'assessment-components'
+  | 'academic-records'
+  | 'associations'
+  | 'source'
+  | 'academic-entities'
+  | 'commit'
+  | 'other';
+
+export interface GradebookImportPaidDirectD1BreakdownV1 {
+  readonly category: GradebookImportPaidDirectD1CategoryV1;
+  readonly calls: number;
+  readonly wallMs: number;
+  readonly sqlMs: number | null;
+}
 
 export interface GradebookImportPaidDirectTimingV1 {
   readonly version: 1;
@@ -36,6 +67,7 @@ export interface GradebookImportPaidDirectTimingV1 {
   readonly serverD1WallMs: number | null;
   readonly serverD1MaxMs: number | null;
   readonly serverSqlMs: number | null;
+  readonly serverD1Breakdown: readonly GradebookImportPaidDirectD1BreakdownV1[] | null;
 }
 
 function compatibleResponse(value: unknown): GradebookImportPersistenceResponseV6 | null {
@@ -63,6 +95,54 @@ function responseNumber(response: Response, header: string): number | null {
   if (value === null) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function responseD1Breakdown(
+  response: Response,
+  expectedCalls: number | null,
+): readonly GradebookImportPaidDirectD1BreakdownV1[] | null {
+  const raw = response.headers.get('x-gradebook-d1-breakdown');
+  if (raw === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length > D1_BREAKDOWN_CATEGORIES.size) return null;
+    const seen = new Set<GradebookImportPaidDirectD1CategoryV1>();
+    const result: GradebookImportPaidDirectD1BreakdownV1[] = [];
+    for (const value of parsed) {
+      if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+      const item = value as Record<string, unknown>;
+      const category = item.category;
+      const calls = item.calls;
+      const wallMs = item.wallMs;
+      const sqlMs = item.sqlMs;
+      if (
+        typeof category !== 'string' ||
+        !D1_BREAKDOWN_CATEGORIES.has(category as GradebookImportPaidDirectD1CategoryV1) ||
+        seen.has(category as GradebookImportPaidDirectD1CategoryV1) ||
+        typeof calls !== 'number' ||
+        !Number.isInteger(calls) ||
+        calls < 1 ||
+        typeof wallMs !== 'number' ||
+        !Number.isFinite(wallMs) ||
+        wallMs < 0 ||
+        !(
+          sqlMs === null ||
+          (typeof sqlMs === 'number' && Number.isFinite(sqlMs) && sqlMs >= 0)
+        )
+      ) {
+        return null;
+      }
+      const typedCategory = category as GradebookImportPaidDirectD1CategoryV1;
+      seen.add(typedCategory);
+      result.push({ category: typedCategory, calls, wallMs, sqlMs: sqlMs as number | null });
+    }
+    if (expectedCalls !== null && result.reduce((sum, item) => sum + item.calls, 0) !== expectedCalls) {
+      return null;
+    }
+    return result;
+  } catch {
+    return null;
+  }
 }
 
 export async function persistCompactGradebookFileV6(
@@ -110,6 +190,7 @@ export async function persistCompactGradebookFileV6(
       const responseJsonMs = elapsed(responseJsonStartedAt);
       const compatible = compatibleResponse(payload);
       if (compatible) {
+        const serverD1Calls = responseNumber(response, 'x-gradebook-d1-calls');
         onTiming?.({
           version: 1,
           mode: 'paid-direct',
@@ -123,7 +204,7 @@ export async function persistCompactGradebookFileV6(
           serverMs: responseNumber(response, SERVER_MS_HEADER),
           attempts: attempt + 1,
           totalMs: elapsed(totalStartedAt),
-          serverD1Calls: responseNumber(response, 'x-gradebook-d1-calls'),
+          serverD1Calls,
           serverD1FirstCalls: responseNumber(response, 'x-gradebook-d1-first-calls'),
           serverD1AllCalls: responseNumber(response, 'x-gradebook-d1-all-calls'),
           serverD1RunCalls: responseNumber(response, 'x-gradebook-d1-run-calls'),
@@ -136,6 +217,7 @@ export async function persistCompactGradebookFileV6(
           serverD1WallMs: responseNumber(response, 'x-gradebook-d1-wall-ms'),
           serverD1MaxMs: responseNumber(response, 'x-gradebook-d1-max-ms'),
           serverSqlMs: responseNumber(response, 'x-gradebook-d1-sql-ms'),
+          serverD1Breakdown: responseD1Breakdown(response, serverD1Calls),
         });
         return compatible;
       }
