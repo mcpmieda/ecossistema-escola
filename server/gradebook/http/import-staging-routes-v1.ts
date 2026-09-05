@@ -12,6 +12,7 @@ import {
   readBoundedJson,
 } from '../../http/security';
 import { prepareAllGradebookImportStageChunksV1 } from '../application/import/import-staging-prepare-all-v1';
+import { createGradebookImportStagingSharedReadCacheV1 } from '../application/import/import-staging-shared-read-cache-v1';
 import { GradebookImportStagingServiceV1 } from '../application/import/import-staging-service-v1';
 import { inspectGradebookImportStagingBaselineV1 } from '../persistence/d1/imports/d1-import-staging-baseline-v1';
 import { GradebookD1ImportStagingRepositoryV1 } from '../persistence/d1/imports/d1-import-staging-repository-v1';
@@ -246,7 +247,7 @@ export async function handleGradebookImportStagingRequestV1(
     );
     const service = new GradebookImportStagingServiceV1(
       repository,
-      runtime.persistenceUnitOfWorkV2(),
+      createGradebookImportStagingSharedReadCacheV1(runtime.persistenceUnitOfWorkV2()),
       annualStateSource,
     );
     if (selectedAction === 'begin') {
