@@ -5,6 +5,7 @@ import type {
   CursorPageRequestV1,
 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import type { PersistenceUnitOfWorkV2 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
+import { createGradebookImportSharedSourceReadCacheV1 } from './import-shared-source-read-cache-v1';
 
 const CACHEABLE_LIST_KINDS = new Set<AcademicEntityKindV1>([
   'teacher',
@@ -43,10 +44,6 @@ function listKey(
   return JSON.stringify([context.academicYearId, kind, page.limit, page.cursor ?? null]);
 }
 
-function sourceHashKey(context: AcademicPersistenceContextV1, sha256: string): string {
-  return JSON.stringify([context.academicYearId, sha256]);
-}
-
 function logicalSourceListKey(
   context: Parameters<PersistenceUnitOfWorkV2['logicalSources']['listByContext']>[0],
   sourceContext: Parameters<PersistenceUnitOfWorkV2['logicalSources']['listByContext']>[1],
@@ -71,16 +68,15 @@ function logicalSourceListKey(
 export function createGradebookImportStagingSharedReadCacheV1(
   base: PersistenceUnitOfWorkV2,
 ): PersistenceUnitOfWorkV2 {
-  const source = base.entities;
-  const imports = base.imports;
-  const logicalSources = base.logicalSources;
+  const shared = createGradebookImportSharedSourceReadCacheV1(base);
+  const source = shared.entities;
+  const logicalSources = shared.logicalSources;
   const getCache = new Map<string, ReturnType<typeof source.get>>();
   const listCache = new Map<string, ReturnType<typeof source.list>>();
-  const sourceHashCache = new Map<string, ReturnType<typeof imports.findSourceFileByHash>>();
   const logicalSourceListCache = new Map<string, ReturnType<typeof logicalSources.listByContext>>();
 
   return {
-    ...base,
+    ...shared,
     entities: Object.assign({}, source, {
       get: (
         context: Parameters<typeof source.get>[0],
@@ -98,16 +94,6 @@ export function createGradebookImportStagingSharedReadCacheV1(
           ? memoized(listCache, listKey(context, kind, page), () => source.list(context, kind, page))
           : source.list(context, kind, page),
     }),
-    imports: {
-      ...imports,
-      findSourceFileByHash: (
-        context: Parameters<typeof imports.findSourceFileByHash>[0],
-        sha256: Parameters<typeof imports.findSourceFileByHash>[1],
-      ) =>
-        memoized(sourceHashCache, sourceHashKey(context, sha256), () =>
-          imports.findSourceFileByHash(context, sha256),
-        ),
-    },
     logicalSources: {
       get: (context, logicalSourceId) => logicalSources.get(context, logicalSourceId),
       listByContext: (context, sourceContext, page) =>
