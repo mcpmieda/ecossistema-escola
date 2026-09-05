@@ -149,10 +149,13 @@ describe('Import persistence service V6 compact', () => {
       )
       .get() as { payload_json: string };
     expect(JSON.parse(persistedStatus.payload_json)).toMatchObject({
-      status: 'transferred',
-      sourceText: 'FOI PARA 6B',
-      sourceReference: 'RELACAO',
-      transfer: { destinationClassGroupCode: '6B' },
+      kind: 'student-status-event',
+      value: {
+        status: 'transferred',
+        sourceText: 'FOI PARA 6B',
+        sourceReference: 'RELACAO',
+        transfer: { destinationClassGroupCode: '6B' },
+      },
     });
 
     const second = await persistence.execute(request());
