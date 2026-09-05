@@ -167,6 +167,26 @@ export class GradebookD1ImportStagingRepositoryV1 {
     const known = await this.getChunk(input.session.sessionId, input.chunkIndex);
     if (known) return known.chunkHash === input.chunkHash ? 'already-present' : 'conflict';
 
+    // Persist the shared transaction metadata first. If the invocation stops before the chunk insert,
+    // retrying the same chunk is safe; the reverse ordering could leave a chunk that can never repair
+    // a missing session meta envelope after a lost response/runtime termination.
+    const update = await this.database
+      .prepare(
+        `UPDATE gradebook_import_stage_sessions
+         SET meta_write_json = COALESCE(meta_write_json, ?), updated_at = ?
+         WHERE session_id = ? AND state = 'preparing'
+           AND (meta_write_json IS NULL OR meta_write_json = ?)`,
+      )
+      .bind(
+        input.metaWriteJson,
+        input.createdAt,
+        input.session.sessionId,
+        input.metaWriteJson,
+      )
+      .run();
+    const updateChanges = update.meta?.changes ?? update.changes;
+    if (update.success === false || updateChanges !== 1) return 'conflict';
+
     const result = await this.database
       .prepare(
         `INSERT INTO gradebook_import_stage_chunks (
@@ -188,23 +208,6 @@ export class GradebookD1ImportStagingRepositoryV1 {
       .run();
     const changes = result.meta?.changes ?? result.changes;
     if (result.success === false || changes !== 1) throw new Error('stage-chunk-write-failed');
-
-    const update = await this.database
-      .prepare(
-        `UPDATE gradebook_import_stage_sessions
-         SET meta_write_json = COALESCE(meta_write_json, ?), updated_at = ?
-         WHERE session_id = ? AND state = 'preparing'
-           AND (meta_write_json IS NULL OR meta_write_json = ?)`,
-      )
-      .bind(
-        input.metaWriteJson,
-        input.createdAt,
-        input.session.sessionId,
-        input.metaWriteJson,
-      )
-      .run();
-    const updateChanges = update.meta?.changes ?? update.changes;
-    if (update.success === false || updateChanges !== 1) throw new Error('stage-session-meta-write-failed');
     return 'stored';
   }
 
