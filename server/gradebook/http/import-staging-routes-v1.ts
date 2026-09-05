@@ -174,7 +174,8 @@ export async function handleGradebookImportStagingRequestV1(
 
     if (selectedAction === 'initialize') {
       if (request.body !== null) return noStore({ state: 'invalid-request' }, 400);
-      return initializeStaging(runtime, database);
+      const initialized = await initializeStaging(runtime, database);
+      return initialized;
     }
 
     const repository = new GradebookD1ImportStagingRepositoryV1(database);
