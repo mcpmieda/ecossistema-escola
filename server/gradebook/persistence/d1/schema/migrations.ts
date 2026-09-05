@@ -38,4 +38,9 @@ export const GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS = [
     name: 'council_session_durability_v2',
     fileName: '0005_council_session_durability_v2.sql',
   },
+  {
+    version: 6,
+    name: 'import_staging_v1',
+    fileName: '0006_import_staging_v1.sql',
+  },
 ] as const satisfies readonly GradebookD1Migration[];
