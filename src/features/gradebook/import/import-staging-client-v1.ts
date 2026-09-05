@@ -10,6 +10,7 @@ import {
 const ENDPOINT = '/api/gradebook/import-staging';
 const MAX_POSITIONS = 8;
 const TIMEOUT_MS = 30_000;
+let initializationPromise: Promise<void> | null = null;
 
 export interface GradebookImportStageProgressV1 {
   readonly prepared: number;
@@ -117,10 +118,49 @@ function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function numeric(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0;
+}
+
+function baselineReviewMessage(payload: Record<string, unknown>): string {
+  const counts = record(payload.counts) ? payload.counts : {};
+  return [
+    'Importação pausada antes de preparar as notas: existem dados acadêmicos anteriores no D1 e o baseline precisa ser conferido.',
+    'Nenhum dado desta tentativa foi gravado.',
+    `Contagens sanitizadas — fontes: ${numeric(counts.logicalSources)}; arquivos: ${numeric(counts.sourceFiles)}; lotes: ${numeric(counts.importBatches)}; alunos: ${numeric(counts.students)}; matrículas: ${numeric(counts.enrollments)}; componentes: ${numeric(counts.assessmentComponents)}; notas: ${numeric(counts.gradeEntries)}; resultados trimestrais: ${numeric(counts.termResults)}; recuperações: ${numeric(counts.finalRecoveries)}; anuais: ${numeric(counts.annualResults)}; associações: ${numeric(counts.associations)}.`,
+    'Envie somente essas contagens para revisão antes de tentar novamente.',
+  ].join(' ');
+}
+
+async function initializeStaging(): Promise<void> {
+  if (initializationPromise) return initializationPromise;
+  initializationPromise = (async () => {
+    const initialized = await fetchJson(`${ENDPOINT}?action=initialize`);
+    if (record(initialized.payload) && initialized.payload.state === 'baseline-review-required') {
+      throw new Error(baselineReviewMessage(initialized.payload));
+    }
+    if (
+      !initialized.response.ok ||
+      !record(initialized.payload) ||
+      initialized.payload.state !== 'ready' ||
+      initialized.payload.schemaVersion !== 6
+    ) {
+      throw new Error('O armazenamento da importação ainda não está pronto para uso.');
+    }
+  })();
+  try {
+    await initializationPromise;
+  } catch (cause) {
+    initializationPromise = null;
+    throw cause;
+  }
+}
+
 export async function persistCompactGradebookFileStagedV1(
   request: GradebookImportPersistenceRequestV6,
   onProgress?: (progress: GradebookImportStageProgressV1) => void,
 ): Promise<GradebookImportPersistenceResponseV6> {
+  await initializeStaging();
   const chunks = splitCompactGradebookImportV6(request);
   const begin = await fetchJson(`${ENDPOINT}?action=begin`, request);
   if (
