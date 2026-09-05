@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { AuthorizationError } from '../../../../server/auth/roles';
 import { authorizeGradebookD1RuntimeV1 } from '../../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
 import {
+  classifyGradebookD1MigrationApplyFailureV1,
   GradebookD1MigrationErrorV1,
   GradebookD1MigrationRunnerV1,
 } from '../../../../server/gradebook/persistence/d1/runtime/d1-migration-runner-v1';
@@ -156,5 +157,48 @@ describe('runner autorizado de migrations D1 V1', () => {
     expect(String(error)).not.toContain('student_name');
     expect(String(error)).not.toContain('grade');
     expect(String(error)).not.toContain('secret-value');
+  });
+
+  it('classifica causas de aplicação somente por categorias sanitizadas', () => {
+    const cases = [
+      ['Exceeded CPU Time Limits error 1102', 'cpu-limit'],
+      ['D1_ERROR: too many queries in one invocation', 'query-limit'],
+      ['D1_ERROR: not authorized: SQLITE_AUTH', 'permission'],
+      ['D1_ERROR: no such table: prerequisite_table', 'schema-prerequisite'],
+      ['D1_ERROR: FOREIGN KEY constraint failed', 'foreign-key'],
+      ['D1_ERROR: near STRICT: syntax error', 'sql-incompatible'],
+      ['D1_ERROR: database is locked SQLITE_BUSY', 'database-busy'],
+      ['opaque driver failure', 'unknown'],
+    ] as const;
+
+    for (const [message, expected] of cases) {
+      expect(classifyGradebookD1MigrationApplyFailureV1(new Error(message))).toBe(expected);
+    }
+  });
+
+  it('preserva somente o detalhe classificado quando a aplicação falha', async () => {
+    const { raw, database } = await openDatabase();
+    try {
+      const sql = migrationSql();
+      for (const migration of sql.slice(0, 5)) raw.exec(migration);
+      const sensitive = "D1_ERROR: not authorized for token='secret-value' on student_name";
+      const failingDatabase = {
+        prepare(query: string) {
+          return database.prepare(query);
+        },
+        exec(): never {
+          throw new Error(sensitive);
+        },
+      } satisfies D1WriteDatabaseV1;
+      const runner = new GradebookD1MigrationRunnerV1(failingDatabase, { migrationSql: sql });
+
+      const error = await runner.run(authorization).catch((cause: unknown) => cause);
+      expect(error).toBeInstanceOf(GradebookD1MigrationErrorV1);
+      expect(error).toMatchObject({ code: 'migration-apply-failed', detail: 'permission' });
+      expect(String(error)).not.toContain('secret-value');
+      expect(String(error)).not.toContain('student_name');
+    } finally {
+      raw.close();
+    }
   });
 });
