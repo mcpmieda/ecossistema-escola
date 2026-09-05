@@ -9,6 +9,7 @@ import {
 
 const ENDPOINT = '/api/gradebook/import-staging';
 const MAX_POSITIONS = 40;
+const PREPARE_CONCURRENCY = 3;
 const TIMEOUT_MS = 30_000;
 let initializationPromise: Promise<void> | null = null;
 
@@ -238,24 +239,42 @@ export async function persistCompactGradebookFileStagedV1(
     throw new Error('Não foi possível iniciar a importação fatiada.');
   }
   const sessionId = begin.payload.sessionId;
+  let preparedCount = 0;
 
-  for (const [index, chunk] of chunks.entries()) {
-    const prepared = await fetchJson(
-      `${ENDPOINT}?action=prepare&session=${encodeURIComponent(sessionId)}&chunk=${index}`,
-      chunk,
+  for (let offset = 0; offset < chunks.length; offset += PREPARE_CONCURRENCY) {
+    const batch = chunks.slice(offset, offset + PREPARE_CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async (chunk, batchIndex): Promise<GradebookImportPersistenceResponseV6 | null> => {
+        const index = offset + batchIndex;
+        const prepared = await fetchJson(
+          `${ENDPOINT}?action=prepare&session=${encodeURIComponent(sessionId)}&chunk=${index}`,
+          chunk,
+        );
+        if (
+          !prepared.response.ok ||
+          !record(prepared.payload) ||
+          (prepared.payload.state !== 'prepared' && prepared.payload.state !== 'already-prepared')
+        ) {
+          if (
+            record(prepared.payload) &&
+            prepared.payload.state === 'rejected' &&
+            'response' in prepared.payload
+          ) {
+            const response = prepared.payload.response;
+            if (isGradebookImportPersistenceResponseV6(response)) return response;
+          }
+          throw new Error(`Não foi possível preparar o fragmento ${index + 1} de ${chunks.length}.`);
+        }
+        preparedCount += 1;
+        onProgress?.({ prepared: preparedCount, total: chunks.length });
+        return null;
+      }),
     );
-    if (
-      !prepared.response.ok ||
-      !record(prepared.payload) ||
-      (prepared.payload.state !== 'prepared' && prepared.payload.state !== 'already-prepared')
-    ) {
-      if (record(prepared.payload) && prepared.payload.state === 'rejected' && 'response' in prepared.payload) {
-        const response = prepared.payload.response;
-        if (isGradebookImportPersistenceResponseV6(response)) return response;
-      }
-      throw new Error(`Não foi possível preparar o fragmento ${index + 1} de ${chunks.length}.`);
+
+    for (const result of results) {
+      if (result.status === 'rejected') throw result.reason;
+      if (result.value !== null) return result.value;
     }
-    onProgress?.({ prepared: index + 1, total: chunks.length });
   }
 
   const finalized = await fetchJson(
