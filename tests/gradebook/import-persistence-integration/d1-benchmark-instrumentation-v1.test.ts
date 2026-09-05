@@ -83,25 +83,57 @@ describe('D1 benchmark instrumentation', () => {
       execCalls: 1,
       catalogSnapshotCalls: 0,
       sqlMs: 15,
+      categories: [
+        { category: 'commit', calls: 1, sqlMs: 9 },
+        { category: 'other', calls: 4, sqlMs: 6 },
+      ],
     });
+    expect(snapshot.categories.reduce((sum, category) => sum + category.calls, 0)).toBe(
+      snapshot.calls,
+    );
     expect(snapshot.wallMs).toBeGreaterThanOrEqual(0);
     expect(snapshot.maxCallMs).toBeGreaterThanOrEqual(0);
     expect(snapshot.maxCallMs).toBeLessThanOrEqual(snapshot.wallMs + 0.1);
     expect(raw.batchReceived).toHaveLength(1);
   });
 
-  it('counts the sanitized import catalog snapshot query family without exposing SQL', async () => {
+  it('classifies only closed sanitized query families without exposing SQL', async () => {
     const benchmark = instrumentGradebookD1ForBenchmarkV1(new SyntheticDatabase());
-    await benchmark.database
-      .prepare(
-        "SELECT synthetic WHERE kind IN ('teacher', 'class-group', 'subject', 'teaching-assignment', 'student', 'enrollment')",
-      )
-      .all();
-    expect(benchmark.snapshot()).toMatchObject({
-      calls: 1,
-      allCalls: 1,
-      catalogSnapshotCalls: 1,
-    });
+    const queries = [
+      "SELECT synthetic WHERE kind IN ('teacher', 'class-group', 'subject', 'teaching-assignment', 'student', 'enrollment')",
+      "SELECT * FROM academic_record_streams WHERE record_kind='annual-result'",
+      "SELECT * FROM academic_entity_streams WHERE entity_kind='student-status-event'",
+      "SELECT * FROM academic_entity_streams WHERE entity_kind='assessment-component'",
+      "SELECT * FROM academic_record_streams WHERE record_kind='term-result'",
+      'SELECT * FROM logical_source_record_streams',
+      'SELECT * FROM source_file_streams',
+      "SELECT * FROM academic_entity_streams WHERE entity_kind='teacher'",
+      'SELECT opaque_synthetic_marker',
+    ];
+    for (const query of queries) await benchmark.database.prepare(query).all();
+    await benchmark.database.batch?.([benchmark.database.prepare('INSERT synthetic')]);
+
+    const snapshot = benchmark.snapshot();
+    expect(snapshot.catalogSnapshotCalls).toBe(1);
+    expect(snapshot.categories.map(({ category }) => category)).toEqual([
+      'catalog',
+      'annual-results',
+      'student-status',
+      'assessment-components',
+      'academic-records',
+      'associations',
+      'source',
+      'academic-entities',
+      'commit',
+      'other',
+    ]);
+    expect(snapshot.categories.every(({ calls }) => calls === 1)).toBe(true);
+    expect(snapshot.categories.reduce((sum, category) => sum + category.calls, 0)).toBe(
+      snapshot.calls,
+    );
+    const serialized = JSON.stringify(snapshot);
+    expect(serialized).not.toContain('SELECT');
+    expect(serialized).not.toContain('opaque_synthetic_marker');
   });
 
   it('leaves sqlMs null when D1 metadata does not expose sql_duration_ms', async () => {
@@ -124,6 +156,9 @@ describe('D1 benchmark instrumentation', () => {
     };
     const benchmark = instrumentGradebookD1ForBenchmarkV1(raw);
     await benchmark.database.prepare('SELECT 1').all();
-    expect(benchmark.snapshot().sqlMs).toBeNull();
+    expect(benchmark.snapshot()).toMatchObject({
+      sqlMs: null,
+      categories: [{ category: 'other', calls: 1, sqlMs: null }],
+    });
   });
 });
