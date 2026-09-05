@@ -19,6 +19,8 @@ import { testEnv } from '../../fixtures';
 
 const LOCAL_ORIGIN = 'http://localhost:8788';
 const PREVIEW_ORIGIN = 'https://issue-261.ecossistema-escola.pages.dev';
+const PILOT_AUDIT_NOW = '2026-09-05T12:00:00.000Z';
+const PILOT_AUDIT_YEAR = 'academic-year:pilot-audit:2026';
 
 type TestRole = 'ADMINISTRADOR' | 'PROFESSOR';
 
@@ -38,6 +40,43 @@ async function openDatabase(): Promise<{
   const raw = new sqlite.DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys = ON;');
   return { raw, database: new SqliteD1Database(raw) };
+}
+
+function applyAllMigrations(raw: DatabaseSync): void {
+  for (const migration of migrationSql()) raw.exec(migration);
+}
+
+function seedPilotAuditAcademicYear(raw: DatabaseSync): void {
+  raw
+    .prepare(
+      `INSERT INTO academic_years (
+         academic_year_id, school_id, year, current_version, created_at
+       ) VALUES (?, 'school:pilot-audit', 2026, 1, ?)`,
+    )
+    .run(PILOT_AUDIT_YEAR, PILOT_AUDIT_NOW);
+}
+
+function zeroPilotAuditCounts(): Record<string, number> {
+  return {
+    logicalSources: 0,
+    sourceFiles: 0,
+    importBatches: 0,
+    teachers: 0,
+    classGroups: 0,
+    subjects: 0,
+    teachingAssignments: 0,
+    students: 0,
+    enrollments: 0,
+    studentStatusEvents: 0,
+    assessmentComponents: 0,
+    gradeEntries: 0,
+    termResults: 0,
+    finalRecoveries: 0,
+    annualResults: 0,
+    associations: 0,
+    stageSessions: 0,
+    stageChunks: 0,
+  };
 }
 
 function localEnv(database: unknown): RuntimeEnv {
@@ -159,6 +198,123 @@ describe('rotas administrativas do runtime D1 V1', () => {
           pendingCount: 6,
         },
       });
+    } finally {
+      raw.close();
+    }
+  });
+
+  it('expõe auditoria do piloto somente quando o schema 6 está pronto', async () => {
+    const { raw, database } = await openDatabase();
+    try {
+      applyAllMigrations(raw);
+      const response = await handleGradebookD1AdminRequestV1(
+        await request(GRADEBOOK_D1_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
+        localEnv(database),
+        { runtime: { migrationSql: migrationSql() } },
+      );
+      const handled = requireResponse(response);
+      expect(handled.status).toBe(200);
+      expect(handled.headers.get('Cache-Control')).toContain('no-store');
+      await expect(handled.json()).resolves.toEqual({
+        version: '1.0',
+        capability: 'gradebook.persistence.admin',
+        environment: 'local',
+        schema: {
+          status: 'ready',
+          currentVersion: 6,
+          latestVersion: 6,
+          appliedCount: 6,
+          pendingCount: 0,
+        },
+        pilotAudit: {
+          counts: zeroPilotAuditCounts(),
+          officialPersistenceTotal: 0,
+          requiresReview: false,
+        },
+      });
+    } finally {
+      raw.close();
+    }
+  });
+
+  it('mostra resíduo de staging pós-falha somente como contagens sanitizadas', async () => {
+    const { raw, database } = await openDatabase();
+    try {
+      applyAllMigrations(raw);
+      seedPilotAuditAcademicYear(raw);
+      const sensitiveHash = 'a'.repeat(64);
+      raw
+        .prepare(
+          `INSERT INTO gradebook_import_stage_sessions (
+             session_id, academic_year_id, source_sha256, expected_chunk_count, state,
+             metadata_json, meta_write_json, result_json, created_at, updated_at,
+             expires_at, committed_at
+           ) VALUES (?, ?, ?, 1, 'preparing', '{}', NULL, NULL, ?, ?, ?, NULL)`,
+        )
+        .run(
+          'gradebook-import-stage:pilot-audit-sensitive',
+          PILOT_AUDIT_YEAR,
+          sensitiveHash,
+          PILOT_AUDIT_NOW,
+          PILOT_AUDIT_NOW,
+          '2026-09-05T14:00:00.000Z',
+        );
+
+      const response = await handleGradebookD1AdminRequestV1(
+        await request(GRADEBOOK_D1_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
+        localEnv(database),
+        { runtime: { migrationSql: migrationSql() } },
+      );
+      const handled = requireResponse(response);
+      const body = await handled.json();
+      expect(body).toMatchObject({
+        pilotAudit: {
+          officialPersistenceTotal: 0,
+          requiresReview: false,
+          counts: { stageSessions: 1, stageChunks: 0 },
+        },
+      });
+      const serialized = JSON.stringify(body);
+      expect(serialized).not.toContain('pilot-audit-sensitive');
+      expect(serialized).not.toContain(sensitiveHash);
+      expect(serialized).not.toContain('school:pilot-audit');
+    } finally {
+      raw.close();
+    }
+  });
+
+  it('sinaliza raiz oficial existente sem revelar identidade ou conteúdo', async () => {
+    const { raw, database } = await openDatabase();
+    try {
+      applyAllMigrations(raw);
+      seedPilotAuditAcademicYear(raw);
+      const sensitiveLogicalSource = 'logical-source:pilot-audit-sensitive';
+      raw
+        .prepare(
+          `INSERT INTO logical_sources (
+             academic_year_id, logical_source_id, source_context, created_at
+           ) VALUES (?, ?, 'teacher-year-context-sensitive', ?)`,
+        )
+        .run(PILOT_AUDIT_YEAR, sensitiveLogicalSource, PILOT_AUDIT_NOW);
+
+      const response = await handleGradebookD1AdminRequestV1(
+        await request(GRADEBOOK_D1_STATUS_ROUTE, { role: 'ADMINISTRADOR' }),
+        localEnv(database),
+        { runtime: { migrationSql: migrationSql() } },
+      );
+      const handled = requireResponse(response);
+      const body = await handled.json();
+      expect(body).toMatchObject({
+        pilotAudit: {
+          officialPersistenceTotal: 1,
+          requiresReview: true,
+          counts: { logicalSources: 1, stageSessions: 0, stageChunks: 0 },
+        },
+      });
+      const serialized = JSON.stringify(body);
+      expect(serialized).not.toContain(sensitiveLogicalSource);
+      expect(serialized).not.toContain('teacher-year-context-sensitive');
+      expect(serialized).not.toContain(PILOT_AUDIT_YEAR);
     } finally {
       raw.close();
     }
