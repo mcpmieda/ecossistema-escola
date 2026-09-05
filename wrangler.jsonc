@@ -4,6 +4,9 @@
   "compatibility_date": "2026-08-24",
   "compatibility_flags": ["nodejs_compat"],
   "pages_build_output_dir": "./dist",
+  "limits": {
+    "cpu_ms": 30000
+  },
   "vars": {
     "RUNTIME_ENVIRONMENT": "production",
     "TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188",
