@@ -14,6 +14,11 @@ import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../server/gradeb
 import { createGradebookD1ImportAnnualStateSourceV1 } from '../../../server/gradebook/persistence/d1/imports/d1-import-annual-state-source-v1';
 import { GradebookD1ImportBootstrapTransactionV2 } from '../../../server/gradebook/persistence/d1/transaction/d1-import-bootstrap-transaction-v2';
 import { ACADEMIC_CONTEXT_2026_IDENTITY_V1 } from '../../../src/gradebook-domain/context/academic-context-2026-v1';
+import type {
+  AcademicEntityRecordV1,
+  AcademicPersistenceContextV1,
+  VersionedRecordV1,
+} from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import {
   academicYearId,
   instant,
@@ -208,5 +213,55 @@ describe('Import persistence service V5 first bootstrap', () => {
     expect(count('academic_record_streams', "WHERE record_kind='term-result'")).toBe(3);
     expect(count('academic_record_streams', "WHERE record_kind='final-recovery'")).toBe(3);
     expect(count('academic_record_streams', "WHERE record_kind='annual-result'")).toBe(1);
+  });
+
+  it('preserves the D1 catalog snapshot through assignment capture on an idempotent reimport', async () => {
+    const first = await service().execute(request());
+    expect(first).toMatchObject({ transportVersion: 5, state: 'applied' });
+
+    const unitOfWork = createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant });
+    type SnapshotEntities = typeof unitOfWork.entities & {
+      readonly getImportCatalogSnapshot?: (
+        context: AcademicPersistenceContextV1,
+      ) => Promise<readonly VersionedRecordV1<AcademicEntityRecordV1>[] | null>;
+    };
+    const baseEntities = unitOfWork.entities as SnapshotEntities;
+    expect(typeof baseEntities.getImportCatalogSnapshot).toBe('function');
+    const getImportCatalogSnapshot = baseEntities.getImportCatalogSnapshot!;
+    let snapshotCalls = 0;
+    let catalogListCalls = 0;
+    const catalogKinds = new Set<string>([
+      'teacher',
+      'class-group',
+      'subject',
+      'teaching-assignment',
+      'student',
+      'enrollment',
+    ]);
+    const entities: SnapshotEntities = {
+      ...baseEntities,
+      async getImportCatalogSnapshot(context) {
+        snapshotCalls += 1;
+        return getImportCatalogSnapshot(context);
+      },
+      async list(context, kind, page) {
+        if (catalogKinds.has(kind)) catalogListCalls += 1;
+        return baseEntities.list(context, kind, page);
+      },
+    };
+    let sequence = 0;
+    const persistence = createGradebookImportPersistenceServiceV5({
+      unitOfWork: { ...unitOfWork, entities },
+      transaction: new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant }),
+      annualStateSource: createGradebookD1ImportAnnualStateSourceV1(database),
+      now: () => instant,
+      createId: (kind) => `${kind}:v5-snapshot:${++sequence}`,
+    });
+
+    const second = await persistence.execute(request());
+
+    expect(second).toMatchObject({ transportVersion: 5, state: 'no-changes' });
+    expect(snapshotCalls).toBe(1);
+    expect(catalogListCalls).toBe(0);
   });
 });
