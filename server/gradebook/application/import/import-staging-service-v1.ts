@@ -17,6 +17,7 @@ import {
 } from '../../persistence/d1/imports/d1-import-staging-repository-v1';
 import { academicRecordStreamKeyV1 } from './import-reconciliation-v1';
 import { createGradebookImportPersistenceServiceV6 } from './import-persistence-service-v6';
+import { createGradebookImportStagingBoundedCatalogV1 } from './import-staging-bounded-catalog-v1';
 import {
   GradebookImportStagingCaptureTransactionV1,
   type StagedImportCaptureV1,
@@ -343,16 +344,20 @@ export class GradebookImportStagingServiceV1 {
       };
     }
 
-    const tracked = trackingUnitOfWork(this.unitOfWork);
-    const capture = new GradebookImportStagingCaptureTransactionV1(
-      tracked.unitOfWork,
-      () => stage.fixedNow,
-    );
     const internalRequest = reducedPlanningRequest(
       request,
       selected.course,
       selected.roster,
       descriptor.positions,
+    );
+    const boundedUnitOfWork = await createGradebookImportStagingBoundedCatalogV1(
+      this.unitOfWork,
+      internalRequest,
+    );
+    const tracked = trackingUnitOfWork(boundedUnitOfWork);
+    const capture = new GradebookImportStagingCaptureTransactionV1(
+      tracked.unitOfWork,
+      () => stage.fixedNow,
     );
     const response = await createGradebookImportPersistenceServiceV6({
       unitOfWork: tracked.unitOfWork,
