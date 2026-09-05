@@ -17,21 +17,12 @@ interface GradebookImportStageChunkPreparerV1 {
   ): Promise<GradebookImportStagePrepareResultV1>;
 }
 
-export interface GradebookImportStagePrepareAllTimingV1 {
-  readonly totalMs: number;
-  readonly chunks: readonly {
-    readonly index: number;
-    readonly ms: number;
-  }[];
-}
-
 export type GradebookImportStagePrepareAllResultV1 =
   | {
       readonly state: 'prepared-all';
       readonly sessionId: string;
       readonly preparedCount: number;
       readonly expectedChunkCount: number;
-      readonly timing: GradebookImportStagePrepareAllTimingV1;
     }
   | { readonly state: 'conflict' | 'invalid-session' | 'expired' }
   | { readonly state: 'rejected'; readonly response: GradebookImportPersistenceResponseV6 };
@@ -139,16 +130,11 @@ export async function prepareAllGradebookImportStageChunksV1(
     }
   }
 
-  const timing = {
-    totalMs: Date.now() - startedAt,
-    chunks: timings,
-  } as const;
   timingLog('prepared-all', descriptors.length, timings, startedAt);
   return {
     state: 'prepared-all',
     sessionId,
     preparedCount: descriptors.length,
     expectedChunkCount: descriptors.length,
-    timing,
   };
 }
