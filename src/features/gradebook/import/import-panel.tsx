@@ -1,11 +1,14 @@
 import { useRef } from 'react';
-import { Alert, Button, Surface } from '@heroui/react';
+import { Alert, Button, ProgressBar, Surface } from '@heroui/react';
 import { FileSpreadsheet, Upload } from 'lucide-react';
 import { abbreviateSha256 } from './file-manifest';
 import { MAX_NOTES_IMPORT_FILES } from './import-batch';
-import { useImportBatch } from './use-import-batch';
+import {
+  useImportBatch,
+  type ImportFlowProgressV6,
+  type ImportPersistenceStateV6,
+} from './use-import-batch';
 import { WorkbookInspector } from './workbook-inspector';
-import { ImportPersistenceConfirmationV2 } from './import-persistence-confirmation-v2';
 
 function FileHash({ sha256 }: { sha256: string }) {
   return (
@@ -18,6 +21,103 @@ function FileHash({ sha256 }: { sha256: string }) {
   );
 }
 
+const PROGRESS_STAGE = {
+  preparing: ['Preparando e calculando SHA-256', 10],
+  recognizing: ['Reconhecendo estrutura', 20],
+  roster: ['Organizando alunos', 35],
+  grades: ['Processando notas', 65],
+  recovery: ['Processando recuperação', 75],
+  compacting: ['Preparando dados', 85],
+  saving: ['Salvando no Banco', 95],
+  completed: ['Concluído', 100],
+} as const;
+
+function progressValue(progress: ImportFlowProgressV6): number {
+  const [, base] = PROGRESS_STAGE[progress.stage];
+  if (progress.stage === 'completed') return 100;
+  const fraction = progress.total > 0 ? Math.min(1, progress.current / progress.total) : 0;
+  const next =
+    progress.stage === 'preparing'
+      ? 20
+      : progress.stage === 'recognizing'
+        ? 35
+        : progress.stage === 'roster'
+          ? 65
+          : progress.stage === 'grades'
+            ? 75
+            : progress.stage === 'recovery'
+              ? 85
+              : progress.stage === 'compacting'
+                ? 95
+                : 100;
+  return Math.round(base + (next - base) * fraction);
+}
+
+function persistenceLabel(state: ImportPersistenceStateV6 | undefined): string {
+  if (!state) return 'Aguardando';
+  switch (state.state) {
+    case 'recognized':
+      return 'Reconhecido';
+    case 'processing':
+      return 'Processando localmente';
+    case 'persisting':
+      return 'Salvando';
+    case 'failed':
+      return `Indisponível: ${state.message}`;
+    case 'completed': {
+      const labels = {
+        applied: 'Aplicado',
+        'no-changes': 'Sem mudanças acadêmicas',
+        'review-required': 'Revisão necessária',
+        blocked: 'Bloqueado',
+        conflict: 'Conflito',
+        'invalid-request': 'Pedido inválido',
+        'not-authorized': 'Não autorizado',
+        unavailable: 'Indisponível',
+      } as const;
+      return labels[state.response.state];
+    }
+  }
+}
+
+function PersistenceResult({ state }: { state: ImportPersistenceStateV6 | undefined }) {
+  if (!state) return null;
+  if (state.state === 'failed') {
+    return (
+      <Alert status="danger" className="mt-5">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Importação não aplicada</Alert.Title>
+          <Alert.Description>{state.message}</Alert.Description>
+        </Alert.Content>
+      </Alert>
+    );
+  }
+  if (state.state !== 'completed') return null;
+  const response = state.response;
+  const success = response.state === 'applied' || response.state === 'no-changes';
+  const issue =
+    'issues' in response && response.issues.length > 0
+      ? ` Motivo técnico: ${[...new Set(response.issues.map((value) => value.code))].join(', ')}.`
+      : response.state === 'invalid-request'
+        ? ` Motivo técnico: ${response.reason}.`
+        : '';
+  const committed = 'summary' in response ? response.summary.committedWrites.total : null;
+  return (
+    <Alert status={success ? 'success' : 'warning'} className="mt-5">
+      <Alert.Indicator />
+      <Alert.Content>
+        <Alert.Title>{persistenceLabel(state)}</Alert.Title>
+        <Alert.Description>
+          {committed === null
+            ? issue.trim()
+            : `${committed} gravação(ões) acadêmicas confirmadas no lote atômico.${issue}`}
+        </Alert.Description>
+      </Alert.Content>
+    </Alert>
+  );
+}
+
 export function NotesImportPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const {
@@ -27,9 +127,6 @@ export function NotesImportPanel() {
     loading,
     progress,
     persistence,
-    persistenceBusy,
-    persist,
-    markReady,
     results,
     selectedId,
     selectedResult,
@@ -62,30 +159,36 @@ export function NotesImportPanel() {
             <h3 className="text-lg font-semibold">Importar planilhas</h3>
           </div>
           <p className="mt-2 text-sm text-muted">
-            Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. Os arquivos são lidos
-            localmente e não são enviados; após sua confirmação, somente as observações acadêmicas
-            estruturadas são gravadas no Banco de Notas.
+            Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. O arquivo é aberto e
+            organizado localmente; somente o pacote acadêmico mínimo é enviado ao Banco de Notas e
+            persistido automaticamente.
           </p>
         </div>
-        <Button variant="primary" isPending={loading} onPress={() => inputRef.current?.click()}>
+        <Button
+          variant="primary"
+          isPending={loading}
+          isDisabled={loading}
+          onPress={() => inputRef.current?.click()}
+        >
           <Upload className="size-4" />
-          {loading ? 'Reconhecendo lote' : 'Selecionar planilhas'}
+          {loading ? 'Processando importação' : 'Selecionar planilhas'}
         </Button>
       </div>
 
       {progress && (
-        <Alert status="accent" className="mt-5">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>
-              {progress.stage === 'preparing'
-                ? 'Preparando e calculando SHA-256'
-                : 'Reconhecendo estrutura'}{' '}
-              {progress.current} de {progress.total}
-            </Alert.Title>
-            <Alert.Description>{progress.fileName}</Alert.Description>
-          </Alert.Content>
-        </Alert>
+        <Surface variant="secondary" className="mt-5 rounded-2xl p-4">
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="font-medium">{PROGRESS_STAGE[progress.stage][0]}</span>
+            <span className="text-muted">{progressValue(progress)}%</span>
+          </div>
+          <ProgressBar
+            className="mt-3"
+            value={progressValue(progress)}
+            color={progress.stage === 'completed' ? 'success' : 'accent'}
+            aria-label="Progresso da importação"
+          />
+          <p className="mt-2 truncate text-xs text-muted">{progress.fileName}</p>
+        </Surface>
       )}
 
       {error && (
@@ -109,12 +212,10 @@ export function NotesImportPanel() {
                 failures.length ? `${failures.length} com erro` : 'sem erros',
               ],
               ['Turmas', totals.classes, 'somadas no lote'],
-              ['Alunos', totals.students, `${totals.gradeSheets} guias de notas`],
+              ['Alunos', totals.students, `${totals.gradeSheets} guias reconhecidas`],
             ].map(([label, value, detail]) => (
               <Surface key={String(label)} variant="secondary" className="rounded-2xl p-4">
-                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">
-                  {label}
-                </p>
+                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">{label}</p>
                 <p className="mt-2 text-2xl font-semibold">{value}</p>
                 <p className="mt-1 text-xs text-muted">{detail}</p>
               </Surface>
@@ -138,11 +239,11 @@ export function NotesImportPanel() {
               <Surface key={result.id} variant="secondary" className="rounded-2xl p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="mr-auto font-medium">{result.manifest.fileName}</p>
-                  <span className="text-xs font-medium text-success">Reconhecido</span>
+                  <span className="text-xs font-medium">{persistenceLabel(persistence[result.id])}</span>
                 </div>
                 <FileHash sha256={result.manifest.sha256} />
                 <p className="mt-2 text-xs text-muted">
-                  Reconhecimento concluído · sem diagnósticos
+                  Processamento local V6 · persistência automática
                 </p>
               </Surface>
             ))}
@@ -186,14 +287,7 @@ export function NotesImportPanel() {
           {selectedResult && (
             <>
               <WorkbookInspector result={selectedResult} />
-              <ImportPersistenceConfirmationV2
-                key={selectedResult.id}
-                result={selectedResult}
-                persistence={persistence[selectedResult.id] ?? { state: 'recognized' }}
-                externalBusy={persistenceBusy}
-                onReady={(ready) => markReady(selectedResult.id, ready)}
-                onPersist={(references) => persist(selectedResult, references)}
-              />
+              <PersistenceResult state={persistence[selectedResult.id]} />
             </>
           )}
         </div>
