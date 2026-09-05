@@ -7,6 +7,9 @@
   "limits": {
     "cpu_ms": 30000
   },
+  "placement": {
+    "mode": "smart"
+  },
   "vars": {
     "RUNTIME_ENVIRONMENT": "production",
     "TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188",

@@ -12,14 +12,30 @@ describe('Cloudflare Workers Paid runtime configuration', () => {
   it('pins the Pages Functions CPU safety envelope to 30 seconds', () => {
     const config = JSON.parse(source('wrangler.jsonc')) as {
       readonly limits?: { readonly cpu_ms?: unknown };
-      readonly env?: { readonly production?: { readonly limits?: unknown } };
+      readonly placement?: { readonly mode?: unknown };
+      readonly env?: {
+        readonly production?: {
+          readonly limits?: unknown;
+          readonly placement?: unknown;
+        };
+      };
     };
 
     expect(config.limits).toEqual({ cpu_ms: 30_000 });
     expect(config.env?.production?.limits).toBeUndefined();
   });
 
-  it('keeps the production D1 binding private while deploying the inherited CPU limit', () => {
+  it('runs Pages Functions with Smart Placement without production overrides', () => {
+    const config = JSON.parse(source('wrangler.jsonc')) as {
+      readonly placement?: { readonly mode?: unknown };
+      readonly env?: { readonly production?: { readonly placement?: unknown } };
+    };
+
+    expect(config.placement).toEqual({ mode: 'smart' });
+    expect(config.env?.production?.placement).toBeUndefined();
+  });
+
+  it('keeps the production D1 binding private while deploying inherited runtime settings', () => {
     const config = source('wrangler.jsonc');
     const workflow = source('.github/workflows/deploy-cloudflare-pages.yml');
 
@@ -29,5 +45,6 @@ describe('Cloudflare Workers Paid runtime configuration', () => {
     expect(workflow).toContain('d1_databases: [binding]');
     expect(workflow).toContain("config.env.production = {");
     expect(workflow).not.toContain('cpu_ms');
+    expect(workflow).not.toContain('placement');
   });
 });
