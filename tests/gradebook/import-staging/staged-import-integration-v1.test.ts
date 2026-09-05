@@ -68,6 +68,9 @@ beforeEach(async () => {
 afterEach(() => database.raw.close());
 
 function term(termValue: 1 | 2 | 3) {
+  const official = termValue === 3 ? 25 : 20;
+  const quantitative = termValue === 3 ? 12 : 10;
+  const qualitative = termValue === 3 ? 13 : 10;
   return {
     term: termValue,
     sourceSheetName: `9S${termValue}ºD1`,
@@ -81,9 +84,10 @@ function term(termValue: 1 | 2 | 3) {
         position,
         {
           R: 5 + (index % 3),
-          T: 5 + (index % 3),
-          AM: 5 + (index % 3),
-          ...(termValue === 3 ? { AN: 18 + (index % 3) } : {}),
+          T: quantitative,
+          AK: qualitative,
+          AM: official,
+          ...(termValue === 3 ? { AN: 65 } : {}),
         },
       ] as const;
     }),
@@ -157,7 +161,7 @@ function services() {
 }
 
 describe('staged V6 import', () => {
-  it('prepares bounded chunks without official writes and promotes all chunks atomically', async () => {
+  it('prepares bounded chunks without official writes and promotes direct annual approval without REC rows', async () => {
     const input = request();
     const chunks = splitCompactGradebookImportV6(input);
     expect(chunks).toHaveLength(2);
