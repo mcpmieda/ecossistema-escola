@@ -14,6 +14,7 @@ import {
 } from './import-batch';
 import { loadSheetJs } from './sheetjs-loader';
 import { createCompactGradebookImportPersistenceRequestV6 } from './compact-import-v6';
+import { persistCompactGradebookFileV6 } from './import-persistence-client-v6';
 import { persistCompactGradebookFileStagedV1 } from './import-staging-client-v1';
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
 
@@ -60,6 +61,19 @@ function diagnosticLine(prefix: string, value: unknown): string {
   return `${prefix} ${JSON.stringify(value)}`;
 }
 
+export function isGradebookPaidDirectBenchmarkHashV1(hash: string): boolean {
+  const queryIndex = hash.indexOf('?');
+  if (queryIndex < 0) return false;
+  const params = new URLSearchParams(hash.slice(queryIndex + 1));
+  return params.get('paidDirect') === '1';
+}
+
+function paidDirectBenchmarkEnabled(): boolean {
+  return typeof globalThis.location !== 'undefined'
+    ? isGradebookPaidDirectBenchmarkHashV1(globalThis.location.hash)
+    : false;
+}
+
 export function useImportBatch() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +118,15 @@ export function useImportBatch() {
       throw new Error('Não foi possível consultar os anos letivos cadastrados.');
     }
 
+    const paidDirect = paidDirectBenchmarkEnabled() && successes.length === 1;
+    if (paidDirect) {
+      appendTiming('[gradebook-import-client-timing]', {
+        version: 1,
+        mode: 'paid-direct-selected',
+        fileCount: successes.length,
+      });
+    }
+
     for (const [index, result] of successes.entries()) {
       setPersistence((current) => ({ ...current, [result.id]: { state: 'processing' } }));
       try {
@@ -146,18 +169,22 @@ export function useImportBatch() {
           fileName: result.manifest.fileName,
           stage: 'saving',
         });
-        const response = await persistCompactGradebookFileStagedV1(
-          request,
-          ({ prepared, total }) => {
-            setProgress({
-              current: prepared,
-              total,
-              fileName: result.manifest.fileName,
-              stage: 'saving',
-            });
-          },
-          (timing) => appendTiming('[gradebook-import-client-timing]', timing),
-        );
+        const response = paidDirect
+          ? await persistCompactGradebookFileV6(request, undefined, (timing) =>
+              appendTiming('[gradebook-import-client-timing]', timing),
+            )
+          : await persistCompactGradebookFileStagedV1(
+              request,
+              ({ prepared, total }) => {
+                setProgress({
+                  current: prepared,
+                  total,
+                  fileName: result.manifest.fileName,
+                  stage: 'saving',
+                });
+              },
+              (timing) => appendTiming('[gradebook-import-client-timing]', timing),
+            );
         setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
         setProgress({
           current: index + 1,

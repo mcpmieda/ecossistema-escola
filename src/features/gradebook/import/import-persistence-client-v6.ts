@@ -7,8 +7,18 @@ import {
 import { normalizeGradebookImportPersistenceResponseV5 } from './import-persistence-client-v2';
 
 const ENDPOINT = '/api/gradebook/import-persistence';
-const TIMEOUT_MS = 45_000;
+const TIMEOUT_MS = 120_000;
 const ATTEMPTS = 2;
+const SERVER_MS_HEADER = 'x-gradebook-server-ms';
+
+export interface GradebookImportPaidDirectTimingV1 {
+  readonly version: 1;
+  readonly mode: 'paid-direct';
+  readonly requestMs: number;
+  readonly serverMs: number | null;
+  readonly attempts: number;
+  readonly totalMs: number;
+}
 
 function compatibleResponse(value: unknown): GradebookImportPersistenceResponseV6 | null {
   if (isGradebookImportPersistenceResponseV6(value)) return value;
@@ -22,12 +32,29 @@ function incompatibleMessage(response: Response, jsonParsed: boolean): string {
   return `Resposta de persistência incompatível (HTTP ${response.status}; conteúdo ${family}; envelope ${jsonParsed ? 'wrong-transport' : 'non-json'}).`;
 }
 
+function nowMs(): number {
+  return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
+}
+
+function elapsed(startedAt: number): number {
+  return Math.round((nowMs() - startedAt) * 10) / 10;
+}
+
+function serverMs(response: Response): number | null {
+  const value = response.headers.get(SERVER_MS_HEADER);
+  if (value === null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 export async function persistCompactGradebookFileV6(
   request: GradebookImportPersistenceRequestV6,
   signal?: AbortSignal,
+  onTiming?: (timing: GradebookImportPaidDirectTimingV1) => void,
 ): Promise<GradebookImportPersistenceResponseV6> {
   const body = JSON.stringify(request);
   let lastFailure: unknown = null;
+  const totalStartedAt = nowMs();
 
   for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
     if (signal?.aborted) throw signal.reason;
@@ -39,6 +66,7 @@ export async function persistCompactGradebookFileV6(
       timedOut = true;
       controller.abort();
     }, TIMEOUT_MS);
+    const attemptStartedAt = nowMs();
 
     try {
       const response = await fetch(ENDPOINT, {
@@ -49,13 +77,24 @@ export async function persistCompactGradebookFileV6(
         body,
         signal: controller.signal,
       });
+      const requestMs = elapsed(attemptStartedAt);
       let jsonParsed = true;
       const payload: unknown = await response.json().catch(() => {
         jsonParsed = false;
         return null;
       });
       const compatible = compatibleResponse(payload);
-      if (compatible) return compatible;
+      if (compatible) {
+        onTiming?.({
+          version: 1,
+          mode: 'paid-direct',
+          requestMs,
+          serverMs: serverMs(response),
+          attempts: attempt + 1,
+          totalMs: elapsed(totalStartedAt),
+        });
+        return compatible;
+      }
       throw new Error(incompatibleMessage(response, jsonParsed));
     } catch (cause) {
       lastFailure = cause;
