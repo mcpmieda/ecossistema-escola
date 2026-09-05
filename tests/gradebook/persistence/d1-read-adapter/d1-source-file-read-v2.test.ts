@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import type { LogicalSourceIdV1 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import type {
+  LogicalSourceIdV1,
+  SourceFileVersionV1,
+} from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
 import {
   createGradebookD1WriteUnitOfWorkV1,
@@ -13,7 +16,6 @@ import {
   academicYearId,
   context,
   instant,
-  logicalSourceId,
   openMigratedDatabase,
   seedContext,
   sourceFileVersion,
@@ -55,7 +57,7 @@ class CountingDatabase implements D1WriteDatabaseV1 {
     return new CountingStatement(this.base.prepare(query), this.counts);
   }
 
-  exec(query: string): unknown {
+  exec(query: string): Promise<unknown> | unknown {
     return this.base.exec(query);
   }
 
@@ -73,7 +75,7 @@ beforeEach(async () => {
   seedContext(database);
 });
 
-async function append(value: ReturnType<typeof sourceFileVersion>): Promise<void> {
+async function append(value: SourceFileVersionV1): Promise<void> {
   const writer = createGradebookD1WriteUnitOfWorkV1(database, { now: () => instant });
   const result = await writer.imports.appendSourceFileVersion(context, value, {
     expectedVersion: null,
@@ -122,16 +124,16 @@ describe('D1 source-file single read V2', () => {
     insertLogicalSource(candidateB);
 
     const confirmed = sourceFileVersion('a');
-    const candidate = {
+    const candidate: SourceFileVersionV1 = {
       ...sourceFileVersion('b'),
       logicalSource: {
-        state: 'candidate' as const,
+        state: 'candidate',
         candidateLogicalSourceIds: [candidateB, candidateA],
       },
     };
-    const unmatched = {
+    const unmatched: SourceFileVersionV1 = {
       ...sourceFileVersion('c'),
-      logicalSource: { state: 'unmatched' as const },
+      logicalSource: { state: 'unmatched' },
     };
     await append(confirmed);
     await append(candidate);
