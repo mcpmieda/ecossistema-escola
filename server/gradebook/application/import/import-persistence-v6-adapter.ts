@@ -10,6 +10,7 @@ import type {
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
 import type {
   GradebookImportCompactCellV6,
+  GradebookImportCompactFormulaCellV6,
   GradebookImportPersistenceRequestV6,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 import {
@@ -17,13 +18,9 @@ import {
   SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
 
-function isFormula(value: GradebookImportCompactCellV6): value is readonly [
-  'f',
-  string | number | boolean | null,
-  number | null,
-  string,
-  string?,
-] {
+function isFormula(
+  value: GradebookImportCompactCellV6,
+): value is GradebookImportCompactFormulaCellV6 {
   return Array.isArray(value) && value[0] === 'f';
 }
 
@@ -32,14 +29,15 @@ function resultObservation(
 ): GradebookImportResultCellObservationV4 {
   if (value === undefined) return { classification: 'empty', rawValue: null };
   if (isFormula(value)) {
-    const [, rawValue, cachedValue, formula, sourceError] = value;
+    const [, rawValue, cachedValue, formula] = value;
+    const sourceError = value.length === 5 ? value[4] : null;
     if (cachedValue === null) {
       return {
         classification: 'formula-error-or-missing-cache',
         rawValue,
         formula,
         cachedValue: null,
-        sourceError: sourceError ?? null,
+        sourceError,
       };
     }
     return cachedValue === 0
@@ -96,7 +94,7 @@ function definition(
     if (maximum === null) throw new TypeError('quantitative-definition-invalid');
     return { sourceSlot: sourceSlot as 'R' | 'S', maximumConfiguration };
   }
-  const name = value[2];
+  const name = value.length === 3 ? value[2] : null;
   return {
     sourceSlot: sourceSlot as (typeof SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2)[number]['sourceSlot'],
     maximumConfiguration,
