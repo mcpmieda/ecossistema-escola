@@ -36,6 +36,11 @@ export type GradebookImportStagePrepareAllResultV1 =
   | { readonly state: 'conflict' | 'invalid-session' | 'expired' }
   | { readonly state: 'rejected'; readonly response: GradebookImportPersistenceResponseV6 };
 
+type TerminalPrepareResultV1 = Extract<
+  GradebookImportStagePrepareResultV1,
+  { readonly state: 'conflict' | 'invalid-session' | 'expired' | 'rejected' }
+>;
+
 function classKey(value: string): string {
   return value.trim().toUpperCase();
 }
@@ -88,7 +93,7 @@ function chunkRequest(
   };
 }
 
-function terminal(result: GradebookImportStagePrepareResultV1): boolean {
+function terminal(result: GradebookImportStagePrepareResultV1): result is TerminalPrepareResultV1 {
   return (
     result.state === 'conflict' ||
     result.state === 'invalid-session' ||
@@ -165,7 +170,10 @@ export async function prepareAllGradebookImportStageChunksV1(
     );
     timings.push(...results.map((value) => value.timing));
 
-    const failed = results.find((value) => terminal(value.result));
+    const failed = results.find(
+      (value): value is (typeof results)[number] & { readonly result: TerminalPrepareResultV1 } =>
+        terminal(value.result),
+    );
     if (failed) {
       const timing = timingValue(startedAt, timings);
       timingLog(failed.result.state, descriptors.length, timing);
