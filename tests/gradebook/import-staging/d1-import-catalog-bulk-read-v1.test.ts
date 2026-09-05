@@ -108,8 +108,14 @@ beforeEach(async () => {
 afterEach(() => database.raw.close());
 
 describe('D1 import catalog bounded roster lookup', () => {
-  it('returns only requested current roster positions and preserves missing positions', async () => {
-    const reader = createGradebookD1ImportCatalogBulkReadV1(database);
+  it('returns requested positions with one D1 query and preserves missing positions', async () => {
+    let prepareCalls = 0;
+    const reader = createGradebookD1ImportCatalogBulkReadV1({
+      prepare(query: string) {
+        prepareCalls += 1;
+        return database.prepare(query);
+      },
+    });
     const matches = await reader.getImportRosterMany(
       { academicYearId },
       [
@@ -118,6 +124,7 @@ describe('D1 import catalog bounded roster lookup', () => {
       ],
     );
 
+    expect(prepareCalls).toBe(1);
     expect(matches).toHaveLength(2);
     expect(matches[0]).toMatchObject({
       state: 'ready',
