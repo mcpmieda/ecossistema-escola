@@ -12,6 +12,7 @@ export interface GradebookD1BenchmarkSnapshotV1 {
   readonly runCalls: number;
   readonly batchCalls: number;
   readonly execCalls: number;
+  readonly catalogSnapshotCalls: number;
   readonly wallMs: number;
   readonly maxCallMs: number;
   readonly sqlMs: number | null;
@@ -32,6 +33,7 @@ interface MutableMetricsV1 {
   runCalls: number;
   batchCalls: number;
   execCalls: number;
+  catalogSnapshotCalls: number;
   wallMs: number;
   maxCallMs: number;
   sqlMs: number;
@@ -39,6 +41,7 @@ interface MutableMetricsV1 {
 }
 
 const rawStatement = Symbol('gradebook-d1-benchmark-raw-statement');
+const CATALOG_SNAPSHOT_MARKER = 'gradebook:import-catalog-snapshot';
 
 type InstrumentedStatementV1 = D1WriteStatementV1 & {
   readonly [rawStatement]: D1WriteStatementV1;
@@ -63,6 +66,7 @@ function record(
   kind: 'first' | 'all' | 'run' | 'batch' | 'exec',
   startedAt: number,
   sqlMs: number | null,
+  catalogSnapshot = false,
 ): void {
   const elapsed = Math.max(0, nowMs() - startedAt);
   metrics.calls += 1;
@@ -73,6 +77,7 @@ function record(
   if (kind === 'run') metrics.runCalls += 1;
   if (kind === 'batch') metrics.batchCalls += 1;
   if (kind === 'exec') metrics.execCalls += 1;
+  if (kind === 'all' && catalogSnapshot) metrics.catalogSnapshotCalls += 1;
   if (sqlMs !== null) {
     metrics.sqlMs += sqlMs;
     metrics.sqlSamples += 1;
@@ -82,11 +87,12 @@ function record(
 function statement(
   raw: D1WriteStatementV1,
   metrics: MutableMetricsV1,
+  catalogSnapshot: boolean,
 ): InstrumentedStatementV1 {
   return {
     [rawStatement]: raw,
     bind(...values) {
-      return statement(raw.bind(...values), metrics);
+      return statement(raw.bind(...values), metrics, catalogSnapshot);
     },
     async first<Row extends Record<string, unknown>>(): Promise<Row | null> {
       const startedAt = nowMs();
@@ -103,7 +109,7 @@ function statement(
         result = await raw.all<Row>();
         return result;
       } finally {
-        record(metrics, 'all', startedAt, sqlDuration(result));
+        record(metrics, 'all', startedAt, sqlDuration(result), catalogSnapshot);
       }
     },
     async run(): Promise<D1WriteRunResultV1> {
@@ -138,6 +144,7 @@ export function instrumentGradebookD1ForBenchmarkV1(database: D1WriteDatabaseV1)
     runCalls: 0,
     batchCalls: 0,
     execCalls: 0,
+    catalogSnapshotCalls: 0,
     wallMs: 0,
     maxCallMs: 0,
     sqlMs: 0,
@@ -146,7 +153,11 @@ export function instrumentGradebookD1ForBenchmarkV1(database: D1WriteDatabaseV1)
 
   const instrumented: D1WriteDatabaseV1 = {
     prepare(query: string): D1WriteStatementV1 {
-      return statement(database.prepare(query), metrics);
+      return statement(
+        database.prepare(query),
+        metrics,
+        query.includes(CATALOG_SNAPSHOT_MARKER),
+      );
     },
     async exec(query: string): Promise<unknown> {
       const startedAt = nowMs();
@@ -193,6 +204,7 @@ export function instrumentGradebookD1ForBenchmarkV1(database: D1WriteDatabaseV1)
       runCalls: metrics.runCalls,
       batchCalls: metrics.batchCalls,
       execCalls: metrics.execCalls,
+      catalogSnapshotCalls: metrics.catalogSnapshotCalls,
       wallMs: rounded(metrics.wallMs),
       maxCallMs: rounded(metrics.maxCallMs),
       sqlMs: metrics.sqlSamples > 0 ? rounded(metrics.sqlMs) : null,
