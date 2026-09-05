@@ -10,6 +10,8 @@ const ENDPOINT = '/api/gradebook/import-persistence';
 const TIMEOUT_MS = 120_000;
 const ATTEMPTS = 2;
 const SERVER_MS_HEADER = 'x-gradebook-server-ms';
+const BENCHMARK_HEADER = 'X-Gradebook-Benchmark';
+const BENCHMARK_VALUE = 'paid-direct-v1';
 
 export interface GradebookImportPaidDirectTimingV1 {
   readonly version: 1;
@@ -18,6 +20,15 @@ export interface GradebookImportPaidDirectTimingV1 {
   readonly serverMs: number | null;
   readonly attempts: number;
   readonly totalMs: number;
+  readonly serverD1Calls: number | null;
+  readonly serverD1FirstCalls: number | null;
+  readonly serverD1AllCalls: number | null;
+  readonly serverD1RunCalls: number | null;
+  readonly serverD1BatchCalls: number | null;
+  readonly serverD1ExecCalls: number | null;
+  readonly serverD1WallMs: number | null;
+  readonly serverD1MaxMs: number | null;
+  readonly serverSqlMs: number | null;
 }
 
 function compatibleResponse(value: unknown): GradebookImportPersistenceResponseV6 | null {
@@ -40,8 +51,8 @@ function elapsed(startedAt: number): number {
   return Math.round((nowMs() - startedAt) * 10) / 10;
 }
 
-function serverMs(response: Response): number | null {
-  const value = response.headers.get(SERVER_MS_HEADER);
+function responseNumber(response: Response, header: string): number | null {
+  const value = response.headers.get(header);
   if (value === null) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
@@ -73,7 +84,10 @@ export async function persistCompactGradebookFileV6(
         method: 'POST',
         credentials: 'same-origin',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          [BENCHMARK_HEADER]: BENCHMARK_VALUE,
+        },
         body,
         signal: controller.signal,
       });
@@ -89,9 +103,18 @@ export async function persistCompactGradebookFileV6(
           version: 1,
           mode: 'paid-direct',
           requestMs,
-          serverMs: serverMs(response),
+          serverMs: responseNumber(response, SERVER_MS_HEADER),
           attempts: attempt + 1,
           totalMs: elapsed(totalStartedAt),
+          serverD1Calls: responseNumber(response, 'x-gradebook-d1-calls'),
+          serverD1FirstCalls: responseNumber(response, 'x-gradebook-d1-first-calls'),
+          serverD1AllCalls: responseNumber(response, 'x-gradebook-d1-all-calls'),
+          serverD1RunCalls: responseNumber(response, 'x-gradebook-d1-run-calls'),
+          serverD1BatchCalls: responseNumber(response, 'x-gradebook-d1-batch-calls'),
+          serverD1ExecCalls: responseNumber(response, 'x-gradebook-d1-exec-calls'),
+          serverD1WallMs: responseNumber(response, 'x-gradebook-d1-wall-ms'),
+          serverD1MaxMs: responseNumber(response, 'x-gradebook-d1-max-ms'),
+          serverSqlMs: responseNumber(response, 'x-gradebook-d1-sql-ms'),
         });
         return compatible;
       }
