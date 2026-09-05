@@ -32,11 +32,18 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
 
   const entities = Object.assign(
     {
-      get: (context: Parameters<typeof academicEntities.get>[0], reference: Parameters<typeof academicEntities.get>[1]) =>
+      get: (
+        context: Parameters<typeof academicEntities.get>[0],
+        reference: Parameters<typeof academicEntities.get>[1],
+      ) =>
         reference.kind === 'academic-year'
           ? integrated.entities.get(context, reference)
           : academicEntities.get(context, reference),
-      list: (context: Parameters<typeof academicEntities.list>[0], kind: Parameters<typeof academicEntities.list>[1], page: Parameters<typeof academicEntities.list>[2]) =>
+      list: (
+        context: Parameters<typeof academicEntities.list>[0],
+        kind: Parameters<typeof academicEntities.list>[1],
+        page: Parameters<typeof academicEntities.list>[2],
+      ) =>
         kind === 'academic-year'
           ? integrated.entities.list(context, kind, page)
           : academicEntities.list(context, kind, page),
@@ -48,8 +55,14 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
         record.kind === 'academic-year'
           ? integrated.entities.appendVersion(context, record, expectation)
           : academicEntities.appendVersion(context, record, expectation),
+      getImportRosterMany: (
+        context: Parameters<typeof catalogBulkReads.getImportRosterMany>[0],
+        requested: Parameters<typeof catalogBulkReads.getImportRosterMany>[1],
+      ) => catalogBulkReads.getImportRosterMany(context, requested),
+      getImportCatalogSnapshot: (
+        context: Parameters<typeof catalogBulkReads.getImportCatalogSnapshot>[0],
+      ) => catalogBulkReads.getImportCatalogSnapshot(context),
     },
-    catalogBulkReads,
     planningBulkReads.entities,
     studentStatusBulkReads,
   );
