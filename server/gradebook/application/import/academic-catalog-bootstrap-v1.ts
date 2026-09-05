@@ -113,15 +113,27 @@ function gradeAndSection(label: string): Pick<ClassGroupV1, 'grade' | 'section'>
 
 function overlayRepository(
   base: AcademicEntityRepositoryV1,
+  academicYearId: AcademicPersistenceContextV1['academicYearId'],
+  cached: readonly VersionedRecordV1<AcademicEntityRecordV1>[],
   planned: readonly AcademicEntityRecordV1[],
 ): AcademicEntityRepositoryV1 {
-  const byKey = new Map(planned.map((record) => [`${record.kind}:${record.value.id}`, record]));
+  const cachedByKey = new Map(
+    cached.map((entry) => [`${entry.value.kind}:${entry.value.value.id}`, entry]),
+  );
+  const plannedByKey = new Map(
+    planned.map((record) => [`${record.kind}:${record.value.id}`, record]),
+  );
   return {
     async get(context, reference) {
-      const record = byKey.get(`${reference.kind}:${reference.id}`);
-      return record
-        ? { value: record, version: 1, recordedAt: '1970-01-01T00:00:00.000Z' }
-        : base.get(context, reference);
+      if (context.academicYearId === academicYearId) {
+        const plannedRecord = plannedByKey.get(`${reference.kind}:${reference.id}`);
+        if (plannedRecord) {
+          return { value: plannedRecord, version: 1, recordedAt: '1970-01-01T00:00:00.000Z' };
+        }
+        const cachedRecord = cachedByKey.get(`${reference.kind}:${reference.id}`);
+        if (cachedRecord) return cachedRecord;
+      }
+      return base.get(context, reference);
     },
     async list(context, kind, page) {
       if (page.cursor !== null && page.cursor !== undefined) return base.list(context, kind, page);
@@ -169,6 +181,14 @@ export async function planAcademicCatalogBootstrapV1(input: {
   const catalog = new Map(listed.map(([kind, records]) => [kind, records ?? []]));
   const values = <K extends (typeof KINDS)[number]>(kind: K) =>
     (catalog.get(kind) ?? []) as readonly VersionedRecordV1<EntityRecord<K>>[];
+  const cachedRecords: VersionedRecordV1<AcademicEntityRecordV1>[] = [
+    yearRecord as VersionedRecordV1<AcademicEntityRecordV1>,
+  ];
+  for (const [, records] of listed) {
+    if (records) {
+      cachedRecords.push(...(records as readonly VersionedRecordV1<AcademicEntityRecordV1>[]));
+    }
+  }
 
   const termGroups = new Map<
     string,
@@ -451,7 +471,12 @@ export async function planAcademicCatalogBootstrapV1(input: {
     status: 'ready',
     request: converted,
     records: planned,
-    repository: overlayRepository(input.unitOfWork.entities, planned),
+    repository: overlayRepository(
+      input.unitOfWork.entities,
+      academicYearId,
+      cachedRecords,
+      planned,
+    ),
     plannedAssignments: planned.flatMap((record) =>
       record.kind === 'teaching-assignment' ? [record.value] : [],
     ),
