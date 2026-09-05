@@ -4,6 +4,7 @@ import {
   type GradebookImportCourseV6,
   type GradebookImportPersistenceRequestV6,
   type GradebookImportPersistenceResponseV6,
+  type GradebookImportTermV6,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 
 const ENDPOINT = '/api/gradebook/import-staging';
@@ -35,6 +36,10 @@ function coursePositions(course: GradebookImportCourseV6): readonly number[] {
   return first;
 }
 
+function selectTerm(term: GradebookImportTermV6, selected: ReadonlySet<number>): GradebookImportTermV6 {
+  return { ...term, rows: term.rows.filter((row) => selected.has(row[0])) };
+}
+
 export function splitCompactGradebookImportV6(
   request: GradebookImportPersistenceRequestV6,
 ): readonly GradebookImportPersistenceRequestV6[] {
@@ -49,10 +54,11 @@ export function splitCompactGradebookImportV6(
       const selected = new Set(positions.slice(offset, offset + MAX_POSITIONS));
       const compactCourse: GradebookImportCourseV6 = {
         ...course,
-        terms: course.terms.map((term) => ({
-          ...term,
-          rows: term.rows.filter((row) => selected.has(row[0])),
-        })) as GradebookImportCourseV6['terms'],
+        terms: [
+          selectTerm(course.terms[0], selected),
+          selectTerm(course.terms[1], selected),
+          selectTerm(course.terms[2], selected),
+        ],
         recovery: course.recovery
           ? {
               ...course.recovery,
