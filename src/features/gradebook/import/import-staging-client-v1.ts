@@ -29,6 +29,9 @@ export interface GradebookImportStageTimingV1 {
   readonly prepareAttempts: number;
   readonly finalizeMs: number;
   readonly totalMs: number;
+  readonly serverPrepareMs: number | null;
+  readonly serverConcurrency: number | null;
+  readonly serverChunks: readonly { readonly index: number; readonly ms: number }[];
 }
 
 function nowMs(): number {
@@ -143,6 +146,42 @@ function record(value: unknown): value is Record<string, unknown> {
 
 function numeric(value: unknown): number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0;
+}
+
+function serverPrepareTiming(payload: unknown): {
+  readonly totalMs: number;
+  readonly concurrency: number;
+  readonly chunks: readonly { readonly index: number; readonly ms: number }[];
+} | null {
+  if (!record(payload) || !record(payload.timing)) return null;
+  const timing = payload.timing;
+  if (
+    typeof timing.totalMs !== 'number' ||
+    !Number.isFinite(timing.totalMs) ||
+    timing.totalMs < 0 ||
+    typeof timing.concurrency !== 'number' ||
+    !Number.isInteger(timing.concurrency) ||
+    timing.concurrency < 1 ||
+    !Array.isArray(timing.chunks)
+  ) {
+    return null;
+  }
+  const chunks: { index: number; ms: number }[] = [];
+  for (const value of timing.chunks) {
+    if (
+      !record(value) ||
+      typeof value.index !== 'number' ||
+      !Number.isInteger(value.index) ||
+      value.index < 0 ||
+      typeof value.ms !== 'number' ||
+      !Number.isFinite(value.ms) ||
+      value.ms < 0
+    ) {
+      return null;
+    }
+    chunks.push({ index: value.index, ms: value.ms });
+  }
+  return { totalMs: timing.totalMs, concurrency: timing.concurrency, chunks };
 }
 
 function baselineReviewMessage(payload: Record<string, unknown>): string {
@@ -324,6 +363,9 @@ export async function persistCompactGradebookFileStagedV1(
 
   let mode: GradebookImportStageTimingV1['mode'] = 'prepare-all';
   let prepareAttempts = 0;
+  let serverPrepareMs: number | null = null;
+  let serverConcurrency: number | null = null;
+  let serverChunks: readonly { readonly index: number; readonly ms: number }[] = [];
   const prepareStartedAt = nowMs();
   const preparedAll = await fetchJson(
     `${ENDPOINT}?action=prepare-all&session=${encodeURIComponent(sessionId)}`,
@@ -339,6 +381,10 @@ export async function persistCompactGradebookFileStagedV1(
     preparedAll.payload.expectedChunkCount === chunks.length;
 
   if (aggregateReady) {
+    const serverTiming = serverPrepareTiming(preparedAll.payload);
+    serverPrepareMs = serverTiming?.totalMs ?? null;
+    serverConcurrency = serverTiming?.concurrency ?? null;
+    serverChunks = serverTiming?.chunks ?? [];
     onProgress?.({ prepared: chunks.length, total: chunks.length });
   } else {
     const rejected = rejectedResponse(preparedAll.payload);
@@ -379,6 +425,9 @@ export async function persistCompactGradebookFileStagedV1(
       prepareAttempts,
       finalizeMs,
       totalMs: elapsedMs(totalStartedAt),
+      serverPrepareMs,
+      serverConcurrency,
+      serverChunks,
     },
     onTiming,
   );
