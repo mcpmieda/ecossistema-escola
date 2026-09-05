@@ -4,6 +4,7 @@ import { createGradebookD1AuditRepositoryV1 } from '../audit/d1-audit-repository
 import { createGradebookD1AcademicEntityRepositoryV1 } from '../entities/d1-academic-entity-repository-v1';
 import { createGradebookD1ImportRepositoryExtensionV1 } from '../imports/d1-import-repository-extension-v1';
 import { createGradebookD1LogicalSourceRepositoryV2 } from '../imports/d1-logical-source-repository-v2';
+import { createGradebookD1ImportCatalogBulkReadV1 } from '../read/d1-import-catalog-bulk-read-v1';
 import { createGradebookD1ImportPlanningBulkReadAdapterV1 } from '../read/d1-import-planning-bulk-read-v1';
 import { createGradebookD1StudentStatusBulkReadV1 } from '../read/d1-student-status-bulk-read-v1';
 import {
@@ -25,6 +26,7 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
   const academicEntities = createGradebookD1AcademicEntityRepositoryV1(database, options);
   const importExtension = createGradebookD1ImportRepositoryExtensionV1(database, options);
   const audit = createGradebookD1AuditRepositoryV1(database, options);
+  const catalogBulkReads = createGradebookD1ImportCatalogBulkReadV1(database);
   const planningBulkReads = createGradebookD1ImportPlanningBulkReadAdapterV1(database);
   const studentStatusBulkReads = createGradebookD1StudentStatusBulkReadV1(database);
 
@@ -47,6 +49,7 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
           ? integrated.entities.appendVersion(context, record, expectation)
           : academicEntities.appendVersion(context, record, expectation),
     },
+    catalogBulkReads,
     planningBulkReads.entities,
     studentStatusBulkReads,
   );
