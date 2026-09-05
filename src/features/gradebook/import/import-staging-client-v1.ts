@@ -52,13 +52,14 @@ export function splitCompactGradebookImportV6(
     const positions = coursePositions(course);
     for (let offset = 0; offset < positions.length; offset += MAX_POSITIONS) {
       const selected = new Set(positions.slice(offset, offset + MAX_POSITIONS));
+      const terms: GradebookImportCourseV6['terms'] = [
+        selectTerm(course.terms[0], selected),
+        selectTerm(course.terms[1], selected),
+        selectTerm(course.terms[2], selected),
+      ];
       const compactCourse: GradebookImportCourseV6 = {
         ...course,
-        terms: [
-          selectTerm(course.terms[0], selected),
-          selectTerm(course.terms[1], selected),
-          selectTerm(course.terms[2], selected),
-        ],
+        terms,
         recovery: course.recovery
           ? {
               ...course.recovery,
