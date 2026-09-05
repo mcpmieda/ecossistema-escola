@@ -216,7 +216,7 @@ describe('GradebookImportPersistenceTransportV6', () => {
     expect(inspectGradebookImportPersistenceRequestV6(value)).toBe('invalid-academic-shape');
   });
 
-  it('omits empty placeholders and requires a fallback name when an unconfigured slot has a grade', () => {
+  it('rejects empty placeholders and accepts a real qualitative grade without a configured maximum', () => {
     const value = structuredClone(compactRequest()) as unknown as {
       courses: Array<{
         terms: Array<{
@@ -228,12 +228,8 @@ describe('GradebookImportPersistenceTransportV6', () => {
     value.courses[0]!.terms[0]!.assessmentDefinitions.push(['AB', null, null]);
     expect(inspectGradebookImportPersistenceRequestV6(value)).toBe('invalid-academic-shape');
 
-    value.courses[0]!.terms[0]!.rows[0]![1].AB = 2;
-    value.courses[0]!.terms[0]!.assessmentDefinitions[3] = [
-      'AB',
-      null,
-      'Atividade qualitativa 2',
-    ];
+    value.courses[0]!.terms[0]!.assessmentDefinitions.pop();
+    value.courses[0]!.terms[0]!.rows[0]![1].AA = 2;
     expect(inspectGradebookImportPersistenceRequestV6(value)).toBe('ready');
   });
 
