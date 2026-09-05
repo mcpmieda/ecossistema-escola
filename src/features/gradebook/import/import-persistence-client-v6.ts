@@ -7,7 +7,7 @@ import {
 import { normalizeGradebookImportPersistenceResponseV5 } from './import-persistence-client-v2';
 
 const ENDPOINT = '/api/gradebook/import-persistence';
-const TIMEOUT_MS = 45_000;
+const TIMEOUT_MS = 120_000;
 const ATTEMPTS = 2;
 const SERVER_MS_HEADER = 'x-gradebook-server-ms';
 
