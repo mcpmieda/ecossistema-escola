@@ -25,8 +25,6 @@ type D1ResultWithMetaV1 = {
   };
 };
 
-type D1ExecWithDurationV1 = { readonly duration?: unknown };
-
 interface MutableMetricsV1 {
   calls: number;
   firstCalls: number;
@@ -57,12 +55,6 @@ function rounded(value: number): number {
 function sqlDuration(value: unknown): number | null {
   if (value === null || typeof value !== 'object') return null;
   const duration = (value as D1ResultWithMetaV1).meta?.timings?.sql_duration_ms;
-  return typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? duration : null;
-}
-
-function execDuration(value: unknown): number | null {
-  if (value === null || typeof value !== 'object') return null;
-  const duration = (value as D1ExecWithDurationV1).duration;
   return typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? duration : null;
 }
 
@@ -158,12 +150,10 @@ export function instrumentGradebookD1ForBenchmarkV1(database: D1WriteDatabaseV1)
     },
     async exec(query: string): Promise<unknown> {
       const startedAt = nowMs();
-      let result: unknown = null;
       try {
-        result = await database.exec(query);
-        return result;
+        return await database.exec(query);
       } finally {
-        record(metrics, 'exec', startedAt, execDuration(result));
+        record(metrics, 'exec', startedAt, null);
       }
     },
     ...(database.batch
