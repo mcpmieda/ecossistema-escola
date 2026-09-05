@@ -1,6 +1,7 @@
 import type {
   GradebookImportCourseV6,
   GradebookImportPersistenceRequestV6,
+  GradebookImportPersistenceResponseV6,
   GradebookImportTermV6,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 import {
@@ -23,7 +24,8 @@ export type GradebookImportStagePrepareAllResultV1 =
       readonly preparedCount: number;
       readonly expectedChunkCount: number;
     }
-  | Exclude<GradebookImportStagePrepareResultV1, { readonly state: 'prepared' | 'already-prepared' }>;
+  | { readonly state: 'conflict' | 'invalid-session' | 'expired' }
+  | { readonly state: 'rejected'; readonly response: GradebookImportPersistenceResponseV6 };
 
 function classKey(value: string): string {
   return value.trim().toUpperCase();
@@ -94,7 +96,14 @@ export async function prepareAllGradebookImportStageChunksV1(
       descriptor.index,
       chunkRequest(request, descriptor),
     );
-    if (result.state !== 'prepared' && result.state !== 'already-prepared') return result;
+    if (
+      result.state === 'conflict' ||
+      result.state === 'invalid-session' ||
+      result.state === 'expired' ||
+      result.state === 'rejected'
+    ) {
+      return result;
+    }
   }
 
   return {
