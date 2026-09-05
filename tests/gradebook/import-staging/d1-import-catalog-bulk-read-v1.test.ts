@@ -8,6 +8,7 @@ import type {
 } from '../../../shared/gradebook-contracts/entities';
 import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
 import { createGradebookD1ImportCatalogBulkReadV1 } from '../../../server/gradebook/persistence/d1/read/d1-import-catalog-bulk-read-v1';
+import type { D1ReadStatementV1 } from '../../../server/gradebook/persistence/d1/read/d1-read-adapter-v1';
 import { ACADEMIC_CONTEXT_2026_IDENTITY_V1 } from '../../../src/gradebook-domain/context/academic-context-2026-v1';
 import {
   academicYearId,
@@ -162,15 +163,15 @@ describe('D1 import catalog bounded roster lookup', () => {
         recorded_at: instant,
       };
     });
-    const statement = {
+    const statement: D1ReadStatementV1 = {
       bind() {
         return statement;
       },
-      async first() {
-        return null;
+      async first<Row extends Record<string, unknown>>() {
+        return null as Row | null;
       },
-      async all() {
-        return { results: rows };
+      async all<Row extends Record<string, unknown>>() {
+        return { results: rows as unknown as readonly Row[] };
       },
     };
     const reader = createGradebookD1ImportCatalogBulkReadV1({
