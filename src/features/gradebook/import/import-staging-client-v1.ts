@@ -8,7 +8,7 @@ import {
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 
 const ENDPOINT = '/api/gradebook/import-staging';
-const MAX_POSITIONS = 8;
+const MAX_POSITIONS = 40;
 const TIMEOUT_MS = 30_000;
 let initializationPromise: Promise<void> | null = null;
 
