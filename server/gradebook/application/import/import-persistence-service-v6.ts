@@ -3,6 +3,7 @@ import type {
   StudentStatusEventV1,
   StudentStatusV1,
 } from '../../../../shared/gradebook-contracts/entities';
+import type { GradebookImportPersistenceRequestV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import type { GradebookImportPersistenceServiceDependenciesV4 } from './import-persistence-service-v2';
 import {
   asGradebookImportPersistenceResponseV6,
@@ -45,6 +46,7 @@ function observedStatus(sourceText: string): {
   if (incoming?.[1]) {
     return { status: 'active', transfer: { originClassGroupCode: incoming[1].trim() } };
   }
+  if (value === 'ATIVO' || value === 'EM CURSO' || value === 'CURSANDO') return { status: 'active' };
   if (value.includes('DESIST') || value.includes('EVADI')) return { status: 'withdrawn' };
   if (value.includes('FALEC')) return { status: 'deceased' };
   return { status: 'other' };
@@ -56,11 +58,7 @@ function referenceKey(classGroupLabel: string, position: number): string {
 
 async function statusRecords(input: {
   readonly request: GradebookImportPersistenceRequestV6;
-  readonly catalogRequest: Parameters<
-    ReturnType<typeof createGradebookImportPersistenceServiceV5>['execute']
-  >[0] extends never
-    ? never
-    : import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4').GradebookImportPersistenceRequestV4;
+  readonly catalogRequest: GradebookImportPersistenceRequestV4;
   readonly dependencies: GradebookImportPersistenceServiceDependenciesV4;
 }): Promise<readonly AcademicEntityRecordV1[]> {
   const references = new Map<string, { readonly enrollmentId: string }>();
