@@ -28,8 +28,33 @@ describe('staging initialize client diagnostics', () => {
       gradebookImportStagingInitializationFailureMessageV1(503, {
         state: 'unavailable',
         reason: 'migration-apply-failed',
+        detail: 'unknown',
       }),
-    ).toContain('migration de staging');
+    ).toContain('motivo ainda não classificado');
+  });
+
+  it('explica detalhes sanitizados da falha de migration sem texto bruto', () => {
+    const cases = [
+      ['cpu-limit', 'limite de processamento'],
+      ['query-limit', 'limite de consultas'],
+      ['permission', 'autorização/permissão'],
+      ['schema-prerequisite', 'estrutura anterior'],
+      ['foreign-key', 'regra de relacionamento'],
+      ['sql-incompatible', 'incompatível uma instrução'],
+      ['database-busy', 'ocupado ou bloqueado'],
+    ] as const;
+
+    for (const [detail, expected] of cases) {
+      const message = gradebookImportStagingInitializationFailureMessageV1(503, {
+        state: 'unavailable',
+        reason: 'migration-apply-failed',
+        detail,
+        message: "SELECT student_name FROM secret_table WHERE token='secret-value'",
+      });
+      expect(message).toContain(expected);
+      expect(message).not.toContain('student_name');
+      expect(message).not.toContain('secret-value');
+    }
   });
 
   it('renders sanitized schema and baseline review information', () => {
