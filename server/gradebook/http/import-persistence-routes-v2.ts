@@ -34,6 +34,7 @@ import { createGradebookD1ImportAnnualStateSourceV1 } from '../persistence/d1/im
 import type { D1ReadDatabaseV1 } from '../persistence/d1/read/d1-read-adapter-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
+import { handleGradebookImportStagingRequestV1 } from './import-staging-routes-v1';
 
 export const GRADEBOOK_IMPORT_PERSISTENCE_ROUTE_V4 = '/api/gradebook/import-persistence';
 
@@ -129,9 +130,6 @@ export async function handleGradebookImportPersistenceRequestV4(
   }
 
   try {
-    // Runtime construction remains the single production gate/binding validator. V6 changes only
-    // the wire representation; catalog resolution, CAS, domain materialization and D1 transaction
-    // remain server-owned.
     const runtime = createGradebookD1RuntimeV1(env, authorization);
     const annualStateSource = createGradebookD1ImportAnnualStateSourceV1(
       env.GRADEBOOK_D1 as D1ReadDatabaseV1,
@@ -168,5 +166,11 @@ export async function handleGradebookImportPersistenceRequestV4(
   }
 }
 
-/** Central Functions wiring keeps its historical symbol; the endpoint accepts V4, V5 and V6. */
-export const handleGradebookImportPersistenceRequestV2 = handleGradebookImportPersistenceRequestV4;
+/** Central Functions wiring handles both the historical monolithic endpoint and staged V6 flow. */
+export async function handleGradebookImportPersistenceRequestV2(
+  request: Request,
+  env: RuntimeEnv,
+): Promise<Response | null> {
+  const staged = await handleGradebookImportStagingRequestV1(request, env);
+  return staged ?? handleGradebookImportPersistenceRequestV4(request, env);
+}

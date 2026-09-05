@@ -166,14 +166,14 @@ describe('runtime D1 local/preview V1', () => {
       });
       await expect(runtime.runMigrations()).resolves.toMatchObject({
         result: 'applied',
-        currentVersion: 5,
-        migrationsApplied: 5,
+        currentVersion: 6,
+        migrationsApplied: 6,
       });
       await expect(runtime.inspectSchema()).resolves.toEqual({
         status: 'ready',
-        currentVersion: 5,
-        latestVersion: 5,
-        appliedCount: 5,
+        currentVersion: 6,
+        latestVersion: 6,
+        appliedCount: 6,
         pendingCount: 0,
       });
     } finally {

@@ -4,7 +4,9 @@ import { createGradebookD1AuditRepositoryV1 } from '../audit/d1-audit-repository
 import { createGradebookD1AcademicEntityRepositoryV1 } from '../entities/d1-academic-entity-repository-v1';
 import { createGradebookD1ImportRepositoryExtensionV1 } from '../imports/d1-import-repository-extension-v1';
 import { createGradebookD1LogicalSourceRepositoryV2 } from '../imports/d1-logical-source-repository-v2';
+import { createGradebookD1ImportCatalogBulkReadV1 } from '../read/d1-import-catalog-bulk-read-v1';
 import { createGradebookD1ImportPlanningBulkReadAdapterV1 } from '../read/d1-import-planning-bulk-read-v1';
+import { createGradebookD1StudentStatusBulkReadV1 } from '../read/d1-student-status-bulk-read-v1';
 import {
   createGradebookD1WriteUnitOfWorkV1,
   type D1WriteDatabaseV1,
@@ -16,11 +18,6 @@ export interface GradebookD1PersistenceUnitOfWorkOptionsV1 {
   readonly bootstrapManifestVersions?: ReadonlyMap<string, number>;
 }
 
-/**
- * Composes exactly one provider for every operation covered by migrations 0001–0003.
- * The existing write adapter remains the owner of academic-year, source, academic-record
- * and logical-source-association operations.
- */
 export function createGradebookD1PersistenceUnitOfWorkV1(
   database: D1WriteDatabaseV1,
   options: GradebookD1PersistenceUnitOfWorkOptionsV1 = {},
@@ -29,7 +26,9 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
   const academicEntities = createGradebookD1AcademicEntityRepositoryV1(database, options);
   const importExtension = createGradebookD1ImportRepositoryExtensionV1(database, options);
   const audit = createGradebookD1AuditRepositoryV1(database, options);
+  const catalogBulkReads = createGradebookD1ImportCatalogBulkReadV1(database);
   const planningBulkReads = createGradebookD1ImportPlanningBulkReadAdapterV1(database);
+  const studentStatusBulkReads = createGradebookD1StudentStatusBulkReadV1(database);
 
   const entities = Object.assign(
     {
@@ -50,7 +49,9 @@ export function createGradebookD1PersistenceUnitOfWorkV1(
           ? integrated.entities.appendVersion(context, record, expectation)
           : academicEntities.appendVersion(context, record, expectation),
     },
+    catalogBulkReads,
     planningBulkReads.entities,
+    studentStatusBulkReads,
   );
   const academicRecords = Object.assign({}, integrated.academicRecords, planningBulkReads.academicRecords);
   const logicalSourceRecords = Object.assign(

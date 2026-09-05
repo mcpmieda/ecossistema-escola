@@ -411,7 +411,7 @@ describe('fonte D1 da projeção oficial do Conselho V1', () => {
       .prepare('SELECT version, name FROM gradebook_schema_migrations ORDER BY version')
       .all();
     expect(after).toEqual(before);
-    expect(after).toHaveLength(5);
+    expect(after).toHaveLength(6);
   });
 
   it('projeta resultados correntes e isola outra turma/ano, inclusive perfil diferente de 2026', async () => {

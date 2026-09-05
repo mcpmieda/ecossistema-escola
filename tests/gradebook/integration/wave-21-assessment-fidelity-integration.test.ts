@@ -173,7 +173,7 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
     expect(reportsContract).toContain('ClassPerformanceReadModelV1');
   });
 
-  it('preserva readiness histórico e reconhece o catálogo local atual 0001–0005', () => {
+  it('preserva readiness histórico e reconhece o catálogo local atual 0001–0006', () => {
     const migrations = readdirSync(join(root, 'migrations/gradebook')).sort();
     expect(migrations).toEqual([
       '0001_gradebook_context_entities_imports_v1.sql',
@@ -181,6 +181,7 @@ describe('integração final da onda 21 — fidelidade das avaliações trimestr
       '0003_logical_source_record_catalog_v1.sql',
       '0004_bulletin_council_durability_v1.sql',
       '0005_council_session_durability_v2.sql',
+      '0006_import_staging_v1.sql',
     ]);
 
     const readiness = evaluateGradebookProductionReadinessPreparationV1({

@@ -14,10 +14,9 @@ import {
 } from './import-batch';
 import { loadSheetJs } from './sheetjs-loader';
 import { createCompactGradebookImportPersistenceRequestV6 } from './compact-import-v6';
-import { persistCompactGradebookFileV6 } from './import-persistence-client-v6';
+import { persistCompactGradebookFileStagedV1 } from './import-staging-client-v1';
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
 
-/** Historical type retained for the frozen V5 confirmation surface/tests. */
 export type ImportPersistenceStateV5 =
   | { readonly state: 'recognized' | 'ready' | 'persisting' }
   | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV5 }
@@ -115,12 +114,19 @@ export function useImportBatch() {
         }
         setPersistence((current) => ({ ...current, [result.id]: { state: 'persisting' } }));
         setProgress({
-          current: index + 1,
-          total: successes.length,
+          current: 0,
+          total: 1,
           fileName: result.manifest.fileName,
           stage: 'saving',
         });
-        const response = await persistCompactGradebookFileV6(request);
+        const response = await persistCompactGradebookFileStagedV1(request, ({ prepared, total }) => {
+          setProgress({
+            current: prepared,
+            total,
+            fileName: result.manifest.fileName,
+            stage: 'saving',
+          });
+        });
         setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
         setProgress({
           current: index + 1,
