@@ -88,7 +88,12 @@ function initializeFailure(cause: unknown): Response {
     }
   }
   if (cause instanceof GradebookD1MigrationErrorV1) {
-    return noStore({ state: 'unavailable', reason: cause.code }, 503);
+    return noStore(
+      cause.code === 'migration-apply-failed'
+        ? { state: 'unavailable', reason: cause.code, detail: cause.detail ?? 'unknown' }
+        : { state: 'unavailable', reason: cause.code },
+      503,
+    );
   }
   return noStore({ state: 'unavailable', reason: 'initialize-failed' }, 503);
 }
