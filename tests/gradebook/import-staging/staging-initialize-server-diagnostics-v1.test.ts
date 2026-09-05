@@ -31,7 +31,7 @@ async function openSchema5(): Promise<SqliteD1Database> {
   return new SqliteD1Database(raw);
 }
 
-async function request(): Promise<Request> {
+async function request(body?: BodyInit | null): Promise<Request> {
   const session = await seal(
     {
       oid: '45600000-0000-4000-8000-000000000456',
@@ -48,6 +48,7 @@ async function request(): Promise<Request> {
       Origin: LOCAL_ORIGIN,
       Cookie: `${SESSION_COOKIE}=${session}`,
     },
+    ...(body === undefined ? {} : { body }),
   });
 }
 
@@ -65,6 +66,40 @@ afterEach(() => {
 });
 
 describe('staging initialize server diagnostics', () => {
+  it('accepts a semantic-empty body stream and reaches runtime diagnostics', async () => {
+    const database = await openSchema5();
+    const emptyBodyRequest = await request('');
+    expect(emptyBodyRequest.body).not.toBeNull();
+
+    const response = await handleGradebookImportStagingRequestV1(
+      emptyBodyRequest,
+      {
+        ...env(database),
+        RUNTIME_ENVIRONMENT: 'production',
+        GRADEBOOK_PRODUCTION_ENABLED: 'false',
+      },
+      { runtime: { migrationSql: migrationSql() } },
+    );
+
+    expect(response?.status).toBe(409);
+    await expect(response?.json()).resolves.toEqual({
+      state: 'runtime-review-required',
+      reason: 'production-gate-disabled',
+    });
+  });
+
+  it('rejects non-empty initialize content before processing staging', async () => {
+    const database = await openSchema5();
+    const response = await handleGradebookImportStagingRequestV1(
+      await request('{}'),
+      env(database),
+      { runtime: { migrationSql: migrationSql() } },
+    );
+
+    expect(response?.status).toBe(400);
+    await expect(response?.json()).resolves.toEqual({ state: 'invalid-request' });
+  });
+
   it('reports the production gate as a review-required state instead of generic unavailable', async () => {
     const database = await openSchema5();
     const response = await handleGradebookImportStagingRequestV1(
