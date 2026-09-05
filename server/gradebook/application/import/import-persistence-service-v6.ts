@@ -13,6 +13,7 @@ import {
 import type {
   AcademicEntityRecordV1,
   AcademicPersistenceContextV1,
+  VersionedRecordV1,
 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import { createGradebookImportPersistenceServiceV5 } from './import-persistence-service-v5';
 import { expandGradebookImportPersistenceRequestV6 } from './import-persistence-v6-adapter';
@@ -56,6 +57,13 @@ function referenceKey(classGroupLabel: string, position: number): string {
   return `${normalize(classGroupLabel)}:${position}`;
 }
 
+type StatusBulkRepositoryV1 = GradebookImportPersistenceServiceDependenciesV4['unitOfWork']['entities'] & {
+  readonly getStudentStatusEventsMany?: (
+    context: AcademicPersistenceContextV1,
+    ids: readonly string[],
+  ) => Promise<readonly (VersionedRecordV1<AcademicEntityRecordV1> | null)[]>;
+};
+
 async function statusRecords(input: {
   readonly request: GradebookImportPersistenceRequestV6;
   readonly catalogRequest: GradebookImportPersistenceRequestV4;
@@ -78,39 +86,62 @@ async function statusRecords(input: {
   const context = {
     academicYearId: input.request.confirmedContext.academicYearId,
   } satisfies AcademicPersistenceContextV1;
-  const records: AcademicEntityRecordV1[] = [];
+  const candidates: Array<{
+    readonly id: StudentStatusEventId;
+    readonly enrollmentId: StudentStatusEventV1['enrollmentId'];
+    readonly sourceText: string;
+    readonly semantic: ReturnType<typeof observedStatus>;
+  }> = [];
   for (const roster of input.request.rosters) {
     for (const student of roster.students) {
       const sourceText = student[2]?.trim() ?? '';
       if (!sourceText) continue;
       const reference = references.get(referenceKey(roster.classGroupLabel, student[0]));
       if (!reference) throw new Error('status-roster-reference-missing');
-      const id = (await opaqueId('student-status-event', [
-        String(input.request.confirmedContext.academicYearId),
-        reference.enrollmentId,
-        normalize(sourceText),
-      ])) as StudentStatusEventId;
-      const existing = await input.dependencies.unitOfWork.entities.get(context, {
-        kind: 'student-status-event',
-        id,
-      });
-      if (existing !== null) continue;
-      const semantic = observedStatus(sourceText);
-      records.push({
-        kind: 'student-status-event',
-        value: {
-          id,
-          academicYearId: input.request.confirmedContext.academicYearId,
-          enrollmentId: reference.enrollmentId as StudentStatusEventV1['enrollmentId'],
-          status: semantic.status,
-          sourceText,
-          sourceReference: 'RELACAO',
-          ...(semantic.transfer ? { transfer: semantic.transfer } : {}),
-        },
+      candidates.push({
+        id: (await opaqueId('student-status-event', [
+          String(input.request.confirmedContext.academicYearId),
+          reference.enrollmentId,
+          normalize(sourceText),
+        ])) as StudentStatusEventId,
+        enrollmentId: reference.enrollmentId as StudentStatusEventV1['enrollmentId'],
+        sourceText,
+        semantic: observedStatus(sourceText),
       });
     }
   }
-  return records;
+  if (candidates.length === 0) return [];
+
+  const repository = input.dependencies.unitOfWork.entities as StatusBulkRepositoryV1;
+  const existing = repository.getStudentStatusEventsMany
+    ? await repository.getStudentStatusEventsMany(
+        context,
+        candidates.map((candidate) => candidate.id),
+      )
+    : await Promise.all(
+        candidates.map((candidate) =>
+          repository.get(context, { kind: 'student-status-event', id: candidate.id }),
+        ),
+      );
+  if (existing.length !== candidates.length) throw new Error('status-bulk-read-incompatible');
+
+  return candidates.flatMap((candidate, index) => {
+    if (existing[index] !== null) return [];
+    return [
+      {
+        kind: 'student-status-event' as const,
+        value: {
+          id: candidate.id,
+          academicYearId: input.request.confirmedContext.academicYearId,
+          enrollmentId: candidate.enrollmentId,
+          status: candidate.semantic.status,
+          sourceText: candidate.sourceText,
+          sourceReference: 'RELACAO',
+          ...(candidate.semantic.transfer ? { transfer: candidate.semantic.transfer } : {}),
+        },
+      },
+    ];
+  });
 }
 
 export function createGradebookImportPersistenceServiceV6(
