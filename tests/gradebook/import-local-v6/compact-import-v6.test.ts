@@ -138,7 +138,7 @@ function recognized(): BatchSuccess {
   const file = { name: 'notas-sinteticas.xlsb', size: 512 } as File;
   const sourceManifest = manifest();
   return {
-    id: 'synthetic-v6',
+    id: 'import-file:synthetic-v6' as BatchSuccess['id'],
     summary: readWorkbookData(file, new ArrayBuffer(0), sheetJs(source), sourceManifest),
     manifest: sourceManifest,
   };
