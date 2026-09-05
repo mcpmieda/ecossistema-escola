@@ -115,7 +115,7 @@ describe('staging authenticated initialization', () => {
     await expect(response.json()).resolves.toEqual({ state: 'ready', schemaVersion: 6 });
     const versions = raw
       .prepare('SELECT version, name FROM gradebook_schema_migrations ORDER BY version')
-      .all() as readonly { version: number; name: string }[];
+      .all() as unknown as readonly { version: number; name: string }[];
     expect(versions).toHaveLength(6);
     expect(versions.at(-1)).toEqual({ version: 6, name: 'import_staging_v1' });
     const tables = raw
