@@ -30,6 +30,7 @@ import {
 import { createGradebookImportPersistenceServiceV4 } from '../application/import/import-persistence-service-v2';
 import { createGradebookImportPersistenceServiceV5 } from '../application/import/import-persistence-service-v5';
 import { createGradebookImportPersistenceServiceV6 } from '../application/import/import-persistence-service-v6';
+import { createGradebookImportSharedSourceReadCacheV1 } from '../application/import/import-shared-source-read-cache-v1';
 import { createGradebookD1ImportAnnualStateSourceV1 } from '../persistence/d1/imports/d1-import-annual-state-source-v1';
 import type { D1ReadDatabaseV1 } from '../persistence/d1/read/d1-read-adapter-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
@@ -209,8 +210,11 @@ export async function handleGradebookImportPersistenceRequestV4(
     const annualStateSource = createGradebookD1ImportAnnualStateSourceV1(
       executionEnv.GRADEBOOK_D1 as D1ReadDatabaseV1,
     );
+    const unitOfWork = createGradebookImportSharedSourceReadCacheV1(
+      runtime.persistenceUnitOfWorkV2(),
+    );
     const dependencies = {
-      unitOfWork: runtime.persistenceUnitOfWorkV2(),
+      unitOfWork,
       transaction: runtime.importBootstrapTransactionV2(),
       annualStateSource,
       now: () => new Date().toISOString(),
