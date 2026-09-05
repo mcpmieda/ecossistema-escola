@@ -55,7 +55,7 @@ function association(
 }
 
 describe('adaptador D1 local de escrita V1', () => {
-  it('consome 0001–0005 com FKs ativas e grava fonte, registro e associação iniciais', async () => {
+  it('consome 0001–0006 com FKs ativas e grava fonte, registro e associação iniciais', async () => {
     expect(database.raw.prepare('PRAGMA foreign_keys').get()).toEqual({ foreign_keys: 1 });
     expect(
       database.raw
@@ -67,6 +67,7 @@ describe('adaptador D1 local de escrita V1', () => {
       { version: 3 },
       { version: 4 },
       { version: 5 },
+      { version: 6 },
     ]);
 
     const unit = createGradebookD1WriteUnitOfWorkV1(database, { now: () => instant });
