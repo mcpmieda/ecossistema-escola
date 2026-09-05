@@ -43,18 +43,41 @@ function listKey(
   return JSON.stringify([context.academicYearId, kind, page.limit, page.cursor ?? null]);
 }
 
+function sourceHashKey(context: AcademicPersistenceContextV1, sha256: string): string {
+  return JSON.stringify([context.academicYearId, sha256]);
+}
+
+function logicalSourceListKey(
+  context: Parameters<PersistenceUnitOfWorkV2['logicalSources']['listByContext']>[0],
+  sourceContext: Parameters<PersistenceUnitOfWorkV2['logicalSources']['listByContext']>[1],
+  page: Parameters<PersistenceUnitOfWorkV2['logicalSources']['listByContext']>[2],
+): string {
+  return JSON.stringify([
+    context.academicYearId,
+    sourceContext.kind,
+    sourceContext.academicYearId,
+    sourceContext.teacherId,
+    page.limit,
+    page.cursor ?? null,
+  ]);
+}
+
 /**
- * A prepare-all request plans several isolated chunks against the same official catalog snapshot.
- * Staging captures writes in memory and does not promote them before finalize, so these official
- * reads are immutable for the lifetime of one HTTP request and can be safely shared between chunks.
- * Student/enrollment lists remain chunk-specific and are deliberately never cached here.
+ * A prepare-all request plans several isolated chunks against the same official snapshot.
+ * Staging captures writes in memory and does not promote them before finalize, so immutable
+ * catalog/source reads may be shared for the lifetime of one HTTP request. Student/enrollment,
+ * academic-record and association reads remain chunk-specific and are deliberately never cached.
  */
 export function createGradebookImportStagingSharedReadCacheV1(
   base: PersistenceUnitOfWorkV2,
 ): PersistenceUnitOfWorkV2 {
   const source = base.entities;
+  const imports = base.imports;
+  const logicalSources = base.logicalSources;
   const getCache = new Map<string, ReturnType<typeof source.get>>();
   const listCache = new Map<string, ReturnType<typeof source.list>>();
+  const sourceHashCache = new Map<string, ReturnType<typeof imports.findSourceFileByHash>>();
+  const logicalSourceListCache = new Map<string, ReturnType<typeof logicalSources.listByContext>>();
 
   return {
     ...base,
@@ -75,5 +98,26 @@ export function createGradebookImportStagingSharedReadCacheV1(
           ? memoized(listCache, listKey(context, kind, page), () => source.list(context, kind, page))
           : source.list(context, kind, page),
     }),
+    imports: {
+      ...imports,
+      findSourceFileByHash: (
+        context: Parameters<typeof imports.findSourceFileByHash>[0],
+        sha256: Parameters<typeof imports.findSourceFileByHash>[1],
+      ) =>
+        memoized(sourceHashCache, sourceHashKey(context, sha256), () =>
+          imports.findSourceFileByHash(context, sha256),
+        ),
+    },
+    logicalSources: {
+      get: (context, logicalSourceId) => logicalSources.get(context, logicalSourceId),
+      listByContext: (context, sourceContext, page) =>
+        memoized(
+          logicalSourceListCache,
+          logicalSourceListKey(context, sourceContext, page),
+          () => logicalSources.listByContext(context, sourceContext, page),
+        ),
+      createInitial: (context, logicalSource) =>
+        logicalSources.createInitial(context, logicalSource),
+    },
   };
 }
