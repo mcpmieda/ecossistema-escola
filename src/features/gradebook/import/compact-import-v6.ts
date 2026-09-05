@@ -276,7 +276,7 @@ function compactCourse(
   const first = termSheets.get(1);
   if (!first) throw new TypeError('missing-trimester-sheet');
 
-  const terms = ([1, 2, 3] as const).map((term) => {
+  const compactTerm = (term: 1 | 2 | 3): GradebookImportCourseV6['terms'][number] => {
     const sheet = termSheets.get(term);
     if (!sheet) throw new TypeError('missing-trimester-sheet');
     const definitions = compactDefinitions(sheet);
@@ -289,7 +289,8 @@ function compactCourse(
         return [source.position, termCells(sheet, student, definitions, term)] as const;
       }),
     };
-  }) as GradebookImportCourseV6['terms'];
+  };
+  const terms = [compactTerm(1), compactTerm(2), compactTerm(3)] as const;
 
   const recoverySheet = sheets.find((sheet) => sheet.stage === 'recovery') ?? null;
   const byName = new Map<string, number>();
