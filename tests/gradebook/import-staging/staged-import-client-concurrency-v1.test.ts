@@ -71,8 +71,97 @@ afterEach(() => {
   vi.resetModules();
 });
 
-describe('staged import client prepare concurrency', () => {
-  it('runs at most three prepares concurrently, reports monotonic progress and finalizes once', async () => {
+describe('staged import client aggregate prepare', () => {
+  it('uses one prepare-all request for the whole file and finalizes once', async () => {
+    let prepareAllCalls = 0;
+    let legacyPrepareCalls = 0;
+    let finalizeCalls = 0;
+    const progress: number[] = [];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input), 'https://admin.escolaieda.com');
+        const action = url.searchParams.get('action');
+        if (action === 'initialize') return response({ state: 'ready', schemaVersion: 6 });
+        if (action === 'begin') {
+          return response({ state: 'ready', sessionId: 'session:prepare-all', chunkCount: 7 });
+        }
+        if (action === 'prepare-all') {
+          prepareAllCalls += 1;
+          const body = JSON.parse(String(init?.body)) as GradebookImportPersistenceRequestV6;
+          expect(body.courses).toHaveLength(7);
+          expect(url.searchParams.has('chunk')).toBe(false);
+          return response({
+            state: 'prepared-all',
+            sessionId: 'session:prepare-all',
+            preparedCount: 7,
+            expectedChunkCount: 7,
+          });
+        }
+        if (action === 'prepare') {
+          legacyPrepareCalls += 1;
+          return response({ state: 'prepared' });
+        }
+        if (action === 'finalize') {
+          finalizeCalls += 1;
+          return response({ transportVersion: 6, state: 'unavailable' });
+        }
+        throw new Error(`unexpected action: ${String(action)}`);
+      }),
+    );
+
+    const { persistCompactGradebookFileStagedV1 } = await import(
+      '../../../src/features/gradebook/import/import-staging-client-v1'
+    );
+    const result = await persistCompactGradebookFileStagedV1(request(), (value) => {
+      progress.push(value.prepared);
+    });
+
+    expect(result).toEqual({ transportVersion: 6, state: 'unavailable' });
+    expect(prepareAllCalls).toBe(1);
+    expect(legacyPrepareCalls).toBe(0);
+    expect(progress).toEqual([7]);
+    expect(finalizeCalls).toBe(1);
+  });
+
+  it('returns a rejected academic response and never finalizes', async () => {
+    let finalizeCalls = 0;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input), 'https://admin.escolaieda.com');
+        const action = url.searchParams.get('action');
+        if (action === 'initialize') return response({ state: 'ready', schemaVersion: 6 });
+        if (action === 'begin') {
+          return response({ state: 'ready', sessionId: 'session:rejected', chunkCount: 7 });
+        }
+        if (action === 'prepare-all') {
+          return response(
+            { state: 'rejected', response: { transportVersion: 6, state: 'unavailable' } },
+            422,
+          );
+        }
+        if (action === 'finalize') {
+          finalizeCalls += 1;
+          return response({ transportVersion: 6, state: 'unavailable' });
+        }
+        throw new Error(`unexpected action: ${String(action)}`);
+      }),
+    );
+
+    const { persistCompactGradebookFileStagedV1 } = await import(
+      '../../../src/features/gradebook/import/import-staging-client-v1'
+    );
+    await expect(persistCompactGradebookFileStagedV1(request())).resolves.toEqual({
+      transportVersion: 6,
+      state: 'unavailable',
+    });
+    expect(finalizeCalls).toBe(0);
+  });
+
+  it('falls back to the bounded three-way legacy prepare when prepare-all is unsupported', async () => {
     let active = 0;
     let maxActive = 0;
     let prepareCalls = 0;
@@ -86,8 +175,9 @@ describe('staged import client prepare concurrency', () => {
         const action = url.searchParams.get('action');
         if (action === 'initialize') return response({ state: 'ready', schemaVersion: 6 });
         if (action === 'begin') {
-          return response({ state: 'ready', sessionId: 'session:concurrency', chunkCount: 7 });
+          return response({ state: 'ready', sessionId: 'session:fallback', chunkCount: 7 });
         }
+        if (action === 'prepare-all') return response({ state: 'invalid-request' }, 400);
         if (action === 'prepare') {
           prepareCalls += 1;
           active += 1;
@@ -117,44 +207,5 @@ describe('staged import client prepare concurrency', () => {
     expect(maxActive).toBe(3);
     expect(progress).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(finalizeCalls).toBe(1);
-  });
-
-  it('does not finalize when any prepare in a concurrent batch fails', async () => {
-    let prepareCalls = 0;
-    let finalizeCalls = 0;
-
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async (input: RequestInfo | URL) => {
-        const url = new URL(String(input), 'https://admin.escolaieda.com');
-        const action = url.searchParams.get('action');
-        if (action === 'initialize') return response({ state: 'ready', schemaVersion: 6 });
-        if (action === 'begin') {
-          return response({ state: 'ready', sessionId: 'session:failure', chunkCount: 7 });
-        }
-        if (action === 'prepare') {
-          prepareCalls += 1;
-          const index = Number(url.searchParams.get('chunk'));
-          if (index === 1) return response({ state: 'unavailable' }, 503);
-          await new Promise((resolve) => setTimeout(resolve, 5));
-          return response({ state: 'prepared' });
-        }
-        if (action === 'finalize') {
-          finalizeCalls += 1;
-          return response({ transportVersion: 6, state: 'unavailable' });
-        }
-        throw new Error(`unexpected action: ${String(action)}`);
-      }),
-    );
-
-    const { persistCompactGradebookFileStagedV1 } = await import(
-      '../../../src/features/gradebook/import/import-staging-client-v1'
-    );
-
-    await expect(persistCompactGradebookFileStagedV1(request())).rejects.toThrow(
-      'Não foi possível preparar o fragmento 2 de 7.',
-    );
-    expect(prepareCalls).toBe(3);
-    expect(finalizeCalls).toBe(0);
   });
 });

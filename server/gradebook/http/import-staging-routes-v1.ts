@@ -11,6 +11,7 @@ import {
   HttpError,
   readBoundedJson,
 } from '../../http/security';
+import { prepareAllGradebookImportStageChunksV1 } from '../application/import/import-staging-prepare-all-v1';
 import { GradebookImportStagingServiceV1 } from '../application/import/import-staging-service-v1';
 import { inspectGradebookImportStagingBaselineV1 } from '../persistence/d1/imports/d1-import-staging-baseline-v1';
 import { GradebookD1ImportStagingRepositoryV1 } from '../persistence/d1/imports/d1-import-staging-repository-v1';
@@ -43,9 +44,13 @@ function noStore(value: unknown, status = 200): Response {
   });
 }
 
-function action(url: URL): 'initialize' | 'begin' | 'prepare' | 'finalize' | null {
+function action(url: URL): 'initialize' | 'begin' | 'prepare' | 'prepare-all' | 'finalize' | null {
   const value = url.searchParams.get('action');
-  return value === 'initialize' || value === 'begin' || value === 'prepare' || value === 'finalize'
+  return value === 'initialize' ||
+    value === 'begin' ||
+    value === 'prepare' ||
+    value === 'prepare-all' ||
+    value === 'finalize'
     ? value
     : null;
 }
@@ -54,6 +59,16 @@ function nonNegativeInteger(value: string | null): number | null {
   if (value === null || !/^\d+$/u.test(value)) return null;
   const parsed = Number.parseInt(value, 10);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function prepareStatus(state: string): number {
+  return state === 'conflict' || state === 'expired'
+    ? 409
+    : state === 'invalid-session'
+      ? 404
+      : state === 'rejected'
+        ? 422
+        : 200;
 }
 
 async function hasNonEmptyBody(request: Request): Promise<boolean> {
@@ -239,18 +254,27 @@ export async function handleGradebookImportStagingRequestV1(
     }
 
     const sessionId = url.searchParams.get('session');
+    if (!sessionId) return noStore({ state: 'invalid-request' }, 400);
+
+    if (selectedAction === 'prepare-all') {
+      const session = await repository.getSession(sessionId);
+      if (!session) return noStore({ state: 'invalid-session' }, 404);
+      if (session.state === 'preparing' && Date.parse(session.expiresAt) <= Date.now()) {
+        return noStore({ state: 'expired' }, 409);
+      }
+      const response = await prepareAllGradebookImportStageChunksV1(
+        service,
+        sessionId,
+        payload,
+        session.expectedChunkCount,
+      );
+      return noStore(response, prepareStatus(response.state));
+    }
+
     const chunkIndex = nonNegativeInteger(url.searchParams.get('chunk'));
-    if (!sessionId || chunkIndex === null) return noStore({ state: 'invalid-request' }, 400);
+    if (chunkIndex === null) return noStore({ state: 'invalid-request' }, 400);
     const response = await service.prepare(sessionId, chunkIndex, payload);
-    const status =
-      response.state === 'conflict' || response.state === 'expired'
-        ? 409
-        : response.state === 'invalid-session'
-          ? 404
-          : response.state === 'rejected'
-            ? 422
-            : 200;
-    return noStore(response, status);
+    return noStore(response, prepareStatus(response.state));
   } catch (cause) {
     return selectedAction === 'initialize'
       ? initializeFailure(cause)
