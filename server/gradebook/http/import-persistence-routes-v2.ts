@@ -33,11 +33,18 @@ import { createGradebookImportPersistenceServiceV6 } from '../application/import
 import { createGradebookD1ImportAnnualStateSourceV1 } from '../persistence/d1/imports/d1-import-annual-state-source-v1';
 import type { D1ReadDatabaseV1 } from '../persistence/d1/read/d1-read-adapter-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
+import {
+  instrumentGradebookD1ForBenchmarkV1,
+  type GradebookD1BenchmarkSnapshotV1,
+} from '../persistence/d1/runtime/d1-benchmark-instrumentation-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
+import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
 import { handleGradebookImportStagingRequestV1 } from './import-staging-routes-v1';
 
 export const GRADEBOOK_IMPORT_PERSISTENCE_ROUTE_V4 = '/api/gradebook/import-persistence';
 const GRADEBOOK_IMPORT_SERVER_MS_HEADER_V1 = 'X-Gradebook-Server-Ms';
+const GRADEBOOK_IMPORT_BENCHMARK_HEADER_V1 = 'X-Gradebook-Benchmark';
+const GRADEBOOK_IMPORT_BENCHMARK_VALUE_V1 = 'paid-direct-v1';
 
 function noStore(
   value: unknown,
@@ -74,6 +81,30 @@ function declaredVersion(payload: unknown): 4 | 5 | 6 {
     if (payload.transportVersion === GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V5) return 5;
   }
   return 4;
+}
+
+function benchmarkRequested(request: Request): boolean {
+  return request.headers.get(GRADEBOOK_IMPORT_BENCHMARK_HEADER_V1) === GRADEBOOK_IMPORT_BENCHMARK_VALUE_V1;
+}
+
+function benchmarkHeaders(
+  serviceStartedAt: number,
+  snapshot: GradebookD1BenchmarkSnapshotV1 | null,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    [GRADEBOOK_IMPORT_SERVER_MS_HEADER_V1]: String(Date.now() - serviceStartedAt),
+  };
+  if (!snapshot) return headers;
+  headers['X-Gradebook-D1-Calls'] = String(snapshot.calls);
+  headers['X-Gradebook-D1-First-Calls'] = String(snapshot.firstCalls);
+  headers['X-Gradebook-D1-All-Calls'] = String(snapshot.allCalls);
+  headers['X-Gradebook-D1-Run-Calls'] = String(snapshot.runCalls);
+  headers['X-Gradebook-D1-Batch-Calls'] = String(snapshot.batchCalls);
+  headers['X-Gradebook-D1-Exec-Calls'] = String(snapshot.execCalls);
+  headers['X-Gradebook-D1-Wall-Ms'] = String(snapshot.wallMs);
+  headers['X-Gradebook-D1-Max-Ms'] = String(snapshot.maxCallMs);
+  if (snapshot.sqlMs !== null) headers['X-Gradebook-D1-Sql-Ms'] = String(snapshot.sqlMs);
+  return headers;
 }
 
 export async function handleGradebookImportPersistenceRequestV4(
@@ -136,10 +167,17 @@ export async function handleGradebookImportPersistenceRequestV4(
   }
 
   const serviceStartedAt = Date.now();
+  const rawDatabase = env.GRADEBOOK_D1 as D1WriteDatabaseV1;
+  const benchmark = benchmarkRequested(request)
+    ? instrumentGradebookD1ForBenchmarkV1(rawDatabase)
+    : null;
+  const executionEnv = benchmark
+    ? ({ ...env, GRADEBOOK_D1: benchmark.database } as RuntimeEnv)
+    : env;
   try {
-    const runtime = createGradebookD1RuntimeV1(env, authorization);
+    const runtime = createGradebookD1RuntimeV1(executionEnv, authorization);
     const annualStateSource = createGradebookD1ImportAnnualStateSourceV1(
-      env.GRADEBOOK_D1 as D1ReadDatabaseV1,
+      executionEnv.GRADEBOOK_D1 as D1ReadDatabaseV1,
     );
     const dependencies = {
       unitOfWork: runtime.persistenceUnitOfWorkV2(),
@@ -157,9 +195,7 @@ export async function handleGradebookImportPersistenceRequestV4(
           : isGradebookImportPersistenceRequestV4(payload)
             ? await createGradebookImportPersistenceServiceV4(dependencies).execute(payload)
             : null;
-    const timingHeaders = {
-      [GRADEBOOK_IMPORT_SERVER_MS_HEADER_V1]: String(Date.now() - serviceStartedAt),
-    };
+    const timingHeaders = benchmarkHeaders(serviceStartedAt, benchmark?.snapshot() ?? null);
     if (response === null) {
       return noStore({ transportVersion: version, state: 'unavailable' }, 500, timingHeaders);
     }
@@ -177,7 +213,7 @@ export async function handleGradebookImportPersistenceRequestV4(
     return noStore(
       { transportVersion: version, state: 'unavailable' },
       503,
-      { [GRADEBOOK_IMPORT_SERVER_MS_HEADER_V1]: String(Date.now() - serviceStartedAt) },
+      benchmarkHeaders(serviceStartedAt, benchmark?.snapshot() ?? null),
     );
   }
 }
