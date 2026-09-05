@@ -5,6 +5,8 @@ import {
   enforceWriteOrigin,
   HttpError,
 } from '../../http/security';
+import { inspectGradebookImportStagingBaselineV1 } from '../persistence/d1/imports/d1-import-staging-baseline-v1';
+import type { D1ReadDatabaseV1 } from '../persistence/d1/read/d1-read-adapter-v1';
 import {
   authorizeGradebookD1RuntimeV1,
   GRADEBOOK_D1_ADMIN_CAPABILITY,
@@ -80,11 +82,19 @@ export async function handleGradebookD1AdminRequestV1(
     const runtime = createGradebookD1RuntimeV1(env, authorization, options.runtime);
     if (pathname === GRADEBOOK_D1_STATUS_ROUTE) {
       const schema = await runtime.inspectSchema();
+      const pilotAudit =
+        schema.status === 'ready' &&
+        schema.currentVersion === 6 &&
+        schema.latestVersion === 6 &&
+        schema.pendingCount === 0
+          ? await inspectGradebookImportStagingBaselineV1(env.GRADEBOOK_D1 as D1ReadDatabaseV1)
+          : null;
       return noStoreJson({
         version: '1.0',
         capability: GRADEBOOK_D1_ADMIN_CAPABILITY,
         environment: runtime.environment,
         schema,
+        ...(pilotAudit ? { pilotAudit } : {}),
       });
     }
 
