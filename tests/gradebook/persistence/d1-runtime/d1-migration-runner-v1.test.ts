@@ -15,6 +15,7 @@ import type {
   D1WriteDatabaseV1,
   D1WriteRunResultV1,
   D1WriteStatementV1,
+  D1WriteValueV1,
 } from '../../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import { SqliteD1Database } from '../d1-transaction/d1-write-test-support';
 
@@ -122,12 +123,34 @@ describe('runner autorizado de migrations D1 V1', () => {
       for (const migration of sql.slice(0, 5)) raw.exec(migration);
       const prepared: string[] = [];
       let batchCalls = 0;
+
+      // The real D1 binding's prepare() returns a statement handle without compiling DDL against
+      // the current schema. Node SQLite prepares eagerly, so model D1 laziness for migration
+      // statements and compile them only when batch() executes them in sequence.
+      const lazyMigrationStatement = (query: string): D1WriteStatementV1 => ({
+        bind(..._values: D1WriteValueV1[]): D1WriteStatementV1 {
+          return lazyMigrationStatement(query);
+        },
+        async first<Row extends Record<string, unknown>>(): Promise<Row | null> {
+          throw new Error('Migration statements do not support reads.');
+        },
+        async all<Row extends Record<string, unknown>>(): Promise<{
+          readonly results: readonly Row[];
+        }> {
+          throw new Error('Migration statements do not support reads.');
+        },
+        async run(): Promise<D1WriteRunResultV1> {
+          return database.prepare(query).run();
+        },
+      });
+
       const d1BatchDatabase = {
         prepare(query: string) {
+          if (/^\s*SELECT\b/iu.test(query)) return database.prepare(query);
           expect(query).not.toMatch(/\r|\n/u);
           expect(query).not.toMatch(/^PRAGMA\s+foreign_keys/iu);
           prepared.push(query);
-          return database.prepare(query);
+          return lazyMigrationStatement(query);
         },
         exec(): never {
           throw new Error('raw exec must not be used when batch is available');
