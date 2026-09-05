@@ -1,8 +1,4 @@
 import type {
-  EnrollmentV1,
-  StudentV1,
-} from '../../../../../shared/gradebook-contracts/entities';
-import type {
   AcademicEntityRecordV1,
   AcademicPersistenceContextV1,
   VersionedRecordV1,
