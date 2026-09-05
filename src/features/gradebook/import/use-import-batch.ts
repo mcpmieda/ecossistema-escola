@@ -48,6 +48,18 @@ function failureMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error ? cause.message : fallback;
 }
 
+function nowMs(): number {
+  return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
+}
+
+function elapsedMs(startedAt: number): number {
+  return Math.round((nowMs() - startedAt) * 10) / 10;
+}
+
+function diagnosticLine(prefix: string, value: unknown): string {
+  return `${prefix} ${JSON.stringify(value)}`;
+}
+
 export function useImportBatch() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +68,13 @@ export function useImportBatch() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [progress, setProgress] = useState<ImportFlowProgressV6 | null>(null);
   const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV6>>({});
+  const [timingDiagnostics, setTimingDiagnostics] = useState<string[]>([]);
+
+  function appendTiming(prefix: string, value: unknown): void {
+    const serialized = JSON.stringify(value);
+    console.info(prefix, serialized);
+    setTimingDiagnostics((current) => [...current.slice(-49), diagnosticLine(prefix, value)]);
+  }
 
   const selectedResult = useMemo(
     () => results.find((result) => result.id === selectedId) ?? results[0] ?? null,
@@ -96,6 +115,7 @@ export function useImportBatch() {
         const teacherName = result.summary.teacherName?.trim();
         if (!teacherName) throw new Error('Professor não reconhecido em CONFIGURAÇÃO!A2.');
 
+        const compactStartedAt = nowMs();
         const request = createCompactGradebookImportPersistenceRequestV6(
           result,
           { academicYearId: year.id as AcademicYearId, teacherName },
@@ -109,6 +129,13 @@ export function useImportBatch() {
               }),
           },
         );
+        appendTiming('[gradebook-import-browser-timing]', {
+          version: 1,
+          stage: 'compact-file',
+          totalMs: elapsedMs(compactStartedAt),
+          courseCount: request.courses.length,
+          rosterCount: request.rosters.length,
+        });
         if (!isGradebookImportPersistenceRequestV6(request)) {
           throw new Error('Pacote acadêmico compacto não passou na validação local.');
         }
@@ -119,14 +146,18 @@ export function useImportBatch() {
           fileName: result.manifest.fileName,
           stage: 'saving',
         });
-        const response = await persistCompactGradebookFileStagedV1(request, ({ prepared, total }) => {
-          setProgress({
-            current: prepared,
-            total,
-            fileName: result.manifest.fileName,
-            stage: 'saving',
-          });
-        });
+        const response = await persistCompactGradebookFileStagedV1(
+          request,
+          ({ prepared, total }) => {
+            setProgress({
+              current: prepared,
+              total,
+              fileName: result.manifest.fileName,
+              stage: 'saving',
+            });
+          },
+          (timing) => appendTiming('[gradebook-import-client-timing]', timing),
+        );
         setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
         setProgress({
           current: index + 1,
@@ -165,11 +196,21 @@ export function useImportBatch() {
     setFailures([]);
     setSelectedId(null);
     setPersistence({});
+    setTimingDiagnostics([]);
 
     try {
+      const recognitionStartedAt = nowMs();
       const xlsx = await loadSheetJs();
       const batch = await importWorkbookBatch(files, xlsx, () => undefined, {
         onStageProgress: (value) => setProgress(value),
+      });
+      appendTiming('[gradebook-import-browser-timing]', {
+        version: 1,
+        stage: 'recognition-batch',
+        totalMs: elapsedMs(recognitionStartedAt),
+        fileCount: files.length,
+        recognizedCount: batch.successes.length,
+        failureCount: batch.failureDetails.length,
       });
       setResults(batch.successes);
       setPersistence(
@@ -215,6 +256,7 @@ export function useImportBatch() {
     selectedId,
     selectedResult,
     setSelectedId,
+    timingDiagnostics,
     totals,
   };
 }

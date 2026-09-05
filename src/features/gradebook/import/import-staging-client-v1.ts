@@ -11,11 +11,32 @@ const ENDPOINT = '/api/gradebook/import-staging';
 const MAX_POSITIONS = 40;
 const PREPARE_CONCURRENCY = 3;
 const TIMEOUT_MS = 30_000;
+const PREPARE_ALL_TIMEOUT_MS = 120_000;
 let initializationPromise: Promise<void> | null = null;
 
 export interface GradebookImportStageProgressV1 {
   readonly prepared: number;
   readonly total: number;
+}
+
+export interface GradebookImportStageTimingV1 {
+  readonly version: 1;
+  readonly mode: 'prepare-all' | 'legacy';
+  readonly chunkCount: number;
+  readonly initializeMs: number;
+  readonly beginMs: number;
+  readonly prepareMs: number;
+  readonly prepareAttempts: number;
+  readonly finalizeMs: number;
+  readonly totalMs: number;
+}
+
+function nowMs(): number {
+  return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
+}
+
+function elapsedMs(startedAt: number): number {
+  return Math.round((nowMs() - startedAt) * 10) / 10;
 }
 
 function classKey(value: string): string {
@@ -87,11 +108,12 @@ export function splitCompactGradebookImportV6(
 async function fetchJson(
   url: string,
   body?: GradebookImportPersistenceRequestV6,
-): Promise<{ readonly response: Response; readonly payload: unknown }> {
+  timeoutMs = TIMEOUT_MS,
+): Promise<{ readonly response: Response; readonly payload: unknown; readonly attempts: number }> {
   let lastFailure: unknown = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const controller = new AbortController();
-    const timeout = globalThis.setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -102,7 +124,7 @@ async function fetchJson(
         signal: controller.signal,
       });
       const payload: unknown = await response.json().catch(() => null);
-      if (payload !== null) return { response, payload };
+      if (payload !== null) return { response, payload, attempts: attempt + 1 };
       lastFailure = new Error(`Resposta de staging incompatível (HTTP ${response.status}; non-json).`);
       if (response.status < 500 || attempt === 1) throw lastFailure;
     } catch (cause) {
@@ -231,8 +253,9 @@ async function prepareChunksLegacy(
   sessionId: string,
   chunks: readonly GradebookImportPersistenceRequestV6[],
   onProgress?: (progress: GradebookImportStageProgressV1) => void,
-): Promise<GradebookImportPersistenceResponseV6 | null> {
+): Promise<{ readonly response: GradebookImportPersistenceResponseV6 | null; readonly attempts: number }> {
   let preparedCount = 0;
+  let attempts = 0;
   for (let offset = 0; offset < chunks.length; offset += PREPARE_CONCURRENCY) {
     const batch = chunks.slice(offset, offset + PREPARE_CONCURRENCY);
     const results = await Promise.allSettled(
@@ -242,6 +265,7 @@ async function prepareChunksLegacy(
           `${ENDPOINT}?action=prepare&session=${encodeURIComponent(sessionId)}&chunk=${index}`,
           chunk,
         );
+        attempts += prepared.attempts;
         if (
           !prepared.response.ok ||
           !record(prepared.payload) ||
@@ -259,19 +283,34 @@ async function prepareChunksLegacy(
 
     for (const result of results) {
       if (result.status === 'rejected') throw result.reason;
-      if (result.value !== null) return result.value;
+      if (result.value !== null) return { response: result.value, attempts };
     }
   }
-  return null;
+  return { response: null, attempts };
+}
+
+function emitTiming(
+  timing: GradebookImportStageTimingV1,
+  onTiming?: (timing: GradebookImportStageTimingV1) => void,
+): void {
+  console.info('[gradebook-import-client-timing]', JSON.stringify(timing));
+  onTiming?.(timing);
 }
 
 export async function persistCompactGradebookFileStagedV1(
   request: GradebookImportPersistenceRequestV6,
   onProgress?: (progress: GradebookImportStageProgressV1) => void,
+  onTiming?: (timing: GradebookImportStageTimingV1) => void,
 ): Promise<GradebookImportPersistenceResponseV6> {
+  const totalStartedAt = nowMs();
+  const initializeStartedAt = nowMs();
   await initializeStaging();
+  const initializeMs = elapsedMs(initializeStartedAt);
   const chunks = splitCompactGradebookImportV6(request);
+
+  const beginStartedAt = nowMs();
   const begin = await fetchJson(`${ENDPOINT}?action=begin`, request);
+  const beginMs = elapsedMs(beginStartedAt);
   if (
     !begin.response.ok ||
     !record(begin.payload) ||
@@ -283,10 +322,15 @@ export async function persistCompactGradebookFileStagedV1(
   }
   const sessionId = begin.payload.sessionId;
 
+  let mode: GradebookImportStageTimingV1['mode'] = 'prepare-all';
+  let prepareAttempts = 0;
+  const prepareStartedAt = nowMs();
   const preparedAll = await fetchJson(
     `${ENDPOINT}?action=prepare-all&session=${encodeURIComponent(sessionId)}`,
     request,
+    PREPARE_ALL_TIMEOUT_MS,
   );
+  prepareAttempts += preparedAll.attempts;
   const aggregateReady =
     preparedAll.response.ok &&
     record(preparedAll.payload) &&
@@ -306,17 +350,37 @@ export async function persistCompactGradebookFileStagedV1(
     if (!compatibilityFallback) {
       throw new Error('Não foi possível preparar o arquivo inteiro no staging.');
     }
-    const legacyResponse = await prepareChunksLegacy(sessionId, chunks, onProgress);
-    if (legacyResponse) return legacyResponse;
+    mode = 'legacy';
+    const legacy = await prepareChunksLegacy(sessionId, chunks, onProgress);
+    prepareAttempts += legacy.attempts;
+    if (legacy.response) return legacy.response;
   }
+  const prepareMs = elapsedMs(prepareStartedAt);
 
+  const finalizeStartedAt = nowMs();
   const finalized = await fetchJson(
     `${ENDPOINT}?action=finalize&session=${encodeURIComponent(sessionId)}`,
   );
+  const finalizeMs = elapsedMs(finalizeStartedAt);
   if (!isGradebookImportPersistenceResponseV6(finalized.payload)) {
     throw new Error(
       `Resposta final de persistência incompatível (HTTP ${finalized.response.status}).`,
     );
   }
+
+  emitTiming(
+    {
+      version: 1,
+      mode,
+      chunkCount: chunks.length,
+      initializeMs,
+      beginMs,
+      prepareMs,
+      prepareAttempts,
+      finalizeMs,
+      totalMs: elapsedMs(totalStartedAt),
+    },
+    onTiming,
+  );
   return finalized.payload;
 }
