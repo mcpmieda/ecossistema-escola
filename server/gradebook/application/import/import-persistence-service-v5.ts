@@ -1,3 +1,8 @@
+import type {
+  AcademicYearId,
+  ClassGroupId,
+  TeachingAssignmentV1,
+} from '../../../../shared/gradebook-contracts/entities';
 import type { GradebookImportPersistenceSummaryV2 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v2';
 import {
   asGradebookImportPersistenceResponseV5,
@@ -5,9 +10,11 @@ import {
   type GradebookImportPersistenceRequestV5,
   type GradebookImportPersistenceResponseV5,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
+import type { AnnualResultV1 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
 import type {
   AcademicEntityRecordV1,
   AcademicEntityReferenceV1,
+  AcademicEntityRepositoryV1,
   AcademicPersistenceContextV1,
   VersionedRecordV1,
 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
@@ -54,40 +61,102 @@ function review(): GradebookImportPersistenceResponseV5 {
   };
 }
 
-function annualStateWithPlannedAssignments(
-  base: GradebookImportAnnualStateSourceV1,
-  planned: Awaited<ReturnType<typeof planAcademicCatalogBootstrapV1>>,
-): GradebookImportAnnualStateSourceV1 {
-  const assignments = planned.status === 'ready' ? planned.plannedAssignments : [];
+function captureCatalogAssignmentsV1(base: AcademicEntityRepositoryV1): {
+  readonly repository: AcademicEntityRepositoryV1;
+  readonly assignments: () => readonly TeachingAssignmentV1[];
+} {
+  const assignments = new Map<string, TeachingAssignmentV1>();
+  const capture = (entry: VersionedRecordV1<AcademicEntityRecordV1> | null): void => {
+    if (entry?.value.kind === 'teaching-assignment') {
+      assignments.set(entry.value.value.id, entry.value.value);
+    }
+  };
   return {
-    async listAssignments(input) {
-      if (input.cursor !== null) return base.listAssignments(input);
-      const existing = [];
-      let cursor: string | null = null;
-      const seen = new Set<string>();
-      for (let pageNumber = 0; pageNumber < 10; pageNumber += 1) {
-        const page = await base.listAssignments({ ...input, cursor });
-        existing.push(...page.items);
-        if (page.nextCursor === null) break;
-        if (seen.has(page.nextCursor)) throw new Error('annual-curriculum-cursor-cycle');
-        seen.add(page.nextCursor);
-        cursor = page.nextCursor;
-        if (pageNumber === 9) throw new Error('annual-curriculum-too-large');
-      }
-      const merged = new Map(existing.map((assignment) => [assignment.id, assignment]));
-      for (const assignment of assignments) {
-        if (
-          assignment.academicYearId === input.academicYearId &&
-          assignment.classGroupId === input.classGroupId
-        ) {
-          merged.set(assignment.id, assignment);
+    repository: {
+      async get(context, reference) {
+        const entry = await base.get(context, reference);
+        capture(entry as VersionedRecordV1<AcademicEntityRecordV1> | null);
+        return entry;
+      },
+      async list(context, kind, page) {
+        const result = await base.list(context, kind, page);
+        for (const entry of result.items) {
+          capture(entry as VersionedRecordV1<AcademicEntityRecordV1>);
         }
-      }
-      const items = [...merged.values()].sort((left, right) => left.id.localeCompare(right.id));
-      if (items.length > input.limit) throw new Error('annual-curriculum-too-large');
-      return { items, nextCursor: null };
+        return result;
+      },
+      appendVersion: (context, record, expectation) =>
+        base.appendVersion(context, record, expectation),
     },
-    loadCurrentAnnualResultsForClass: (input) => base.loadCurrentAnnualResultsForClass(input),
+    assignments: () => [...assignments.values()],
+  };
+}
+
+function mergedAssignmentsV1(
+  loaded: readonly TeachingAssignmentV1[],
+  planned: Awaited<ReturnType<typeof planAcademicCatalogBootstrapV1>>,
+): readonly TeachingAssignmentV1[] {
+  const merged = new Map(loaded.map((assignment) => [assignment.id, assignment]));
+  if (planned.status === 'ready') {
+    for (const assignment of planned.plannedAssignments) merged.set(assignment.id, assignment);
+  }
+  return [...merged.values()];
+}
+
+export async function createGradebookImportAnnualStateCacheV1(input: {
+  readonly base: GradebookImportAnnualStateSourceV1;
+  readonly academicYearId: AcademicYearId;
+  readonly assignments: readonly TeachingAssignmentV1[];
+  readonly classGroupIds: readonly ClassGroupId[];
+}): Promise<GradebookImportAnnualStateSourceV1> {
+  const assignments = new Map(input.assignments.map((assignment) => [assignment.id, assignment]));
+  const classGroupIds = [...new Set(input.classGroupIds)];
+  const relevantClassGroupIds = new Set<string>(classGroupIds);
+  const annualByClass =
+    input.base.loadCurrentAnnualResultsForClasses && classGroupIds.length > 0
+      ? await input.base.loadCurrentAnnualResultsForClasses({
+          academicYearId: input.academicYearId,
+          classGroupIds,
+        })
+      : null;
+
+  return {
+    async listAssignments(page) {
+      if (page.academicYearId !== input.academicYearId) {
+        return input.base.listAssignments(page);
+      }
+      const matching = [...assignments.values()]
+        .filter(
+          (assignment) =>
+            assignment.academicYearId === page.academicYearId &&
+            assignment.classGroupId === page.classGroupId &&
+            (page.cursor === null || assignment.id > page.cursor),
+        )
+        .sort((left, right) => left.id.localeCompare(right.id));
+      const items = matching.slice(0, page.limit);
+      const nextCursor =
+        matching.length > page.limit ? (items.at(-1)?.id ?? null) : null;
+      return { items, nextCursor };
+    },
+    async loadCurrentAnnualResultsForClass(request) {
+      if (
+        annualByClass &&
+        request.academicYearId === input.academicYearId &&
+        relevantClassGroupIds.has(request.classGroupId)
+      ) {
+        return annualByClass.get(request.classGroupId) ?? [];
+      }
+      return input.base.loadCurrentAnnualResultsForClass(request);
+    },
+    ...(input.base.loadCurrentAnnualResultsForClasses
+      ? {
+          loadCurrentAnnualResultsForClasses: (request: {
+            readonly academicYearId: AcademicYearId;
+            readonly classGroupIds: readonly ClassGroupId[];
+          }): Promise<ReadonlyMap<ClassGroupId, readonly AnnualResultV1[]>> =>
+            input.base.loadCurrentAnnualResultsForClasses!(request),
+        }
+      : {}),
   };
 }
 
@@ -123,11 +192,32 @@ export function createGradebookImportPersistenceServiceV5(
       request: GradebookImportPersistenceRequestV5,
     ): Promise<GradebookImportPersistenceResponseV5> {
       try {
+        const capture = captureCatalogAssignmentsV1(dependencies.unitOfWork.entities);
         const catalog = await planAcademicCatalogBootstrapV1({
           request,
-          unitOfWork: dependencies.unitOfWork,
+          unitOfWork: { entities: capture.repository },
         });
         if (catalog.status !== 'ready') return review();
+        const allAssignments = mergedAssignmentsV1(capture.assignments(), catalog);
+        const assignmentsById = new Map(
+          allAssignments.map((assignment) => [assignment.id, assignment]),
+        );
+        const classGroupIds: ClassGroupId[] = [];
+        const seenClassGroupIds = new Set<string>();
+        for (const sheet of catalog.request.sheets) {
+          const assignment = assignmentsById.get(sheet.teachingAssignmentId);
+          if (!assignment) throw new Error('annual-assignment-cache-missing');
+          if (!seenClassGroupIds.has(assignment.classGroupId)) {
+            seenClassGroupIds.add(assignment.classGroupId);
+            classGroupIds.push(assignment.classGroupId);
+          }
+        }
+        const annualStateSource = await createGradebookImportAnnualStateCacheV1({
+          base: dependencies.annualStateSource,
+          academicYearId: catalog.request.confirmedContext.academicYearId,
+          assignments: allAssignments,
+          classGroupIds,
+        });
         const additionalRecords = options.additionalCatalogRecords
           ? await options.additionalCatalogRecords({ request, catalog })
           : [];
@@ -176,10 +266,7 @@ export function createGradebookImportPersistenceServiceV5(
             ...dependencies,
             unitOfWork: planningUnitOfWork,
             transaction,
-            annualStateSource: annualStateWithPlannedAssignments(
-              dependencies.annualStateSource,
-              catalog,
-            ),
+            annualStateSource,
           },
           { materializeAssessmentDefinitions: materializeAssessmentDefinitionsV4 },
         );
