@@ -29,8 +29,6 @@ export interface GradebookImportStageTimingV1 {
   readonly prepareAttempts: number;
   readonly finalizeMs: number;
   readonly totalMs: number;
-  readonly serverPrepareMs: number | null;
-  readonly serverChunks: readonly { readonly index: number; readonly ms: number }[];
 }
 
 function nowMs(): number {
@@ -251,33 +249,6 @@ function rejectedResponse(payload: unknown): GradebookImportPersistenceResponseV
   return isGradebookImportPersistenceResponseV6(payload.response) ? payload.response : null;
 }
 
-function serverPrepareTiming(payload: unknown): {
-  readonly totalMs: number;
-  readonly chunks: readonly { readonly index: number; readonly ms: number }[];
-} | null {
-  if (!record(payload) || !record(payload.timing)) return null;
-  const timing = payload.timing;
-  if (typeof timing.totalMs !== 'number' || !Number.isFinite(timing.totalMs) || !Array.isArray(timing.chunks)) {
-    return null;
-  }
-  const chunks: { index: number; ms: number }[] = [];
-  for (const value of timing.chunks) {
-    if (
-      !record(value) ||
-      typeof value.index !== 'number' ||
-      !Number.isInteger(value.index) ||
-      value.index < 0 ||
-      typeof value.ms !== 'number' ||
-      !Number.isFinite(value.ms) ||
-      value.ms < 0
-    ) {
-      return null;
-    }
-    chunks.push({ index: value.index, ms: value.ms });
-  }
-  return { totalMs: timing.totalMs, chunks };
-}
-
 async function prepareChunksLegacy(
   sessionId: string,
   chunks: readonly GradebookImportPersistenceRequestV6[],
@@ -318,18 +289,18 @@ async function prepareChunksLegacy(
   return { response: null, attempts };
 }
 
-function emitTiming(timing: GradebookImportStageTimingV1): void {
+function emitTiming(
+  timing: GradebookImportStageTimingV1,
+  onTiming?: (timing: GradebookImportStageTimingV1) => void,
+): void {
   console.info('[gradebook-import-client-timing]', JSON.stringify(timing));
-  try {
-    globalThis.sessionStorage?.setItem('gradebook-import-last-timing', JSON.stringify(timing));
-  } catch {
-    // Diagnostics must never block the import flow.
-  }
+  onTiming?.(timing);
 }
 
 export async function persistCompactGradebookFileStagedV1(
   request: GradebookImportPersistenceRequestV6,
   onProgress?: (progress: GradebookImportStageProgressV1) => void,
+  onTiming?: (timing: GradebookImportStageTimingV1) => void,
 ): Promise<GradebookImportPersistenceResponseV6> {
   const totalStartedAt = nowMs();
   const initializeStartedAt = nowMs();
@@ -353,8 +324,6 @@ export async function persistCompactGradebookFileStagedV1(
 
   let mode: GradebookImportStageTimingV1['mode'] = 'prepare-all';
   let prepareAttempts = 0;
-  let serverPrepareMs: number | null = null;
-  let serverChunks: readonly { readonly index: number; readonly ms: number }[] = [];
   const prepareStartedAt = nowMs();
   const preparedAll = await fetchJson(
     `${ENDPOINT}?action=prepare-all&session=${encodeURIComponent(sessionId)}`,
@@ -370,9 +339,6 @@ export async function persistCompactGradebookFileStagedV1(
     preparedAll.payload.expectedChunkCount === chunks.length;
 
   if (aggregateReady) {
-    const serverTiming = serverPrepareTiming(preparedAll.payload);
-    serverPrepareMs = serverTiming?.totalMs ?? null;
-    serverChunks = serverTiming?.chunks ?? [];
     onProgress?.({ prepared: chunks.length, total: chunks.length });
   } else {
     const rejected = rejectedResponse(preparedAll.payload);
@@ -402,18 +368,19 @@ export async function persistCompactGradebookFileStagedV1(
     );
   }
 
-  emitTiming({
-    version: 1,
-    mode,
-    chunkCount: chunks.length,
-    initializeMs,
-    beginMs,
-    prepareMs,
-    prepareAttempts,
-    finalizeMs,
-    totalMs: elapsedMs(totalStartedAt),
-    serverPrepareMs,
-    serverChunks,
-  });
+  emitTiming(
+    {
+      version: 1,
+      mode,
+      chunkCount: chunks.length,
+      initializeMs,
+      beginMs,
+      prepareMs,
+      prepareAttempts,
+      finalizeMs,
+      totalMs: elapsedMs(totalStartedAt),
+    },
+    onTiming,
+  );
   return finalized.payload;
 }
