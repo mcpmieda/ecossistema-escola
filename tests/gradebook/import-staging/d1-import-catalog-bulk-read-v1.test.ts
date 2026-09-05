@@ -108,6 +108,80 @@ beforeEach(async () => {
 afterEach(() => database.raw.close());
 
 describe('D1 import catalog bounded roster lookup', () => {
+  it('loads the import catalog snapshot with one D1 query', async () => {
+    let prepareCalls = 0;
+    const reader = createGradebookD1ImportCatalogBulkReadV1({
+      prepare(query: string) {
+        prepareCalls += 1;
+        return database.prepare(query);
+      },
+    });
+
+    const snapshot = await reader.getImportCatalogSnapshot({ academicYearId });
+
+    expect(prepareCalls).toBe(1);
+    expect(snapshot).not.toBeNull();
+    expect(snapshot).toHaveLength(5);
+    expect(
+      snapshot?.reduce<Record<string, number>>((counts, entry) => {
+        counts[entry.value.kind] = (counts[entry.value.kind] ?? 0) + 1;
+        return counts;
+      }, {}),
+    ).toEqual({ 'class-group': 1, enrollment: 2, student: 2 });
+  });
+
+  it('keeps the historical 1000-record bound per catalog kind', async () => {
+    const rows = Array.from({ length: 1_001 }, (_, index) => {
+      const id = `teacher:bounded:${index + 1}`;
+      const displayName = `Docente Sintético ${index + 1}`;
+      return {
+        academic_year_id: academicYearId,
+        entity_kind: 'teacher',
+        entity_id: id,
+        current_version: 1,
+        persisted_version: 1,
+        teacher_ref_kind: null,
+        teacher_id: null,
+        class_group_ref_kind: null,
+        class_group_id: null,
+        subject_ref_kind: null,
+        subject_id: null,
+        student_ref_kind: null,
+        student_id: null,
+        enrollment_ref_kind: null,
+        enrollment_id: null,
+        teaching_assignment_ref_kind: null,
+        teaching_assignment_id: null,
+        term: null,
+        display_code: displayName,
+        lifecycle_state: 'active',
+        payload_json: JSON.stringify({
+          kind: 'teacher',
+          value: { id, displayName, sourceNames: [displayName], status: 'active' },
+        }),
+        recorded_at: instant,
+      };
+    });
+    const statement = {
+      bind() {
+        return statement;
+      },
+      async first() {
+        return null;
+      },
+      async all() {
+        return { results: rows };
+      },
+    };
+    const reader = createGradebookD1ImportCatalogBulkReadV1({
+      prepare() {
+        return statement;
+      },
+    });
+
+    await expect(reader.getImportCatalogSnapshot({ academicYearId })).resolves.toBeNull();
+  });
+
   it('returns requested positions with one D1 query and preserves missing positions', async () => {
     let prepareCalls = 0;
     const reader = createGradebookD1ImportCatalogBulkReadV1({
