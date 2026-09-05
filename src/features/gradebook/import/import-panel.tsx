@@ -22,7 +22,7 @@ function FileHash({ sha256 }: { sha256: string }) {
 }
 
 const PROGRESS_STAGE = {
-  preparing: ['Lendo arquivo', 10],
+  preparing: ['Preparando e calculando SHA-256', 10],
   recognizing: ['Reconhecendo estrutura', 20],
   roster: ['Organizando alunos', 35],
   grades: ['Processando notas', 65],
