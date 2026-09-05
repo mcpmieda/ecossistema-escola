@@ -48,6 +48,28 @@ function failureMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error ? cause.message : fallback;
 }
 
+function nowMs(): number {
+  return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
+}
+
+function elapsedMs(startedAt: number): number {
+  return Math.round((nowMs() - startedAt) * 10) / 10;
+}
+
+function emitBrowserTiming(value: Record<string, number | string>): void {
+  const entry = { version: 1, ...value };
+  console.info('[gradebook-import-browser-timing]', JSON.stringify(entry));
+  try {
+    const raw = globalThis.sessionStorage?.getItem('gradebook-import-browser-timings');
+    const current: unknown = raw ? JSON.parse(raw) : [];
+    const entries = Array.isArray(current) ? current.slice(-18) : [];
+    entries.push(entry);
+    globalThis.sessionStorage?.setItem('gradebook-import-browser-timings', JSON.stringify(entries));
+  } catch {
+    // Diagnostics must never block the import flow.
+  }
+}
+
 export function useImportBatch() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +118,7 @@ export function useImportBatch() {
         const teacherName = result.summary.teacherName?.trim();
         if (!teacherName) throw new Error('Professor não reconhecido em CONFIGURAÇÃO!A2.');
 
+        const compactStartedAt = nowMs();
         const request = createCompactGradebookImportPersistenceRequestV6(
           result,
           { academicYearId: year.id as AcademicYearId, teacherName },
@@ -109,6 +132,12 @@ export function useImportBatch() {
               }),
           },
         );
+        emitBrowserTiming({
+          stage: 'compact-file',
+          totalMs: elapsedMs(compactStartedAt),
+          courseCount: request.courses.length,
+          rosterCount: request.rosters.length,
+        });
         if (!isGradebookImportPersistenceRequestV6(request)) {
           throw new Error('Pacote acadêmico compacto não passou na validação local.');
         }
@@ -167,9 +196,17 @@ export function useImportBatch() {
     setPersistence({});
 
     try {
+      const recognitionStartedAt = nowMs();
       const xlsx = await loadSheetJs();
       const batch = await importWorkbookBatch(files, xlsx, () => undefined, {
         onStageProgress: (value) => setProgress(value),
+      });
+      emitBrowserTiming({
+        stage: 'recognition-batch',
+        totalMs: elapsedMs(recognitionStartedAt),
+        fileCount: files.length,
+        recognizedCount: batch.successes.length,
+        failureCount: batch.failureDetails.length,
       });
       setResults(batch.successes);
       setPersistence(
