@@ -17,6 +17,19 @@ type StudentRecord = VersionedRecordV1<
   Extract<AcademicEntityRecordV1, { readonly kind: 'student' }>
 >;
 
+const IMPORT_CATALOG_KINDS = [
+  'teacher',
+  'class-group',
+  'subject',
+  'teaching-assignment',
+  'student',
+  'enrollment',
+] as const;
+type ImportCatalogKind = (typeof IMPORT_CATALOG_KINDS)[number];
+const IMPORT_CATALOG_MAXIMUM_PER_KIND = 1_000;
+const IMPORT_CATALOG_MAXIMUM_TOTAL =
+  IMPORT_CATALOG_KINDS.length * IMPORT_CATALOG_MAXIMUM_PER_KIND;
+
 export interface GradebookImportRosterLookupV1 {
   readonly classGroupId: string;
   readonly sourcePosition: number;
@@ -36,6 +49,9 @@ export interface GradebookD1ImportCatalogBulkReadV1 {
     context: AcademicPersistenceContextV1,
     requested: readonly GradebookImportRosterLookupV1[],
   ): Promise<readonly GradebookImportRosterMatchV1[]>;
+  getImportCatalogSnapshot(
+    context: AcademicPersistenceContextV1,
+  ): Promise<readonly VersionedRecordV1<AcademicEntityRecordV1>[] | null>;
 }
 
 function fail(
@@ -56,6 +72,14 @@ function positive(value: unknown): number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0
     ? value
     : fail('incompatible-row');
+}
+
+function nonNegative(value: unknown): boolean {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
+}
+
+function optionalString(value: unknown): boolean {
+  return value === undefined || typeof value === 'string';
 }
 
 function index(value: unknown, maximum: number): number {
@@ -86,6 +110,164 @@ function effectivePeriod(value: unknown): boolean {
     (value.startsOn === undefined || typeof value.startsOn === 'string') &&
     (value.endsOn === undefined || typeof value.endsOn === 'string')
   );
+}
+
+function importCatalogKind(value: unknown): value is ImportCatalogKind {
+  return IMPORT_CATALOG_KINDS.some((kind) => kind === value);
+}
+
+function catalogRecordShape(
+  kind: ImportCatalogKind,
+  value: Record<string, unknown>,
+  context: AcademicPersistenceContextV1,
+): boolean {
+  if (typeof value.id !== 'string' || value.id.length === 0) return false;
+  switch (kind) {
+    case 'teacher':
+      return (
+        typeof value.displayName === 'string' &&
+        strings(value.sourceNames) &&
+        (value.status === 'active' || value.status === 'inactive')
+      );
+    case 'class-group':
+      return (
+        value.academicYearId === context.academicYearId &&
+        typeof value.code === 'string' &&
+        typeof value.grade === 'string' &&
+        typeof value.section === 'string' &&
+        optionalString(value.shift)
+      );
+    case 'subject':
+      return (
+        typeof value.code === 'string' &&
+        typeof value.displayName === 'string' &&
+        typeof value.shortName === 'string' &&
+        (value.status === 'active' || value.status === 'inactive')
+      );
+    case 'teaching-assignment':
+      return (
+        value.academicYearId === context.academicYearId &&
+        typeof value.teacherId === 'string' &&
+        value.teacherId.length > 0 &&
+        typeof value.classGroupId === 'string' &&
+        value.classGroupId.length > 0 &&
+        typeof value.subjectId === 'string' &&
+        value.subjectId.length > 0 &&
+        optionalString(value.sourceDisciplineIndex) &&
+        effectivePeriod(value.effectivePeriod) &&
+        (value.confirmationOrigin === 'imported-source' ||
+          value.confirmationOrigin === 'user-confirmed' ||
+          value.confirmationOrigin === 'administrative')
+      );
+    case 'student':
+      return (
+        typeof value.displayName === 'string' &&
+        strings(value.sourceNames) &&
+        (value.sourceIdentityMarks === undefined || strings(value.sourceIdentityMarks))
+      );
+    case 'enrollment':
+      return (
+        value.academicYearId === context.academicYearId &&
+        typeof value.studentId === 'string' &&
+        value.studentId.length > 0 &&
+        typeof value.classGroupId === 'string' &&
+        value.classGroupId.length > 0 &&
+        effectivePeriod(value.effectivePeriod) &&
+        (value.position === 'current' || value.position === 'historical') &&
+        (value.sourcePosition === undefined || nonNegative(value.sourcePosition))
+      );
+  }
+}
+
+function normalizedCatalogColumns(
+  kind: ImportCatalogKind,
+  value: Record<string, unknown>,
+): Record<string, unknown> {
+  const empty = {
+    teacher_ref_kind: null,
+    teacher_id: null,
+    class_group_ref_kind: null,
+    class_group_id: null,
+    subject_ref_kind: null,
+    subject_id: null,
+    student_ref_kind: null,
+    student_id: null,
+    enrollment_ref_kind: null,
+    enrollment_id: null,
+    teaching_assignment_ref_kind: null,
+    teaching_assignment_id: null,
+    term: null,
+  };
+  switch (kind) {
+    case 'teacher':
+      return { ...empty, display_code: value.displayName, lifecycle_state: value.status };
+    case 'class-group':
+      return { ...empty, display_code: value.code, lifecycle_state: null };
+    case 'subject':
+      return { ...empty, display_code: value.code, lifecycle_state: value.status };
+    case 'teaching-assignment':
+      return {
+        ...empty,
+        teacher_ref_kind: 'teacher',
+        teacher_id: value.teacherId,
+        class_group_ref_kind: 'class-group',
+        class_group_id: value.classGroupId,
+        subject_ref_kind: 'subject',
+        subject_id: value.subjectId,
+        display_code: value.sourceDisciplineIndex ?? null,
+        lifecycle_state: value.confirmationOrigin,
+      };
+    case 'student':
+      return { ...empty, display_code: value.displayName, lifecycle_state: null };
+    case 'enrollment':
+      return {
+        ...empty,
+        class_group_ref_kind: 'class-group',
+        class_group_id: value.classGroupId,
+        student_ref_kind: 'student',
+        student_id: value.studentId,
+        display_code:
+          value.sourcePosition === undefined ? null : String(value.sourcePosition),
+        lifecycle_state: value.position,
+      };
+  }
+}
+
+function normalizedCatalogColumnsMatch(
+  row: Row,
+  kind: ImportCatalogKind,
+  value: Record<string, unknown>,
+): boolean {
+  const expected = normalizedCatalogColumns(kind, value);
+  return Object.entries(expected).every(([key, expectedValue]) => row[key] === expectedValue);
+}
+
+function importCatalogRecord(
+  row: Row,
+  context: AcademicPersistenceContextV1,
+): VersionedRecordV1<AcademicEntityRecordV1> {
+  const currentVersion = positive(row.current_version);
+  const persistedVersion = positive(row.persisted_version);
+  if (currentVersion !== persistedVersion) return fail('broken-reference');
+  if (row.academic_year_id !== context.academicYearId || !importCatalogKind(row.entity_kind)) {
+    return fail('incompatible-row');
+  }
+  const entityId = string(row.entity_id);
+  const parsed = parse(row.payload_json);
+  if (parsed.kind !== row.entity_kind || !object(parsed.value) || parsed.value.id !== entityId) {
+    return fail('incompatible-row');
+  }
+  if (
+    !catalogRecordShape(row.entity_kind, parsed.value, context) ||
+    !normalizedCatalogColumnsMatch(row, row.entity_kind, parsed.value)
+  ) {
+    return fail('incompatible-row');
+  }
+  return {
+    value: parsed as unknown as AcademicEntityRecordV1,
+    version: persistedVersion,
+    recordedAt: string(row.recorded_at),
+  };
 }
 
 function enrollmentRecord(
@@ -166,6 +348,73 @@ function serialize(value: unknown): string {
 
 export class GradebookD1ImportCatalogBulkReaderV1 implements GradebookD1ImportCatalogBulkReadV1 {
   constructor(private readonly database: D1ReadDatabaseV1) {}
+
+  async getImportCatalogSnapshot(
+    context: AcademicPersistenceContextV1,
+  ): Promise<readonly VersionedRecordV1<AcademicEntityRecordV1>[] | null> {
+    if (typeof context.academicYearId !== 'string' || context.academicYearId.length === 0) {
+      return fail('incompatible-row');
+    }
+    let rows: readonly Row[];
+    try {
+      const result = await this.database
+        .prepare(
+          `SELECT
+             s.academic_year_id,
+             s.entity_kind,
+             s.entity_id,
+             s.current_version,
+             v.version AS persisted_version,
+             v.teacher_ref_kind,
+             v.teacher_id,
+             v.class_group_ref_kind,
+             v.class_group_id,
+             v.subject_ref_kind,
+             v.subject_id,
+             v.student_ref_kind,
+             v.student_id,
+             v.enrollment_ref_kind,
+             v.enrollment_id,
+             v.teaching_assignment_ref_kind,
+             v.teaching_assignment_id,
+             v.term,
+             v.display_code,
+             v.lifecycle_state,
+             v.payload_json,
+             v.recorded_at
+           FROM academic_entity_streams s
+           LEFT JOIN academic_entity_versions v
+             ON v.academic_year_id = s.academic_year_id
+            AND v.entity_kind = s.entity_kind
+            AND v.entity_id = s.entity_id
+            AND v.version = s.current_version
+           WHERE s.academic_year_id = ?
+             AND s.entity_kind IN (
+               'teacher', 'class-group', 'subject', 'teaching-assignment', 'student', 'enrollment'
+             )
+           ORDER BY s.entity_kind, s.entity_id
+           LIMIT ?`,
+        )
+        .bind(context.academicYearId, IMPORT_CATALOG_MAXIMUM_TOTAL + 1)
+        .all<Row>();
+      rows = result.results;
+    } catch (cause) {
+      if (cause instanceof GradebookD1ReadErrorV1) throw cause;
+      return fail('database-read-failed');
+    }
+
+    if (rows.length > IMPORT_CATALOG_MAXIMUM_TOTAL) return null;
+    const counts = new Map<ImportCatalogKind, number>();
+    const records: VersionedRecordV1<AcademicEntityRecordV1>[] = [];
+    for (const row of rows) {
+      if (!importCatalogKind(row.entity_kind)) return fail('incompatible-row');
+      const count = (counts.get(row.entity_kind) ?? 0) + 1;
+      if (count > IMPORT_CATALOG_MAXIMUM_PER_KIND) return null;
+      counts.set(row.entity_kind, count);
+      records.push(importCatalogRecord(row, context));
+    }
+    return records;
+  }
 
   async getImportRosterMany(
     context: AcademicPersistenceContextV1,
