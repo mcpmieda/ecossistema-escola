@@ -222,6 +222,49 @@ async function initializeStaging(): Promise<void> {
   }
 }
 
+function rejectedResponse(payload: unknown): GradebookImportPersistenceResponseV6 | null {
+  if (!record(payload) || payload.state !== 'rejected' || !('response' in payload)) return null;
+  return isGradebookImportPersistenceResponseV6(payload.response) ? payload.response : null;
+}
+
+async function prepareChunksLegacy(
+  sessionId: string,
+  chunks: readonly GradebookImportPersistenceRequestV6[],
+  onProgress?: (progress: GradebookImportStageProgressV1) => void,
+): Promise<GradebookImportPersistenceResponseV6 | null> {
+  let preparedCount = 0;
+  for (let offset = 0; offset < chunks.length; offset += PREPARE_CONCURRENCY) {
+    const batch = chunks.slice(offset, offset + PREPARE_CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async (chunk, batchIndex): Promise<GradebookImportPersistenceResponseV6 | null> => {
+        const index = offset + batchIndex;
+        const prepared = await fetchJson(
+          `${ENDPOINT}?action=prepare&session=${encodeURIComponent(sessionId)}&chunk=${index}`,
+          chunk,
+        );
+        if (
+          !prepared.response.ok ||
+          !record(prepared.payload) ||
+          (prepared.payload.state !== 'prepared' && prepared.payload.state !== 'already-prepared')
+        ) {
+          const rejected = rejectedResponse(prepared.payload);
+          if (rejected) return rejected;
+          throw new Error(`Não foi possível preparar o fragmento ${index + 1} de ${chunks.length}.`);
+        }
+        preparedCount += 1;
+        onProgress?.({ prepared: preparedCount, total: chunks.length });
+        return null;
+      }),
+    );
+
+    for (const result of results) {
+      if (result.status === 'rejected') throw result.reason;
+      if (result.value !== null) return result.value;
+    }
+  }
+  return null;
+}
+
 export async function persistCompactGradebookFileStagedV1(
   request: GradebookImportPersistenceRequestV6,
   onProgress?: (progress: GradebookImportStageProgressV1) => void,
@@ -239,42 +282,32 @@ export async function persistCompactGradebookFileStagedV1(
     throw new Error('Não foi possível iniciar a importação fatiada.');
   }
   const sessionId = begin.payload.sessionId;
-  let preparedCount = 0;
 
-  for (let offset = 0; offset < chunks.length; offset += PREPARE_CONCURRENCY) {
-    const batch = chunks.slice(offset, offset + PREPARE_CONCURRENCY);
-    const results = await Promise.allSettled(
-      batch.map(async (chunk, batchIndex): Promise<GradebookImportPersistenceResponseV6 | null> => {
-        const index = offset + batchIndex;
-        const prepared = await fetchJson(
-          `${ENDPOINT}?action=prepare&session=${encodeURIComponent(sessionId)}&chunk=${index}`,
-          chunk,
-        );
-        if (
-          !prepared.response.ok ||
-          !record(prepared.payload) ||
-          (prepared.payload.state !== 'prepared' && prepared.payload.state !== 'already-prepared')
-        ) {
-          if (
-            record(prepared.payload) &&
-            prepared.payload.state === 'rejected' &&
-            'response' in prepared.payload
-          ) {
-            const response = prepared.payload.response;
-            if (isGradebookImportPersistenceResponseV6(response)) return response;
-          }
-          throw new Error(`Não foi possível preparar o fragmento ${index + 1} de ${chunks.length}.`);
-        }
-        preparedCount += 1;
-        onProgress?.({ prepared: preparedCount, total: chunks.length });
-        return null;
-      }),
-    );
+  const preparedAll = await fetchJson(
+    `${ENDPOINT}?action=prepare-all&session=${encodeURIComponent(sessionId)}`,
+    request,
+  );
+  const aggregateReady =
+    preparedAll.response.ok &&
+    record(preparedAll.payload) &&
+    preparedAll.payload.state === 'prepared-all' &&
+    preparedAll.payload.preparedCount === chunks.length &&
+    preparedAll.payload.expectedChunkCount === chunks.length;
 
-    for (const result of results) {
-      if (result.status === 'rejected') throw result.reason;
-      if (result.value !== null) return result.value;
+  if (aggregateReady) {
+    onProgress?.({ prepared: chunks.length, total: chunks.length });
+  } else {
+    const rejected = rejectedResponse(preparedAll.payload);
+    if (rejected) return rejected;
+    const compatibilityFallback =
+      preparedAll.response.status === 400 &&
+      record(preparedAll.payload) &&
+      preparedAll.payload.state === 'invalid-request';
+    if (!compatibilityFallback) {
+      throw new Error('Não foi possível preparar o arquivo inteiro no staging.');
     }
+    const legacyResponse = await prepareChunksLegacy(sessionId, chunks, onProgress);
+    if (legacyResponse) return legacyResponse;
   }
 
   const finalized = await fetchJson(
