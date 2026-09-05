@@ -11,7 +11,12 @@ import {
   GradebookD1MigrationRunnerV1,
 } from '../../../../server/gradebook/persistence/d1/runtime/d1-migration-runner-v1';
 import { GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS } from '../../../../server/gradebook/persistence/d1/schema/migrations';
-import type { D1WriteDatabaseV1 } from '../../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
+import type {
+  D1WriteDatabaseV1,
+  D1WriteRunResultV1,
+  D1WriteStatementV1,
+  D1WriteValueV1,
+} from '../../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import { SqliteD1Database } from '../d1-transaction/d1-write-test-support';
 
 const authorization = authorizeGradebookD1RuntimeV1({ roles: ['ADMINISTRADOR'] });
@@ -74,6 +79,106 @@ describe('runner autorizado de migrations D1 V1', () => {
       expect(rows).toEqual(
         GRADEBOOK_D1_READ_ADAPTER_MIGRATIONS.map(({ version, name }) => ({ version, name })),
       );
+    } finally {
+      raw.close();
+    }
+  });
+
+  it('aplica a 0006 por statements individuais quando batch não existe', async () => {
+    const { raw, database } = await openDatabase();
+    try {
+      const sql = migrationSql();
+      for (const migration of sql.slice(0, 5)) raw.exec(migration);
+      const executed: string[] = [];
+      const d1ShapedDatabase = {
+        prepare(query: string) {
+          return database.prepare(query);
+        },
+        exec(query: string) {
+          if (/\r|\n/u.test(query)) {
+            throw new Error('D1_EXEC_ERROR: incomplete input');
+          }
+          executed.push(query);
+          return database.exec(query);
+        },
+      } satisfies D1WriteDatabaseV1;
+      const runner = new GradebookD1MigrationRunnerV1(d1ShapedDatabase, { migrationSql: sql });
+
+      await expect(runner.run(authorization)).resolves.toMatchObject({
+        currentVersion: 6,
+        migrationsApplied: 1,
+      });
+      expect(executed).toHaveLength(5);
+      expect(executed.every((statement) => !/\r|\n/u.test(statement))).toBe(true);
+      expect(executed.some((statement) => /^PRAGMA\s+foreign_keys/iu.test(statement))).toBe(false);
+    } finally {
+      raw.close();
+    }
+  });
+
+  it('prefere um único batch atômico para a 0006 no shape do runtime D1', async () => {
+    const { raw, database } = await openDatabase();
+    try {
+      const sql = migrationSql();
+      for (const migration of sql.slice(0, 5)) raw.exec(migration);
+      const prepared: string[] = [];
+      let batchCalls = 0;
+
+      // The real D1 binding's prepare() returns a statement handle without compiling DDL against
+      // the current schema. Node SQLite prepares eagerly, so model D1 laziness for migration
+      // statements and compile them only when batch() executes them in sequence.
+      const lazyMigrationStatement = (query: string): D1WriteStatementV1 => ({
+        bind(..._values: D1WriteValueV1[]): D1WriteStatementV1 {
+          return lazyMigrationStatement(query);
+        },
+        async first<Row extends Record<string, unknown>>(): Promise<Row | null> {
+          throw new Error('Migration statements do not support reads.');
+        },
+        async all<Row extends Record<string, unknown>>(): Promise<{
+          readonly results: readonly Row[];
+        }> {
+          throw new Error('Migration statements do not support reads.');
+        },
+        async run(): Promise<D1WriteRunResultV1> {
+          return database.prepare(query).run();
+        },
+      });
+
+      const d1BatchDatabase = {
+        prepare(query: string) {
+          if (/^\s*SELECT\b/iu.test(query)) return database.prepare(query);
+          expect(query).not.toMatch(/\r|\n/u);
+          expect(query).not.toMatch(/^PRAGMA\s+foreign_keys/iu);
+          prepared.push(query);
+          return lazyMigrationStatement(query);
+        },
+        exec(): never {
+          throw new Error('raw exec must not be used when batch is available');
+        },
+        async batch(
+          statements: readonly D1WriteStatementV1[],
+        ): Promise<readonly D1WriteRunResultV1[]> {
+          batchCalls += 1;
+          raw.exec('BEGIN IMMEDIATE');
+          try {
+            const results: D1WriteRunResultV1[] = [];
+            for (const statement of statements) results.push(await statement.run());
+            raw.exec('COMMIT');
+            return results;
+          } catch (cause) {
+            raw.exec('ROLLBACK');
+            throw cause;
+          }
+        },
+      } satisfies D1WriteDatabaseV1;
+      const runner = new GradebookD1MigrationRunnerV1(d1BatchDatabase, { migrationSql: sql });
+
+      await expect(runner.run(authorization)).resolves.toMatchObject({
+        currentVersion: 6,
+        migrationsApplied: 1,
+      });
+      expect(batchCalls).toBe(1);
+      expect(prepared).toHaveLength(5);
     } finally {
       raw.close();
     }
@@ -167,6 +272,7 @@ describe('runner autorizado de migrations D1 V1', () => {
       ['D1_ERROR: no such table: prerequisite_table', 'schema-prerequisite'],
       ['D1_ERROR: FOREIGN KEY constraint failed', 'foreign-key'],
       ['D1_ERROR: near STRICT: syntax error', 'sql-incompatible'],
+      ['D1_EXEC_ERROR: CREATE TABLE example (: incomplete input: SQLITE_ERROR', 'sql-incompatible'],
       ['D1_ERROR: database is locked SQLITE_BUSY', 'database-busy'],
       ['opaque driver failure', 'unknown'],
     ] as const;

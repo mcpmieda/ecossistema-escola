@@ -106,13 +106,117 @@ export function classifyGradebookD1MigrationApplyFailureV1(
     return 'schema-prerequisite';
   }
   if (/foreign key/iu.test(text)) return 'foreign-key';
-  if (/syntax error|sql logic error|statement too long|unsupported|near[^\n]{0,60}syntax/iu.test(text)) {
+  if (
+    /syntax error|sql logic error|statement too long|unsupported|incomplete input|near[^\n]{0,60}syntax/iu.test(
+      text,
+    )
+  ) {
     return 'sql-incompatible';
   }
   if (/sqlite_busy|database is (busy|locked)|\bbusy\b|\blocked\b/iu.test(text)) {
     return 'database-busy';
   }
   return 'unknown';
+}
+
+function canonicalMigrationStatements(sql: string): readonly string[] {
+  const statements: string[] = [];
+  let current = '';
+  let quote: "'" | '"' | '`' | null = null;
+  let bracketQuoted = false;
+  let lineComment = false;
+  let blockComment = false;
+
+  for (let index = 0; index < sql.length; index += 1) {
+    const character = sql[index] ?? '';
+    const next = sql[index + 1] ?? '';
+
+    if (lineComment) {
+      if (character === '\n' || character === '\r') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (character === '*' && next === '/') {
+        blockComment = false;
+        index += 1;
+      }
+      continue;
+    }
+    if (quote !== null) {
+      current += character;
+      if (character === quote) {
+        if (next === quote) {
+          current += next;
+          index += 1;
+        } else {
+          quote = null;
+        }
+      }
+      continue;
+    }
+    if (bracketQuoted) {
+      current += character;
+      if (character === ']') bracketQuoted = false;
+      continue;
+    }
+    if (character === '-' && next === '-') {
+      lineComment = true;
+      index += 1;
+      continue;
+    }
+    if (character === '/' && next === '*') {
+      blockComment = true;
+      index += 1;
+      continue;
+    }
+    if (character === "'" || character === '"' || character === '`') {
+      quote = character;
+      current += character;
+      continue;
+    }
+    if (character === '[') {
+      bracketQuoted = true;
+      current += character;
+      continue;
+    }
+    if (character === ';') {
+      const statement = current.trim();
+      if (statement) statements.push(statement);
+      current = '';
+      continue;
+    }
+    if (/\s/u.test(character)) {
+      if (current && !current.endsWith(' ')) current += ' ';
+      continue;
+    }
+    current += character;
+  }
+
+  const trailing = current.trim();
+  if (trailing) statements.push(trailing);
+
+  // D1 enforces foreign keys by default and executes queries inside an implicit transaction.
+  // Sending PRAGMA foreign_keys through the Worker binding is therefore redundant and can be
+  // incompatible with the transaction semantics. Keep the canonical migration file unchanged,
+  // but omit only this runtime no-op.
+  return statements.filter(
+    (statement) => !/^PRAGMA\s+foreign_keys\s*=\s*(?:ON|1)$/iu.test(statement),
+  );
+}
+
+async function executeCanonicalMigration(
+  database: D1WriteDatabaseV1,
+  sql: string,
+): Promise<void> {
+  const statements = canonicalMigrationStatements(sql);
+  if (statements.length === 0) return fail('migration-catalog-incompatible');
+
+  if (database.batch) {
+    await database.batch(statements.map((statement) => database.prepare(statement)));
+    return;
+  }
+
+  for (const statement of statements) await database.exec(statement);
 }
 
 function positiveInteger(value: unknown): value is number {
@@ -265,8 +369,9 @@ export class GradebookD1MigrationRunnerV1 {
       if (!migration) return fail('migration-catalog-incompatible');
 
       try {
-        await this.database.exec(migration.sql);
+        await executeCanonicalMigration(this.database, migration.sql);
       } catch (cause) {
+        if (cause instanceof GradebookD1MigrationErrorV1) throw cause;
         throw new GradebookD1MigrationErrorV1(
           'migration-apply-failed',
           classifyGradebookD1MigrationApplyFailureV1(cause),
