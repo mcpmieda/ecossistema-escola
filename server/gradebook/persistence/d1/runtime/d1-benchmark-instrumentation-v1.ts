@@ -41,7 +41,8 @@ interface MutableMetricsV1 {
 }
 
 const rawStatement = Symbol('gradebook-d1-benchmark-raw-statement');
-const CATALOG_SNAPSHOT_MARKER = 'gradebook:import-catalog-snapshot';
+const CATALOG_SNAPSHOT_SIGNATURE =
+  "'teacher', 'class-group', 'subject', 'teaching-assignment', 'student', 'enrollment'";
 
 type InstrumentedStatementV1 = D1WriteStatementV1 & {
   readonly [rawStatement]: D1WriteStatementV1;
@@ -156,7 +157,7 @@ export function instrumentGradebookD1ForBenchmarkV1(database: D1WriteDatabaseV1)
       return statement(
         database.prepare(query),
         metrics,
-        query.includes(CATALOG_SNAPSHOT_MARKER),
+        query.includes(CATALOG_SNAPSHOT_SIGNATURE),
       );
     },
     async exec(query: string): Promise<unknown> {
