@@ -18,8 +18,10 @@ import { createGradebookD1ImportAnnualStateSourceV1 } from '../persistence/d1/im
 import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
 import type { D1ReadDatabaseV1 } from '../persistence/d1/read/d1-read-adapter-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
+import { GradebookD1MigrationErrorV1 } from '../persistence/d1/runtime/d1-migration-runner-v1';
 import {
   createGradebookD1RuntimeV1,
+  GradebookD1RuntimeErrorV1,
   type GradebookD1RuntimeOptionsV1,
 } from '../persistence/d1/runtime/d1-runtime-v1';
 import { GradebookD1ImportStagingPromotionV1 } from '../persistence/d1/transaction/d1-import-staging-promotion-v1';
@@ -52,6 +54,26 @@ function nonNegativeInteger(value: string | null): number | null {
   if (value === null || !/^\d+$/u.test(value)) return null;
   const parsed = Number.parseInt(value, 10);
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function initializeFailure(cause: unknown): Response {
+  if (cause instanceof GradebookD1RuntimeErrorV1) {
+    switch (cause.code) {
+      case 'runtime-environment-disabled':
+        return noStore(
+          { state: 'runtime-review-required', reason: 'production-gate-disabled' },
+          409,
+        );
+      case 'runtime-storage-missing':
+        return noStore({ state: 'unavailable', reason: 'storage-missing' }, 503);
+      case 'runtime-storage-incompatible':
+        return noStore({ state: 'unavailable', reason: 'storage-incompatible' }, 503);
+    }
+  }
+  if (cause instanceof GradebookD1MigrationErrorV1) {
+    return noStore({ state: 'unavailable', reason: cause.code }, 503);
+  }
+  return noStore({ state: 'unavailable', reason: 'initialize-failed' }, 503);
 }
 
 async function initializeStaging(
@@ -89,7 +111,7 @@ async function initializeStaging(
       migrated.latestVersion !== 6 ||
       migrated.pendingCount !== 0
     ) {
-      return noStore({ state: 'unavailable' }, 503);
+      return noStore({ state: 'unavailable', reason: 'migration-postcondition-failed' }, 503);
     }
   } else if (
     initial.currentVersion !== 6 ||
@@ -152,7 +174,8 @@ export async function handleGradebookImportStagingRequestV1(
 
     if (selectedAction === 'initialize') {
       if (request.body !== null) return noStore({ state: 'invalid-request' }, 400);
-      return initializeStaging(runtime, database);
+      const initialized = await initializeStaging(runtime, database);
+      return initialized;
     }
 
     const repository = new GradebookD1ImportStagingRepositoryV1(database);
@@ -206,7 +229,9 @@ export async function handleGradebookImportStagingRequestV1(
             ? 422
             : 200;
     return noStore(response, status);
-  } catch {
-    return noStore({ state: 'unavailable' }, 503);
+  } catch (cause) {
+    return selectedAction === 'initialize'
+      ? initializeFailure(cause)
+      : noStore({ state: 'unavailable' }, 503);
   }
 }

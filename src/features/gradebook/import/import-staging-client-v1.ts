@@ -132,21 +132,65 @@ function baselineReviewMessage(payload: Record<string, unknown>): string {
   ].join(' ');
 }
 
+function schemaReviewMessage(payload: Record<string, unknown>): string {
+  const schema = record(payload.schema) ? payload.schema : {};
+  return `O schema acadêmico exige revisão antes da importação (atual: ${numeric(schema.currentVersion)}; esperado: ${numeric(schema.latestVersion)}; pendências: ${numeric(schema.pendingCount)}). Nenhuma nota foi enviada.`;
+}
+
+export function gradebookImportStagingInitializationFailureMessageV1(
+  status: number,
+  payload: unknown,
+): string | null {
+  if (!record(payload)) {
+    return `Resposta de inicialização do armazenamento incompatível (HTTP ${status}; JSON inesperado).`;
+  }
+  if (status >= 200 && status < 300 && payload.state === 'ready' && payload.schemaVersion === 6) {
+    return null;
+  }
+  if (payload.state === 'baseline-review-required') return baselineReviewMessage(payload);
+  if (payload.state === 'not-authorized') {
+    return 'Sua sessão não está autorizada a inicializar a importação. Entre novamente com uma conta administradora autorizada.';
+  }
+  if (payload.state === 'runtime-review-required' && payload.reason === 'production-gate-disabled') {
+    return 'A trava de produção do Banco de Notas está desativada. Reabra a janela autorizada antes de importar; nenhuma nota foi enviada.';
+  }
+  if (payload.state === 'schema-review-required') return schemaReviewMessage(payload);
+  if (payload.state === 'invalid-request') {
+    return 'A solicitação interna de inicialização foi rejeitada antes do envio das notas.';
+  }
+  if (payload.state === 'unavailable') {
+    switch (payload.reason) {
+      case 'storage-missing':
+        return 'O binding do D1 acadêmico não está disponível para a importação.';
+      case 'storage-incompatible':
+        return 'O binding do D1 acadêmico está presente, mas o runtime o considerou incompatível.';
+      case 'migration-catalog-incompatible':
+        return 'O catálogo de migrations do Banco de Notas não corresponde ao schema esperado.';
+      case 'migration-read-failed':
+        return 'Não foi possível conferir a versão atual do schema acadêmico no D1.';
+      case 'migration-apply-failed':
+        return 'A migration de staging não pôde ser aplicada ao D1; nenhuma nota foi enviada.';
+      case 'migration-postcondition-failed':
+        return 'A migration de staging terminou sem confirmar o schema 6 esperado; nenhuma nota foi enviada.';
+      case 'initialize-failed':
+        return 'A inicialização do staging falhou antes do envio das notas.';
+      default:
+        return `A inicialização do staging está indisponível (HTTP ${status}; motivo não classificado).`;
+    }
+  }
+  const state = typeof payload.state === 'string' ? payload.state : 'desconhecido';
+  return `A inicialização do staging retornou um estado inesperado (HTTP ${status}; estado ${state}).`;
+}
+
 async function initializeStaging(): Promise<void> {
   if (initializationPromise) return initializationPromise;
   initializationPromise = (async () => {
     const initialized = await fetchJson(`${ENDPOINT}?action=initialize`);
-    if (record(initialized.payload) && initialized.payload.state === 'baseline-review-required') {
-      throw new Error(baselineReviewMessage(initialized.payload));
-    }
-    if (
-      !initialized.response.ok ||
-      !record(initialized.payload) ||
-      initialized.payload.state !== 'ready' ||
-      initialized.payload.schemaVersion !== 6
-    ) {
-      throw new Error('O armazenamento da importação ainda não está pronto para uso.');
-    }
+    const failure = gradebookImportStagingInitializationFailureMessageV1(
+      initialized.response.status,
+      initialized.payload,
+    );
+    if (failure) throw new Error(failure);
   })();
   try {
     await initializationPromise;
