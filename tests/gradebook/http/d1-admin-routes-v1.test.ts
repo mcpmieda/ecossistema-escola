@@ -154,9 +154,9 @@ describe('rotas administrativas do runtime D1 V1', () => {
         schema: {
           status: 'pending',
           currentVersion: 0,
-          latestVersion: 5,
+          latestVersion: 6,
           appliedCount: 0,
-          pendingCount: 5,
+          pendingCount: 6,
         },
       });
     } finally {
@@ -194,7 +194,7 @@ describe('rotas administrativas do runtime D1 V1', () => {
       expect(firstResponse.headers.get('Cache-Control')).toContain('no-store');
       const firstBody = JSON.stringify(await firstResponse.json());
       expect(firstBody).toContain('"result":"applied"');
-      expect(firstBody).toContain('"migrationsApplied":5');
+      expect(firstBody).toContain('"migrationsApplied":6');
       expect(firstBody).not.toMatch(/CREATE TABLE|INSERT INTO|synthetic|SESSION_SECRET|GRADEBOOK_D1/u);
 
       expect(secondResponse.status).toBe(200);
