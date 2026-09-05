@@ -63,9 +63,9 @@ function course(
     terms: [term(1), term(2), term(3)],
     recovery: {
       sourceSheetName: `ESCALA-${courseIndex + 1}-REC-D${courseIndex + 1}`,
-      rows: rows.map((position) => [
+      rows: rows.map((position, index) => [
         position,
-        5,
+        index + 5,
         { X: 20, Y: 20, AA: 20, AB: 60, AC: 0, AD: 0, AE: 0 },
       ] as const),
     },
