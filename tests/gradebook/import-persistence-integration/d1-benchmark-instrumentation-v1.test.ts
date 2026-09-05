@@ -81,12 +81,27 @@ describe('D1 benchmark instrumentation', () => {
       runCalls: 1,
       batchCalls: 1,
       execCalls: 1,
+      catalogSnapshotCalls: 0,
       sqlMs: 15,
     });
     expect(snapshot.wallMs).toBeGreaterThanOrEqual(0);
     expect(snapshot.maxCallMs).toBeGreaterThanOrEqual(0);
     expect(snapshot.maxCallMs).toBeLessThanOrEqual(snapshot.wallMs + 0.1);
     expect(raw.batchReceived).toHaveLength(1);
+  });
+
+  it('counts the sanitized import catalog snapshot query family without exposing SQL', async () => {
+    const benchmark = instrumentGradebookD1ForBenchmarkV1(new SyntheticDatabase());
+    await benchmark.database
+      .prepare(
+        "SELECT synthetic WHERE kind IN ('teacher', 'class-group', 'subject', 'teaching-assignment', 'student', 'enrollment')",
+      )
+      .all();
+    expect(benchmark.snapshot()).toMatchObject({
+      calls: 1,
+      allCalls: 1,
+      catalogSnapshotCalls: 1,
+    });
   });
 
   it('leaves sqlMs null when D1 metadata does not expose sql_duration_ms', async () => {
