@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { AcademicYearId } from '../../../shared/gradebook-contracts/entities';
 import type { GradebookImportPersistenceRequestV6 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
-import { prepareAllGradebookImportStageChunksV1 } from '../../../server/gradebook/application/import/import-staging-prepare-all-v1';
+import {
+  GRADEBOOK_IMPORT_STAGE_PREPARE_ALL_CONCURRENCY_V1,
+  prepareAllGradebookImportStageChunksV1,
+} from '../../../server/gradebook/application/import/import-staging-prepare-all-v1';
 
 const academicYearId = 'academic-year:staged-prepare-all:2026' as AcademicYearId;
 
@@ -91,14 +94,53 @@ describe('staged import prepare-all', () => {
       7,
     );
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       state: 'prepared-all',
       sessionId: 'session:prepare-all',
       preparedCount: 7,
       expectedChunkCount: 7,
+      timing: {
+        concurrency: GRADEBOOK_IMPORT_STAGE_PREPARE_ALL_CONCURRENCY_V1,
+      },
     });
+    if (result.state !== 'prepared-all') throw new Error('expected prepared-all');
+    expect(result.timing.chunks.map((value) => value.index)).toEqual([0, 1, 2, 3, 4, 5, 6]);
     expect(indexes).toEqual([0, 1, 2, 3, 4, 5, 6]);
-    expect(courseLabels).toEqual(Array.from({ length: 7 }, (_, index) => `Componente Sintético ${index + 1}`));
+    expect(courseLabels).toEqual(
+      Array.from({ length: 7 }, (_, index) => `Componente Sintético ${index + 1}`),
+    );
+  });
+
+  it('bounds aggregate preparation at five concurrent chunks', async () => {
+    let active = 0;
+    let maxActive = 0;
+    const preparer = {
+      async prepare(_sessionId: string, chunkIndex: number) {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active -= 1;
+        return {
+          state: 'prepared' as const,
+          sessionId: 'session:bounded',
+          chunkIndex,
+          preparedCount: chunkIndex + 1,
+          expectedChunkCount: 13,
+        };
+      },
+    };
+
+    const result = await prepareAllGradebookImportStageChunksV1(
+      preparer,
+      'session:bounded',
+      request(13),
+      13,
+    );
+
+    expect(result.state).toBe('prepared-all');
+    expect(maxActive).toBe(GRADEBOOK_IMPORT_STAGE_PREPARE_ALL_CONCURRENCY_V1);
+    if (result.state !== 'prepared-all') throw new Error('expected prepared-all');
+    expect(result.timing.chunks).toHaveLength(13);
   });
 
   it('preserves the 40-position internal bound while aggregating a 41-student course', async () => {
@@ -107,7 +149,7 @@ describe('staged import prepare-all', () => {
       async prepare(_sessionId: string, chunkIndex: number, chunk: GradebookImportPersistenceRequestV6) {
         rowCounts.push(chunk.courses[0]!.terms[0].rows.length);
         return {
-          state: chunkIndex === 0 ? 'already-prepared' as const : 'prepared' as const,
+          state: chunkIndex === 0 ? ('already-prepared' as const) : ('prepared' as const),
           sessionId: 'session:41',
           chunkIndex,
           preparedCount: chunkIndex + 1,
@@ -116,12 +158,17 @@ describe('staged import prepare-all', () => {
       },
     };
 
-    const result = await prepareAllGradebookImportStageChunksV1(preparer, 'session:41', request(1, 41), 2);
+    const result = await prepareAllGradebookImportStageChunksV1(
+      preparer,
+      'session:41',
+      request(1, 41),
+      2,
+    );
     expect(result.state).toBe('prepared-all');
     expect(rowCounts).toEqual([40, 1]);
   });
 
-  it('stops immediately when one internal chunk conflicts', async () => {
+  it('fails closed after the current bounded wave when one internal chunk conflicts', async () => {
     const indexes: number[] = [];
     const preparer = {
       async prepare(_sessionId: string, chunkIndex: number) {
@@ -140,7 +187,7 @@ describe('staged import prepare-all', () => {
     await expect(
       prepareAllGradebookImportStageChunksV1(preparer, 'session:conflict', request(), 7),
     ).resolves.toEqual({ state: 'conflict' });
-    expect(indexes).toEqual([0, 1]);
+    expect(indexes).toEqual([0, 1, 2, 3, 4]);
   });
 
   it('fails closed when the session chunk count differs from the payload', async () => {
