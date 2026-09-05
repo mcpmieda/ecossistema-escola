@@ -80,6 +80,24 @@ function persistenceLabel(state: ImportPersistenceStateV6 | undefined): string {
   }
 }
 
+function persistenceDescription(state: Extract<ImportPersistenceStateV6, { state: 'completed' }>): string {
+  const response = state.response;
+  const issue =
+    'issues' in response && response.issues.length > 0
+      ? ` Motivo técnico: ${[...new Set(response.issues.map((value) => value.code))].join(', ')}.`
+      : response.state === 'invalid-request'
+        ? ` Motivo técnico: ${response.reason}.`
+        : '';
+  if (!('summary' in response)) return issue.trim();
+  if (response.state === 'no-changes') {
+    const auditWrites = response.summary.committedWrites.importBatchVersions;
+    return auditWrites > 0
+      ? `Nenhuma nota, resultado ou cadastro acadêmico foi alterado. ${auditWrites} registro(s) técnico(s) da tentativa foram gravados para auditoria.${issue}`
+      : `Nenhuma nota, resultado ou cadastro acadêmico foi alterado.${issue}`;
+  }
+  return `${response.summary.committedWrites.total} gravação(ões) confirmadas no lote atômico, incluindo registros técnicos de auditoria.${issue}`;
+}
+
 function PersistenceResult({ state }: { state: ImportPersistenceStateV6 | undefined }) {
   if (!state) return null;
   if (state.state === 'failed') {
@@ -96,25 +114,43 @@ function PersistenceResult({ state }: { state: ImportPersistenceStateV6 | undefi
   if (state.state !== 'completed') return null;
   const response = state.response;
   const success = response.state === 'applied' || response.state === 'no-changes';
-  const issue =
-    'issues' in response && response.issues.length > 0
-      ? ` Motivo técnico: ${[...new Set(response.issues.map((value) => value.code))].join(', ')}.`
-      : response.state === 'invalid-request'
-        ? ` Motivo técnico: ${response.reason}.`
-        : '';
-  const committed = 'summary' in response ? response.summary.committedWrites.total : null;
   return (
     <Alert status={success ? 'success' : 'warning'} className="mt-5">
       <Alert.Indicator />
       <Alert.Content>
         <Alert.Title>{persistenceLabel(state)}</Alert.Title>
-        <Alert.Description>
-          {committed === null
-            ? issue.trim()
-            : `${committed} gravação(ões) acadêmicas confirmadas no lote atômico.${issue}`}
-        </Alert.Description>
+        <Alert.Description>{persistenceDescription(state)}</Alert.Description>
       </Alert.Content>
     </Alert>
+  );
+}
+
+function TimingDiagnostics({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+  return (
+    <Surface variant="secondary" className="mt-3 rounded-2xl p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="mr-auto">
+          <p className="text-sm font-medium">Diagnóstico de tempo</p>
+          <p className="mt-1 text-xs text-muted">
+            Copie e envie o diagnóstico após cada teste. Ele contém somente tempos, contagens e modo
+            de execução.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          onPress={() => {
+            const browser = globalThis.sessionStorage?.getItem('gradebook-import-browser-timings');
+            const staging = globalThis.sessionStorage?.getItem('gradebook-import-last-timing');
+            const text = [browser, staging].filter(Boolean).join('\n');
+            if (text) void globalThis.navigator.clipboard?.writeText(text);
+          }}
+        >
+          Copiar diagnóstico
+        </Button>
+      </div>
+    </Surface>
   );
 }
 
@@ -133,6 +169,8 @@ export function NotesImportPanel() {
     setSelectedId,
     totals,
   } = useImportBatch();
+
+  const selectedPersistence = selectedResult ? persistence[selectedResult.id] : undefined;
 
   return (
     <Surface variant="default" className="platform-card-surface rounded-[2rem] p-6 sm:p-7">
@@ -287,7 +325,10 @@ export function NotesImportPanel() {
           {selectedResult && (
             <>
               <WorkbookInspector result={selectedResult} />
-              <PersistenceResult state={persistence[selectedResult.id]} />
+              <PersistenceResult state={selectedPersistence} />
+              <TimingDiagnostics
+                visible={selectedPersistence?.state === 'completed' || selectedPersistence?.state === 'failed'}
+              />
             </>
           )}
         </div>
