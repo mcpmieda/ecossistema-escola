@@ -78,9 +78,10 @@ function term(
     ],
     rows: Array.from({ length: 9 }, (_, index) => {
       const position = index + 1;
-      const r = index === 0 && options.changedFirstR !== undefined
-        ? options.changedFirstR
-        : 5 + (index % 3);
+      const r =
+        index === 0 && options.changedFirstR !== undefined
+          ? options.changedFirstR
+          : 5 + (index % 3);
       const includeR = !(options.omitLastR && termValue === 1 && position === 9);
       return [
         position,
@@ -120,11 +121,15 @@ function request(
     rosters: [
       {
         classGroupLabel: '8º ANO HARDENING',
-        students: Array.from({ length: 9 }, (_, index) => [
-          index + 1,
-          `Estudante Hardening ${String(index + 1).padStart(2, '0')}`,
-          index === 8 ? 'TRANSFERIDO' : 'ATIVO',
-        ] as const),
+        students: Array.from(
+          { length: 9 },
+          (_, index) =>
+            [
+              index + 1,
+              `Estudante Hardening ${String(index + 1).padStart(2, '0')}`,
+              index === 8 ? 'TRANSFERIDO' : 'ATIVO',
+            ] as const,
+        ),
       },
     ],
     courses: [
@@ -141,7 +146,8 @@ function request(
 }
 
 function count(table: string): number {
-  return (database.raw.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count;
+  return (database.raw.prepare(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number })
+    .count;
 }
 
 function services() {
@@ -169,7 +175,15 @@ async function prepareAll(input: GradebookImportPersistenceRequestV6) {
   }
   const session = await repository.getSession(begin.sessionId);
   expect(session).not.toBeNull();
-  return { repository, staging, promotion, unit, chunks, session: session!, sessionId: begin.sessionId };
+  return {
+    repository,
+    staging,
+    promotion,
+    unit,
+    chunks,
+    session: session!,
+    sessionId: begin.sessionId,
+  };
 }
 
 async function commit(input: GradebookImportPersistenceRequestV6) {
@@ -210,6 +224,25 @@ describe('staged V6 import hardening', () => {
     expect(count('academic_record_streams')).toBe(0);
   });
 
+  it('rejects roster drift between begin and the first chunk', async () => {
+    const input = request('a');
+    const chunks = splitCompactGradebookImportV6(input);
+    const { staging } = services();
+    const begin = await staging.begin(input, instant);
+    const roster = chunks[0]!.rosters[0]!;
+    const students = roster.students.map((student, index) =>
+      index === 0 ? ([student[0], `${student[1]} ALTERADO`, ...(student[2] ? [student[2]] : [])] as typeof student) : student,
+    );
+    const divergent: GradebookImportPersistenceRequestV6 = {
+      ...chunks[0]!,
+      rosters: [{ ...roster, students }],
+    };
+
+    expect((await staging.prepare(begin.sessionId, 0, divergent)).state).toBe('conflict');
+    expect(count('gradebook_import_stage_chunks')).toBe(0);
+    expect(count('academic_record_streams')).toBe(0);
+  });
+
   it('reimports identical content as no-changes without academic versions', async () => {
     const input = request('d');
     await commit(input);
@@ -236,8 +269,8 @@ describe('staged V6 import hardening', () => {
   });
 
   it('rolls the staged promotion back when a current stream changes after prepare', async () => {
-    await commit(request('g'));
-    const changed = await prepareAll(request('h', { changedFirstR: 9 }));
+    await commit(request('1'));
+    const changed = await prepareAll(request('2', { changedFirstR: 9 }));
 
     const row = database.raw
       .prepare(
