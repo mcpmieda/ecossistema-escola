@@ -37,14 +37,20 @@ import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime
 import { handleGradebookImportStagingRequestV1 } from './import-staging-routes-v1';
 
 export const GRADEBOOK_IMPORT_PERSISTENCE_ROUTE_V4 = '/api/gradebook/import-persistence';
+const GRADEBOOK_IMPORT_SERVER_MS_HEADER_V1 = 'X-Gradebook-Server-Ms';
 
-function noStore(value: unknown, status = 200): Response {
+function noStore(
+  value: unknown,
+  status = 200,
+  additionalHeaders: Readonly<Record<string, string>> = {},
+): Response {
   return Response.json(value, {
     status,
     headers: {
       'Cache-Control': 'no-store, no-cache, must-revalidate, private',
       Expires: '0',
       Pragma: 'no-cache',
+      ...additionalHeaders,
     },
   });
 }
@@ -129,6 +135,7 @@ export async function handleGradebookImportPersistenceRequestV4(
     );
   }
 
+  const serviceStartedAt = Date.now();
   try {
     const runtime = createGradebookD1RuntimeV1(env, authorization);
     const annualStateSource = createGradebookD1ImportAnnualStateSourceV1(
@@ -150,7 +157,12 @@ export async function handleGradebookImportPersistenceRequestV4(
           : isGradebookImportPersistenceRequestV4(payload)
             ? await createGradebookImportPersistenceServiceV4(dependencies).execute(payload)
             : null;
-    if (response === null) return state('unavailable', 500);
+    const timingHeaders = {
+      [GRADEBOOK_IMPORT_SERVER_MS_HEADER_V1]: String(Date.now() - serviceStartedAt),
+    };
+    if (response === null) {
+      return noStore({ transportVersion: version, state: 'unavailable' }, 500, timingHeaders);
+    }
 
     const valid =
       version === 6
@@ -159,10 +171,14 @@ export async function handleGradebookImportPersistenceRequestV4(
           ? isGradebookImportPersistenceResponseV5(response)
           : isGradebookImportPersistenceResponseV4(response);
     return valid
-      ? noStore(response)
-      : noStore({ transportVersion: version, state: 'unavailable' }, 500);
+      ? noStore(response, 200, timingHeaders)
+      : noStore({ transportVersion: version, state: 'unavailable' }, 500, timingHeaders);
   } catch {
-    return noStore({ transportVersion: version, state: 'unavailable' }, 503);
+    return noStore(
+      { transportVersion: version, state: 'unavailable' },
+      503,
+      { [GRADEBOOK_IMPORT_SERVER_MS_HEADER_V1]: String(Date.now() - serviceStartedAt) },
+    );
   }
 }
 
