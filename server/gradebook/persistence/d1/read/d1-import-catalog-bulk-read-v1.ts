@@ -201,7 +201,7 @@ export class GradebookD1ImportCatalogBulkReaderV1 implements GradebookD1ImportCa
              FROM json_each(?)
            ),
            current_enrollments AS (
-             SELECT s.entity_id, s.current_version,
+             SELECT s.academic_year_id, s.entity_id, s.current_version,
                     v.version AS persisted_version,
                     v.class_group_id, v.student_id, v.display_code, v.lifecycle_state,
                     v.payload_json, v.recorded_at
@@ -222,12 +222,26 @@ export class GradebookD1ImportCatalogBulkReaderV1 implements GradebookD1ImportCa
                   current_enrollments.display_code,
                   current_enrollments.lifecycle_state,
                   current_enrollments.payload_json,
-                  current_enrollments.recorded_at
+                  current_enrollments.recorded_at,
+                  student_streams.entity_id AS student_entity_id,
+                  student_streams.current_version AS student_current_version,
+                  student_versions.version AS student_persisted_version,
+                  student_versions.payload_json AS student_payload_json,
+                  student_versions.recorded_at AS student_recorded_at
            FROM requested
            LEFT JOIN current_enrollments
              ON current_enrollments.class_group_id = requested.class_group_id
             AND current_enrollments.display_code = CAST(requested.source_position AS TEXT)
             AND current_enrollments.lifecycle_state = 'current'
+           LEFT JOIN academic_entity_streams student_streams
+             ON student_streams.academic_year_id = current_enrollments.academic_year_id
+            AND student_streams.entity_kind = 'student'
+            AND student_streams.entity_id = current_enrollments.student_id
+           LEFT JOIN academic_entity_versions student_versions
+             ON student_versions.academic_year_id = student_streams.academic_year_id
+            AND student_versions.entity_kind = student_streams.entity_kind
+            AND student_versions.entity_id = student_streams.entity_id
+            AND student_versions.version = student_streams.current_version
            ORDER BY requested.request_index, current_enrollments.entity_id`,
         )
         .bind(requestJson, context.academicYearId)
@@ -238,75 +252,37 @@ export class GradebookD1ImportCatalogBulkReaderV1 implements GradebookD1ImportCa
       return fail('database-read-failed');
     }
 
-    const enrollmentGroups = Array.from({ length: requested.length }, () => [] as EnrollmentRecord[]);
+    const enrollmentGroups = Array.from(
+      { length: requested.length },
+      () => [] as { readonly enrollment: EnrollmentRecord; readonly row: Row }[],
+    );
     for (const row of rows) {
       const requestIndex = index(row.request_index, requested.length);
       if (row.entity_id === null) continue;
-      enrollmentGroups[requestIndex]!.push(
-        enrollmentRecord(row, context, requested[requestIndex]!),
-      );
-    }
-
-    const studentIds: string[] = [];
-    const studentIdSet = new Set<string>();
-    for (const group of enrollmentGroups) {
-      if (group.length !== 1) continue;
-      const id = group[0]!.value.value.studentId;
-      if (!studentIdSet.has(id)) {
-        studentIdSet.add(id);
-        studentIds.push(id);
-      }
-    }
-
-    const students = new Map<string, StudentRecord>();
-    if (studentIds.length > 0) {
-      const studentRequest = serialize(studentIds.map((studentId) => ({ studentId })));
-      let studentRows: readonly Row[];
-      try {
-        const result = await this.database
-          .prepare(
-            `WITH requested AS (
-               SELECT CAST(key AS INTEGER) AS request_index,
-                      json_extract(value, '$.studentId') AS student_id
-               FROM json_each(?)
-             )
-             SELECT requested.request_index,
-                    s.entity_id, s.current_version,
-                    v.version AS persisted_version, v.payload_json, v.recorded_at
-             FROM requested
-             LEFT JOIN academic_entity_streams s
-               ON s.academic_year_id = ?
-              AND s.entity_kind = 'student'
-              AND s.entity_id = requested.student_id
-             LEFT JOIN academic_entity_versions v
-               ON v.academic_year_id = s.academic_year_id
-              AND v.entity_kind = s.entity_kind
-              AND v.entity_id = s.entity_id
-              AND v.version = s.current_version
-             ORDER BY requested.request_index`,
-          )
-          .bind(studentRequest, context.academicYearId)
-          .all<Row>();
-        studentRows = result.results;
-      } catch (cause) {
-        if (cause instanceof GradebookD1ReadErrorV1) throw cause;
-        return fail('database-read-failed');
-      }
-      if (studentRows.length !== studentIds.length) return fail('incompatible-row');
-      for (const row of studentRows) {
-        const requestIndex = index(row.request_index, studentIds.length);
-        if (row.entity_id === null || row.persisted_version === null) return fail('broken-reference');
-        const expectedId = studentIds[requestIndex]!;
-        students.set(expectedId, studentRecord(row, context, expectedId));
-      }
+      enrollmentGroups[requestIndex]!.push({
+        enrollment: enrollmentRecord(row, context, requested[requestIndex]!),
+        row,
+      });
     }
 
     return enrollmentGroups.map((group): GradebookImportRosterMatchV1 => {
       if (group.length === 0) return { state: 'missing' };
       if (group.length > 1) return { state: 'ambiguous' };
-      const enrollment = group[0]!;
-      const student = students.get(enrollment.value.value.studentId);
-      if (!student) return fail('broken-reference');
+      const { enrollment, row } = group[0]!;
+      if (row.student_entity_id === null || row.student_persisted_version === null) {
+        return fail('broken-reference');
+      }
+      const student = studentRecord(
+        {
+          entity_id: row.student_entity_id,
+          current_version: row.student_current_version,
+          persisted_version: row.student_persisted_version,
+          payload_json: row.student_payload_json,
+          recorded_at: row.student_recorded_at,
+        },
+        context,
+        enrollment.value.value.studentId,
+      );
       return { state: 'ready', enrollment, student };
     });
   }
