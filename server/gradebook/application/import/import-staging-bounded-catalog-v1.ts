@@ -65,7 +65,8 @@ async function findClassGroup(
 /**
  * The canonical bootstrap historically lists every student/enrollment in the year. A staged chunk
  * only contains a handful of positions, so production D1 may expose an optional set-based resolver
- * that narrows those two list calls without changing any domain contract or identity rule.
+ * that narrows those reads without changing any domain contract or identity rule. The same bulk
+ * records also satisfy later student/enrollment gets inside this chunk, avoiding a second N+1 pass.
  */
 export async function createGradebookImportStagingBoundedCatalogV1(
   base: PersistenceUnitOfWorkV2,
@@ -114,19 +115,32 @@ export async function createGradebookImportStagingBoundedCatalogV1(
     return base;
   }
 
-  const enrollmentItems = matches.flatMap((match) =>
-    match.state === 'ready' ? [match.enrollment as VersionedRecordV1<AcademicEntityRecordV1>] : [],
-  );
+  const enrollmentById = new Map<string, VersionedRecordV1<AcademicEntityRecordV1>>();
   const studentById = new Map<string, VersionedRecordV1<AcademicEntityRecordV1>>();
   for (const match of matches) {
-    if (match.state === 'ready') studentById.set(match.student.value.value.id, match.student);
+    if (match.state !== 'ready') continue;
+    enrollmentById.set(match.enrollment.value.value.id, match.enrollment);
+    studentById.set(match.student.value.value.id, match.student);
   }
+  const enrollmentItems = [...enrollmentById.values()];
   const studentItems = [...studentById.values()];
 
   return {
     ...base,
     entities: {
       ...entities,
+      get: (getContext, reference) => {
+        if (getContext.academicYearId === context.academicYearId) {
+          const cached =
+            reference.kind === 'student'
+              ? studentById.get(reference.id)
+              : reference.kind === 'enrollment'
+                ? enrollmentById.get(reference.id)
+                : undefined;
+          if (cached) return Promise.resolve(cached);
+        }
+        return entities.get(getContext, reference);
+      },
       list: (listContext, kind, page) => {
         if (kind !== 'student' && kind !== 'enrollment') {
           return entities.list(listContext, kind, page);
