@@ -8,6 +8,8 @@ import type {
 import {
   readWorkbookData,
   WORKBOOK_READ_OPTIONS,
+  WORKBOOK_SHEET_SCAN_OPTIONS,
+  type WorkbookReadTimingV1,
 } from '../../../src/features/gradebook/import/workbook-reader';
 
 function columnIndex(label: string): number {
@@ -68,9 +70,17 @@ function workbook(): Workbook {
     A3: { v: '' },
     B3: { v: 'Estudante dentro do contrato' },
   } as Worksheet;
+  const unexpectedSheet = {
+    '!ref': 'A1:C120',
+    A1: { v: 'conteúdo sintético sem papel acadêmico' },
+  } as Worksheet;
   return {
-    SheetNames: ['6A1º', 'RELAÇÃO'],
-    Sheets: { '6A1º': gradeSheet, RELAÇÃO: relationSheet },
+    SheetNames: ['6A1º', 'RELAÇÃO', 'AUXILIAR DESCARTADA'],
+    Sheets: {
+      '6A1º': gradeSheet,
+      RELAÇÃO: relationSheet,
+      'AUXILIAR DESCARTADA': unexpectedSheet,
+    },
   };
 }
 
@@ -100,28 +110,63 @@ function denseWorkbook(): Workbook {
   return { SheetNames: [...sparse.SheetNames], Sheets: sheets };
 }
 
-function sheetJs(source: Workbook, captured: Record<string, unknown>[]): SheetJs {
+interface SheetJsFixtureOptions {
+  readonly failSelective?: boolean;
+}
+
+function sheetJs(
+  source: Workbook,
+  captured: Record<string, unknown>[],
+  fixture: SheetJsFixtureOptions = {},
+): SheetJs {
   return {
     version: 'synthetic-sheetrows',
-    read: (_data, options) => {
-      captured.push(options ?? {});
-      return source;
+    read: (_data, options = {}) => {
+      captured.push(options);
+      if (options.bookSheets === true) {
+        return { SheetNames: [...source.SheetNames], Sheets: {} };
+      }
+      const selected = Array.isArray(options.sheets)
+        ? options.sheets.filter((name): name is string => typeof name === 'string')
+        : [...source.SheetNames];
+      if (fixture.failSelective && Array.isArray(options.sheets)) {
+        throw new Error('synthetic-selective-failure');
+      }
+      return {
+        SheetNames: [...source.SheetNames],
+        Sheets: Object.fromEntries(
+          selected.flatMap((name) => {
+            const sheet = source.Sheets[name];
+            return sheet ? [[name, sheet] as const] : [];
+          }),
+        ),
+      };
     },
     utils: { decode_range: decodeRange },
   };
 }
 
-function read(source: Workbook, captured: Record<string, unknown>[] = []) {
-  return readWorkbookData(
+function read(
+  source: Workbook,
+  captured: Record<string, unknown>[] = [],
+  fixture: SheetJsFixtureOptions = {},
+): { readonly summary: ReturnType<typeof readWorkbookData>; readonly timing: WorkbookReadTimingV1 } {
+  let timing: WorkbookReadTimingV1 | null = null;
+  const summary = readWorkbookData(
     { name: 'notas-sheetrows.xlsb', size: 128 } as File,
     new ArrayBuffer(0),
-    sheetJs(source, captured),
+    sheetJs(source, captured, fixture),
     manifest(),
+    (value) => {
+      timing = value;
+    },
   );
+  if (!timing) throw new Error('timing-not-emitted');
+  return { summary, timing };
 }
 
-describe('workbook reader bounded rows and dense worksheets', () => {
-  it('limits SheetJS materialization and enables dense mode', () => {
+describe('workbook reader bounded rows, dense worksheets and selective sheets', () => {
+  it('keeps bounded/dense parse options and a names-only scan', () => {
     expect(WORKBOOK_READ_OPTIONS).toEqual({
       type: 'array',
       cellFormula: true,
@@ -133,13 +178,19 @@ describe('workbook reader bounded rows and dense worksheets', () => {
       sheetRows: 50,
       dense: true,
     });
+    expect(WORKBOOK_SHEET_SCAN_OPTIONS).toEqual({ type: 'array', bookSheets: true });
   });
 
-  it('preserves full dimensions while recognition stays bounded by !ref', () => {
+  it('parses only academic/auxiliary sheets while preserving every sheet name', () => {
     const captured: Record<string, unknown>[] = [];
-    const summary = read(workbook(), captured);
+    const { summary, timing } = read(workbook(), captured);
 
-    expect(captured).toEqual([WORKBOOK_READ_OPTIONS]);
+    expect(captured).toEqual([
+      WORKBOOK_SHEET_SCAN_OPTIONS,
+      { ...WORKBOOK_READ_OPTIONS, sheets: ['6A1º', 'RELAÇÃO'] },
+    ]);
+    expect(summary.sheets).toHaveLength(3);
+    expect(summary.unrecognizedSheets).toEqual(['AUXILIAR DESCARTADA']);
     expect(summary.sheets.find((sheet) => sheet.name === '6A1º')).toMatchObject({
       range: 'A1:AN120',
       rows: 120,
@@ -147,9 +198,35 @@ describe('workbook reader bounded rows and dense worksheets', () => {
     expect(summary.gradeSheets[0]).toMatchObject({ range: 'A1:AN120', rows: 120 });
     expect(summary.gradeSheets[0]?.students.map((student) => student.row)).toEqual([5, 50]);
     expect(summary.canonicalRostersV6).toHaveLength(1);
+    expect(timing).toMatchObject({
+      totalSheetCount: 3,
+      selectedSheetCount: 2,
+      selectiveSheetParse: true,
+    });
+    expect(timing.sheetScanMs).toBeGreaterThanOrEqual(0);
+    expect(timing.sheetParseMs).toBeGreaterThanOrEqual(0);
   });
 
   it('keeps sparse and dense worksheets academically equivalent', () => {
-    expect(read(denseWorkbook())).toEqual(read(workbook()));
+    expect(read(denseWorkbook()).summary).toEqual(read(workbook()).summary);
+  });
+
+  it('falls back to a complete parse when selective parsing fails', () => {
+    const captured: Record<string, unknown>[] = [];
+    const { summary, timing } = read(workbook(), captured, { failSelective: true });
+
+    expect(captured).toEqual([
+      WORKBOOK_SHEET_SCAN_OPTIONS,
+      { ...WORKBOOK_READ_OPTIONS, sheets: ['6A1º', 'RELAÇÃO'] },
+      WORKBOOK_READ_OPTIONS,
+    ]);
+    expect(summary.gradeSheets[0]?.students.map((student) => student.row)).toEqual([5, 50]);
+    expect(summary.canonicalRostersV6).toHaveLength(1);
+    expect(summary.unrecognizedSheets).toEqual(['AUXILIAR DESCARTADA']);
+    expect(timing).toMatchObject({
+      totalSheetCount: 3,
+      selectedSheetCount: 2,
+      selectiveSheetParse: false,
+    });
   });
 });
