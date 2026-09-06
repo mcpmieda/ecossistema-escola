@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type {
   AcademicYearId,
+  ClassGroupId,
   SchoolId,
+  SubjectId,
   TeacherId,
   TeachingAssignmentId,
 } from '../../../shared/gradebook-contracts/entities';
@@ -18,6 +20,8 @@ import {
 
 let database: SqliteD1Database;
 const teacherId = 'teacher:catalog-bootstrap:001' as TeacherId;
+const classGroupId = 'class-group:catalog-bootstrap:001' as ClassGroupId;
+const subjectId = 'subject:catalog-bootstrap:001' as SubjectId;
 const teachingAssignmentId = 'teaching-assignment:catalog-bootstrap:001' as TeachingAssignmentId;
 const assessmentComponentId =
   'assessment-component:v2:catalog-bootstrap:001' as AssessmentComponentId;
@@ -46,23 +50,59 @@ beforeEach(async () => {
       )
     ).status,
   ).toBe('written');
-  expect(
-    (
-      await unit.entities.appendVersion(
-        { academicYearId },
-        {
-          kind: 'teacher',
-          value: {
-            id: teacherId,
-            displayName: 'Docente Sintético',
-            sourceNames: ['Docente Sintético'],
-            status: 'active',
-          },
-        },
-        { expectedVersion: null },
-      )
-    ).status,
-  ).toBe('written');
+
+  const catalog = [
+    {
+      kind: 'teacher' as const,
+      value: {
+        id: teacherId,
+        displayName: 'Docente Sintético',
+        sourceNames: ['Docente Sintético'],
+        status: 'active' as const,
+      },
+    },
+    {
+      kind: 'class-group' as const,
+      value: {
+        id: classGroupId,
+        academicYearId,
+        code: '6S',
+        grade: '6',
+        section: 'S',
+        shift: 'morning',
+      },
+    },
+    {
+      kind: 'subject' as const,
+      value: {
+        id: subjectId,
+        code: 'SYN-BOOT',
+        displayName: 'Componente Sintético Bootstrap',
+        shortName: 'CSB',
+        status: 'active' as const,
+      },
+    },
+    {
+      kind: 'teaching-assignment' as const,
+      value: {
+        id: teachingAssignmentId,
+        academicYearId,
+        teacherId,
+        classGroupId,
+        subjectId,
+        sourceDisciplineIndex: 'D1',
+        effectivePeriod: { startsOn: '2026-02-01', endsOn: '2026-12-20' },
+        confirmationOrigin: 'imported-source' as const,
+      },
+    },
+  ];
+  for (const record of catalog) {
+    expect(
+      (await unit.entities.appendVersion({ academicYearId }, record, { expectedVersion: null }))
+        .status,
+    ).toBe('written');
+  }
+
   expect(
     (
       await unit.entities.appendVersion(
@@ -108,14 +148,22 @@ describe('D1 import catalog bootstrap snapshot', () => {
         value: { id: academicYearId, year: 2026, status: 'active' },
       },
     });
-    expect(snapshot.catalog).toEqual([
-      expect.objectContaining({
-        value: {
-          kind: 'teacher',
-          value: expect.objectContaining({ id: teacherId, displayName: 'Docente Sintético' }),
-        },
-      }),
-    ]);
+    expect(snapshot.catalog).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          value: {
+            kind: 'teacher',
+            value: expect.objectContaining({ id: teacherId, displayName: 'Docente Sintético' }),
+          },
+        }),
+        expect.objectContaining({
+          value: {
+            kind: 'teaching-assignment',
+            value: expect.objectContaining({ id: teachingAssignmentId }),
+          },
+        }),
+      ]),
+    );
     expect(snapshot.assessmentComponents).toEqual([
       expect.objectContaining({
         value: {
