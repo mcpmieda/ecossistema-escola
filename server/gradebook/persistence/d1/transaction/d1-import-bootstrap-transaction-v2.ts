@@ -35,6 +35,17 @@ function sameValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function bootstrapManifestVersions(
+  request: ImportBootstrapTransactionRequestV2,
+): ReadonlyMap<string, number> {
+  if (request.sourceManifestVersions !== undefined) {
+    return new Map(
+      request.sourceManifestVersions.map(({ manifestId, version }) => [manifestId, version]),
+    );
+  }
+  return new Map(request.plannedSourceFileManifestIds.map((id) => [id, 1]));
+}
+
 function deferAssociationWritesV2(
   unitOfWork: PersistenceUnitOfWorkV2,
   now: () => string,
@@ -117,14 +128,13 @@ export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapT
     }
     if (this.active) throw new GradebookD1TransactionErrorV1('nested-transaction');
     this.active = true;
+    const manifestVersions = bootstrapManifestVersions(request);
     try {
       if (supportsAtomicBatch(this.database)) {
         const recorder = new GradebookD1AtomicBatchRecorderV1(this.database);
         const baseUnitOfWork = createGradebookD1PersistenceUnitOfWorkV2(recorder, {
           ...this.options,
-          bootstrapManifestVersions: new Map(
-            request.plannedSourceFileManifestIds.map((id) => [id, 1]),
-          ),
+          bootstrapManifestVersions: manifestVersions,
         });
         const bulk = createGradebookD1ImportBootstrapBulkUnitOfWorkV1({
           database: this.database,
@@ -145,7 +155,10 @@ export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapT
 
       await this.control('BEGIN IMMEDIATE');
       try {
-        const baseUnitOfWork = createGradebookD1PersistenceUnitOfWorkV2(this.database, this.options);
+        const baseUnitOfWork = createGradebookD1PersistenceUnitOfWorkV2(this.database, {
+          ...this.options,
+          bootstrapManifestVersions: manifestVersions,
+        });
         const ordered = deferAssociationWritesV2(baseUnitOfWork, () => this.now());
         const result = await operation(ordered.unitOfWork);
         await ordered.flush();
