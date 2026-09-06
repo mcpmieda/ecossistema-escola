@@ -28,7 +28,7 @@ function manifest(id = manifestId) {
     sizeBytes: 64,
     lastModifiedAt: null,
     sha256: 'a'.repeat(64),
-    sourceContractVersion: 2,
+    sourceContractVersion: 2 as const,
     parserVersion: 'synthetic-v2',
     readAt: '2026-09-05T20:00:00.000Z',
     confirmedAcademicYearId: academicYearId,
