@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { AcademicYearId, SchoolId, TeacherId } from '../../../shared/gradebook-contracts/entities';
+import type {
+  AcademicYearId,
+  SchoolId,
+  TeacherId,
+  TeachingAssignmentId,
+} from '../../../shared/gradebook-contracts/entities';
+import type { AssessmentComponentId } from '../../../shared/gradebook-contracts/results/results-contract-v1';
 import type {
   AcademicEntityRecordV1,
   AcademicEntityRepositoryV1,
@@ -10,6 +16,8 @@ import { createGradebookImportCatalogBootstrapReadCacheV1 } from '../../../serve
 const academicYearId = 'academic-year:catalog-bootstrap-cache:2026' as AcademicYearId;
 const context = { academicYearId };
 const instant = '2026-09-06T00:00:00.000Z';
+const assessmentComponentId =
+  'assessment-component:v2:catalog-bootstrap-cache:001' as AssessmentComponentId;
 
 const yearRecord = {
   value: {
@@ -41,6 +49,26 @@ const teacherRecord = {
   recordedAt: instant,
 } as const satisfies VersionedRecordV1<AcademicEntityRecordV1>;
 
+const assessmentComponentRecord = {
+  value: {
+    kind: 'assessment-component',
+    value: {
+      id: assessmentComponentId,
+      academicYearId,
+      teachingAssignmentId:
+        'teaching-assignment:catalog-bootstrap-cache:001' as TeachingAssignmentId,
+      term: 1,
+      type: 'quantitative-assessment',
+      name: 'Avaliação quantitativa sintética',
+      maximum: { state: 'defined', value: 10 },
+      order: 1,
+      applicability: { state: 'applicable' },
+    },
+  },
+  version: 1,
+  recordedAt: instant,
+} as const satisfies VersionedRecordV1<AcademicEntityRecordV1>;
+
 function baseRepository() {
   const repository: AcademicEntityRepositoryV1 = {
     async get() {
@@ -57,15 +85,20 @@ function baseRepository() {
 }
 
 describe('import catalog bootstrap read cache', () => {
-  it('serves canonical year + catalog reads from one bootstrap snapshot', async () => {
+  it('serves year, catalog and component getMany from one bootstrap snapshot', async () => {
     let bootstrapCalls = 0;
     let baseGetCalls = 0;
     let baseCatalogCalls = 0;
+    let baseGetManyCalls = 0;
     const base = baseRepository();
     const source = Object.assign({}, base, {
       async get() {
         baseGetCalls += 1;
         return yearRecord;
+      },
+      async getMany() {
+        baseGetManyCalls += 1;
+        return [assessmentComponentRecord];
       },
       async getImportCatalogSnapshot() {
         baseCatalogCalls += 1;
@@ -73,7 +106,11 @@ describe('import catalog bootstrap read cache', () => {
       },
       async getImportCatalogBootstrapSnapshot() {
         bootstrapCalls += 1;
-        return { academicYear: yearRecord, catalog: [teacherRecord] };
+        return {
+          academicYear: yearRecord,
+          catalog: [teacherRecord],
+          assessmentComponents: [assessmentComponentRecord],
+        };
       },
     });
     const cached = createGradebookImportCatalogBootstrapReadCacheV1(source);
@@ -82,10 +119,44 @@ describe('import catalog bootstrap read cache', () => {
       cached.get(context, { kind: 'academic-year', id: academicYearId }),
     ).resolves.toEqual(yearRecord);
     await expect(cached.getImportCatalogSnapshot?.(context)).resolves.toEqual([teacherRecord]);
+    await expect(
+      cached.getMany?.(context, [
+        { kind: 'assessment-component', id: assessmentComponentId },
+        {
+          kind: 'assessment-component',
+          id: 'assessment-component:v2:catalog-bootstrap-cache:missing' as AssessmentComponentId,
+        },
+      ]),
+    ).resolves.toEqual([assessmentComponentRecord, null]);
 
     expect(bootstrapCalls).toBe(1);
     expect(baseGetCalls).toBe(0);
     expect(baseCatalogCalls).toBe(0);
+    expect(baseGetManyCalls).toBe(0);
+  });
+
+  it('falls back to base getMany when component snapshot is unavailable', async () => {
+    let baseGetManyCalls = 0;
+    const base = baseRepository();
+    const source = Object.assign({}, base, {
+      async getMany() {
+        baseGetManyCalls += 1;
+        return [assessmentComponentRecord];
+      },
+      async getImportCatalogBootstrapSnapshot() {
+        return {
+          academicYear: yearRecord,
+          catalog: [teacherRecord],
+          assessmentComponents: null,
+        };
+      },
+    });
+    const cached = createGradebookImportCatalogBootstrapReadCacheV1(source);
+
+    await expect(
+      cached.getMany?.(context, [{ kind: 'assessment-component', id: assessmentComponentId }]),
+    ).resolves.toEqual([assessmentComponentRecord]);
+    expect(baseGetManyCalls).toBe(1);
   });
 
   it('preserves the historical two-read fallback when bootstrap snapshot is absent', async () => {
