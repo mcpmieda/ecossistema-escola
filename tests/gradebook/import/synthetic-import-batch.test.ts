@@ -32,11 +32,12 @@ describe('massa sintética — lote integrado', () => {
 
       expect(result.successes).toHaveLength(count);
       expect(result.failures).toHaveLength(0);
-      expect(events).toHaveLength(count * 3);
+      expect(events).toHaveLength(count * 4);
       for (let index = 0; index < count; index += 1) {
-        expect(events.slice(index * 3, index * 3 + 3)).toEqual([
+        expect(events.slice(index * 4, index * 4 + 4)).toEqual([
           `start:${SYNTHETIC_FILES.xlsx.name}`,
           `end:${SYNTHETIC_FILES.xlsx.name}`,
+          `read:${SYNTHETIC_FILES.xlsx.marker}`,
           `read:${SYNTHETIC_FILES.xlsx.marker}`,
         ]);
       }
@@ -78,7 +79,10 @@ describe('massa sintética — lote integrado', () => {
       `2/3:${SYNTHETIC_FILES.empty.name}`,
       `3/3:${SYNTHETIC_FILES.xlsb.name}`,
     ]);
-    expect(events.at(-1)).toBe(`read:${SYNTHETIC_FILES.xlsb.marker}`);
+    expect(events.slice(-2)).toEqual([
+      `read:${SYNTHETIC_FILES.xlsb.marker}`,
+      `read:${SYNTHETIC_FILES.xlsb.marker}`,
+    ]);
   });
 
   it('IMP-004: aceita XLSB, XLSX e XLS com a mesma massa controlada', async () => {
@@ -129,12 +133,17 @@ describe('massa sintética — lote integrado', () => {
       'recognitionMs',
       'workbookReadMs',
       'xlsxReadMs',
+      'sheetScanMs',
+      'sheetParseMs',
+      'totalSheetCount',
+      'selectedSheetCount',
       'recognizeWorkbookMs',
       'canonicalRostersMs',
     ] as const) {
       expect(typeof timings[0]?.[key]).toBe('number');
       expect(timings[0]?.[key]).toBeGreaterThanOrEqual(0);
     }
+    expect(typeof timings[0]?.selectiveSheetParse).toBe('boolean');
   });
 
   it('IMP-010: o caminho integrado continua local, somente leitura e sem persistência', () => {
