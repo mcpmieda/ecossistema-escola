@@ -1,6 +1,10 @@
 import type { SourceFileManifestV1 } from '../../../../shared/gradebook-contracts/imports/import-contract-v1';
 import { createSourceFileManifest } from './file-manifest';
-import { recognizeWorkbook, type SheetJs } from './spreadsheet-recognizer';
+import {
+  recognizeWorkbook,
+  type SheetJs,
+  type Workbook,
+} from './spreadsheet-recognizer';
 import {
   recognizeCanonicalRostersV6,
   type WorkbookSummaryWithCanonicalRostersV6,
@@ -18,9 +22,19 @@ export const WORKBOOK_READ_OPTIONS = {
   dense: true,
 } as const;
 
+export const WORKBOOK_SHEET_SCAN_OPTIONS = {
+  type: 'array',
+  bookSheets: true,
+} as const;
+
 export interface WorkbookReadTimingV1 {
   readonly totalMs: number;
   readonly xlsxReadMs: number;
+  readonly sheetScanMs: number;
+  readonly sheetParseMs: number;
+  readonly totalSheetCount: number;
+  readonly selectedSheetCount: number;
+  readonly selectiveSheetParse: boolean;
   readonly recognizeWorkbookMs: number;
   readonly canonicalRostersMs: number;
 }
@@ -40,6 +54,15 @@ type DenseWorksheetCarrierV1 = {
   readonly '!data'?: DenseWorksheetDataV1;
   readonly [key: string]: unknown;
 };
+
+interface WorkbookParseResultV1 {
+  readonly workbook: ReturnType<SheetJs['read']>;
+  readonly sheetScanMs: number;
+  readonly sheetParseMs: number;
+  readonly totalSheetCount: number;
+  readonly selectedSheetCount: number;
+  readonly selectiveSheetParse: boolean;
+}
 
 const denseAddressCacheV1 = new Map<
   string,
@@ -104,6 +127,88 @@ function sparseAddressCompatibleWorkbookV1(
   return workbook;
 }
 
+function recognitionSheetNamesV1(
+  file: File,
+  sheetNames: readonly string[],
+  xlsx: SheetJs,
+  manifest: SourceFileManifestV1,
+): readonly string[] {
+  const sheets = Object.fromEntries(sheetNames.map((name) => [name, {}])) as Workbook['Sheets'];
+  const nameOnlySummary = recognizeWorkbook(
+    file,
+    { SheetNames: [...sheetNames], Sheets: sheets },
+    xlsx,
+    { fileSha256: manifest.sha256 },
+  );
+  const requiredNames = new Set([
+    ...nameOnlySummary.gradeSheets.map((sheet) => sheet.name),
+    ...nameOnlySummary.auxiliarySheets,
+  ]);
+  return sheetNames.filter((name) => requiredNames.has(name));
+}
+
+function parseWorkbookV1(
+  file: File,
+  data: ArrayBuffer,
+  xlsx: SheetJs,
+  manifest: SourceFileManifestV1,
+): WorkbookParseResultV1 {
+  let sheetScanMs = 0;
+  let totalSheetCount = 0;
+  let selectedSheetCount = 0;
+  let scanSucceeded = false;
+  const scanStartedAt = nowMs();
+
+  try {
+    const scan = xlsx.read(data, WORKBOOK_SHEET_SCAN_OPTIONS);
+    sheetScanMs = elapsedMs(scanStartedAt);
+    scanSucceeded = true;
+    const allSheetNames = [...scan.SheetNames];
+    totalSheetCount = allSheetNames.length;
+    const selectedSheetNames = recognitionSheetNamesV1(file, allSheetNames, xlsx, manifest);
+    selectedSheetCount = selectedSheetNames.length;
+
+    if (selectedSheetNames.length > 0 && selectedSheetNames.length < allSheetNames.length) {
+      const parseStartedAt = nowMs();
+      const parsed = xlsx.read(data, {
+        ...WORKBOOK_READ_OPTIONS,
+        sheets: selectedSheetNames,
+      });
+      const sheetParseMs = elapsedMs(parseStartedAt);
+      if (selectedSheetNames.some((name) => !parsed.Sheets[name])) {
+        throw new Error('selective-sheet-parse-incomplete');
+      }
+      parsed.SheetNames = allSheetNames;
+      return {
+        workbook: sparseAddressCompatibleWorkbookV1(parsed),
+        sheetScanMs,
+        sheetParseMs,
+        totalSheetCount,
+        selectedSheetCount,
+        selectiveSheetParse: true,
+      };
+    }
+  } catch {
+    if (sheetScanMs === 0) sheetScanMs = elapsedMs(scanStartedAt);
+  }
+
+  const parseStartedAt = nowMs();
+  const parsed = sparseAddressCompatibleWorkbookV1(xlsx.read(data, WORKBOOK_READ_OPTIONS));
+  const sheetParseMs = elapsedMs(parseStartedAt);
+  if (!scanSucceeded || totalSheetCount === 0) {
+    totalSheetCount = parsed.SheetNames.length;
+    selectedSheetCount = parsed.SheetNames.length;
+  }
+  return {
+    workbook: parsed,
+    sheetScanMs,
+    sheetParseMs,
+    totalSheetCount,
+    selectedSheetCount,
+    selectiveSheetParse: false,
+  };
+}
+
 function originalWorksheetDimensions(
   sheet: ReturnType<SheetJs['read']>['Sheets'][string] | undefined,
   xlsx: SheetJs,
@@ -153,7 +258,8 @@ export function readWorkbookData(
 ): WorkbookSummaryWithCanonicalRostersV6 {
   const totalStartedAt = nowMs();
   const readStartedAt = nowMs();
-  const parsed = sparseAddressCompatibleWorkbookV1(xlsx.read(data, WORKBOOK_READ_OPTIONS));
+  const parsedResult = parseWorkbookV1(file, data, xlsx, manifest);
+  const parsed = parsedResult.workbook;
   const xlsxReadMs = elapsedMs(readStartedAt);
   if (parsed.SheetNames.length === 0) {
     throw new Error('A planilha não contém abas reconhecíveis.');
@@ -173,6 +279,11 @@ export function readWorkbookData(
   onTiming?.({
     totalMs: elapsedMs(totalStartedAt),
     xlsxReadMs,
+    sheetScanMs: parsedResult.sheetScanMs,
+    sheetParseMs: parsedResult.sheetParseMs,
+    totalSheetCount: parsedResult.totalSheetCount,
+    selectedSheetCount: parsedResult.selectedSheetCount,
+    selectiveSheetParse: parsedResult.selectiveSheetParse,
     recognizeWorkbookMs,
     canonicalRostersMs,
   });

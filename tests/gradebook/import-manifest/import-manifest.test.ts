@@ -149,6 +149,7 @@ describe('manifesto e proveniência do lote de importação', () => {
       'hash',
       'yield-to-interface',
       'recognize:4',
+      'recognize:4',
     ]);
     expect(progress).toEqual(['preparing:1/1', 'recognizing:1/1']);
   });
@@ -211,6 +212,7 @@ describe('manifesto e proveniência do lote de importação', () => {
     expect(events).toEqual([
       'read-failed:leitura-invalida.xlsx',
       'read-bytes:leitura-valida.xlsx',
+      'recognize:7',
       'recognize:7',
     ]);
   });
