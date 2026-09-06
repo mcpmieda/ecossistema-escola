@@ -14,6 +14,8 @@ import { createSourceFileManifest, type FileManifestRuntime } from './file-manif
 import {
   ACCEPTED_EXTENSIONS,
   fileExtension,
+  type ClassRecognition,
+  type GradeSheetRecognition,
   type SheetJs,
   type WorkbookSummary,
 } from './spreadsheet-recognizer';
@@ -63,13 +65,13 @@ export interface ImportWorkbookFileTimingV1 {
   readonly recognitionMs: number;
   readonly workbookReadMs: number | null;
   readonly xlsxReadMs: number | null;
-  readonly sheetScanMs: number | null;
-  readonly sheetParseMs: number | null;
-  readonly totalSheetCount: number | null;
-  readonly selectedSheetCount: number | null;
-  readonly selectiveSheetParse: boolean | null;
   readonly recognizeWorkbookMs: number | null;
   readonly canonicalRostersMs: number | null;
+}
+
+export interface WorkbookOperationalComponentV1 {
+  readonly discipline: string;
+  readonly disciplineIndex: string;
 }
 
 export type BatchResult = {
@@ -89,6 +91,60 @@ export function validateBatchSize(files: File[]): string | null {
   return files.length > MAX_NOTES_IMPORT_FILES
     ? `Selecione no máximo ${MAX_NOTES_IMPORT_FILES} planilhas por lote.`
     : null;
+}
+
+function normalizeOperationalLabel(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/gu, '')
+    .trim()
+    .replace(/\s+/gu, ' ')
+    .toUpperCase();
+}
+
+function isOperationalTermSheet(sheet: GradeSheetRecognition): boolean {
+  return (
+    sheet.stage === 'trimester-1' ||
+    sheet.stage === 'trimester-2' ||
+    sheet.stage === 'trimester-3'
+  );
+}
+
+function operationalComponentKey(sheet: GradeSheetRecognition): string {
+  return JSON.stringify([
+    normalizeOperationalLabel(sheet.className),
+    normalizeOperationalLabel(sheet.discipline),
+    sheet.disciplineIndex.trim().toUpperCase(),
+  ]);
+}
+
+export function countWorkbookOperationalClassesV1(summary: WorkbookSummary): number {
+  return new Set(
+    summary.gradeSheets.filter(isOperationalTermSheet).map(operationalComponentKey),
+  ).size;
+}
+
+export function workbookClassComponentsV1(
+  classroom: ClassRecognition,
+): readonly WorkbookOperationalComponentV1[] {
+  const unique = new Map<string, WorkbookOperationalComponentV1>();
+  for (const sheet of classroom.sheets) {
+    if (!isOperationalTermSheet(sheet)) continue;
+    const component = {
+      discipline: sheet.discipline.trim(),
+      disciplineIndex: sheet.disciplineIndex.trim().toUpperCase(),
+    };
+    const key = JSON.stringify([
+      normalizeOperationalLabel(component.discipline),
+      component.disciplineIndex,
+    ]);
+    if (!unique.has(key)) unique.set(key, component);
+  }
+  return [...unique.values()].sort(
+    (a, b) =>
+      a.disciplineIndex.localeCompare(b.disciplineIndex, 'pt-BR', { numeric: true }) ||
+      a.discipline.localeCompare(b.discipline, 'pt-BR'),
+  );
 }
 
 function sourceFileDescriptor(file: File): SourceFileDescriptorV1 {
@@ -375,11 +431,6 @@ export async function importWorkbookBatch(
         recognitionMs: elapsedMs(recognitionStartedAt),
         workbookReadMs: measuredWorkbookTiming?.totalMs ?? null,
         xlsxReadMs: measuredWorkbookTiming?.xlsxReadMs ?? null,
-        sheetScanMs: measuredWorkbookTiming?.sheetScanMs ?? null,
-        sheetParseMs: measuredWorkbookTiming?.sheetParseMs ?? null,
-        totalSheetCount: measuredWorkbookTiming?.totalSheetCount ?? null,
-        selectedSheetCount: measuredWorkbookTiming?.selectedSheetCount ?? null,
-        selectiveSheetParse: measuredWorkbookTiming?.selectiveSheetParse ?? null,
         recognizeWorkbookMs: measuredWorkbookTiming?.recognizeWorkbookMs ?? null,
         canonicalRostersMs: measuredWorkbookTiming?.canonicalRostersMs ?? null,
       });
