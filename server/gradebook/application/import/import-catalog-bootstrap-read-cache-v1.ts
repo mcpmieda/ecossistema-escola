@@ -1,5 +1,6 @@
 import type {
   AcademicEntityRecordV1,
+  AcademicEntityReferenceV1,
   AcademicEntityRepositoryV1,
   AcademicPersistenceContextV1,
   VersionedRecordV1,
@@ -8,10 +9,14 @@ import type {
 type AcademicYearRecordV1 = VersionedRecordV1<
   Extract<AcademicEntityRecordV1, { readonly kind: 'academic-year' }>
 >;
+type AssessmentComponentRecordV1 = VersionedRecordV1<
+  Extract<AcademicEntityRecordV1, { readonly kind: 'assessment-component' }>
+>;
 
 interface CatalogBootstrapSnapshotV1 {
   readonly academicYear: AcademicYearRecordV1 | null;
   readonly catalog: readonly VersionedRecordV1<AcademicEntityRecordV1>[] | null;
+  readonly assessmentComponents?: readonly AssessmentComponentRecordV1[] | null;
 }
 
 type CatalogBootstrapRepositoryV1 = AcademicEntityRepositoryV1 & {
@@ -21,6 +26,10 @@ type CatalogBootstrapRepositoryV1 = AcademicEntityRepositoryV1 & {
   readonly getImportCatalogBootstrapSnapshot?: (
     context: AcademicPersistenceContextV1,
   ) => Promise<CatalogBootstrapSnapshotV1>;
+  readonly getMany?: (
+    context: AcademicPersistenceContextV1,
+    references: readonly AcademicEntityReferenceV1[],
+  ) => Promise<readonly (VersionedRecordV1<AcademicEntityRecordV1> | null)[]>;
 };
 
 function contextKey(context: AcademicPersistenceContextV1): string {
@@ -30,7 +39,8 @@ function contextKey(context: AcademicPersistenceContextV1): string {
 /**
  * Lets the canonical catalog planner keep its historical `get(academic-year)` followed by
  * `getImportCatalogSnapshot()` sequence while satisfying both reads from one server-owned
- * bootstrap snapshot when the persistence adapter exposes it.
+ * bootstrap snapshot when the persistence adapter exposes it. The same snapshot may also
+ * satisfy the planner's assessment-component bulk read without changing its public contract.
  */
 export function createGradebookImportCatalogBootstrapReadCacheV1(
   base: AcademicEntityRepositoryV1,
@@ -69,6 +79,29 @@ export function createGradebookImportCatalogBootstrapReadCacheV1(
             const pending = bootstrapSnapshot(context);
             if (pending) return (await pending).catalog;
             return source.getImportCatalogSnapshot!(context);
+          },
+        }
+      : {}),
+    ...(typeof source.getMany === 'function'
+      ? {
+          async getMany(
+            context: AcademicPersistenceContextV1,
+            references: readonly AcademicEntityReferenceV1[],
+          ) {
+            const assessmentOnly =
+              references.length > 0 &&
+              references.every((reference) => reference.kind === 'assessment-component');
+            const pending = assessmentOnly ? bootstrapSnapshot(context) : null;
+            if (pending) {
+              const components = (await pending).assessmentComponents;
+              if (components !== undefined && components !== null) {
+                const byId = new Map(
+                  components.map((record) => [record.value.value.id, record] as const),
+                );
+                return references.map((reference) => byId.get(reference.id) ?? null);
+              }
+            }
+            return source.getMany!(context, references);
           },
         }
       : {}),
