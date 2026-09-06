@@ -296,7 +296,7 @@ describe('D1 bootstrap import V2', () => {
        ) VALUES (?, 'logical-source:race-winner', 'teacher', ?, 'teacher-year-gradebook', ?)`,
       )
       .run(academicYearId, teacherId, instant);
-    await expect(recorder.commit()).rejects.toMatchObject({ code: 'transaction-failed' });
+    await expect(recorder.commit()).rejects.toMatchObject({ code: 'batch-version-conflict' });
     expect(
       (
         db.raw.prepare('SELECT COUNT(*) AS count FROM logical_sources').get() as {

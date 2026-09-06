@@ -1,5 +1,8 @@
 import type {
+  AcademicEntityRecordV1,
   AcademicPersistenceContextV1,
+  AcademicRecordStreamV1,
+  AcademicRecordV1,
   LogicalSourceRecordAssociationStreamV1,
   LogicalSourceRecordAssociationV1,
   VersionExpectationV1,
@@ -23,6 +26,8 @@ import type {
   GradebookD1WriteAdapterOptionsV1,
 } from '../write/d1-write-adapter-v1';
 
+const MAX_BUFFERED_BULK_WRITES_V2 = 512;
+
 interface DeferredAssociationWriteV2 {
   readonly context: AcademicPersistenceContextV1;
   readonly stream: LogicalSourceRecordAssociationStreamV1;
@@ -44,6 +49,78 @@ function bootstrapManifestVersions(
     );
   }
   return new Map(request.plannedSourceFileManifestIds.map((id) => [id, 1]));
+}
+
+function createBoundedBulkUnitOfWorkV2(input: {
+  readonly database: D1WriteDatabaseV1;
+  readonly recorder: GradebookD1AtomicBatchRecorderV1;
+  readonly baseUnitOfWork: PersistenceUnitOfWorkV2;
+  readonly now: () => string;
+}): { readonly unitOfWork: PersistenceUnitOfWorkV2; readonly flush: () => void } {
+  const bulk = createGradebookD1ImportBootstrapBulkUnitOfWorkV1(input);
+  const base = bulk.unitOfWork;
+  let entities = 0;
+  let academicRecords = 0;
+  let associations = 0;
+
+  const flush = () => {
+    bulk.flush();
+    entities = 0;
+    academicRecords = 0;
+    associations = 0;
+  };
+
+  const unitOfWork: PersistenceUnitOfWorkV2 = {
+    ...base,
+    entities: {
+      ...base.entities,
+      appendVersion: async (
+        context: AcademicPersistenceContextV1,
+        record: AcademicEntityRecordV1,
+        expectation: VersionExpectationV1,
+      ) => {
+        const result = await base.entities.appendVersion(context, record, expectation);
+        entities += 1;
+        if (entities >= MAX_BUFFERED_BULK_WRITES_V2) flush();
+        return result;
+      },
+    },
+    academicRecords: {
+      ...base.academicRecords,
+      appendVersion: async (
+        context: AcademicPersistenceContextV1,
+        stream: AcademicRecordStreamV1,
+        record: AcademicRecordV1,
+        expectation: VersionExpectationV1,
+      ) => {
+        const result = await base.academicRecords.appendVersion(context, stream, record, expectation);
+        academicRecords += 1;
+        if (academicRecords >= MAX_BUFFERED_BULK_WRITES_V2) flush();
+        return result;
+      },
+    },
+    logicalSourceRecords: {
+      ...base.logicalSourceRecords,
+      appendVersion: async (
+        context: AcademicPersistenceContextV1,
+        stream: LogicalSourceRecordAssociationStreamV1,
+        value: LogicalSourceRecordAssociationV1,
+        expectation: VersionExpectationV1,
+      ) => {
+        const result = await base.logicalSourceRecords.appendVersion(
+          context,
+          stream,
+          value,
+          expectation,
+        );
+        associations += 1;
+        if (associations >= MAX_BUFFERED_BULK_WRITES_V2) flush();
+        return result;
+      },
+    },
+  };
+
+  return { unitOfWork, flush };
 }
 
 function deferAssociationWritesV2(
@@ -136,7 +213,7 @@ export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapT
           ...this.options,
           bootstrapManifestVersions: manifestVersions,
         });
-        const bulk = createGradebookD1ImportBootstrapBulkUnitOfWorkV1({
+        const bulk = createBoundedBulkUnitOfWorkV2({
           database: this.database,
           recorder,
           baseUnitOfWork,
@@ -144,12 +221,7 @@ export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapT
         });
         const result = await operation(bulk.unitOfWork);
         bulk.flush();
-        try {
-          await recorder.commit();
-        } catch {
-          // Any optimistic mismatch or set-based write failure rolls the single D1 batch back.
-          throw new GradebookD1TransactionErrorV1('batch-version-conflict');
-        }
+        await recorder.commit();
         return result;
       }
 
