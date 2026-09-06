@@ -80,7 +80,7 @@ export function createGradebookImportPersistenceBatchServiceV7(
       for (const [index, itemRequest] of request.requests.entries()) {
         const itemStartedAt = nowMs();
         let attempts: 1 | 2 = 1;
-        let firstAttemptMs = 0;
+        let firstAttemptMs: number;
         let response: GradebookImportPersistenceResponseV6;
         try {
           const firstStartedAt = nowMs();
