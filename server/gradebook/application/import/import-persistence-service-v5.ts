@@ -132,17 +132,19 @@ export async function createGradebookImportAnnualStateCacheV1(input: {
   readonly academicYearId: AcademicYearId;
   readonly assignments: readonly TeachingAssignmentV1[];
   readonly classGroupIds: readonly ClassGroupId[];
+  readonly preloadedAnnualByClass?: ReadonlyMap<ClassGroupId, readonly AnnualResultV1[]> | null;
 }): Promise<GradebookImportAnnualStateSourceV1> {
   const assignments = new Map(input.assignments.map((assignment) => [assignment.id, assignment]));
   const classGroupIds = [...new Set(input.classGroupIds)];
   const relevantClassGroupIds = new Set<string>(classGroupIds);
   const annualByClass =
-    input.base.loadCurrentAnnualResultsForClasses && classGroupIds.length > 0
+    input.preloadedAnnualByClass ??
+    (input.base.loadCurrentAnnualResultsForClasses && classGroupIds.length > 0
       ? await input.base.loadCurrentAnnualResultsForClasses({
           academicYearId: input.academicYearId,
           classGroupIds,
         })
-      : null;
+      : null);
 
   return {
     async listAssignments(page) {
@@ -173,11 +175,24 @@ export async function createGradebookImportAnnualStateCacheV1(input: {
     },
     ...(input.base.loadCurrentAnnualResultsForClasses
       ? {
-          loadCurrentAnnualResultsForClasses: (request: {
+          async loadCurrentAnnualResultsForClasses(request: {
             readonly academicYearId: AcademicYearId;
             readonly classGroupIds: readonly ClassGroupId[];
-          }): Promise<ReadonlyMap<ClassGroupId, readonly AnnualResultV1[]>> =>
-            input.base.loadCurrentAnnualResultsForClasses!(request),
+          }): Promise<ReadonlyMap<ClassGroupId, readonly AnnualResultV1[]>> {
+            const requested = [...new Set(request.classGroupIds)];
+            if (
+              annualByClass &&
+              request.academicYearId === input.academicYearId &&
+              requested.every((classGroupId) => relevantClassGroupIds.has(classGroupId))
+            ) {
+              return new Map(
+                requested.map(
+                  (classGroupId) => [classGroupId, annualByClass.get(classGroupId) ?? []] as const,
+                ),
+              );
+            }
+            return input.base.loadCurrentAnnualResultsForClasses!(request);
+          },
         }
       : {}),
   };
@@ -224,6 +239,13 @@ export function createGradebookImportPersistenceServiceV5(
           sha256: request.manifest.sha256,
           teacherId: null,
         }).catch(() => undefined);
+        const earlyAnnualResultsPrefetch = dependencies.annualStateSource.loadCurrentAnnualResultsForYear
+          ? dependencies.annualStateSource
+              .loadCurrentAnnualResultsForYear({
+                academicYearId: request.confirmedContext.academicYearId,
+              })
+              .catch(() => null)
+          : Promise.resolve(null);
         const catalogBootstrapEntities = createGradebookImportCatalogBootstrapReadCacheV1(
           sharedUnitOfWork.entities,
         );
@@ -234,6 +256,7 @@ export function createGradebookImportPersistenceServiceV5(
         });
         if (catalog.status !== 'ready') {
           void earlySourceHashWarmup;
+          void earlyAnnualResultsPrefetch;
           return review();
         }
 
@@ -256,12 +279,15 @@ export function createGradebookImportPersistenceServiceV5(
           else if (commonTeacherId !== assignment.teacherId) compatibleTeacherContext = false;
         }
 
-        const annualStatePromise = createGradebookImportAnnualStateCacheV1({
-          base: dependencies.annualStateSource,
-          academicYearId: catalog.request.confirmedContext.academicYearId,
-          assignments: allAssignments,
-          classGroupIds,
-        });
+        const annualStatePromise = earlyAnnualResultsPrefetch.then((preloadedAnnualByClass) =>
+          createGradebookImportAnnualStateCacheV1({
+            base: dependencies.annualStateSource,
+            academicYearId: catalog.request.confirmedContext.academicYearId,
+            assignments: allAssignments,
+            classGroupIds,
+            preloadedAnnualByClass,
+          }),
+        );
         const sourceWarmupPromise = prewarmGradebookImportSharedSourceReadsV1({
           unitOfWork: sharedUnitOfWork,
           academicYearId: catalog.request.confirmedContext.academicYearId,
