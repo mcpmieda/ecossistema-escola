@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AcademicYearId, SchoolId, TeacherId } from '../../../shared/gradebook-contracts/entities';
+import type {
+  AcademicYearId,
+  SchoolId,
+  TeacherId,
+  TeachingAssignmentId,
+} from '../../../shared/gradebook-contracts/entities';
+import type { AssessmentComponentId } from '../../../shared/gradebook-contracts/results/results-contract-v1';
 import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
 import { createGradebookD1ImportCatalogBootstrapReadV1 } from '../../../server/gradebook/persistence/d1/read/d1-import-catalog-bootstrap-read-v1';
 import { ACADEMIC_CONTEXT_2026_IDENTITY_V1 } from '../../../src/gradebook-domain/context/academic-context-2026-v1';
@@ -12,6 +18,9 @@ import {
 
 let database: SqliteD1Database;
 const teacherId = 'teacher:catalog-bootstrap:001' as TeacherId;
+const teachingAssignmentId = 'teaching-assignment:catalog-bootstrap:001' as TeachingAssignmentId;
+const assessmentComponentId =
+  'assessment-component:v2:catalog-bootstrap:001' as AssessmentComponentId;
 
 beforeEach(async () => {
   database = await openMigratedDatabase();
@@ -54,12 +63,34 @@ beforeEach(async () => {
       )
     ).status,
   ).toBe('written');
+  expect(
+    (
+      await unit.entities.appendVersion(
+        { academicYearId },
+        {
+          kind: 'assessment-component',
+          value: {
+            id: assessmentComponentId,
+            academicYearId,
+            teachingAssignmentId,
+            term: 1,
+            type: 'quantitative-assessment',
+            name: 'Avaliação quantitativa sintética',
+            maximum: { state: 'defined', value: 10 },
+            order: 1,
+            applicability: { state: 'applicable' },
+          },
+        },
+        { expectedVersion: null },
+      )
+    ).status,
+  ).toBe('written');
 });
 
 afterEach(() => database.raw.close());
 
 describe('D1 import catalog bootstrap snapshot', () => {
-  it('loads the academic year and catalog through one physical D1 query', async () => {
+  it('loads year, catalog and assessment components through one physical D1 query', async () => {
     let prepareCalls = 0;
     const reader = createGradebookD1ImportCatalogBootstrapReadV1({
       prepare(query: string) {
@@ -85,9 +116,21 @@ describe('D1 import catalog bootstrap snapshot', () => {
         },
       }),
     ]);
+    expect(snapshot.assessmentComponents).toEqual([
+      expect.objectContaining({
+        value: {
+          kind: 'assessment-component',
+          value: expect.objectContaining({
+            id: assessmentComponentId,
+            teachingAssignmentId,
+            maximum: { state: 'defined', value: 10 },
+          }),
+        },
+      }),
+    ]);
   });
 
-  it('returns a null academic year without inventing bootstrap authority', async () => {
+  it('returns null year without inventing bootstrap authority', async () => {
     database.raw.prepare('DELETE FROM academic_year_versions').run();
     database.raw.prepare('DELETE FROM academic_year_configuration_versions').run();
     database.raw.prepare('DELETE FROM academic_entity_versions').run();
@@ -98,6 +141,7 @@ describe('D1 import catalog bootstrap snapshot', () => {
     await expect(reader.getImportCatalogBootstrapSnapshot({ academicYearId })).resolves.toEqual({
       academicYear: null,
       catalog: [],
+      assessmentComponents: [],
     });
   });
 });
