@@ -103,7 +103,7 @@ describe('Gradebook import persistence batch service V7', () => {
 
   it('does not retry a slow conflict, avoiding another long blocked request', async () => {
     const execute = vi.fn(async () => conflict);
-    const times = [0, 0, 13_001, 13_001, 13_001];
+    const times = [0, 0, 0, 13_001, 13_001, 13_001];
     const service = createGradebookImportPersistenceBatchServiceV7(
       () => ({ execute }),
       {
