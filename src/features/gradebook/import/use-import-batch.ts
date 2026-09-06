@@ -11,6 +11,7 @@ import {
   validateBatchSize,
   type BatchFailureDetail,
   type BatchSuccess,
+  type ImportWorkbookFileTimingV1,
 } from './import-batch';
 import { loadSheetJs } from './sheetjs-loader';
 import { createCompactGradebookImportPersistenceRequestV6 } from './compact-import-v6';
@@ -227,14 +228,29 @@ export function useImportBatch() {
 
     try {
       const recognitionStartedAt = nowMs();
+      const sheetJsStartedAt = nowMs();
       const xlsx = await loadSheetJs();
+      const sheetJsLoadMs = elapsedMs(sheetJsStartedAt);
+      const fileTimings: ImportWorkbookFileTimingV1[] = [];
+      const batchStartedAt = nowMs();
       const batch = await importWorkbookBatch(files, xlsx, () => undefined, {
         onStageProgress: (value) => setProgress(value),
+        onFileTiming: (value) => fileTimings.push(value),
       });
+      const batchMs = elapsedMs(batchStartedAt);
+      for (const timing of fileTimings) {
+        appendTiming('[gradebook-import-browser-timing]', {
+          version: 1,
+          stage: 'recognition-file',
+          ...timing,
+        });
+      }
       appendTiming('[gradebook-import-browser-timing]', {
         version: 1,
         stage: 'recognition-batch',
         totalMs: elapsedMs(recognitionStartedAt),
+        sheetJsLoadMs,
+        batchMs,
         fileCount: files.length,
         recognizedCount: batch.successes.length,
         failureCount: batch.failureDetails.length,
