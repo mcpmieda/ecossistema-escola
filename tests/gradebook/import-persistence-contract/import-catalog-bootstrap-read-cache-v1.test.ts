@@ -105,7 +105,7 @@ function baseRepository() {
 }
 
 describe('import catalog bootstrap read cache', () => {
-  it('serves year, catalog, component getMany and status bulk from one bootstrap snapshot', async () => {
+  it('serves nested year/catalog/component/status reads from one physical bootstrap snapshot', async () => {
     let bootstrapCalls = 0;
     let baseGetCalls = 0;
     let baseCatalogCalls = 0;
@@ -139,7 +139,9 @@ describe('import catalog bootstrap read cache', () => {
         };
       },
     });
-    const cached = createGradebookImportCatalogBootstrapReadCacheV1(source);
+    const cached = createGradebookImportCatalogBootstrapReadCacheV1(
+      createGradebookImportCatalogBootstrapReadCacheV1(source),
+    );
 
     await expect(
       cached.get(context, { kind: 'academic-year', id: academicYearId }),
