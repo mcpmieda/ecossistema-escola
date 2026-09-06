@@ -325,7 +325,7 @@ export function createGradebookImportPersistenceServiceV5(
           });
         const catalogRecords = [...catalog.records, ...additionalRecords];
 
-        const sourceEntities = sharedUnitOfWork.entities as BulkEntityRepositoryV1;
+        const sourceEntities = catalogBootstrapEntities as BulkEntityRepositoryV1;
         const planningEntities = Object.assign(
           {},
           catalog.repository,
