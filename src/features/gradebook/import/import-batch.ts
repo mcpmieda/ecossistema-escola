@@ -359,6 +359,7 @@ export async function importWorkbookBatch(
         failureCollections,
       );
     } finally {
+      const measuredWorkbookTiming = workbookTiming as WorkbookReadTimingV1 | null;
       runtime.onFileTiming?.({
         fileIndex: index,
         current,
@@ -367,10 +368,10 @@ export async function importWorkbookBatch(
         manifestMs,
         yieldMs,
         recognitionMs: elapsedMs(recognitionStartedAt),
-        workbookReadMs: workbookTiming?.totalMs ?? null,
-        xlsxReadMs: workbookTiming?.xlsxReadMs ?? null,
-        recognizeWorkbookMs: workbookTiming?.recognizeWorkbookMs ?? null,
-        canonicalRostersMs: workbookTiming?.canonicalRostersMs ?? null,
+        workbookReadMs: measuredWorkbookTiming?.totalMs ?? null,
+        xlsxReadMs: measuredWorkbookTiming?.xlsxReadMs ?? null,
+        recognizeWorkbookMs: measuredWorkbookTiming?.recognizeWorkbookMs ?? null,
+        canonicalRostersMs: measuredWorkbookTiming?.canonicalRostersMs ?? null,
       });
     }
   }
