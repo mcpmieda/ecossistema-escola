@@ -1,7 +1,11 @@
 import { Alert, Chip, Surface } from '@heroui/react';
 import { CheckCircle2 } from 'lucide-react';
 import { abbreviateSha256 } from './file-manifest';
-import type { BatchSuccess } from './import-batch';
+import {
+  countWorkbookOperationalClassesV1,
+  workbookClassComponentsV1,
+  type BatchSuccess,
+} from './import-batch';
 import {
   formatNote,
   noteCount,
@@ -26,6 +30,7 @@ function formatTimestamp(value: string | null): string {
 
 export function WorkbookInspector({ result }: { result: BatchSuccess }) {
   const { manifest, summary: workbook } = result;
+  const operationalClasses = countWorkbookOperationalClassesV1(workbook);
   const totalStudents = workbook.classes.reduce((sum, classroom) => sum + classroom.students, 0);
   const trimesterGuides = workbook.gradeSheets.filter((sheet) =>
     sheet.stage.startsWith('trimester'),
@@ -88,10 +93,11 @@ export function WorkbookInspector({ result }: { result: BatchSuccess }) {
         </div>
       </Surface>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
-          ['Turmas', workbook.classes.length, 'turmas distintas'],
-          ['Alunos', totalStudents, 'posições únicas por turma'],
+          ['Turmas', operationalClasses, 'turma + componente D<n>'],
+          ['Relações', workbook.classes.length, 'turmas físicas / rosters'],
+          ['Alunos', totalStudents, 'posições únicas por relação'],
           ['Trimestres', trimesterGuides, 'guias de 1º, 2º e 3º'],
           ['Recuperação', recoveryClasses, 'turma(s) com guia REC'],
         ].map(([label, value, detail]) => (
@@ -115,6 +121,16 @@ export function WorkbookInspector({ result }: { result: BatchSuccess }) {
               <Chip variant="soft" size="sm">
                 {classroom.students} alunos
               </Chip>
+              {workbookClassComponentsV1(classroom).map((component) => (
+                <Chip
+                  key={`${component.disciplineIndex}|${component.discipline}`}
+                  color="accent"
+                  variant="soft"
+                  size="sm"
+                >
+                  {component.disciplineIndex} · {component.discipline || 'Componente'}
+                </Chip>
+              ))}
               {classroom.declaredStudents !== null && (
                 <Chip variant="soft" size="sm">
                   J1: {classroom.declaredStudents}
