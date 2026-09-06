@@ -23,6 +23,7 @@ import type { PersistenceUnitOfWorkV2 } from '../../../../src/gradebook-domain/p
 import { materializeAssessmentDefinitionsV4 } from '../../../../src/features/gradebook/import/assessment-definition-materializer-v4';
 import type { GradebookImportAnnualStateSourceV1 } from '../../persistence/d1/imports/d1-import-annual-state-source-v1';
 import { planAcademicCatalogBootstrapV1 } from './academic-catalog-bootstrap-v1';
+import { createGradebookImportCatalogBootstrapReadCacheV1 } from './import-catalog-bootstrap-read-cache-v1';
 import {
   createGradebookImportPersistenceServiceV4,
   type GradebookImportPersistenceServiceDependenciesV4,
@@ -214,7 +215,10 @@ export function createGradebookImportPersistenceServiceV5(
       request: GradebookImportPersistenceRequestV5,
     ): Promise<GradebookImportPersistenceResponseV5> {
       try {
-        const capture = captureCatalogAssignmentsV1(dependencies.unitOfWork.entities);
+        const catalogBootstrapEntities = createGradebookImportCatalogBootstrapReadCacheV1(
+          dependencies.unitOfWork.entities,
+        );
+        const capture = captureCatalogAssignmentsV1(catalogBootstrapEntities);
         const catalog = await planAcademicCatalogBootstrapV1({
           request,
           unitOfWork: { entities: capture.repository },
