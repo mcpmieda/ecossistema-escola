@@ -210,6 +210,26 @@ type ReadyCatalogV1 = Extract<
   { readonly status: 'ready' }
 >;
 
+/** @internal Starts independent post-catalog work in the same scheduling window. */
+export async function resolveGradebookImportPostCatalogPreflightV1<TAnnualState>(input: {
+  readonly loadAnnualState: () => Promise<TAnnualState>;
+  readonly warmSource: () => Promise<void>;
+  readonly loadAdditionalCatalogRecords: () => Promise<readonly AcademicEntityRecordV1[]>;
+}): Promise<{
+  readonly annualStateSource: TAnnualState;
+  readonly additionalRecords: readonly AcademicEntityRecordV1[];
+}> {
+  const annualStatePromise = input.loadAnnualState();
+  const sourceWarmupPromise = input.warmSource();
+  const additionalRecordsPromise = input.loadAdditionalCatalogRecords();
+  const [annualStateSource, , additionalRecords] = await Promise.all([
+    annualStatePromise,
+    sourceWarmupPromise,
+    additionalRecordsPromise,
+  ]);
+  return { annualStateSource, additionalRecords };
+}
+
 export interface GradebookImportPersistenceServiceOptionsV5 {
   /**
    * Allows a newer wire adapter to add already-domain-valid catalog entities to the same atomic
@@ -279,26 +299,30 @@ export function createGradebookImportPersistenceServiceV5(
           else if (commonTeacherId !== assignment.teacherId) compatibleTeacherContext = false;
         }
 
-        const annualStatePromise = earlyAnnualResultsPrefetch.then((preloadedAnnualByClass) =>
-          createGradebookImportAnnualStateCacheV1({
-            base: dependencies.annualStateSource,
-            academicYearId: catalog.request.confirmedContext.academicYearId,
-            assignments: allAssignments,
-            classGroupIds,
-            preloadedAnnualByClass,
-          }),
-        );
-        const sourceWarmupPromise = prewarmGradebookImportSharedSourceReadsV1({
-          unitOfWork: sharedUnitOfWork,
-          academicYearId: catalog.request.confirmedContext.academicYearId,
-          sha256: catalog.request.manifest.sha256,
-          teacherId: compatibleTeacherContext ? commonTeacherId : null,
-        });
-        const [annualStateSource] = await Promise.all([annualStatePromise, sourceWarmupPromise]);
-
-        const additionalRecords = options.additionalCatalogRecords
-          ? await options.additionalCatalogRecords({ request, catalog })
-          : [];
+        const { annualStateSource, additionalRecords } =
+          await resolveGradebookImportPostCatalogPreflightV1({
+            loadAnnualState: () =>
+              earlyAnnualResultsPrefetch.then((preloadedAnnualByClass) =>
+                createGradebookImportAnnualStateCacheV1({
+                  base: dependencies.annualStateSource,
+                  academicYearId: catalog.request.confirmedContext.academicYearId,
+                  assignments: allAssignments,
+                  classGroupIds,
+                  preloadedAnnualByClass,
+                }),
+              ),
+            warmSource: () =>
+              prewarmGradebookImportSharedSourceReadsV1({
+                unitOfWork: sharedUnitOfWork,
+                academicYearId: catalog.request.confirmedContext.academicYearId,
+                sha256: catalog.request.manifest.sha256,
+                teacherId: compatibleTeacherContext ? commonTeacherId : null,
+              }),
+            loadAdditionalCatalogRecords: () =>
+              options.additionalCatalogRecords
+                ? options.additionalCatalogRecords({ request, catalog })
+                : Promise.resolve([]),
+          });
         const catalogRecords = [...catalog.records, ...additionalRecords];
 
         const sourceEntities = sharedUnitOfWork.entities as BulkEntityRepositoryV1;
