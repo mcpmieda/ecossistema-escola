@@ -1,5 +1,6 @@
 import type {
   AcademicEntityRecordV1,
+  AcademicEntityReferenceV1,
   AcademicPersistenceContextV1,
   VersionedRecordV1,
 } from '../../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
@@ -10,19 +11,27 @@ import {
   type D1ReadStatementV1,
 } from './d1-read-adapter-v1';
 import { createGradebookD1ImportCatalogBulkReadV1 } from './d1-import-catalog-bulk-read-v1';
+import { createGradebookD1ImportPlanningBulkReadAdapterV1 } from './d1-import-planning-bulk-read-v1';
 
 type Row = Record<string, unknown>;
 type AcademicYearRecord = VersionedRecordV1<
   Extract<AcademicEntityRecordV1, { readonly kind: 'academic-year' }>
 >;
+type AssessmentComponentRecord = VersionedRecordV1<
+  Extract<AcademicEntityRecordV1, { readonly kind: 'assessment-component' }>
+>;
 
-const MAX_BOOTSTRAP_SNAPSHOT_ROWS_V1 = 6_002;
+const MAX_BOOTSTRAP_CATALOG_ROWS_V1 = 6_000;
+const MAX_BOOTSTRAP_ASSESSMENT_COMPONENT_ROWS_V1 = 1_000;
+const MAX_BOOTSTRAP_SNAPSHOT_ROWS_V1 =
+  1 + MAX_BOOTSTRAP_CATALOG_ROWS_V1 + MAX_BOOTSTRAP_ASSESSMENT_COMPONENT_ROWS_V1;
 const CATALOG_SNAPSHOT_SIGNATURE =
   "'teacher', 'class-group', 'subject', 'teaching-assignment', 'student', 'enrollment'";
 
 export interface GradebookD1ImportCatalogBootstrapSnapshotV1 {
   readonly academicYear: AcademicYearRecord | null;
   readonly catalog: readonly VersionedRecordV1<AcademicEntityRecordV1>[] | null;
+  readonly assessmentComponents: readonly AssessmentComponentRecord[] | null;
 }
 
 export interface GradebookD1ImportCatalogBootstrapReadV1 {
@@ -64,6 +73,48 @@ function validationDatabase(input: {
       throw new GradebookD1ReadErrorV1('database-read-failed');
     },
   };
+}
+
+function assessmentComponentValidationDatabase(rows: readonly Row[]): D1ReadDatabaseV1 {
+  const indexedRows = rows.map((row, requestIndex) => ({
+    ...row,
+    request_index: requestIndex,
+  }));
+  return {
+    prepare(query: string) {
+      if (!query.includes("s.entity_kind = 'assessment-component'")) {
+        throw new GradebookD1ReadErrorV1('database-read-failed');
+      }
+      return memoryStatement({ first: null, rows: indexedRows });
+    },
+  };
+}
+
+function assessmentComponentReferences(rows: readonly Row[]): readonly AcademicEntityReferenceV1[] {
+  const seen = new Set<string>();
+  return rows.map((row) => {
+    if (typeof row.entity_id !== 'string' || row.entity_id.length === 0 || seen.has(row.entity_id)) {
+      throw new GradebookD1ReadErrorV1('incompatible-row');
+    }
+    seen.add(row.entity_id);
+    return { kind: 'assessment-component', id: row.entity_id } as AcademicEntityReferenceV1;
+  });
+}
+
+async function validateAssessmentComponents(
+  context: AcademicPersistenceContextV1,
+  rows: readonly Row[],
+): Promise<readonly AssessmentComponentRecord[]> {
+  if (rows.length === 0) return [];
+  const references = assessmentComponentReferences(rows);
+  const reader = createGradebookD1ImportPlanningBulkReadAdapterV1(
+    assessmentComponentValidationDatabase(rows),
+  );
+  const records = await reader.entities.getMany(context, references);
+  if (records.some((record) => record === null)) {
+    throw new GradebookD1ReadErrorV1('broken-reference');
+  }
+  return records as readonly AssessmentComponentRecord[];
 }
 
 export class GradebookD1ImportCatalogBootstrapReaderV1
@@ -131,7 +182,10 @@ export class GradebookD1ImportCatalogBootstrapReaderV1
              WHERE y.academic_year_id = ?
              UNION ALL
              SELECT
-               'catalog' AS snapshot_kind,
+               CASE
+                 WHEN s.entity_kind = 'assessment-component' THEN 'assessment-component'
+                 ELSE 'catalog'
+               END AS snapshot_kind,
                s.academic_year_id,
                NULL AS school_id,
                NULL AS academic_year,
@@ -175,7 +229,8 @@ export class GradebookD1ImportCatalogBootstrapReaderV1
               AND e.version = s.current_version
              WHERE s.academic_year_id = ?
                AND s.entity_kind IN (
-                 'teacher', 'class-group', 'subject', 'teaching-assignment', 'student', 'enrollment'
+                 'teacher', 'class-group', 'subject', 'teaching-assignment', 'student', 'enrollment',
+                 'assessment-component'
                )
              ORDER BY snapshot_kind, entity_kind, entity_id
              LIMIT ?`,
@@ -183,7 +238,7 @@ export class GradebookD1ImportCatalogBootstrapReaderV1
           .bind(
             context.academicYearId,
             context.academicYearId,
-            MAX_BOOTSTRAP_SNAPSHOT_ROWS_V1,
+            MAX_BOOTSTRAP_SNAPSHOT_ROWS_V1 + 1,
           )
           .all<Row>()
       ).results;
@@ -194,6 +249,9 @@ export class GradebookD1ImportCatalogBootstrapReaderV1
 
     const academicYearRows = rows.filter(({ snapshot_kind }) => snapshot_kind === 'academic-year');
     const catalogRows = rows.filter(({ snapshot_kind }) => snapshot_kind === 'catalog');
+    const assessmentComponentRows = rows.filter(
+      ({ snapshot_kind }) => snapshot_kind === 'assessment-component',
+    );
     if (academicYearRows.length > 1) throw new GradebookD1ReadErrorV1('incompatible-row');
 
     const memory = validationDatabase({
@@ -201,19 +259,34 @@ export class GradebookD1ImportCatalogBootstrapReaderV1
       catalog: catalogRows,
     });
     const academicYearReader = createGradebookD1AcademicEntityReadAdapterV1(memory);
-    const catalogReader = createGradebookD1ImportCatalogBulkReadV1(memory);
     const academicYear = await academicYearReader.get(context, {
       kind: 'academic-year',
       id: context.academicYearId,
     });
-    const catalog = await catalogReader.getImportCatalogSnapshot(context);
-
     if (academicYear !== null && academicYear.value.kind !== 'academic-year') {
       throw new GradebookD1ReadErrorV1('incompatible-row');
     }
+
+    const globallyOverflowed = rows.length > MAX_BOOTSTRAP_SNAPSHOT_ROWS_V1;
+    if (globallyOverflowed) {
+      return {
+        academicYear: academicYear as AcademicYearRecord | null,
+        catalog: null,
+        assessmentComponents: null,
+      };
+    }
+
+    const catalogReader = createGradebookD1ImportCatalogBulkReadV1(memory);
+    const catalog = await catalogReader.getImportCatalogSnapshot(context);
+    const assessmentComponents =
+      assessmentComponentRows.length > MAX_BOOTSTRAP_ASSESSMENT_COMPONENT_ROWS_V1
+        ? null
+        : await validateAssessmentComponents(context, assessmentComponentRows);
+
     return {
       academicYear: academicYear as AcademicYearRecord | null,
       catalog,
+      assessmentComponents,
     };
   }
 }
