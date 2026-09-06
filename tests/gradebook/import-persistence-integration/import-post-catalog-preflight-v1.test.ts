@@ -3,12 +3,10 @@ import { resolveGradebookImportPostCatalogPreflightV1 } from '../../../server/gr
 
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+  const promise = new Promise<T>((resolvePromise) => {
     resolve = resolvePromise;
-    reject = rejectPromise;
   });
-  return { promise, resolve, reject };
+  return { promise, resolve };
 }
 
 describe('gradebook post-catalog preflight overlap', () => {
@@ -42,7 +40,7 @@ describe('gradebook post-catalog preflight overlap', () => {
     annual.resolve('annual-ready');
     await Promise.resolve();
     expect(settled).toBe(false);
-    source.resolve();
+    source.resolve(undefined);
     await Promise.resolve();
     expect(settled).toBe(false);
     additional.resolve([]);
