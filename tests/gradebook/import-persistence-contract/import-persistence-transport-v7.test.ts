@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { AcademicYearId } from '../../../shared/gradebook-contracts/entities';
 import {
   GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V7,
   GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V7,
@@ -34,7 +35,7 @@ function request(): GradebookImportPersistenceRequestV6 {
       readAt: '2026-09-06T00:00:00.000Z',
     },
     recognizedSuggestions: { academicYear: 2026, teacherName: 'Professor Sintético' },
-    confirmedContext: { academicYearId: 'academic-year:synthetic-2026' },
+    confirmedContext: { academicYearId: 'academic-year:synthetic-2026' as AcademicYearId },
     sourceResolution: { mode: 'resolve-or-create' },
     rosters: [{ classGroupLabel: '6A', students: [[1, 'Estudante Sintético']] }],
     courses: [
