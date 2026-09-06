@@ -95,10 +95,10 @@ export function createGradebookImportCatalogBootstrapReadCacheV1(
             if (pending) {
               const components = (await pending).assessmentComponents;
               if (components !== undefined && components !== null) {
-                const byId = new Map(
-                  components.map((record) => [record.value.value.id, record] as const),
+                const byId = new Map<string, AssessmentComponentRecordV1>(
+                  components.map((record) => [record.value.value.id, record]),
                 );
-                return references.map((reference) => byId.get(reference.id) ?? null);
+                return references.map((reference) => byId.get(String(reference.id)) ?? null);
               }
             }
             return source.getMany!(context, references);
