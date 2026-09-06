@@ -215,7 +215,85 @@ describe('Import persistence service V5 first bootstrap', () => {
     expect(count('academic_record_streams', "WHERE record_kind='annual-result'")).toBe(1);
   });
 
-  it('preserves the D1 catalog bootstrap snapshot through assignment capture on an idempotent reimport', async () => {
+  it('starts the source hash read before catalog bootstrap completes without changing review precedence', async () => {
+    let resolveBootstrap!: (value: {
+      readonly academicYear: null;
+      readonly catalog: readonly VersionedRecordV1<AcademicEntityRecordV1>[];
+    }) => void;
+    const bootstrapPending = new Promise<{
+      readonly academicYear: null;
+      readonly catalog: readonly VersionedRecordV1<AcademicEntityRecordV1>[];
+    }>((resolve) => {
+      resolveBootstrap = resolve;
+    });
+    let sourceHashCalls = 0;
+    let markSourceStarted!: () => void;
+    const sourceStarted = new Promise<void>((resolve) => {
+      markSourceStarted = resolve;
+    });
+
+    const dependencies = {
+      unitOfWork: {
+        entities: {
+          async get() {
+            return null;
+          },
+          async list() {
+            return { items: [], nextCursor: null };
+          },
+          async appendVersion() {
+            throw new Error('unexpected-write');
+          },
+          getImportCatalogBootstrapSnapshot() {
+            return bootstrapPending;
+          },
+        },
+        imports: {
+          async findSourceFileByHash() {
+            sourceHashCalls += 1;
+            markSourceStarted();
+            throw new Error('synthetic-early-source-failure');
+          },
+        },
+        logicalSources: {
+          async get() {
+            return null;
+          },
+          async listByContext() {
+            return { items: [], nextCursor: null };
+          },
+          async createInitial() {
+            throw new Error('unexpected-write');
+          },
+        },
+      },
+      transaction: {},
+      annualStateSource: {},
+      now: () => instant,
+      createId: () => 'unused',
+    } as unknown as Parameters<typeof createGradebookImportPersistenceServiceV5>[0];
+
+    const persistence = createGradebookImportPersistenceServiceV5(dependencies);
+    const pending = persistence.execute(request());
+
+    await sourceStarted;
+    expect(sourceHashCalls).toBe(1);
+    let settled = false;
+    void pending.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    resolveBootstrap({ academicYear: null, catalog: [] });
+    await expect(pending).resolves.toMatchObject({
+      transportVersion: 5,
+      state: 'review-required',
+    });
+    expect(sourceHashCalls).toBe(1);
+  });
+
+  it('preserves the D1 catalog bootstrap snapshot and reuses one source hash read on an idempotent reimport', async () => {
     const first = await service().execute(request());
     expect(first).toMatchObject({ transportVersion: 5, state: 'applied' });
 
@@ -236,9 +314,11 @@ describe('Import persistence service V5 first bootstrap', () => {
     expect(typeof baseEntities.getImportCatalogBootstrapSnapshot).toBe('function');
     const getImportCatalogSnapshot = baseEntities.getImportCatalogSnapshot!;
     const getImportCatalogBootstrapSnapshot = baseEntities.getImportCatalogBootstrapSnapshot!;
+    const findSourceFileByHash = unitOfWork.imports.findSourceFileByHash;
     let bootstrapSnapshotCalls = 0;
     let catalogSnapshotCalls = 0;
     let catalogListCalls = 0;
+    let sourceHashCalls = 0;
     const catalogKinds = new Set<string>([
       'teacher',
       'class-group',
@@ -262,9 +342,19 @@ describe('Import persistence service V5 first bootstrap', () => {
         return baseEntities.list(context, kind, page);
       },
     };
+    const imports = {
+      ...unitOfWork.imports,
+      async findSourceFileByHash(
+        context: Parameters<typeof findSourceFileByHash>[0],
+        sha256: Parameters<typeof findSourceFileByHash>[1],
+      ) {
+        sourceHashCalls += 1;
+        return findSourceFileByHash(context, sha256);
+      },
+    };
     let sequence = 0;
     const persistence = createGradebookImportPersistenceServiceV5({
-      unitOfWork: { ...unitOfWork, entities },
+      unitOfWork: { ...unitOfWork, entities, imports },
       transaction: new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant }),
       annualStateSource: createGradebookD1ImportAnnualStateSourceV1(database),
       now: () => instant,
@@ -277,5 +367,6 @@ describe('Import persistence service V5 first bootstrap', () => {
     expect(bootstrapSnapshotCalls).toBe(1);
     expect(catalogSnapshotCalls).toBe(0);
     expect(catalogListCalls).toBe(0);
+    expect(sourceHashCalls).toBe(1);
   });
 });
