@@ -34,7 +34,7 @@ function assignment(index: number): TeachingAssignmentV1 {
 }
 
 describe('gradebook import annual state bulk reuse', () => {
-  it('serves loaded curriculum and prefetched annual results without per-class D1 fallbacks', async () => {
+  it('serves loaded curriculum and targeted annual results without per-class D1 fallbacks', async () => {
     let listCalls = 0;
     let singleCalls = 0;
     let bulkCalls = 0;
@@ -98,7 +98,45 @@ describe('gradebook import annual state bulk reuse', () => {
     expect(singleCalls).toBe(1);
   });
 
-  it('loads current annual results for multiple classes with one D1 all call', async () => {
+  it('uses a preloaded annual map without invoking the targeted bulk reader', async () => {
+    let bulkCalls = 0;
+    let singleCalls = 0;
+    const base: GradebookImportAnnualStateSourceV1 = {
+      async listAssignments() {
+        return { items: [], nextCursor: null };
+      },
+      async loadCurrentAnnualResultsForClass() {
+        singleCalls += 1;
+        return [];
+      },
+      async loadCurrentAnnualResultsForClasses(input) {
+        bulkCalls += 1;
+        return new Map(input.classGroupIds.map((id) => [id, []] as const));
+      },
+    };
+    const cached = await createGradebookImportAnnualStateCacheV1({
+      base,
+      academicYearId,
+      assignments: [assignment(1)],
+      classGroupIds: [classGroupId],
+      preloadedAnnualByClass: new Map([[classGroupId, []]]),
+    });
+
+    expect(bulkCalls).toBe(0);
+    await expect(
+      cached.loadCurrentAnnualResultsForClass({ academicYearId, classGroupId }),
+    ).resolves.toEqual([]);
+    await expect(
+      cached.loadCurrentAnnualResultsForClasses?.({
+        academicYearId,
+        classGroupIds: [classGroupId],
+      }),
+    ).resolves.toEqual(new Map([[classGroupId, []]]));
+    expect(singleCalls).toBe(0);
+    expect(bulkCalls).toBe(0);
+  });
+
+  it('loads current annual results for multiple classes with one targeted D1 all call', async () => {
     const classA = 'class-group:annual-bulk:a' as ClassGroupId;
     const classB = 'class-group:annual-bulk:b' as ClassGroupId;
     let allCalls = 0;
@@ -153,5 +191,84 @@ describe('gradebook import annual state bulk reuse', () => {
     expect(boundValues[1]).toBe(academicYearId);
     expect(grouped.get(classA)).toHaveLength(1);
     expect(grouped.get(classB)).toHaveLength(1);
+  });
+
+  it('prefetches the bounded annual year snapshot with one D1 all call', async () => {
+    const classA = 'class-group:annual-year:a' as ClassGroupId;
+    const classB = 'class-group:annual-year:b' as ClassGroupId;
+    let allCalls = 0;
+    let boundValues: readonly (string | number | null)[] = [];
+    let preparedSql = '';
+    const statement: D1ReadStatementV1 = {
+      bind(...values) {
+        boundValues = values;
+        return this;
+      },
+      async first() {
+        return null;
+      },
+      async all<Row extends Record<string, unknown>>() {
+        allCalls += 1;
+        return {
+          results: [
+            {
+              class_group_id: classA,
+              payload_json: JSON.stringify({
+                kind: 'annual-result',
+                value: { academicYearId, authorityMode: 'imported-source' },
+              }),
+            },
+            {
+              class_group_id: classB,
+              payload_json: JSON.stringify({
+                kind: 'annual-result',
+                value: { academicYearId, authorityMode: 'imported-source' },
+              }),
+            },
+          ] as unknown as readonly Row[],
+        };
+      },
+    };
+    const source = new GradebookD1ImportAnnualStateSourceV1({
+      prepare(query) {
+        preparedSql = query;
+        return statement;
+      },
+    });
+
+    const grouped = await source.loadCurrentAnnualResultsForYear({ academicYearId });
+
+    expect(allCalls).toBe(1);
+    expect(preparedSql).not.toContain('json_each(?)');
+    expect(boundValues[0]).toBe(academicYearId);
+    expect(Number(boundValues[1])).toBeGreaterThan(1_000);
+    expect(grouped?.get(classA)).toHaveLength(1);
+    expect(grouped?.get(classB)).toHaveLength(1);
+  });
+
+  it('returns null when the annual year snapshot exceeds its explicit bound', async () => {
+    let boundValues: readonly (string | number | null)[] = [];
+    const statement: D1ReadStatementV1 = {
+      bind(...values) {
+        boundValues = values;
+        return this;
+      },
+      async first() {
+        return null;
+      },
+      async all<Row extends Record<string, unknown>>() {
+        const rowCount = Number(boundValues[1]);
+        return {
+          results: Array.from({ length: rowCount }, () => ({})) as readonly Row[],
+        };
+      },
+    };
+    const source = new GradebookD1ImportAnnualStateSourceV1({
+      prepare() {
+        return statement;
+      },
+    });
+
+    await expect(source.loadCurrentAnnualResultsForYear({ academicYearId })).resolves.toBeNull();
   });
 });
