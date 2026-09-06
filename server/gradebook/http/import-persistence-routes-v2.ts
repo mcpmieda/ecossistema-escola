@@ -18,6 +18,13 @@ import {
   isGradebookImportPersistenceRequestV6,
   isGradebookImportPersistenceResponseV6,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
+import {
+  GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V7,
+  GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V7,
+  inspectGradebookImportPersistenceBatchRequestV7,
+  isGradebookImportPersistenceBatchRequestV7,
+  isGradebookImportPersistenceBatchResponseV7,
+} from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v7';
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
 import type { RuntimeEnv } from '../../env';
@@ -27,6 +34,7 @@ import {
   HttpError,
   readBoundedJson,
 } from '../../http/security';
+import { createGradebookImportPersistenceBatchServiceV7 } from '../application/import/import-persistence-batch-service-v7';
 import { createGradebookImportPersistenceServiceV4 } from '../application/import/import-persistence-service-v2';
 import { createGradebookImportPersistenceServiceV5 } from '../application/import/import-persistence-service-v5';
 import { createGradebookImportPersistenceServiceV6 } from '../application/import/import-persistence-service-v6';
@@ -83,12 +91,21 @@ function state(
   );
 }
 
-function declaredVersion(payload: unknown): 4 | 5 | 6 {
+function declaredVersion(payload: unknown): 4 | 5 | 6 | 7 {
   if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload) {
+    if (payload.transportVersion === GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V7) return 7;
     if (payload.transportVersion === GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V6) return 6;
     if (payload.transportVersion === GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V5) return 5;
   }
   return 4;
+}
+
+function serializedByteLength(value: unknown): number | null {
+  try {
+    return new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  } catch {
+    return null;
+  }
 }
 
 function benchmarkRequested(request: Request): boolean {
@@ -149,13 +166,13 @@ export async function handleGradebookImportPersistenceRequestV4(
   const bodyStartedAt = Date.now();
   let payload: unknown;
   try {
-    payload = await readBoundedJson(request, GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V4.maxBodyBytes);
+    payload = await readBoundedJson(request, GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V7.maxBodyBytes);
   } catch (cause) {
     const reason =
       cause instanceof HttpError && cause.status === 413 ? 'payload-too-large' : 'invalid-request';
     return noStore(
       {
-        transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+        transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V7,
         state: 'invalid-request',
         reason,
       },
@@ -166,19 +183,37 @@ export async function handleGradebookImportPersistenceRequestV4(
 
   const inspectStartedAt = Date.now();
   const version = declaredVersion(payload);
+  const bytes = serializedByteLength(payload);
+  if (
+    bytes === null ||
+    (version !== 7 && bytes > GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V4.maxBodyBytes)
+  ) {
+    return noStore(
+      {
+        transportVersion: version,
+        state: 'invalid-request',
+        reason: bytes === null ? 'invalid-request' : 'payload-too-large',
+      },
+      bytes === null ? 400 : 413,
+    );
+  }
   const inspection =
-    version === 6
-      ? inspectGradebookImportPersistenceRequestV6(payload)
-      : version === 5
-        ? inspectGradebookImportPersistenceRequestV5(payload)
-        : inspectGradebookImportPersistenceRequestV4(payload);
+    version === 7
+      ? inspectGradebookImportPersistenceBatchRequestV7(payload)
+      : version === 6
+        ? inspectGradebookImportPersistenceRequestV6(payload)
+        : version === 5
+          ? inspectGradebookImportPersistenceRequestV5(payload)
+          : inspectGradebookImportPersistenceRequestV4(payload);
   const compatible =
     inspection === 'ready' &&
-    (version === 6
-      ? isGradebookImportPersistenceRequestV6(payload)
-      : version === 5
-        ? isGradebookImportPersistenceRequestV5(payload)
-        : isGradebookImportPersistenceRequestV4(payload));
+    (version === 7
+      ? isGradebookImportPersistenceBatchRequestV7(payload)
+      : version === 6
+        ? isGradebookImportPersistenceRequestV6(payload)
+        : version === 5
+          ? isGradebookImportPersistenceRequestV5(payload)
+          : isGradebookImportPersistenceRequestV4(payload));
   const inspectMs = Date.now() - inspectStartedAt;
   if (!compatible) {
     return noStore(
@@ -187,7 +222,7 @@ export async function handleGradebookImportPersistenceRequestV4(
         state: 'invalid-request',
         reason: inspection === 'ready' ? 'invalid-request' : inspection,
       },
-      400,
+      inspection === 'payload-too-large' ? 413 : 400,
     );
   }
 
@@ -205,7 +240,8 @@ export async function handleGradebookImportPersistenceRequestV4(
   const executionEnv = benchmark
     ? ({ ...env, GRADEBOOK_D1: benchmark.database } as RuntimeEnv)
     : env;
-  try {
+
+  const createDependencies = () => {
     const runtime = createGradebookD1RuntimeV1(executionEnv, authorization);
     const annualStateSource = createGradebookD1ImportAnnualStateSourceV1(
       executionEnv.GRADEBOOK_D1 as D1ReadDatabaseV1,
@@ -213,22 +249,32 @@ export async function handleGradebookImportPersistenceRequestV4(
     const unitOfWork = createGradebookImportSharedSourceReadCacheV1(
       runtime.persistenceUnitOfWorkV2(),
     );
-    const dependencies = {
+    return {
       unitOfWork,
       transaction: runtime.importBootstrapTransactionV2(),
       annualStateSource,
       now: () => new Date().toISOString(),
-      createId: (kind) => `${kind}:${crypto.randomUUID()}`,
+      createId: (kind: 'logical-source' | 'manifest' | 'import-batch' | 'import-file') =>
+        `${kind}:${crypto.randomUUID()}`,
     } satisfies Parameters<typeof createGradebookImportPersistenceServiceV4>[0];
+  };
 
+  try {
     const response =
-      version === 6 && isGradebookImportPersistenceRequestV6(payload)
-        ? await createGradebookImportPersistenceServiceV6(dependencies).execute(payload)
-        : version === 5 && isGradebookImportPersistenceRequestV5(payload)
-          ? await createGradebookImportPersistenceServiceV5(dependencies).execute(payload)
-          : isGradebookImportPersistenceRequestV4(payload)
-            ? await createGradebookImportPersistenceServiceV4(dependencies).execute(payload)
-            : null;
+      version === 7 && isGradebookImportPersistenceBatchRequestV7(payload)
+        ? await createGradebookImportPersistenceBatchServiceV7(() => {
+            const dependencies = createDependencies();
+            return {
+              execute: (item) => createGradebookImportPersistenceServiceV6(dependencies).execute(item),
+            };
+          }).execute(payload)
+        : version === 6 && isGradebookImportPersistenceRequestV6(payload)
+          ? await createGradebookImportPersistenceServiceV6(createDependencies()).execute(payload)
+          : version === 5 && isGradebookImportPersistenceRequestV5(payload)
+            ? await createGradebookImportPersistenceServiceV5(createDependencies()).execute(payload)
+            : isGradebookImportPersistenceRequestV4(payload)
+              ? await createGradebookImportPersistenceServiceV4(createDependencies()).execute(payload)
+              : null;
     const timingHeaders = benchmarkHeaders(
       serviceStartedAt,
       benchmark?.snapshot() ?? null,
@@ -239,13 +285,15 @@ export async function handleGradebookImportPersistenceRequestV4(
     }
 
     const valid =
-      version === 6
-        ? isGradebookImportPersistenceResponseV6(response)
-        : version === 5
-          ? isGradebookImportPersistenceResponseV5(response)
-          : isGradebookImportPersistenceResponseV4(response);
+      version === 7
+        ? isGradebookImportPersistenceBatchResponseV7(response)
+        : version === 6
+          ? isGradebookImportPersistenceResponseV6(response)
+          : version === 5
+            ? isGradebookImportPersistenceResponseV5(response)
+            : isGradebookImportPersistenceResponseV4(response);
     return valid
-      ? noStore(response, 200, timingHeaders)
+      ? noStore(response, response.state === 'unavailable' ? 503 : 200, timingHeaders)
       : noStore({ transportVersion: version, state: 'unavailable' }, 500, timingHeaders);
   } catch {
     return noStore(
@@ -256,7 +304,7 @@ export async function handleGradebookImportPersistenceRequestV4(
   }
 }
 
-/** Central Functions wiring handles both the historical monolithic endpoint and staged V6 flow. */
+/** Central Functions wiring handles the historical monolithic endpoint, V7 batch and staged V6 flow. */
 export async function handleGradebookImportPersistenceRequestV2(
   request: Request,
   env: RuntimeEnv,
