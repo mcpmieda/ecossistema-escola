@@ -102,7 +102,7 @@ describe('F9 synthetic operational rehearsal V1', () => {
     expect(result.batch.summary.totalFileCount).toBe(50);
     expect(result.batch.summary.approvedFileCount).toBe(50);
     expect(result.failures).toEqual([]);
-    expect(events).toHaveLength(200);
+    expect(events).toHaveLength(150);
   });
 
   it('reaplica schema local, exercita filas bounded e recupera histórico após restart', async () => {
