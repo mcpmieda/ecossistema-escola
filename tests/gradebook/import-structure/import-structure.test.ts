@@ -10,10 +10,7 @@ import type {
   SheetJs,
   Workbook,
 } from '../../../src/features/gradebook/import/spreadsheet-recognizer';
-import {
-  WORKBOOK_READ_OPTIONS,
-  WORKBOOK_SHEET_SCAN_OPTIONS,
-} from '../../../src/features/gradebook/import/workbook-reader';
+import { WORKBOOK_READ_OPTIONS } from '../../../src/features/gradebook/import/workbook-reader';
 
 const root = process.cwd();
 
@@ -102,7 +99,7 @@ describe('gradebook importer structure', () => {
     );
   });
 
-  it('keeps SheetJS loading, lean workbook options, sheet scan and HeroUI presentation explicit', () => {
+  it('keeps SheetJS loading, lean workbook options and HeroUI presentation explicit', () => {
     expect(source('src/features/gradebook/import/sheetjs-loader.ts')).toContain(
       'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
     );
@@ -115,9 +112,7 @@ describe('gradebook importer structure', () => {
       cellStyles: false,
       cellHTML: false,
       sheetRows: 50,
-      dense: true,
     });
-    expect(WORKBOOK_SHEET_SCAN_OPTIONS).toEqual({ type: 'array', bookSheets: true });
 
     const presentation = [
       source('src/features/gradebook/import/import-panel.tsx'),
@@ -127,6 +122,7 @@ describe('gradebook importer structure', () => {
     expect(presentation).toContain('Q/T:');
     expect(presentation).toContain('QL/AK:');
     expect(presentation).toContain('Recuperação final');
+    expect(presentation).toContain('turma + componente D<n>');
   });
 
   it('confirms the imported academic context without exposing technical entity IDs', () => {
@@ -188,18 +184,14 @@ describe('gradebook importer structure', () => {
       'start:primeiro.xlsx',
       'end:primeiro.xlsx',
       'read:1',
-      'read:1',
       'start:segundo.xlsb',
       'end:segundo.xlsb',
-      'read:2',
       'read:2',
       'start:invalido.xlsx',
       'end:invalido.xlsx',
       'read:9',
-      'read:9',
       'start:terceiro.xls',
       'end:terceiro.xls',
-      'read:3',
       'read:3',
     ]);
   });

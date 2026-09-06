@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AcademicYearId } from '../../../../shared/gradebook-contracts/entities';
 import { OPERATIONAL_WORKSPACE_TRANSPORT_VERSION_V1 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v1';
 import type { GradebookImportPersistenceResponseV5 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
@@ -7,13 +7,14 @@ import {
   type GradebookImportPersistenceResponseV6,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 import {
+  countWorkbookOperationalClassesV1,
   importWorkbookBatch,
   validateBatchSize,
   type BatchFailureDetail,
   type BatchSuccess,
   type ImportWorkbookFileTimingV1,
 } from './import-batch';
-import { loadSheetJs } from './sheetjs-loader';
+import { loadSheetJs, preloadSheetJs } from './sheetjs-loader';
 import { createCompactGradebookImportPersistenceRequestV6 } from './compact-import-v6';
 import { persistCompactGradebookFileV6 } from './import-persistence-client-v6';
 import { persistCompactGradebookFileStagedV1 } from './import-staging-client-v1';
@@ -46,6 +47,11 @@ export interface ImportFlowProgressV6 {
   readonly stage: ImportFlowProgressStageV6;
 }
 
+type ImportBootstrapResponseV1 = Awaited<ReturnType<typeof requestOperationalWorkspaceV1>>;
+type ImportBootstrapOutcomeV1 =
+  | { readonly state: 'fulfilled'; readonly response: ImportBootstrapResponseV1 }
+  | { readonly state: 'rejected'; readonly cause: unknown };
+
 function failureMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error ? cause.message : fallback;
 }
@@ -62,17 +68,22 @@ function diagnosticLine(prefix: string, value: unknown): string {
   return `${prefix} ${JSON.stringify(value)}`;
 }
 
-export function isGradebookPaidDirectBenchmarkHashV1(hash: string): boolean {
-  const queryIndex = hash.indexOf('?');
-  if (queryIndex < 0) return false;
-  const params = new URLSearchParams(hash.slice(queryIndex + 1));
-  return params.get('paidDirect') === '1';
+function startImportBootstrapV1(): Promise<ImportBootstrapOutcomeV1> {
+  return requestOperationalWorkspaceV1({
+    contractVersion: OPERATIONAL_WORKSPACE_TRANSPORT_VERSION_V1,
+    operation: 'bootstrap',
+  }).then(
+    (response) => ({ state: 'fulfilled', response }),
+    (cause: unknown) => ({ state: 'rejected', cause }),
+  );
 }
 
-function paidDirectBenchmarkEnabled(): boolean {
-  return typeof globalThis.location !== 'undefined'
-    ? isGradebookPaidDirectBenchmarkHashV1(globalThis.location.hash)
-    : false;
+function needsStagingFallbackV1(response: GradebookImportPersistenceResponseV6): boolean {
+  return (
+    response.state === 'invalid-request' &&
+    'reason' in response &&
+    response.reason === 'payload-too-large'
+  );
 }
 
 export function useImportBatch() {
@@ -84,6 +95,10 @@ export function useImportBatch() {
   const [progress, setProgress] = useState<ImportFlowProgressV6 | null>(null);
   const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV6>>({});
   const [timingDiagnostics, setTimingDiagnostics] = useState<string[]>([]);
+
+  useEffect(() => {
+    preloadSheetJs();
+  }, []);
 
   function appendTiming(prefix: string, value: unknown): void {
     const serialized = JSON.stringify(value);
@@ -98,7 +113,10 @@ export function useImportBatch() {
 
   const totals = useMemo(
     () => ({
-      classes: results.reduce((sum, result) => sum + result.summary.classes.length, 0),
+      classes: results.reduce(
+        (sum, result) => sum + countWorkbookOperationalClassesV1(result.summary),
+        0,
+      ),
       students: results.reduce(
         (sum, result) =>
           sum +
@@ -110,22 +128,19 @@ export function useImportBatch() {
     [results],
   );
 
-  async function persistRecognizedFiles(successes: readonly BatchSuccess[]): Promise<void> {
-    const bootstrap = await requestOperationalWorkspaceV1({
-      contractVersion: OPERATIONAL_WORKSPACE_TRANSPORT_VERSION_V1,
-      operation: 'bootstrap',
-    });
+  async function persistRecognizedFiles(
+    successes: readonly BatchSuccess[],
+    bootstrapPromise: Promise<ImportBootstrapOutcomeV1>,
+  ): Promise<void> {
+    const bootstrapOutcome = await bootstrapPromise;
+    if (bootstrapOutcome.state === 'rejected') {
+      throw bootstrapOutcome.cause instanceof Error
+        ? bootstrapOutcome.cause
+        : new Error('Não foi possível consultar os anos letivos cadastrados.');
+    }
+    const bootstrap = bootstrapOutcome.response;
     if (bootstrap.state !== 'ready' || !('availableAcademicYears' in bootstrap)) {
       throw new Error('Não foi possível consultar os anos letivos cadastrados.');
-    }
-
-    const paidDirect = paidDirectBenchmarkEnabled() && successes.length === 1;
-    if (paidDirect) {
-      appendTiming('[gradebook-import-client-timing]', {
-        version: 1,
-        mode: 'paid-direct-selected',
-        fileCount: successes.length,
-      });
     }
 
     for (const [index, result] of successes.entries()) {
@@ -170,22 +185,31 @@ export function useImportBatch() {
           fileName: result.manifest.fileName,
           stage: 'saving',
         });
-        const response = paidDirect
-          ? await persistCompactGradebookFileV6(request, undefined, (timing) =>
-              appendTiming('[gradebook-import-client-timing]', timing),
-            )
-          : await persistCompactGradebookFileStagedV1(
-              request,
-              ({ prepared, total }) => {
-                setProgress({
-                  current: prepared,
-                  total,
-                  fileName: result.manifest.fileName,
-                  stage: 'saving',
-                });
-              },
-              (timing) => appendTiming('[gradebook-import-client-timing]', timing),
-            );
+
+        const directStartedAt = nowMs();
+        let response = await persistCompactGradebookFileV6(request);
+        appendTiming('[gradebook-import-client-timing]', {
+          version: 1,
+          mode: 'direct',
+          totalMs: elapsedMs(directStartedAt),
+          state: response.state,
+        });
+
+        if (needsStagingFallbackV1(response)) {
+          response = await persistCompactGradebookFileStagedV1(
+            request,
+            ({ prepared, total }) => {
+              setProgress({
+                current: prepared,
+                total,
+                fileName: result.manifest.fileName,
+                stage: 'saving',
+              });
+            },
+            (timing) => appendTiming('[gradebook-import-client-timing]', timing),
+          );
+        }
+
         setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
         setProgress({
           current: index + 1,
@@ -226,6 +250,8 @@ export function useImportBatch() {
     setPersistence({});
     setTimingDiagnostics([]);
 
+    const bootstrapPromise = startImportBootstrapV1();
+
     try {
       const recognitionStartedAt = nowMs();
       const sheetJsStartedAt = nowMs();
@@ -265,7 +291,7 @@ export function useImportBatch() {
         setError('Nenhuma das planilhas selecionadas pôde ser reconhecida.');
         return;
       }
-      await persistRecognizedFiles(batch.successes);
+      await persistRecognizedFiles(batch.successes, bootstrapPromise);
     } catch (cause) {
       const message = failureMessage(cause, 'Não foi possível concluir o processamento local.');
       setError(message);

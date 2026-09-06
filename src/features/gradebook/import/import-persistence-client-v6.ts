@@ -78,7 +78,11 @@ function compatibleResponse(value: unknown): GradebookImportPersistenceResponseV
 
 function incompatibleMessage(response: Response, jsonParsed: boolean): string {
   const contentType = response.headers.get('content-type') ?? '';
-  const family = contentType.toLowerCase().includes('json') ? 'json' : contentType ? 'non-json' : 'missing';
+  const family = contentType.toLowerCase().includes('json')
+    ? 'json'
+    : contentType
+      ? 'non-json'
+      : 'missing';
   return `Resposta de persistência incompatível (HTTP ${response.status}; conteúdo ${family}; envelope ${jsonParsed ? 'wrong-transport' : 'non-json'}).`;
 }
 
@@ -169,14 +173,13 @@ export async function persistCompactGradebookFileV6(
     const attemptStartedAt = nowMs();
 
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (onTiming) headers[BENCHMARK_HEADER] = BENCHMARK_VALUE;
       const response = await fetch(ENDPOINT, {
         method: 'POST',
         credentials: 'same-origin',
         cache: 'no-store',
-        headers: {
-          'Content-Type': 'application/json',
-          [BENCHMARK_HEADER]: BENCHMARK_VALUE,
-        },
+        headers,
         body,
         signal: controller.signal,
       });

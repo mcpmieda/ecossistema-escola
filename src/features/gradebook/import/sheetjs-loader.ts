@@ -14,7 +14,7 @@ export function loadSheetJs(): Promise<SheetJs> {
   if (window.XLSX) return Promise.resolve(window.XLSX);
   if (sheetJsPromise) return sheetJsPromise;
 
-  sheetJsPromise = new Promise<SheetJs>((resolve, reject) => {
+  const pending = new Promise<SheetJs>((resolve, reject) => {
     const script = document.createElement('script');
     script.src = SHEETJS_SRC;
     script.async = true;
@@ -23,11 +23,18 @@ export function loadSheetJs(): Promise<SheetJs> {
       else reject(new Error('O leitor de planilhas não foi carregado.'));
     });
     script.addEventListener('error', () => {
-      sheetJsPromise = null;
       reject(new Error('Não foi possível carregar o leitor de planilhas.'));
     });
     document.head.appendChild(script);
   });
 
+  sheetJsPromise = pending.catch((cause) => {
+    sheetJsPromise = null;
+    throw cause;
+  });
   return sheetJsPromise;
+}
+
+export function preloadSheetJs(): void {
+  void loadSheetJs().catch(() => undefined);
 }
