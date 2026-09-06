@@ -10,12 +10,12 @@ import type {
 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 
 function statement(): D1WriteStatementV1 {
-  const value = {
+  const value: D1WriteStatementV1 = {
     bind: () => value,
     first: async () => null,
     all: async () => ({ results: [] }),
     run: async () => ({ success: true, meta: { changes: 1 } }),
-  } satisfies D1WriteStatementV1;
+  };
   return value;
 }
 
