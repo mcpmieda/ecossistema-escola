@@ -48,7 +48,7 @@ function nonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0;
 }
 
-function positiveInteger(value: unknown): value is number {
+function positiveInteger(value: unknown): boolean {
   return typeof value === 'number' && Number.isInteger(value) && value > 0;
 }
 
@@ -77,6 +77,13 @@ export function supportsAtomicBatch(
 
 const MUTATION_GUARD_SQL =
   "SELECT CASE WHEN changes() = ? THEN 1 ELSE json('gradebook_atomic_batch_guard_failure') END AS gradebook_atomic_batch_guard";
+
+function atomicBatchFailureCode(cause: unknown): GradebookD1TransactionErrorCodeV1 {
+  const message = cause instanceof Error ? cause.message : String(cause ?? '');
+  return /gradebook_atomic_batch_guard_failure|malformed json/iu.test(message)
+    ? 'batch-version-conflict'
+    : 'transaction-failed';
+}
 
 class GradebookD1RecordedStatementV1 implements D1WriteStatementV1 {
   constructor(
@@ -123,13 +130,22 @@ export class GradebookD1AtomicBatchRecorderV1 implements D1WriteDatabaseV1 {
     );
   }
 
+  /**
+   * Use only when the SQL statement itself is all-or-nothing for every requested row (for example
+   * a plain INSERT protected by UNIQUE/FK constraints). This avoids a redundant `changes()` guard
+   * while preserving atomic rollback on any rejected row.
+   */
+  recordConstraintCheckedMutation(statement: D1WriteStatementV1): void {
+    this.statements.push(statement);
+  }
+
   async commit(): Promise<void> {
     if (this.statements.length === 0) return;
     let results: readonly D1WriteRunResultV1[];
     try {
       results = await this.database.batch(this.statements);
-    } catch {
-      return fail('transaction-failed');
+    } catch (cause) {
+      return fail(atomicBatchFailureCode(cause));
     }
     if (
       results.length !== this.statements.length ||
