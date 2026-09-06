@@ -5,6 +5,7 @@ import {
   importWorkbookBatch,
   MAX_NOTES_IMPORT_FILES,
   validateBatchSize,
+  type ImportWorkbookFileTimingV1,
 } from '../../../src/features/gradebook/import/import-batch';
 import {
   SYNTHETIC_FILES,
@@ -106,6 +107,34 @@ describe('massa sintética — lote integrado', () => {
         message: 'Nenhuma guia corresponde ao padrão de notas configurado.',
       },
     ]);
+  });
+
+  it('IMP-011: emite breakdown sanitizado sem alterar o resultado reconhecido', async () => {
+    const timings: ImportWorkbookFileTimingV1[] = [];
+    const file = createSyntheticFile(SYNTHETIC_FILES.xlsx);
+
+    const result = await importWorkbookBatch([file], createSyntheticSheetJs(), () => {}, {
+      yieldBeforeRecognition: async () => undefined,
+      onFileTiming: (timing) => timings.push(timing),
+    });
+
+    expect(result.successes).toHaveLength(1);
+    expect(result.failures).toEqual([]);
+    expect(timings).toHaveLength(1);
+    expect(timings[0]).toMatchObject({ fileIndex: 0, current: 1, total: 1 });
+    for (const key of [
+      'fileReadMs',
+      'manifestMs',
+      'yieldMs',
+      'recognitionMs',
+      'workbookReadMs',
+      'xlsxReadMs',
+      'recognizeWorkbookMs',
+      'canonicalRostersMs',
+    ] as const) {
+      expect(typeof timings[0]?.[key]).toBe('number');
+      expect(timings[0]?.[key]).toBeGreaterThanOrEqual(0);
+    }
   });
 
   it('IMP-010: o caminho integrado continua local, somente leitura e sem persistência', () => {
