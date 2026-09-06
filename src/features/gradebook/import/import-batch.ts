@@ -63,6 +63,11 @@ export interface ImportWorkbookFileTimingV1 {
   readonly recognitionMs: number;
   readonly workbookReadMs: number | null;
   readonly xlsxReadMs: number | null;
+  readonly sheetScanMs: number | null;
+  readonly sheetParseMs: number | null;
+  readonly totalSheetCount: number | null;
+  readonly selectedSheetCount: number | null;
+  readonly selectiveSheetParse: boolean | null;
   readonly recognizeWorkbookMs: number | null;
   readonly canonicalRostersMs: number | null;
 }
@@ -370,6 +375,11 @@ export async function importWorkbookBatch(
         recognitionMs: elapsedMs(recognitionStartedAt),
         workbookReadMs: measuredWorkbookTiming?.totalMs ?? null,
         xlsxReadMs: measuredWorkbookTiming?.xlsxReadMs ?? null,
+        sheetScanMs: measuredWorkbookTiming?.sheetScanMs ?? null,
+        sheetParseMs: measuredWorkbookTiming?.sheetParseMs ?? null,
+        totalSheetCount: measuredWorkbookTiming?.totalSheetCount ?? null,
+        selectedSheetCount: measuredWorkbookTiming?.selectedSheetCount ?? null,
+        selectiveSheetParse: measuredWorkbookTiming?.selectiveSheetParse ?? null,
         recognizeWorkbookMs: measuredWorkbookTiming?.recognizeWorkbookMs ?? null,
         canonicalRostersMs: measuredWorkbookTiming?.canonicalRostersMs ?? null,
       });
