@@ -12,11 +12,15 @@ type AcademicYearRecordV1 = VersionedRecordV1<
 type AssessmentComponentRecordV1 = VersionedRecordV1<
   Extract<AcademicEntityRecordV1, { readonly kind: 'assessment-component' }>
 >;
+type StudentStatusEventRecordV1 = VersionedRecordV1<
+  Extract<AcademicEntityRecordV1, { readonly kind: 'student-status-event' }>
+>;
 
 interface CatalogBootstrapSnapshotV1 {
   readonly academicYear: AcademicYearRecordV1 | null;
   readonly catalog: readonly VersionedRecordV1<AcademicEntityRecordV1>[] | null;
   readonly assessmentComponents?: readonly AssessmentComponentRecordV1[] | null;
+  readonly studentStatusEvents?: readonly StudentStatusEventRecordV1[] | null;
 }
 
 type CatalogBootstrapRepositoryV1 = AcademicEntityRepositoryV1 & {
@@ -30,6 +34,10 @@ type CatalogBootstrapRepositoryV1 = AcademicEntityRepositoryV1 & {
     context: AcademicPersistenceContextV1,
     references: readonly AcademicEntityReferenceV1[],
   ) => Promise<readonly (VersionedRecordV1<AcademicEntityRecordV1> | null)[]>;
+  readonly getStudentStatusEventsMany?: (
+    context: AcademicPersistenceContextV1,
+    ids: readonly string[],
+  ) => Promise<readonly (VersionedRecordV1<AcademicEntityRecordV1> | null)[]>;
 };
 
 function contextKey(context: AcademicPersistenceContextV1): string {
@@ -40,7 +48,7 @@ function contextKey(context: AcademicPersistenceContextV1): string {
  * Lets the canonical catalog planner keep its historical `get(academic-year)` followed by
  * `getImportCatalogSnapshot()` sequence while satisfying both reads from one server-owned
  * bootstrap snapshot when the persistence adapter exposes it. The same snapshot may also
- * satisfy the planner's assessment-component bulk read without changing its public contract.
+ * satisfy assessment-component and student-status bulk reads without changing public contracts.
  */
 export function createGradebookImportCatalogBootstrapReadCacheV1(
   base: AcademicEntityRepositoryV1,
@@ -61,6 +69,13 @@ export function createGradebookImportCatalogBootstrapReadCacheV1(
   };
 
   return Object.assign({}, source, {
+    ...(typeof source.getImportCatalogBootstrapSnapshot === 'function'
+      ? {
+          async getImportCatalogBootstrapSnapshot(context: AcademicPersistenceContextV1) {
+            return bootstrapSnapshot(context)!;
+          },
+        }
+      : {}),
     async get(
       context: Parameters<AcademicEntityRepositoryV1['get']>[0],
       reference: Parameters<AcademicEntityRepositoryV1['get']>[1],
@@ -102,6 +117,30 @@ export function createGradebookImportCatalogBootstrapReadCacheV1(
               }
             }
             return source.getMany!(context, references);
+          },
+        }
+      : {}),
+    ...(typeof source.getStudentStatusEventsMany === 'function'
+      ? {
+          async getStudentStatusEventsMany(
+            context: AcademicPersistenceContextV1,
+            ids: readonly string[],
+          ) {
+            if (ids.length === 0) return [];
+            if (new Set(ids).size !== ids.length || ids.some((id) => id.length === 0)) {
+              throw new TypeError('student-status-bulk-request-invalid');
+            }
+            const pending = bootstrapSnapshot(context);
+            if (pending) {
+              const events = (await pending).studentStatusEvents;
+              if (events !== undefined && events !== null) {
+                const byId = new Map<string, StudentStatusEventRecordV1>(
+                  events.map((record) => [record.value.value.id, record]),
+                );
+                return ids.map((id) => byId.get(id) ?? null);
+              }
+            }
+            return source.getStudentStatusEventsMany!(context, ids);
           },
         }
       : {}),
