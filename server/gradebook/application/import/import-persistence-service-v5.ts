@@ -1,6 +1,7 @@
 import type {
   AcademicYearId,
   ClassGroupId,
+  TeacherId,
   TeachingAssignmentV1,
 } from '../../../../shared/gradebook-contracts/entities';
 import type { GradebookImportPersistenceSummaryV2 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v2';
@@ -26,6 +27,10 @@ import {
   createGradebookImportPersistenceServiceV4,
   type GradebookImportPersistenceServiceDependenciesV4,
 } from './import-persistence-service-v2';
+import {
+  createGradebookImportSharedSourceReadCacheV1,
+  prewarmGradebookImportSharedSourceReadsV1,
+} from './import-shared-source-read-cache-v1';
 
 function emptySummary(): GradebookImportPersistenceSummaryV2 {
   const writeCounts = {
@@ -215,12 +220,18 @@ export function createGradebookImportPersistenceServiceV5(
           unitOfWork: { entities: capture.repository },
         });
         if (catalog.status !== 'ready') return review();
+
+        const sharedUnitOfWork = createGradebookImportSharedSourceReadCacheV1(
+          dependencies.unitOfWork,
+        );
         const allAssignments = mergedAssignmentsV1(capture.assignments(), catalog);
         const assignmentsById = new Map(
           allAssignments.map((assignment) => [assignment.id, assignment]),
         );
         const classGroupIds: ClassGroupId[] = [];
         const seenClassGroupIds = new Set<string>();
+        let commonTeacherId: TeacherId | null = null;
+        let compatibleTeacherContext = true;
         for (const sheet of catalog.request.sheets) {
           const assignment = assignmentsById.get(sheet.teachingAssignmentId);
           if (!assignment) throw new Error('annual-assignment-cache-missing');
@@ -228,19 +239,30 @@ export function createGradebookImportPersistenceServiceV5(
             seenClassGroupIds.add(assignment.classGroupId);
             classGroupIds.push(assignment.classGroupId);
           }
+          if (commonTeacherId === null) commonTeacherId = assignment.teacherId;
+          else if (commonTeacherId !== assignment.teacherId) compatibleTeacherContext = false;
         }
-        const annualStateSource = await createGradebookImportAnnualStateCacheV1({
+
+        const annualStatePromise = createGradebookImportAnnualStateCacheV1({
           base: dependencies.annualStateSource,
           academicYearId: catalog.request.confirmedContext.academicYearId,
           assignments: allAssignments,
           classGroupIds,
         });
+        const sourceWarmupPromise = prewarmGradebookImportSharedSourceReadsV1({
+          unitOfWork: sharedUnitOfWork,
+          academicYearId: catalog.request.confirmedContext.academicYearId,
+          sha256: catalog.request.manifest.sha256,
+          teacherId: compatibleTeacherContext ? commonTeacherId : null,
+        });
+        const [annualStateSource] = await Promise.all([annualStatePromise, sourceWarmupPromise]);
+
         const additionalRecords = options.additionalCatalogRecords
           ? await options.additionalCatalogRecords({ request, catalog })
           : [];
         const catalogRecords = [...catalog.records, ...additionalRecords];
 
-        const sourceEntities = dependencies.unitOfWork.entities as BulkEntityRepositoryV1;
+        const sourceEntities = sharedUnitOfWork.entities as BulkEntityRepositoryV1;
         const planningEntities = Object.assign(
           {},
           catalog.repository,
@@ -254,7 +276,7 @@ export function createGradebookImportPersistenceServiceV5(
             : {},
         );
         const planningUnitOfWork: PersistenceUnitOfWorkV2 = {
-          ...dependencies.unitOfWork,
+          ...sharedUnitOfWork,
           entities: planningEntities,
         };
         const transaction = {
