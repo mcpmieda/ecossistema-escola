@@ -69,6 +69,13 @@ export function createGradebookImportCatalogBootstrapReadCacheV1(
   };
 
   return Object.assign({}, source, {
+    ...(typeof source.getImportCatalogBootstrapSnapshot === 'function'
+      ? {
+          async getImportCatalogBootstrapSnapshot(context: AcademicPersistenceContextV1) {
+            return bootstrapSnapshot(context)!;
+          },
+        }
+      : {}),
     async get(
       context: Parameters<AcademicEntityRepositoryV1['get']>[0],
       reference: Parameters<AcademicEntityRepositoryV1['get']>[1],
