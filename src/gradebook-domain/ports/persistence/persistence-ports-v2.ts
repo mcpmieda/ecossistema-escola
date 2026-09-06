@@ -87,6 +87,11 @@ export interface ImportBootstrapBatchWriteV2 {
   readonly expectedVersion: null;
 }
 
+export interface ImportBootstrapSourceManifestVersionV2 {
+  readonly manifestId: SourceFileManifestId;
+  readonly version: number;
+}
+
 /**
  * Server-built envelope. None of these IDs, CAS expectations, or decisions are
  * accepted from the browser transport.
@@ -94,6 +99,11 @@ export interface ImportBootstrapBatchWriteV2 {
 export interface ImportBootstrapTransactionRequestV2 {
   readonly logicalSource: ImportBootstrapLogicalSourceV2;
   readonly plannedSourceFileManifestIds: readonly SourceFileManifestId[];
+  /**
+   * Optional for legacy/internal adapters. The official envelope supplies exact
+   * pre-write/planned manifest versions so the transaction need not rediscover them.
+   */
+  readonly sourceManifestVersions?: readonly ImportBootstrapSourceManifestVersionV2[];
   readonly batchWrite: ImportBootstrapBatchWriteV2;
   readonly promotionRequest: BatchPromotionRequestV1;
 }
@@ -161,5 +171,26 @@ export function inspectImportBootstrapTransactionRequestV2(
   ) {
     return 'duplicate-source-manifest';
   }
+
+  if (request.sourceManifestVersions !== undefined) {
+    const manifestIds = new Set(
+      request.batchWrite.value.files.flatMap((file) => (file.manifest ? [file.manifest.id] : [])),
+    );
+    const evidenceIds = request.sourceManifestVersions.map(({ manifestId }) => manifestId);
+    const evidenceIdSet = new Set(evidenceIds);
+    if (
+      request.sourceManifestVersions.some(
+        ({ manifestId, version }) =>
+          manifestId.trim().length === 0 || !Number.isInteger(version) || version <= 0,
+      ) ||
+      evidenceIdSet.size !== evidenceIds.length ||
+      evidenceIdSet.size !== manifestIds.size ||
+      [...evidenceIdSet].some((id) => !manifestIds.has(id)) ||
+      request.plannedSourceFileManifestIds.some((id) => !evidenceIdSet.has(id))
+    ) {
+      return 'invalid-batch-bootstrap';
+    }
+  }
+
   return 'ready';
 }
