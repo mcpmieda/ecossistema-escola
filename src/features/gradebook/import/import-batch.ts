@@ -272,7 +272,7 @@ export async function importWorkbookBatch(
     }
 
     let data: ArrayBuffer;
-    let fileReadMs = 0;
+    let fileReadMs: number;
     try {
       const fileReadStartedAt = nowMs();
       data = await file.arrayBuffer();
@@ -296,7 +296,7 @@ export async function importWorkbookBatch(
     }
 
     let manifest: SourceFileManifestV1;
-    let manifestMs = 0;
+    let manifestMs: number;
     try {
       const manifestStartedAt = nowMs();
       manifest = await createSourceFileManifest(file, data, xlsx.version, runtime);
