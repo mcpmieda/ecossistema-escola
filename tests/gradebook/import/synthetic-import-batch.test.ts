@@ -2,11 +2,18 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  countWorkbookOperationalClassesV1,
   importWorkbookBatch,
   MAX_NOTES_IMPORT_FILES,
   validateBatchSize,
+  workbookClassComponentsV1,
   type ImportWorkbookFileTimingV1,
 } from '../../../src/features/gradebook/import/import-batch';
+import type {
+  ClassRecognition,
+  GradeSheetRecognition,
+  WorkbookSummary,
+} from '../../../src/features/gradebook/import/spreadsheet-recognizer';
 import {
   SYNTHETIC_FILES,
   createSyntheticFile,
@@ -17,6 +24,29 @@ const root = process.cwd();
 
 function importerSource(path: string): string {
   return readFileSync(join(root, 'src/features/gradebook/import', path), 'utf8');
+}
+
+function operationalSheet(
+  discipline: string,
+  disciplineIndex: string,
+  term: 1 | 2 | 3,
+): GradeSheetRecognition {
+  return {
+    name: `6A${term}º${disciplineIndex}`,
+    range: 'A1:AN50',
+    rows: 50,
+    columns: 40,
+    className: '6A',
+    discipline,
+    disciplineIndex,
+    stage: `trimester-${term}`,
+    declaredStage: `${term}º trimestre`,
+    declaredStudents: 2,
+    assessmentDefinitions: [],
+    students: [],
+    formulas: 0,
+    officialZeros: 0,
+  };
 }
 
 describe('massa sintética — lote integrado', () => {
@@ -32,12 +62,11 @@ describe('massa sintética — lote integrado', () => {
 
       expect(result.successes).toHaveLength(count);
       expect(result.failures).toHaveLength(0);
-      expect(events).toHaveLength(count * 4);
+      expect(events).toHaveLength(count * 3);
       for (let index = 0; index < count; index += 1) {
-        expect(events.slice(index * 4, index * 4 + 4)).toEqual([
+        expect(events.slice(index * 3, index * 3 + 3)).toEqual([
           `start:${SYNTHETIC_FILES.xlsx.name}`,
           `end:${SYNTHETIC_FILES.xlsx.name}`,
-          `read:${SYNTHETIC_FILES.xlsx.marker}`,
           `read:${SYNTHETIC_FILES.xlsx.marker}`,
         ]);
       }
@@ -79,10 +108,7 @@ describe('massa sintética — lote integrado', () => {
       `2/3:${SYNTHETIC_FILES.empty.name}`,
       `3/3:${SYNTHETIC_FILES.xlsb.name}`,
     ]);
-    expect(events.slice(-2)).toEqual([
-      `read:${SYNTHETIC_FILES.xlsb.marker}`,
-      `read:${SYNTHETIC_FILES.xlsb.marker}`,
-    ]);
+    expect(events.at(-1)).toBe(`read:${SYNTHETIC_FILES.xlsb.marker}`);
   });
 
   it('IMP-004: aceita XLSB, XLSX e XLS com a mesma massa controlada', async () => {
@@ -97,6 +123,42 @@ describe('massa sintética — lote integrado', () => {
       'XLSX',
       'XLS',
     ]);
+  });
+
+  it('UI: conta qualquer D<n> como componente distinto sem duplicar a turma física', () => {
+    const sheets = [
+      ...([1, 2, 3] as const).map((term) => operationalSheet('Matemática', 'D1', term)),
+      ...([1, 2, 3] as const).map((term) => operationalSheet('Ciências', 'D2', term)),
+      ...([1, 2, 3] as const).map((term) => operationalSheet('Arte', 'D4', term)),
+    ];
+    const classroom: ClassRecognition = {
+      name: '6A',
+      students: 2,
+      declaredStudents: 2,
+      disciplines: ['Arte', 'Ciências', 'Matemática'],
+      trimesters: ['1º', '2º', '3º'],
+      recovery: false,
+      sheets,
+    };
+    const summary: WorkbookSummary = {
+      fileName: 'fonte-sintetica.xlsb',
+      format: 'XLSB',
+      size: 1,
+      parserVersion: 'synthetic',
+      sheets: [],
+      gradeSheets: sheets,
+      classes: [classroom],
+      auxiliarySheets: [],
+      unrecognizedSheets: [],
+    };
+
+    expect(countWorkbookOperationalClassesV1(summary)).toBe(3);
+    expect(workbookClassComponentsV1(classroom).map((component) => component.disciplineIndex)).toEqual([
+      'D1',
+      'D2',
+      'D4',
+    ]);
+    expect(summary.classes).toHaveLength(1);
   });
 
   it('IMP-005: arquivo sem guia de nota produz falha individual explicável', async () => {
@@ -133,17 +195,12 @@ describe('massa sintética — lote integrado', () => {
       'recognitionMs',
       'workbookReadMs',
       'xlsxReadMs',
-      'sheetScanMs',
-      'sheetParseMs',
-      'totalSheetCount',
-      'selectedSheetCount',
       'recognizeWorkbookMs',
       'canonicalRostersMs',
     ] as const) {
       expect(typeof timings[0]?.[key]).toBe('number');
       expect(timings[0]?.[key]).toBeGreaterThanOrEqual(0);
     }
-    expect(typeof timings[0]?.selectiveSheetParse).toBe('boolean');
   });
 
   it('IMP-010: o caminho integrado continua local, somente leitura e sem persistência', () => {
