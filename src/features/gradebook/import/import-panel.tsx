@@ -62,6 +62,8 @@ function persistenceLabel(state: ImportPersistenceStateV6 | undefined): string {
       return 'Processando localmente';
     case 'persisting':
       return 'Salvando';
+    case 'auth-required':
+      return 'Sessão expirada';
     case 'failed':
       return `Indisponível: ${state.message}`;
     case 'completed': {
@@ -100,6 +102,20 @@ function persistenceDescription(state: Extract<ImportPersistenceStateV6, { state
 
 function PersistenceResult({ state }: { state: ImportPersistenceStateV6 | undefined }) {
   if (!state) return null;
+  if (state.state === 'auth-required') {
+    return (
+      <Alert status="warning" className="mt-5">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Sessão expirada durante o lote</Alert.Title>
+          <Alert.Description>
+            O arquivo permanece reconhecido somente nesta aba e ainda não foi reenviado. Renove a
+            sessão em outra aba e retome apenas os pendentes.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
+    );
+  }
   if (state.state === 'failed') {
     return (
       <Alert status="danger" className="mt-5">
@@ -162,13 +178,16 @@ function TimingDiagnostics({
 export function NotesImportPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const {
+    authorizationRequired,
     error,
     failures,
     handleFiles,
     loading,
+    pendingPersistenceCount,
     progress,
     persistence,
     results,
+    resumePendingPersistence,
     selectedId,
     selectedResult,
     setSelectedId,
@@ -243,6 +262,40 @@ export function NotesImportPanel() {
             <Alert.Description>{error}</Alert.Description>
           </Alert.Content>
         </Alert>
+      )}
+
+      {authorizationRequired && (
+        <Surface variant="secondary" className="mt-5 rounded-2xl p-4">
+          <Alert status="warning">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>Sessão expirada — lote pausado</Alert.Title>
+              <Alert.Description>
+                Os arquivos já reconhecidos continuam somente na memória desta aba. Abra a renovação
+                em outra aba, conclua o login, volte aqui e retome os {pendingPersistenceCount}{' '}
+                arquivo(s) pendente(s). Itens já concluídos não serão reenviados.
+              </Alert.Description>
+            </Alert.Content>
+          </Alert>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onPress={() => {
+                globalThis.open('/auth/login', '_blank', 'noopener,noreferrer');
+              }}
+            >
+              Renovar sessão
+            </Button>
+            <Button
+              variant="primary"
+              isPending={loading}
+              isDisabled={loading || pendingPersistenceCount === 0}
+              onPress={() => void resumePendingPersistence()}
+            >
+              Retomar pendentes
+            </Button>
+          </div>
+        </Surface>
       )}
 
       {(results.length > 0 || failures.length > 0) && (
@@ -333,7 +386,11 @@ export function NotesImportPanel() {
               <WorkbookInspector result={selectedResult} />
               <PersistenceResult state={selectedPersistence} />
               <TimingDiagnostics
-                visible={selectedPersistence?.state === 'completed' || selectedPersistence?.state === 'failed'}
+                visible={
+                  selectedPersistence?.state === 'completed' ||
+                  selectedPersistence?.state === 'failed' ||
+                  selectedPersistence?.state === 'auth-required'
+                }
                 diagnostics={timingDiagnostics}
               />
             </>

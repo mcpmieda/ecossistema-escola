@@ -26,7 +26,7 @@ export type ImportPersistenceStateV5 =
   | { readonly state: 'failed'; readonly message: string };
 
 export type ImportPersistenceStateV6 =
-  | { readonly state: 'recognized' | 'processing' | 'persisting' }
+  | { readonly state: 'recognized' | 'processing' | 'persisting' | 'auth-required' }
   | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV6 }
   | { readonly state: 'failed'; readonly message: string };
 
@@ -51,6 +51,7 @@ type ImportBootstrapResponseV1 = Awaited<ReturnType<typeof requestOperationalWor
 type ImportBootstrapOutcomeV1 =
   | { readonly state: 'fulfilled'; readonly response: ImportBootstrapResponseV1 }
   | { readonly state: 'rejected'; readonly cause: unknown };
+type ImportPersistenceRunResultV1 = 'completed' | 'auth-required';
 
 function failureMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error ? cause.message : fallback;
@@ -84,6 +85,22 @@ function needsStagingFallbackV1(response: GradebookImportPersistenceResponseV6):
     'reason' in response &&
     response.reason === 'payload-too-large'
   );
+}
+
+export function isGradebookImportAuthorizationRequiredV1(
+  response: GradebookImportPersistenceResponseV6,
+): boolean {
+  return response.state === 'not-authorized';
+}
+
+export function selectPendingGradebookImportResultsV1(
+  successes: readonly BatchSuccess[],
+  persistence: Readonly<Record<string, ImportPersistenceStateV6>>,
+): readonly BatchSuccess[] {
+  return successes.filter((result) => {
+    const state = persistence[result.id];
+    return state?.state === 'recognized' || state?.state === 'auth-required';
+  });
 }
 
 export function useImportBatch() {
@@ -128,10 +145,25 @@ export function useImportBatch() {
     [results],
   );
 
+  const authorizationRequired = useMemo(
+    () => Object.values(persistence).some((value) => value.state === 'auth-required'),
+    [persistence],
+  );
+
+  const pendingPersistenceCount = useMemo(
+    () => selectPendingGradebookImportResultsV1(results, persistence).length,
+    [results, persistence],
+  );
+
+  function markAuthorizationRequired(result: BatchSuccess): void {
+    setPersistence((current) => ({ ...current, [result.id]: { state: 'auth-required' } }));
+    setProgress(null);
+  }
+
   async function persistRecognizedFiles(
     successes: readonly BatchSuccess[],
     bootstrapPromise: Promise<ImportBootstrapOutcomeV1>,
-  ): Promise<void> {
+  ): Promise<ImportPersistenceRunResultV1> {
     const bootstrapOutcome = await bootstrapPromise;
     if (bootstrapOutcome.state === 'rejected') {
       throw bootstrapOutcome.cause instanceof Error
@@ -139,6 +171,11 @@ export function useImportBatch() {
         : new Error('Não foi possível consultar os anos letivos cadastrados.');
     }
     const bootstrap = bootstrapOutcome.response;
+    if (bootstrap.state === 'not-authorized') {
+      const firstPending = successes[0];
+      if (firstPending) markAuthorizationRequired(firstPending);
+      return 'auth-required';
+    }
     if (bootstrap.state !== 'ready' || !('availableAcademicYears' in bootstrap)) {
       throw new Error('Não foi possível consultar os anos letivos cadastrados.');
     }
@@ -195,6 +232,11 @@ export function useImportBatch() {
           state: response.state,
         });
 
+        if (isGradebookImportAuthorizationRequiredV1(response)) {
+          markAuthorizationRequired(result);
+          return 'auth-required';
+        }
+
         if (needsStagingFallbackV1(response)) {
           response = await persistCompactGradebookFileStagedV1(
             request,
@@ -208,6 +250,10 @@ export function useImportBatch() {
             },
             (timing) => appendTiming('[gradebook-import-client-timing]', timing),
           );
+          if (isGradebookImportAuthorizationRequiredV1(response)) {
+            markAuthorizationRequired(result);
+            return 'auth-required';
+          }
         }
 
         setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
@@ -226,6 +272,35 @@ export function useImportBatch() {
           },
         }));
       }
+    }
+    return 'completed';
+  }
+
+  async function resumePendingPersistence(): Promise<void> {
+    const pending = selectPendingGradebookImportResultsV1(results, persistence);
+    if (pending.length === 0 || loading) return;
+
+    setLoading(true);
+    setError(null);
+    setProgress(null);
+    try {
+      await persistRecognizedFiles(pending, startImportBootstrapV1());
+    } catch (cause) {
+      const message = failureMessage(cause, 'Não foi possível retomar a persistência.');
+      setError(message);
+      setPersistence((current) =>
+        Object.fromEntries(
+          Object.entries(current).map(([id, state]) => [
+            id,
+            state.state === 'processing' || state.state === 'persisting'
+              ? { state: 'failed', message }
+              : state,
+          ]),
+        ),
+      );
+    } finally {
+      setProgress(null);
+      setLoading(false);
     }
   }
 
@@ -299,7 +374,7 @@ export function useImportBatch() {
         Object.fromEntries(
           Object.entries(current).map(([id, state]) => [
             id,
-            state.state === 'completed' || state.state === 'failed'
+            state.state === 'completed' || state.state === 'failed' || state.state === 'auth-required'
               ? state
               : { state: 'failed', message },
           ]),
@@ -312,16 +387,19 @@ export function useImportBatch() {
   }
 
   return {
+    authorizationRequired,
     error,
     failures,
     handleFiles,
     loading,
+    pendingPersistenceCount,
     progress,
     persistence,
     persistenceBusy: Object.values(persistence).some(
       (value) => value.state === 'processing' || value.state === 'persisting',
     ),
     results,
+    resumePendingPersistence,
     selectedId,
     selectedResult,
     setSelectedId,
