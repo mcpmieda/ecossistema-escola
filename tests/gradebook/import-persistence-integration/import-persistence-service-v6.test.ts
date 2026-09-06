@@ -9,6 +9,11 @@ import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../server/gradeb
 import { createGradebookD1ImportAnnualStateSourceV1 } from '../../../server/gradebook/persistence/d1/imports/d1-import-annual-state-source-v1';
 import { GradebookD1ImportBootstrapTransactionV2 } from '../../../server/gradebook/persistence/d1/transaction/d1-import-bootstrap-transaction-v2';
 import { ACADEMIC_CONTEXT_2026_IDENTITY_V1 } from '../../../src/gradebook-domain/context/academic-context-2026-v1';
+import type {
+  AcademicEntityRecordV1,
+  AcademicPersistenceContextV1,
+  VersionedRecordV1,
+} from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import {
   academicYearId,
   instant,
@@ -114,14 +119,38 @@ function request(hash = 'a'): GradebookImportPersistenceRequestV6 {
 
 function service() {
   let sequence = 0;
+  let physicalStatusBulkCalls = 0;
   const unitOfWork = createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant });
-  return createGradebookImportPersistenceServiceV6({
-    unitOfWork,
+  type StatusBulkEntities = typeof unitOfWork.entities & {
+    readonly getStudentStatusEventsMany?: (
+      context: AcademicPersistenceContextV1,
+      ids: readonly string[],
+    ) => Promise<readonly (VersionedRecordV1<AcademicEntityRecordV1> | null)[]>;
+  };
+  const baseEntities = unitOfWork.entities as StatusBulkEntities;
+  const baseStatusBulk = baseEntities.getStudentStatusEventsMany;
+  const entities: StatusBulkEntities = {
+    ...baseEntities,
+    ...(baseStatusBulk
+      ? {
+          async getStudentStatusEventsMany(
+            context: AcademicPersistenceContextV1,
+            ids: readonly string[],
+          ) {
+            physicalStatusBulkCalls += 1;
+            return baseStatusBulk(context, ids);
+          },
+        }
+      : {}),
+  };
+  const persistence = createGradebookImportPersistenceServiceV6({
+    unitOfWork: { ...unitOfWork, entities },
     transaction: new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant }),
     annualStateSource: createGradebookD1ImportAnnualStateSourceV1(database),
     now: () => instant,
     createId: (kind) => `${kind}:v6-compact:${++sequence}`,
   });
+  return { persistence, physicalStatusBulkCalls: () => physicalStatusBulkCalls };
 }
 
 function count(table: string, where = ''): number {
@@ -131,8 +160,8 @@ function count(table: string, where = ''): number {
 }
 
 describe('Import persistence service V6 compact', () => {
-  it('persists official records and source status in the same bootstrap path without duplicating on reimport', async () => {
-    const persistence = service();
+  it('persists official records and source status in the same bootstrap path without a separate status read', async () => {
+    const { persistence, physicalStatusBulkCalls } = service();
     const first = await persistence.execute(request());
 
     expect(isGradebookImportPersistenceResponseV6(first)).toBe(true);
@@ -142,6 +171,7 @@ describe('Import persistence service V6 compact', () => {
     expect(count('academic_record_streams', "WHERE record_kind='final-recovery'")).toBe(3);
     expect(count('academic_record_streams', "WHERE record_kind='annual-result'")).toBe(1);
     expect(count('academic_entity_streams', "WHERE entity_kind='student-status-event'")).toBe(1);
+    expect(physicalStatusBulkCalls()).toBe(0);
 
     const persistedStatus = database.raw
       .prepare(
@@ -163,5 +193,6 @@ describe('Import persistence service V6 compact', () => {
     expect(second).toMatchObject({ transportVersion: 6, state: 'no-changes' });
     expect(count('academic_entity_streams', "WHERE entity_kind='student-status-event'")).toBe(1);
     expect(count('academic_entity_versions', "WHERE entity_kind='student-status-event'")).toBe(1);
+    expect(physicalStatusBulkCalls()).toBe(0);
   });
 });
