@@ -15,6 +15,7 @@ import type {
   AcademicPersistenceContextV1,
   VersionedRecordV1,
 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import { createGradebookImportCatalogBootstrapReadCacheV1 } from './import-catalog-bootstrap-read-cache-v1';
 import { createGradebookImportPersistenceServiceV5 } from './import-persistence-service-v5';
 import { expandGradebookImportPersistenceRequestV6 } from './import-persistence-v6-adapter';
 
@@ -159,9 +160,18 @@ export function createGradebookImportPersistenceServiceV6(
           reason: 'invalid-academic-shape',
         };
       }
-      const service = createGradebookImportPersistenceServiceV5(dependencies, {
+      const requestDependencies: GradebookImportPersistenceServiceDependenciesV4 = {
+        ...dependencies,
+        unitOfWork: {
+          ...dependencies.unitOfWork,
+          entities: createGradebookImportCatalogBootstrapReadCacheV1(
+            dependencies.unitOfWork.entities,
+          ),
+        },
+      };
+      const service = createGradebookImportPersistenceServiceV5(requestDependencies, {
         additionalCatalogRecords: async ({ catalog }) =>
-          statusRecords({ request, catalogRequest: catalog.request, dependencies }),
+          statusRecords({ request, catalogRequest: catalog.request, dependencies: requestDependencies }),
       });
       return asGradebookImportPersistenceResponseV6(await service.execute(expanded));
     },
