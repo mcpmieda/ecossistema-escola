@@ -8,10 +8,12 @@ import {
 
 export const WORKBOOK_READ_OPTIONS = {
   type: 'array',
-  cellDates: true,
   cellFormula: true,
-  cellNF: true,
-  cellStyles: true,
+  cellText: true,
+  cellDates: false,
+  cellNF: false,
+  cellStyles: false,
+  cellHTML: false,
 } as const;
 
 export interface WorkbookReadTimingV1 {
