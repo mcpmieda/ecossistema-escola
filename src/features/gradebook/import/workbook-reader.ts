@@ -14,6 +14,7 @@ export const WORKBOOK_READ_OPTIONS = {
   cellNF: false,
   cellStyles: false,
   cellHTML: false,
+  sheetRows: 50,
 } as const;
 
 export interface WorkbookReadTimingV1 {
@@ -29,6 +30,46 @@ function nowMs(): number {
 
 function elapsedMs(startedAt: number): number {
   return Math.round((nowMs() - startedAt) * 10) / 10;
+}
+
+function originalWorksheetDimensions(
+  sheet: ReturnType<SheetJs['read']>['Sheets'][string] | undefined,
+  xlsx: SheetJs,
+): { readonly range: string; readonly rows: number; readonly columns: number } | null {
+  const range = sheet?.['!fullref'];
+  if (typeof range !== 'string' || range.length === 0) return null;
+  try {
+    const decoded = xlsx.utils.decode_range(range);
+    return {
+      range,
+      rows: decoded.e.r - decoded.s.r + 1,
+      columns: decoded.e.c - decoded.s.c + 1,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function preserveOriginalWorksheetDimensions(
+  summary: ReturnType<typeof recognizeWorkbook>,
+  parsed: ReturnType<SheetJs['read']>,
+  xlsx: SheetJs,
+): ReturnType<typeof recognizeWorkbook> {
+  const dimensions = new Map(
+    parsed.SheetNames.flatMap((name) => {
+      const value = originalWorksheetDimensions(parsed.Sheets[name], xlsx);
+      return value ? [[name, value] as const] : [];
+    }),
+  );
+  if (dimensions.size === 0) return summary;
+  return {
+    ...summary,
+    sheets: summary.sheets.map((sheet) => ({ ...sheet, ...dimensions.get(sheet.name) })),
+    gradeSheets: summary.gradeSheets.map((sheet) => ({
+      ...sheet,
+      ...dimensions.get(sheet.name),
+    })),
+  };
 }
 
 export function readWorkbookData(
@@ -47,7 +88,8 @@ export function readWorkbookData(
   }
 
   const recognizeStartedAt = nowMs();
-  const summary = recognizeWorkbook(file, parsed, xlsx, { fileSha256: manifest.sha256 });
+  const recognized = recognizeWorkbook(file, parsed, xlsx, { fileSha256: manifest.sha256 });
+  const summary = preserveOriginalWorksheetDimensions(recognized, parsed, xlsx);
   const recognizeWorkbookMs = elapsedMs(recognizeStartedAt);
   if (summary.gradeSheets.length === 0) {
     throw new Error('Nenhuma guia corresponde ao padrão de notas configurado.');
