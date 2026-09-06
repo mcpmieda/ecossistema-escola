@@ -144,12 +144,7 @@ export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapT
         });
         const result = await operation(bulk.unitOfWork);
         bulk.flush();
-        try {
-          await recorder.commit();
-        } catch {
-          // Any optimistic mismatch or set-based write failure rolls the single D1 batch back.
-          throw new GradebookD1TransactionErrorV1('batch-version-conflict');
-        }
+        await recorder.commit();
         return result;
       }
 
