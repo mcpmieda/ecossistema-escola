@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type {
   AcademicYearId,
   ClassGroupId,
+  EnrollmentId,
   SchoolId,
+  StudentId,
+  StudentStatusEventId,
   SubjectId,
   TeacherId,
   TeachingAssignmentId,
@@ -23,8 +26,11 @@ const teacherId = 'teacher:catalog-bootstrap:001' as TeacherId;
 const classGroupId = 'class-group:catalog-bootstrap:001' as ClassGroupId;
 const subjectId = 'subject:catalog-bootstrap:001' as SubjectId;
 const teachingAssignmentId = 'teaching-assignment:catalog-bootstrap:001' as TeachingAssignmentId;
+const studentId = 'student:catalog-bootstrap:001' as StudentId;
+const enrollmentId = 'enrollment:catalog-bootstrap:001' as EnrollmentId;
 const assessmentComponentId =
   'assessment-component:v2:catalog-bootstrap:001' as AssessmentComponentId;
+const studentStatusEventId = 'student-status-event:catalog-bootstrap:001' as StudentStatusEventId;
 
 beforeEach(async () => {
   database = await openMigratedDatabase();
@@ -95,6 +101,27 @@ beforeEach(async () => {
         confirmationOrigin: 'imported-source' as const,
       },
     },
+    {
+      kind: 'student' as const,
+      value: {
+        id: studentId,
+        displayName: 'Estudante Sintético',
+        sourceNames: ['Estudante Sintético'],
+        sourceIdentityMarks: ['synthetic-position:1'],
+      },
+    },
+    {
+      kind: 'enrollment' as const,
+      value: {
+        id: enrollmentId,
+        academicYearId,
+        studentId,
+        classGroupId,
+        effectivePeriod: { startsOn: '2026-02-01' },
+        position: 'current' as const,
+        sourcePosition: 1,
+      },
+    },
   ];
   for (const record of catalog) {
     expect(
@@ -125,12 +152,31 @@ beforeEach(async () => {
       )
     ).status,
   ).toBe('written');
+  expect(
+    (
+      await unit.entities.appendVersion(
+        { academicYearId },
+        {
+          kind: 'student-status-event',
+          value: {
+            id: studentStatusEventId,
+            academicYearId,
+            enrollmentId,
+            status: 'active',
+            sourceText: 'ATIVO',
+            sourceReference: 'RELACAO',
+          },
+        },
+        { expectedVersion: null },
+      )
+    ).status,
+  ).toBe('written');
 });
 
 afterEach(() => database.raw.close());
 
 describe('D1 import catalog bootstrap snapshot', () => {
-  it('loads year, catalog and assessment components through one physical D1 query', async () => {
+  it('loads year, catalog, components and status through one physical D1 query', async () => {
     let prepareCalls = 0;
     const reader = createGradebookD1ImportCatalogBootstrapReadV1({
       prepare(query: string) {
@@ -162,6 +208,12 @@ describe('D1 import catalog bootstrap snapshot', () => {
             value: expect.objectContaining({ id: teachingAssignmentId }),
           },
         }),
+        expect.objectContaining({
+          value: {
+            kind: 'enrollment',
+            value: expect.objectContaining({ id: enrollmentId, studentId }),
+          },
+        }),
       ]),
     );
     expect(snapshot.assessmentComponents).toEqual([
@@ -172,6 +224,19 @@ describe('D1 import catalog bootstrap snapshot', () => {
             id: assessmentComponentId,
             teachingAssignmentId,
             maximum: { state: 'defined', value: 10 },
+          }),
+        },
+      }),
+    ]);
+    expect(snapshot.studentStatusEvents).toEqual([
+      expect.objectContaining({
+        value: {
+          kind: 'student-status-event',
+          value: expect.objectContaining({
+            id: studentStatusEventId,
+            enrollmentId,
+            status: 'active',
+            sourceText: 'ATIVO',
           }),
         },
       }),
@@ -190,6 +255,7 @@ describe('D1 import catalog bootstrap snapshot', () => {
       academicYear: null,
       catalog: [],
       assessmentComponents: [],
+      studentStatusEvents: [],
     });
   });
 });
