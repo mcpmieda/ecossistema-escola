@@ -13,6 +13,7 @@ import type { D1ReadDatabaseV1 } from '../read/d1-read-adapter-v1';
 type Row = Record<string, unknown>;
 
 const MAX_ANNUAL_BULK_CLASS_GROUPS_V1 = 64;
+const MAX_ANNUAL_YEAR_PREFETCH_RESULTS_V1 = 2_000;
 
 export type GradebookD1ImportAnnualStateErrorCodeV1 =
   | 'database-read-failed'
@@ -89,6 +90,9 @@ export interface GradebookImportAnnualStateSourceV1 extends AnnualCurriculumSour
     readonly academicYearId: AcademicYearId;
     readonly classGroupIds: readonly ClassGroupId[];
   }): Promise<ReadonlyMap<ClassGroupId, readonly AnnualResultV1[]>>;
+  loadCurrentAnnualResultsForYear?(input: {
+    readonly academicYearId: AcademicYearId;
+  }): Promise<ReadonlyMap<ClassGroupId, readonly AnnualResultV1[]> | null>;
 }
 
 export class GradebookD1ImportAnnualStateSourceV1 implements GradebookImportAnnualStateSourceV1 {
@@ -144,6 +148,48 @@ export class GradebookD1ImportAnnualStateSourceV1 implements GradebookImportAnnu
         : null;
     if (nextCursor !== null && nextCursor.trim().length === 0) return fail('incompatible-row');
     return { items, nextCursor };
+  }
+
+  async loadCurrentAnnualResultsForYear(input: {
+    readonly academicYearId: AcademicYearId;
+  }): Promise<ReadonlyMap<ClassGroupId, readonly AnnualResultV1[]> | null> {
+    const rows = await this.all(
+      `SELECT e.class_group_id, rv.payload_json
+         FROM academic_record_streams rs
+         JOIN academic_record_versions rv
+           ON rv.academic_year_id=rs.academic_year_id
+          AND rv.record_kind=rs.record_kind
+          AND rv.stream_key=rs.stream_key
+          AND rv.version=rs.current_version
+         JOIN academic_entity_versions e
+           ON e.academic_year_id=rs.academic_year_id
+          AND e.entity_kind='enrollment'
+          AND e.entity_id=rs.enrollment_id
+         JOIN academic_entity_streams es
+           ON es.academic_year_id=e.academic_year_id
+          AND es.entity_kind=e.entity_kind
+          AND es.entity_id=e.entity_id
+          AND es.current_version=e.version
+        WHERE rs.academic_year_id=?
+          AND rs.record_kind='annual-result'
+        ORDER BY e.class_group_id, rs.student_id, rs.teaching_assignment_id
+        LIMIT ?`,
+      input.academicYearId,
+      MAX_ANNUAL_YEAR_PREFETCH_RESULTS_V1 + 1,
+    );
+    if (rows.length > MAX_ANNUAL_YEAR_PREFETCH_RESULTS_V1) return null;
+
+    const grouped = new Map<ClassGroupId, AnnualResultV1[]>();
+    for (const row of rows) {
+      if (typeof row.class_group_id !== 'string' || row.class_group_id.trim().length === 0) {
+        return fail('incompatible-row');
+      }
+      const classGroupId = row.class_group_id as ClassGroupId;
+      const values = grouped.get(classGroupId) ?? [];
+      values.push(annualResult(row, input.academicYearId));
+      grouped.set(classGroupId, values);
+    }
+    return grouped;
   }
 
   async loadCurrentAnnualResultsForClasses(input: {

@@ -215,7 +215,7 @@ describe('Import persistence service V5 first bootstrap', () => {
     expect(count('academic_record_streams', "WHERE record_kind='annual-result'")).toBe(1);
   });
 
-  it('starts the source hash read before catalog bootstrap completes without changing review precedence', async () => {
+  it('starts source hash and annual prefetch before catalog bootstrap completes without changing review precedence', async () => {
     let resolveBootstrap!: (value: {
       readonly academicYear: null;
       readonly catalog: readonly VersionedRecordV1<AcademicEntityRecordV1>[];
@@ -227,9 +227,14 @@ describe('Import persistence service V5 first bootstrap', () => {
       resolveBootstrap = resolve;
     });
     let sourceHashCalls = 0;
+    let annualPrefetchCalls = 0;
     let markSourceStarted!: () => void;
+    let markAnnualStarted!: () => void;
     const sourceStarted = new Promise<void>((resolve) => {
       markSourceStarted = resolve;
+    });
+    const annualStarted = new Promise<void>((resolve) => {
+      markAnnualStarted = resolve;
     });
 
     const dependencies = {
@@ -268,7 +273,13 @@ describe('Import persistence service V5 first bootstrap', () => {
         },
       },
       transaction: {},
-      annualStateSource: {},
+      annualStateSource: {
+        async loadCurrentAnnualResultsForYear() {
+          annualPrefetchCalls += 1;
+          markAnnualStarted();
+          throw new Error('synthetic-early-annual-failure');
+        },
+      },
       now: () => instant,
       createId: () => 'unused',
     } as unknown as Parameters<typeof createGradebookImportPersistenceServiceV5>[0];
@@ -276,8 +287,9 @@ describe('Import persistence service V5 first bootstrap', () => {
     const persistence = createGradebookImportPersistenceServiceV5(dependencies);
     const pending = persistence.execute(request());
 
-    await sourceStarted;
+    await Promise.all([sourceStarted, annualStarted]);
     expect(sourceHashCalls).toBe(1);
+    expect(annualPrefetchCalls).toBe(1);
     let settled = false;
     void pending.then(() => {
       settled = true;
@@ -291,9 +303,10 @@ describe('Import persistence service V5 first bootstrap', () => {
       state: 'review-required',
     });
     expect(sourceHashCalls).toBe(1);
+    expect(annualPrefetchCalls).toBe(1);
   });
 
-  it('preserves the D1 catalog bootstrap snapshot and reuses one source hash read on an idempotent reimport', async () => {
+  it('preserves the catalog snapshot and reuses source hash plus one annual prefetch on idempotent reimport', async () => {
     const first = await service().execute(request());
     expect(first).toMatchObject({ transportVersion: 5, state: 'applied' });
 
@@ -352,11 +365,35 @@ describe('Import persistence service V5 first bootstrap', () => {
         return findSourceFileByHash(context, sha256);
       },
     };
+    const baseAnnualStateSource = createGradebookD1ImportAnnualStateSourceV1(database);
+    const loadCurrentAnnualResultsForYear =
+      baseAnnualStateSource.loadCurrentAnnualResultsForYear!.bind(baseAnnualStateSource);
+    const loadCurrentAnnualResultsForClasses =
+      baseAnnualStateSource.loadCurrentAnnualResultsForClasses!.bind(baseAnnualStateSource);
+    let annualPrefetchCalls = 0;
+    let annualTargetedCalls = 0;
+    const annualStateSource = {
+      listAssignments: baseAnnualStateSource.listAssignments.bind(baseAnnualStateSource),
+      loadCurrentAnnualResultsForClass:
+        baseAnnualStateSource.loadCurrentAnnualResultsForClass.bind(baseAnnualStateSource),
+      async loadCurrentAnnualResultsForClasses(
+        input: Parameters<typeof loadCurrentAnnualResultsForClasses>[0],
+      ) {
+        annualTargetedCalls += 1;
+        return loadCurrentAnnualResultsForClasses(input);
+      },
+      async loadCurrentAnnualResultsForYear(
+        input: Parameters<typeof loadCurrentAnnualResultsForYear>[0],
+      ) {
+        annualPrefetchCalls += 1;
+        return loadCurrentAnnualResultsForYear(input);
+      },
+    };
     let sequence = 0;
     const persistence = createGradebookImportPersistenceServiceV5({
       unitOfWork: { ...unitOfWork, entities, imports },
       transaction: new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant }),
-      annualStateSource: createGradebookD1ImportAnnualStateSourceV1(database),
+      annualStateSource,
       now: () => instant,
       createId: (kind) => `${kind}:v5-snapshot:${++sequence}`,
     });
@@ -368,5 +405,7 @@ describe('Import persistence service V5 first bootstrap', () => {
     expect(catalogSnapshotCalls).toBe(0);
     expect(catalogListCalls).toBe(0);
     expect(sourceHashCalls).toBe(1);
+    expect(annualPrefetchCalls).toBe(1);
+    expect(annualTargetedCalls).toBe(0);
   });
 });
