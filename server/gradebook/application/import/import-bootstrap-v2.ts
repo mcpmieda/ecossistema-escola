@@ -1,6 +1,8 @@
 import type { ImportBatchResultV1 } from '../../../../shared/gradebook-contracts/imports/import-contract-v1';
+import type { SourceFileManifestId } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
 import {
   inspectImportBootstrapTransactionRequestV2,
+  type ImportBootstrapSourceManifestVersionV2,
   type ImportBootstrapTransactionRequestV2,
 } from '../../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
 import type { ImportChangePlanV1 } from './import-reconciliation-v1';
@@ -17,6 +19,42 @@ export type ImportBootstrapEnvelopeResultV2 =
         | Extract<LogicalSourceResolutionResultV2, { readonly status: 'review-required' }>['reason']
         | 'invalid-bootstrap-plan';
     };
+
+function manifestVersionEvidence(input: {
+  readonly batch: ImportBatchResultV1;
+  readonly plan: ImportChangePlanV1;
+}): readonly ImportBootstrapSourceManifestVersionV2[] | null {
+  const planFilesById = new Map(input.plan.files.map((file) => [file.importFileId, file]));
+  const versions = new Map<SourceFileManifestId, number>();
+
+  for (const batchFile of input.batch.files) {
+    if (batchFile.manifest === null) continue;
+    const plannedFile = planFilesById.get(batchFile.id);
+    if (!plannedFile) return null;
+
+    let version: number;
+    if (plannedFile.sourceFileWrite.kind === 'append-version') {
+      if (plannedFile.sourceFileWrite.value.manifest.id !== batchFile.manifest.id) return null;
+      version = (plannedFile.sourceFileWrite.expectedVersion ?? 0) + 1;
+    } else if (
+      plannedFile.contentIdentity.state === 'known-identical' &&
+      plannedFile.contentIdentity.knownManifestId === batchFile.manifest.id
+    ) {
+      version = plannedFile.contentIdentity.knownManifestVersion;
+    } else {
+      return null;
+    }
+
+    if (!Number.isInteger(version) || version <= 0) return null;
+    const existing = versions.get(batchFile.manifest.id);
+    if (existing !== undefined && existing !== version) return null;
+    versions.set(batchFile.manifest.id, version);
+  }
+
+  return [...versions.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([manifestId, version]) => ({ manifestId, version }));
+}
 
 /**
  * Joins only server-built values after planning has completed against pre-write state.
@@ -50,6 +88,7 @@ export function createImportBootstrapEnvelopeV2(input: {
       batchFile?.manifest?.id === file.sourceFileWrite.value.manifest.id
     );
   });
+  const sourceManifestVersions = manifestVersionEvidence({ batch: input.batch, plan: input.plan });
   if (
     input.batch.status !== 'approved' ||
     !['no-changes', 'ready-for-promotion'].includes(input.plan.status) ||
@@ -59,7 +98,8 @@ export function createImportBootstrapEnvelopeV2(input: {
     input.plan.files.length !== input.batch.files.length ||
     input.plan.files.some((file) => !batchFilesById.has(file.importFileId)) ||
     !sourceRelationsAreCompatible ||
-    !sourceWritesAreCompatible
+    !sourceWritesAreCompatible ||
+    sourceManifestVersions === null
   ) {
     return { status: 'review-required', reason: 'invalid-bootstrap-plan' };
   }
@@ -70,6 +110,7 @@ export function createImportBootstrapEnvelopeV2(input: {
       value: input.resolution.source,
     },
     plannedSourceFileManifestIds,
+    sourceManifestVersions,
     batchWrite: {
       value: input.batch,
       expectedVersion: null,
