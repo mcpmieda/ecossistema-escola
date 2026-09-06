@@ -259,7 +259,7 @@ describe('gradebook import annual state bulk reuse', () => {
       async all<Row extends Record<string, unknown>>() {
         const rowCount = Number(boundValues[1]);
         return {
-          results: Array.from({ length: rowCount }, () => ({})) as readonly Row[],
+          results: Array.from({ length: rowCount }, () => ({})) as unknown as readonly Row[],
         };
       },
     };
