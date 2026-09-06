@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { GradebookImportPersistenceRequestV6 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 import { persistCompactGradebookFileV6 } from '../../../src/features/gradebook/import/import-persistence-client-v6';
-import { isGradebookPaidDirectBenchmarkHashV1 } from '../../../src/features/gradebook/import/use-import-batch';
 
 function noChangesResponse() {
   const writes = {
@@ -45,16 +44,30 @@ const breakdown = [
   { category: 'other', calls: 1, wallMs: 31, sqlMs: null },
 ] as const;
 
-describe('Gradebook V6 Workers Paid direct benchmark', () => {
-  it('requires the explicit hash opt-in flag', () => {
-    expect(isGradebookPaidDirectBenchmarkHashV1('#/banco-de-notas')).toBe(false);
-    expect(isGradebookPaidDirectBenchmarkHashV1('#/banco-de-notas?area=importacao')).toBe(false);
-    expect(isGradebookPaidDirectBenchmarkHashV1('#/banco-de-notas?paidDirect=0')).toBe(false);
-    expect(isGradebookPaidDirectBenchmarkHashV1('#/banco-de-notas?paidDirect=1')).toBe(true);
-    expect(isGradebookPaidDirectBenchmarkHashV1('#/banco-de-notas?area=importacao&paidDirect=1')).toBe(true);
+describe('Gradebook V6 direct persistence and explicit benchmark', () => {
+  it('uses the direct endpoint without benchmark instrumentation in the official path', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify(noChangesResponse()), {
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    try {
+      await expect(
+        persistCompactGradebookFileV6({ transportVersion: 6 } as GradebookImportPersistenceRequestV6),
+      ).resolves.toMatchObject({ transportVersion: 6, state: 'no-changes' });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const init = fetchMock.mock.calls[0]?.[1];
+      const headers = new Headers(init?.headers);
+      expect(headers.get('Content-Type')).toBe('application/json');
+      expect(headers.get('X-Gradebook-Benchmark')).toBeNull();
+    } finally {
+      fetchMock.mockRestore();
+    }
   });
 
-  it('reports sanitized client/server and D1 timing from the existing direct endpoint', async () => {
+  it('reports sanitized client/server and D1 timing when benchmark is explicitly requested', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify(noChangesResponse()), {
         headers: {
