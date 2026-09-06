@@ -99,16 +99,18 @@ describe('gradebook importer structure', () => {
     );
   });
 
-  it('keeps SheetJS loading, workbook options and HeroUI presentation explicit', () => {
+  it('keeps SheetJS loading, lean workbook options and HeroUI presentation explicit', () => {
     expect(source('src/features/gradebook/import/sheetjs-loader.ts')).toContain(
       'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
     );
     expect(WORKBOOK_READ_OPTIONS).toEqual({
       type: 'array',
-      cellDates: true,
       cellFormula: true,
-      cellNF: true,
-      cellStyles: true,
+      cellText: true,
+      cellDates: false,
+      cellNF: false,
+      cellStyles: false,
+      cellHTML: false,
     });
 
     const presentation = [
