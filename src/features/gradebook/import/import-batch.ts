@@ -17,7 +17,10 @@ import {
   type SheetJs,
   type WorkbookSummary,
 } from './spreadsheet-recognizer';
-import { readWorkbookData } from './workbook-reader';
+import {
+  readWorkbookData,
+  type WorkbookReadTimingV1,
+} from './workbook-reader';
 
 export const MAX_NOTES_IMPORT_FILES = 50;
 
@@ -50,6 +53,20 @@ export type BatchProgress = {
   stage: BatchProgressStage;
 };
 
+export interface ImportWorkbookFileTimingV1 {
+  readonly fileIndex: number;
+  readonly current: number;
+  readonly total: number;
+  readonly fileReadMs: number;
+  readonly manifestMs: number;
+  readonly yieldMs: number;
+  readonly recognitionMs: number;
+  readonly workbookReadMs: number | null;
+  readonly xlsxReadMs: number | null;
+  readonly recognizeWorkbookMs: number | null;
+  readonly canonicalRostersMs: number | null;
+}
+
 export type BatchResult = {
   successes: BatchSuccess[];
   failures: BatchFailure[];
@@ -60,6 +77,7 @@ export type BatchResult = {
 export interface ImportBatchRuntime extends FileManifestRuntime {
   readonly onStageProgress?: (progress: BatchProgress) => void;
   readonly yieldBeforeRecognition?: () => Promise<void>;
+  readonly onFileTiming?: (timing: ImportWorkbookFileTimingV1) => void;
 }
 
 export function validateBatchSize(files: File[]): string | null {
@@ -83,6 +101,14 @@ function sourceFileDescriptor(file: File): SourceFileDescriptorV1 {
 
 function failureMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error ? cause.message : fallback;
+}
+
+function nowMs(): number {
+  return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
+}
+
+function elapsedMs(startedAt: number): number {
+  return Math.round((nowMs() - startedAt) * 10) / 10;
 }
 
 function yieldToBrowser(): Promise<void> {
@@ -246,8 +272,11 @@ export async function importWorkbookBatch(
     }
 
     let data: ArrayBuffer;
+    let fileReadMs = 0;
     try {
+      const fileReadStartedAt = nowMs();
       data = await file.arrayBuffer();
+      fileReadMs = elapsedMs(fileReadStartedAt);
     } catch (cause) {
       const message = failureMessage(cause, 'Não foi possível ler o arquivo.');
       recordFailure(
@@ -267,8 +296,11 @@ export async function importWorkbookBatch(
     }
 
     let manifest: SourceFileManifestV1;
+    let manifestMs = 0;
     try {
+      const manifestStartedAt = nowMs();
       manifest = await createSourceFileManifest(file, data, xlsx.version, runtime);
+      manifestMs = elapsedMs(manifestStartedAt);
     } catch (cause) {
       const message = failureMessage(cause, 'Não foi possível calcular o SHA-256 do arquivo.');
       recordFailure(
@@ -293,10 +325,16 @@ export async function importWorkbookBatch(
       fileName: file.name,
       stage: 'recognizing',
     });
+    const yieldStartedAt = nowMs();
     await (runtime.yieldBeforeRecognition?.() ?? yieldToBrowser());
+    const yieldMs = elapsedMs(yieldStartedAt);
 
+    const recognitionStartedAt = nowMs();
+    let workbookTiming: WorkbookReadTimingV1 | null = null;
     try {
-      const summary = readWorkbookData(file, data, xlsx, manifest);
+      const summary = readWorkbookData(file, data, xlsx, manifest, (timing) => {
+        workbookTiming = timing;
+      });
       successes.push({ id: importFileId, summary, manifest });
       fileResults.push({
         id: importFileId,
@@ -320,6 +358,20 @@ export async function importWorkbookBatch(
         },
         failureCollections,
       );
+    } finally {
+      runtime.onFileTiming?.({
+        fileIndex: index,
+        current,
+        total: files.length,
+        fileReadMs,
+        manifestMs,
+        yieldMs,
+        recognitionMs: elapsedMs(recognitionStartedAt),
+        workbookReadMs: workbookTiming?.totalMs ?? null,
+        xlsxReadMs: workbookTiming?.xlsxReadMs ?? null,
+        recognizeWorkbookMs: workbookTiming?.recognizeWorkbookMs ?? null,
+        canonicalRostersMs: workbookTiming?.canonicalRostersMs ?? null,
+      });
     }
   }
 
