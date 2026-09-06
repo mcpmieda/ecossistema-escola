@@ -44,21 +44,6 @@ function listKey(
   return JSON.stringify([context.academicYearId, kind, page.limit, page.cursor ?? null]);
 }
 
-function logicalSourceListKey(
-  context: Parameters<PersistenceUnitOfWorkV2['logicalSources']['listByContext']>[0],
-  sourceContext: Parameters<PersistenceUnitOfWorkV2['logicalSources']['listByContext']>[1],
-  page: Parameters<PersistenceUnitOfWorkV2['logicalSources']['listByContext']>[2],
-): string {
-  return JSON.stringify([
-    context.academicYearId,
-    sourceContext.kind,
-    sourceContext.academicYearId,
-    sourceContext.teacherId,
-    page.limit,
-    page.cursor ?? null,
-  ]);
-}
-
 /**
  * A prepare-all request plans several isolated chunks against the same official snapshot.
  * Staging captures writes in memory and does not promote them before finalize, so immutable
@@ -70,10 +55,8 @@ export function createGradebookImportStagingSharedReadCacheV1(
 ): PersistenceUnitOfWorkV2 {
   const shared = createGradebookImportSharedSourceReadCacheV1(base);
   const source = shared.entities;
-  const logicalSources = shared.logicalSources;
   const getCache = new Map<string, ReturnType<typeof source.get>>();
   const listCache = new Map<string, ReturnType<typeof source.list>>();
-  const logicalSourceListCache = new Map<string, ReturnType<typeof logicalSources.listByContext>>();
 
   return {
     ...shared,
@@ -94,16 +77,5 @@ export function createGradebookImportStagingSharedReadCacheV1(
           ? memoized(listCache, listKey(context, kind, page), () => source.list(context, kind, page))
           : source.list(context, kind, page),
     }),
-    logicalSources: {
-      get: (context, logicalSourceId) => logicalSources.get(context, logicalSourceId),
-      listByContext: (context, sourceContext, page) =>
-        memoized(
-          logicalSourceListCache,
-          logicalSourceListKey(context, sourceContext, page),
-          () => logicalSources.listByContext(context, sourceContext, page),
-        ),
-      createInitial: (context, logicalSource) =>
-        logicalSources.createInitial(context, logicalSource),
-    },
   };
 }
