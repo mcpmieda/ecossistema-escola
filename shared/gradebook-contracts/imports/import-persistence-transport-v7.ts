@@ -75,6 +75,10 @@ function nonNegativeFinite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+function nonNegativeInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
 function validFailureCategory(value: unknown): value is GradebookImportPersistenceFailureCategoryV7 {
   return (
     value === 'none' ||
@@ -123,8 +127,7 @@ export function isGradebookImportPersistenceBatchRequestV7(
 function isItemResult(value: unknown): value is GradebookImportPersistenceBatchItemResultV7 {
   return (
     isRecord(value) &&
-    Number.isSafeInteger(value.index) &&
-    Number(value.index) >= 0 &&
+    nonNegativeInteger(value.index) &&
     (value.attempts === 1 || value.attempts === 2) &&
     nonNegativeFinite(value.totalMs) &&
     validFailureCategory(value.failureCategory) &&
@@ -149,8 +152,7 @@ export function isGradebookImportPersistenceBatchResponseV7(
     !Array.isArray(value.items) ||
     !value.items.every(isItemResult) ||
     !nonNegativeFinite(value.totalMs) ||
-    (value.pendingFromIndex !== null &&
-      (!Number.isSafeInteger(value.pendingFromIndex) || Number(value.pendingFromIndex) < 0))
+    (value.pendingFromIndex !== null && !nonNegativeInteger(value.pendingFromIndex))
   ) {
     return false;
   }
@@ -158,7 +160,8 @@ export function isGradebookImportPersistenceBatchResponseV7(
     if (item.index !== position) return false;
   }
   if (value.state === 'not-authorized') {
-    return value.pendingFromIndex !== null && value.pendingFromIndex < value.items.length + 1;
+    const pendingFromIndex = value.pendingFromIndex;
+    return nonNegativeInteger(pendingFromIndex) && pendingFromIndex < value.items.length + 1;
   }
   return value.pendingFromIndex === null;
 }
