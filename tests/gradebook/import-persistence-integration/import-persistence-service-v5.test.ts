@@ -215,7 +215,7 @@ describe('Import persistence service V5 first bootstrap', () => {
     expect(count('academic_record_streams', "WHERE record_kind='annual-result'")).toBe(1);
   });
 
-  it('preserves the D1 catalog snapshot through assignment capture on an idempotent reimport', async () => {
+  it('preserves the D1 catalog bootstrap snapshot through assignment capture on an idempotent reimport', async () => {
     const first = await service().execute(request());
     expect(first).toMatchObject({ transportVersion: 5, state: 'applied' });
 
@@ -224,11 +224,20 @@ describe('Import persistence service V5 first bootstrap', () => {
       readonly getImportCatalogSnapshot?: (
         context: AcademicPersistenceContextV1,
       ) => Promise<readonly VersionedRecordV1<AcademicEntityRecordV1>[] | null>;
+      readonly getImportCatalogBootstrapSnapshot?: (
+        context: AcademicPersistenceContextV1,
+      ) => Promise<{
+        readonly academicYear: VersionedRecordV1<AcademicEntityRecordV1> | null;
+        readonly catalog: readonly VersionedRecordV1<AcademicEntityRecordV1>[] | null;
+      }>;
     };
     const baseEntities = unitOfWork.entities as SnapshotEntities;
     expect(typeof baseEntities.getImportCatalogSnapshot).toBe('function');
+    expect(typeof baseEntities.getImportCatalogBootstrapSnapshot).toBe('function');
     const getImportCatalogSnapshot = baseEntities.getImportCatalogSnapshot!;
-    let snapshotCalls = 0;
+    const getImportCatalogBootstrapSnapshot = baseEntities.getImportCatalogBootstrapSnapshot!;
+    let bootstrapSnapshotCalls = 0;
+    let catalogSnapshotCalls = 0;
     let catalogListCalls = 0;
     const catalogKinds = new Set<string>([
       'teacher',
@@ -240,8 +249,12 @@ describe('Import persistence service V5 first bootstrap', () => {
     ]);
     const entities: SnapshotEntities = {
       ...baseEntities,
+      async getImportCatalogBootstrapSnapshot(context) {
+        bootstrapSnapshotCalls += 1;
+        return getImportCatalogBootstrapSnapshot(context);
+      },
       async getImportCatalogSnapshot(context) {
-        snapshotCalls += 1;
+        catalogSnapshotCalls += 1;
         return getImportCatalogSnapshot(context);
       },
       async list(context, kind, page) {
@@ -261,7 +274,8 @@ describe('Import persistence service V5 first bootstrap', () => {
     const second = await persistence.execute(request());
 
     expect(second).toMatchObject({ transportVersion: 5, state: 'no-changes' });
-    expect(snapshotCalls).toBe(1);
+    expect(bootstrapSnapshotCalls).toBe(1);
+    expect(catalogSnapshotCalls).toBe(0);
     expect(catalogListCalls).toBe(0);
   });
 });
