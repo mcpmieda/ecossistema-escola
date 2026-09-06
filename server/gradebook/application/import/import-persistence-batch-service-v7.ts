@@ -47,6 +47,13 @@ function successful(response: GradebookImportPersistenceResponseV6): boolean {
   return response.state === 'applied' || response.state === 'no-changes';
 }
 
+function retryable(response: GradebookImportPersistenceResponseV6, firstAttemptMs: number): boolean {
+  return (
+    (response.state === 'unavailable' || response.state === 'conflict') &&
+    firstAttemptMs <= MAX_RETRY_FIRST_ATTEMPT_MS_V7
+  );
+}
+
 function unavailable(): GradebookImportPersistenceResponseV6 {
   return { transportVersion: 6, state: 'unavailable' };
 }
@@ -84,10 +91,7 @@ export function createGradebookImportPersistenceBatchServiceV7(
           firstAttemptMs = nowMs() - itemStartedAt;
         }
 
-        if (
-          response.state === 'unavailable' &&
-          firstAttemptMs <= MAX_RETRY_FIRST_ATTEMPT_MS_V7
-        ) {
+        if (retryable(response, firstAttemptMs)) {
           attempts = 2;
           await sleep(RETRY_DELAY_MS_V7);
           try {
