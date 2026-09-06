@@ -215,19 +215,28 @@ export function createGradebookImportPersistenceServiceV5(
       request: GradebookImportPersistenceRequestV5,
     ): Promise<GradebookImportPersistenceResponseV5> {
       try {
+        const sharedUnitOfWork = createGradebookImportSharedSourceReadCacheV1(
+          dependencies.unitOfWork,
+        );
+        const earlySourceHashWarmup = prewarmGradebookImportSharedSourceReadsV1({
+          unitOfWork: sharedUnitOfWork,
+          academicYearId: request.confirmedContext.academicYearId,
+          sha256: request.manifest.sha256,
+          teacherId: null,
+        }).catch(() => undefined);
         const catalogBootstrapEntities = createGradebookImportCatalogBootstrapReadCacheV1(
-          dependencies.unitOfWork.entities,
+          sharedUnitOfWork.entities,
         );
         const capture = captureCatalogAssignmentsV1(catalogBootstrapEntities);
         const catalog = await planAcademicCatalogBootstrapV1({
           request,
           unitOfWork: { entities: capture.repository },
         });
-        if (catalog.status !== 'ready') return review();
+        if (catalog.status !== 'ready') {
+          void earlySourceHashWarmup;
+          return review();
+        }
 
-        const sharedUnitOfWork = createGradebookImportSharedSourceReadCacheV1(
-          dependencies.unitOfWork,
-        );
         const allAssignments = mergedAssignmentsV1(capture.assignments(), catalog);
         const assignmentsById = new Map(
           allAssignments.map((assignment) => [assignment.id, assignment]),
