@@ -112,6 +112,7 @@ describe('gradebook importer structure', () => {
       cellStyles: false,
       cellHTML: false,
       sheetRows: 50,
+      dense: true,
     });
 
     const presentation = [
