@@ -160,8 +160,10 @@ export const onRequestPost: PagesFunction<ProbeEnvV1> = async (context: Context)
 
     probes.push(
       await step('parameter-jsonb', async () => {
-        const payload = JSON.stringify([{ value: 1 }]);
-        const rows = await sql!`select jsonb_array_length(${payload}::jsonb)::int as count`;
+        const payload = [{ value: 1 }] as const;
+        const rows = await sql!`
+          select jsonb_array_length(${sql!.json(payload)}::jsonb)::int as count
+        `;
         if (integer(rows[0]?.count) !== 1) throw new TypeError('postgres-probe-result-invalid');
       }),
     );
@@ -188,7 +190,6 @@ export const onRequestPost: PagesFunction<ProbeEnvV1> = async (context: Context)
     cleanupIds.push(transactionId);
     probes.push(
       await step('transaction', async () => {
-        const payload = JSON.stringify({ probe: true });
         await sql!.begin(async (transaction) => {
           await transaction`
             insert into bn_benchmark.streams
@@ -200,7 +201,7 @@ export const onRequestPost: PagesFunction<ProbeEnvV1> = async (context: Context)
               (benchmark_id, stream_key, version, payload_hash, payload, recorded_at)
             values (
               ${transactionId}, 'stream:1', 1, ${'2'.repeat(64)},
-              ${payload}::jsonb, clock_timestamp()
+              ${transaction.json({ probe: true })}::jsonb, clock_timestamp()
             )
           `;
         });
@@ -221,7 +222,7 @@ export const onRequestPost: PagesFunction<ProbeEnvV1> = async (context: Context)
       const rows = await sql!`
         select * from bn_benchmark.apply_snapshot(
           ${functionId},
-          ${JSON.stringify(baseline)}::jsonb
+          ${sql!.json(baseline)}::jsonb
         )
       `;
       if (rows.length !== 1) throw new TypeError('postgres-probe-result-invalid');
