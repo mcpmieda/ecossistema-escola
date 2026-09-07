@@ -1,4 +1,9 @@
 import {
+  GRADEBOOK_IMPORT_FAILURE_HEADER_V1,
+  parseGradebookImportFailureDiagnosticV1,
+  type GradebookImportFailureDiagnosticV1,
+} from '../../../../shared/gradebook-import-diagnostics-v1';
+import {
   GRADEBOOK_IMPORT_PERSISTENCE_OPERATION_V7,
   GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V7,
   inspectGradebookImportPersistenceBatchRequestV7,
@@ -67,6 +72,7 @@ function notAuthorized(): GradebookImportPersistenceBatchResponseV7 {
 export async function persistCompactGradebookBatchV7(
   requests: readonly GradebookImportPersistenceRequestV6[],
   signal?: AbortSignal,
+  onFailureDiagnostic?: (value: GradebookImportFailureDiagnosticV1) => void,
 ): Promise<GradebookImportPersistenceBatchResponseV7> {
   const payload: GradebookImportPersistenceBatchRequestV7 = {
     transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V7,
@@ -117,6 +123,19 @@ export async function persistCompactGradebookBatchV7(
         (value.state !== 'not-authorized' && value.items.length !== requests.length)
       ) {
         throw new Error('Resposta incompleta ao confirmar as planilhas.');
+      }
+    }
+    if (
+      value.state === 'unavailable' ||
+      ('items' in value && value.items.some((item) => item.response.state === 'unavailable'))
+    ) {
+      const diagnostic = parseGradebookImportFailureDiagnosticV1(
+        response.headers.get(GRADEBOOK_IMPORT_FAILURE_HEADER_V1),
+      );
+      try {
+        if (diagnostic) onFailureDiagnostic?.(diagnostic);
+      } catch {
+        /* Diagnostics never change the response. */
       }
     }
     return value;

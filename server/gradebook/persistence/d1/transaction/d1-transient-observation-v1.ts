@@ -1,3 +1,4 @@
+import type { GradebookImportFailureOperationV1 } from '../../../../../shared/gradebook-import-diagnostics-v1';
 import type {
   D1WriteDatabaseV1,
   D1WriteRunResultV1,
@@ -31,18 +32,26 @@ export function isGradebookD1RetryableTransientErrorV1(cause: unknown): boolean 
 class ObservedD1WriteStatementV1 implements D1WriteStatementV1 {
   constructor(
     readonly inner: D1WriteStatementV1,
-    private readonly observe: (cause: unknown) => void,
+    private readonly observe: (
+      operation: Exclude<GradebookImportFailureOperationV1, 'none'>,
+      cause: unknown,
+    ) => void,
   ) {}
 
   bind(...values: D1WriteValueV1[]): D1WriteStatementV1 {
-    return new ObservedD1WriteStatementV1(this.inner.bind(...values), this.observe);
+    try {
+      return new ObservedD1WriteStatementV1(this.inner.bind(...values), this.observe);
+    } catch (cause) {
+      this.observe('bind', cause);
+      throw cause;
+    }
   }
 
   async first<Row extends Record<string, unknown>>(): Promise<Row | null> {
     try {
       return await this.inner.first<Row>();
     } catch (cause) {
-      this.observe(cause);
+      this.observe('first', cause);
       throw cause;
     }
   }
@@ -51,7 +60,7 @@ class ObservedD1WriteStatementV1 implements D1WriteStatementV1 {
     try {
       return await this.inner.all<Row>();
     } catch (cause) {
-      this.observe(cause);
+      this.observe('all', cause);
       throw cause;
     }
   }
@@ -60,32 +69,56 @@ class ObservedD1WriteStatementV1 implements D1WriteStatementV1 {
     try {
       return await this.inner.run();
     } catch (cause) {
-      this.observe(cause);
+      this.observe('run', cause);
       throw cause;
     }
   }
 }
 
-export function observeGradebookD1RetryableTransientsV1(base: D1WriteDatabaseV1): {
+export function observeGradebookD1RetryableTransientsV1(
+  base: D1WriteDatabaseV1,
+  onFailure?: (
+    operation: Exclude<GradebookImportFailureOperationV1, 'none'>,
+    cause: unknown,
+  ) => void,
+): {
   readonly database: D1WriteDatabaseV1;
   readonly retryableTransientObserved: () => boolean;
 } {
   let observed = false;
-  const observe = (cause: unknown): void => {
-    if (isGradebookD1RetryableTransientErrorV1(cause)) observed = true;
+  const observe = (
+    operation: Exclude<GradebookImportFailureOperationV1, 'none'>,
+    cause: unknown,
+  ): void => {
+    if (
+      operation !== 'prepare' &&
+      operation !== 'bind' &&
+      isGradebookD1RetryableTransientErrorV1(cause)
+    )
+      observed = true;
+    try {
+      onFailure?.(operation, cause);
+    } catch {
+      /* Observability cannot change retries or writes. */
+    }
   };
   const wrap = (statement: D1WriteStatementV1): D1WriteStatementV1 =>
     new ObservedD1WriteStatementV1(statement, observe);
 
   const database: D1WriteDatabaseV1 = {
     prepare(query) {
-      return wrap(base.prepare(query));
+      try {
+        return wrap(base.prepare(query));
+      } catch (cause) {
+        observe('prepare', cause);
+        throw cause;
+      }
     },
     async exec(query) {
       try {
         return await base.exec(query);
       } catch (cause) {
-        observe(cause);
+        observe('exec', cause);
         throw cause;
       }
     },
@@ -98,7 +131,7 @@ export function observeGradebookD1RetryableTransientsV1(base: D1WriteDatabaseV1)
             try {
               return await base.batch!(rawStatements);
             } catch (cause) {
-              observe(cause);
+              observe('batch', cause);
               throw cause;
             }
           },

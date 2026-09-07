@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  GRADEBOOK_IMPORT_FAILURE_HEADER_V1,
+  parseGradebookImportFailureDiagnosticV1,
+} from '../../../shared/gradebook-import-diagnostics-v1';
+import { handleGradebookImportPersistenceRequestV4 } from '../../../server/gradebook/http/import-persistence-routes-v2';
+import { seal } from '../../../server/auth/sealed';
+import { SESSION_COOKIE } from '../../../server/auth/session';
+import { testEnv } from '../../fixtures';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AcademicYearId, SchoolId } from '../../../shared/gradebook-contracts/entities';
 import {
   isGradebookImportPersistenceResponseV6,
@@ -155,7 +163,9 @@ function service() {
 
 function count(table: string, where = ''): number {
   return (
-    database.raw.prepare(`SELECT COUNT(*) AS count FROM ${table} ${where}`).get() as { count: number }
+    database.raw.prepare(`SELECT COUNT(*) AS count FROM ${table} ${where}`).get() as {
+      count: number;
+    }
   ).count;
 }
 
@@ -194,5 +204,112 @@ describe('Import persistence service V6 compact', () => {
     expect(count('academic_entity_streams', "WHERE entity_kind='student-status-event'")).toBe(1);
     expect(count('academic_entity_versions', "WHERE entity_kind='student-status-event'")).toBe(1);
     expect(physicalStatusBulkCalls()).toBe(0);
+  });
+});
+
+async function authorizedV7(binding: unknown, role = 'ADMINISTRADOR') {
+  const origin = 'http://localhost:8788';
+  const cookie = await seal(
+    {
+      oid: '00000000-0000-4000-8000-000000000557',
+      name: 'Pessoa Sintética',
+      username: 'synthetic@example.test',
+      roles: [role],
+      exp: Math.floor(Date.now() / 1000) + 600,
+    },
+    testEnv.SESSION_SECRET,
+  );
+  return handleGradebookImportPersistenceRequestV4(
+    new Request(`${origin}/api/gradebook/import-persistence`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Origin: origin,
+        Cookie: `${SESSION_COOKIE}=${cookie}`,
+      },
+      body: JSON.stringify({
+        transportVersion: 7,
+        operation: 'persist-recognized-batch-v7',
+        requests: [request()],
+      }),
+    }),
+    { ...testEnv, OFFICIAL_ORIGIN: origin, RUNTIME_ENVIRONMENT: 'local', GRADEBOOK_D1: binding },
+  );
+}
+
+describe('Failure diagnostics through authorized V7 HTTP', () => {
+  it('preserves partial/unavailable and exposes only safe commit failure categories', async () => {
+    const marker = 'SYNTHETIC_PRIVATE_MARKER';
+    const batch = vi.fn(async () => {
+      throw new Error(`D1_ERROR: UNIQUE constraint failed: ${marker}`);
+    });
+    const response = await authorizedV7({
+      prepare: database.prepare.bind(database),
+      exec: database.exec.bind(database),
+      batch,
+    });
+    expect(response?.status).toBe(200);
+    expect(response?.headers.get('Cache-Control')).toContain('no-store');
+    const diagnostic = response?.headers.get(GRADEBOOK_IMPORT_FAILURE_HEADER_V1) ?? null;
+    const parsed = parseGradebookImportFailureDiagnosticV1(diagnostic);
+    expect(parsed?.events).toContainEqual({ phase: 'd1', code: 'd1-unique', operation: 'batch' });
+    expect(parsed?.events).toContainEqual({
+      phase: 'transaction',
+      code: 'transaction-failed',
+      operation: 'none',
+    });
+    expect(diagnostic).not.toContain(marker);
+    const body = await response?.json();
+    expect(body).toMatchObject({
+      state: 'partial',
+      items: [{ attempts: 1, failureCategory: 'operational', response: { state: 'unavailable' } }],
+    });
+    expect(JSON.stringify(body)).not.toContain(marker);
+    expect(batch).toHaveBeenCalledTimes(1);
+    expect(count('academic_record_streams')).toBe(0);
+  });
+
+  it('reports a catalog read failure instead of a presumed commit error', async () => {
+    const failure = new Error('D1_ERROR: string or blob too big: SQLITE_TOOBIG');
+    const read = vi.fn(async () => {
+      throw failure;
+    });
+    const statement = { bind: () => statement, first: read, all: read, run: vi.fn() };
+    const response = await authorizedV7({ prepare: () => statement, exec: vi.fn() });
+    const diagnostic = parseGradebookImportFailureDiagnosticV1(
+      response?.headers.get(GRADEBOOK_IMPORT_FAILURE_HEADER_V1) ?? null,
+    );
+    expect(diagnostic?.events).toContainEqual({
+      phase: 'd1',
+      code: 'd1-size-limit',
+      operation: 'all',
+    });
+    expect(diagnostic?.events.some((event) => event.phase === 'catalog')).toBe(true);
+    expect(diagnostic?.events.some((event) => event.phase === 'transaction')).toBe(false);
+  });
+
+  it('neither exposes diagnostics nor touches D1 for unauthorized users', async () => {
+    const prepare = vi.fn(() => {
+      throw new Error('must-not-run');
+    });
+    const response = await authorizedV7({ prepare, exec: vi.fn() }, 'PROFESSOR');
+    expect(response?.status).toBe(403);
+    expect(response?.headers.has(GRADEBOOK_IMPORT_FAILURE_HEADER_V1)).toBe(false);
+    expect(prepare).not.toHaveBeenCalled();
+  });
+
+  it('does not add failure headers to successful imports or identical reimports', async () => {
+    const binding = {
+      prepare: database.prepare.bind(database),
+      exec: database.exec.bind(database),
+    };
+    for (const expected of ['applied', 'no-changes']) {
+      const response = await authorizedV7(binding);
+      expect(response?.headers.has(GRADEBOOK_IMPORT_FAILURE_HEADER_V1)).toBe(false);
+      expect(await response?.json()).toMatchObject({
+        state: 'completed',
+        items: [{ response: { state: expected } }],
+      });
+    }
   });
 });

@@ -1,3 +1,4 @@
+import { GRADEBOOK_IMPORT_FAILURE_HEADER_V1 } from '../../../shared/gradebook-import-diagnostics-v1';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AcademicYearId } from '../../../shared/gradebook-contracts/entities';
 import type { GradebookImportPersistenceRequestV6 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
@@ -169,17 +170,15 @@ describe('V7 bounded transport failure behavior (#551)', () => {
   it('rejects incomplete success instead of silently losing unconfirmed files', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          Response.json({
-            transportVersion: 7,
-            state: 'completed',
-            items: [],
-            pendingFromIndex: null,
-            totalMs: 1,
-          }),
-        ),
+      vi.fn().mockResolvedValue(
+        Response.json({
+          transportVersion: 7,
+          state: 'completed',
+          items: [],
+          pendingFromIndex: null,
+          totalMs: 1,
+        }),
+      ),
     );
     await expect(persistCompactGradebookBatchV7([request()])).rejects.toThrow();
   });
@@ -213,5 +212,78 @@ describe('V7 bounded transport failure behavior (#551)', () => {
       persistCompactGradebookBatchV7([request()], controller.signal),
     ).rejects.toMatchObject({ name: 'AbortError' });
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('V7 optional failure header (#557)', () => {
+  const diagnostic = {
+    version: 1,
+    events: [{ phase: 'd1', code: 'd1-size-limit', operation: 'batch' }],
+  };
+  const partial = {
+    transportVersion: 7,
+    state: 'partial',
+    pendingFromIndex: null,
+    totalMs: 1,
+    items: [
+      {
+        index: 0,
+        attempts: 1,
+        totalMs: 1,
+        failureCategory: 'operational',
+        response: { transportVersion: 6, state: 'unavailable' },
+      },
+    ],
+  };
+  it('passes a validated diagnostic without changing the response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(partial, {
+            headers: { [GRADEBOOK_IMPORT_FAILURE_HEADER_V1]: JSON.stringify(diagnostic) },
+          }),
+        ),
+    );
+    const observe = vi.fn();
+    expect(await persistCompactGradebookBatchV7([request()], undefined, observe)).toEqual(partial);
+    expect(observe).toHaveBeenCalledWith(diagnostic);
+  });
+  it('rejects extra raw fields and does not log server-provided error text', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(partial, {
+            headers: {
+              [GRADEBOOK_IMPORT_FAILURE_HEADER_V1]: JSON.stringify({
+                ...diagnostic,
+                error: 'SYNTHETIC_PRIVATE',
+              }),
+            },
+          }),
+        ),
+    );
+    const observe = vi.fn();
+    expect(await persistCompactGradebookBatchV7([request()], undefined, observe)).toEqual(partial);
+    expect(observe).not.toHaveBeenCalled();
+  });
+  it('a failing diagnostic callback cannot cause loss of response or retry', async () => {
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json(partial, {
+          headers: { [GRADEBOOK_IMPORT_FAILURE_HEADER_V1]: JSON.stringify(diagnostic) },
+        }),
+      );
+    vi.stubGlobal('fetch', fetch);
+    expect(
+      await persistCompactGradebookBatchV7([request()], undefined, () => {
+        throw new Error('synthetic callback');
+      }),
+    ).toEqual(partial);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });

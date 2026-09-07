@@ -1,3 +1,5 @@
+import { GRADEBOOK_IMPORT_FAILURE_HEADER_V1 } from '../../../shared/gradebook-import-diagnostics-v1';
+import { createGradebookImportFailureCollectorV1 } from '../application/import/import-failure-diagnostics-v1';
 import {
   GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V4,
   GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
@@ -121,7 +123,10 @@ function serializedByteLength(value: unknown): number | null {
 }
 
 function benchmarkRequested(request: Request): boolean {
-  return request.headers.get(GRADEBOOK_IMPORT_BENCHMARK_HEADER_V1) === GRADEBOOK_IMPORT_BENCHMARK_VALUE_V1;
+  return (
+    request.headers.get(GRADEBOOK_IMPORT_BENCHMARK_HEADER_V1) ===
+    GRADEBOOK_IMPORT_BENCHMARK_VALUE_V1
+  );
 }
 
 function benchmarkHeaders(
@@ -247,6 +252,13 @@ export async function handleGradebookImportPersistenceRequestV4(
         inspectMs,
       }
     : null;
+  const failures = createGradebookImportFailureCollectorV1();
+  const failureHeaders = (): Record<string, string> => {
+    const snapshot = failures.snapshot();
+    if (snapshot.events.length === 0) failures.report('runtime', 'unexpected-error');
+    // No raw errors, query, filename, ID, hash, cell, note or credential can enter this header.
+    return { [GRADEBOOK_IMPORT_FAILURE_HEADER_V1]: JSON.stringify(failures.snapshot()) };
+  };
   const rawDatabase = env.GRADEBOOK_D1 as D1WriteDatabaseV1;
   const benchmark = benchmarkMode ? instrumentGradebookD1ForBenchmarkV1(rawDatabase) : null;
   const executionEnv = benchmark
@@ -265,6 +277,7 @@ export async function handleGradebookImportPersistenceRequestV4(
       runtime.persistenceUnitOfWorkV2(),
     );
     return {
+      onFailure: failures.report,
       unitOfWork,
       transaction: runtime.importBootstrapTransactionV2(),
       annualStateSource,
@@ -276,7 +289,9 @@ export async function handleGradebookImportPersistenceRequestV4(
 
   try {
     let response:
-      | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceBatchServiceV7>['execute']>>
+      | Awaited<
+          ReturnType<ReturnType<typeof createGradebookImportPersistenceBatchServiceV7>['execute']>
+        >
       | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV6>['execute']>>
       | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV5>['execute']>>
       | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV4>['execute']>>
@@ -285,81 +300,99 @@ export async function handleGradebookImportPersistenceRequestV4(
     if (version === 7) {
       const batchCatalog = createGradebookImportBatchCatalogReadCacheV1();
       response = await createGradebookImportPersistenceBatchServiceV7(() => {
-        const observation = observeGradebookD1RetryableTransientsV1(
-          executionEnv.GRADEBOOK_D1 as D1WriteDatabaseV1,
-        );
-        const dependencies = createDependencies(observation.database);
-        const baseTransaction = dependencies.transaction;
-        const transaction: ImportBootstrapTransactionPortV2 = {
-          async runImportBootstrap<T>(
-            context: AcademicPersistenceContextV1,
-            bootstrapRequest: ImportBootstrapTransactionRequestV2,
-            operation: (unitOfWork: PersistenceUnitOfWorkV2) => Promise<T>,
-          ): Promise<T> {
-            const committedEntities: VersionedRecordV1<AcademicEntityRecordV1>[] = [];
-            const result = await baseTransaction.runImportBootstrap(
-              context,
-              bootstrapRequest,
-              async (transactionUnitOfWork) => {
-                const trackedUnitOfWork: PersistenceUnitOfWorkV2 = {
-                  ...transactionUnitOfWork,
-                  entities: {
-                    ...transactionUnitOfWork.entities,
-                    appendVersion: async (writeContext, record, expectation) => {
-                      const write = await transactionUnitOfWork.entities.appendVersion(
-                        writeContext,
-                        record,
-                        expectation,
-                      );
-                      if (write.status === 'written') committedEntities.push(write.record);
-                      return write;
+        const attemptFailures = createGradebookImportFailureCollectorV1();
+        try {
+          const observation = observeGradebookD1RetryableTransientsV1(
+            executionEnv.GRADEBOOK_D1 as D1WriteDatabaseV1,
+            attemptFailures.d1,
+          );
+          const dependencies = createDependencies(observation.database);
+          const baseTransaction = dependencies.transaction;
+          const transaction: ImportBootstrapTransactionPortV2 = {
+            async runImportBootstrap<T>(
+              context: AcademicPersistenceContextV1,
+              bootstrapRequest: ImportBootstrapTransactionRequestV2,
+              operation: (unitOfWork: PersistenceUnitOfWorkV2) => Promise<T>,
+            ): Promise<T> {
+              const committedEntities: VersionedRecordV1<AcademicEntityRecordV1>[] = [];
+              const result = await baseTransaction
+                .runImportBootstrap(context, bootstrapRequest, async (transactionUnitOfWork) => {
+                  const trackedUnitOfWork: PersistenceUnitOfWorkV2 = {
+                    ...transactionUnitOfWork,
+                    entities: {
+                      ...transactionUnitOfWork.entities,
+                      appendVersion: async (writeContext, record, expectation) => {
+                        const write = await transactionUnitOfWork.entities.appendVersion(
+                          writeContext,
+                          record,
+                          expectation,
+                        );
+                        if (write.status === 'written') committedEntities.push(write.record);
+                        return write;
+                      },
                     },
-                  },
-                };
-                return operation(trackedUnitOfWork);
-              },
-            );
-            batchCatalog.commit({ context, records: committedEntities });
-            return result;
-          },
-        };
-        const itemDependencies = {
-          ...dependencies,
-          unitOfWork: {
-            ...dependencies.unitOfWork,
-            entities: batchCatalog.wrap(dependencies.unitOfWork.entities),
-          },
-          transaction,
-        } satisfies Parameters<typeof createGradebookImportPersistenceServiceV4>[0];
+                  };
+                  return operation(trackedUnitOfWork);
+                })
+                .catch((cause: unknown) => {
+                  attemptFailures.report('transaction', cause);
+                  throw cause;
+                });
+              batchCatalog.commit({ context, records: committedEntities });
+              return result;
+            },
+          };
+          const itemDependencies = {
+            ...dependencies,
+            onFailure: attemptFailures.report,
+            unitOfWork: {
+              ...dependencies.unitOfWork,
+              entities: batchCatalog.wrap(dependencies.unitOfWork.entities),
+            },
+            transaction,
+          } satisfies Parameters<typeof createGradebookImportPersistenceServiceV4>[0];
 
-        return {
-          async execute(item) {
-            const itemResponse = await createGradebookImportPersistenceServiceV6(
-              itemDependencies,
-            ).execute(item);
-            return {
-              response: itemResponse,
-              retryableOperational:
-                itemResponse.state === 'unavailable' && observation.retryableTransientObserved(),
-            };
-          },
-        };
+          return {
+            async execute(item) {
+              const itemResponse = await createGradebookImportPersistenceServiceV6(itemDependencies)
+                .execute(item)
+                .catch((cause: unknown) => {
+                  attemptFailures.report('runtime', cause);
+                  failures.merge(attemptFailures.snapshot());
+                  throw cause;
+                });
+              if (itemResponse.state === 'unavailable') failures.merge(attemptFailures.snapshot());
+              return {
+                response: itemResponse,
+                retryableOperational:
+                  itemResponse.state === 'unavailable' && observation.retryableTransientObserved(),
+              };
+            },
+          };
+        } catch (cause) {
+          attemptFailures.report('runtime', cause);
+          failures.merge(attemptFailures.snapshot());
+          throw cause;
+        }
       }).execute(payload as GradebookImportPersistenceBatchRequestV7);
     } else if (version === 6 && isGradebookImportPersistenceRequestV6(payload)) {
-      response = await createGradebookImportPersistenceServiceV6(createDependencies()).execute(payload);
+      response =
+        await createGradebookImportPersistenceServiceV6(createDependencies()).execute(payload);
     } else if (version === 5 && isGradebookImportPersistenceRequestV5(payload)) {
-      response = await createGradebookImportPersistenceServiceV5(createDependencies()).execute(payload);
+      response =
+        await createGradebookImportPersistenceServiceV5(createDependencies()).execute(payload);
     } else if (isGradebookImportPersistenceRequestV4(payload)) {
-      response = await createGradebookImportPersistenceServiceV4(createDependencies()).execute(payload);
+      response =
+        await createGradebookImportPersistenceServiceV4(createDependencies()).execute(payload);
     }
 
-    const timingHeaders = benchmarkHeaders(
-      serviceStartedAt,
-      benchmark?.snapshot() ?? null,
-      phases,
-    );
+    const timingHeaders = benchmarkHeaders(serviceStartedAt, benchmark?.snapshot() ?? null, phases);
     if (response === null) {
-      return noStore({ transportVersion: version, state: 'unavailable' }, 500, timingHeaders);
+      failures.report('runtime', 'response-incompatible');
+      return noStore({ transportVersion: version, state: 'unavailable' }, 500, {
+        ...timingHeaders,
+        ...failureHeaders(),
+      });
     }
 
     const valid =
@@ -370,15 +403,21 @@ export async function handleGradebookImportPersistenceRequestV4(
           : version === 5
             ? isGradebookImportPersistenceResponseV5(response)
             : isGradebookImportPersistenceResponseV4(response);
+    const unavailable =
+      response.state === 'unavailable' ||
+      ('items' in response && response.items.some((item) => item.response.state === 'unavailable'));
+    if (!valid) failures.report('runtime', 'response-incompatible');
+    const responseHeaders =
+      unavailable || !valid ? { ...timingHeaders, ...failureHeaders() } : timingHeaders;
     return valid
-      ? noStore(response, response.state === 'unavailable' ? 503 : 200, timingHeaders)
-      : noStore({ transportVersion: version, state: 'unavailable' }, 500, timingHeaders);
-  } catch {
-    return noStore(
-      { transportVersion: version, state: 'unavailable' },
-      503,
-      benchmarkHeaders(serviceStartedAt, benchmark?.snapshot() ?? null, phases),
-    );
+      ? noStore(response, response.state === 'unavailable' ? 503 : 200, responseHeaders)
+      : noStore({ transportVersion: version, state: 'unavailable' }, 500, responseHeaders);
+  } catch (cause) {
+    failures.report('runtime', cause);
+    return noStore({ transportVersion: version, state: 'unavailable' }, 503, {
+      ...benchmarkHeaders(serviceStartedAt, benchmark?.snapshot() ?? null, phases),
+      ...failureHeaders(),
+    });
   }
 }
 

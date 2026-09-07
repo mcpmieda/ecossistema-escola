@@ -291,6 +291,38 @@ describe('Bounded per-file import queue (#551)', () => {
     expect(mocks.persist).toHaveBeenCalledTimes(3);
   });
 
+  it('includes the safe server failure diagnostic in the copyable log and stays paused', async () => {
+    const diagnostic = {
+      version: 1,
+      events: [{ phase: 'd1', code: 'd1-unique', operation: 'batch' }],
+    };
+    mocks.persist.mockImplementation(async (_requests, _signal, onFailure) => {
+      onFailure(diagnostic);
+      return {
+        transportVersion: 7,
+        state: 'partial',
+        pendingFromIndex: null,
+        totalMs: 1,
+        items: [
+          {
+            index: 0,
+            attempts: 1,
+            totalMs: 1,
+            failureCategory: 'operational',
+            response: { transportVersion: 6, state: 'unavailable' },
+          },
+        ],
+      };
+    });
+    await act(async () => flow.handleFiles(files(3)));
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    expect(flow.pendingPersistenceCount).toBe(3);
+    expect(flow.persistence['file:0']?.state).toBe('confirmation-required');
+    expect(flow.timingDiagnostics).toContain(
+      `[gradebook-import-server-failure] ${JSON.stringify(diagnostic)}`,
+    );
+  });
+
   it('does not discard a resumable selection when a new selection exceeds 50 files', async () => {
     mocks.persist.mockRejectedValueOnce(new TypeError('synthetic lost reply'));
     await act(async () => flow.handleFiles(files(3)));
