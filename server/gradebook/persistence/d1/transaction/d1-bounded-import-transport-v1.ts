@@ -13,7 +13,7 @@ export const IMPORT_D1_TRANSPORT_BOUNDS_V1 = {
   finalBatchBytes: 1_000_000,
   inlineParameterBytes: 4_096,
   maxStagedParameters: 512,
-  stagingConcurrency: 8,
+  stagingConcurrency: 5,
 } as const;
 const PURPOSE = 'atomic-parameters-v1';
 const encoder = new TextEncoder();
