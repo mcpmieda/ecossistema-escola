@@ -5,7 +5,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "pages_build_output_dir": "./dist",
   "limits": {
-    "cpu_ms": 30000
+    "cpu_ms": 120000
   },
   "placement": {
     "mode": "smart"
