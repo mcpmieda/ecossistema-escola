@@ -339,8 +339,8 @@ describe('Import bootstrap D1 bulk commit at pilot scale', () => {
 
       expect(remote.batchCalls).toBe(1);
       expect(remote.statementCounts).toHaveLength(1);
-      // 512-row set-based groups remain bounded while avoiding giant per-statement JSON work.
-      expect(remote.statementCounts[0]).toBeLessThan(128);
+      // The 512 KiB ceiling intentionally trades a few more statements for shorter D1 queries.
+      expect(remote.statementCounts[0]).toBeLessThan(160);
       expect(
         tableCount(database, 'academic_entity_versions', "WHERE entity_kind='assessment-component'"),
       ).toBe(COMPONENT_COUNT);

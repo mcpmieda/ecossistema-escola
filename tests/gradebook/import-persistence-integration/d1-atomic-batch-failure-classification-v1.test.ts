@@ -52,10 +52,21 @@ describe('D1 atomic batch failure classification', () => {
   });
 
   it.each([
+    'D1_ERROR: Network connection lost',
+    'D1 DB reset because its code was updated',
+    'Internal error while starting up D1 DB storage caused object to be reset',
+    'Internal error in D1 DB storage caused object to be reset',
+    'Cannot resolve D1 DB due to transient issue on remote node',
+    'Replica disconnected from primary',
+  ])('preserves documented retryable D1 transient: %s', async (message) => {
+    await expect(commitCode(new Error(message))).resolves.toBe('d1-transient');
+  });
+
+  it.each([
     'D1_ERROR: query timeout',
     'D1_ERROR: database is overloaded',
     'D1_ERROR: FOREIGN KEY constraint failed',
-  ])('does not mislabel operational failure as conflict: %s', async (message) => {
+  ])('does not treat non-transient operational failure as retryable: %s', async (message) => {
     await expect(commitCode(new Error(message))).resolves.toBe('transaction-failed');
   });
 });
