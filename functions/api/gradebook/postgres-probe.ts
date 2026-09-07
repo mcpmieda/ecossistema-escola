@@ -13,7 +13,8 @@ type ProbeEnvV1 = RuntimeEnv & { readonly PROD_DB?: HyperdriveBindingV1 };
 type Context = EventContext<ProbeEnvV1, string, unknown>;
 type PostgresFactoryV1 = typeof import('postgres');
 type PostgresClientV1 = ReturnType<PostgresFactoryV1>;
-type PostgresJsonValueV1 = Parameters<PostgresClientV1['json']>[0];
+
+const POSTGRES_TEXT_OID_V1 = 25;
 
 type ProbeStageV1 =
   | 'connection'
@@ -31,9 +32,10 @@ interface ProbeResultV1 {
   readonly sqlState?: string;
 }
 
-function postgresJsonValueV1(value: unknown): PostgresJsonValueV1 {
-  // The synthetic generator emits JSON-safe scalars, objects and arrays only.
-  return value as PostgresJsonValueV1;
+function jsonTextV1(value: unknown): string {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) throw new TypeError('postgres-probe-json-invalid');
+  return serialized;
 }
 
 function noStoreJson(value: unknown, status = 200): Response {
@@ -166,9 +168,9 @@ export const onRequestPost: PagesFunction<ProbeEnvV1> = async (context: Context)
 
     probes.push(
       await step('parameter-jsonb', async () => {
-        const payload = [{ value: 1 }] as const;
+        const payload = jsonTextV1([{ value: 1 }]);
         const rows = await sql!`
-          select jsonb_array_length(${sql!.json(payload)}::jsonb)::int as count
+          select jsonb_array_length(${sql!.typed(payload, POSTGRES_TEXT_OID_V1)}::jsonb)::int as count
         `;
         if (integer(rows[0]?.count) !== 1) throw new TypeError('postgres-probe-result-invalid');
       }),
@@ -202,12 +204,13 @@ export const onRequestPost: PagesFunction<ProbeEnvV1> = async (context: Context)
               (benchmark_id, stream_key, current_version, payload_hash, updated_at)
             values (${transactionId}, 'stream:1', 1, ${'2'.repeat(64)}, clock_timestamp())
           `;
+          const payload = jsonTextV1({ probe: true });
           await transaction`
             insert into bn_benchmark.versions
               (benchmark_id, stream_key, version, payload_hash, payload, recorded_at)
             values (
               ${transactionId}, 'stream:1', 1, ${'2'.repeat(64)},
-              ${transaction.json({ probe: true })}::jsonb, clock_timestamp()
+              ${transaction.typed(payload, POSTGRES_TEXT_OID_V1)}::jsonb, clock_timestamp()
             )
           `;
         });
@@ -225,10 +228,11 @@ export const onRequestPost: PagesFunction<ProbeEnvV1> = async (context: Context)
     const baseline = createPostgresBenchmarkSnapshotV1(1, 1, 1);
     let functionRow: unknown = null;
     const functionCall = await step('function-call', async () => {
+      const payload = jsonTextV1(baseline);
       const rows = await sql!`
         select * from bn_benchmark.apply_snapshot(
           ${functionId},
-          ${sql!.json(postgresJsonValueV1(baseline))}::jsonb
+          ${sql!.typed(payload, POSTGRES_TEXT_OID_V1)}::jsonb
         )
       `;
       if (rows.length !== 1) throw new TypeError('postgres-probe-result-invalid');
