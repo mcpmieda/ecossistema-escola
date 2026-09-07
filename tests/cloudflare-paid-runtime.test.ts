@@ -9,7 +9,7 @@ function source(path: string): string {
 }
 
 describe('Cloudflare Workers Paid runtime configuration', () => {
-  it('pins the Pages Functions CPU safety envelope to 30 seconds', () => {
+  it('pins the Pages Functions CPU safety envelope to 120 seconds', () => {
     const config = JSON.parse(source('wrangler.jsonc')) as {
       readonly limits?: { readonly cpu_ms?: unknown };
       readonly placement?: { readonly mode?: unknown };
@@ -21,7 +21,7 @@ describe('Cloudflare Workers Paid runtime configuration', () => {
       };
     };
 
-    expect(config.limits).toEqual({ cpu_ms: 30_000 });
+    expect(config.limits).toEqual({ cpu_ms: 120_000 });
     expect(config.env?.production?.limits).toBeUndefined();
   });
 
