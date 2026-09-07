@@ -83,29 +83,35 @@ export async function seededValuesDatabaseV8() {
   if (write.status !== 'written') throw new Error('synthetic seed failed');
   return db;
 }
+
+function serializedBytes(sql: string, params: readonly D1WriteValueV1[]): number {
+  return new TextEncoder().encode(JSON.stringify({ sql, params })).byteLength;
+}
+
 export class MeasuredStatementV8 implements D1WriteStatementV1 {
   constructor(
-    readonly db: SqliteD1Database,
+    readonly owner: AtomicMeasuredDatabaseV8,
     readonly sql: string,
     readonly params: readonly D1WriteValueV1[] = [],
   ) {}
   bind(...params: D1WriteValueV1[]) {
-    return new MeasuredStatementV8(this.db, this.sql, params);
+    return new MeasuredStatementV8(this.owner, this.sql, params);
   }
   first<Row extends Record<string, unknown>>() {
-    return this.db
+    return this.owner.base
       .prepare(this.sql)
       .bind(...this.params)
       .first<Row>();
   }
   all<Row extends Record<string, unknown>>() {
-    return this.db
+    return this.owner.base
       .prepare(this.sql)
       .bind(...this.params)
       .all<Row>();
   }
   run() {
-    return this.db
+    this.owner.recordRun(this);
+    return this.owner.base
       .prepare(this.sql)
       .bind(...this.params)
       .run();
@@ -113,14 +119,20 @@ export class MeasuredStatementV8 implements D1WriteStatementV1 {
 }
 export class AtomicMeasuredDatabaseV8 implements D1WriteDatabaseV1 {
   readonly calls: { bytes: number; sql: readonly string[] }[] = [];
+  readonly runs: { bytes: number; sql: string }[] = [];
   beforeBatch?: (statements: readonly MeasuredStatementV8[]) => void;
   afterBatch?: (statements: readonly MeasuredStatementV8[]) => void;
+  beforeRun?: (statement: MeasuredStatementV8) => void;
   constructor(readonly base: SqliteD1Database) {}
   prepare(sql: string) {
-    return new MeasuredStatementV8(this.base, sql);
+    return new MeasuredStatementV8(this, sql);
   }
   exec(sql: string) {
     this.base.exec(sql);
+  }
+  recordRun(statement: MeasuredStatementV8) {
+    this.beforeRun?.(statement);
+    this.runs.push({ bytes: serializedBytes(statement.sql, statement.params), sql: statement.sql });
   }
   async batch(statements: readonly D1WriteStatementV1[]) {
     const items = statements as MeasuredStatementV8[];
@@ -133,20 +145,21 @@ export class AtomicMeasuredDatabaseV8 implements D1WriteDatabaseV1 {
     try {
       const results = [];
       for (const statement of items) {
-        // D1.batch returns SELECT results too; executing the SELECT evaluates guards.
+        // Execute through the raw delegate so staging/run instrumentation does not
+        // misclassify statements inside the one atomic academic batch.
+        const raw = this.base.prepare(statement.sql).bind(...statement.params);
         if (/^\s*SELECT/iu.test(statement.sql)) {
           results.push({
             success: true,
-            results: (await statement.all()).results,
+            results: (await raw.all()).results,
             meta: { changes: 0 },
           });
-        } else results.push(await statement.run());
+        } else results.push(await raw.run());
       }
       this.base.exec('COMMIT');
       this.afterBatch?.(items);
       return results;
     } catch (cause) {
-      // A simulated lost reply after COMMIT must not be mistaken for a rollback.
       try {
         this.base.exec('ROLLBACK');
       } catch {
