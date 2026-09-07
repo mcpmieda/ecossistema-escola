@@ -17,7 +17,9 @@ type BenchmarkEnvV1 = RuntimeEnv & { readonly PROD_DB?: HyperdriveBindingV1 };
 type Context = EventContext<BenchmarkEnvV1, string, unknown>;
 type PostgresFactoryV1 = typeof import('postgres');
 type PostgresClientV1 = ReturnType<PostgresFactoryV1>;
-type PostgresJsonValueV1 = Parameters<PostgresClientV1['json']>[0];
+
+const POSTGRES_TEXT_OID_V1 = 25;
+
 type BenchmarkFailureStageV1 =
   | 'environment'
   | 'authorization'
@@ -37,9 +39,10 @@ interface BenchmarkRequestV1 {
   readonly changed?: number;
 }
 
-function postgresJsonValueV1(value: unknown): PostgresJsonValueV1 {
-  // Generated benchmark snapshots contain only JSON-safe scalar/object/array values.
-  return value as PostgresJsonValueV1;
+function jsonTextV1(value: unknown): string {
+  const serialized = JSON.stringify(value);
+  if (serialized === undefined) throw new TypeError('postgres-benchmark-json-invalid');
+  return serialized;
 }
 
 function parseRequest(value: unknown): Required<BenchmarkRequestV1> {
@@ -172,6 +175,8 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
     benchmarkId = `synthetic:${crypto.randomUUID()}`;
     const baseline = createPostgresBenchmarkSnapshotV1(input.size, 1, input.size);
     const changed = createPostgresBenchmarkSnapshotV1(input.size, 2, input.changed);
+    const baselineJson = jsonTextV1(baseline);
+    const changedJson = jsonTextV1(changed);
     const totalStartedAt = performance.now();
 
     stage = 'connection';
@@ -184,7 +189,7 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
     const firstRows = await sql`
       select * from bn_benchmark.apply_snapshot(
         ${benchmarkId},
-        ${sql.json(postgresJsonValueV1(baseline))}::jsonb
+        ${sql.typed(baselineJson, POSTGRES_TEXT_OID_V1)}::jsonb
       )
     `;
     const firstMs = milliseconds(firstStartedAt);
@@ -195,7 +200,7 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
     const noChangesRows = await sql`
       select * from bn_benchmark.apply_snapshot(
         ${benchmarkId},
-        ${sql.json(postgresJsonValueV1(baseline))}::jsonb
+        ${sql.typed(baselineJson, POSTGRES_TEXT_OID_V1)}::jsonb
       )
     `;
     const noChangesMs = milliseconds(noChangesStartedAt);
@@ -206,7 +211,7 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
     const changedRows = await sql`
       select * from bn_benchmark.apply_snapshot(
         ${benchmarkId},
-        ${sql.json(postgresJsonValueV1(changed))}::jsonb
+        ${sql.typed(changedJson, POSTGRES_TEXT_OID_V1)}::jsonb
       )
     `;
     const changedMs = milliseconds(changedStartedAt);
