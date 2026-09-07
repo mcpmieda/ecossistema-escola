@@ -27,10 +27,12 @@ import {
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v7';
 import type {
   AcademicEntityRecordV1,
+  AcademicPersistenceContextV1,
   VersionedRecordV1,
 } from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
 import type {
   ImportBootstrapTransactionPortV2,
+  ImportBootstrapTransactionRequestV2,
   PersistenceUnitOfWorkV2,
 } from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
 import { AuthenticationError, requireAuth } from '../../auth/session';
@@ -296,7 +298,11 @@ export async function handleGradebookImportPersistenceRequestV4(
         });
         const baseTransaction = batchRuntime.importBootstrapTransactionV2();
         const transaction: ImportBootstrapTransactionPortV2 = {
-          async runImportBootstrap<T>(context, bootstrapRequest, operation): Promise<T> {
+          async runImportBootstrap<T>(
+            context: AcademicPersistenceContextV1,
+            bootstrapRequest: ImportBootstrapTransactionRequestV2,
+            operation: (unitOfWork: PersistenceUnitOfWorkV2) => Promise<T>,
+          ): Promise<T> {
             const committedEntities: VersionedRecordV1<AcademicEntityRecordV1>[] = [];
             try {
               const result = await baseTransaction.runImportBootstrap(
