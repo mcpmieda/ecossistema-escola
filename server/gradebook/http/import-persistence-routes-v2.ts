@@ -25,6 +25,16 @@ import {
   isGradebookImportPersistenceBatchRequestV7,
   isGradebookImportPersistenceBatchResponseV7,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v7';
+import type {
+  AcademicEntityRecordV1,
+  AcademicPersistenceContextV1,
+  VersionedRecordV1,
+} from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import type {
+  ImportBootstrapTransactionPortV2,
+  ImportBootstrapTransactionRequestV2,
+  PersistenceUnitOfWorkV2,
+} from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
 import type { RuntimeEnv } from '../../env';
@@ -34,6 +44,7 @@ import {
   HttpError,
   readBoundedJson,
 } from '../../http/security';
+import { createGradebookImportBatchCatalogReadCacheV1 } from '../application/import/import-catalog-bootstrap-read-cache-v1';
 import { createGradebookImportPersistenceBatchServiceV7 } from '../application/import/import-persistence-batch-service-v7';
 import { createGradebookImportPersistenceServiceV4 } from '../application/import/import-persistence-service-v2';
 import { createGradebookImportPersistenceServiceV5 } from '../application/import/import-persistence-service-v5';
@@ -264,34 +275,84 @@ export async function handleGradebookImportPersistenceRequestV4(
   };
 
   try {
-    const response =
-      version === 7 && isGradebookImportPersistenceBatchRequestV7(payload)
-        ? await createGradebookImportPersistenceBatchServiceV7(() => {
-            const observation = observeGradebookD1RetryableTransientsV1(
-              executionEnv.GRADEBOOK_D1 as D1WriteDatabaseV1,
-            );
-            const dependencies = createDependencies(observation.database);
-            return {
-              async execute(item) {
-                const itemResponse = await createGradebookImportPersistenceServiceV6(
-                  dependencies,
-                ).execute(item);
-                return {
-                  response: itemResponse,
-                  retryableOperational:
-                    itemResponse.state === 'unavailable' &&
-                    observation.retryableTransientObserved(),
+    let response:
+      | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceBatchServiceV7>['execute']>>
+      | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV6>['execute']>>
+      | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV5>['execute']>>
+      | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV4>['execute']>>
+      | null = null;
+
+    if (version === 7 && isGradebookImportPersistenceBatchRequestV7(payload)) {
+      const batchCatalog = createGradebookImportBatchCatalogReadCacheV1();
+      response = await createGradebookImportPersistenceBatchServiceV7(() => {
+        const observation = observeGradebookD1RetryableTransientsV1(
+          executionEnv.GRADEBOOK_D1 as D1WriteDatabaseV1,
+        );
+        const dependencies = createDependencies(observation.database);
+        const baseTransaction = dependencies.transaction;
+        const transaction: ImportBootstrapTransactionPortV2 = {
+          async runImportBootstrap<T>(
+            context: AcademicPersistenceContextV1,
+            bootstrapRequest: ImportBootstrapTransactionRequestV2,
+            operation: (unitOfWork: PersistenceUnitOfWorkV2) => Promise<T>,
+          ): Promise<T> {
+            const committedEntities: VersionedRecordV1<AcademicEntityRecordV1>[] = [];
+            const result = await baseTransaction.runImportBootstrap(
+              context,
+              bootstrapRequest,
+              async (transactionUnitOfWork) => {
+                const trackedUnitOfWork: PersistenceUnitOfWorkV2 = {
+                  ...transactionUnitOfWork,
+                  entities: {
+                    ...transactionUnitOfWork.entities,
+                    appendVersion: async (writeContext, record, expectation) => {
+                      const write = await transactionUnitOfWork.entities.appendVersion(
+                        writeContext,
+                        record,
+                        expectation,
+                      );
+                      if (write.status === 'written') committedEntities.push(write.record);
+                      return write;
+                    },
+                  },
                 };
+                return operation(trackedUnitOfWork);
               },
+            );
+            batchCatalog.commit({ context, records: committedEntities });
+            return result;
+          },
+        };
+        const itemDependencies = {
+          ...dependencies,
+          unitOfWork: {
+            ...dependencies.unitOfWork,
+            entities: batchCatalog.wrap(dependencies.unitOfWork.entities),
+          },
+          transaction,
+        } satisfies Parameters<typeof createGradebookImportPersistenceServiceV4>[0];
+
+        return {
+          async execute(item) {
+            const itemResponse = await createGradebookImportPersistenceServiceV6(
+              itemDependencies,
+            ).execute(item);
+            return {
+              response: itemResponse,
+              retryableOperational:
+                itemResponse.state === 'unavailable' && observation.retryableTransientObserved(),
             };
-          }).execute(payload)
-        : version === 6 && isGradebookImportPersistenceRequestV6(payload)
-          ? await createGradebookImportPersistenceServiceV6(createDependencies()).execute(payload)
-          : version === 5 && isGradebookImportPersistenceRequestV5(payload)
-            ? await createGradebookImportPersistenceServiceV5(createDependencies()).execute(payload)
-            : isGradebookImportPersistenceRequestV4(payload)
-              ? await createGradebookImportPersistenceServiceV4(createDependencies()).execute(payload)
-              : null;
+          },
+        };
+      }).execute(payload);
+    } else if (version === 6 && isGradebookImportPersistenceRequestV6(payload)) {
+      response = await createGradebookImportPersistenceServiceV6(createDependencies()).execute(payload);
+    } else if (version === 5 && isGradebookImportPersistenceRequestV5(payload)) {
+      response = await createGradebookImportPersistenceServiceV5(createDependencies()).execute(payload);
+    } else if (isGradebookImportPersistenceRequestV4(payload)) {
+      response = await createGradebookImportPersistenceServiceV4(createDependencies()).execute(payload);
+    }
+
     const timingHeaders = benchmarkHeaders(
       serviceStartedAt,
       benchmark?.snapshot() ?? null,
