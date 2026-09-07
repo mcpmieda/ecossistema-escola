@@ -8,7 +8,6 @@ type HyperdriveBindingV1 = { readonly connectionString: string };
 type ShadowEnvV1 = RuntimeEnv & { readonly PROD_DB?: HyperdriveBindingV1 };
 type Context = EventContext<ShadowEnvV1, string, unknown>;
 type PostgresFactoryV1 = typeof import('postgres');
-type PostgresClientV1 = ReturnType<PostgresFactoryV1>;
 
 type D1RowV1 = Record<string, unknown>;
 type D1ReadStatementV1 = {
