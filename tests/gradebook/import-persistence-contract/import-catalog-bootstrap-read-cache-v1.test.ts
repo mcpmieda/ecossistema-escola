@@ -13,7 +13,10 @@ import type {
   AcademicEntityRepositoryV1,
   VersionedRecordV1,
 } from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
-import { createGradebookImportCatalogBootstrapReadCacheV1 } from '../../../server/gradebook/application/import/import-catalog-bootstrap-read-cache-v1';
+import {
+  createGradebookImportBatchCatalogReadCacheV1,
+  createGradebookImportCatalogBootstrapReadCacheV1,
+} from '../../../server/gradebook/application/import/import-catalog-bootstrap-read-cache-v1';
 
 const academicYearId = 'academic-year:catalog-bootstrap-cache:2026' as AcademicYearId;
 const context = { academicYearId };
@@ -51,6 +54,19 @@ const teacherRecord = {
   },
   version: 1,
   recordedAt: instant,
+} as const satisfies VersionedRecordV1<AcademicEntityRecordV1>;
+
+const teacherRecordV2 = {
+  value: {
+    kind: 'teacher',
+    value: {
+      ...teacherRecord.value.value,
+      displayName: 'Docente Sintético Atualizado',
+      sourceNames: ['Docente Sintético', 'Docente Sintético Atualizado'],
+    },
+  },
+  version: 2,
+  recordedAt: '2026-09-06T00:01:00.000Z',
 } as const satisfies VersionedRecordV1<AcademicEntityRecordV1>;
 
 const assessmentComponentRecord = {
@@ -102,6 +118,20 @@ function baseRepository() {
     },
   };
   return repository;
+}
+
+function bootstrapSource(onRead: () => void = () => undefined) {
+  return Object.assign({}, baseRepository(), {
+    async getImportCatalogBootstrapSnapshot() {
+      onRead();
+      return {
+        academicYear: yearRecord,
+        catalog: [teacherRecord],
+        assessmentComponents: [assessmentComponentRecord],
+        studentStatusEvents: [studentStatusRecord],
+      };
+    },
+  });
 }
 
 describe('import catalog bootstrap read cache', () => {
@@ -168,6 +198,59 @@ describe('import catalog bootstrap read cache', () => {
     expect(baseCatalogCalls).toBe(0);
     expect(baseGetManyCalls).toBe(0);
     expect(baseStatusCalls).toBe(0);
+  });
+
+  it('shares one physical snapshot across V7 files and exposes only explicitly committed overlay', async () => {
+    let bootstrapCalls = 0;
+    const batch = createGradebookImportBatchCatalogReadCacheV1();
+    const firstFile = createGradebookImportCatalogBootstrapReadCacheV1(
+      batch.wrap(bootstrapSource(() => (bootstrapCalls += 1))),
+    );
+
+    await expect(firstFile.getImportCatalogSnapshot?.(context)).resolves.toEqual([teacherRecord]);
+
+    const secondBeforeCommit = createGradebookImportCatalogBootstrapReadCacheV1(
+      batch.wrap(bootstrapSource(() => (bootstrapCalls += 1))),
+    );
+    await expect(secondBeforeCommit.getImportCatalogSnapshot?.(context)).resolves.toEqual([
+      teacherRecord,
+    ]);
+
+    batch.commit({ context, records: [teacherRecordV2] });
+    const secondAfterCommit = createGradebookImportCatalogBootstrapReadCacheV1(
+      batch.wrap(bootstrapSource(() => (bootstrapCalls += 1))),
+    );
+    await expect(secondAfterCommit.getImportCatalogSnapshot?.(context)).resolves.toEqual([
+      teacherRecordV2,
+    ]);
+    await expect(
+      secondAfterCommit.get(context, { kind: 'teacher', id: teacherRecord.value.value.id }),
+    ).resolves.toEqual(teacherRecordV2);
+    expect(bootstrapCalls).toBe(1);
+  });
+
+  it('evicts a rejected physical snapshot so a fresh V7 attempt can reload through its own source', async () => {
+    let failedCalls = 0;
+    let retryCalls = 0;
+    const batch = createGradebookImportBatchCatalogReadCacheV1();
+    const failedSource = Object.assign({}, baseRepository(), {
+      async getImportCatalogBootstrapSnapshot() {
+        failedCalls += 1;
+        throw new Error('Network connection lost');
+      },
+    });
+    const failedAttempt = createGradebookImportCatalogBootstrapReadCacheV1(batch.wrap(failedSource));
+
+    await expect(failedAttempt.getImportCatalogSnapshot?.(context)).rejects.toThrow(
+      'Network connection lost',
+    );
+
+    const retryAttempt = createGradebookImportCatalogBootstrapReadCacheV1(
+      batch.wrap(bootstrapSource(() => (retryCalls += 1))),
+    );
+    await expect(retryAttempt.getImportCatalogSnapshot?.(context)).resolves.toEqual([teacherRecord]);
+    expect(failedCalls).toBe(1);
+    expect(retryCalls).toBe(1);
   });
 
   it('falls back to base component/status readers when their snapshot families are unavailable', async () => {
