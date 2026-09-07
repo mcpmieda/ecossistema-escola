@@ -1,3 +1,4 @@
+import { materializeSnapshotAbsencesV5 } from './snapshot-absent-grades-v5';
 import type { GradebookImportFailurePhaseV1 } from '../../../../shared/gradebook-import-diagnostics-v1';
 import {
   reportGradebookImportFailureV1,
@@ -66,6 +67,8 @@ import type { GradebookImportAnnualStateSourceV1 } from '../../persistence/d1/im
 
 export interface GradebookImportPersistenceServiceDependenciesV4 {
   readonly onFailure?: GradebookImportFailureReporterV1;
+  /** Trusted server entry policy, never taken from a legacy client request. */
+  readonly sourceValues?: boolean;
   readonly unitOfWork: PersistenceUnitOfWorkV2;
   readonly transaction: ImportBootstrapTransactionPortV2;
   readonly annualStateSource: GradebookImportAnnualStateSourceV1;
@@ -264,18 +267,22 @@ function serverBatch(
   const now = dependencies.now();
   const importBatchId = dependencies.createId('import-batch') as ImportBatchId;
   const importFileId = dependencies.createId('import-file') as ImportFileId;
-  const manifest: SourceFileManifestV1 = knownManifest ?? {
-    id: dependencies.createId('manifest') as SourceFileManifestId,
-    ...request.manifest,
-    ...(request.recognizedSuggestions.academicYear === null
-      ? {}
-      : { suggestedAcademicYear: request.recognizedSuggestions.academicYear }),
-    confirmedAcademicYearId: request.confirmedContext.academicYearId,
-    ...(request.recognizedSuggestions.teacherName === null
-      ? {}
-      : { suggestedTeacherName: request.recognizedSuggestions.teacherName }),
-    confirmedTeacherId: teacherId,
-  };
+  const manifest: SourceFileManifestV1 = knownManifest
+    ? dependencies.sourceValues
+      ? { ...knownManifest, ...request.manifest }
+      : knownManifest
+    : {
+        id: dependencies.createId('manifest') as SourceFileManifestId,
+        ...request.manifest,
+        ...(request.recognizedSuggestions.academicYear === null
+          ? {}
+          : { suggestedAcademicYear: request.recognizedSuggestions.academicYear }),
+        confirmedAcademicYearId: request.confirmedContext.academicYearId,
+        ...(request.recognizedSuggestions.teacherName === null
+          ? {}
+          : { suggestedTeacherName: request.recognizedSuggestions.teacherName }),
+        confirmedTeacherId: teacherId,
+      };
   const diagnostics = request.diagnostics.map((diagnostic, index) => ({
     id: `import-diagnostic:${importBatchId}:${index}` as ImportFileDiagnosticId,
     importBatchId,
@@ -412,6 +419,7 @@ export function createGradebookImportPersistenceServiceV4(
           request,
           unitOfWork: dependencies.unitOfWork,
           annualStateSource: dependencies.annualStateSource,
+          sourceValues: dependencies.sourceValues,
         });
         if (officialRecords.status !== 'ready') {
           return reviewFromOfficialMaterialization(officialRecords);
@@ -452,13 +460,24 @@ export function createGradebookImportPersistenceServiceV4(
             }),
           );
         }
-        const materialization: AssessmentDefinitionMaterializationAcceptedV2 = {
+        let materialization: AssessmentDefinitionMaterializationAcceptedV2 = {
           components: materializations.flatMap<
             AssessmentDefinitionMaterializationAcceptedV2['components'][number]
           >((value) => [...value.components]),
           gradeEntries: materializations.flatMap((value) => value.gradeEntries),
           blockedDefinitions: materializations.flatMap((value) => value.blockedDefinitions),
         };
+        if (dependencies.sourceValues) {
+          const absences = await materializeSnapshotAbsencesV5(
+            request,
+            materialization,
+            dependencies.unitOfWork.academicRecords,
+          );
+          materialization = {
+            ...materialization,
+            gradeEntries: [...materialization.gradeEntries, ...absences],
+          };
+        }
         const context = {
           academicYearId: request.confirmedContext.academicYearId,
         } satisfies AcademicPersistenceContextV1;
@@ -483,6 +502,7 @@ export function createGradebookImportPersistenceServiceV4(
             logicalSourceRecords: dependencies.unitOfWork.logicalSourceRecords,
             entities: dependencies.unitOfWork.entities,
           },
+          { recompareKnownContent: dependencies.sourceValues === true },
         );
         const summary = summarizePlan(
           plan,

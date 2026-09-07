@@ -1,3 +1,4 @@
+import { isSnapshotSourceEvidenceV5 } from '../../../../../shared/gradebook-contracts/source/source-values-contract-v5';
 import type {
   ImportBatchFileResultV1,
   ImportBatchResultV1,
@@ -294,6 +295,7 @@ function validLocation(value: unknown): value is ImportFileLocationV1 {
 }
 
 function validEvidence(value: unknown): boolean {
+  if (isSnapshotSourceEvidenceV5(value)) return true;
   if (!isObject(value) || !isObject(value.provenance)) return false;
   const provenance = value.provenance;
   if (

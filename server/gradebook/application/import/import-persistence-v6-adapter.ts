@@ -1,3 +1,8 @@
+import {
+  SNAPSHOT_UNAVAILABLE_INTERNAL_V5,
+  normalizeSnapshotScalarV5,
+  type SnapshotObservationV5,
+} from '../../../../shared/gradebook-contracts/source/source-values-contract-v5';
 import type {
   GradebookImportAssessmentDefinitionV1,
   GradebookImportRecognizedNoteV1,
@@ -26,7 +31,22 @@ function isFormula(
 
 function resultObservation(
   value: GradebookImportCompactCellV6 | undefined,
+  snapshotValues = false,
 ): GradebookImportResultCellObservationV4 {
+  if (snapshotValues) {
+    if (value === SNAPSHOT_UNAVAILABLE_INTERNAL_V5)
+      return {
+        classification: 'empty',
+        rawValue: null,
+        snapshotState: 'unavailable',
+      } as GradebookImportResultCellObservationV4 & SnapshotObservationV5;
+    const scalar =
+      value === undefined ? null : normalizeSnapshotScalarV5(value as number | string | boolean);
+    return {
+      ...resultObservation(scalar === null || scalar === 0 ? undefined : scalar),
+      snapshotState: 'value',
+    } as GradebookImportResultCellObservationV4 & SnapshotObservationV5;
+  }
   if (value === undefined) return { classification: 'empty', rawValue: null };
   if (isFormula(value)) {
     const [, rawValue, cachedValue, formula] = value;
@@ -56,7 +76,25 @@ function resultObservation(
 
 function recognizedNote(
   value: GradebookImportCompactCellV6 | undefined,
+  snapshotValues = false,
 ): GradebookImportRecognizedNoteV1 | null | 'invalid' {
+  if (snapshotValues) {
+    if (value === SNAPSHOT_UNAVAILABLE_INTERNAL_V5)
+      return {
+        kind: 'manual',
+        source: 0,
+        value: 0,
+        snapshotState: 'unavailable',
+      } as GradebookImportRecognizedNoteV1 & SnapshotObservationV5;
+    const scalar =
+      value === undefined ? null : normalizeSnapshotScalarV5(value as number | string | boolean);
+    if (scalar === null || scalar === 0) return null;
+    const note = recognizedNote(scalar);
+    return note && note !== 'invalid'
+      ? ({ ...note, snapshotState: 'value' } as GradebookImportRecognizedNoteV1 &
+          SnapshotObservationV5)
+      : note;
+  }
   if (value === undefined) return null;
   if (isFormula(value)) {
     const [, , cachedValue, formula] = value;
@@ -104,6 +142,7 @@ function definition(
 
 export function expandGradebookImportPersistenceRequestV6(
   request: GradebookImportPersistenceRequestV6,
+  snapshotValues = false,
 ): GradebookImportPersistenceRequestV5 | null {
   try {
     const rosterByClass = new Map(
@@ -130,15 +169,20 @@ export function expandGradebookImportPersistenceRequestV6(
 
       for (const term of course.terms) {
         const assessmentDefinitions = term.assessmentDefinitions.map(definition);
-        const definitionSlots = new Set(term.assessmentDefinitions.map((candidate) => candidate[0]));
+        const definitionSlots = new Set(
+          term.assessmentDefinitions.map((candidate) => candidate[0]),
+        );
         const students = [];
         for (const row of term.rows) {
           const sourceStudent = roster.get(row[0]);
           if (!sourceStudent) return null;
           const assessmentValues = [];
-          for (const slot of [...SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2, ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2]) {
+          for (const slot of [
+            ...SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
+            ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
+          ]) {
             if (!definitionSlots.has(slot.sourceSlot)) continue;
-            const note = recognizedNote(row[1][slot.sourceSlot]);
+            const note = recognizedNote(row[1][slot.sourceSlot], snapshotValues);
             if (note === 'invalid') return null;
             if (note) assessmentValues.push({ sourceSlot: slot.sourceSlot, value: note });
           }
@@ -147,11 +191,14 @@ export function expandGradebookImportPersistenceRequestV6(
             sourceStudent,
             assessmentValues,
             aggregates: {
-              quantitativeTotal: resultObservation(row[1].T),
-              parallelAssessment: resultObservation(row[1].Z),
-              qualitativeTotal: resultObservation(row[1].AK),
-              officialTermGrade: resultObservation(row[1].AM),
-              annualAccumulatedTotal: resultObservation(term.term === 3 ? row[1].AN : undefined),
+              quantitativeTotal: resultObservation(row[1].T, snapshotValues),
+              parallelAssessment: resultObservation(row[1].Z, snapshotValues),
+              qualitativeTotal: resultObservation(row[1].AK, snapshotValues),
+              officialTermGrade: resultObservation(row[1].AM, snapshotValues),
+              annualAccumulatedTotal: resultObservation(
+                term.term === 3 ? row[1].AN : undefined,
+                snapshotValues,
+              ),
             },
           });
         }
@@ -175,14 +222,14 @@ export function expandGradebookImportPersistenceRequestV6(
             sourceRow: row[1],
             sourceStudent,
             recovery: {
-              trimester1: resultObservation(values.R),
-              trimester2: resultObservation(values.S),
-              trimester3: resultObservation(values.T),
-              totalAfterRecovery: resultObservation(values.U),
-              originalTrimester1: resultObservation(values.X),
-              originalTrimester2: resultObservation(values.Y),
-              originalTrimester3: resultObservation(values.AA),
-              originalAnnual: resultObservation(values.AB),
+              trimester1: resultObservation(values.R, snapshotValues),
+              trimester2: resultObservation(values.S, snapshotValues),
+              trimester3: resultObservation(values.T, snapshotValues),
+              totalAfterRecovery: resultObservation(values.U, snapshotValues),
+              originalTrimester1: resultObservation(values.X, snapshotValues),
+              originalTrimester2: resultObservation(values.Y, snapshotValues),
+              originalTrimester3: resultObservation(values.AA, snapshotValues),
+              originalAnnual: resultObservation(values.AB, snapshotValues),
               applicabilityTrimester1: applicability(values.AC),
               applicabilityTrimester2: applicability(values.AD),
               applicabilityTrimester3: applicability(values.AE),

@@ -19,10 +19,7 @@ import {
   type SheetJs,
   type WorkbookSummary,
 } from './spreadsheet-recognizer';
-import {
-  readWorkbookData,
-  type WorkbookReadTimingV1,
-} from './workbook-reader';
+import { readWorkbookData, type WorkbookReadTimingV1 } from './workbook-reader';
 
 export const MAX_NOTES_IMPORT_FILES = 50;
 
@@ -82,6 +79,7 @@ export type BatchResult = {
 };
 
 export interface ImportBatchRuntime extends FileManifestRuntime {
+  readonly captureValues?: boolean;
   readonly onStageProgress?: (progress: BatchProgress) => void;
   readonly yieldBeforeRecognition?: () => Promise<void>;
   readonly onFileTiming?: (timing: ImportWorkbookFileTimingV1) => void;
@@ -104,9 +102,7 @@ function normalizeOperationalLabel(value: string): string {
 
 function isOperationalTermSheet(sheet: GradeSheetRecognition): boolean {
   return (
-    sheet.stage === 'trimester-1' ||
-    sheet.stage === 'trimester-2' ||
-    sheet.stage === 'trimester-3'
+    sheet.stage === 'trimester-1' || sheet.stage === 'trimester-2' || sheet.stage === 'trimester-3'
   );
 }
 
@@ -119,9 +115,8 @@ function operationalComponentKey(sheet: GradeSheetRecognition): string {
 }
 
 export function countWorkbookOperationalClassesV1(summary: WorkbookSummary): number {
-  return new Set(
-    summary.gradeSheets.filter(isOperationalTermSheet).map(operationalComponentKey),
-  ).size;
+  return new Set(summary.gradeSheets.filter(isOperationalTermSheet).map(operationalComponentKey))
+    .size;
 }
 
 export function workbookClassComponentsV1(
@@ -165,7 +160,9 @@ function failureMessage(cause: unknown, fallback: string): string {
 }
 
 function nowMs(): number {
-  return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
+  return typeof globalThis.performance?.now === 'function'
+    ? globalThis.performance.now()
+    : Date.now();
 }
 
 function elapsedMs(startedAt: number): number {
@@ -393,9 +390,16 @@ export async function importWorkbookBatch(
     const recognitionStartedAt = nowMs();
     let workbookTiming: WorkbookReadTimingV1 | null = null;
     try {
-      const summary = readWorkbookData(file, data, xlsx, manifest, (timing) => {
-        workbookTiming = timing;
-      });
+      const summary = readWorkbookData(
+        file,
+        data,
+        xlsx,
+        manifest,
+        (timing) => {
+          workbookTiming = timing;
+        },
+        runtime.captureValues,
+      );
       successes.push({ id: importFileId, summary, manifest });
       fileResults.push({
         id: importFileId,

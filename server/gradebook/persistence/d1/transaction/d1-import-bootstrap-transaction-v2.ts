@@ -1,3 +1,4 @@
+import { boundedGradebookImportDatabaseV1 } from './d1-bounded-import-transport-v1';
 import type {
   AcademicEntityRecordV1,
   AcademicPersistenceContextV1,
@@ -93,7 +94,12 @@ function createBoundedBulkUnitOfWorkV2(input: {
         record: AcademicRecordV1,
         expectation: VersionExpectationV1,
       ) => {
-        const result = await base.academicRecords.appendVersion(context, stream, record, expectation);
+        const result = await base.academicRecords.appendVersion(
+          context,
+          stream,
+          record,
+          expectation,
+        );
         academicRecords += 1;
         if (academicRecords >= MAX_BUFFERED_BULK_WRITES_V2) flush();
         return result;
@@ -208,13 +214,16 @@ export class GradebookD1ImportBootstrapTransactionV2 implements ImportBootstrapT
     const manifestVersions = bootstrapManifestVersions(request);
     try {
       if (supportsAtomicBatch(this.database)) {
-        const recorder = new GradebookD1AtomicBatchRecorderV1(this.database);
+        const bounded = boundedGradebookImportDatabaseV1(this.database, context.academicYearId);
+        if (!supportsAtomicBatch(bounded))
+          throw new GradebookD1TransactionErrorV1('transaction-failed');
+        const recorder = new GradebookD1AtomicBatchRecorderV1(bounded);
         const baseUnitOfWork = createGradebookD1PersistenceUnitOfWorkV2(recorder, {
           ...this.options,
           bootstrapManifestVersions: manifestVersions,
         });
         const bulk = createBoundedBulkUnitOfWorkV2({
-          database: this.database,
+          database: bounded,
           recorder,
           baseUnitOfWork,
           now: () => this.now(),

@@ -25,7 +25,9 @@ export interface WorkbookReadTimingV1 {
 }
 
 function nowMs(): number {
-  return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
+  return typeof globalThis.performance?.now === 'function'
+    ? globalThis.performance.now()
+    : Date.now();
 }
 
 function elapsedMs(startedAt: number): number {
@@ -78,6 +80,7 @@ export function readWorkbookData(
   xlsx: SheetJs,
   manifest: SourceFileManifestV1,
   onTiming?: (timing: WorkbookReadTimingV1) => void,
+  captureValues = false,
 ): WorkbookSummaryWithCanonicalRostersV6 {
   const totalStartedAt = nowMs();
   const readStartedAt = nowMs();
@@ -88,7 +91,10 @@ export function readWorkbookData(
   }
 
   const recognizeStartedAt = nowMs();
-  const recognized = recognizeWorkbook(file, parsed, xlsx, { fileSha256: manifest.sha256 });
+  const recognized = recognizeWorkbook(file, parsed, xlsx, {
+    fileSha256: manifest.sha256,
+    captureValues,
+  });
   const summary = preserveOriginalWorksheetDimensions(recognized, parsed, xlsx);
   const recognizeWorkbookMs = elapsedMs(recognizeStartedAt);
   if (summary.gradeSheets.length === 0) {

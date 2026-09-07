@@ -5,7 +5,7 @@ import type {
   StudentId,
   TeachingAssignmentId,
 } from '../entities';
-import type { SourceCellEvidenceV1 } from '../source/source-contract-v1';
+import type { CompatibleSourceCellEvidenceV5 as SourceCellEvidenceV1 } from '../source/source-values-contract-v5';
 
 export type AssessmentComponentId = EntityIdV1<'AssessmentComponentV1'>;
 export type GradeEntryId = EntityIdV1<'GradeEntryV1'>;
@@ -63,10 +63,7 @@ export type AcademicGradeValueV1 =
       readonly reason: string;
     };
 
-export type SourceEvidenceSetV1 = readonly [
-  SourceCellEvidenceV1,
-  ...SourceCellEvidenceV1[],
-];
+export type SourceEvidenceSetV1 = readonly [SourceCellEvidenceV1, ...SourceCellEvidenceV1[]];
 
 export interface ImportedGradeValueV1 {
   readonly value: AcademicGradeValueV1;
@@ -214,8 +211,7 @@ export interface ComparedAcademicStateV1 {
 }
 
 export const ANNUAL_FINAL_DECISION_OUTCOMES_V1 = ['approved', 'failed', 'special-status'] as const;
-export type AnnualFinalDecisionOutcomeV1 =
-  (typeof ANNUAL_FINAL_DECISION_OUTCOMES_V1)[number];
+export type AnnualFinalDecisionOutcomeV1 = (typeof ANNUAL_FINAL_DECISION_OUTCOMES_V1)[number];
 
 export const ANNUAL_FINAL_DECISION_BASES_V1 = [
   'academic-rule',

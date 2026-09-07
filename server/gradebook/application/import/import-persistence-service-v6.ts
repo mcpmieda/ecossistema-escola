@@ -48,7 +48,8 @@ function observedStatus(sourceText: string): {
   if (incoming?.[1]) {
     return { status: 'active', transfer: { originClassGroupCode: incoming[1].trim() } };
   }
-  if (value === 'ATIVO' || value === 'EM CURSO' || value === 'CURSANDO') return { status: 'active' };
+  if (value === 'ATIVO' || value === 'EM CURSO' || value === 'CURSANDO')
+    return { status: 'active' };
   if (value.includes('DESIST') || value.includes('EVADI')) return { status: 'withdrawn' };
   if (value.includes('FALEC')) return { status: 'deceased' };
   return { status: 'other' };
@@ -58,12 +59,13 @@ function referenceKey(classGroupLabel: string, position: number): string {
   return `${normalize(classGroupLabel)}:${position}`;
 }
 
-type StatusBulkRepositoryV1 = GradebookImportPersistenceServiceDependenciesV4['unitOfWork']['entities'] & {
-  readonly getStudentStatusEventsMany?: (
-    context: AcademicPersistenceContextV1,
-    ids: readonly string[],
-  ) => Promise<readonly (VersionedRecordV1<AcademicEntityRecordV1> | null)[]>;
-};
+type StatusBulkRepositoryV1 =
+  GradebookImportPersistenceServiceDependenciesV4['unitOfWork']['entities'] & {
+    readonly getStudentStatusEventsMany?: (
+      context: AcademicPersistenceContextV1,
+      ids: readonly string[],
+    ) => Promise<readonly (VersionedRecordV1<AcademicEntityRecordV1> | null)[]>;
+  };
 
 async function statusRecords(input: {
   readonly request: GradebookImportPersistenceRequestV6;
@@ -152,7 +154,10 @@ export function createGradebookImportPersistenceServiceV6(
     async execute(
       request: GradebookImportPersistenceRequestV6,
     ): Promise<GradebookImportPersistenceResponseV6> {
-      const expanded = expandGradebookImportPersistenceRequestV6(request);
+      const expanded = expandGradebookImportPersistenceRequestV6(
+        request,
+        dependencies.sourceValues === true,
+      );
       if (!expanded) {
         return {
           transportVersion: 6,
@@ -171,7 +176,11 @@ export function createGradebookImportPersistenceServiceV6(
       };
       const service = createGradebookImportPersistenceServiceV5(requestDependencies, {
         additionalCatalogRecords: async ({ catalog }) =>
-          statusRecords({ request, catalogRequest: catalog.request, dependencies: requestDependencies }),
+          statusRecords({
+            request,
+            catalogRequest: catalog.request,
+            dependencies: requestDependencies,
+          }),
       });
       return asGradebookImportPersistenceResponseV6(await service.execute(expanded));
     },
