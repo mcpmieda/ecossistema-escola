@@ -248,10 +248,10 @@ export function createGradebookImportBatchCatalogReadCacheV1(
     const snapshot = await pending;
     const overlay = overlayRecords(context);
     const academicYear =
-      (overlay.find(
+      overlay.find(
         (record): record is AcademicYearRecordV1 =>
           record.value.kind === 'academic-year' && record.value.value.id === context.academicYearId,
-      ) ?? snapshot.academicYear);
+      ) ?? snapshot.academicYear;
     return {
       academicYear,
       catalog:
@@ -337,7 +337,8 @@ export function createGradebookImportBatchCatalogReadCacheV1(
             }
             const loaded = await source.getMany!(context, references);
             return references.map(
-              (reference, index) => overlayFor(context).get(referenceKey(reference)) ?? loaded[index] ?? null,
+              (reference, index) =>
+                overlayFor(context).get(referenceKey(reference)) ?? loaded[index] ?? null,
             );
           },
         }
@@ -379,3 +380,6 @@ export function createGradebookImportBatchCatalogReadCacheV1(
     },
   };
 }
+
+export const createGradebookImportCatalogBatchReadCacheV1 =
+  createGradebookImportBatchCatalogReadCacheV1;
