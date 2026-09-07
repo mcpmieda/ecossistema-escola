@@ -131,7 +131,7 @@ function gradeEntry(index: number): GradeEntryV1 {
 }
 
 describe('Import planning bulk reads at pilot scale', () => {
-  it('resolves pilot-scale D1 lookup sets with one query per bulk family', async () => {
+  it('resolves pilot-scale D1 lookup sets with bounded queries per bulk family', async () => {
     const database = await openMigratedDatabase();
     let queries = 0;
     const counted: D1ReadDatabaseV1 = {
@@ -149,22 +149,17 @@ describe('Import planning bulk reads at pilot scale', () => {
         id: `assessment-component:v2:scale:${index}` as AssessmentComponentId,
       }),
     );
-    const streams = Array.from(
-      { length: 5_399 },
-      (_, index): AcademicRecordStreamV1 => ({
-        kind: 'annual-result',
-        studentId: `student:scale:${index}` as StudentId,
-        enrollmentId: `enrollment:scale:${index}` as EnrollmentId,
-        teachingAssignmentId,
-      }),
-    );
-    const associations = streams.map(
-      (stream): LogicalSourceRecordAssociationStreamV1 => ({
-        logicalSourceId,
-        academicRecordStream: stream,
-        stableKey: academicRecordStreamKeyV1(stream),
-      }),
-    );
+    const streams = Array.from({ length: 5_399 }, (_, index): AcademicRecordStreamV1 => ({
+      kind: 'annual-result',
+      studentId: `student:scale:${index}` as StudentId,
+      enrollmentId: `enrollment:scale:${index}` as EnrollmentId,
+      teachingAssignmentId,
+    }));
+    const associations = streams.map((stream): LogicalSourceRecordAssociationStreamV1 => ({
+      logicalSourceId,
+      academicRecordStream: stream,
+      stableKey: academicRecordStreamKeyV1(stream),
+    }));
 
     try {
       const components = await bulk.entities.getMany(context, componentReferences);
@@ -180,7 +175,64 @@ describe('Import planning bulk reads at pilot scale', () => {
       expect(components.every((value) => value === null)).toBe(true);
       expect(records.every((value) => value === null)).toBe(true);
       expect(currentAssociations.every((value) => value === null)).toBe(true);
-      expect(queries).toBe(3);
+      expect(queries).toBe(13); // 1 component + 6 record + 6 association chunks
+    } finally {
+      database.raw.close();
+    }
+  });
+
+  it('bounds large UTF-8 association parameters by bytes, preserving every lookup', async () => {
+    const database = await openMigratedDatabase();
+    const payloads: string[] = [];
+    const counted: D1ReadDatabaseV1 = {
+      prepare(query) {
+        const statement = database.prepare(query);
+        return {
+          bind(...values) {
+            if (typeof values[0] === 'string') payloads.push(values[0]);
+            return statement.bind(...values);
+          },
+          first: () => statement.first(),
+          all: () => statement.all(),
+        };
+      },
+    };
+    const streams = Array.from(
+      { length: 850 },
+      (_, index): LogicalSourceRecordAssociationStreamV1 => ({
+        logicalSourceId,
+        academicRecordStream: {
+          kind: 'annual-result',
+          studentId: `student:${index}` as StudentId,
+          enrollmentId: `enrollment:${index}` as EnrollmentId,
+          teachingAssignmentId,
+        },
+        stableKey: `synthetic:${index}:` + '漢'.repeat(1000),
+      }),
+    );
+    const bulk = createGradebookD1ImportPlanningBulkReadAdapterV1(counted);
+    try {
+      expect(await bulk.logicalSourceRecords.getCurrentMany({ academicYearId }, streams)).toEqual(
+        streams.map(() => null),
+      );
+      expect(payloads.length).toBeGreaterThan(1); // fewer than 1,000 items: byte bound must split
+      expect(
+        payloads.every((payload) => new TextEncoder().encode(payload).byteLength <= 512 * 1024),
+      ).toBe(true);
+      const decoded = payloads.flatMap((payload) => JSON.parse(payload) as { stableKey: string }[]);
+      expect(decoded.map((value) => value.stableKey)).toEqual(
+        streams.map((stream) => stream.stableKey),
+      );
+      expect(new TextEncoder().encode(JSON.stringify(decoded)).byteLength).toBeGreaterThan(
+        2_000_000,
+      );
+      const before = payloads.length;
+      await expect(
+        bulk.logicalSourceRecords.getCurrentMany({ academicYearId }, [
+          { ...streams[0]!, stableKey: '漢'.repeat(180_000) },
+        ]),
+      ).rejects.toMatchObject({ code: 'incompatible-row' });
+      expect(payloads).toHaveLength(before); // oversize single item never sent to D1
     } finally {
       database.raw.close();
     }

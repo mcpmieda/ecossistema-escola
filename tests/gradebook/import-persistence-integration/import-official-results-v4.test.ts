@@ -8,7 +8,10 @@ import type {
   TeacherId,
   TeachingAssignmentId,
 } from '../../../shared/gradebook-contracts/entities';
-import type { AssessmentComponentId } from '../../../shared/gradebook-contracts/results/results-contract-v1';
+import type {
+  AnnualResultV1,
+  AssessmentComponentId,
+} from '../../../shared/gradebook-contracts/results/results-contract-v1';
 import type {
   GradebookImportPersistenceRequestV4,
   GradebookImportResultCellObservationV4,
@@ -17,6 +20,7 @@ import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
 } from '../../../shared/gradebook-contracts/source/source-contract-v2';
+import { materializeGradebookImportOfficialRecordsV4 } from '../../../server/gradebook/application/import/import-official-record-materializer-v4';
 import { createGradebookImportPersistenceServiceV4 } from '../../../server/gradebook/application/import/import-persistence-service-v2';
 import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
 import { createGradebookD1ImportAnnualStateSourceV1 } from '../../../server/gradebook/persistence/d1/imports/d1-import-annual-state-source-v1';
@@ -246,6 +250,86 @@ function recordCount(kind: string): number {
 }
 
 describe('Import persistence official results V4', () => {
+  it('classifies reconciliation database failure as unavailable, without academic writes', async () => {
+    const unit = createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant });
+    let sequence = 0;
+    const failingRecords = {
+      ...unit.academicRecords,
+      async getCurrentMany() {
+        throw new Error('synthetic-database-unavailable');
+      },
+    };
+    const failing = createGradebookImportPersistenceServiceV4({
+      unitOfWork: { ...unit, academicRecords: failingRecords },
+      transaction: new GradebookD1ImportBootstrapTransactionV2(database, { now: () => instant }),
+      annualStateSource: createGradebookD1ImportAnnualStateSourceV1(database),
+      now: () => instant,
+      createId: (kind) => `${kind}:unavailable:${++sequence}`,
+    });
+    expect(await failing.execute(completeRequest())).toEqual({
+      transportVersion: 4,
+      state: 'unavailable',
+    });
+    expect(recordCount('grade-entry')).toBe(0);
+    expect(recordCount('annual-result')).toBe(0);
+  });
+
+  it('versions a changed assessment and then reimports without extra academic versions', async () => {
+    const persistence = service();
+    const original = completeRequest();
+    expect(await persistence.execute(original)).toMatchObject({ state: 'applied' });
+    const previous = database.raw
+      .prepare('SELECT COUNT(*) AS n FROM academic_record_versions')
+      .get() as { n: number };
+    const changed: GradebookImportPersistenceRequestV4 = {
+      ...original,
+      manifest: { ...original.manifest, sha256: 'e'.repeat(64) },
+      sheets: original.sheets.map((sheet) =>
+        sheet.kind === 'term' && sheet.term === 1
+          ? {
+              ...sheet,
+              students: sheet.students.map((student) => ({
+                ...student,
+                assessmentValues: [
+                  { sourceSlot: 'R', value: { kind: 'manual', source: 6, value: 6 } },
+                ],
+              })),
+            }
+          : sheet,
+      ),
+    };
+    const response = await persistence.execute(changed);
+    expect(response).toMatchObject({ state: 'applied' });
+    const after = database.raw
+      .prepare('SELECT COUNT(*) AS n FROM academic_record_versions')
+      .get() as { n: number };
+    expect(after.n).toBeGreaterThan(previous.n);
+    // Historical version remains immutable; source field is stored in the imported projection.
+    const versions = database.raw
+      .prepare(
+        "SELECT version, payload_json FROM academic_record_versions WHERE record_kind='grade-entry' ORDER BY version",
+      )
+      .all() as { version: number; payload_json: string }[];
+    expect(
+      versions.some(
+        (record) =>
+          record.version === 1 &&
+          JSON.parse(record.payload_json).value.value.imported.value.value === 5,
+      ),
+    ).toBe(true);
+    expect(
+      versions.some(
+        (record) =>
+          record.version === 2 &&
+          JSON.parse(record.payload_json).value.value.imported.value.value === 6,
+      ),
+    ).toBe(true);
+    expect(await persistence.execute(changed)).toMatchObject({ state: 'no-changes' });
+    expect(
+      database.raw.prepare('SELECT COUNT(*) AS n FROM academic_record_versions').get(),
+    ).toMatchObject(after);
+  });
+
   it('persists and recovers GradeEntry, TermResult, FinalRecovery and AnnualResult after reinstantiation', async () => {
     const response = await service().execute(completeRequest());
     expect(response).toMatchObject({ transportVersion: 4, state: 'applied' });
@@ -361,8 +445,7 @@ describe('Import persistence official results V4', () => {
 
   it('persists an annual result fail-closed when the official curriculum has an unresolved assignment', async () => {
     const secondSubjectId = 'subject:official-results-v4:2' as SubjectId;
-    const secondAssignmentId =
-      'teaching-assignment:official-results-v4:2' as TeachingAssignmentId;
+    const secondAssignmentId = 'teaching-assignment:official-results-v4:2' as TeachingAssignmentId;
     const unit = createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant });
     for (const record of [
       {
@@ -407,4 +490,149 @@ describe('Import persistence official results V4', () => {
     expect(payload.value.coverage.state).toBe('insufficient-data');
     expect(payload.value.academicState.imported).toBe('insufficient-data');
   });
+});
+
+// A stored AnnualResult covers the entire curriculum. It must never become a
+// component-level coverage input on the next independent file import (#551).
+describe('Annual coverage across independently imported files', () => {
+  async function curriculum(size: number) {
+    const unit = createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant });
+    const assignments = [];
+    for (let index = 0; index < size; index += 1) {
+      const value = {
+        id:
+          index === 0
+            ? assignmentId
+            : (`teaching-assignment:coverage:${index}` as TeachingAssignmentId),
+        academicYearId,
+        teacherId,
+        classGroupId,
+        subjectId,
+        sourceDisciplineIndex: `D${index + 1}`,
+        effectivePeriod: {},
+        confirmationOrigin: 'user-confirmed' as const,
+      };
+      assignments.push(value);
+      if (index > 0) {
+        expect(
+          (
+            await unit.entities.appendVersion(
+              { academicYearId },
+              { kind: 'teaching-assignment', value },
+              { expectedVersion: null },
+            )
+          ).status,
+        ).toBe('written');
+      }
+    }
+    return assignments;
+  }
+
+  async function project(
+    assignments: Awaited<ReturnType<typeof curriculum>>,
+    current: readonly AnnualResultV1[],
+    index: number,
+  ): Promise<readonly AnnualResultV1[]> {
+    const input = completeRequest();
+    const materialized = await materializeGradebookImportOfficialRecordsV4({
+      request: {
+        ...input,
+        sheets: input.sheets.map((sheet) => ({
+          ...sheet,
+          teachingAssignmentId: assignments[index]!.id,
+        })),
+      },
+      unitOfWork: createGradebookD1PersistenceUnitOfWorkV2(database, { now: () => instant }),
+      annualStateSource: {
+        async listAssignments() {
+          return { items: assignments, nextCursor: null };
+        },
+        async loadCurrentAnnualResultsForClass() {
+          return current;
+        },
+      },
+    });
+    expect(materialized.status).toBe('ready');
+    if (materialized.status !== 'ready') throw new Error('synthetic materialization failed');
+    return materialized.records.flatMap((record) =>
+      record.kind === 'annual-result' ? [record.value] : [],
+    );
+  }
+
+  it.each([18, 50])(
+    'keeps reasons bounded and restores completeness after %i independent files',
+    async (size) => {
+      const assignments = await curriculum(size);
+      let current: readonly AnnualResultV1[] = [];
+      for (let index = 0; index < size; index += 1) {
+        current = await project(assignments, current, index);
+        expect(current).toHaveLength(index + 1);
+        for (const record of current) {
+          expect(record.coverage.reasons.length).toBeLessThanOrEqual(size * 8);
+          expect(record.coverage.reasons.join(' ')).not.toContain('source-coverage:component[');
+          expect(JSON.stringify(record).length).toBeLessThan(100_000);
+          expect(record.academicState.imported).toBe(
+            index + 1 === size ? 'approved-direct' : 'insufficient-data',
+          );
+          expect(record.finalDecision).toEqual({ status: 'pending' });
+        }
+      }
+      expect(current.every((record) => record.coverage.state === 'complete')).toBe(true);
+      // An identical reimport does not amplify explanations or change either projection.
+      const repeated = await project(assignments, current, 0);
+      expect([...repeated].sort((a, b) => a.id.localeCompare(b.id))).toEqual(
+        [...current].sort((a, b) => a.id.localeCompare(b.id)),
+      );
+    },
+  );
+
+  it('repairs an old aggregate feedback value without copying it into either component', async () => {
+    const assignments = await curriculum(2);
+    const first = (await project(assignments, [], 0))[0]!;
+    const contaminated: AnnualResultV1 = {
+      ...first,
+      coverage: {
+        state: 'insufficient-data',
+        expectedItemCount: 2,
+        resolvedItemCount: 0,
+        missingItemCount: 2,
+        reasons: ['component[synthetic]:source-coverage:component[synthetic]:old-aggregate'],
+      },
+    };
+    const results = await project(assignments, [contaminated], 1);
+    expect(results.every((record) => record.coverage.state === 'complete')).toBe(true);
+    expect(JSON.stringify(results)).not.toContain('old-aggregate');
+    expect(results.find((record) => record.id === first.id)?.originalTotal).toEqual(
+      first.originalTotal,
+    );
+  });
+
+  it.each(['imported', 'calculated'] as const)(
+    'keeps unresolved %s totals fail-closed independently',
+    async (projection) => {
+      const assignments = await curriculum(2);
+      const first = (await project(assignments, [], 0))[0]!;
+      const unresolved: AnnualResultV1 = {
+        ...first,
+        postRecoveryTotal: {
+          ...first.postRecoveryTotal,
+          [projection]: {
+            ...first.postRecoveryTotal[projection],
+            value: {
+              state: 'insufficient-data',
+              reason: 'synthetic missing necessary recovery',
+            },
+          },
+        },
+      };
+      const results = await project(assignments, [unresolved], 1);
+      for (const record of results) {
+        expect(record.academicState[projection]).toBe('insufficient-data');
+        expect(record.academicState[projection === 'imported' ? 'calculated' : 'imported']).toBe(
+          'approved-direct',
+        );
+        expect(record.finalDecision).toEqual({ status: 'pending' });
+      }
+    },
+  );
 });

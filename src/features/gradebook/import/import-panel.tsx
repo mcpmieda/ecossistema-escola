@@ -64,6 +64,8 @@ function persistenceLabel(state: ImportPersistenceStateV6 | undefined): string {
       return 'Salvando';
     case 'auth-required':
       return 'Sessão expirada';
+    case 'confirmation-required':
+      return 'Confirmação pendente';
     case 'failed':
       return `Indisponível: ${state.message}`;
     case 'completed': {
@@ -82,7 +84,9 @@ function persistenceLabel(state: ImportPersistenceStateV6 | undefined): string {
   }
 }
 
-function persistenceDescription(state: Extract<ImportPersistenceStateV6, { state: 'completed' }>): string {
+function persistenceDescription(
+  state: Extract<ImportPersistenceStateV6, { state: 'completed' }>,
+): string {
   const response = state.response;
   const issue =
     'issues' in response && response.issues.length > 0
@@ -111,6 +115,21 @@ function PersistenceResult({ state }: { state: ImportPersistenceStateV6 | undefi
           <Alert.Description>
             O arquivo permanece reconhecido somente nesta aba e ainda não foi reenviado. Renove a
             sessão em outra aba e retome apenas os pendentes.
+          </Alert.Description>
+        </Alert.Content>
+      </Alert>
+    );
+  }
+  if (state.state === 'confirmation-required') {
+    return (
+      <Alert status="warning" className="mt-5">
+        <Alert.Indicator />
+        <Alert.Content>
+          <Alert.Title>Gravação sem confirmação — lote pausado</Alert.Title>
+          <Alert.Description>
+            A resposta não confirmou o resultado. A planilha pode já ter sido gravada; isso não
+            significa perda nem falha acadêmica. Retome os pendentes para reconciliar o mesmo
+            conteúdo com o estado oficial, sem reenviar os arquivos já confirmados nesta aba.
           </Alert.Description>
         </Alert.Content>
       </Alert>
@@ -264,28 +283,35 @@ export function NotesImportPanel() {
         </Alert>
       )}
 
-      {authorizationRequired && (
+      {pendingPersistenceCount > 0 && (!loading || authorizationRequired) && (
         <Surface variant="secondary" className="mt-5 rounded-2xl p-4">
           <Alert status="warning">
             <Alert.Indicator />
             <Alert.Content>
-              <Alert.Title>Sessão expirada — lote pausado</Alert.Title>
+              <Alert.Title>
+                {authorizationRequired
+                  ? 'Sessão expirada — lote pausado'
+                  : 'Importação pausada — pendentes preservados'}
+              </Alert.Title>
               <Alert.Description>
-                Os arquivos já reconhecidos continuam somente na memória desta aba. Abra a renovação
-                em outra aba, conclua o login, volte aqui e retome os {pendingPersistenceCount}{' '}
-                arquivo(s) pendente(s). Itens já concluídos não serão reenviados.
+                Os arquivos reconhecidos continuam somente na memória desta aba.{' '}
+                {authorizationRequired && 'Renove a sessão em outra aba e volte aqui. '}
+                Retome os {pendingPersistenceCount} arquivo(s) pendente(s). Itens já concluídos não
+                serão reenviados.
               </Alert.Description>
             </Alert.Content>
           </Alert>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              onPress={() => {
-                globalThis.open('/auth/login', '_blank', 'noopener,noreferrer');
-              }}
-            >
-              Renovar sessão
-            </Button>
+            {authorizationRequired && (
+              <Button
+                variant="secondary"
+                onPress={() => {
+                  globalThis.open('/auth/login', '_blank', 'noopener,noreferrer');
+                }}
+              >
+                Renovar sessão
+              </Button>
+            )}
             <Button
               variant="primary"
               isPending={loading}
@@ -312,7 +338,9 @@ export function NotesImportPanel() {
               ['Alunos', totals.students, `${totals.gradeSheets} guias reconhecidas`],
             ].map(([label, value, detail]) => (
               <Surface key={String(label)} variant="secondary" className="rounded-2xl p-4">
-                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">{label}</p>
+                <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted">
+                  {label}
+                </p>
                 <p className="mt-2 text-2xl font-semibold">{value}</p>
                 <p className="mt-1 text-xs text-muted">{detail}</p>
               </Surface>
@@ -336,7 +364,9 @@ export function NotesImportPanel() {
               <Surface key={result.id} variant="secondary" className="rounded-2xl p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="mr-auto font-medium">{result.manifest.fileName}</p>
-                  <span className="text-xs font-medium">{persistenceLabel(persistence[result.id])}</span>
+                  <span className="text-xs font-medium">
+                    {persistenceLabel(persistence[result.id])}
+                  </span>
                 </div>
                 <FileHash sha256={result.manifest.sha256} />
                 <p className="mt-2 text-xs text-muted">
@@ -389,6 +419,7 @@ export function NotesImportPanel() {
                 visible={
                   selectedPersistence?.state === 'completed' ||
                   selectedPersistence?.state === 'failed' ||
+                  selectedPersistence?.state === 'confirmation-required' ||
                   selectedPersistence?.state === 'auth-required'
                 }
                 diagnostics={timingDiagnostics}

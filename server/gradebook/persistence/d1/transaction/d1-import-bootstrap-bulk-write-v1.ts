@@ -134,7 +134,9 @@ function recordedAt(now: () => string): string {
   return nonEmpty(value) ? value : fail();
 }
 
-function chunkRows<T>(rows: readonly T[]): readonly { readonly rows: readonly T[]; readonly json: string }[] {
+function chunkRows<T>(
+  rows: readonly T[],
+): readonly { readonly rows: readonly T[]; readonly json: string }[] {
   if (rows.length === 0) return [];
   const encoder = new TextEncoder();
   const result: { rows: T[]; json: string }[] = [];
@@ -169,7 +171,9 @@ function chunkRows<T>(rows: readonly T[]): readonly { readonly rows: readonly T[
   return result;
 }
 
-function entityColumns(record: Exclude<AcademicEntityRecordV1, { readonly kind: 'academic-year' }>) {
+function entityColumns(
+  record: Exclude<AcademicEntityRecordV1, { readonly kind: 'academic-year' }>,
+) {
   switch (record.kind) {
     case 'teacher':
       return {
@@ -240,7 +244,11 @@ function entityWriteRow(
   expectation: VersionExpectationV1,
   now: () => string,
 ): EntityWriteRowV1 {
-  if (record.kind === 'academic-year' || !validExpectation(expectation) || !nonEmpty(record.value.id)) {
+  if (
+    record.kind === 'academic-year' ||
+    !validExpectation(expectation) ||
+    !nonEmpty(record.value.id)
+  ) {
     return fail();
   }
   switch (record.kind) {
@@ -326,7 +334,8 @@ function academicRecordWriteRow(
     record.kind !== stream.kind ||
     record.value.academicYearId !== context.academicYearId ||
     !nonEmpty(record.value.id) ||
-    (record.value.authorityMode !== 'imported-source' && record.value.authorityMode !== 'native-engine') ||
+    (record.value.authorityMode !== 'imported-source' &&
+      record.value.authorityMode !== 'native-engine') ||
     !nonEmpty(record.value.ruleVersion)
   ) {
     return fail();
@@ -433,20 +442,13 @@ const ENTITY_STREAM_UPDATE = `WITH requested AS (
     CAST(json_extract(value, '$.nextVersion') AS INTEGER) AS next_version
   FROM json_each(?)
 )
-UPDATE academic_entity_streams
-SET current_version = (
-  SELECT requested.next_version FROM requested
-  WHERE requested.academic_year_id = academic_entity_streams.academic_year_id
-    AND requested.entity_kind = academic_entity_streams.entity_kind
-    AND requested.entity_id = academic_entity_streams.entity_id
-)
-WHERE EXISTS (
-  SELECT 1 FROM requested
-  WHERE requested.academic_year_id = academic_entity_streams.academic_year_id
-    AND requested.entity_kind = academic_entity_streams.entity_kind
-    AND requested.entity_id = academic_entity_streams.entity_id
-    AND requested.expected_version = academic_entity_streams.current_version
-)`;
+UPDATE academic_entity_streams AS target
+SET current_version = requested.next_version
+FROM requested
+WHERE target.academic_year_id = requested.academic_year_id
+  AND target.entity_kind = requested.entity_kind
+  AND target.entity_id = requested.entity_id
+  AND target.current_version = requested.expected_version`;
 
 const ENTITY_VERSION_INSERT = `WITH requested AS (
   SELECT
@@ -523,20 +525,13 @@ const RECORD_STREAM_UPDATE = `WITH requested AS (
     CAST(json_extract(value, '$.nextVersion') AS INTEGER) AS next_version
   FROM json_each(?)
 )
-UPDATE academic_record_streams
-SET current_version = (
-  SELECT requested.next_version FROM requested
-  WHERE requested.academic_year_id = academic_record_streams.academic_year_id
-    AND requested.record_kind = academic_record_streams.record_kind
-    AND requested.stream_key = academic_record_streams.stream_key
-)
-WHERE EXISTS (
-  SELECT 1 FROM requested
-  WHERE requested.academic_year_id = academic_record_streams.academic_year_id
-    AND requested.record_kind = academic_record_streams.record_kind
-    AND requested.stream_key = academic_record_streams.stream_key
-    AND requested.expected_version = academic_record_streams.current_version
-)`;
+UPDATE academic_record_streams AS target
+SET current_version = requested.next_version
+FROM requested
+WHERE target.academic_year_id = requested.academic_year_id
+  AND target.record_kind = requested.record_kind
+  AND target.stream_key = requested.stream_key
+  AND target.current_version = requested.expected_version`;
 
 const RECORD_VERSION_INSERT = `WITH requested AS (
   SELECT
@@ -589,29 +584,15 @@ const ASSOCIATION_STREAM_UPDATE = `WITH requested AS (
     json_extract(value, '$.state') AS current_state
   FROM json_each(?)
 )
-UPDATE logical_source_record_streams
-SET current_version = (
-      SELECT requested.next_version FROM requested
-      WHERE requested.academic_year_id = logical_source_record_streams.academic_year_id
-        AND requested.logical_source_id = logical_source_record_streams.logical_source_id
-        AND requested.record_kind = logical_source_record_streams.record_kind
-        AND requested.stream_key = logical_source_record_streams.stream_key
-    ),
-    current_state = (
-      SELECT requested.current_state FROM requested
-      WHERE requested.academic_year_id = logical_source_record_streams.academic_year_id
-        AND requested.logical_source_id = logical_source_record_streams.logical_source_id
-        AND requested.record_kind = logical_source_record_streams.record_kind
-        AND requested.stream_key = logical_source_record_streams.stream_key
-    )
-WHERE EXISTS (
-  SELECT 1 FROM requested
-  WHERE requested.academic_year_id = logical_source_record_streams.academic_year_id
-    AND requested.logical_source_id = logical_source_record_streams.logical_source_id
-    AND requested.record_kind = logical_source_record_streams.record_kind
-    AND requested.stream_key = logical_source_record_streams.stream_key
-    AND requested.expected_version = logical_source_record_streams.current_version
-)`;
+UPDATE logical_source_record_streams AS target
+SET current_version = requested.next_version,
+    current_state = requested.current_state
+FROM requested
+WHERE target.academic_year_id = requested.academic_year_id
+  AND target.logical_source_id = requested.logical_source_id
+  AND target.record_kind = requested.record_kind
+  AND target.stream_key = requested.stream_key
+  AND target.current_version = requested.expected_version`;
 
 const ASSOCIATION_VERSION_INSERT = `WITH requested AS (
   SELECT
@@ -768,11 +749,7 @@ export function createGradebookD1ImportBootstrapBulkUnitOfWorkV1(input: {
   readonly baseUnitOfWork: PersistenceUnitOfWorkV2;
   readonly now: () => string;
 }): { readonly unitOfWork: PersistenceUnitOfWorkV2; readonly flush: () => void } {
-  const bulk = new GradebookD1ImportBootstrapBulkWriteV1(
-    input.database,
-    input.recorder,
-    input.now,
-  );
+  const bulk = new GradebookD1ImportBootstrapBulkWriteV1(input.database, input.recorder, input.now);
   const base = input.baseUnitOfWork;
 
   const unitOfWork: PersistenceUnitOfWorkV2 = {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AcademicYearId } from '../../../../shared/gradebook-contracts/entities';
 import { OPERATIONAL_WORKSPACE_TRANSPORT_VERSION_V1 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v1';
 import type { GradebookImportPersistenceResponseV5 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
@@ -17,7 +17,6 @@ import {
 } from './import-batch';
 import { loadSheetJs, preloadSheetJs } from './sheetjs-loader';
 import { createCompactGradebookImportPersistenceRequestV6 } from './compact-import-v6';
-import { persistCompactGradebookFileV6 } from './import-persistence-client-v6';
 import {
   GradebookImportBatchTransportErrorV7,
   persistCompactGradebookBatchV7,
@@ -33,7 +32,7 @@ export type ImportPersistenceStateV5 =
 export type ImportPersistenceStateV6 =
   | { readonly state: 'recognized' | 'processing' | 'persisting' | 'auth-required' }
   | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV6 }
-  | { readonly state: 'failed'; readonly message: string };
+  | { readonly state: 'failed' | 'confirmation-required'; readonly message: string };
 
 export type ImportFlowProgressStageV6 =
   | 'preparing'
@@ -56,7 +55,7 @@ type ImportBootstrapResponseV1 = Awaited<ReturnType<typeof requestOperationalWor
 type ImportBootstrapOutcomeV1 =
   | { readonly state: 'fulfilled'; readonly response: ImportBootstrapResponseV1 }
   | { readonly state: 'rejected'; readonly cause: unknown };
-type ImportPersistenceRunResultV1 = 'completed' | 'auth-required';
+type ImportPersistenceRunResultV1 = 'completed' | 'auth-required' | 'confirmation-required';
 type PreparedPersistenceV7 = {
   readonly result: BatchSuccess;
   readonly request: GradebookImportPersistenceRequestV6;
@@ -67,7 +66,9 @@ function failureMessage(cause: unknown, fallback: string): string {
 }
 
 function nowMs(): number {
-  return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
+  return typeof globalThis.performance?.now === 'function'
+    ? globalThis.performance.now()
+    : Date.now();
 }
 
 function elapsedMs(startedAt: number): number {
@@ -108,11 +109,16 @@ export function selectPendingGradebookImportResultsV1(
 ): readonly BatchSuccess[] {
   return successes.filter((result) => {
     const state = persistence[result.id];
-    return state?.state === 'recognized' || state?.state === 'auth-required';
+    return (
+      state?.state === 'recognized' ||
+      state?.state === 'auth-required' ||
+      state?.state === 'confirmation-required'
+    );
   });
 }
 
 export function useImportBatch() {
+  const inFlight = useRef(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<BatchSuccess[]>([]);
@@ -169,157 +175,77 @@ export function useImportBatch() {
     setProgress(null);
   }
 
-  async function preparePersistenceRequests(
-    successes: readonly BatchSuccess[],
-    bootstrapPromise: Promise<ImportBootstrapOutcomeV1>,
-  ): Promise<PreparedPersistenceV7[] | 'auth-required'> {
-    const bootstrapOutcome = await bootstrapPromise;
-    if (bootstrapOutcome.state === 'rejected') {
-      throw bootstrapOutcome.cause instanceof Error
-        ? bootstrapOutcome.cause
-        : new Error('Não foi possível consultar os anos letivos cadastrados.');
-    }
-    const bootstrap = bootstrapOutcome.response;
-    if (bootstrap.state === 'not-authorized') {
-      const firstPending = successes[0];
-      if (firstPending) markAuthorizationRequired(firstPending);
-      return 'auth-required';
-    }
-    if (bootstrap.state !== 'ready' || !('availableAcademicYears' in bootstrap)) {
-      throw new Error('Não foi possível consultar os anos letivos cadastrados.');
-    }
+  function preparePersistenceRequest(
+    result: BatchSuccess,
+    availableAcademicYears: readonly { readonly id: string; readonly label: string }[],
+  ): PreparedPersistenceV7 {
+    setPersistence((current) => ({ ...current, [result.id]: { state: 'processing' } }));
+    const year = availableAcademicYears.find(
+      (option) => option.label === String(result.summary.academicYear),
+    );
+    if (!year) throw new Error('Ano letivo reconhecido ainda não está cadastrado.');
+    const teacherName = result.summary.teacherName?.trim();
+    if (!teacherName) throw new Error('Professor não reconhecido em CONFIGURAÇÃO!A2.');
 
-    const prepared: PreparedPersistenceV7[] = [];
-    for (const result of successes) {
-      setPersistence((current) => ({ ...current, [result.id]: { state: 'processing' } }));
-      const recognizedYear = result.summary.academicYear;
-      const year = bootstrap.availableAcademicYears.find(
-        (option) => option.label === String(recognizedYear),
-      );
-      if (!year) throw new Error('Ano letivo reconhecido ainda não está cadastrado.');
-      const teacherName = result.summary.teacherName?.trim();
-      if (!teacherName) throw new Error('Professor não reconhecido em CONFIGURAÇÃO!A2.');
-
-      const compactStartedAt = nowMs();
-      const request = createCompactGradebookImportPersistenceRequestV6(
-        result,
-        { academicYearId: year.id as AcademicYearId, teacherName },
-        {
-          onProgress: (value) =>
-            setProgress({
-              current: value.current,
-              total: value.total,
-              fileName: result.manifest.fileName,
-              stage: value.stage,
-            }),
-        },
-      );
-      appendTiming('[gradebook-import-browser-timing]', {
-        version: 1,
-        stage: 'compact-file',
-        totalMs: elapsedMs(compactStartedAt),
-        courseCount: request.courses.length,
-        rosterCount: request.rosters.length,
-      });
-      if (!isGradebookImportPersistenceRequestV6(request)) {
-        throw new Error('Pacote acadêmico compacto não passou na validação local.');
-      }
-      prepared.push({ result, request });
-      setPersistence((current) => ({ ...current, [result.id]: { state: 'recognized' } }));
+    const compactStartedAt = nowMs();
+    const request = createCompactGradebookImportPersistenceRequestV6(
+      result,
+      { academicYearId: year.id as AcademicYearId, teacherName },
+      {
+        onProgress: (value) => setProgress({ ...value, fileName: result.manifest.fileName }),
+      },
+    );
+    appendTiming('[gradebook-import-browser-timing]', {
+      version: 1,
+      stage: 'compact-file',
+      totalMs: elapsedMs(compactStartedAt),
+      courseCount: request.courses.length,
+      rosterCount: request.rosters.length,
+    });
+    if (!isGradebookImportPersistenceRequestV6(request)) {
+      throw new Error('Pacote acadêmico compacto não passou na validação local.');
     }
-    return prepared;
+    return { result, request };
   }
 
   async function persistPreparedSingle(
-    prepared: PreparedPersistenceV7,
+    { result, request }: PreparedPersistenceV7,
+    index: number,
+    total: number,
   ): Promise<ImportPersistenceRunResultV1> {
-    const { result, request } = prepared;
     setPersistence((current) => ({ ...current, [result.id]: { state: 'persisting' } }));
-    setProgress({ current: 0, total: 1, fileName: result.manifest.fileName, stage: 'saving' });
-
-    const directStartedAt = nowMs();
-    let response = await persistCompactGradebookFileV6(request);
-    appendTiming('[gradebook-import-client-timing]', {
-      version: 1,
-      mode: 'direct',
-      totalMs: elapsedMs(directStartedAt),
-      state: response.state,
-    });
-    if (isGradebookImportAuthorizationRequiredV1(response)) {
-      markAuthorizationRequired(result);
-      return 'auth-required';
-    }
-
-    if (needsStagingFallbackV1(response)) {
-      response = await persistCompactGradebookFileStagedV1(
-        request,
-        ({ prepared: current, total }) => {
-          setProgress({
-            current,
-            total,
-            fileName: result.manifest.fileName,
-            stage: 'saving',
-          });
-        },
-        (timing) => appendTiming('[gradebook-import-client-timing]', timing),
-      );
-      if (isGradebookImportAuthorizationRequiredV1(response)) {
-        markAuthorizationRequired(result);
-        return 'auth-required';
-      }
-    }
-
-    setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
-    setProgress({ current: 1, total: 1, fileName: result.manifest.fileName, stage: 'completed' });
-    return 'completed';
-  }
-
-  async function persistPreparedBatch(
-    prepared: readonly PreparedPersistenceV7[],
-  ): Promise<ImportPersistenceRunResultV1> {
-    for (const { result } of prepared) {
-      setPersistence((current) => ({ ...current, [result.id]: { state: 'persisting' } }));
-    }
-    setProgress({
-      current: 0,
-      total: prepared.length,
-      fileName: `${prepared.length} planilhas`,
-      stage: 'saving',
-    });
-
+    setProgress({ current: index, total, fileName: result.manifest.fileName, stage: 'saving' });
     const startedAt = nowMs();
-    let response: Awaited<ReturnType<typeof persistCompactGradebookBatchV7>>;
+    let batch: Awaited<ReturnType<typeof persistCompactGradebookBatchV7>>;
     try {
-      response = await persistCompactGradebookBatchV7(prepared.map((item) => item.request));
+      // One file per HTTP request. V7 retains the server's narrow D1 retry policy;
+      // a transport failure is never automatically replayed by this queue.
+      batch = await persistCompactGradebookBatchV7([request]);
     } catch (cause) {
       appendTiming('[gradebook-import-client-timing]', {
         version: 1,
-        mode: 'batch-v7',
+        mode: 'file-v7',
+        index,
+        total,
         totalMs: elapsedMs(startedAt),
         state: 'transport-failed',
-        itemCount: prepared.length,
         failure:
           cause instanceof GradebookImportBatchTransportErrorV7
-            ? {
-                kind: 'non-json-response',
-                httpStatus: cause.status,
-                contentKind: cause.contentKind,
-                responseMs: cause.totalMs,
-              }
+            ? { httpStatus: cause.status, contentKind: cause.contentKind }
             : { kind: 'request-failed' },
       });
       throw cause;
     }
     appendTiming('[gradebook-import-client-timing]', {
       version: 1,
-      mode: 'batch-v7',
+      mode: 'file-v7',
+      index,
+      total,
       totalMs: elapsedMs(startedAt),
-      state: response.state,
-      itemCount: prepared.length,
+      state: batch.state,
       items:
-        'items' in response
-          ? response.items.map((item) => ({
-              index: item.index,
+        'items' in batch
+          ? batch.items.map((item) => ({
               attempts: item.attempts,
               totalMs: item.totalMs,
               state: item.response.state,
@@ -327,46 +253,48 @@ export function useImportBatch() {
             }))
           : [],
     });
-
-    if (response.state === 'invalid-request') {
-      throw new Error(`Persistência V7 rejeitada: ${response.reason}.`);
-    }
-    if (response.state === 'unavailable') {
-      throw new Error('Persistência V7 indisponível.');
-    }
-
-    const completedIndices = new Set<number>();
-    for (const item of response.items) {
-      const target = prepared[item.index];
-      if (!target) throw new Error('Resposta V7 contém índice incompatível.');
-      completedIndices.add(item.index);
-      if (item.response.state === 'not-authorized') {
-        markAuthorizationRequired(target.result);
-      } else {
-        setPersistence((current) => ({
-          ...current,
-          [target.result.id]: { state: 'completed', response: item.response },
-        }));
-      }
-    }
-
-    if (response.state === 'not-authorized') {
-      for (const [index, target] of prepared.entries()) {
-        if (completedIndices.has(index)) continue;
-        setPersistence((current) => ({
-          ...current,
-          [target.result.id]: { state: 'recognized' },
-        }));
-      }
+    if (batch.state === 'not-authorized') {
+      markAuthorizationRequired(result);
       return 'auth-required';
     }
-
-    setProgress({
-      current: prepared.length,
-      total: prepared.length,
-      fileName: `${prepared.length} planilhas`,
-      stage: 'completed',
-    });
+    if (batch.state === 'unavailable')
+      throw new Error('Persistência temporariamente indisponível.');
+    let response: GradebookImportPersistenceResponseV6;
+    if (batch.state === 'invalid-request') {
+      response = { transportVersion: 6, state: 'invalid-request', reason: batch.reason };
+    } else {
+      const item = batch.items[0];
+      if (batch.items.length !== 1 || item?.index !== 0) {
+        throw new Error('Resposta incompleta ao confirmar a planilha.');
+      }
+      response = item.response;
+    }
+    if (isGradebookImportAuthorizationRequiredV1(response)) {
+      markAuthorizationRequired(result);
+      return 'auth-required';
+    }
+    if (needsStagingFallbackV1(response)) {
+      response = await persistCompactGradebookFileStagedV1(
+        request,
+        () =>
+          setProgress({
+            current: index,
+            total,
+            fileName: result.manifest.fileName,
+            stage: 'saving',
+          }),
+        (timing) => appendTiming('[gradebook-import-client-timing]', timing),
+      );
+      if (isGradebookImportAuthorizationRequiredV1(response)) {
+        markAuthorizationRequired(result);
+        return 'auth-required';
+      }
+    }
+    if (response.state === 'unavailable') {
+      throw new Error('Não foi possível confirmar a gravação desta planilha.');
+    }
+    setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
+    setProgress({ current: index + 1, total, fileName: result.manifest.fileName, stage: 'saving' });
     return 'completed';
   }
 
@@ -374,16 +302,62 @@ export function useImportBatch() {
     successes: readonly BatchSuccess[],
     bootstrapPromise: Promise<ImportBootstrapOutcomeV1>,
   ): Promise<ImportPersistenceRunResultV1> {
-    const prepared = await preparePersistenceRequests(successes, bootstrapPromise);
-    if (prepared === 'auth-required') return prepared;
-    if (prepared.length === 1 && prepared[0]) return persistPreparedSingle(prepared[0]);
-    if (prepared.length > 1) return persistPreparedBatch(prepared);
+    const outcome = await bootstrapPromise;
+    if (outcome.state === 'rejected') {
+      throw new Error('Não foi possível consultar os anos letivos. Retome os pendentes nesta aba.');
+    }
+    const bootstrap = outcome.response;
+    if (bootstrap.state === 'not-authorized') {
+      const first = successes[0];
+      if (first) markAuthorizationRequired(first);
+      return 'auth-required';
+    }
+    if (bootstrap.state !== 'ready' || !('availableAcademicYears' in bootstrap)) {
+      throw new Error('Não foi possível consultar os anos letivos cadastrados.');
+    }
+
+    // Compact lazily: do not retain 18/50 expanded request packages or submit
+    // the entire selection in one Worker invocation. Completed files stay put.
+    for (const [index, result] of successes.entries()) {
+      let prepared: PreparedPersistenceV7;
+      try {
+        prepared = preparePersistenceRequest(result, bootstrap.availableAcademicYears);
+      } catch (cause) {
+        const message = failureMessage(cause, 'Não foi possível preparar esta planilha.');
+        setPersistence((current) => ({ ...current, [result.id]: { state: 'failed', message } }));
+        setError(
+          'Uma ou mais planilhas não puderam ser preparadas. Consulte o estado de cada arquivo.',
+        );
+        continue;
+      }
+      try {
+        const state = await persistPreparedSingle(prepared, index, successes.length);
+        if (state !== 'completed') return state;
+      } catch (cause) {
+        const message = failureMessage(cause, 'Não foi possível confirmar a gravação.');
+        setPersistence((current) => ({
+          ...current,
+          [result.id]: { state: 'confirmation-required', message },
+        }));
+        setError(
+          `${message} O lote foi pausado; os arquivos confirmados foram preservados. Retome os pendentes nesta aba.`,
+        );
+        return 'confirmation-required';
+      }
+    }
+    setProgress({
+      current: successes.length,
+      total: successes.length,
+      fileName: '',
+      stage: 'completed',
+    });
     return 'completed';
   }
 
   async function resumePendingPersistence(): Promise<void> {
     const pending = selectPendingGradebookImportResultsV1(results, persistence);
-    if (pending.length === 0 || loading) return;
+    if (pending.length === 0 || inFlight.current) return;
+    inFlight.current = true;
 
     setLoading(true);
     setError(null);
@@ -393,35 +367,26 @@ export function useImportBatch() {
     } catch (cause) {
       const message = failureMessage(cause, 'Não foi possível retomar a persistência.');
       setError(message);
-      setPersistence((current) =>
-        Object.fromEntries(
-          Object.entries(current).map(([id, state]) => [
-            id,
-            state.state === 'processing' || state.state === 'persisting'
-              ? { state: 'failed', message }
-              : state,
-          ]),
-        ),
-      );
     } finally {
+      inFlight.current = false;
       setProgress(null);
       setLoading(false);
     }
   }
 
   async function handleFiles(fileList: FileList) {
+    if (inFlight.current) return;
     const files = Array.from(fileList);
     if (files.length === 0) return;
 
     const batchSizeError = validateBatchSize(files);
     if (batchSizeError) {
-      setResults([]);
-      setFailures([]);
-      setSelectedId(null);
+      // An invalid new selection must not discard a resumable current selection.
       setError(batchSizeError);
       return;
     }
 
+    inFlight.current = true;
     setLoading(true);
     setError(null);
     setResults([]);
@@ -475,17 +440,8 @@ export function useImportBatch() {
     } catch (cause) {
       const message = failureMessage(cause, 'Não foi possível concluir o processamento local.');
       setError(message);
-      setPersistence((current) =>
-        Object.fromEntries(
-          Object.entries(current).map(([id, state]) => [
-            id,
-            state.state === 'completed' || state.state === 'failed' || state.state === 'auth-required'
-              ? state
-              : { state: 'failed', message },
-          ]),
-        ),
-      );
     } finally {
+      inFlight.current = false;
       setProgress(null);
       setLoading(false);
     }

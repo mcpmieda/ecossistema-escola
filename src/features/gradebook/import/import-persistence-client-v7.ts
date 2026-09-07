@@ -9,16 +9,15 @@ import {
 import type { GradebookImportPersistenceRequestV6 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 
 const ENDPOINT = '/api/gradebook/import-persistence';
+const TIMEOUT_MS = 120_000;
 
 export type GradebookImportBatchResponseContentKindV7 =
-  | 'json'
-  | 'html'
-  | 'text'
-  | 'other'
-  | 'missing';
+  'json' | 'html' | 'text' | 'other' | 'missing';
 
 function nowMs(): number {
-  return typeof globalThis.performance?.now === 'function' ? globalThis.performance.now() : Date.now();
+  return typeof globalThis.performance?.now === 'function'
+    ? globalThis.performance.now()
+    : Date.now();
 }
 
 function elapsedMs(startedAt: number): number {
@@ -67,6 +66,7 @@ function notAuthorized(): GradebookImportPersistenceBatchResponseV7 {
 
 export async function persistCompactGradebookBatchV7(
   requests: readonly GradebookImportPersistenceRequestV6[],
+  signal?: AbortSignal,
 ): Promise<GradebookImportPersistenceBatchResponseV7> {
   const payload: GradebookImportPersistenceBatchRequestV7 = {
     transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V7,
@@ -78,31 +78,50 @@ export async function persistCompactGradebookBatchV7(
     throw new TypeError(`gradebook-import-batch-v7-${inspection}`);
   }
 
+  if (signal?.aborted) throw signal.reason;
+  const controller = new AbortController();
+  const abort = () => controller.abort(signal?.reason);
+  signal?.addEventListener('abort', abort, { once: true });
+  const timeout = globalThis.setTimeout(() => controller.abort(), TIMEOUT_MS);
   const startedAt = nowMs();
-  const response = await fetch(ENDPOINT, {
-    method: 'POST',
-    credentials: 'same-origin',
-    cache: 'no-store',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (response.status === 401 || response.status === 403) return notAuthorized();
-
-  let value: unknown;
   try {
-    value = await response.json();
-  } catch {
-    throw new GradebookImportBatchTransportErrorV7(
-      response.status,
-      responseContentKind(response),
-      elapsedMs(startedAt),
-    );
+    const response = await fetch(ENDPOINT, {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (response.status === 401 || response.status === 403) return notAuthorized();
+
+    let value: unknown;
+    try {
+      value = await response.json();
+    } catch {
+      throw new GradebookImportBatchTransportErrorV7(
+        response.status,
+        responseContentKind(response),
+        elapsedMs(startedAt),
+      );
+    }
+    if (!isGradebookImportPersistenceBatchResponseV7(value)) {
+      throw new Error('Resposta incompatível ao persistir o lote de planilhas.');
+    }
+    if (!response.ok && value.state !== 'invalid-request' && value.state !== 'unavailable') {
+      throw new Error('Persistência do lote indisponível.');
+    }
+    if ('items' in value) {
+      if (
+        value.items.length > requests.length ||
+        (value.state !== 'not-authorized' && value.items.length !== requests.length)
+      ) {
+        throw new Error('Resposta incompleta ao confirmar as planilhas.');
+      }
+    }
+    return value;
+  } finally {
+    globalThis.clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
   }
-  if (!isGradebookImportPersistenceBatchResponseV7(value)) {
-    throw new Error('Resposta incompatível ao persistir o lote de planilhas.');
-  }
-  if (!response.ok && value.state !== 'invalid-request' && value.state !== 'unavailable') {
-    throw new Error('Persistência do lote indisponível.');
-  }
-  return value;
 }

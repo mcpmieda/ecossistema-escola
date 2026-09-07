@@ -13,10 +13,7 @@ import {
   academicRecordStreamForV1,
   academicRecordStreamKeyV1,
 } from '../../../application/import/import-reconciliation-v1';
-import {
-  GradebookD1ReadErrorV1,
-  type D1ReadDatabaseV1,
-} from './d1-read-adapter-v1';
+import { GradebookD1ReadErrorV1, type D1ReadDatabaseV1 } from './d1-read-adapter-v1';
 
 type D1RowV1 = Record<string, unknown>;
 
@@ -45,7 +42,9 @@ export interface GradebookD1ImportPlanningBulkReadAdapterV1 {
   };
 }
 
-function fail(code: 'database-read-failed' | 'invalid-json' | 'incompatible-row' | 'broken-reference'): never {
+function fail(
+  code: 'database-read-failed' | 'invalid-json' | 'incompatible-row' | 'broken-reference',
+): never {
   throw new GradebookD1ReadErrorV1(code);
 }
 
@@ -123,7 +122,11 @@ function validApplicability(value: unknown): value is Record<string, unknown> {
   if (value.state === 'not-applicable') {
     return value.reason === undefined || typeof value.reason === 'string';
   }
-  return value.state === 'insufficient-data' && typeof value.reason === 'string' && value.reason.length > 0;
+  return (
+    value.state === 'insufficient-data' &&
+    typeof value.reason === 'string' &&
+    value.reason.length > 0
+  );
 }
 
 function assessmentComponentRecord(
@@ -288,9 +291,10 @@ function catalogStream(row: D1RowV1): AcademicRecordStreamV1 {
         kind: 'grade-entry',
         studentId,
         enrollmentId,
-        assessmentComponentId: requiredString(
-          row.assessment_component_id,
-        ) as Extract<AcademicRecordStreamV1, { readonly kind: 'grade-entry' }>['assessmentComponentId'],
+        assessmentComponentId: requiredString(row.assessment_component_id) as Extract<
+          AcademicRecordStreamV1,
+          { readonly kind: 'grade-entry' }
+        >['assessmentComponentId'],
       };
       break;
     case 'term-result':
@@ -298,9 +302,10 @@ function catalogStream(row: D1RowV1): AcademicRecordStreamV1 {
         kind: 'term-result',
         studentId,
         enrollmentId,
-        teachingAssignmentId: requiredString(
-          row.teaching_assignment_id,
-        ) as Extract<AcademicRecordStreamV1, { readonly kind: 'term-result' }>['teachingAssignmentId'],
+        teachingAssignmentId: requiredString(row.teaching_assignment_id) as Extract<
+          AcademicRecordStreamV1,
+          { readonly kind: 'term-result' }
+        >['teachingAssignmentId'],
         term: academicTerm(row.term),
       };
       break;
@@ -309,9 +314,10 @@ function catalogStream(row: D1RowV1): AcademicRecordStreamV1 {
         kind: 'final-recovery',
         studentId,
         enrollmentId,
-        teachingAssignmentId: requiredString(
-          row.teaching_assignment_id,
-        ) as Extract<AcademicRecordStreamV1, { readonly kind: 'final-recovery' }>['teachingAssignmentId'],
+        teachingAssignmentId: requiredString(row.teaching_assignment_id) as Extract<
+          AcademicRecordStreamV1,
+          { readonly kind: 'final-recovery' }
+        >['teachingAssignmentId'],
         recoveredTerm: academicTerm(row.term),
       };
       break;
@@ -321,9 +327,10 @@ function catalogStream(row: D1RowV1): AcademicRecordStreamV1 {
         kind: 'annual-result',
         studentId,
         enrollmentId,
-        teachingAssignmentId: requiredString(
-          row.teaching_assignment_id,
-        ) as Extract<AcademicRecordStreamV1, { readonly kind: 'annual-result' }>['teachingAssignmentId'],
+        teachingAssignmentId: requiredString(row.teaching_assignment_id) as Extract<
+          AcademicRecordStreamV1,
+          { readonly kind: 'annual-result' }
+        >['teachingAssignmentId'],
       };
       break;
     default:
@@ -374,6 +381,46 @@ function association(
   };
 }
 
+// D1 applies its 2 MB string/BLOB limit to bound JSON parameters too, not
+// just persisted rows. Bound reads independently of the number of file records.
+const MAX_PLANNING_JSON_BYTES_V1 = 512 * 1024;
+const MAX_PLANNING_ROWS_V1 = 1_000;
+
+async function readBoundedChunks<T, R>(
+  items: readonly T[],
+  encode: (item: T) => unknown,
+  read: (chunk: readonly T[], payload: string) => Promise<readonly R[]>,
+): Promise<readonly R[]> {
+  const encoder = new TextEncoder();
+  const results: R[] = [];
+  let chunk: T[] = [];
+  let encoded: string[] = [];
+  let bytes = 2;
+  const flush = async () => {
+    if (chunk.length === 0) return;
+    results.push(...(await read(chunk, `[${encoded.join(',')}]`)));
+    chunk = [];
+    encoded = [];
+    bytes = 2;
+  };
+  for (const item of items) {
+    const json = serializeBulk(encode(item));
+    const size = encoder.encode(json).byteLength;
+    if (size + 2 > MAX_PLANNING_JSON_BYTES_V1) return fail('incompatible-row');
+    if (
+      chunk.length >= MAX_PLANNING_ROWS_V1 ||
+      bytes + size + Number(chunk.length > 0) > MAX_PLANNING_JSON_BYTES_V1
+    ) {
+      await flush();
+    }
+    bytes += size + Number(chunk.length > 0);
+    chunk.push(item);
+    encoded.push(json);
+  }
+  await flush();
+  return results;
+}
+
 class GradebookD1ImportPlanningBulkReaderV1 {
   constructor(private readonly database: D1ReadDatabaseV1) {}
 
@@ -394,11 +441,14 @@ class GradebookD1ImportPlanningBulkReaderV1 {
       return Promise.reject(new GradebookD1ReadErrorV1('incompatible-row'));
     }
     if (references.length === 0) return Promise.resolve([]);
-    const payload = serializeBulk(references.map((reference) => ({ entityId: reference.id })));
-    return this.safely(async () => {
-      const rows = await this.database
-        .prepare(
-          `WITH requested AS (
+    return this.safely(() =>
+      readBoundedChunks(
+        references,
+        (reference) => ({ entityId: reference.id }),
+        async (references, payload) => {
+          const rows = await this.database
+            .prepare(
+              `WITH requested AS (
              SELECT CAST(key AS INTEGER) AS request_index,
                     json_extract(value, '$.entityId') AS entity_id
              FROM json_each(?)
@@ -438,18 +488,20 @@ class GradebookD1ImportPlanningBulkReaderV1 {
             AND v.entity_id = s.entity_id
             AND v.version = s.current_version
            ORDER BY requested.request_index`,
-        )
-        .bind(payload, context.academicYearId)
-        .all<D1RowV1>();
-      if (rows.results.length !== references.length) return fail('incompatible-row');
-      return rows.results.map((row, index) => {
-        requestIndex(row, index);
-        if (row.current_version === null) return null;
-        if (row.persisted_version === null) return fail('broken-reference');
-        const reference = references[index]!;
-        return assessmentComponentRecord(row, context, reference.id);
-      });
-    });
+            )
+            .bind(payload, context.academicYearId)
+            .all<D1RowV1>();
+          if (rows.results.length !== references.length) return fail('incompatible-row');
+          return rows.results.map((row, index) => {
+            requestIndex(row, index);
+            if (row.current_version === null) return null;
+            if (row.persisted_version === null) return fail('broken-reference');
+            const reference = references[index]!;
+            return assessmentComponentRecord(row, context, reference.id);
+          });
+        },
+      ),
+    );
   }
 
   getAcademicRecords(
@@ -457,13 +509,14 @@ class GradebookD1ImportPlanningBulkReaderV1 {
     streams: readonly AcademicRecordStreamV1[],
   ): Promise<readonly CurrentAcademicRecordV1[]> {
     if (streams.length === 0) return Promise.resolve([]);
-    const payload = serializeBulk(
-      streams.map((stream) => ({ kind: stream.kind, streamKey: academicRecordStreamKeyV1(stream) })),
-    );
-    return this.safely(async () => {
-      const rows = await this.database
-        .prepare(
-          `WITH requested AS (
+    return this.safely(() =>
+      readBoundedChunks(
+        streams,
+        (stream) => ({ kind: stream.kind, streamKey: academicRecordStreamKeyV1(stream) }),
+        async (streams, payload) => {
+          const rows = await this.database
+            .prepare(
+              `WITH requested AS (
              SELECT CAST(key AS INTEGER) AS request_index,
                     json_extract(value, '$.kind') AS record_kind,
                     json_extract(value, '$.streamKey') AS stream_key
@@ -491,17 +544,19 @@ class GradebookD1ImportPlanningBulkReaderV1 {
             AND v.stream_key = s.stream_key
             AND v.version = s.current_version
            ORDER BY requested.request_index`,
-        )
-        .bind(payload, context.academicYearId)
-        .all<D1RowV1>();
-      if (rows.results.length !== streams.length) return fail('incompatible-row');
-      return rows.results.map((row, index) => {
-        requestIndex(row, index);
-        if (row.current_version === null) return null;
-        if (row.persisted_version === null) return fail('broken-reference');
-        return academicRecord(row, context, streams[index]!);
-      });
-    });
+            )
+            .bind(payload, context.academicYearId)
+            .all<D1RowV1>();
+          if (rows.results.length !== streams.length) return fail('incompatible-row');
+          return rows.results.map((row, index) => {
+            requestIndex(row, index);
+            if (row.current_version === null) return null;
+            if (row.persisted_version === null) return fail('broken-reference');
+            return academicRecord(row, context, streams[index]!);
+          });
+        },
+      ),
+    );
   }
 
   getAssociations(
@@ -509,17 +564,18 @@ class GradebookD1ImportPlanningBulkReaderV1 {
     streams: readonly LogicalSourceRecordAssociationStreamV1[],
   ): Promise<readonly CurrentAssociationV1[]> {
     if (streams.length === 0) return Promise.resolve([]);
-    const payload = serializeBulk(
-      streams.map((stream) => ({
-        logicalSourceId: stream.logicalSourceId,
-        kind: stream.academicRecordStream.kind,
-        stableKey: stream.stableKey,
-      })),
-    );
-    return this.safely(async () => {
-      const rows = await this.database
-        .prepare(
-          `WITH requested AS (
+    return this.safely(() =>
+      readBoundedChunks(
+        streams,
+        (stream) => ({
+          logicalSourceId: stream.logicalSourceId,
+          kind: stream.academicRecordStream.kind,
+          stableKey: stream.stableKey,
+        }),
+        async (streams, payload) => {
+          const rows = await this.database
+            .prepare(
+              `WITH requested AS (
              SELECT CAST(key AS INTEGER) AS request_index,
                     json_extract(value, '$.logicalSourceId') AS logical_source_id,
                     json_extract(value, '$.kind') AS record_kind,
@@ -562,17 +618,19 @@ class GradebookD1ImportPlanningBulkReaderV1 {
             AND r.record_kind = c.record_kind
             AND r.stream_key = c.stream_key
            ORDER BY requested.request_index`,
-        )
-        .bind(payload, context.academicYearId)
-        .all<D1RowV1>();
-      if (rows.results.length !== streams.length) return fail('incompatible-row');
-      return rows.results.map((row, index) => {
-        requestIndex(row, index);
-        if (row.current_version === null) return null;
-        if (row.persisted_version === null) return fail('broken-reference');
-        return association(row, context, streams[index]!);
-      });
-    });
+            )
+            .bind(payload, context.academicYearId)
+            .all<D1RowV1>();
+          if (rows.results.length !== streams.length) return fail('incompatible-row');
+          return rows.results.map((row, index) => {
+            requestIndex(row, index);
+            if (row.current_version === null) return null;
+            if (row.persisted_version === null) return fail('broken-reference');
+            return association(row, context, streams[index]!);
+          });
+        },
+      ),
+    );
   }
 }
 
