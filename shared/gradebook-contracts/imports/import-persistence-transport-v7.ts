@@ -1,6 +1,5 @@
 import {
   inspectGradebookImportPersistenceRequestV6,
-  isGradebookImportPersistenceRequestV6,
   isGradebookImportPersistenceResponseV6,
   type GradebookImportPersistenceRequestV6,
   type GradebookImportPersistenceResponseV6,
@@ -111,9 +110,7 @@ export function inspectGradebookImportPersistenceBatchRequestV7(
   for (const request of value.requests) {
     const inspection = inspectGradebookImportPersistenceRequestV6(request);
     if (inspection === 'payload-too-large') return 'payload-too-large';
-    if (inspection !== 'ready' || !isGradebookImportPersistenceRequestV6(request)) {
-      return 'invalid-request';
-    }
+    if (inspection !== 'ready') return 'invalid-request';
   }
   return 'ready';
 }
