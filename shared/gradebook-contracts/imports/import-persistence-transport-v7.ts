@@ -173,6 +173,6 @@ export const GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_V7 = {
   itemContract: 6,
   bounds: GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V7,
   commitOrdering: 'strictly-sequential-independent-per-file',
-  retry: 'at-most-once-after-operational-unavailable-with-fresh-replan',
+  retry: 'at-most-once-after-documented-transient-d1-failure-with-fresh-replan',
   browserStorage: 'memory-only',
 } as const;
