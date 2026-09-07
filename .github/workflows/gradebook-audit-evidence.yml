@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
   issues: read
   pull-requests: read
 
@@ -15,44 +14,25 @@ jobs:
   evidence:
     if: github.head_ref == 'fix/bn-552-bounded-import'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
-      - name: Checkout public source and history
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install existing locked dependencies
-        run: npm ci
-      - name: Collect public repository evidence without production access
+      - name: Obtain the public parser already used by the application
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/gradebook-parser"
+          curl --fail --silent --show-error --location --retry 2 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js' -o "$RUNNER_TEMP/gradebook-parser/xlsx.full.min.js"
+          sha256sum "$RUNNER_TEMP/gradebook-parser/xlsx.full.min.js" > "$RUNNER_TEMP/gradebook-parser/parser-checksum.txt"
+      - name: Collect existing public discussion evidence
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          evidence="$RUNNER_TEMP/gradebook-audit"
-          mkdir -p "$evidence"
-          git fetch --no-tags https://github.com/mcpmieda/ecossistema-escola.git '+refs/pull/*/head:refs/audit-pr/*'
-          git bundle create "$evidence/repository.bundle" --all
-          git archive --format=tar.gz -o "$evidence/source.tar.gz" HEAD
-          tar -czf "$evidence/dependencies.tar.gz" node_modules
-          for collection in branches issues pulls actions/runs; do
-            name="${collection//\//-}"
-            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/$collection?state=all&per_page=100" > "$evidence/$name.json"
-          done
-          git log --all --format='%H%x09%aI%x09%s' > "$evidence/commits.tsv"
-          git for-each-ref --format='%(refname)%09%(objectname)' > "$evidence/refs.tsv"
-          git rev-list --all --count > "$evidence/commit-count.txt"
-          node --version > "$evidence/node-version.txt"
-      - name: Upload temporary public-source evidence
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues/comments?per_page=100" > "$RUNNER_TEMP/gradebook-parser/issue-comments.json"
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/comments?per_page=100" > "$RUNNER_TEMP/gradebook-parser/review-comments.json"
+      - name: Upload temporary public evidence only
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: gradebook-audit-public-source
-          path: ${{ runner.temp }}/gradebook-audit
+          name: gradebook-audit-existing-parser
+          path: ${{ runner.temp }}/gradebook-parser
           retention-days: 1
-          compression-level: 0
           if-no-files-found: error
