@@ -39,21 +39,24 @@ const countSQL = 'SELECT COUNT(*) AS n FROM synthetic_values';
 const tempSQL = 'SELECT COUNT(*) AS n FROM gradebook_import_stage_sessions';
 
 describe('Bounded D1 transport with a single final academic transaction', () => {
-  it('keeps every call under the global byte bound and reconstructs exact UTF-8 values', async () => {
+  it('keeps every RPC-sized call bounded and reconstructs exact UTF-8 values', async () => {
     const { base, measured, recorder, payloads } = await setup();
     try {
       await recorder.commit();
-      expect(measured.calls.length).toBeGreaterThan(1);
+      expect(measured.runs.length).toBeGreaterThan(1);
       expect(
-        measured.calls.every(
-          (call) => call.bytes <= IMPORT_D1_TRANSPORT_BOUNDS_V1.stagingBatchBytes,
-        ),
+        measured.runs.every((run) => run.bytes <= IMPORT_D1_TRANSPORT_BOUNDS_V1.stagingBatchBytes),
+      ).toBe(true);
+      expect(measured.calls).toHaveLength(1);
+      expect(measured.calls[0]!.bytes).toBeLessThanOrEqual(
+        IMPORT_D1_TRANSPORT_BOUNDS_V1.finalBatchBytes,
+      );
+      expect(
+        measured.calls[0]!.sql.some((sql) => sql.startsWith('INSERT INTO synthetic_values')),
       ).toBe(true);
       expect(
-        measured.calls.filter((call) =>
-          call.sql.some((sql) => sql.startsWith('INSERT INTO synthetic_values')),
-        ),
-      ).toHaveLength(1);
+        measured.runs.some((run) => run.sql.includes('INSERT INTO gradebook_import_stage_chunks')),
+      ).toBe(true);
       expect(base.raw.prepare('SELECT id,payload FROM synthetic_values ORDER BY id').all()).toEqual(
         payloads.map((p) => JSON.parse(p)[0]),
       );
@@ -65,22 +68,28 @@ describe('Bounded D1 transport with a single final academic transaction', () => 
       base.raw.close();
     }
   });
-  it('leaves official values unchanged when upload fails between staged batches', async () => {
+
+  it('leaves official values unchanged when a temporary parameter upload fails', async () => {
     const { base, measured, recorder } = await setup();
     try {
       let uploads = 0;
-      measured.beforeBatch = (items) => {
-        if (items[0]?.sql.includes('INSERT INTO gradebook_import_stage_chunks') && ++uploads === 2)
+      measured.beforeRun = (statement) => {
+        if (
+          statement.sql.includes('INSERT INTO gradebook_import_stage_chunks') &&
+          ++uploads === 2
+        )
           throw new Error('synthetic upload lost');
       };
       await expect(recorder.commit()).rejects.toThrow();
       expect(base.raw.prepare(countSQL).get()).toEqual({ n: 0 });
       expect(base.raw.prepare(tempSQL).get()).toEqual({ n: 0 });
+      expect(measured.calls).toHaveLength(0);
     } finally {
       base.raw.close();
     }
   });
-  it('does not promote a missing staged chunk and removes only its own temporary session', async () => {
+
+  it('does not promote a missing staged parameter and removes only its own temporary session', async () => {
     const { base, measured, recorder } = await setup();
     try {
       measured.beforeBatch = (items) => {
@@ -90,10 +99,12 @@ describe('Bounded D1 transport with a single final academic transaction', () => 
       await expect(recorder.commit()).rejects.toThrow();
       expect(base.raw.prepare(countSQL).get()).toEqual({ n: 0 });
       expect(base.raw.prepare(tempSQL).get()).toEqual({ n: 0 });
+      expect(measured.calls).toHaveLength(1);
     } finally {
       base.raw.close();
     }
   });
+
   it('rolls back all file mutations if a later constraint fails', async () => {
     const { base, bounded, recorder } = await setup();
     try {
@@ -108,6 +119,7 @@ describe('Bounded D1 transport with a single final academic transaction', () => 
       base.raw.close();
     }
   });
+
   it('retains CAS and rolls back earlier writes when an expected version is stale', async () => {
     const { base, bounded, recorder } = await setup();
     try {
@@ -127,6 +139,7 @@ describe('Bounded D1 transport with a single final academic transaction', () => 
       base.raw.close();
     }
   });
+
   it('does not replay the final commit after a lost confirmation', async () => {
     const { base, measured, recorder } = await setup();
     try {
@@ -136,15 +149,14 @@ describe('Bounded D1 transport with a single final academic transaction', () => 
       };
       await expect(recorder.commit()).rejects.toThrow();
       expect(base.raw.prepare(countSQL).get()).toEqual({ n: 6 });
-      expect(
-        measured.calls.filter((call) => call.sql[0]?.includes('AS staging_guard')),
-      ).toHaveLength(1);
+      expect(measured.calls).toHaveLength(1);
       expect(base.raw.prepare(tempSQL).get()).toEqual({ n: 0 });
     } finally {
       base.raw.close();
     }
   });
-  it('rejects an oversized parameter before sending an academic batch', async () => {
+
+  it('rejects an oversized parameter before sending official writes', async () => {
     const { base, measured, bounded } = await setup();
     try {
       await expect(
@@ -155,12 +167,14 @@ describe('Bounded D1 transport with a single final academic transaction', () => 
         ]),
       ).rejects.toThrow('gradebook-import-transport-bound');
       expect(measured.calls).toHaveLength(0);
+      expect(measured.runs).toHaveLength(0);
       expect(base.raw.prepare(countSQL).get()).toEqual({ n: 0 });
       expect(base.raw.prepare(tempSQL).get()).toEqual({ n: 0 });
     } finally {
       base.raw.close();
     }
   });
+
   it('reclaims at most one expired transport session and never deletes a different purpose', async () => {
     const { base, recorder } = await setup();
     try {
@@ -197,6 +211,7 @@ describe('Bounded D1 transport with a single final academic transaction', () => 
       base.raw.close();
     }
   });
+
   it('substitutes placeholders without touching quoted question marks and SQL comments', () => {
     const source = 'SELECT \'?\', "?", `?`, [??], ? -- ?\n, ? /* ? */';
     expect(replaceImportSqlParametersV1(source, (index) => `PARAM_${index}`)).toBe(
