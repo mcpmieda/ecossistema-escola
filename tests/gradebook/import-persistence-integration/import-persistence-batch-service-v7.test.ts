@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { GradebookImportPersistenceRequestV6 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 import type { GradebookImportPersistenceBatchRequestV7 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v7';
-import { createGradebookImportPersistenceBatchServiceV7 } from '../../../server/gradebook/application/import/import-persistence-batch-service-v7';
+import {
+  createGradebookImportPersistenceBatchServiceV7,
+  type GradebookImportPersistenceBatchRetryabilityV7,
+} from '../../../server/gradebook/application/import/import-persistence-batch-service-v7';
 
 const request = { transportVersion: 6 } as GradebookImportPersistenceRequestV6;
 const batch = (count: number) =>
@@ -54,34 +57,81 @@ const conflict = { transportVersion: 6, state: 'conflict' } as const;
 const unavailable = { transportVersion: 6, state: 'unavailable' } as const;
 const notAuthorized = { transportVersion: 6, state: 'not-authorized' } as const;
 
+function execution<Response extends typeof noChanges | typeof applied | typeof conflict | typeof unavailable | typeof notAuthorized>(
+  response: Response,
+  retryability: GradebookImportPersistenceBatchRetryabilityV7 = 'none',
+) {
+  return { response, retryability } as const;
+}
+
 describe('Gradebook import persistence batch service V7', () => {
-  it('replans one fast CAS conflict and one fast operational failure', async () => {
-    const responses = [noChanges, conflict, noChanges, unavailable, applied];
+  it('never retries CAS and retries one marked transient D1 failure with jitter', async () => {
+    const responses = [
+      execution(conflict),
+      execution(unavailable, 'transient-d1'),
+      execution(applied),
+    ];
     const execute = vi.fn(async () => responses.shift()!);
-    let clock = 0;
+    const sleep = vi.fn(async () => undefined);
     const service = createGradebookImportPersistenceBatchServiceV7(
       () => ({ execute }),
       {
-        nowMs: () => ++clock,
-        sleep: async () => undefined,
+        sleep,
+        random: () => 0.5,
       },
     );
 
-    const result = await service.execute(batch(3));
-    expect(execute).toHaveBeenCalledTimes(5);
-    expect(result.state).toBe('completed');
-    if (result.state !== 'completed') throw new Error('unexpected-state');
-    expect(result.items.map((item) => item.attempts)).toEqual([1, 2, 2]);
-    expect(result.items.map((item) => item.response.state)).toEqual([
-      'no-changes',
-      'no-changes',
-      'applied',
-    ]);
-    expect(result.items.every((item) => item.failureCategory === 'none')).toBe(true);
+    const result = await service.execute(batch(2));
+    expect(execute).toHaveBeenCalledTimes(3);
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep).toHaveBeenCalledWith(300);
+    expect(result.state).toBe('partial');
+    if (result.state !== 'partial') throw new Error('unexpected-state');
+    expect(result.items.map((item) => item.attempts)).toEqual([1, 2]);
+    expect(result.items.map((item) => item.response.state)).toEqual(['conflict', 'applied']);
+    expect(result.items.map((item) => item.failureCategory)).toEqual(['cas-conflict', 'none']);
+  });
+
+  it('does not retry an operational unavailable response without a transient D1 marker', async () => {
+    const execute = vi.fn(async () => execution(unavailable));
+    const sleep = vi.fn(async () => undefined);
+    const service = createGradebookImportPersistenceBatchServiceV7(
+      () => ({ execute }),
+      { sleep },
+    );
+
+    const result = await service.execute(batch(1));
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(result.state).toBe('partial');
+    if (result.state !== 'partial') throw new Error('unexpected-state');
+    expect(result.items[0]).toMatchObject({
+      attempts: 1,
+      failureCategory: 'operational',
+      response: unavailable,
+    });
+  });
+
+  it('does not retry an unexpected executor exception because it lacks D1 transient evidence', async () => {
+    const execute = vi.fn(async () => {
+      throw new Error('unexpected');
+    });
+    const sleep = vi.fn(async () => undefined);
+    const service = createGradebookImportPersistenceBatchServiceV7(
+      () => ({ execute }),
+      { sleep },
+    );
+
+    const result = await service.execute(batch(1));
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(result.state).toBe('partial');
+    if (result.state !== 'partial') throw new Error('unexpected-state');
+    expect(result.items[0]).toMatchObject({ attempts: 1, failureCategory: 'operational' });
   });
 
   it('stops immediately on authorization loss and leaves following items unexecuted', async () => {
-    const responses = [applied, notAuthorized, noChanges];
+    const responses = [execution(applied), execution(notAuthorized), execution(noChanges)];
     const execute = vi.fn(async () => responses.shift()!);
     const service = createGradebookImportPersistenceBatchServiceV7(
       () => ({ execute }),
@@ -99,23 +149,5 @@ describe('Gradebook import persistence batch service V7', () => {
       attempts: 1,
       failureCategory: 'authorization',
     });
-  });
-
-  it('does not retry a slow conflict, avoiding another long blocked request', async () => {
-    const execute = vi.fn(async () => conflict);
-    const times = [0, 0, 0, 13_001, 13_001, 13_001];
-    const service = createGradebookImportPersistenceBatchServiceV7(
-      () => ({ execute }),
-      {
-        nowMs: () => times.shift() ?? 13_001,
-        sleep: async () => undefined,
-      },
-    );
-
-    const result = await service.execute(batch(1));
-    expect(execute).toHaveBeenCalledTimes(1);
-    expect(result.state).toBe('partial');
-    if (result.state !== 'partial') throw new Error('unexpected-state');
-    expect(result.items[0]).toMatchObject({ attempts: 1, failureCategory: 'cas-conflict' });
   });
 });
