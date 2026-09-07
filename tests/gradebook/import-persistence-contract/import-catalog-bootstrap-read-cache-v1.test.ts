@@ -13,7 +13,10 @@ import type {
   AcademicEntityRepositoryV1,
   VersionedRecordV1,
 } from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
-import { createGradebookImportCatalogBootstrapReadCacheV1 } from '../../../server/gradebook/application/import/import-catalog-bootstrap-read-cache-v1';
+import {
+  createGradebookImportCatalogBatchReadCacheV1,
+  createGradebookImportCatalogBootstrapReadCacheV1,
+} from '../../../server/gradebook/application/import/import-catalog-bootstrap-read-cache-v1';
 
 const academicYearId = 'academic-year:catalog-bootstrap-cache:2026' as AcademicYearId;
 const context = { academicYearId };
@@ -51,6 +54,19 @@ const teacherRecord = {
   },
   version: 1,
   recordedAt: instant,
+} as const satisfies VersionedRecordV1<AcademicEntityRecordV1>;
+
+const teacherRecordV2 = {
+  value: {
+    kind: 'teacher',
+    value: {
+      ...teacherRecord.value.value,
+      displayName: 'Docente Sintético Atualizado',
+      sourceNames: ['Docente Sintético', 'Docente Sintético Atualizado'],
+    },
+  },
+  version: 2,
+  recordedAt: '2026-09-06T00:01:00.000Z',
 } as const satisfies VersionedRecordV1<AcademicEntityRecordV1>;
 
 const assessmentComponentRecord = {
@@ -168,6 +184,37 @@ describe('import catalog bootstrap read cache', () => {
     expect(baseCatalogCalls).toBe(0);
     expect(baseGetManyCalls).toBe(0);
     expect(baseStatusCalls).toBe(0);
+  });
+
+  it('shares the physical snapshot across V7 files and layers only committed versions', async () => {
+    let bootstrapCalls = 0;
+    const base = baseRepository();
+    const source = Object.assign({}, base, {
+      async getImportCatalogBootstrapSnapshot() {
+        bootstrapCalls += 1;
+        return {
+          academicYear: yearRecord,
+          catalog: [teacherRecord],
+          assessmentComponents: [assessmentComponentRecord],
+          studentStatusEvents: [studentStatusRecord],
+        };
+      },
+    });
+    const batch = createGradebookImportCatalogBatchReadCacheV1(source);
+    const firstFile = createGradebookImportCatalogBootstrapReadCacheV1(batch.repository);
+
+    await expect(
+      firstFile.get(context, { kind: 'academic-year', id: academicYearId }),
+    ).resolves.toEqual(yearRecord);
+    await expect(firstFile.getImportCatalogSnapshot?.(context)).resolves.toEqual([teacherRecord]);
+
+    batch.commit({ context, records: [teacherRecordV2] });
+    const secondFile = createGradebookImportCatalogBootstrapReadCacheV1(batch.repository);
+    await expect(secondFile.getImportCatalogSnapshot?.(context)).resolves.toEqual([teacherRecordV2]);
+    await expect(
+      secondFile.get(context, { kind: 'teacher', id: teacherRecord.value.value.id }),
+    ).resolves.toEqual(teacherRecordV2);
+    expect(bootstrapCalls).toBe(1);
   });
 
   it('falls back to base component/status readers when their snapshot families are unavailable', async () => {
