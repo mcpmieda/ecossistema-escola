@@ -1,0 +1,58 @@
+name: Temporary gradebook audit evidence
+
+on:
+  pull_request:
+    branches: [main]
+    paths: [.github/workflows/gradebook-audit-evidence.yml]
+
+permissions:
+  contents: read
+  actions: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  evidence:
+    if: github.head_ref == 'fix/bn-552-bounded-import'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout public source and history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install existing locked dependencies
+        run: npm ci
+      - name: Collect public repository evidence without production access
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/gradebook-audit"
+          mkdir -p "$evidence"
+          git fetch --no-tags https://github.com/mcpmieda/ecossistema-escola.git '+refs/pull/*/head:refs/audit-pr/*'
+          git bundle create "$evidence/repository.bundle" --all
+          git archive --format=tar.gz -o "$evidence/source.tar.gz" HEAD
+          tar -czf "$evidence/dependencies.tar.gz" node_modules
+          for collection in branches issues pulls actions/runs; do
+            name="${collection//\//-}"
+            gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/$collection?state=all&per_page=100" > "$evidence/$name.json"
+          done
+          git log --all --format='%H%x09%aI%x09%s' > "$evidence/commits.tsv"
+          git for-each-ref --format='%(refname)%09%(objectname)' > "$evidence/refs.tsv"
+          git rev-list --all --count > "$evidence/commit-count.txt"
+          node --version > "$evidence/node-version.txt"
+      - name: Upload temporary public-source evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: gradebook-audit-public-source
+          path: ${{ runner.temp }}/gradebook-audit
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
