@@ -13,13 +13,12 @@ import type {
 } from '../../../shared/gradebook-contracts/results/results-contract-v1';
 import { academicRecordStreamKeyV1 } from '../../../server/gradebook/application/import/import-reconciliation-v1';
 import { createGradebookD1PersistenceUnitOfWorkV2 } from '../../../server/gradebook/persistence/d1/composition/d1-persistence-unit-of-work-v1';
-import {
-  GradebookD1ImportBootstrapTransactionV2,
-} from '../../../server/gradebook/persistence/d1/transaction/d1-import-bootstrap-transaction-v2';
+import { GradebookD1ImportBootstrapTransactionV2 } from '../../../server/gradebook/persistence/d1/transaction/d1-import-bootstrap-transaction-v2';
 import type {
   D1WriteDatabaseV1,
   D1WriteRunResultV1,
   D1WriteStatementV1,
+  D1WriteValueV1,
 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import type {
   AcademicEntityRecordV1,
@@ -46,6 +45,9 @@ const assignmentId = 'teaching-assignment:bulk-commit:001' as TeachingAssignment
 const COMPONENT_COUNT = 468;
 const RECORD_COUNT = 5_399;
 const STUDENT_COUNT = Math.ceil(RECORD_COUNT / COMPONENT_COUNT);
+const MAX_BULK_JSON_BYTES = 512 * 1024;
+const MAX_BULK_ROWS = 1_000;
+
 type AssessmentComponentEntityRecordV1 = Extract<
   AcademicEntityRecordV1,
   { readonly kind: 'assessment-component' }
@@ -54,14 +56,43 @@ type AssessmentComponentEntityRecordV1 = Extract<
 class AtomicBatchSqliteDatabase implements D1WriteDatabaseV1 {
   batchCalls = 0;
   readonly statementCounts: number[] = [];
+  readonly bulkJsonBytes: number[] = [];
+  readonly bulkRowCounts: number[] = [];
 
   constructor(
     private readonly delegate: SqliteD1Database,
     private readonly beforeBatch?: () => void,
   ) {}
 
+  private observeBulkValues(values: readonly D1WriteValueV1[]): void {
+    for (const value of values) {
+      if (typeof value !== 'string' || !value.startsWith('[')) continue;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(value);
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(parsed)) continue;
+      this.bulkJsonBytes.push(new TextEncoder().encode(value).byteLength);
+      this.bulkRowCounts.push(parsed.length);
+    }
+  }
+
   prepare(query: string): D1WriteStatementV1 {
-    return this.delegate.prepare(query);
+    const statement = this.delegate.prepare(query);
+    if (!query.includes('json_each(?)')) return statement;
+
+    const wrap = (current: D1WriteStatementV1): D1WriteStatementV1 => ({
+      bind: (...values: D1WriteValueV1[]) => {
+        this.observeBulkValues(values);
+        return wrap(current.bind(...values));
+      },
+      first: <Row extends Record<string, unknown>>() => current.first<Row>(),
+      all: <Row extends Record<string, unknown>>() => current.all<Row>(),
+      run: () => current.run(),
+    });
+    return wrap(statement);
   }
 
   exec(query: string): void {
@@ -282,7 +313,7 @@ function tableCount(database: SqliteD1Database, table: string, where = ''): numb
 }
 
 describe('Import bootstrap D1 bulk commit at pilot scale', () => {
-  it('commits 468 components + 5,399 records + 5,399 associations with a bounded statement set', async () => {
+  it('commits pilot scale with every set-based statement bounded by bytes and rows', async () => {
     const database = await openMigratedDatabase();
     try {
       seedRoot(database);
@@ -339,8 +370,10 @@ describe('Import bootstrap D1 bulk commit at pilot scale', () => {
 
       expect(remote.batchCalls).toBe(1);
       expect(remote.statementCounts).toHaveLength(1);
-      // 512-row set-based groups remain bounded while avoiding giant per-statement JSON work.
       expect(remote.statementCounts[0]).toBeLessThan(128);
+      expect(remote.bulkJsonBytes.length).toBeGreaterThan(0);
+      expect(Math.max(...remote.bulkJsonBytes)).toBeLessThanOrEqual(MAX_BULK_JSON_BYTES);
+      expect(Math.max(...remote.bulkRowCounts)).toBeLessThanOrEqual(MAX_BULK_ROWS);
       expect(
         tableCount(database, 'academic_entity_versions', "WHERE entity_kind='assessment-component'"),
       ).toBe(COMPONENT_COUNT);
