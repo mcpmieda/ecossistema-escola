@@ -22,6 +22,8 @@ export type GradebookD1TransactionErrorCodeV1 =
   | 'nested-transaction'
   | 'transaction-failed';
 
+export type GradebookD1TransactionRetryabilityV1 = 'never' | 'transient-d1';
+
 const ERROR_MESSAGES: Record<GradebookD1TransactionErrorCodeV1, string> = {
   'batch-version-conflict': 'O lote acadêmico não está na versão esperada para promoção.',
   'file-not-approved': 'A promoção contém arquivo sem aprovação persistida.',
@@ -32,16 +34,24 @@ const ERROR_MESSAGES: Record<GradebookD1TransactionErrorCodeV1, string> = {
 
 export class GradebookD1TransactionErrorV1 extends Error {
   readonly code: GradebookD1TransactionErrorCodeV1;
+  readonly retryability: GradebookD1TransactionRetryabilityV1;
 
-  constructor(code: GradebookD1TransactionErrorCodeV1) {
+  constructor(
+    code: GradebookD1TransactionErrorCodeV1,
+    retryability: GradebookD1TransactionRetryabilityV1 = 'never',
+  ) {
     super(ERROR_MESSAGES[code]);
     this.name = 'GradebookD1TransactionErrorV1';
     this.code = code;
+    this.retryability = retryability;
   }
 }
 
-function fail(code: GradebookD1TransactionErrorCodeV1): never {
-  throw new GradebookD1TransactionErrorV1(code);
+function fail(
+  code: GradebookD1TransactionErrorCodeV1,
+  retryability: GradebookD1TransactionRetryabilityV1 = 'never',
+): never {
+  throw new GradebookD1TransactionErrorV1(code, retryability);
 }
 
 function nonEmptyString(value: unknown): value is string {
@@ -78,11 +88,48 @@ export function supportsAtomicBatch(
 const MUTATION_GUARD_SQL =
   "SELECT CASE WHEN changes() = ? THEN 1 ELSE json('gradebook_atomic_batch_guard_failure') END AS gradebook_atomic_batch_guard";
 
+const TRANSIENT_D1_FAILURE_PATTERNS_V1 = [
+  /Network connection lost/iu,
+  /storage caused object to be reset/iu,
+  /reset because its code was updated/iu,
+] as const;
+
+function failureMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : String(cause ?? '');
+}
+
+function documentedTransientD1Failure(cause: unknown): boolean {
+  const message = failureMessage(cause);
+  return TRANSIENT_D1_FAILURE_PATTERNS_V1.some((pattern) => pattern.test(message));
+}
+
 function atomicBatchFailureCode(cause: unknown): GradebookD1TransactionErrorCodeV1 {
-  const message = cause instanceof Error ? cause.message : String(cause ?? '');
+  const message = failureMessage(cause);
   return /gradebook_atomic_batch_guard_failure|malformed json/iu.test(message)
     ? 'batch-version-conflict'
     : 'transaction-failed';
+}
+
+function atomicBatchFailure(cause: unknown): {
+  readonly code: GradebookD1TransactionErrorCodeV1;
+  readonly retryability: GradebookD1TransactionRetryabilityV1;
+} {
+  const code = atomicBatchFailureCode(cause);
+  return {
+    code,
+    retryability:
+      code === 'transaction-failed' && documentedTransientD1Failure(cause)
+        ? 'transient-d1'
+        : 'never',
+  };
+}
+
+export function isGradebookD1TransientTransactionErrorV1(cause: unknown): boolean {
+  return (
+    cause instanceof GradebookD1TransactionErrorV1 &&
+    cause.code === 'transaction-failed' &&
+    cause.retryability === 'transient-d1'
+  );
 }
 
 class GradebookD1RecordedStatementV1 implements D1WriteStatementV1 {
@@ -145,7 +192,8 @@ export class GradebookD1AtomicBatchRecorderV1 implements D1WriteDatabaseV1 {
     try {
       results = await this.database.batch(this.statements);
     } catch (cause) {
-      return fail(atomicBatchFailureCode(cause));
+      const failure = atomicBatchFailure(cause);
+      return fail(failure.code, failure.retryability);
     }
     if (
       results.length !== this.statements.length ||
