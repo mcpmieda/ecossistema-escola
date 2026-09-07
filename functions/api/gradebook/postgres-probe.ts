@@ -13,6 +13,7 @@ type ProbeEnvV1 = RuntimeEnv & { readonly PROD_DB?: HyperdriveBindingV1 };
 type Context = EventContext<ProbeEnvV1, string, unknown>;
 type PostgresFactoryV1 = typeof import('postgres');
 type PostgresClientV1 = ReturnType<PostgresFactoryV1>;
+type PostgresJsonValueV1 = Parameters<PostgresClientV1['json']>[0];
 
 type ProbeStageV1 =
   | 'connection'
@@ -28,6 +29,11 @@ interface ProbeResultV1 {
   readonly state: 'passed' | 'failed' | 'skipped';
   readonly ms: number;
   readonly sqlState?: string;
+}
+
+function postgresJsonValueV1(value: unknown): PostgresJsonValueV1 {
+  // The synthetic generator emits JSON-safe scalars, objects and arrays only.
+  return value as PostgresJsonValueV1;
 }
 
 function noStoreJson(value: unknown, status = 200): Response {
@@ -222,7 +228,7 @@ export const onRequestPost: PagesFunction<ProbeEnvV1> = async (context: Context)
       const rows = await sql!`
         select * from bn_benchmark.apply_snapshot(
           ${functionId},
-          ${sql!.json(baseline)}::jsonb
+          ${sql!.json(postgresJsonValueV1(baseline))}::jsonb
         )
       `;
       if (rows.length !== 1) throw new TypeError('postgres-probe-result-invalid');
