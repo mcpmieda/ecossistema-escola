@@ -33,21 +33,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Temporary branch-only reproduction support for #551. Public parser only.
-      # The application already loads this exact version from this same CDN.
-      - name: Obtain the existing public parser
-        run: |
-          mkdir -p /tmp/bn-551-parser
-          curl --fail --location --retry 2 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js' -o /tmp/bn-551-parser/xlsx.cjs
-          node -e "const x = require('/tmp/bn-551-parser/xlsx.cjs'); if (x.version !== '0.20.3') process.exit(1); console.log('SheetJS', x.version)"
-
-      - name: Upload the public parser for isolated reproduction
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: bn-551-public-parser
-          path: /tmp/bn-551-parser/
-          retention-days: 1
-          if-no-files-found: error
-
       - name: Verify
         run: npm run verify

@@ -83,6 +83,7 @@ const noChanges = {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 describe('Gradebook import persistence client V7', () => {
@@ -140,5 +141,77 @@ describe('Gradebook import persistence client V7', () => {
     });
     expect((caught as Error).message).toContain('HTTP 502');
     expect((caught as Error).message).not.toContain('edge failure');
+  });
+});
+
+describe('V7 bounded transport failure behavior (#551)', () => {
+  it.each([401, 403])(
+    'returns authorization state for HTTP %i without parsing HTML',
+    async (status) => {
+      const fetch = vi.fn().mockResolvedValue(new Response('<html>synthetic</html>', { status }));
+      vi.stubGlobal('fetch', fetch);
+      await expect(persistCompactGradebookBatchV7([request()])).resolves.toMatchObject({
+        state: 'not-authorized',
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('does not automatically retry a lost response after a potentially successful commit', async () => {
+    const fetch = vi.fn().mockRejectedValue(new TypeError('synthetic lost response'));
+    vi.stubGlobal('fetch', fetch);
+    await expect(persistCompactGradebookBatchV7([request()])).rejects.toThrow(
+      'synthetic lost response',
+    );
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects incomplete success instead of silently losing unconfirmed files', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json({
+            transportVersion: 7,
+            state: 'completed',
+            items: [],
+            pendingFromIndex: null,
+            totalMs: 1,
+          }),
+        ),
+    );
+    await expect(persistCompactGradebookBatchV7([request()])).rejects.toThrow();
+  });
+
+  it('bounds a hung request without replaying it and clears its timer', async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal!.addEventListener(
+            'abort',
+            () => reject(new DOMException('synthetic timeout', 'AbortError')),
+            { once: true },
+          );
+        }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const outcome = persistCompactGradebookBatchV7([request()]).catch((cause: unknown) => cause);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(await outcome).toMatchObject({ name: 'AbortError' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('does not send a request when the caller has already cancelled', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(
+      persistCompactGradebookBatchV7([request()], controller.signal),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

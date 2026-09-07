@@ -193,7 +193,9 @@ async function validateAndGroup(
   if (!year || year.value.kind !== 'academic-year') return review('incompatible-reference');
 
   const assignments = new Map<string, TeachingAssignmentV1>();
-  for (const assignmentId of [...new Set(request.sheets.map((sheet) => sheet.teachingAssignmentId))]) {
+  for (const assignmentId of [
+    ...new Set(request.sheets.map((sheet) => sheet.teachingAssignmentId)),
+  ]) {
     const record = await unitOfWork.entities.get(context, {
       kind: 'teaching-assignment',
       id: assignmentId,
@@ -259,19 +261,21 @@ async function validateAndGroup(
           return review('incompatible-reference');
         }
         const key = groupKey(assignment.id, enrollment.studentId, enrollment.id);
-        const group = groups.get(key) ?? {
-          assignment,
-          enrollment,
-          studentId: enrollment.studentId,
-          termSheets: new Map(),
-          recovery: null,
-          termResults: new Map(),
-          importedFinalOutcome: null,
-          calculatedFinalOutcome: null,
-          importedApplicabilityEvidence: null,
-          annualImportedComponent: null,
-          annualCalculatedComponent: null,
-        } satisfies GroupV4;
+        const group =
+          groups.get(key) ??
+          ({
+            assignment,
+            enrollment,
+            studentId: enrollment.studentId,
+            termSheets: new Map(),
+            recovery: null,
+            termResults: new Map(),
+            importedFinalOutcome: null,
+            calculatedFinalOutcome: null,
+            importedApplicabilityEvidence: null,
+            annualImportedComponent: null,
+            annualCalculatedComponent: null,
+          } satisfies GroupV4);
         if (group.termSheets.has(sheet.term)) return review('invalid-academic-shape');
         group.termSheets.set(sheet.term, { sheet, student: observed });
         groups.set(key, group);
@@ -299,19 +303,21 @@ async function validateAndGroup(
         return review('incompatible-reference');
       }
       const key = groupKey(assignment.id, enrollment.studentId, enrollment.id);
-      const group = groups.get(key) ?? {
-        assignment,
-        enrollment,
-        studentId: enrollment.studentId,
-        termSheets: new Map(),
-        recovery: null,
-        termResults: new Map(),
-        importedFinalOutcome: null,
-        calculatedFinalOutcome: null,
-        importedApplicabilityEvidence: null,
-        annualImportedComponent: null,
-        annualCalculatedComponent: null,
-      } satisfies GroupV4;
+      const group =
+        groups.get(key) ??
+        ({
+          assignment,
+          enrollment,
+          studentId: enrollment.studentId,
+          termSheets: new Map(),
+          recovery: null,
+          termResults: new Map(),
+          importedFinalOutcome: null,
+          calculatedFinalOutcome: null,
+          importedApplicabilityEvidence: null,
+          annualImportedComponent: null,
+          annualCalculatedComponent: null,
+        } satisfies GroupV4);
       if (group.recovery !== null) return review('invalid-academic-shape');
       group.recovery = { sheet, student: observed };
       groups.set(key, group);
@@ -650,7 +656,12 @@ function existingImportedComponent(value: AnnualResultV1): ImportedAnnualCompone
     teachingAssignmentId: value.teachingAssignmentId,
     originalTotal: value.originalTotal.imported,
     postRecoveryTotal: value.postRecoveryTotal.imported,
-    coverage: value.coverage,
+    // AnnualResult.coverage summarizes the WHOLE curriculum, not this component.
+    // Both total fields were materialized for this record. The annual resolver still
+    // validates each value (including absence, insufficiency and range) independently.
+    // Feeding the aggregate back here recursively nests every other component's
+    // findings and prevents coverage from recovering when missing sources arrive.
+    coverage: completeAnnualComponentCoverage(),
   };
 }
 
@@ -659,7 +670,10 @@ function existingCalculatedComponent(value: AnnualResultV1): CalculatedAnnualCom
     teachingAssignmentId: value.teachingAssignmentId,
     originalTotal: value.originalTotal.calculated.value,
     postRecoveryTotal: value.postRecoveryTotal.calculated.value,
-    coverage: value.coverage,
+    // Never reuse imported curriculum coverage for the calculated projection.
+    // Its own stored totals retain the native resolver's unresolved states; those
+    // values, not another component's aggregate findings, determine its outcome.
+    coverage: completeAnnualComponentCoverage(),
   };
 }
 
@@ -678,7 +692,10 @@ async function materializeAnnualResults(
     if (!representative) continue;
     let curriculum: readonly TeachingAssignmentV1[];
     try {
-      curriculum = await loadOfficialAnnualCurriculumV1(annualStateSource, representative.enrollment);
+      curriculum = await loadOfficialAnnualCurriculumV1(
+        annualStateSource,
+        representative.enrollment,
+      );
     } catch {
       return review('invalid-academic-shape');
     }

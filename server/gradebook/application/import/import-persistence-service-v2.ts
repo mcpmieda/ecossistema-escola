@@ -122,10 +122,7 @@ export function classifyGradebookImportPersistenceBlockedPlanV1(input: {
 }): readonly [GradebookImportPersistenceIssueV2, ...GradebookImportPersistenceIssueV2[]] {
   const codes: GradebookImportPersistenceIssueV2['code'][] = [];
   if (input.blockedDefinitions > 0) codes.push('blocked-definition');
-  if (
-    input.blockedAcademicRecords > 0 ||
-    input.blockedComponents > input.blockedDefinitions
-  ) {
+  if (input.blockedAcademicRecords > 0 || input.blockedComponents > input.blockedDefinitions) {
     codes.push('planning-failed');
   }
   if (codes.length === 0) throw new TypeError('blocked-plan-without-cause');
@@ -484,6 +481,18 @@ export function createGradebookImportPersistenceServiceV4(
             0,
           ),
         );
+        // An infrastructure read failure is not an academic conflict. Preserve
+        // uncertainty so the client pauses and can explicitly resume this file.
+        if (
+          plan.files.some((file) =>
+            file.reasons.some((reason) => reason.code === 'reconciliation-read-failed'),
+          )
+        ) {
+          return {
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+            state: 'unavailable',
+          };
+        }
         if (plan.assessmentComponentPlanV2.counts.blocked > 0 || plan.counts.blocked > 0) {
           return {
             transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
