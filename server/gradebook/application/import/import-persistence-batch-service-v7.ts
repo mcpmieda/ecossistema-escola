@@ -10,17 +10,23 @@ import type {
   GradebookImportPersistenceResponseV6,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 
+export interface GradebookImportPersistenceBatchExecutionV7 {
+  readonly response: GradebookImportPersistenceResponseV6;
+  readonly retryableOperational: boolean;
+}
+
 export interface GradebookImportPersistenceBatchExecutorV7 {
-  execute(request: GradebookImportPersistenceRequestV6): Promise<GradebookImportPersistenceResponseV6>;
+  execute(request: GradebookImportPersistenceRequestV6): Promise<GradebookImportPersistenceBatchExecutionV7>;
 }
 
 export interface GradebookImportPersistenceBatchRuntimeV7 {
   readonly nowMs?: () => number;
   readonly sleep?: (ms: number) => Promise<void>;
+  readonly random?: () => number;
 }
 
 const RETRY_DELAY_MS_V7 = 200;
-const MAX_RETRY_FIRST_ATTEMPT_MS_V7 = 12_000;
+const RETRY_JITTER_MS_V7 = 200;
 
 function failureCategory(
   response: GradebookImportPersistenceResponseV6,
@@ -47,19 +53,24 @@ function successful(response: GradebookImportPersistenceResponseV6): boolean {
   return response.state === 'applied' || response.state === 'no-changes';
 }
 
-function retryable(response: GradebookImportPersistenceResponseV6, firstAttemptMs: number): boolean {
-  return (
-    (response.state === 'unavailable' || response.state === 'conflict') &&
-    firstAttemptMs <= MAX_RETRY_FIRST_ATTEMPT_MS_V7
-  );
+function retryable(execution: GradebookImportPersistenceBatchExecutionV7): boolean {
+  return execution.response.state === 'unavailable' && execution.retryableOperational;
 }
 
-function unavailable(): GradebookImportPersistenceResponseV6 {
-  return { transportVersion: 6, state: 'unavailable' };
+function unavailableExecution(): GradebookImportPersistenceBatchExecutionV7 {
+  return {
+    response: { transportVersion: 6, state: 'unavailable' },
+    retryableOperational: false,
+  };
 }
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelay(random: () => number): number {
+  const sample = Math.min(0.999_999, Math.max(0, random()));
+  return RETRY_DELAY_MS_V7 + Math.floor(sample * RETRY_JITTER_MS_V7);
 }
 
 export function createGradebookImportPersistenceBatchServiceV7(
@@ -68,6 +79,7 @@ export function createGradebookImportPersistenceBatchServiceV7(
 ) {
   const nowMs = runtime.nowMs ?? Date.now;
   const sleep = runtime.sleep ?? defaultSleep;
+  const random = runtime.random ?? Math.random;
 
   return {
     async execute(
@@ -80,27 +92,24 @@ export function createGradebookImportPersistenceBatchServiceV7(
       for (const [index, itemRequest] of request.requests.entries()) {
         const itemStartedAt = nowMs();
         let attempts: 1 | 2 = 1;
-        let firstAttemptMs: number;
-        let response: GradebookImportPersistenceResponseV6;
+        let execution: GradebookImportPersistenceBatchExecutionV7;
         try {
-          const firstStartedAt = nowMs();
-          response = await createExecutor().execute(itemRequest);
-          firstAttemptMs = nowMs() - firstStartedAt;
+          execution = await createExecutor().execute(itemRequest);
         } catch {
-          response = unavailable();
-          firstAttemptMs = nowMs() - itemStartedAt;
+          execution = unavailableExecution();
         }
 
-        if (retryable(response, firstAttemptMs)) {
+        if (retryable(execution)) {
           attempts = 2;
-          await sleep(RETRY_DELAY_MS_V7);
+          await sleep(retryDelay(random));
           try {
-            response = await createExecutor().execute(itemRequest);
+            execution = await createExecutor().execute(itemRequest);
           } catch {
-            response = unavailable();
+            execution = unavailableExecution();
           }
         }
 
+        const response = execution.response;
         const result: GradebookImportPersistenceBatchItemResultV7 = {
           index,
           attempts,
