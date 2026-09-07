@@ -25,6 +25,14 @@ import {
   isGradebookImportPersistenceBatchRequestV7,
   isGradebookImportPersistenceBatchResponseV7,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v7';
+import type {
+  AcademicEntityRecordV1,
+  VersionedRecordV1,
+} from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v1';
+import type {
+  ImportBootstrapTransactionPortV2,
+  PersistenceUnitOfWorkV2,
+} from '../../../src/gradebook-domain/ports/persistence/persistence-ports-v2';
 import { AuthenticationError, requireAuth } from '../../auth/session';
 import { AuthorizationError } from '../../auth/roles';
 import type { RuntimeEnv } from '../../env';
@@ -34,7 +42,11 @@ import {
   HttpError,
   readBoundedJson,
 } from '../../http/security';
-import { createGradebookImportPersistenceBatchServiceV7 } from '../application/import/import-persistence-batch-service-v7';
+import { createGradebookImportCatalogBatchReadCacheV1 } from '../application/import/import-catalog-bootstrap-read-cache-v1';
+import {
+  createGradebookImportPersistenceBatchServiceV7,
+  type GradebookImportPersistenceBatchRetryabilityV7,
+} from '../application/import/import-persistence-batch-service-v7';
 import { createGradebookImportPersistenceServiceV4 } from '../application/import/import-persistence-service-v2';
 import { createGradebookImportPersistenceServiceV5 } from '../application/import/import-persistence-service-v5';
 import { createGradebookImportPersistenceServiceV6 } from '../application/import/import-persistence-service-v6';
@@ -47,6 +59,7 @@ import {
   type GradebookD1BenchmarkSnapshotV1,
 } from '../persistence/d1/runtime/d1-benchmark-instrumentation-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
+import { isGradebookD1TransientTransactionErrorV1 } from '../persistence/d1/transaction/d1-batch-promotion-transaction-v1';
 import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
 import { handleGradebookImportStagingRequestV1 } from './import-staging-routes-v1';
 
@@ -260,21 +273,96 @@ export async function handleGradebookImportPersistenceRequestV4(
   };
 
   try {
-    const response =
-      version === 7 && isGradebookImportPersistenceBatchRequestV7(payload)
-        ? await createGradebookImportPersistenceBatchServiceV7(() => {
-            const dependencies = createDependencies();
-            return {
-              execute: (item) => createGradebookImportPersistenceServiceV6(dependencies).execute(item),
-            };
-          }).execute(payload)
-        : version === 6 && isGradebookImportPersistenceRequestV6(payload)
-          ? await createGradebookImportPersistenceServiceV6(createDependencies()).execute(payload)
-          : version === 5 && isGradebookImportPersistenceRequestV5(payload)
-            ? await createGradebookImportPersistenceServiceV5(createDependencies()).execute(payload)
-            : isGradebookImportPersistenceRequestV4(payload)
-              ? await createGradebookImportPersistenceServiceV4(createDependencies()).execute(payload)
-              : null;
+    let response:
+      | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceBatchServiceV7>['execute']>>
+      | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV6>['execute']>>
+      | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV5>['execute']>>
+      | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV4>['execute']>>
+      | null = null;
+
+    if (version === 7 && isGradebookImportPersistenceBatchRequestV7(payload)) {
+      const batchRuntime = createGradebookD1RuntimeV1(executionEnv, authorization);
+      const batchBaseUnitOfWork = batchRuntime.persistenceUnitOfWorkV2();
+      const batchCatalog = createGradebookImportCatalogBatchReadCacheV1(
+        batchBaseUnitOfWork.entities,
+      );
+
+      const createBatchDependencies = (
+        observeRetryability: (value: GradebookImportPersistenceBatchRetryabilityV7) => void,
+      ) => {
+        const unitOfWork = createGradebookImportSharedSourceReadCacheV1({
+          ...batchBaseUnitOfWork,
+          entities: batchCatalog.repository,
+        });
+        const baseTransaction = batchRuntime.importBootstrapTransactionV2();
+        const transaction: ImportBootstrapTransactionPortV2 = {
+          async runImportBootstrap<T>(context, bootstrapRequest, operation): Promise<T> {
+            const committedEntities: VersionedRecordV1<AcademicEntityRecordV1>[] = [];
+            try {
+              const result = await baseTransaction.runImportBootstrap(
+                context,
+                bootstrapRequest,
+                async (transactionUnitOfWork) => {
+                  const trackedUnitOfWork: PersistenceUnitOfWorkV2 = {
+                    ...transactionUnitOfWork,
+                    entities: {
+                      ...transactionUnitOfWork.entities,
+                      appendVersion: async (writeContext, record, expectation) => {
+                        const write = await transactionUnitOfWork.entities.appendVersion(
+                          writeContext,
+                          record,
+                          expectation,
+                        );
+                        if (write.status === 'written') committedEntities.push(write.record);
+                        return write;
+                      },
+                    },
+                  };
+                  return operation(trackedUnitOfWork);
+                },
+              );
+              batchCatalog.commit({ context, records: committedEntities });
+              return result;
+            } catch (cause) {
+              observeRetryability(
+                isGradebookD1TransientTransactionErrorV1(cause) ? 'transient-d1' : 'none',
+              );
+              throw cause;
+            }
+          },
+        };
+        return {
+          unitOfWork,
+          transaction,
+          annualStateSource: createGradebookD1ImportAnnualStateSourceV1(
+            executionEnv.GRADEBOOK_D1 as D1ReadDatabaseV1,
+          ),
+          now: () => new Date().toISOString(),
+          createId: (kind: 'logical-source' | 'manifest' | 'import-batch' | 'import-file') =>
+            `${kind}:${crypto.randomUUID()}`,
+        } satisfies Parameters<typeof createGradebookImportPersistenceServiceV4>[0];
+      };
+
+      response = await createGradebookImportPersistenceBatchServiceV7(() => ({
+        async execute(item) {
+          let retryability: GradebookImportPersistenceBatchRetryabilityV7 = 'none';
+          const dependencies = createBatchDependencies((value) => {
+            retryability = value;
+          });
+          const itemResponse = await createGradebookImportPersistenceServiceV6(
+            dependencies,
+          ).execute(item);
+          return { response: itemResponse, retryability };
+        },
+      })).execute(payload);
+    } else if (version === 6 && isGradebookImportPersistenceRequestV6(payload)) {
+      response = await createGradebookImportPersistenceServiceV6(createDependencies()).execute(payload);
+    } else if (version === 5 && isGradebookImportPersistenceRequestV5(payload)) {
+      response = await createGradebookImportPersistenceServiceV5(createDependencies()).execute(payload);
+    } else if (isGradebookImportPersistenceRequestV4(payload)) {
+      response = await createGradebookImportPersistenceServiceV4(createDependencies()).execute(payload);
+    }
+
     const timingHeaders = benchmarkHeaders(
       serviceStartedAt,
       benchmark?.snapshot() ?? null,
