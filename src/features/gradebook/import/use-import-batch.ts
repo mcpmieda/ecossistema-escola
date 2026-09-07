@@ -18,7 +18,10 @@ import {
 import { loadSheetJs, preloadSheetJs } from './sheetjs-loader';
 import { createCompactGradebookImportPersistenceRequestV6 } from './compact-import-v6';
 import { persistCompactGradebookFileV6 } from './import-persistence-client-v6';
-import { persistCompactGradebookBatchV7 } from './import-persistence-client-v7';
+import {
+  GradebookImportBatchTransportErrorV7,
+  persistCompactGradebookBatchV7,
+} from './import-persistence-client-v7';
 import { persistCompactGradebookFileStagedV1 } from './import-staging-client-v1';
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
 
@@ -285,7 +288,28 @@ export function useImportBatch() {
     });
 
     const startedAt = nowMs();
-    const response = await persistCompactGradebookBatchV7(prepared.map((item) => item.request));
+    let response: Awaited<ReturnType<typeof persistCompactGradebookBatchV7>>;
+    try {
+      response = await persistCompactGradebookBatchV7(prepared.map((item) => item.request));
+    } catch (cause) {
+      appendTiming('[gradebook-import-client-timing]', {
+        version: 1,
+        mode: 'batch-v7',
+        totalMs: elapsedMs(startedAt),
+        state: 'transport-failed',
+        itemCount: prepared.length,
+        failure:
+          cause instanceof GradebookImportBatchTransportErrorV7
+            ? {
+                kind: 'non-json-response',
+                httpStatus: cause.status,
+                contentKind: cause.contentKind,
+                responseMs: cause.totalMs,
+              }
+            : { kind: 'request-failed' },
+      });
+      throw cause;
+    }
     appendTiming('[gradebook-import-client-timing]', {
       version: 1,
       mode: 'batch-v7',
