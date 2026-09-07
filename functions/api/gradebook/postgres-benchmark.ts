@@ -178,7 +178,7 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
     const firstRows = await sql`
       select * from bn_benchmark.apply_snapshot(
         ${benchmarkId},
-        ${JSON.stringify(baseline)}::jsonb
+        ${sql.json(baseline)}::jsonb
       )
     `;
     const firstMs = milliseconds(firstStartedAt);
@@ -189,7 +189,7 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
     const noChangesRows = await sql`
       select * from bn_benchmark.apply_snapshot(
         ${benchmarkId},
-        ${JSON.stringify(baseline)}::jsonb
+        ${sql.json(baseline)}::jsonb
       )
     `;
     const noChangesMs = milliseconds(noChangesStartedAt);
@@ -200,7 +200,7 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
     const changedRows = await sql`
       select * from bn_benchmark.apply_snapshot(
         ${benchmarkId},
-        ${JSON.stringify(changed)}::jsonb
+        ${sql.json(changed)}::jsonb
       )
     `;
     const changedMs = milliseconds(changedStartedAt);
