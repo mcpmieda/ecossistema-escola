@@ -1,0 +1,40 @@
+name: BN 565 bootstrap Postgres.js
+
+on:
+  push:
+    branches:
+      - bench/bn-565-postgres-hyperdrive
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: bench/bn-565-postgres-hyperdrive
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Add pinned Postgres.js dependency
+        run: npm install --save-exact postgres@3.4.9
+
+      - name: Commit lockfile update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "chore(bn-565): add postgres driver for Hyperdrive"
+          git push origin HEAD:bench/bn-565-postgres-hyperdrive
