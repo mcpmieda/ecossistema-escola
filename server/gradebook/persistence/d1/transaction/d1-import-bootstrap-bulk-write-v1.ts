@@ -19,7 +19,8 @@ import {
   GradebookD1TransactionErrorV1,
 } from './d1-batch-promotion-transaction-v1';
 
-const MAX_BULK_JSON_BYTES_V1 = 1_750_000;
+const MAX_BULK_JSON_BYTES_V1 = 512 * 1024;
+const MAX_BULK_ROWS_V1 = 1_000;
 
 type EntityKindV1 = Exclude<AcademicEntityRecordV1['kind'], 'academic-year'>;
 
@@ -149,7 +150,12 @@ function chunkRows<T>(rows: readonly T[]): readonly { readonly rows: readonly T[
     const rowBytes = encoder.encode(serialized).byteLength;
     if (rowBytes + 2 > MAX_BULK_JSON_BYTES_V1) return fail();
     const separatorBytes = values.length === 0 ? 0 : 1;
-    if (bytes + separatorBytes + rowBytes > MAX_BULK_JSON_BYTES_V1) flush();
+    if (
+      values.length >= MAX_BULK_ROWS_V1 ||
+      bytes + separatorBytes + rowBytes > MAX_BULK_JSON_BYTES_V1
+    ) {
+      flush();
+    }
     values.push(row);
     encoded.push(serialized);
     bytes += (values.length === 1 ? 0 : 1) + rowBytes;
