@@ -1,3 +1,4 @@
+import type { ImportReconciliationPlanningOptionsV1 } from './import-reconciliation-v1';
 import type { ImportFileId } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
 import type { AssessmentComponentV2 } from '../../../../shared/gradebook-contracts/results/results-contract-v2';
 import type { AssessmentComponentV3 } from '../../../../shared/gradebook-contracts/results/results-contract-v3';
@@ -152,12 +153,13 @@ type AcademicRecordPlanningRepositoryV2 = ImportReconciliationRepositoriesV1['ac
   ) => Promise<readonly CurrentRecordV2[]>;
 };
 
-type AssociationPlanningRepositoryV2 = ImportReconciliationRepositoriesV1['logicalSourceRecords'] & {
-  readonly getCurrentMany?: (
-    context: AcademicPersistenceContextV1,
-    streams: readonly LogicalSourceRecordAssociationStreamV1[],
-  ) => Promise<readonly CurrentAssociationV2[]>;
-};
+type AssociationPlanningRepositoryV2 =
+  ImportReconciliationRepositoriesV1['logicalSourceRecords'] & {
+    readonly getCurrentMany?: (
+      context: AcademicPersistenceContextV1,
+      streams: readonly LogicalSourceRecordAssociationStreamV1[],
+    ) => Promise<readonly CurrentAssociationV2[]>;
+  };
 
 export interface AssessmentImportReconciliationRepositoriesV2 extends ImportReconciliationRepositoriesV1 {
   readonly entities: AssessmentEntityPlanningRepositoryV2;
@@ -353,8 +355,7 @@ async function planComponents(
 }
 
 type CachedReadV2<T> =
-  | { readonly state: 'ready'; readonly value: T | null }
-  | { readonly state: 'failed' };
+  { readonly state: 'ready'; readonly value: T | null } | { readonly state: 'failed' };
 
 function associationCacheKey(stream: LogicalSourceRecordAssociationStreamV1): string {
   return `${stream.logicalSourceId}\u0000${stream.stableKey}`;
@@ -394,7 +395,8 @@ function planningRepositoriesWithBulkPrefetch(
     const load = (async () => {
       const union = new Map<string, AcademicRecordStreamV1>();
       for (const stream of indexed) union.set(academicRecordStreamKeyV1(stream), stream);
-      for (const [key, stream] of incomingBySource.get(logicalSourceId) ?? []) union.set(key, stream);
+      for (const [key, stream] of incomingBySource.get(logicalSourceId) ?? [])
+        union.set(key, stream);
       const entries = [...union.entries()].filter(([key]) => !recordCache.has(key));
       if (entries.length === 0) return;
       try {
@@ -480,6 +482,7 @@ function planningRepositoriesWithBulkPrefetch(
 export async function planAssessmentImportReconciliationV2(
   input: AssessmentImportReconciliationInputV2,
   repositories: AssessmentImportReconciliationRepositoriesV2,
+  options: ImportReconciliationPlanningOptionsV1 = {},
 ): Promise<AssessmentImportChangePlanV2> {
   const assessmentComponentPlanV2 = await planComponents(input, repositories.entities);
   const blockedComponentKeys = new Set(
@@ -518,6 +521,7 @@ export async function planAssessmentImportReconciliationV2(
   const recordPlan = await planImportReconciliation(
     recordsInput,
     planningRepositoriesWithBulkPrefetch(recordsInput, repositories),
+    options,
   );
   return { ...recordPlan, assessmentComponentPlanV2 };
 }

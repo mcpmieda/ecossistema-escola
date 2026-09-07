@@ -211,6 +211,7 @@ export function NotesImportPanel() {
     selectedResult,
     setSelectedId,
     timingDiagnostics,
+    sourceValueWarnings,
     totals,
   } = useImportBatch();
 
@@ -241,9 +242,9 @@ export function NotesImportPanel() {
             <h3 className="text-lg font-semibold">Importar planilhas</h3>
           </div>
           <p className="mt-2 text-sm text-muted">
-            Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. O arquivo é aberto e
-            organizado localmente; somente o pacote acadêmico mínimo é enviado ao Banco de Notas e
-            persistido automaticamente.
+            Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. O arquivo é lido
+            localmente. Somente os valores atuais dos campos acadêmicos são enviados, sem fórmulas.
+            Nas notas, 0 significa vazio e 0,1 significa zero explícito.
           </p>
         </div>
         <Button
@@ -370,7 +371,7 @@ export function NotesImportPanel() {
                 </div>
                 <FileHash sha256={result.manifest.sha256} />
                 <p className="mt-2 text-xs text-muted">
-                  Processamento local V6 · persistência automática
+                  Importação por valores V8 · 0 = vazio · 0,1 = zero explícito
                 </p>
               </Surface>
             ))}
@@ -414,6 +415,19 @@ export function NotesImportPanel() {
           {selectedResult && (
             <>
               <WorkbookInspector result={selectedResult} />
+              {(sourceValueWarnings[selectedResult.id] ?? 0) > 0 && (
+                <Alert status="warning" className="mt-5">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>Valores de origem indisponíveis</Alert.Title>
+                    <Alert.Description>
+                      {sourceValueWarnings[selectedResult.id]} célula(s) apresentam erro ou fórmula
+                      sem resultado salvo. Esses valores não foram inventados nem tratados como
+                      zero. Recalcule e salve a planilha no Excel antes de reimportar.
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
               <PersistenceResult state={selectedPersistence} />
               <TimingDiagnostics
                 visible={

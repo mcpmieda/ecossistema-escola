@@ -579,6 +579,7 @@ async function materializeFinalRecovery(
 async function materializeAnnualComponents(
   request: GradebookImportPersistenceRequestV4,
   groups: Map<string, GroupV4>,
+  sourceValues = false,
 ): Promise<void> {
   for (const group of groups.values()) {
     const importedFinal = group.importedFinalOutcome;
@@ -611,7 +612,22 @@ async function materializeAnnualComponents(
       recoveryOriginalAnnual: present(recoveryOriginal),
     });
     if (original.state === 'review-required') return review('invalid-academic-shape');
-    if (original.state !== 'resolved') continue;
+    if (original.state !== 'resolved' && !sourceValues) continue;
+    // Value snapshots explicitly carry unavailable annual totals. This lets a
+    // newer source retire an old zero-placeholder by a new version, not deletion.
+    const originalValue: ImportedGradeValueV1 =
+      original.state === 'resolved'
+        ? original.value
+        : {
+            value: {
+              state: 'insufficient-data',
+              reason: 'final-annual-original-total-unavailable',
+            },
+            evidence:
+              t3Annual?.evidence ??
+              recoveryOriginal?.evidence ??
+              group.termResults.values().next().value!.officialGrade.imported.evidence,
+          };
     const recoveryTotal = recovery
       ? materializedCell({
           request,
@@ -624,11 +640,18 @@ async function materializeAnnualComponents(
       : null;
     const postRecovery = resolveImportedPostRecoveryTotalV1({
       recoveryTotalAfterRecovery: present(recoveryTotal),
-      originalTotal: original.value,
-      applicabilityEvidence: group.importedApplicabilityEvidence ?? original.value.evidence,
+      originalTotal: originalValue,
+      applicabilityEvidence: group.importedApplicabilityEvidence ?? originalValue.evidence,
       importedFinalRecoveryOutcome: importedFinal,
     });
-    if (postRecovery.state !== 'resolved') continue;
+    if (postRecovery.state !== 'resolved' && !sourceValues) continue;
+    const postRecoveryValue: ImportedGradeValueV1 =
+      postRecovery.state === 'resolved'
+        ? postRecovery.value
+        : {
+            value: { state: 'insufficient-data', reason: 'post-recovery-total-unavailable' },
+            evidence: recoveryTotal?.evidence ?? originalValue.evidence,
+          };
     group.annualImportedComponent = {
       id: (await opaqueId('annual-result:v1', [
         request.confirmedContext.academicYearId,
@@ -637,8 +660,8 @@ async function materializeAnnualComponents(
         group.assignment.id,
       ])) as AnnualResultId,
       teachingAssignmentId: group.assignment.id,
-      originalTotal: original.value,
-      postRecoveryTotal: postRecovery.value,
+      originalTotal: originalValue,
+      postRecoveryTotal: postRecoveryValue,
       coverage: completeAnnualComponentCoverage(),
     };
     group.annualCalculatedComponent = {
@@ -751,15 +774,24 @@ export async function materializeGradebookImportOfficialRecordsV4(input: {
   readonly request: GradebookImportPersistenceRequestV4;
   readonly unitOfWork: PersistenceUnitOfWorkV2;
   readonly annualStateSource: GradebookImportAnnualStateSourceV1;
+  readonly sourceValues?: boolean;
 }): Promise<GradebookImportOfficialRecordMaterializationV4> {
   try {
     const groups = await validateAndGroup(input.request, input.unitOfWork);
     const records: GradebookImportOfficialRecordV4[] = [];
     await materializeTermResults(input.request, groups, records);
     await materializeFinalRecovery(input.request, groups, records);
-    await materializeAnnualComponents(input.request, groups);
+    await materializeAnnualComponents(input.request, groups, input.sourceValues);
     await materializeAnnualResults(input.request, groups, input.annualStateSource, records);
-    return { status: 'ready', records };
+    return {
+      status: 'ready',
+      records: input.sourceValues
+        ? (records.map((record) => ({
+            ...record,
+            value: { ...record.value, ruleVersion: `${record.value.ruleVersion}:source-values-v5` },
+          })) as GradebookImportOfficialRecordV4[])
+        : records,
+    };
   } catch (cause) {
     if (cause instanceof ReviewRequiredV4) {
       return { status: 'review-required', reason: cause.reason };

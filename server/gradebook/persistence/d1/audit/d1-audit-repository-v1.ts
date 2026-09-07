@@ -1,3 +1,4 @@
+import { isSnapshotSourceEvidenceV5 } from '../../../../../shared/gradebook-contracts/source/source-values-contract-v5';
 import type {
   AuditEntityReferenceV1,
   AuditOccurrenceStateTransitionV1,
@@ -6,7 +7,7 @@ import type {
   ReconciliationResultV1,
   ReconciliationTargetV1,
 } from '../../../../../shared/gradebook-contracts/audit/audit-contract-v1';
-import type { SourceCellEvidenceV1 } from '../../../../../shared/gradebook-contracts/source/source-contract-v1';
+import type { CompatibleSourceCellEvidenceV5 as SourceCellEvidenceV1 } from '../../../../../shared/gradebook-contracts/source/source-values-contract-v5';
 import type {
   AcademicGradeValueV1,
   ComparedGradeValueV1,
@@ -193,6 +194,7 @@ function validRawValue(value: unknown): boolean {
 }
 
 function validEvidence(value: unknown): value is SourceCellEvidenceV1 {
+  if (isSnapshotSourceEvidenceV5(value)) return true;
   if (!isObject(value) || !isObject(value.provenance)) return false;
   const provenance = value.provenance;
   if (

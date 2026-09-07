@@ -2,11 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AcademicYearId } from '../../../../shared/gradebook-contracts/entities';
 import { OPERATIONAL_WORKSPACE_TRANSPORT_VERSION_V1 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v1';
 import type { GradebookImportPersistenceResponseV5 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
-import {
-  isGradebookImportPersistenceRequestV6,
-  type GradebookImportPersistenceRequestV6,
-  type GradebookImportPersistenceResponseV6,
-} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
+import { type GradebookImportPersistenceResponseV6 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 import {
   countWorkbookOperationalClassesV1,
   importWorkbookBatch,
@@ -16,12 +12,12 @@ import {
   type ImportWorkbookFileTimingV1,
 } from './import-batch';
 import { loadSheetJs, preloadSheetJs } from './sheetjs-loader';
-import { createCompactGradebookImportPersistenceRequestV6 } from './compact-import-v6';
+import { createGradebookValuesSnapshotV8 } from './compact-import-v8';
 import {
-  GradebookImportBatchTransportErrorV7,
-  persistCompactGradebookBatchV7,
-} from './import-persistence-client-v7';
-import { persistCompactGradebookFileStagedV1 } from './import-staging-client-v1';
+  isGradebookImportPersistenceRequestV8,
+  type GradebookImportPersistenceRequestV8,
+} from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8';
+import { persistGradebookValuesSnapshotV8 } from './import-persistence-client-v8';
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
 
 export type ImportPersistenceStateV5 =
@@ -58,7 +54,7 @@ type ImportBootstrapOutcomeV1 =
 type ImportPersistenceRunResultV1 = 'completed' | 'auth-required' | 'confirmation-required';
 type PreparedPersistenceV7 = {
   readonly result: BatchSuccess;
-  readonly request: GradebookImportPersistenceRequestV6;
+  readonly request: GradebookImportPersistenceRequestV8;
 };
 
 function failureMessage(cause: unknown, fallback: string): string {
@@ -86,14 +82,6 @@ function startImportBootstrapV1(): Promise<ImportBootstrapOutcomeV1> {
   }).then(
     (response) => ({ state: 'fulfilled', response }),
     (cause: unknown) => ({ state: 'rejected', cause }),
-  );
-}
-
-function needsStagingFallbackV1(response: GradebookImportPersistenceResponseV6): boolean {
-  return (
-    response.state === 'invalid-request' &&
-    'reason' in response &&
-    response.reason === 'payload-too-large'
   );
 }
 
@@ -127,6 +115,7 @@ export function useImportBatch() {
   const [progress, setProgress] = useState<ImportFlowProgressV6 | null>(null);
   const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV6>>({});
   const [timingDiagnostics, setTimingDiagnostics] = useState<string[]>([]);
+  const [sourceValueWarnings, setSourceValueWarnings] = useState<Record<string, number>>({});
 
   useEffect(() => {
     preloadSheetJs();
@@ -188,21 +177,32 @@ export function useImportBatch() {
     if (!teacherName) throw new Error('Professor não reconhecido em CONFIGURAÇÃO!A2.');
 
     const compactStartedAt = nowMs();
-    const request = createCompactGradebookImportPersistenceRequestV6(
+    const request = createGradebookValuesSnapshotV8(
       result,
       { academicYearId: year.id as AcademicYearId, teacherName },
       {
         onProgress: (value) => setProgress({ ...value, fileName: result.manifest.fileName }),
       },
     );
+    let unavailableCells = 0;
+    for (const course of request.courses) {
+      for (const term of course.terms)
+        for (const [, cells] of term.rows)
+          unavailableCells += Object.values(cells).filter(Array.isArray).length;
+      for (const [, , cells] of course.recovery?.rows ?? [])
+        unavailableCells += Object.values(cells).filter(Array.isArray).length;
+    }
+    setSourceValueWarnings((current) => ({ ...current, [result.id]: unavailableCells }));
     appendTiming('[gradebook-import-browser-timing]', {
       version: 1,
       stage: 'compact-file',
+      unavailableCells,
+      payloadBytes: new TextEncoder().encode(JSON.stringify(request)).byteLength,
       totalMs: elapsedMs(compactStartedAt),
       courseCount: request.courses.length,
       rosterCount: request.rosters.length,
     });
-    if (!isGradebookImportPersistenceRequestV6(request)) {
+    if (!isGradebookImportPersistenceRequestV8(request)) {
       throw new Error('Pacote acadêmico compacto não passou na validação local.');
     }
     return { result, request };
@@ -216,81 +216,36 @@ export function useImportBatch() {
     setPersistence((current) => ({ ...current, [result.id]: { state: 'persisting' } }));
     setProgress({ current: index, total, fileName: result.manifest.fileName, stage: 'saving' });
     const startedAt = nowMs();
-    let batch: Awaited<ReturnType<typeof persistCompactGradebookBatchV7>>;
+    let response: GradebookImportPersistenceResponseV6;
     try {
-      // One file per HTTP request. V7 retains the server's narrow D1 retry policy;
-      // a transport failure is never automatically replayed by this queue.
-      batch = await persistCompactGradebookBatchV7([request], undefined, (diagnostic) => {
-        appendTiming('[gradebook-import-server-failure]', diagnostic);
+      const result = await persistGradebookValuesSnapshotV8(request, (diagnostic) =>
+        appendTiming('[gradebook-import-server-failure]', diagnostic),
+      );
+      response = result.response;
+      appendTiming('[gradebook-import-client-timing]', {
+        version: 1,
+        mode: 'values-v8',
+        index,
+        total,
+        totalMs: elapsedMs(startedAt),
+        serverMs: result.serverMs,
+        state: response.state,
+        attempts: 1,
       });
     } catch (cause) {
       appendTiming('[gradebook-import-client-timing]', {
         version: 1,
-        mode: 'file-v7',
+        mode: 'values-v8',
         index,
         total,
         totalMs: elapsedMs(startedAt),
         state: 'transport-failed',
-        failure:
-          cause instanceof GradebookImportBatchTransportErrorV7
-            ? { httpStatus: cause.status, contentKind: cause.contentKind }
-            : { kind: 'request-failed' },
       });
       throw cause;
-    }
-    appendTiming('[gradebook-import-client-timing]', {
-      version: 1,
-      mode: 'file-v7',
-      index,
-      total,
-      totalMs: elapsedMs(startedAt),
-      state: batch.state,
-      items:
-        'items' in batch
-          ? batch.items.map((item) => ({
-              attempts: item.attempts,
-              totalMs: item.totalMs,
-              state: item.response.state,
-              failureCategory: item.failureCategory,
-            }))
-          : [],
-    });
-    if (batch.state === 'not-authorized') {
-      markAuthorizationRequired(result);
-      return 'auth-required';
-    }
-    if (batch.state === 'unavailable')
-      throw new Error('Persistência temporariamente indisponível.');
-    let response: GradebookImportPersistenceResponseV6;
-    if (batch.state === 'invalid-request') {
-      response = { transportVersion: 6, state: 'invalid-request', reason: batch.reason };
-    } else {
-      const item = batch.items[0];
-      if (batch.items.length !== 1 || item?.index !== 0) {
-        throw new Error('Resposta incompleta ao confirmar a planilha.');
-      }
-      response = item.response;
     }
     if (isGradebookImportAuthorizationRequiredV1(response)) {
       markAuthorizationRequired(result);
       return 'auth-required';
-    }
-    if (needsStagingFallbackV1(response)) {
-      response = await persistCompactGradebookFileStagedV1(
-        request,
-        () =>
-          setProgress({
-            current: index,
-            total,
-            fileName: result.manifest.fileName,
-            stage: 'saving',
-          }),
-        (timing) => appendTiming('[gradebook-import-client-timing]', timing),
-      );
-      if (isGradebookImportAuthorizationRequiredV1(response)) {
-        markAuthorizationRequired(result);
-        return 'auth-required';
-      }
     }
     if (response.state === 'unavailable') {
       throw new Error('Não foi possível confirmar a gravação desta planilha.');
@@ -396,6 +351,7 @@ export function useImportBatch() {
     setSelectedId(null);
     setPersistence({});
     setTimingDiagnostics([]);
+    setSourceValueWarnings({});
 
     const bootstrapPromise = startImportBootstrapV1();
 
@@ -407,6 +363,7 @@ export function useImportBatch() {
       const fileTimings: ImportWorkbookFileTimingV1[] = [];
       const batchStartedAt = nowMs();
       const batch = await importWorkbookBatch(files, xlsx, () => undefined, {
+        captureValues: true,
         onStageProgress: (value) => setProgress(value),
         onFileTiming: (value) => fileTimings.push(value),
       });
@@ -467,6 +424,7 @@ export function useImportBatch() {
     selectedResult,
     setSelectedId,
     timingDiagnostics,
+    sourceValueWarnings,
     totals,
   };
 }

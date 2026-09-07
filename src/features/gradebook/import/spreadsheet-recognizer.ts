@@ -22,7 +22,22 @@ type Cell = {
   v?: unknown;
   w?: string;
   f?: string;
+  t?: string;
 };
+
+/** Capture only a saved scalar. A saved empty string is blank, not a missing cache. */
+export function snapshotRawCellV8(
+  cell: Cell | undefined,
+):
+  | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+  | undefined {
+  if (!cell) return undefined;
+  if (cell.t === 'e' || (cell.f && (cell.v === undefined || cell.v === null))) return ['u'];
+  if (typeof cell.v === 'number') return Number.isFinite(cell.v) ? cell.v : ['u'];
+  if (typeof cell.v === 'boolean') return cell.v;
+  if (typeof cell.v === 'string') return cell.v.trim() === '' ? undefined : cell.v;
+  return cell.v === undefined || cell.v === null ? undefined : ['u'];
+}
 
 export type Worksheet = {
   '!ref'?: string;
@@ -50,6 +65,7 @@ export type NoteValue = {
   value: number;
   kind: 'manual' | 'formula' | 'official-zero' | 'legacy-zero' | 'negative';
   formula?: string;
+  snapshotState?: 'value' | 'unavailable';
 };
 
 export type RecoveryResultObservationsV4 = {
@@ -101,11 +117,18 @@ export type StudentRecognition = {
 
 export interface WorkbookRecognitionSourceV2 {
   readonly fileSha256: string;
+  readonly captureValues?: boolean;
 }
 
 export type GradeStage = 'overview' | 'trimester-1' | 'trimester-2' | 'trimester-3' | 'recovery';
 
 export type GradeSheetRecognition = {
+  snapshotCellsV8?: Readonly<
+    Record<
+      string,
+      import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+    >
+  >;
   name: string;
   range: string;
   rows: number;
@@ -716,6 +739,43 @@ export function recognizeWorkbook(
     const sheet = workbook.Sheets[name];
     if (!sheet) return [];
     const recognized = recognizeGradeSheet(file.name, source.fileSha256, name, sheet, xlsx);
+    if (recognized && source.captureValues) {
+      const cells: Record<
+        string,
+        import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+      > = {};
+      const columns =
+        recognized.stage === 'recovery'
+          ? ['R', 'S', 'T', 'U', 'X', 'Y', 'AA', 'AB', 'AC', 'AD', 'AE']
+          : [
+              'R',
+              'S',
+              'T',
+              'Z',
+              'AA',
+              'AB',
+              'AC',
+              'AD',
+              'AE',
+              'AF',
+              'AG',
+              'AH',
+              'AI',
+              'AJ',
+              'AK',
+              'AM',
+              'AN',
+            ];
+      for (const student of recognized.students)
+        for (const col of columns) {
+          const addr = `${col}${student.row}`;
+          const cell = cellAt(sheet, addr);
+          if (!cell) continue;
+          const value = snapshotRawCellV8(cell);
+          if (value !== undefined) cells[addr] = value;
+        }
+      recognized.snapshotCellsV8 = cells;
+    }
     return recognized ? [recognized] : [];
   });
   const recognizedNames = new Set(gradeSheets.map((sheet) => sheet.name));

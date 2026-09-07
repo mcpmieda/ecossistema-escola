@@ -233,6 +233,8 @@ export interface DeterministicReprocessPlanningV2 {
 }
 
 export interface ImportReconciliationPlanningOptionsV1 {
+  /** Trusted prospective values policy; a known binary hash can have newly defined semantics. */
+  readonly recompareKnownContent?: boolean;
   readonly deterministicReprocess?: DeterministicReprocessPlanningV2;
 }
 
@@ -741,7 +743,9 @@ async function planConfirmedNewContent(input: {
     },
   );
   const associationWrites = await mapWithBoundedConcurrencyV1(
-    plannedStreams.filter(({ incoming, current, unchanged }) => incoming && (!current || !unchanged)),
+    plannedStreams.filter(
+      ({ incoming, current, unchanged }) => incoming && (!current || !unchanged),
+    ),
     IMPORT_PLANNER_READ_CONCURRENCY_V1,
     async ({ stableKey, stream, current }) => ({
       stableKey,
@@ -1019,6 +1023,7 @@ async function planApprovedFile(input: {
   diagnostics: readonly ImportFileDiagnosticV1[];
   repositories: ImportReconciliationRepositoriesV1;
   deterministicReprocess?: DeterministicReprocessPlanningV2;
+  recompareKnownContent?: boolean;
 }): Promise<ImportFileChangePlanV1> {
   const manifest = input.batchFile.manifest;
   if (!manifest) {
@@ -1079,6 +1084,30 @@ async function planApprovedFile(input: {
         deterministicReprocess: input.deterministicReprocess,
         repositories: input.repositories,
       });
+    }
+
+    if (input.recompareKnownContent) {
+      if (
+        input.fileInput.logicalSource.state !== 'confirmed' ||
+        input.fileInput.logicalSource.logicalSourceId !== knownLogicalSource.logicalSourceId
+      ) {
+        throw new FilePlanningBlockedError(
+          reason(
+            'deterministic-reprocess-logical-source-mismatch',
+            'A fonte confirmada não corresponde ao conteúdo conhecido.',
+          ),
+        );
+      }
+      const rechecked = await planConfirmedNewContent({
+        context: input.context,
+        batchFile: { ...input.batchFile, manifest },
+        fileInput: input.fileInput,
+        logicalSource: knownLogicalSource,
+        diagnostics: input.diagnostics,
+        recordsByKey,
+        repositories: input.repositories,
+      });
+      return { ...rechecked, contentIdentity };
     }
 
     const renamed = contentIdentity.observedFileNameChanged;
@@ -1320,6 +1349,7 @@ export async function planImportReconciliation(
           fileInput,
           diagnostics,
           repositories,
+          recompareKnownContent: options.recompareKnownContent,
           ...(deterministicReprocess?.importFileId === batchFile.id
             ? { deterministicReprocess }
             : {}),

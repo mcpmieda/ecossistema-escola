@@ -1,3 +1,10 @@
+import {
+  inspectGradebookImportPersistenceRequestV8,
+  isGradebookImportPersistenceRequestV8,
+  isGradebookImportPersistenceResponseV8,
+  type GradebookImportPersistenceResponseV8,
+} from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v8';
+import { createGradebookImportPersistenceServiceV8 } from '../application/import/import-persistence-service-v8';
 import { GRADEBOOK_IMPORT_FAILURE_HEADER_V1 } from '../../../shared/gradebook-import-diagnostics-v1';
 import { createGradebookImportFailureCollectorV1 } from '../application/import/import-failure-diagnostics-v1';
 import {
@@ -105,8 +112,9 @@ function state(
   );
 }
 
-function declaredVersion(payload: unknown): 4 | 5 | 6 | 7 {
+function declaredVersion(payload: unknown): 4 | 5 | 6 | 7 | 8 {
   if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload) {
+    if (payload.transportVersion === 8) return 8;
     if (payload.transportVersion === GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V7) return 7;
     if (payload.transportVersion === GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V6) return 6;
     if (payload.transportVersion === GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V5) return 5;
@@ -215,22 +223,26 @@ export async function handleGradebookImportPersistenceRequestV4(
     );
   }
   const inspection =
-    version === 7
-      ? inspectGradebookImportPersistenceBatchRequestV7(payload)
-      : version === 6
-        ? inspectGradebookImportPersistenceRequestV6(payload)
-        : version === 5
-          ? inspectGradebookImportPersistenceRequestV5(payload)
-          : inspectGradebookImportPersistenceRequestV4(payload);
+    version === 8
+      ? inspectGradebookImportPersistenceRequestV8(payload)
+      : version === 7
+        ? inspectGradebookImportPersistenceBatchRequestV7(payload)
+        : version === 6
+          ? inspectGradebookImportPersistenceRequestV6(payload)
+          : version === 5
+            ? inspectGradebookImportPersistenceRequestV5(payload)
+            : inspectGradebookImportPersistenceRequestV4(payload);
   const compatible =
     inspection === 'ready' &&
-    (version === 7
-      ? true
-      : version === 6
-        ? isGradebookImportPersistenceRequestV6(payload)
-        : version === 5
-          ? isGradebookImportPersistenceRequestV5(payload)
-          : isGradebookImportPersistenceRequestV4(payload));
+    (version === 8
+      ? isGradebookImportPersistenceRequestV8(payload)
+      : version === 7
+        ? true
+        : version === 6
+          ? isGradebookImportPersistenceRequestV6(payload)
+          : version === 5
+            ? isGradebookImportPersistenceRequestV5(payload)
+            : isGradebookImportPersistenceRequestV4(payload));
   const inspectMs = Date.now() - inspectStartedAt;
   if (!compatible) {
     return noStore(
@@ -289,6 +301,7 @@ export async function handleGradebookImportPersistenceRequestV4(
 
   try {
     let response:
+      | GradebookImportPersistenceResponseV8
       | Awaited<
           ReturnType<ReturnType<typeof createGradebookImportPersistenceBatchServiceV7>['execute']>
         >
@@ -297,7 +310,15 @@ export async function handleGradebookImportPersistenceRequestV4(
       | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV4>['execute']>>
       | null = null;
 
-    if (version === 7) {
+    if (version === 8 && isGradebookImportPersistenceRequestV8(payload)) {
+      const observed = observeGradebookD1RetryableTransientsV1(
+        executionEnv.GRADEBOOK_D1 as D1WriteDatabaseV1,
+        failures.d1,
+      );
+      response = await createGradebookImportPersistenceServiceV8(
+        createDependencies(observed.database),
+      ).execute(payload);
+    } else if (version === 7) {
       const batchCatalog = createGradebookImportBatchCatalogReadCacheV1();
       response = await createGradebookImportPersistenceBatchServiceV7(() => {
         const attemptFailures = createGradebookImportFailureCollectorV1();
@@ -396,13 +417,15 @@ export async function handleGradebookImportPersistenceRequestV4(
     }
 
     const valid =
-      version === 7
-        ? isGradebookImportPersistenceBatchResponseV7(response)
-        : version === 6
-          ? isGradebookImportPersistenceResponseV6(response)
-          : version === 5
-            ? isGradebookImportPersistenceResponseV5(response)
-            : isGradebookImportPersistenceResponseV4(response);
+      version === 8
+        ? isGradebookImportPersistenceResponseV8(response)
+        : version === 7
+          ? isGradebookImportPersistenceBatchResponseV7(response)
+          : version === 6
+            ? isGradebookImportPersistenceResponseV6(response)
+            : version === 5
+              ? isGradebookImportPersistenceResponseV5(response)
+              : isGradebookImportPersistenceResponseV4(response);
     const unavailable =
       response.state === 'unavailable' ||
       ('items' in response && response.items.some((item) => item.response.state === 'unavailable'));

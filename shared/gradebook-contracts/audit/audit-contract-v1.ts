@@ -17,7 +17,7 @@ import type {
   GradeEntryId,
   TermResultId,
 } from '../results/results-contract-v1';
-import type { SourceCellEvidenceV1 } from '../source/source-contract-v1';
+import type { CompatibleSourceCellEvidenceV5 as SourceCellEvidenceV1 } from '../source/source-values-contract-v5';
 import type { ImportBatchId, SourceFileManifestId } from '../imports/import-ids-v1';
 
 export type ReconciliationResultId = EntityIdV1<'ReconciliationResultV1'>;
@@ -130,9 +130,7 @@ export interface AuditDismissedTransitionV1 {
 }
 
 export type AuditOccurrenceStateTransitionV1 =
-  | AuditAcknowledgedTransitionV1
-  | AuditResolvedTransitionV1
-  | AuditDismissedTransitionV1;
+  AuditAcknowledgedTransitionV1 | AuditResolvedTransitionV1 | AuditDismissedTransitionV1;
 
 interface AuditOccurrenceBaseV1 {
   readonly id: AuditOccurrenceId;

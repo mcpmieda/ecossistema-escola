@@ -1,3 +1,4 @@
+import { SNAPSHOT_ASSESSMENT_RULE_V5 } from '../../../../shared/gradebook-contracts/source/source-values-contract-v5';
 import type {
   AcademicYearId,
   EnrollmentId,
@@ -29,7 +30,7 @@ import {
   resolveSourceAssessmentDefinitionV4,
   type SourceAssessmentDefinitionResolutionV4,
 } from '../../../../shared/gradebook-contracts/source/source-contract-v4';
-import type { SourceCellEvidenceV1 } from '../../../../shared/gradebook-contracts/source/source-contract-v1';
+import type { CompatibleSourceCellEvidenceV5 as SourceCellEvidenceV1 } from '../../../../shared/gradebook-contracts/source/source-values-contract-v5';
 import type {
   GradeSheetRecognition,
   NoteValue,
@@ -142,6 +143,9 @@ function valueColumn(slot: SourceAssessmentSlotV2): string {
 }
 
 function academicValue(note: NoteValue): AcademicGradeValueV1 {
+  if (note.snapshotState === 'unavailable')
+    return { state: 'insufficient-data', reason: 'snapshot-value-unavailable' };
+  if (note.snapshotState === 'value' && note.source === 0) return { state: 'absent' };
   if (note.kind === 'official-zero') {
     return { state: 'official-zero', value: 0, sourceMarker: 0.1 };
   }
@@ -159,6 +163,10 @@ function sourceEvidence(
   },
 ): SourceCellEvidenceV1 {
   const provenance = input;
+  if (note.snapshotState)
+    return note.snapshotState === 'unavailable'
+      ? { classification: 'snapshot-unavailable', rawValue: null, provenance }
+      : { classification: 'snapshot-value', rawValue: note.source, provenance };
   if (note.kind === 'official-zero') {
     return { classification: 'manual-official-zero-marker', rawValue: 0.1, provenance };
   }
@@ -224,7 +232,9 @@ async function gradeEntry(
       calculated: { value: semanticValue },
     },
     authorityMode: 'imported-source',
-    ruleVersion: ASSESSMENT_IMPORT_RULE_VERSION_V3,
+    ruleVersion: note.snapshotState
+      ? SNAPSHOT_ASSESSMENT_RULE_V5
+      : ASSESSMENT_IMPORT_RULE_VERSION_V3,
     version: 1,
   };
 }

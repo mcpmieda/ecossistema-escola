@@ -1,6 +1,6 @@
+import type { CompatibleSourceCellEvidenceV5 as SourceCellEvidenceV1 } from '../../../shared/gradebook-contracts/source/source-values-contract-v5';
+type SourceCellClassificationV1 = SourceCellEvidenceV1['classification'];
 import type {
-  SourceCellClassificationV1,
-  SourceCellEvidenceV1,
   SourceCellProvenanceV1,
   SourceCellRawValueV1,
 } from '../../../shared/gradebook-contracts/source/source-contract-v1';
@@ -112,6 +112,50 @@ export function interpretSourceCell(
   }
 
   switch (evidence.classification) {
+    case 'snapshot-unavailable':
+      return result(
+        evidence,
+        { state: 'insufficient-data', reason: 'snapshot-value-unavailable' },
+        false,
+        false,
+        [
+          occurrence(
+            evidence,
+            'formula-error-or-missing-cache',
+            'The source has no valid saved value.',
+            'Recalculate and save the original workbook before importing again.',
+          ),
+        ],
+      );
+    case 'snapshot-value': {
+      const value = evidence.rawValue;
+      if (value === null || value === '' || value === 0)
+        return result(evidence, { state: 'absent' }, false, true);
+      if (value === 0.1)
+        return result(
+          evidence,
+          { state: 'official-zero', value: 0, sourceMarker: 0.1 },
+          true,
+          true,
+        );
+      if (typeof value === 'number')
+        return interpretNumericValue(evidence, value, profile.maximumValue);
+      return result(
+        evidence,
+        { state: 'insufficient-data', reason: 'invalid-source-text' },
+        false,
+        false,
+        [
+          occurrence(
+            evidence,
+            'invalid-source-text',
+            'The saved value is not a grade.',
+            'Correct the source value.',
+          ),
+        ],
+      );
+    }
+
     case 'missing-field':
       return result(
         evidence,

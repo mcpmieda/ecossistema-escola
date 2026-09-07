@@ -1,8 +1,6 @@
+import type { CompatibleSourceCellEvidenceV5 as SourceCellEvidenceV1 } from '../../../../shared/gradebook-contracts/source/source-values-contract-v5';
 import type { ImportedGradeValueV1 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
-import type {
-  SourceCellEvidenceV1,
-  SourceCellProvenanceV1,
-} from '../../../../shared/gradebook-contracts/source/source-contract-v1';
+import type { SourceCellProvenanceV1 } from '../../../../shared/gradebook-contracts/source/source-contract-v1';
 import type { GradebookImportResultCellObservationV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import {
   interpretSourceCell,
@@ -24,6 +22,15 @@ export function gradebookImportResultCellEvidenceV4(
   observation: GradebookImportResultCellObservationV4,
   provenance: SourceCellProvenanceV1,
 ): SourceCellEvidenceV1 {
+  if ('snapshotState' in observation) {
+    return observation.snapshotState === 'unavailable'
+      ? { classification: 'snapshot-unavailable', rawValue: null, provenance }
+      : {
+          classification: 'snapshot-value',
+          rawValue: 'rawValue' in observation ? observation.rawValue : null,
+          provenance,
+        };
+  }
   switch (observation.classification) {
     case 'missing-field':
       return { classification: 'missing-field', rawValue: undefined, provenance };
@@ -102,7 +109,8 @@ export function materializeGradebookImportResultCellObservationV4(input: {
     };
   }
   const interpretation = interpretSourceCell(evidence, { maximumValue: input.maximumValue });
-  if (!interpretation.valid) return { status: 'review-required', interpretation };
+  if (!interpretation.valid && evidence.classification !== 'snapshot-unavailable')
+    return { status: 'review-required', interpretation };
   return {
     status: 'ready',
     imported: { value: interpretation.semanticValue, evidence: [evidence] },
