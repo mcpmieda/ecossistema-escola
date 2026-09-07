@@ -29,20 +29,37 @@ type BenchmarkFailureStageV1 =
   | 'changed-apply'
   | 'cleanup-reset'
   | 'cleanup-close';
+type ProbeStageV1 =
+  | 'connection'
+  | 'parameter-text'
+  | 'parameter-jsonb'
+  | 'direct-insert'
+  | 'transaction'
+  | 'function-call'
+  | 'function-result';
 
 interface BenchmarkRequestV1 {
-  readonly operation: 'run';
+  readonly operation: 'run' | 'probe';
   readonly size?: number;
   readonly changed?: number;
+}
+
+interface ProbeResultV1 {
+  readonly stage: ProbeStageV1;
+  readonly state: 'passed' | 'failed' | 'skipped';
+  readonly ms: number;
+  readonly sqlState?: string;
 }
 
 function parseRequest(value: unknown): Required<BenchmarkRequestV1> {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new HttpError(400, 'Invalid benchmark request');
   const body = value as Record<string, unknown>;
-  if (body.operation !== 'run') throw new HttpError(400, 'Invalid benchmark request');
-  const size = body.size ?? POSTGRES_BENCHMARK_DEFAULT_SIZE_V1;
-  const changed = body.changed ?? POSTGRES_BENCHMARK_DEFAULT_CHANGED_V1;
+  if (body.operation !== 'run' && body.operation !== 'probe')
+    throw new HttpError(400, 'Invalid benchmark request');
+  const size = body.operation === 'probe' ? 1 : (body.size ?? POSTGRES_BENCHMARK_DEFAULT_SIZE_V1);
+  const changed =
+    body.operation === 'probe' ? 1 : (body.changed ?? POSTGRES_BENCHMARK_DEFAULT_CHANGED_V1);
   if (
     !Number.isInteger(size) ||
     (size as number) < 1 ||
@@ -55,7 +72,7 @@ function parseRequest(value: unknown): Required<BenchmarkRequestV1> {
     (changed as number) > (size as number)
   )
     throw new HttpError(400, 'Invalid benchmark changed count');
-  return { operation: 'run', size: size as number, changed: changed as number };
+  return { operation: body.operation, size: size as number, changed: changed as number };
 }
 
 async function body(request: Request): Promise<Required<BenchmarkRequestV1>> {
@@ -79,6 +96,12 @@ function noStoreJson(value: unknown, status = 200): Response {
     status,
     headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, private' },
   });
+}
+
+function safeSqlState(cause: unknown): string | undefined {
+  if (!cause || typeof cause !== 'object' || !('code' in cause)) return undefined;
+  const code = cause.code;
+  return typeof code === 'string' && /^[0-9A-Z]{5}$/u.test(code) ? code : undefined;
 }
 
 function failureResponse(
@@ -113,18 +136,178 @@ function failureResponse(
       stage,
       code,
       errorType: cause instanceof Error ? cause.name : 'unknown',
+      sqlState: safeSqlState(cause) ?? null,
     }),
   );
   return noStoreJson(
-    { version: 1, state: 'failed', provider: 'postgres-hyperdrive', stage, code },
+    {
+      version: 1,
+      state: 'failed',
+      provider: 'postgres-hyperdrive',
+      stage,
+      code,
+      ...(safeSqlState(cause) ? { sqlState: safeSqlState(cause) } : {}),
+    },
     status,
   );
+}
+
+function scalarInteger(value: unknown): number {
+  const parsed = typeof value === 'string' ? Number(value) : value;
+  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed))
+    throw new TypeError('postgres-probe-result-invalid');
+  return parsed;
+}
+
+async function probeStepV1(
+  stage: ProbeStageV1,
+  operation: () => Promise<void>,
+): Promise<ProbeResultV1> {
+  const startedAt = performance.now();
+  try {
+    await operation();
+    return { stage, state: 'passed', ms: milliseconds(startedAt) };
+  } catch (cause) {
+    return {
+      stage,
+      state: 'failed',
+      ms: milliseconds(startedAt),
+      ...(safeSqlState(cause) ? { sqlState: safeSqlState(cause) } : {}),
+    };
+  }
+}
+
+async function runProbeV1(sql: PostgresClientV1): Promise<{
+  readonly response: Response;
+  readonly cleanupIds: readonly string[];
+}> {
+  const probes: ProbeResultV1[] = [];
+  const cleanupIds: string[] = [];
+  const directId = `synthetic-probe-direct:${crypto.randomUUID()}`;
+  const transactionId = `synthetic-probe-transaction:${crypto.randomUUID()}`;
+  const functionId = `synthetic-probe-function:${crypto.randomUUID()}`;
+  cleanupIds.push(directId, transactionId, functionId);
+
+  const connection = await probeStepV1('connection', async () => {
+    const rows = await sql`select 1::int as ok`;
+    if (scalarInteger(rows[0]?.ok) !== 1) throw new TypeError('postgres-probe-result-invalid');
+  });
+  probes.push(connection);
+  if (connection.state === 'failed') {
+    return {
+      response: noStoreJson({
+        version: 1,
+        state: 'probe-completed',
+        provider: 'postgres-hyperdrive',
+        syntheticOnly: true,
+        probes,
+      }),
+      cleanupIds,
+    };
+  }
+
+  probes.push(
+    await probeStepV1('parameter-text', async () => {
+      const marker = 'hyperdrive-probe-v1';
+      const rows = await sql`select ${marker}::text as value`;
+      if (rows[0]?.value !== marker) throw new TypeError('postgres-probe-result-invalid');
+    }),
+  );
+
+  probes.push(
+    await probeStepV1('parameter-jsonb', async () => {
+      const payload = JSON.stringify([{ value: 1 }]);
+      const rows = await sql`select jsonb_array_length(${payload}::jsonb)::int as count`;
+      if (scalarInteger(rows[0]?.count) !== 1) throw new TypeError('postgres-probe-result-invalid');
+    }),
+  );
+
+  probes.push(
+    await probeStepV1('direct-insert', async () => {
+      await sql`
+        insert into bn_benchmark.streams
+          (benchmark_id, stream_key, current_version, payload_hash, updated_at)
+        values (${directId}, 'stream:1', 1, ${'1'.repeat(64)}, clock_timestamp())
+      `;
+      const rows = await sql`
+        select count(*)::int as count
+        from bn_benchmark.streams
+        where benchmark_id = ${directId}
+      `;
+      if (scalarInteger(rows[0]?.count) !== 1) throw new TypeError('postgres-probe-result-invalid');
+    }),
+  );
+
+  probes.push(
+    await probeStepV1('transaction', async () => {
+      const payload = JSON.stringify({ probe: true });
+      await sql.begin(async (transaction) => {
+        await transaction`
+          insert into bn_benchmark.streams
+            (benchmark_id, stream_key, current_version, payload_hash, updated_at)
+          values (${transactionId}, 'stream:1', 1, ${'2'.repeat(64)}, clock_timestamp())
+        `;
+        await transaction`
+          insert into bn_benchmark.versions
+            (benchmark_id, stream_key, version, payload_hash, payload, recorded_at)
+          values (
+            ${transactionId}, 'stream:1', 1, ${'2'.repeat(64)},
+            ${payload}::jsonb, clock_timestamp()
+          )
+        `;
+      });
+      const rows = await sql`
+        select count(*)::int as count
+        from bn_benchmark.versions
+        where benchmark_id = ${transactionId}
+      `;
+      if (scalarInteger(rows[0]?.count) !== 1) throw new TypeError('postgres-probe-result-invalid');
+    }),
+  );
+
+  const baseline = createPostgresBenchmarkSnapshotV1(1, 1, 1);
+  let functionRows: readonly Record<string, unknown>[] | null = null;
+  probes.push(
+    await probeStepV1('function-call', async () => {
+      functionRows = await sql`
+        select * from bn_benchmark.apply_snapshot(
+          ${functionId},
+          ${JSON.stringify(baseline)}::jsonb
+        )
+      `;
+      if (functionRows.length !== 1) throw new TypeError('postgres-probe-result-invalid');
+    }),
+  );
+
+  if (functionRows) {
+    probes.push(
+      await probeStepV1('function-result', async () => {
+        const result = parsePostgresBenchmarkApplyResultV1(functionRows?.[0]);
+        if (result.total !== 1 || result.changed !== 1 || result.unchanged !== 0)
+          throw new TypeError('postgres-probe-result-invalid');
+      }),
+    );
+  } else {
+    probes.push({ stage: 'function-result', state: 'skipped', ms: 0 });
+  }
+
+  return {
+    response: noStoreJson({
+      version: 1,
+      state: 'probe-completed',
+      provider: 'postgres-hyperdrive',
+      syntheticOnly: true,
+      probes,
+    }),
+    cleanupIds,
+  };
 }
 
 export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Context) => {
   let stage: BenchmarkFailureStageV1 = 'environment';
   let sql: PostgresClientV1 | null = null;
   let benchmarkId: string | null = null;
+  let probeCleanupIds: readonly string[] = [];
   let response: Response | null = null;
   let operationFailure: { readonly stage: BenchmarkFailureStageV1; readonly cause: unknown } | null =
     null;
@@ -163,65 +346,72 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
       idle_timeout: 2,
       max_lifetime: 60,
     });
-    benchmarkId = `synthetic:${crypto.randomUUID()}`;
-    const baseline = createPostgresBenchmarkSnapshotV1(input.size, 1, input.size);
-    const changed = createPostgresBenchmarkSnapshotV1(input.size, 2, input.changed);
-    const totalStartedAt = performance.now();
 
-    stage = 'connection';
-    const connectionStartedAt = performance.now();
-    await sql`select current_timestamp`;
-    const connectionMs = milliseconds(connectionStartedAt);
+    if (input.operation === 'probe') {
+      const probe = await runProbeV1(sql);
+      response = probe.response;
+      probeCleanupIds = probe.cleanupIds;
+    } else {
+      benchmarkId = `synthetic:${crypto.randomUUID()}`;
+      const baseline = createPostgresBenchmarkSnapshotV1(input.size, 1, input.size);
+      const changed = createPostgresBenchmarkSnapshotV1(input.size, 2, input.changed);
+      const totalStartedAt = performance.now();
 
-    stage = 'first-apply';
-    const firstStartedAt = performance.now();
-    const firstRows = await sql`
-      select * from bn_benchmark.apply_snapshot(
-        ${benchmarkId},
-        ${JSON.stringify(baseline)}::jsonb
-      )
-    `;
-    const firstMs = milliseconds(firstStartedAt);
-    const first = parsePostgresBenchmarkApplyResultV1(firstRows[0]);
+      stage = 'connection';
+      const connectionStartedAt = performance.now();
+      await sql`select current_timestamp`;
+      const connectionMs = milliseconds(connectionStartedAt);
 
-    stage = 'no-changes';
-    const noChangesStartedAt = performance.now();
-    const noChangesRows = await sql`
-      select * from bn_benchmark.apply_snapshot(
-        ${benchmarkId},
-        ${JSON.stringify(baseline)}::jsonb
-      )
-    `;
-    const noChangesMs = milliseconds(noChangesStartedAt);
-    const noChanges = parsePostgresBenchmarkApplyResultV1(noChangesRows[0]);
+      stage = 'first-apply';
+      const firstStartedAt = performance.now();
+      const firstRows = await sql`
+        select * from bn_benchmark.apply_snapshot(
+          ${benchmarkId},
+          ${JSON.stringify(baseline)}::jsonb
+        )
+      `;
+      const firstMs = milliseconds(firstStartedAt);
+      const first = parsePostgresBenchmarkApplyResultV1(firstRows[0]);
 
-    stage = 'changed-apply';
-    const changedStartedAt = performance.now();
-    const changedRows = await sql`
-      select * from bn_benchmark.apply_snapshot(
-        ${benchmarkId},
-        ${JSON.stringify(changed)}::jsonb
-      )
-    `;
-    const changedMs = milliseconds(changedStartedAt);
-    const changedResult = parsePostgresBenchmarkApplyResultV1(changedRows[0]);
+      stage = 'no-changes';
+      const noChangesStartedAt = performance.now();
+      const noChangesRows = await sql`
+        select * from bn_benchmark.apply_snapshot(
+          ${benchmarkId},
+          ${JSON.stringify(baseline)}::jsonb
+        )
+      `;
+      const noChangesMs = milliseconds(noChangesStartedAt);
+      const noChanges = parsePostgresBenchmarkApplyResultV1(noChangesRows[0]);
 
-    response = noStoreJson({
-      version: 1,
-      state: 'completed',
-      provider: 'postgres-hyperdrive',
-      syntheticOnly: true,
-      size: input.size,
-      changedRequested: input.changed,
-      timingsMs: {
-        connection: connectionMs,
-        firstApply: firstMs,
-        noChanges: noChangesMs,
-        changedApply: changedMs,
-        total: milliseconds(totalStartedAt),
-      },
-      results: { first, noChanges, changed: changedResult },
-    });
+      stage = 'changed-apply';
+      const changedStartedAt = performance.now();
+      const changedRows = await sql`
+        select * from bn_benchmark.apply_snapshot(
+          ${benchmarkId},
+          ${JSON.stringify(changed)}::jsonb
+        )
+      `;
+      const changedMs = milliseconds(changedStartedAt);
+      const changedResult = parsePostgresBenchmarkApplyResultV1(changedRows[0]);
+
+      response = noStoreJson({
+        version: 1,
+        state: 'completed',
+        provider: 'postgres-hyperdrive',
+        syntheticOnly: true,
+        size: input.size,
+        changedRequested: input.changed,
+        timingsMs: {
+          connection: connectionMs,
+          firstApply: firstMs,
+          noChanges: noChangesMs,
+          changedApply: changedMs,
+          total: milliseconds(totalStartedAt),
+        },
+        results: { first, noChanges, changed: changedResult },
+      });
+    }
   } catch (cause) {
     operationFailure = { stage, cause };
   }
@@ -234,6 +424,16 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
       await sql`select bn_benchmark.reset(${benchmarkId})`;
     } catch (cause) {
       cleanupFailure = { stage: 'cleanup-reset', cause };
+    }
+  }
+  if (sql && probeCleanupIds.length > 0) {
+    try {
+      stage = 'cleanup-reset';
+      for (const id of probeCleanupIds) {
+        await sql`delete from bn_benchmark.streams where benchmark_id = ${id}`;
+      }
+    } catch (cause) {
+      cleanupFailure ??= { stage: 'cleanup-reset', cause };
     }
   }
   if (sql) {
