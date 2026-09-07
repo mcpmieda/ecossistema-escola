@@ -13,6 +13,7 @@ export const IMPORT_D1_TRANSPORT_BOUNDS_V1 = {
   finalBatchBytes: 1_000_000,
   inlineParameterBytes: 4_096,
   maxStagedParameters: 512,
+  stagingConcurrency: 8,
 } as const;
 const PURPOSE = 'atomic-parameters-v1';
 const encoder = new TextEncoder();
@@ -180,7 +181,7 @@ export function boundedGradebookImportDatabaseV1(
       if (finalBytes > limits.finalBatchBytes || prepared.some((s) => bytes(s.sql) > 90_000))
         return fail();
       // SQL and final-promotion bounds are validated before temporary writes.
-      // Each staging upload is independently checked below before it is sent.
+      // Each staging upload is independently checked before it is sent.
       const final = [
         base.prepare(guardSql).bind(...guardParams),
         ...prepared.map((s) => base.prepare(s.sql).bind(...s.params)),
@@ -222,27 +223,20 @@ export function boundedGradebookImportDatabaseV1(
           )
           .run();
         if (initialized.success === false) return fail();
-        let group: D1WriteStatementV1[] = [];
-        let groupBytes = 2;
         const uploadSql = `INSERT INTO gradebook_import_stage_chunks
           (session_id,chunk_index,chunk_hash,payload_json,incoming_keys_json,entity_write_count,academic_record_write_count,association_write_count,created_at)
           VALUES (?, ?, ?, ?, '[]', 0, 0, 0, ?)`;
-        const flush = async () => {
-          if (!group.length) return;
-          checked(await base.batch!(group), group.length);
-          group = [];
-          groupBytes = 2;
-        };
-        for (const [index, payload] of payloads.entries()) {
-          const params = [id, index, '0'.repeat(64), payload, now];
-          const uploadBytes = size(uploadSql, params);
-          if (uploadBytes + 2 > limits.stagingBatchBytes) return fail();
-          if (groupBytes + uploadBytes > limits.stagingBatchBytes || group.length === 16)
-            await flush();
-          group.push(base.prepare(uploadSql).bind(...params));
-          groupBytes += uploadBytes;
+        for (let start = 0; start < payloads.length; start += limits.stagingConcurrency) {
+          const wave = payloads.slice(start, start + limits.stagingConcurrency).map((payload, offset) => {
+            const index = start + offset;
+            const params = [id, index, '0'.repeat(64), payload, now] as const;
+            if (size(uploadSql, params) + 2 > limits.stagingBatchBytes) return fail();
+            return base.prepare(uploadSql).bind(...params);
+          });
+          checked(await Promise.all(wave.map((statement) => statement.run())), wave.length);
         }
-        await flush();
+        // This is the only db.batch() after transport staging: every academic mutation and
+        // every changes() guard still commits or rolls back together.
         const results = await base.batch!(final);
         checked(results, final.length);
         // Preserve the recorder's result cardinality; guards/cleanup are transport-private.
