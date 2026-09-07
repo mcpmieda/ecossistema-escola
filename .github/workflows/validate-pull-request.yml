@@ -23,6 +23,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -32,6 +33,74 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # Temporary diagnostic export for #553; removed before the final delivery.
+      # Public code and read-only repository metadata only. No production access.
+      - name: Prepare isolated public-code reproduction
+        if: github.head_ref == 'fix/bn-553-import-reliability'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/bn-553-reproduction"
+          mkdir -p "$out/metadata"
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/pull/*/head:refs/remotes/pull/*'
+          git bundle create "$out/history.bundle" --all
+          git archive --format=tar.gz --output="$out/source.tar.gz" HEAD
+          tar --exclude='*.woff' --exclude='*.woff2' --exclude='*.ttf' --exclude='*.otf' -czf "$out/dependencies.tar.gz" node_modules
+          OUT="$out/metadata" python3 - <<'PY'
+          import concurrent.futures, json, os, pathlib, time, urllib.request
+          root = pathlib.Path(os.environ['OUT'])
+          base = 'https://api.github.com/repos/mcpmieda/ecossistema-escola'
+          headers = {'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'}
+          errors = []
+          def collect(path, key=None):
+              rows = []
+              url = base + path
+              while url:
+                  try:
+                      with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=45) as response:
+                          data = json.load(response)
+                          rows.extend(data[key] if key else data)
+                          links = response.headers.get('Link', '')
+                      url = next((part.split('>')[0].strip().lstrip('<') for part in links.split(',') if 'rel="next"' in part), None)
+                  except Exception as exc:
+                      errors.append({'path':path, 'type':type(exc).__name__})
+                      break
+              return rows
+          datasets = {
+              'branches':('/branches?per_page=100',None),
+              'issues':('/issues?state=all&per_page=100',None),
+              'pulls':('/pulls?state=all&per_page=100',None),
+              'issue-comments':('/issues/comments?per_page=100',None),
+              'review-comments':('/pulls/comments?per_page=100',None),
+              'runs':('/actions/runs?per_page=100','workflow_runs')
+          }
+          results = {}
+          for name,(path,key) in datasets.items():
+              rows=collect(path,key)
+              results[name]=rows
+              (root/(name+'.json')).write_text(json.dumps(rows,ensure_ascii=False))
+          def detail(pr):
+              number=pr['number']
+              data={'number':number,'files':collect(f'/pulls/{number}/files?per_page=100'),'reviews':collect(f'/pulls/{number}/reviews?per_page=100')}
+              (root/f'pr-{number}.json').write_text(json.dumps(data,ensure_ascii=False))
+          with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+              list(pool.map(detail,results['pulls']))
+          summary={'counts':{k:len(v) for k,v in results.items()},'errors':errors}
+          (root/'coverage.json').write_text(json.dumps(summary,indent=2))
+          print(json.dumps(summary))
+          PY
+
+      - name: Export isolated reproduction
+        if: github.head_ref == 'fix/bn-553-import-reliability'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bn-553-public-code-reproduction
+          path: ${{ runner.temp }}/bn-553-reproduction
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
 
       - name: Verify
         run: npm run verify
