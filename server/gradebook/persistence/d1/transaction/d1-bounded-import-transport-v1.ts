@@ -114,6 +114,28 @@ function checked(results: readonly D1WriteRunResultV1[], expected: number): void
   if (results.length !== expected || results.some((result) => result.success === false)) fail();
 }
 
+async function runStagingWaveV1(
+  statements: readonly D1WriteStatementV1[],
+): Promise<void> {
+  // Wait for every request already started in this bounded wave before cleanup.
+  // Promise.all would reject early while sibling D1 writes could still be in flight.
+  const settled = await Promise.all(
+    statements.map(async (statement) => {
+      try {
+        return { state: 'fulfilled' as const, value: await statement.run() };
+      } catch (cause) {
+        return { state: 'rejected' as const, cause };
+      }
+    }),
+  );
+  const rejected = settled.find((result) => result.state === 'rejected');
+  if (rejected?.state === 'rejected') throw rejected.cause;
+  checked(
+    settled.flatMap((result) => (result.state === 'fulfilled' ? [result.value] : [])),
+    statements.length,
+  );
+}
+
 /**
  * Writes ONLY temporary parameters before the atomic commit. All original mutations and changes()
  * guards remain in one D1 batch. Missing staging, stale CAS, FK or any SQL failure rolls it all back.
@@ -233,7 +255,7 @@ export function boundedGradebookImportDatabaseV1(
             if (size(uploadSql, params) + 2 > limits.stagingBatchBytes) return fail();
             return base.prepare(uploadSql).bind(...params);
           });
-          checked(await Promise.all(wave.map((statement) => statement.run())), wave.length);
+          await runStagingWaveV1(wave);
         }
         // This is the only db.batch() after transport staging: every academic mutation and
         // every changes() guard still commits or rolls back together.
