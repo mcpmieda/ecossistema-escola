@@ -35,7 +35,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Configure private production binding
+      - name: Configure private production bindings
         shell: bash
         env:
           GRADEBOOK_D1_BINDING_CONFIG: ${{ secrets.GRADEBOOK_D1_BINDING_CONFIG }}
@@ -62,11 +62,23 @@ jobs:
             throw new Error('GRADEBOOK_D1_BINDING_CONFIG is invalid.');
           }
 
+          const hyperdrive = config.hyperdrive;
+          if (
+            !Array.isArray(hyperdrive) ||
+            hyperdrive.length !== 1 ||
+            hyperdrive[0]?.binding !== 'PROD_DB' ||
+            typeof hyperdrive[0]?.id !== 'string' ||
+            hyperdrive[0].id.length === 0
+          ) {
+            throw new Error('PROD_DB Hyperdrive binding is invalid.');
+          }
+
           config.env ??= {};
           config.env.production = {
             ...(config.env.production ?? {}),
             vars: config.vars ?? {},
             d1_databases: [binding],
+            hyperdrive,
           };
 
           await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
