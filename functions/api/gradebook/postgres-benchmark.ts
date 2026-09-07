@@ -17,6 +17,7 @@ type BenchmarkEnvV1 = RuntimeEnv & { readonly PROD_DB?: HyperdriveBindingV1 };
 type Context = EventContext<BenchmarkEnvV1, string, unknown>;
 type PostgresFactoryV1 = typeof import('postgres');
 type PostgresClientV1 = ReturnType<PostgresFactoryV1>;
+type PostgresJsonValueV1 = Parameters<PostgresClientV1['json']>[0];
 type BenchmarkFailureStageV1 =
   | 'environment'
   | 'authorization'
@@ -34,6 +35,11 @@ interface BenchmarkRequestV1 {
   readonly operation: 'run';
   readonly size?: number;
   readonly changed?: number;
+}
+
+function postgresJsonValueV1(value: unknown): PostgresJsonValueV1 {
+  // Generated benchmark snapshots contain only JSON-safe scalar/object/array values.
+  return value as PostgresJsonValueV1;
 }
 
 function parseRequest(value: unknown): Required<BenchmarkRequestV1> {
@@ -178,7 +184,7 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
     const firstRows = await sql`
       select * from bn_benchmark.apply_snapshot(
         ${benchmarkId},
-        ${sql.json(baseline)}::jsonb
+        ${sql.json(postgresJsonValueV1(baseline))}::jsonb
       )
     `;
     const firstMs = milliseconds(firstStartedAt);
@@ -189,7 +195,7 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
     const noChangesRows = await sql`
       select * from bn_benchmark.apply_snapshot(
         ${benchmarkId},
-        ${sql.json(baseline)}::jsonb
+        ${sql.json(postgresJsonValueV1(baseline))}::jsonb
       )
     `;
     const noChangesMs = milliseconds(noChangesStartedAt);
@@ -200,7 +206,7 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
     const changedRows = await sql`
       select * from bn_benchmark.apply_snapshot(
         ${benchmarkId},
-        ${sql.json(changed)}::jsonb
+        ${sql.json(postgresJsonValueV1(changed))}::jsonb
       )
     `;
     const changedMs = milliseconds(changedStartedAt);
