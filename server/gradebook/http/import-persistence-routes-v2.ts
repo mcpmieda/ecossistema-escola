@@ -22,8 +22,8 @@ import {
   GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V7,
   GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V7,
   inspectGradebookImportPersistenceBatchRequestV7,
-  isGradebookImportPersistenceBatchRequestV7,
   isGradebookImportPersistenceBatchResponseV7,
+  type GradebookImportPersistenceBatchRequestV7,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v7';
 import type {
   AcademicEntityRecordV1,
@@ -195,10 +195,10 @@ export async function handleGradebookImportPersistenceRequestV4(
 
   const inspectStartedAt = Date.now();
   const version = declaredVersion(payload);
-  const bytes = serializedByteLength(payload);
+  const bytes = version === 7 ? null : serializedByteLength(payload);
   if (
-    bytes === null ||
-    (version !== 7 && bytes > GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V4.maxBodyBytes)
+    version !== 7 &&
+    (bytes === null || bytes > GRADEBOOK_IMPORT_PERSISTENCE_BOUNDS_V4.maxBodyBytes)
   ) {
     return noStore(
       {
@@ -220,7 +220,7 @@ export async function handleGradebookImportPersistenceRequestV4(
   const compatible =
     inspection === 'ready' &&
     (version === 7
-      ? isGradebookImportPersistenceBatchRequestV7(payload)
+      ? true
       : version === 6
         ? isGradebookImportPersistenceRequestV6(payload)
         : version === 5
@@ -282,7 +282,7 @@ export async function handleGradebookImportPersistenceRequestV4(
       | Awaited<ReturnType<ReturnType<typeof createGradebookImportPersistenceServiceV4>['execute']>>
       | null = null;
 
-    if (version === 7 && isGradebookImportPersistenceBatchRequestV7(payload)) {
+    if (version === 7) {
       const batchCatalog = createGradebookImportBatchCatalogReadCacheV1();
       response = await createGradebookImportPersistenceBatchServiceV7(() => {
         const observation = observeGradebookD1RetryableTransientsV1(
@@ -344,7 +344,7 @@ export async function handleGradebookImportPersistenceRequestV4(
             };
           },
         };
-      }).execute(payload);
+      }).execute(payload as GradebookImportPersistenceBatchRequestV7);
     } else if (version === 6 && isGradebookImportPersistenceRequestV6(payload)) {
       response = await createGradebookImportPersistenceServiceV6(createDependencies()).execute(payload);
     } else if (version === 5 && isGradebookImportPersistenceRequestV5(payload)) {
