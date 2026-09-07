@@ -23,7 +23,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -34,33 +33,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Temporary branch-only audit for #551; restored before final delivery.
-      # Only public repository objects and public dependency bytes are packaged.
-      # Never package .git/config, environment, home directories or credentials.
-      - name: Capture public repository snapshot
-        env:
-          GH_TOKEN: ${{ github.token }}
+      # Temporary branch-only reproduction support for #551. Public parser only.
+      # The application already loads this exact version from this same CDN.
+      - name: Obtain the existing public parser
         run: |
-          mkdir -p /tmp/bn-551-public
-          git fetch origin '+refs/heads/*:refs/remotes/origin/*' '+refs/pull/*/head:refs/remotes/pr/*'
-          git bundle create /tmp/bn-551-public/repository.bundle --all
-          git archive --format=tar HEAD | gzip > /tmp/bn-551-public/source.tar.gz
-          tar -czf /tmp/bn-551-public/dependencies.tar.gz node_modules
-          for endpoint in 'branches?per_page=100' 'issues?state=all&per_page=100' 'issues/comments?per_page=100' 'pulls?state=all&per_page=100' 'pulls/comments?per_page=100'; do
-            name=$(printf '%s' "$endpoint" | tr '/?=&' '____')
-            gh api --paginate --slurp "repos/mcpmieda/ecossistema-escola/$endpoint" > "/tmp/bn-551-public/$name.json"
-          done
-          gh api --paginate --slurp 'repos/mcpmieda/ecossistema-escola/actions/runs?per_page=100' > /tmp/bn-551-public/workflow-runs.json
+          mkdir -p /tmp/bn-551-parser
+          curl --fail --location --retry 2 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js' -o /tmp/bn-551-parser/xlsx.cjs
+          node -e "const x = require('/tmp/bn-551-parser/xlsx.cjs'); if (x.version !== '0.20.3') process.exit(1); console.log('SheetJS', x.version)"
+
+      - name: Upload the public parser for isolated reproduction
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: bn-551-public-parser
+          path: /tmp/bn-551-parser/
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Verify
         run: npm run verify
-
-      - name: Upload temporary public-only snapshot
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: bn-551-public-verification
-          path: /tmp/bn-551-public/
-          retention-days: 1
-          compression-level: 0
-          if-no-files-found: error
