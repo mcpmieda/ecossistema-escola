@@ -47,20 +47,43 @@ export function classifyGradebookImportFailureV1(
   if (/gradebook_atomic_batch_guard_failure/iu.test(message)) return 'd1-cas';
   if (/malformed json/iu.test(message)) return 'invalid-json';
   if (isGradebookD1RetryableTransientErrorV1(cause)) return 'd1-transient';
+  // Operational classification only: none of these categories enables a retry,
+  // changes a SQL statement, or changes the application's academic outcome.
+  if (d1) {
+    if (/D1.*(?:exceeded.*CPU|CPU time limit)/iu.test(message)) return 'd1-cpu-limit';
+    if (
+      /SQLITE_FULL|database or disk is full|maximum (?:DB|database) size|maximum account storage limit/iu.test(
+        message,
+      )
+    )
+      return 'd1-storage-limit';
+    if (/free tier daily row read limit/iu.test(message)) return 'd1-read-quota';
+    if (/free tier daily row write limit/iu.test(message)) return 'd1-write-quota';
+    if (/RPC.*(?:size limit|too large|too big|exceed)|serialized.*RPC.*limit/iu.test(message))
+      return 'd1-rpc-limit';
+    if (/D1_TYPE_ERROR/iu.test(message)) return 'd1-type';
+    if (/serializ|structured clone|circular structure|Invalid string length/iu.test(message))
+      return 'd1-serialization';
+    if (
+      /not valid JSON|Unexpected (?:token|end).*JSON|JSON.*unexpected|Failed to parse.*(?:body|response)/iu.test(
+        message,
+      )
+    )
+      return 'd1-response-invalid';
+    if (/internal error|internal server error/iu.test(message)) return 'd1-internal';
+  }
   const code = cause instanceof Error && 'code' in cause ? cause.code : cause;
   if (
     typeof code === 'string' &&
     GRADEBOOK_IMPORT_FAILURE_CODES_V1.includes(code as GradebookImportFailureCodeV1)
-  ) {
+  )
     return code as GradebookImportFailureCodeV1;
-  }
   if (
     /^(?:status-roster-reference-(?:conflict|missing)|status-bulk-read-incompatible|annual-assignment-cache-missing|academic-catalog-version-conflict)$/u.test(
       message.trim(),
     )
-  ) {
+  )
     return 'catalog-reference-failed';
-  }
   return d1 ? 'd1-other' : 'unexpected-error';
 }
 
