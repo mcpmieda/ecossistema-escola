@@ -15,7 +15,7 @@ import {
 type HyperdriveBindingV1 = { readonly connectionString: string };
 type BenchmarkEnvV1 = RuntimeEnv & { readonly PROD_DB?: HyperdriveBindingV1 };
 type Context = EventContext<BenchmarkEnvV1, string, unknown>;
-type PostgresFactoryV1 = (typeof import('postgres'))['default'];
+type PostgresFactoryV1 = typeof import('postgres');
 type PostgresClientV1 = ReturnType<PostgresFactoryV1>;
 type BenchmarkFailureStageV1 =
   | 'environment'
@@ -115,7 +115,10 @@ function failureResponse(
       errorType: cause instanceof Error ? cause.name : 'unknown',
     }),
   );
-  return noStoreJson({ version: 1, state: 'failed', provider: 'postgres-hyperdrive', stage, code }, status);
+  return noStoreJson(
+    { version: 1, state: 'failed', provider: 'postgres-hyperdrive', stage, code },
+    status,
+  );
 }
 
 export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Context) => {
@@ -149,7 +152,8 @@ export const onRequestPost: PagesFunction<BenchmarkEnvV1> = async (context: Cont
 
     stage = 'driver';
     const module = await import('postgres');
-    const postgres = module.default;
+    const postgres = ((module as unknown as { default?: PostgresFactoryV1 }).default ??
+      module) as PostgresFactoryV1;
 
     sql = postgres(binding.connectionString, {
       max: 5,
