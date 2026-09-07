@@ -26,7 +26,7 @@ import type {
   GradebookD1WriteAdapterOptionsV1,
 } from '../write/d1-write-adapter-v1';
 
-const MAX_BUFFERED_BULK_WRITES_V2 = 512;
+const MAX_BUFFERED_BULK_WRITES_V2 = 1_000;
 
 interface DeferredAssociationWriteV2 {
   readonly context: AcademicPersistenceContextV1;
