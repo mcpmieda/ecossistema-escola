@@ -1,3 +1,8 @@
+import type { GradebookImportFailurePhaseV1 } from '../../../../shared/gradebook-import-diagnostics-v1';
+import {
+  reportGradebookImportFailureV1,
+  type GradebookImportFailureReporterV1,
+} from './import-failure-diagnostics-v1';
 import type { TeacherId } from '../../../../shared/gradebook-contracts/entities';
 import type {
   ImportBatchResultV1,
@@ -60,6 +65,7 @@ import {
 import type { GradebookImportAnnualStateSourceV1 } from '../../persistence/d1/imports/d1-import-annual-state-source-v1';
 
 export interface GradebookImportPersistenceServiceDependenciesV4 {
+  readonly onFailure?: GradebookImportFailureReporterV1;
   readonly unitOfWork: PersistenceUnitOfWorkV2;
   readonly transaction: ImportBootstrapTransactionPortV2;
   readonly annualStateSource: GradebookImportAnnualStateSourceV1;
@@ -378,6 +384,7 @@ export function createGradebookImportPersistenceServiceV4(
     async execute(
       request: GradebookImportPersistenceRequestV4,
     ): Promise<GradebookImportPersistenceResponseV4> {
+      let phase: GradebookImportFailurePhaseV1 = 'logical-source';
       try {
         const resolution = await resolveLogicalSourceForImportV2(request, {
           entities: dependencies.unitOfWork.entities,
@@ -400,6 +407,7 @@ export function createGradebookImportPersistenceServiceV4(
           };
         }
 
+        phase = 'official-records';
         const officialRecords = await materializeGradebookImportOfficialRecordsV4({
           request,
           unitOfWork: dependencies.unitOfWork,
@@ -409,6 +417,7 @@ export function createGradebookImportPersistenceServiceV4(
           return reviewFromOfficialMaterialization(officialRecords);
         }
 
+        phase = 'source-lookup';
         const knownSource = await dependencies.unitOfWork.imports.findSourceFileByHash(
           { academicYearId: request.confirmedContext.academicYearId },
           request.manifest.sha256,
@@ -419,6 +428,7 @@ export function createGradebookImportPersistenceServiceV4(
           dependencies,
           knownSource?.value.manifest ?? null,
         );
+        phase = 'assessment-definitions';
         const materializeDefinitions =
           options.materializeAssessmentDefinitions ?? materializeAssessmentDefinitionsV2;
         const materializations: ((
@@ -452,6 +462,7 @@ export function createGradebookImportPersistenceServiceV4(
         const context = {
           academicYearId: request.confirmedContext.academicYearId,
         } satisfies AcademicPersistenceContextV1;
+        phase = 'reconciliation';
         const plan = await planAssessmentImportReconciliationV2(
           {
             context,
@@ -488,6 +499,11 @@ export function createGradebookImportPersistenceServiceV4(
             file.reasons.some((reason) => reason.code === 'reconciliation-read-failed'),
           )
         ) {
+          reportGradebookImportFailureV1(
+            dependencies.onFailure,
+            phase,
+            'reconciliation-read-failed',
+          );
           return {
             transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
             state: 'unavailable',
@@ -513,6 +529,7 @@ export function createGradebookImportPersistenceServiceV4(
             issues: issue('missing-from-new-source'),
           };
         }
+        phase = 'envelope';
         const envelope = createImportBootstrapEnvelopeV2({ resolution, batch, plan });
         if (envelope.status !== 'ready') {
           return {
@@ -522,6 +539,7 @@ export function createGradebookImportPersistenceServiceV4(
             issues: issue('planning-failed'),
           };
         }
+        phase = 'transaction';
         const result = await executeImportBootstrapChangePlanV2(
           plan,
           envelope.request,
@@ -534,6 +552,7 @@ export function createGradebookImportPersistenceServiceV4(
           };
         }
         if (result.status === 'transaction-failed') {
+          reportGradebookImportFailureV1(dependencies.onFailure, phase, 'transaction-failed');
           return {
             transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
             state: 'unavailable',
@@ -572,7 +591,8 @@ export function createGradebookImportPersistenceServiceV4(
           state: academicWrites > 0 ? 'applied' : 'no-changes',
           summary: finalSummary,
         };
-      } catch {
+      } catch (cause) {
+        reportGradebookImportFailureV1(dependencies.onFailure, phase, cause);
         return {
           transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
           state: 'unavailable',

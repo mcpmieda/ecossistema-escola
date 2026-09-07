@@ -220,7 +220,9 @@ export function useImportBatch() {
     try {
       // One file per HTTP request. V7 retains the server's narrow D1 retry policy;
       // a transport failure is never automatically replayed by this queue.
-      batch = await persistCompactGradebookBatchV7([request]);
+      batch = await persistCompactGradebookBatchV7([request], undefined, (diagnostic) => {
+        appendTiming('[gradebook-import-server-failure]', diagnostic);
+      });
     } catch (cause) {
       appendTiming('[gradebook-import-client-timing]', {
         version: 1,

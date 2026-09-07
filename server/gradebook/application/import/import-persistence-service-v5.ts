@@ -1,3 +1,5 @@
+import type { GradebookImportFailurePhaseV1 } from '../../../../shared/gradebook-import-diagnostics-v1';
+import { reportGradebookImportFailureV1 } from './import-failure-diagnostics-v1';
 import type {
   AcademicYearId,
   ClassGroupId,
@@ -97,7 +99,8 @@ function captureCatalogAssignmentsV1(base: AcademicEntityRepositoryV1): {
       }
       return result;
     },
-    appendVersion: (context, record, expectation) => base.appendVersion(context, record, expectation),
+    appendVersion: (context, record, expectation) =>
+      base.appendVersion(context, record, expectation),
     ...(snapshotBase.getImportCatalogSnapshot
       ? {
           async getImportCatalogSnapshot(context: AcademicPersistenceContextV1) {
@@ -249,6 +252,7 @@ export function createGradebookImportPersistenceServiceV5(
     async execute(
       request: GradebookImportPersistenceRequestV5,
     ): Promise<GradebookImportPersistenceResponseV5> {
+      let phase: GradebookImportFailurePhaseV1 = 'catalog';
       try {
         const sharedUnitOfWork = createGradebookImportSharedSourceReadCacheV1(
           dependencies.unitOfWork,
@@ -259,7 +263,8 @@ export function createGradebookImportPersistenceServiceV5(
           sha256: request.manifest.sha256,
           teacherId: null,
         }).catch(() => undefined);
-        const earlyAnnualResultsPrefetch = dependencies.annualStateSource.loadCurrentAnnualResultsForYear
+        const earlyAnnualResultsPrefetch = dependencies.annualStateSource
+          .loadCurrentAnnualResultsForYear
           ? dependencies.annualStateSource
               .loadCurrentAnnualResultsForYear({
                 academicYearId: request.confirmedContext.academicYearId,
@@ -280,6 +285,7 @@ export function createGradebookImportPersistenceServiceV5(
           return review();
         }
 
+        phase = 'catalog-preflight';
         const allAssignments = mergedAssignmentsV1(capture.assignments(), catalog);
         const assignmentsById = new Map(
           allAssignments.map((assignment) => [assignment.id, assignment]),
@@ -373,7 +379,8 @@ export function createGradebookImportPersistenceServiceV5(
           { materializeAssessmentDefinitions: materializeAssessmentDefinitionsV4 },
         );
         return asGradebookImportPersistenceResponseV5(await service.execute(catalog.request));
-      } catch {
+      } catch (cause) {
+        reportGradebookImportFailureV1(dependencies.onFailure, phase, cause);
         return {
           transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V5,
           state: 'unavailable',
