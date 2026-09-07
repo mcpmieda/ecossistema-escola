@@ -627,8 +627,17 @@ function recordRows<T extends { readonly expectedVersion: number | null }>(input
   readonly insertVersionSql: string;
 }): void {
   if (input.rows.length === 0) return;
-  const newChunks = chunkRows(input.rows.filter((row) => row.expectedVersion === null));
-  const changedChunks = chunkRows(input.rows.filter((row) => row.expectedVersion !== null));
+  // Stream tables store keys, references and version pointers, never payload_json.
+  // Sending the full academic payload here duplicates it in the atomic D1 request
+  // even though neither stream statement reads it. Keep the complete row only
+  // for the version INSERT; persisted evidence/history remains byte-for-byte intact.
+  const streamRows = input.rows.map((row) => {
+    const stream: Record<string, unknown> = { ...row };
+    delete stream.payloadJson;
+    return stream;
+  });
+  const newChunks = chunkRows(streamRows.filter((row) => row.expectedVersion === null));
+  const changedChunks = chunkRows(streamRows.filter((row) => row.expectedVersion !== null));
   const versionChunks = chunkRows(input.rows);
 
   for (const chunk of newChunks) {

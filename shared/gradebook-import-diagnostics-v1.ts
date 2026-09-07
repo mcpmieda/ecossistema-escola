@@ -20,6 +20,15 @@ export const GRADEBOOK_IMPORT_FAILURE_CODES_V1 = [
   'd1-timeout',
   'd1-overloaded',
   'd1-memory',
+  'd1-cpu-limit',
+  'd1-storage-limit',
+  'd1-read-quota',
+  'd1-write-quota',
+  'd1-rpc-limit',
+  'd1-type',
+  'd1-serialization',
+  'd1-response-invalid',
+  'd1-internal',
   'd1-foreign-key',
   'd1-unique',
   'd1-check',
@@ -65,11 +74,9 @@ export interface GradebookImportFailureDiagnosticV1 {
   readonly version: 1;
   readonly events: readonly GradebookImportFailureEventV1[];
 }
-
 function member<T extends string>(value: unknown, values: readonly T[]): value is T {
   return typeof value === 'string' && values.includes(value as T);
 }
-
 /** Reject unknown fields, oversized data and arbitrary server-provided text. */
 export function parseGradebookImportFailureDiagnosticV1(
   raw: string | null,
