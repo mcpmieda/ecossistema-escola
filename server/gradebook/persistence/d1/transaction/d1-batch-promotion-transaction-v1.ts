@@ -12,11 +12,13 @@ import {
   type D1WriteStatementV1,
   type D1WriteValueV1,
 } from '../write/d1-write-adapter-v1';
+import { isGradebookD1RetryableTransientErrorV1 } from './d1-transient-observation-v1';
 
 type D1TransactionRowV1 = Record<string, unknown>;
 
 export type GradebookD1TransactionErrorCodeV1 =
   | 'batch-version-conflict'
+  | 'd1-transient'
   | 'file-not-approved'
   | 'invalid-request'
   | 'nested-transaction'
@@ -24,6 +26,7 @@ export type GradebookD1TransactionErrorCodeV1 =
 
 const ERROR_MESSAGES: Record<GradebookD1TransactionErrorCodeV1, string> = {
   'batch-version-conflict': 'O lote acadêmico não está na versão esperada para promoção.',
+  'd1-transient': 'O D1 apresentou uma falha transitória antes de confirmar a transação.',
   'file-not-approved': 'A promoção contém arquivo sem aprovação persistida.',
   'invalid-request': 'A requisição de promoção possui formato incompatível.',
   'nested-transaction': 'Já existe uma promoção ativa nesta conexão local.',
@@ -80,9 +83,10 @@ const MUTATION_GUARD_SQL =
 
 function atomicBatchFailureCode(cause: unknown): GradebookD1TransactionErrorCodeV1 {
   const message = cause instanceof Error ? cause.message : String(cause ?? '');
-  return /gradebook_atomic_batch_guard_failure|malformed json/iu.test(message)
-    ? 'batch-version-conflict'
-    : 'transaction-failed';
+  if (/gradebook_atomic_batch_guard_failure|malformed json/iu.test(message)) {
+    return 'batch-version-conflict';
+  }
+  return isGradebookD1RetryableTransientErrorV1(cause) ? 'd1-transient' : 'transaction-failed';
 }
 
 class GradebookD1RecordedStatementV1 implements D1WriteStatementV1 {
@@ -170,8 +174,8 @@ export class GradebookD1BatchPromotionTransactionV1 implements BatchPromotionTra
   private async control(statement: string): Promise<void> {
     try {
       await this.database.exec(statement);
-    } catch {
-      fail('transaction-failed');
+    } catch (cause) {
+      fail(isGradebookD1RetryableTransientErrorV1(cause) ? 'd1-transient' : 'transaction-failed');
     }
   }
 
@@ -201,8 +205,8 @@ export class GradebookD1BatchPromotionTransactionV1 implements BatchPromotionTra
         )
         .bind(context.academicYearId, request.importBatchId)
         .first<D1TransactionRowV1>();
-    } catch {
-      fail('transaction-failed');
+    } catch (cause) {
+      fail(isGradebookD1RetryableTransientErrorV1(cause) ? 'd1-transient' : 'transaction-failed');
     }
 
     if (!current || current.current_version !== request.expectedBatchVersion) {
@@ -222,8 +226,8 @@ export class GradebookD1BatchPromotionTransactionV1 implements BatchPromotionTra
         .bind(context.academicYearId, request.importBatchId, request.expectedBatchVersion)
         .all<D1TransactionRowV1>();
       rows = result.results;
-    } catch {
-      fail('transaction-failed');
+    } catch (cause) {
+      fail(isGradebookD1RetryableTransientErrorV1(cause) ? 'd1-transient' : 'transaction-failed');
     }
 
     const approved = new Set(
