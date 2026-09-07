@@ -47,6 +47,7 @@ import {
   type GradebookD1BenchmarkSnapshotV1,
 } from '../persistence/d1/runtime/d1-benchmark-instrumentation-v1';
 import { createGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-v1';
+import { observeGradebookD1RetryableTransientsV1 } from '../persistence/d1/transaction/d1-transient-observation-v1';
 import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
 import { handleGradebookImportStagingRequestV1 } from './import-staging-routes-v1';
 
@@ -241,10 +242,13 @@ export async function handleGradebookImportPersistenceRequestV4(
     ? ({ ...env, GRADEBOOK_D1: benchmark.database } as RuntimeEnv)
     : env;
 
-  const createDependencies = () => {
-    const runtime = createGradebookD1RuntimeV1(executionEnv, authorization);
+  const createDependencies = (databaseOverride?: D1WriteDatabaseV1) => {
+    const dependencyEnv = databaseOverride
+      ? ({ ...executionEnv, GRADEBOOK_D1: databaseOverride } as RuntimeEnv)
+      : executionEnv;
+    const runtime = createGradebookD1RuntimeV1(dependencyEnv, authorization);
     const annualStateSource = createGradebookD1ImportAnnualStateSourceV1(
-      executionEnv.GRADEBOOK_D1 as D1ReadDatabaseV1,
+      dependencyEnv.GRADEBOOK_D1 as D1ReadDatabaseV1,
     );
     const unitOfWork = createGradebookImportSharedSourceReadCacheV1(
       runtime.persistenceUnitOfWorkV2(),
@@ -263,9 +267,22 @@ export async function handleGradebookImportPersistenceRequestV4(
     const response =
       version === 7 && isGradebookImportPersistenceBatchRequestV7(payload)
         ? await createGradebookImportPersistenceBatchServiceV7(() => {
-            const dependencies = createDependencies();
+            const observation = observeGradebookD1RetryableTransientsV1(
+              executionEnv.GRADEBOOK_D1 as D1WriteDatabaseV1,
+            );
+            const dependencies = createDependencies(observation.database);
             return {
-              execute: (item) => createGradebookImportPersistenceServiceV6(dependencies).execute(item),
+              async execute(item) {
+                const itemResponse = await createGradebookImportPersistenceServiceV6(
+                  dependencies,
+                ).execute(item);
+                return {
+                  response: itemResponse,
+                  retryableOperational:
+                    itemResponse.state === 'unavailable' &&
+                    observation.retryableTransientObserved(),
+                };
+              },
             };
           }).execute(payload)
         : version === 6 && isGradebookImportPersistenceRequestV6(payload)
