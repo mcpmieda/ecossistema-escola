@@ -18,13 +18,23 @@ class SyntheticPostgresSqlV1 implements GradebookPostgresSqlV1 {
   closed = false;
   readonly typedCalls: { readonly value: string; readonly oid: number }[] = [];
   private readonly responses: { readonly rows: readonly Row[]; readonly count?: number }[] = [];
+  private failure: unknown;
 
   respond(rows: readonly Row[], count?: number): void {
     this.responses.push({ rows, ...(count === undefined ? {} : { count }) });
   }
 
+  failNext(cause: unknown): void {
+    this.failure = cause;
+  }
+
   unsafe(query: string, parameters: readonly unknown[] = []) {
     this.calls.push({ query, parameters });
+    if (this.failure !== undefined) {
+      const cause = this.failure;
+      this.failure = undefined;
+      return Promise.reject(cause);
+    }
     const response = this.responses.shift() ?? { rows: [], count: 0 };
     return Promise.resolve(result(response.rows, response.count ?? response.rows.length));
   }
@@ -108,6 +118,34 @@ describe('gradebook PostgreSQL database adapter', () => {
 
     expect(sql.calls[0]?.query).toContain('VALUES ($1::jsonb)');
     expect(sql.calls[0]?.parameters).toEqual([{ value: payload, oid: 25 }]);
+  });
+
+  it('retains only sanitized physical failure diagnostics after repository masking', async () => {
+    const sql = new SyntheticPostgresSqlV1();
+    const error = Object.assign(
+      new Error('column payload_json is of type jsonb but value is text'),
+      {
+        code: '42804',
+      },
+    );
+    sql.failNext(error);
+    const database = createGradebookPostgresDatabaseFromSqlV1(sql);
+
+    await expect(
+      database
+        .prepare('INSERT INTO academic_year_versions (payload_json) VALUES (?)')
+        .bind(JSON.stringify({ secret: 'never-diagnosed' }))
+        .run(),
+    ).rejects.toBe(error);
+
+    expect(database.lastFailure()).toEqual({
+      operation: 'INSERT',
+      relation: 'academic_year_versions',
+      errorType: 'Error',
+      sqlState: '42804',
+      category: 'jsonb-cast',
+    });
+    expect(JSON.stringify(database.lastFailure())).not.toContain('secret');
   });
 
   it('normalizes PostgreSQL rows to the established adapter boundary', async () => {
