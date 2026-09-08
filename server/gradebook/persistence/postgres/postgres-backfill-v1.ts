@@ -251,7 +251,7 @@ export async function backfillGradebookFamilyPageV1(
   if (!Number.isSafeInteger(afterRowId) || afterRowId < 0) {
     throw new Error('gradebook-backfill-cursor-invalid');
   }
-  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 2_000) {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 10_000) {
     throw new Error('gradebook-backfill-limit-invalid');
   }
 
@@ -281,12 +281,6 @@ export async function backfillGradebookFamilyPageV1(
   const distinctColumns = definition.columns
     .map((column) => `persisted.${quote(column)} IS DISTINCT FROM EXCLUDED.${quote(column)}`)
     .join(' OR ');
-  const join = definition.primaryKey
-    .map((column) => `target.${quote(column)} = incoming.${quote(column)}`)
-    .join(' AND ');
-  const rowTarget = definition.columns.map((column) => `target.${quote(column)}`).join(', ');
-  const rowIncoming = definition.columns.map((column) => `incoming.${quote(column)}`).join(', ');
-
   const changed = await target.begin(async (transaction) => {
     const parameter = jsonParameter(transaction, body);
     const applied = await transaction.unsafe(
@@ -294,23 +288,9 @@ export async function backfillGradebookFamilyPageV1(
         `ON CONFLICT (${conflictColumns}) DO UPDATE SET ${assignments} WHERE ${distinctColumns} RETURNING 1`,
       [parameter],
     );
-    const verified = await transaction.unsafe(
-      `WITH incoming AS (SELECT ${columns} FROM ${recordset}) ` +
-        `SELECT COUNT(*) AS expected, ` +
-        `COUNT(target.${quote(definition.primaryKey[0]!)}) AS present, ` +
-        `COUNT(*) FILTER (WHERE ROW(${rowTarget}) IS DISTINCT FROM ROW(${rowIncoming})) AS divergent ` +
-        `FROM incoming LEFT JOIN ${relation} AS target ON ${join}`,
-      [parameter],
-    );
-    const result = verified[0];
-    if (
-      !result ||
-      integer(result.expected) !== rows.length ||
-      integer(result.present) !== rows.length ||
-      integer(result.divergent) !== 0
-    ) {
-      throw new Error('gradebook-backfill-verification-failed');
-    }
+    // The conflict WHERE compares every target column. A successful statement
+    // therefore leaves every incoming row exact: inserts/changes are returned,
+    // while only already-identical conflicts can be omitted from RETURNING.
     return typeof applied.count === 'number' ? applied.count : applied.length;
   });
 

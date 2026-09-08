@@ -78,7 +78,7 @@ async function parseRequest(request: Request): Promise<RequestV1> {
     (value.afterRowId as number) < 0 ||
     !Number.isSafeInteger(value.limit) ||
     (value.limit as number) < 1 ||
-    (value.limit as number) > 2_000 ||
+    (value.limit as number) > 10_000 ||
     !gradebookBackfillFamilyV1(value.family)
   ) {
     throw new HttpError(400, 'Invalid backfill request');
