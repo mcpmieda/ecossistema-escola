@@ -96,6 +96,20 @@ describe('gradebook PostgreSQL database adapter', () => {
     expect(sql.calls[0]?.query).toContain('jsonb_array_elements($1::jsonb)');
   });
 
+  it('adds a server-side JSONB cast when an inherited insert has no explicit cast', async () => {
+    const sql = new SyntheticPostgresSqlV1();
+    const database = createGradebookPostgresDatabaseFromSqlV1(sql);
+    const payload = JSON.stringify({ transportVersion: 8 });
+
+    await database
+      .prepare('INSERT INTO gradebook_import_stage_sessions (metadata_json) VALUES (?)')
+      .bind(payload)
+      .run();
+
+    expect(sql.calls[0]?.query).toContain('VALUES ($1::jsonb)');
+    expect(sql.calls[0]?.parameters).toEqual([{ value: payload, oid: 25 }]);
+  });
+
   it('normalizes PostgreSQL rows to the established adapter boundary', async () => {
     const sql = new SyntheticPostgresSqlV1();
     sql.respond([
