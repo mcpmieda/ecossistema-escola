@@ -12,24 +12,23 @@ A implantação institucional está na **Etapa 3/5**. O produto já possui os m�
 
 ## Fila executável
 
-| Ordem | Issue | Estado | Trabalho |
-|---:|---:|---|---|
-| 1 | #592 | **PRONTA** | adapters PostgreSQL + dual verification, D1 ainda oficial |
-| 2 | #594 | bloqueada por #592 | backfill privado D1 → PostgreSQL + verificação integral |
-| 3 | #595 | bloqueada por #594 | cutover PostgreSQL + janela de rollback D1 |
-| 4 | #406 | pausada até #595 | piloto integral da escola inteira no storage oficial |
-| 5 | #347 | **Etapa 4/5 bloqueada** | autoridade `native-engine` por escopo |
-| 6 | #596 | **Etapa 5/5 bloqueada** | entrega institucional final |
+| Ordem | Issue | Estado                  | Trabalho                                             |
+| ----: | ----: | ----------------------- | ---------------------------------------------------- |
+|     1 |  #592 | concluída               | adapters PostgreSQL + dual verification              |
+|     2 |  #594 | concluída               | backfill privado D1 → PostgreSQL + paridade integral |
+|     3 |  #595 | concluída               | cutover PostgreSQL + janela de rollback D1           |
+|     4 |  #406 | **PRONTA**              | piloto integral da escola inteira no storage oficial |
+|     5 |  #347 | **Etapa 4/5 bloqueada** | autoridade `native-engine` por escopo                |
+|     6 |  #596 | **Etapa 5/5 bloqueada** | entrega institucional final                          |
 
-A próxima issue executável é **#592**. Não iniciar #594, #595, #406, #347 ou #596 por antecipação.
+A próxima issue executável é **#406**. Não iniciar #347 ou #596 por antecipação.
 
 ## Storage
 
 - BN-DEC-021 substituiu BN-DEC-016 quanto ao storage físico principal futuro;
-- PostgreSQL/Supabase via Hyperdrive `PROD_DB` é o target;
+- PostgreSQL/Supabase via Hyperdrive `PROD_DB` é o storage oficial;
 - schema produtivo `gradebook` já foi aplicado sem dados reais;
-- D1 continua canônico até #595;
-- D1 será preservado como rollback read-only depois do cutover por uma janela explícita;
+- D1 está preservado sem dual write como rollback durante a janela explícita;
 - o histórico técnico D1 está preservado em `../../Aprendizados/`.
 
 ## Piloto integral

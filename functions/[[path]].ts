@@ -36,6 +36,7 @@ import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/op
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-v1';
+import { withOfficialGradebookDatabaseV1 } from '../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 import { getPlatformSnapshot } from '../server/platform/snapshot';
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
@@ -170,6 +171,31 @@ async function handleComposedCouncilWorkspaceRequestV1(
     },
   });
   return handler(request, env);
+}
+
+async function routeOfficialGradebookRequestV1(
+  request: Request,
+  env: RuntimeEnv,
+): Promise<Response | null> {
+  const importPersistenceResponse = await handleGradebookImportPersistenceRequestV2(request, env);
+  if (importPersistenceResponse) return importPersistenceResponse;
+
+  const operationalWorkspaceResponse = await handleOperationalWorkspaceRequestV1(request, env);
+  if (operationalWorkspaceResponse) return operationalWorkspaceResponse;
+
+  const auditWorkspaceResponse = await handleAuditWorkspaceRequestV1(request, env);
+  if (auditWorkspaceResponse) return auditWorkspaceResponse;
+
+  const performanceResponse = await handlePerformanceRequestV1(request, env);
+  if (performanceResponse) return performanceResponse;
+
+  const bulletinResponse = await handleBulletinRequestV1(request, env);
+  if (bulletinResponse) return bulletinResponse;
+
+  const councilResponse = await handleComposedCouncilWorkspaceRequestV1(request, env);
+  if (councilResponse) return councilResponse;
+
+  return handleInstitutionalReportsRequestV1(request, env);
 }
 
 async function route(context: Context, correlationId: string): Promise<Response> {
@@ -328,29 +354,16 @@ async function route(context: Context, correlationId: string): Promise<Response>
     });
   }
 
-  const importPersistenceResponse = await handleGradebookImportPersistenceRequestV2(request, env);
-  if (importPersistenceResponse) return importPersistenceResponse;
-
-  const operationalWorkspaceResponse = await handleOperationalWorkspaceRequestV1(request, env);
-  if (operationalWorkspaceResponse) return operationalWorkspaceResponse;
-
-  const auditWorkspaceResponse = await handleAuditWorkspaceRequestV1(request, env);
-  if (auditWorkspaceResponse) return auditWorkspaceResponse;
-
-  const performanceResponse = await handlePerformanceRequestV1(request, env);
-  if (performanceResponse) return performanceResponse;
-
-  const bulletinResponse = await handleBulletinRequestV1(request, env);
-  if (bulletinResponse) return bulletinResponse;
-
-  const councilResponse = await handleComposedCouncilWorkspaceRequestV1(request, env);
-  if (councilResponse) return councilResponse;
-
-  const reportsResponse = await handleInstitutionalReportsRequestV1(request, env);
-  if (reportsResponse) return reportsResponse;
-
+  // This route always targets the preserved D1 rollback store, including after cutover.
   const gradebookD1AdminResponse = await handleGradebookD1AdminRequestV1(request, env);
   if (gradebookD1AdminResponse) return gradebookD1AdminResponse;
+
+  if (url.pathname.startsWith('/api/gradebook/')) {
+    const gradebookResponse = await withOfficialGradebookDatabaseV1(env, (executionEnv) =>
+      routeOfficialGradebookRequestV1(request, executionEnv),
+    );
+    if (gradebookResponse) return gradebookResponse;
+  }
 
   if (url.pathname === '/api/sharepoint/health') {
     method(request, ['GET']);

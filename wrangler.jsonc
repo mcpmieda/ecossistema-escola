@@ -21,12 +21,13 @@
     "GROUP_ALUNO_ID": "8255b76e-dd85-4d04-a360-8ce1baf6ce63",
     "GROUP_APOIO_ID": "74386ce1-2db4-4352-8618-7ab4659ab7b6",
     "GROUP_VISITANTE_ID": "9b0283b8-8883-4257-8085-3ac60060d489",
-    "OFFICIAL_ORIGIN": "https://admin.escolaieda.com"
+    "OFFICIAL_ORIGIN": "https://admin.escolaieda.com",
+    "GRADEBOOK_STORAGE_PROVIDER": "postgres"
   },
   "hyperdrive": [
     {
       "binding": "PROD_DB",
-      "id": "25f5d952d42d42f2b4592fa4f673fd30"
+      "id": "476b417597c84b4c994bd36f1a65cb70"
     }
   ]
 }

@@ -15,7 +15,7 @@ Este diretório é a memória oficial do Banco de Notas. Para execução, preval
 
 O Banco já possui importação, domínio acadêmico, motor comparativo, Auditoria, centrais, Desempenho, Conselho, Boletins, PDF e Relatórios. A implantação institucional ainda não terminou.
 
-A decisão BN-DEC-021 substituiu BN-DEC-016 quanto ao armazenamento físico principal futuro: **PostgreSQL/Supabase via Hyperdrive `PROD_DB`** é o storage-alvo. D1 continua canônico até o cutover explícito e será preservado como rollback por uma janela controlada.
+A decisão BN-DEC-021 substituiu BN-DEC-016 quanto ao armazenamento físico principal: **PostgreSQL/Supabase via Hyperdrive `PROD_DB`** é o storage oficial. D1 está preservado sem dual write como rollback pela janela controlada definida no [`postgres-cutover-runbook-v1.md`](postgres-cutover-runbook-v1.md).
 
 O schema produtivo PostgreSQL `gradebook` já foi criado e aplicado sem dados reais, com 29 tabelas, 73 índices, 54 foreign keys e 6 migrations lógicas. O legado técnico D1 permanece preservado na pasta raiz [`Aprendizados/`](../../Aprendizados/).
 
@@ -38,8 +38,8 @@ O piloto #406 está pausado até o cutover para evitar validar duas vezes o mesm
 ## Invariantes ativos
 
 - `authorityMode: imported-source` durante toda a Etapa 3/5;
-- D1 continua oficial até #595;
-- PostgreSQL é target/shadow até paridade e cutover;
+- PostgreSQL é o storage oficial após a paridade integral de #594 e o cutover #595;
+- D1 permanece intacto e sem novas escritas acadêmicas como rollback controlado;
 - arquivos reais permanecem privados e fora de Git/CI;
 - CAS, idempotência, histórico append-only e rollback permanecem obrigatórios;
 - mudança de storage não ativa autoridade nativa;

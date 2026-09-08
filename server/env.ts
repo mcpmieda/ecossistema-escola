@@ -17,13 +17,20 @@ export type RuntimeSecrets = {
 
 export type RuntimeEnv = Omit<
   Cloudflare.Env,
-  'GRADEBOOK_D1' | 'GRADEBOOK_PRODUCTION_ENABLED' | 'OFFICIAL_ORIGIN' | 'RUNTIME_ENVIRONMENT'
+  | 'GRADEBOOK_D1'
+  | 'GRADEBOOK_PRODUCTION_ENABLED'
+  | 'GRADEBOOK_STORAGE_PROVIDER'
+  | 'OFFICIAL_ORIGIN'
+  | 'PROD_DB'
+  | 'RUNTIME_ENVIRONMENT'
 > &
   RuntimeSecrets & {
     OFFICIAL_ORIGIN: string;
     RUNTIME_ENVIRONMENT?: RuntimeEnvironment;
     GRADEBOOK_PRODUCTION_ENABLED?: 'true' | 'false';
+    GRADEBOOK_STORAGE_PROVIDER?: 'd1' | 'postgres';
     GRADEBOOK_D1?: unknown;
+    PROD_DB?: unknown;
   };
 
 const PRODUCTION_ORIGIN = 'https://admin.escolaieda.com';
@@ -51,7 +58,9 @@ const envSchema = z
     GRAPH_CREDENTIAL_B: z.string().min(256).optional(),
     SESSION_SECRET: z.string().min(43),
     GRADEBOOK_PRODUCTION_ENABLED: z.enum(['true', 'false']).optional(),
+    GRADEBOOK_STORAGE_PROVIDER: z.enum(['d1', 'postgres']).default('d1'),
     GRADEBOOK_D1: z.unknown().optional(),
+    PROD_DB: z.unknown().optional(),
   })
   .superRefine((value, context) => {
     let origin: URL;

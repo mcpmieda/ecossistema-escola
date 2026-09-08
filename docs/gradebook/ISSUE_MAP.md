@@ -7,27 +7,27 @@ Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila c
 - **Programa:** #182
 - **Coordenação da consolidação:** #593
 - **Etapa atual de implantação:** 3/5
-- **Storage oficial atual:** D1 até o cutover explícito
-- **Storage-alvo:** PostgreSQL/Supabase via Hyperdrive `PROD_DB`, conforme BN-DEC-021
+- **Storage oficial atual:** PostgreSQL/Supabase via Hyperdrive `PROD_DB`
+- **Rollback preservado:** D1 sem dual write, conforme BN-DEC-021 e runbook do cutover
 - **Autoridade acadêmica ativa:** `imported-source`
 - **Autoridade-alvo futura:** `native-engine` por escopo, somente pela #347
 - **Entrega institucional final:** #596
 
 ## Issues abertas que devem guiar o restante da implantação
 
-| Papel | Issue | Estado | Próximo gate |
-|---|---:|---|---|
-| Programa | #182 | aberta | acompanhar 3/5 → 5/5 |
-| Persistência | #185 | aberta | fechar após #595 |
-| F9/implantação | #192 | aberta | fechar na entrega #596 |
-| Saúde/limites | #220 | planejada | pós-cutover / #596 |
-| Etapa 4/5 | #347 | bloqueada | depende da Etapa 3/5 |
-| Piloto integral | #406 | pausada | retomar após #595 |
-| Migração 1 | #592 | **PRONTA** | adapters + dual verification |
-| Coordenação | #593 | em execução | fecha após docs/backlog consolidados |
-| Migração 2 | #594 | bloqueada | depende de #592 |
-| Migração 3 | #595 | bloqueada | depende de #594 |
-| Etapa 5/5 | #596 | bloqueada | depende de #347 |
+| Papel           | Issue | Estado      | Próximo gate                         |
+| --------------- | ----: | ----------- | ------------------------------------ |
+| Programa        |  #182 | aberta      | acompanhar 3/5 → 5/5                 |
+| Persistência    |  #185 | aberta      | fechar após #595                     |
+| F9/implantação  |  #192 | aberta      | fechar na entrega #596               |
+| Saúde/limites   |  #220 | planejada   | pós-cutover / #596                   |
+| Etapa 4/5       |  #347 | bloqueada   | depende da Etapa 3/5                 |
+| Piloto integral |  #406 | **PRONTA**  | executar no PostgreSQL oficial       |
+| Migração 1      |  #592 | concluída   | adapters + dual verification         |
+| Coordenação     |  #593 | em execução | fecha após docs/backlog consolidados |
+| Migração 2      |  #594 | concluída   | backfill e paridade verdes           |
+| Migração 3      |  #595 | concluída   | PostgreSQL oficial, D1 em rollback   |
+| Etapa 5/5       |  #596 | bloqueada   | depende de #347                      |
 
 Nenhuma outra issue histórica D1/performance/benchmark deve permanecer aberta apenas como memória. O histórico continua no GitHub e o conhecimento reutilizável está em `../../Aprendizados/`.
 
@@ -58,6 +58,7 @@ Storage e autoridade acadêmica são independentes: PostgreSQL ser oficial não 
 ## Etapa 5/5 — entrega
 
 `#596` encerra a implantação institucional. Gates mínimos:
+
 - storage PostgreSQL estável;
 - piloto integral aprovado;
 - autoridade por escopo concluída conforme #347;
@@ -68,18 +69,18 @@ Storage e autoridade acadêmica são independentes: PostgreSQL ser oficial não 
 
 ## Fases funcionais
 
-| Fase | Issue | Estado atual |
-|---|---:|---|
-| F0 Fundação | #183 | concluída |
-| F1 Fonte/importação | #184 | concluída; V8 integrado |
-| F2 Persistência | #185 | funcional; migração física em andamento |
-| F3 Motor | #186 | V1 comparativo concluído |
-| F4 Auditoria | #187 | concluída |
-| F5 Centrais | #188 | concluída |
-| F6 Desempenho | #189 | concluída funcionalmente |
-| F7 Conselho | #190 | concluída/fechada |
-| F8 Boletins/Relatórios | #191 | concluída/fechada |
-| F9 Implantação | #192 | Etapa 3/5 em andamento |
+| Fase                   | Issue | Estado atual                            |
+| ---------------------- | ----: | --------------------------------------- |
+| F0 Fundação            |  #183 | concluída                               |
+| F1 Fonte/importação    |  #184 | concluída; V8 integrado                 |
+| F2 Persistência        |  #185 | funcional; migração física em andamento |
+| F3 Motor               |  #186 | V1 comparativo concluído                |
+| F4 Auditoria           |  #187 | concluída                               |
+| F5 Centrais            |  #188 | concluída                               |
+| F6 Desempenho          |  #189 | concluída funcionalmente                |
+| F7 Conselho            |  #190 | concluída/fechada                       |
+| F8 Boletins/Relatórios |  #191 | concluída/fechada                       |
+| F9 Implantação         |  #192 | Etapa 3/5 em andamento                  |
 
 ## Histórico preservado
 
