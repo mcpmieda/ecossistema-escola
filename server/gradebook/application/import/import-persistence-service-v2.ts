@@ -118,30 +118,6 @@ function emptySummary(): GradebookImportPersistenceSummaryV2 {
   };
 }
 
-function isCurrentIdenticalSourceObservation(
-  request: GradebookImportPersistenceRequestV4,
-  known: NonNullable<
-    Awaited<
-      ReturnType<
-        GradebookImportPersistenceServiceDependenciesV4['unitOfWork']['imports']['findSourceFileByHash']
-      >
-    >
-  >,
-): boolean {
-  const manifest = known.value.manifest;
-  return (
-    known.value.logicalSource.state === 'confirmed' &&
-    manifest.fileName === request.manifest.fileName &&
-    manifest.extension === request.manifest.extension &&
-    manifest.reportedMimeType === request.manifest.reportedMimeType &&
-    manifest.sizeBytes === request.manifest.sizeBytes &&
-    manifest.lastModifiedAt === request.manifest.lastModifiedAt &&
-    manifest.sha256 === request.manifest.sha256 &&
-    manifest.sourceContractVersion === request.manifest.sourceContractVersion &&
-    manifest.parserVersion === request.manifest.parserVersion
-  );
-}
-
 function issue(
   code: GradebookImportPersistenceIssueV2['code'],
 ): readonly [GradebookImportPersistenceIssueV2] {
@@ -417,26 +393,6 @@ export function createGradebookImportPersistenceServiceV4(
     ): Promise<GradebookImportPersistenceResponseV4> {
       let phase: GradebookImportFailurePhaseV1 = 'logical-source';
       try {
-        phase = 'source-lookup';
-        const knownSource = await dependencies.unitOfWork.imports.findSourceFileByHash(
-          { academicYearId: request.confirmedContext.academicYearId },
-          request.manifest.sha256,
-        );
-        // A confirmed source observation is the durable resolution for these exact
-        // bytes. Revalidating assignments and source discovery would turn a true
-        // no-op into several remote reads without adding academic evidence.
-        if (
-          dependencies.sourceValues === true &&
-          knownSource &&
-          isCurrentIdenticalSourceObservation(request, knownSource)
-        ) {
-          return {
-            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
-            state: 'no-changes',
-            summary: emptySummary(),
-          };
-        }
-
         phase = 'logical-source';
         const resolution = await resolveLogicalSourceForImportV2(request, {
           entities: dependencies.unitOfWork.entities,
@@ -469,6 +425,12 @@ export function createGradebookImportPersistenceServiceV4(
         if (officialRecords.status !== 'ready') {
           return reviewFromOfficialMaterialization(officialRecords);
         }
+
+        phase = 'source-lookup';
+        const knownSource = await dependencies.unitOfWork.imports.findSourceFileByHash(
+          { academicYearId: request.confirmedContext.academicYearId },
+          request.manifest.sha256,
+        );
 
         const { batch, importFileId } = serverBatch(
           request,
