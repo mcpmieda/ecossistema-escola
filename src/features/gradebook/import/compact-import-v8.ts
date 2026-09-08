@@ -109,8 +109,12 @@ export function createGradebookValuesSnapshotV8(
     valuePolicy: SOURCE_VALUES_POLICY_V5,
     manifest: {
       ...original.manifest,
-      parserVersion: `${original.manifest.parserVersion.slice(0, 100)}:values-v2`,
+      parserVersion: gradebookValuesParserVersionV8(original.manifest.parserVersion),
     },
     courses,
   };
+}
+
+export function gradebookValuesParserVersionV8(parserVersion: string): string {
+  return `${parserVersion.slice(0, 100)}:values-v2`;
 }

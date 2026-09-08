@@ -12,12 +12,16 @@ import {
   type ImportWorkbookFileTimingV1,
 } from './import-batch';
 import { loadSheetJs, preloadSheetJs } from './sheetjs-loader';
-import { createGradebookValuesSnapshotV8 } from './compact-import-v8';
+import {
+  createGradebookValuesSnapshotV8,
+  gradebookValuesParserVersionV8,
+} from './compact-import-v8';
 import {
   isGradebookImportPersistenceRequestV8,
   type GradebookImportPersistenceRequestV8,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8';
 import { persistGradebookValuesSnapshotV8 } from './import-persistence-client-v8';
+import { inspectGradebookImportKnownContentV1 } from './import-known-content-client-v1';
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
 
 export type ImportPersistenceStateV5 =
@@ -75,6 +79,31 @@ function elapsedMs(startedAt: number): number {
 
 function diagnosticLine(prefix: string, value: unknown): string {
   return `${prefix} ${JSON.stringify(value)}`;
+}
+
+function knownNoChangesResponseV1(): GradebookImportPersistenceResponseV6 {
+  const stateCounts = { unchanged: 0, new: 0, changed: 0, blocked: 0 } as const;
+  const recordCounts = { ...stateCounts, missingFromNewSource: 0 } as const;
+  const writes = {
+    logicalSources: 0,
+    sourceFileVersions: 0,
+    importBatchVersions: 0,
+    assessmentComponentVersions: 0,
+    academicRecordVersions: 0,
+    logicalSourceRecordAssociationVersions: 0,
+    total: 0,
+  } as const;
+  return {
+    transportVersion: 6,
+    state: 'no-changes',
+    summary: {
+      assessmentDefinitions: { total: 0, resolved: 0, blocked: 0 },
+      assessmentComponents: stateCounts,
+      academicRecords: recordCounts,
+      plannedWrites: writes,
+      committedWrites: writes,
+    },
+  };
 }
 
 function startImportBootstrapV1(): Promise<ImportBootstrapOutcomeV1> {
@@ -275,10 +304,68 @@ export function useImportBatch() {
       throw new Error('Não foi possível consultar os anos letivos cadastrados.');
     }
 
+    const knownStartedAt = nowMs();
+    const candidates = successes.flatMap((result) => {
+      const year = bootstrap.availableAcademicYears.find(
+        (option) => option.label === String(result.summary.academicYear),
+      );
+      if (!year) return [];
+      return [
+        {
+          result,
+          observation: {
+            academicYearId: year.id,
+            fileName: result.manifest.fileName,
+            extension: result.manifest.extension,
+            reportedMimeType: result.manifest.reportedMimeType,
+            sizeBytes: result.manifest.sizeBytes,
+            lastModifiedAt: result.manifest.lastModifiedAt,
+            sha256: result.manifest.sha256,
+            sourceContractVersion: result.manifest.sourceContractVersion,
+            parserVersion: gradebookValuesParserVersionV8(result.manifest.parserVersion),
+          },
+        },
+      ];
+    });
+    const inspection =
+      candidates.length === 0
+        ? ({ transportVersion: 1, state: 'unavailable' } as const)
+        : await inspectGradebookImportKnownContentV1(
+            candidates.map(({ observation }) => observation),
+          );
+    appendTiming('[gradebook-import-known-content-timing]', {
+      version: 1,
+      totalMs: elapsedMs(knownStartedAt),
+      itemCount: candidates.length,
+      state: inspection.state,
+      knownCount: inspection.state === 'ready' ? inspection.known.filter(Boolean).length : 0,
+    });
+    if (inspection.state === 'not-authorized') {
+      const first = successes[0];
+      if (first) markAuthorizationRequired(first);
+      return 'auth-required';
+    }
+    const knownIds = new Set<string>();
+    if (inspection.state === 'ready' && inspection.known.length === candidates.length) {
+      candidates.forEach(({ result }, index) => {
+        if (inspection.known[index]) knownIds.add(result.id);
+      });
+      if (knownIds.size > 0) {
+        const noChanges = knownNoChangesResponseV1();
+        setPersistence((current) => ({
+          ...current,
+          ...Object.fromEntries(
+            [...knownIds].map((id) => [id, { state: 'completed', response: noChanges } as const]),
+          ),
+        }));
+      }
+    }
+    const pending = successes.filter((result) => !knownIds.has(result.id));
+
     // Keep only a small bounded window in memory and in flight. Every file remains
     // independently atomic; after an uncertain reply no new work is scheduled, while
     // requests already in flight are allowed to report their confirmed outcome.
-    let completedCount = 0;
+    let completedCount = knownIds.size;
     const runOne = async (
       result: BatchSuccess,
       index: number,
@@ -318,10 +405,10 @@ export function useImportBatch() {
         return 'confirmation-required';
       }
     };
-    for (let start = 0; start < successes.length; start += GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1) {
-      const window = successes.slice(start, start + GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    for (let start = 0; start < pending.length; start += GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1) {
+      const window = pending.slice(start, start + GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
       const outcomes = await Promise.all(
-        window.map((result, offset) => runOne(result, start + offset)),
+        window.map((result) => runOne(result, successes.indexOf(result))),
       );
       if (outcomes.includes('auth-required')) return 'auth-required';
       if (outcomes.includes('confirmation-required')) return 'confirmation-required';
