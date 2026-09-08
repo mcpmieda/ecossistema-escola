@@ -1,76 +1,58 @@
 # Banco de Notas — ponto de entrada
 
-Este diretório é a memória oficial do Banco de Notas. Para execução, prevalecem `AGENTS.md`, as decisões/documentos canônicos, a issue atual e os handoffs mais recentes.
+Este diretório é a memória oficial do Banco de Notas. Para execução, prevalecem `AGENTS.md`, `DECISIONS.md`, `PROJECT_STATE.yaml`, a issue executável atual e a coordenação #593.
 
 ## Comece por aqui
 
-- [`COMECE_AQUI.md`](COMECE_AQUI.md) — fila executável atual;
-- [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — acompanhamento humano;
-- [`ISSUE_MAP.md`](ISSUE_MAP.md) — fases, ondas e dependências;
-- [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado legível por máquina;
-- [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) — gates, ensaios e protocolo F9;
-- [Issue #406](https://github.com/mcpmieda/ecossistema-escola/issues/406) — próximo gate: piloto integral privado da escola inteira.
+- [`COMECE_AQUI.md`](COMECE_AQUI.md) — fila curta e próxima ação;
+- [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — acompanhamento do programa;
+- [`ISSUE_MAP.md`](ISSUE_MAP.md) — trilha ativa e dependências;
+- [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado canônico legível por máquina;
+- [`ROADMAP.md`](ROADMAP.md) — fases funcionais e implantação em 5 etapas;
+- [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) — gates de produção, rollback e piloto.
 
-## Estado atual — schema produtivo 5/27
+## Estado atual — implantação na Etapa 3/5
 
-A onda 23 executou produção controlada de forma estritamente sequencial:
+O Banco já possui importação, domínio acadêmico, motor comparativo, Auditoria, centrais, Desempenho, Conselho, Boletins, PDF e Relatórios. A implantação institucional ainda não terminou.
 
-- #380 — D1 acadêmico produtivo e binding `GRADEBOOK_D1` confirmados, com gate server-side fail-closed;
-- #381 — migrations canônicas 0001–0004 aplicadas remotamente, schema version 4 / 25 tabelas e zero pendência;
-- #382 — cinco smokes produtivos com corpus exclusivamente sintético, snapshot/reprint duráveis e recovery validado;
-- #383 — consolidação canônica, sem novo acesso D1, migration, smoke acadêmico ou mudança de autoridade.
+A decisão BN-DEC-021 substituiu BN-DEC-016 quanto ao armazenamento físico principal futuro: **PostgreSQL/Supabase via Hyperdrive `PROD_DB`** é o storage-alvo. D1 continua canônico até o cutover explícito e será preservado como rollback por uma janela controlada.
 
-A onda 24 revisou o escopo na #394, integrou a durabilidade cross-restart da sessão institucional V2 na #395 / PR #398, aplicou exclusivamente a migration 0005 pela #399 e concluiu o smoke produtivo/recovery na #400. O estado remoto atual é schema version 5 / 27 tabelas / zero pendência, com resíduo sintético zero e production gate OFF.
+O schema produtivo PostgreSQL `gradebook` já foi criado e aplicado sem dados reais, com 29 tabelas, 73 índices, 54 foreign keys e 6 migrations lógicas. O legado técnico D1 permanece preservado na pasta raiz [`Aprendizados/`](../../Aprendizados/).
 
-O SHA usado no smoke final da onda 23 foi `2fdefa87f186e84ed40637437d4b0199baff82c6`; o smoke Council V2 da #400 validou o SHA `345103e0ede97f34115c0fc21ecba668e9dc7def`. Ao final de ambas as janelas, o corpus sintético foi restaurado para **zero raízes residuais** e o production gate voltou a **OFF**.
+## Trilha ativa
 
-O readiness V1 permanece histórico e continua descrevendo o estado pré-produção `prepared-for-manual-authorization`. A partir desta integração, `controlled-production-readiness-v2.ts` representa o estado autorizado pós-onda 23: **`production-infrastructure-smoke-validated-awaiting-private-pilot`**.
+### Etapa 3/5 — em andamento
+
+`#592 adapters PostgreSQL + dual verification → #594 backfill privado + paridade → #595 cutover + rollback D1 → #406 piloto integral da escola inteira`
+
+O piloto #406 está pausado até o cutover para evitar validar duas vezes o mesmo corpus em storages diferentes.
+
+### Etapa 4/5 — bloqueada
+
+`#347` — ativação de `native-engine` por escopo, somente depois da Etapa 3/5 verde.
+
+### Etapa 5/5 — bloqueada
+
+`#596` — entrega institucional, runbook final, observabilidade, backup/restore e fechamento deliberado da janela de rollback.
 
 ## Invariantes ativos
 
-- `authorityMode: imported-source`;
-- D1 acadêmico produtivo e binding `GRADEBOOK_D1`: presentes;
-- migrations remotas: 0001–0005, schema version 5 / 27 tabelas, zero pendência;
-- production gate: OFF entre janelas autorizadas;
-- produção acadêmica real: não iniciada;
-- piloto real: não iniciado;
-- corpus sintético residual do smoke: zero;
-- `native-engine`: não ativo;
-- somente dados sintéticos no repositório/CI.
+- `authorityMode: imported-source` durante toda a Etapa 3/5;
+- D1 continua oficial até #595;
+- PostgreSQL é target/shadow até paridade e cutover;
+- arquivos reais permanecem privados e fora de Git/CI;
+- CAS, idempotência, histórico append-only e rollback permanecem obrigatórios;
+- mudança de storage não ativa autoridade nativa;
+- `native-engine` continua inativo até #347.
 
-## Readiness F9
+## Readiness histórico
 
-O V1 continua congelado como memória da preparação anterior e não é enfraquecido para aceitar binding/migrations. O V2 preserva a evidência pós-onda 23. A #400 comprovou em produção a durabilidade cross-restart da sessão V2, voto, fechamento, snapshot, histórico, CAS e guards pós-close, com recovery para resíduo zero.
-
-Limites restantes antes do piloto:
-
-- `reconciliation_v2.case_store` ainda é provider-independent/process-local;
-- write administrativo da configuração de comparação continua `not-integrated-hard-stop`.
-
-A sessão/reunião institucional do Conselho V2 usa D1 no runtime central, a 0005 está aplicada em produção e o smoke/recovery desse caminho foi concluído pela #400. Nenhum piloto real começou.
-
-A #384 foi integrada pela PR #393 e publicou a BN-DEC-020. O primeiro piloto real continua definido como escola inteira, privado/controlado e sob `imported-source` durante a validação.
-
-## Estado funcional
-
-- **F1:** concluída e validada 7/7; fidelidade prospectiva V2 preservada;
-- **F2:** D1 produtivo provisionado, schema 5/27 aplicado e gate final OFF;
-- **F3:** motor V1 comparativo; autoridade continua importada;
-- **F4/F5/F6:** concluídas, com write da configuração de comparação ainda bloqueado;
-- **F7/F8:** durabilidade D1 integrada e smoke-validada; Boletins/snapshot/reprint e sessão V2 recuperáveis em produção;
-- **F9:** infraestrutura e sessão V2 produtivas smoke-validadas; #406 é o gate separado do piloto privado real.
-
-## Próximo gate
-
-`#399 schema 5/27 concluído → #400 smoke Conselho V2/recovery verde → #406 piloto privado integral → #347 autoridade nativa`
-
-A #400 terminou com recovery para resíduo zero e gate OFF. O piloto integral continua separado na #406 e não foi iniciado por esta integração.
+O V1 permanece memória histórica de `prepared-for-manual-authorization`. O V2 histórico permanece `production-infrastructure-smoke-validated-awaiting-private-pilot`; esses estados documentam a preparação D1 anterior e não substituem a trilha atual de migração PostgreSQL.
 
 ## Processo oficial
 
 ```text
-uma issue → uma branch curta → um PR → npm run verify → handoff
-frentes verdes → integração própria → main → deploy/smokes públicos sem dados → gate manual
+uma issue → uma branch curta → um PR → npm run verify → CI → merge/deploy quando autorizado → evidência sanitizada
 ```
 
-Não usar App Factory, Factory Runs, orquestradores ou agentes auxiliares salvo autorização explícita da issue. O repositório é público: nunca publicar dados reais de estudantes em fixtures, logs, issues, PRs ou commits.
+Não usar App Factory, Factory Runs, orquestradores ou agentes auxiliares salvo autorização explícita. Nunca publicar dados reais de estudantes/professores, payloads acadêmicos, hashes privados ou credenciais.
