@@ -41,6 +41,7 @@ function stringOrNull(value: unknown): string | null | undefined {
 function exact(item: GradebookImportKnownContentObservationV1, row: RowV1 | undefined): boolean {
   return (
     row !== undefined &&
+    Number(row.is_current_authority) === 1 &&
     row.logical_source_state === 'confirmed' &&
     row.file_name === item.fileName &&
     row.extension === item.extension &&
@@ -85,7 +86,31 @@ export async function handleGradebookImportKnownContentRequestV1(
       .prepare(
         `SELECT s.academic_year_id, s.current_sha256, v.file_name, v.extension,
                 v.reported_mime_type, v.size_bytes, v.last_modified_at, v.sha256,
-                v.source_contract_version, v.parser_version, v.logical_source_state
+                v.source_contract_version, v.parser_version, v.logical_source_state,
+                NOT EXISTS (
+                  SELECT 1
+                  FROM logical_source_record_versions historical
+                  WHERE historical.academic_year_id = s.academic_year_id
+                    AND historical.logical_source_id = v.confirmed_logical_source_id
+                    AND historical.source_manifest_id = v.manifest_id
+                    AND historical.association_state = 'active'
+                    AND NOT EXISTS (
+                      SELECT 1
+                      FROM logical_source_record_streams current_stream
+                      JOIN logical_source_record_versions current_version
+                        ON current_version.academic_year_id = current_stream.academic_year_id
+                       AND current_version.logical_source_id = current_stream.logical_source_id
+                       AND current_version.record_kind = current_stream.record_kind
+                       AND current_version.stream_key = current_stream.stream_key
+                       AND current_version.version = current_stream.current_version
+                      WHERE current_stream.academic_year_id = historical.academic_year_id
+                        AND current_stream.logical_source_id = historical.logical_source_id
+                        AND current_stream.record_kind = historical.record_kind
+                        AND current_stream.stream_key = historical.stream_key
+                        AND current_stream.current_state = 'active'
+                        AND current_version.source_manifest_id = v.manifest_id
+                    )
+                ) AS is_current_authority
          FROM source_file_streams s
          JOIN source_file_versions v
            ON v.academic_year_id = s.academic_year_id

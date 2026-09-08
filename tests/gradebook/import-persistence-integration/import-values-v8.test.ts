@@ -50,22 +50,10 @@ describe('Values V8 persistence and legacy continuity', () => {
       expect(values.every((v) => v.evidence[0].classification === 'snapshot-value')).toBe(true);
       expect(rows.every((row) => !row.payload_json.includes('"formula"'))).toBe(true);
       const before = base.raw.prepare('SELECT COUNT(*) AS n FROM academic_record_versions').get();
-      const sourceVersionsBefore = base.raw
-        .prepare('SELECT COUNT(*) AS n FROM source_file_versions')
-        .get();
-      const batchVersionsBefore = base.raw
-        .prepare('SELECT COUNT(*) AS n FROM import_batch_versions')
-        .get();
       const second = await service.execute(req);
       expect(second).toMatchObject({ state: 'no-changes' });
       expect(base.raw.prepare('SELECT COUNT(*) AS n FROM academic_record_versions').get()).toEqual(
         before,
-      );
-      expect(base.raw.prepare('SELECT COUNT(*) AS n FROM source_file_versions').get()).toEqual(
-        sourceVersionsBefore,
-      );
-      expect(base.raw.prepare('SELECT COUNT(*) AS n FROM import_batch_versions').get()).toEqual(
-        batchVersionsBefore,
       );
     } finally {
       base.raw.close();

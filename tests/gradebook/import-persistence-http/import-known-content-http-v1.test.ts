@@ -6,7 +6,13 @@ import {
   GRADEBOOK_IMPORT_KNOWN_CONTENT_ROUTE_V1,
   handleGradebookImportKnownContentRequestV1,
 } from '../../../server/gradebook/http/import-known-content-routes-v1';
+import { handleGradebookImportPersistenceRequestV4 } from '../../../server/gradebook/http/import-persistence-routes-v2';
 import { testEnv } from '../../fixtures';
+import {
+  AtomicMeasuredDatabaseV8,
+  seededValuesDatabaseV8,
+  valuesRequestV8,
+} from '../import-persistence-integration/values-v8-test-support';
 
 const origin = 'http://localhost:8788';
 
@@ -62,6 +68,40 @@ async function send(
 }
 
 describe('Gradebook known-content HTTP V1', () => {
+  it('proves current authority against the real migrated schema after an applied import', async () => {
+    const base = await seededValuesDatabaseV8();
+    try {
+      const database = new AtomicMeasuredDatabaseV8(base);
+      const value = valuesRequestV8();
+      const persistence = await handleGradebookImportPersistenceRequestV4(
+        new Request(`${origin}/api/gradebook/import-persistence`, {
+          method: 'POST',
+          headers: await headers('ADMINISTRADOR'),
+          body: JSON.stringify(value),
+        }),
+        {
+          ...testEnv,
+          OFFICIAL_ORIGIN: origin,
+          RUNTIME_ENVIRONMENT: 'local',
+          GRADEBOOK_D1: database,
+        },
+      );
+      expect(await persistence?.json()).toMatchObject({ state: 'applied' });
+      const observation = {
+        academicYearId: value.confirmedContext.academicYearId,
+        ...value.manifest,
+      };
+      const known = await send(database, {
+        transportVersion: 1,
+        operation: 'inspect-known-content',
+        items: [observation],
+      });
+      expect(await known?.json()).toEqual({ transportVersion: 1, state: 'ready', known: [true] });
+    } finally {
+      base.raw.close();
+    }
+  });
+
   it('resolves a bounded batch in one database read and preserves request order', async () => {
     const first = item('a'.repeat(64));
     const second = item('b'.repeat(64));
@@ -80,6 +120,7 @@ describe('Gradebook known-content HTTP V1', () => {
           source_contract_version: first.sourceContractVersion,
           parser_version: first.parserVersion,
           logical_source_state: 'confirmed',
+          is_current_authority: 1,
         },
       ],
     }));
