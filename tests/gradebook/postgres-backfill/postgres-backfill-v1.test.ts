@@ -75,18 +75,10 @@ class TargetSql implements GradebookBackfillSqlV1 {
   readonly calls: string[] = [];
   transactions = 0;
   changed = 0;
-  divergent = 0;
 
-  unsafe(query: string, parameters: readonly unknown[] = []) {
+  unsafe(query: string, _parameters: readonly unknown[] = []) {
     this.calls.push(query);
     if (query.startsWith('INSERT INTO')) return Promise.resolve(result([], this.changed));
-    if (query.startsWith('WITH incoming')) {
-      const body = parameters[0];
-      const rows = JSON.parse(typeof body === 'string' ? body : '[]') as unknown[];
-      return Promise.resolve(
-        result([{ expected: rows.length, present: rows.length, divergent: this.divergent }]),
-      );
-    }
     if (/SELECT COUNT\(\*\) AS count FROM gradebook\./u.test(query)) {
       return Promise.resolve(result([{ count: 0 }]));
     }
@@ -188,11 +180,11 @@ describe('PostgreSQL gradebook private backfill', () => {
     expect(target.calls[0]).toContain('jsonb_populate_recordset');
     expect(target.calls[0]).toContain('ON CONFLICT ("academic_year_id") DO UPDATE');
     expect(target.calls[0]).toContain('IS DISTINCT FROM EXCLUDED');
-    expect(target.calls[1]).toContain('ROW(target."academic_year_id"');
+    expect(target.calls).toHaveLength(1);
     expect(guard.writeAttempts()).toBe(0);
   });
 
-  it('fails the page verification before the transaction can be accepted', async () => {
+  it('propagates a target failure from inside the bounded transaction', async () => {
     const definition = gradebookBackfillFamilyV1('academic_years');
     if (!definition) throw new Error('test-family-missing');
     const source = new SourceDatabase(
@@ -213,7 +205,7 @@ describe('PostgreSQL gradebook private backfill', () => {
       ]),
     );
     const target = new TargetSql();
-    target.divergent = 1;
+    target.unsafe = () => Promise.reject(new Error('synthetic-target-failure'));
 
     await expect(
       backfillGradebookFamilyPageV1(source, target, {
@@ -221,7 +213,7 @@ describe('PostgreSQL gradebook private backfill', () => {
         afterRowId: 0,
         limit: 10,
       }),
-    ).rejects.toThrow('gradebook-backfill-verification-failed');
+    ).rejects.toThrow('synthetic-target-failure');
     expect(target.transactions).toBe(1);
   });
 
@@ -233,7 +225,7 @@ describe('PostgreSQL gradebook private backfill', () => {
         CREATE TABLE gradebook.academic_years (
           academic_year_id TEXT PRIMARY KEY,
           school_id TEXT NOT NULL,
-          year INTEGER NOT NULL,
+          year INTEGER NOT NULL CHECK (year BETWEEN 2000 AND 9999),
           current_version INTEGER NOT NULL,
           created_at TIMESTAMPTZ NOT NULL
         );
@@ -276,6 +268,35 @@ describe('PostgreSQL gradebook private backfill', () => {
       expect(first.changed).toBe(1);
       expect(second.changed).toBe(0);
       expect(persisted.rows).toEqual([{ academic_year_id: 'academic-year:synthetic', year: 2026 }]);
+
+      const invalidSource = new SourceDatabase(
+        new Map([
+          [
+            definition.name,
+            [
+              {
+                __backfill_rowid: 12,
+                academic_year_id: 'academic-year:invalid',
+                school_id: 'school:invalid',
+                year: 1999,
+                current_version: 1,
+                created_at: '2026-09-08T00:00:00.000Z',
+              },
+            ],
+          ],
+        ]),
+      );
+      await expect(
+        backfillGradebookFamilyPageV1(invalidSource, target, {
+          family: definition,
+          afterRowId: 0,
+          limit: 100,
+        }),
+      ).rejects.toThrow();
+      const afterRollback = await postgres.query<{ count: number }>(
+        'SELECT COUNT(*)::integer AS count FROM gradebook.academic_years',
+      );
+      expect(afterRollback.rows[0]?.count).toBe(1);
     } finally {
       await postgres.close();
     }
