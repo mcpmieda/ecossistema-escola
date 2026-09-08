@@ -177,10 +177,11 @@ describe('PostgreSQL gradebook private backfill', () => {
       complete: true,
     });
     expect(target.transactions).toBe(1);
-    expect(target.calls[0]).toContain('jsonb_populate_recordset');
-    expect(target.calls[0]).toContain('ON CONFLICT ("academic_year_id") DO UPDATE');
-    expect(target.calls[0]).toContain('IS DISTINCT FROM EXCLUDED');
-    expect(target.calls).toHaveLength(1);
+    expect(target.calls[0]).toContain("set_config('idle_in_transaction_session_timeout'");
+    expect(target.calls[1]).toContain('jsonb_populate_recordset');
+    expect(target.calls[1]).toContain('ON CONFLICT ("academic_year_id") DO UPDATE');
+    expect(target.calls[1]).toContain('IS DISTINCT FROM EXCLUDED');
+    expect(target.calls).toHaveLength(2);
     expect(guard.writeAttempts()).toBe(0);
   });
 
