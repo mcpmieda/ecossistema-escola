@@ -79,6 +79,24 @@ Encerrar a implantação com:
 - **F8 #191 — Boletins/Relatórios:** concluída e fechada.
 - **F9 #192 — Implantação/segurança:** aberta até a Etapa 5/5.
 
+## F4 — Reconciliação e Auditoria
+
+O escopo autoritativo de fechamento da F4 permanece preservado, independentemente da troca do provider físico:
+
+- chave técnica de lançamento e prevenção de duplicidade;
+- versões de arquivos e valores;
+- tratamento `FOI PARA` / `ESTAVA NO` sem dupla contagem;
+- promoção/rejeição de lote;
+- ocorrências estruturais, cadastrais, de nota, cálculo, origem e tempo;
+- área funcional de Auditoria com gravidade, origem, ação e resolução;
+- bloqueio de falso sucesso quando houver erro crítico.
+
+A migração D1 → PostgreSQL deve manter essas sete garantias sem alterar semântica acadêmica ou taxonomia.
+
+## F5 — Contexto e centrais operacionais
+
+A F5 permanece concluída: contexto de ano, Professor, Turma, Componente, Estudante, atribuições e pesquisa global continuam consumindo portas/read models provider-independent. A migração de storage não cria centrais paralelas.
+
 ## Decisões de storage e autoridade
 
 - BN-DEC-021 substitui BN-DEC-016 quanto ao armazenamento físico principal: PostgreSQL/Supabase via Hyperdrive é o alvo.
