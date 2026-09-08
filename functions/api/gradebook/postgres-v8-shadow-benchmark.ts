@@ -23,6 +23,7 @@ import {
 } from '../../../server/gradebook/persistence/shadow/gradebook-shadow-d1-v1';
 import {
   applyPostgresShadowV1,
+  PostgresShadowApplyErrorV1,
   type PostgresShadowItemV1,
 } from '../../../server/gradebook/persistence/shadow/postgres-shadow-apply-v1';
 
@@ -216,7 +217,9 @@ export const onRequestPost: PagesFunction<ShadowEnvV1> = async (context: Context
       sourceTransport: 'values-v8',
       requestBytes: request.bytes,
       payloadBytes: postgres.payloadBytes,
+      maxItemBytes: postgres.maxItemBytes,
       chunkCount: postgres.chunkCount,
+      duplicateKeys: postgres.duplicateKeys,
       counts: {
         ...counts,
         totalItems: items.length,
@@ -240,16 +243,61 @@ export const onRequestPost: PagesFunction<ShadowEnvV1> = async (context: Context
       },
     });
   } catch (cause) {
+    if (cause instanceof PostgresShadowApplyErrorV1) {
+      return noStoreJson(
+        {
+          version: 1,
+          state: 'failed',
+          provider: 'postgres-hyperdrive-v8-shadow',
+          stage: `postgres-${cause.stage}`,
+          code: cause.code,
+          requestBytes: request.bytes,
+          diagnostics: {
+            itemCount: cause.diagnostics.itemCount,
+            payloadBytes: cause.diagnostics.payloadBytes,
+            maxItemBytes: cause.diagnostics.maxItemBytes,
+            chunkCount: cause.diagnostics.chunkCount,
+            duplicateKeys: cause.diagnostics.duplicateKeys,
+          },
+          counts: { ...counts, totalItems: items.length },
+          ...(cause.sqlState ? { sqlState: cause.sqlState } : {}),
+          d1Written: false,
+          d1WriteAttempts: guard.writeAttempts(),
+          postgresCommitted: false,
+          persisted: false,
+          timingsMs: {
+            d1Planning: d1PlanningMs,
+            serialize: serializeMs,
+            connection: cause.diagnostics.timingsMs.connection,
+            postgresSetup: cause.diagnostics.timingsMs.setup,
+            postgresUpload: cause.diagnostics.timingsMs.upload,
+            postgresApply: cause.diagnostics.timingsMs.apply,
+            postgresNoChanges: cause.diagnostics.timingsMs.noChanges,
+            postgresTransaction: cause.diagnostics.timingsMs.transaction,
+            total: elapsed(totalStartedAt),
+          },
+        },
+        503,
+      );
+    }
     return noStoreJson(
       {
         version: 1,
         state: 'failed',
-        stage: 'postgres',
+        provider: 'postgres-hyperdrive-v8-shadow',
+        stage: 'postgres-unknown',
         code: 'shadow-runtime-failed',
         ...(safeSqlState(cause) ? { sqlState: safeSqlState(cause) } : {}),
+        counts: { ...counts, totalItems: items.length },
         d1Written: false,
+        d1WriteAttempts: guard.writeAttempts(),
         postgresCommitted: false,
         persisted: false,
+        timingsMs: {
+          d1Planning: d1PlanningMs,
+          serialize: serializeMs,
+          total: elapsed(totalStartedAt),
+        },
       },
       503,
     );
