@@ -84,39 +84,72 @@ export async function handleGradebookImportKnownContentRequestV1(
     const parameters = payload.items.flatMap((item) => [item.academicYearId, item.sha256]);
     const rows = await (env.GRADEBOOK_D1 as D1ReadDatabaseV1)
       .prepare(
-        `SELECT s.academic_year_id, s.current_sha256, v.file_name, v.extension,
-                v.reported_mime_type, v.size_bytes, v.last_modified_at, v.sha256,
-                v.source_contract_version, v.parser_version, v.logical_source_state,
-                NOT EXISTS (
-                  SELECT 1
-                  FROM logical_source_record_versions historical
-                  WHERE historical.academic_year_id = s.academic_year_id
-                    AND historical.logical_source_id = v.confirmed_logical_source_id
-                    AND historical.source_manifest_id = v.manifest_id
-                    AND historical.association_state = 'active'
-                    AND NOT EXISTS (
-                      SELECT 1
-                      FROM logical_source_record_streams current_stream
-                      JOIN logical_source_record_versions current_version
-                        ON current_version.academic_year_id = current_stream.academic_year_id
-                       AND current_version.logical_source_id = current_stream.logical_source_id
-                       AND current_version.record_kind = current_stream.record_kind
-                       AND current_version.stream_key = current_stream.stream_key
-                       AND current_version.version = current_stream.current_version
-                      WHERE current_stream.academic_year_id = historical.academic_year_id
-                        AND current_stream.logical_source_id = historical.logical_source_id
-                        AND current_stream.record_kind = historical.record_kind
-                        AND current_stream.stream_key = historical.stream_key
-                        AND current_stream.current_state = 'active'
-                        AND current_version.source_manifest_id = v.manifest_id
-                    )
-                ) AS is_current_authority
-         FROM source_file_streams s
-         JOIN source_file_versions v
-           ON v.academic_year_id = s.academic_year_id
-          AND v.manifest_id = s.manifest_id
-          AND v.version = s.current_version
-         WHERE ${predicates.join(' OR ')}`,
+        `WITH candidate AS MATERIALIZED (
+           SELECT s.academic_year_id, s.current_sha256, v.manifest_id,
+                  v.confirmed_logical_source_id, v.file_name, v.extension,
+                  v.reported_mime_type, v.size_bytes, v.last_modified_at, v.sha256,
+                  v.source_contract_version, v.parser_version, v.logical_source_state
+           FROM source_file_streams s
+           JOIN source_file_versions v
+             ON v.academic_year_id = s.academic_year_id
+            AND v.manifest_id = s.manifest_id
+            AND v.version = s.current_version
+           WHERE ${predicates.join(' OR ')}
+         ),
+         current_authority AS MATERIALIZED (
+           SELECT current_stream.academic_year_id,
+                  current_stream.logical_source_id,
+                  current_stream.record_kind,
+                  current_stream.stream_key,
+                  current_version.source_manifest_id
+           FROM logical_source_record_streams current_stream
+           JOIN logical_source_record_versions current_version
+             ON current_version.academic_year_id = current_stream.academic_year_id
+            AND current_version.logical_source_id = current_stream.logical_source_id
+            AND current_version.record_kind = current_stream.record_kind
+            AND current_version.stream_key = current_stream.stream_key
+            AND current_version.version = current_stream.current_version
+           WHERE current_stream.current_state = 'active'
+         ),
+         authority AS (
+           SELECT candidate.academic_year_id, candidate.current_sha256,
+                  candidate.file_name, candidate.extension,
+                  candidate.reported_mime_type, candidate.size_bytes,
+                  candidate.last_modified_at, candidate.sha256,
+                  candidate.source_contract_version, candidate.parser_version,
+                  candidate.logical_source_state,
+                  SUM(CASE WHEN historical.association_state = 'active' THEN 1 ELSE 0 END)
+                    AS expected_active,
+                  SUM(
+                    CASE
+                      WHEN historical.association_state = 'active'
+                       AND current_authority.source_manifest_id = candidate.manifest_id
+                      THEN 1 ELSE 0
+                    END
+                  ) AS current_active
+           FROM candidate
+           LEFT JOIN logical_source_record_versions historical
+             ON historical.academic_year_id = candidate.academic_year_id
+            AND historical.logical_source_id = candidate.confirmed_logical_source_id
+            AND historical.source_manifest_id = candidate.manifest_id
+           LEFT JOIN current_authority
+             ON current_authority.academic_year_id = historical.academic_year_id
+            AND current_authority.logical_source_id = historical.logical_source_id
+            AND current_authority.record_kind = historical.record_kind
+            AND current_authority.stream_key = historical.stream_key
+           GROUP BY candidate.academic_year_id, candidate.current_sha256,
+                    candidate.manifest_id, candidate.file_name, candidate.extension,
+                    candidate.reported_mime_type, candidate.size_bytes,
+                    candidate.last_modified_at, candidate.sha256,
+                    candidate.source_contract_version, candidate.parser_version,
+                    candidate.logical_source_state
+         )
+         SELECT academic_year_id, current_sha256, file_name, extension,
+                reported_mime_type, size_bytes, last_modified_at, sha256,
+                source_contract_version, parser_version, logical_source_state,
+                CASE WHEN expected_active = current_active THEN 1 ELSE 0 END
+                  AS is_current_authority
+         FROM authority`,
       )
       .bind(...parameters)
       .all<RowV1>();
