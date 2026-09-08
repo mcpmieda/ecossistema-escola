@@ -1,6 +1,7 @@
 import type { RuntimeEnv } from '../../../env';
 import {
   createGradebookPostgresDatabaseV1,
+  type GradebookPostgresFailureDiagnosticV1,
   type GradebookPostgresDatabaseV1,
 } from './postgres-database-v1';
 
@@ -24,9 +25,20 @@ function requireHyperdriveConnectionString(env: RuntimeEnv): string {
   return binding.connectionString;
 }
 
-function withProviderHeader(response: Response, provider: GradebookStorageProviderV1): Response {
+export const GRADEBOOK_POSTGRES_FAILURE_HEADER_V1 = 'X-Gradebook-Postgres-Failure';
+
+function withProviderHeader(
+  response: Response,
+  provider: GradebookStorageProviderV1,
+  diagnostic: GradebookPostgresFailureDiagnosticV1 | null = null,
+): Response {
   const headers = new Headers(response.headers);
   headers.set('X-Gradebook-Storage-Provider', provider);
+  if (diagnostic !== null) {
+    // The adapter diagnostic is deliberately closed and contains no SQL, values,
+    // connection string or application identifiers.
+    headers.set(GRADEBOOK_POSTGRES_FAILURE_HEADER_V1, JSON.stringify(diagnostic));
+  }
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -55,7 +67,8 @@ export async function withOfficialGradebookDatabaseV1(
   const database = await createPostgresDatabase(requireHyperdriveConnectionString(env));
   try {
     const response = await operation({ ...env, GRADEBOOK_D1: database });
-    return response ? withProviderHeader(response, provider) : null;
+    const diagnostic = response !== null && response.status >= 500 ? database.lastFailure() : null;
+    return response ? withProviderHeader(response, provider, diagnostic) : null;
   } finally {
     await database.close();
   }

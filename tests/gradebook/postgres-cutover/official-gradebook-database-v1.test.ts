@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { RuntimeEnv } from '../../../server/env';
 import type { GradebookPostgresDatabaseV1 } from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
-import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
+import {
+  GRADEBOOK_POSTGRES_FAILURE_HEADER_V1,
+  withOfficialGradebookDatabaseV1,
+} from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
 
 function database() {
   return {
@@ -42,6 +45,36 @@ describe('official gradebook database cutover gate', () => {
     expect(response?.headers.get('X-Gradebook-Storage-Provider')).toBe('postgres');
     expect(createPostgresDatabase).toHaveBeenCalledOnce();
     expect(d1.prepare).not.toHaveBeenCalled();
+    expect(postgres.close).toHaveBeenCalledOnce();
+  });
+
+  it('exposes only the closed Postgres diagnostic on failed official responses', async () => {
+    const postgres = database();
+    vi.mocked(postgres.lastFailure).mockReturnValue({
+      operation: 'SELECT',
+      relation: 'source_file_streams',
+      errorType: 'PostgresError',
+      sqlState: '42883',
+      category: 'unknown',
+    });
+
+    const response = await withOfficialGradebookDatabaseV1(
+      {
+        GRADEBOOK_STORAGE_PROVIDER: 'postgres',
+        PROD_DB: { connectionString: 'postgres://hyperdrive.invalid/gradebook' },
+      } as RuntimeEnv,
+      async () => Response.json({ state: 'unavailable' }, { status: 503 }),
+      { createPostgresDatabase: async () => postgres },
+    );
+
+    expect(JSON.parse(response!.headers.get(GRADEBOOK_POSTGRES_FAILURE_HEADER_V1)!)).toEqual({
+      operation: 'SELECT',
+      relation: 'source_file_streams',
+      errorType: 'PostgresError',
+      sqlState: '42883',
+      category: 'unknown',
+    });
+    expect(response!.headers.get(GRADEBOOK_POSTGRES_FAILURE_HEADER_V1)).not.toContain('hyperdrive');
     expect(postgres.close).toHaveBeenCalledOnce();
   });
 
