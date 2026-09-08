@@ -118,6 +118,32 @@ function emptySummary(): GradebookImportPersistenceSummaryV2 {
   };
 }
 
+function isCurrentIdenticalSourceObservation(
+  request: GradebookImportPersistenceRequestV4,
+  known: NonNullable<
+    Awaited<
+      ReturnType<
+        GradebookImportPersistenceServiceDependenciesV4['unitOfWork']['imports']['findSourceFileByHash']
+      >
+    >
+  >,
+  logicalSourceId: LogicalSourceIdV1,
+): boolean {
+  const manifest = known.value.manifest;
+  return (
+    known.value.logicalSource.state === 'confirmed' &&
+    known.value.logicalSource.logicalSourceId === logicalSourceId &&
+    manifest.fileName === request.manifest.fileName &&
+    manifest.extension === request.manifest.extension &&
+    manifest.reportedMimeType === request.manifest.reportedMimeType &&
+    manifest.sizeBytes === request.manifest.sizeBytes &&
+    manifest.lastModifiedAt === request.manifest.lastModifiedAt &&
+    manifest.sha256 === request.manifest.sha256 &&
+    manifest.sourceContractVersion === request.manifest.sourceContractVersion &&
+    manifest.parserVersion === request.manifest.parserVersion
+  );
+}
+
 function issue(
   code: GradebookImportPersistenceIssueV2['code'],
 ): readonly [GradebookImportPersistenceIssueV2] {
@@ -414,6 +440,26 @@ export function createGradebookImportPersistenceServiceV4(
           };
         }
 
+        phase = 'source-lookup';
+        const knownSource = await dependencies.unitOfWork.imports.findSourceFileByHash(
+          { academicYearId: request.confirmedContext.academicYearId },
+          request.manifest.sha256,
+        );
+        // An identical binary interpreted by the exact same versioned parser is already
+        // authoritative. Avoid rematerializing and rereading the whole logical source;
+        // a parser/source-contract bump deliberately falls through to the full comparison.
+        if (
+          dependencies.sourceValues === true &&
+          knownSource &&
+          isCurrentIdenticalSourceObservation(request, knownSource, resolution.source.id)
+        ) {
+          return {
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+            state: 'no-changes',
+            summary: emptySummary(),
+          };
+        }
+
         phase = 'official-records';
         const officialRecords = await materializeGradebookImportOfficialRecordsV4({
           request,
@@ -425,11 +471,6 @@ export function createGradebookImportPersistenceServiceV4(
           return reviewFromOfficialMaterialization(officialRecords);
         }
 
-        phase = 'source-lookup';
-        const knownSource = await dependencies.unitOfWork.imports.findSourceFileByHash(
-          { academicYearId: request.confirmedContext.academicYearId },
-          request.manifest.sha256,
-        );
         const { batch, importFileId } = serverBatch(
           request,
           resolution.context.teacherId,

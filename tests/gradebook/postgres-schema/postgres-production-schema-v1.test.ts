@@ -9,7 +9,7 @@ const migrationPath = join(
   'postgres',
   '0002_gradebook_production_v1.sql',
 );
-const sql = readFileSync(migrationPath, 'utf8');
+const sql = readFileSync(migrationPath, 'utf8').replace(/\r\n/gu, '\n');
 
 const expectedTables = [
   'gradebook_schema_migrations',
