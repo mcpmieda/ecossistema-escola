@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   compact: vi.fn(),
   persist: vi.fn(),
+  known: vi.fn(),
   bootstrap: vi.fn(),
 }));
 vi.mock('../../../src/features/gradebook/import/sheetjs-loader', () => ({
@@ -27,9 +28,13 @@ vi.mock('../../../src/features/gradebook/import/import-batch', () => ({
 }));
 vi.mock('../../../src/features/gradebook/import/compact-import-v8', () => ({
   createGradebookValuesSnapshotV8: mocks.compact,
+  gradebookValuesParserVersionV8: (value: string) => `${value}:values-v2`,
 }));
 vi.mock('../../../src/features/gradebook/import/import-persistence-client-v8', () => ({
   persistGradebookValuesSnapshotV8: mocks.persist,
+}));
+vi.mock('../../../src/features/gradebook/import/import-known-content-client-v1', () => ({
+  inspectGradebookImportKnownContentV1: mocks.known,
 }));
 vi.mock(
   '../../../src/features/gradebook/operational-workspace/operational-workspace-client',
@@ -144,6 +149,11 @@ beforeEach(async () => {
     state: 'ready',
     availableAcademicYears: [{ id: 'year:synthetic', label: '2026' }],
   });
+  mocks.known.mockImplementation(async (items: readonly unknown[]) => ({
+    transportVersion: 1,
+    state: 'ready',
+    known: items.map(() => false),
+  }));
   mocks.read.mockImplementation(async (input: readonly File[]) => ({
     successes: input.map((_, index) => result(index)),
     failureDetails: [],
@@ -172,6 +182,24 @@ afterEach(async () => {
 });
 
 describe('Bounded per-file value snapshot queue (#551/#561)', () => {
+  it('finishes a fully identical batch with one inspection and no persistence requests', async () => {
+    mocks.known.mockImplementation(async (items: readonly unknown[]) => ({
+      transportVersion: 1,
+      state: 'ready',
+      known: items.map(() => true),
+    }));
+    await act(async () => flow.handleFiles(files(18)));
+    expect(mocks.known).toHaveBeenCalledTimes(1);
+    expect(mocks.known.mock.calls[0]![0]).toHaveLength(18);
+    expect(mocks.compact).not.toHaveBeenCalled();
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(Object.values(flow.persistence)).toHaveLength(18);
+    expect(Object.values(flow.persistence).every((state) => state.state === 'completed')).toBe(
+      true,
+    );
+    expect(flow.pendingPersistenceCount).toBe(0);
+  });
+
   it.each([1, 18, 50])(
     'imports %i selected files with bounded concurrency and per-file compaction',
     async (count) => {

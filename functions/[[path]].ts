@@ -31,6 +31,7 @@ import {
 } from '../server/gradebook/http/council-routes-v1';
 import { handleGradebookD1AdminRequestV1 } from '../server/gradebook/http/d1-admin-routes-v1';
 import { handleInstitutionalReportsRequestV1 } from '../server/gradebook/http/institutional-reports-routes-v1';
+import { handleGradebookImportKnownContentRequestV1 } from '../server/gradebook/http/import-known-content-routes-v1';
 import { handleGradebookImportPersistenceRequestV2 } from '../server/gradebook/http/import-persistence-routes-v2';
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
@@ -177,6 +178,9 @@ async function routeOfficialGradebookRequestV1(
   request: Request,
   env: RuntimeEnv,
 ): Promise<Response | null> {
+  const knownContentResponse = await handleGradebookImportKnownContentRequestV1(request, env);
+  if (knownContentResponse) return knownContentResponse;
+
   const importPersistenceResponse = await handleGradebookImportPersistenceRequestV2(request, env);
   if (importPersistenceResponse) return importPersistenceResponse;
 
