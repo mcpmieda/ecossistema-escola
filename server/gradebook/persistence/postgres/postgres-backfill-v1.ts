@@ -282,6 +282,11 @@ export async function backfillGradebookFamilyPageV1(
     .map((column) => `persisted.${quote(column)} IS DISTINCT FROM EXCLUDED.${quote(column)}`)
     .join(' OR ');
   const changed = await target.begin(async (transaction) => {
+    await transaction.unsafe(
+      `SELECT set_config('statement_timeout', '40000', true), ` +
+        `set_config('lock_timeout', '5000', true), ` +
+        `set_config('idle_in_transaction_session_timeout', '10000', true)`,
+    );
     const parameter = jsonParameter(transaction, body);
     const applied = await transaction.unsafe(
       `INSERT INTO ${relation} AS persisted (${columns}) SELECT ${columns} FROM ${recordset} ` +
