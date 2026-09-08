@@ -58,6 +58,19 @@ function serializedJsonText(value: unknown): value is string {
   }
 }
 
+function castSerializedJsonParameters(query: string, values: readonly unknown[]): string {
+  let translated = query;
+  values.forEach((value, index) => {
+    if (!serializedJsonText(value)) return;
+    const placeholder = `\\$${String(index + 1)}`;
+    translated = translated.replace(
+      new RegExp(`${placeholder}(?!\\d)(?!\\s*::\\s*jsonb\\b)`, 'giu'),
+      `$${String(index + 1)}::jsonb`,
+    );
+  });
+  return translated;
+}
+
 function safeInteger(value: bigint): number | string {
   const number = Number(value);
   return Number.isSafeInteger(number) ? number : value.toString();
@@ -239,7 +252,10 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
   }
 
   async execute(query: string, values: readonly D1WriteValueV1[]): Promise<PostgresExecutionV1> {
-    const translated = translateGradebookD1SqlToPostgresV1(query);
+    const translated = castSerializedJsonParameters(
+      translateGradebookD1SqlToPostgresV1(query),
+      values,
+    );
     const parameters = values.map((value) =>
       serializedJsonText(value) && this.sql.typed
         ? this.sql.typed(value, POSTGRES_TEXT_OID_V1)
