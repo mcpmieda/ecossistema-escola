@@ -16,7 +16,7 @@ export interface PostgresShadowBoundsV1 {
 
 export const POSTGRES_SHADOW_BOUNDS_V1: PostgresShadowBoundsV1 = {
   maxItems: 50_000,
-  maxBytes: 32 * 1024 * 1024,
+  maxBytes: 64 * 1024 * 1024,
   chunkBytes: 480 * 1024,
   chunkItems: 250,
 };
