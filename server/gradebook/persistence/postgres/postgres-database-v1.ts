@@ -41,11 +41,59 @@ export interface GradebookPostgresDatabaseOptionsV1 {
 
 export interface GradebookPostgresDatabaseV1 extends D1WriteDatabaseV1 {
   transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
+  lastFailure(): GradebookPostgresFailureDiagnosticV1 | null;
   close(): Promise<void>;
+}
+
+export interface GradebookPostgresFailureDiagnosticV1 {
+  readonly operation: string;
+  readonly relation: string | null;
+  readonly errorType: string;
+  readonly sqlState?: string;
+  readonly category:
+    | 'connection-parameter'
+    | 'jsonb-cast'
+    | 'permission'
+    | 'relation-missing'
+    | 'timeout'
+    | 'unknown';
+}
+
+interface GradebookPostgresFailureStateV1 {
+  value: GradebookPostgresFailureDiagnosticV1 | null;
 }
 
 function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause ?? '');
+}
+
+function failureDiagnostic(query: string, cause: unknown): GradebookPostgresFailureDiagnosticV1 {
+  const message = errorMessage(cause);
+  const operation = /^\s*([A-Za-z]+)/u.exec(query)?.[1]?.toUpperCase() ?? 'UNKNOWN';
+  const relation =
+    /\b(?:FROM|INTO|TABLE|UPDATE)\s+(?:gradebook\.)?([A-Za-z_][A-Za-z0-9_]*)/iu.exec(query)?.[1] ??
+    null;
+  const code =
+    cause !== null && typeof cause === 'object' && 'code' in cause ? cause.code : undefined;
+  const sqlState = typeof code === 'string' && /^[0-9A-Z]{5}$/u.test(code) ? code : undefined;
+  const category = /search_path|startup parameter/iu.test(message)
+    ? 'connection-parameter'
+    : /jsonb.*text|text.*jsonb|type jsonb/iu.test(message)
+      ? 'jsonb-cast'
+      : /permission denied|insufficient privilege/iu.test(message)
+        ? 'permission'
+        : /relation .* does not exist/iu.test(message)
+          ? 'relation-missing'
+          : /timeout|timed out|57014/iu.test(message)
+            ? 'timeout'
+            : 'unknown';
+  return {
+    operation,
+    relation,
+    errorType: cause instanceof Error ? cause.name : 'unknown',
+    ...(sqlState ? { sqlState } : {}),
+    category,
+  };
 }
 
 function serializedJsonText(value: unknown): value is string {
@@ -245,6 +293,7 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
     private readonly sql: GradebookPostgresQuerySqlV1,
     private readonly root: GradebookPostgresSqlV1,
     private readonly transactional: boolean,
+    private readonly failureState: GradebookPostgresFailureStateV1,
   ) {}
 
   prepare(query: string): D1WriteStatementV1 {
@@ -261,7 +310,13 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
         ? this.sql.typed(value, POSTGRES_TEXT_OID_V1)
         : value,
     );
-    const result = await this.sql.unsafe(translated, parameters);
+    let result: PostgresQueryResultV1;
+    try {
+      result = await this.sql.unsafe(translated, parameters);
+    } catch (cause) {
+      this.failureState.value = failureDiagnostic(translated, cause);
+      throw cause;
+    }
     return {
       rows: Array.from(result, normalizeRow),
       changes: typeof result.count === 'number' ? result.count : result.length,
@@ -274,7 +329,12 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
 
   async batch(statements: readonly D1WriteStatementV1[]): Promise<readonly D1WriteRunResultV1[]> {
     const executeBatch = async (transactionSql: GradebookPostgresQuerySqlV1) => {
-      const transaction = new GradebookPostgresFacadeV1(transactionSql, this.root, true);
+      const transaction = new GradebookPostgresFacadeV1(
+        transactionSql,
+        this.root,
+        true,
+        this.failureState,
+      );
       const results: D1WriteRunResultV1[] = [];
       let previousChanges: number | null = null;
 
@@ -311,7 +371,7 @@ class GradebookPostgresFacadeV1 implements D1WriteDatabaseV1 {
   transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T> {
     if (this.transactional) return operation(this);
     return this.root.begin(async (transactionSql) =>
-      operation(new GradebookPostgresFacadeV1(transactionSql, this.root, true)),
+      operation(new GradebookPostgresFacadeV1(transactionSql, this.root, true, this.failureState)),
     );
   }
 }
@@ -358,12 +418,14 @@ export async function createGradebookPostgresDatabaseV1(
 export function createGradebookPostgresDatabaseFromSqlV1(
   sql: GradebookPostgresSqlV1,
 ): GradebookPostgresDatabaseV1 {
-  const facade = new GradebookPostgresFacadeV1(sql, sql, false);
+  const failureState: GradebookPostgresFailureStateV1 = { value: null };
+  const facade = new GradebookPostgresFacadeV1(sql, sql, false, failureState);
   return {
     prepare: facade.prepare.bind(facade),
     exec: facade.exec.bind(facade),
     batch: facade.batch.bind(facade),
     transaction: facade.transaction.bind(facade),
+    lastFailure: () => failureState.value,
     async close() {
       try {
         await sql.end?.({ timeout: 1 });

@@ -69,12 +69,14 @@ export const onRequestPost: PagesFunction<VerificationEnvV1> = async (context: C
   try {
     return noStoreJson(await verifyGradebookPostgresAdaptersSyntheticV1(database));
   } catch (cause) {
-    const sqlState = safeSqlState(cause);
+    const diagnostic = database.lastFailure();
+    const sqlState = diagnostic?.sqlState ?? safeSqlState(cause);
     console.error(
       JSON.stringify({
         message: 'gradebook_postgres_adapter_verification_failed',
         errorType: cause instanceof Error ? cause.name : 'unknown',
         sqlState: sqlState ?? null,
+        database: diagnostic,
       }),
     );
     return noStoreJson(
@@ -84,6 +86,15 @@ export const onRequestPost: PagesFunction<VerificationEnvV1> = async (context: C
         stage: 'adapter-verification',
         code: 'adapter-verification-failed',
         ...(sqlState ? { sqlState } : {}),
+        ...(diagnostic
+          ? {
+              database: {
+                operation: diagnostic.operation,
+                relation: diagnostic.relation,
+                category: diagnostic.category,
+              },
+            }
+          : {}),
       },
       503,
     );
