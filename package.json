@@ -33,6 +33,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "latest",
     "@cloudflare/workers-types": "latest",
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "latest",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.2.0",
