@@ -127,12 +127,10 @@ function isCurrentIdenticalSourceObservation(
       >
     >
   >,
-  logicalSourceId: LogicalSourceIdV1,
 ): boolean {
   const manifest = known.value.manifest;
   return (
     known.value.logicalSource.state === 'confirmed' &&
-    known.value.logicalSource.logicalSourceId === logicalSourceId &&
     manifest.fileName === request.manifest.fileName &&
     manifest.extension === request.manifest.extension &&
     manifest.reportedMimeType === request.manifest.reportedMimeType &&
@@ -419,6 +417,27 @@ export function createGradebookImportPersistenceServiceV4(
     ): Promise<GradebookImportPersistenceResponseV4> {
       let phase: GradebookImportFailurePhaseV1 = 'logical-source';
       try {
+        phase = 'source-lookup';
+        const knownSource = await dependencies.unitOfWork.imports.findSourceFileByHash(
+          { academicYearId: request.confirmedContext.academicYearId },
+          request.manifest.sha256,
+        );
+        // A confirmed source observation is the durable resolution for these exact
+        // bytes. Revalidating assignments and source discovery would turn a true
+        // no-op into several remote reads without adding academic evidence.
+        if (
+          dependencies.sourceValues === true &&
+          knownSource &&
+          isCurrentIdenticalSourceObservation(request, knownSource)
+        ) {
+          return {
+            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
+            state: 'no-changes',
+            summary: emptySummary(),
+          };
+        }
+
+        phase = 'logical-source';
         const resolution = await resolveLogicalSourceForImportV2(request, {
           entities: dependencies.unitOfWork.entities,
           logicalSources: dependencies.unitOfWork.logicalSources,
@@ -437,26 +456,6 @@ export function createGradebookImportPersistenceServiceV4(
             state: 'review-required',
             summary: emptySummary(),
             issues: issue(code),
-          };
-        }
-
-        phase = 'source-lookup';
-        const knownSource = await dependencies.unitOfWork.imports.findSourceFileByHash(
-          { academicYearId: request.confirmedContext.academicYearId },
-          request.manifest.sha256,
-        );
-        // An identical binary interpreted by the exact same versioned parser is already
-        // authoritative. Avoid rematerializing and rereading the whole logical source;
-        // a parser/source-contract bump deliberately falls through to the full comparison.
-        if (
-          dependencies.sourceValues === true &&
-          knownSource &&
-          isCurrentIdenticalSourceObservation(request, knownSource, resolution.source.id)
-        ) {
-          return {
-            transportVersion: GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V4,
-            state: 'no-changes',
-            summary: emptySummary(),
           };
         }
 

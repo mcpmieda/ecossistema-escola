@@ -1,7 +1,10 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useImportBatch } from '../../../src/features/gradebook/import/use-import-batch';
+import {
+  GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1,
+  useImportBatch,
+} from '../../../src/features/gradebook/import/use-import-batch';
 import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
 import type { GradebookImportPersistenceRequestV8 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v8';
 import { SOURCE_VALUES_POLICY_V5 } from '../../../shared/gradebook-contracts/source/source-values-contract-v5';
@@ -170,7 +173,7 @@ afterEach(async () => {
 
 describe('Bounded per-file value snapshot queue (#551/#561)', () => {
   it.each([1, 18, 50])(
-    'imports %i selected files one request at a time, compacting only the next file',
+    'imports %i selected files with bounded concurrency and per-file compaction',
     async (count) => {
       let active = 0;
       let maximum = 0;
@@ -178,19 +181,16 @@ describe('Bounded per-file value snapshot queue (#551/#561)', () => {
         active++;
         maximum = Math.max(maximum, active);
         sequence.push('send');
-        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
         active--;
         return confirmed();
       });
       await act(async () => flow.handleFiles(files(count)));
       expect(mocks.persist).toHaveBeenCalledTimes(count);
-      expect(
-        mocks.persist.mock.calls.every(([value]) => value.transportVersion === 8),
-      ).toBe(true);
-      expect(maximum).toBe(1);
-      expect(sequence).toEqual(
-        Array.from({ length: count }, (_, i) => [`compact:file:${i}`, 'send']).flat(),
-      );
+      expect(mocks.persist.mock.calls.every(([value]) => value.transportVersion === 8)).toBe(true);
+      expect(maximum).toBe(Math.min(count, GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1));
+      expect(sequence.filter((value) => value.startsWith('compact:'))).toHaveLength(count);
+      expect(sequence.filter((value) => value === 'send')).toHaveLength(count);
       expect(Object.values(flow.persistence).every((state) => state.state === 'completed')).toBe(
         true,
       );
@@ -205,17 +205,18 @@ describe('Bounded per-file value snapshot queue (#551/#561)', () => {
       return confirmed();
     });
     await act(async () => flow.handleFiles(files(18)));
-    expect(mocks.persist).toHaveBeenCalledTimes(3);
+    expect(mocks.persist).toHaveBeenCalledTimes(4);
     expect(flow.persistence['file:0']?.state).toBe('completed');
     expect(flow.persistence['file:1']?.state).toBe('completed');
     expect(flow.persistence['file:2']?.state).toBe('confirmation-required');
-    expect(flow.persistence['file:3']?.state).toBe('recognized');
-    expect(flow.pendingPersistenceCount).toBe(16);
-    expect(mocks.compact).toHaveBeenCalledTimes(3);
+    expect(flow.persistence['file:3']?.state).toBe('completed');
+    expect(flow.persistence['file:4']?.state).toBe('recognized');
+    expect(flow.pendingPersistenceCount).toBe(15);
+    expect(mocks.compact).toHaveBeenCalledTimes(4);
     mocks.persist.mockClear();
     mocks.persist.mockResolvedValue(confirmed());
     await act(async () => flow.resumePendingPersistence());
-    expect(mocks.persist).toHaveBeenCalledTimes(16);
+    expect(mocks.persist).toHaveBeenCalledTimes(15);
     expect(mocks.persist.mock.calls[0]![0].manifest.fileName).toBe('sintetico-2.xlsb');
     expect(mocks.read).toHaveBeenCalledTimes(1);
     expect(flow.pendingPersistenceCount).toBe(0);
@@ -229,10 +230,10 @@ describe('Bounded per-file value snapshot queue (#551/#561)', () => {
         : confirmed(),
     );
     await act(async () => flow.handleFiles(files(18)));
-    expect(mocks.persist).toHaveBeenCalledTimes(2);
-    expect(mocks.compact).toHaveBeenCalledTimes(2);
+    expect(mocks.persist).toHaveBeenCalledTimes(4);
+    expect(mocks.compact).toHaveBeenCalledTimes(4);
     expect(flow.authorizationRequired).toBe(true);
-    expect(flow.pendingPersistenceCount).toBe(17);
+    expect(flow.pendingPersistenceCount).toBe(15);
     expect(flow.persistence['file:0']?.state).toBe('completed');
     expect(flow.persistence['file:1']?.state).toBe('auth-required');
   });
@@ -276,7 +277,7 @@ describe('Bounded per-file value snapshot queue (#551/#561)', () => {
       return { response: { transportVersion: 6, state: 'unavailable' }, serverMs: null };
     });
     await act(async () => flow.handleFiles(files(3)));
-    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    expect(mocks.persist).toHaveBeenCalledTimes(3);
     expect(flow.pendingPersistenceCount).toBe(3);
     expect(flow.persistence['file:0']?.state).toBe('confirmation-required');
     expect(flow.timingDiagnostics).toContain(
@@ -287,10 +288,10 @@ describe('Bounded per-file value snapshot queue (#551/#561)', () => {
   it('does not discard a resumable selection when a new selection exceeds 50 files', async () => {
     mocks.persist.mockRejectedValueOnce(new TypeError('synthetic lost reply'));
     await act(async () => flow.handleFiles(files(3)));
-    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    expect(mocks.persist).toHaveBeenCalledTimes(3);
     await act(async () => flow.handleFiles(files(51)));
     expect(flow.results).toHaveLength(3);
-    expect(flow.pendingPersistenceCount).toBe(3);
+    expect(flow.pendingPersistenceCount).toBe(1);
     expect(mocks.read).toHaveBeenCalledTimes(1);
   });
 });
