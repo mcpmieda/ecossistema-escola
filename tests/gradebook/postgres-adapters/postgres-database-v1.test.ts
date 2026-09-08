@@ -77,8 +77,27 @@ describe('gradebook PostgreSQL database adapter', () => {
 
     expect(translated).toContain("(value::jsonb #>> '{kind}') AS record_kind");
     expect(translated).toContain("CAST((value::jsonb #>> '{expectedVersion}') AS INTEGER)");
-    expect(translated).toContain('FROM jsonb_array_elements($1::jsonb) AS j(value)');
+    expect(translated).toContain(
+      'FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS j(value, key)',
+    );
     expect(translated).toContain('record_kind = $2');
+  });
+
+  it('preserves SQLite json_each array indexes and scalar text semantics', () => {
+    const translated = translateGradebookD1SqlToPostgresV1(`
+      WITH requested AS (
+        SELECT CAST(key AS INTEGER) AS request_index,
+               CAST(value AS TEXT) AS entity_id
+        FROM json_each(?)
+      )
+      SELECT request_index, entity_id FROM requested ORDER BY request_index
+    `);
+
+    expect(translated).toContain('CAST(key - 1 AS INTEGER) AS request_index');
+    expect(translated).toContain("(value #>> '{}') AS entity_id");
+    expect(translated).toContain(
+      'FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS json_each(value, key)',
+    );
   });
 
   it('maps SQLite idempotent inserts to PostgreSQL conflict handling', () => {

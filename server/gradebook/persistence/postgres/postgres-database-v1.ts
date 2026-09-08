@@ -253,14 +253,17 @@ function translateJsonExtract(query: string): string {
 }
 
 function translateJsonEach(query: string): string {
+  if (!/FROM\s+json_each\(\$\d+\)/iu.test(query)) return query;
   return query
+    .replace(/CAST\(\s*key\s+AS\s+INTEGER\s*\)/giu, 'CAST(key - 1 AS INTEGER)')
+    .replace(/CAST\(\s*value\s+AS\s+TEXT\s*\)/giu, "(value #>> '{}')")
     .replace(
       /FROM\s+json_each\((\$\d+)\)\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)/giu,
-      'FROM jsonb_array_elements($1::jsonb) AS $2(value)',
+      'FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS $2(value, key)',
     )
     .replace(
       /FROM\s+json_each\((\$\d+)\)/giu,
-      'FROM jsonb_array_elements($1::jsonb) AS json_each(value)',
+      'FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS json_each(value, key)',
     );
 }
 
