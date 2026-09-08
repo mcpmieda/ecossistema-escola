@@ -57,6 +57,8 @@ type PreparedPersistenceV7 = {
   readonly request: GradebookImportPersistenceRequestV8;
 };
 
+export const GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1 = 4;
+
 function failureMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error ? cause.message : fallback;
 }
@@ -273,9 +275,14 @@ export function useImportBatch() {
       throw new Error('Não foi possível consultar os anos letivos cadastrados.');
     }
 
-    // Compact lazily: do not retain 18/50 expanded request packages or submit
-    // the entire selection in one Worker invocation. Completed files stay put.
-    for (const [index, result] of successes.entries()) {
+    // Keep only a small bounded window in memory and in flight. Every file remains
+    // independently atomic; after an uncertain reply no new work is scheduled, while
+    // requests already in flight are allowed to report their confirmed outcome.
+    let completedCount = 0;
+    const runOne = async (
+      result: BatchSuccess,
+      index: number,
+    ): Promise<ImportPersistenceRunResultV1> => {
       let prepared: PreparedPersistenceV7;
       try {
         prepared = preparePersistenceRequest(result, bootstrap.availableAcademicYears);
@@ -285,11 +292,20 @@ export function useImportBatch() {
         setError(
           'Uma ou mais planilhas não puderam ser preparadas. Consulte o estado de cada arquivo.',
         );
-        continue;
+        completedCount++;
+        return 'completed';
       }
       try {
         const state = await persistPreparedSingle(prepared, index, successes.length);
         if (state !== 'completed') return state;
+        completedCount++;
+        setProgress({
+          current: completedCount,
+          total: successes.length,
+          fileName: result.manifest.fileName,
+          stage: 'saving',
+        });
+        return 'completed';
       } catch (cause) {
         const message = failureMessage(cause, 'Não foi possível confirmar a gravação.');
         setPersistence((current) => ({
@@ -301,6 +317,14 @@ export function useImportBatch() {
         );
         return 'confirmation-required';
       }
+    };
+    for (let start = 0; start < successes.length; start += GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1) {
+      const window = successes.slice(start, start + GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+      const outcomes = await Promise.all(
+        window.map((result, offset) => runOne(result, start + offset)),
+      );
+      if (outcomes.includes('auth-required')) return 'auth-required';
+      if (outcomes.includes('confirmation-required')) return 'confirmation-required';
     }
     setProgress({
       current: successes.length,
