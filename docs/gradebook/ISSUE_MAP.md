@@ -2,157 +2,94 @@
 
 Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila curta: [`COMECE_AQUI.md`](COMECE_AQUI.md).
 
-## Visão geral
+## Visão geral atual
 
 - **Programa:** #182
-- **Onda 19:** #353 + #354 + #355 → #356 / PR #362
-- **Onda 20:** #360 / PR #363 → #361
-- **Onda 21:** #365 / PR #368 + #366 / PR #369 → #367 / PR #370
-- **Onda 22:** #349 / PR #375 → #371 / PR #376 → (#372 / PR #377 + #373 / PR #378) → #374 / PR #379
-- **Onda 23:** #380 → #381 → #382 → #383
-- **Armazenamento:** Cloudflare D1 local/preview + produção; migrations 0001–0005 / 27 tabelas
-- **Produção acadêmica:** recurso/binding presentes e smoke-validados; schema 5/27 aplicado na #399; sessão V2 smoke-validada/recoverable na #400; gate final OFF, operação real ainda não iniciada
-- **Autoridade ativa:** `imported-source`
-- **Autoridade-alvo futura:** `native-engine`, separada em #347/F9
-- **Autorização acadêmica:** `gradebook.persistence.admin`, server-side
+- **Coordenação da consolidação:** #593
+- **Etapa atual de implantação:** 3/5
+- **Storage oficial atual:** D1 até o cutover explícito
+- **Storage-alvo:** PostgreSQL/Supabase via Hyperdrive `PROD_DB`, conforme BN-DEC-021
+- **Autoridade acadêmica ativa:** `imported-source`
+- **Autoridade-alvo futura:** `native-engine` por escopo, somente pela #347
+- **Entrega institucional final:** #596
 
-## Fases após onda 22
+## Issues abertas que devem guiar o restante da implantação
 
-| Fase                   | Issue | Estado                                                                 | Próximo grande passo                        |
-| ---------------------- | ----: | ---------------------------------------------------------------------- | ------------------------------------------- |
-| F0 Fundação            |  #183 | concluída                                                              | manutenção                                  |
-| F1 Fonte/importação    |  #184 | **7/7 histórico + fidelidade V2 integrada**                            | manutenção                                  |
-| F2 Persistência        |  #185 | D1 produtivo + schema 5/27; sessão V2 smoke-validada; gate final OFF   | #406 piloto por autorização própria         |
-| F3 Motor               |  #186 | V1 concluída, comparativa                                              | futura autoridade via #347/F9               |
-| F4 Auditoria           |  #187 | revisão 7/7 + investigação/correção determinística integrada           | produção/piloto por gates próprios          |
-| F5 Centrais            |  #188 | cadastro/confirmação docente + atribuições anuais concluídos           | manutenção                                  |
-| F6 Desempenho          |  #189 | **concluída: gráficos + comparação proporcional profile-aware**        | manutenção; write config ainda bloqueado    |
-| F7 Conselho            |  #190 | V2 institucional + decisões/sessão duráveis e smoke-validadas          | #406 piloto privado integral                |
-| F8 Boletins/Relatórios |  #191 | snapshots duráveis + PDF individual/batch + reports                    | produção somente por autorização própria    |
-| F9 Piloto/segurança    |  #192 | infraestrutura/sessão smoke-validadas; schema 5/27; gate final OFF     | #406 piloto → autoridade                    |
+| Papel | Issue | Estado | Próximo gate |
+|---|---:|---|---|
+| Programa | #182 | aberta | acompanhar 3/5 → 5/5 |
+| Persistência | #185 | aberta | fechar após #595 |
+| F9/implantação | #192 | aberta | fechar na entrega #596 |
+| Saúde/limites | #220 | planejada | pós-cutover / #596 |
+| Etapa 4/5 | #347 | bloqueada | depende da Etapa 3/5 |
+| Piloto integral | #406 | pausada | retomar após #595 |
+| Migração 1 | #592 | **PRONTA** | adapters + dual verification |
+| Coordenação | #593 | em execução | fecha após docs/backlog consolidados |
+| Migração 2 | #594 | bloqueada | depende de #592 |
+| Migração 3 | #595 | bloqueada | depende de #594 |
+| Etapa 5/5 | #596 | bloqueada | depende de #347 |
 
-## Onda 20 — F9 readiness
+Nenhuma outra issue histórica D1/performance/benchmark deve permanecer aberta apenas como memória. O histórico continua no GitHub e o conhecimento reutilizável está em `../../Aprendizados/`.
 
-| Frente     | Issue / PR  | Entrega                                                                                        |
-| ---------- | ----------- | ---------------------------------------------------------------------------------------------- |
-| Readiness  | #360 / #363 | manifesto puro, evidências, hard stops, ensaios sintéticos e runbook de piloto/rollback futuro |
-| Integração | #361        | regressão transversal, estado canônico e publicação inerte                                     |
-
-Merge da frente:
+## Etapa 3/5 — storage + piloto
 
 ```text
-#363 → 000a6988565419d9c1f2c638e929af4e0dff1491
+#592
+  adapters PostgreSQL + dual verification
+    ↓
+#594
+  backfill privado D1 → PostgreSQL + paridade
+    ↓
+#595
+  cutover PostgreSQL + rollback D1
+    ↓
+#406
+  piloto integral da escola inteira no storage oficial
 ```
 
-### Resultado integrado
+A Etapa 3/5 termina somente quando #595 e #406 estiverem concluídas, com recuperação/rollback comprovados e `authorityMode: imported-source` preservado.
 
-- preparação completa resulta somente em `prepared-for-manual-authorization`;
-- cinco ações produtivas/institucionais continuam bloqueadas por autorização própria;
-- ensaios usam somente dados sintéticos e D1 em memória/local;
-- plano de smoke futuro é declarativo e não executa rede/migration;
-- produção continua fail-closed antes do binding;
-- `authorityMode` continua `imported-source`;
-- nenhum recurso, secret, binding, migration remota ou piloto real foi criado/executado.
+## Etapa 4/5 — autoridade acadêmica
 
-## Gates manuais após a publicação
+`#347` só pode começar depois da #406. A ativação deve ser progressiva por escopo, temporal, versionada, reversível e não retroativa por padrão, conforme BN-DEC-019/020.
 
-1. recurso e binding produtivos;
-2. migration remota;
-3. smoke acadêmico produtivo;
-4. piloto privado real;
-5. autoridade nativa, pela trilha separada #347.
+Storage e autoridade acadêmica são independentes: PostgreSQL ser oficial não significa `native-engine` ativo.
 
-Nenhum desses gates é consequência automática da #361. Nova execução exige autorização própria e escopo explícito.
+## Etapa 5/5 — entrega
 
-## Onda 21 — fidelidade das avaliações trimestrais
+`#596` encerra a implantação institucional. Gates mínimos:
+- storage PostgreSQL estável;
+- piloto integral aprovado;
+- autoridade por escopo concluída conforme #347;
+- backup/restore e rollback finalizados deliberadamente;
+- observabilidade e runbook operacional;
+- backlog de implantação limpo;
+- documentação canônica final.
 
-| Frente        | Issue / PR  | Entrega                                                                                  |
-| ------------- | ----------- | ---------------------------------------------------------------------------------------- |
-| Contrato V2   | #365 / #368 | definições R/S e AA:AJ prospectivas, identidade estável e compatibilidade V1             |
-| Implementação | #366 / #369 | reconhecimento, materialização, versionamento, D1, Desempenho e consumidores compatíveis |
-| Integração    | #367 / #370 | regressão transversal, readiness e memória canônica                                      |
+## Fases funcionais
 
-Merges das frentes:
+| Fase | Issue | Estado atual |
+|---|---:|---|
+| F0 Fundação | #183 | concluída |
+| F1 Fonte/importação | #184 | concluída; V8 integrado |
+| F2 Persistência | #185 | funcional; migração física em andamento |
+| F3 Motor | #186 | V1 comparativo concluído |
+| F4 Auditoria | #187 | concluída |
+| F5 Centrais | #188 | concluída |
+| F6 Desempenho | #189 | concluída funcionalmente |
+| F7 Conselho | #190 | concluída/fechada |
+| F8 Boletins/Relatórios | #191 | concluída/fechada |
+| F9 Implantação | #192 | Etapa 3/5 em andamento |
 
-```text
-#368 → 7b59a226b557153d6e3094b64f268ce5e9373cc3
-#369 → 70748d527f0ebf11803dab748a6d5d5dbe6c082a
-```
+## Histórico preservado
 
-### Resultado integrado
+As ondas 20–24 e a infraestrutura D1 continuam como evidência histórica. O estado histórico `production-infrastructure-smoke-validated-awaiting-private-pilot` permanece válido como registro da preparação D1 anterior, mas não é mais a fila executável atual após BN-DEC-021.
 
-- `SourceContractV1` e snapshots V1 permanecem históricos, sem reinterpretação;
-- R/S são avaliações quantitativas genéricas e S não implica `simulation`;
-- definições incompletas ficam fail-closed, sem máximo zero ou GradeEntry órfão;
-- T/Z/AK/AM/AN, motor 2026, autoridade importada e resultados oficiais permanecem inalterados;
-- Desempenho, Centrais, Boletins e Relatórios aceitam componentes V2 sem métrica ou motor novo;
-- readiness retorna a `prepared-for-manual-authorization` com todos os gates produtivos fechados.
+## Regra de execução
 
-## Onda 22 — decisão, comparação e correção determinística
-
-| Frente                   | Issue / PR  | Entrega                                                                     |
-| ------------------------ | ----------- | --------------------------------------------------------------------------- |
-| Decisão normativa        | #349 / #375 | BN-DEC-019 consolidada                                                      |
-| Contratos compartilhados | #371 / #376 | comparação proporcional V2 e reconciliação determinística V2                |
-| Desempenho               | #372 / #377 | comparação profile-aware, referência explícita e configuração server-side   |
-| Auditoria                | #373 / #378 | investigação, stop e correção determinística pelo planner/executor oficiais |
-| Integração               | #374 / #379 | regressão, documentação, publicação e retorno aos gates produtivos          |
-
-Merges das frentes:
-
-```text
-#375 → a49b05de243353d1aea9452d0cdc108c75a1221a
-#376 → 92c0760ff8735e11f94ba61c148f8b789d53929d
-#377 → da73b8cabc30fd5479c00683c36cef481076b286
-#378 → 9cc998225c612722fcbe2ebc64bbf35d2d9dbd1b
-```
-
-### Resultado integrado
-
-- 24/30 e 32/40 são proporcionalmente iguais por percentual oficial, sem hard-code ou tolerância;
-- configuração default habilitada e estado server-side desabilitado são explícitos; escrita administrativa continua `not-integrated-hard-stop`;
-- mismatch não presume culpado e possível impacto acadêmico produz `stop` fail-closed;
-- correção automática exige prova unívoca e usa append-only/CAS/transação/rollback oficiais;
-- planilha original, decisões de Conselho, snapshots e histórico não são reescritos;
-- produção acadêmica, piloto real e `native-engine` continuam desativados.
-
-Próxima ordem histórica após a onda 22: `onda 23 produção controlada → onda 24 piloto real → #347 autoridade nativa`.
-
-## Onda 23 — produção controlada
-
-| Etapa           | Issue | Evidência sanitizada                                                  |
-| --------------- | ----: | --------------------------------------------------------------------- |
-| Recurso/binding |  #380 | D1 produtivo e `GRADEBOOK_D1` presentes; gate OFF                     |
-| Migrations      |  #381 | 4/4, schema version 4, 25 tabelas, pendentes 0                        |
-| Smoke           |  #382 | 5 passos verdes; snapshot/reprint/recovery; resíduo sintético final 0 |
-| Integração      |  #383 | readiness V2 + memória canônica, sem nova operação remota             |
-
-Estado consolidado: `production-infrastructure-smoke-validated-awaiting-private-pilot`. O SHA usado no smoke final foi `2fdefa87f186e84ed40637437d4b0199baff82c6`; o production gate terminou OFF e `authorityMode` continua `imported-source`.
-
-As limitações registradas pela #383 foram classificadas na #394. O case store de reconciliação V2 permanece process-local com controles; o write da configuração continua fora do escopo autorizado; a sessão V2 ganhou store D1 pela #395 / PR #398.
-
-A #384 foi integrada pela PR #393 e publicou a BN-DEC-020.
-
-## Onda 24 — gates pré-piloto
-
-| Etapa                    |    Issue/PR | Evidência sanitizada                              |
-| ------------------------ | ----------: | ------------------------------------------------- |
-| Revisão de escopo        | #394 / #397 | sessão V2 era o único `blocks-pilot` técnico      |
-| Store D1 da sessão       | #395 / #398 | durabilidade cross-restart integrada no código    |
-| Migration produtiva      |        #399 | 0005 aplicada; schema 5/27; pendentes 0; gate OFF |
-| Smoke/recovery da sessão |        #400 | verde; resíduo zero; gate OFF                     |
-| Piloto privado integral  |        #406 | issue própria criada; execução não iniciada       |
-
-Próxima ordem: `#399 integrada → #400 sintético verde → #406 piloto privado integral → #347 autoridade nativa`.
-
-## Como iniciar agente
-
-1. usar apenas issue `[PRONTA]`;
-2. ler `AGENTS.md`, docs e contratos;
-3. uma branch curta / um PR;
-4. `npm run verify` no SHA final;
-5. handoff completo;
-6. não executar merge/deploy/provisionamento fora da autoridade expressa;
-7. nunca antecipar #347.
-
-Nunca publicar arquivos, nomes, notas, hashes ou caminhos privados.
+1. iniciar apenas issue `[PRONTA]`;
+2. uma issue, uma branch curta, um PR;
+3. executar `npm run verify`;
+4. integrar/publicar somente quando a issue autorizar e CI estiver verde;
+5. não avançar dependências bloqueadas;
+6. nunca publicar dados reais, payloads, hashes privados, connection strings ou credenciais.
