@@ -262,3 +262,54 @@ Depois da #383, a Onda 24 deve começar pela revisão das limitações conhecida
 A #347 permanece bloqueada até a Onda 23 e a Onda 24 estarem concluídas com evidência suficiente, a evolução contratual de autoridade por escopo estar integrada, o primeiro escopo de ativação estar definido, a vigência imediata estar explicitamente registrada para cada ativação ou lote, rollback/recovery estarem confirmados e não existir hard stop acadêmico material no escopo a ativar. Quando liberada, a #347 deve executar rollout progressivo por escopo, não uma ativação global obrigatória.
 
 Esta decisão não cria critério automático de prontidão por turma ou disciplina, tolerância ou materialidade numérica, retroatividade, seleção de autoridade no cliente, regra de Conselho, fallback automático para a planilha nem conversão silenciosa do histórico V1. Sua publicação, por si só, não altera `authorityMode`, não executa piloto, não abre o runtime acadêmico produtivo, não provisiona recurso, não aplica migration e não implementa a #347.
+
+## BN-DEC-021 — PostgreSQL via Hyperdrive como armazenamento físico principal
+
+**Data:** 2026-09-08  
+**Status:** vigente  
+**Origem:** issue #586  
+**Substitui BN-DEC-016:** integralmente quanto à tecnologia de armazenamento físico principal. As regras de independência do domínio, backend autorizado e proibição de banco no navegador permanecem vigentes.
+
+Supabase PostgreSQL, acessado exclusivamente pelo backend Cloudflare através do binding Hyperdrive `PROD_DB`, passa a ser a tecnologia-alvo de armazenamento físico do Banco de Notas e deve tornar-se o armazenamento oficial após os gates de migração desta decisão.
+
+A substituição é motivada por evidência de produção controlada e benchmark comparável do importador V8. O caminho D1 permaneceu funcional e correto, mas a carga acadêmica versionada expandida apresentou custo de persistência incompatível com a meta operacional. Em contraste, o caminho PostgreSQL/Hyperdrive executou aplicação set-based de dezenas de milhares de itens em aproximadamente 1,2–1,3 s na fase de apply e concluiu o benchmark V8 shadow completo significativamente abaixo da linha de base D1, mesmo incluindo custos artificiais de conexão, tabelas temporárias, rollback e segunda passagem `no-changes`.
+
+### Separação entre storage e autoridade acadêmica
+
+Esta decisão altera somente a tecnologia de persistência física. Ela não altera, acelera nem substitui `authorityMode` acadêmico. `imported-source`, `native-engine`, rollout por escopo, Conselho humano e as regras das BN-DEC-019/020 continuam independentes desta migração.
+
+O domínio continua provider-independent. Código acadêmico deve continuar conhecendo portas de persistência, não `postgres`, SQL específico, Hyperdrive, Supabase ou connection strings. Adapters/composição backend são a fronteira do provedor.
+
+### Estado durante a migração
+
+Até o cutover final, D1 permanece a autoridade física canônica existente. A simples presença de schema, adapters ou dados no PostgreSQL não torna o PostgreSQL oficial.
+
+A migração deve ser controlada e reversível, nesta ordem mínima:
+
+1. criar schema PostgreSQL produtivo versionado e equivalente aos invariantes oficiais;
+2. usar role de aplicação dedicada e de menor privilégio; conexão de superuser não é configuração final aceitável;
+3. implementar adapters PostgreSQL equivalentes às portas oficiais, preservando CAS, versionamento, idempotência, snapshots e histórico;
+4. executar backfill D1 → PostgreSQL por backend privado, sem dados reais em Git, CI, issues ou logs públicos;
+5. verificar contagens, versões, relações, invariantes e checksums/hashes técnicos sanitizados suficientes para provar equivalência;
+6. executar janela de shadow/dual verification sem duplicar autoridade acadêmica;
+7. realizar cutover explícito por issue operacional própria, com rollback documentado;
+8. após o cutover, manter D1 preservado e sem novas escritas por uma janela de rollback definida;
+9. somente após aceite da janela de estabilidade o D1 deixa de ser considerado storage oficial ativo.
+
+### Consistência, cache e conexão
+
+Hyperdrive é a camada oficial de conexão/pooling entre Cloudflare e PostgreSQL. O caminho acadêmico deve preservar read-after-write estrito. Query caching que possa devolver leitura stale em operações acadêmicas versionadas deve permanecer desativado ou configurado de forma compatível com essa garantia antes do cutover.
+
+O backend deve continuar usando conexão encapsulada pelo binding; connection strings e credenciais não entram em código, navegador ou logs. A latência de conexão observada em benchmarks deve ser monitorada separadamente do tempo de apply e não pode ser mascarada como tempo de banco.
+
+### Backup e rollback
+
+A migração não pode reduzir a capacidade de recuperação existente. Antes do cutover, deve existir política explícita de backup/restore do PostgreSQL adequada ao uso institucional, além da cópia D1 preservada durante a janela de rollback.
+
+Nenhuma limpeza, exclusão ou desativação definitiva do D1 é autorizada por esta decisão. Qualquer remoção futura exige issue própria depois da estabilidade do PostgreSQL estar comprovada.
+
+### Memória do trabalho D1
+
+O conhecimento acumulado com D1 continua válido e deve ser preservado no repositório, inclusive schema, padrões `streams + versions`, CAS, staging, `db.batch()`, snapshots, auditoria, reimportação incremental e diagnóstico de limites. A migração de storage não autoriza apagar migrations, adapters históricos ou documentação necessária à recuperação antes de uma decisão específica de arquivamento.
+
+A publicação desta decisão autoriza abrir e executar issues operacionais de migração PostgreSQL nos limites acima. Ela não aplica migration de produção, não move dados reais e não efetua o cutover por si só.
