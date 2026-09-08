@@ -109,7 +109,7 @@ export function createGradebookValuesSnapshotV8(
     valuePolicy: SOURCE_VALUES_POLICY_V5,
     manifest: {
       ...original.manifest,
-      parserVersion: `${original.manifest.parserVersion.slice(0, 100)}:values-v1`,
+      parserVersion: `${original.manifest.parserVersion.slice(0, 100)}:values-v2`,
     },
     courses,
   };
