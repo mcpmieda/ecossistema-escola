@@ -43,8 +43,20 @@ describe('Cloudflare Workers Paid runtime configuration', () => {
     expect(config).not.toContain('GRADEBOOK_D1');
     expect(workflow).toContain('GRADEBOOK_D1_BINDING_CONFIG');
     expect(workflow).toContain('d1_databases: [binding]');
-    expect(workflow).toContain("config.env.production = {");
+    expect(workflow).toContain('config.env.production = {');
     expect(workflow).not.toContain('cpu_ms');
     expect(workflow).not.toContain('placement');
+  });
+
+  it('selects the cache-disabled dedicated Postgres Hyperdrive for official gradebook traffic', () => {
+    const config = JSON.parse(source('wrangler.jsonc')) as {
+      readonly vars?: { readonly GRADEBOOK_STORAGE_PROVIDER?: unknown };
+      readonly hyperdrive?: readonly { readonly binding?: unknown; readonly id?: unknown }[];
+    };
+
+    expect(config.vars?.GRADEBOOK_STORAGE_PROVIDER).toBe('postgres');
+    expect(config.hyperdrive).toEqual([
+      { binding: 'PROD_DB', id: '476b417597c84b4c994bd36f1a65cb70' },
+    ]);
   });
 });

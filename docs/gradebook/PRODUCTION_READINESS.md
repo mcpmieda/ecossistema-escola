@@ -23,8 +23,9 @@ Esse estado não é apagado nem reinterpretado. Ele comprova a preparação ante
 ## Decisão de storage vigente
 
 BN-DEC-021 substituiu BN-DEC-016 quanto ao armazenamento físico principal futuro:
-- PostgreSQL/Supabase via Hyperdrive `PROD_DB` é o storage-alvo;
-- D1 continua canônico até o cutover explícito da #595;
+
+- PostgreSQL/Supabase via Hyperdrive `PROD_DB` é o storage oficial após #595;
+- D1 permanece preservado sem dual write para o rollback controlado;
 - D1 será preservado como rollback read-only por janela definida após o cutover;
 - mudança de storage não muda autoridade acadêmica.
 
@@ -35,6 +36,7 @@ O schema PostgreSQL produtivo `gradebook` já foi aplicado sem dados reais. A mi
 ### Gate 1 — #592 / adapters e dual verification
 
 Antes de qualquer backfill real:
+
 - adapters PostgreSQL equivalentes às portas oficiais;
 - CAS, idempotência, transação, staging, snapshots, Conselho e Auditoria cobertos;
 - dual verification D1 × PostgreSQL sanitizada;
@@ -44,6 +46,7 @@ Antes de qualquer backfill real:
 ### Gate 2 — #594 / backfill privado e paridade
 
 Antes de qualquer cutover:
+
 - migração integral D1 → PostgreSQL executada privadamente;
 - contagens, versões, relações e hashes técnicos equivalentes;
 - reexecução idempotente;
@@ -53,6 +56,7 @@ Antes de qualquer cutover:
 ### Gate 3 — #595 / cutover e rollback
 
 Antes do primeiro write acadêmico oficial em PostgreSQL:
+
 - paridade #594 verde;
 - role de aplicação de menor privilégio;
 - backup e restore confirmados;
@@ -64,6 +68,7 @@ Antes do primeiro write acadêmico oficial em PostgreSQL:
 ### Gate 4 — #406 / piloto integral final
 
 Somente depois do cutover:
+
 - corpus privado integral exercitado 18/18;
 - persistência/reload;
 - reimportação idêntica `no-changes`/idempotente;
@@ -83,6 +88,7 @@ A Etapa 3/5 só termina quando #595 e #406 estiverem verdes e `authorityMode` co
 ## Etapa 4/5 — #347
 
 A autoridade `native-engine` permanece separada e bloqueada. Só iniciar após #406, com:
+
 - contrato de autoridade por escopo;
 - divergências materiais reconciliadas;
 - versão/vigência explícitas;
@@ -93,6 +99,7 @@ A autoridade `native-engine` permanece separada e bloqueada. Só iniciar após #
 ## Etapa 5/5 — #596
 
 A entrega institucional fecha:
+
 - operação estável em PostgreSQL;
 - janela de rollback D1 encerrada deliberadamente;
 - D1 preservado/arquivado conforme runbook;
@@ -105,6 +112,7 @@ A entrega institucional fecha:
 ## Hard stops permanentes
 
 Parar antes de novos writes reais se houver:
+
 - schema/binding/storage alvo ambíguo;
 - backup/restore ou rollback indisponível;
 - write parcial ou CAS enfraquecido;

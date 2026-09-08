@@ -7,9 +7,9 @@ import type { GradebookPostgresDatabaseV1 } from './postgres-database-v1';
 import { createGradebookPostgresPersistenceUnitOfWorkV2 } from './postgres-persistence-unit-of-work-v1';
 
 /**
- * Complete PostgreSQL persistence composition for the gradebook. D1 remains the
- * official runtime until the explicit cutover issue; sharing the mature domain
- * mapping here does not share a database connection or write path.
+ * Complete PostgreSQL persistence composition for the official gradebook runtime.
+ * The mature provider-independent mapping is shared without dual writes; D1 remains
+ * a separately bound rollback store during the controlled cutover window.
  */
 export function createGradebookPostgresAdaptersV1(
   database: GradebookPostgresDatabaseV1,
