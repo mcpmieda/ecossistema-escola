@@ -46,13 +46,11 @@ describe('Postgres V8 shadow D1 guards', () => {
     const guard = createGradebookShadowReadOnlyD1V1(base);
     expect(await guard.database.prepare('select 1').bind('x').first()).toMatchObject({ ok: 1 });
     expect(await guard.database.prepare('select 1').all()).toMatchObject({ results: [{ ok: 1 }] });
-    await expect(guard.database.prepare('update x').run()).rejects.toThrow(
+    expect(() => guard.database.prepare('update x').run()).toThrow(
       'gradebook-shadow-d1-write-blocked',
     );
-    await expect(Promise.resolve(guard.database.exec('delete from x'))).rejects.toThrow(
-      'gradebook-shadow-d1-write-blocked',
-    );
-    await expect(guard.database.batch!([])).rejects.toThrow('gradebook-shadow-d1-write-blocked');
+    expect(() => guard.database.exec('delete from x')).toThrow('gradebook-shadow-d1-write-blocked');
+    expect(() => guard.database.batch!([])).toThrow('gradebook-shadow-d1-write-blocked');
     expect(baseRun).not.toHaveBeenCalled();
     expect(baseExec).not.toHaveBeenCalled();
     expect(baseBatch).not.toHaveBeenCalled();
@@ -81,7 +79,11 @@ describe('Postgres V8 shadow D1 guards', () => {
       reference.kind === 'teacher' ? teacherRecord : null,
     );
     const getMany = vi.fn(async (_context, references: readonly AcademicEntityReferenceV1[]) =>
-      references.map((reference) => (reference.kind === 'teacher' ? teacherRecord : ({ value: {}, version: 1, recordedAt: 'x' } as never))),
+      references.map((reference) =>
+        reference.kind === 'teacher'
+          ? teacherRecord
+          : ({ value: {}, version: 1, recordedAt: 'x' } as never),
+      ),
     );
     const base = {
       entities: {
@@ -111,18 +113,30 @@ describe('Postgres V8 shadow D1 guards', () => {
     const shadow = createGradebookShadowEmptyTargetUnitOfWorkV1(base);
     expect(await shadow.entities.get(context, teacherReference)).toBe(teacherRecord);
     expect(await shadow.entities.get(context, componentReference)).toBeNull();
-    const bulk = await (shadow.entities as typeof base.entities).getMany!(context, [
-      teacherReference,
-      componentReference,
-    ]);
+    const shadowEntities = shadow.entities as unknown as {
+      getMany: typeof getMany;
+      getStudentStatusEventsMany: (
+        context: AcademicPersistenceContextV1,
+        ids: readonly string[],
+      ) => Promise<readonly unknown[]>;
+    };
+    const bulk = await shadowEntities.getMany(context, [teacherReference, componentReference]);
     expect(bulk[0]).toBe(teacherRecord);
     expect(bulk[1]).toBeNull();
     expect(await shadow.imports.findSourceFileByHash(context, 'a'.repeat(64))).toBeNull();
-    expect(await shadow.imports.getSourceFileVersion(context, 'manifest:synthetic' as never)).toBeNull();
-    expect(await shadow.academicRecords.getCurrent(context, { kind: 'annual-result' } as never)).toBeNull();
-    expect(await shadow.logicalSourceRecords.listCurrentStreams(context, 'logical:synthetic' as never)).toEqual([]);
+    expect(
+      await shadow.imports.getSourceFileVersion(context, 'manifest:synthetic' as never),
+    ).toBeNull();
+    expect(
+      await shadow.academicRecords.getCurrent(context, { kind: 'annual-result' } as never),
+    ).toBeNull();
+    expect(
+      await shadow.logicalSourceRecords.listCurrentStreams(context, 'logical:synthetic' as never),
+    ).toEqual([]);
     expect(await shadow.logicalSourceRecords.getCurrent(context, {} as never)).toBeNull();
-    const statusBulk = (shadow.entities as typeof base.entities).getStudentStatusEventsMany!;
-    expect(await statusBulk(context, ['one', 'two'])).toEqual([null, null]);
+    expect(await shadowEntities.getStudentStatusEventsMany(context, ['one', 'two'])).toEqual([
+      null,
+      null,
+    ]);
   });
 });
