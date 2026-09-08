@@ -61,7 +61,7 @@ describe('gradebook PostgreSQL database adapter', () => {
     );
 
     expect(translated).toBe(
-      "SELECT '?' AS literal, payload_json FROM source_file_versions WHERE manifest_id = $1 AND sha256 = $2",
+      "SELECT '?' AS literal, payload_json FROM gradebook.source_file_versions WHERE manifest_id = $1 AND sha256 = $2",
     );
   });
 
@@ -87,7 +87,7 @@ describe('gradebook PostgreSQL database adapter', () => {
         'INSERT OR IGNORE INTO council_session_streams (academic_year_id) VALUES (?)',
       ),
     ).toBe(
-      'INSERT INTO council_session_streams (academic_year_id) VALUES ($1) ON CONFLICT DO NOTHING',
+      'INSERT INTO gradebook.council_session_streams (academic_year_id) VALUES ($1) ON CONFLICT DO NOTHING',
     );
   });
 
@@ -116,7 +116,9 @@ describe('gradebook PostgreSQL database adapter', () => {
       .bind(payload)
       .run();
 
-    expect(sql.calls[0]?.query).toContain('VALUES ($1::jsonb)');
+    expect(sql.calls[0]?.query).toContain(
+      'INSERT INTO gradebook.gradebook_import_stage_sessions (metadata_json) VALUES ($1::jsonb)',
+    );
     expect(sql.calls[0]?.parameters).toEqual([{ value: payload, oid: 25 }]);
   });
 

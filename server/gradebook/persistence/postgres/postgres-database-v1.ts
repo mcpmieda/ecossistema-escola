@@ -28,6 +28,41 @@ const NUMERIC_COLUMNS =
 const JSON_COLUMNS = /(?:^|_)(?:json|intent)$/u;
 const CHANGE_GUARD = /changes\(\)\s*=\s*\?/iu;
 const POSTGRES_TEXT_OID_V1 = 25;
+const GRADEBOOK_TABLE_NAMES_V1 = [
+  'academic_entity_streams',
+  'academic_entity_versions',
+  'academic_record_streams',
+  'academic_record_versions',
+  'academic_year_configuration_versions',
+  'academic_year_versions',
+  'academic_years',
+  'audit_occurrence_transitions',
+  'audit_record_streams',
+  'audit_record_versions',
+  'bulletin_snapshot_streams',
+  'bulletin_snapshot_versions',
+  'council_decision_streams',
+  'council_decision_versions',
+  'council_session_streams',
+  'council_session_versions',
+  'gradebook_import_stage_chunks',
+  'gradebook_import_stage_sessions',
+  'gradebook_schema_migrations',
+  'import_batch_files',
+  'import_batch_streams',
+  'import_batch_versions',
+  'import_diagnostics',
+  'logical_source_record_streams',
+  'logical_source_record_versions',
+  'logical_sources',
+  'source_file_logical_source_candidates',
+  'source_file_streams',
+  'source_file_versions',
+] as const;
+const GRADEBOOK_RELATION_V1 = new RegExp(
+  `\\b(FROM|INTO|JOIN|TABLE|UPDATE)\\s+(?!gradebook\\.)(${GRADEBOOK_TABLE_NAMES_V1.join('|')})\\b`,
+  'giu',
+);
 
 export interface GradebookPostgresDatabaseOptionsV1 {
   readonly maximumConnections?: number;
@@ -229,6 +264,10 @@ function translateJsonEach(query: string): string {
     );
 }
 
+function qualifyGradebookRelations(query: string): string {
+  return query.replace(GRADEBOOK_RELATION_V1, '$1 gradebook.$2');
+}
+
 /**
  * Converts the deliberately small SQLite surface used by the provider-independent
  * gradebook repositories into PostgreSQL syntax. Values remain parameters; this
@@ -253,7 +292,7 @@ export function translateGradebookD1SqlToPostgresV1(query: string): string {
   );
   translated = replaceImportSqlParametersV1(translated, (index) => `$${String(index + 1)}`);
   translated = translateJsonEach(translated);
-  return translated;
+  return qualifyGradebookRelations(translated);
 }
 
 class GradebookPostgresStatementV1 implements D1WriteStatementV1 {
@@ -406,7 +445,6 @@ export async function createGradebookPostgresDatabaseV1(
     max_lifetime: options.maximumLifetimeSeconds ?? 60,
     connection: {
       application_name: 'ecossistema-escola-gradebook',
-      search_path: 'gradebook,pg_temp',
       statement_timeout: options.statementTimeoutMilliseconds ?? 30_000,
       lock_timeout: options.lockTimeoutMilliseconds ?? 5_000,
       idle_in_transaction_session_timeout: options.idleInTransactionTimeoutMilliseconds ?? 30_000,
