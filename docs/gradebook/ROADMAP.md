@@ -1,193 +1,100 @@
 # Roadmap do Banco de Notas
 
-As fases organizam o trabalho, mas não formam uma fila rígida. Tarefas sem dependência podem avançar em paralelo. Cada fase informa um resultado observável e só é concluída quando código, testes, documentação, publicação e verificação aplicáveis estiverem completos.
+As fases F0–F9 descrevem a construção funcional. A implantação institucional é acompanhada por uma trilha operacional de **5 etapas**. Em 2026-09-08, o programa está na **Etapa 3/5**.
 
-## Estados usados nas issues
+## Trilha operacional de implantação
 
-- **Planejada:** ainda não pode começar.
-- **Pronta para iniciar:** contratos e dependências disponíveis.
-- **Em construção:** trabalho ativo.
-- **Em testes:** implementação pronta, sendo validada.
-- **Bloqueada:** depende de decisão ou entrega identificada.
-- **Pronta para publicar:** testes aprovados, aguardando merge/deploy.
-- **Publicada:** integrada à `main`, implantada e verificada quando houver resultado visível.
+| Etapa | Estado | Objetivo | Issues guia |
+|---:|---|---|---|
+| 1/5 | concluída | fundação técnica, contratos, domínio e importação | #183–#186 |
+| 2/5 | concluída | superfícies institucionais, hardening, durabilidade e readiness controlada | #187–#192 / ondas históricas |
+| 3/5 | **em andamento** | storage PostgreSQL + piloto integral com `imported-source` | #592 → #594 → #595 → #406 |
+| 4/5 | bloqueada | autoridade `native-engine` progressiva por escopo | #347 |
+| 5/5 | bloqueada | entrega institucional, operação e fechamento da implantação | #596 |
 
-## F0 — Fundação modular e coordenação por agentes
+A numeração operacional não reabre fases funcionais já concluídas. Ela indica apenas quanto falta para a implantação institucional completa.
 
-**Objetivo:** tornar o repositório autossuficiente para trabalho paralelo e seguro.
+## Etapa 3/5 — sequência obrigatória
 
-Entregas:
+### #592 — adapters PostgreSQL + dual verification
 
-- memória canônica em `docs/gradebook/`;
-- protocolo de agentes e precedência de decisões;
-- templates de issue e pull request;
-- validação automática de pull requests;
-- issue principal, issues-pai das fases e primeira fila executável;
-- mapa de issues e estado legível por máquina.
+- D1 continua storage oficial;
+- PostgreSQL é shadow/target;
+- preservar contratos provider-independent, streams/versions, CAS, idempotência, staging, snapshots, Conselho e Auditoria;
+- comparar resultados sem dados reais públicos.
 
-**Resultado no site:** nenhum novo recurso funcional; a produção deve permanecer sem regressão.
+### #594 — backfill privado + paridade
 
-## F1 — Contrato da fonte e importação confiável
+- migrar D1 → PostgreSQL sem recalcular regras acadêmicas;
+- verificar contagens, versões, relações e hashes técnicos sanitizados;
+- D1 continua canônico enquanto houver divergência ou execução incompleta.
 
-**Objetivo:** transformar o leitor atual em uma camada de importação independente e rastreável, mantendo a experiência publicada.
+### #595 — cutover PostgreSQL + rollback D1
 
-Entregas:
+- PostgreSQL passa a leitura/escrita oficial somente após paridade;
+- Hyperdrive precisa de consistência read-after-write apropriada;
+- role de aplicação de menor privilégio e backup/restore são gates;
+- D1 fica read-only como rollback por janela explicitamente definida.
 
-- contrato de guias, células, D1/D2/D3, situações e REC;
-- semântica de vazio, fórmula zero, fórmula válida, zero oficial `0,1` e zero legado;
-- separação entre UI, carregador SheetJS, parser, reconhecedor e orquestração do lote;
-- manifesto por arquivo com nome, tamanho, modificação, tipo e SHA-256;
-- contrato `ImportBatchResultV1` e diagnóstico por arquivo;
-- testes com dados sintéticos e validação controlada contra arquivos reais;
-- manutenção do limite de 50 arquivos e processamento sequencial.
+### #406 — piloto integral final
 
-**Resultado no site:** importação em lote com origem, progresso, falhas isoladas e resumo confiável.
+- retomar somente após #595;
+- validar o corpus privado integral no storage oficial;
+- manter `authorityMode: imported-source`;
+- concluir idempotência, CAS, histórico, Auditoria, reconciliação, Desempenho, Boletins, Relatórios, Conselho e recovery.
 
-## F2 — Modelo acadêmico normalizado e limites de persistência
+A Etapa 3/5 termina somente quando #595 e #406 estiverem verdes.
 
-**Objetivo:** definir o núcleo de dados sem copiar a estrutura de células do Excel.
+## Etapa 4/5 — #347
 
-Entregas:
+Ativar `native-engine` apenas por escopos aprovados conforme BN-DEC-019/020:
+- vigência temporal explícita;
+- versionamento e histórico reproduzíveis;
+- rollback;
+- divergências materiais reconciliadas;
+- sem fallback automático para a planilha;
+- Conselho/decisões humanas fora da autoridade automática.
 
-- contratos de Ano Letivo, Professor, Turma, Componente, Atribuição, Estudante, Matrícula e Situação;
-- contratos de Lançamento, Resultado Trimestral, Recuperação, Resultado Anual, Lote e Auditoria;
-- estratégia de identificadores e versionamento;
-- portas de persistência e transações independentes da tecnologia física;
-- decisão explícita sobre armazenamento físico antes de provisionar infraestrutura;
-- contexto global de ano e perfil de avaliação 2026 com defaults.
+## Etapa 5/5 — #596
 
-**Resultado no site:** após persistência mínima, lotes importados podem ser revisados e consultados sem manter o arquivo aberto.
+Encerrar a implantação com:
+- storage oficial estável;
+- janela de rollback encerrada deliberadamente;
+- D1 preservado/arquivado sem exclusão precipitada;
+- observabilidade e Saúde e limites (#220) quando aplicável;
+- backup/restore e runbook operacional;
+- documentação canônica final;
+- smoke final e backlog de implantação limpo.
 
-## F3 — Motor nativo
+## Estado das fases funcionais
 
-**Objetivo:** implementar, desde a fundação, as regras acadêmicas em um único núcleo puro e testável.
+- **F0 #183 — Fundação:** concluída.
+- **F1 #184 — Fonte/importação:** concluída; V8 é o transporte vigente de valores.
+- **F2 #185 — Persistência:** funcional; migração física para PostgreSQL em andamento.
+- **F3 #186 — Motor nativo:** V1 comparativo concluído; autoridade futura pela #347.
+- **F4 #187 — Auditoria:** concluída.
+- **F5 #188 — Centrais operacionais:** concluída.
+- **F6 #189 — Desempenho:** concluída funcionalmente.
+- **F7 #190 — Conselho:** concluída e fechada.
+- **F8 #191 — Boletins/Relatórios:** concluída e fechada.
+- **F9 #192 — Implantação/segurança:** aberta até a Etapa 5/5.
 
-Entregas:
+## Decisões de storage e autoridade
 
-- interpretação semântica de células;
-- quantitativo, qualitativo operacional e composição trimestral;
-- regra de arredondamento versionada;
-- recuperação paralela;
-- recuperação final por trimestre, preservando nota substituída;
-- total e resultado anual;
-- precedência de situações especiais e elegibilidade ao Conselho;
-- execução em paralelo à fonte e relatório de equivalência.
+- BN-DEC-021 substitui BN-DEC-016 quanto ao armazenamento físico principal: PostgreSQL/Supabase via Hyperdrive é o alvo.
+- D1 permanece canônico até #595 e depois rollback durante janela definida.
+- A mudança de storage **não** altera autoridade acadêmica.
+- `authorityMode: imported-source` permanece até a #347.
 
-**Resultado no site:** comparação explicável entre valor importado e cálculo nativo, sem troca silenciosa de autoridade.
+## Regras permanentes
 
-## F4 — Reconciliação e Auditoria
-
-**Objetivo:** garantir idempotência, histórico e erros visíveis.
-
-Entregas:
-
-- chave técnica de lançamento e prevenção de duplicidade;
-- versões de arquivos e valores;
-- tratamento `FOI PARA` / `ESTAVA NO` sem dupla contagem;
-- promoção/rejeição de lote;
-- ocorrências estruturais, cadastrais, de nota, cálculo, origem e tempo;
-- área funcional de Auditoria com gravidade, origem, ação e resolução;
-- bloqueio de falso sucesso quando houver erro crítico.
-
-**Resultado no site:** o usuário revisa o lote, entende pendências e promove apenas dados válidos.
-
-## F5 — Contexto e centrais operacionais
-
-**Objetivo:** oferecer navegação funcional sobre entidades do Banco.
-
-Entregas:
-
-- seletor global de ano;
-- cadastro/confirmacão de Professor e atribuições anuais;
-- Central do Aluno;
-- Central da Turma;
-- Central do Componente;
-- Central do Professor;
-- pesquisa global dessas entidades com autorização;
-- read models compactos e detalhes sob demanda.
-
-**Resultado no site:** consulta por aluno, turma, professor e disciplina sem retornar à planilha.
-
-## F6 — Desempenho
-
-**Objetivo:** entregar a camada analítica visual sem criar base ou motor paralelo.
-
-Entregas:
-
-- contrato do read model;
-- contexto turma/período/modo;
-- matriz `Nº | Situação | Aluno | componentes | Resultado`;
-- lentes Resultado, Quantitativo, Qualitativo e Avaliações;
-- comparação proporcional entre períodos comparáveis;
-- sinais explicáveis, cobertura e investigação;
-- poucos gráficos interativos;
-- Drawer de aluno e detalhe de célula;
-- metas de payload, latência, acessibilidade e ausência de N+1.
-
-**Resultado no site:** matriz da turma utilizável, com aprofundamento progressivo em HeroUI.
-
-## F7 — Conselho de Classe
-
-**Objetivo:** organizar o fluxo real de decisão colegiada sem automatizar a decisão humana.
-
-Entregas:
-
-- elegíveis e não elegíveis com motivo;
-- fila compacta por turma e aluno em foco;
-- visão anual e detalhes por componente;
-- decisões distintas e editáveis com histórico;
-- votação numérica opcional e desempate do diretor;
-- `Reprovado por falta` somente no fluxo permitido;
-- fechamento da turma;
-- Conselho trimestral, casos e fotografias históricas imutáveis.
-
-**Resultado no site:** painel operacional completo do Conselho.
-
-## F8 — Boletins e relatórios
-
-**Objetivo:** transformar os mesmos resultados oficiais em documentos e consultas reproduzíveis.
-
-Entregas:
-
-- boletins Sintético, Composição e Detalhado;
-- filtros por turma, situação, aluno, período e trimestre visível;
-- prévia e PDF pelo mesmo motor;
-- snapshots/versionamento e reimpressão;
-- lotes com válidos e bloqueados separados;
-- relatórios de aproveitamento, recuperação, composição, auditoria e Conselho.
-
-**Resultado no site:** prévia, emissão e histórico de boletins/relatórios.
-
-## F9 — Piloto, segurança e produção institucional
-
-**Objetivo:** validar a operação completa antes da substituição do processo anterior.
-
-Entregas:
-
-- capabilities no servidor e menor privilégio;
-- `Cache-Control: no-store` e ausência de persistência indevida no navegador;
-- telemetria sanitizada;
-- carga e desempenho com massa representativa;
-- acessibilidade e movimento reduzido;
-- validação paralela com planilhas reais;
-- plano de recuperação e operação;
-- checklist de mudança de autoridade para o motor nativo, quando aprovado.
-
-**Resultado no site:** versão institucional validada e operável.
-
-## Regra de paralelismo
-
-Antes de assumir uma tarefa, o agente verifica contratos e caminhos. Tarefas que alteram o mesmo contrato ou arquivo central não rodam em paralelo sem coordenação. UI pode avançar com read models sintéticos depois que o contrato estiver congelado; motor e importação podem avançar em paralelo quando compartilham o mesmo contrato de fonte.
+- uma regra acadêmica existe em um único núcleo;
+- uma issue → uma branch curta → um PR;
+- `npm run verify` antes de declarar pronta;
+- merge/deploy somente quando a issue autorizar;
+- nenhuma credencial, payload acadêmico ou dado real no Git/CI;
+- histórico/versionamento, CAS, idempotência e rollback não podem ser enfraquecidos para acelerar implantação.
 
 ## Regra de conclusão
 
-Uma fase só é `Publicada` quando:
-
-1. tarefas obrigatórias concluídas;
-2. contratos e decisões atualizados;
-3. testes aplicáveis aprovados;
-4. nenhum erro crítico conhecido oculto;
-5. merge na `main` concluído;
-6. workflow de produção concluído;
-7. resultado verificado no site, quando visível;
-8. `PROJECT_STATE.yaml` e issue-pai atualizados pelo integrador.
+Uma entrega só é considerada concluída quando os critérios aplicáveis estiverem verdes, a `main` estiver integrada, o workflow oficial tiver passado, o resultado tiver sido verificado quando visível e a issue/documentação canônica tiver sido atualizada pelo integrador.
