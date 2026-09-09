@@ -36,4 +36,10 @@ export default [
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
+  {
+    files: ['server/gradebook/application/import/import-relational-service-v9.ts'],
+    rules: {
+      '@typescript-eslint/no-unnecessary-type-parameters': 'off',
+    },
+  },
 ];
