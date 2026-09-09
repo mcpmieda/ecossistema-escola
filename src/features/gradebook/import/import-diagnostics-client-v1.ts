@@ -40,12 +40,14 @@ export async function persistGradebookImportDiagnosticsAuditV1(
 export async function listGradebookImportDiagnosticsAuditV1(input: {
   readonly academicYear?: number | null;
   readonly limit?: number;
+  readonly offset?: number;
 } = {}): Promise<GradebookImportDiagnosticsAuditListResponseV1> {
   const params = new URLSearchParams();
   if (input.academicYear !== undefined && input.academicYear !== null) {
     params.set('ano', String(input.academicYear));
   }
   params.set('limit', String(Math.min(200, Math.max(1, input.limit ?? 50))));
+  params.set('offset', String(Math.max(0, Math.floor(input.offset ?? 0))));
   const response = await fetch(`${ENDPOINT}?${params.toString()}`, {
     method: 'GET',
     credentials: 'same-origin',
