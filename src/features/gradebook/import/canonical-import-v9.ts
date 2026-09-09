@@ -9,7 +9,6 @@ import {
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
-  SOURCE_QUANTITATIVE_ASSESSMENT_SLOTS_V2,
   type SourceAssessmentDefinitionV2,
 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
 import type { GradebookImportResultCellObservationV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
