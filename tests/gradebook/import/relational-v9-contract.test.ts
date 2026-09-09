@@ -66,6 +66,28 @@ describe('gradebook relational import v9', () => {
     expect(result?.turmas[1]?.alunos[1]).toEqual([2, 'OUTRO ALUNO', 2]);
   });
 
+  it('accepts the current Relation layout where the year is stored in Q2', () => {
+    const workbook: Workbook = {
+      SheetNames: ['INICIO', '|| VINCULO AGENDA ||'],
+      Sheets: {
+        INICIO: sheet({ Q2: 2026, D7: 6, E7: '6A', F7: '6º ANO A', I7: 'MATUTINO' }),
+        '|| VINCULO AGENDA ||': sheet({ J3: 'ALUNO TESTE' }),
+      },
+    };
+    expect(recognizeMasterRelationV9(workbook)?.ano).toBe(2026);
+  });
+
+  it('blocks contradictory year cells instead of guessing', () => {
+    const workbook: Workbook = {
+      SheetNames: ['INICIO', '|| VINCULO AGENDA ||'],
+      Sheets: {
+        INICIO: sheet({ G2: 2025, Q2: 2026, D7: 6, E7: '6A', F7: '6º ANO A', I7: 'MATUTINO' }),
+        '|| VINCULO AGENDA ||': sheet({ J3: 'ALUNO TESTE' }),
+      },
+    };
+    expect(() => recognizeMasterRelationV9(workbook)).toThrow(/ambíguo/iu);
+  });
+
   it('accepts exact thousandths and rejects academic rounding', () => {
     expect(canonicalMilliV9(7.25)).toBe(7250);
     expect(canonicalMilliV9(8.1)).toBe(8100);
