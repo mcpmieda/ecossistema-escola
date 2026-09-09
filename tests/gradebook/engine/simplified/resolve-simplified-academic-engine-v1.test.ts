@@ -15,16 +15,16 @@ function completeTerm(term: 1 | 2 | 3, roundedMilli: number) {
   const quantitativeMaximum = (maximum * 45) / 100;
   const qualitativeMaximum = (maximum * 55) / 100;
   const avMaximum = quantitativeMaximum / 2;
+  const quantitative = Math.min(roundedMilli, quantitativeMaximum);
+  const av1 = Math.min(avMaximum, quantitative);
+  const av2 = quantitative - av1;
+  const qualitative = Math.max(0, roundedMilli - quantitative);
   return resolveSimplifiedTermV1({
     term,
     instruments: [
-      { slot: 1, maximumMilli: avMaximum, valueMilli: Math.min(avMaximum, roundedMilli) },
-      { slot: 2, maximumMilli: avMaximum, valueMilli: 0 },
-      {
-        slot: 11,
-        maximumMilli: qualitativeMaximum,
-        valueMilli: Math.max(0, roundedMilli - Math.min(avMaximum, roundedMilli)),
-      },
+      { slot: 1, maximumMilli: avMaximum, valueMilli: av1 },
+      { slot: 2, maximumMilli: avMaximum, valueMilli: av2 },
+      { slot: 11, maximumMilli: qualitativeMaximum, valueMilli: qualitative },
     ],
   });
 }
