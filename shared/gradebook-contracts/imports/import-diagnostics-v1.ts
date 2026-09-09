@@ -109,6 +109,19 @@ function optionalStringWithin(value: unknown, maximum: number): boolean {
   return value === undefined || stringWithin(value, maximum);
 }
 
+function safeIntegerWithin(value: unknown, minimum: number, maximum: number): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= minimum &&
+    value <= maximum
+  );
+}
+
+function nullableAcademicYear(value: unknown): value is number | null {
+  return value === null || safeIntegerWithin(value, 2000, 9999);
+}
+
 function isDiagnosticItem(value: unknown): value is GradebookImportDiagnosticAuditItemV1 {
   if (!isObject(value)) return false;
   if (!stringWithin(value.key, 320)) return false;
@@ -140,18 +153,10 @@ function isDiagnosticItem(value: unknown): value is GradebookImportDiagnosticAud
   if (!optionalStringWithin(value.classCode, 24)) return false;
   if (!optionalStringWithin(value.subject, 160)) return false;
   if (!optionalStringWithin(value.period, 64)) return false;
-  if (
-    value.studentNumber !== undefined &&
-    (!Number.isSafeInteger(value.studentNumber) || value.studentNumber <= 0 || value.studentNumber > 9999)
-  ) {
+  if (value.studentNumber !== undefined && !safeIntegerWithin(value.studentNumber, 1, 9999)) {
     return false;
   }
-  if (
-    value.slot !== undefined &&
-    (!Number.isSafeInteger(value.slot) || value.slot < 0 || value.slot > 999)
-  ) {
-    return false;
-  }
+  if (value.slot !== undefined && !safeIntegerWithin(value.slot, 0, 999)) return false;
   if (!optionalStringWithin(value.fieldLabel, 240)) return false;
   if (!optionalStringWithin(value.foundValue, 240)) return false;
   if (!optionalStringWithin(value.cause, 240)) return false;
@@ -164,15 +169,13 @@ export function isGradebookImportDiagnosticsAuditRequestV1(
   value: unknown,
 ): value is GradebookImportDiagnosticsAuditRequestV1 {
   if (!isObject(value) || value.version !== GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1) return false;
-  if (
-    value.academicYear !== null &&
-    (!Number.isSafeInteger(value.academicYear) || value.academicYear < 2000 || value.academicYear > 9999)
-  ) {
-    return false;
-  }
+  if (!nullableAcademicYear(value.academicYear)) return false;
   if (!stringWithin(value.fileName, 255)) return false;
   if (typeof value.sha256 !== 'string' || !/^[a-f0-9]{64}$/iu.test(value.sha256)) return false;
-  if (!Array.isArray(value.diagnostics) || value.diagnostics.length > GRADEBOOK_IMPORT_DIAGNOSTICS_MAX_ITEMS_V1) {
+  if (
+    !Array.isArray(value.diagnostics) ||
+    value.diagnostics.length > GRADEBOOK_IMPORT_DIAGNOSTICS_MAX_ITEMS_V1
+  ) {
     return false;
   }
   return value.diagnostics.every(isDiagnosticItem);
@@ -180,17 +183,12 @@ export function isGradebookImportDiagnosticsAuditRequestV1(
 
 function isAuditRecord(value: unknown): value is GradebookImportDiagnosticsAuditRecordV1 {
   if (!isObject(value) || !isDiagnosticItem(value)) return false;
-  if (!Number.isSafeInteger(value.id) || value.id <= 0) return false;
-  if (
-    value.academicYear !== null &&
-    (!Number.isSafeInteger(value.academicYear) || value.academicYear < 2000 || value.academicYear > 9999)
-  ) {
-    return false;
-  }
+  if (!safeIntegerWithin(value.id, 1, Number.MAX_SAFE_INTEGER)) return false;
+  if (!nullableAcademicYear(value.academicYear)) return false;
   if (!stringWithin(value.fileName, 255)) return false;
   if (!(value.studentName === null || stringWithin(value.studentName, 240))) return false;
   if (!stringWithin(value.firstObservedAt, 64) || !stringWithin(value.lastObservedAt, 64)) return false;
-  if (!Number.isSafeInteger(value.observations) || value.observations <= 0) return false;
+  if (!safeIntegerWithin(value.observations, 1, Number.MAX_SAFE_INTEGER)) return false;
   return true;
 }
 
@@ -199,7 +197,7 @@ export function isGradebookImportDiagnosticsAuditWriteResponseV1(
 ): value is GradebookImportDiagnosticsAuditWriteResponseV1 {
   if (!isObject(value) || value.version !== GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1) return false;
   if (value.state === 'recorded') {
-    return Number.isSafeInteger(value.affected) && value.affected >= 0;
+    return safeIntegerWithin(value.affected, 0, Number.MAX_SAFE_INTEGER);
   }
   return ['not-authorized', 'invalid-request', 'unavailable'].includes(String(value.state));
 }
