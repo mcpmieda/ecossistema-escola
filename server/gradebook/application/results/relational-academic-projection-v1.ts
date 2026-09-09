@@ -1,7 +1,4 @@
-import type {
-  D1ReadDatabaseV1,
-  D1ReadValue,
-} from '../../persistence/d1/read/d1-read-adapter-v1';
+import type { D1ReadDatabaseV1 } from '../../persistence/d1/read/d1-read-adapter-v1';
 import {
   resolveSimplifiedComponentRecoveryV1,
   resolveSimplifiedTermV1,
@@ -13,6 +10,7 @@ import {
 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 
 type Row = Record<string, unknown>;
+type BindValue = string | number | null;
 
 export type RelationalSourceComparisonV1 = 'match' | 'mismatch' | 'unavailable';
 
@@ -66,7 +64,7 @@ function nullableInteger(value: unknown): number | null {
 async function first<T extends Row>(
   database: D1ReadDatabaseV1,
   sql: string,
-  values: readonly D1ReadValue[],
+  values: readonly BindValue[],
 ): Promise<T | null> {
   return database.prepare(sql).bind(...values).first<T>();
 }
@@ -74,7 +72,7 @@ async function first<T extends Row>(
 async function all<T extends Row>(
   database: D1ReadDatabaseV1,
   sql: string,
-  values: readonly D1ReadValue[],
+  values: readonly BindValue[],
 ): Promise<readonly T[]> {
   return (await database.prepare(sql).bind(...values).all<T>()).results;
 }
