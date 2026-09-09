@@ -21,6 +21,10 @@ function FileHash({ sha256 }: { sha256: string }) {
   );
 }
 
+function formatAcademicMilli(value: number): string {
+  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value / 1000);
+}
+
 const PROGRESS_STAGE = {
   preparing: ['Preparando e calculando SHA-256', 10],
   recognizing: ['Reconhecendo estrutura', 20],
@@ -211,11 +215,15 @@ export function NotesImportPanel() {
     selectedResult,
     setSelectedId,
     timingDiagnostics,
+    sourceMaximumWarnings,
     sourceValueWarnings,
     totals,
   } = useImportBatch();
 
   const selectedPersistence = selectedResult ? persistence[selectedResult.id] : undefined;
+  const selectedMaximumWarnings = selectedResult
+    ? (sourceMaximumWarnings[selectedResult.id] ?? [])
+    : [];
 
   return (
     <Surface variant="default" className="platform-card-surface rounded-[2rem] p-6 sm:p-7">
@@ -373,6 +381,11 @@ export function NotesImportPanel() {
                 <p className="mt-2 text-xs text-muted">
                   Importação por valores V8 · 0 = vazio · 0,1 = zero explícito
                 </p>
+                {(sourceMaximumWarnings[result.id]?.length ?? 0) > 0 && (
+                  <p className="mt-2 text-xs font-medium">
+                    {sourceMaximumWarnings[result.id]!.length} nota(s) acima do máximo — revisar
+                  </p>
+                )}
               </Surface>
             ))}
             {failures.map((failure) => (
@@ -424,6 +437,36 @@ export function NotesImportPanel() {
                       {sourceValueWarnings[selectedResult.id]} célula(s) apresentam erro ou fórmula
                       sem resultado salvo. Esses valores não foram inventados nem tratados como
                       zero. Recalcule e salve a planilha no Excel antes de reimportar.
+                    </Alert.Description>
+                  </Alert.Content>
+                </Alert>
+              )}
+              {selectedMaximumWarnings.length > 0 && (
+                <Alert status="warning" className="mt-5">
+                  <Alert.Indicator />
+                  <Alert.Content>
+                    <Alert.Title>
+                      {selectedMaximumWarnings.length} nota(s) acima do máximo — importação não bloqueada
+                    </Alert.Title>
+                    <Alert.Description>
+                      <div>
+                        Os valores abaixo são mantidos no Banco como foram lançados. Corrija a
+                        planilha e reimporte depois; os demais dados válidos não são bloqueados.
+                      </div>
+                      <ul className="mt-2 list-disc space-y-1 pl-5">
+                        {selectedMaximumWarnings.slice(0, 20).map((warning) => (
+                          <li key={`${warning.sheetName}:${warning.cellAddress}`}>
+                            {selectedResult.manifest.fileName} · {warning.sheetName}!
+                            {warning.cellAddress}: {formatAcademicMilli(warning.value)} (máximo{' '}
+                            {formatAcademicMilli(warning.maximum)})
+                          </li>
+                        ))}
+                      </ul>
+                      {selectedMaximumWarnings.length > 20 && (
+                        <div className="mt-2">
+                          E mais {selectedMaximumWarnings.length - 20} ocorrência(s).
+                        </div>
+                      )}
                     </Alert.Description>
                   </Alert.Content>
                 </Alert>

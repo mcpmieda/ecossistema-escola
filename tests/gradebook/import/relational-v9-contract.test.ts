@@ -4,11 +4,15 @@ import {
   type GradebookNotesImportRequestV9,
   type GradebookRelationImportRequestV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import { canonicalMilliV9 } from '../../../src/features/gradebook/import/canonical-import-v9';
+import {
+  canonicalMilliV9,
+  createGradebookCanonicalImportRequestV9,
+} from '../../../src/features/gradebook/import/canonical-import-v9';
 import {
   parseRelationStatusV9,
   recognizeMasterRelationV9,
 } from '../../../src/features/gradebook/import/master-relation-v9';
+import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
 import type { Workbook, Worksheet } from '../../../src/features/gradebook/import/spreadsheet-recognizer';
 
 function sheet(cells: Record<string, unknown>): Worksheet {
@@ -22,6 +26,82 @@ const manifest = {
   sha256: 'a'.repeat(64),
   parserVersion: 'xlsx-0.20.3:canonical-v9',
 } as const;
+
+function teacherResultWithAboveMaximum(): BatchSuccess {
+  const termSheet = (trimester: 1 | 2 | 3, value: number) => ({
+    name: `7B${trimester}º`,
+    range: 'A1:AN50',
+    rows: 50,
+    columns: 40,
+    className: '7B',
+    discipline: 'MATEMÁTICA',
+    disciplineIndex: 'D1',
+    stage: `trimester-${trimester}`,
+    declaredStage: `${trimester}º trimestre`,
+    declaredStudents: 1,
+    assessmentDefinitions: [
+      { sourceSlot: 'R', maximumConfiguration: { state: 'numeric', rawValue: 3 } },
+      { sourceSlot: 'S', maximumConfiguration: { state: 'numeric', rawValue: 10 } },
+    ],
+    students: [
+      {
+        row: 5,
+        number: '1',
+        name: 'ALUNO TESTE',
+        status: '',
+        quantitativeAssessments: [
+          { source: value, value, kind: 'manual' },
+          { source: 2, value: 2, kind: 'manual' },
+        ],
+        quantitativeTotal: null,
+        parallel: null,
+        qualitative: [],
+        qualitativeTotal: null,
+        official: null,
+        annual: null,
+        termResultObservations: {
+          quantitativeTotal: { classification: 'empty', rawValue: null },
+          parallelAssessment: { classification: 'empty', rawValue: null },
+          qualitativeTotal: { classification: 'empty', rawValue: null },
+          officialTermGrade: { classification: 'empty', rawValue: null },
+          annualAccumulatedTotal: { classification: 'empty', rawValue: null },
+        },
+        recovery: null,
+      },
+    ],
+    formulas: 0,
+    officialZeros: 0,
+    snapshotCellsV8: { R5: value, S5: 2 },
+  });
+
+  return {
+    id: 'import-file:above-max',
+    manifest: {
+      fileName: 'NOTAS TESTE 2026.xlsb',
+      extension: 'xlsb',
+      reportedMimeType: null,
+      sizeBytes: 512,
+      lastModifiedAt: null,
+      sha256: 'b'.repeat(64),
+      sourceContractVersion: 2,
+      parserVersion: 'synthetic',
+      readAt: '2026-09-09T10:00:00.000Z',
+    },
+    summary: {
+      fileName: 'NOTAS TESTE 2026.xlsb',
+      format: 'XLSB',
+      size: 512,
+      parserVersion: 'synthetic',
+      academicYear: 2026,
+      teacherName: 'PROFESSOR TESTE',
+      sheets: [],
+      gradeSheets: [termSheet(1, 4.5), termSheet(2, 2), termSheet(3, 2)],
+      classes: [],
+      auxiliarySheets: [],
+      unrecognizedSheets: [],
+    },
+  } as unknown as BatchSuccess;
+}
 
 describe('gradebook relational import v9', () => {
   it('normalizes relation statuses without persisting NOVATO', () => {
@@ -92,6 +172,31 @@ describe('gradebook relational import v9', () => {
     expect(canonicalMilliV9(7.25)).toBe(7250);
     expect(canonicalMilliV9(8.1)).toBe(8100);
     expect(() => canonicalMilliV9(7.2501)).toThrow(/3 casas/iu);
+  });
+
+  it('keeps a grade above the configured maximum and emits a non-blocking warning', () => {
+    const warnings: Array<{
+      code: string;
+      sheetName: string;
+      cellAddress: string;
+      value: number;
+      maximum: number;
+    }> = [];
+    const request = createGradebookCanonicalImportRequestV9(teacherResultWithAboveMaximum(), {
+      onWarning: (warning) => warnings.push(warning),
+    });
+    expect(request.operation).toBe('persist-notas');
+    if (request.operation !== 'persist-notas') throw new Error('expected-notes-request');
+    expect(request.ofertas[0]?.trimestres[0].alunos[0]?.[1][0]).toBe(4500);
+    expect(warnings).toEqual([
+      {
+        code: 'above-maximum',
+        sheetName: '7B1º',
+        cellAddress: 'R5',
+        value: 4500,
+        maximum: 3000,
+      },
+    ]);
   });
 
   it('validates a compact relation request', () => {

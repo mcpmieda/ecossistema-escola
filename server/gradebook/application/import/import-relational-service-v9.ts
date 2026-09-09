@@ -657,9 +657,7 @@ async function processOffer(
         }
         const target = values[column]!;
         if (isUnavailable(target)) continue;
-        if (typeof target === 'number' && instrument.maximo !== null && target > instrument.maximo) {
-          throw new RelationalImportErrorV9('blocked', `Nota acima do máximo em ${offer.turmaCodigo}/${offer.disciplina}, T${term.trimestre}, slot ${slot}, aluno ${numero}.`);
-        }
+        // Acima do máximo é um erro de lançamento corrigível: persiste o fato-fonte e o navegador avisa.
         const noteKey = `${instrument.id}:${alunoId}`;
         const previous = notes.get(noteKey) ?? null;
         const next = target === null ? null : (target as number);

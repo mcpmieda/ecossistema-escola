@@ -27,8 +27,18 @@ export interface CanonicalImportProgressV9 {
   readonly current: number;
   readonly total: number;
 }
+
+export interface CanonicalImportWarningV9 {
+  readonly code: 'above-maximum';
+  readonly sheetName: string;
+  readonly cellAddress: string;
+  readonly value: number;
+  readonly maximum: number;
+}
+
 export interface CanonicalImportRuntimeV9 {
   readonly onProgress?: (progress: CanonicalImportProgressV9) => void;
+  readonly onWarning?: (warning: CanonicalImportWarningV9) => void;
 }
 
 type SummaryWithRelationV9 = WorkbookSummary & {
@@ -193,7 +203,11 @@ function studentNumber(student: StudentRecognition, sheet: GradeSheetRecognition
   return number;
 }
 
-function term(sheet: GradeSheetRecognition, trimester: 1 | 2 | 3): GradebookImportTermV9 {
+function term(
+  sheet: GradeSheetRecognition,
+  trimester: 1 | 2 | 3,
+  runtime: CanonicalImportRuntimeV9,
+): GradebookImportTermV9 {
   const definitions = instruments(sheet);
   const seen = new Set<number>();
   const alunos = sheet.students
@@ -203,9 +217,16 @@ function term(sheet: GradeSheetRecognition, trimester: 1 | 2 | 3): GradebookImpo
       if (seen.has(numero)) throw new Error(`Número de aluno duplicado em ${sheet.name}: ${numero}.`);
       seen.add(numero);
       const valores = definitions.map(([slot, max]) => {
-        const value = cellFromNote(sheet, addressForSlot(slot, student.row), noteForSlot(student, slot));
+        const address = addressForSlot(slot, student.row);
+        const value = cellFromNote(sheet, address, noteForSlot(student, slot));
         if (typeof value === 'number' && max !== null && value > max) {
-          throw new Error(`Nota acima do máximo em ${sheet.name}!${addressForSlot(slot, student.row)}.`);
+          runtime.onWarning?.({
+            code: 'above-maximum',
+            sheetName: sheet.name,
+            cellAddress: address,
+            value,
+            maximum: max,
+          });
         }
         return value;
       });
@@ -236,7 +257,10 @@ function courseGroups(summary: WorkbookSummary): readonly GradeSheetRecognition[
   return [...groups.values()];
 }
 
-function offer(sheets: readonly GradeSheetRecognition[]): GradebookImportOfferV9 {
+function offer(
+  sheets: readonly GradeSheetRecognition[],
+  runtime: CanonicalImportRuntimeV9,
+): GradebookImportOfferV9 {
   const termSheets = new Map(
     sheets.filter((sheet) => sheet.stage.startsWith('trimester-')).map((sheet) => [Number(sheet.stage.at(-1)), sheet]),
   );
@@ -244,9 +268,9 @@ function offer(sheets: readonly GradeSheetRecognition[]): GradebookImportOfferV9
   const first = termSheets.get(1);
   if (!first) throw new Error('1º trimestre ausente.');
   const trimestres = [
-    term(termSheets.get(1)!, 1),
-    term(termSheets.get(2)!, 2),
-    term(termSheets.get(3)!, 3),
+    term(termSheets.get(1)!, 1, runtime),
+    term(termSheets.get(2)!, 2, runtime),
+    term(termSheets.get(3)!, 3, runtime),
   ] as const;
   if (!sameNumbers(trimestres)) {
     throw new Error(`Os números dos alunos divergem entre trimestres em ${first.className} / ${first.discipline}.`);
@@ -303,7 +327,7 @@ export function createGradebookCanonicalImportRequestV9(
   if (groups.length === 0) throw new Error('Nenhuma oferta acadêmica reconhecida.');
   runtime.onProgress?.({ stage: 'grades', current: 0, total: groups.length });
   const ofertas = groups.map((sheets, index) => {
-    const value = offer(sheets);
+    const value = offer(sheets, runtime);
     runtime.onProgress?.({ stage: 'grades', current: index + 1, total: groups.length });
     return value;
   });

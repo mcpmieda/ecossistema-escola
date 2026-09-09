@@ -17,6 +17,7 @@ import { loadSheetJs, preloadSheetJs } from './sheetjs-loader';
 import {
   createGradebookCanonicalImportRequestV9,
   unavailableCellsV9,
+  type CanonicalImportWarningV9,
 } from './canonical-import-v9';
 import { persistGradebookCanonicalImportV9 } from './import-persistence-client-v9';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
@@ -136,6 +137,9 @@ export function useImportBatch() {
   const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV6>>({});
   const [timingDiagnostics, setTimingDiagnostics] = useState<string[]>([]);
   const [sourceValueWarnings, setSourceValueWarnings] = useState<Record<string, number>>({});
+  const [sourceMaximumWarnings, setSourceMaximumWarnings] = useState<
+    Record<string, readonly CanonicalImportWarningV9[]>
+  >({});
 
   useEffect(() => {
     preloadSheetJs();
@@ -191,16 +195,20 @@ export function useImportBatch() {
     setPersistence((current) => ({ ...current, [result.id]: { state: 'processing' } }));
     const compactStartedAt = nowMs();
     try {
+      const maximumWarnings: CanonicalImportWarningV9[] = [];
       const request = createGradebookCanonicalImportRequestV9(result, {
         onProgress: (value) => setProgress({ ...value, fileName: result.manifest.fileName }),
+        onWarning: (warning) => maximumWarnings.push(warning),
       });
       const unavailableCells = unavailableCellsV9(request);
       setSourceValueWarnings((current) => ({ ...current, [result.id]: unavailableCells }));
+      setSourceMaximumWarnings((current) => ({ ...current, [result.id]: maximumWarnings }));
       appendTiming('[gradebook-import-browser-timing]', {
         version: 2,
         stage: 'canonical-file',
         operation: request.operation,
         unavailableCells,
+        aboveMaximumWarnings: maximumWarnings.length,
         payloadBytes: new TextEncoder().encode(JSON.stringify(request)).byteLength,
         totalMs: elapsedMs(compactStartedAt),
         offerCount: request.operation === 'persist-notas' ? request.ofertas.length : 0,
@@ -358,6 +366,7 @@ export function useImportBatch() {
     setProgress(null);
     setTimingDiagnostics([]);
     setSourceValueWarnings({});
+    setSourceMaximumWarnings({});
     const batchStartedAt = nowMs();
     try {
       const xlsx = await loadSheetJs();
@@ -454,6 +463,7 @@ export function useImportBatch() {
     selectedResult,
     setSelectedId,
     timingDiagnostics,
+    sourceMaximumWarnings,
     sourceValueWarnings,
     totals,
   };
