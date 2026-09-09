@@ -77,7 +77,7 @@ async function run(
   values: readonly D1WriteValueV1[] = [],
 ): Promise<number> {
   const result = await database.prepare(query).bind(...values).run();
-  return result.meta.changes ?? result.changes ?? 0;
+  return result.meta?.changes ?? result.changes ?? 0;
 }
 
 function summary(writes: number, importWritten: boolean) {
