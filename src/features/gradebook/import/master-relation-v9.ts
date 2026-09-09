@@ -41,14 +41,9 @@ function academicYear(value: number | null): number | null {
 }
 
 function resolveAcademicYear(inicio: Worksheet): number {
-  const contracted = academicYear(integer(inicio, 'G2'));
-  const currentLayout = academicYear(integer(inicio, 'Q2'));
-  if (contracted !== null && currentLayout !== null && contracted !== currentLayout) {
-    throw new Error(`Ano letivo ambíguo em INICIO: G2=${contracted} e Q2=${currentLayout}.`);
-  }
-  const resolved = contracted ?? currentLayout;
+  const resolved = academicYear(integer(inicio, 'Q2'));
   if (resolved === null) {
-    throw new Error('Ano letivo inválido ou ausente em INICIO!G2/Q2.');
+    throw new Error('Ano letivo inválido ou ausente em INICIO!Q2.');
   }
   return resolved;
 }
