@@ -26,6 +26,7 @@ import {
 
 type Context = EventContext<RuntimeEnv, string, unknown>;
 type Row = Record<string, unknown>;
+type DiagnosticsErrorState = 'not-authorized' | 'invalid-request' | 'unavailable';
 
 function headers(): Headers {
   return new Headers({ 'Cache-Control': 'no-store, no-cache, must-revalidate, private' });
@@ -278,7 +279,7 @@ export const onRequest: PagesFunction<RuntimeEnv> = async (context) => {
       error instanceof HttpError || error instanceof AuthenticationError || error instanceof AuthorizationError
         ? error.status
         : 500;
-    const state =
+    const state: DiagnosticsErrorState =
       status === 401 || status === 403
         ? 'not-authorized'
         : status < 500
