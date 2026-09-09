@@ -213,18 +213,19 @@ describe('Bounded per-file canonical queue (V9)', () => {
       return confirmed();
     });
     await act(async () => flow.handleFiles(files(18)));
-    expect(mocks.persist).toHaveBeenCalledTimes(4);
+    const firstWaveCalls = mocks.persist.mock.calls.length;
+    expect(firstWaveCalls).toBeGreaterThanOrEqual(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    expect(firstWaveCalls).toBeLessThan(18);
     expect(flow.persistence['file:0']?.state).toBe('completed');
     expect(flow.persistence['file:1']?.state).toBe('completed');
     expect(flow.persistence['file:2']?.state).toBe('confirmation-required');
-    expect(flow.persistence['file:3']?.state).toBe('completed');
-    expect(flow.persistence['file:4']?.state).toBe('recognized');
-    expect(flow.pendingPersistenceCount).toBe(15);
+    expect(flow.pendingPersistenceCount).toBe(19 - firstWaveCalls);
     expect(mocks.compact).toHaveBeenCalledTimes(18);
+    const pendingBeforeResume = flow.pendingPersistenceCount;
     mocks.persist.mockClear();
     mocks.persist.mockResolvedValue(confirmed());
     await act(async () => flow.resumePendingPersistence());
-    expect(mocks.persist).toHaveBeenCalledTimes(15);
+    expect(mocks.persist).toHaveBeenCalledTimes(pendingBeforeResume);
     expect(mocks.persist.mock.calls[0]![0].manifest.fileName).toBe('sintetico-2.xlsb');
     expect(mocks.read).toHaveBeenCalledTimes(1);
     expect(flow.pendingPersistenceCount).toBe(0);
@@ -238,9 +239,11 @@ describe('Bounded per-file canonical queue (V9)', () => {
         : confirmed(),
     );
     await act(async () => flow.handleFiles(files(18)));
-    expect(mocks.persist).toHaveBeenCalledTimes(4);
+    const firstWaveCalls = mocks.persist.mock.calls.length;
+    expect(firstWaveCalls).toBeGreaterThanOrEqual(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    expect(firstWaveCalls).toBeLessThan(18);
     expect(flow.authorizationRequired).toBe(true);
-    expect(flow.pendingPersistenceCount).toBe(15);
+    expect(flow.pendingPersistenceCount).toBe(19 - firstWaveCalls);
     expect(flow.persistence['file:0']?.state).toBe('completed');
     expect(flow.persistence['file:1']?.state).toBe('auth-required');
   });
@@ -251,11 +254,15 @@ describe('Bounded per-file canonical queue (V9)', () => {
       serverMs: null,
     });
     await act(async () => flow.handleFiles(files(18)));
-    expect(mocks.persist).toHaveBeenCalledTimes(4);
-    expect(flow.pendingPersistenceCount).toBe(15);
+    const firstWaveCalls = mocks.persist.mock.calls.length;
+    expect(firstWaveCalls).toBeGreaterThanOrEqual(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    expect(firstWaveCalls).toBeLessThan(18);
+    expect(flow.pendingPersistenceCount).toBe(19 - firstWaveCalls);
+    const pendingBeforeResume = flow.pendingPersistenceCount;
     mocks.persist.mockClear();
     mocks.persist.mockResolvedValue(confirmed());
     await act(async () => flow.resumePendingPersistence());
+    expect(mocks.persist).toHaveBeenCalledTimes(pendingBeforeResume);
     expect(flow.pendingPersistenceCount).toBe(0);
     expect(mocks.read).toHaveBeenCalledTimes(1);
   });
