@@ -19,6 +19,14 @@ import {
   unavailableCellsV9,
   type CanonicalImportWarningV9,
 } from './canonical-import-v9';
+import {
+  blockingGradebookImportDiagnosticsV1,
+  collectGradebookImportDiagnosticsV1,
+  gradebookImportDiagnosticsAuditRequestV1,
+  sourceUnavailableGradebookImportDiagnosticsV1,
+  type GradebookImportDiagnosticV1,
+} from './import-diagnostics-v1';
+import { persistGradebookImportDiagnosticsAuditV1 } from './import-diagnostics-client-v1';
 import { persistGradebookCanonicalImportV9 } from './import-persistence-client-v9';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
 
@@ -34,7 +42,11 @@ export type ImportPersistenceResponseV6Compatible =
 export type ImportPersistenceStateV6 =
   | { readonly state: 'recognized' | 'processing' | 'persisting' | 'auth-required' }
   | { readonly state: 'completed'; readonly response: ImportPersistenceResponseV6Compatible }
-  | { readonly state: 'failed' | 'confirmation-required'; readonly message: string };
+  | {
+      readonly state: 'failed' | 'confirmation-required';
+      readonly message: string;
+      readonly kind?: 'validation' | 'runtime';
+    };
 
 export type ImportFlowProgressStageV6 =
   | 'preparing'
@@ -99,7 +111,9 @@ function blockTeacherFiles(
   setPersistence((current) => {
     const next = { ...current };
     for (const result of results) {
-      if (!isMasterRelationResult(result)) next[result.id] = { state: 'failed', message };
+      if (!isMasterRelationResult(result)) {
+        next[result.id] = { state: 'failed', message, kind: 'validation' };
+      }
     }
     return next;
   });
@@ -140,6 +154,10 @@ export function useImportBatch() {
   const [sourceMaximumWarnings, setSourceMaximumWarnings] = useState<
     Record<string, readonly CanonicalImportWarningV9[]>
   >({});
+  const [sourceDiagnostics, setSourceDiagnostics] = useState<
+    Record<string, readonly GradebookImportDiagnosticV1[]>
+  >({});
+  const [diagnosticAuditFailures, setDiagnosticAuditFailures] = useState<Record<string, string>>({});
 
   useEffect(() => {
     preloadSheetJs();
@@ -191,9 +209,60 @@ export function useImportBatch() {
     setProgress(null);
   }
 
-  function preparePersistenceRequest(result: BatchSuccess): PreparedPersistenceV9 | null {
+  async function auditDiagnostics(
+    result: BatchSuccess,
+    diagnostics: readonly GradebookImportDiagnosticV1[],
+  ): Promise<void> {
+    if (diagnostics.length === 0) return;
+    try {
+      const response = await persistGradebookImportDiagnosticsAuditV1(
+        gradebookImportDiagnosticsAuditRequestV1(result, diagnostics),
+      );
+      if (response.state !== 'recorded') {
+        setDiagnosticAuditFailures((current) => ({
+          ...current,
+          [result.id]: 'Os diagnósticos foram exibidos, mas a Auditoria não confirmou o registro.',
+        }));
+      }
+    } catch {
+      setDiagnosticAuditFailures((current) => ({
+        ...current,
+        [result.id]: 'Os diagnósticos foram exibidos, mas a Auditoria não confirmou o registro.',
+      }));
+    }
+  }
+
+  async function preparePersistenceRequest(result: BatchSuccess): Promise<PreparedPersistenceV9 | null> {
     setPersistence((current) => ({ ...current, [result.id]: { state: 'processing' } }));
     const compactStartedAt = nowMs();
+    const diagnostics = collectGradebookImportDiagnosticsV1(result);
+    const blocking = blockingGradebookImportDiagnosticsV1(diagnostics);
+    const unavailable = sourceUnavailableGradebookImportDiagnosticsV1(diagnostics);
+    setSourceDiagnostics((current) => ({ ...current, [result.id]: diagnostics }));
+    setSourceValueWarnings((current) => ({ ...current, [result.id]: unavailable.length }));
+    await auditDiagnostics(result, diagnostics);
+
+    if (blocking.length > 0) {
+      setSelectedId(result.id);
+      setPersistence((current) => ({
+        ...current,
+        [result.id]: {
+          state: 'failed',
+          kind: 'validation',
+          message: `${blocking.length} problema(s) precisam ser corrigidos antes de enviar esta planilha.`,
+        },
+      }));
+      appendTiming('[gradebook-import-browser-timing]', {
+        version: 2,
+        stage: 'canonical-file-blocked',
+        blockingDiagnostics: blocking.length,
+        unavailableCells: unavailable.length,
+        totalDiagnostics: diagnostics.length,
+        totalMs: elapsedMs(compactStartedAt),
+      });
+      return null;
+    }
+
     try {
       const maximumWarnings: CanonicalImportWarningV9[] = [];
       const request = createGradebookCanonicalImportRequestV9(result, {
@@ -209,6 +278,7 @@ export function useImportBatch() {
         operation: request.operation,
         unavailableCells,
         aboveMaximumWarnings: maximumWarnings.length,
+        diagnosticWarnings: diagnostics.filter((value) => value.severity === 'warning').length,
         payloadBytes: new TextEncoder().encode(JSON.stringify(request)).byteLength,
         totalMs: elapsedMs(compactStartedAt),
         offerCount: request.operation === 'persist-notas' ? request.ofertas.length : 0,
@@ -217,7 +287,11 @@ export function useImportBatch() {
       return { result, request };
     } catch (cause) {
       const message = failureMessage(cause, 'Não foi possível preparar esta planilha.');
-      setPersistence((current) => ({ ...current, [result.id]: { state: 'failed', message } }));
+      setSelectedId(result.id);
+      setPersistence((current) => ({
+        ...current,
+        [result.id]: { state: 'failed', message, kind: 'runtime' },
+      }));
       return null;
     }
   }
@@ -250,7 +324,7 @@ export function useImportBatch() {
       const message = failureMessage(cause, 'Gravação sem confirmação.');
       setPersistence((current) => ({
         ...current,
-        [result.id]: { state: 'confirmation-required', message },
+        [result.id]: { state: 'confirmation-required', message, kind: 'runtime' },
       }));
       setProgress(null);
       return 'confirmation-required';
@@ -263,7 +337,7 @@ export function useImportBatch() {
       const message = 'Não foi possível confirmar a gravação desta planilha.';
       setPersistence((current) => ({
         ...current,
-        [result.id]: { state: 'confirmation-required', message },
+        [result.id]: { state: 'confirmation-required', message, kind: 'runtime' },
       }));
       setProgress(null);
       return 'confirmation-required';
@@ -346,7 +420,7 @@ export function useImportBatch() {
     const teacherResults = successes.filter((result) => !isMasterRelationResult(result));
     const prepared: PreparedPersistenceV9[] = [];
     for (const result of relationResults) {
-      const value = preparePersistenceRequest(result);
+      const value = await preparePersistenceRequest(result);
       if (!value) {
         blockTeacherFiles(
           setPersistence,
@@ -358,7 +432,7 @@ export function useImportBatch() {
       prepared.push(value);
     }
     for (const result of teacherResults) {
-      const value = preparePersistenceRequest(result);
+      const value = await preparePersistenceRequest(result);
       if (value) prepared.push(value);
     }
     if (prepared.length === 0) return 'completed';
@@ -386,6 +460,8 @@ export function useImportBatch() {
     setTimingDiagnostics([]);
     setSourceValueWarnings({});
     setSourceMaximumWarnings({});
+    setSourceDiagnostics({});
+    setDiagnosticAuditFailures({});
     const batchStartedAt = nowMs();
     try {
       const xlsx = await loadSheetJs();
@@ -471,6 +547,7 @@ export function useImportBatch() {
 
   return {
     authorizationRequired,
+    diagnosticAuditFailures,
     error,
     failures,
     handleFiles,
@@ -483,9 +560,10 @@ export function useImportBatch() {
     selectedId,
     selectedResult,
     setSelectedId,
-    timingDiagnostics,
+    sourceDiagnostics,
     sourceMaximumWarnings,
     sourceValueWarnings,
+    timingDiagnostics,
     totals,
   };
 }

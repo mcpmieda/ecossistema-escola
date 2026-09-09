@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   compact: vi.fn(),
   persist: vi.fn(),
+  audit: vi.fn(),
 }));
 vi.mock('../../../src/features/gradebook/import/sheetjs-loader', () => ({
   loadSheetJs: async () => ({}),
@@ -29,6 +30,21 @@ vi.mock('../../../src/features/gradebook/import/import-batch', () => ({
 vi.mock('../../../src/features/gradebook/import/canonical-import-v9', () => ({
   createGradebookCanonicalImportRequestV9: mocks.compact,
   unavailableCellsV9: () => 0,
+}));
+vi.mock('../../../src/features/gradebook/import/import-diagnostics-v1', () => ({
+  collectGradebookImportDiagnosticsV1: () => [],
+  blockingGradebookImportDiagnosticsV1: () => [],
+  sourceUnavailableGradebookImportDiagnosticsV1: () => [],
+  gradebookImportDiagnosticsAuditRequestV1: () => ({
+    version: 1,
+    academicYear: 2026,
+    fileName: 'synthetic.xlsb',
+    sha256: 'a'.repeat(64),
+    diagnostics: [],
+  }),
+}));
+vi.mock('../../../src/features/gradebook/import/import-diagnostics-client-v1', () => ({
+  persistGradebookImportDiagnosticsAuditV1: mocks.audit,
 }));
 vi.mock('../../../src/features/gradebook/import/import-persistence-client-v9', () => ({
   persistGradebookCanonicalImportV9: mocks.persist,
@@ -149,6 +165,7 @@ beforeEach(async () => {
     await Promise.resolve();
     return confirmed();
   });
+  mocks.audit.mockResolvedValue({ version: 1, state: 'recorded', affected: 0 });
   host = document.createElement('div');
   document.body.appendChild(host);
   root = createRoot(host);

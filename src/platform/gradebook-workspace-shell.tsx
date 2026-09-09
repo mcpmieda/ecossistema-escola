@@ -78,9 +78,9 @@ const OperationalWorkspaceSurface = lazy(async () => {
   return { default: module.GradebookOperationalSurface };
 });
 
-const AuditWorkspacePage = lazy(async () => {
-  const module = await import('../features/gradebook/audit-workspace/audit-workspace-page');
-  return { default: module.AuditWorkspacePage };
+const GradebookAuditSurface = lazy(async () => {
+  const module = await import('../features/gradebook/audit-workspace/gradebook-audit-surface');
+  return { default: module.GradebookAuditSurface };
 });
 
 const PerformancePage = lazy(async () => {
@@ -108,7 +108,7 @@ const SURFACE_COMPONENTS: Record<
   ComponentType
 > = {
   operational: OperationalWorkspaceSurface,
-  audit: AuditWorkspacePage,
+  audit: GradebookAuditSurface,
   performance: PerformancePage,
   bulletins: BulletinPage,
   reports: InstitutionalReportsPage,
