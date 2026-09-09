@@ -14,6 +14,7 @@ import {
   isGradebookImportDiagnosticsAuditRequestV1,
   type GradebookImportDiagnosticsAuditListResponseV1,
   type GradebookImportDiagnosticsAuditRecordV1,
+  type GradebookImportDiagnosticsAuditRequestV1,
   type GradebookImportDiagnosticsAuditWriteResponseV1,
 } from '../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
 import {
@@ -61,12 +62,7 @@ function nullableString(value: unknown): string | null {
 
 async function writeDiagnostics(
   database: D1WriteDatabaseV1,
-  request: Extract<Parameters<typeof isGradebookImportDiagnosticsAuditRequestV1>[0], unknown> & {
-    readonly academicYear: number | null;
-    readonly fileName: string;
-    readonly sha256: string;
-    readonly diagnostics: readonly Record<string, unknown>[];
-  },
+  request: GradebookImportDiagnosticsAuditRequestV1,
 ): Promise<number> {
   if (request.diagnostics.length === 0) return 0;
   const rows = request.diagnostics.map((item) => ({
@@ -263,10 +259,7 @@ async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
   if (!isGradebookImportDiagnosticsAuditRequestV1(payload)) {
     return response({ version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'invalid-request' }, 400);
   }
-  const affected = await writeDiagnostics(
-    database,
-    payload as unknown as Parameters<typeof writeDiagnostics>[1],
-  );
+  const affected = await writeDiagnostics(database, payload);
   return response({ version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'recorded', affected });
 }
 
