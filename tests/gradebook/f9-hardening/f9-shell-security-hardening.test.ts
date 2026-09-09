@@ -50,7 +50,7 @@ describe('F9 — shell, isolamento e code splitting', () => {
     expect(notesPage).not.toContain('../features/gradebook/import/import-batch');
     for (const featurePath of [
       'gradebook-operational-surface',
-      'audit-workspace/audit-workspace-page',
+      'audit-workspace/gradebook-audit-surface',
       'performance/performance-page',
       'bulletins/bulletin-page',
       'gradebook-council-surface',
