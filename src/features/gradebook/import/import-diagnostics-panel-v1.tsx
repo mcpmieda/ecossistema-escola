@@ -109,6 +109,9 @@ export function ImportDiagnosticsPanelV1({
 }) {
   const blocking = diagnostics.filter((value) => value.severity === 'blocking-error');
   const unavailable = diagnostics.filter((value) => value.code === 'source-unavailable');
+  const advisories = diagnostics.filter(
+    (value) => value.severity === 'warning' && value.code !== 'source-unavailable',
+  );
 
   return (
     <>
@@ -151,6 +154,22 @@ export function ImportDiagnosticsPanelV1({
                 localizações funcionais para conferência.
               </p>
               <OccurrenceList values={unavailable} />
+            </Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
+
+      {advisories.length > 0 && (
+        <Alert status="warning" className="mt-5">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>{advisories.length} aviso(s) para revisar</Alert.Title>
+            <Alert.Description>
+              <p>
+                Estes avisos não bloqueiam os demais dados válidos. Revise os lançamentos indicados
+                e reimporte o arquivo depois da correção quando necessário.
+              </p>
+              <OccurrenceList values={advisories} />
             </Alert.Description>
           </Alert.Content>
         </Alert>
