@@ -116,7 +116,9 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
            AND EXISTS (
              SELECT 1
              FROM gradebook.vinculo v
-             WHERE v.turma_id = o.turma_id AND v.aluno_id = ?
+             WHERE v.turma_id = o.turma_id
+               AND v.aluno_id = ?
+               AND COALESCE(v.situacao, 0) <> 6
            )`,
         [input.ofertaId, input.alunoId],
       );

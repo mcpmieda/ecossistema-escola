@@ -117,7 +117,7 @@ describe('gradebook relational import v9', () => {
       SheetNames: ['INICIO', '|| VINCULO AGENDA ||'],
       Sheets: {
         INICIO: sheet({
-          G2: 2026,
+          Q2: 2026,
           D7: 6,
           E7: '6A',
           F7: '6º ANO A',
@@ -146,18 +146,7 @@ describe('gradebook relational import v9', () => {
     expect(result?.turmas[1]?.alunos[1]).toEqual([2, 'OUTRO ALUNO', 2]);
   });
 
-  it('accepts the current Relation layout where the year is stored in Q2', () => {
-    const workbook: Workbook = {
-      SheetNames: ['INICIO', '|| VINCULO AGENDA ||'],
-      Sheets: {
-        INICIO: sheet({ Q2: 2026, D7: 6, E7: '6A', F7: '6º ANO A', I7: 'MATUTINO' }),
-        '|| VINCULO AGENDA ||': sheet({ J3: 'ALUNO TESTE' }),
-      },
-    };
-    expect(recognizeMasterRelationV9(workbook)?.ano).toBe(2026);
-  });
-
-  it('blocks contradictory year cells instead of guessing', () => {
+  it('uses Q2 as the canonical Relation year even when legacy G2 differs', () => {
     const workbook: Workbook = {
       SheetNames: ['INICIO', '|| VINCULO AGENDA ||'],
       Sheets: {
@@ -165,7 +154,18 @@ describe('gradebook relational import v9', () => {
         '|| VINCULO AGENDA ||': sheet({ J3: 'ALUNO TESTE' }),
       },
     };
-    expect(() => recognizeMasterRelationV9(workbook)).toThrow(/ambíguo/iu);
+    expect(recognizeMasterRelationV9(workbook)?.ano).toBe(2026);
+  });
+
+  it('requires Q2 and does not fall back to legacy G2', () => {
+    const workbook: Workbook = {
+      SheetNames: ['INICIO', '|| VINCULO AGENDA ||'],
+      Sheets: {
+        INICIO: sheet({ G2: 2026, D7: 6, E7: '6A', F7: '6º ANO A', I7: 'MATUTINO' }),
+        '|| VINCULO AGENDA ||': sheet({ J3: 'ALUNO TESTE' }),
+      },
+    };
+    expect(() => recognizeMasterRelationV9(workbook)).toThrow(/INICIO!Q2/iu);
   });
 
   it('accepts exact thousandths and rejects academic rounding', () => {
