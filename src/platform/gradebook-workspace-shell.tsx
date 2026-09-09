@@ -78,10 +78,26 @@ const OperationalWorkspaceSurface = lazy(async () => {
   return { default: module.GradebookOperationalSurface };
 });
 
-const GradebookAuditSurface = lazy(async () => {
-  const module = await import('../features/gradebook/audit-workspace/gradebook-audit-surface');
-  return { default: module.GradebookAuditSurface };
+const AuditWorkspacePage = lazy(async () => {
+  const module = await import('../features/gradebook/audit-workspace/audit-workspace-page');
+  return { default: module.AuditWorkspacePage };
 });
+
+const ImportDiagnosticsAuditPanelV1 = lazy(async () => {
+  const module = await import(
+    '../features/gradebook/audit-workspace/import-diagnostics-audit-panel-v1'
+  );
+  return { default: module.ImportDiagnosticsAuditPanelV1 };
+});
+
+function GradebookAuditSurface() {
+  return (
+    <div className="grid gap-5">
+      <ImportDiagnosticsAuditPanelV1 />
+      <AuditWorkspacePage />
+    </div>
+  );
+}
 
 const PerformancePage = lazy(async () => {
   const module = await import('../features/gradebook/performance/performance-page');
