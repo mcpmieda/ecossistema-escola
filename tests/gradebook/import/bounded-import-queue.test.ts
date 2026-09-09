@@ -82,7 +82,7 @@ function request(result: BatchSuccess): GradebookImportPersistenceRequestV9 {
       sha256: result.manifest.sha256,
       parserVersion: 'synthetic:canonical-v9',
     },
-    ano: result.summary.academicYear,
+    ano: result.summary.academicYear ?? 2026,
     professor: 'Docente sintético',
     ofertas: [
       {
