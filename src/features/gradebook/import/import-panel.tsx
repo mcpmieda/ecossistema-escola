@@ -8,6 +8,7 @@ import {
   type ImportFlowProgressV6,
   type ImportPersistenceStateV6,
 } from './use-import-batch';
+import { ImportDiagnosticsPanelV1 } from './import-diagnostics-panel-v1';
 import { WorkbookInspector } from './workbook-inspector';
 
 function FileHash({ sha256 }: { sha256: string }) {
@@ -19,10 +20,6 @@ function FileHash({ sha256 }: { sha256: string }) {
       <code className="mt-2 block break-all">{sha256}</code>
     </details>
   );
-}
-
-function formatAcademicMilli(value: number): string {
-  return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value / 1000);
 }
 
 const PROGRESS_STAGE = {
@@ -71,7 +68,7 @@ function persistenceLabel(state: ImportPersistenceStateV6 | undefined): string {
     case 'confirmation-required':
       return 'Confirmação pendente';
     case 'failed':
-      return `Indisponível: ${state.message}`;
+      return state.kind === 'validation' ? 'Bloqueado para correção' : `Indisponível: ${state.message}`;
     case 'completed': {
       const labels = {
         applied: 'Aplicado',
@@ -140,6 +137,17 @@ function PersistenceResult({ state }: { state: ImportPersistenceStateV6 | undefi
     );
   }
   if (state.state === 'failed') {
+    if (state.kind === 'validation') {
+      return (
+        <Alert status="danger" className="mt-5">
+          <Alert.Indicator />
+          <Alert.Content>
+            <Alert.Title>Planilha bloqueada para correção</Alert.Title>
+            <Alert.Description>{state.message} Nenhum dado deste arquivo foi enviado.</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      );
+    }
     return (
       <Alert status="danger" className="mt-5">
         <Alert.Indicator />
@@ -202,6 +210,7 @@ export function NotesImportPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const {
     authorizationRequired,
+    diagnosticAuditFailures,
     error,
     failures,
     handleFiles,
@@ -214,16 +223,13 @@ export function NotesImportPanel() {
     selectedId,
     selectedResult,
     setSelectedId,
+    sourceDiagnostics,
     timingDiagnostics,
-    sourceMaximumWarnings,
-    sourceValueWarnings,
     totals,
   } = useImportBatch();
 
   const selectedPersistence = selectedResult ? persistence[selectedResult.id] : undefined;
-  const selectedMaximumWarnings = selectedResult
-    ? (sourceMaximumWarnings[selectedResult.id] ?? [])
-    : [];
+  const selectedDiagnostics = selectedResult ? (sourceDiagnostics[selectedResult.id] ?? []) : [];
 
   return (
     <Surface variant="default" className="platform-card-surface rounded-[2rem] p-6 sm:p-7">
@@ -341,7 +347,7 @@ export function NotesImportPanel() {
               [
                 'Reconhecidos',
                 results.length,
-                failures.length ? `${failures.length} com erro` : 'sem erros',
+                failures.length ? `${failures.length} com erro` : 'sem erros de leitura',
               ],
               ['Turmas', totals.classes, 'somadas no lote'],
               ['Alunos', totals.students, `${totals.gradeSheets} guias reconhecidas`],
@@ -369,25 +375,35 @@ export function NotesImportPanel() {
           )}
 
           <div className="mt-5 grid gap-3 lg:grid-cols-2">
-            {results.map((result) => (
-              <Surface key={result.id} variant="secondary" className="rounded-2xl p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="mr-auto font-medium">{result.manifest.fileName}</p>
-                  <span className="text-xs font-medium">
-                    {persistenceLabel(persistence[result.id])}
-                  </span>
-                </div>
-                <FileHash sha256={result.manifest.sha256} />
-                <p className="mt-2 text-xs text-muted">
-                  Importação por valores V8 · 0 = vazio · 0,1 = zero explícito
-                </p>
-                {(sourceMaximumWarnings[result.id]?.length ?? 0) > 0 && (
-                  <p className="mt-2 text-xs font-medium">
-                    {sourceMaximumWarnings[result.id]!.length} nota(s) acima do máximo — revisar
+            {results.map((result) => {
+              const diagnostics = sourceDiagnostics[result.id] ?? [];
+              const blocking = diagnostics.filter((value) => value.severity === 'blocking-error').length;
+              const warnings = diagnostics.filter((value) => value.severity === 'warning').length;
+              return (
+                <Surface key={result.id} variant="secondary" className="rounded-2xl p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="mr-auto font-medium">{result.manifest.fileName}</p>
+                    <span className="text-xs font-medium">
+                      {persistenceLabel(persistence[result.id])}
+                    </span>
+                  </div>
+                  <FileHash sha256={result.manifest.sha256} />
+                  <p className="mt-2 text-xs text-muted">
+                    Importação por valores V8 · 0 = vazio · 0,1 = zero explícito
                   </p>
-                )}
-              </Surface>
-            ))}
+                  {blocking > 0 && (
+                    <p className="mt-2 text-xs font-semibold text-danger">
+                      {blocking} problema(s) bloqueante(s) — corrigir antes de importar
+                    </p>
+                  )}
+                  {warnings > 0 && (
+                    <p className="mt-1 text-xs font-medium">
+                      {warnings} aviso(s) de origem/lançamento — revisar
+                    </p>
+                  )}
+                </Surface>
+              );
+            })}
             {failures.map((failure) => (
               <Surface key={failure.id} variant="secondary" className="rounded-2xl p-4">
                 <div className="flex flex-wrap items-center gap-2">
@@ -428,49 +444,10 @@ export function NotesImportPanel() {
           {selectedResult && (
             <>
               <WorkbookInspector result={selectedResult} />
-              {(sourceValueWarnings[selectedResult.id] ?? 0) > 0 && (
-                <Alert status="warning" className="mt-5">
-                  <Alert.Indicator />
-                  <Alert.Content>
-                    <Alert.Title>Valores de origem indisponíveis</Alert.Title>
-                    <Alert.Description>
-                      {sourceValueWarnings[selectedResult.id]} célula(s) apresentam erro ou fórmula
-                      sem resultado salvo. Esses valores não foram inventados nem tratados como
-                      zero. Recalcule e salve a planilha no Excel antes de reimportar.
-                    </Alert.Description>
-                  </Alert.Content>
-                </Alert>
-              )}
-              {selectedMaximumWarnings.length > 0 && (
-                <Alert status="warning" className="mt-5">
-                  <Alert.Indicator />
-                  <Alert.Content>
-                    <Alert.Title>
-                      {selectedMaximumWarnings.length} nota(s) acima do máximo — importação não bloqueada
-                    </Alert.Title>
-                    <Alert.Description>
-                      <div>
-                        Os valores abaixo são mantidos no Banco como foram lançados. Corrija a
-                        planilha e reimporte depois; os demais dados válidos não são bloqueados.
-                      </div>
-                      <ul className="mt-2 list-disc space-y-1 pl-5">
-                        {selectedMaximumWarnings.slice(0, 20).map((warning) => (
-                          <li key={`${warning.sheetName}:${warning.cellAddress}`}>
-                            {selectedResult.manifest.fileName} · {warning.sheetName}!
-                            {warning.cellAddress}: {formatAcademicMilli(warning.value)} (máximo{' '}
-                            {formatAcademicMilli(warning.maximum)})
-                          </li>
-                        ))}
-                      </ul>
-                      {selectedMaximumWarnings.length > 20 && (
-                        <div className="mt-2">
-                          E mais {selectedMaximumWarnings.length - 20} ocorrência(s).
-                        </div>
-                      )}
-                    </Alert.Description>
-                  </Alert.Content>
-                </Alert>
-              )}
+              <ImportDiagnosticsPanelV1
+                diagnostics={selectedDiagnostics}
+                auditFailure={diagnosticAuditFailures[selectedResult.id]}
+              />
               <PersistenceResult state={selectedPersistence} />
               <TimingDiagnostics
                 visible={
