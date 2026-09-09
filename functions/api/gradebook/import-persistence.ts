@@ -9,6 +9,7 @@ import { createGradebookRelationalImportServiceV9 } from '../../../server/gradeb
 import {
   GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9,
   inspectGradebookImportPersistenceRequestV9,
+  type GradebookImportPersistenceRequestV9,
   type GradebookImportPersistenceResponseV9,
 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import {
@@ -80,7 +81,9 @@ async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
   }
   const database = env.GRADEBOOK_D1 as D1WriteDatabaseV1 | undefined;
   if (!database) return response({ transportVersion: 9, state: 'unavailable' }, performance.now() - started);
-  const result = await createGradebookRelationalImportServiceV9(database).execute(payload);
+  const result = await createGradebookRelationalImportServiceV9(database).execute(
+    payload as GradebookImportPersistenceRequestV9,
+  );
   return response(result, performance.now() - started);
 }
 
