@@ -47,7 +47,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     expect(notesPage).toContain("import('./gradebook-workspace-page')");
     for (const imported of [
       'gradebook-operational-surface',
-      'audit-workspace-page',
+      'gradebook-audit-surface',
       'performance-page',
       'bulletin-page',
       'gradebook-council-surface',
