@@ -51,7 +51,7 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
     expect(page).toContain('requestAuditWorkspaceDetailV1');
   });
 
-  it('acrescenta erros e avisos de importação em linguagem escolar', () => {
+  it('acrescenta erros e avisos de importação em linguagem escolar e com paginação', () => {
     expect(importDiagnostics).toContain('Erros e avisos de importação');
     expect(importDiagnostics).toContain('Localização:');
     expect(importDiagnostics).toContain('Como corrigir:');
@@ -60,6 +60,8 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
     expect(importDiagnostics).toContain('última');
     expect(importDiagnostics).toContain('ocorrência(s)');
     expect(importDiagnostics).toContain('listGradebookImportDiagnosticsAuditV1');
+    expect(importDiagnostics).toContain('nextOffset');
+    expect(importDiagnostics).toContain('Carregar mais');
     expect(importDiagnostics).not.toContain('localStorage');
     expect(importDiagnostics).not.toContain('sessionStorage');
   });
