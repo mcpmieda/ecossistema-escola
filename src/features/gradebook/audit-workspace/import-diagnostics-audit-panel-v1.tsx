@@ -93,23 +93,42 @@ function AuditOccurrence({ value }: { readonly value: GradebookImportDiagnostics
 export function ImportDiagnosticsAuditPanelV1() {
   const [state, setState] = useState<State>('loading');
   const [items, setItems] = useState<readonly GradebookImportDiagnosticsAuditRecordV1[]>([]);
+  const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const load = useCallback(async () => {
     setState('loading');
-    const response = await listGradebookImportDiagnosticsAuditV1({ limit: 50 });
+    setItems([]);
+    setNextOffset(null);
+    const response = await listGradebookImportDiagnosticsAuditV1({ limit: 50, offset: 0 });
     if (response.state === 'not-authorized') {
-      setItems([]);
       setState('not-authorized');
       return;
     }
     if (response.state !== 'ready') {
-      setItems([]);
       setState('unavailable');
       return;
     }
     setItems(response.items);
+    setNextOffset(response.nextOffset);
     setState(response.items.length > 0 ? 'ready' : 'empty');
   }, []);
+
+  const loadMore = useCallback(async () => {
+    if (nextOffset === null || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const response = await listGradebookImportDiagnosticsAuditV1({
+        limit: 50,
+        offset: nextOffset,
+      });
+      if (response.state !== 'ready') return;
+      setItems((current) => [...current, ...response.items]);
+      setNextOffset(response.nextOffset);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, nextOffset]);
 
   useEffect(() => {
     void load();
@@ -173,6 +192,19 @@ export function ImportDiagnosticsAuditPanelV1() {
           {items.map((item) => (
             <AuditOccurrence key={item.id} value={item} />
           ))}
+          {nextOffset !== null && (
+            <div className="flex justify-center pt-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                isPending={loadingMore}
+                isDisabled={loadingMore}
+                onPress={() => void loadMore()}
+              >
+                Carregar mais
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </Surface>
