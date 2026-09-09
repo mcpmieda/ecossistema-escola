@@ -466,10 +466,8 @@ export function sourceUnavailableGradebookImportDiagnosticsV1(
   return diagnostics.filter((value) => value.code === 'source-unavailable');
 }
 
-function bounded(value: string | undefined, maximum: number): string | undefined {
-  if (!value) return undefined;
-  const trimmed = value.trim();
-  return trimmed ? trimmed.slice(0, maximum) : undefined;
+function bounded(value: string, maximum: number): string {
+  return value.trim().slice(0, maximum);
 }
 
 export function gradebookImportDiagnosticsAuditRequestV1(
