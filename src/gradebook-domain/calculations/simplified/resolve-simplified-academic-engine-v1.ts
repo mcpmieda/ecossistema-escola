@@ -247,8 +247,9 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
     });
   }
 
+  // Z is optional: when it is applicable but empty, there was no parallel gain and
+  // the quantitative original remains authoritative for the term calculation.
   const requiredSlots: SimplifiedInstrumentSlotV1[] = [1, 2, ...qualitativeSlots];
-  if (parallelApplicable === true) requiredSlots.push(3);
   const resolvedSlots = requiredSlots.filter((slot) => facts.get(slot)?.valueMilli !== null && facts.get(slot)?.valueMilli !== undefined);
   const missingSlots = requiredSlots.filter((slot) => !resolvedSlots.includes(slot));
   const reasons: string[] = [];

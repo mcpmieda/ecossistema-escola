@@ -85,7 +85,7 @@ describe('simplified academic engine v1', () => {
     expect(outcome.coverage.missingSlots).toContain(12);
   });
 
-  it('marks parallel as required only when the quantitative original is complete and below 60%', () => {
+  it('keeps Z optional: empty parallel means no gain while the term remains complete', () => {
     const incomplete = term1([
       { slot: 1, maximumMilli: 6_750, valueMilli: 2_000 },
       { slot: 2, maximumMilli: 6_750, valueMilli: null },
@@ -94,13 +94,17 @@ describe('simplified academic engine v1', () => {
     expect(incomplete.parallelApplicable).toBeNull();
     expect(incomplete.coverage.reasons).toContain('parallel-applicability-unresolved');
 
-    const applicable = term1([
+    const applicableWithoutZ = term1([
       { slot: 1, maximumMilli: 6_750, valueMilli: 2_000 },
       { slot: 2, maximumMilli: 6_750, valueMilli: 2_000 },
       { slot: 11, maximumMilli: 16_500, valueMilli: 10_000 },
     ]);
-    expect(applicable.parallelApplicable).toBe(true);
-    expect(applicable.coverage.missingSlots).toContain(3);
+    expect(applicableWithoutZ.parallelApplicable).toBe(true);
+    expect(applicableWithoutZ.parallelMilli).toBeNull();
+    expect(applicableWithoutZ.quantitativeOriginalMilli).toBe(4_000);
+    expect(applicableWithoutZ.quantitativeConsideredMilli).toBe(4_000);
+    expect(applicableWithoutZ.coverage.missingSlots).not.toContain(3);
+    expect(applicableWithoutZ.coverage.complete).toBe(true);
   });
 
   it('resolves direct approval from three complete terms', () => {
