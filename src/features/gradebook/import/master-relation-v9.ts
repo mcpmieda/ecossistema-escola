@@ -36,6 +36,23 @@ function integer(sheet: Worksheet, address: string): number | null {
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
+function academicYear(value: number | null): number | null {
+  return value !== null && value >= 2000 && value <= 2200 ? value : null;
+}
+
+function resolveAcademicYear(inicio: Worksheet): number {
+  const contracted = academicYear(integer(inicio, 'G2'));
+  const currentLayout = academicYear(integer(inicio, 'Q2'));
+  if (contracted !== null && currentLayout !== null && contracted !== currentLayout) {
+    throw new Error(`Ano letivo ambíguo em INICIO: G2=${contracted} e Q2=${currentLayout}.`);
+  }
+  const resolved = contracted ?? currentLayout;
+  if (resolved === null) {
+    throw new Error('Ano letivo inválido ou ausente em INICIO!G2/Q2.');
+  }
+  return resolved;
+}
+
 function columnName(oneBased: number): string {
   let value = oneBased;
   let result = '';
@@ -70,10 +87,7 @@ export function recognizeMasterRelationV9(workbook: Workbook): MasterRelationRec
   const agenda = workbook.Sheets[agendaName];
   if (!inicio || !agenda) return null;
 
-  const ano = integer(inicio, 'G2');
-  if (ano === null || ano < 2000 || ano > 2200) {
-    throw new Error('Ano letivo inválido ou ausente em INICIO!G2.');
-  }
+  const ano = resolveAcademicYear(inicio);
 
   const turmas: GradebookRelationClassV9[] = [];
   for (let sourceRow = 7; sourceRow <= 28; sourceRow += 1) {
