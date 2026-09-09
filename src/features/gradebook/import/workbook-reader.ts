@@ -5,6 +5,10 @@ import {
   recognizeCanonicalRostersV6,
   type WorkbookSummaryWithCanonicalRostersV6,
 } from './canonical-roster-v6';
+import {
+  recognizeMasterRelationV9,
+  type MasterRelationRecognitionV9,
+} from './master-relation-v9';
 
 export const WORKBOOK_READ_OPTIONS = {
   type: 'array',
@@ -22,6 +26,10 @@ export interface WorkbookReadTimingV1 {
   readonly xlsxReadMs: number;
   readonly recognizeWorkbookMs: number;
   readonly canonicalRostersMs: number;
+}
+
+export interface WorkbookSummaryWithRelationV9 extends WorkbookSummaryWithCanonicalRostersV6 {
+  readonly masterRelationV9?: MasterRelationRecognitionV9;
 }
 
 function nowMs(): number {
@@ -81,7 +89,7 @@ export function readWorkbookData(
   manifest: SourceFileManifestV1,
   onTiming?: (timing: WorkbookReadTimingV1) => void,
   captureValues = false,
-): WorkbookSummaryWithCanonicalRostersV6 {
+): WorkbookSummaryWithRelationV9 {
   const totalStartedAt = nowMs();
   const readStartedAt = nowMs();
   const parsed = xlsx.read(data, WORKBOOK_READ_OPTIONS);
@@ -90,6 +98,7 @@ export function readWorkbookData(
     throw new Error('A planilha não contém abas reconhecíveis.');
   }
 
+  const masterRelationV9 = recognizeMasterRelationV9(parsed);
   const recognizeStartedAt = nowMs();
   const recognized = recognizeWorkbook(file, parsed, xlsx, {
     fileSha256: manifest.sha256,
@@ -97,12 +106,14 @@ export function readWorkbookData(
   });
   const summary = preserveOriginalWorksheetDimensions(recognized, parsed, xlsx);
   const recognizeWorkbookMs = elapsedMs(recognizeStartedAt);
-  if (summary.gradeSheets.length === 0) {
+  if (summary.gradeSheets.length === 0 && !masterRelationV9) {
     throw new Error('Nenhuma guia corresponde ao padrão de notas configurado.');
   }
 
   const rostersStartedAt = nowMs();
-  const canonicalRostersV6 = recognizeCanonicalRostersV6(parsed, summary, xlsx);
+  const canonicalRostersV6 = masterRelationV9
+    ? []
+    : recognizeCanonicalRostersV6(parsed, summary, xlsx);
   const canonicalRostersMs = elapsedMs(rostersStartedAt);
   onTiming?.({
     totalMs: elapsedMs(totalStartedAt),
@@ -113,6 +124,9 @@ export function readWorkbookData(
 
   return {
     ...summary,
+    ...(masterRelationV9
+      ? { academicYear: masterRelationV9.ano, teacherName: null, masterRelationV9 }
+      : {}),
     canonicalRostersV6,
   };
 }
@@ -120,7 +134,7 @@ export function readWorkbookData(
 export async function readWorkbook(
   file: File,
   xlsx: SheetJs,
-): Promise<WorkbookSummaryWithCanonicalRostersV6> {
+): Promise<WorkbookSummaryWithRelationV9> {
   const data = await file.arrayBuffer();
   const manifest = await createSourceFileManifest(file, data, xlsx.version);
   return readWorkbookData(file, data, xlsx, manifest);
