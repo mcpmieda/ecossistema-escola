@@ -279,7 +279,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(flow.progress).toBeNull();
   });
 
-  it('retains recognized files after an unavailable response and permits an explicit retry', async () => {
+  it('retains prepared files after an unavailable response and permits an explicit retry', async () => {
     mocks.persist.mockResolvedValueOnce({
       response: { transportVersion: 9, state: 'unavailable' },
       serverMs: null,
@@ -290,7 +290,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(firstWaveCalls).toBeLessThan(18);
     expect(flow.pendingPersistenceCount).toBe(18);
     expect(flow.persistence['file:0']?.state).toBe('confirmation-required');
-    expect(flow.persistence['file:1']?.state).toBe('recognized');
+    expect(flow.persistence['file:1']?.state).toBe('processing');
     expect(flow.progress).toBeNull();
     const pendingBeforeResume = flow.pendingPersistenceCount;
     mocks.persist.mockClear();
@@ -329,8 +329,8 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(mocks.persist).toHaveBeenCalledTimes(1);
     expect(flow.pendingPersistenceCount).toBe(3);
     expect(flow.persistence['file:0']?.state).toBe('confirmation-required');
-    expect(flow.persistence['file:1']?.state).toBe('recognized');
-    expect(flow.persistence['file:2']?.state).toBe('recognized');
+    expect(flow.persistence['file:1']?.state).toBe('processing');
+    expect(flow.persistence['file:2']?.state).toBe('processing');
     expect(flow.progress).toBeNull();
   });
 
