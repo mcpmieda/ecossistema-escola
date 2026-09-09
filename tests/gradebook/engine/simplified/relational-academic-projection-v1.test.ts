@@ -8,9 +8,11 @@ function fakeDatabase(input: {
   readonly base?: Row | null;
   readonly instruments?: readonly Row[];
   readonly closing?: Row | null;
+  readonly queries?: string[];
 }): D1ReadDatabaseV1 {
   return {
     prepare(sql: string) {
+      input.queries?.push(sql);
       return {
         bind() {
           return this;
@@ -81,6 +83,17 @@ describe('relational academic projection v1', () => {
     expect(projection.recovery.classification).toBe('approved-direct');
     expect(projection.recovery.postRecoveryTotalMilli).toBe(60_000);
     expect(projection.sourceUComparison).toBe('match');
+  });
+
+  it('requires the offer to belong to the current, non-FOI_PARA binding', async () => {
+    const queries: string[] = [];
+    const database = fakeDatabase({ base: null, queries });
+
+    await expect(
+      createRelationalAcademicProjectionServiceV1(database).project({ ofertaId: 99, alunoId: 12 }),
+    ).rejects.toMatchObject({ code: 'offer-student-not-found' });
+
+    expect(queries[0]).toContain('COALESCE(v.situacao, 0) <> 6');
   });
 
   it('treats an empty Z as no parallel gain while keeping the term complete', async () => {
