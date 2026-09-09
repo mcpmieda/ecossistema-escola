@@ -80,6 +80,10 @@ async function run(
   return result.meta?.changes ?? result.changes ?? 0;
 }
 
+async function lockAcademicYear(database: D1WriteDatabaseV1, ano: number): Promise<void> {
+  await first<Row>(database, `SELECT pg_advisory_xact_lock(613, ?) AS locked`, [ano]);
+}
+
 function summary(writes: number, importWritten: boolean) {
   const committedWrites = {
     logicalSources: 0,
@@ -860,6 +864,7 @@ export function createGradebookRelationalImportServiceV9(database: D1WriteDataba
     async execute(request: GradebookImportPersistenceRequestV9): Promise<GradebookImportPersistenceResponseV9> {
       try {
         const result = await transactionDatabase(database).transaction(async (transaction) => {
+          await lockAcademicYear(transaction, request.ano);
           const state: ImportStateV9 = { importId: null, writes: 0 };
           if (request.operation === 'persist-relacao') await persistRelation(transaction, request, state);
           else await persistNotes(transaction, request, state);
