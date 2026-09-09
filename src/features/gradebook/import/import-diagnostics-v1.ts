@@ -146,7 +146,10 @@ function inspectCell(input: {
     cellAddress: input.address,
   } as const;
 
-  if (Array.isArray(raw)) {
+  if (
+    Array.isArray(raw) ||
+    input.observation?.classification === 'formula-error-or-missing-cache'
+  ) {
     return [
       diagnostic({
         ...base,

@@ -143,7 +143,6 @@ function syntheticResult(): BatchSuccess {
           snapshotCellsV8: {
             AD21: 'TEXTO INDEVIDO',
             AE21: ['u'],
-            AM21: ['u'],
             R21: 7.25,
           },
         },
@@ -178,7 +177,7 @@ describe('import diagnostics v1', () => {
     expect(blockingGradebookImportDiagnosticsV1(diagnostics)).toContain(invalidText);
   });
 
-  it('details unavailable source values without inventing zero or blocking the file', () => {
+  it('details unavailable source values even when a formula has no cached snapshot', () => {
     const diagnostics = collectGradebookImportDiagnosticsV1(syntheticResult());
     const unavailable = sourceUnavailableGradebookImportDiagnosticsV1(diagnostics);
 
