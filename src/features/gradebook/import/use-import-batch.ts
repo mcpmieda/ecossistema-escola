@@ -118,6 +118,7 @@ export function selectPendingGradebookImportResultsV1(
     const state = persistence[result.id];
     return (
       state?.state === 'recognized' ||
+      state?.state === 'processing' ||
       state?.state === 'auth-required' ||
       state?.state === 'confirmation-required'
     );
