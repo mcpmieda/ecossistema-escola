@@ -57,7 +57,7 @@ describe('relational V10 current-class filter', () => {
     const source = request();
     const filtered = filterHistoricalClassFactsV10(source, new Set(['8A:1']));
 
-    expect(filtered).toBe(source);
     expect(filtered.ofertas[0]!.trimestres[0].alunos.map(([numero]) => numero)).toEqual([1, 2]);
+    expect(filtered.ofertas[0]!.recuperacao?.map(([numero]) => numero)).toEqual([1, 2]);
   });
 });
