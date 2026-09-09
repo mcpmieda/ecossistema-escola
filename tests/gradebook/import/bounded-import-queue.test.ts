@@ -82,7 +82,7 @@ function request(result: BatchSuccess): GradebookImportPersistenceRequestV9 {
       sha256: result.manifest.sha256,
       parserVersion: 'synthetic:canonical-v9',
     },
-    ano: 2026,
+    ano: result.summary.academicYear ?? 2026,
     professor: 'Docente sintético',
     ofertas: [
       {
@@ -94,7 +94,7 @@ function request(result: BatchSuccess): GradebookImportPersistenceRequestV9 {
     ],
   };
 }
-function result(index: number): BatchSuccess {
+function result(index: number, academicYear = 2026): BatchSuccess {
   return {
     id: `file:${index}`,
     manifest: {
@@ -109,7 +109,7 @@ function result(index: number): BatchSuccess {
       readAt: '2026-09-01T00:00:00.000Z',
     },
     summary: {
-      academicYear: 2026,
+      academicYear,
       teacherName: 'Docente sintético',
       classes: [{ students: 1 }],
       gradeSheets: [],
@@ -181,7 +181,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
   });
 
   it.each([1, 18, 50])(
-    'imports %i selected files with bounded concurrency and per-file canonicalization',
+    'imports %i same-year selected files sequentially with per-file canonicalization',
     async (count) => {
       let active = 0;
       let maximum = 0;
@@ -196,7 +196,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
       await act(async () => flow.handleFiles(files(count)));
       expect(mocks.persist).toHaveBeenCalledTimes(count);
       expect(mocks.persist.mock.calls.every(([value]) => value.transportVersion === 9)).toBe(true);
-      expect(maximum).toBe(Math.min(count, GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1));
+      expect(maximum).toBe(1);
       expect(sequence.filter((value) => value.startsWith('compact:'))).toHaveLength(count);
       expect(sequence.filter((value) => value === 'send')).toHaveLength(count);
       expect(Object.values(flow.persistence).every((state) => state.state === 'completed')).toBe(
@@ -206,6 +206,35 @@ describe('Bounded per-file canonical queue (V9)', () => {
     },
   );
 
+  it('allows different academic years to use separate bounded lanes', async () => {
+    mocks.read.mockResolvedValue({
+      successes: [result(0, 2026), result(1, 2027), result(2, 2026), result(3, 2027)],
+      failureDetails: [],
+    });
+    const activeByYear = new Map<number, number>();
+    let totalActive = 0;
+    let maximumTotal = 0;
+    let maximumSameYear = 0;
+    mocks.persist.mockImplementation(async (value: GradebookImportPersistenceRequestV9) => {
+      const sameYear = (activeByYear.get(value.ano) ?? 0) + 1;
+      activeByYear.set(value.ano, sameYear);
+      totalActive++;
+      maximumTotal = Math.max(maximumTotal, totalActive);
+      maximumSameYear = Math.max(maximumSameYear, sameYear);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      activeByYear.set(value.ano, sameYear - 1);
+      totalActive--;
+      return confirmed();
+    });
+
+    await act(async () => flow.handleFiles(files(4)));
+
+    expect(maximumSameYear).toBe(1);
+    expect(maximumTotal).toBe(2);
+    expect(maximumTotal).toBeLessThanOrEqual(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    expect(flow.pendingPersistenceCount).toBe(0);
+  });
+
   it('preserves confirmed files, pauses an uncertain commit, and resumes only the pending selection', async () => {
     let attempts = 0;
     mocks.persist.mockImplementation(async () => {
@@ -214,12 +243,13 @@ describe('Bounded per-file canonical queue (V9)', () => {
     });
     await act(async () => flow.handleFiles(files(18)));
     const firstWaveCalls = mocks.persist.mock.calls.length;
-    expect(firstWaveCalls).toBeGreaterThanOrEqual(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    expect(firstWaveCalls).toBe(3);
     expect(firstWaveCalls).toBeLessThan(18);
     expect(flow.persistence['file:0']?.state).toBe('completed');
     expect(flow.persistence['file:1']?.state).toBe('completed');
     expect(flow.persistence['file:2']?.state).toBe('confirmation-required');
     expect(flow.pendingPersistenceCount).toBe(19 - firstWaveCalls);
+    expect(flow.progress).toBeNull();
     expect(mocks.compact).toHaveBeenCalledTimes(18);
     const pendingBeforeResume = flow.pendingPersistenceCount;
     mocks.persist.mockClear();
@@ -240,24 +270,28 @@ describe('Bounded per-file canonical queue (V9)', () => {
     );
     await act(async () => flow.handleFiles(files(18)));
     const firstWaveCalls = mocks.persist.mock.calls.length;
-    expect(firstWaveCalls).toBeGreaterThanOrEqual(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    expect(firstWaveCalls).toBe(2);
     expect(firstWaveCalls).toBeLessThan(18);
     expect(flow.authorizationRequired).toBe(true);
     expect(flow.pendingPersistenceCount).toBe(19 - firstWaveCalls);
     expect(flow.persistence['file:0']?.state).toBe('completed');
     expect(flow.persistence['file:1']?.state).toBe('auth-required');
+    expect(flow.progress).toBeNull();
   });
 
-  it('retains recognized files after an unavailable response and permits an explicit retry', async () => {
+  it('retains prepared files after an unavailable response and permits an explicit retry', async () => {
     mocks.persist.mockResolvedValueOnce({
       response: { transportVersion: 9, state: 'unavailable' },
       serverMs: null,
     });
     await act(async () => flow.handleFiles(files(18)));
     const firstWaveCalls = mocks.persist.mock.calls.length;
-    expect(firstWaveCalls).toBeGreaterThanOrEqual(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    expect(firstWaveCalls).toBe(1);
     expect(firstWaveCalls).toBeLessThan(18);
-    expect(flow.pendingPersistenceCount).toBe(19 - firstWaveCalls);
+    expect(flow.pendingPersistenceCount).toBe(18);
+    expect(flow.persistence['file:0']?.state).toBe('confirmation-required');
+    expect(flow.persistence['file:1']?.state).toBe('processing');
+    expect(flow.progress).toBeNull();
     const pendingBeforeResume = flow.pendingPersistenceCount;
     mocks.persist.mockClear();
     mocks.persist.mockResolvedValue(confirmed());
@@ -286,26 +320,27 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(mocks.persist).toHaveBeenCalledTimes(3);
   });
 
-  it('keeps all selected files pending when the server response is unavailable', async () => {
+  it('keeps all selected files pending when the first server response is unavailable', async () => {
     mocks.persist.mockResolvedValue({
       response: { transportVersion: 9, state: 'unavailable' },
       serverMs: null,
     });
     await act(async () => flow.handleFiles(files(3)));
-    expect(mocks.persist).toHaveBeenCalledTimes(3);
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
     expect(flow.pendingPersistenceCount).toBe(3);
-    expect(
-      Object.values(flow.persistence).every((state) => state.state === 'confirmation-required'),
-    ).toBe(true);
+    expect(flow.persistence['file:0']?.state).toBe('confirmation-required');
+    expect(flow.persistence['file:1']?.state).toBe('processing');
+    expect(flow.persistence['file:2']?.state).toBe('processing');
+    expect(flow.progress).toBeNull();
   });
 
   it('does not discard a resumable selection when a new selection exceeds 50 files', async () => {
     mocks.persist.mockRejectedValueOnce(new TypeError('synthetic lost reply'));
     await act(async () => flow.handleFiles(files(3)));
-    expect(mocks.persist).toHaveBeenCalledTimes(3);
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
     await act(async () => flow.handleFiles(files(51)));
     expect(flow.results).toHaveLength(3);
-    expect(flow.pendingPersistenceCount).toBe(1);
+    expect(flow.pendingPersistenceCount).toBe(3);
     expect(mocks.read).toHaveBeenCalledTimes(1);
   });
 });
