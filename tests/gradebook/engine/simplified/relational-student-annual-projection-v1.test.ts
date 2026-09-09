@@ -123,6 +123,29 @@ describe('relational student annual projection v1', () => {
     expect(queries[0]).toContain('COALESCE(v.situacao, 0) <> 6');
   });
 
+  it('honors terminal enrollment status before any grade projection', async () => {
+    const queries: string[] = [];
+    let projectionCalls = 0;
+    const assistedBase = { ...base, situacao: 2, conselho_anterior: null };
+    const result = await createRelationalStudentAnnualProjectionServiceV1(
+      fakeDatabase({ base: assistedBase, offers, queries }),
+      {
+        projectOffer: async () => {
+          projectionCalls += 1;
+          throw new Error('offer should not be projected for terminal status');
+        },
+      },
+    ).project({ ano: 2026, alunoId: 9 });
+
+    expect(result.status).toBe(2);
+    expect(result.components).toEqual([]);
+    expect(result.calculatedAnnual.state).toBe('no-result');
+    expect(result.calculatedAnnual.visibleResult).toBeNull();
+    expect(result.homologation.am).toEqual({ match: 0, mismatch: 0, unavailable: 0 });
+    expect(projectionCalls).toBe(0);
+    expect(queries.some((query) => query.includes('FROM gradebook.oferta o'))).toBe(false);
+  });
+
   it('blocks duplicate current offers for the same discipline instead of double-counting it', async () => {
     const duplicated: readonly Row[] = [
       offers[0]!,
