@@ -252,6 +252,7 @@ export function useImportBatch() {
         ...current,
         [result.id]: { state: 'confirmation-required', message },
       }));
+      setProgress(null);
       return 'confirmation-required';
     }
     if (isGradebookImportAuthorizationRequiredV1(response)) {
@@ -264,6 +265,7 @@ export function useImportBatch() {
         ...current,
         [result.id]: { state: 'confirmation-required', message },
       }));
+      setProgress(null);
       return 'confirmation-required';
     }
     setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
@@ -294,31 +296,48 @@ export function useImportBatch() {
       completed++;
     }
 
-    let cursor = 0;
+    const noteLanes = new Map<
+      number,
+      Array<{ readonly value: PreparedPersistenceV9; readonly position: number }>
+    >();
+    for (const [position, value] of notes.entries()) {
+      const lane = noteLanes.get(value.request.ano) ?? [];
+      lane.push({ value, position });
+      noteLanes.set(value.request.ano, lane);
+    }
+    const lanes = [...noteLanes.values()];
+    let laneCursor = 0;
     let stop: ImportPersistenceRunResultV1 | null = null;
     const workers = Array.from(
-      { length: Math.min(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1, notes.length) },
+      { length: Math.min(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1, lanes.length) },
       async () => {
         while (stop === null) {
-          const position = cursor++;
-          const value = notes[position];
-          if (!value) return;
-          const status = await persistPreparedSingle(value, relations.length + position, ordered.length);
-          if (status === 'auth-required' || status === 'confirmation-required') {
-            stop = status;
-            return;
+          const lane = lanes[laneCursor++];
+          if (!lane) return;
+          for (const { value, position } of lane) {
+            if (stop !== null) return;
+            const status = await persistPreparedSingle(
+              value,
+              relations.length + position,
+              ordered.length,
+            );
+            if (status === 'auth-required' || status === 'confirmation-required') {
+              stop = status;
+              return;
+            }
+            completed++;
+            setProgress({
+              current: completed,
+              total: ordered.length,
+              fileName: value.result.manifest.fileName,
+              stage: 'saving',
+            });
           }
-          completed++;
-          setProgress({
-            current: completed,
-            total: ordered.length,
-            fileName: value.result.manifest.fileName,
-            stage: 'saving',
-          });
         }
       },
     );
     await Promise.all(workers);
+    if (stop === 'auth-required' || stop === 'confirmation-required') setProgress(null);
     return stop ?? 'completed';
   }
 
@@ -407,6 +426,7 @@ export function useImportBatch() {
           stage: 'completed',
         });
       } else if (persistenceResult === 'confirmation-required') {
+        setProgress(null);
         setError('A resposta de uma gravação ficou incerta. Retome somente os pendentes nesta aba.');
       } else if (persistenceResult === 'blocked') {
         setError('A Relação do lote foi bloqueada; as planilhas de notas desse lote não foram enviadas.');
@@ -436,6 +456,7 @@ export function useImportBatch() {
           stage: 'completed',
         });
       } else if (outcome === 'confirmation-required') {
+        setProgress(null);
         setError('A resposta de uma gravação ficou incerta. Os pendentes continuam preservados nesta aba.');
       } else if (outcome === 'blocked') {
         setError('A Relação pendente continua bloqueada; as planilhas de notas não foram enviadas.');
