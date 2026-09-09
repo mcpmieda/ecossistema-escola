@@ -120,13 +120,48 @@ async function writeDiagnostics(
   return result.meta?.changes ?? result.changes ?? rows.length;
 }
 
+function auditRecord(row: Row): GradebookImportDiagnosticsAuditRecordV1 {
+  return {
+    id: asInteger(row.id),
+    academicYear: row.ano === null ? null : asInteger(row.ano),
+    fileName: String(row.arquivo),
+    key: String(row.chave),
+    severity: String(row.nivel) as GradebookImportDiagnosticsAuditRecordV1['severity'],
+    code: String(row.codigo) as GradebookImportDiagnosticsAuditRecordV1['code'],
+    message: messageFor(String(row.codigo)),
+    recommendedAction: actionFor(String(row.codigo)),
+    ...(row.turma_codigo === null ? {} : { classCode: String(row.turma_codigo) }),
+    ...(row.disciplina === null ? {} : { subject: String(row.disciplina) }),
+    ...(row.periodo === null ? {} : { period: String(row.periodo) }),
+    ...(row.aluno_numero === null ? {} : { studentNumber: asInteger(row.aluno_numero) }),
+    studentName: nullableString(row.aluno_nome),
+    fieldKind: String(row.campo) as GradebookImportDiagnosticsAuditRecordV1['fieldKind'],
+    ...(row.rotulo === null ? {} : { fieldLabel: String(row.rotulo) }),
+    ...(row.valor_encontrado === null ? {} : { foundValue: String(row.valor_encontrado) }),
+    ...(row.causa === null ? {} : { cause: String(row.causa) }),
+    ...(row.guia === null ? {} : { sheetName: String(row.guia) }),
+    ...(row.celula === null ? {} : { cellAddress: String(row.celula) }),
+    firstObservedAt: new Date(String(row.primeiro_em)).toISOString(),
+    lastObservedAt: new Date(String(row.ultimo_em)).toISOString(),
+    observations: asInteger(row.ocorrencias),
+  };
+}
+
 async function listDiagnostics(
   database: D1WriteDatabaseV1,
   academicYear: number | null,
   limit: number,
-): Promise<readonly GradebookImportDiagnosticsAuditRecordV1[]> {
+  offset: number,
+): Promise<{
+  readonly items: readonly GradebookImportDiagnosticsAuditRecordV1[];
+  readonly nextOffset: number | null;
+}> {
   const where = academicYear === null ? '' : 'WHERE d.ano = ?';
-  const values: D1WriteValueV1[] = academicYear === null ? [limit] : [academicYear, limit];
+  const fetchLimit = limit + 1;
+  const values: D1WriteValueV1[] =
+    academicYear === null
+      ? [fetchLimit, offset]
+      : [academicYear, fetchLimit, offset];
   const result = await database
     .prepare(
       `SELECT
@@ -161,35 +196,16 @@ async function listDiagnostics(
        LEFT JOIN gradebook.aluno a ON a.id = v.aluno_id
        ${where}
        ORDER BY d.ultimo_em DESC, d.id DESC
-       LIMIT ?`,
+       LIMIT ? OFFSET ?`,
     )
     .bind(...values)
     .all<Row>();
-
-  return result.results.map((row) => ({
-    id: asInteger(row.id),
-    academicYear: row.ano === null ? null : asInteger(row.ano),
-    fileName: String(row.arquivo),
-    key: String(row.chave),
-    severity: String(row.nivel) as GradebookImportDiagnosticsAuditRecordV1['severity'],
-    code: String(row.codigo) as GradebookImportDiagnosticsAuditRecordV1['code'],
-    message: messageFor(String(row.codigo)),
-    recommendedAction: actionFor(String(row.codigo)),
-    ...(row.turma_codigo === null ? {} : { classCode: String(row.turma_codigo) }),
-    ...(row.disciplina === null ? {} : { subject: String(row.disciplina) }),
-    ...(row.periodo === null ? {} : { period: String(row.periodo) }),
-    ...(row.aluno_numero === null ? {} : { studentNumber: asInteger(row.aluno_numero) }),
-    studentName: nullableString(row.aluno_nome),
-    fieldKind: String(row.campo) as GradebookImportDiagnosticsAuditRecordV1['fieldKind'],
-    ...(row.rotulo === null ? {} : { fieldLabel: String(row.rotulo) }),
-    ...(row.valor_encontrado === null ? {} : { foundValue: String(row.valor_encontrado) }),
-    ...(row.causa === null ? {} : { cause: String(row.causa) }),
-    ...(row.guia === null ? {} : { sheetName: String(row.guia) }),
-    ...(row.celula === null ? {} : { cellAddress: String(row.celula) }),
-    firstObservedAt: new Date(String(row.primeiro_em)).toISOString(),
-    lastObservedAt: new Date(String(row.ultimo_em)).toISOString(),
-    observations: asInteger(row.ocorrencias),
-  }));
+  const hasMore = result.results.length > limit;
+  const page = hasMore ? result.results.slice(0, limit) : result.results;
+  return {
+    items: page.map(auditRecord),
+    nextOffset: hasMore ? offset + limit : null,
+  };
 }
 
 function messageFor(code: string): string {
@@ -250,8 +266,17 @@ async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
     }
     const limitText = Number(url.searchParams.get('limit') ?? 50);
     const limit = Number.isSafeInteger(limitText) ? Math.min(200, Math.max(1, limitText)) : 50;
-    const items = await listDiagnostics(database, ano, limit);
-    return response({ version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'ready', items });
+    const offsetText = Number(url.searchParams.get('offset') ?? 0);
+    if (!Number.isSafeInteger(offsetText) || offsetText < 0) {
+      return response({ version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'invalid-request' }, 400);
+    }
+    const page = await listDiagnostics(database, ano, limit, offsetText);
+    return response({
+      version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1,
+      state: 'ready',
+      items: page.items,
+      nextOffset: page.nextOffset,
+    });
   }
 
   if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
