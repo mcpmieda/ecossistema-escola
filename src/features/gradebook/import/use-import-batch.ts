@@ -90,6 +90,20 @@ function isMasterRelationResult(result: BatchSuccess): boolean {
   return Boolean((result.summary as SummaryWithRelationV9).masterRelationV9);
 }
 
+function blockTeacherFiles(
+  setPersistence: React.Dispatch<React.SetStateAction<Record<string, ImportPersistenceStateV6>>>,
+  results: readonly BatchSuccess[],
+  message: string,
+): void {
+  setPersistence((current) => {
+    const next = { ...current };
+    for (const result of results) {
+      if (!isMasterRelationResult(result)) next[result.id] = { state: 'failed', message };
+    }
+    return next;
+  });
+}
+
 export function isGradebookImportAuthorizationRequiredV1(
   response: ImportPersistenceResponseV6Compatible,
 ): boolean {
@@ -255,14 +269,22 @@ export function useImportBatch() {
       ...prepared.filter((value) => value.request.operation === 'persist-notas'),
     ];
     const relations = ordered.filter((value) => value.request.operation === 'persist-relacao');
+    const notes = ordered.filter((value) => value.request.operation === 'persist-notas');
     let completed = 0;
     for (const value of relations) {
       const status = await persistPreparedSingle(value, completed, ordered.length);
+      if (status === 'blocked') {
+        blockTeacherFiles(
+          setPersistence,
+          notes.map((item) => item.result),
+          'Não enviada porque a Relação do lote foi bloqueada.',
+        );
+        return 'blocked';
+      }
       if (status !== 'completed') return status;
       completed++;
     }
 
-    const notes = ordered.filter((value) => value.request.operation === 'persist-notas');
     let cursor = 0;
     let stop: ImportPersistenceRunResultV1 | null = null;
     const workers = Array.from(
@@ -292,14 +314,25 @@ export function useImportBatch() {
   }
 
   async function persistRecognizedFiles(successes: readonly BatchSuccess[]): Promise<ImportPersistenceRunResultV1> {
+    const relationResults = successes.filter(isMasterRelationResult);
+    const teacherResults = successes.filter((result) => !isMasterRelationResult(result));
     const prepared: PreparedPersistenceV9[] = [];
-    let relationPreparationFailed = false;
-    for (const result of successes) {
+    for (const result of relationResults) {
+      const value = preparePersistenceRequest(result);
+      if (!value) {
+        blockTeacherFiles(
+          setPersistence,
+          teacherResults,
+          'Não enviada porque a Relação do lote não pôde ser preparada.',
+        );
+        return 'blocked';
+      }
+      prepared.push(value);
+    }
+    for (const result of teacherResults) {
       const value = preparePersistenceRequest(result);
       if (value) prepared.push(value);
-      else if (isMasterRelationResult(result)) relationPreparationFailed = true;
     }
-    if (relationPreparationFailed) return 'blocked';
     if (prepared.length === 0) return 'completed';
     return persistPreparedFiles(prepared);
   }
