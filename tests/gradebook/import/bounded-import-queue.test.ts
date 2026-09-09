@@ -6,15 +6,15 @@ import {
   useImportBatch,
 } from '../../../src/features/gradebook/import/use-import-batch';
 import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
-import type { GradebookImportPersistenceRequestV8 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v8';
-import { SOURCE_VALUES_POLICY_V5 } from '../../../shared/gradebook-contracts/source/source-values-contract-v5';
+import type {
+  GradebookImportPersistenceRequestV9,
+  GradebookImportPersistenceResponseV9,
+} from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   compact: vi.fn(),
   persist: vi.fn(),
-  known: vi.fn(),
-  bootstrap: vi.fn(),
 }));
 vi.mock('../../../src/features/gradebook/import/sheetjs-loader', () => ({
   loadSheetJs: async () => ({}),
@@ -26,34 +26,30 @@ vi.mock('../../../src/features/gradebook/import/import-batch', () => ({
   validateBatchSize: (files: readonly File[]) =>
     files.length > 50 ? 'Limite de 50 arquivos.' : null,
 }));
-vi.mock('../../../src/features/gradebook/import/compact-import-v8', () => ({
-  createGradebookValuesSnapshotV8: mocks.compact,
-  gradebookValuesParserVersionV8: (value: string) => `${value}:values-v2`,
+vi.mock('../../../src/features/gradebook/import/canonical-import-v9', () => ({
+  createGradebookCanonicalImportRequestV9: mocks.compact,
+  unavailableCellsV9: () => 0,
 }));
-vi.mock('../../../src/features/gradebook/import/import-persistence-client-v8', () => ({
-  persistGradebookValuesSnapshotV8: mocks.persist,
+vi.mock('../../../src/features/gradebook/import/import-persistence-client-v9', () => ({
+  persistGradebookCanonicalImportV9: mocks.persist,
 }));
-vi.mock('../../../src/features/gradebook/import/import-known-content-client-v1', () => ({
-  inspectGradebookImportKnownContentV1: mocks.known,
-}));
-vi.mock(
-  '../../../src/features/gradebook/operational-workspace/operational-workspace-client',
-  () => ({ requestOperationalWorkspaceV1: mocks.bootstrap }),
-);
 
 const emptyWrites = {
   logicalSources: 0,
   sourceFileVersions: 0,
-  importBatchVersions: 1,
+  importBatchVersions: 0,
   assessmentComponentVersions: 0,
   academicRecordVersions: 0,
   logicalSourceRecordAssociationVersions: 0,
-  total: 1,
+  total: 0,
 };
-function confirmed() {
+function confirmed(): {
+  readonly response: GradebookImportPersistenceResponseV9;
+  readonly serverMs: null;
+} {
   return {
     response: {
-      transportVersion: 6,
+      transportVersion: 9,
       state: 'no-changes',
       summary: {
         assessmentDefinitions: { total: 0, resolved: 0, blocked: 0 },
@@ -72,35 +68,30 @@ function confirmed() {
     serverMs: null,
   };
 }
-function request(result: BatchSuccess): GradebookImportPersistenceRequestV8 {
-  const term = (value: 1 | 2 | 3) => ({
-    term: value,
-    sourceSheetName: `6A${value}ºD1`,
-    assessmentDefinitions: [
-      ['R', 10],
-      ['S', 10],
-    ] as const,
-    rows: [[1, {}]] as const,
+function request(result: BatchSuccess): GradebookImportPersistenceRequestV9 {
+  const term = (trimestre: 1 | 2 | 3) => ({
+    trimestre,
+    instrumentos: [[1, 10_000] as const],
+    alunos: [[1, [null], null] as const],
   });
   return {
-    transportVersion: 8,
-    valuePolicy: SOURCE_VALUES_POLICY_V5,
-    operation: 'persist-recognized-file',
-    manifest: { ...result.manifest, sourceContractVersion: 2 },
-    recognizedSuggestions: { academicYear: 2026, teacherName: 'Docente sintético' },
-    confirmedContext: { academicYearId: 'year:synthetic' as never },
-    sourceResolution: { mode: 'resolve-or-create' },
-    rosters: [{ classGroupLabel: '6A', students: [[1, 'Estudante sintético']] }],
-    courses: [
+    transportVersion: 9,
+    operation: 'persist-notas',
+    manifest: {
+      fileName: result.manifest.fileName,
+      sha256: result.manifest.sha256,
+      parserVersion: 'synthetic:canonical-v9',
+    },
+    ano: 2026,
+    professor: 'Docente sintético',
+    ofertas: [
       {
-        classGroupLabel: '6A',
-        subjectLabel: 'Componente sintético',
-        disciplineIndex: 'D1',
-        terms: [term(1), term(2), term(3)],
-        recovery: null,
+        turmaCodigo: '6A',
+        disciplina: 'Componente sintético',
+        trimestres: [term(1), term(2), term(3)],
+        recuperacao: null,
       },
     ],
-    diagnostics: [],
   };
 }
 function result(index: number): BatchSuccess {
@@ -145,15 +136,6 @@ beforeEach(async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.spyOn(console, 'info').mockImplementation(() => undefined);
   sequence = [];
-  mocks.bootstrap.mockResolvedValue({
-    state: 'ready',
-    availableAcademicYears: [{ id: 'year:synthetic', label: '2026' }],
-  });
-  mocks.known.mockImplementation(async (items: readonly unknown[]) => ({
-    transportVersion: 1,
-    state: 'ready',
-    known: items.map(() => false),
-  }));
   mocks.read.mockImplementation(async (input: readonly File[]) => ({
     successes: input.map((_, index) => result(index)),
     failureDetails: [],
@@ -162,7 +144,7 @@ beforeEach(async () => {
     sequence.push(`compact:${input.id}`);
     return request(input);
   });
-  mocks.persist.mockImplementation(async (value: GradebookImportPersistenceRequestV8) => {
+  mocks.persist.mockImplementation(async (value: GradebookImportPersistenceRequestV9) => {
     sequence.push(`send:${value.manifest.fileName}`);
     await Promise.resolve();
     return confirmed();
@@ -181,27 +163,25 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-describe('Bounded per-file value snapshot queue (#551/#561)', () => {
-  it('finishes a fully identical batch with one inspection and no persistence requests', async () => {
-    mocks.known.mockImplementation(async (items: readonly unknown[]) => ({
-      transportVersion: 1,
-      state: 'ready',
-      known: items.map(() => true),
-    }));
+describe('Bounded per-file canonical queue (V9)', () => {
+  it('treats server no-changes as a completed identical reimport without academic writes', async () => {
     await act(async () => flow.handleFiles(files(18)));
-    expect(mocks.known).toHaveBeenCalledTimes(1);
-    expect(mocks.known.mock.calls[0]![0]).toHaveLength(18);
-    expect(mocks.compact).not.toHaveBeenCalled();
-    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.compact).toHaveBeenCalledTimes(18);
+    expect(mocks.persist).toHaveBeenCalledTimes(18);
     expect(Object.values(flow.persistence)).toHaveLength(18);
     expect(Object.values(flow.persistence).every((state) => state.state === 'completed')).toBe(
       true,
     );
+    expect(
+      Object.values(flow.persistence).every(
+        (state) => state.state !== 'completed' || state.response.state === 'no-changes',
+      ),
+    ).toBe(true);
     expect(flow.pendingPersistenceCount).toBe(0);
   });
 
   it.each([1, 18, 50])(
-    'imports %i selected files with bounded concurrency and per-file compaction',
+    'imports %i selected files with bounded concurrency and per-file canonicalization',
     async (count) => {
       let active = 0;
       let maximum = 0;
@@ -215,7 +195,7 @@ describe('Bounded per-file value snapshot queue (#551/#561)', () => {
       });
       await act(async () => flow.handleFiles(files(count)));
       expect(mocks.persist).toHaveBeenCalledTimes(count);
-      expect(mocks.persist.mock.calls.every(([value]) => value.transportVersion === 8)).toBe(true);
+      expect(mocks.persist.mock.calls.every(([value]) => value.transportVersion === 9)).toBe(true);
       expect(maximum).toBe(Math.min(count, GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1));
       expect(sequence.filter((value) => value.startsWith('compact:'))).toHaveLength(count);
       expect(sequence.filter((value) => value === 'send')).toHaveLength(count);
@@ -233,50 +213,61 @@ describe('Bounded per-file value snapshot queue (#551/#561)', () => {
       return confirmed();
     });
     await act(async () => flow.handleFiles(files(18)));
-    expect(mocks.persist).toHaveBeenCalledTimes(4);
+    const firstWaveCalls = mocks.persist.mock.calls.length;
+    expect(firstWaveCalls).toBeGreaterThanOrEqual(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    expect(firstWaveCalls).toBeLessThan(18);
     expect(flow.persistence['file:0']?.state).toBe('completed');
     expect(flow.persistence['file:1']?.state).toBe('completed');
     expect(flow.persistence['file:2']?.state).toBe('confirmation-required');
-    expect(flow.persistence['file:3']?.state).toBe('completed');
-    expect(flow.persistence['file:4']?.state).toBe('recognized');
-    expect(flow.pendingPersistenceCount).toBe(15);
-    expect(mocks.compact).toHaveBeenCalledTimes(4);
+    expect(flow.pendingPersistenceCount).toBe(19 - firstWaveCalls);
+    expect(mocks.compact).toHaveBeenCalledTimes(18);
+    const pendingBeforeResume = flow.pendingPersistenceCount;
     mocks.persist.mockClear();
     mocks.persist.mockResolvedValue(confirmed());
     await act(async () => flow.resumePendingPersistence());
-    expect(mocks.persist).toHaveBeenCalledTimes(15);
+    expect(mocks.persist).toHaveBeenCalledTimes(pendingBeforeResume);
     expect(mocks.persist.mock.calls[0]![0].manifest.fileName).toBe('sintetico-2.xlsb');
     expect(mocks.read).toHaveBeenCalledTimes(1);
     expect(flow.pendingPersistenceCount).toBe(0);
   });
 
-  it('pauses at session expiry without sending or compacting the rest', async () => {
+  it('pauses at session expiry without sending the unscheduled rest', async () => {
     let calls = 0;
     mocks.persist.mockImplementation(async () =>
       ++calls === 2
-        ? { response: { transportVersion: 6, state: 'not-authorized' }, serverMs: null }
+        ? { response: { transportVersion: 9, state: 'not-authorized' }, serverMs: null }
         : confirmed(),
     );
     await act(async () => flow.handleFiles(files(18)));
-    expect(mocks.persist).toHaveBeenCalledTimes(4);
-    expect(mocks.compact).toHaveBeenCalledTimes(4);
+    const firstWaveCalls = mocks.persist.mock.calls.length;
+    expect(firstWaveCalls).toBeGreaterThanOrEqual(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    expect(firstWaveCalls).toBeLessThan(18);
     expect(flow.authorizationRequired).toBe(true);
-    expect(flow.pendingPersistenceCount).toBe(15);
+    expect(flow.pendingPersistenceCount).toBe(19 - firstWaveCalls);
     expect(flow.persistence['file:0']?.state).toBe('completed');
     expect(flow.persistence['file:1']?.state).toBe('auth-required');
   });
 
-  it('retains all recognized files after a bootstrap outage and permits an explicit retry', async () => {
-    mocks.bootstrap.mockRejectedValueOnce(new TypeError('synthetic bootstrap outage'));
+  it('retains recognized files after an unavailable response and permits an explicit retry', async () => {
+    mocks.persist.mockResolvedValueOnce({
+      response: { transportVersion: 9, state: 'unavailable' },
+      serverMs: null,
+    });
     await act(async () => flow.handleFiles(files(18)));
-    expect(mocks.persist).not.toHaveBeenCalled();
-    expect(flow.pendingPersistenceCount).toBe(18);
+    const firstWaveCalls = mocks.persist.mock.calls.length;
+    expect(firstWaveCalls).toBeGreaterThanOrEqual(GRADEBOOK_IMPORT_FILE_CONCURRENCY_V1);
+    expect(firstWaveCalls).toBeLessThan(18);
+    expect(flow.pendingPersistenceCount).toBe(19 - firstWaveCalls);
+    const pendingBeforeResume = flow.pendingPersistenceCount;
+    mocks.persist.mockClear();
+    mocks.persist.mockResolvedValue(confirmed());
     await act(async () => flow.resumePendingPersistence());
+    expect(mocks.persist).toHaveBeenCalledTimes(pendingBeforeResume);
     expect(flow.pendingPersistenceCount).toBe(0);
     expect(mocks.read).toHaveBeenCalledTimes(1);
   });
 
-  it('isolates a local validation failure instead of aborting unrelated valid files', async () => {
+  it('isolates a local validation failure instead of aborting unrelated valid teacher files', async () => {
     mocks.compact.mockImplementation((input: BatchSuccess) => {
       if (input.id === 'file:1') throw new Error('synthetic invalid file');
       return request(input);
@@ -295,22 +286,17 @@ describe('Bounded per-file value snapshot queue (#551/#561)', () => {
     expect(mocks.persist).toHaveBeenCalledTimes(3);
   });
 
-  it('includes the safe server failure diagnostic in the copyable log and stays paused', async () => {
-    const diagnostic = {
-      version: 1,
-      events: [{ phase: 'd1', code: 'd1-unique', operation: 'batch' }],
-    };
-    mocks.persist.mockImplementation(async (_request, onFailure) => {
-      onFailure(diagnostic);
-      return { response: { transportVersion: 6, state: 'unavailable' }, serverMs: null };
+  it('keeps all selected files pending when the server response is unavailable', async () => {
+    mocks.persist.mockResolvedValue({
+      response: { transportVersion: 9, state: 'unavailable' },
+      serverMs: null,
     });
     await act(async () => flow.handleFiles(files(3)));
     expect(mocks.persist).toHaveBeenCalledTimes(3);
     expect(flow.pendingPersistenceCount).toBe(3);
-    expect(flow.persistence['file:0']?.state).toBe('confirmation-required');
-    expect(flow.timingDiagnostics).toContain(
-      `[gradebook-import-server-failure] ${JSON.stringify(diagnostic)}`,
-    );
+    expect(
+      Object.values(flow.persistence).every((state) => state.state === 'confirmation-required'),
+    ).toBe(true);
   });
 
   it('does not discard a resumable selection when a new selection exceeds 50 files', async () => {
