@@ -116,6 +116,10 @@ function enrollmentStatus(value: unknown): SimplifiedEnrollmentStatusV1 {
   return status as Exclude<SimplifiedEnrollmentStatusV1, null>;
 }
 
+function isStatusTerminal(status: SimplifiedEnrollmentStatusV1): boolean {
+  return status === 1 || status === 2 || status === 3 || status === 4 || status === 5;
+}
+
 function nullableBoolean(value: unknown): boolean | null {
   if (value === null || value === undefined) return null;
   if (value === true || value === 1) return true;
@@ -165,6 +169,12 @@ function comparisonSummary(
     unavailable: values.filter((value) => value === 'unavailable').length,
   };
 }
+
+const EMPTY_COMPARISON_SUMMARY_V1: RelationalComparisonSummaryV1 = {
+  match: 0,
+  mismatch: 0,
+  unavailable: 0,
+};
 
 export function createRelationalStudentAnnualProjectionServiceV1(
   database: D1ReadDatabaseV1,
@@ -219,6 +229,47 @@ export function createRelationalStudentAnnualProjectionServiceV1(
 
       const ano = asInteger(base.ano);
       const turmaId = positiveInteger(base.turma_id);
+      const status = enrollmentStatus(base.situacao);
+      const conselhoAnterior = nullableBoolean(base.conselho_anterior);
+      const minimumApprovalMilli = positiveInteger(base.minimo_aprovacao);
+      const maxCouncilComponents = nonNegativeInteger(base.max_componentes_conselho);
+      const common = {
+        ano,
+        alunoId: input.alunoId,
+        alunoNome: requiredText(base.aluno_nome),
+        turma: {
+          id: turmaId,
+          codigo: requiredText(base.turma_codigo),
+          nome: requiredText(base.turma_nome),
+          numero: positiveInteger(base.numero),
+        },
+        status,
+        conselhoAnterior,
+        minimumApprovalMilli,
+        maxCouncilComponents,
+        formalCouncilDecision: formalCouncilDecision(base.conselho_decisao),
+      } as const;
+
+      // Status terminal is authoritative independently from the grade model. Do not let
+      // an incomplete or malformed offer prevent ASSISTIDO/ESPECIAL/movement/death from
+      // resolving according to the already-approved status precedence.
+      if (isStatusTerminal(status)) {
+        return {
+          ...common,
+          components: [],
+          calculatedAnnual: resolveSimplifiedAnnualOutcomeV1({
+            status,
+            components: [],
+            councilPrevious: conselhoAnterior,
+            maxCouncilComponents,
+          }),
+          homologation: {
+            am: EMPTY_COMPARISON_SUMMARY_V1,
+            u: EMPTY_COMPARISON_SUMMARY_V1,
+          },
+        };
+      }
+
       const offerRows = await all<Row>(
         database,
         `SELECT o.id AS oferta_id,
@@ -260,10 +311,6 @@ export function createRelationalStudentAnnualProjectionServiceV1(
         });
       }
 
-      const status = enrollmentStatus(base.situacao);
-      const conselhoAnterior = nullableBoolean(base.conselho_anterior);
-      const minimumApprovalMilli = positiveInteger(base.minimo_aprovacao);
-      const maxCouncilComponents = nonNegativeInteger(base.max_componentes_conselho);
       const calculatedAnnual = resolveSimplifiedAnnualOutcomeV1({
         status,
         components: components.map((component) => component.projection.recovery),
@@ -272,22 +319,9 @@ export function createRelationalStudentAnnualProjectionServiceV1(
       });
 
       return {
-        ano,
-        alunoId: input.alunoId,
-        alunoNome: requiredText(base.aluno_nome),
-        turma: {
-          id: turmaId,
-          codigo: requiredText(base.turma_codigo),
-          nome: requiredText(base.turma_nome),
-          numero: positiveInteger(base.numero),
-        },
-        status,
-        conselhoAnterior,
-        minimumApprovalMilli,
-        maxCouncilComponents,
+        ...common,
         components,
         calculatedAnnual,
-        formalCouncilDecision: formalCouncilDecision(base.conselho_decisao),
         homologation: {
           am: comparisonSummary(
             components.flatMap((component) =>
