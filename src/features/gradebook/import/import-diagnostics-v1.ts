@@ -5,9 +5,7 @@ import type {
   GradebookImportDiagnosticSeverityV1,
   GradebookImportDiagnosticsAuditRequestV1,
 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
-import {
-  GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1,
-} from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
+import { GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
 import { SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
 import type { GradebookImportResultCellObservationV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import type { BatchSuccess } from './import-batch';
@@ -115,7 +113,9 @@ function hasExactThousandths(value: number): boolean {
 
 function unavailableCause(observation?: GradebookImportResultCellObservationV4): string {
   if (observation?.classification === 'formula-error-or-missing-cache') {
-    if (observation.sourceError) return `Erro salvo pela planilha: ${observation.sourceError}`;
+    if (observation.sourceError) {
+      return `Erro salvo pela planilha: ${String(observation.sourceError).slice(0, 200)}`;
+    }
     return 'A fórmula não possui resultado calculado salvo no arquivo.';
   }
   return 'A origem está marcada como erro ou fórmula sem resultado utilizável salvo.';
@@ -171,7 +171,8 @@ function inspectCell(input: {
         severity: 'blocking-error',
         code: 'invalid-text',
         message: 'Existe texto onde uma nota é esperada.',
-        recommendedAction: 'Informe uma nota válida ou apague esse lançamento e importe a planilha novamente.',
+        recommendedAction:
+          'Informe uma nota válida ou apague esse lançamento e importe a planilha novamente.',
         foundValue: displayValue(raw),
       }),
     ];
@@ -184,7 +185,8 @@ function inspectCell(input: {
         severity: 'blocking-error',
         code: 'negative-grade',
         message: 'Existe uma nota negativa onde uma nota válida é esperada.',
-        recommendedAction: 'Corrija ou apague o lançamento negativo e importe a planilha novamente.',
+        recommendedAction:
+          'Corrija ou apague o lançamento negativo e importe a planilha novamente.',
         foundValue: displayValue(raw),
       }),
     ];
@@ -220,7 +222,9 @@ function inspectCell(input: {
         recommendedAction:
           'Confira o lançamento na planilha. O valor é preservado como foi informado e não bloqueia os demais dados válidos.',
         foundValue: displayValue(raw),
-        cause: `Máximo configurado: ${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(input.maximum / 1000)}.`,
+        cause: `Máximo configurado: ${new Intl.NumberFormat('pt-BR', {
+          maximumFractionDigits: 3,
+        }).format(input.maximum / 1000)}.`,
       }),
     ];
   }
@@ -261,14 +265,17 @@ function inspectRequiredMaximum(
       severity: 'blocking-error',
       code: 'invalid-maximum',
       message: `O valor máximo de ${label.toLowerCase()} está ausente ou inválido.`,
-      recommendedAction: 'Informe um máximo numérico positivo na configuração da avaliação e importe novamente.',
+      recommendedAction:
+        'Informe um máximo numérico positivo na configuração da avaliação e importe novamente.',
       classCode: sheet.className.trim().toUpperCase(),
       subject: sheet.discipline.trim() || undefined,
       period: periodLabel(sheet),
       fieldKind: 'configuration',
       fieldLabel: `Máximo de ${label}`,
       foundValue:
-        configuration && 'rawValue' in configuration ? displayValue(configuration.rawValue) : undefined,
+        configuration && 'rawValue' in configuration
+          ? displayValue(configuration.rawValue)
+          : undefined,
       sheetName: technical?.sheetName ?? sheet.name,
       cellAddress: technical?.cellAddress,
     }),
@@ -315,8 +322,18 @@ function inspectTrimesterSheet(sheet: GradeSheetRecognition): readonly Gradebook
     ...inspectDuplicateStudentNumbers(sheet),
   ];
   const fixed = [
-    { column: 'R', slot: 1, label: 'Avaliação quantitativa 1', maximum: maximumMilli(sheet, 'R') },
-    { column: 'S', slot: 2, label: 'Avaliação quantitativa 2', maximum: maximumMilli(sheet, 'S') },
+    {
+      column: 'R',
+      slot: 1,
+      label: 'Avaliação quantitativa 1',
+      maximum: maximumMilli(sheet, 'R'),
+    },
+    {
+      column: 'S',
+      slot: 2,
+      label: 'Avaliação quantitativa 2',
+      maximum: maximumMilli(sheet, 'S'),
+    },
     { column: 'Z', slot: 3, label: 'Avaliação paralela', maximum: null },
   ] as const;
 
@@ -369,10 +386,30 @@ function inspectRecoverySheet(sheet: GradeSheetRecognition): readonly GradebookI
     const observations = student.recovery?.resultObservations;
     if (!observations) continue;
     const fields = [
-      { column: 'R', label: 'Recuperação do 1º trimestre', observation: observations.trimester1, allowNc: true },
-      { column: 'S', label: 'Recuperação do 2º trimestre', observation: observations.trimester2, allowNc: true },
-      { column: 'T', label: 'Recuperação do 3º trimestre', observation: observations.trimester3, allowNc: true },
-      { column: 'U', label: 'Resultado anual após recuperação', observation: observations.totalAfterRecovery, allowNc: false },
+      {
+        column: 'R',
+        label: 'Recuperação do 1º trimestre',
+        observation: observations.trimester1,
+        allowNc: true,
+      },
+      {
+        column: 'S',
+        label: 'Recuperação do 2º trimestre',
+        observation: observations.trimester2,
+        allowNc: true,
+      },
+      {
+        column: 'T',
+        label: 'Recuperação do 3º trimestre',
+        observation: observations.trimester3,
+        allowNc: true,
+      },
+      {
+        column: 'U',
+        label: 'Resultado anual após recuperação',
+        observation: observations.totalAfterRecovery,
+        allowNc: false,
+      },
     ] as const;
     for (const field of fields) {
       diagnostics.push(
@@ -429,6 +466,12 @@ export function sourceUnavailableGradebookImportDiagnosticsV1(
   return diagnostics.filter((value) => value.code === 'source-unavailable');
 }
 
+function bounded(value: string | undefined, maximum: number): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return trimmed ? trimmed.slice(0, maximum) : undefined;
+}
+
 export function gradebookImportDiagnosticsAuditRequestV1(
   result: BatchSuccess,
   diagnostics: readonly GradebookImportDiagnosticV1[],
@@ -436,9 +479,24 @@ export function gradebookImportDiagnosticsAuditRequestV1(
   const summary = result.summary as SummaryWithRelationV9;
   return {
     version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1,
-    academicYear: Number.isSafeInteger(summary.academicYear) ? (summary.academicYear as number) : null,
-    fileName: result.manifest.fileName,
+    academicYear: Number.isSafeInteger(summary.academicYear)
+      ? (summary.academicYear as number)
+      : null,
+    fileName: result.manifest.fileName.slice(0, 255),
     sha256: result.manifest.sha256,
-    diagnostics: diagnostics.map(({ studentName: _studentName, ...value }) => value),
+    diagnostics: diagnostics.map(({ studentName: _studentName, ...value }) => ({
+      ...value,
+      key: value.key.slice(0, 320),
+      message: value.message.slice(0, 300),
+      recommendedAction: value.recommendedAction.slice(0, 500),
+      ...(value.classCode ? { classCode: bounded(value.classCode, 24) } : {}),
+      ...(value.subject ? { subject: bounded(value.subject, 160) } : {}),
+      ...(value.period ? { period: bounded(value.period, 64) } : {}),
+      ...(value.fieldLabel ? { fieldLabel: bounded(value.fieldLabel, 240) } : {}),
+      ...(value.foundValue ? { foundValue: bounded(value.foundValue, 240) } : {}),
+      ...(value.cause ? { cause: bounded(value.cause, 240) } : {}),
+      ...(value.sheetName ? { sheetName: bounded(value.sheetName, 80) } : {}),
+      ...(value.cellAddress ? { cellAddress: bounded(value.cellAddress, 24) } : {}),
+    })),
   };
 }
