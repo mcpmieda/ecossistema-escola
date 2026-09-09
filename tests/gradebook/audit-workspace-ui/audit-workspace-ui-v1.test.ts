@@ -9,6 +9,12 @@ function source(path: string): string {
 describe('Audit Workspace HeroUI local/preview V1', () => {
   const page = source('src/features/gradebook/audit-workspace/audit-workspace-page.tsx');
   const client = source('src/features/gradebook/audit-workspace/audit-workspace-client.ts');
+  const importDiagnostics = source(
+    'src/features/gradebook/audit-workspace/import-diagnostics-audit-panel-v1.tsx',
+  );
+  const auditSurface = source(
+    'src/features/gradebook/audit-workspace/gradebook-audit-surface.tsx',
+  );
   const handler = source('server/gradebook/http/audit-workspace-routes-v1.ts');
   const app = source('src/App.tsx');
   const shell = source('src/platform/gradebook-workspace-shell.tsx');
@@ -24,7 +30,11 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
       expect(page).toContain(`'${state}'`);
     }
     expect(app).not.toContain('AuditWorkspacePage');
-    expect(shell).toContain("import('../features/gradebook/audit-workspace/audit-workspace-page')");
+    expect(shell).toContain(
+      "import('../features/gradebook/audit-workspace/gradebook-audit-surface')",
+    );
+    expect(auditSurface).toContain('<ImportDiagnosticsAuditPanelV1 />');
+    expect(auditSurface).toContain('<AuditWorkspacePage />');
   });
 
   it('mantém ano explícito, três coleções, filtros, paginação e detalhe sob demanda', () => {
@@ -39,6 +49,19 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
     expect(page).toContain('Carregar mais');
     expect(page).toContain('O detalhe é carregado somente quando solicitado.');
     expect(page).toContain('requestAuditWorkspaceDetailV1');
+  });
+
+  it('acrescenta erros e avisos de importação em linguagem escolar', () => {
+    expect(importDiagnostics).toContain('Erros e avisos de importação');
+    expect(importDiagnostics).toContain('Localização:');
+    expect(importDiagnostics).toContain('Como corrigir:');
+    expect(importDiagnostics).toContain('Detalhes técnicos');
+    expect(importDiagnostics).toContain('primeira observação');
+    expect(importDiagnostics).toContain('última');
+    expect(importDiagnostics).toContain('ocorrência(s)');
+    expect(importDiagnostics).toContain('listGradebookImportDiagnosticsAuditV1');
+    expect(importDiagnostics).not.toContain('localStorage');
+    expect(importDiagnostics).not.toContain('sessionStorage');
   });
 
   it('reutiliza o catálogo de anos existente sem criar transporte paralelo', () => {
