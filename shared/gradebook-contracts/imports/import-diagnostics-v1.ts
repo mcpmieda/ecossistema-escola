@@ -84,6 +84,7 @@ export type GradebookImportDiagnosticsAuditListResponseV1 =
       readonly version: typeof GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1;
       readonly state: 'ready';
       readonly items: readonly GradebookImportDiagnosticsAuditRecordV1[];
+      readonly nextOffset: number | null;
     }
   | {
       readonly version: typeof GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1;
@@ -207,7 +208,11 @@ export function isGradebookImportDiagnosticsAuditListResponseV1(
 ): value is GradebookImportDiagnosticsAuditListResponseV1 {
   if (!isObject(value) || value.version !== GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1) return false;
   if (value.state === 'ready') {
-    return Array.isArray(value.items) && value.items.every(isAuditRecord);
+    return (
+      Array.isArray(value.items) &&
+      value.items.every(isAuditRecord) &&
+      (value.nextOffset === null || safeIntegerWithin(value.nextOffset, 1, Number.MAX_SAFE_INTEGER))
+    );
   }
   return ['not-authorized', 'invalid-request', 'unavailable'].includes(String(value.state));
 }
