@@ -5,7 +5,7 @@ import { AuthorizationError } from '../../../server/auth/roles';
 import { authorizeGradebookD1RuntimeV1 } from '../../../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
 import type { D1WriteDatabaseV1 } from '../../../server/gradebook/persistence/d1/write/d1-write-adapter-v1';
 import { withOfficialGradebookDatabaseV1 } from '../../../server/gradebook/persistence/postgres/official-gradebook-database-v1';
-import { createGradebookRelationalImportServiceV10 } from '../../../server/gradebook/application/import/import-relational-service-v10';
+import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
 import {
   GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9,
   inspectGradebookImportPersistenceRequestV9,
@@ -81,7 +81,7 @@ async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
   }
   const database = env.GRADEBOOK_D1 as D1WriteDatabaseV1 | undefined;
   if (!database) return response({ transportVersion: 9, state: 'unavailable' }, performance.now() - started);
-  const result = await createGradebookRelationalImportServiceV10(database).execute(
+  const result = await createGradebookRelationalImportServiceV11(database).execute(
     payload as GradebookImportPersistenceRequestV9,
   );
   return response(result, performance.now() - started);
