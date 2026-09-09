@@ -52,7 +52,11 @@ export interface ImportFlowProgressV6 {
   readonly stage: ImportFlowProgressStageV6;
 }
 
-type ImportPersistenceRunResultV1 = 'completed' | 'auth-required' | 'confirmation-required';
+type ImportPersistenceRunResultV1 =
+  | 'completed'
+  | 'auth-required'
+  | 'confirmation-required'
+  | 'blocked';
 type PreparedPersistenceV9 = {
   readonly result: BatchSuccess;
   readonly request: GradebookImportPersistenceRequestV9;
@@ -80,6 +84,10 @@ function elapsedMs(startedAt: number): number {
 
 function diagnosticLine(prefix: string, value: unknown): string {
   return `${prefix} ${JSON.stringify(value)}`;
+}
+
+function isMasterRelationResult(result: BatchSuccess): boolean {
+  return Boolean((result.summary as SummaryWithRelationV9).masterRelationV9);
 }
 
 export function isGradebookImportAuthorizationRequiredV1(
@@ -236,7 +244,9 @@ export function useImportBatch() {
       return 'confirmation-required';
     }
     setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
-    return 'completed';
+    return response.state === 'blocked' || response.state === 'conflict' || response.state === 'invalid-request'
+      ? 'blocked'
+      : 'completed';
   }
 
   async function persistPreparedFiles(prepared: readonly PreparedPersistenceV9[]): Promise<ImportPersistenceRunResultV1> {
@@ -263,7 +273,7 @@ export function useImportBatch() {
           const value = notes[position];
           if (!value) return;
           const status = await persistPreparedSingle(value, relations.length + position, ordered.length);
-          if (status !== 'completed') {
+          if (status === 'auth-required' || status === 'confirmation-required') {
             stop = status;
             return;
           }
@@ -282,10 +292,14 @@ export function useImportBatch() {
   }
 
   async function persistRecognizedFiles(successes: readonly BatchSuccess[]): Promise<ImportPersistenceRunResultV1> {
-    const prepared = successes.flatMap((result) => {
+    const prepared: PreparedPersistenceV9[] = [];
+    let relationPreparationFailed = false;
+    for (const result of successes) {
       const value = preparePersistenceRequest(result);
-      return value ? [value] : [];
-    });
+      if (value) prepared.push(value);
+      else if (isMasterRelationResult(result)) relationPreparationFailed = true;
+    }
+    if (relationPreparationFailed) return 'blocked';
     if (prepared.length === 0) return 'completed';
     return persistPreparedFiles(prepared);
   }
@@ -351,6 +365,8 @@ export function useImportBatch() {
         });
       } else if (persistenceResult === 'confirmation-required') {
         setError('A resposta de uma gravação ficou incerta. Retome somente os pendentes nesta aba.');
+      } else if (persistenceResult === 'blocked') {
+        setError('A Relação do lote foi bloqueada; as planilhas de notas desse lote não foram enviadas.');
       }
     } catch (cause) {
       setError(failureMessage(cause, 'Não foi possível concluir a importação.'));
@@ -378,6 +394,8 @@ export function useImportBatch() {
         });
       } else if (outcome === 'confirmation-required') {
         setError('A resposta de uma gravação ficou incerta. Os pendentes continuam preservados nesta aba.');
+      } else if (outcome === 'blocked') {
+        setError('A Relação pendente continua bloqueada; as planilhas de notas não foram enviadas.');
       }
     } catch (cause) {
       setError(failureMessage(cause, 'Não foi possível retomar as importações pendentes.'));
