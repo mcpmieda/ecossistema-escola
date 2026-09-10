@@ -1,45 +1,47 @@
 # Readiness — produto relacional e entrega institucional
 
-## Evidência aceita e trabalho na branch
+## Evidência aceita, integração e branch
 
-#613 homologou a persistência relacional/idempotência; #629, retenção de diagnósticos atuais; #632, arquivo dos importadores exclusivos. Essas evidências não comprovam todos os painéis, emissão/reimpressão, votação, restore ou autoridade acadêmica por consumidor.
+#613 homologou persistência/idempotência; #629, retenção de diagnósticos atuais; #632, arquivo dos importadores exclusivos. A #636 foi integrada em `4d8256fa6f741f4fb0b6ade8676d0f9193b7a460`, com deploy oficial 254 / `34468184541` aprovado. Inclui baseline de schema, lote de projeção e proteção transacional da Auditoria. Não houve smoke autenticado pós-deploy nesta sessão.
 
-A PR #636 agora inclui baseline de schema, lote de projeção e proteção transacional da Auditoria existente, além da documentação. **Código/testes na branch não são publicação.** `npm run verify` e testes PGlite/HTTP com identidade sintética não são smoke produtivo, benchmark Hyperdrive, contenção PostgreSQL multi-sessão nem recuperação de dados reais.
+A PR #640, contrato #639, acrescenta contexto/pesquisa/Centrais V2. Seu código ainda pertence à branch: implementação e testes não são publicação. PGlite e HTTP com identidade sintética não são benchmark Hyperdrive, contenção PostgreSQL multi-sessão, restore de dados reais ou aceite visual. Nenhuma dessas entregas prova automaticamente Desempenho, emissão/reimpressão, votação ou autoridade por consumidor.
 
 ## Gates finais
 
 | Gate | Responsável | Evidência |
 | --- | --- | --- |
-| Schema/runtime | #633 | replay/drift de schema e migração efetiva das fontes por endpoint |
+| Schema/runtime | #633; bloco #639/#640 | replay/drift e fontes relacionais por endpoint; Centrais de consulta não incluem resultados/escritas |
 | Desempenho | #634 | contrato funcional, população, comparabilidade, UI e medição |
 | Conselho | #635 | lacunas contratuais, decisão humana, voto/fechamento e durabilidade |
 | Produto integral | #406 | jornadas, restart/falhas, segurança, histórico e recuperação |
 | Aceite acadêmico | #347 | consumidor/escopo, versão/vigência, divergências e emissões |
 | Entrega | #596 | operação, responsáveis, recuperação e aceite final |
-| Dependências | #637 | corrigir/mitigar as duas cadeias identificadas, repetir audit e verify |
+| Dependências | #637 | remediar as duas cadeias identificadas, repetir audit e verify |
 
 ## Recuperação não pode ser presumida
 
-Uma migration existente não comprova restore. A pasta `migrations/gradebook-simplified/` reconstrói o schema atual e compara categorias estruturais com o catálogo observado: 20 tabelas, 127 colunas, 123 constraints, 38 índices, 4 funções e 3 triggers. NOT NULL é comparado por `attnotnull`; sua representação adicional em `pg_constraint` no PostgreSQL 18 é excluída para compatibilidade com PostgreSQL 17, sem excluir a regra.
+Uma migration existente não comprova restore. `migrations/gradebook-simplified/` reconstrói o schema e compara com o catálogo observado: 20 tabelas, 127 colunas, 123 constraints, 38 índices, 4 funções e 3 triggers. NOT NULL é comparado por `attnotnull`; sua representação adicional em `pg_constraint` no PostgreSQL 18 é excluída para comparar com PostgreSQL 17, sem excluir a regra.
 
-As concessões backend são separadas da baseline. O teste usa roles sintéticas; restore de dados, contadores de identities, ACLs externas, timezone, recursos, RPO/RTO e operação real continuam gates #406/#596. Não executar DDL antigo de streams/versions. D1 histórico não contém as novas escritas; exclusão ou uso como rollback exige plano próprio.
+Grants backend são separados da baseline; testes usam roles sintéticas. Restore de dados, identities, ACLs externas, timezone, recursos, RPO/RTO e operação real continuam gates #406/#596. Não executar DDL de streams/versions. D1 histórico não contém as novas escritas; sua exclusão ou uso como rollback exige plano próprio.
 
 ## Autorização, isolamento e atomicidade
 
 Verificar auth/capability, origem, limites, no-store, isolamento e respostas obsoletas por consumidor. Não inferir flags ON/OFF da documentação. O wrapper pode preparar conexão antes da autorização interna; o serviço não é a fronteira de acesso por si só.
 
-O lote tem snapshot de uma instrução. A projeção anual ainda lê contexto e ofertas separadamente, pendência para emissão/decisão concorrentes. A Auditoria da branch usa **substituição transacional**: locks de fonte/conteúdo + DELETE/INSERT na mesma conexão, rollback se falhar e vazio enviado pelo navegador. A rota acadêmica não limpa diagnósticos separadamente. Falha de atualização gera aviso próprio e não deve parecer Auditoria confirmada. Nenhum registro de resolvido é acumulado.
+O lote acadêmico tem snapshot de uma instrução. A projeção anual ainda lê contexto e ofertas separadamente; continua pendência para emissão/decisão concorrentes. O novo serviço cadastral da #640 usa transação read-only/repeatable-read para cada resposta completa, sem modificar o serviço anual. Paginação entre requisições diferentes não promete snapshot global de um catálogo que pode mudar.
 
-V1 não tem sequência de observação entre abas: a última confirmada no servidor prevalece, sem inferência cronológica de arquivos atrasados. PGlite serializa conexões; teste local de chamadas concorrentes não comprova a disputa real entre conexões PostgreSQL. Recarregar clientes antigos após publicação autorizada para que enviem também o conjunto vazio.
+A Auditoria integrada #636 usa **substituição transacional**: locks por fonte/conteúdo + DELETE/INSERT na mesma conexão; rollback e conjunto vazio enviado pelo browser. Notas não fazem limpeza paralela. Falha de atualização gera aviso; resolvidos não são acumulados. V1 não tem sequência entre abas: vale a última confirmada no servidor, sem inferência cronológica de arquivos atrasados. PGlite serializa conexões; testes não provam disputa multi-sessão real. Clientes antigos precisam recarregar para enviar também conjuntos vazios.
 
-A inspeção de ACL encontrou anon/authenticated sem USAGE e sem privilégios de tabela. RLS desativada isoladamente não prova exposição pública. Nenhuma permissão produtiva foi alterada; revalidar acesso efetivo e superfícies expostas no gate operacional.
+A inspeção de ACL anterior encontrou anon/authenticated sem USAGE/privilégios de tabela. Isso não dispensa revalidar exposição e privilégios no gate operacional. Nenhuma ACL/RLS foi alterada por essas PRs.
 
-## Segurança de dependências
+## Validação da nova interface
 
-A coleta #637/#638 identificou seis entradas npm em duas cadeias dev: sharp/libheif via Cloudflare e adm-zip via office-addin-manifest. Sem dev, zero entradas reportadas. Isso não prova risco zero: Wrangler é usado no processo de publicação. Correções ainda não executadas; não usar `npm audit fix --force` nem confundir CI verde com remediação.
+Fluxo #640: abrir Centrais, selecionar ano, pesquisar, abrir aluno/turma/professor/componente, navegar pelos vínculos/ofertas e carregar páginas. Testes de cliente/React/jsdom usam somente respostas sintéticas e verificam cancelamento, limpeza de escopo e perda de sessão. Validação visual em navegador, teclado completo, mobile e smoke autenticado real permanecem explícitos antes do aceite institucional; build verde não os substitui.
 
-## Hard stops e memória
+## Dependências e limites
 
-Escrita parcial, perda de histórico, divergência material, autoridade ambígua, schema inesperado, recuperação insuficiente ou dado exposto interrompem o escopo afetado. Não editar planilha silenciosamente nem converter ausência em zero.
+A coleta #637/#638 identificou seis entradas npm em duas cadeias dev: sharp/libheif via Cloudflare e adm-zip via office-addin-manifest. Sem dev, zero entradas reportadas, não prova de risco zero: Wrangler participa da publicação. Nenhum pacote/lockfile mudou na #640. Correção permanece #637, sem `npm audit fix --force`.
 
-V1 `prepared-for-manual-authorization` e V2 `production-infrastructure-smoke-validated-awaiting-private-pilot` permanecem no [documento histórico](history/pre-final-1/PRODUCTION_READINESS.md); não comprovam configuração atual. Publicação exige autorização e evidência sanitizada. Ver [detalhes do bloco](CURRENT_SCHEMA_AND_DIAGNOSTICS.md).
+Escrita parcial, perda de histórico, divergência material, autoridade ambígua, schema inesperado, recuperação insuficiente ou dado exposto interrompem o escopo afetado. Não editar fonte silenciosamente nem converter ausência em zero.
+
+V1 `prepared-for-manual-authorization` e V2 `production-infrastructure-smoke-validated-awaiting-private-pilot` estão no [histórico](history/pre-final-1/PRODUCTION_READINESS.md), não descrevem a configuração atual. A nova #640 não tem autorização automática de merge/deploy. Ver [Centrais V2](RELATIONAL_CENTERS_V2.md) e [baseline/Auditoria](CURRENT_SCHEMA_AND_DIAGNOSTICS.md).

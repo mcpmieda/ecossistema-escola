@@ -14,7 +14,7 @@ const bootstrap={contractVersion:2,state:'ready',operation:'bootstrap',years:[ye
 const context=(value=2090)=>({contractVersion:2,state:'ready',operation:'context',context:{...year,year:value},counts:{students:1,classes:1,teachers:1,subjects:1,offers:1,currentBindings:1,historicalBindings:0}});
 const search=(label='ALUNO SINTETICO',value=2090,nextOffset:number|null=null)=>({contractVersion:2,state:'ready',operation:'search',context:{...year,year:value},items:[{entity:{...entity,label},description:'A1 · Nº 1'}],nextOffset});
 const detail={contractVersion:2,state:'ready',operation:'center',context:year,center:{entity,classInfo:null,studentInfo:{councilPrevious:null},bindings:[],offers:[],nextOffset:null}};
-const searchRequest:OperationalWorkspaceRequestV2={contractVersion:2,operation:'search',year:2090,kind:'student',query:'',offset:0,limit:100};
+const searchRequest:Extract<OperationalWorkspaceRequestV2,{operation:'search'}>={contractVersion:2,operation:'search',year:2090,kind:'student',query:'',offset:0,limit:100};
 let fetchMock:ReturnType<typeof vi.fn<typeof fetch>>;
 let root:Root|null=null;
 let host:HTMLDivElement;
@@ -29,7 +29,7 @@ function deferred() {
 beforeEach(()=>{
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
   fetchMock=vi.fn<typeof fetch>();vi.stubGlobal('fetch',fetchMock);
-  host=document.createElement('div');document.body.append(host);
+  host=document.createElement('div');document.body.appendChild(host);
 });
 afterEach(async()=>{if(root) {await act(async()=>{root!.unmount();});root=null;}host.remove();vi.unstubAllGlobals();});
 async function mount() {root=createRoot(host);await act(async()=>{root!.render(createElement(Harness));});}
@@ -122,7 +122,7 @@ describe('rendered Centrais surface in jsdom (not a visual browser benchmark)',(
     const button=[...host.querySelectorAll('button')].find((value)=>value.textContent==='Carregar Centrais');
     expect(button).toBeDefined();expect(fetchMock).not.toHaveBeenCalled();
     await act(async()=>{button!.click();});
-    const select=host.querySelector<HTMLSelectElement>('select[aria-label="Ano letivo"]')!;
+    const select=host.querySelector('select[aria-label="Ano letivo"]') as HTMLSelectElement;
     expect([...select.options].map((value)=>value.value)).toEqual(['','2090','2091']);expect(select.value).toBe('');
     expect(host.textContent).toContain('Consulta somente leitura');
   });
