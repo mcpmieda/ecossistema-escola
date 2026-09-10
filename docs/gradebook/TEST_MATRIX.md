@@ -205,3 +205,16 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `W21-006`: Desempenho mantém seis queries, comparação fail-closed e projeção fiel dos componentes.
 - `W21-007`: Boletins/Relatórios preservam componentes V1/V2 e reprint histórico sem leitura atual.
 - `W21-008`: readiness V1 histórico segue `prepared-for-manual-authorization`; o catálogo corrente reconhece migrations 0001–0005 sem reinterpretar os cinco hard stops históricos.
+
+## F2-646 — Fonte, ano global e composição desktop
+
+- `F2-646-001`: ordinal qualitativo vazio/impresso sem máximo e sem nota não cria atividade, coluna, aviso ou denominador.
+- `F2-646-002`: máximo, zero, valor indisponível persistido, descrição real e nota de outro aluno preservam o instrumento e o histórico.
+- `F2-646-003`: sigla vem somente de `CONFIGURAÇÃO`/`CONFIGURAÇÕES!H3:I16`; componente desconhecido não recebe abreviação inventada.
+- `F2-646-004`: catálogo anual carrega automaticamente, prefere apenas ano ainda existente e nunca fabrica ano ausente.
+- `F2-646-005`: Importação não recebe seletor global; troca de ano invalida consumidores e descarta resposta anterior.
+- `F2-646-006`: contratos V1 recebem apenas correspondência única/exata do ano numérico; ausência, duplicidade ou vizinhança fecham o mapeamento.
+- `F2-646-007`: detalhe preserva zero/parcial/N-C/REC e recebe elegibilidade de paralela e REC final como sinais independentes do núcleo.
+- `F2-646-008`: Tabs HeroUI, quatro lentes, matriz compartilhada, gráfico investigável e controles desktop mantêm um request por seleção, não por aluno.
+- `F2-646-009`: comparação relacional permanece fail-closed enquanto perfil/normalização não forem contratados.
+- `F2-646-010`: `npm run verify`, CI do head final, revisão, merge e deploy seguem BN-DEC-023; validação visual adiada não é registrada como aprovada.

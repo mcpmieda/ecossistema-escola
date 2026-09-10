@@ -301,6 +301,12 @@ O contrato distingue nome, hash e fonte lógica:
 
 A identidade estrutural das avaliações V2 segue a mesma política: fonte lógica e contexto resolvido precedem atributos mutáveis como nome e máximo.
 
+### Placeholders qualitativos e siglas observadas — #646
+
+Nos slots 11–20, o ordinal impresso da coluna não é nome de atividade. Cabeçalho vazio ou igual a `slot - 10`, com parte decimal zero opcional, é metadado sem significado somente quando não há máximo nem nota em nenhum aluno. Máximo, zero, indisponibilidade persistida, descrição não ordinal ou nota de outro aluno preservam o instrumento. O importador normaliza a descrição, não remove slot/valor/histórico; a leitura relacional ignora linhas antigas sem evidência por predicado, sem `DELETE`.
+
+As siglas de apresentação vêm exclusivamente das linhas preenchidas observadas em `CONFIGURAÇÃO`/`CONFIGURAÇÕES!H3:I16`. Ausência no catálogo resulta em sigla ausente, não truncamento ou inicial inventada. Ver [contrato da entrega #646](FINAL2_SOURCE_DESKTOP_646.md).
+
 ## Implementação e testes
 
 ### Metadados e lista oficial para o bootstrap acadêmico

@@ -40,7 +40,7 @@ A precedência de situações terminais continua no núcleo/serviço anual. O fa
 
 ## Consumidores ainda não reancorados
 
-O catch-all mantém Operational Workspace, Audit Workspace antigo, Desempenho, Boletins, Relatórios e Conselho compostos pelo runtime da geração anterior. Contratos V1 restringem autoridades e durabilidade que não existem automaticamente nas 20 tabelas atuais. Ver `CONSUMER_MAP.md` antes de alterar qualquer um.
+O catch-all mantém operações V1 do Operational Workspace, Audit Workspace antigo, Boletins, Relatórios e Conselho compostos pelo runtime da geração anterior. A página de Desempenho usa V2/V3 relacional. O ano global da #646 coordena os consumidores, mas não converte fontes ou durabilidade V1. Esses contratos restringem autoridades e recursos que não existem automaticamente nas 20 tabelas atuais. Ver `CONSUMER_MAP.md` antes de alterar qualquer um.
 
 Alvo: PostgreSQL/fatos → núcleo acadêmico → read models compactos → experiências. Boletins emitidos e decisões humanas têm requisitos próprios de durabilidade; não inventar resultados ou snapshots para preencher lacunas.
 

@@ -8,9 +8,9 @@ Fonte funcional: `PAINEL DESEMPENHO` de 29/08/2026, especialmente contexto/matri
 
 ## Jornada e responsabilidades
 
-Banco → Centrais ou Desempenho → Carregar anos → selecionar ano explicitamente → turma → período T1/T2/T3/Visão geral → modo Regular/Recuperação → matriz → detalhe do aluno/componente → cadastro nas Centrais.
+Banco → Centrais ou Desempenho → catálogo anual carregado automaticamente → ano global confirmado pelo catálogo → turma → período T1/T2/T3/Visão geral → modo Regular/Recuperação → matriz → detalhe do aluno/componente → cadastro nas Centrais.
 
-`GradebookYearProvider` mantém ano/epoch em memória no shell. A troca remonta somente os consumidores V2 e cancela suas respostas antigas. Entrar na Importação não consulta nem pré-carrega catálogo acadêmico. Centrais e Desempenho compartilham ano; os demais consumidores ainda exigem migração. Identificador do aluno para navegação permanece em memória, não na URL. Um contador de navegação separado garante que abrir novamente o mesmo aluno atualize sua Central mesmo após outras pesquisas, sem descartar ou consultar novamente a matriz de Desempenho.
+`GradebookYearProvider` mantém ano/epoch em memória no shell e somente o número como preferência da aba. A troca remonta os consumidores acadêmicos e cancela/descarta respostas antigas. Entrar na Importação não consulta nem pré-carrega catálogo acadêmico. Desde a #646, as demais áreas consomem o mesmo ano, embora contratos V1 continuem exigindo mapeamento exato para seu ID opaco. Identificador do aluno para navegação permanece em memória, não na URL. Um contador separado garante que abrir novamente o mesmo aluno atualize sua Central sem consultar novamente a matriz.
 
 A tabela começa por Nº | Situação | Aluno | componentes. Filtro múltiplo usa opções do servidor. Vínculo histórico `FOI_PARA` não entra como posição atual; situações terminais podem exibir fatos, sem entrar nos indicadores dos vínculos sem situação especial/`ESTAVA_NO`. Selecionar uma situação não cria elegibilidade acadêmica.
 

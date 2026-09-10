@@ -5,8 +5,9 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Papel | Issue | Situação de execução |
 | --- | --- | --- |
 | Programa | #182 | acompanhamento das quatro fases |
-| FINAL-1 | #633 | execução; PR #636 é entrega parcial |
-| FINAL-2 | #634 | planejada; depende de base/contratos relacionais |
+| FINAL-1 | #633 | execução incremental; PRs #636/#640/#643 são entregas parciais |
+| FINAL-2 | #634 | execução incremental; PR #645 integrada e entrega #646/#647 corrente |
+| Fonte/ano/desktop | #646 | branch `fix/bn-final2-source-and-desktop-646`; gates e integração em andamento |
 | FINAL-3 | #635 | planejada; depende de base e conciliação de Conselho |
 | FINAL-4 | #406 | piloto integral após adaptações funcionais |
 | Aceite acadêmico | #347 | gate por consumidor/escopo, sem ativação automática |
@@ -25,9 +26,9 @@ As dependências são de entregas aceitas, não apenas da existência de branche
 
 ## Branches reservadas
 
-`feat/bn-final-1-runtime-relacional`, `feat/bn-final-2-desempenho`, `feat/bn-final-3-conselho`, `test/bn-final-4-piloto-integral`.
+Corrente: `fix/bn-final2-source-and-desktop-646`. Reservadas para fases posteriores: `feat/bn-final-3-conselho` e `test/bn-final-4-piloto-integral`.
 
-Somente a primeira está em execução nesta entrega. Atualizar as seguintes com a `main` validada antes de trabalhar; branches históricas não devem ser mergeadas só por estarem abertas/existirem.
+Branches históricas não devem ser mergeadas só por estarem abertas/existirem. Toda execução parte da `main` factual validada e registra seu próprio checkpoint na issue/PR.
 
 ## Contratos e evidência
 
