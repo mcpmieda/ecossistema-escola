@@ -59,6 +59,21 @@ async function readPayload(request: Request): Promise<unknown> {
   }
 }
 
+async function clearStaleImportDiagnostics(
+  database: D1WriteDatabaseV1,
+  payload: GradebookImportPersistenceRequestV9,
+): Promise<void> {
+  await database
+    .prepare(
+      `DELETE FROM gradebook.importacao_diagnostico
+       WHERE ano IS NOT DISTINCT FROM ?
+         AND arquivo = ?
+         AND hash <> decode(?, 'hex')`,
+    )
+    .bind(payload.ano, payload.manifest.fileName, payload.manifest.sha256)
+    .run();
+}
+
 async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
   const started = performance.now();
   if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
@@ -81,9 +96,9 @@ async function handle(request: Request, env: RuntimeEnv): Promise<Response> {
   }
   const database = env.GRADEBOOK_D1 as D1WriteDatabaseV1 | undefined;
   if (!database) return response({ transportVersion: 9, state: 'unavailable' }, performance.now() - started);
-  const result = await createGradebookRelationalImportServiceV11(database).execute(
-    payload as GradebookImportPersistenceRequestV9,
-  );
+  const canonical = payload as GradebookImportPersistenceRequestV9;
+  await clearStaleImportDiagnostics(database, canonical);
+  const result = await createGradebookRelationalImportServiceV11(database).execute(canonical);
   return response(result, performance.now() - started);
 }
 
