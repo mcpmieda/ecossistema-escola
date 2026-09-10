@@ -13,10 +13,9 @@ concurrency:
   group: validate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-# Temporary lock generation for #637; restore the original workflow before final review.
 jobs:
   verify:
-    name: Generate security lock, audit, tests and build
+    name: Lint, types, tests and build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,155 +30,8 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Check callers and generate the narrow lockfile update
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git grep -n -I -E 'office-addin-manifest|adm-zip' -- src server functions shared scripts public; then
-            echo 'Unexpected manifest CLI or ZIP caller: stop for review.'
-            exit 1
-          fi
-          mkdir -p "$RUNNER_TEMP/security637"
-          git show HEAD:package-lock.json > "$RUNNER_TEMP/security637/old-package-lock.json"
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import assert from 'node:assert/strict';
-          const dir = `${process.env.RUNNER_TEMP}/security637`;
-          const before = JSON.parse(fs.readFileSync(`${dir}/old-package-lock.json`, 'utf8'));
-          const after = JSON.parse(fs.readFileSync('package-lock.json', 'utf8'));
-          const changed = [];
-          const removed = [];
-          for (const [path, entry] of Object.entries(before.packages)) {
-            if (!after.packages[path]) { removed.push(path); continue; }
-            if (JSON.stringify(entry) !== JSON.stringify(after.packages[path])) {
-              changed.push({path, before:entry.version ?? null, after:after.packages[path].version ?? null});
-              if (path && entry.version !== after.packages[path].version) {
-                assert(/(?:^|\/)node_modules\/(?:sharp$|@img\/sharp-)/.test(path), `Unrelated version change: ${path}`);
-              }
-            }
-          }
-          const added = Object.keys(after.packages).filter(path => !before.packages[path]);
-          for (const path of added) assert(/(?:^|\/)node_modules\/(?:sharp$|@img\/sharp-)/.test(path), `Unrelated new package: ${path}`);
-          assert.deepEqual(after.packages[''].dependencies, before.packages[''].dependencies);
-          const expectedDev = {...before.packages[''].devDependencies};
-          delete expectedDev['office-addin-manifest'];
-          assert.deepEqual(after.packages[''].devDependencies, expectedDev);
-          const report = {changed, removed, added};
-          fs.writeFileSync(`${dir}/lock-delta.json`, JSON.stringify(report, null, 2));
-          console.log(JSON.stringify(report));
-          NODE
-
-      - name: Install dependencies from the generated lock
+      - name: Install dependencies
         run: npm ci
-
-      - name: Audit complete and production trees
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm audit --json > "$RUNNER_TEMP/security637/audit-full.json"
-          npm audit --omit=dev --json > "$RUNNER_TEMP/security637/audit-production.json"
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import assert from 'node:assert/strict';
-          import {createHash} from 'node:crypto';
-          const dir = `${process.env.RUNNER_TEMP}/security637`;
-          const full = JSON.parse(fs.readFileSync(`${dir}/audit-full.json`, 'utf8'));
-          const production = JSON.parse(fs.readFileSync(`${dir}/audit-production.json`, 'utf8'));
-          assert.equal(full.metadata?.vulnerabilities?.total, 0);
-          assert.equal(production.metadata?.vulnerabilities?.total, 0);
-          const bytes = fs.readFileSync('package-lock.json');
-          const result = {full:full.metadata.vulnerabilities, production:production.metadata.vulnerabilities,
-            lockSha256:createHash('sha256').update(bytes).digest('hex'),
-            lockBlobSha:createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')};
-          fs.writeFileSync(`${dir}/checks.json`, JSON.stringify(result, null, 2));
-          console.log(JSON.stringify(result));
-          NODE
-          npm ls sharp miniflare wrangler @cloudflare/vitest-pool-workers
 
       - name: Verify
         run: npm run verify
-
-      - name: Test native image dependency using generated pixels only
-        run: |
-          node --input-type=module <<'NODE'
-          import assert from 'node:assert/strict';
-          import {createRequire} from 'node:module';
-          const require = createRequire(import.meta.url);
-          const miniflareRequire = createRequire(require.resolve('miniflare'));
-          const sharp = miniflareRequire('sharp');
-          assert.equal(sharp.versions.sharp, '0.35.4');
-          assert.equal(sharp.versions.heif, '1.23.2');
-          const png = await sharp({create:{width:2,height:2,channels:4,background:{r:20,g:40,b:60,alpha:1}}}).png().toBuffer();
-          const metadata = await sharp(png).metadata();
-          assert.equal(metadata.width, 2);
-          assert.equal(metadata.height, 2);
-          assert((await sharp(png).jpeg().toBuffer()).length > 0);
-          console.log(JSON.stringify({sharp:sharp.versions.sharp,heif:sharp.versions.heif,syntheticImageSmoke:'passed'}));
-          NODE
-
-      - name: Compile Pages Functions without deployment or production credentials
-        run: |
-          npx --no-install wrangler --version
-          npx --no-install wrangler pages functions build functions --outdir "$RUNNER_TEMP/security637-functions"
-
-      - name: Stage generated lock evidence
-        run: |
-          cp package.json package-lock.json "$RUNNER_TEMP/security637/"
-          rm "$RUNNER_TEMP/security637/old-package-lock.json"
-          git diff --stat
-
-      - name: Upload generated lock and public dependency evidence
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: security637-generated-lock
-          path: ${{ runner.temp }}/security637/
-          if-no-files-found: error
-          retention-days: 3
-
-  stage-lock-blob:
-    name: Stage verified lock blob only, no branch writes
-    needs: verify
-    if: github.repository == 'mcpmieda/ecossistema-escola' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'chore/security-637-remediation'
-    runs-on: ubuntu-latest
-    timeout-minutes: 3
-    permissions:
-      contents: write
-    steps:
-      # Separate clean runner: no checkout, package install, artifact execution, or production secrets.
-      - name: Download the same run's verified lock
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: security637-generated-lock
-          path: lock-evidence
-
-      - name: Store immutable Git object for connector review
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          node --input-type=module <<'NODE'
-          import fs from 'node:fs';
-          import assert from 'node:assert/strict';
-          import {createHash} from 'node:crypto';
-          const bytes = fs.readFileSync('lock-evidence/package-lock.json');
-          const check = JSON.parse(fs.readFileSync('lock-evidence/checks.json', 'utf8'));
-          const lock = JSON.parse(bytes.toString('utf8'));
-          const manifest = JSON.parse(fs.readFileSync('lock-evidence/package.json', 'utf8'));
-          assert.equal(lock.name, 'ecossistema-escola');
-          assert.equal(lock.lockfileVersion, 3);
-          assert.equal(check.full.total, 0);
-          assert.equal(check.production.total, 0);
-          assert.equal(createHash('sha256').update(bytes).digest('hex'), check.lockSha256);
-          assert.equal(createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex'), check.lockBlobSha);
-          assert.equal(manifest.overrides.miniflare.sharp, '0.35.4');
-          assert(!Object.keys(lock.packages).some(path => /(?:^|\/)node_modules\/(?:adm-zip|office-addin-manifest)$/.test(path)));
-          const response = await fetch('https://api.github.com/repos/mcpmieda/ecossistema-escola/git/blobs', {
-            method:'POST', headers:{Authorization:`Bearer ${process.env.GH_TOKEN}`,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'},
-            body:JSON.stringify({encoding:'utf-8',content:bytes.toString('utf8')})
-          });
-          if (!response.ok) throw new Error(`Git blob staging failed: HTTP ${response.status}`);
-          const result = await response.json();
-          assert.equal(result.sha, check.lockBlobSha);
-          console.log(`VERIFIED_LOCK_BLOB_SHA=${result.sha}`);
-          // No ref/branch/commit/merge/deploy endpoint is called by this job.
-          NODE

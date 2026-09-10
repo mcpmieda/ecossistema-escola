@@ -2,7 +2,7 @@
 
 ## Escopo e estado integrado
 
-A inspeção inicial em `0a05606a...` foi consolidada na #636, integrada em `4d8256fa6f741f4fb0b6ade8676d0f9193b7a460` e publicada no deploy 254 aprovado. A #640 adiciona contexto/pesquisa/Centrais V2 na branch. **Este mapa não é smoke HTTP autenticado de produção nem afirma falha observada em uma tela.** Testes HTTP usam identidades sintéticas e SQL descartável; dependência de relações antigas é incompatibilidade estrutural, não uma observação visual de produção.
+A inspeção inicial em `0a05606a...` foi consolidada na #636, integrada em `4d8256fa6f741f4fb0b6ade8676d0f9193b7a460` e publicada no deploy 254 aprovado. A #640 integrou contexto/pesquisa/Centrais V2 em `6683d1377f2dd090c1346f693a4af4c2e188d7ae`, deploy 255 / `34477526551` aprovado. **Este mapa não é smoke HTTP autenticado de produção nem afirma falha observada em uma tela.** Testes HTTP usam identidades sintéticas e SQL descartável; dependência de relações antigas é incompatibilidade estrutural, não uma observação visual de produção.
 
 Prefixos: HTTP em `server/gradebook/http/`, aplicação em `server/gradebook/application/`, provider em `server/gradebook/persistence/postgres/`; runtime antigo em `server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts`.
 
@@ -10,7 +10,7 @@ Prefixos: HTTP em `server/gradebook/http/`, aplicação em `server/gradebook/app
 | --- | --- | --- |
 | Importação — POST `/api/gradebook/import-persistence` | Function → provider → serviço V11 → catálogos/vínculos/instrumentos/notas/fechamentos/históricos | homologado #613; #636 removeu limpeza paralela de diagnósticos; V9/V10/V11 preservados |
 | Auditoria de arquivos — GET/POST `/api/gradebook/import-diagnostics` | Function → provider → `replaceGradebookImportDiagnosticsSnapshotV1` / consulta paginada | retenção #629; substituição transacional #636 integrada/publicada, ainda sem smoke autenticado desta sessão |
-| Contexto/pesquisa/Centrais — POST `/api/gradebook/operational-workspace`, V2 | shell → página/hook/client V2 → handler → `createRelationalWorkspaceV2` → `ano_letivo`, `aluno`, `vinculo`, `turma`, `professor`, `disciplina`, `oferta` | contrato #639, PR #640 na branch: consulta read-only, contexto consistente por requisição e páginas; falta integração/publicação/aceite |
+| Contexto/pesquisa/Centrais — POST `/api/gradebook/operational-workspace`, V2 | shell → página/hook/client V2 → handler → `createRelationalWorkspaceV2` → `ano_letivo`, `aluno`, `vinculo`, `turma`, `professor`, `disciplina`, `oferta` | contrato #639, PR #640 integrada e deploy 255 aprovado; consulta read-only, contexto consistente por requisição e páginas; aceite autenticado/visual pendente |
 | Operações e consumidores V1 no mesmo endpoint | dispatch V1 → runtime antigo → entidades/anos versionados e manutenção docente | preservados, sem converter automaticamente IDs; manutenção docente não é montada pela nova central V2; gestão de anos/escritas aguardam bloco próprio |
 | Auditoria antiga — POST `/api/gradebook/audit-workspace` | handler → workspaces de auditoria/correção → importações/records antigos | não equivale à Auditoria atual de arquivos; decidir o necessário e adaptar/arquivar com teste |
 | Desempenho — POST `/api/gradebook/performance` | handler → runtime → fonte D1 V1 → read model | #633/#634: fonte/contrato relacional e comparabilidade; Centrais V2 não fornecem notas/resultados |
@@ -35,6 +35,6 @@ Votação, desempate, fechamento e snapshots não estão completos no schema; pr
 
 ## Próximo bloco
 
-Validar e integrar #640 quando autorizado → migrar consumidores acadêmicos de resultados/Desempenho, manutenção/gestão de anos pelos contratos pertinentes → Boletins/Relatórios/durabilidade → Conselho → dependências mortas e piloto integral. Não reabrir migração física nem criar base paralela.
+Migrar consumidores acadêmicos de resultados/Desempenho, manutenção/gestão de anos pelos contratos pertinentes → Boletins/Relatórios/durabilidade → Conselho → dependências mortas e piloto integral. Não reabrir migração física nem criar base paralela. A integração/publicação de entregas concluídas está autorizada continuamente pela BN-DEC-023, mantendo os gates.
 
-Referências: [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [CURRENT_SCHEMA_AND_DIAGNOSTICS.md](CURRENT_SCHEMA_AND_DIAGNOSTICS.md). #640 não muda dados/schema, regras, credenciais, flags ou autoridade produtiva; a nova interface só entra em produção por integração/publicação autorizadas.
+Referências: [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [CURRENT_SCHEMA_AND_DIAGNOSTICS.md](CURRENT_SCHEMA_AND_DIAGNOSTICS.md), [remediação #637](SECURITY_REMEDIATION_637.md). #640 publicou a nova interface de consulta sem alterar dados/schema, regras, credenciais, flags ou autoridade acadêmica; publicação e homologação continuam distintas.
