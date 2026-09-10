@@ -35,13 +35,22 @@ storage:
   core_table_count: 19
   diagnostic_table_count: 1
   total_table_count: 20
+  column_count: 127
+  structural_constraint_count: 123
+  index_count: 38
+  foreign_key_count: 34
+  function_count: 4
+  distinct_trigger_count: 3
+  information_schema_trigger_event_rows: 6
   legacy_streams_versions_are_current_schema: false
   import_transport: canonical-v9
   import_service: relational-v11-over-v10
   academic_no_changes_policy: zero-academic-dml-and-zero-new-history
   diagnostic_retention: current-evidence-only-replaced-on-next-source-observation
   historical_academic_retention: preserved-real-deltas
-  recovery_baseline_in_git: pending-complete-reconstruction-and-drift-test
+  recovery_baseline_in_git: reconstructed-and-replay-tested-in-pr-636-not-yet-merged
+  recovery_baseline_path: migrations/gradebook-simplified/
+  production_data_restore_proven_by_this_pr: false
   legacy_d1_role: preserved-historical-resource-not-backup-of-new-relational-writes
 
 runtime:
@@ -53,6 +62,8 @@ runtime:
   production_flags_last_verified_this_pr: false
   provider_facade_uses_gradebook_d1_interface: true
   import_and_diagnostics: relational-integrated-and-homologated
+  diagnostic_atomic_replacement: implemented-and-tested-in-pr-636-not-yet-deployed
+  diagnostic_ordering: last-server-confirmed-observation-not-client-chronology
   other_consumers: legacy-schema-dependencies-pending-reanchoring
   global_academic_authority_switch_verified: false
   authority_acceptance_issue: 347
@@ -65,11 +76,13 @@ work_in_progress:
   phase: FINAL-1
   branch: feat/bn-final-1-runtime-relacional
   pull_request: 636
-  scope: canonical-documents-consumer-map-and-bounded-relational-projection
+  scope: documentation-batched-projections-reproducible-schema-and-atomic-current-diagnostics
+  verified_code_commit: 60496ebb12a4acd8eebd5af148e93ef6753d4199
+  verified_code_ci_run: 34465975585
   production_activation_in_this_delivery: false
   phase_complete: false
   remaining:
-    - current-schema-baseline-and-recovery
+    - production-data-backup-restore-and-real-multi-session-contention-pilot
     - relational-consumer-contracts-and-http-wiring
     - compact-class-read-models-and-consistent-context-snapshot
     - legacy-removal-after-dependency-proof
@@ -97,6 +110,7 @@ institutional_delivery:
   issue: 596
   authority_acceptance_issue: 347
   observability_issue: 220
+  dependency_security_issue: 637
   status: pending-pilot-acceptance-and-proven-recovery
 
 history:
@@ -116,8 +130,11 @@ security:
   authorization_context: server-only
   concurrency_and_atomicity: required
   recovery: must-be-proven-not-inferred-from-migration-presence
+  npm_audit_baseline: six-dev-entries-two-dependency-chains
+  npm_audit_omit_dev_baseline: zero-reported-entries-not-proof-of-zero-risk
+  dependency_remediation: pending-issue-637
 
 next_safe_action:
   issue: 633
   pull_request: 636
-  description: verify-and-review-first-delivery-without-merge-or-activation
+  description: review-validated-block-before-authorized-integration-then-contract-and-wire-relational-consumers

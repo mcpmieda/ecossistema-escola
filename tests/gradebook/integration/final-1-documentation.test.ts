@@ -34,7 +34,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
   it('has a concrete four-phase queue and separate acceptance and delivery gates', () => {
     expect(section('coordination')).toContain('executable_issue: 633');
     expect(section('final_phases').match(/phase: FINAL-/gu)).toHaveLength(4);
-    for (const issue of [633, 634, 635, 406]) expect(section('final_phases')).toContain(`issue: ${issue}`);
+    for (const issue of [633,634,635,406]) expect(section('final_phases')).toContain(`issue: ${issue}`);
     expect(section('institutional_delivery')).toContain('issue: 596');
     expect(section('institutional_delivery')).toContain('authority_acceptance_issue: 347');
     expect(section('next_safe_action')).toContain('pull_request: 636');
@@ -49,46 +49,59 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
 
   it('preserves the original historical blobs byte for byte', () => {
     const originals = {
-      'PROJECT_STATE.yaml': '4dc15e432c723c47f7aa256a060aaa0a0b40c74b',
-      'COMECE_AQUI.md': '4068f05bb7cb9a4926f99896f83341d44d2ed5c9',
-      'PRODUCTION_READINESS.md': '67a6065b3b009d2c34d0ad02d0945dc5fabed4d8',
-      'DECISIONS.md': '32c4b5126563c72593a0f368d80431332bda642d',
+      'PROJECT_STATE.yaml':'4dc15e432c723c47f7aa256a060aaa0a0b40c74b',
+      'COMECE_AQUI.md':'4068f05bb7cb9a4926f99896f83341d44d2ed5c9',
+      'PRODUCTION_READINESS.md':'67a6065b3b009d2c34d0ad02d0945dc5fabed4d8',
+      'DECISIONS.md':'32c4b5126563c72593a0f368d80431332bda642d',
     };
-    for (const [path, expected] of Object.entries(originals)) {
-      const bytes = readFileSync(join(root, history, path));
+    for (const [path,expected] of Object.entries(originals)) {
+      const bytes = readFileSync(join(root,history,path));
       const digest = createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
-      expect(digest, path).toBe(expected);
+      expect(digest,path).toBe(expected);
     }
   });
 
   it('maps all exposed consumers and does not conflate file diagnostics with legacy audit', () => {
     const map = source(`${base}CONSUMER_MAP.md`);
-    for (const endpoint of ['import-persistence', 'import-diagnostics', 'operational-workspace', 'audit-workspace', 'performance', 'bulletins', 'reports', 'council-workspace']) expect(map).toContain(`/api/gradebook/${endpoint}`);
+    for (const endpoint of ['import-persistence','import-diagnostics','operational-workspace','audit-workspace','performance','bulletins','reports','council-workspace']) expect(map).toContain(`/api/gradebook/${endpoint}`);
     expect(map).toContain('handleGradebookD1AdminRequestV1');
     expect(map).toContain('não é smoke HTTP autenticado');
     expect(map).toContain('não equivale à Auditoria atual de arquivos');
     expect(map).toContain('não é ainda uma matriz de turma');
   });
 
-  it('documents actual limits instead of claiming recovery, authority or full snapshot guarantees', () => {
+  it('documents remaining limits without erasing the atomicity and schema work already tested', () => {
     const readiness = source(`${base}PRODUCTION_READINESS.md`);
     expect(readiness).toContain('Uma migration existente não comprova restore');
     expect(readiness).toContain('contexto e ofertas separadamente');
-    expect(readiness).toContain('DELETE/INSERT separados');
+    expect(readiness).toContain('substituição transacional');
+    expect(readiness).toContain('última confirmada no servidor');
     const contracts = source(`${base}CONTRACTS.md`);
     expect(contracts).toContain('Conselho — única parte preservada do documento antigo');
     expect(contracts).toContain('não modifica contratos compartilhados');
     expect(contracts).toContain('O teste sintético de projeção não é teste de reconstrução');
   });
 
+  it('distinguishes tested branch capabilities from production restore and vulnerability remediation', () => {
+    expect(section('storage')).toContain('distinct_trigger_count: 3');
+    expect(section('storage')).toContain('information_schema_trigger_event_rows: 6');
+    expect(section('storage')).toContain('production_data_restore_proven_by_this_pr: false');
+    expect(section('runtime')).toContain('diagnostic_atomic_replacement: implemented-and-tested-in-pr-636-not-yet-deployed');
+    expect(section('security')).toContain('dependency_remediation: pending-issue-637');
+    expect(existsSync(join(root,'migrations/gradebook-simplified/0001_current_schema.sql'))).toBe(true);
+    const inspect = source('migrations/gradebook-simplified/inspect_current_schema.sql');
+    expect(inspect).toContain('a.attnotnull::text');
+    expect(inspect).toContain("WHERE c.contype <> 'n'");
+  });
+
   it('keeps the new canonical local documentation links resolvable', () => {
-    const pages = ['README.md', 'COMECE_AQUI.md', 'DECISIONS.md', 'ARCHITECTURE.md', 'ACADEMIC_CONTEXT.md', 'CONTRACTS.md', 'ROADMAP.md', 'ISSUE_MAP.md', 'PRODUCTION_READINESS.md', 'CONSUMER_MAP.md'];
+    const pages = ['README.md','COMECE_AQUI.md','DECISIONS.md','ARCHITECTURE.md','ACADEMIC_CONTEXT.md','CONTRACTS.md','ROADMAP.md','ISSUE_MAP.md','PRODUCTION_READINESS.md','CONSUMER_MAP.md','CURRENT_SCHEMA_AND_DIAGNOSTICS.md'];
     for (const page of pages) {
-      const fullPath = join(root, base, page);
+      const fullPath = join(root,base,page);
       for (const match of source(`${base}${page}`).matchAll(/\]\(([^)#]+)(?:#[^)]*)?\)/gu)) {
         const target = match[1]!;
         if (/^(?:https?:|mailto:)/u.test(target)) continue;
-        expect(existsSync(resolve(dirname(fullPath), target)), `${page} → ${target}`).toBe(true);
+        expect(existsSync(resolve(dirname(fullPath),target)),`${page} → ${target}`).toBe(true);
       }
     }
   });
