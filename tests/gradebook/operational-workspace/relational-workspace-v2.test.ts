@@ -21,6 +21,11 @@ async function execute(client: Pick<PGlite,'query'>, sql: string, values: readon
   queries.push(sql); args.push(values);
   if (failRead && sql.startsWith('SELECT')) throw new Error('synthetic-private-database-failure');
   const result = await client.query<Row>(sql,[...values]);
+  if (sql.startsWith('SET TRANSACTION')) {
+    // Inspect the actual transaction, rather than only matching SQL source text.
+    const settings = await client.query("SELECT current_setting('transaction_read_only') AS readonly, current_setting('transaction_isolation') AS isolation");
+    expect(settings.rows).toEqual([{readonly:'on',isolation:'repeatable read'}]);
+  }
   return Object.assign(result.rows,{count:result.affectedRows ?? result.rows.length});
 }
 beforeAll(async () => {
@@ -56,8 +61,8 @@ beforeAll(async () => {
 afterAll(async () => { await database?.close(); });
 beforeEach(() => { transactions=0;queries.length=0;args.length=0;failRead=false; });
 const service = () => createRelationalWorkspaceV2(database);
-const search = (extra: Partial<Extract<OperationalWorkspaceRequestV2,{operation:'search'}>> = {}): OperationalWorkspaceRequestV2 => ({contractVersion:2,operation:'search',year:2090,kind:'all',query:'',offset:0,limit:50,...extra});
-const center = (kind: 'student'|'class-group'|'teacher'|'subject', id: number, offset=0): OperationalWorkspaceRequestV2 => ({contractVersion:2,operation:'center',year:2090,kind,id,offset,limit:200});
+const search = (extra: Partial<Extract<OperationalWorkspaceRequestV2,{operation:'search'}>> = {}): Extract<OperationalWorkspaceRequestV2,{operation:'search'}> => ({contractVersion:2,operation:'search',year:2090,kind:'all',query:'',offset:0,limit:50,...extra});
+const center = (kind: 'student'|'class-group'|'teacher'|'subject', id: number, offset=0): Extract<OperationalWorkspaceRequestV2,{operation:'center'}> => ({contractVersion:2,operation:'center',year:2090,kind,id,offset,limit:200});
 
 async function http(body: unknown, role: 'ADMINISTRADOR'|'PROFESSOR'|null='ADMINISTRADOR', overrides: Partial<RuntimeEnv>={}, origin=testEnv.OFFICIAL_ORIGIN) {
   const headers = new Headers({Origin:origin,'Content-Type':'application/json'});
