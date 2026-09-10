@@ -1,3 +1,4 @@
+import { normalizeTemplateDescriptionsV1 } from '../../../../shared/gradebook-contracts/source/qualitative-slot-evidence-v1';
 import type {
   GradebookImportPersistenceRequestV9,
   GradebookImportPersistenceResponseV9,
@@ -23,7 +24,7 @@ export function createGradebookRelationalImportServiceV11(database: D1WriteDatab
     execute(
       request: GradebookImportPersistenceRequestV9,
     ): Promise<GradebookImportPersistenceResponseV9> {
-      return service.execute(request);
+      return service.execute(normalizeTemplateDescriptionsV1(request));
     },
   };
 }

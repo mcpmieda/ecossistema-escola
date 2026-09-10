@@ -24,14 +24,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Export committed source
-        run: git archive --format=tar.gz HEAD -o /tmp/bn646-source.tar.gz
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: bn646-source
-          path: /tmp/bn646-source.tar.gz
-          retention-days: 1
-
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
