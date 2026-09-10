@@ -1,66 +1,34 @@
-# Comece aqui — mapa curto para agentes
+# Comece aqui — execução final
 
-## Regra principal
+## Próxima tarefa segura
 
-**Agente de implementação só começa em issue marcada `[PRONTA]`.** Issues-pai servem de acompanhamento; issues `[BLOQUEADA]` não devem ser iniciadas antes das dependências declaradas.
+**#633 / FINAL-1**, branch `feat/bn-final-1-runtime-relacional`, PR #636. A issue autoriza execução e integração documental; não autoriza merge, publicação, DDL produtivo ou troca de autoridade.
 
-## Estado atual — Etapa 3/5
+Concluir/revisar a primeira entrega: documentos coerentes, mapa de consumidores e projeção em lote sobre o mesmo motor, com testes. Depois adaptar consumidores por contratos explícitos. Não declarar FINAL-1 encerrada por esse primeiro PR.
 
-A implantação institucional está na **Etapa 3/5**. O produto já possui os módulos funcionais principais; o trabalho corrente é migrar o storage oficial para PostgreSQL via Hyperdrive e depois concluir o piloto integral.
+## Ordem das fases
 
-`authorityMode: imported-source` permanece obrigatório durante toda esta etapa.
+| Ordem | Issue | Branch | Condição |
+| --- | --- | --- | --- |
+| 1 | #633 | `feat/bn-final-1-runtime-relacional` | em execução |
+| 2 | #634 | `feat/bn-final-2-desempenho` | após fonte/contrato relacional compartilhado |
+| 3 | #635 | `feat/bn-final-3-conselho` | após base relacional e contrato das lacunas de Conselho |
+| 4 | #406 | `test/bn-final-4-piloto-integral` | após jornadas funcionais integradas |
 
-## Fila executável
+Branches posteriores são reservas de trabalho e devem incorporar a `main` validada antes de execução. Não promover alterações parciais por merges cegos entre fases. #347 registra aceite por consumidor/escopo; #596 fecha a entrega.
 
-| Ordem | Issue | Estado                  | Trabalho                                             |
-| ----: | ----: | ----------------------- | ---------------------------------------------------- |
-|     1 |  #592 | concluída               | adapters PostgreSQL + dual verification              |
-|     2 |  #594 | concluída               | backfill privado D1 → PostgreSQL + paridade integral |
-|     3 |  #595 | concluída               | cutover PostgreSQL + janela de rollback D1           |
-|     4 |  #406 | **PRONTA**              | piloto integral da escola inteira no storage oficial |
-|     5 |  #347 | **Etapa 4/5 bloqueada** | autoridade `native-engine` por escopo                |
-|     6 |  #596 | **Etapa 5/5 bloqueada** | entrega institucional final                          |
+## O que não refazer
 
-A próxima issue executável é **#406**. Não iniciar #347 ou #596 por antecipação.
+A #613 concluiu a reconstrução e o cutover de persistência. Não reiniciar #592/#594/#595, não devolver PostgreSQL a shadow, não reativar V8 nem limpar a massa atual nesta tarefa. Os importadores arquivados ficam em `Aprendizados/IMPORTADORES-LEGADOS/`.
 
-## Storage
+## O que falta de fato
 
-- BN-DEC-021 substituiu BN-DEC-016 quanto ao storage físico principal futuro;
-- PostgreSQL/Supabase via Hyperdrive `PROD_DB` é o storage oficial;
-- schema produtivo `gradebook` já foi aplicado sem dados reais;
-- D1 está preservado sem dual write como rollback durante a janela explícita;
-- o histórico técnico D1 está preservado em `../../Aprendizados/`.
+O [mapa](CONSUMER_MAP.md) identifica as dependências antigas ainda ativas, seus contratos e os próximos blocos. Código com nome D1 pode estar conectado a PostgreSQL; o problema deve ser comprovado pela composição/SQL. Snapshot de Boletim, sessão de Conselho e contexto antigo não reaparecem por trocar o provider.
 
-## Piloto integral
+Antes de mudanças compartilhadas, abrir issue de contrato própria. Do documento antigo usar só Conselho; Desempenho segue seu documento específico.
 
-A #406 não foi descartada. Ela foi **pausada pela migração de storage** para que o corpus integral seja validado uma única vez no storage definitivo. Após #595, a #406 volta a ser o gate final da Etapa 3/5.
+## Gates
 
-No piloto final devem permanecer válidos: importação 18/18 privada, idempotência, CAS/rollback, histórico, Auditoria, reconciliação, Desempenho, Boletins/snapshots/reprint, Relatórios, Conselho/restart e recovery, sem exposição de dados reais.
+`npm run verify` no SHA final, CI, revisão e integração/publicação quando autorizadas. Sem dados reais públicos. Não afirmar restore por existir uma migration, nem afirmar todas as telas homologadas pela reimportação idêntica.
 
-## Autoridade acadêmica
-
-#347 permanece bloqueada até #406 concluir. Storage físico e autoridade acadêmica são decisões independentes. A migração para PostgreSQL **não** ativa `native-engine`.
-
-## Readiness histórico
-
-- V1: memória histórica de preparação `prepared-for-manual-authorization`; não foi enfraquecido.
-- V2 histórico: `production-infrastructure-smoke-validated-awaiting-private-pilot`.
-- Esses estados descrevem a preparação D1 anterior; a trilha executável atual é #592 → #594 → #595 → #406.
-
-### Onda 24 — pré-piloto até schema 5
-
-Esta seção é mantida como referência histórica de compatibilidade: a antiga onda 24 concluiu schema D1 5/27 e smoke/recovery do Conselho antes do piloto. A decisão posterior BN-DEC-021 mudou somente a tecnologia de storage alvo, preservando os contratos e aprendizados construídos nessa fase.
-
-## Fluxo
-
-```text
-issue [PRONTA]
-  → branch curta
-  → um PR
-  → npm run verify
-  → CI
-  → merge/deploy quando autorizado
-  → evidência sanitizada
-```
-
-Não usar App Factory, Factory Runs, subagentes ou orquestração salvo autorização explícita. Nunca publicar dados acadêmicos reais, secrets, connection strings, payloads, hashes privados ou screenshots acadêmicos.
+Os estados V1/V2 e a antiga onda 24 estão em [memória histórica](history/pre-final-1/README.md); não são a fila atual.

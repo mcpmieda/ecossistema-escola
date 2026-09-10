@@ -1,96 +1,34 @@
-# Mapa de issues — Banco de Notas
+# Mapa de issues — programa final
 
-Estado legível por máquina: [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml). Fila curta: [`COMECE_AQUI.md`](COMECE_AQUI.md).
+Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 
-## Visão geral atual
+| Papel | Issue | Situação de execução |
+| --- | --- | --- |
+| Programa | #182 | acompanhamento das quatro fases |
+| FINAL-1 | #633 | execução; PR #636 é entrega parcial |
+| FINAL-2 | #634 | planejada; depende de base/contratos relacionais |
+| FINAL-3 | #635 | planejada; depende de base e conciliação de Conselho |
+| FINAL-4 | #406 | piloto integral após adaptações funcionais |
+| Aceite acadêmico | #347 | gate por consumidor/escopo, sem ativação automática |
+| Entrega institucional | #596 | após fases, piloto, aceite e recuperação |
+| Observabilidade global | #220 | planejada; não é banco paralelo nem gate por existência |
 
-- **Programa:** #182
-- **Coordenação da consolidação:** #593
-- **Etapa atual de implantação:** 3/5
-- **Storage oficial atual:** PostgreSQL/Supabase via Hyperdrive `PROD_DB`
-- **Rollback preservado:** D1 sem dual write, conforme BN-DEC-021 e runbook do cutover
-- **Autoridade acadêmica ativa:** `imported-source`
-- **Autoridade-alvo futura:** `native-engine` por escopo, somente pela #347
-- **Entrega institucional final:** #596
+## Trilhas preservadas, não reexecutadas
 
-## Issues abertas que devem guiar o restante da implantação
+- #613: reconstrução/cutover simplificado concluídos; seus comentários finais prevalecem sobre o estado inicial do corpo.
+- #625/#627/#629: diagnóstico humano, correção de indisponíveis e retenção apenas de problemas atuais.
+- #631/#632: arquivamento seletivo dos importadores exclusivos.
+- #592/#594/#595 e coordenação #593: história da migração física anterior.
+- #185/#192: filas substituídas por #633/#406/#596; seu encerramento administrativo não declara o produto integral concluído.
 
-| Papel           | Issue | Estado      | Próximo gate                         |
-| --------------- | ----: | ----------- | ------------------------------------ |
-| Programa        |  #182 | aberta      | acompanhar 3/5 → 5/5                 |
-| Persistência    |  #185 | aberta      | fechar após #595                     |
-| F9/implantação  |  #192 | aberta      | fechar na entrega #596               |
-| Saúde/limites   |  #220 | planejada   | pós-cutover / #596                   |
-| Etapa 4/5       |  #347 | bloqueada   | depende da Etapa 3/5                 |
-| Piloto integral |  #406 | **PRONTA**  | executar no PostgreSQL oficial       |
-| Migração 1      |  #592 | concluída   | adapters + dual verification         |
-| Coordenação     |  #593 | em execução | fecha após docs/backlog consolidados |
-| Migração 2      |  #594 | concluída   | backfill e paridade verdes           |
-| Migração 3      |  #595 | concluída   | PostgreSQL oficial, D1 em rollback   |
-| Etapa 5/5       |  #596 | bloqueada   | depende de #347                      |
+As dependências são de entregas aceitas, não apenas da existência de branches. A matriz de cada issue deve separar realizado, pendente, bloqueado e não aplicável.
 
-Nenhuma outra issue histórica D1/performance/benchmark deve permanecer aberta apenas como memória. O histórico continua no GitHub e o conhecimento reutilizável está em `../../Aprendizados/`.
+## Branches reservadas
 
-## Etapa 3/5 — storage + piloto
+`feat/bn-final-1-runtime-relacional`, `feat/bn-final-2-desempenho`, `feat/bn-final-3-conselho`, `test/bn-final-4-piloto-integral`.
 
-```text
-#592
-  adapters PostgreSQL + dual verification
-    ↓
-#594
-  backfill privado D1 → PostgreSQL + paridade
-    ↓
-#595
-  cutover PostgreSQL + rollback D1
-    ↓
-#406
-  piloto integral da escola inteira no storage oficial
-```
+Somente a primeira está em execução nesta entrega. Atualizar as seguintes com a `main` validada antes de trabalhar; branches históricas não devem ser mergeadas só por estarem abertas/existirem.
 
-A Etapa 3/5 termina somente quando #595 e #406 estiverem concluídas, com recuperação/rollback comprovados e `authorityMode: imported-source` preservado.
+## Contratos e evidência
 
-## Etapa 4/5 — autoridade acadêmica
-
-`#347` só pode começar depois da #406. A ativação deve ser progressiva por escopo, temporal, versionada, reversível e não retroativa por padrão, conforme BN-DEC-019/020.
-
-Storage e autoridade acadêmica são independentes: PostgreSQL ser oficial não significa `native-engine` ativo.
-
-## Etapa 5/5 — entrega
-
-`#596` encerra a implantação institucional. Gates mínimos:
-
-- storage PostgreSQL estável;
-- piloto integral aprovado;
-- autoridade por escopo concluída conforme #347;
-- backup/restore e rollback finalizados deliberadamente;
-- observabilidade e runbook operacional;
-- backlog de implantação limpo;
-- documentação canônica final.
-
-## Fases funcionais
-
-| Fase                   | Issue | Estado atual                            |
-| ---------------------- | ----: | --------------------------------------- |
-| F0 Fundação            |  #183 | concluída                               |
-| F1 Fonte/importação    |  #184 | concluída; V8 integrado                 |
-| F2 Persistência        |  #185 | funcional; migração física em andamento |
-| F3 Motor               |  #186 | V1 comparativo concluído                |
-| F4 Auditoria           |  #187 | concluída                               |
-| F5 Centrais            |  #188 | concluída                               |
-| F6 Desempenho          |  #189 | concluída funcionalmente                |
-| F7 Conselho            |  #190 | concluída/fechada                       |
-| F8 Boletins/Relatórios |  #191 | concluída/fechada                       |
-| F9 Implantação         |  #192 | Etapa 3/5 em andamento                  |
-
-## Histórico preservado
-
-As ondas 20–24 e a infraestrutura D1 continuam como evidência histórica. O estado histórico `production-infrastructure-smoke-validated-awaiting-private-pilot` permanece válido como registro da preparação D1 anterior, mas não é mais a fila executável atual após BN-DEC-021.
-
-## Regra de execução
-
-1. iniciar apenas issue `[PRONTA]`;
-2. uma issue, uma branch curta, um PR;
-3. executar `npm run verify`;
-4. integrar/publicar somente quando a issue autorizar e CI estiver verde;
-5. não avançar dependências bloqueadas;
-6. nunca publicar dados reais, payloads, hashes privados, connection strings ou credenciais.
+Mudança em `shared/` exige issue `[BN][CONTRATO]` própria. Os conflitos de Conselho estão registrados na #635; pendências de consumidores em #633. Dados reais não entram em issues/PRs/CI. Fechamento por substituição sempre indica onde a obrigação continua.

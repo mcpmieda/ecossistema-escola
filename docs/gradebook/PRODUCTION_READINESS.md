@@ -1,135 +1,42 @@
-# Readiness F9 — implantação controlada até a entrega
+# Readiness — produto relacional e entrega institucional
 
-## Estado
+## Evidência já aceita versus restante
 
-A implantação está na **Etapa 3/5**. Este documento mantém a memória histórica do readiness D1 e define os gates atuais para migração PostgreSQL, piloto integral, autoridade nativa e entrega institucional.
+#613 homologou a reconstrução e persistência relacional, incluindo idempotência do corpus. #629 homologou retenção somente de diagnósticos atuais. #632 arquivou importadores exclusivos. Essas evidências não comprovam automaticamente todos os painéis, emissão/reimpressão, votação, restore ou ativação acadêmica por consumidor.
 
-`authorityMode: imported-source` permanece obrigatório durante toda a Etapa 3/5.
+A PR #636 é preparatória: documentação e lote de projeção, sem endpoint/autoridade/infraestrutura produtiva alterados. `npm run verify` e testes PGlite são gates de código; não são acesso HTTP autenticado, benchmark de Hyperdrive nem recuperação real de produção.
 
-## Readiness histórico preservado
+## Gates finais
 
-### V1 histórico
+| Gate | Responsável | Evidência exigida |
+| --- | --- | --- |
+| Verdade de schema/runtime | #633 | baseline reproduzível e drift; dependências por endpoint; fontes relacionais reais |
+| Desempenho | #634 | contrato funcional, população, comparabilidade, UI e medidas reproduzíveis |
+| Conselho | #635 | contrato de lacunas, decisão humana, concorrência, voto/fechamento e durabilidade |
+| Produto integral | #406 | todas as jornadas, restart/falhas, segurança, histórico e recuperação |
+| Aceite acadêmico | #347 | consumidor/escopo, versão/vigência, divergências reconciliadas e efeito nas emissões |
+| Entrega institucional | #596 | operação/runbook, responsáveis, recuperação e aceite final |
 
-`server/gradebook/readiness/production-readiness-v1.ts` continua sendo a memória da preparação anterior. Seu resultado máximo permanece `prepared-for-manual-authorization`.
+## Recuperação não pode ser presumida
 
-### V2 histórico
+Uma migration existente não comprova restore. Recuperar a definição completa de tabelas, FKs, índices, funções, triggers, privilégios e ajustes posteriores; reconstruir em ambiente descartável e comparar com o catálogo antes de publicar como baseline utilizável. Não executar DDL da arquitetura antiga sobre o banco reconstruído.
 
-`server/gradebook/readiness/controlled-production-readiness-v2.ts` continua registrando a preparação D1 pós-smokes. O estado histórico é:
+D1 preservado é memória/contingência do período anterior, não cópia das novas escritas relacionais. Sua retirada ou uso como rollback exige plano explícito sobre perda temporal e compatibilidade. Nenhuma exclusão de banco/recurso é autorizada por este documento.
 
-`production-infrastructure-smoke-validated-awaiting-private-pilot`
+## Autorização, isolamento e atomicidade
 
-Esse estado não é apagado nem reinterpretado. Ele comprova a preparação anterior, mas a decisão BN-DEC-021 alterou o storage físico alvo antes do encerramento do piloto integral.
+Verificar por handler auth/capability, origem, limites, respostas opacas, `no-store`, isolamento de ano/usuário e descarte de respostas antigas. Não inferir flags ON/OFF pela documentação. O wrapper pode preparar conexão antes da autorização interna; os serviços não são fronteira de autorização por si só.
 
-## Decisão de storage vigente
+O lote de fatos tem snapshot de uma instrução. A projeção anual completa ainda lê contexto e ofertas separadamente; sua consistência sob mudança concorrente precisa de gate explícito antes de emissão/decisão. A substituição de diagnósticos atualmente usa DELETE/INSERT separados; testar falha entre etapas e concorrência e fechar atomicidade antes de dar garantia mais ampla que a homologação normal da #629. Isso não muda a retenção desejada nem a regra acadêmica.
 
-BN-DEC-021 substituiu BN-DEC-016 quanto ao armazenamento físico principal futuro:
+Sem RLS não implica, isoladamente, acesso público; confirmar exposição de schema e ACLs de `anon`/`authenticated` e privilégio da role de aplicação. A inspeção somente leitura da retomada encontrou ausência de USAGE e zero privilégios de tabela nessas duas roles; não houve aplicação automática de RLS/permissões. Revalidar no gate operacional, sem tratar essa leitura como auditoria completa de segurança.
 
-- PostgreSQL/Supabase via Hyperdrive `PROD_DB` é o storage oficial após #595;
-- D1 permanece preservado sem dual write para o rollback controlado;
-- D1 será preservado como rollback read-only por janela definida após o cutover;
-- mudança de storage não muda autoridade acadêmica.
+## Hard stops
 
-O schema PostgreSQL produtivo `gradebook` já foi aplicado sem dados reais. A migração real permanece bloqueada pelos gates abaixo.
+Parar o escopo afetado em caso de escrita parcial, perda de histórico, divergência acadêmica material não reconciliada, fonte/autoridade ambígua, schema inesperado, recuperação não comprovada ou exposição de dado real. Nunca corrigir silenciosamente a planilha nem converter ausência em zero para liberar a jornada.
 
-## Etapa 3/5 — gates obrigatórios
+## Memória histórica
 
-### Gate 1 — #592 / adapters e dual verification
+V1 `prepared-for-manual-authorization` e V2 `production-infrastructure-smoke-validated-awaiting-private-pilot` permanecem em [documento histórico](history/pre-final-1/PRODUCTION_READINESS.md) e nos manifestos existentes. Seus testes não constituem prova da configuração atual nem devem congelar a documentação em produção OFF.
 
-Antes de qualquer backfill real:
-
-- adapters PostgreSQL equivalentes às portas oficiais;
-- CAS, idempotência, transação, staging, snapshots, Conselho e Auditoria cobertos;
-- dual verification D1 × PostgreSQL sanitizada;
-- nenhuma credencial ou dado real público;
-- D1 continua oficial.
-
-### Gate 2 — #594 / backfill privado e paridade
-
-Antes de qualquer cutover:
-
-- migração integral D1 → PostgreSQL executada privadamente;
-- contagens, versões, relações e hashes técnicos equivalentes;
-- reexecução idempotente;
-- nenhuma transformação acadêmica/recalculo durante backfill;
-- qualquer divergência material interrompe a transição.
-
-### Gate 3 — #595 / cutover e rollback
-
-Antes do primeiro write acadêmico oficial em PostgreSQL:
-
-- paridade #594 verde;
-- role de aplicação de menor privilégio;
-- backup e restore confirmados;
-- Hyperdrive configurado para consistência read-after-write adequada ao Banco;
-- rollback para D1 definido e testável;
-- gate de produção controlado;
-- D1 passa a read-only durante a janela de rollback.
-
-### Gate 4 — #406 / piloto integral final
-
-Somente depois do cutover:
-
-- corpus privado integral exercitado 18/18;
-- persistência/reload;
-- reimportação idêntica `no-changes`/idempotente;
-- mudança mínima versionada;
-- ausência posterior sem delete silencioso;
-- CAS concorrente sem write parcial;
-- Auditoria e reconciliação;
-- Desempenho;
-- Boletins, snapshots e reprint;
-- Relatórios;
-- Conselho/durabilidade/restart;
-- backup/recovery/rollback;
-- mapa sanitizado de escopos elegíveis versus bloqueados.
-
-A Etapa 3/5 só termina quando #595 e #406 estiverem verdes e `authorityMode` continuar `imported-source`.
-
-## Etapa 4/5 — #347
-
-A autoridade `native-engine` permanece separada e bloqueada. Só iniciar após #406, com:
-
-- contrato de autoridade por escopo;
-- divergências materiais reconciliadas;
-- versão/vigência explícitas;
-- histórico não retroativo;
-- rollback confirmado;
-- aceite institucional.
-
-## Etapa 5/5 — #596
-
-A entrega institucional fecha:
-
-- operação estável em PostgreSQL;
-- janela de rollback D1 encerrada deliberadamente;
-- D1 preservado/arquivado conforme runbook;
-- observabilidade/saúde e limites quando aplicável;
-- backup/restore;
-- documentação e `PROJECT_STATE.yaml` finais;
-- backlog de implantação limpo;
-- smoke final do site oficial.
-
-## Hard stops permanentes
-
-Parar antes de novos writes reais se houver:
-
-- schema/binding/storage alvo ambíguo;
-- backup/restore ou rollback indisponível;
-- write parcial ou CAS enfraquecido;
-- divergência material sem reconciliação;
-- exposição de dado real, payload, hash privado ou credencial;
-- necessidade de regra acadêmica não formalizada;
-- tentativa de ativar autoridade antes da #347.
-
-## Segurança e privacidade
-
-- autenticação/autorização server-side obrigatórias;
-- respostas acadêmicas `no-store`;
-- nenhum armazenamento acadêmico persistente no browser;
-- erros e telemetria sanitizados;
-- dados reais somente em ambiente privado autorizado;
-- Git/CI públicos usam somente dados sintéticos.
-
-## Verificação de código
-
-`npm run test:gradebook-readiness` continua preservando V1/V2 históricos. `npm run verify` é obrigatório no SHA final de cada entrega. Evoluções de storage devem adicionar gates sem apagar a evidência histórica anterior.
+Integração/publicação exigem autorização. A evidência final registra commit, execução de CI e teste funcional aplicável sem nomes, notas, arquivos, hashes privados ou credenciais.

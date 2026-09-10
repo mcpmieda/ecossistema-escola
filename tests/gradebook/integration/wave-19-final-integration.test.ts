@@ -8,6 +8,10 @@ function source(path: string): string {
   return readFileSync(join(root, path), 'utf8');
 }
 
+// These assertions preserve the old planning checkpoint, not current production flags.
+const historicalState = 'docs/gradebook/history/pre-final-1/PROJECT_STATE.yaml';
+const historicalContext = 'docs/gradebook/history/pre-final-1/ACADEMIC_CONTEXT.md';
+
 describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
   it('preserva a revisão autoritativa F4 sem criar nova taxonomia ou fluxo acadêmico', () => {
     const closure = source('tests/gradebook/f4-closure/f4-authoritative-closure-v1.test.ts');
@@ -52,7 +56,7 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(physicalSource).not.toContain('tolerance');
   });
 
-  it('preserva bridges e browser storage enquanto reconhece o catálogo corrente', () => {
+  it('preserva bridges e browser storage e registra o catálogo do checkpoint histórico', () => {
     const functions = source('functions/[[path]].ts');
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
     const f5Frontend = [
@@ -61,26 +65,18 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
       'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-panel.tsx',
       'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-client.ts',
       'src/features/gradebook/performance/performance-official-charts.tsx',
-    ]
-      .map(source)
-      .join('\n');
+    ].map(source).join('\n');
 
     expect(functions.match(/\/api\/gradebook\/operational-workspace/g) ?? []).toHaveLength(0);
     expect(shell).toContain("id: 'operational'");
-    expect(f5Frontend).not.toMatch(
-      /localStorage|sessionStorage|indexedDB|caches\.open|serviceWorker/u,
-    );
-    expect(source('docs/gradebook/PROJECT_STATE.yaml')).toContain(
-      '0004_bulletin_council_durability_v1.sql',
-    );
-    expect(source('docs/gradebook/PROJECT_STATE.yaml')).toContain(
-      '0005_council_session_durability_v2.sql',
-    );
+    expect(f5Frontend).not.toMatch(/localStorage|sessionStorage|indexedDB|caches\.open|serviceWorker/u);
+    expect(source(historicalState)).toContain('0004_bulletin_council_durability_v1.sql');
+    expect(source(historicalState)).toContain('0005_council_session_durability_v2.sql');
   });
 
-  it('mantém autoridade imported-source e produção acadêmica fail-closed após a evolução do binding', () => {
-    const projectState = source('docs/gradebook/PROJECT_STATE.yaml');
-    const academicContext = source('docs/gradebook/ACADEMIC_CONTEXT.md');
+  it('preserva as flags históricas sem usá-las como prova da produção atual', () => {
+    const projectState = source(historicalState);
+    const academicContext = source(historicalContext);
     const route = source('server/gradebook/http/operational-workspace-routes-v1.ts');
 
     expect(projectState).toContain('academic_authority_mode: imported-source');
@@ -91,9 +87,9 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(route).toContain('createGradebookD1RuntimeV1(env, authorization)');
   });
 
-  it('não antecipa a transição de autoridade F9/#347', () => {
-    const projectState = source('docs/gradebook/PROJECT_STATE.yaml');
-    const context = source('docs/gradebook/ACADEMIC_CONTEXT.md');
+  it('não reinterpreta o checkpoint de autoridade F9/#347', () => {
+    const projectState = source(historicalState);
+    const context = source(historicalContext);
 
     expect(projectState).toContain('authority_transition_issue: 347');
     expect(projectState).toContain('authority_switch_completed: false');
