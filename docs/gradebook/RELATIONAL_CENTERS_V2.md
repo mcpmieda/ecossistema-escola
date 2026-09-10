@@ -1,6 +1,6 @@
 # Contexto, pesquisa e Centrais relacionais V2
 
-Contrato e escopo: #639, entrega da FINAL-1 #633, PR #640. Base integrada: #636, `4d8256fa6f741f4fb0b6ade8676d0f9193b7a460`; deploy oficial 254 aprovado. O código desta página pertence à branch da #640 até sua integração e publicação autorizadas.
+Contrato e escopo: #639, entrega da FINAL-1 #633, PR #640. Base: #636, `4d8256fa6f741f4fb0b6ade8676d0f9193b7a460`, deploy 254. A #640 foi integrada em `6683d1377f2dd090c1346f693a4af4c2e188d7ae` e publicada no deploy 255 / `34477526551`, com sucesso. CI 550: 172 arquivos, 1.326 testes, lint, tipos e build aprovados. Publicação não significa homologação visual/autenticada.
 
 ## Jornada entregue
 
@@ -38,6 +38,6 @@ A manutenção docente anterior fica preservada em código, mas não é montada 
 
 Os testes usam a baseline integral reconstruída em PGlite, o facade PostgreSQL e sessões sintéticas seladas para o handler HTTP. Verificam ano/identidade, homônimos, movimentos, paginação acima de 200 registros, tipos/limites, ausência de DML, configuração efetiva da transação e respostas 401/403/404/503. Os testes de React/cliente exercitam cancelamento, respostas antigas, perda de sessão, páginas e ação real de abertura do catálogo com HeroUI em jsdom.
 
-Isso não é um teste visual em navegador, medição mobile, contenção PostgreSQL multi-sessão nem homologação autenticada produtiva. A sessão não dispõe de Browser e o container não resolve GitHub/npm para iniciar o app com Playwright; a validação executável ocorre no workflow existente. Registrar resultado final de `npm run verify` e SHA na PR, sem inferir CI verde do texto deste documento.
+Isso não é um teste visual em navegador, medição mobile, contenção PostgreSQL multi-sessão nem homologação autenticada produtiva. A validação executável registrada ocorreu no workflow existente; o ambiente da sessão não permitiu verificar o app autenticado com Playwright. Não inferir aceite institucional de CI ou deploy verdes.
 
-Ainda faltam neste programa: manutenção cadastral/gestão de anos, contexto anual compartilhado por todas as áreas, resultados/Desempenho, Boletins/Relatórios, Conselho e piloto integral. Não modifica regras do motor, schema, dados, dependências npm ou autoridade acadêmica. #637 permanece a remediação de dependências, separada desta entrega.
+Ainda faltam neste programa: manutenção cadastral/gestão de anos, contexto anual compartilhado por todas as áreas, resultados/Desempenho, Boletins/Relatórios, Conselho e piloto integral. A #640 não modificou regras do motor, schema, dados, dependências npm ou autoridade acadêmica. #637/#641 tratam a remediação de dependências separadamente, com [relatório próprio](SECURITY_REMEDIATION_637.md).

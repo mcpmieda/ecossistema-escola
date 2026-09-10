@@ -6,8 +6,8 @@ updated_at: 2026-09-10
 coordination:
   master_issue: 182
   executable_issue: 633
-  current_delivery_issue: 639
-  current_integrator_issue: 639
+  current_delivery_issue: 637
+  current_integrator_issue: 637
   central_state_editor: integrator-only
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
@@ -16,19 +16,23 @@ coordination:
   start_here: docs/gradebook/COMECE_AQUI.md
   branch_model: short-lived-per-delivery
   merge_target: main
-  merge_and_deploy: explicit-authorization-required
+  merge_and_deploy: standing-authorization-after-final-head-verification
+  authorization_decision: BN-DEC-023
+  authorization_comment: 5618750384
   prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
 
 baseline:
-  last_audited_main_commit: 4d8256fa6f741f4fb0b6ade8676d0f9193b7a460
+  last_audited_main_commit: 6683d1377f2dd090c1346f693a4af4c2e188d7ae
+  integrated_centers_pr: 640
   integrated_foundation_pr: 636
   integrated_import_archive_pr: 632
   storage_homologation_issue: 613
   active_diagnostics_homologation_issue: 629
-  authorized_deploy_run: 34468184541
-  authorized_deploy_number: 254
+  authorized_deploy_run: 34477526551
+  authorized_deploy_number: 255
   authorized_deploy_result: success
   authenticated_post_deploy_smoke_this_session: false
+  note: baseline-before-security-delivery-release-checkpoint-in-issue-637
 
 storage:
   decision_current: BN-DEC-022
@@ -69,7 +73,7 @@ runtime:
   import_and_diagnostics: relational-integrated-and-homologated
   diagnostic_atomic_replacement: integrated-pr-636-deploy-254-success-awaiting-authenticated-smoke
   diagnostic_ordering: last-server-confirmed-observation-not-client-chronology
-  relational_centers_v2: implemented-in-pr-640-not-yet-integrated-or-published
+  relational_centers_v2: integrated-pr-640-deploy-255-success-awaiting-authenticated-smoke
   relational_centers_operations: [bootstrap, context, search, center]
   relational_centers_write_operations: none
   relational_centers_snapshot: per-request-read-only-repeatable-read
@@ -81,16 +85,16 @@ runtime:
     note: describes-existing-v1-contracts-not-a-global-runtime-flag
 
 work_in_progress:
-  issue: 639
+  issue: 637
   parent_issue: 633
   phase: FINAL-1
-  branch: feat/bn-final-1-centrais-relacionais
-  pull_request: 640
-  scope: explicit-v2-context-catalog-search-and-four-read-only-centers
+  branch: chore/security-637-remediation
+  pull_request: 641
+  scope: targeted-dependency-remediation-and-standing-release-authorization
   production_activation_in_this_delivery: false
   phase_complete: false
+  release_checkpoint: issue-637-and-pr-641
   remaining:
-    - final-head-verification-review-and-authorized-publication
     - visual-browser-and-authenticated-production-smoke
     - yearly-context-unification-across-all-consumers
     - relational-maintenance-and-academic-year-management
@@ -101,8 +105,8 @@ work_in_progress:
 final_phases:
   - phase: FINAL-1
     issue: 633
-    branch: feat/bn-final-1-centrais-relacionais
-    status: in-progress-delivery-639
+    branch: null
+    status: foundation-and-read-only-centers-integrated-academic-consumers-pending
   - phase: FINAL-2
     issue: 634
     branch: feat/bn-final-2-desempenho
@@ -142,10 +146,15 @@ security:
   recovery: must-be-proven-not-inferred-from-migration-presence
   npm_audit_baseline: six-dev-entries-two-dependency-chains
   npm_audit_omit_dev_baseline: zero-reported-entries-not-proof-of-zero-risk
-  dependency_remediation: pending-issue-637
+  dependency_remediation: source-corrected-and-audited-release-checkpoint-issue-637
+  npm_audit_full_after: 0
+  npm_audit_omit_dev_after: 0
+  npm_audit_date: 2026-09-10
+  npm_audit_run: 34478370996
+  audited_lock_blob: ad6059ec46be02970b340f97e7cbb585abd79715
+  report: docs/gradebook/SECURITY_REMEDIATION_637.md
 
 next_safe_action:
-  issue: 639
-  parent_issue: 633
-  pull_request: 640
-  description: validate-review-and-authorize-read-only-centers-before-continuing-academic-consumers
+  issue: 633
+  related_issue: 634
+  description: continue-relational-academic-consumers-with-explicit-contracts-and-validated-integration

@@ -47,7 +47,6 @@
     "eslint-plugin-react-refresh": "latest",
     "globals": "latest",
     "jsdom": "latest",
-    "office-addin-manifest": "^2.0.3",
     "prettier": "latest",
     "typescript": "latest",
     "typescript-eslint": "latest",
@@ -55,6 +54,8 @@
     "wrangler": "latest"
   },
   "overrides": {
-    "adm-zip": ">=0.6.0"
+    "miniflare": {
+      "sharp": "0.35.4"
+    }
   }
 }

@@ -10,7 +10,7 @@ Este repositório deve permanecer simples, funcional e rastreável. A prioridade
 - Não altere branch protection, rulesets, permissões, secrets, ambientes, aplicações Entra, recursos Cloudflare ou Microsoft 365 sem autorização explícita.
 - Não crie, invoque, utilize, aplique nem delegue trabalho ao App Factory, Factory Runs, merge trains, orquestradores ou agentes auxiliares, salvo autorização explícita na própria issue.
 - Cada issue `[BN]` deve ser executada diretamente pelo agente designado; a issue e a documentação canônica já constituem o fluxo de trabalho.
-- Não execute merge ou publicação por conta própria, salvo quando a issue declarar expressamente essa autoridade.
+- Integre e publique entregas concluídas do escopo aprovado sem pedir nova confirmação por PR: autorização contínua de 10/09/2026, #182 comentário `5618750384`, BN-DEC-023. Antes do merge, revise o diff e confirme `npm run verify`/CI no head final; use SHA esperado e o workflow oficial de deploy. Não contorne checks, conflitos ou bloqueadores e não habilite merge incondicional.
 - Nunca inclua nomes, notas, arquivos ou outros dados reais de estudantes em código, fixtures, issues, commits, logs ou screenshots. O repositório é público.
 - Execute `npm run verify` antes de declarar a entrega pronta. Registre o SHA e o ambiente da execução; CI não é teste manual de produção.
 
@@ -23,7 +23,7 @@ Antes de modificar o Banco, leia nesta ordem:
 1. `AGENTS.md`;
 2. `docs/gradebook/README.md`;
 3. `docs/gradebook/PROJECT_STATE.yaml`;
-4. `docs/gradebook/DECISIONS.md`, incluindo as decisões anteriores vinculadas e a substituição BN-DEC-022;
+4. `docs/gradebook/DECISIONS.md`, incluindo as decisões anteriores vinculadas e as substituições BN-DEC-022/023;
 5. a issue atribuída;
 6. `CONSUMER_MAP.md`, os contratos, o contrato da fonte e a matriz de testes relacionados.
 
@@ -42,11 +42,11 @@ Regras obrigatórias:
 - Cada issue declara caminhos permitidos. Não altere arquivos fora deles sem registrar a necessidade e aguardar ajuste de escopo.
 - Agentes de implementação não editam `PROJECT_STATE.yaml`, salvo quando a issue os nomear como integrador. Distinguir baseline integrada de trabalho na branch e de publicação verificada.
 - Ao concluir, registre na issue: estado, commit, arquivos, contratos alterados, testes, pendências e próxima tarefa segura.
-- Uma entrega independente só é concluída depois de integrada à `main`, publicada pelo workflow oficial e verificada no site quando houver resultado visível.
+- Uma entrega independente só é concluída depois de integrada à `main`, publicada pelo workflow oficial e verificada no site quando houver resultado visível. Limitação de acesso para smoke autenticado/visual deve ser registrada; deploy não equivale a homologação funcional.
 
 ## Precedência de decisões
 
-As decisões cronológicas indexadas em `docs/gradebook/DECISIONS.md` são a autoridade do projeto. A primeira decisão oficial permanece quando não existir substituição expressa. BN-DEC-022 consolida substituições aprovadas na #613/#629 e o programa final, sem apagar BN-DEC-001–021. `history/` e `Aprendizados/` são memória, não autorização operacional atual.
+As decisões cronológicas indexadas em `docs/gradebook/DECISIONS.md` são a autoridade do projeto. A primeira decisão oficial permanece quando não existir substituição expressa. BN-DEC-022 consolida substituições aprovadas na #613/#629 e o programa final, sem apagar BN-DEC-001–021. BN-DEC-023 substitui somente a confirmação individual de integração/publicação por autorização contínua condicionada aos gates. `history/` e `Aprendizados/` são memória, não autorização operacional atual.
 
 ## Regra de decisão técnica
 

@@ -32,12 +32,12 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
   });
   it('has a concrete four-phase queue and separate acceptance and delivery gates', () => {
     expect(section('coordination')).toContain('executable_issue: 633');
-    expect(section('coordination')).toContain('current_delivery_issue: 639');
+    expect(section('coordination')).toContain('current_delivery_issue: 637');
     expect(section('final_phases').match(/phase: FINAL-/gu)).toHaveLength(4);
     for (const issue of [633,634,635,406]) expect(section('final_phases')).toContain(`issue: ${issue}`);
     expect(section('institutional_delivery')).toContain('issue: 596');
     expect(section('institutional_delivery')).toContain('authority_acceptance_issue: 347');
-    expect(section('next_safe_action')).toContain('pull_request: 640');
+    expect(section('next_safe_action')).toContain('issue: 633');
   });
   it('records current-only diagnostics separately from preserved academic history', () => {
     expect(section('storage')).toContain('diagnostic_retention: current-evidence-only-replaced-on-next-source-observation');
@@ -78,22 +78,36 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(contracts).toContain('não modifica contratos compartilhados');
     expect(contracts).toContain('O teste sintético de projeção não é teste de reconstrução');
   });
-  it('records the authorized foundation deployment separately from the new unmerged functional delivery', () => {
-    expect(section('baseline')).toContain('last_audited_main_commit: 4d8256fa6f741f4fb0b6ade8676d0f9193b7a460');
-    expect(section('baseline')).toContain('authorized_deploy_run: 34468184541');
+  it('records actual deployments separately from authenticated acceptance and the security release checkpoint', () => {
+    expect(section('baseline')).toContain('last_audited_main_commit: 6683d1377f2dd090c1346f693a4af4c2e188d7ae');
+    expect(section('baseline')).toContain('authorized_deploy_run: 34477526551');
+    expect(section('baseline')).toContain('authenticated_post_deploy_smoke_this_session: false');
     expect(section('storage')).toContain('distinct_trigger_count: 3');
     expect(section('storage')).toContain('information_schema_trigger_event_rows: 6');
     expect(section('storage')).toContain('production_data_restore_proven_by_this_pr: false');
     expect(section('runtime')).toContain('diagnostic_atomic_replacement: integrated-pr-636-deploy-254-success-awaiting-authenticated-smoke');
-    expect(section('runtime')).toContain('relational_centers_v2: implemented-in-pr-640-not-yet-integrated-or-published');
-    expect(section('security')).toContain('dependency_remediation: pending-issue-637');
+    expect(section('runtime')).toContain('relational_centers_v2: integrated-pr-640-deploy-255-success-awaiting-authenticated-smoke');
+    expect(section('security')).toContain('dependency_remediation: source-corrected-and-audited-release-checkpoint-issue-637');
+    expect(section('security')).toContain('audited_lock_blob: ad6059ec46be02970b340f97e7cbb585abd79715');
     expect(existsSync(join(root,'migrations/gradebook-simplified/0001_current_schema.sql'))).toBe(true);
     const inspect = source('migrations/gradebook-simplified/inspect_current_schema.sql');
     expect(inspect).toContain('a.attnotnull::text');
     expect(inspect).toContain("WHERE c.contype <> 'n'");
   });
+  it('records standing integration authorization without bypassing verification or academic acceptance', () => {
+    expect(section('coordination')).toContain('merge_and_deploy: standing-authorization-after-final-head-verification');
+    expect(section('coordination')).toContain('authorization_comment: 5618750384');
+    const decisions = source(`${base}DECISIONS.md`);
+    expect(decisions).toContain('BN-DEC-023');
+    expect(decisions).toContain('sem nova confirmação por PR');
+    expect(source('AGENTS.md')).toContain('Não contorne checks');
+    expect(source('AGENTS.md')).toContain('CI no head final');
+    expect(section('security')).toContain('automatic_authority_activation: forbidden');
+    const workflow = readFileSync(join(root,'.github/workflows/validate-pull-request.yml'));
+    expect(createHash('sha1').update(`blob ${workflow.length}\0`).update(workflow).digest('hex')).toBe('d147df2a95b4f78d965a5452bfc52109ecb6dabb');
+  });
   it('keeps the canonical local documentation links resolvable', () => {
-    const pages = ['README.md','COMECE_AQUI.md','DECISIONS.md','ARCHITECTURE.md','ACADEMIC_CONTEXT.md','CONTRACTS.md','ROADMAP.md','ISSUE_MAP.md','PRODUCTION_READINESS.md','CONSUMER_MAP.md','CURRENT_SCHEMA_AND_DIAGNOSTICS.md','RELATIONAL_CENTERS_V2.md'];
+    const pages = ['README.md','COMECE_AQUI.md','DECISIONS.md','ARCHITECTURE.md','ACADEMIC_CONTEXT.md','CONTRACTS.md','ROADMAP.md','ISSUE_MAP.md','PRODUCTION_READINESS.md','CONSUMER_MAP.md','CURRENT_SCHEMA_AND_DIAGNOSTICS.md','RELATIONAL_CENTERS_V2.md','SECURITY_REMEDIATION_637.md'];
     for (const page of pages) {
       const fullPath = join(root,base,page);
       for (const match of source(`${base}${page}`).matchAll(/\]\(([^)#]+)(?:#[^)]*)?\)/gu)) {
