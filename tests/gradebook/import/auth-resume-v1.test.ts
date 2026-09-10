@@ -1,12 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import type { GradebookImportPersistenceResponseV6 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
+import type { GradebookImportPersistenceResponseV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
 import {
   isGradebookImportAuthorizationRequiredV1,
   selectPendingGradebookImportResultsV1,
-  type ImportPersistenceStateV6,
+  type ImportPersistenceStateV9,
 } from '../../../src/features/gradebook/import/use-import-batch';
 
 function result(id: string): BatchSuccess {
@@ -17,24 +17,29 @@ describe('gradebook import auth resume V1', () => {
   it('pausa somente em not-authorized', () => {
     expect(
       isGradebookImportAuthorizationRequiredV1({
-        transportVersion: 6,
+        transportVersion: 9,
         state: 'not-authorized',
-      } as GradebookImportPersistenceResponseV6),
+      }),
     ).toBe(true);
     expect(
       isGradebookImportAuthorizationRequiredV1({
-        transportVersion: 6,
+        transportVersion: 9,
         state: 'conflict',
-      } as GradebookImportPersistenceResponseV6),
+        reason: 'synthetic-conflict',
+      }),
     ).toBe(false);
   });
 
   it('retoma apenas auth-required e recognized, preservando concluídos e falhas', () => {
     const successes = [result('synthetic:1'), result('synthetic:2'), result('synthetic:3'), result('synthetic:4')];
-    const persistence: Record<string, ImportPersistenceStateV6> = {
+    const persistence: Record<string, ImportPersistenceStateV9> = {
       'synthetic:1': {
         state: 'completed',
-        response: { transportVersion: 6, state: 'conflict' } as GradebookImportPersistenceResponseV6,
+        response: {
+          transportVersion: 9,
+          state: 'conflict',
+          reason: 'synthetic-conflict',
+        } satisfies GradebookImportPersistenceResponseV9,
       },
       'synthetic:2': { state: 'auth-required' },
       'synthetic:3': { state: 'recognized' },

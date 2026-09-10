@@ -61,23 +61,21 @@ function sheetJs(events: string[]): SheetJs {
 }
 
 describe('gradebook importer structure', () => {
-  it('keeps the platform page as shell and separates current importer responsibilities', () => {
+  it('keeps the platform page as shell and separates importer responsibilities', () => {
     const expectedModules = [
       'sheetjs-loader.ts',
       'workbook-reader.ts',
       'import-batch.ts',
       'use-import-batch.ts',
       'import-panel.tsx',
-      'canonical-import-v9.ts',
-      'import-persistence-client-v9.ts',
-      'import-diagnostics-client-v1.ts',
-      'master-relation-v9.ts',
+      'import-persistence-client-v2.ts',
+      'import-persistence-confirmation-v2.tsx',
       'workbook-inspector.tsx',
       'spreadsheet-recognizer.ts',
     ];
 
     for (const module of expectedModules) {
-      expect(existsSync(join(root, 'src/features/gradebook/import', module)), module).toBe(true);
+      expect(existsSync(join(root, 'src/features/gradebook/import', module))).toBe(true);
     }
 
     const notesPage = source('src/platform/notes-page.tsx');
@@ -127,21 +125,23 @@ describe('gradebook importer structure', () => {
     expect(presentation).toContain('turma + componente D<n>');
   });
 
-  it('uses the canonical V9 persistence path without exposing retired importer versions', () => {
-    const panel = source('src/features/gradebook/import/import-panel.tsx');
-    const hook = source('src/features/gradebook/import/use-import-batch.ts');
-    const bridge = source('src/features/gradebook/import/import-persistence-client-v9.ts');
-
-    expect(hook).toContain('createGradebookCanonicalImportRequestV9');
-    expect(hook).toContain('persistGradebookCanonicalImportV9');
-    expect(bridge).toContain("fetch('/api/gradebook/import-persistence'");
-    expect(panel).toContain('Somente os valores atuais dos campos acadêmicos são enviados, sem fórmulas.');
-    expect(panel).toContain('Sem mudanças acadêmicas');
-    expect(panel).not.toContain('Importação por valores V8');
-    expect(`${panel}\n${hook}`).not.toContain('import-persistence-client-v2');
-    expect(`${panel}\n${hook}`).not.toContain('import-persistence-confirmation-v2');
-    expect(panel).not.toContain('placeholder="StudentId"');
-    expect(panel).not.toContain('placeholder="EnrollmentId"');
+  it('confirms the imported academic context without exposing technical entity IDs', () => {
+    const confirmation = source(
+      'src/features/gradebook/import/import-persistence-confirmation-v2.tsx',
+    );
+    expect(confirmation).toContain('requestOperationalWorkspaceV1');
+    expect(confirmation).toContain("operation: 'bootstrap'");
+    expect(confirmation.match(/requestOperationalWorkspaceV1\s*\(/gu)).toHaveLength(1);
+    expect(confirmation).toContain('Ano letivo');
+    expect(confirmation).toContain('Professor reconhecido em CONFIGURAÇÃO!A2');
+    expect(confirmation).toContain('cadastro automático');
+    expect(confirmation).toContain('VG será ignorada');
+    expect(confirmation).not.toContain("operation: 'search'");
+    expect(confirmation).not.toContain("operation: 'class-group'");
+    expect(confirmation).not.toContain('placeholder="StudentId"');
+    expect(confirmation).not.toContain('placeholder="EnrollmentId"');
+    expect(confirmation).not.toContain('>TeachingAssignmentId<');
+    expect(confirmation).not.toContain('>AcademicYearId<');
   });
 
   it('retains the limit of 50 files before batch processing', () => {
@@ -196,17 +196,16 @@ describe('gradebook importer structure', () => {
     ]);
   });
 
-  it('keeps workbook bytes local and sends only canonical values to persistence', () => {
+  it('keeps workbook bytes local and browser academic storage empty', () => {
     const workbookReader = [
       source('src/features/gradebook/import/import-batch.ts'),
       source('src/features/gradebook/import/workbook-reader.ts'),
     ].join('\n');
-    const bridge = source('src/features/gradebook/import/import-persistence-client-v9.ts');
+    const bridge = source('src/features/gradebook/import/import-persistence-client-v2.ts');
     const importer = `${workbookReader}\n${bridge}\n${source('src/features/gradebook/import/use-import-batch.ts')}`;
-
     expect(workbookReader).not.toMatch(/\bfetch\s*\(/u);
-    expect(bridge).toContain("fetch('/api/gradebook/import-persistence'");
-    expect(bridge).not.toMatch(/arrayBuffer|workbook|worksheet/iu);
+    expect(bridge).toContain('fetch(ENDPOINT');
+    expect(bridge).not.toMatch(/arrayBuffer|workbook|worksheet|logicalSourceId|expectedVersion/iu);
     expect(importer).not.toMatch(/localStorage|sessionStorage|indexedDB|\.write\s*\(/u);
     expect(workbookReader).toContain('file.arrayBuffer()');
   });
