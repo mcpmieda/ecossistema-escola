@@ -65,7 +65,17 @@ async function writeDiagnostics(
   database: D1WriteDatabaseV1,
   request: GradebookImportDiagnosticsAuditRequestV1,
 ): Promise<number> {
-  if (request.diagnostics.length === 0) return 0;
+  const cleared = await database
+    .prepare(
+      `DELETE FROM gradebook.importacao_diagnostico
+       WHERE ano IS NOT DISTINCT FROM ?
+         AND arquivo = ?`,
+    )
+    .bind(request.academicYear, request.fileName)
+    .run();
+  const clearedCount = cleared.meta?.changes ?? cleared.changes ?? 0;
+  if (request.diagnostics.length === 0) return clearedCount;
+
   const rows = request.diagnostics.map((item) => ({
     ano: request.academicYear,
     arquivo: request.fileName,
@@ -117,7 +127,8 @@ async function writeDiagnostics(
     )
     .bind(JSON.stringify(rows))
     .run();
-  return result.meta?.changes ?? result.changes ?? rows.length;
+  const writtenCount = result.meta?.changes ?? result.changes ?? rows.length;
+  return clearedCount + writtenCount;
 }
 
 function auditRecord(row: Row): GradebookImportDiagnosticsAuditRecordV1 {
