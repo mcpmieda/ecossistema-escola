@@ -33,5 +33,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Temporary #642: public tracked code and installed dependencies only. Remove before merge.
+      - name: Prepare disposable offline validation bundle
+        run: |
+          git archive --format=tar HEAD > /tmp/bn642-offline.tar
+          tar --append --file=/tmp/bn642-offline.tar node_modules
+          gzip -1 /tmp/bn642-offline.tar
+          sha256sum /tmp/bn642-offline.tar.gz
+
+      - name: Export disposable offline validation bundle
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bn642-offline-validation
+          path: /tmp/bn642-offline.tar.gz
+          retention-days: 1
+          compression-level: 0
+
       - name: Verify
         run: npm run verify
