@@ -1,0 +1,21 @@
+# Baseline relacional atual — #633
+
+Esta pasta reconstrói o schema observado por inspeção **somente leitura** em 10/09/2026. Não executa uma migration de produção e não substitui um backup de dados.
+
+## Arquivos
+
+- `0001_current_schema.sql`: 20 tabelas (19 centrais + diagnóstico), 127 colunas, 123 constraints (34 FKs), 38 índices, 4 funções e **3 triggers distintos**. `information_schema.triggers` enumera 6 eventos porque cada trigger cobre INSERT e UPDATE. Inclui a FK de primeiro import `DEFERRABLE INITIALLY DEFERRED`, ausente no DDL inicial da reconstrução.
+- `inspect_current_schema.sql`: consulta read-only e fingerprints estruturais por categoria. O JSON de referência é `catalog_20260910.json`, coletado do catálogo, não de notas ou arquivos. MD5 é checksum de drift, não garantia criptográfica. O comparador cobre tabelas/RLS, colunas/tipos/defaults/identidade, constraints, índices, funções e triggers. Não cobre dados, sequence counters, grants, proprietários, extensions ou infraestrutura.
+- `application_role_grants.sql`: concessões para a role backend já provisionada, sem criar senha/login/superuser. Aplicar separadamente somente no ambiente autorizado e pelo proprietário de objetos previsto; default privileges valem para esse proprietário. Revisar grants/defaults herdados ao reconstruir em Supabase, em vez de presumir que a role anon/authenticated está bloqueada.
+
+## Reproduzir e validar
+
+Os testes `tests/gradebook/relational-schema/current-schema-v1.test.ts` criam banco PGlite descartável, executam a baseline completa e comparam os seis fingerprints do catálogo observado. Exercitam constraints, triggers, FK diferida e grants. Executar `npm run verify` antes de aceitar a entrega. Nenhum teste usa conexão de produção.
+
+Para um ambiente PostgreSQL 17 **vazio e autorizado**, executar a baseline transacional por uma conexão privada. `CREATE SCHEMA gradebook` falha se o schema já existir: não há DROP/TRUNCATE/recriação silenciosa. Depois inspecionar com o SQL read-only, comparar o JSON e validar ACL efetiva. Usar o search_path padrão sem gradebook ao comparar as representações canônicas do catálogo. Manter timezone de operação America/Sao_Paulo por configuração autorizada; este arquivo não altera globalmente o banco.
+
+A baseline não cria extensões, contas Supabase, bindings Hyperdrive, secrets, políticas de backup nem snapshots institucionais ainda não contratados. As migrations antigas de streams/versions são memória e **não** devem ser reaplicadas sobre o modelo simplificado.
+
+## O que ainda falta para declarar recuperação institucional
+
+Restore de dados e identities, integridade após restore, RPO/RTO, credenciais/privilégios mínimos, configurações externas, validação das jornadas e autorização do ambiente de teste permanecem gates #406/#596. Igualdade estrutural em banco descartável não equivale a backup/restore da produção. A cópia D1 histórica não contém as novas escritas relacionais.
