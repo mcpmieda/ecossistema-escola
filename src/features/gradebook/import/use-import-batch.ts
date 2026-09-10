@@ -202,7 +202,8 @@ export function useImportBatch() {
     result: BatchSuccess,
     diagnostics: readonly GradebookImportDiagnosticV1[],
   ): Promise<void> {
-    if (diagnostics.length === 0) return;
+    // An empty observation is meaningful: it clears resolved problems atomically.
+    // Only this endpoint owns diagnostic replacement; academic persistence never clears it.
     try {
       const response = await persistGradebookImportDiagnosticsAuditV1(
         gradebookImportDiagnosticsAuditRequestV1(result, diagnostics),
@@ -210,13 +211,19 @@ export function useImportBatch() {
       if (response.state !== 'recorded') {
         setDiagnosticAuditFailures((current) => ({
           ...current,
-          [result.id]: 'Os diagnósticos foram exibidos, mas a Auditoria não confirmou o registro.',
+          [result.id]: 'A Auditoria não confirmou a atualização dos problemas desta planilha.',
         }));
+      } else {
+        setDiagnosticAuditFailures((current) => {
+          const next = { ...current };
+          delete next[result.id];
+          return next;
+        });
       }
     } catch {
       setDiagnosticAuditFailures((current) => ({
         ...current,
-        [result.id]: 'Os diagnósticos foram exibidos, mas a Auditoria não confirmou o registro.',
+        [result.id]: 'A Auditoria não confirmou a atualização dos problemas desta planilha.',
       }));
     }
   }

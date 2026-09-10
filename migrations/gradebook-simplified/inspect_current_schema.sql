@@ -1,5 +1,9 @@
 -- READ ONLY structural fingerprint. No academic data, credentials, owners or sequence values.
--- Run with the default search_path (which does not include gradebook) on PostgreSQL 17.
+-- Run with the default search_path (which does not include gradebook).
+-- NOT NULL is compared via pg_attribute.attnotnull on both PostgreSQL 17 and 18.
+-- PostgreSQL 18 additionally represents table NOT NULL in pg_constraint (contype='n');
+-- exclude that duplicate representation, not the underlying invariant, for PG17 parity.
+-- Docs: https://www.postgresql.org/docs/18/catalog-pg-constraint.html
 -- MD5 is a drift checksum, not an authentication/security signature.
 WITH relations AS (
   SELECT c.oid,c.relname,c.relrowsecurity,c.relforcerowsecurity
@@ -19,6 +23,7 @@ WITH relations AS (
   SELECT 'constraints',r.relname||'.'||c.conname,
     concat_ws('|',r.relname,c.conname,c.contype::text,pg_get_constraintdef(c.oid))
   FROM relations r JOIN pg_constraint c ON c.conrelid=r.oid
+  WHERE c.contype <> 'n'
   UNION ALL
   SELECT 'indexes',indexname,indexdef FROM pg_indexes WHERE schemaname='gradebook'
   UNION ALL
