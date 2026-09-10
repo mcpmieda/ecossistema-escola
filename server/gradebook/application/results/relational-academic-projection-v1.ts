@@ -12,6 +12,14 @@ import {
 type Row = Record<string, unknown>;
 type BindValue = string | number | null;
 
+export interface RelationalProjectionRequestV1 {
+  readonly ofertaId: number;
+  readonly alunoId: number;
+}
+
+// A technical bound for one read, not a limit on a class or an academic rule.
+export const RELATIONAL_PROJECTION_BATCH_LIMIT_V1 = 1_000;
+
 export type RelationalSourceComparisonV1 = 'match' | 'mismatch' | 'unavailable';
 
 export interface RelationalTermProjectionV1 {
@@ -39,7 +47,8 @@ export interface RelationalAcademicProjectionV1 {
 export type RelationalAcademicProjectionErrorCodeV1 =
   | 'offer-student-not-found'
   | 'invalid-relational-row'
-  | 'incomplete-offer-definition';
+  | 'incomplete-offer-definition'
+  | 'projection-batch-too-large';
 
 export class RelationalAcademicProjectionErrorV1 extends Error {
   constructor(readonly code: RelationalAcademicProjectionErrorCodeV1) {
@@ -59,6 +68,21 @@ function asInteger(value: unknown): number {
 function nullableInteger(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   return asInteger(value);
+}
+
+function validateRequest(input: RelationalProjectionRequestV1): void {
+  if (
+    !Number.isSafeInteger(input.ofertaId) || input.ofertaId <= 0 ||
+    input.ofertaId > 2_147_483_647 ||
+    !Number.isSafeInteger(input.alunoId) || input.alunoId <= 0 ||
+    input.alunoId > 2_147_483_647
+  ) {
+    throw new RelationalAcademicProjectionErrorV1('invalid-relational-row');
+  }
+}
+
+function requestKey(input: RelationalProjectionRequestV1): string {
+  return `${input.ofertaId}:${input.alunoId}`;
 }
 
 async function first<T extends Row>(
@@ -96,17 +120,67 @@ function recoveryValue(
   return nullableInteger(row[`rec${term}`]);
 }
 
-function sourceAm(row: Row | null, term: SimplifiedAcademicTermV1): number | null {
-  return row ? nullableInteger(row[`am${term}_fonte`]) : null;
+// Both read paths use exactly the same central engine and source comparison.
+function projectRows(
+  input: RelationalProjectionRequestV1,
+  base: Row,
+  instrumentRows: readonly Row[],
+  closing: Row | null,
+): RelationalAcademicProjectionV1 {
+  const terms = [1, 2, 3].map((termValue) => {
+    const term = termValue as SimplifiedAcademicTermV1;
+    const facts: SimplifiedInstrumentFactV1[] = instrumentRows
+      .filter((row) => asInteger(row.trimestre) === term)
+      .map((row) => ({
+        slot: asInteger(row.slot) as SimplifiedInstrumentFactV1['slot'],
+        maximumMilli: nullableInteger(row.maximo),
+        valueMilli: nullableInteger(row.valor),
+      }));
+    let outcome: SimplifiedTermOutcomeV1;
+    try {
+      outcome = resolveSimplifiedTermV1({ term, instruments: facts });
+    } catch {
+      throw new RelationalAcademicProjectionErrorV1('incomplete-offer-definition');
+    }
+    const sourceAmMilli = closing ? nullableInteger(closing[`am${term}_fonte`]) : null;
+    return {
+      term,
+      outcome,
+      sourceAmMilli,
+      sourceComparison: sourceComparison(
+        outcome.coverage.complete ? outcome.roundedMilli : null,
+        sourceAmMilli,
+      ),
+    } satisfies RelationalTermProjectionV1;
+  }) as unknown as RelationalAcademicProjectionV1['terms'];
+
+  const minimumApprovalMilli = asInteger(base.minimo_aprovacao);
+  const recovery = resolveSimplifiedComponentRecoveryV1({
+    terms: [terms[0].outcome, terms[1].outcome, terms[2].outcome],
+    recovery: {
+      1: recoveryValue(closing, 1),
+      2: recoveryValue(closing, 2),
+      3: recoveryValue(closing, 3),
+    },
+    minimumApprovalMilli,
+  });
+  const sourceUMilli = closing ? nullableInteger(closing.u_fonte) : null;
+  return {
+    ano: asInteger(base.ano),
+    ofertaId: input.ofertaId,
+    alunoId: input.alunoId,
+    minimumApprovalMilli,
+    terms,
+    recovery,
+    sourceUMilli,
+    sourceUComparison: sourceComparison(recovery.postRecoveryTotalMilli, sourceUMilli),
+  };
 }
 
 export function createRelationalAcademicProjectionServiceV1(database: D1ReadDatabaseV1) {
   return {
-    async project(input: { readonly ofertaId: number; readonly alunoId: number }): Promise<RelationalAcademicProjectionV1> {
-      if (!Number.isSafeInteger(input.ofertaId) || input.ofertaId <= 0 || !Number.isSafeInteger(input.alunoId) || input.alunoId <= 0) {
-        throw new RelationalAcademicProjectionErrorV1('invalid-relational-row');
-      }
-
+    async project(input: RelationalProjectionRequestV1): Promise<RelationalAcademicProjectionV1> {
+      validateRequest(input);
       const base = await first<Row>(
         database,
         `SELECT o.ano, a.minimo_aprovacao
@@ -114,16 +188,13 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
          JOIN gradebook.ano_letivo a ON a.ano = o.ano
          WHERE o.id = ?
            AND EXISTS (
-             SELECT 1
-             FROM gradebook.vinculo v
-             WHERE v.turma_id = o.turma_id
-               AND v.aluno_id = ?
+             SELECT 1 FROM gradebook.vinculo v
+             WHERE v.turma_id = o.turma_id AND v.aluno_id = ?
                AND COALESCE(v.situacao, 0) <> 6
            )`,
         [input.ofertaId, input.alunoId],
       );
       if (!base) throw new RelationalAcademicProjectionErrorV1('offer-student-not-found');
-
       const instrumentRows = await all<Row>(
         database,
         `SELECT i.trimestre, i.slot, i.maximo, n.valor
@@ -134,65 +205,82 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
          ORDER BY i.trimestre, i.slot`,
         [input.alunoId, input.ofertaId],
       );
-
       const closing = await first<Row>(
         database,
         `SELECT am1_fonte, am2_fonte, am3_fonte,
                 rec1, rec2, rec3, rec_nc_mask, u_fonte
-         FROM gradebook.fechamento
-         WHERE oferta_id = ? AND aluno_id = ?`,
+         FROM gradebook.fechamento WHERE oferta_id = ? AND aluno_id = ?`,
         [input.ofertaId, input.alunoId],
       );
+      return projectRows(input, base, instrumentRows, closing);
+    },
 
-      const terms = [1, 2, 3].map((termValue) => {
-        const term = termValue as SimplifiedAcademicTermV1;
-        const facts: SimplifiedInstrumentFactV1[] = instrumentRows
-          .filter((row) => asInteger(row.trimestre) === term)
-          .map((row) => ({
-            slot: asInteger(row.slot) as SimplifiedInstrumentFactV1['slot'],
-            maximumMilli: nullableInteger(row.maximo),
-            valueMilli: nullableInteger(row.valor),
-          }));
-        let outcome: SimplifiedTermOutcomeV1;
-        try {
-          outcome = resolveSimplifiedTermV1({ term, instruments: facts });
-        } catch {
-          throw new RelationalAcademicProjectionErrorV1('incomplete-offer-definition');
+    /**
+     * One parameterized PostgreSQL statement for the whole bounded set. Instruments,
+     * grades and closing facts share the statement snapshot; no per-pair SQL, writes,
+     * persistent cache, source-authority switch or legacy record reconstruction.
+     * Callers still own authorization and the requested institutional scope.
+     */
+    async projectMany(
+      requests: readonly RelationalProjectionRequestV1[],
+    ): Promise<readonly RelationalAcademicProjectionV1[]> {
+      if (requests.length > RELATIONAL_PROJECTION_BATCH_LIMIT_V1) {
+        throw new RelationalAcademicProjectionErrorV1('projection-batch-too-large');
+      }
+      if (requests.length === 0) return [];
+      const requestedKeys = new Set<string>();
+      for (const input of requests) {
+        validateRequest(input);
+        const key = requestKey(input);
+        if (requestedKeys.has(key)) {
+          throw new RelationalAcademicProjectionErrorV1('invalid-relational-row');
         }
-        const sourceAmMilli = sourceAm(closing, term);
-        return {
-          term,
-          outcome,
-          sourceAmMilli,
-          sourceComparison: sourceComparison(
-            outcome.coverage.complete ? outcome.roundedMilli : null,
-            sourceAmMilli,
-          ),
-        } satisfies RelationalTermProjectionV1;
-      }) as unknown as RelationalAcademicProjectionV1['terms'];
-
-      const minimumApprovalMilli = asInteger(base.minimo_aprovacao);
-      const recovery = resolveSimplifiedComponentRecoveryV1({
-        terms: [terms[0].outcome, terms[1].outcome, terms[2].outcome],
-        recovery: {
-          1: recoveryValue(closing, 1),
-          2: recoveryValue(closing, 2),
-          3: recoveryValue(closing, 3),
-        },
-        minimumApprovalMilli,
+        requestedKeys.add(key);
+      }
+      // Only placeholder syntax is interpolated. Identifiers are bound values.
+      const placeholders = requests.map(() => '(?::integer, ?::integer)').join(', ');
+      const rows = await all<Row>(
+        database,
+        `WITH requested(oferta_id, aluno_id) AS (VALUES ${placeholders})
+         SELECT r.oferta_id, r.aluno_id, o.ano, y.minimo_aprovacao,
+                i.trimestre, i.slot, i.maximo, n.valor,
+                f.am1_fonte, f.am2_fonte, f.am3_fonte,
+                f.rec1, f.rec2, f.rec3, f.rec_nc_mask, f.u_fonte
+         FROM requested r
+         JOIN gradebook.oferta o ON o.id = r.oferta_id
+         JOIN gradebook.ano_letivo y ON y.ano = o.ano
+         LEFT JOIN gradebook.instrumento i ON i.oferta_id = o.id
+         LEFT JOIN gradebook.nota n ON n.instrumento_id = i.id AND n.aluno_id = r.aluno_id
+         LEFT JOIN gradebook.fechamento f ON f.oferta_id = o.id AND f.aluno_id = r.aluno_id
+         WHERE EXISTS (
+           SELECT 1 FROM gradebook.vinculo v
+           WHERE v.turma_id = o.turma_id AND v.ano = o.ano
+             AND v.aluno_id = r.aluno_id AND COALESCE(v.situacao, 0) <> 6
+         )
+         ORDER BY r.oferta_id, r.aluno_id, i.trimestre, i.slot`,
+        requests.flatMap((input) => [input.ofertaId, input.alunoId]),
+      );
+      const groups = new Map<string, { base: Row; instruments: Row[] }>();
+      for (const row of rows) {
+        const key = requestKey({
+          ofertaId: asInteger(row.oferta_id),
+          alunoId: asInteger(row.aluno_id),
+        });
+        if (!requestedKeys.has(key)) {
+          throw new RelationalAcademicProjectionErrorV1('invalid-relational-row');
+        }
+        const group = groups.get(key) ?? { base: row, instruments: [] };
+        if (row.trimestre !== null && row.trimestre !== undefined) group.instruments.push(row);
+        groups.set(key, group);
+      }
+      // Missing membership is an error, never a synthetic zero/empty projection.
+      if (groups.size !== requests.length) {
+        throw new RelationalAcademicProjectionErrorV1('offer-student-not-found');
+      }
+      return requests.map((input) => {
+        const group = groups.get(requestKey(input))!;
+        return projectRows(input, group.base, group.instruments, group.base);
       });
-      const sourceUMilli = closing ? nullableInteger(closing.u_fonte) : null;
-
-      return {
-        ano: asInteger(base.ano),
-        ofertaId: input.ofertaId,
-        alunoId: input.alunoId,
-        minimumApprovalMilli,
-        terms,
-        recovery,
-        sourceUMilli,
-        sourceUComparison: sourceComparison(recovery.postRecoveryTotalMilli, sourceUMilli),
-      };
     },
   };
 }

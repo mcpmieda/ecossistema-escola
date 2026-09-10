@@ -2,6 +2,7 @@ import type { D1ReadDatabaseV1 } from '../../persistence/d1/read/d1-read-adapter
 import {
   createRelationalAcademicProjectionServiceV1,
   type RelationalAcademicProjectionV1,
+  type RelationalProjectionRequestV1,
   type RelationalSourceComparisonV1,
 } from './relational-academic-projection-v1';
 import {
@@ -133,36 +134,22 @@ function formalCouncilDecision(
   if (value === null || value === undefined) return null;
   const code = asInteger(value);
   switch (code) {
-    case 1:
-      return { code, visibleResult: 'APROVADO PELO CONSELHO' };
-    case 2:
-      return { code, visibleResult: 'REPROVADO PELO CONSELHO' };
-    case 3:
-      return { code, visibleResult: 'REPROVADO POR FALTA' };
-    default:
-      throw new RelationalStudentAnnualProjectionErrorV1('invalid-relational-row');
+    case 1: return { code, visibleResult: 'APROVADO PELO CONSELHO' };
+    case 2: return { code, visibleResult: 'REPROVADO PELO CONSELHO' };
+    case 3: return { code, visibleResult: 'REPROVADO POR FALTA' };
+    default: throw new RelationalStudentAnnualProjectionErrorV1('invalid-relational-row');
   }
 }
 
-async function first<T extends Row>(
-  database: D1ReadDatabaseV1,
-  sql: string,
-  values: readonly BindValue[],
-): Promise<T | null> {
+async function first<T extends Row>(database: D1ReadDatabaseV1, sql: string, values: readonly BindValue[]): Promise<T | null> {
   return database.prepare(sql).bind(...values).first<T>();
 }
 
-async function all<T extends Row>(
-  database: D1ReadDatabaseV1,
-  sql: string,
-  values: readonly BindValue[],
-): Promise<readonly T[]> {
+async function all<T extends Row>(database: D1ReadDatabaseV1, sql: string, values: readonly BindValue[]): Promise<readonly T[]> {
   return (await database.prepare(sql).bind(...values).all<T>()).results;
 }
 
-function comparisonSummary(
-  values: readonly RelationalSourceComparisonV1[],
-): RelationalComparisonSummaryV1 {
+function comparisonSummary(values: readonly RelationalSourceComparisonV1[]): RelationalComparisonSummaryV1 {
   return {
     match: values.filter((value) => value === 'match').length,
     mismatch: values.filter((value) => value === 'mismatch').length,
@@ -171,62 +158,42 @@ function comparisonSummary(
 }
 
 const EMPTY_COMPARISON_SUMMARY_V1: RelationalComparisonSummaryV1 = {
-  match: 0,
-  mismatch: 0,
-  unavailable: 0,
+  match: 0, mismatch: 0, unavailable: 0,
 };
 
 export function createRelationalStudentAnnualProjectionServiceV1(
   database: D1ReadDatabaseV1,
   dependencies: RelationalStudentAnnualProjectionDependenciesV1 = {},
 ) {
-  const projectOffer =
-    dependencies.projectOffer ?? createRelationalAcademicProjectionServiceV1(database).project;
+  const academic = createRelationalAcademicProjectionServiceV1(database);
+  async function projectOffers(requests: readonly RelationalProjectionRequestV1[]) {
+    if (dependencies.projectOffer === undefined) return academic.projectMany(requests);
+    // Preserve the existing injected single-offer seam. The default SQL path is batched.
+    const results: RelationalAcademicProjectionV1[] = [];
+    for (const request of requests) results.push(await dependencies.projectOffer(request));
+    return results;
+  }
 
   return {
-    async project(input: {
-      readonly ano: number;
-      readonly alunoId: number;
-    }): Promise<RelationalStudentAnnualProjectionV1> {
-      if (
-        !Number.isSafeInteger(input.ano) ||
-        input.ano < 2000 ||
-        input.ano > 2200 ||
-        !Number.isSafeInteger(input.alunoId) ||
-        input.alunoId <= 0
-      ) {
+    async project(input: { readonly ano: number; readonly alunoId: number }): Promise<RelationalStudentAnnualProjectionV1> {
+      if (!Number.isSafeInteger(input.ano) || input.ano < 2000 || input.ano > 2200 ||
+          !Number.isSafeInteger(input.alunoId) || input.alunoId <= 0) {
         throw new RelationalStudentAnnualProjectionErrorV1('invalid-relational-row');
       }
-
-      const base = await first<Row>(
-        database,
-        `SELECT a.ano,
-                a.nome AS aluno_nome,
-                a.conselho_anterior,
-                v.turma_id,
-                v.numero,
-                v.situacao,
-                t.codigo AS turma_codigo,
-                t.nome AS turma_nome,
-                y.minimo_aprovacao,
-                y.max_componentes_conselho,
+      const base = await first<Row>(database,
+        `SELECT a.ano, a.nome AS aluno_nome, a.conselho_anterior,
+                v.turma_id, v.numero, v.situacao,
+                t.codigo AS turma_codigo, t.nome AS turma_nome,
+                y.minimo_aprovacao, y.max_componentes_conselho,
                 cd.decisao AS conselho_decisao
          FROM gradebook.aluno a
-         JOIN gradebook.vinculo v
-           ON v.aluno_id = a.id
-          AND v.ano = a.ano
+         JOIN gradebook.vinculo v ON v.aluno_id = a.id AND v.ano = a.ano
           AND COALESCE(v.situacao, 0) <> 6
-         JOIN gradebook.turma t
-           ON t.id = v.turma_id AND t.ano = v.ano
+         JOIN gradebook.turma t ON t.id = v.turma_id AND t.ano = v.ano
          JOIN gradebook.ano_letivo y ON y.ano = a.ano
          LEFT JOIN gradebook.conselho_decisao cd ON cd.aluno_id = a.id
-         WHERE a.id = ? AND a.ano = ?`,
-        [input.alunoId, input.ano],
-      );
-      if (!base) {
-        throw new RelationalStudentAnnualProjectionErrorV1('student-current-binding-not-found');
-      }
-
+         WHERE a.id = ? AND a.ano = ?`, [input.alunoId, input.ano]);
+      if (!base) throw new RelationalStudentAnnualProjectionErrorV1('student-current-binding-not-found');
       const ano = asInteger(base.ano);
       const turmaId = positiveInteger(base.turma_id);
       const status = enrollmentStatus(base.situacao);
@@ -234,103 +201,65 @@ export function createRelationalStudentAnnualProjectionServiceV1(
       const minimumApprovalMilli = positiveInteger(base.minimo_aprovacao);
       const maxCouncilComponents = nonNegativeInteger(base.max_componentes_conselho);
       const common = {
-        ano,
-        alunoId: input.alunoId,
-        alunoNome: requiredText(base.aluno_nome),
+        ano, alunoId: input.alunoId, alunoNome: requiredText(base.aluno_nome),
         turma: {
-          id: turmaId,
-          codigo: requiredText(base.turma_codigo),
-          nome: requiredText(base.turma_nome),
-          numero: positiveInteger(base.numero),
+          id: turmaId, codigo: requiredText(base.turma_codigo),
+          nome: requiredText(base.turma_nome), numero: positiveInteger(base.numero),
         },
-        status,
-        conselhoAnterior,
-        minimumApprovalMilli,
-        maxCouncilComponents,
+        status, conselhoAnterior, minimumApprovalMilli, maxCouncilComponents,
         formalCouncilDecision: formalCouncilDecision(base.conselho_decisao),
       } as const;
-
-      // Status terminal is authoritative independently from the grade model. Do not let
-      // an incomplete or malformed offer prevent ASSISTIDO/ESPECIAL/movement/death from
-      // resolving according to the already-approved status precedence.
+      // A terminal status is independent from grade projection. Preserve its precedence.
       if (isStatusTerminal(status)) {
         return {
-          ...common,
-          components: [],
+          ...common, components: [],
           calculatedAnnual: resolveSimplifiedAnnualOutcomeV1({
-            status,
-            components: [],
-            councilPrevious: conselhoAnterior,
-            maxCouncilComponents,
+            status, components: [], councilPrevious: conselhoAnterior, maxCouncilComponents,
           }),
-          homologation: {
-            am: EMPTY_COMPARISON_SUMMARY_V1,
-            u: EMPTY_COMPARISON_SUMMARY_V1,
-          },
+          homologation: { am: EMPTY_COMPARISON_SUMMARY_V1, u: EMPTY_COMPARISON_SUMMARY_V1 },
         };
       }
-
-      const offerRows = await all<Row>(
-        database,
-        `SELECT o.id AS oferta_id,
-                d.id AS disciplina_id,
-                d.nome AS disciplina_nome,
-                p.id AS professor_id,
-                p.nome AS professor_nome
+      const offerRows = await all<Row>(database,
+        `SELECT o.id AS oferta_id, d.id AS disciplina_id, d.nome AS disciplina_nome,
+                p.id AS professor_id, p.nome AS professor_nome
          FROM gradebook.oferta o
          JOIN gradebook.disciplina d ON d.id = o.disciplina_id AND d.ano = o.ano
          JOIN gradebook.professor p ON p.id = o.professor_id AND p.ano = o.ano
          WHERE o.ano = ? AND o.turma_id = ?
-         ORDER BY lower(d.nome), o.id`,
-        [ano, turmaId],
-      );
-
+         ORDER BY lower(d.nome), o.id`, [ano, turmaId]);
       const disciplineIds = new Set<number>();
-      const components: RelationalAnnualComponentProjectionV1[] = [];
-      for (const row of offerRows) {
+      // Validate the entire offer set before projecting any component.
+      const offers = offerRows.map((row) => {
         const disciplinaId = positiveInteger(row.disciplina_id);
         if (disciplineIds.has(disciplinaId)) {
-          throw new RelationalStudentAnnualProjectionErrorV1(
-            'duplicate-current-discipline-offers',
-          );
+          throw new RelationalStudentAnnualProjectionErrorV1('duplicate-current-discipline-offers');
         }
         disciplineIds.add(disciplinaId);
-
-        const ofertaId = positiveInteger(row.oferta_id);
-        const projection = await projectOffer({ ofertaId, alunoId: input.alunoId });
+        return {
+          ofertaId: positiveInteger(row.oferta_id), disciplinaId,
+          disciplina: requiredText(row.disciplina_nome),
+          professorId: positiveInteger(row.professor_id), professor: requiredText(row.professor_nome),
+        };
+      });
+      const projections = await projectOffers(offers.map((offer) => ({
+        ofertaId: offer.ofertaId, alunoId: input.alunoId,
+      })));
+      const components: RelationalAnnualComponentProjectionV1[] = offers.map((offer, index) => {
+        const projection = projections[index]!;
         if (projection.ano !== ano) {
           throw new RelationalStudentAnnualProjectionErrorV1('projection-year-mismatch');
         }
-        components.push({
-          ofertaId,
-          disciplinaId,
-          disciplina: requiredText(row.disciplina_nome),
-          professorId: positiveInteger(row.professor_id),
-          professor: requiredText(row.professor_nome),
-          projection,
-        });
-      }
-
-      const calculatedAnnual = resolveSimplifiedAnnualOutcomeV1({
-        status,
-        components: components.map((component) => component.projection.recovery),
-        councilPrevious: conselhoAnterior,
-        maxCouncilComponents,
+        return { ...offer, projection };
       });
-
       return {
-        ...common,
-        components,
-        calculatedAnnual,
+        ...common, components,
+        calculatedAnnual: resolveSimplifiedAnnualOutcomeV1({
+          status, components: components.map((component) => component.projection.recovery),
+          councilPrevious: conselhoAnterior, maxCouncilComponents,
+        }),
         homologation: {
-          am: comparisonSummary(
-            components.flatMap((component) =>
-              component.projection.terms.map((term) => term.sourceComparison),
-            ),
-          ),
-          u: comparisonSummary(
-            components.map((component) => component.projection.sourceUComparison),
-          ),
+          am: comparisonSummary(components.flatMap((component) => component.projection.terms.map((term) => term.sourceComparison))),
+          u: comparisonSummary(components.map((component) => component.projection.sourceUComparison)),
         },
       };
     },
