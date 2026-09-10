@@ -54,7 +54,8 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     ]) {
       expect(shell).toContain(imported);
     }
-    expect(operationalSurface).toContain('operational-workspace-page');
+    // The #639 read-only page replaces V1 without changing the route/lazy boundary.
+    expect(operationalSurface).toContain('relational-workspace-page-v2');
     expect(shell).toContain('class GradebookSurfaceBoundary');
     expect(shell).toContain('role="tablist"');
     expect(shell).toContain('aria-selected={selected}');
@@ -87,6 +88,8 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
   it('não introduz persistência acadêmica no navegador nem retry silencioso de writes', () => {
     const frontend = [
       'src/features/gradebook/operational-workspace/operational-workspace-page.tsx',
+      'src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx',
+      'src/features/gradebook/operational-workspace/use-relational-workspace-v2.ts',
       'src/features/gradebook/audit-workspace/audit-workspace-page.tsx',
       'src/features/gradebook/performance/performance-page.tsx',
       'src/features/gradebook/bulletins/bulletin-page.tsx',

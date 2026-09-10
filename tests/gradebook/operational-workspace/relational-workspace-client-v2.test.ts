@@ -8,6 +8,7 @@ import { useRelationalWorkspaceV2 } from '../../../src/features/gradebook/operat
 import { RelationalWorkspacePageV2 } from '../../../src/features/gradebook/operational-workspace/relational-workspace-page-v2';
 import type { OperationalWorkspaceRequestV2, WorkspaceLinkV2 } from '../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 
+// This suite uses createElement, not JSX; .test.ts is the existing runner's discovery pattern.
 const year = {year:2090,minimumApprovalMilli:60000,maxCouncilComponents:2};
 const entity:WorkspaceLinkV2={kind:'student',id:1,label:'ALUNO SINTETICO'};
 const bootstrap={contractVersion:2,state:'ready',operation:'bootstrap',years:[year,{...year,year:2091}]};
@@ -130,7 +131,7 @@ describe('rendered Centrais surface in jsdom (not a visual browser benchmark)',(
     expect([...select.options].map((value)=>value.value)).toEqual(['','2090','2091']);expect(select.value).toBe('');
     fetchMock.mockResolvedValueOnce(reply(context()));
     await act(async()=>{select.value='2090';select.dispatchEvent(new Event('change',{bubbles:true}));});
-    expect(host.textContent).toContain('Resumo cadastral');
+    expect(host.querySelector('[aria-label="Resumo cadastral"]')).not.toBeNull();
     fetchMock.mockResolvedValueOnce(reply(search()));
     const form=host.querySelector('form');expect(form).not.toBeNull();
     await act(async()=>{form!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});

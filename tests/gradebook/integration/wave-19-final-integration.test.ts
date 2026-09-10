@@ -24,7 +24,7 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(auditContract).toContain('readonly category: string;');
   });
 
-  it('monta a manutenção docente F5 somente dentro da superfície Operational lazy existente', () => {
+  it('preserva a manutenção F5 mas não a executa contra o schema novo na central somente leitura #639', () => {
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
     const surface = source('src/platform/gradebook-operational-surface.tsx');
     const maintenance = source(
@@ -36,7 +36,8 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
 
     expect(shell).toContain("import('./gradebook-operational-surface')");
     expect(surface).toContain('<OperationalWorkspacePage />');
-    expect(surface).toContain('<TeacherAssignmentMaintenanceWorkspace />');
+    expect(surface).toContain('relational-workspace-page-v2');
+    expect(surface).not.toContain('<TeacherAssignmentMaintenanceWorkspace');
     expect(maintenance).toContain('Gerenciar professores e atribuições');
     expect(maintenance).toContain('const [activated, setActivated] = useState(false)');
     expect(client).toContain("'/api/gradebook/operational-workspace'");
@@ -61,6 +62,8 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
     const f5Frontend = [
       'src/platform/gradebook-operational-surface.tsx',
+      'src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx',
+      'src/features/gradebook/operational-workspace/operational-workspace-client-v2.ts',
       'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-workspace.tsx',
       'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-panel.tsx',
       'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-client.ts',
