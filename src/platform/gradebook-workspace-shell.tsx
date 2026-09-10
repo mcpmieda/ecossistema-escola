@@ -238,7 +238,7 @@ function GradebookWorkspaceShellContent() {
   };
 
   return (
-    <section aria-labelledby="gradebook-workspace-heading" className="grid gap-4">
+    <section aria-labelledby="gradebook-workspace-heading" className="grid min-w-0 grid-cols-1 gap-4">
       <Surface variant="default" className="rounded-2xl border border-border/60 p-3 sm:p-4">
         <div className="mb-3 max-w-3xl px-1">
           <h2 id="gradebook-workspace-heading" className="text-lg font-semibold tracking-[-0.02em]">
