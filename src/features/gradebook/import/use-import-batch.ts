@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { GradebookImportPersistenceResponseV5 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v5';
-import type { GradebookImportPersistenceResponseV6 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v6';
 import type {
   GradebookImportPersistenceRequestV9,
   GradebookImportPersistenceResponseV9,
@@ -30,25 +28,16 @@ import { persistGradebookImportDiagnosticsAuditV1 } from './import-diagnostics-c
 import { persistGradebookCanonicalImportV9 } from './import-persistence-client-v9';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
 
-export type ImportPersistenceStateV5 =
-  | { readonly state: 'recognized' | 'ready' | 'persisting' }
-  | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV5 }
-  | { readonly state: 'failed'; readonly message: string };
-
-export type ImportPersistenceResponseV6Compatible =
-  | GradebookImportPersistenceResponseV6
-  | GradebookImportPersistenceResponseV9;
-
-export type ImportPersistenceStateV6 =
+export type ImportPersistenceStateV9 =
   | { readonly state: 'recognized' | 'processing' | 'persisting' | 'auth-required' }
-  | { readonly state: 'completed'; readonly response: ImportPersistenceResponseV6Compatible }
+  | { readonly state: 'completed'; readonly response: GradebookImportPersistenceResponseV9 }
   | {
       readonly state: 'failed' | 'confirmation-required';
       readonly message: string;
       readonly kind?: 'validation' | 'runtime';
     };
 
-export type ImportFlowProgressStageV6 =
+export type ImportFlowProgressStageV9 =
   | 'preparing'
   | 'recognizing'
   | 'roster'
@@ -58,11 +47,11 @@ export type ImportFlowProgressStageV6 =
   | 'saving'
   | 'completed';
 
-export interface ImportFlowProgressV6 {
+export interface ImportFlowProgressV9 {
   readonly current: number;
   readonly total: number;
   readonly fileName: string;
-  readonly stage: ImportFlowProgressStageV6;
+  readonly stage: ImportFlowProgressStageV9;
 }
 
 type ImportPersistenceRunResultV1 =
@@ -104,7 +93,7 @@ function isMasterRelationResult(result: BatchSuccess): boolean {
 }
 
 function blockTeacherFiles(
-  setPersistence: React.Dispatch<React.SetStateAction<Record<string, ImportPersistenceStateV6>>>,
+  setPersistence: React.Dispatch<React.SetStateAction<Record<string, ImportPersistenceStateV9>>>,
   results: readonly BatchSuccess[],
   message: string,
 ): void {
@@ -120,14 +109,14 @@ function blockTeacherFiles(
 }
 
 export function isGradebookImportAuthorizationRequiredV1(
-  response: ImportPersistenceResponseV6Compatible,
+  response: GradebookImportPersistenceResponseV9,
 ): boolean {
   return response.state === 'not-authorized';
 }
 
 export function selectPendingGradebookImportResultsV1(
   successes: readonly BatchSuccess[],
-  persistence: Readonly<Record<string, ImportPersistenceStateV6>>,
+  persistence: Readonly<Record<string, ImportPersistenceStateV9>>,
 ): readonly BatchSuccess[] {
   return successes.filter((result) => {
     const state = persistence[result.id];
@@ -147,8 +136,8 @@ export function useImportBatch() {
   const [results, setResults] = useState<BatchSuccess[]>([]);
   const [failures, setFailures] = useState<BatchFailureDetail[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [progress, setProgress] = useState<ImportFlowProgressV6 | null>(null);
-  const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV6>>({});
+  const [progress, setProgress] = useState<ImportFlowProgressV9 | null>(null);
+  const [persistence, setPersistence] = useState<Record<string, ImportPersistenceStateV9>>({});
   const [timingDiagnostics, setTimingDiagnostics] = useState<string[]>([]);
   const [sourceValueWarnings, setSourceValueWarnings] = useState<Record<string, number>>({});
   const [sourceMaximumWarnings, setSourceMaximumWarnings] = useState<

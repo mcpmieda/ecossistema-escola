@@ -5,8 +5,8 @@ import { abbreviateSha256 } from './file-manifest';
 import { MAX_NOTES_IMPORT_FILES } from './import-batch';
 import {
   useImportBatch,
-  type ImportFlowProgressV6,
-  type ImportPersistenceStateV6,
+  type ImportFlowProgressV9,
+  type ImportPersistenceStateV9,
 } from './use-import-batch';
 import { ImportDiagnosticsPanelV1 } from './import-diagnostics-panel-v1';
 import { WorkbookInspector } from './workbook-inspector';
@@ -33,7 +33,7 @@ const PROGRESS_STAGE = {
   completed: ['Concluído', 100],
 } as const;
 
-function progressValue(progress: ImportFlowProgressV6): number {
+function progressValue(progress: ImportFlowProgressV9): number {
   const [, base] = PROGRESS_STAGE[progress.stage];
   if (progress.stage === 'completed') return 100;
   const fraction = progress.total > 0 ? Math.min(1, progress.current / progress.total) : 0;
@@ -54,7 +54,7 @@ function progressValue(progress: ImportFlowProgressV6): number {
   return Math.round(base + (next - base) * fraction);
 }
 
-function persistenceLabel(state: ImportPersistenceStateV6 | undefined): string {
+function persistenceLabel(state: ImportPersistenceStateV9 | undefined): string {
   if (!state) return 'Aguardando';
   switch (state.state) {
     case 'recognized':
@@ -86,7 +86,7 @@ function persistenceLabel(state: ImportPersistenceStateV6 | undefined): string {
 }
 
 function persistenceDescription(
-  state: Extract<ImportPersistenceStateV6, { state: 'completed' }>,
+  state: Extract<ImportPersistenceStateV9, { state: 'completed' }>,
 ): string {
   const response = state.response;
   const issue =
@@ -105,7 +105,7 @@ function persistenceDescription(
   return `${response.summary.committedWrites.total} gravação(ões) confirmadas no lote atômico, incluindo registros técnicos de auditoria.${issue}`;
 }
 
-function PersistenceResult({ state }: { state: ImportPersistenceStateV6 | undefined }) {
+function PersistenceResult({ state }: { state: ImportPersistenceStateV9 | undefined }) {
   if (!state) return null;
   if (state.state === 'auth-required') {
     return (
@@ -389,7 +389,7 @@ export function NotesImportPanel() {
                   </div>
                   <FileHash sha256={result.manifest.sha256} />
                   <p className="mt-2 text-xs text-muted">
-                    Importação por valores V8 · 0 = vazio · 0,1 = zero explícito
+                    Importação por valores · 0 = vazio · 0,1 = zero explícito
                   </p>
                   {blocking > 0 && (
                     <p className="mt-2 text-xs font-semibold text-danger">
