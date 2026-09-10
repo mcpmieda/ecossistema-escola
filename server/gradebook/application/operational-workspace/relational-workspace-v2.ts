@@ -104,7 +104,8 @@ async function loadCenter(db: D1WriteDatabaseV1, request: Extract<OperationalWor
     WHERE o.ano = ? AND ${OFFER_FILTER[request.kind]}
     ORDER BY t.codigo COLLATE "C",d.nome COLLATE "C",p.nome COLLATE "C",o.id
     LIMIT ? OFFSET ?`, [request.year, request.id, request.limit + 1, request.offset]);
-  const prior = entity.conselho_anterior;
+  const storedPrior = entity.conselho_anterior;
+  const prior = storedPrior === 0 ? false : storedPrior === 1 ? true : storedPrior;
   if (request.kind === 'student' && !(prior === null || typeof prior === 'boolean')) throw new Error('invalid-workspace-row');
   return {
     entity: ref(request.kind, entity.id, entity.label),

@@ -51,7 +51,7 @@ describe('F9 — shell, isolamento e code splitting', () => {
     for (const featurePath of [
       'gradebook-operational-surface',
       'audit-workspace/gradebook-audit-surface',
-      'performance/performance-page',
+      'performance/relational-performance-page-v2',
       'bulletins/bulletin-page',
       'gradebook-council-surface',
     ]) {
@@ -160,7 +160,7 @@ describe('F9 — privacidade, auth e transporte', () => {
     const council = source('src/features/gradebook/council/council-workspace-page.tsx');
     const bulletins = source('src/features/gradebook/bulletins/bulletin-page.tsx');
 
-    expect(council).not.toMatch(/setInterval|retryDecision|autoRetry/u);
+    expect(council).not.toMatch(/setInterval|retryDecision|retryEmit|autoRetry/u);
     expect(bulletins).not.toMatch(/setInterval|retryEmit|autoRetry/u);
   });
 });

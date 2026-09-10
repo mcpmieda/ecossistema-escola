@@ -1,3 +1,4 @@
+import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { useEffect, useRef } from 'react';
 import { Alert, Button, Card, Chip, SearchField, Spinner } from '@heroui/react';
 import type { WorkspaceBindingV2, WorkspaceCenterV2, WorkspaceKindV2, WorkspaceLinkV2, WorkspaceStatusV2 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
@@ -42,6 +43,7 @@ function Center({value,onOpen,busy,onMore}:{value:WorkspaceCenterV2;onOpen:(valu
   </Card.Content></Card>;
 }
 export function RelationalWorkspacePageV2() {
+  const sharedYear=useGradebookYear();
   const workspace=useRelationalWorkspaceV2();
   const searchInput=useRef<HTMLInputElement>(null);
   const year=workspace.year;
@@ -55,15 +57,16 @@ export function RelationalWorkspacePageV2() {
   return <section aria-label="Centrais acadêmicas" className="grid min-w-0 gap-5">
     <Card><Card.Header><Card.Title>Centrais acadêmicas</Card.Title><Card.Description>Consulte alunos, turmas, professores e componentes do cadastro anual.</Card.Description></Card.Header>
       <Card.Content className="grid gap-4">
-        <div className="flex flex-wrap items-end gap-3">
+        {!sharedYear ? <div className="flex flex-wrap items-end gap-3">
           <Button variant="secondary" isDisabled={workspace.busy.bootstrap} onPress={()=>void workspace.bootstrap()}>{workspace.bootstrapped?'Atualizar catálogo':'Carregar Centrais'}</Button>
           <label className="grid gap-1 text-sm">Ano letivo
             <select aria-label="Ano letivo" className="rounded-xl border border-separator bg-surface px-3 py-2 focus-visible:ring-2 focus-visible:ring-focus" value={year??''} disabled={workspace.busy.bootstrap||!workspace.years.length} onChange={(event)=>void workspace.selectYear(event.target.value?Number(event.target.value):null)}>
               <option value="">Selecione o ano</option>{workspace.years.map((value)=><option key={value.year} value={value.year}>{value.year}</option>)}
             </select>
           </label>
-        </div>
-        {workspace.bootstrapped&&!workspace.years.length&&!workspace.failure?<p className="text-sm text-muted">Nenhum ano cadastrado foi encontrado.</p>:null}
+        </div> : null}
+        {!sharedYear&&workspace.bootstrapped&&!workspace.years.length&&!workspace.failure?<p className="text-sm text-muted">Nenhum ano cadastrado foi encontrado.</p>:null}
+        {sharedYear && year === null ? <p>Selecione o ano letivo no topo do Banco.</p> : null}
         {workspace.context?<div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4" aria-label="Resumo cadastral">
           <span><strong>{workspace.context.counts.students}</strong> alunos</span><span><strong>{workspace.context.counts.classes}</strong> turmas</span>
           <span><strong>{workspace.context.counts.teachers}</strong> professores</span><span><strong>{workspace.context.counts.subjects}</strong> componentes</span>

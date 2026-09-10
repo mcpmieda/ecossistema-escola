@@ -10,6 +10,8 @@ import {
   useState,
 } from 'react';
 import { Alert, Button, Spinner, Surface } from '@heroui/react';
+import { GradebookYearProvider, GradebookYearSelector } from './gradebook-year-provider';
+import { useGradebookYear } from './gradebook-year-context';
 import { NotesImportPanel } from '../features/gradebook/import/import-panel';
 
 export const GRADEBOOK_WORKSPACE_SURFACES = [
@@ -84,8 +86,8 @@ const GradebookAuditSurface = lazy(async () => {
 });
 
 const PerformancePage = lazy(async () => {
-  const module = await import('../features/gradebook/performance/performance-page');
-  return { default: module.PerformancePage };
+  const module = await import('../features/gradebook/performance/relational-performance-page-v2');
+  return { default: module.RelationalPerformancePageV2 };
 });
 
 const BulletinPage = lazy(async () => {
@@ -185,6 +187,11 @@ function nextSurfaceFromKey(
 }
 
 export function GradebookWorkspaceShell() {
+  return <GradebookYearProvider><GradebookWorkspaceShellContent /></GradebookYearProvider>;
+}
+
+function GradebookWorkspaceShellContent() {
+  const scope = useGradebookYear();
   const [activeSurface, setActiveSurface] = useState<GradebookWorkspaceSurfaceId>(() =>
     workspaceSurfaceFromHash(),
   );
@@ -231,7 +238,7 @@ export function GradebookWorkspaceShell() {
   };
 
   return (
-    <section aria-labelledby="gradebook-workspace-heading" className="grid gap-4">
+    <section aria-labelledby="gradebook-workspace-heading" className="grid min-w-0 grid-cols-1 gap-4">
       <Surface variant="default" className="rounded-2xl border border-border/60 p-3 sm:p-4">
         <div className="mb-3 max-w-3xl px-1">
           <h2 id="gradebook-workspace-heading" className="text-lg font-semibold tracking-[-0.02em]">
@@ -277,6 +284,8 @@ export function GradebookWorkspaceShell() {
         </div>
       </Surface>
 
+      {activeSurface === 'operational' || activeSurface === 'performance' ? <GradebookYearSelector /> : null}
+
       <p className="sr-only" aria-live="polite">
         {GRADEBOOK_WORKSPACE_SURFACES.find((surface) => surface.id === activeSurface)?.label} ativa.
       </p>
@@ -304,7 +313,10 @@ export function GradebookWorkspaceShell() {
                 <Suspense fallback={<SurfaceLoading label={surface.label} />}>
                   {(() => {
                     const SurfaceComponent = SURFACE_COMPONENTS[surface.id];
-                    return <SurfaceComponent />;
+                    const scopeKey = surface.id === 'operational'
+                      ? `${scope?.epoch}:${scope?.targetStudentId}:${scope?.studentNavigationEpoch}`
+                      : surface.id === 'performance' ? scope?.epoch : undefined;
+                    return <SurfaceComponent key={scopeKey} />;
                   })()}
                 </Suspense>
               </GradebookSurfaceBoundary>
