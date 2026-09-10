@@ -1,0 +1,11 @@
+diff --git a/src/features/gradebook/performance/relational-performance-page-v2.tsx b/src/features/gradebook/performance/relational-performance-page-v2.tsx
+--- a/src/features/gradebook/performance/relational-performance-page-v2.tsx
++++ b/src/features/gradebook/performance/relational-performance-page-v2.tsx
+@@ -23,1 +23,1 @@
+-  return <Button size="sm" variant="ghost" className={`h-auto min-w-8 rounded-md px-2 py-1 text-xs font-semibold tabular-nums ${cell.level==='at-or-above-minimum'?'text-accent':cell.level==='below-minimum'?'text-danger':'text-foreground'}`} isDisabled={!action} onPress={action} aria-label={`${cellLabel(cell)} — ${stateLabel(cell.state)}`} title={stateLabel(cell.state)}>{cellLabel(cell)}{cell.state==='partial'?<span aria-hidden="true">*</span>:null}</Button>;
++  return <button type="button" className={`rounded-md px-1 py-1 text-xs font-semibold tabular-nums whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-focus ${cell.level==='at-or-above-minimum'?'text-accent':cell.level==='below-minimum'?'text-danger':'text-foreground'}`} style={{minWidth:'max-content'}} disabled={!action} onClick={action} aria-label={`${cellLabel(cell)} — ${stateLabel(cell.state)}`} title={stateLabel(cell.state)}>{cellLabel(cell)}{cell.state==='partial'?<span aria-hidden="true">*</span>:null}</button>;
+@@ -94,2 +94,2 @@
+-          <div className="max-w-full overflow-x-auto rounded-xl border border-separator" tabIndex={0} role="region" aria-label="Matriz de desempenho"><table className="w-full table-fixed text-left text-sm" style={{minWidth:`${270+matrix.columns.length*35}px`}}>
+-            <colgroup><col style={{width:'3.8rem'}}/><col style={{width:'6rem'}}/><col style={{width:'11rem'}}/>{matrix.columns.map((o)=><col key={o.offerId}/>)}</colgroup>
++          <div className="max-w-full overflow-x-auto rounded-xl border border-separator" tabIndex={0} role="region" aria-label="Matriz de desempenho"><table className="w-full table-auto text-left text-sm" style={{minWidth:`${16+matrix.columns.length*2.5}rem`}}>
++            <colgroup><col style={{width:'2.5rem'}}/><col style={{width:'4.5rem'}}/><col style={{width:'9rem'}}/>{matrix.columns.map((o)=><col key={o.offerId}/>)}</colgroup>
