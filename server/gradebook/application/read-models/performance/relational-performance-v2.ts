@@ -25,6 +25,7 @@ const text = (value: unknown): string => {
 };
 const boolean = (value: unknown): boolean | null => {
   if (value === null || typeof value === 'boolean') return value;
+  if (value === 0 || value === 1) return value === 1;
   throw new Error('invalid-performance-row');
 };
 const all = async (db: D1WriteDatabaseV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<readonly Row[]> => (await db.prepare(sql).bind(...values).all<Row>()).results;
