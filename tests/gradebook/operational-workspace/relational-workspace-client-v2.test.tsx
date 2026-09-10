@@ -28,6 +28,9 @@ function deferred() {
 }
 beforeEach(()=>{
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT',true);
+  // jsdom has no layout/media engine. These adapters do not claim visual validation.
+  vi.stubGlobal('matchMedia',(media:string)=>({media,matches:false,onchange:null,addListener:vi.fn(),removeListener:vi.fn(),addEventListener:vi.fn(),removeEventListener:vi.fn(),dispatchEvent:()=>true}));
+  vi.stubGlobal('ResizeObserver',class {observe=vi.fn();unobserve=vi.fn();disconnect=vi.fn();});
   fetchMock=vi.fn<typeof fetch>();vi.stubGlobal('fetch',fetchMock);
   host=document.createElement('div');document.body.appendChild(host);
 });
@@ -116,14 +119,26 @@ describe('react workspace request lifecycle with synthetic HTTP responses',()=>{
 });
 
 describe('rendered Centrais surface in jsdom (not a visual browser benchmark)',()=>{
-  it('opens the catalogue through the actual HeroUI action and never chooses a year automatically',async()=>{
+  it('runs catalogue, explicit year, search and center through the real HeroUI page',async()=>{
     fetchMock.mockResolvedValueOnce(reply(bootstrap));root=createRoot(host);
     await act(async()=>{root!.render(createElement(RelationalWorkspacePageV2));});
     const button=[...host.querySelectorAll('button')].find((value)=>value.textContent==='Carregar Centrais');
     expect(button).toBeDefined();expect(fetchMock).not.toHaveBeenCalled();
     await act(async()=>{button!.click();});
-    const select=host.querySelector('select[aria-label="Ano letivo"]') as HTMLSelectElement;
+    // Workers declares an unrelated global Element; runtime here is explicitly jsdom.
+    const select=host.querySelector('select[aria-label="Ano letivo"]') as unknown as HTMLSelectElement;
     expect([...select.options].map((value)=>value.value)).toEqual(['','2090','2091']);expect(select.value).toBe('');
+    fetchMock.mockResolvedValueOnce(reply(context()));
+    await act(async()=>{select.value='2090';select.dispatchEvent(new Event('change',{bubbles:true}));});
+    expect(host.textContent).toContain('Resumo cadastral');
+    fetchMock.mockResolvedValueOnce(reply(search()));
+    const form=host.querySelector('form');expect(form).not.toBeNull();
+    await act(async()=>{form!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});
+    const student=[...host.querySelectorAll('button')].find((value)=>value.textContent==='ALUNO SINTETICO');
+    expect(student).toBeDefined();fetchMock.mockResolvedValueOnce(reply(detail));
+    await act(async()=>{student!.click();});
+    expect(host.textContent).toContain('Não informado');
+    expect(host.textContent).toContain('Ofertas da turma atual');
     expect(host.textContent).toContain('Consulta somente leitura');
   });
   it('mounts V2 in the existing lazy shell and leaves legacy maintenance preserved but disconnected',()=>{
