@@ -1,34 +1,13 @@
-# Comece aqui — execução final
+# Entrega corrente — leituras acadêmicas e matriz relacional
 
-## Estado integrado
+**#642 / PR #643**, branch `feat/bn-relational-performance-642`. Base publicada: `cb6e3bf2309d4aa5716b600a3957046f133f850c`, deploy 256. O bloco cadastral #640 e a correção de segurança #641 já estão integrados/publicados.
 
-A #636 foi integrada em `4d8256fa6f741f4fb0b6ade8676d0f9193b7a460`, deploy 254 aprovado: planejamento, lote de projeções, baseline reproduzível e Auditoria transacional.
+A implementação da primeira matriz está salva no GitHub: contrato V2, fonte SQL em lote, motor reutilizado, ano compartilhado, tela e testes. Não reconstruir novamente esse código por falta de uma pasta temporária. **Gravar cada bloco revisável em commit na branch antes de avançar; registrar SHA, testes e pendências na issue.** Objetos Git sem commit/ref e arquivos locais não são checkpoint suficiente.
 
-A #640 foi integrada em `6683d1377f2dd090c1346f693a4af4c2e188d7ae`, deploy 255 / `34477526551` aprovado: contexto, pesquisa e quatro Centrais somente leitura, contrato #639. Isso não encerra FINAL-1 nem homologa todas as telas. Smoke autenticado/visual permanece explícito.
+Revisar o diff, executar `npm run verify`/CI do head final, integrar com SHA esperado e conferir o workflow oficial de publicação. A autorização contínua BN-DEC-023 dispensa nova confirmação por PR; não dispensa os gates. Estado de publicação e pendências visuais/autenticadas: #642/#643.
 
-## Próxima tarefa segura
+Depois desta entrega, avançar em um bloco funcional da #634: lentes, comparabilidade explicitamente contratada, indicadores/gráficos investigáveis e configurações. Não apresentar consulta calculada como emissão oficial; aceite #347 continua separado. [Contrato e limites](RELATIONAL_PERFORMANCE_V2.md).
 
-Concluir a remediação #637/#641 pelos gates registrados e continuar **#633 / FINAL-1**: conectar leituras acadêmicas e Desempenho ao motor simplificado, unificar contexto anual e adaptar consumidores por contratos próprios. Não refazer importação nem fontes cadastrais já integradas. A publicação da correção é registrada na #637; [evidência do lock e audits](SECURITY_REMEDIATION_637.md).
+FINAL-1 #633 permanece aberta para manutenção/gestão de anos, Boletins/Relatórios, fontes e durabilidade restantes; FINAL-2 #634 completa Desempenho; FINAL-3 #635 conclui Conselho; FINAL-4 #406 valida o produto integral. #596 fecha a entrega institucional. As branches reservadas precisam incorporar a main validada antes da execução.
 
-**Não pedir autorização novamente a cada PR concluída.** O responsável autorizou integração e deploy contínuos em 10/09/2026, #182 comentário `5618750384`, BN-DEC-023. Confirmar revisão, CI do head, merge com SHA esperado e deploy oficial. Não publicar código com falhas ou tratar deploy como aceite acadêmico.
-
-## Ordem das fases
-
-| Ordem | Issue | Branch atual/reservada | Condição |
-| --- | --- | --- | --- |
-| 1 | #633 | branch curta para a próxima entrega | base e Centrais integradas; consumidores acadêmicos pendentes |
-| 2 | #634 | `feat/bn-final-2-desempenho` | fonte/contrato relacional compartilhado |
-| 3 | #635 | `feat/bn-final-3-conselho` | base e contrato das lacunas de Conselho |
-| 4 | #406 | `test/bn-final-4-piloto-integral` | jornadas funcionais integradas |
-
-Branches posteriores são reservas e devem incorporar a main validada antes de execução; não fazer merges cegos entre fases. #347 registra aceite por consumidor/escopo; #596 fecha a entrega. Nenhum bloco parcial encerra a fase inteira.
-
-## O que não refazer
-
-A #613 concluiu reconstrução e cutover de persistência. Não reiniciar #592/#594/#595, não devolver PostgreSQL a shadow, não reativar V8 nem limpar a massa atual. Importadores arquivados ficam em `Aprendizados/IMPORTADORES-LEGADOS/`.
-
-O [mapa](CONSUMER_MAP.md) diferencia fontes antigas e contratos atuais. Nome D1 pode ser só interface; confirmar composição/SQL. Snapshot de boletim e sessão de Conselho não reaparecem com troca de provider. Do documento antigo usar só Conselho; Desempenho segue seu documento específico.
-
-## Gates e limites
-
-A autorização contínua não modifica proteção de branches, permissões, secrets, recursos, dados/schema ou regras/autoridade acadêmica. Alterações dessa natureza continuam exigindo decisão e escopo próprios. Dados reais ficam fora de Git/CI. Restore não é presumido por migration; reimportação idêntica não prova todas as telas. Estados e ondas antigos ficam em [memória histórica](history/pre-final-1/README.md).
+Não reabrir a migração física #613, não reativar importadores arquivados, não alterar regras/dados/schema/credenciais por este roteiro. Comparabilidade, recuperação e resultados não são inferidos no navegador. Memória anterior em [history/pre-final-1/README.md](history/pre-final-1/README.md).

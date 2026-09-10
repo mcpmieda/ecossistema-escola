@@ -6,8 +6,8 @@ updated_at: 2026-09-10
 coordination:
   master_issue: 182
   executable_issue: 633
-  current_delivery_issue: 637
-  current_integrator_issue: 637
+  current_delivery_issue: 642
+  current_integrator_issue: 642
   central_state_editor: integrator-only
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
@@ -22,17 +22,18 @@ coordination:
   prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
 
 baseline:
-  last_audited_main_commit: 6683d1377f2dd090c1346f693a4af4c2e188d7ae
+  last_audited_main_commit: cb6e3bf2309d4aa5716b600a3957046f133f850c
+  integrated_security_pr: 641
   integrated_centers_pr: 640
   integrated_foundation_pr: 636
   integrated_import_archive_pr: 632
   storage_homologation_issue: 613
   active_diagnostics_homologation_issue: 629
-  authorized_deploy_run: 34477526551
-  authorized_deploy_number: 255
+  authorized_deploy_run: 34480442813
+  authorized_deploy_number: 256
   authorized_deploy_result: success
   authenticated_post_deploy_smoke_this_session: false
-  note: baseline-before-security-delivery-release-checkpoint-in-issue-637
+  note: baseline-before-performance-delivery-release-checkpoint-in-issue-642
 
 storage:
   decision_current: BN-DEC-022
@@ -77,6 +78,10 @@ runtime:
   relational_centers_operations: [bootstrap, context, search, center]
   relational_centers_write_operations: none
   relational_centers_snapshot: per-request-read-only-repeatable-read
+  relational_performance_v2: implemented-pr-643-release-checkpoint-in-issue-642
+  relational_performance_authority: calculated-preview-not-official-emission
+  relational_performance_snapshot: per-response-read-only-repeatable-read
+  shared_year_consumers: [centers-v2, performance-v2]
   remaining_consumers: legacy-schema-dependencies-pending-reanchoring
   global_academic_authority_switch_verified: false
   authority_acceptance_issue: 347
@@ -85,15 +90,15 @@ runtime:
     note: describes-existing-v1-contracts-not-a-global-runtime-flag
 
 work_in_progress:
-  issue: 637
+  issue: 642
   parent_issue: 633
   phase: FINAL-1
-  branch: chore/security-637-remediation
-  pull_request: 641
-  scope: targeted-dependency-remediation-and-standing-release-authorization
+  branch: feat/bn-relational-performance-642
+  pull_request: 643
+  scope: relational-performance-read-preview-and-shared-year
   production_activation_in_this_delivery: false
   phase_complete: false
-  release_checkpoint: issue-637-and-pr-641
+  release_checkpoint: issue-642-and-pr-643
   remaining:
     - visual-browser-and-authenticated-production-smoke
     - yearly-context-unification-across-all-consumers
@@ -146,7 +151,7 @@ security:
   recovery: must-be-proven-not-inferred-from-migration-presence
   npm_audit_baseline: six-dev-entries-two-dependency-chains
   npm_audit_omit_dev_baseline: zero-reported-entries-not-proof-of-zero-risk
-  dependency_remediation: source-corrected-and-audited-release-checkpoint-issue-637
+  dependency_remediation: integrated-pr-641-deploy-256-success
   npm_audit_full_after: 0
   npm_audit_omit_dev_after: 0
   npm_audit_date: 2026-09-10
@@ -157,4 +162,5 @@ security:
 next_safe_action:
   issue: 633
   related_issue: 634
-  description: continue-relational-academic-consumers-with-explicit-contracts-and-validated-integration
+  description: complete-performance-lenses-comparability-and-investigation-after-delivery-642
+  prerequisite_release_checkpoint: issue-642-and-pr-643
