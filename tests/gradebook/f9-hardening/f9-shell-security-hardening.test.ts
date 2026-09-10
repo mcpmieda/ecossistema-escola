@@ -58,7 +58,9 @@ describe('F9 — shell, isolamento e code splitting', () => {
       expect(shell).toContain(`import('${featurePath.startsWith('gradebook-') ? `./${featurePath}` : `../features/gradebook/${featurePath}`}')`);
     }
     expect(operationalSurface).toContain('<OperationalWorkspacePage />');
-    expect(operationalSurface).toContain('<TeacherAssignmentMaintenanceWorkspace />');
+    // Contract #639 replaces the mounted read-only center, not the lazy shell boundary.
+    expect(operationalSurface).toContain('relational-workspace-page-v2');
+    expect(operationalSurface).not.toContain('<TeacherAssignmentMaintenanceWorkspace');
 
     expect(app).not.toMatch(/features\/gradebook\/(?:operational-workspace|audit-workspace|performance|bulletins|council)/u);
     expect(shell).toContain("const DEFAULT_SURFACE: GradebookWorkspaceSurfaceId = 'importacao'");
