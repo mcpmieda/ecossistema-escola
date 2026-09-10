@@ -10,7 +10,7 @@ Fonte funcional: `PAINEL DESEMPENHO` de 29/08/2026, especialmente contexto/matri
 
 Banco → Centrais ou Desempenho → Carregar anos → selecionar ano explicitamente → turma → período T1/T2/T3/Visão geral → modo Regular/Recuperação → matriz → detalhe do aluno/componente → cadastro nas Centrais.
 
-`GradebookYearProvider` mantém ano/epoch em memória no shell. A troca remonta somente os consumidores V2 e cancela suas respostas antigas. Entrar na Importação não consulta nem pré-carrega catálogo acadêmico. Centrais e Desempenho compartilham ano; os demais consumidores ainda exigem migração. Identificador do aluno para navegação permanece em memória, não na URL.
+`GradebookYearProvider` mantém ano/epoch em memória no shell. A troca remonta somente os consumidores V2 e cancela suas respostas antigas. Entrar na Importação não consulta nem pré-carrega catálogo acadêmico. Centrais e Desempenho compartilham ano; os demais consumidores ainda exigem migração. Identificador do aluno para navegação permanece em memória, não na URL. Um contador de navegação separado garante que abrir novamente o mesmo aluno atualize sua Central mesmo após outras pesquisas, sem descartar ou consultar novamente a matriz de Desempenho.
 
 A tabela começa por Nº | Situação | Aluno | componentes. Filtro múltiplo usa opções do servidor. Vínculo histórico `FOI_PARA` não entra como posição atual; situações terminais podem exibir fatos, sem entrar nos indicadores dos vínculos sem situação especial/`ESTAVA_NO`. Selecionar uma situação não cria elegibilidade acadêmica.
 
@@ -38,7 +38,7 @@ Limites atuais: 150 alunos, 40 ofertas e 1.000 pares aluno/oferta por matriz com
 
 ## Evidências e limitações
 
-Testes presentes: 29 SQL/HTTP/semântica, 14 cliente/React com o shell real, três para booleano de Conselho pelo facade PostgreSQL e cinco para limites. A retomada de 10/09 executou localmente esses 51 testes com sucesso. O ensaio de 1.000 pares usa 100 alunos × 10 componentes sintéticos em T1/T2/T3/Visão geral: seis instruções, todas as linhas/colunas preservadas e payload abaixo de 500 KB gzip. 1.010 pares são recusados antes da consulta de fatos. Não é medição p95 de rede/Hyperdrive nem SLA de tela.
+Testes presentes: 29 SQL/HTTP/semântica, 15 cliente/React com o shell real, três para booleano de Conselho pelo facade PostgreSQL e cinco para limites. A retomada de 10/09 executou localmente esses 52 testes com sucesso. A regressão de reabertura do mesmo aluno foi primeiro reproduzida com falha e depois aprovada com a correção; o teste também confirma uma única consulta de matriz durante essa navegação. O ensaio de 1.000 pares usa 100 alunos × 10 componentes sintéticos em T1/T2/T3/Visão geral: seis instruções, todas as linhas/colunas preservadas e payload abaixo de 500 KB gzip. 1.010 pares são recusados antes da consulta de fatos. Não é medição p95 de rede/Hyperdrive nem SLA de tela.
 
 A validação completa para integração é a CI normal do head final, registrada na PR. O workflow temporário de exportação foi restaurado ao original. Um verify local completo foi interrompido pelo tempo máximo durante typecheck; não foi contabilizado como aprovado. Os testes focados foram executados separadamente.
 
