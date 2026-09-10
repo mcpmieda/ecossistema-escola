@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
+import { buildPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
+import { projectPerformanceFactsV2, EMPTY_PERFORMANCE_CLOSING_V2 } from '../../../server/gradebook/application/results/relational-performance-facts-v2';
+import { performanceAnalysisRequestSchemaV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
+import { requestPerformanceAnalysisV3 } from '../../../src/features/gradebook/performance/performance-analysis-client-v3';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GradebookWorkspaceShell } from '../../../src/platform/gradebook-workspace-shell';
@@ -22,7 +26,9 @@ let mock: ReturnType<typeof vi.fn<typeof fetch>>;
 let requests: Record<string, unknown>[];
 const reply = (data: unknown, status = 200) => Response.json(data, { status });
 
+const animationsDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations');
 beforeEach(() => {
+  Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('matchMedia', (media: string) => ({ media, matches: false, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: () => true }));
   vi.stubGlobal('ResizeObserver', class { observe = vi.fn(); unobserve = vi.fn(); disconnect = vi.fn(); });
@@ -31,6 +37,7 @@ beforeEach(() => {
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>; requests.push(body);
     if (body.operation === 'bootstrap') return reply({ contractVersion: 2, state: 'ready', operation: 'bootstrap', years: [context, { ...context, year: 2091 }] });
     if (body.operation === 'classes') return reply({ ...catalog, context: { ...context, year: body.year } });
+    if (body.operation === 'analysis') return reply(analysisFixture(body));
     if (body.operation === 'matrix') return reply({ ...matrix, period: body.period, mode: body.mode });
     if (body.operation === 'student-detail') return reply({ ...common, ...selected, operation: 'student-detail', row, offers: [offering], trajectory: [{ offerId: 10, terms: [cell, cell, cell] }] });
     if (body.operation === 'context') return reply({ contractVersion: 2, state: 'ready', operation: 'context', context, counts: { students: 1, classes: 1, teachers: 1, subjects: 1, offers: 1, currentBindings: 1, historicalBindings: 0 } });
@@ -41,11 +48,11 @@ beforeEach(() => {
   host = document.createElement('div'); document.body.appendChild(host);
   window.location.hash = '#/banco-de-notas?area=performance';
 });
-afterEach(async () => { if (root) await act(async () => { root!.unmount(); }); root = null; host.remove(); vi.unstubAllGlobals(); });
+afterEach(async () => { if (root) await act(async () => { root!.unmount(); }); root = null; host.remove(); vi.unstubAllGlobals(); if (animationsDescriptor) Object.defineProperty(Element.prototype, 'getAnimations', animationsDescriptor); else Reflect.deleteProperty(Element.prototype, 'getAnimations'); });
 async function settle() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); }); }
 async function mount() { root = createRoot(host); await act(async () => { root!.render(createElement(GradebookWorkspaceShell)); }); await settle(); }
 async function click(text: string) {
-  const button = [...document.querySelectorAll('button')].find((element) => element.textContent === text);
+  const button = [...document.querySelectorAll<HTMLElement>('button,[role=tab]')].find((element) => element.textContent === text);
   if (!button) throw new Error(`missing-button:${text}`);
   await act(async () => { button.click(); }); await settle();
 }
@@ -89,7 +96,7 @@ describe('V2 contract and transport', () => {
 describe('real shell, shared year and rendered performance journey', () => {
   it('does not preload an academic catalog in Importation', async () => {
     window.location.hash = '#/banco-de-notas'; await mount();
-    expect(requests.filter((value) => ['bootstrap','classes','matrix'].includes(String(value.operation)))).toHaveLength(0);
+    expect(requests.filter((value) => ['bootstrap','classes','matrix','analysis'].includes(String(value.operation)))).toHaveLength(0);
     expect(host.querySelector('[aria-label="Contexto anual compartilhado"]')).toBeNull();
   });
   it('loads shared year, class and matrix, then a student drawer and the existing center', async () => {
@@ -99,7 +106,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     expect(host.querySelectorAll('select[aria-label="Ano letivo do Banco"]')).toHaveLength(1);
     await click(student.name);
     expect(document.body.textContent).toContain('Conselho anterior: Não informado');
-    expect(requests.filter((value) => value.operation === 'matrix')).toHaveLength(1);
+    expect(requests.filter((value) => value.operation === 'analysis')).toHaveLength(1);
     expect(requests.filter((value) => value.operation === 'student-detail')).toHaveLength(1);
     await click('Ver cadastro nas Centrais');
     for (let attempt = 0; attempt < 100 && !requests.some((value) => value.operation === 'center'); attempt++) await settle();
@@ -122,7 +129,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     await click('Ver cadastro nas Centrais');
     for (let attempt = 0; attempt < 100 && requests.filter((value) => value.operation === 'center').length < 2; attempt++) await settle();
     expect(requests.filter((value) => value.operation === 'center' && value.id === 1)).toHaveLength(2);
-    expect(requests.filter((value) => value.operation === 'matrix')).toHaveLength(1);
+    expect(requests.filter((value) => value.operation === 'analysis')).toHaveLength(1);
     expect(host.textContent).toContain('Aprovação pelo Conselho no ano anterior');
   });
   it('drops a late old-year response rather than repopulating a reset matrix', async () => {
@@ -133,7 +140,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     const pendingSignal = mock.mock.calls.at(-1)?.[1]?.signal;
     await select('Ano letivo do Banco', '2091');
     expect(pendingSignal?.aborted).toBe(true);
-    await act(async () => { resolve(reply({ ...matrix, period: 2 })); });
+    await act(async () => { resolve(reply(analysisFixture({ period: 2 }))); });
     expect(host.textContent).not.toContain(student.name);
     expect((document.querySelector('select[aria-label="Turma"]') as unknown as HTMLSelectElement).value).toBe('');
   });
@@ -145,3 +152,62 @@ describe('real shell, shared year and rendered performance journey', () => {
     expect((document.querySelector('select[aria-label="Ano letivo do Banco"]') as unknown as HTMLSelectElement).value).toBe('');
   });
 });
+
+function analysisFixture(extra: Record<string, unknown> = {}) {
+  const request = performanceAnalysisRequestSchemaV3.parse({ transportVersion: 3, operation: 'analysis', year: 2090, classId: 10, period: 1, mode: 'regular', statuses: [null,7], lens: 'result', offerId: null, ...extra });
+  const base = performanceResponseSchemaV2.parse({ ...matrix, context: { ...context, year: request.year }, period: request.period, mode: request.mode });
+  if (base.state !== 'ready' || base.operation !== 'matrix') throw new Error('invalid-synthetic-base');
+  const facts = ([1,2,3] as const).flatMap((term) => ([1,2,11] as const).map((slot) => ({term, slot, label: `ATIVIDADE SINTETICA ${slot}`, maximumMilli: slot === 11 ? (term === 3 ? 22000 : 16500) : (term === 3 ? 9000 : 6750), valueMilli: slot === 11 ? 12000 : 6000})));
+  return buildPerformanceAnalysisV3(base, new Map([[1, [projectPerformanceFactsV2(10, facts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]]]), request);
+}
+
+describe('four lenses and analytical investigation V3', () => {
+  it('changes all four lenses with one request per selection, not per student', async () => {
+    await loaded();
+    await click('Quantitativo');
+    expect(host.textContent).toContain('Quantitativo considerado pelo núcleo');
+    expect(host.querySelectorAll('[aria-label="Gráfico investigável da lente"]')).toHaveLength(1);
+    await click('Qualitativo');
+    expect(host.textContent).toContain('pontuação das atividades registradas');
+    await click('Avaliações');
+    expect(requests.filter((r) => r.operation === 'analysis')).toHaveLength(3);
+    await select('Componente das avaliações', '10');
+    expect(host.textContent).toContain('ATIVIDADE SINTETICA');
+    expect(requests.filter((r) => r.operation === 'analysis')).toHaveLength(4);
+    await click('Resultado');
+    expect(requests.filter((r) => r.operation === 'analysis')).toHaveLength(5);
+    expect(host.querySelector('[aria-label="Componente das avaliações"]')).toBeNull();
+  });
+  it('filters the matrix through a chart, opens denominators and clears without SQL', async () => {
+    await loaded(); await click('No limite ou acima');
+    const bar = host.querySelector('button[aria-label*="MATEMATICA SINTETICA: 1 de 1"]') as HTMLButtonElement;
+    expect(bar).not.toBeNull();
+    await act(async () => { bar.click(); }); await settle();
+    expect(host.textContent).toContain('Investigando: MATEMATICA SINTETICA');
+    await click('Ver mais'); expect(host.textContent).toContain('Mediana proporcional');
+    await click('Limpar investigação');
+    expect(host.textContent).not.toContain('Investigando: MATEMATICA SINTETICA');
+    expect(requests.filter((r) => r.operation === 'analysis')).toHaveLength(1);
+  });
+  it('discards a late quantitative response after the user selects qualitative', async () => {
+    await loaded(); let resolve!: (response: Response) => void;
+    mock.mockImplementationOnce(() => new Promise((accept) => { resolve = accept; }));
+    await click('Quantitativo'); const signal = mock.mock.calls.at(-1)?.[1]?.signal;
+    await click('Qualitativo'); expect(signal?.aborted).toBe(true);
+    await act(async () => { resolve(reply(analysisFixture({ lens: 'quantitative' }))); });
+    expect(host.textContent).toContain('pontuação das atividades registradas');
+    expect(host.textContent).not.toContain('Quantitativo considerado pelo núcleo');
+  });
+  it('uses validated no-store V3 responses and rejects forged groups without throwing', async () => {
+    const request = performanceAnalysisRequestSchemaV3.parse({ ...requestV3() });
+    const abort = new AbortController();
+    expect(await requestPerformanceAnalysisV3(request, abort.signal)).toMatchObject({ state: 'ready' });
+    expect(mock).toHaveBeenLastCalledWith('/api/gradebook/performance', expect.objectContaining({ cache: 'no-store', credentials: 'same-origin', signal: abort.signal }));
+    const bad = analysisFixture(); bad.rows.push(bad.rows[0]!);
+    mock.mockResolvedValueOnce(reply(bad));
+    expect(await requestPerformanceAnalysisV3(request)).toEqual({ transportVersion: 3, state: 'unavailable' });
+    mock.mockResolvedValueOnce(reply({}, 403));
+    expect(await requestPerformanceAnalysisV3(request)).toEqual({ transportVersion: 3, state: 'not-authorized' });
+  });
+});
+function requestV3() { return { ...request, transportVersion: 3, operation: 'analysis', lens: 'result', offerId: null }; }
