@@ -89,12 +89,7 @@ function persistenceDescription(
   state: Extract<ImportPersistenceStateV9, { state: 'completed' }>,
 ): string {
   const response = state.response;
-  const issue =
-    'issues' in response && response.issues.length > 0
-      ? ` Motivo técnico: ${[...new Set(response.issues.map((value) => value.code))].join(', ')}.`
-      : response.state === 'invalid-request'
-        ? ` Motivo técnico: ${response.reason}.`
-        : '';
+  const issue = 'reason' in response ? ` Motivo técnico: ${response.reason}.` : '';
   if (!('summary' in response)) return issue.trim();
   if (response.state === 'no-changes') {
     const auditWrites = response.summary.committedWrites.importBatchVersions;
