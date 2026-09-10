@@ -1,10 +1,10 @@
 import type { SourceFileManifestV1 } from '../../../../shared/gradebook-contracts/imports/import-contract-v1';
 import { createSourceFileManifest } from './file-manifest';
+import { recognizeWorkbook, type SheetJs } from './spreadsheet-recognizer';
 import {
-  recognizeWorkbook,
-  type SheetJs,
-  type WorkbookSummary,
-} from './spreadsheet-recognizer';
+  recognizeCanonicalRostersV6,
+  type WorkbookSummaryWithCanonicalRostersV6,
+} from './canonical-roster-v6';
 import {
   recognizeMasterRelationV9,
   type MasterRelationRecognitionV9,
@@ -25,11 +25,10 @@ export interface WorkbookReadTimingV1 {
   readonly totalMs: number;
   readonly xlsxReadMs: number;
   readonly recognizeWorkbookMs: number;
-  /** Kept in timing output for log compatibility after the retired V6 roster pass was removed. */
   readonly canonicalRostersMs: number;
 }
 
-export interface WorkbookSummaryWithRelationV9 extends WorkbookSummary {
+export interface WorkbookSummaryWithRelationV9 extends WorkbookSummaryWithCanonicalRostersV6 {
   readonly masterRelationV9?: MasterRelationRecognitionV9;
 }
 
@@ -111,11 +110,16 @@ export function readWorkbookData(
     throw new Error('Nenhuma guia corresponde ao padrão de notas configurado.');
   }
 
+  const rostersStartedAt = nowMs();
+  const canonicalRostersV6 = masterRelationV9
+    ? []
+    : recognizeCanonicalRostersV6(parsed, summary, xlsx);
+  const canonicalRostersMs = elapsedMs(rostersStartedAt);
   onTiming?.({
     totalMs: elapsedMs(totalStartedAt),
     xlsxReadMs,
     recognizeWorkbookMs,
-    canonicalRostersMs: 0,
+    canonicalRostersMs,
   });
 
   return {
@@ -123,6 +127,7 @@ export function readWorkbookData(
     ...(masterRelationV9
       ? { academicYear: masterRelationV9.ano, teacherName: null, masterRelationV9 }
       : {}),
+    canonicalRostersV6,
   };
 }
 

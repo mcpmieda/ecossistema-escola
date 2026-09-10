@@ -2,6 +2,12 @@
 
 Esta pasta preserva conhecimento técnico adquirido durante a construção do Ecossistema Escolar. Ela existe para que decisões, soluções e limitações que deram trabalho possam ser reutilizadas mesmo quando a tecnologia principal mudar.
 
+## Importadores legados do Banco de Notas
+
+- [`IMPORTADORES-LEGADOS/README.md`](IMPORTADORES-LEGADOS/README.md) — índice dos caminhos de importação retirados do runtime e preservados para estudo/reuso.
+- [`IMPORTADORES-LEGADOS/D1-V8/`](IMPORTADORES-LEGADOS/D1-V8/) — código e testes do importador D1 V2–V8, incluindo compactação, staging, bootstrap e promoção atômica.
+- [`IMPORTADORES-LEGADOS/HYPERDRIVE-SHADOW/`](IMPORTADORES-LEGADOS/HYPERDRIVE-SHADOW/) — código e testes da transição anterior PostgreSQL/Hyperdrive por probe, benchmark, backfill e shadow.
+
 ## D1 — Banco de Notas
 
 - [`D1-BANCO-DE-NOTAS.md`](D1-BANCO-DE-NOTAS.md) — arquitetura, schema, versionamento, CAS, durabilidade e operação.
@@ -17,3 +23,5 @@ Este diretório é público. Ele registra arquitetura, contratos, métricas agre
 Cloudflare D1 foi escolhido originalmente como armazenamento físico principal do Banco de Notas pela BN-DEC-016 / issue #200. A implementação produziu uma base importante de conhecimento sobre persistência versionada, reimportação idempotente, snapshots, CAS, transações e recuperação.
 
 Em setembro de 2026, benchmarks controlados mostraram que o caminho PostgreSQL via Hyperdrive é mais adequado à carga de importação atual. Isso não invalida o trabalho feito no D1: os padrões de domínio, contratos, versionamento, auditoria e vários mecanismos operacionais continuam reutilizáveis em qualquer backend.
+
+Os importadores anteriores foram retirados do runtime após o cutover do modelo relacional e preservados integralmente em `IMPORTADORES-LEGADOS/`, para que o código ativo mantenha somente o caminho atual sem perder o aprendizado acumulado.
