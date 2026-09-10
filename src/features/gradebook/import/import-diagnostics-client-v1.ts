@@ -41,7 +41,7 @@ export async function listGradebookImportDiagnosticsAuditV1(input: {
   readonly academicYear?: number | null;
   readonly limit?: number;
   readonly offset?: number;
-} = {}): Promise<GradebookImportDiagnosticsAuditListResponseV1> {
+} = {}, signal?: AbortSignal): Promise<GradebookImportDiagnosticsAuditListResponseV1> {
   const params = new URLSearchParams();
   if (input.academicYear !== undefined && input.academicYear !== null) {
     params.set('ano', String(input.academicYear));
@@ -52,10 +52,12 @@ export async function listGradebookImportDiagnosticsAuditV1(input: {
     method: 'GET',
     credentials: 'same-origin',
     cache: 'no-store',
+    signal,
   });
   if (response.status === 401 || response.status === 403) {
     return { version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'not-authorized' };
   }
+  if (!response.ok) return { version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'unavailable' };
   const value = await json(response);
   if (!isGradebookImportDiagnosticsAuditListResponseV1(value)) {
     return { version: GRADEBOOK_IMPORT_DIAGNOSTICS_VERSION_V1, state: 'unavailable' };
