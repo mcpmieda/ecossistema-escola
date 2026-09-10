@@ -124,7 +124,7 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(app).not.toMatch(/features\/gradebook\/(?:performance|bulletins|council)/u);
     expect(notesPage).toContain("import('./gradebook-workspace-page')");
     expect(workspacePage).toContain('<GradebookWorkspaceShell />');
-    expect(shell).toContain("import('../features/gradebook/performance/performance-page')");
+    expect(shell).toContain("import('../features/gradebook/performance/relational-performance-page-v2')");
     expect(shell).toContain("import('../features/gradebook/bulletins/bulletin-page')");
     expect(shell).toContain("import('./gradebook-council-surface')");
     expect(councilSurface).toContain('requestOperationalWorkspaceV1');
