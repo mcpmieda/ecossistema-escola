@@ -63,7 +63,10 @@ function makeRow(source: Row, projections: readonly PerformanceProjectionV2[], r
     cells: projections.map((value) => performanceCellV2(value, request.period, request.mode)) };
 }
 
-async function execute(db: D1WriteDatabaseV1, request: PerformanceRequestV2): Promise<PerformanceResponseV2> {
+export async function readRelationalPerformanceV2(db: D1WriteDatabaseV1, request: PerformanceRequestV2, options: {
+  readonly descriptionOfferId?: number;
+  readonly collect?: (values: ReadonlyMap<number, readonly PerformanceProjectionV2[]>) => void;
+} = {}): Promise<PerformanceResponseV2> {
   const [year] = await all(db, `SELECT ano, minimo_aprovacao, max_componentes_conselho,
     to_char(transaction_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS read_at
     FROM gradebook.ano_letivo WHERE ano = ?`, [request.year]);
@@ -103,7 +106,7 @@ async function execute(db: D1WriteDatabaseV1, request: PerformanceRequestV2): Pr
   if (students.length && offers.length) {
     // One query for the entire bounded scope. A detail restricts SQL, not just its response.
     const facts = await all(db, `SELECT v.aluno_id,o.id AS oferta_id,i.trimestre,i.slot,i.maximo,n.valor,
-      ${specificOffer ? 'i.descricao' : 'NULL::text'} AS descricao,
+      ${specificOffer ? 'i.descricao' : options.descriptionOfferId === undefined ? 'NULL::text' : 'CASE WHEN o.id=? THEN i.descricao ELSE NULL::text END'} AS descricao,
       f.am1_fonte,f.am2_fonte,f.am3_fonte,f.rec1,f.rec2,f.rec3,f.rec_nc_mask,f.u_fonte
       FROM gradebook.vinculo v JOIN gradebook.oferta o ON o.ano=v.ano AND o.turma_id=v.turma_id
       LEFT JOIN gradebook.instrumento i ON i.oferta_id=o.id
@@ -111,7 +114,7 @@ async function execute(db: D1WriteDatabaseV1, request: PerformanceRequestV2): Pr
       LEFT JOIN gradebook.fechamento f ON f.oferta_id=o.id AND f.aluno_id=v.aluno_id
       WHERE v.ano=? AND v.turma_id=? AND v.situacao IS DISTINCT FROM 6
         ${specificStudent ? 'AND v.aluno_id=?' : ''} ${specificOffer ? 'AND o.id=?' : ''}
-      ORDER BY v.aluno_id,o.id,i.trimestre,i.slot`, [request.year, request.classId, ...(specificStudent ? [request.studentId] : []), ...(specificOffer ? [request.offerId] : [])]);
+      ORDER BY v.aluno_id,o.id,i.trimestre,i.slot`, [...(!specificOffer && options.descriptionOfferId !== undefined ? [options.descriptionOfferId] : []), request.year, request.classId, ...(specificStudent ? [request.studentId] : []), ...(specificOffer ? [request.offerId] : [])]);
     for (const row of facts) {
       const key = `${integer(row.aluno_id)}:${integer(row.oferta_id)}`;
       const group = grouped.get(key) ?? { facts: [], closing: closing(row) };
@@ -146,7 +149,9 @@ async function execute(db: D1WriteDatabaseV1, request: PerformanceRequestV2): Pr
       trajectory: projections.map((value) => ({ offerId: value.offerId,
         terms: [performanceCellV2(value, 1, 'regular'), performanceCellV2(value, 2, 'regular'), performanceCellV2(value, 3, 'regular')] })) };
   }
-  const allRows = students.map((value) => makeRow(value, project(value), request, common.context.maxCouncilComponents));
+  const projections = new Map(students.map((value) => [integer(value.id), project(value)]));
+  options.collect?.(projections);
+  const allRows = students.map((value) => makeRow(value, projections.get(integer(value.id))!, request, common.context.maxCouncilComponents));
   const statusRows = allRows.filter((value) => request.statuses.includes(value.student.status));
   const rows = request.mode === 'regular' ? statusRows : statusRows.filter((value) => value.student.indicatorEligible && value.cells.some((cell) => cell.recoveryApplicable === true));
   const eligible = rows.filter((value) => value.student.indicatorEligible);
@@ -169,7 +174,7 @@ export function createRelationalPerformanceV2(database: D1WriteDatabaseV1) {
     if (!('transaction' in database) || typeof database.transaction !== 'function') return fail('unavailable');
     return (database as TransactionDatabase).transaction(async (db) => {
       await db.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
-      const response = performanceResponseSchemaV2.parse(await execute(db, parsed.data));
+      const response = performanceResponseSchemaV2.parse(await readRelationalPerformanceV2(db, parsed.data));
       if (!performanceResponseMatchesV2(parsed.data, response)) throw new Error('inconsistent-performance-response');
       return response;
     });

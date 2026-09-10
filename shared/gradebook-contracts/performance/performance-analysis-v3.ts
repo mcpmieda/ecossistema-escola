@@ -51,12 +51,12 @@ const ready = z.object({
 }).strict().superRefine((value, ctx) => {
   const fail = () => ctx.addIssue({ code: 'custom', message: 'inconsistent analytical scope' });
   const keys = value.columns.map((item) => item.key);
-  if (new Set(keys).size !== keys.length || value.rows.length !== value.matrix.rows.length) fail();
+  if (new Set(keys).size !== keys.length || value.rows.length !== value.matrix.rows.length) { fail(); return; }
   if (value.rows.some((row, index) => row.studentId !== value.matrix.rows[index]?.student.id ||
     row.values.length !== keys.length || row.values.some((item, i) => item.key !== keys[i]))) fail();
   if (value.columns.some((item) => !value.matrix.offers.some((offer) => offer.id === item.offerId))) fail();
   if (value.lens === 'assessments') {
-    if (value.offerId === null || value.columns.some((item) => item.offerId !== value.offerId || item.term === null || item.slot === null ||
+    if (value.columns.length > 39 || value.offerId === null || value.columns.some((item) => item.offerId !== value.offerId || item.term === null || item.slot === null ||
       item.key !== `${item.offerId}:${item.term}:${item.slot}` || (value.matrix.period !== 'annual' && value.matrix.period !== item.term))) fail();
   } else if (value.offerId !== null || keys.length !== value.matrix.offers.length ||
     value.columns.some((item, i) => item.offerId !== value.matrix.offers[i]?.id || item.key !== String(item.offerId) || item.term !== null || item.slot !== null)) fail();
@@ -64,7 +64,7 @@ const ready = z.object({
     const groups = item.summary.groups;
     const count = ANALYSIS_BUCKETS_V3.reduce((n, bucket) => n + groups[bucket].length, 0);
     if (count !== item.summary.considered || item.summary.scaled !== groups.above.length + groups.below.length ||
-      (item.summary.scaled === 0) !== (item.summary.meanPercent === null && item.summary.medianPercent === null)) fail();
+      (item.summary.scaled === 0) !== (item.summary.meanPercent === null) || (item.summary.scaled === 0) !== (item.summary.medianPercent === null)) fail();
     for (const bucket of ANALYSIS_BUCKETS_V3) {
       const expected = value.rows.filter((row) => row.values[i]?.bucket === bucket).map((row) => row.studentId);
       if (expected.length !== groups[bucket].length || expected.some((studentId, j) => studentId !== groups[bucket][j])) fail();
@@ -77,8 +77,7 @@ export const performanceAnalysisResponseSchemaV3 = z.union([ready, failure]);
 export type PerformanceAnalysisV3 = z.infer<typeof ready>;
 export type PerformanceAnalysisResponseV3 = z.infer<typeof performanceAnalysisResponseSchemaV3>;
 export function analysisMatrixRequestV2(request: PerformanceAnalysisRequestV3) {
-  const { lens: _lens, offerId: _offer, ...scope } = request;
-  return matrixRequest.parse({ ...scope, transportVersion: 2, operation: 'matrix' });
+  return matrixRequest.parse({ transportVersion: 2, operation: 'matrix', year: request.year, classId: request.classId, period: request.period, mode: request.mode, statuses: request.statuses });
 }
 export function performanceAnalysisMatchesV3(request: PerformanceAnalysisRequestV3, response: PerformanceAnalysisResponseV3): boolean {
   return response.state !== 'ready' || (response.lens === request.lens && response.offerId === request.offerId &&
