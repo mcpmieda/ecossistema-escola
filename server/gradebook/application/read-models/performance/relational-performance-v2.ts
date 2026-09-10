@@ -1,3 +1,6 @@
+import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../../persistence/postgres/active-instrument-predicate-v1';
+import { sourceSubjectAbbreviationV1 } from '../../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
+import { termRecoveryVisibilityV1 } from '../../../../../src/gradebook-domain/calculations/simplified/term-recovery-visibility-v1';
 import {
   performanceRequestSchemaV2, performanceResponseSchemaV2, performanceResponseMatchesV2, PERFORMANCE_LIMITS_V2,
   type PerformanceRequestV2, type PerformanceResponseV2, type PerformanceRowV2, type PerformanceOfferV2,
@@ -40,7 +43,7 @@ function student(row: Row): PerformanceRowV2['student'] {
     indicatorEligible: status === null || status === 7, councilPrevious: boolean(row.conselho_anterior) };
 }
 function offer(row: Row): PerformanceOfferV2 {
-  return { id: integer(row.id), subject: { id: integer(row.disciplina_id), label: text(row.disciplina_nome) },
+  return { id: integer(row.id), subject: { id: integer(row.disciplina_id), label: text(row.disciplina_nome), abbreviation: sourceSubjectAbbreviationV1(text(row.disciplina_nome)) },
     teacher: { id: integer(row.professor_id), label: text(row.professor_nome) } };
 }
 function closing(row: Row): PerformanceClosingV2 {
@@ -79,9 +82,9 @@ export async function readRelationalPerformanceV2(db: D1WriteDatabaseV1, request
     if (nextOffset !== null && nextOffset > 100_000) return fail('scope-too-large');
     return { ...common, operation: 'classes', statusOptions: [{ value: null, label: 'Sem situação especial' }, ...([1, 2, 3, 4, 5, 7] as const).map((value) => ({ value, label: STATUS_LABELS[value] }))], classes: rows.slice(0, request.limit).map((value) => ({ id: integer(value.id), label: text(value.codigo) })), nextOffset };
   }
-  const [classRow] = await all(db, 'SELECT id, codigo FROM gradebook.turma WHERE ano = ? AND id = ?', [request.year, request.classId]);
+  const [classRow] = await all(db, 'SELECT id, codigo, nome FROM gradebook.turma WHERE ano = ? AND id = ?', [request.year, request.classId]);
   if (!classRow) return fail('not-found');
-  const selected = { classGroup: { id: integer(classRow.id), label: text(classRow.codigo) }, period: request.period, mode: request.mode };
+  const selected = { classGroup: { id: integer(classRow.id), label: text(classRow.codigo), name: text(classRow.nome) }, period: request.period, mode: request.mode };
   const specificStudent = request.operation !== 'matrix';
   const specificOffer = request.operation === 'cell-detail';
   const students = await all(db, `SELECT a.id,a.nome,a.conselho_anterior,v.numero,v.situacao,cd.decisao
@@ -109,7 +112,7 @@ export async function readRelationalPerformanceV2(db: D1WriteDatabaseV1, request
       ${specificOffer ? 'i.descricao' : options.descriptionOfferId === undefined ? 'NULL::text' : 'CASE WHEN o.id=? THEN i.descricao ELSE NULL::text END'} AS descricao,
       f.am1_fonte,f.am2_fonte,f.am3_fonte,f.rec1,f.rec2,f.rec3,f.rec_nc_mask,f.u_fonte
       FROM gradebook.vinculo v JOIN gradebook.oferta o ON o.ano=v.ano AND o.turma_id=v.turma_id
-      LEFT JOIN gradebook.instrumento i ON i.oferta_id=o.id
+      LEFT JOIN gradebook.instrumento i ON i.oferta_id=o.id AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
       LEFT JOIN gradebook.nota n ON n.instrumento_id=i.id AND n.aluno_id=v.aluno_id
       LEFT JOIN gradebook.fechamento f ON f.oferta_id=o.id AND f.aluno_id=v.aluno_id
       WHERE v.ano=? AND v.turma_id=? AND v.situacao IS DISTINCT FROM 6
@@ -135,8 +138,11 @@ export async function readRelationalPerformanceV2(db: D1WriteDatabaseV1, request
     const projection = project(students[0]!)[0]!;
     return { ...common, ...selected, operation: 'cell-detail', student: student(students[0]!), offer: offers[0]!,
       terms: TERMS.map((term) => {
-        const outcome = projection.terms[term - 1];
-        return { term, regular: performanceCellV2(projection, term, 'regular'), recovery: performanceCellV2(projection, term, 'recovery'),
+        const outcome = projection.terms[term - 1] ?? null;
+        const visibility = termRecoveryVisibilityV1(outcome, projection.recovery?.recoveryTerms[term].applicable ?? null);
+        const hasGrades = projection.facts.some((fact) => fact.term === term && fact.valueMilli !== null) ||
+          projection.closing.am[term - 1] !== null || projection.closing.rec[term - 1] !== null;
+        return { term, hasGrades, ...visibility, regular: performanceCellV2(projection, term, 'regular'), recovery: performanceCellV2(projection, term, 'recovery'),
           quantitativeOriginalMilli: outcome?.quantitativeOriginalMilli ?? null, quantitativeConsideredMilli: outcome?.quantitativeConsideredMilli ?? null,
           qualitativeMilli: outcome?.qualitativeOperationalMilli ?? null, parallelMilli: outcome?.parallelMilli ?? null, parallelApplicable: outcome?.parallelApplicable ?? null,
           instruments: projection.facts.filter((value) => value.term === term).map(({ slot, label, maximumMilli, valueMilli }) => ({ slot, label, maximumMilli, valueMilli })) };
