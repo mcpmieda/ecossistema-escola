@@ -23,15 +23,40 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
           cache: npm
-
       - name: Install dependencies
         run: npm ci
-
+      - name: Dependency audit report only
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import { spawnSync } from 'node:child_process';
+          import { readFileSync } from 'node:fs';
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          const names = new Set();
+          for (const [label, args] of [['all', []], ['production', ['--omit=dev']]]) {
+            const result = spawnSync('npm', ['audit', '--json', ...args], {encoding:'utf8', timeout:120000});
+            if (result.error || ![0,1].includes(result.status)) throw new Error('audit-command-failed');
+            const report = JSON.parse(result.stdout);
+            if (report.error || !report.metadata || !report.vulnerabilities) throw new Error('audit-response-invalid');
+            console.log('AUDIT_REPORT_' + label.toUpperCase() + '=' + JSON.stringify(report));
+            for (const [name, item] of Object.entries(report.vulnerabilities)) {
+              names.add(name);
+              for (const path of item.nodes) {
+                const pkg = lock.packages[path];
+                console.log('AUDIT_LOCK=' + JSON.stringify({name,path,version:pkg?.version,dev:pkg?.dev??false,optional:pkg?.optional??false}));
+              }
+            }
+          }
+          for (const name of names) {
+            const result = spawnSync('npm', ['explain', name, '--json'], {encoding:'utf8',timeout:30000});
+            if (result.status !== 0) throw new Error('dependency-explain-failed');
+            console.log('AUDIT_DEPENDENCY_TREE=' + JSON.stringify({name,tree:JSON.parse(result.stdout)}));
+          }
+          JS
       - name: Verify
         run: npm run verify
