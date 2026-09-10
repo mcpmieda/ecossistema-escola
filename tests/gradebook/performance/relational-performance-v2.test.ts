@@ -1,3 +1,5 @@
+import { createPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
+import { performanceAnalysisRequestSchemaV3, performanceAnalysisResponseSchemaV3, performanceAnalysisMatchesV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { PGlite } from '@electric-sql/pglite';
@@ -183,5 +185,105 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     const body = await response.text();
     expect(body).not.toContain('synthetic-private-failure');
     expect(body).toContain('unavailable');
+  });
+});
+
+const analysisRequest = (extra = {}) => ({ ...matrixRequest(), transportVersion: 3, operation: 'analysis', lens: 'result', offerId: null, ...extra });
+async function analysis(extra = {}) {
+  const result = await createPerformanceAnalysisV3(database).execute(analysisRequest(extra));
+  if (result.state !== 'ready') throw new Error(JSON.stringify(result));
+  return result;
+}
+describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
+  it.each(['result','quantitative','qualitative'])('reads %s without extra SQL or a second academic engine', async (lens) => {
+    const result = await analysis({ lens });
+    expect(queries).toHaveLength(6);
+    expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b|academic_record|academic_entity/u);
+    expect(result.matrix.rows).toHaveLength(8);
+    expect(result.columns).toHaveLength(2);
+    expect(result.rows.every((row) => row.values.length === 2)).toBe(true);
+    expect(result.matrix.authority).toBe('calculated-preview');
+    expect(gzipSync(JSON.stringify(result)).length).toBeLessThan(500_000);
+    expect(performanceAnalysisResponseSchemaV3.safeParse(result).success).toBe(true);
+  });
+  it('retains numeric zero in statistics, excludes missing/partial and noneligible students', async () => {
+    const result = await analysis({ lens: 'quantitative' });
+    const at = (id: number) => result.rows.find((r) => r.studentId === id)!.values[0]!;
+    expect(at(2)).toMatchObject({ valueMilli: 0, percent: 0, bucket: 'below', state: 'complete' });
+    expect(at(3)).toMatchObject({ state: 'partial', percent: null, bucket: 'incomplete' });
+    expect(at(5)).toMatchObject({ valueMilli: null, state: 'not-recorded' });
+    expect(at(6).bucket).toBe('excluded'); expect(at(7).bucket).toBe('excluded');
+    expect(at(8).percent).toBeGreaterThan(100);
+    const summary = result.columns[0]!.summary;
+    expect(summary.considered).toBe(6); expect(summary.scaled).toBe(4);
+    expect(summary.groups.incomplete).toEqual([3,5]);
+    expect(summary.meanPercent).toBeCloseTo((12000/13500 + 0 + 8000/13500 + 40000/13500)*100/4);
+    expect(summary.medianPercent).toBeCloseTo((8000/13500 + 12000/13500)*50);
+  });
+  it.each([1,2,3,'annual'])('uses actual qualitative maxima in period %s, not a fabricated concept', async (period) => {
+    const result = await analysis({ lens: 'qualitative', period });
+    const first = result.rows[0]!.values[0]!;
+    expect(first.valueMilli).toBe(period === 'annual' ? 36000 : 12000);
+    expect(first.maximumMilli).toBe(period === 'annual' ? 55000 : period === 3 ? 22000 : 16500);
+    expect(result.matrix.comparison.available).toBe(false);
+  });
+  it('does not assign a percentage to a complete reading whose maximum is unknown', async () => {
+    await pg.exec('UPDATE gradebook.instrumento SET maximo=NULL WHERE oferta_id=10 AND trimestre=1 AND slot=11');
+    try {
+      const result = await analysis({ lens: 'qualitative' });
+      expect(result.rows[0]!.values[0]).toMatchObject({ state: 'complete', valueMilli: 12000, maximumMilli: null, percent: null, bucket: 'unscaled' });
+      expect(result.columns[0]!.summary.meanPercent).toBeNull();
+      expect(result.columns[0]!.summary.groups.unscaled).toContain(1);
+    } finally { await pg.exec('UPDATE gradebook.instrumento SET maximo=16500 WHERE oferta_id=10 AND trimestre=1 AND slot=11'); }
+  });
+  it('loads descriptions only for the explicitly selected component and preserves order', async () => {
+    const result = await analysis({ lens: 'assessments', offerId: 10, period: 'annual' });
+    expect(queries).toHaveLength(6); expect(queries[5]).toContain('CASE WHEN o.id=');
+    expect(result.columns.map((col) => col.key)).toEqual(['10:1:1','10:1:2','10:1:11','10:2:1','10:2:2','10:2:11','10:3:1','10:3:2','10:3:11']);
+    expect(result.columns.every((col) => col.label.includes('AVALIACAO SINTETICA'))).toBe(true);
+    expect(result.rows[1]!.values[0]!.valueMilli).toBe(0);
+  });
+  it('never adds parallel recovery twice or converts an ignored observation into applied credit', async () => {
+    await pg.exec(`INSERT INTO gradebook.instrumento (id,oferta_id,trimestre,slot,maximo,descricao) VALUES (9999,10,1,3,13500,'PARALELA SINTETICA');
+      INSERT INTO gradebook.nota VALUES (9999,1,9000),(9999,2,9000);`);
+    try {
+      const quantitative = await analysis({ lens: 'quantitative' });
+      expect(quantitative.rows[0]!.values[0]!.valueMilli).toBe(12000);
+      expect(quantitative.rows[1]!.values[0]!.valueMilli).toBe(9000);
+      const instruments = await analysis({ lens: 'assessments', offerId: 10 });
+      expect(instruments.rows[0]!.values.find((v) => v.key === '10:1:3')).toMatchObject({ valueMilli: null, recordedMilli: 9000, state: 'not-applicable', bucket: 'excluded' });
+    } finally { await pg.exec('DELETE FROM gradebook.nota WHERE instrumento_id=9999; DELETE FROM gradebook.instrumento WHERE id=9999'); }
+  });
+  it('keeps N/C and recovery population, but never decomposes REC into activities', async () => {
+    const result = await analysis({ mode: 'recovery' });
+    expect(result.rows.map((row) => row.studentId)).toEqual([2,4]);
+    expect(result.rows[1]!.values[0]).toMatchObject({ state: 'no-show', percent: null, bucket: 'no-show' });
+    const quantitative = await analysis({ mode: 'recovery', lens: 'quantitative' });
+    expect(quantitative.rows[0]!.values[0]!.valueMilli).toBe(0);
+    expect(quantitative.matrix.rows[0]!.cells[0]!.valueMilli).toBe(18000);
+  });
+  it.each([{ lens: 'assessments' },{ lens: 'qualitative', offerId: 10 },{ lens: 'risk' },{ extra: true }])('rejects invalid lens/context before SQL %j', async (extra) => {
+    expect(await createPerformanceAnalysisV3(database).execute(analysisRequest(extra))).toEqual({ transportVersion: 3, state: 'invalid-request' });
+    expect(queries).toHaveLength(0);
+  });
+  it('rejects an assessment component outside the class and forged statistical membership', async () => {
+    expect(await createPerformanceAnalysisV3(database).execute(analysisRequest({ lens: 'assessments', offerId: 30 }))).toMatchObject({ state: 'not-found' });
+    const result = await analysis();
+    const request = performanceAnalysisRequestSchemaV3.parse(analysisRequest());
+    expect(performanceAnalysisMatchesV3(request, result)).toBe(true);
+    expect(performanceAnalysisMatchesV3({ ...request, year: 2091 }, result)).toBe(false);
+    result.columns[0]!.summary.groups.above.push(9999);
+    expect(performanceAnalysisResponseSchemaV3.safeParse(result).success).toBe(false);
+  });
+  it('preserves the original HTTP boundary, no-store, production gate and opaque failure', async () => {
+    for (const role of [null, 'PROFESSOR'] as const) expect([401,403]).toContain((await http(analysisRequest(), role)).status);
+    expect(queries).toHaveLength(0);
+    expect((await http(analysisRequest(), 'ADMINISTRADOR', { RUNTIME_ENVIRONMENT: 'production', GRADEBOOK_PRODUCTION_ENABLED: 'false' })).status).toBe(503);
+    expect(queries).toHaveLength(0);
+    const response = await http(analysisRequest());
+    expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toContain('no-store');
+    expect(await response.json()).toMatchObject({ transportVersion: 3, state: 'ready', matrix: { authority: 'calculated-preview' } });
+    readsFail=true;
+    expect(await (await http(analysisRequest())).json()).toEqual({ transportVersion: 3, state: 'unavailable' });
   });
 });

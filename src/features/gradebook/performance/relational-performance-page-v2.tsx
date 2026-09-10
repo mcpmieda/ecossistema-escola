@@ -1,5 +1,7 @@
+import { PerformanceAnalysisPanelV3 } from './performance-analysis-panel-v3';
+import { PERFORMANCE_LENSES_V3, type PerformanceLensV3 } from '../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { useRef, useState } from 'react';
-import { Alert, Button, Chip, Drawer, Spinner } from '@heroui/react';
+import { Alert, Button, Chip, Drawer, Spinner, Tabs } from '@heroui/react';
 import type { PerformanceCellV2, PerformanceFailureV2, PerformancePeriodV2, PerformanceModeV2, PerformanceMatrixV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useRelationalPerformanceV2 } from './use-relational-performance-v2';
 
@@ -26,9 +28,9 @@ function CellValue({ cell }: { readonly cell: PerformanceCellV2 }) {
     {cell.warningCodes.length > 0 ? <span className="text-[10px] text-muted">Aviso</span> : null}
   </span>;
 }
-function Matrix({ value, open }: { readonly value: PerformanceMatrixV2; readonly open: (studentId: number, offerId?: number) => void }) {
+function Matrix({ value, open, allowedIds }: { readonly value: PerformanceMatrixV2; readonly open: (studentId: number, offerId?: number) => void; readonly allowedIds: ReadonlySet<number> | null }) {
   const [investigation, setInvestigation] = useState<'all' | 'below' | 'incomplete'>('all');
-  const rows = value.rows.filter((row) => investigation === 'all' || (row.student.indicatorEligible && row.cells.some((cell) =>
+  const rows = value.rows.filter((row) => allowedIds === null || allowedIds.has(row.student.id)).filter((row) => investigation === 'all' || (row.student.indicatorEligible && row.cells.some((cell) =>
     investigation === 'below' ? cell.level === 'below' : cell.state !== 'complete' && cell.state !== 'no-show' && (value.mode === 'regular' || cell.recoveryApplicable === true))));
   const annualVisible = value.period === 'annual' || value.period === 3 || value.mode === 'recovery';
   return <>
@@ -68,6 +70,7 @@ export function RelationalPerformancePageV2() {
   const lastFocus = useRef<HTMLElement | null>(null);
   const open = (studentId: number, offerId?: number) => { lastFocus.current = document.activeElement as HTMLElement; void state.open(studentId, offerId); };
   const close = () => { state.closeDetail(); lastFocus.current?.focus(); };
+  const lensLabel: Record<PerformanceLensV3, string> = { result: 'Resultado', quantitative: 'Quantitativo', qualitative: 'Qualitativo', assessments: 'Avaliações' };
   const css = 'rounded-xl border border-separator bg-surface px-3 py-2 focus-visible:ring-2 focus-visible:ring-focus';
   if (state.year === null) return <p className="rounded-xl border border-separator p-5">Selecione o ano letivo no topo do Banco para consultar Desempenho.</p>;
   const detail = state.detail;
@@ -85,7 +88,15 @@ export function RelationalPerformancePageV2() {
     {state.classes ? <fieldset className="flex min-w-0 flex-wrap gap-x-4 gap-y-2 rounded-xl border border-separator p-3"><legend className="px-1 text-sm">Situações exibidas</legend>{state.classes.statusOptions.map((value) => <label key={String(value.value)} className="flex items-center gap-2 text-xs"><input type="checkbox" checked={state.filters.statuses.includes(value.value)} disabled={state.filters.statuses.length === 1 && state.filters.statuses[0] === value.value} onChange={(event) => void state.select({ statuses: event.target.checked ? [...state.filters.statuses, value.value] : state.filters.statuses.filter((item) => item !== value.value) })}/>{value.label}</label>)}</fieldset> : null}
     {state.failure ? <Alert status="warning"><Alert.Content><Alert.Title>Consulta não concluída</Alert.Title><Alert.Description>{failures[state.failure]}</Alert.Description></Alert.Content></Alert> : null}
     {state.busy.matrix || state.busy.classes ? <p role="status" className="flex items-center gap-2 text-sm"><Spinner size="sm"/>Carregando leitura…</p> : null}
-    {state.matrix ? <Matrix key={`${state.matrix.readAt}:${JSON.stringify(state.filters)}`} value={state.matrix} open={open}/> : null}
+    {state.filters.classId !== null ? <Tabs selectedKey={state.filters.lens} onSelectionChange={(key) => { if (PERFORMANCE_LENSES_V3.includes(key as PerformanceLensV3)) void state.select({ lens: key as PerformanceLensV3 }); }}>
+      <Tabs.List aria-label="Lentes de Desempenho" className="flex flex-wrap">{PERFORMANCE_LENSES_V3.map((lens) => <Tabs.Tab key={lens} id={lens}>{lensLabel[lens]}<Tabs.Indicator/></Tabs.Tab>)}</Tabs.List>
+      {PERFORMANCE_LENSES_V3.map((lens) => <Tabs.Panel key={lens} id={lens} className="grid min-w-0 gap-4">
+        {state.filters.lens === lens ? <>
+          {lens === 'assessments' ? <label className="grid gap-1 text-sm">Componente das avaliações<select aria-label="Componente das avaliações" className={css} value={state.filters.offerId ?? ''} onChange={(event) => void state.select({ offerId: event.target.value ? Number(event.target.value) : null })}><option value="">Selecione o componente</option>{state.offers.map((offer) => <option key={offer.id} value={offer.id}>{offer.subject.label} · {offer.teacher.label}</option>)}</select></label> : null}
+          {state.analysis ? <PerformanceAnalysisPanelV3 key={`${state.analysis.matrix.readAt}:${JSON.stringify(state.filters)}`} value={state.analysis} open={open} renderResult={(ids) => <Matrix value={state.analysis!.matrix} open={open} allowedIds={ids}/>}/> : null}
+        </> : null}
+      </Tabs.Panel>)}
+    </Tabs> : null}
     <Drawer.Backdrop isOpen={state.detailOpen} onOpenChange={(isOpen) => { if (!isOpen) close(); }}>
       <Drawer.Content placement="right"><Drawer.Dialog className="w-full max-w-full sm:w-[min(48rem,90vw)]">
         <Drawer.CloseTrigger aria-label="Fechar detalhe"/>

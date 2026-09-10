@@ -6,8 +6,8 @@ updated_at: 2026-09-10
 coordination:
   master_issue: 182
   executable_issue: 633
-  current_delivery_issue: 642
-  current_integrator_issue: 642
+  current_delivery_issue: 644
+  current_integrator_issue: 644
   central_state_editor: integrator-only
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
@@ -22,18 +22,19 @@ coordination:
   prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
 
 baseline:
-  last_audited_main_commit: cb6e3bf2309d4aa5716b600a3957046f133f850c
+  last_audited_main_commit: 8866b2c897bb62528970c64740cd2509c5d28602
+  integrated_performance_matrix_pr: 643
   integrated_security_pr: 641
   integrated_centers_pr: 640
   integrated_foundation_pr: 636
   integrated_import_archive_pr: 632
   storage_homologation_issue: 613
   active_diagnostics_homologation_issue: 629
-  authorized_deploy_run: 34480442813
-  authorized_deploy_number: 256
+  authorized_deploy_run: 34511487276
+  authorized_deploy_number: 257
   authorized_deploy_result: success
   authenticated_post_deploy_smoke_this_session: false
-  note: baseline-before-performance-delivery-release-checkpoint-in-issue-642
+  note: baseline-before-lenses-delivery-release-checkpoint-in-issue-644
 
 storage:
   decision_current: BN-DEC-022
@@ -78,9 +79,13 @@ runtime:
   relational_centers_operations: [bootstrap, context, search, center]
   relational_centers_write_operations: none
   relational_centers_snapshot: per-request-read-only-repeatable-read
-  relational_performance_v2: implemented-pr-643-release-checkpoint-in-issue-642
+  relational_performance_v2: integrated-pr-643-deploy-257-success-awaiting-authenticated-smoke
   relational_performance_authority: calculated-preview-not-official-emission
   relational_performance_snapshot: per-response-read-only-repeatable-read
+  performance_analysis_v3: implemented-pr-645-release-checkpoint-in-issue-644
+  performance_lenses: [result, quantitative, qualitative, assessments]
+  performance_lenses_contract: docs/gradebook/PERFORMANCE_LENSES_V3.md
+  cross_period_comparison: unavailable-until-explicit-comparability-contract
   shared_year_consumers: [centers-v2, performance-v2]
   remaining_consumers: legacy-schema-dependencies-pending-reanchoring
   global_academic_authority_switch_verified: false
@@ -90,20 +95,22 @@ runtime:
     note: describes-existing-v1-contracts-not-a-global-runtime-flag
 
 work_in_progress:
-  issue: 642
-  parent_issue: 633
-  phase: FINAL-1
-  branch: feat/bn-relational-performance-642
-  pull_request: 643
-  scope: relational-performance-read-preview-and-shared-year
+  issue: 644
+  parent_issue: 634
+  phase: FINAL-2
+  branch: feat/bn-performance-lenses-644
+  pull_request: 645
+  scope: four-lenses-and-descriptive-investigation-in-same-relational-snapshot
   production_activation_in_this_delivery: false
   phase_complete: false
-  release_checkpoint: issue-642-and-pr-643
+  release_checkpoint: issue-644-and-pr-645
   remaining:
+    - explicit-cross-period-comparability-and-configurable-analytical-thresholds
+    - visual-configuration-and-default-opening-policy
     - visual-browser-and-authenticated-production-smoke
     - yearly-context-unification-across-all-consumers
     - relational-maintenance-and-academic-year-management
-    - relational-results-performance-bulletins-reports-and-council
+    - relational-bulletins-reports-and-council
     - production-data-backup-restore-and-real-multi-session-contention-pilot
     - legacy-removal-after-dependency-proof
 
@@ -111,11 +118,11 @@ final_phases:
   - phase: FINAL-1
     issue: 633
     branch: null
-    status: foundation-and-read-only-centers-integrated-academic-consumers-pending
+    status: foundation-centers-and-performance-matrix-integrated-other-consumers-pending
   - phase: FINAL-2
     issue: 634
-    branch: feat/bn-final-2-desempenho
-    status: planned-dependent-on-final-1
+    branch: feat/bn-performance-lenses-644
+    status: lenses-and-investigation-in-progress-acceptance-pending
   - phase: FINAL-3
     issue: 635
     branch: feat/bn-final-3-conselho
@@ -162,5 +169,5 @@ security:
 next_safe_action:
   issue: 633
   related_issue: 634
-  description: complete-performance-lenses-comparability-and-investigation-after-delivery-642
-  prerequisite_release_checkpoint: issue-642-and-pr-643
+  description: complete-explicit-comparability-configuration-and-functional-acceptance-after-lenses
+  prerequisite_release_checkpoint: issue-644-and-pr-645

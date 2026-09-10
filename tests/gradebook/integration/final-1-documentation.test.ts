@@ -32,7 +32,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
   });
   it('has a concrete four-phase queue and separate acceptance and delivery gates', () => {
     expect(section('coordination')).toContain('executable_issue: 633');
-    expect(section('coordination')).toContain('current_delivery_issue: 642');
+    expect(section('coordination')).toContain('current_delivery_issue: 644');
     expect(section('final_phases').match(/phase: FINAL-/gu)).toHaveLength(4);
     for (const issue of [633,634,635,406]) expect(section('final_phases')).toContain(`issue: ${issue}`);
     expect(section('institutional_delivery')).toContain('issue: 596');
@@ -79,14 +79,15 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(contracts).toContain('O teste sintético de projeção não é teste de reconstrução');
   });
   it('records actual deployments separately from authenticated acceptance and the security release checkpoint', () => {
-    expect(section('baseline')).toContain('last_audited_main_commit: cb6e3bf2309d4aa5716b600a3957046f133f850c');
-    expect(section('baseline')).toContain('authorized_deploy_run: 34480442813');
+    expect(section('baseline')).toContain('last_audited_main_commit: 8866b2c897bb62528970c64740cd2509c5d28602');
+    expect(section('baseline')).toContain('authorized_deploy_run: 34511487276');
     expect(section('baseline')).toContain('authenticated_post_deploy_smoke_this_session: false');
     expect(section('storage')).toContain('distinct_trigger_count: 3');
     expect(section('storage')).toContain('information_schema_trigger_event_rows: 6');
     expect(section('storage')).toContain('production_data_restore_proven_by_this_pr: false');
     expect(section('runtime')).toContain('diagnostic_atomic_replacement: integrated-pr-636-deploy-254-success-awaiting-authenticated-smoke');
     expect(section('runtime')).toContain('relational_centers_v2: integrated-pr-640-deploy-255-success-awaiting-authenticated-smoke');
+    expect(section('runtime')).toContain('relational_performance_v2: integrated-pr-643-deploy-257-success-awaiting-authenticated-smoke');
     expect(section('security')).toContain('dependency_remediation: integrated-pr-641-deploy-256-success');
     expect(section('security')).toContain('audited_lock_blob: ad6059ec46be02970b340f97e7cbb585abd79715');
     expect(existsSync(join(root,'migrations/gradebook-simplified/0001_current_schema.sql'))).toBe(true);
@@ -107,7 +108,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(createHash('sha1').update(`blob ${workflow.length}\0`).update(workflow).digest('hex')).toBe('d147df2a95b4f78d965a5452bfc52109ecb6dabb');
   });
   it('keeps the canonical local documentation links resolvable', () => {
-    const pages = ['README.md','COMECE_AQUI.md','DECISIONS.md','ARCHITECTURE.md','ACADEMIC_CONTEXT.md','CONTRACTS.md','ROADMAP.md','ISSUE_MAP.md','PRODUCTION_READINESS.md','CONSUMER_MAP.md','CURRENT_SCHEMA_AND_DIAGNOSTICS.md','RELATIONAL_CENTERS_V2.md','SECURITY_REMEDIATION_637.md','RELATIONAL_PERFORMANCE_V2.md'];
+    const pages = ['README.md','COMECE_AQUI.md','DECISIONS.md','ARCHITECTURE.md','ACADEMIC_CONTEXT.md','CONTRACTS.md','ROADMAP.md','ISSUE_MAP.md','PRODUCTION_READINESS.md','CONSUMER_MAP.md','CURRENT_SCHEMA_AND_DIAGNOSTICS.md','RELATIONAL_CENTERS_V2.md','SECURITY_REMEDIATION_637.md','RELATIONAL_PERFORMANCE_V2.md','PERFORMANCE_LENSES_V3.md'];
     for (const page of pages) {
       const fullPath = join(root,base,page);
       for (const match of source(`${base}${page}`).matchAll(/\]\(([^)#]+)(?:#[^)]*)?\)/gu)) {
