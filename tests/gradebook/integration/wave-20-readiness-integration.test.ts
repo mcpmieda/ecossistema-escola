@@ -38,9 +38,7 @@ describe('integração final da onda 20 — readiness F9 inerte', () => {
 
     expect(academicSteps).toHaveLength(2);
     expect(academicSteps.every(({ prerequisite }) => prerequisite !== null)).toBe(true);
-    expect(JSON.stringify(GRADEBOOK_FUTURE_PRODUCTION_SMOKE_PLAN_V1)).not.toContain(
-      '/persistence/migrations',
-    );
+    expect(JSON.stringify(GRADEBOOK_FUTURE_PRODUCTION_SMOKE_PLAN_V1)).not.toContain('/persistence/migrations');
   });
 
   it('não conecta readiness ao runtime, Functions ou shell', () => {
@@ -53,16 +51,12 @@ describe('integração final da onda 20 — readiness F9 inerte', () => {
     expect(shell).not.toContain('production-readiness-v1');
   });
 
-  it('preserva o V1 histórico sem congelar a memória canônica no estado pré-produção', () => {
-    const projectState = source('docs/gradebook/PROJECT_STATE.yaml');
-    const startHere = source('docs/gradebook/COMECE_AQUI.md');
+  it('preserva o V1 nos documentos históricos sem congelar a memória canônica no pré-produção', () => {
+    const projectState = source('docs/gradebook/history/pre-final-1/PROJECT_STATE.yaml');
+    const startHere = source('docs/gradebook/history/pre-final-1/COMECE_AQUI.md');
 
-    expect(projectState).toContain(
-      'readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts',
-    );
-    expect(projectState).toContain(
-      'controlled_production_readiness_manifest: server/gradebook/readiness/controlled-production-readiness-v2.ts',
-    );
+    expect(projectState).toContain('readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts');
+    expect(projectState).toContain('controlled_production_readiness_manifest: server/gradebook/readiness/controlled-production-readiness-v2.ts');
     expect(projectState).toContain('academic_authority_mode: imported-source');
     expect(projectState).toContain('production_academic_runtime_enabled: false');
     expect(projectState).toContain('production_d1_binding_present: true');

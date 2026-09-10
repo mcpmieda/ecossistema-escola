@@ -5,46 +5,49 @@ Este repositório deve permanecer simples, funcional e rastreável. A prioridade
 ## Regras gerais
 
 - Faça a menor mudança suficiente para a issue atribuída.
-- Trabalhe em uma branch curta, com uma issue e um pull request por entrega.
+- Trabalhe em uma branch curta, com uma issue e um pull request por entrega. Uma fase grande pode ter entregas sequenciais; PR parcial não fecha a fase automaticamente.
 - Reutilize contratos, componentes e serviços existentes antes de criar novos.
 - Não altere branch protection, rulesets, permissões, secrets, ambientes, aplicações Entra, recursos Cloudflare ou Microsoft 365 sem autorização explícita.
 - Não crie, invoque, utilize, aplique nem delegue trabalho ao App Factory, Factory Runs, merge trains, orquestradores ou agentes auxiliares, salvo autorização explícita na própria issue.
 - Cada issue `[BN]` deve ser executada diretamente pelo agente designado; a issue e a documentação canônica já constituem o fluxo de trabalho.
 - Não execute merge ou publicação por conta própria, salvo quando a issue declarar expressamente essa autoridade.
 - Nunca inclua nomes, notas, arquivos ou outros dados reais de estudantes em código, fixtures, issues, commits, logs ou screenshots. O repositório é público.
-- Execute `npm run verify` antes de declarar a entrega pronta.
+- Execute `npm run verify` antes de declarar a entrega pronta. Registre o SHA e o ambiente da execução; CI não é teste manual de produção.
 
 ## Banco de Notas
 
-A construção modular do Banco de Notas está explicitamente autorizada e é coordenada por `docs/gradebook/` e pelas issues `[BN]`.
+A construção modular está autorizada e é coordenada por `docs/gradebook/` e pelas issues `[BN]`.
 
-Antes de modificar o Banco de Notas, leia nesta ordem:
+Antes de modificar o Banco, leia nesta ordem:
 
 1. `AGENTS.md`;
 2. `docs/gradebook/README.md`;
 3. `docs/gradebook/PROJECT_STATE.yaml`;
-4. `docs/gradebook/DECISIONS.md`;
+4. `docs/gradebook/DECISIONS.md`, incluindo as decisões anteriores vinculadas e a substituição BN-DEC-022;
 5. a issue atribuída;
-6. os contratos, o contrato da fonte e a matriz de testes relacionados.
+6. `CONSUMER_MAP.md`, os contratos, o contrato da fonte e a matriz de testes relacionados.
 
 Regras obrigatórias:
 
-- HeroUI React v3 é o sistema visual transversal. O domínio e o motor nativo não importam React nem HeroUI.
-- O Banco usa o mesmo shell, identidade, autorização, pesquisa e publicação do Centro de Administração.
-- A fonte operacional inicial são as planilhas atuais dos professores; o arquivo `BANCO DE NOTAS 2026.xlsb` é referência funcional. Outras fontes ficam fora do escopo inicial.
+- HeroUI React v3 é o sistema visual transversal. Domínio e motor não importam React nem HeroUI.
+- O Banco usa o mesmo shell, identidade, autorização, pesquisa e publicação do Centro.
+- A Relação do ano é o cadastro mestre; planilhas dos professores são fonte de lançamentos. A reconstrução #613 e seus comentários finais governam o modelo relacional, não o antigo schema streams/versions.
 - Não exigir planilha técnica padronizada. O importador reconhece os arquivos reais existentes.
-- O motor nativo é construído junto com o Banco, em paralelo à preservação e conferência do resultado importado.
-- Uma regra acadêmica existe em um único lugar no domínio. Interface, Desempenho, Conselho, Boletins e relatórios não criam cálculos concorrentes.
+- Importador externo V9 e serviços internos V10/V11 já estão homologados. Não os substituir pelo legado arquivado.
+- PostgreSQL/Supabase via Hyperdrive `PROD_DB` é a persistência oficial. Um nome `d1-*` não prova uso físico do D1: verificar rota, composição e SQL antes de retirar código.
+- Uma regra acadêmica existe em um único núcleo. Interface, Desempenho, Conselho, Boletins e Relatórios não criam cálculos concorrentes.
+- Persistência homologada, motor implementado e autoridade acadêmica aceita são estados diferentes. A #347 registra o aceite por consumidor/escopo; não há ativação ou reinterpretação histórica silenciosa.
+- Diagnósticos de importação guardam somente problemas atuais, conforme #629. Histórico acadêmico e decisões humanas permanecem separados e preservados.
 - Mudanças em contratos compartilhados exigem issue `[BN][CONTRATO]` própria. Um agente não amplia contrato silenciosamente dentro de outra tarefa.
 - Cada issue declara caminhos permitidos. Não altere arquivos fora deles sem registrar a necessidade e aguardar ajuste de escopo.
-- Agentes de implementação não editam `PROJECT_STATE.yaml`, salvo quando a issue os nomear como integrador. O integrador atualiza o estado depois do merge.
+- Agentes de implementação não editam `PROJECT_STATE.yaml`, salvo quando a issue os nomear como integrador. Distinguir baseline integrada de trabalho na branch e de publicação verificada.
 - Ao concluir, registre na issue: estado, commit, arquivos, contratos alterados, testes, pendências e próxima tarefa segura.
-- Uma entrega independente só é considerada concluída depois de integrada à `main`, publicada pelo workflow oficial e verificada no site quando houver resultado visível.
+- Uma entrega independente só é concluída depois de integrada à `main`, publicada pelo workflow oficial e verificada no site quando houver resultado visível.
 
 ## Precedência de decisões
 
-As decisões cronológicas em `docs/gradebook/DECISIONS.md` são a autoridade do projeto. Quando duas instruções divergirem, prevalece a primeira decisão oficial. Uma decisão posterior somente substitui a anterior quando declarar explicitamente a revogação ou substituição.
+As decisões cronológicas indexadas em `docs/gradebook/DECISIONS.md` são a autoridade do projeto. A primeira decisão oficial permanece quando não existir substituição expressa. BN-DEC-022 consolida substituições aprovadas na #613/#629 e o programa final, sem apagar BN-DEC-001–021. `history/` e `Aprendizados/` são memória, não autorização operacional atual.
 
 ## Regra de decisão técnica
 
-Quando houver duas soluções válidas, escolha a que preserve os contratos oficiais com menos duplicação, menos serviços, menos automação permanente e menor impacto no repositório.
+Quando houver duas soluções válidas, escolha a que preserve os contratos oficiais com menos duplicação, menos serviços, menos automação permanente e menor impacto no repositório. Não recrie tabelas antigas para fazer uma tela passar; registre e resolva a lacuna mínima de contrato/persistência.

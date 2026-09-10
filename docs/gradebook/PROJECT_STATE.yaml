@@ -1,201 +1,140 @@
-schema_version: 1
+schema_version: 2
 project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
-production_url: https://admin.escolaieda.com/#/banco-de-notas
-updated_at: 2026-09-08
+updated_at: 2026-09-10
 
 coordination:
+  master_issue: 182
+  executable_issue: 633
+  current_integrator_issue: 633
+  central_state_editor: integrator-only
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
+  consumer_map: docs/gradebook/CONSUMER_MAP.md
   issue_map: docs/gradebook/ISSUE_MAP.md
   start_here: docs/gradebook/COMECE_AQUI.md
-  production_readiness: docs/gradebook/PRODUCTION_READINESS.md
-  master_issue: 182
-  persistence_parent_issue: 185
-  deployment_parent_issue: 192
-  coordination_issue: 593
-  current_integrator_issue: 593
-  central_state_editor: integrator-only
-  branch_model: short-lived-per-issue
+  branch_model: short-lived-per-delivery
   merge_target: main
-  publication: automatic-after-main
-  issue_status_is_authoritative: true
-  current_wave: 24
-  next_wave: 24
-  historical_wave_note: wave-24-is-preserved-for-integration-test-and-historical-continuity
-  prohibited_orchestration:
-    - app-factory
-    - factory-runs
-    - auxiliary-agents
-    - permanent-orchestrators
+  merge_and_deploy: explicit-authorization-required
+  prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
 
-implantation:
-  stage: 3
-  total_stages: 5
-  status: storage-migration-and-whole-school-pilot-in-progress
-  executable_issue: 592
-  stage_3_sequence:
-    - 592
-    - 594
-    - 595
-    - 406
-  stage_4_issue: 347
-  stage_4_status: blocked-until-stage-3-complete
-  stage_5_issue: 596
-  stage_5_status: blocked-until-stage-4-complete
-  coordination_issue: 593
+baseline:
+  last_audited_main_commit: 0a05606aa790bb3a4908308ec865e03438401b0a
+  integrated_import_archive_pr: 632
+  storage_homologation_issue: 613
+  active_diagnostics_homologation_issue: 629
+  note: baseline-audit-not-a-claim-about-later-deployment
+
+storage:
+  decision_current: BN-DEC-022
+  provider_decision: BN-DEC-021
+  current_official_storage: supabase-postgresql-via-cloudflare-hyperdrive
+  binding: PROD_DB
+  schema: gradebook
+  cutover_completed: true
+  core_table_count: 19
+  diagnostic_table_count: 1
+  total_table_count: 20
+  column_count: 127
+  structural_constraint_count: 123
+  index_count: 38
+  foreign_key_count: 34
+  function_count: 4
+  distinct_trigger_count: 3
+  information_schema_trigger_event_rows: 6
+  legacy_streams_versions_are_current_schema: false
+  import_transport: canonical-v9
+  import_service: relational-v11-over-v10
+  academic_no_changes_policy: zero-academic-dml-and-zero-new-history
+  diagnostic_retention: current-evidence-only-replaced-on-next-source-observation
+  historical_academic_retention: preserved-real-deltas
+  recovery_baseline_in_git: reconstructed-and-replay-tested-in-pr-636-not-yet-merged
+  recovery_baseline_path: migrations/gradebook-simplified/
+  production_data_restore_proven_by_this_pr: false
+  legacy_d1_role: preserved-historical-resource-not-backup-of-new-relational-writes
 
 runtime:
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
-  current_route: '#/banco-de-notas'
-  production_academic_runtime_enabled: false
-  production_gate: explicit-server-gate-off-between-authorized-windows
-  production_gate_final: off
-  production_d1_binding_present: true
-  production_hyperdrive_binding_present: true
-  hyperdrive_binding_name: PROD_DB
-  academic_authority_mode: imported-source
-  native_engine_authority_enabled: false
-  authorization:
-    capability: gradebook.persistence.admin
-    opaque_server_context: required
-    client_authorization_claims: forbidden
-  browser:
-    persistent_academic_storage: forbidden
-    cache_control: no-store
-  academic_surfaces:
-    - importacao
-    - operational
-    - audit
-    - performance
-    - bulletins
-    - reports
-    - council
+  capability: gradebook.persistence.admin
+  cache_control: no-store
+  academic_browser_persistent_storage: forbidden
+  production_flags_last_verified_this_pr: false
+  provider_facade_uses_gradebook_d1_interface: true
+  import_and_diagnostics: relational-integrated-and-homologated
+  diagnostic_atomic_replacement: implemented-and-tested-in-pr-636-not-yet-deployed
+  diagnostic_ordering: last-server-confirmed-observation-not-client-chronology
+  other_consumers: legacy-schema-dependencies-pending-reanchoring
+  global_academic_authority_switch_verified: false
+  authority_acceptance_issue: 347
+  legacy_consumer_contracts:
+    academic_authority_mode: imported-source
+    note: describes-existing-v1-contracts-not-a-global-runtime-flag
 
-storage:
-  decision_current: BN-DEC-021
-  decision_issue: 586
-  previous_decision: BN-DEC-016
-  domain_dependency: provider-independent-ports
-  access: authorized-backend-only
-  current_official_storage: cloudflare-d1-until-explicit-cutover
-  target_storage: supabase-postgresql-via-cloudflare-hyperdrive
-  target_binding: PROD_DB
-  cutover_completed: false
-  d1_rollback_window_required: true
-  d1_knowledge_archive: Aprendizados/
-  postgres:
-    production_schema: gradebook
-    schema_applied: true
-    production_table_count: 29
-    production_index_count: 73
-    production_foreign_key_count: 54
-    logical_migration_count: 6
-    real_backfill_completed: false
-    official_reads_enabled: false
-    official_writes_enabled: false
-    required_before_cutover:
-      - postgres-adapters-and-dual-verification-issue-592
-      - private-backfill-and-parity-issue-594
-      - least-privilege-application-role
-      - strict-read-after-write-through-hyperdrive
-      - backup-and-restore-confirmed
-      - rollback-plan-confirmed
-  d1:
-    production_resource_present: true
-    production_d1_binding_present: true
-    official_until_cutover: true
-    legacy_schema_version: 5
-    legacy_table_count: 27
-    remote_migration_applied: true
-    migrations:
-      - 0001_gradebook_context_entities_imports_v1.sql
-      - 0002_gradebook_records_audit_v1.sql
-      - 0003_logical_source_record_catalog_v1.sql
-      - 0004_bulletin_council_durability_v1.sql
-      - 0005_council_session_durability_v2.sql
-      - 0006_import_staging_v1.sql
+work_in_progress:
+  issue: 633
+  phase: FINAL-1
+  branch: feat/bn-final-1-runtime-relacional
+  pull_request: 636
+  scope: documentation-batched-projections-reproducible-schema-and-atomic-current-diagnostics
+  verified_code_commit: 60496ebb12a4acd8eebd5af148e93ef6753d4199
+  verified_code_ci_run: 34465975585
+  production_activation_in_this_delivery: false
+  phase_complete: false
+  remaining:
+    - production-data-backup-restore-and-real-multi-session-contention-pilot
+    - relational-consumer-contracts-and-http-wiring
+    - compact-class-read-models-and-consistent-context-snapshot
+    - legacy-removal-after-dependency-proof
+    - functional-homologation-after-authorized-publication
 
-features:
-  importer:
-    status: values-v8-integrated
-    formats:
-      - xlsb
-      - xlsx
-      - xls
-    batch_limit: 50
-    note_zero_semantics: zero-means-empty-and-0.1-means-explicit-academic-zero
-    unavailable_formula_policy: insufficient-data-never-invent-zero
-  audit:
-    status: integrated
-  operational_workspace:
-    status: integrated
-  performance:
-    status: integrated
-  council:
-    status: integrated-durable
-  bulletins:
-    status: integrated-durable-snapshots-and-pdf
-  reports:
-    status: integrated
+final_phases:
+  - phase: FINAL-1
+    issue: 633
+    branch: feat/bn-final-1-runtime-relacional
+    status: in-progress
+  - phase: FINAL-2
+    issue: 634
+    branch: feat/bn-final-2-desempenho
+    status: planned-dependent-on-final-1
+  - phase: FINAL-3
+    issue: 635
+    branch: feat/bn-final-3-conselho
+    status: planned-dependent-on-relational-contracts
+  - phase: FINAL-4
+    issue: 406
+    branch: test/bn-final-4-piloto-integral
+    status: blocked-until-functional-phases-verified
 
-native_engine:
-  status: implemented-v1-comparative
-  official_authority: imported-source
-  authority_transition_issue: 347
-  authority_switch_completed: false
-  authority_scope_policy: BN-DEC-020
-  activation_rule: only-after-stage-3-pilot-and-explicit-scope-version-effective-time-rollback
-  council_human_decisions_remain_outside_engine: true
+institutional_delivery:
+  issue: 596
+  authority_acceptance_issue: 347
+  observability_issue: 220
+  dependency_security_issue: 637
+  status: pending-pilot-acceptance-and-proven-recovery
 
-f9:
-  status: stage-3-storage-migration-before-final-private-pilot
-  readiness_issue: 360
-  historical_readiness_revalidation_issue: 374
-  readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts
-  controlled_production_readiness_manifest: server/gradebook/readiness/controlled-production-readiness-v2.ts
-  historical_v1_status: prepared-for-manual-authorization
-  historical_v2_status: production-infrastructure-smoke-validated-awaiting-private-pilot
-  production_pilot_completed: false
-  authority_switch_completed: false
-  production_gate_final: off
-  stage_3_current_issue: 592
-  stage_3_backfill_issue: 594
-  stage_3_cutover_issue: 595
-  stage_3_whole_school_pilot_issue: 406
-  stage_4_authority_issue: 347
-  stage_5_delivery_issue: 596
-
-historical_d1_readiness:
-  status: preserved-not-current-executable-queue
-  remote_migration_applied: true
-  production_d1_binding_present: true
-  production_gate_final: off
-  council_v2_production_synthetic_smoke_completed: true
-  synthetic_residue_after_smoke: 0
-  authority_mode: imported-source
-  notes:
-    - Onda 23 e Onda 24 preservadas como evidência histórica.
-    - O caminho D1 foi validado, otimizado e posteriormente substituído como storage-alvo por BN-DEC-021.
-    - Aprendizados técnicos do D1 estão preservados na raiz em Aprendizados/.
+history:
+  prior_state: docs/gradebook/history/pre-final-1/PROJECT_STATE.yaml
+  prior_decisions: docs/gradebook/history/pre-final-1/DECISIONS.md
+  legacy_importers: Aprendizados/IMPORTADORES-LEGADOS/
+  obsolete_execution_queues: [185, 192, 593]
+  obsolete_storage_sequence: [592, 594, 595]
+  note: obligations-transferred-not-erased-and-prior-evidence-not-reinterpreted
 
 security:
   real_data_in_git_or_ci: forbidden
-  public_logs_with_academic_payload: forbidden
-  connection_strings_in_repository: forbidden
+  public_academic_payloads_and_credentials: forbidden
   source_document_mutation: forbidden
-  academic_browser_persistent_storage: forbidden
-  cas_required: true
-  append_only_history_required: true
-  rollback_required: true
+  production_writes_in_this_delivery: forbidden
+  automatic_authority_activation: forbidden
+  authorization_context: server-only
+  concurrency_and_atomicity: required
+  recovery: must-be-proven-not-inferred-from-migration-presence
+  npm_audit_baseline: six-dev-entries-two-dependency-chains
+  npm_audit_omit_dev_baseline: zero-reported-entries-not-proof-of-zero-risk
+  dependency_remediation: pending-issue-637
 
 next_safe_action:
-  issue: 592
-  description: implement-postgresql-adapters-and-dual-verification-without-cutover
-  blocked_after:
-    - issue-594-waits-for-592
-    - issue-595-waits-for-594
-    - issue-406-waits-for-595
-    - issue-347-waits-for-406
-    - issue-596-waits-for-347
+  issue: 633
+  pull_request: 636
+  description: review-validated-block-before-authorized-integration-then-contract-and-wire-relational-consumers

@@ -1,135 +1,45 @@
-# Readiness F9 — implantação controlada até a entrega
+# Readiness — produto relacional e entrega institucional
 
-## Estado
+## Evidência aceita e trabalho na branch
 
-A implantação está na **Etapa 3/5**. Este documento mantém a memória histórica do readiness D1 e define os gates atuais para migração PostgreSQL, piloto integral, autoridade nativa e entrega institucional.
+#613 homologou a persistência relacional/idempotência; #629, retenção de diagnósticos atuais; #632, arquivo dos importadores exclusivos. Essas evidências não comprovam todos os painéis, emissão/reimpressão, votação, restore ou autoridade acadêmica por consumidor.
 
-`authorityMode: imported-source` permanece obrigatório durante toda a Etapa 3/5.
+A PR #636 agora inclui baseline de schema, lote de projeção e proteção transacional da Auditoria existente, além da documentação. **Código/testes na branch não são publicação.** `npm run verify` e testes PGlite/HTTP com identidade sintética não são smoke produtivo, benchmark Hyperdrive, contenção PostgreSQL multi-sessão nem recuperação de dados reais.
 
-## Readiness histórico preservado
+## Gates finais
 
-### V1 histórico
+| Gate | Responsável | Evidência |
+| --- | --- | --- |
+| Schema/runtime | #633 | replay/drift de schema e migração efetiva das fontes por endpoint |
+| Desempenho | #634 | contrato funcional, população, comparabilidade, UI e medição |
+| Conselho | #635 | lacunas contratuais, decisão humana, voto/fechamento e durabilidade |
+| Produto integral | #406 | jornadas, restart/falhas, segurança, histórico e recuperação |
+| Aceite acadêmico | #347 | consumidor/escopo, versão/vigência, divergências e emissões |
+| Entrega | #596 | operação, responsáveis, recuperação e aceite final |
+| Dependências | #637 | corrigir/mitigar as duas cadeias identificadas, repetir audit e verify |
 
-`server/gradebook/readiness/production-readiness-v1.ts` continua sendo a memória da preparação anterior. Seu resultado máximo permanece `prepared-for-manual-authorization`.
+## Recuperação não pode ser presumida
 
-### V2 histórico
+Uma migration existente não comprova restore. A pasta `migrations/gradebook-simplified/` reconstrói o schema atual e compara categorias estruturais com o catálogo observado: 20 tabelas, 127 colunas, 123 constraints, 38 índices, 4 funções e 3 triggers. NOT NULL é comparado por `attnotnull`; sua representação adicional em `pg_constraint` no PostgreSQL 18 é excluída para compatibilidade com PostgreSQL 17, sem excluir a regra.
 
-`server/gradebook/readiness/controlled-production-readiness-v2.ts` continua registrando a preparação D1 pós-smokes. O estado histórico é:
+As concessões backend são separadas da baseline. O teste usa roles sintéticas; restore de dados, contadores de identities, ACLs externas, timezone, recursos, RPO/RTO e operação real continuam gates #406/#596. Não executar DDL antigo de streams/versions. D1 histórico não contém as novas escritas; exclusão ou uso como rollback exige plano próprio.
 
-`production-infrastructure-smoke-validated-awaiting-private-pilot`
+## Autorização, isolamento e atomicidade
 
-Esse estado não é apagado nem reinterpretado. Ele comprova a preparação anterior, mas a decisão BN-DEC-021 alterou o storage físico alvo antes do encerramento do piloto integral.
+Verificar auth/capability, origem, limites, no-store, isolamento e respostas obsoletas por consumidor. Não inferir flags ON/OFF da documentação. O wrapper pode preparar conexão antes da autorização interna; o serviço não é a fronteira de acesso por si só.
 
-## Decisão de storage vigente
+O lote tem snapshot de uma instrução. A projeção anual ainda lê contexto e ofertas separadamente, pendência para emissão/decisão concorrentes. A Auditoria da branch usa **substituição transacional**: locks de fonte/conteúdo + DELETE/INSERT na mesma conexão, rollback se falhar e vazio enviado pelo navegador. A rota acadêmica não limpa diagnósticos separadamente. Falha de atualização gera aviso próprio e não deve parecer Auditoria confirmada. Nenhum registro de resolvido é acumulado.
 
-BN-DEC-021 substituiu BN-DEC-016 quanto ao armazenamento físico principal futuro:
+V1 não tem sequência de observação entre abas: a última confirmada no servidor prevalece, sem inferência cronológica de arquivos atrasados. PGlite serializa conexões; teste local de chamadas concorrentes não comprova a disputa real entre conexões PostgreSQL. Recarregar clientes antigos após publicação autorizada para que enviem também o conjunto vazio.
 
-- PostgreSQL/Supabase via Hyperdrive `PROD_DB` é o storage oficial após #595;
-- D1 permanece preservado sem dual write para o rollback controlado;
-- D1 será preservado como rollback read-only por janela definida após o cutover;
-- mudança de storage não muda autoridade acadêmica.
+A inspeção de ACL encontrou anon/authenticated sem USAGE e sem privilégios de tabela. RLS desativada isoladamente não prova exposição pública. Nenhuma permissão produtiva foi alterada; revalidar acesso efetivo e superfícies expostas no gate operacional.
 
-O schema PostgreSQL produtivo `gradebook` já foi aplicado sem dados reais. A migração real permanece bloqueada pelos gates abaixo.
+## Segurança de dependências
 
-## Etapa 3/5 — gates obrigatórios
+A coleta #637/#638 identificou seis entradas npm em duas cadeias dev: sharp/libheif via Cloudflare e adm-zip via office-addin-manifest. Sem dev, zero entradas reportadas. Isso não prova risco zero: Wrangler é usado no processo de publicação. Correções ainda não executadas; não usar `npm audit fix --force` nem confundir CI verde com remediação.
 
-### Gate 1 — #592 / adapters e dual verification
+## Hard stops e memória
 
-Antes de qualquer backfill real:
+Escrita parcial, perda de histórico, divergência material, autoridade ambígua, schema inesperado, recuperação insuficiente ou dado exposto interrompem o escopo afetado. Não editar planilha silenciosamente nem converter ausência em zero.
 
-- adapters PostgreSQL equivalentes às portas oficiais;
-- CAS, idempotência, transação, staging, snapshots, Conselho e Auditoria cobertos;
-- dual verification D1 × PostgreSQL sanitizada;
-- nenhuma credencial ou dado real público;
-- D1 continua oficial.
-
-### Gate 2 — #594 / backfill privado e paridade
-
-Antes de qualquer cutover:
-
-- migração integral D1 → PostgreSQL executada privadamente;
-- contagens, versões, relações e hashes técnicos equivalentes;
-- reexecução idempotente;
-- nenhuma transformação acadêmica/recalculo durante backfill;
-- qualquer divergência material interrompe a transição.
-
-### Gate 3 — #595 / cutover e rollback
-
-Antes do primeiro write acadêmico oficial em PostgreSQL:
-
-- paridade #594 verde;
-- role de aplicação de menor privilégio;
-- backup e restore confirmados;
-- Hyperdrive configurado para consistência read-after-write adequada ao Banco;
-- rollback para D1 definido e testável;
-- gate de produção controlado;
-- D1 passa a read-only durante a janela de rollback.
-
-### Gate 4 — #406 / piloto integral final
-
-Somente depois do cutover:
-
-- corpus privado integral exercitado 18/18;
-- persistência/reload;
-- reimportação idêntica `no-changes`/idempotente;
-- mudança mínima versionada;
-- ausência posterior sem delete silencioso;
-- CAS concorrente sem write parcial;
-- Auditoria e reconciliação;
-- Desempenho;
-- Boletins, snapshots e reprint;
-- Relatórios;
-- Conselho/durabilidade/restart;
-- backup/recovery/rollback;
-- mapa sanitizado de escopos elegíveis versus bloqueados.
-
-A Etapa 3/5 só termina quando #595 e #406 estiverem verdes e `authorityMode` continuar `imported-source`.
-
-## Etapa 4/5 — #347
-
-A autoridade `native-engine` permanece separada e bloqueada. Só iniciar após #406, com:
-
-- contrato de autoridade por escopo;
-- divergências materiais reconciliadas;
-- versão/vigência explícitas;
-- histórico não retroativo;
-- rollback confirmado;
-- aceite institucional.
-
-## Etapa 5/5 — #596
-
-A entrega institucional fecha:
-
-- operação estável em PostgreSQL;
-- janela de rollback D1 encerrada deliberadamente;
-- D1 preservado/arquivado conforme runbook;
-- observabilidade/saúde e limites quando aplicável;
-- backup/restore;
-- documentação e `PROJECT_STATE.yaml` finais;
-- backlog de implantação limpo;
-- smoke final do site oficial.
-
-## Hard stops permanentes
-
-Parar antes de novos writes reais se houver:
-
-- schema/binding/storage alvo ambíguo;
-- backup/restore ou rollback indisponível;
-- write parcial ou CAS enfraquecido;
-- divergência material sem reconciliação;
-- exposição de dado real, payload, hash privado ou credencial;
-- necessidade de regra acadêmica não formalizada;
-- tentativa de ativar autoridade antes da #347.
-
-## Segurança e privacidade
-
-- autenticação/autorização server-side obrigatórias;
-- respostas acadêmicas `no-store`;
-- nenhum armazenamento acadêmico persistente no browser;
-- erros e telemetria sanitizados;
-- dados reais somente em ambiente privado autorizado;
-- Git/CI públicos usam somente dados sintéticos.
-
-## Verificação de código
-
-`npm run test:gradebook-readiness` continua preservando V1/V2 históricos. `npm run verify` é obrigatório no SHA final de cada entrega. Evoluções de storage devem adicionar gates sem apagar a evidência histórica anterior.
+V1 `prepared-for-manual-authorization` e V2 `production-infrastructure-smoke-validated-awaiting-private-pilot` permanecem no [documento histórico](history/pre-final-1/PRODUCTION_READINESS.md); não comprovam configuração atual. Publicação exige autorização e evidência sanitizada. Ver [detalhes do bloco](CURRENT_SCHEMA_AND_DIAGNOSTICS.md).

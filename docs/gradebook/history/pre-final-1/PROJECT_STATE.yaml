@@ -1,0 +1,201 @@
+schema_version: 1
+project: banco-de-notas
+repository: mcpmieda/ecossistema-escola
+production_url: https://admin.escolaieda.com/#/banco-de-notas
+updated_at: 2026-09-08
+
+coordination:
+  canonical_decisions: docs/gradebook/DECISIONS.md
+  canonical_roadmap: docs/gradebook/ROADMAP.md
+  issue_map: docs/gradebook/ISSUE_MAP.md
+  start_here: docs/gradebook/COMECE_AQUI.md
+  production_readiness: docs/gradebook/PRODUCTION_READINESS.md
+  master_issue: 182
+  persistence_parent_issue: 185
+  deployment_parent_issue: 192
+  coordination_issue: 593
+  current_integrator_issue: 593
+  central_state_editor: integrator-only
+  branch_model: short-lived-per-issue
+  merge_target: main
+  publication: automatic-after-main
+  issue_status_is_authoritative: true
+  current_wave: 24
+  next_wave: 24
+  historical_wave_note: wave-24-is-preserved-for-integration-test-and-historical-continuity
+  prohibited_orchestration:
+    - app-factory
+    - factory-runs
+    - auxiliary-agents
+    - permanent-orchestrators
+
+implantation:
+  stage: 3
+  total_stages: 5
+  status: storage-migration-and-whole-school-pilot-in-progress
+  executable_issue: 592
+  stage_3_sequence:
+    - 592
+    - 594
+    - 595
+    - 406
+  stage_4_issue: 347
+  stage_4_status: blocked-until-stage-3-complete
+  stage_5_issue: 596
+  stage_5_status: blocked-until-stage-4-complete
+  coordination_issue: 593
+
+runtime:
+  design_system: HeroUI React v3
+  authentication: Microsoft Entra ID inherited from the Admin Center
+  current_route: '#/banco-de-notas'
+  production_academic_runtime_enabled: false
+  production_gate: explicit-server-gate-off-between-authorized-windows
+  production_gate_final: off
+  production_d1_binding_present: true
+  production_hyperdrive_binding_present: true
+  hyperdrive_binding_name: PROD_DB
+  academic_authority_mode: imported-source
+  native_engine_authority_enabled: false
+  authorization:
+    capability: gradebook.persistence.admin
+    opaque_server_context: required
+    client_authorization_claims: forbidden
+  browser:
+    persistent_academic_storage: forbidden
+    cache_control: no-store
+  academic_surfaces:
+    - importacao
+    - operational
+    - audit
+    - performance
+    - bulletins
+    - reports
+    - council
+
+storage:
+  decision_current: BN-DEC-021
+  decision_issue: 586
+  previous_decision: BN-DEC-016
+  domain_dependency: provider-independent-ports
+  access: authorized-backend-only
+  current_official_storage: cloudflare-d1-until-explicit-cutover
+  target_storage: supabase-postgresql-via-cloudflare-hyperdrive
+  target_binding: PROD_DB
+  cutover_completed: false
+  d1_rollback_window_required: true
+  d1_knowledge_archive: Aprendizados/
+  postgres:
+    production_schema: gradebook
+    schema_applied: true
+    production_table_count: 29
+    production_index_count: 73
+    production_foreign_key_count: 54
+    logical_migration_count: 6
+    real_backfill_completed: false
+    official_reads_enabled: false
+    official_writes_enabled: false
+    required_before_cutover:
+      - postgres-adapters-and-dual-verification-issue-592
+      - private-backfill-and-parity-issue-594
+      - least-privilege-application-role
+      - strict-read-after-write-through-hyperdrive
+      - backup-and-restore-confirmed
+      - rollback-plan-confirmed
+  d1:
+    production_resource_present: true
+    production_d1_binding_present: true
+    official_until_cutover: true
+    legacy_schema_version: 5
+    legacy_table_count: 27
+    remote_migration_applied: true
+    migrations:
+      - 0001_gradebook_context_entities_imports_v1.sql
+      - 0002_gradebook_records_audit_v1.sql
+      - 0003_logical_source_record_catalog_v1.sql
+      - 0004_bulletin_council_durability_v1.sql
+      - 0005_council_session_durability_v2.sql
+      - 0006_import_staging_v1.sql
+
+features:
+  importer:
+    status: values-v8-integrated
+    formats:
+      - xlsb
+      - xlsx
+      - xls
+    batch_limit: 50
+    note_zero_semantics: zero-means-empty-and-0.1-means-explicit-academic-zero
+    unavailable_formula_policy: insufficient-data-never-invent-zero
+  audit:
+    status: integrated
+  operational_workspace:
+    status: integrated
+  performance:
+    status: integrated
+  council:
+    status: integrated-durable
+  bulletins:
+    status: integrated-durable-snapshots-and-pdf
+  reports:
+    status: integrated
+
+native_engine:
+  status: implemented-v1-comparative
+  official_authority: imported-source
+  authority_transition_issue: 347
+  authority_switch_completed: false
+  authority_scope_policy: BN-DEC-020
+  activation_rule: only-after-stage-3-pilot-and-explicit-scope-version-effective-time-rollback
+  council_human_decisions_remain_outside_engine: true
+
+f9:
+  status: stage-3-storage-migration-before-final-private-pilot
+  readiness_issue: 360
+  historical_readiness_revalidation_issue: 374
+  readiness_manifest: server/gradebook/readiness/production-readiness-v1.ts
+  controlled_production_readiness_manifest: server/gradebook/readiness/controlled-production-readiness-v2.ts
+  historical_v1_status: prepared-for-manual-authorization
+  historical_v2_status: production-infrastructure-smoke-validated-awaiting-private-pilot
+  production_pilot_completed: false
+  authority_switch_completed: false
+  production_gate_final: off
+  stage_3_current_issue: 592
+  stage_3_backfill_issue: 594
+  stage_3_cutover_issue: 595
+  stage_3_whole_school_pilot_issue: 406
+  stage_4_authority_issue: 347
+  stage_5_delivery_issue: 596
+
+historical_d1_readiness:
+  status: preserved-not-current-executable-queue
+  remote_migration_applied: true
+  production_d1_binding_present: true
+  production_gate_final: off
+  council_v2_production_synthetic_smoke_completed: true
+  synthetic_residue_after_smoke: 0
+  authority_mode: imported-source
+  notes:
+    - Onda 23 e Onda 24 preservadas como evidência histórica.
+    - O caminho D1 foi validado, otimizado e posteriormente substituído como storage-alvo por BN-DEC-021.
+    - Aprendizados técnicos do D1 estão preservados na raiz em Aprendizados/.
+
+security:
+  real_data_in_git_or_ci: forbidden
+  public_logs_with_academic_payload: forbidden
+  connection_strings_in_repository: forbidden
+  source_document_mutation: forbidden
+  academic_browser_persistent_storage: forbidden
+  cas_required: true
+  append_only_history_required: true
+  rollback_required: true
+
+next_safe_action:
+  issue: 592
+  description: implement-postgresql-adapters-and-dual-verification-without-cutover
+  blocked_after:
+    - issue-594-waits-for-592
+    - issue-595-waits-for-594
+    - issue-406-waits-for-595
+    - issue-347-waits-for-406
+    - issue-596-waits-for-347

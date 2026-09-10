@@ -1,58 +1,38 @@
 # Banco de Notas — ponto de entrada
 
-Este diretório é a memória oficial do Banco de Notas. Para execução, prevalecem `AGENTS.md`, `DECISIONS.md`, `PROJECT_STATE.yaml`, a issue executável atual e a coordenação #593.
+## Estado recuperado em 10/09/2026
 
-## Comece por aqui
+A #613 encerrou a reconstrução simplificada e homologou a **persistência** PostgreSQL/Supabase via Hyperdrive `PROD_DB`. Importador externo V9, serviços internos V10/V11 e Auditoria de diagnósticos atuais estão integrados. São **19 tabelas centrais + `importacao_diagnostico` = 20 tabelas**, não o antigo schema de 29 tabelas.
 
-- [`COMECE_AQUI.md`](COMECE_AQUI.md) — fila curta e próxima ação;
-- [Issue principal #182](https://github.com/mcpmieda/ecossistema-escola/issues/182) — acompanhamento do programa;
-- [`ISSUE_MAP.md`](ISSUE_MAP.md) — trilha ativa e dependências;
-- [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml) — estado canônico legível por máquina;
-- [`ROADMAP.md`](ROADMAP.md) — fases funcionais e implantação em 5 etapas;
-- [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md) — gates de produção, rollback e piloto.
+Os demais painéis têm código existente, mas ainda dependem de fontes e contratos da geração anterior. A adaptação e a homologação integral não estão concluídas. Não confundir nome `d1-*` com provedor físico, nem código integrado com consumidor oficialmente aceito.
 
-## Estado atual — implantação na Etapa 3/5
+## Leitura e execução
 
-O Banco já possui importação, domínio acadêmico, motor comparativo, Auditoria, centrais, Desempenho, Conselho, Boletins, PDF e Relatórios. A implantação institucional ainda não terminou.
+1. [`COMECE_AQUI.md`](COMECE_AQUI.md): tarefa atual e dependências.
+2. [`PROJECT_STATE.yaml`](PROJECT_STATE.yaml): baseline auditada versus trabalho na branch.
+3. [`DECISIONS.md`](DECISIONS.md): decisões anteriores preservadas e substituições expressas.
+4. [`ARCHITECTURE.md`](ARCHITECTURE.md) e [`CONSUMER_MAP.md`](CONSUMER_MAP.md): cadeias reais e lacunas por consumidor.
+5. [`CONTRACTS.md`](CONTRACTS.md), [`ROADMAP.md`](ROADMAP.md), [`ISSUE_MAP.md`](ISSUE_MAP.md) e [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md).
 
-A decisão BN-DEC-021 substituiu BN-DEC-016 quanto ao armazenamento físico principal: **PostgreSQL/Supabase via Hyperdrive `PROD_DB`** é o storage oficial. D1 está preservado sem dual write como rollback pela janela controlada definida no [`postgres-cutover-runbook-v1.md`](postgres-cutover-runbook-v1.md).
+## Programa final
 
-O schema produtivo PostgreSQL `gradebook` já foi criado e aplicado sem dados reais, com 29 tabelas, 73 índices, 54 foreign keys e 6 migrations lógicas. O legado técnico D1 permanece preservado na pasta raiz [`Aprendizados/`](../../Aprendizados/).
+| Fase | Issue | Entrega |
+| --- | --- | --- |
+| FINAL-1 | #633 | documentação, baseline reproduzível, leituras relacionais compartilhadas e migração dos consumidores |
+| FINAL-2 | #634 | Desempenho conforme seu documento funcional |
+| FINAL-3 | #635 | Conselho de Classe, decisões humanas, durabilidade e fechamento |
+| FINAL-4 | #406 | piloto integral, recuperação e retirada seletiva do legado |
 
-## Trilha ativa
+#347 registra aceite acadêmico por consumidor/escopo. #596 encerra a operação institucional; #220 é observabilidade global planejada. A PR #636 é a primeira entrega **parcial** da #633, não fecha toda a fase.
 
-### Etapa 3/5 — em andamento
+## Fontes funcionais
 
-`#592 adapters PostgreSQL + dual verification → #594 backfill privado + paridade → #595 cutover + rollback D1 → #406 piloto integral da escola inteira`
+`PAINEL DESEMPENHO` governa a experiência de Desempenho. Do documento antigo `APENAS CONSELHO`, usar somente as partes de Conselho; não reativar seu planejamento de persistência, importação, diagnósticos ou painéis antigos. Conflitos reais com o modelo simplificado exigem contrato explícito, não inferência.
 
-O piloto #406 está pausado até o cutover para evitar validar duas vezes o mesmo corpus em storages diferentes.
+F1 = **7/7** e demais fechamentos antigos permanecem evidências do contexto em que foram feitos; não demonstram compatibilidade automática dos consumidores atuais. O [planejamento anterior](history/pre-final-1/README.md) foi preservado integralmente. Documentos de ondas, D1, backfill e cutover antigos são históricos quando tratam de relações removidas.
 
-### Etapa 4/5 — bloqueada
+## Invariantes
 
-`#347` — ativação de `native-engine` por escopo, somente depois da Etapa 3/5 verde.
+Uma regra acadêmica, um núcleo; fatos e referências de fonte separados dos derivados; nenhum resultado fictício; Conselho humano; histórico acadêmico preservado; diagnóstico corrigido removido na próxima leitura correspondente; auth/capabilities server-side; `no-store`; nenhuma base acadêmica persistente no browser; nenhum dado privado em Git/CI.
 
-### Etapa 5/5 — bloqueada
-
-`#596` — entrega institucional, runbook final, observabilidade, backup/restore e fechamento deliberado da janela de rollback.
-
-## Invariantes ativos
-
-- `authorityMode: imported-source` durante toda a Etapa 3/5;
-- PostgreSQL é o storage oficial após a paridade integral de #594 e o cutover #595;
-- D1 permanece intacto e sem novas escritas acadêmicas como rollback controlado;
-- arquivos reais permanecem privados e fora de Git/CI;
-- CAS, idempotência, histórico append-only e rollback permanecem obrigatórios;
-- mudança de storage não ativa autoridade nativa;
-- `native-engine` continua inativo até #347.
-
-## Readiness histórico
-
-O V1 permanece memória histórica de `prepared-for-manual-authorization`. O V2 histórico permanece `production-infrastructure-smoke-validated-awaiting-private-pilot`; esses estados documentam a preparação D1 anterior e não substituem a trilha atual de migração PostgreSQL.
-
-## Processo oficial
-
-```text
-uma issue → uma branch curta → um PR → npm run verify → CI → merge/deploy quando autorizado → evidência sanitizada
-```
-
-Não usar App Factory, Factory Runs, orquestradores ou agentes auxiliares salvo autorização explícita. Nunca publicar dados reais de estudantes/professores, payloads acadêmicos, hashes privados ou credenciais.
+Processo: issue → branch → PR → `npm run verify` → CI → integração/publicação autorizada → evidência sanitizada. Nenhum merge, migration, alteração de infraestrutura ou ativação de autoridade está autorizado por este documento.

@@ -1,315 +1,45 @@
 # Decisões oficiais do Banco de Notas
 
-Este arquivo é cronológico e normativo para o projeto. Em caso de divergência, prevalece a primeira decisão oficial. Uma decisão posterior só altera outra quando declara expressamente `Substitui BN-DEC-XXX`.
+Este é o índice cronológico normativo. A primeira decisão oficial prevalece, salvo substituição expressa. Arquivamento documental não revoga regra por si só.
 
-## BN-DEC-001 — Construção integrada e técnica
+## BN-DEC-001–021 — texto integral preservado
 
-**Data:** 2026-08-31  
-**Status:** vigente
+As decisões de 31/08 a 08/09/2026 estão, sem alteração de conteúdo, em [`history/pre-final-1/DECISIONS.md`](history/pre-final-1/DECISIONS.md), blob de origem `32c4b5126563c72593a0f368d80431332bda642d`.
 
-O novo Banco de Notas será construído no repositório `ecossistema-escola`, integrado ao Centro de Administração, com processo técnico e sem governança burocrática desnecessária.
+Permanecem particularmente aplicáveis BN-DEC-002 (shell/HeroUI), BN-DEC-005 (arquivos reais), BN-DEC-008 (regra única), BN-DEC-010 (Desempenho read-only), BN-DEC-014 (privacidade), BN-DEC-019/020 (separação de autoridade e decisões humanas) e BN-DEC-021 (PostgreSQL via Hyperdrive), observadas as substituições abaixo.
 
-## BN-DEC-002 — HeroUI e shell único
+## BN-DEC-022 — Consolidação relacional e programa final
 
-**Data:** 2026-08-31  
-**Status:** vigente
+**Data:** 2026-09-10. **Origem:** decisões e homologações da #613; #625/#627/#629 e PRs #626/#628/#630; arquivamento #631/#632; programa final autorizado e registrado em #182/#633/#634/#635/#406/#347/#596.
 
-HeroUI React v3 é o sistema visual transversal. O Banco usa o mesmo shell, sidebar, topbar, pesquisa, perfil, autenticação e permissões do Centro. Não criar aplicativo, autenticação ou shell paralelo.
+Esta decisão consolida mudanças já aprovadas e define sua precedência documental. Não aplica DDL, não ativa endpoints, não muda dados ou autoridade por sua publicação.
 
-## BN-DEC-003 — Experiência funcional para usuários leigos
+### Substituições expressas
 
-**Data:** 2026-08-31  
-**Status:** vigente
+**Substitui BN-DEC-021**, exclusivamente no roteiro executável da migração física e na suposição de equivalência do modelo `streams/versions`: a #613 reconstruiu e homologou o schema relacional simplificado como autoridade de persistência. A sequência antiga de backfill/shadow não será reexecutada nem seu schema recriado. PostgreSQL/Supabase via Hyperdrive `PROD_DB`, backend autorizado, privacidade, menor privilégio e recuperação continuam obrigatórios. D1 antigo não é automaticamente backup das novas escritas.
 
-A interface deve parecer um sistema de trabalho pronto para uso, não um painel técnico de configuração. Configurações ficam em segundo plano, com defaults válidos. A navegação é orientada a tarefas, linguagem escolar e aprofundamento progressivo.
+**Substitui BN-DEC-017**, apenas quanto à representação física de versões: estado atual em tabelas relacionais e histórico de deltas reais, sem exigir streams/versions nem duplicação integral de payloads. Identidade lógica, detecção de alteração semântica, atomicidade e idempotência continuam. Reimportação idêntica não gera DML/histórico acadêmico; pode atualizar diagnósticos operacionais, que são outro conjunto de dados.
 
-## BN-DEC-004 — Fontes iniciais restritas
+**Substitui BN-DEC-006 e a obrigação de retenção de ocorrências de BN-DEC-019**, somente para diagnósticos de importação conforme #629: manter evidências atuais da última leitura do arquivo/ano; apagar as resolvidas ao substituir esse conjunto; adicionar as novas ou ainda presentes. Não existe histórico de resolvidos. Essa exceção não apaga histórico acadêmico, deliberações humanas nem registros oficiais emitidos, e nunca permite alterar a planilha original.
 
-**Data:** 2026-08-31  
-**Status:** vigente
+**Complementa BN-DEC-007/019/020**: o motor simplificado e suas projeções existem; o cutover de persistência não prova aceite acadêmico de todos os consumidores. A #347 deixa de ser uma repetição da migração física e mantém a aprovação por consumidor/escopo, versão/vigência e recuperação, com evidências do piloto #406. Não são autorizados flip global, reinterpretação retroativa, escolha de autoridade pelo browser ou eliminação automática de AM/U.
 
-A fonte operacional inicial são as planilhas atuais dos professores. O arquivo `BANCO DE NOTAS 2026.xlsb` é referência funcional para o comportamento global. Outras fontes, incluindo SMECEL e sincronizações automáticas, ficam fora do escopo inicial.
+**Atualiza o sequenciamento de BN-DEC-011/012** para quatro entregas grandes: FINAL-1 #633, FINAL-2 #634, FINAL-3 #635, FINAL-4 #406; aceite #347 e entrega #596. Issue/branch/PR, contratos explícitos, revisão e integração autorizada permanecem. PR parcial não encerra a fase inteira.
 
-## BN-DEC-005 — Importação direta, sem planilha técnica intermediária
+### Modelo e semântica consolidados
 
-**Data:** 2026-08-31  
-**Status:** vigente
+A Relação é o cadastro mestre anual. Pessoa e vínculo são separados; número não é reutilizado naquele vínculo. Oferta tem identidade ano/turma/disciplina/professor; slot identifica instrumento, não sua descrição. Armazenar fatos em inteiros de milésimos; não persistir somas derivadas. `0,1` de fonte é zero acadêmico; zero manual/de fórmula e branco têm semântica de vazio. Limpeza em escopo completo remove o valor atual com histórico; indisponibilidade não inventa zero nem apaga anterior. `N/C` é exclusivo da REC e permanece distinto de valor numérico. Descrição vazia preserva a anterior. Valor acima do máximo é aviso conforme revisão posterior da #613, não bloqueio pela redação inicial superada do corpo da issue.
 
-O usuário importa os arquivos reais existentes em XLSB/XLSX/XLS. Não exigir conversão para planilha técnica padronizada. Uma camada de adaptadores internos pode existir; uma nova planilha padrão só será considerada se uma fonte futura demonstrar necessidade concreta.
+`fechamento.am*_fonte` e `u_fonte` são referências independentes de comparação. REC é fato permanente; substitui a nota normal somente no cálculo correspondente. Decisão humana de Conselho não é fórmula. Todos os detalhes acadêmicos permanecem definidos pelo núcleo/contratos e decisões da #613, não por esta síntese documental.
 
-## BN-DEC-006 — Preservação integral da fonte
+São 19 tabelas centrais e uma de diagnósticos. Uma lacuna institucional real de persistência exige proposta mínima e contrato explícito; o número 19 não é motivo para omitir voto/fechamento/snapshot nem para reconstruir o modelo antigo inteiro.
 
-**Data:** 2026-08-31  
-**Status:** vigente
+### Fontes funcionais e lacunas
 
-A importação nunca altera o arquivo original. Todos os registros encontrados são preservados, inclusive posições históricas, transferidos e movimentos `FOI PARA` / `ESTAVA NO`. Filtros futuros determinam a população vigente sem apagar histórico.
+O documento `PAINEL DESEMPENHO` de 29/08/2026 é a referência funcional de Desempenho. Do documento antigo `APENAS CONSELHO` de 23/08/2026, somente o conteúdo de Conselho é preservado como referência funcional. O restante não governa novamente importação, persistência ou Auditoria.
 
-## BN-DEC-007 — Motor nativo construído junto com o Banco
+Há diferenças entre o Conselho documental, os códigos atuais de decisão e o contrato institucional V2 antigo. Distinção entre reprovações, voto opcional/desempate, edição/reabertura e fechamento exigem conciliação explícita na #635 por issue de contrato. Não inferir equivalência entre estados diferentes, diretor a partir de administrador nem fatos históricos inexistentes.
 
-**Data:** 2026-08-31  
-**Status:** vigente
+### Critério de verdade
 
-Toda referência documental a “motor nativo futuro” deve ser interpretada como motor obrigatório nas fases iniciais da construção. Ele será implementado em funções puras, versionadas e testáveis. Durante a migração, os valores importados e os calculados pelo motor permanecem separáveis e comparáveis. A mudança de autoridade oficial para o motor exige aceite explícito; não ocorre silenciosamente.
-
-## BN-DEC-008 — Uma regra acadêmica, um único núcleo
-
-**Data:** 2026-08-31  
-**Status:** vigente
-
-Importação, Desempenho, Conselho, Boletins, pesquisa e relatórios não mantêm motores próprios. Todos consomem contratos e resultados do domínio acadêmico central.
-
-## BN-DEC-009 — Arquitetura modular, não uma página gigante
-
-**Data:** 2026-08-31  
-**Status:** vigente
-
-O Banco será dividido em módulos com rotas e limites claros: Importação, domínio/motor, Auditoria, centrais de entidades, Desempenho, Conselho, Boletins/Relatórios e Configurações. As responsabilidades ocultas do Excel viram serviços e contratos, não telas que imitam guias.
-
-## BN-DEC-010 — Desempenho como projeção analítica
-
-**Data:** 2026-08-31  
-**Status:** vigente
-
-Desempenho é uma área read-only sobre dados e resultados oficiais do Banco. A matriz da turma é o centro da experiência; detalhes aparecem por interação. Desempenho não possui cadastro, armazenamento ou cálculo acadêmico paralelo.
-
-## BN-DEC-011 — Desenvolvimento paralelo por issues e contratos
-
-**Data:** 2026-08-31  
-**Status:** vigente
-
-As fases serão issues-pai. Entregas pequenas serão issues executáveis por diferentes agentes, com caminhos permitidos, contratos, dependências, critérios de aceite e testes. O repositório permanece único; branches são curtas; integração ocorre continuamente na `main`.
-
-## BN-DEC-012 — Memória oficial no repositório
-
-**Data:** 2026-08-31  
-**Status:** vigente
-
-Conversas não são memória oficial. Qualquer agente deve compreender e continuar o projeto lendo `AGENTS.md`, `docs/gradebook/`, a issue atribuída e seus contratos. O integrador mantém `PROJECT_STATE.yaml` após merges.
-
-## BN-DEC-013 — Publicação progressiva no site oficial
-
-**Data:** 2026-08-31  
-**Status:** vigente
-
-Toda entrega independente, utilizável e não bloqueada por outra fase deve ser integrada à `main`, publicada pelo workflow oficial e verificada em `admin.escolaieda.com`. Código incompleto só pode chegar à `main` quando não quebra a aplicação e permanece inacessível até estar pronto.
-
-## BN-DEC-014 — Segurança do repositório público
-
-**Data:** 2026-08-31  
-**Status:** vigente
-
-Nenhum dado real de estudante pode ser versionado ou exposto em issues, PRs, fixtures, logs ou screenshots. Testes no repositório usam dados sintéticos ou anonimizados; validações com arquivos reais ocorrem de forma controlada fora do Git.
-
-## BN-DEC-015 — Precedência da primeira divergência
-
-**Data:** 2026-08-31  
-**Status:** vigente
-
-Quando instruções entrarem em conflito, a mais antiga permanece oficial. Qualquer substituição deve citar a decisão anterior, explicar o impacto e ser confirmada explicitamente pelo responsável.
-
-## BN-DEC-016 — Cloudflare D1 como armazenamento físico
-
-**Data:** 2026-08-31  
-**Status:** vigente  
-**Origem:** issue #200
-
-Cloudflare D1 será o armazenamento físico principal da base acadêmica do Banco de Notas. O navegador não será a base institucional e as planilhas permanecem fonte documental/importação, não banco transacional.
-
-O domínio continua independente do fornecedor: código acadêmico conhece portas de persistência, não `D1Database`, SQL, Wrangler ou bindings. Todo acesso real ocorre pelo backend autorizado do Centro. Banco, binding, migrations, índices e recuperação serão criados somente por issues próprias; esta decisão não autoriza provisionamento silencioso.
-
-O plano gratuito pode ser usado em desenvolvimento e piloto, com medição de leituras, escritas e armazenamento. Se o volume exigir, a evolução prevista é alterar o plano Cloudflare sem trocar a tecnologia ou o modelo do Banco.
-
-## BN-DEC-017 — Identidade lógica da fonte e reimportação incremental
-
-**Data:** 2026-08-31  
-**Status:** vigente
-
-O nome do arquivo é metadado de origem, não identidade permanente. O SHA-256 identifica conteúdo binário idêntico:
-
-- mesmo hash com outro nome é o mesmo conteúdo renomeado e não gera duplicação;
-- hash diferente pode ser nova versão da mesma fonte lógica quando ano, professor e contexto acadêmico forem compatíveis;
-- contexto incompatível ou ambíguo exige confirmação humana; o sistema não associa silenciosamente;
-- salvar novamente um arquivo pode mudar bytes/metadados sem mudar notas, portanto a comparação acadêmica relevante sucede a comparação do hash;
-- valores inalterados não criam nova versão acadêmica;
-- valores novos ou alterados criam nova versão e preservam integralmente a versão anterior.
-
-A reimportação será idempotente, incremental e auditável. Não se adotará a estratégia de apagar a base e recriar todas as linhas a cada atualização.
-
-## BN-DEC-018 — Saúde e limites são globais no Centro de Administração
-
-**Data:** 2026-08-31  
-**Status:** vigente  
-**Issue planejada:** #220
-
-Quotas, consumo, disponibilidade e saúde de Cloudflare, D1, Workers e integrações pertencem ao Centro de Administração, em área administrativa global `Configurações → Saúde e limites`.
-
-Cada módulo pode fornecer métricas próprias, inclusive impacto estimado de importações do Banco de Notas, mas não mantém um painel isolado de infraestrutura. Tokens e credenciais nunca chegam ao navegador; métricas são obtidas por backend autorizado e não podem conter nomes, notas ou payload acadêmico. A indisponibilidade da fonte de métricas deve gerar estado parcial/desatualizado, não indisponibilidade do ambiente inteiro.
-
-## BN-DEC-019 — Autoridade nativa, comparação proporcional e correção determinística
-
-**Data:** 2026-09-02  
-**Status:** vigente  
-**Origem:** issue #349  
-**Complementa:** BN-DEC-007; não altera a autoridade ativa antes do rollout autorizado
-
-O motor nativo do Banco Online é a autoridade-alvo dos resultados acadêmicos determinísticos cobertos por perfil oficial versionado. A planilha permanece fonte documental/de importação e referência independente de Auditoria. Valores e estados `imported` e `calculated` permanecem separados, versionados, preservados e auditáveis. Conselho de Classe e demais decisões explicitamente humanas permanecem fora da autoridade automática do motor.
-
-A mudança efetiva de autoridade continua temporal, versionada, reversível e não retroativa por padrão. O ano, período e data exatos de vigência somente serão definidos após piloto real aprovado e pelos gates próprios de ativação. Histórico, snapshots, boletins, reimpressões e decisões emitidos sob autoridade anterior permanecem reproduzíveis segundo a autoridade e a versão vigentes quando foram produzidos.
-
-### Comparação proporcional de desempenho
-
-A comparação entre trimestres ou períodos comparáveis usa `basis = percentage`, com base percentual normalizada pela semântica oficial do perfil/versionamento aplicável a cada lado. Pontos brutos de escalas diferentes não são base válida para comparação proporcional.
-
-Assim, por exemplo, `24/30 = 80%` e `32/40 = 80%` são equivalentes para essa comparação. A regra não fixa `T3 = 40`: cada período usa o máximo e a semântica percentual oficiais do respectivo perfil versionado, preservando a correção quando a distribuição institucional mudar.
-
-Mudança apenas do máximo do período não impede a comparação quando os dois lados podem ser normalizados oficialmente. Se diferenças de perfil alterarem a semântica além da escala, os períodos somente são comparáveis quando houver compatibilidade oficialmente declarada; na ausência dela, o estado é `not-comparable`.
-
-Esta decisão não autoriza tolerância ou epsilon. Também não autoriza percentual por atividade, média, ranking, índice ou outra métrica derivada. A comparação proporcional deve poder ser desativada por configuração administrativa server-side e auditável, nunca por decisão local do navegador.
-
-### Divergência entre Banco e planilha
-
-A verificação preserva exclusivamente os estados oficiais `match | expected-difference | mismatch | not-comparable`.
-
-Um `mismatch` com possível impacto acadêmico interrompe o fluxo ou piloto afetado para investigação e impede liberação, publicação ou fechamento definitivo enquanto não houver reconciliação autorizada. A investigação não presume que a planilha esteja errada nem que o Banco esteja errado. Divergência também não devolve automaticamente autoridade à planilha após futura ativação do motor nativo.
-
-O resultado calculado pelo motor, o estado de verificação contra a fonte importada e o estado de liberação institucional permanecem separados. Um resultado pode estar calculado e ainda assim permanecer bloqueado para liberação por reconciliação pendente.
-
-### Correção automática determinística
-
-Correção automática é autorizada somente quando todas as condições abaixo forem simultaneamente verdadeiras:
-
-1. a causa raiz estiver identificada por evidência oficial suficiente;
-2. existir exatamente uma correção legítima derivável dos contratos e regras vigentes;
-3. a correção não exigir julgamento pedagógico ou administrativo;
-4. a operação gerar nova versão ou registro auditável e preservar a evidência anterior;
-5. CAS, idempotência, transação e rollback aplicáveis forem preservados.
-
-Quando inequivocamente demonstráveis, são exemplos permitidos: corrigir estado normalizado interno produzido incorretamente pelo importador quando a célula ou fonte observada determina univocamente o valor correto; recomputar e versionar resultado derivado obsoleto a partir de inputs oficiais e regra versionada já vigente; e reaplicar transformação determinística corrigida sem apagar o histórico anterior.
-
-Não é correção automática autorizada: editar silenciosamente o arquivo Excel original; escolher entre duas interpretações plausíveis; inventar valor ausente; transformar decisão humana em cálculo; alterar código ou regra em runtime por auto-modificação; sobrescrever manualmente resultado calculado sem fluxo oficial; ou corrigir automaticamente a planilha quando a própria fonte documental estiver errada. Nesse último caso, deve existir ocorrência registrada e correção da fonte por fluxo autorizado.
-
-Se a causa for defeito de código do motor ou do importador que exija mudança de regra ou implementação, o sistema bloqueia o caso e registra a evidência. O código é corrigido pelo processo normal de desenvolvimento e, somente depois, os dados são reprocessados e versionados pelos fluxos oficiais.
-
-### Produção, piloto e autoridade futura
-
-Fica autorizada a continuidade futura, somente após contratos, implementações e gates técnicos correspondentes estarem verdes e por issues operacionais próprias, para criação/configuração do D1 acadêmico produtivo e binding, migrations remotas controladas, smoke acadêmico produtivo e piloto privado real Banco × planilha. Essa autorização de direção não executa nem dispensa readiness, evidência, rollback ou autorização controlada de cada gate. Dados reais continuam proibidos no repositório e na CI públicos.
-
-Durante o piloto, `imported-source` permanece autoridade. O Banco calcula em paralelo e compara de forma independente com a planilha; divergências relevantes interrompem o piloto até investigação e reconciliação conforme esta decisão.
-
-Com piloto aprovado e todos os gates satisfeitos, a #347 poderá ativar `native-engine` somente para vigência explicitamente definida. A partir dessa futura ativação, o Banco determinará os resultados determinísticos cobertos pelo perfil vigente, enquanto a planilha continuará preservada e comparada como referência independente. Um `mismatch` material poderá bloquear publicação ou fechamento até reconciliação, mas não devolverá automaticamente autoridade à planilha.
-
-A presença desta decisão no repositório não altera o `authorityMode`, não provisiona produção, não aplica migrations, não executa smoke ou piloto e não implementa a #347. A remoção do hard stop `comparison-semantics-not-integrated` da #189 ainda exige contrato compartilhado, implementação e integração próprios.
-
-## BN-DEC-020 — Piloto integral e autoridade nativa imediata por escopo
-
-**Data:** 2026-09-02  
-**Status:** vigente  
-**Origem:** issue #384  
-**Complementa:** BN-DEC-019  
-**Substitui BN-DEC-019:** exclusivamente quanto à suposição de rollout ou vigência única/global da autoridade nativa; todas as demais regras, separações, bloqueios e salvaguardas da BN-DEC-019 permanecem vigentes.
-
-O primeiro piloto acadêmico real deve abranger a escola inteira, e não uma amostra reduzida. A janela continua privada e controlada e, durante a validação, `imported-source` permanece a autoridade. O piloto integral não remove nenhum gate: continuam obrigatórios autorização server-side, runbook de recuperação, RPO/RTO definidos, stop conditions e evidência pública apenas agregada e sanitizada.
-
-### Escopo do piloto integral
-
-No escopo suportado, a validação deve exercitar de ponta a ponta:
-
-- importação e reimportação;
-- Auditoria e reconciliação;
-- Desempenho e comparação proporcional;
-- Boletins, snapshots e reimpressão;
-- Relatórios;
-- Conselho e decisões humanas exclusivamente nos limites já formalizados;
-- restart, recuperação, CAS e histórico;
-- limitações conhecidas process-local quando forem efetivamente atingidas pelo piloto.
-
-Um escopo somente pode ser considerado aprovado para futura ativação nativa quando não houver `mismatch` material não reconciliado nele; qualquer `expected-difference` possuir razão oficial e documentada; `not-comparable` não for tratado como `match`; defeitos de software identificados tiverem sido corrigidos pelo fluxo normal de desenvolvimento e o escopo tiver sido revalidado; e segurança, privacidade, histórico, recuperação e stop conditions permanecerem verdes. Não se exige identidade absoluta quando houver `expected-difference` oficialmente válida.
-
-### Autoridade nativa imediata após aprovação do escopo
-
-Depois que um escopo acadêmico estiver aprovado, `native-engine` deve poder tornar-se a autoridade para novos resultados desse escopo imediatamente a partir do instante de implantação ou ativação oficialmente registrado, inclusive dentro do ano letivo em curso. Não existe espera automática até o próximo trimestre ou próximo ano.
-
-Cada vigência continua obrigatoriamente explícita, temporal, versionada, não retroativa, auditável e reversível conforme o runbook. Resultados, snapshots, boletins, reimpressões e demais registros anteriores à vigência preservam a autoridade histórica sob a qual foram produzidos.
-
-### Rollout progressivo por escopo acadêmico
-
-A transição para `native-engine` é progressiva, por escopo acadêmico formal, e não um flip global obrigatório. A representação final deve preferir identidades acadêmicas já existentes, como `academicYearId` combinado com turma, `teachingAssignment` e/ou disciplina, conforme o contrato versionado final determinar.
-
-Escopos distintos podem, portanto, permanecer temporariamente em autoridades diferentes: um escopo aprovado pode operar com `native-engine` para novos resultados a partir de sua vigência registrada enquanto outro continua em `imported-source` até cumprir seu próprio gate. A seleção de autoridade nunca pode depender de flag local, preferência do navegador ou escolha ad hoc do cliente.
-
-### Evolução contratual obrigatória antes da #347
-
-O contrato V1 já representa `authorityMode` nos resultados e os registros possuem contexto acadêmico suficiente para sustentar uma futura seleção por resultado/escopo. Contudo, consumidores oficiais V1 como `BulletinModelV1` e `ClassPerformanceReadModelV1` ainda restringem sua autoridade a `imported-source`.
-
-Por isso, a #347 não pode ser implementada como simples flag global. Antes de sua implementação final, uma issue própria `[BN][CONTRATO]` deve definir evolução versionada e compatível para seleção de autoridade por escopo e para os consumidores oficiais, preservando a interpretação e o histórico V1. Conversão silenciosa de registros históricos é proibida.
-
-### Papel da planilha após ativação nativa
-
-Depois que um escopo migrar para `native-engine`, upload e reimportação de planilha continuam autorizados como entrada ou atualização de lançamentos e como evidência documental/auditável. Os valores importados permanecem preservados e disponíveis para comparação independente, enquanto o motor nativo recalcula os resultados determinísticos cobertos pelo perfil vigente.
-
-Divergência não devolve automaticamente autoridade à planilha. `Mismatch` material continua bloqueando liberação ou fechamento conforme a BN-DEC-019, e correção automática continua limitada aos casos deterministicamente elegíveis já formalizados.
-
-### Conselho e decisões humanas
-
-Conselho de Classe e demais decisões explicitamente humanas permanecem fora da autoridade automática do motor. O rollout por escopo não transforma decisão humana em cálculo e não cria regra de Conselho.
-
-### Sequenciamento operacional
-
-A Onda 23 permanece inalterada e sequencial: `#380 → #381 → #382 → #383`. Ela prepara recurso/binding, migrations e smoke controlado e deve terminar com o production gate novamente `OFF`. Esta decisão não antecipa dado real, piloto ou ativação antes da conclusão verde da #383.
-
-Depois da #383, a Onda 24 deve começar pela revisão das limitações conhecidas contra o piloto integral, abrir a janela privada da escola inteira ainda com `imported-source` autoritativo, executar comparação e reconciliação completas, corrigir deterministicamente apenas o que for elegível e corrigir defeitos de software pelo fluxo normal, revalidar os escopos e produzir um mapa explícito de escopos `eligible-for-native-activation` versus bloqueados.
-
-A #347 permanece bloqueada até a Onda 23 e a Onda 24 estarem concluídas com evidência suficiente, a evolução contratual de autoridade por escopo estar integrada, o primeiro escopo de ativação estar definido, a vigência imediata estar explicitamente registrada para cada ativação ou lote, rollback/recovery estarem confirmados e não existir hard stop acadêmico material no escopo a ativar. Quando liberada, a #347 deve executar rollout progressivo por escopo, não uma ativação global obrigatória.
-
-Esta decisão não cria critério automático de prontidão por turma ou disciplina, tolerância ou materialidade numérica, retroatividade, seleção de autoridade no cliente, regra de Conselho, fallback automático para a planilha nem conversão silenciosa do histórico V1. Sua publicação, por si só, não altera `authorityMode`, não executa piloto, não abre o runtime acadêmico produtivo, não provisiona recurso, não aplica migration e não implementa a #347.
-
-## BN-DEC-021 — PostgreSQL via Hyperdrive como armazenamento físico principal
-
-**Data:** 2026-09-08  
-**Status:** vigente  
-**Origem:** issue #586  
-**Substitui BN-DEC-016:** integralmente quanto à tecnologia de armazenamento físico principal. As regras de independência do domínio, backend autorizado e proibição de banco no navegador permanecem vigentes.
-
-Supabase PostgreSQL, acessado exclusivamente pelo backend Cloudflare através do binding Hyperdrive `PROD_DB`, passa a ser a tecnologia-alvo de armazenamento físico do Banco de Notas e deve tornar-se o armazenamento oficial após os gates de migração desta decisão.
-
-A substituição é motivada por evidência de produção controlada e benchmark comparável do importador V8. O caminho D1 permaneceu funcional e correto, mas a carga acadêmica versionada expandida apresentou custo de persistência incompatível com a meta operacional. Em contraste, o caminho PostgreSQL/Hyperdrive executou aplicação set-based de dezenas de milhares de itens em aproximadamente 1,2–1,3 s na fase de apply e concluiu o benchmark V8 shadow completo significativamente abaixo da linha de base D1, mesmo incluindo custos artificiais de conexão, tabelas temporárias, rollback e segunda passagem `no-changes`.
-
-### Separação entre storage e autoridade acadêmica
-
-Esta decisão altera somente a tecnologia de persistência física. Ela não altera, acelera nem substitui `authorityMode` acadêmico. `imported-source`, `native-engine`, rollout por escopo, Conselho humano e as regras das BN-DEC-019/020 continuam independentes desta migração.
-
-O domínio continua provider-independent. Código acadêmico deve continuar conhecendo portas de persistência, não `postgres`, SQL específico, Hyperdrive, Supabase ou connection strings. Adapters/composição backend são a fronteira do provedor.
-
-### Estado durante a migração
-
-Até o cutover final, D1 permanece a autoridade física canônica existente. A simples presença de schema, adapters ou dados no PostgreSQL não torna o PostgreSQL oficial.
-
-A migração deve ser controlada e reversível, nesta ordem mínima:
-
-1. criar schema PostgreSQL produtivo versionado e equivalente aos invariantes oficiais;
-2. usar role de aplicação dedicada e de menor privilégio; conexão de superuser não é configuração final aceitável;
-3. implementar adapters PostgreSQL equivalentes às portas oficiais, preservando CAS, versionamento, idempotência, snapshots e histórico;
-4. executar backfill D1 → PostgreSQL por backend privado, sem dados reais em Git, CI, issues ou logs públicos;
-5. verificar contagens, versões, relações, invariantes e checksums/hashes técnicos sanitizados suficientes para provar equivalência;
-6. executar janela de shadow/dual verification sem duplicar autoridade acadêmica;
-7. realizar cutover explícito por issue operacional própria, com rollback documentado;
-8. após o cutover, manter D1 preservado e sem novas escritas por uma janela de rollback definida;
-9. somente após aceite da janela de estabilidade o D1 deixa de ser considerado storage oficial ativo.
-
-### Consistência, cache e conexão
-
-Hyperdrive é a camada oficial de conexão/pooling entre Cloudflare e PostgreSQL. O caminho acadêmico deve preservar read-after-write estrito. Query caching que possa devolver leitura stale em operações acadêmicas versionadas deve permanecer desativado ou configurado de forma compatível com essa garantia antes do cutover.
-
-O backend deve continuar usando conexão encapsulada pelo binding; connection strings e credenciais não entram em código, navegador ou logs. A latência de conexão observada em benchmarks deve ser monitorada separadamente do tempo de apply e não pode ser mascarada como tempo de banco.
-
-### Backup e rollback
-
-A migração não pode reduzir a capacidade de recuperação existente. Antes do cutover, deve existir política explícita de backup/restore do PostgreSQL adequada ao uso institucional, além da cópia D1 preservada durante a janela de rollback.
-
-Nenhuma limpeza, exclusão ou desativação definitiva do D1 é autorizada por esta decisão. Qualquer remoção futura exige issue própria depois da estabilidade do PostgreSQL estar comprovada.
-
-### Memória do trabalho D1
-
-O conhecimento acumulado com D1 continua válido e deve ser preservado no repositório, inclusive schema, padrões `streams + versions`, CAS, staging, `db.batch()`, snapshots, auditoria, reimportação incremental e diagnóstico de limites. A migração de storage não autoriza apagar migrations, adapters históricos ou documentação necessária à recuperação antes de uma decisão específica de arquivamento.
-
-A publicação desta decisão autoriza abrir e executar issues operacionais de migração PostgreSQL nos limites acima. Ela não aplica migration de produção, não move dados reais e não efetua o cutover por si só.
+Distinguir: fonte normativa, implementação na branch, código integrado, publicação, uso produtivo e homologação. `PROJECT_STATE.yaml` registra a baseline auditada, não flags produtivas inferidas. O mapa de consumidores é um diagnóstico estático dos caminhos, não um teste HTTP autenticado. Testes históricos leem documentos históricos; testes atuais não exigem que a documentação continue descrevendo D1 canônico ou produção OFF.

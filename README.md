@@ -1,42 +1,43 @@
 # Centro de Administração
 
-Repositório do **Centro de Administração** da Escola Iêda Alves de Oliveira MCPM.
+Repositório do Centro de Administração da Escola Iêda Alves de Oliveira MCPM.
 
 - Produção: `https://admin.escolaieda.com`
 - Frontend: React + HeroUI React v3
 - Runtime: Cloudflare Pages + Pages Functions
 - Identidade: Microsoft Entra ID
-- Dados administrativos atuais: SharePoint/Microsoft Graph
+- Dados administrativos: SharePoint/Microsoft Graph
+- Persistência acadêmica: PostgreSQL/Supabase via Hyperdrive `PROD_DB`
 
 ## Desenvolvimento
 
-Requer Node.js 22 ou compatível.
+Node.js 22 ou compatível:
 
 ```powershell
 npm ci
 npm run verify
 ```
 
-O fluxo normal verifica lint, tipos, testes e build. Pull requests são validados pelo workflow de qualidade. O deploy oficial ocorre pela `main`.
+O fluxo verifica lint, tipos, testes e build. PRs passam pelo workflow de qualidade; publicação oficial ocorre pela `main`, após autorização de integração.
 
-## Banco de Notas
+## Banco de Notas — programa final
 
-O Banco de Notas é desenvolvido no mesmo repositório e no mesmo shell do Centro.
+Mesmo repositório, shell, identidade e autorização do Centro. A #613 concluiu a reconstrução e o cutover da persistência simplificada; isso não equivale a homologar todos os painéis.
 
-- [Programa no GitHub — issue #182](../../issues/182)
-- [`docs/gradebook/README.md`](docs/gradebook/README.md)
-- [`docs/gradebook/ISSUE_MAP.md`](docs/gradebook/ISSUE_MAP.md)
-- [`docs/gradebook/PROJECT_STATE.yaml`](docs/gradebook/PROJECT_STATE.yaml)
-- [`docs/gradebook/ROADMAP.md`](docs/gradebook/ROADMAP.md)
-- [`docs/gradebook/DECISIONS.md`](docs/gradebook/DECISIONS.md)
+Comece por [`AGENTS.md`](AGENTS.md), [`docs/gradebook/README.md`](docs/gradebook/README.md) e [`COMECE_AQUI.md`](docs/gradebook/COMECE_AQUI.md).
 
-As primeiras tarefas independentes para agentes estão nas issues #193, #194 e #195. Cada agente deve ler `AGENTS.md`, trabalhar apenas nos caminhos declarados pela issue e abrir PR para `main` sem fazer merge ou deploy por conta própria.
+Programa #182: FINAL-1 #633 (runtime e documentação), FINAL-2 #634 (Desempenho), FINAL-3 #635 (Conselho), FINAL-4 #406 (piloto integral). Aceite acadêmico #347; entrega institucional #596. Não reiniciar as primeiras issues históricas #193–#195.
 
-## Estrutura atual
+O [mapa dos consumidores](docs/gradebook/CONSUMER_MAP.md) separa caminhos relacionais, dependências antigas ainda usadas e lacunas. O [estado](docs/gradebook/PROJECT_STATE.yaml) separa baseline auditada e trabalho em andamento.
 
-- `src/`: interface do Centro de Administração e protótipo do Banco de Notas.
-- `functions/`: entrada BFF de autenticação e APIs administrativas.
-- `server/`: autenticação, Microsoft Graph e backend administrativo.
-- `shared/`: contratos compartilhados usados pelo runtime.
-- `tests/`: testes automatizados do Centro de Administração.
-- `docs/gradebook/`: memória técnica e operacional do Banco de Notas.
+## Estrutura
+
+- `src/`: interfaces do Centro e Banco de Notas, mais domínio acadêmico.
+- `functions/`: entradas de autenticação e APIs.
+- `server/`: backend, Microsoft Graph, serviços e persistência acadêmica.
+- `shared/`: contratos compartilhados.
+- `tests/`: testes sintéticos de domínio, integração e interfaces.
+- `docs/gradebook/`: memória técnica e operacional vigente.
+- `Aprendizados/`: conhecimento e código arquivado fora do runtime.
+
+Dados acadêmicos reais, credenciais e arquivos privados não entram no Git, na CI nem em evidências públicas.

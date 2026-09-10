@@ -1,0 +1,8 @@
+[
+  {"kind":"columns","count":127,"fingerprint":"783717b0804a5098b012b5bb9d94782b"},
+  {"kind":"constraints","count":123,"fingerprint":"65a7727473436f575fab01984dfbac07"},
+  {"kind":"functions","count":4,"fingerprint":"db622014b1d49805baaf8ea182e36a67"},
+  {"kind":"indexes","count":38,"fingerprint":"ededcd29071e60718bd7dc26d9ebc0d7"},
+  {"kind":"tables","count":20,"fingerprint":"289035538b8ecc662faf52fe932c4424"},
+  {"kind":"triggers","count":3,"fingerprint":"c457e56b956b687146c1b4147cced8b2"}
+]
