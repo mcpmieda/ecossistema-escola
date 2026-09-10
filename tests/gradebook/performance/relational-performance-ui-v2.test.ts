@@ -109,6 +109,22 @@ describe('real shell, shared year and rendered performance journey', () => {
     expect(host.textContent).toContain('Consulta somente leitura');
     expect(requests.some((value) => value.operation === 'center' && value.id === 1 && value.year === 2090)).toBe(true);
   });
+  it('reopens the same student after using Centers without discarding the performance matrix', async () => {
+    await loaded();
+    await click(student.name);
+    await click('Ver cadastro nas Centrais');
+    for (let attempt = 0; attempt < 100 && !requests.some((value) => value.operation === 'center'); attempt++) await settle();
+    await settle();
+    mock.mockResolvedValueOnce(reply({ contractVersion: 2, state: 'ready', operation: 'search', context, items: [], nextOffset: null }));
+    await click('Pesquisar');
+    await click('Desempenho');
+    await click(student.name);
+    await click('Ver cadastro nas Centrais');
+    for (let attempt = 0; attempt < 100 && requests.filter((value) => value.operation === 'center').length < 2; attempt++) await settle();
+    expect(requests.filter((value) => value.operation === 'center' && value.id === 1)).toHaveLength(2);
+    expect(requests.filter((value) => value.operation === 'matrix')).toHaveLength(1);
+    expect(host.textContent).toContain('Aprovação pelo Conselho no ano anterior');
+  });
   it('drops a late old-year response rather than repopulating a reset matrix', async () => {
     await loaded();
     let resolve!: (response: Response) => void;

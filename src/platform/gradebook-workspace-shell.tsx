@@ -314,7 +314,7 @@ function GradebookWorkspaceShellContent() {
                   {(() => {
                     const SurfaceComponent = SURFACE_COMPONENTS[surface.id];
                     const scopeKey = surface.id === 'operational'
-                      ? `${scope?.epoch}:${scope?.targetStudentId}`
+                      ? `${scope?.epoch}:${scope?.targetStudentId}:${scope?.studentNavigationEpoch}`
                       : surface.id === 'performance' ? scope?.epoch : undefined;
                     return <SurfaceComponent key={scopeKey} />;
                   })()}

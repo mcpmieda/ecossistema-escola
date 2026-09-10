@@ -9,6 +9,7 @@ export interface GradebookYearContextValue {
   readonly loading: boolean;
   readonly failure: string | null;
   readonly targetStudentId: number | null;
+  readonly studentNavigationEpoch: number;
   load(): Promise<void>;
   selectYear(year: number | null): void;
   clearAuthorization(): void;

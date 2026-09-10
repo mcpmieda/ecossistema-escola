@@ -11,6 +11,7 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
   const [loading, setLoading] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [targetStudentId, setTargetStudentId] = useState<number | null>(null);
+  const [studentNavigationEpoch, setStudentNavigationEpoch] = useState(0);
   const pending = useRef<AbortController | null>(null);
   useEffect(() => () => pending.current?.abort(), []);
   const selectYear = useCallback((value: number | null) => {
@@ -40,11 +41,12 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
   }, [clearAuthorization, selectYear]);
   const openStudent = useCallback((id: number) => {
     setTargetStudentId(id);
+    setStudentNavigationEpoch((current) => current + 1);
     // The identifier stays only in memory, not the URL or browser history.
     window.location.hash = '#/banco-de-notas?area=operational';
   }, []);
-  const value = useMemo(() => ({ year, epoch, years, loaded, loading, failure, targetStudentId, load, selectYear, clearAuthorization, openStudent }),
-    [year, epoch, years, loaded, loading, failure, targetStudentId, load, selectYear, clearAuthorization, openStudent]);
+  const value = useMemo(() => ({ year, epoch, years, loaded, loading, failure, targetStudentId, studentNavigationEpoch, load, selectYear, clearAuthorization, openStudent }),
+    [year, epoch, years, loaded, loading, failure, targetStudentId, studentNavigationEpoch, load, selectYear, clearAuthorization, openStudent]);
   return <GradebookYearContext.Provider value={value}>{children}</GradebookYearContext.Provider>;
 }
 
