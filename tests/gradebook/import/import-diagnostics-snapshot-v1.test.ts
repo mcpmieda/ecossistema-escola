@@ -38,7 +38,9 @@ const queries:string[]=[];
 
 async function execute(client:Pick<PGlite,'query'>,query:string,values:readonly unknown[],transactional:boolean) {
   queries.push(query);
-  if (!transactional) throw new Error('snapshot-SQL-outside-transaction');
+  if (!transactional && (!query.startsWith('SELECT') || query.includes('pg_advisory_xact_lock'))) {
+    throw new Error('snapshot-write-or-lock-outside-transaction');
+  }
   if (failInsert && query.startsWith('INSERT INTO gradebook.importacao_diagnostico')) throw new Error('synthetic-insert-failure');
   const result=await client.query<Row>(query,[...values]);
   const count=wrongInsertCount && query.startsWith('INSERT INTO gradebook.importacao_diagnostico') ? 0 : result.affectedRows ?? result.rows.length;
@@ -77,11 +79,11 @@ function observation(keys:readonly string[]=['synthetic-key'], input:{fileName?:
   };
 }
 async function state() {
-  return (await pg.query('SELECT id,ano,arquivo,encode(hash,\'hex\') AS hash,chave,nivel,codigo,primeiro_em,ultimo_em,ocorrencias FROM gradebook.importacao_diagnostico ORDER BY arquivo,chave')).rows;
+  return (await pg.query<Row>('SELECT id,ano,arquivo,encode(hash,\'hex\') AS hash,chave,nivel,codigo,primeiro_em,ultimo_em,ocorrencias FROM gradebook.importacao_diagnostico ORDER BY arquivo,chave')).rows;
 }
-async function request(method:'GET'|'POST',body?:unknown,origin='https://school.test') {
+async function request(method:'GET'|'POST',body?:unknown,origin='https://school.test',query='') {
   return onRequest({
-    request:new Request('https://school.test/api/gradebook/import-diagnostics',{
+    request:new Request(`https://school.test/api/gradebook/import-diagnostics${query}`,{
       method,headers:{Origin:origin,'Content-Type':'application/json'},
       ...(method==='POST'?{body:JSON.stringify(body)}:{}),
     }),
@@ -95,6 +97,7 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
     expect(transactions).toBe(1);
     expect(queries).toHaveLength(4);
     expect(queries[0]).toContain('pg_advisory_xact_lock');
+    expect(queries[0]).not.toContain('::jsonb');
     expect(queries[1]).toContain('pg_advisory_xact_lock');
     expect(queries[2]).toMatch(/^DELETE FROM/u);
     expect(queries[3]).toMatch(/^INSERT INTO/u);
@@ -193,8 +196,21 @@ describe('diagnostic HTTP integration with synthetic identity and real SQL trans
     expect(await state()).toEqual([]);
   });
 
+  it('GET reads current evidence with bounded pagination and no writes', async () => {
+    await replace(database,observation(['k1','k2']));
+    const previous=await state();
+    queries.length=0;
+    const result=await request('GET',undefined,'https://school.test','?ano=2090&limit=1');
+    expect(result.status).toBe(200);
+    expect(result.headers.get('Cache-Control')).toContain('no-store');
+    expect(await result.json()).toMatchObject({version:1,state:'ready',nextOffset:1,items:[{academicYear:2090,fileName:'synthetic.xlsx',code:'source-unavailable',studentName:null}]});
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).toMatch(/^SELECT/u);
+    expect(await state()).toEqual(previous);
+  });
+
   it('rejects unauthenticated requests before any SQL', async () => {
-    mocks.auth.mockRejectedValueOnce(new AuthenticationError('synthetic-expired'));
+    mocks.auth.mockRejectedValueOnce(new AuthenticationError());
     const result=await request('POST',observation());
     expect(result.status).toBe(401);
     expect(await result.json()).toEqual({version:1,state:'not-authorized'});
@@ -202,7 +218,7 @@ describe('diagnostic HTTP integration with synthetic identity and real SQL trans
   });
 
   it('rejects missing capability before any SQL', async () => {
-    mocks.authorize.mockImplementationOnce(()=>{throw new AuthorizationError('synthetic-denied');});
+    mocks.authorize.mockImplementationOnce(()=>{throw new AuthorizationError();});
     const result=await request('POST',observation());
     expect(result.status).toBe(403);
     expect(queries).toHaveLength(0);

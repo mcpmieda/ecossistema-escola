@@ -46,7 +46,8 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
     guia: item.sheetName ?? null, celula: item.cellAddress ?? null,
   })).sort((a,b) => a.chave < b.chave ? -1 : a.chave > b.chave ? 1 : 0);
   const serialized = JSON.stringify(rows);
-  const sourceKey = JSON.stringify(['gradebook-import-diagnostics-source',academicYear,fileName]);
+  // The prefix keeps this parameter textual through the facade's JSON auto-casting.
+  const sourceKey = `gradebook-import-diagnostics-source:${JSON.stringify([academicYear,fileName])}`;
   const contentKey = `gradebook-import-diagnostics-content:${sha256}`;
 
   return (database as TransactionDatabase).transaction(async (transaction) => {
