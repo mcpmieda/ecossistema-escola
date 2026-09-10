@@ -60,6 +60,8 @@ import {
   type BulletinPdfBatchResultV1,
 } from '../bulletins/pdf/bulletin-pdf-batch-actions-v1';
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
+import { resolveLegacyAcademicYear } from '../../../platform/gradebook-legacy-year';
+import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import {
   InstitutionalReportsClientErrorV1,
   requestInstitutionalReportV1,
@@ -373,8 +375,8 @@ function auditListRequest(
 }
 
 export function InstitutionalReportsPage() {
+  const globalYear = useGradebookYear()?.year ?? null;
   const [bootstrapState, setBootstrapState] = useState<LoadState>('loading');
-  const [academicYears, setAcademicYears] = useState<readonly { id: AcademicYearId; label: string }[]>([]);
   const [academicYearId, setAcademicYearId] = useState<AcademicYearId | null>(null);
   const [family, setFamily] = useState<InstitutionalReportFamilyV1>('class-results');
   const [classQuery, setClassQuery] = useState('');
@@ -402,16 +404,37 @@ export function InstitutionalReportsPage() {
   const batchFeedbackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    classController.current?.abort();
+    reportController.current?.abort();
+    classSequence.current += 1;
+    reportSequence.current += 1;
+    setAcademicYearId(null);
+    setSelectedClass(null);
+    setClassResults([]);
+    setClassSearchState('idle');
+    setHistory([]);
+    setHistoryState('idle');
+    setSelectedSnapshotKeys([]);
+    setReportResponse(null);
+    setReportState('idle');
+    setBatchResult(null);
+    setBatchState('idle');
+    if (globalYear === null) {
+      setBootstrapState('loading');
+      return;
+    }
     const controller = new AbortController();
     bootstrapController.current = controller;
+    setBootstrapState('loading');
     void requestOperationalWorkspaceV1({ contractVersion: 1, operation: 'bootstrap' }, controller.signal)
       .then((response) => {
         if (controller.signal.aborted) return;
         if (response.state === 'not-authorized') return setBootstrapState('not-authorized');
         if (response.state === 'unavailable') return setBootstrapState('unavailable');
         if ('availableAcademicYears' in response) {
-          setAcademicYears(response.availableAcademicYears);
-          setBootstrapState(response.availableAcademicYears.length === 0 ? 'empty' : 'ready');
+          if (response.availableAcademicYears.length === 0) return setBootstrapState('empty');
+          setAcademicYearId(resolveLegacyAcademicYear(globalYear, response.availableAcademicYears));
+          setBootstrapState('ready');
         } else {
           setBootstrapState('unavailable');
         }
@@ -424,7 +447,7 @@ export function InstitutionalReportsPage() {
       classController.current?.abort();
       reportController.current?.abort();
     };
-  }, []);
+  }, [globalYear]);
 
   function resetOutput() {
     reportController.current?.abort();
@@ -644,18 +667,12 @@ export function InstitutionalReportsPage() {
             <Card.Header><Card.Title>1. Contexto explícito</Card.Title></Card.Header>
             <Card.Content className="grid gap-4 lg:grid-cols-2">
               <div>
-                <Label htmlFor="reports-year" className="mb-1.5 block text-sm font-medium">Ano acadêmico</Label>
-                <select id="reports-year" className="h-10 w-full rounded-xl border border-border bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-focus" value={academicYearId ?? ''} onChange={(event) => {
-                  classController.current?.abort();
-                  classSequence.current += 1;
-                  const value = event.currentTarget.value;
-                  setAcademicYearId(value ? value as AcademicYearId : null);
-                  setSelectedClass(null); setClassResults([]); setClassSearchState('idle'); setHistory([]); setHistoryState('idle'); setSelectedSnapshotKeys([]); resetOutput();
-                }}>
-                  <option value="">Selecione o ano</option>
-                  {academicYears.map((year) => <option key={year.id} value={year.id}>{year.label}</option>)}
-                </select>
-                <p className="mt-1 text-xs text-muted">Nenhum ano é escolhido automaticamente.</p>
+                <p className="text-sm font-medium">Ano letivo global</p>
+                <p className="mt-1 text-lg font-semibold">{globalYear ?? 'Não selecionado'}</p>
+                <p className="mt-1 text-xs text-muted">Os relatórios usam exatamente o ano selecionado no Banco.</p>
+                {globalYear !== null && academicYearId === null && (
+                  <p className="mt-2 text-xs text-danger">Ano sem correspondência única no catálogo legado; nenhum ano vizinho será usado.</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="reports-family" className="mb-1.5 block text-sm font-medium">Família do relatório</Label>

@@ -284,7 +284,7 @@ function GradebookWorkspaceShellContent() {
         </div>
       </Surface>
 
-      {activeSurface === 'operational' || activeSurface === 'performance' ? <GradebookYearSelector /> : null}
+      {activeSurface !== 'importacao' ? <GradebookYearSelector /> : null}
 
       <p className="sr-only" aria-live="polite">
         {GRADEBOOK_WORKSPACE_SURFACES.find((surface) => surface.id === activeSurface)?.label} ativa.
@@ -315,7 +315,7 @@ function GradebookWorkspaceShellContent() {
                     const SurfaceComponent = SURFACE_COMPONENTS[surface.id];
                     const scopeKey = surface.id === 'operational'
                       ? `${scope?.epoch}:${scope?.targetStudentId}:${scope?.studentNavigationEpoch}`
-                      : surface.id === 'performance' ? scope?.epoch : undefined;
+                      : scope?.epoch;
                     return <SurfaceComponent key={scopeKey} />;
                   })()}
                 </Suspense>

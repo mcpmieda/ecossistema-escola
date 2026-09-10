@@ -28,7 +28,7 @@ beforeAll(async () => {
     CREATE TABLE gradebook.professor (id integer PRIMARY KEY, ano integer, nome text);
     CREATE TABLE gradebook.disciplina (id integer PRIMARY KEY, ano integer, nome text);
     CREATE TABLE gradebook.oferta (id integer PRIMARY KEY, ano integer, turma_id integer, professor_id integer, disciplina_id integer);
-    CREATE TABLE gradebook.instrumento (id integer PRIMARY KEY, oferta_id integer, trimestre integer, slot integer, maximo integer);
+    CREATE TABLE gradebook.instrumento (id integer PRIMARY KEY, oferta_id integer, trimestre integer, slot integer, maximo integer, descricao text);
     CREATE TABLE gradebook.nota (instrumento_id integer, aluno_id integer, valor integer, PRIMARY KEY (instrumento_id, aluno_id));
     CREATE TABLE gradebook.fechamento (oferta_id integer, aluno_id integer, am1_fonte integer, am2_fonte integer, am3_fonte integer, rec1 integer, rec2 integer, rec3 integer, rec_nc_mask integer, u_fonte integer, PRIMARY KEY (oferta_id, aluno_id));
     CREATE TABLE gradebook.conselho_decisao (aluno_id integer PRIMARY KEY, decisao integer);

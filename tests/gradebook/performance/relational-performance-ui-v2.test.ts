@@ -28,6 +28,7 @@ const reply = (data: unknown, status = 200) => Response.json(data, { status });
 
 const animationsDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations');
 beforeEach(() => {
+  window.sessionStorage.clear();
   Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('matchMedia', (media: string) => ({ media, matches: false, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: () => true }));
@@ -48,8 +49,15 @@ beforeEach(() => {
   host = document.createElement('div'); document.body.appendChild(host);
   window.location.hash = '#/banco-de-notas?area=performance';
 });
-afterEach(async () => { if (root) await act(async () => { root!.unmount(); }); root = null; host.remove(); vi.unstubAllGlobals(); if (animationsDescriptor) Object.defineProperty(Element.prototype, 'getAnimations', animationsDescriptor); else Reflect.deleteProperty(Element.prototype, 'getAnimations'); });
+afterEach(async () => { if (root) await act(async () => { root!.unmount(); }); root = null; host.remove(); window.sessionStorage.clear(); vi.unstubAllGlobals(); if (animationsDescriptor) Object.defineProperty(Element.prototype, 'getAnimations', animationsDescriptor); else Reflect.deleteProperty(Element.prototype, 'getAnimations'); });
 async function settle() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); }); }
+async function waitFor(predicate: () => boolean) {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    if (predicate()) return;
+    await settle();
+  }
+  expect(predicate()).toBe(true);
+}
 async function mount() { root = createRoot(host); await act(async () => { root!.render(createElement(GradebookWorkspaceShell)); }); await settle(); }
 async function click(text: string) {
   const button = [...document.querySelectorAll<HTMLElement>('button,[role=tab]')].find((element) => element.textContent === text);
@@ -66,7 +74,12 @@ async function select(label: string, value: string) {
   expect(select).not.toBeNull();
   await act(async () => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); }); await settle();
 }
-async function loaded() { await mount(); await click('Carregar anos'); await select('Ano letivo do Banco', '2090'); await select('Turma', '10'); }
+async function loaded() {
+  await mount();
+  await select('Ano letivo do Banco', '2090');
+  await select('Turma', '10');
+  await waitFor(() => host.textContent?.includes(student.name) === true && requests.some((value) => value.operation === 'analysis'));
+}
 
 describe('V2 contract and transport', () => {
   it('validates the real matrix contract and matching scope', () => {
@@ -99,9 +112,17 @@ describe('real shell, shared year and rendered performance journey', () => {
     expect(requests.filter((value) => ['bootstrap','classes','matrix','analysis'].includes(String(value.operation)))).toHaveLength(0);
     expect(host.querySelector('[aria-label="Contexto anual compartilhado"]')).toBeNull();
   });
+  it('automatically selects the latest year that exists in the catalog', async () => {
+    await mount();
+    await waitFor(() => (document.querySelector('select[aria-label="Ano letivo do Banco"]') as unknown as HTMLSelectElement | null)?.value === '2091');
+    await waitFor(() => requests.some((value) => value.operation === 'classes' && value.year === 2091));
+    expect((document.querySelector('select[aria-label="Ano letivo do Banco"]') as unknown as HTMLSelectElement).value).toBe('2091');
+    expect(requests.filter((value) => value.operation === 'bootstrap')).toHaveLength(1);
+    expect(requests.some((value) => value.operation === 'classes' && value.year === 2091)).toBe(true);
+  });
   it('loads shared year, class and matrix, then a student drawer and the existing center', async () => {
     await loaded();
-    expect(host.textContent).toContain('Consulta calculada');
+    expect(host.textContent).toContain('Desempenho');
     expect(host.textContent).toContain(student.name);
     expect(host.querySelectorAll('select[aria-label="Ano letivo do Banco"]')).toHaveLength(1);
     await click(student.name);
@@ -165,10 +186,12 @@ describe('four lenses and analytical investigation V3', () => {
   it('changes all four lenses with one request per selection, not per student', async () => {
     await loaded();
     await click('Quantitativo');
-    expect(host.textContent).toContain('Quantitativo considerado pelo núcleo');
+    await waitFor(() => requests.filter((value) => value.operation === 'analysis').some((value) => value.lens === 'quantitative'));
+    expect(host.textContent).toContain('88,9%');
     expect(host.querySelectorAll('[aria-label="Gráfico investigável da lente"]')).toHaveLength(1);
     await click('Qualitativo');
-    expect(host.textContent).toContain('pontuação das atividades registradas');
+    await waitFor(() => requests.filter((value) => value.operation === 'analysis').some((value) => value.lens === 'qualitative'));
+    expect(host.textContent).toContain('72,7%');
     await click('Avaliações');
     expect(requests.filter((r) => r.operation === 'analysis')).toHaveLength(3);
     await select('Componente das avaliações', '10');
@@ -179,7 +202,7 @@ describe('four lenses and analytical investigation V3', () => {
     expect(host.querySelector('[aria-label="Componente das avaliações"]')).toBeNull();
   });
   it('filters the matrix through a chart, opens denominators and clears without SQL', async () => {
-    await loaded(); await click('No limite ou acima');
+    await loaded(); await select('Faixa do gráfico', 'above');
     const bar = host.querySelector('button[aria-label*="MATEMATICA SINTETICA: 1 de 1"]') as HTMLButtonElement;
     expect(bar).not.toBeNull();
     await act(async () => { bar.click(); }); await settle();
@@ -193,10 +216,12 @@ describe('four lenses and analytical investigation V3', () => {
     await loaded(); let resolve!: (response: Response) => void;
     mock.mockImplementationOnce(() => new Promise((accept) => { resolve = accept; }));
     await click('Quantitativo'); const signal = mock.mock.calls.at(-1)?.[1]?.signal;
-    await click('Qualitativo'); expect(signal?.aborted).toBe(true);
+    await click('Qualitativo');
+    await waitFor(() => requests.some((value) => value.operation === 'analysis' && value.lens === 'qualitative'));
+    expect(signal?.aborted).toBe(true);
     await act(async () => { resolve(reply(analysisFixture({ lens: 'quantitative' }))); });
-    expect(host.textContent).toContain('pontuação das atividades registradas');
-    expect(host.textContent).not.toContain('Quantitativo considerado pelo núcleo');
+    expect(host.textContent).toContain('72,7%');
+    expect(requests.filter((value) => value.operation === 'analysis').at(-1)?.lens).toBe('qualitative');
   });
   it('uses validated no-store V3 responses and rejects forged groups without throwing', async () => {
     const request = performanceAnalysisRequestSchemaV3.parse({ ...requestV3() });

@@ -16,9 +16,10 @@ describe('Boletins HeroUI local/preview V1', () => {
   const shell = source('src/platform/gradebook-workspace-shell.tsx');
   const functions = source('functions/[[path]].ts');
 
-  it('mantém seleção explícita de ano, turma, aluno(s), período e os três modelos', () => {
-    expect(page).toContain('Selecione o ano');
-    expect(page).toContain('O sistema não escolhe o ano automaticamente.');
+  it('consome o ano global e mantém seleção explícita de turma, aluno(s), período e os três modelos', () => {
+    expect(page).toContain('Ano letivo global');
+    expect(page).toContain('resolveLegacyAcademicYear');
+    expect(page).toContain('nenhum ano vizinho será usado');
     expect(page).toContain('Selecione a turma');
     expect(page).toContain('Aluno(s)');
     expect(page).toContain('1º trimestre');

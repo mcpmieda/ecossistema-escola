@@ -5,7 +5,8 @@ export function termRecoveryVisibilityV1(
   term: SimplifiedTermOutcomeV1 | null,
   finalRecoveryApplicable: boolean | null,
 ): { readonly showParallel: boolean; readonly showRecovery: boolean } {
-  const eligible = term !== null && term.coverage.complete && term.parallelApplicable === true &&
-    term.roundedMilli * 5 < term.termMaximumMilli * 3;
-  return { showParallel: eligible, showRecovery: eligible && finalRecoveryApplicable === true };
+  return {
+    showParallel: term?.parallelApplicable === true,
+    showRecovery: term !== null && finalRecoveryApplicable === true,
+  };
 }

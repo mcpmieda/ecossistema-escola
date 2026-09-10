@@ -19,7 +19,7 @@ beforeAll(async () => {
     CREATE TABLE gradebook.ano_letivo (ano integer PRIMARY KEY, minimo_aprovacao integer);
     CREATE TABLE gradebook.oferta (id integer PRIMARY KEY, ano integer, turma_id integer);
     CREATE TABLE gradebook.vinculo (ano integer, turma_id integer, aluno_id integer, situacao integer);
-    CREATE TABLE gradebook.instrumento (id integer PRIMARY KEY, oferta_id integer, trimestre integer, slot integer, maximo integer);
+    CREATE TABLE gradebook.instrumento (id integer PRIMARY KEY, oferta_id integer, trimestre integer, slot integer, maximo integer, descricao text);
     CREATE TABLE gradebook.nota (instrumento_id integer, aluno_id integer, valor integer, PRIMARY KEY (instrumento_id, aluno_id));
     CREATE TABLE gradebook.fechamento (oferta_id integer, aluno_id integer, am1_fonte integer, am2_fonte integer, am3_fonte integer, rec1 integer, rec2 integer, rec3 integer, rec_nc_mask integer, u_fonte integer);
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000);

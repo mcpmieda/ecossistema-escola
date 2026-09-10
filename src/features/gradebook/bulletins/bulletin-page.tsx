@@ -19,6 +19,8 @@ import type {
   BulletinStudentOptionV1,
 } from '../../../../shared/gradebook-contracts/bulletins/bulletin-transport-v1';
 import type { ResultCoverageV1 } from '../../../../shared/gradebook-contracts/results/results-contract-v1';
+import { resolveLegacyAcademicYear } from '../../../platform/gradebook-legacy-year';
+import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { BulletinClientErrorV1, requestBulletinWorkspaceV1 } from './bulletin-client';
 import {
   bulletinAcademicStateLabelV1,
@@ -204,8 +206,8 @@ function emissionRequest(
 }
 
 export function BulletinPage() {
+  const globalYear = useGradebookYear()?.year ?? null;
   const [workspaceState, setWorkspaceState] = useState<ViewState>('idle');
-  const [years, setYears] = useState<readonly BulletinAcademicYearOptionV1[]>([]);
   const [yearId, setYearId] = useState<BulletinAcademicYearOptionV1['id'] | null>(null);
   const [classState, setClassState] = useState<ViewState>('idle');
   const [classGroups, setClassGroups] = useState<readonly BulletinClassGroupOptionV1[]>([]);
@@ -244,10 +246,12 @@ export function BulletinPage() {
       const response = await requestBulletinWorkspaceV1({ contractVersion: BULLETIN_CONTRACT_VERSION_V1, operation: 'bootstrap' });
       if (response.operation !== 'bootstrap') return;
       if (response.state === 'ready') {
-        setYears(response.academicYears);
+        const mappedYear = resolveLegacyAcademicYear(globalYear, response.academicYears);
+        setYearId(mappedYear);
         setWorkspaceState('ready');
+        if (mappedYear) void loadClassGroups(mappedYear);
       } else {
-        setYears([]);
+        setYearId(null);
         setWorkspaceState(response.state);
       }
     } catch (error) {
@@ -470,7 +474,7 @@ export function BulletinPage() {
           <h2 className="mt-1 text-2xl font-semibold">Seleção → prévia → emissão → PDF → histórico</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">A prévia renderiza diretamente o BulletinModelV1 canônico. Emissão e lote usam o mesmo materializador; PDF oficial nasce somente do snapshot emitido e reimpressão usa exclusivamente o snapshot histórico.</p>
         </div>
-        {workspaceState === 'idle' && <Button variant="primary" onPress={() => void bootstrap()} className="focus-visible:ring-2">Abrir Boletins</Button>}
+        {workspaceState === 'idle' && <Button variant="primary" isDisabled={globalYear === null} onPress={() => void bootstrap()} className="focus-visible:ring-2">Abrir Boletins</Button>}
       </div>
 
       <div className="sr-only" aria-live="polite" role="status">Estado dos Boletins: {workspaceState}; prévia/emissão: {artifactState}; PDF: {pdfState}; lote: {batchState}; histórico: {historyState}.</div>
@@ -484,18 +488,12 @@ export function BulletinPage() {
             <Card.Header><Card.Title>1. Seleção explícita</Card.Title></Card.Header>
             <Card.Content className="grid gap-4 lg:grid-cols-3">
               <div>
-                <Label htmlFor="bulletin-year" className="mb-1.5 block text-sm font-medium">Ano letivo</Label>
-                <select id="bulletin-year" className={inputClass} value={yearId ?? ''} onChange={(event) => {
-                  sequence.current += 1;
-                  const value = event.currentTarget.value;
-                  setYearId(value ? value as BulletinAcademicYearOptionV1['id'] : null);
-                  setClassGroupId(null); setClassGroups([]); setStudents([]); setSelectedStudentIds([]); setPreviewStudentId(''); setHistory([]); setArtifactState('idle'); resetPdfFeedback();
-                  if (value) void loadClassGroups(value as BulletinAcademicYearOptionV1['id']); else setClassState('idle');
-                }}>
-                  <option value="">Selecione o ano</option>
-                  {years.map((year) => <option key={year.id} value={year.id}>{year.label}</option>)}
-                </select>
-                <p className="mt-1 text-xs text-muted">O sistema não escolhe o ano automaticamente.</p>
+                <p className="text-sm font-medium">Ano letivo global</p>
+                <p className="mt-1 text-lg font-semibold">{globalYear ?? 'Não selecionado'}</p>
+                <p className="mt-1 text-xs text-muted">Os Boletins usam exatamente o ano selecionado no Banco.</p>
+                {globalYear !== null && yearId === null && (
+                  <p className="mt-2 text-xs text-danger">Ano sem correspondência única no catálogo de Boletins; nenhum ano vizinho será usado.</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="bulletin-class" className="mb-1.5 block text-sm font-medium">Turma</Label>

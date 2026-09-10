@@ -21,13 +21,17 @@ describe('source evidence, not per-student omission #646', () => {
     expect(sourceSubjectAbbreviationV1('COMPUTAÇÃO')).toBe('CT');
     expect(sourceSubjectAbbreviationV1('Nova disciplina')).toBeNull();
   });
-  it.each([[7000, 10000, true], [7000, 11000, false], [8100, 1000, false]])('shows a recovery row only below both 60%% limits (%i/%i)', (quantitative, qualitative, expected) => {
+  it.each([
+    [7000, 10000, true, true, true],
+    [7000, 11000, false, true, false],
+    [8100, 1000, true, false, true],
+  ])('keeps parallel and final recovery eligibility independent (%i/%i)', (quantitative, qualitative, finalRecoveryApplicable, showParallel, showRecovery) => {
     const term = resolveSimplifiedTermV1({ term: 1, instruments: [
       { slot: 1, maximumMilli: 8500, valueMilli: quantitative }, { slot: 2, maximumMilli: 5000, valueMilli: 0 },
       { slot: 11, maximumMilli: 16500, valueMilli: qualitative },
     ] });
     const original = structuredClone(term);
-    expect(termRecoveryVisibilityV1(term, true)).toEqual({ showParallel: expected, showRecovery: expected });
+    expect(termRecoveryVisibilityV1(term, finalRecoveryApplicable)).toEqual({ showParallel, showRecovery });
     expect(term).toEqual(original);
     expect(termRecoveryVisibilityV1(term, null).showRecovery).toBe(false);
   });

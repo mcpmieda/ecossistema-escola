@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Button, Chip, Spinner, Surface } from '@heroui/react';
 import { RefreshCw, ShieldAlert } from 'lucide-react';
 import type { GradebookImportDiagnosticsAuditRecordV1 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
+import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { listGradebookImportDiagnosticsAuditV1 } from '../import/import-diagnostics-client-v1';
 
-type State = 'loading' | 'ready' | 'empty' | 'unavailable' | 'not-authorized';
+type State = 'idle' | 'loading' | 'ready' | 'empty' | 'unavailable' | 'not-authorized';
 
 function instant(value: string): string {
   const date = new Date(value);
@@ -91,47 +92,73 @@ function AuditOccurrence({ value }: { readonly value: GradebookImportDiagnostics
 }
 
 export function ImportDiagnosticsAuditPanelV1() {
-  const [state, setState] = useState<State>('loading');
+  const academicYear = useGradebookYear()?.year ?? null;
+  const [state, setState] = useState<State>('idle');
   const [items, setItems] = useState<readonly GradebookImportDiagnosticsAuditRecordV1[]>([]);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const pending = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    pending.current?.abort();
+    setLoadingMore(false);
+    if (academicYear === null) {
+      setState('idle');
+      setItems([]);
+      setNextOffset(null);
+      return;
+    }
+    const controller = new AbortController();
+    pending.current = controller;
     setState('loading');
     setItems([]);
     setNextOffset(null);
-    const response = await listGradebookImportDiagnosticsAuditV1({ limit: 50, offset: 0 });
-    if (response.state === 'not-authorized') {
-      setState('not-authorized');
-      return;
+    try {
+      const response = await listGradebookImportDiagnosticsAuditV1(
+        { academicYear, limit: 50, offset: 0 },
+        controller.signal,
+      );
+      if (controller.signal.aborted) return;
+      if (response.state === 'not-authorized') {
+        setState('not-authorized');
+        return;
+      }
+      if (response.state !== 'ready') {
+        setState('unavailable');
+        return;
+      }
+      setItems(response.items);
+      setNextOffset(response.nextOffset);
+      setState(response.items.length > 0 ? 'ready' : 'empty');
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) setState('unavailable');
     }
-    if (response.state !== 'ready') {
-      setState('unavailable');
-      return;
-    }
-    setItems(response.items);
-    setNextOffset(response.nextOffset);
-    setState(response.items.length > 0 ? 'ready' : 'empty');
-  }, []);
+  }, [academicYear]);
 
   const loadMore = useCallback(async () => {
-    if (nextOffset === null || loadingMore) return;
+    if (academicYear === null || nextOffset === null || loadingMore) return;
+    pending.current?.abort();
+    const controller = new AbortController();
+    pending.current = controller;
     setLoadingMore(true);
     try {
-      const response = await listGradebookImportDiagnosticsAuditV1({
-        limit: 50,
-        offset: nextOffset,
-      });
-      if (response.state !== 'ready') return;
+      const response = await listGradebookImportDiagnosticsAuditV1(
+        { academicYear, limit: 50, offset: nextOffset },
+        controller.signal,
+      );
+      if (controller.signal.aborted || response.state !== 'ready') return;
       setItems((current) => [...current, ...response.items]);
       setNextOffset(response.nextOffset);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError')) setState('unavailable');
     } finally {
-      setLoadingMore(false);
+      if (!controller.signal.aborted) setLoadingMore(false);
     }
-  }, [loadingMore, nextOffset]);
+  }, [academicYear, loadingMore, nextOffset]);
 
   useEffect(() => {
     void load();
+    return () => pending.current?.abort();
   }, [load]);
 
   return (
@@ -159,6 +186,9 @@ export function ImportDiagnosticsAuditPanelV1() {
           <Spinner size="sm" />
           Carregando ocorrências…
         </div>
+      )}
+      {state === 'idle' && (
+        <p className="mt-5 text-sm text-muted">Selecione o ano letivo global para consultar as ocorrências.</p>
       )}
       {state === 'empty' && (
         <Alert status="success" className="mt-5">
