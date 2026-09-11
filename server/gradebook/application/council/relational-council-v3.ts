@@ -42,6 +42,9 @@ function text(value: unknown): string {
   if (typeof value !== 'string' || value.trim().length === 0) throw new Error('invalid-council-row');
   return value;
 }
+function serializationFailure(cause: unknown): boolean {
+  return cause !== null && typeof cause === 'object' && 'code' in cause && cause.code === '40001';
+}
 async function all(db: D1WriteDatabaseV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<readonly Row[]> {
   return (await db.prepare(sql).bind(...values).all<Row>()).results;
 }
@@ -338,7 +341,7 @@ export function createRelationalCouncilV3(database: D1WriteDatabaseV1, actorId: 
     if (!parsed.success) return fail('invalid-request');
     if (!('transaction' in database) || typeof database.transaction !== 'function') return fail('unavailable');
     const request = parsed.data;
-    const response = await (database as Database).transaction(async (db) => {
+    const executeTransaction = () => (database as Database).transaction(async (db) => {
       if (request.operation === 'classes' || request.operation === 'workspace') {
         await db.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
       } else {
@@ -356,6 +359,13 @@ export function createRelationalCouncilV3(database: D1WriteDatabaseV1, actorId: 
       if (request.operation === 'workspace') return ready(db, request);
       return mutate(db, request, actorId);
     });
+    let response: unknown;
+    try {
+      response = await executeTransaction();
+    } catch (cause) {
+      if (!serializationFailure(cause)) throw cause;
+      response = await executeTransaction();
+    }
     const checked = relationalCouncilResponseSchemaV3.parse(response);
     if (!relationalCouncilResponseMatchesV3(request, checked)) throw new Error('inconsistent-council-response');
     return checked;

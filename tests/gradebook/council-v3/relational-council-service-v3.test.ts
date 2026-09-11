@@ -63,6 +63,29 @@ function request(operation: string, extra: Record<string, unknown> = {}) {
 }
 
 describe('relational Council V3 lifecycle', () => {
+  it('retries one PostgreSQL serialization abort before returning the contracted response', async () => {
+    let attempts = 0;
+    const retryingDatabase = {
+      ...database,
+      async transaction<T>(operation: Parameters<GradebookPostgresDatabaseV1['transaction']>[0]): Promise<T> {
+        attempts += 1;
+        if (attempts === 1) {
+          throw Object.assign(new Error('synthetic-serialization-abort'), { code: '40001' });
+        }
+        return database.transaction(operation) as Promise<T>;
+      },
+    };
+    const response = await createRelationalCouncilV3(retryingDatabase, ACTOR).execute({
+      contractVersion: 3,
+      operation: 'classes',
+      year: 2026,
+      offset: 0,
+      limit: 100,
+    });
+    expect(response).toMatchObject({ state: 'ready', operation: 'classes' });
+    expect(attempts).toBe(2);
+  });
+
   it('keeps eligibility calculated and completes open, decide, vote, close, reopen and close again', async () => {
     const service = createRelationalCouncilV3(database, ACTOR);
     expect(await service.execute({ contractVersion: 3, operation: 'classes', year: 2026, offset: 0, limit: 100 })).toMatchObject({
