@@ -1,4 +1,6 @@
 import { createPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
+import { createPerformanceDashboardV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
+import { dashboardAnalysisV5, performanceDashboardMatchesV5, performanceDashboardRequestSchemaV5, performanceDashboardResponseSchemaV5 } from '../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 import { createPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
 import { performanceTermComparisonRequestSchemaV4, performanceTermComparisonResponseSchemaV4, performanceTermComparisonMatchesV4 } from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import { performanceAnalysisRequestSchemaV3, performanceAnalysisResponseSchemaV3, performanceAnalysisMatchesV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
@@ -23,6 +25,8 @@ const matrixRequest = (extra = {}): PerformanceRequestV2 => ({ transportVersion:
 const service = () => createRelationalPerformanceV2(database);
 const comparisonRequest = (extra: Record<string, unknown> = {}) => ({ transportVersion: 4, operation: 'term-comparison', year: 2026, classId: 10,
   period: 3, referencePeriod: 1, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], lens: 'result', offerId: null, ...extra });
+const dashboardRequest = (extra: Record<string, unknown> = {}) => ({ transportVersion: 5, operation: 'dashboard', year: 2026, classId: 10,
+  period: 1, referencePeriod: null, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], lens: 'result', offerId: null, ...extra });
 
 beforeAll(async () => {
   pg = new PGlite();
@@ -339,5 +343,49 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
     expect(await response.json()).toMatchObject({ transportVersion: 3, state: 'ready', matrix: { authority: 'calculated-preview' } });
     readsFail=true;
     expect(await (await http(analysisRequest())).json()).toEqual({ transportVersion: 3, state: 'unavailable' });
+  });
+});
+
+describe('performance dashboard V5', () => {
+  it('returns component counts and a disjoint class panorama from one snapshot', async () => {
+    const request = performanceDashboardRequestSchemaV5.parse(dashboardRequest());
+    const result = await createPerformanceDashboardV5(database).execute(request);
+    expect(result.state).toBe('ready');
+    if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
+    expect(queries).toHaveLength(6);
+    expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
+    expect(result.overview.students).toEqual({ eligible: 6, classified: 4, allAtOrAbove: 2, withBelow: 2, pending: 2 });
+    expect(result.overview.groups).toEqual({ allAtOrAbove: [1, 8], withBelow: [2, 4], pending: [3, 5] });
+    expect(result.overview.columns[0]).toMatchObject({ considered: 6, atOrAbove: 2, below: 2, incomplete: 2, noShow: 0, unscaled: 0 });
+    expect(dashboardAnalysisV5(result).matrix.readAt).toBeTruthy();
+    expect(performanceDashboardResponseSchemaV5.safeParse(result).success).toBe(true);
+    expect(performanceDashboardMatchesV5(request, result)).toBe(true);
+  });
+  it('embeds a same-snapshot trimester comparison without duplicating the analysis', async () => {
+    const result = await createPerformanceDashboardV5(database).execute(dashboardRequest({ period: 3, referencePeriod: 1 }));
+    expect(result.state).toBe('ready');
+    if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
+    expect(result.view).toMatchObject({ transportVersion: 4, operation: 'term-comparison', referencePeriod: 1, analysis: { matrix: { period: 3 } } });
+    expect(queries).toHaveLength(6);
+    expect(JSON.stringify(result).match(/"operation":"analysis"/gu)).toHaveLength(1);
+  });
+  it('rejects invalid scopes and forged panorama membership', async () => {
+    for (const extra of [{ year: 2025 }, { period: 1, referencePeriod: 1 }, { lens: 'assessments', offerId: 10, referencePeriod: 1 }]) {
+      expect(await createPerformanceDashboardV5(database).execute(dashboardRequest(extra))).toEqual({ transportVersion: 5, state: 'invalid-request' });
+      expect(queries).toHaveLength(0);
+    }
+    const result = await createPerformanceDashboardV5(database).execute(dashboardRequest());
+    if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
+    result.overview.groups.allAtOrAbove.push(9999);
+    expect(performanceDashboardResponseSchemaV5.safeParse(result).success).toBe(false);
+  });
+  it('routes through the authenticated no-store boundary and preserves the production gate', async () => {
+    for (const role of [null, 'PROFESSOR'] as const) expect([401, 403]).toContain((await http(dashboardRequest(), role)).status);
+    expect(queries).toHaveLength(0);
+    expect((await http(dashboardRequest(), 'ADMINISTRADOR', { RUNTIME_ENVIRONMENT: 'production', GRADEBOOK_PRODUCTION_ENABLED: 'false' })).status).toBe(503);
+    expect(queries).toHaveLength(0);
+    const response = await http(dashboardRequest());
+    expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toContain('no-store');
+    expect(await response.json()).toMatchObject({ transportVersion: 5, operation: 'dashboard', state: 'ready' });
   });
 });

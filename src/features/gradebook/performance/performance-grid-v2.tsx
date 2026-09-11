@@ -20,7 +20,7 @@ export function PerformanceGridV2({ columns, rows, open, focusOffer, showAnnual 
     ...(showAnnual ? [{ id: 'annual', label: 'Resultado', width: 150 }] : []),
   ];
   return <Table className="min-w-0">
-    <Table.ResizableContainer className="max-w-full overflow-x-auto rounded-xl border border-separator">
+    <Table.ScrollContainer className="max-w-full overflow-x-auto rounded-xl border border-separator">
       <Table.Content aria-label={label} className="w-full text-xs" style={{ minWidth: headers.reduce((sum, col) => sum + col.width, 0) }}>
         <Table.Header columns={headers}>{(header) => {
           const column = columns.find((item) => `value-${item.key}` === header.id);
@@ -29,7 +29,6 @@ export function PerformanceGridV2({ columns, rows, open, focusOffer, showAnnual 
               ? <button type="button" title={column.title} aria-label={`Ver avaliações de ${column.title}`} onClick={() => focusOffer(column.offerId)} className="w-full whitespace-normal break-words text-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-focus">{column.label}</button>
               : <span title={column.title} className="block w-full whitespace-normal break-words text-center font-semibold">{column.label}</span>
               : header.label}
-            <Table.ColumnResizer />
           </Table.Column>;
         }}</Table.Header>
         <Table.Body items={rows} renderEmptyState={() => 'Nenhum aluno neste recorte.'}>{(row) => <Table.Row id={row.student.id} columns={headers}>{(header) => {
@@ -43,6 +42,6 @@ export function PerformanceGridV2({ columns, rows, open, focusOffer, showAnnual 
           </Table.Cell>;
         }}</Table.Row>}</Table.Body>
       </Table.Content>
-    </Table.ResizableContainer>
+    </Table.ScrollContainer>
   </Table>;
 }
