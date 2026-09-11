@@ -32,18 +32,18 @@ beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql','utf8'));
   await pg.exec(`
-    INSERT INTO gradebook.ano_letivo VALUES (2090,60000,2),(2091,65000,3);
+    INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2),(2025,65000,3);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES
-      (10,2090,'A1','TURMA SINTETICA A',6,'M'),(20,2090,'B1','TURMA SINTETICA B',6,'T'),(30,2091,'A1','OUTRO ANO SINTETICO',6,'M');
-    INSERT INTO gradebook.professor (id,ano,nome) VALUES (11,2090,'DOCENTE SINTETICO'),(21,2091,'DOCENTE SINTETICO');
-    INSERT INTO gradebook.disciplina (id,ano,nome) VALUES (11,2090,'COMPONENTE SINTETICO'),(21,2091,'COMPONENTE SINTETICO');
-    INSERT INTO gradebook.oferta (id,ano,turma_id,professor_id,disciplina_id) VALUES (10,2090,10,11,11),(20,2090,20,11,11),(30,2091,30,21,21);
-    INSERT INTO gradebook.aluno (id,ano,nome) VALUES (1,2090,'ALUNO SINTETICO'),(2,2090,'ALUNO SINTETICO'),(3,2090,'ASSISTIDO SINTETICO'),(4,2090,'LITERAL %_ SINTETICO'),(5,2090,'HISTORICO SINTETICO'),(99,2091,'ALUNO SINTETICO');
-    INSERT INTO gradebook.aluno (id,ano,nome) SELECT 1000+n,2090,'PESSOA SINTETICA '||lpad(n::text,3,'0') FROM generate_series(1,250) n;
+      (10,2026,'A1','TURMA SINTETICA A',6,'M'),(20,2026,'B1','TURMA SINTETICA B',6,'T'),(30,2025,'A1','OUTRO ANO SINTETICO',6,'M');
+    INSERT INTO gradebook.professor (id,ano,nome) VALUES (11,2026,'DOCENTE SINTETICO'),(21,2025,'DOCENTE SINTETICO');
+    INSERT INTO gradebook.disciplina (id,ano,nome) VALUES (11,2026,'COMPONENTE SINTETICO'),(21,2025,'COMPONENTE SINTETICO');
+    INSERT INTO gradebook.oferta (id,ano,turma_id,professor_id,disciplina_id) VALUES (10,2026,10,11,11),(20,2026,20,11,11),(30,2025,30,21,21);
+    INSERT INTO gradebook.aluno (id,ano,nome) VALUES (1,2026,'ALUNO SINTETICO'),(2,2026,'ALUNO SINTETICO'),(3,2026,'ASSISTIDO SINTETICO'),(4,2026,'LITERAL %_ SINTETICO'),(5,2026,'HISTORICO SINTETICO'),(99,2025,'ALUNO SINTETICO');
+    INSERT INTO gradebook.aluno (id,ano,nome) SELECT 1000+n,2026,'PESSOA SINTETICA '||lpad(n::text,3,'0') FROM generate_series(1,250) n;
     INSERT INTO gradebook.vinculo VALUES
-      (2090,10,1,1,NULL,NULL),(2090,10,2,2,6,20),(2090,20,1,2,7,10),
-      (2090,10,3,3,2,NULL),(2090,10,4,4,NULL,NULL),(2090,20,5,5,6,10),(2091,30,1,99,NULL,NULL);
-    INSERT INTO gradebook.vinculo SELECT 2090,10,10+n,1000+n,NULL,NULL FROM generate_series(1,250) n;
+      (2026,10,1,1,NULL,NULL),(2026,10,2,2,6,20),(2026,20,1,2,7,10),
+      (2026,10,3,3,2,NULL),(2026,10,4,4,NULL,NULL),(2026,20,5,5,6,10),(2025,30,1,99,NULL,NULL);
+    INSERT INTO gradebook.vinculo SELECT 2026,10,10+n,1000+n,NULL,NULL FROM generate_series(1,250) n;
   `);
   const sql: GradebookPostgresSqlV1 = {
     async unsafe() { throw new Error('workspace-read-outside-transaction'); },
@@ -61,8 +61,8 @@ beforeAll(async () => {
 afterAll(async () => { await database?.close(); });
 beforeEach(() => { transactions=0;queries.length=0;args.length=0;failRead=false; });
 const service = () => createRelationalWorkspaceV2(database);
-const search = (extra: Partial<Extract<OperationalWorkspaceRequestV2,{operation:'search'}>> = {}): Extract<OperationalWorkspaceRequestV2,{operation:'search'}> => ({contractVersion:2,operation:'search',year:2090,kind:'all',query:'',offset:0,limit:50,...extra});
-const center = (kind: 'student'|'class-group'|'teacher'|'subject', id: number, offset=0): Extract<OperationalWorkspaceRequestV2,{operation:'center'}> => ({contractVersion:2,operation:'center',year:2090,kind,id,offset,limit:200});
+const search = (extra: Partial<Extract<OperationalWorkspaceRequestV2,{operation:'search'}>> = {}): Extract<OperationalWorkspaceRequestV2,{operation:'search'}> => ({contractVersion:2,operation:'search',year:2026,kind:'all',query:'',offset:0,limit:50,...extra});
+const center = (kind: 'student'|'class-group'|'teacher'|'subject', id: number, offset=0): Extract<OperationalWorkspaceRequestV2,{operation:'center'}> => ({contractVersion:2,operation:'center',year:2026,kind,id,offset,limit:200});
 
 async function http(body: unknown, role: 'ADMINISTRADOR'|'PROFESSOR'|null='ADMINISTRADOR', overrides: Partial<RuntimeEnv>={}, origin=testEnv.OFFICIAL_ORIGIN) {
   const headers = new Headers({Origin:origin,'Content-Type':'application/json'});
@@ -77,19 +77,19 @@ async function http(body: unknown, role: 'ADMINISTRADOR'|'PROFESSOR'|null='ADMIN
 }
 
 describe('relational operational workspace with the complete schema and PostgreSQL facade', () => {
-  it('reads only registered years with real parameters, no invented active state or clock-selected default', async () => {
-    expect(await service().execute({contractVersion:2,operation:'bootstrap'})).toEqual({contractVersion:2,state:'ready',operation:'bootstrap',years:[{year:2091,minimumApprovalMilli:65000,maxCouncilComponents:3},{year:2090,minimumApprovalMilli:60000,maxCouncilComponents:2}]});
+  it('exposes only the fixed 2026 context in the compatibility bootstrap', async () => {
+    expect(await service().execute({contractVersion:2,operation:'bootstrap'})).toEqual({contractVersion:2,state:'ready',operation:'bootstrap',years:[{year:2026,minimumApprovalMilli:60000,maxCouncilComponents:2}]});
     expect(queries).toHaveLength(2);
     expect(queries[0]).toBe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
     expect(transactions).toBe(1);
   });
   it('returns scoped counts without conflating current bindings and eligible population', async () => {
-    expect(await service().execute({contractVersion:2,operation:'context',year:2090})).toMatchObject({context:{year:2090},counts:{students:255,classes:2,teachers:1,subjects:1,offers:2,currentBindings:254,historicalBindings:2}});
+    expect(await service().execute({contractVersion:2,operation:'context',year:2026})).toMatchObject({context:{year:2026},counts:{students:255,classes:2,teachers:1,subjects:1,offers:2,currentBindings:254,historicalBindings:2}});
     expect(queries).toHaveLength(3);
   });
-  it('does not substitute another registered year for a missing one', async () => {
-    expect(await service().execute({contractVersion:2,operation:'context',year:2092})).toEqual({contractVersion:2,state:'not-found'});
-    expect(queries).toHaveLength(2);
+  it('rejects a non-2026 request before opening a transaction', async () => {
+    expect(await service().execute({contractVersion:2,operation:'context',year:2025})).toEqual({contractVersion:2,state:'invalid-request'});
+    expect(queries).toHaveLength(0);
   });
   it('keeps homonyms distinct and returns only the selected year', async () => {
     const result = await service().execute(search({kind:'student',query:'ALUNO SINTETICO'}));
@@ -160,7 +160,7 @@ describe('relational operational workspace with the complete schema and PostgreS
     const counts = (await pg.query('SELECT (SELECT count(*)::integer FROM gradebook.importacao) AS imports,(SELECT count(*)::integer FROM gradebook.nota_historico) AS histories')).rows;
     expect(counts).toEqual([{imports:0,histories:0}]);
   });
-  it.each([search({limit:201}),search({offset:-1}),search({query:'a'.repeat(81)}),{contractVersion:2,operation:'bootstrap',year:2090},{...center('student',1),id:'student:1'},{...search(),maintenanceVersion:1},null])('rejects malformed or ambiguous requests before starting a transaction', async (input) => {
+  it.each([search({limit:201}),search({offset:-1}),search({query:'a'.repeat(81)}),{contractVersion:2,operation:'bootstrap',year:2026},{...center('student',1),id:'student:1'},{...search(),maintenanceVersion:1},null])('rejects malformed or ambiguous requests before starting a transaction', async (input) => {
     expect(isOperationalWorkspaceRequestV2(input)).toBe(false);
     expect(await service().execute(input)).toEqual({contractVersion:2,state:'invalid-request'});
     expect(queries).toHaveLength(0);expect(transactions).toBe(0);
@@ -170,10 +170,10 @@ describe('relational operational workspace with the complete schema and PostgreS
     const result = await service().execute(request);
     expect(isOperationalWorkspaceResponseV2(result)).toBe(true);
     expect(workspaceResponseMatchesRequestV2(request,result)).toBe(true);
-    expect(workspaceResponseMatchesRequestV2({...request,year:2091},result)).toBe(false);
+    expect(workspaceResponseMatchesRequestV2({...request,year:2025},result)).toBe(false);
     if (result.state!=='ready'||result.operation!=='center') throw new Error('unexpected-result');
     expect(isOperationalWorkspaceResponseV2({...result,center:{...result.center,bindings:[{...result.center.bindings[0],position:'historical'}]}})).toBe(false);
-    expect(isOperationalWorkspaceResponseV2({...result,context:{year:'2090'}})).toBe(false);
+    expect(isOperationalWorkspaceResponseV2({...result,context:{year:'2026'}})).toBe(false);
   });
 });
 

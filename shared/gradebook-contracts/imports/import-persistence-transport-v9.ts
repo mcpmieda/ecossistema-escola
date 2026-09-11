@@ -1,4 +1,5 @@
 import type { GradebookImportPersistenceSummaryV2 } from './import-persistence-transport-v2';
+import { isCurrentGradebookAcademicYearV1 } from '../current-academic-year-v1';
 
 export const GRADEBOOK_IMPORT_PERSISTENCE_TRANSPORT_VERSION_V9 = 9 as const;
 export const GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9 = 2_000_000;
@@ -136,7 +137,7 @@ function validRecoveryCell(value: unknown): value is GradebookImportRecoveryCell
 }
 
 function validRelation(value: Record<string, unknown>): boolean {
-  if (!Number.isSafeInteger(value.ano) || Number(value.ano) < 2000 || Number(value.ano) > 2200) return false;
+  if (!isCurrentGradebookAcademicYearV1(value.ano)) return false;
   if (!Array.isArray(value.turmas) || value.turmas.length === 0 || value.turmas.length > 64) return false;
   const classCodes = new Set<string>();
   for (const turma of value.turmas) {
@@ -169,7 +170,7 @@ function validRelation(value: Record<string, unknown>): boolean {
 const SLOTS = new Set([1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
 
 function validNotes(value: Record<string, unknown>): boolean {
-  if (!Number.isSafeInteger(value.ano) || Number(value.ano) < 2000 || Number(value.ano) > 2200) return false;
+  if (!isCurrentGradebookAcademicYearV1(value.ano)) return false;
   if (!nonEmptyText(value.professor, 256) || !Array.isArray(value.ofertas) || value.ofertas.length === 0 || value.ofertas.length > 128) return false;
   const offers = new Set<string>();
   for (const oferta of value.ofertas) {

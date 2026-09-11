@@ -10,15 +10,15 @@ import { GradebookWorkspaceShell } from '../../../src/platform/gradebook-workspa
 import { requestRelationalPerformanceV2 } from '../../../src/features/gradebook/performance/relational-performance-client-v2';
 import { performanceResponseMatchesV2, performanceResponseSchemaV2, type PerformanceRequestV2 } from '../../../shared/gradebook-contracts/performance/relational-performance-v2';
 
-const context = { year: 2090, minimumApprovalMilli: 60000, maxCouncilComponents: 2 };
-const common = { transportVersion: 2, state: 'ready', context, readAt: '2090-05-01T12:00:00.000Z', authority: 'calculated-preview' };
+const context = { year: 2026, minimumApprovalMilli: 60000, maxCouncilComponents: 2 };
+const common = { transportVersion: 2, state: 'ready', context, readAt: '2026-05-01T12:00:00.000Z', authority: 'calculated-preview' };
 const offering = { id: 10, subject: { id: 1, label: 'MATEMATICA SINTETICA' }, teacher: { id: 1, label: 'DOCENTE SINTETICO' } };
 const cell = { offerId: 10, valueMilli: 24000, maximumMilli: 30000, state: 'complete', level: 'at-or-above', sourceReferenceMilli: 24000, sourceComparison: 'match', recoveryApplicable: false, warningCodes: [] };
 const student = { id: 1, name: 'ALUNO SINTETICO', number: 1, status: null, statusLabel: 'Sem situação especial', indicatorEligible: true, councilPrevious: null };
 const row = { student, calculatedAnnual: { state: 'in-progress', label: 'EM CURSO', councilEligibility: 'not-applicable' }, formalCouncilDecision: null, cells: [cell] };
 const selected = { classGroup: { id: 10, label: 'A1' }, period: 1, mode: 'regular' };
 const matrix = { ...common, ...selected, operation: 'matrix', offers: [offering], rows: [row], comparison: { available: false, reason: 'comparability-not-contracted' }, statistics: { classRows: 1, visibleRows: 1, eligibleRows: 1, recoveryUnknownRows: 0, consideredCells: 1, completeCells: 1, noShowCells: 0, incompleteCells: 0, attentionRows: 0 } };
-const request: PerformanceRequestV2 = { transportVersion: 2, operation: 'matrix', year: 2090, classId: 10, period: 1, mode: 'regular', statuses: [null, 7] };
+const request: PerformanceRequestV2 = { transportVersion: 2, operation: 'matrix', year: 2026, classId: 10, period: 1, mode: 'regular', statuses: [null, 7] };
 const catalog = { ...common, operation: 'classes', statusOptions: [{ value: null, label: 'Sem situação especial' }, { value: 7, label: 'Estava no' }], classes: [{ id: 10, label: 'A1' }], nextOffset: null };
 let root: Root | null = null;
 let host: HTMLDivElement;
@@ -28,7 +28,6 @@ const reply = (data: unknown, status = 200) => Response.json(data, { status });
 
 const animationsDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations');
 beforeEach(() => {
-  window.sessionStorage.clear();
   Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('matchMedia', (media: string) => ({ media, matches: false, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: () => true }));
@@ -36,7 +35,6 @@ beforeEach(() => {
   requests = [];
   mock = vi.fn<typeof fetch>(async (_url, init) => {
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>; requests.push(body);
-    if (body.operation === 'bootstrap') return reply({ contractVersion: 2, state: 'ready', operation: 'bootstrap', years: [context, { ...context, year: 2091 }] });
     if (body.operation === 'classes') return reply({ ...catalog, context: { ...context, year: body.year } });
     if (body.operation === 'analysis') return reply(analysisFixture(body));
     if (body.operation === 'matrix') return reply({ ...matrix, period: body.period, mode: body.mode });
@@ -49,7 +47,7 @@ beforeEach(() => {
   host = document.createElement('div'); document.body.appendChild(host);
   window.location.hash = '#/banco-de-notas?area=performance';
 });
-afterEach(async () => { if (root) await act(async () => { root!.unmount(); }); root = null; host.remove(); window.sessionStorage.clear(); vi.unstubAllGlobals(); if (animationsDescriptor) Object.defineProperty(Element.prototype, 'getAnimations', animationsDescriptor); else Reflect.deleteProperty(Element.prototype, 'getAnimations'); });
+afterEach(async () => { if (root) await act(async () => { root!.unmount(); }); root = null; host.remove(); vi.unstubAllGlobals(); if (animationsDescriptor) Object.defineProperty(Element.prototype, 'getAnimations', animationsDescriptor); else Reflect.deleteProperty(Element.prototype, 'getAnimations'); });
 async function settle() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); }); }
 async function waitFor(predicate: () => boolean) {
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -76,7 +74,6 @@ async function select(label: string, value: string) {
 }
 async function loaded() {
   await mount();
-  await select('Ano letivo do Banco', '2090');
   await select('Turma', '10');
   await waitFor(() => host.textContent?.includes(student.name) === true && requests.some((value) => value.operation === 'analysis'));
 }
@@ -85,7 +82,7 @@ describe('V2 contract and transport', () => {
   it('validates the real matrix contract and matching scope', () => {
     const parsed = performanceResponseSchemaV2.parse(matrix);
     expect(performanceResponseMatchesV2(request, parsed)).toBe(true);
-    expect(performanceResponseMatchesV2({ ...request, year: 2091 }, parsed)).toBe(false);
+    expect(performanceResponseMatchesV2({ ...request, year: 2025 }, parsed)).toBe(false);
   });
   it('uses no-store, same-origin and an abort signal', async () => {
     const controller = new AbortController();
@@ -96,7 +93,7 @@ describe('V2 contract and transport', () => {
     mock.mockResolvedValueOnce(reply({ transportVersion: 1, state: 'not-authorized' }, status));
     expect(await requestRelationalPerformanceV2(request)).toEqual({ transportVersion: 2, state: 'not-authorized' });
   });
-  it.each([{ ...matrix, context: { ...context, year: 2091 } }, { ...matrix, rows: [row,row] }, { ...matrix, offers: [] }, { ...matrix, period: 3 }, { ...matrix, authority: 'official' }])('rejects mismatched, duplicate or falsely official data', async (bad) => {
+  it.each([{ ...matrix, context: { ...context, year: 2025 } }, { ...matrix, rows: [row,row] }, { ...matrix, offers: [] }, { ...matrix, period: 3 }, { ...matrix, authority: 'official' }])('rejects mismatched, duplicate or falsely official data', async (bad) => {
     mock.mockResolvedValueOnce(reply(bad));
     expect(await requestRelationalPerformanceV2(request)).toMatchObject({ state: 'unavailable' });
   });
@@ -110,21 +107,20 @@ describe('real shell, shared year and rendered performance journey', () => {
   it('does not preload an academic catalog in Importation', async () => {
     window.location.hash = '#/banco-de-notas'; await mount();
     expect(requests.filter((value) => ['bootstrap','classes','matrix','analysis'].includes(String(value.operation)))).toHaveLength(0);
-    expect(host.querySelector('[aria-label="Contexto anual compartilhado"]')).toBeNull();
+    expect(host.querySelector('[aria-label="Contexto acadêmico atual"]')).toBeNull();
   });
-  it('automatically selects the latest year that exists in the catalog', async () => {
+  it('uses 2026 directly without loading or persisting a year catalogue', async () => {
     await mount();
-    await waitFor(() => (document.querySelector('select[aria-label="Ano letivo do Banco"]') as unknown as HTMLSelectElement | null)?.value === '2091');
-    await waitFor(() => requests.some((value) => value.operation === 'classes' && value.year === 2091));
-    expect((document.querySelector('select[aria-label="Ano letivo do Banco"]') as unknown as HTMLSelectElement).value).toBe('2091');
-    expect(requests.filter((value) => value.operation === 'bootstrap')).toHaveLength(1);
-    expect(requests.some((value) => value.operation === 'classes' && value.year === 2091)).toBe(true);
+    await waitFor(() => requests.some((value) => value.operation === 'classes' && value.year === 2026));
+    expect(document.querySelector('select[aria-label="Ano letivo do Banco"]')).toBeNull();
+    expect(host.querySelector('[aria-label="Contexto acadêmico atual"]')?.textContent).toContain('2026');
+    expect(requests.filter((value) => value.operation === 'bootstrap')).toHaveLength(0);
   });
   it('loads shared year, class and matrix, then a student drawer and the existing center', async () => {
     await loaded();
     expect(host.textContent).toContain('Desempenho');
     expect(host.textContent).toContain(student.name);
-    expect(host.querySelectorAll('select[aria-label="Ano letivo do Banco"]')).toHaveLength(1);
+    expect(host.querySelectorAll('select[aria-label="Ano letivo do Banco"]')).toHaveLength(0);
     await click(student.name);
     expect(document.body.textContent).toContain('Conselho anterior: Não informado');
     expect(requests.filter((value) => value.operation === 'analysis')).toHaveLength(1);
@@ -135,7 +131,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     expect(window.location.hash).toContain('area=operational');
     expect(host.querySelector('select[aria-label="Ano letivo"]')).toBeNull();
     expect(host.textContent).toContain('Consulta somente leitura');
-    expect(requests.some((value) => value.operation === 'center' && value.id === 1 && value.year === 2090)).toBe(true);
+    expect(requests.some((value) => value.operation === 'center' && value.id === 1 && value.year === 2026)).toBe(true);
   });
   it('reopens the same student after using Centers without discarding the performance matrix', async () => {
     await loaded();
@@ -153,29 +149,30 @@ describe('real shell, shared year and rendered performance journey', () => {
     expect(requests.filter((value) => value.operation === 'analysis')).toHaveLength(1);
     expect(host.textContent).toContain('Aprovação pelo Conselho no ano anterior');
   });
-  it('drops a late old-year response rather than repopulating a reset matrix', async () => {
+  it('drops a late old-period response rather than replacing the current trimester', async () => {
     await loaded();
     let resolve!: (response: Response) => void;
     mock.mockImplementationOnce(() => new Promise((accept) => { resolve = accept; }));
     await select('Período', '2');
     const pendingSignal = mock.mock.calls.at(-1)?.[1]?.signal;
-    await select('Ano letivo do Banco', '2091');
+    await select('Período', '3');
     expect(pendingSignal?.aborted).toBe(true);
     await act(async () => { resolve(reply(analysisFixture({ period: 2 }))); });
-    expect(host.textContent).not.toContain(student.name);
-    expect((document.querySelector('select[aria-label="Turma"]') as unknown as HTMLSelectElement).value).toBe('');
+    expect((document.querySelector('select[aria-label="Período"]') as unknown as HTMLSelectElement).value).toBe('3');
+    expect(requests.filter((value) => value.operation === 'analysis').at(-1)?.period).toBe(3);
   });
-  it('clears the shared year and loaded student after an authorization loss', async () => {
+  it('clears loaded student data after an authorization loss while keeping 2026 fixed', async () => {
     await loaded(); mock.mockResolvedValueOnce(reply({}, 401));
     await select('Período', '2');
     expect(host.textContent).not.toContain(student.name);
     expect(host.textContent).toContain('Entre novamente');
-    expect((document.querySelector('select[aria-label="Ano letivo do Banco"]') as unknown as HTMLSelectElement).value).toBe('');
+    expect(document.querySelector('select[aria-label="Ano letivo do Banco"]')).toBeNull();
+    expect(host.querySelector('[aria-label="Contexto acadêmico atual"]')?.textContent).toContain('2026');
   });
 });
 
 function analysisFixture(extra: Record<string, unknown> = {}) {
-  const request = performanceAnalysisRequestSchemaV3.parse({ transportVersion: 3, operation: 'analysis', year: 2090, classId: 10, period: 1, mode: 'regular', statuses: [null,7], lens: 'result', offerId: null, ...extra });
+  const request = performanceAnalysisRequestSchemaV3.parse({ transportVersion: 3, operation: 'analysis', year: 2026, classId: 10, period: 1, mode: 'regular', statuses: [null,7], lens: 'result', offerId: null, ...extra });
   const base = performanceResponseSchemaV2.parse({ ...matrix, context: { ...context, year: request.year }, period: request.period, mode: request.mode });
   if (base.state !== 'ready' || base.operation !== 'matrix') throw new Error('invalid-synthetic-base');
   const facts = ([1,2,3] as const).flatMap((term) => ([1,2,11] as const).map((slot) => ({term, slot, label: `ATIVIDADE SINTETICA ${slot}`, maximumMilli: slot === 11 ? (term === 3 ? 22000 : 16500) : (term === 3 ? 9000 : 6750), valueMilli: slot === 11 ? 12000 : 6000})));

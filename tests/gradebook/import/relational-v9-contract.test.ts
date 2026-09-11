@@ -216,6 +216,7 @@ describe('gradebook relational import v9', () => {
       ],
     };
     expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
+    expect(inspectGradebookImportPersistenceRequestV9({...request, ano: 2025})).toBe('invalid-request');
   });
 
   it('validates explicit empty, unavailable and N/C without student names in teacher rows', () => {
@@ -239,6 +240,7 @@ describe('gradebook relational import v9', () => {
       ],
     };
     expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
+    expect(inspectGradebookImportPersistenceRequestV9({...request, ano: 2027})).toBe('invalid-request');
     expect(JSON.stringify(request)).not.toContain('ALUNO TESTE');
   });
 });

@@ -22,7 +22,7 @@ export function RelationalPerformancePageV2() {
   const close = () => { state.closeDetail(); lastFocus.current?.focus(); };
   const lensLabel: Record<PerformanceLensV3, string> = { result: 'Resultado', quantitative: 'Quantitativo', qualitative: 'Qualitativo', assessments: 'Avaliações' };
   const css = 'rounded-xl border border-separator bg-surface px-3 py-2 focus-visible:ring-2 focus-visible:ring-focus';
-  if (state.year === null) return <p className="rounded-xl border border-separator p-5">Selecione o ano letivo no topo do Banco para consultar Desempenho.</p>;
+  if (state.year === null) return <p className="rounded-xl border border-separator p-5">A sessão do Banco de Notas está indisponível. Entre novamente para consultar Desempenho.</p>;
   const detail = state.detail;
   return <section aria-label="Desempenho relacional" className="grid min-w-0 grid-cols-1 gap-3">
     <div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold">Desempenho</h2><Chip size="sm" variant="soft">Em validação</Chip></div>

@@ -80,6 +80,8 @@ export function analysisMatrixRequestV2(request: PerformanceAnalysisRequestV3) {
   return matrixRequest.parse({ transportVersion: 2, operation: 'matrix', year: request.year, classId: request.classId, period: request.period, mode: request.mode, statuses: request.statuses });
 }
 export function performanceAnalysisMatchesV3(request: PerformanceAnalysisRequestV3, response: PerformanceAnalysisResponseV3): boolean {
-  return response.state !== 'ready' || (response.lens === request.lens && response.offerId === request.offerId &&
-    performanceResponseMatchesV2(analysisMatrixRequestV2(request), response.matrix));
+  if (response.state !== 'ready') return true;
+  const parsed = performanceAnalysisRequestSchemaV3.safeParse(request);
+  return parsed.success && response.lens === parsed.data.lens && response.offerId === parsed.data.offerId &&
+    performanceResponseMatchesV2(analysisMatrixRequestV2(parsed.data), response.matrix);
 }

@@ -14,6 +14,7 @@ import {
   type WorkspaceStatusV2,
   type WorkspaceYearV2,
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
+import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../../../../shared/gradebook-contracts/current-academic-year-v1';
 import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
 
 type Row = Record<string, unknown>;
@@ -120,7 +121,7 @@ async function loadCenter(db: D1WriteDatabaseV1, request: Extract<OperationalWor
 async function execute(db: D1WriteDatabaseV1, request: OperationalWorkspaceRequestV2): Promise<OperationalWorkspaceResponseV2> {
   if (request.operation === 'bootstrap') {
     const rows = await all(db, `SELECT ano,minimo_aprovacao,max_componentes_conselho
-      FROM gradebook.ano_letivo ORDER BY ano DESC LIMIT ?`, [WORKSPACE_MAX_YEARS_V2 + 1]);
+      FROM gradebook.ano_letivo WHERE ano = ? LIMIT ?`, [CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1, WORKSPACE_MAX_YEARS_V2 + 1]);
     if (rows.length > WORKSPACE_MAX_YEARS_V2) throw new Error('workspace-year-catalog-limit');
     return {contractVersion:2,state:'ready',operation:'bootstrap',years:rows.map(context)};
   }
@@ -175,7 +176,7 @@ async function execute(db: D1WriteDatabaseV1, request: OperationalWorkspaceReque
 export function createRelationalWorkspaceV2(database: D1WriteDatabaseV1) {
   return {
     async execute(input: unknown): Promise<OperationalWorkspaceResponseV2> {
-      if (!isOperationalWorkspaceRequestV2(input)) return {contractVersion:2,state:'invalid-request'};
+    if (!isOperationalWorkspaceRequestV2(input)) return {contractVersion:2,state:'invalid-request'};
       if (!('transaction' in database) || typeof database.transaction !== 'function') throw new Error('workspace-transaction-unavailable');
       const request = {...input}; // Only scalar values; caller mutation cannot change the scope while waiting.
       return (database as Database).transaction(async (db) => {
