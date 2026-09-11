@@ -13,7 +13,7 @@ import {
 } from '../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
 import {
   sourceSubjectAbbreviationV1,
-  sourceSubjectPresentationOrderV1,
+  compareSourceSubjectPresentationV1,
 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import {
   resolveSimplifiedAnnualOutcomeV1,
@@ -114,11 +114,8 @@ async function rows(
 }
 
 function offerOrder(left: OfferV2, right: OfferV2): number {
-  const leftIndex = sourceSubjectPresentationOrderV1(left.subjectLabel);
-  const rightIndex = sourceSubjectPresentationOrderV1(right.subjectLabel);
   return (
-    (leftIndex ?? Number.MAX_SAFE_INTEGER) - (rightIndex ?? Number.MAX_SAFE_INTEGER) ||
-    left.subjectLabel.localeCompare(right.subjectLabel) ||
+    compareSourceSubjectPresentationV1(left.subjectLabel, right.subjectLabel) ||
     left.id - right.id
   );
 }

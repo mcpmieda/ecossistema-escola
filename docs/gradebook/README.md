@@ -20,21 +20,23 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#656 / PR #657:** Relatórios institucionais V2 integrado e publicado no deploy 264 (`34577894561`), sobre as projeções relacionais vigentes de Desempenho, Conselho, diagnósticos atuais e snapshots de Boletins. CI e smoke autenticado somente leitura estão verdes. [Contrato e limites](RELATIONAL_REPORTS_V2.md).
 
-**#658 / PR #659:** Auditoria relacional atual V2 em execução. A superfície ativa passa a exibir somente a fotografia corrente de diagnósticos de 2026, em linguagem escolar, sem montar o Audit Workspace V1 ou oferecer correção automática. A trilha humana durável continua explicitamente separada e não recebe schema nesta entrega. [Escopo e limites](RELATIONAL_CURRENT_AUDIT_V2.md).
+**#658 / PR #659:** Auditoria relacional atual V2 integrada e publicada no deploy 265 (`34580485339`). A superfície ativa exibe somente a fotografia corrente de diagnósticos de 2026, em linguagem escolar, sem montar o Audit Workspace V1 ou oferecer correção automática. A trilha humana durável continua explicitamente separada. [Escopo e limites](RELATIONAL_CURRENT_AUDIT_V2.md).
+
+**#660 / PR #661:** configuração docente relacional em execução. Professor, componente e oferta permanecem derivados da importação; a Central apresenta o cadastro reconhecido com HeroUI e a ordem P, M, H, G, C e demais componentes configurados, enquanto o write V1 incompatível deixa de ser servido. Sem schema/DML ou autoridade nova. [Decisão e limites](RELATIONAL_TEACHER_CONFIGURATION_660.md).
 
 ## Leitura e execução
 
 1. [COMECE_AQUI.md](COMECE_AQUI.md): tarefa e dependências.
 2. [PROJECT_STATE.yaml](PROJECT_STATE.yaml): baseline e entrega corrente.
 3. [DECISIONS.md](DECISIONS.md): decisões anteriores e substituições expressas.
-4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md), [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md), [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md), [RELATIONAL_COUNCIL_V3.md](RELATIONAL_COUNCIL_V3.md), [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md), [RELATIONAL_REPORTS_V2.md](RELATIONAL_REPORTS_V2.md) e [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md): caminhos e limites.
+4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_TEACHER_CONFIGURATION_660.md](RELATIONAL_TEACHER_CONFIGURATION_660.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md), [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md), [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md), [RELATIONAL_COUNCIL_V3.md](RELATIONAL_COUNCIL_V3.md), [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md), [RELATIONAL_REPORTS_V2.md](RELATIONAL_REPORTS_V2.md) e [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md): caminhos e limites.
 5. [CONTRACTS.md](CONTRACTS.md), [ROADMAP.md](ROADMAP.md), [ISSUE_MAP.md](ISSUE_MAP.md) e [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
 
 ## Programa final
 
 | Fase    | Issue | Entrega restante                                                                                                                   |
 | ------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| FINAL-1 | #633  | Relatórios V2 integrados; Auditoria atual na #658; manutenção docente, trilha humana, isolamento/recuperação e piloto pendentes |
+| FINAL-1 | #633  | Consumidores funcionais relacionais concluídos até a #660; trilha humana, isolamento/recuperação e piloto pendentes              |
 | FINAL-2 | #634  | #646 consolida fonte/detalhe/desktop; #649 fixa 2026 e entrega comparação trimestral; validação visual única restante              |
 | FINAL-3 | #635  | Conselho humano V3 integrado/publicado; validação visual conjunta e piloto ainda separam entrega de aceite final                   |
 | FINAL-4 | #406  | piloto integral, recuperação e retirada seletiva do legado                                                                         |

@@ -23,7 +23,7 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
   {
     id: 'operational',
     label: 'Centrais',
-    description: 'Localize alunos, turmas, professores e componentes no ano letivo 2026.',
+    description: 'Consulte cadastros e a configuração docente importada do ano letivo 2026.',
   },
   {
     id: 'audit',

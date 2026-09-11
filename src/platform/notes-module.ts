@@ -35,9 +35,9 @@ export const notesSections: NotesSection[] = [
   {
     id: 'operational',
     label: 'Centrais',
-    description: 'Consultar alunos, turmas, professores e componentes por ano acadêmico.',
+    description: 'Consultar cadastros e a configuração docente importada de 2026.',
     href: notesAreaHref('operational'),
-    searchTerms: 'central aluno turma professor componente operacional pesquisa acadêmica',
+    searchTerms: 'central cadastro aluno turma professor componente oferta configuração docente 2026',
   },
   {
     id: 'audit',

@@ -9,9 +9,11 @@ import type {
   WorkspaceFailureStateV2,
   WorkspaceKindV2,
   WorkspaceLinkV2,
+  WorkspaceOfferV2,
   WorkspaceSearchItemV2,
   WorkspaceYearV2,
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
+import { compareSourceSubjectPresentationV1 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { requestOperationalWorkspaceV2 } from './operational-workspace-client-v2';
 import { createOperationalWorkspaceRequestGate } from './operational-workspace-request-gate';
 
@@ -21,6 +23,11 @@ const PAGE_SIZE = 100;
 function unique<T>(values: readonly T[], key: (value:T)=>string|number): T[] {
   const seen = new Set<string|number>();
   return values.filter((value) => {const id=key(value);if(seen.has(id)) return false;seen.add(id);return true;});
+}
+function orderOffers(left: WorkspaceOfferV2, right: WorkspaceOfferV2): number {
+  return left.classGroup.label.localeCompare(right.classGroup.label, 'pt-BR') ||
+    compareSourceSubjectPresentationV1(left.subject.label, right.subject.label) ||
+    left.teacher.label.localeCompare(right.teacher.label, 'pt-BR') || left.id-right.id;
 }
 export function useRelationalWorkspaceV2() {
   const sharedYear = useGradebookYear();
@@ -115,7 +122,7 @@ export function useRelationalWorkspaceV2() {
       setDetail((current)=>offset===0||current===null?response.center:{
         ...response.center,
         bindings:unique([...current.bindings,...response.center.bindings],(row)=>`${row.classGroup.id}:${row.number}`),
-        offers:unique([...current.offers,...response.center.offers],(row)=>row.id),
+        offers:unique([...current.offers,...response.center.offers],(row)=>row.id).sort(orderOffers),
       });
     });
   }

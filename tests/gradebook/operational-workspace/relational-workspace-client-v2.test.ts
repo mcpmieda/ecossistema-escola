@@ -94,6 +94,16 @@ describe('react workspace request lifecycle with synthetic HTTP responses',()=>{
     fetchMock.mockResolvedValueOnce(reply({...search(),items:[{entity,description:null},{entity:{kind:'teacher',id:1,label:'DOCENTE SINTETICO'},description:null}]}));
     await act(async()=>{await current.search(100);});expect(current.items).toHaveLength(2);expect(current.nextOffset).toBeNull();
   });
+  it('reorders appended teacher offers by class and configured subject order',async()=>{
+    await mount();
+    const teacher={kind:'teacher',id:2,label:'DOCENTE SINTETICO'} as const;
+    const offer=(id:number,label:string)=>({id,classGroup:{kind:'class-group' as const,id:10,label:'6A'},teacher,subject:{kind:'subject' as const,id,label}});
+    fetchMock.mockResolvedValueOnce(reply({...detail,center:{entity:teacher,classInfo:null,bindings:[],offers:[offer(5,'CIÊNCIAS'),offer(1,'PORTUGUÊS')],nextOffset:100}}));
+    await act(async()=>{await current.open(teacher);});
+    fetchMock.mockResolvedValueOnce(reply({...detail,center:{entity:teacher,classInfo:null,bindings:[],offers:[offer(2,'MATEMÁTICA')],nextOffset:null}}));
+    await act(async()=>{await current.open(teacher,100);});
+    expect(current.detail?.offers.map((item)=>item.subject.label)).toEqual(['PORTUGUÊS','MATEMÁTICA','CIÊNCIAS']);
+  });
   it('retains a retryable unavailable state rather than inventing empty success after network failure',async()=>{
     await mount();fetchMock.mockRejectedValueOnce(new Error('synthetic-network-error'));
     await act(async()=>{await current.search();});expect(current.failure).toBe('unavailable');expect(current.searched).toBe(false);expect(current.busy.search).toBe(false);
@@ -111,21 +121,22 @@ describe('rendered Centrais surface in jsdom (not a visual browser benchmark)',(
     fetchMock.mockResolvedValueOnce(reply(context()));root=createRoot(host);
     await act(async()=>{root!.render(createElement(RelationalWorkspacePageV2));});
     expect(host.querySelector('select[aria-label="Ano letivo"]')).toBeNull();
-    expect(host.textContent).toContain('Pesquisar no ano 2026');
+    expect(host.textContent).toContain('Cadastros e configuração docente');
+    expect(host.querySelector('select:not([tabindex="-1"])')).toBeNull();
     fetchMock.mockResolvedValueOnce(reply(search()));
     const form=host.querySelector('form');expect(form).not.toBeNull();
     await act(async()=>{form!.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));});
     const student=[...host.querySelectorAll('button')].find((value)=>value.textContent==='ALUNO SINTETICO');
     expect(student).toBeDefined();fetchMock.mockResolvedValueOnce(reply(detail));
     await act(async()=>{student!.click();});
-    expect(host.textContent).not.toContain('Conselho no ano anterior');expect(host.textContent).toContain('Ofertas da turma atual');expect(host.textContent).toContain('Consulta somente leitura');
+    expect(host.textContent).not.toContain('Conselho no ano anterior');expect(host.textContent).toContain('Ofertas da turma atual');expect(host.textContent).toContain('somente leitura');
   });
   it('mounts V2 in the existing lazy shell and leaves legacy maintenance disconnected',()=>{
     const surface=readFileSync('src/platform/gradebook-operational-surface.tsx','utf8');
     const page=readFileSync('src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx','utf8');
     const hook=readFileSync('src/features/gradebook/operational-workspace/use-relational-workspace-v2.ts','utf8');
     expect(surface).toContain('relational-workspace-page-v2');expect(surface).not.toContain('<TeacherAssignmentMaintenanceWorkspace');
-    expect(page).toContain("from '@heroui/react'");expect(page).toContain('onSubmit=');expect(page).toContain('aria-live="polite"');expect(page).toContain('tabIndex={-1}');
+    expect(page).toContain("from '@heroui/react'");expect(page).toContain('<Select');expect(page).not.toContain('<select');expect(page).toContain('onSubmit=');expect(page).toContain('aria-live="polite"');expect(page).toContain('tabIndex={-1}');
     expect(`${page}\n${hook}`).not.toMatch(/localStorage|sessionStorage|indexedDB|caches\.open|Date\.now|getFullYear|from ['"][^'"]*server\//u);
   });
 });

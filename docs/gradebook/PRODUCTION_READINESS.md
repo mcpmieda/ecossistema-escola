@@ -8,13 +8,13 @@ A PR #640, contrato #639, acrescentou contexto/pesquisa/Centrais V2 e foi integr
 
 As PRs #643/#645 integraram matriz relacional e quatro lentes; a #647 integrou fonte, ano global, detalhe e desktop em `002b97a6b647c28e1eca75745425732858eae665`. A #649/#650 fixa 2026, remove criação/seleção de anos e acrescenta comparação trimestral sem ativar autoridade ou alterar schema/dados. Validação visual/autenticada continua separada e foi adiada para uma única sessão com o responsável.
 
-A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; migration/postflight, CI 594, deploy 262 / `34565744488` e smoke autenticado somente leitura foram aprovados. A #654/PR #655 integrou Boletins V2 em `1512d5b37c42931b1df81bbfe6483d1ad5340130`; backup lógico, preflight, migration/postflight `0005`, CI, deploy 263 / `34572772095` e smoke autenticado somente leitura foram aprovados. A #656/PR #657 integrou Relatórios V2 em `3d762d7412fe0a5760680566ae6739f4d10c1172`; CI, deploy 264 / `34577894561` e smoke autenticado somente leitura foram aprovados. A #658 executa Auditoria atual V2 sem contrato compartilhado, schema ou DML.
+A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; migration/postflight, CI 594, deploy 262 / `34565744488` e smoke autenticado somente leitura foram aprovados. A #654/PR #655 integrou Boletins V2 em `1512d5b37c42931b1df81bbfe6483d1ad5340130`; backup lógico, preflight, migration/postflight `0005`, CI, deploy 263 / `34572772095` e smoke autenticado somente leitura foram aprovados. A #656/PR #657 integrou Relatórios V2 em `3d762d7412fe0a5760680566ae6739f4d10c1172`; CI, deploy 264 / `34577894561` e smoke autenticado somente leitura foram aprovados. A #658/PR #659 integrou Auditoria atual V2 em `380b016d0c1ec5917323fe3fad35398b4fbd1a6a`; CI, deploy 265 / `34580485339` e smoke autenticado somente leitura foram aprovados. A #660 executa configuração docente relacional sem contrato de transporte novo, schema ou DML.
 
 ## Gates finais
 
 | Gate             | Responsável                     | Evidência                                                                                                        |
 | ---------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Schema/runtime   | #633; bloco #639/#640 integrado | replay/drift e fontes relacionais por endpoint; Centrais de consulta não incluem resultados/escritas             |
+| Schema/runtime   | #633; blocos #639/#640/#660      | replay/drift e fontes relacionais por endpoint; configuração docente consulta importação, sem escrita paralela   |
 | Desempenho       | #634                            | comparação trimestral contratada na #649; validação visual conjunta, refinamentos de UI e medição restantes      |
 | Conselho         | #635                            | lacunas contratuais, decisão humana, voto/fechamento e durabilidade                                              |
 | Boletins         | #633/#654                       | contrato V2 integrado/publicado; migration/postflight, CI e smoke somente leitura verdes                          |
@@ -43,7 +43,7 @@ A inspeção de ACL anterior encontrou anon/authenticated sem USAGE/privilégios
 
 ## Validação da interface
 
-Fluxo #640: abrir Centrais, selecionar ano, pesquisar, abrir aluno/turma/professor/componente, navegar pelos vínculos/ofertas e carregar páginas. Testes de cliente/React/jsdom usam somente respostas sintéticas e verificam cancelamento, limpeza de escopo e perda de sessão. Validação visual em navegador, teclado completo, mobile e smoke autenticado real permanecem explícitos antes do aceite institucional; build/deploy verde não os substitui.
+Fluxo #640/#660: abrir Centrais no contexto 2026, pesquisar, abrir aluno/turma/professor/componente, navegar pelos vínculos/ofertas na ordem da configuração e carregar páginas. Testes de cliente/React/jsdom usam somente respostas sintéticas e verificam cancelamento, limpeza de escopo, ordenação após paginação e perda de sessão. A #660 também prova que o write docente V1 é recusado antes do runtime legado. Validação visual conjunta, teclado completo, mobile e piloto permanecem explícitos antes do aceite institucional; build/deploy verde não os substitui.
 
 ## Dependências e limites
 

@@ -10,6 +10,7 @@ import {
   type SimplifiedAnnualOutcomeV1,
   type SimplifiedEnrollmentStatusV1,
 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
+import { compareSourceSubjectPresentationV1 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 
 type Row = Record<string, unknown>;
 type BindValue = string | number | null;
@@ -216,8 +217,7 @@ export function createRelationalStudentAnnualProjectionServiceV1(
          FROM gradebook.oferta o
          JOIN gradebook.disciplina d ON d.id = o.disciplina_id AND d.ano = o.ano
          JOIN gradebook.professor p ON p.id = o.professor_id AND p.ano = o.ano
-         WHERE o.ano = ? AND o.turma_id = ?
-         ORDER BY lower(d.nome), o.id`, [ano, turmaId]);
+         WHERE o.ano = ? AND o.turma_id = ?`, [ano, turmaId]);
       const disciplineIds = new Set<number>();
       // Validate the entire offer set before projecting any component.
       const offers = offerRows.map((row) => {
@@ -231,7 +231,8 @@ export function createRelationalStudentAnnualProjectionServiceV1(
           disciplina: requiredText(row.disciplina_nome),
           professorId: positiveInteger(row.professor_id), professor: requiredText(row.professor_nome),
         };
-      });
+      }).sort((left, right) =>
+        compareSourceSubjectPresentationV1(left.disciplina, right.disciplina) || left.ofertaId - right.ofertaId);
       const projections = await projectOffers(offers.map((offer) => ({
         ofertaId: offer.ofertaId, alunoId: input.alunoId,
       })));

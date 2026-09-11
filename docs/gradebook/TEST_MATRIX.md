@@ -281,6 +281,9 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F12-649-001`: superfície, cliente, contrato e serviço de criação de anos não existem mais no produto ativo.
 - `F12-649-002`: shell/Centrais/Desempenho não exibem seletor nem usam catálogo/sessionStorage; todo request ativo leva 2026.
 - `F12-649-003`: Centrais V2, Desempenho V2/V3/V4 e importação V9 rejeitam outro ano antes de SQL/DML.
+- `F5-660-001`: Centrais, Desempenho, Boletins e projeção anual apresentam P, M, H, G, C e os demais componentes na ordem observada na configuração da fonte; desconhecidos ficam depois sem posição inventada.
+- `F5-660-002`: Central docente usa somente V2 relacional/2026, HeroUI Select e fatos importados, sem select HTML escrito pela aplicação ou arraste de colunas.
+- `F5-660-003`: todo payload `maintenanceVersion: 1` é recusado depois de auth e antes de instanciar/tocar o runtime legado; V2 continua read-only/repeatable-read e sem DML.
 - `F12-649-004`: T2 aceita somente T1; T3 aceita T1/T2; T1, Visão geral e Avaliações não oferecem comparação.
 - `F12-649-005`: compara o mesmo aluno/turma/componente/lente/modo por `valor/máximo oficial positivo` e relação racional exata.
 - `F12-649-006`: diferença é em pontos percentuais; zero é comparável, igualdade é zero exato e valor acima de 100% não é limitado.

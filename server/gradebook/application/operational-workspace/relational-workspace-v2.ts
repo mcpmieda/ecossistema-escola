@@ -15,6 +15,7 @@ import {
   type WorkspaceYearV2,
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../../../../shared/gradebook-contracts/current-academic-year-v1';
+import { compareSourceSubjectPresentationV1 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
 
 type Row = Record<string, unknown>;
@@ -64,6 +65,12 @@ function toOffer(row: Row): WorkspaceOfferV2 {
     subject: ref('subject', row.disciplina_id, row.disciplina_nome),
   };
 }
+function orderOffers(left: WorkspaceOfferV2, right: WorkspaceOfferV2): number {
+  return left.classGroup.label.localeCompare(right.classGroup.label, 'pt-BR') ||
+    compareSourceSubjectPresentationV1(left.subject.label, right.subject.label) ||
+    left.teacher.label.localeCompare(right.teacher.label, 'pt-BR') ||
+    left.id - right.id;
+}
 
 // All fragments are fixed, reviewed identifiers. No request text becomes SQL syntax.
 const ENTITY_SQL: Record<WorkspaceKindV2, string> = {
@@ -96,7 +103,7 @@ async function loadCenter(db: D1WriteDatabaseV1, request: Extract<OperationalWor
       ORDER BY (v.situacao IS NOT DISTINCT FROM 6),t.codigo COLLATE "C",v.numero,v.aluno_id
       LIMIT ? OFFSET ?`, [request.year, request.id, request.limit + 1, request.offset]);
   }
-  const offers = await all(db, `SELECT o.id,o.turma_id,t.codigo AS turma_codigo,
+  const offers = (await all(db, `SELECT o.id,o.turma_id,t.codigo AS turma_codigo,
       o.professor_id,p.nome AS professor_nome,o.disciplina_id,d.nome AS disciplina_nome
     FROM gradebook.oferta o
     JOIN gradebook.turma t ON t.id = o.turma_id AND t.ano = o.ano
@@ -104,12 +111,12 @@ async function loadCenter(db: D1WriteDatabaseV1, request: Extract<OperationalWor
     JOIN gradebook.disciplina d ON d.id = o.disciplina_id AND d.ano = o.ano
     WHERE o.ano = ? AND ${OFFER_FILTER[request.kind]}
     ORDER BY t.codigo COLLATE "C",d.nome COLLATE "C",p.nome COLLATE "C",o.id
-    LIMIT ? OFFSET ?`, [request.year, request.id, request.limit + 1, request.offset]);
+    LIMIT ? OFFSET ?`, [request.year, request.id, request.limit + 1, request.offset])).map(toOffer).sort(orderOffers);
   return {
     entity: ref(request.kind, entity.id, entity.label),
     classInfo: request.kind === 'class-group' ? {code:text(entity.codigo),stage:integer(entity.etapa),shift:text(entity.turno)} : null,
     bindings: bindings.slice(0, request.limit).map(toBinding),
-    offers: offers.slice(0, request.limit).map(toOffer),
+    offers: offers.slice(0, request.limit),
     nextOffset: nextOffset(Math.max(bindings.length, offers.length), request.offset, request.limit),
   };
 }
