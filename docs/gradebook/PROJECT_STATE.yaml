@@ -144,7 +144,7 @@ work_in_progress:
   parent_issues: [633]
   phase: FINAL-1
   branch: feat/bn-current-audit-v2-658
-  pull_request: null
+  pull_request: 659
   scope: relational-current-audit-v2-read-only-heroui
   production_activation_in_this_delivery: false
   production_schema_extension_in_this_delivery: none

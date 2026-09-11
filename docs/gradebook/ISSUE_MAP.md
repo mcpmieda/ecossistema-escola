@@ -11,7 +11,7 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | 2026/comparação trimestral | #649           | concluída pela PR #650; visual conjunto permanece na #634                                          |
 | Boletins relacionais V2    | #654 / PR #655 | integrado/publicado no deploy 263; migration/postflight e smoke somente leitura verdes             |
 | Relatórios relacionais V2  | #656 / PR #657 | integrado/publicado no deploy 264; CI e smoke autenticado somente leitura verdes                    |
-| Auditoria relacional atual | #658            | em execução; retirar Audit Workspace V1/correção do caminho ativo sem apagar compatibilidade        |
+| Auditoria relacional atual | #658 / PR #659  | head verificado; CI/revisão/publicação pendem antes de virar fato da `main`                           |
 | FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
 | FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
 | Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |

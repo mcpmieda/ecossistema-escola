@@ -2,7 +2,7 @@
 
 ## Escopo e base factual
 
-A #658 parte de `main@3d762d7412fe0a5760680566ae6739f4d10c1172`, depois da integração e publicação de Relatórios V2 pela #656/PR #657 no deploy 264 (`34577894561`). A branch é `feat/bn-current-audit-v2-658`.
+A #658/PR #659 parte de `main@3d762d7412fe0a5760680566ae6739f4d10c1172`, depois da integração e publicação de Relatórios V2 pela #656/PR #657 no deploy 264 (`34577894561`). A branch é `feat/bn-current-audit-v2-658`.
 
 O objetivo é retirar do caminho ativo a composição híbrida que misturava os diagnósticos relacionais atuais com o Audit Workspace V1. O V1 apresentava entidades e estados da geração anterior e oferecia correção determinística, embora a decisão vigente da #613 determine que a Auditoria apenas detecta, explica e sugere, sem corrigir automaticamente.
 

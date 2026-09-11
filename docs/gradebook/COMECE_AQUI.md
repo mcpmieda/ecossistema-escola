@@ -1,6 +1,6 @@
 # Entrega corrente — Auditoria relacional atual V2
 
-**#658**, branch `feat/bn-current-audit-v2-658`. Base factual: `main@3d762d7412fe0a5760680566ae6739f4d10c1172`, após Relatórios V2 #656/PR #657, merge, deploy 264 (`34577894561`) e smoke autenticado somente leitura. O trabalho atual existe no head da branch e só será fato integrado depois de CI, revisão, merge, deploy e smoke.
+**#658 / PR #659**, branch `feat/bn-current-audit-v2-658`. Base factual: `main@3d762d7412fe0a5760680566ae6739f4d10c1172`, após Relatórios V2 #656/PR #657, merge, deploy 264 (`34577894561`) e smoke autenticado somente leitura. O trabalho atual existe no head da branch e só será fato integrado depois de CI, revisão, merge, deploy e smoke.
 
 #646/#647 integrou fonte, siglas, detalhe e desktop. #649/#650 fixou 2026, removeu criação/seleção de anos e entregou comparação descritiva entre trimestres. #651/#652 redesenhou Desempenho. #648/#653 integrou Conselho V3. #654/#655 integrou Boletins V2. #656/#657 integrou Relatórios V2. Não reconstruir esses blocos. Usar `main` + branch + issue/PR + CI como estado factual; `PROJECT_STATE.yaml` é resumo e pode ficar um commit atrás.
 

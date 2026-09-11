@@ -20,7 +20,7 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#656 / PR #657:** Relatórios institucionais V2 integrado e publicado no deploy 264 (`34577894561`), sobre as projeções relacionais vigentes de Desempenho, Conselho, diagnósticos atuais e snapshots de Boletins. CI e smoke autenticado somente leitura estão verdes. [Contrato e limites](RELATIONAL_REPORTS_V2.md).
 
-**#658:** Auditoria relacional atual V2 em execução. A superfície ativa passa a exibir somente a fotografia corrente de diagnósticos de 2026, em linguagem escolar, sem montar o Audit Workspace V1 ou oferecer correção automática. A trilha humana durável continua explicitamente separada e não recebe schema nesta entrega. [Escopo e limites](RELATIONAL_CURRENT_AUDIT_V2.md).
+**#658 / PR #659:** Auditoria relacional atual V2 em execução. A superfície ativa passa a exibir somente a fotografia corrente de diagnósticos de 2026, em linguagem escolar, sem montar o Audit Workspace V1 ou oferecer correção automática. A trilha humana durável continua explicitamente separada e não recebe schema nesta entrega. [Escopo e limites](RELATIONAL_CURRENT_AUDIT_V2.md).
 
 ## Leitura e execução
 
