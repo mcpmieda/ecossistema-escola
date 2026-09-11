@@ -8,28 +8,28 @@ A PR #640, contrato #639, acrescentou contexto/pesquisa/Centrais V2 e foi integr
 
 As PRs #643/#645 integraram matriz relacional e quatro lentes; a #647 integrou fonte, ano global, detalhe e desktop em `002b97a6b647c28e1eca75745425732858eae665`. A #649/#650 fixa 2026, remove criação/seleção de anos e acrescenta comparação trimestral sem ativar autoridade ou alterar schema/dados. Validação visual/autenticada continua separada e foi adiada para uma única sessão com o responsável.
 
-A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; migration/postflight, CI 594, deploy 262 / `34565744488` e smoke autenticado somente leitura foram aprovados. A #654/PR #655 integrou Boletins V2 em `1512d5b37c42931b1df81bbfe6483d1ad5340130`; backup lógico, preflight, migration/postflight `0005`, CI, deploy 263 / `34572772095` e smoke autenticado somente leitura foram aprovados. A #656/PR #657 integrou Relatórios V2 em `3d762d7412fe0a5760680566ae6739f4d10c1172`; CI, deploy 264 / `34577894561` e smoke autenticado somente leitura foram aprovados. A #658/PR #659 integrou Auditoria atual V2 em `380b016d0c1ec5917323fe3fad35398b4fbd1a6a`; CI, deploy 265 / `34580485339` e smoke autenticado somente leitura foram aprovados. A #660 executa configuração docente relacional sem contrato de transporte novo, schema ou DML.
+A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; migration/postflight, CI 594, deploy 262 / `34565744488` e smoke autenticado somente leitura foram aprovados. A #654/PR #655 integrou Boletins V2 em `1512d5b37c42931b1df81bbfe6483d1ad5340130`; backup lógico, preflight, migration/postflight `0005`, CI, deploy 263 / `34572772095` e smoke autenticado somente leitura foram aprovados. A #656/PR #657 integrou Relatórios V2 em `3d762d7412fe0a5760680566ae6739f4d10c1172`; CI, deploy 264 / `34577894561` e smoke autenticado somente leitura foram aprovados. A #658/PR #659 integrou Auditoria atual V2 em `380b016d0c1ec5917323fe3fad35398b4fbd1a6a`; CI, deploy 265 / `34580485339` e smoke autenticado somente leitura foram aprovados. A #660/PR #661 foi integrada em `92e9f97a23e110cb77011570e1edaef97389cb3d`, deploy 266 / `34585674112` e smoke autenticado somente leitura verdes. A #662 executa recuperação lógica e contenção local sem schema/DML de produção.
 
 ## Gates finais
 
-| Gate             | Responsável                     | Evidência                                                                                                        |
-| ---------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| Schema/runtime   | #633; blocos #639/#640/#660      | replay/drift e fontes relacionais por endpoint; configuração docente consulta importação, sem escrita paralela   |
-| Desempenho       | #634                            | comparação trimestral contratada na #649; validação visual conjunta, refinamentos de UI e medição restantes      |
-| Conselho         | #635                            | lacunas contratuais, decisão humana, voto/fechamento e durabilidade                                              |
-| Boletins         | #633/#654                       | contrato V2 integrado/publicado; migration/postflight, CI e smoke somente leitura verdes                          |
-| Relatórios       | #633/#656/#657                  | contrato V2 integrado/publicado; CI e smoke autenticado somente leitura verdes                                     |
-| Auditoria atual  | #633/#658                       | somente diagnóstico corrente 2026; Audit Workspace V1 sai da montagem; trilha humana durável continua separada     |
-| Produto integral | #406                            | jornadas, restart/falhas, segurança, histórico e recuperação                                                     |
-| Aceite acadêmico | #347                            | consumidor/escopo, versão/vigência, divergências e emissões                                                      |
-| Entrega          | #596                            | operação, responsáveis, recuperação e aceite final                                                               |
-| Dependências     | #637/#641                       | lock corrigido e audits zerados no run 551; CI final, merge/deploy no checkpoint da issue                        |
+| Gate             | Responsável                      | Evidência                                                                                                      |
+| ---------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Schema/runtime   | #633; blocos #639/#640/#660/#662 | replay/drift e fontes relacionais; restore lógico/contenção local comprovados, operação externa ainda pendente |
+| Desempenho       | #634                             | comparação trimestral contratada na #649; validação visual conjunta, refinamentos de UI e medição restantes    |
+| Conselho         | #635                             | lacunas contratuais, decisão humana, voto/fechamento e durabilidade                                            |
+| Boletins         | #633/#654                        | contrato V2 integrado/publicado; migration/postflight, CI e smoke somente leitura verdes                       |
+| Relatórios       | #633/#656/#657                   | contrato V2 integrado/publicado; CI e smoke autenticado somente leitura verdes                                 |
+| Auditoria atual  | #633/#658                        | somente diagnóstico corrente 2026; Audit Workspace V1 sai da montagem; trilha humana durável continua separada |
+| Produto integral | #406                             | jornadas, restart/falhas, segurança, histórico e recuperação                                                   |
+| Aceite acadêmico | #347                             | consumidor/escopo, versão/vigência, divergências e emissões                                                    |
+| Entrega          | #596                             | operação, responsáveis, recuperação e aceite final                                                             |
+| Dependências     | #637/#641                        | lock corrigido e audits zerados no run 551; CI final, merge/deploy no checkpoint da issue                      |
 
 ## Recuperação não pode ser presumida
 
 Uma migration existente não comprova restore. `0001` reconstrói e compara a baseline observada antes do Conselho: 20 tabelas, 127 colunas, 123 constraints, 38 índices, 4 funções e 3 triggers. `0003`/`0004` acrescentam o Conselho V3 e levam o catálogo a 28 tabelas, 214 colunas, 188 constraints, 58 índices, 48 FKs e 12 sequências, sem mudar as 4 funções/3 triggers. O postflight de `0005` levou a produção a 29 tabelas, 227 colunas, 203 constraints, 62 índices, 51 FKs e 12 sequências, preservando 4 funções/3 triggers e todas as contagens acadêmicas. A tabela de snapshots nasceu vazia. NOT NULL é comparado por `attnotnull`; sua representação adicional em `pg_constraint` no PostgreSQL 18 é excluída para comparar com PostgreSQL 17, sem excluir a regra.
 
-Grants backend são separados da baseline; testes usam roles sintéticas. Restore de dados, identities, ACLs externas, timezone, recursos, RPO/RTO e operação real continuam gates #406/#596. Não executar DDL de streams/versions. D1 histórico não contém as novas escritas; sua exclusão ou uso como rollback exige plano próprio.
+Grants backend são separados da baseline; testes usam roles sintéticas. A #662 restaurou localmente 120.879 linhas em 28 relações, 12 sequences/identities, catálogo pós-`0005`, FKs e ACLs locais; também serviu catálogo, comparação T2×T1, Auditoria, Conselho e histórico vazio de Boletins. O tempo local de 7.385 ms não é SLA. Restore gerenciado, ACLs/identidade/configurações externas, timezone operacional, recursos, política RPO/RTO e operação real continuam gates #406/#596. Não executar DDL de streams/versions. D1 histórico não contém as novas escritas; sua exclusão ou uso como rollback exige plano próprio. Ver [#662](RELATIONAL_RECOVERY_REHEARSAL_662.md).
 
 ## Autorização, isolamento e atomicidade
 
@@ -37,7 +37,9 @@ Verificar auth/capability, origem, limites, no-store, isolamento e respostas obs
 
 O lote acadêmico de Boletins materializa contexto, alunos, ofertas, projeções e instrumentos em uma transação read-only/repeatable-read; snapshots são incluídos separadamente por CAS append-only. O serviço cadastral da #640 usa a mesma classe de isolamento para cada resposta completa. Paginação entre requisições diferentes não promete snapshot global de um catálogo que pode mudar.
 
-A Auditoria integrada #636 usa **substituição transacional**: locks por fonte/conteúdo + DELETE/INSERT na mesma conexão; rollback e conjunto vazio enviado pelo browser. Notas não fazem limpeza paralela. Falha de atualização gera aviso; resolvidos não são acumulados. V1 não tem sequência entre abas: vale a última confirmada no servidor, sem inferência cronológica de arquivos atrasados. PGlite serializa conexões; testes não provam disputa multi-sessão real. Clientes antigos precisam recarregar para enviar também conjuntos vazios.
+A Auditoria integrada #636 usa **substituição transacional**: locks por fonte/conteúdo + DELETE/INSERT na mesma conexão; rollback e conjunto vazio enviado pelo browser. Notas não fazem limpeza paralela. Falha de atualização gera aviso; resolvidos não são acumulados. V1 não tem sequência entre abas: vale a última confirmada no servidor, sem inferência cronológica de arquivos atrasados. A #662 comprovou espera no advisory lock, último commit completo e rollback em conexões PostgreSQL distintas. Clientes antigos precisam recarregar para enviar também conjuntos vazios.
+
+O mesmo ensaio mostrou que uma corrida `SERIALIZABLE` do Conselho pode abortar o perdedor com SQLSTATE `40001` antes do CAS. O serviço repete uma vez apenas a transação abortada; a segunda fotografia devolve `version-conflict`. Um vencedor, um conflito e repetição idempotente foram observados. Diretor/desempate permanecem fora do sistema.
 
 A inspeção de ACL anterior encontrou anon/authenticated sem USAGE/privilégios de tabela. O postflight de `0005` confirmou somente `SELECT, INSERT` para `gradebook_app` em `boletim_snapshot`, sem `UPDATE/DELETE` e sem grants a `PUBLIC`, `anon` ou `authenticated`. RLS não foi habilitada; a proteção permanece por schema e revogações explícitas.
 

@@ -5,9 +5,9 @@ updated_at: 2026-09-11
 
 coordination:
   master_issue: 182
-  executable_issue: 660
-  current_delivery_issue: 660
-  current_integrator_issue: 660
+  executable_issue: 662
+  current_delivery_issue: 662
+  current_integrator_issue: 662
   central_state_editor: integrator-only
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
@@ -22,7 +22,8 @@ coordination:
   prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
 
 baseline:
-  last_audited_main_commit: 380b016d0c1ec5917323fe3fad35398b4fbd1a6a
+  last_audited_main_commit: 92e9f97a23e110cb77011570e1edaef97389cb3d
+  integrated_teacher_configuration_pr: 661
   integrated_current_audit_pr: 659
   integrated_reports_pr: 657
   integrated_bulletins_pr: 655
@@ -38,11 +39,11 @@ baseline:
   integrated_import_archive_pr: 632
   storage_homologation_issue: 613
   active_diagnostics_homologation_issue: 629
-  authorized_deploy_run: 34580485339
-  authorized_deploy_number: 265
+  authorized_deploy_run: 34585674112
+  authorized_deploy_number: 266
   authorized_deploy_result: success
   authenticated_post_deploy_smoke_this_session: true
-  note: baseline-after-current-audit-v2-659-before-teacher-configuration-660
+  note: baseline-after-teacher-configuration-661-before-recovery-rehearsal-662
 
 storage:
   decision_current: BN-DEC-022
@@ -74,6 +75,11 @@ storage:
   recovery_baseline_in_git: reconstructed-replay-tested-and-integrated-pr-636
   recovery_baseline_path: migrations/gradebook-simplified/
   production_data_restore_proven_by_this_pr: false
+  disposable_logical_restore: issue-662-passed-28-tables-120879-rows-12-sequences
+  disposable_restore_current_catalog: passed-29-tables-227-columns-203-constraints-62-indexes-51-fks
+  disposable_restore_elapsed_milliseconds: 7385
+  disposable_restore_scope: artifact-and-local-machine-measurement-not-managed-production-rto
+  institutional_rpo_rto: pending-explicit-policy-and-managed-restore
   legacy_d1_role: preserved-historical-resource-not-backup-of-new-relational-writes
   council_v3_migration: applied-and-postflight-verified-2026-09-11
   council_v3_new_rows_after_migration: 0
@@ -92,7 +98,7 @@ runtime:
   production_flags_last_verified_this_pr: false
   provider_facade_uses_gradebook_d1_interface: true
   import_and_diagnostics: relational-integrated-and-homologated
-  diagnostic_atomic_replacement: integrated-pr-636-deploy-254-success-awaiting-authenticated-smoke
+  diagnostic_atomic_replacement: integrated-pr-636-and-real-postgres-contention-passed-issue-662
   diagnostic_ordering: last-server-confirmed-observation-not-client-chronology
   relational_centers_v2: integrated-pr-640-deploy-255-success-awaiting-authenticated-smoke
   relational_centers_operations: [bootstrap-2026-compatibility, context, search, center]
@@ -123,7 +129,8 @@ runtime:
   relational_bulletins_durability: append-only-snapshot-cas-idempotency-history-reprint
   relational_reports_v2: integrated-pr-657-deploy-264-authenticated-read-only-smoke-success
   relational_reports_authority: read-only-composition-of-current-relational-contracts
-  relational_reports_sources: [performance-v3-v4, council-v3, current-import-diagnostics, bulletins-v2-snapshots]
+  relational_reports_sources:
+    [performance-v3-v4, council-v3, current-import-diagnostics, bulletins-v2-snapshots]
   relational_current_audit_v2: integrated-pr-659-deploy-265-authenticated-read-only-smoke-success
   relational_current_audit_source: current-import-diagnostics-2026
   relational_current_audit_writes: none
@@ -133,12 +140,14 @@ runtime:
     [centers-v2, current-audit-v2, performance-v2-v3-v4, bulletins-v2, reports-v2, council-v3]
   shared_year_legacy_mapping: unique-exact-2026-catalog-label-or-fail-closed
   import_source_year_reinterpreted_by_navigation: false
-  relational_teacher_configuration: issue-660-head-awaiting-final-verify-ci-review-merge-deploy-smoke
+  relational_teacher_configuration: integrated-pr-661-deploy-266-authenticated-read-only-smoke-success
   relational_teacher_configuration_authority: imported-source-read-only-no-parallel-registration
   relational_teacher_configuration_order: [P, M, H, G, C, A, RL, RD, F, ET, I, CT]
   relational_teacher_legacy_write: rejected-before-legacy-runtime
   relational_teacher_legacy_exclusive_files: removed-after-static-dependency-proof
   remaining_consumers: none-after-issue-660
+  real_postgres_contention: diagnostic-advisory-lock-rollback-and-council-cas-passed-issue-662
+  relational_council_serialization_retry: one-retry-on-sqlstate-40001-then-contracted-cas-response
   global_academic_authority_switch_verified: false
   authority_acceptance_issue: 347
   legacy_consumer_contracts:
@@ -146,29 +155,29 @@ runtime:
     note: describes-existing-v1-contracts-not-a-global-runtime-flag
 
 work_in_progress:
-  issue: 660
-  parent_issues: [633]
-  phase: FINAL-1
-  branch: fix/bn-teacher-settings-and-subject-order-660
-  pull_request: 661
-  scope: relational-teacher-configuration-read-only-subject-order-legacy-write-retirement
+  issue: 662
+  parent_issues: [633, 406, 596]
+  phase: FINAL-1-4-operational-gate
+  branch: test/bn-relational-recovery-contention-662
+  pull_request: 663
+  scope: disposable-logical-restore-service-smoke-real-postgres-contention
   production_activation_in_this_delivery: false
   production_schema_extension_in_this_delivery: none
   phase_complete: false
-  release_checkpoint: issue-660
-  visual_validation_this_delivery: joint-acceptance-deferred
+  release_checkpoint: issue-662
+  visual_validation_this_delivery: not-applicable-joint-acceptance-still-deferred
   remaining:
     - joint-visual-validation-with-responsible
-    - final-head-verify-ci-review-merge-deploy-authenticated-read-only-smoke
+    - final-head-verify-ci-review-merge-deploy
     - explicit-contract-and-durability-for-human-audit-treatment
-    - production-data-backup-restore-and-real-multi-session-contention-pilot
+    - managed-production-backup-restore-rpo-rto-and-external-configuration
     - legacy-removal-after-dependency-proof
 
 final_phases:
   - phase: FINAL-1
     issue: 633
     branch: null
-    status: functional-consumers-integrated-through-current-audit-teacher-configuration-in-issue-660-operational-gates-and-visual-validation-pending
+    status: functional-consumers-integrated-local-restore-and-contention-in-issue-662-operational-external-gates-and-visual-validation-pending
   - phase: FINAL-2
     issue: 634
     branch: null
@@ -176,7 +185,7 @@ final_phases:
   - phase: FINAL-3
     issue: 635
     branch: null
-    status: relational-v3-integrated-migrated-deployed-smoke-green-joint-visual-validation-and-pilot-pending
+    status: relational-v3-integrated-migrated-deployed-smoke-and-local-contention-green-joint-visual-validation-and-pilot-pending
   - phase: FINAL-4
     issue: 406
     branch: test/bn-final-4-piloto-integral
@@ -218,7 +227,7 @@ security:
   report: docs/gradebook/SECURITY_REMEDIATION_637.md
 
 next_safe_action:
-  issue: 660
-  related_issues: [633]
-  description: finish-docs-verify-final-head-ci-review-integrate-deploy-read-only-smoke
-  prerequisite_release_checkpoint: issue-660
+  issue: 662
+  related_issues: [633, 406, 596]
+  description: finish-docs-verify-final-head-ci-review-integrate-deploy-inert-tooling
+  prerequisite_release_checkpoint: issue-662

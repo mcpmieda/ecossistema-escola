@@ -8,14 +8,14 @@ O contrato está em `shared/gradebook-contracts/reports/relational-institutional
 
 ## Cadeia e autoridade
 
-| Operação | Cadeia V2 | Autoridade preservada |
-| --- | --- | --- |
-| `catalog` | serviço de Relatórios → catálogo do Boletim V2 → turma/alunos relacionais | identidade e ordem canônica da fonte |
-| `performance` | serviço de Relatórios → Desempenho V3 ou comparação V4 → projeção relacional em lote | cálculo simplificado como leitura; comparação apenas descritiva |
-| `council` | serviço de Relatórios → Conselho V3 → fatos e sessão relacionais | decisão humana explícita; elegibilidade não vira decisão |
-| `audit` | serviço de Relatórios → `relational-import-diagnostics-read-v2` → `importacao_diagnostico` + cadastros atuais | achado atual, não correção nem histórico acadêmico inventado |
-| `bulletin-history` | serviço de Relatórios → Boletim V2 → `boletim_snapshot` | sequência imutável emitida |
-| `bulletin-reprint` | serviço de Relatórios → Boletim V2 → snapshot selecionado | snapshot-only; não relê fatos atuais |
+| Operação           | Cadeia V2                                                                                                     | Autoridade preservada                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `catalog`          | serviço de Relatórios → catálogo do Boletim V2 → turma/alunos relacionais                                     | identidade e ordem canônica da fonte                            |
+| `performance`      | serviço de Relatórios → Desempenho V3 ou comparação V4 → projeção relacional em lote                          | cálculo simplificado como leitura; comparação apenas descritiva |
+| `council`          | serviço de Relatórios → Conselho V3 → fatos e sessão relacionais                                              | decisão humana explícita; elegibilidade não vira decisão        |
+| `audit`            | serviço de Relatórios → `relational-import-diagnostics-read-v2` → `importacao_diagnostico` + cadastros atuais | achado atual, não correção nem histórico acadêmico inventado    |
+| `bulletin-history` | serviço de Relatórios → Boletim V2 → `boletim_snapshot`                                                       | sequência imutável emitida                                      |
+| `bulletin-reprint` | serviço de Relatórios → Boletim V2 → snapshot selecionado                                                     | snapshot-only; não relê fatos atuais                            |
 
 As operações V2 são somente leitura. O endpoint usa POST por compatibilidade do transporte, mas o caminho de relatório não executa `INSERT`, `UPDATE`, `DELETE` ou `TRUNCATE`. A entrega não altera schema, dados, importação, regras acadêmicas, binding ou autoridade oficial.
 
@@ -39,4 +39,4 @@ HTTP exige identidade Entra, capacidade `gradebook.persistence.admin`, origem of
 
 A página V2 usa HeroUI com filtros estáveis em grade responsiva, cabeçalho compacto, KPIs discretamente coloridos, tabelas relacionais e timeline. Não contém o card grande “Banco de Notas”, select HTML visível no código nem ordenação manual por arraste. A validação estrutural local foi executada com BrowserAct sobre a configuração real de Vite/Tailwind e massa sintética; o aceite visual conjunto continua deliberadamente adiado e será anunciado antes da sessão única com o responsável.
 
-Testes cobrem schema estrito, serviço, HTTP, cliente/UI, isolamento da montagem V1, adapter SQL e integração PostgreSQL em PGlite com baseline atual. A integração valida ordem canônica, respostas de todas as famílias, limites e ausência de DML. Isso não substitui CI do head, smoke autenticado publicado, contenção PostgreSQL multi-sessão, recuperação de dados reais, piloto #406 ou aceite acadêmico #347.
+Testes cobrem schema estrito, serviço, HTTP, cliente/UI, isolamento da montagem V1, adapter SQL e integração PostgreSQL em PGlite com baseline atual. A integração valida ordem canônica, respostas de todas as famílias, limites e ausência de DML. A #662 acrescentou leitura dessas famílias após restore e contenção PostgreSQL multi-sessão local. Isso não substitui CI do head, smoke autenticado publicado, restore gerenciado/política RPO-RTO, piloto #406 ou aceite acadêmico #347.
