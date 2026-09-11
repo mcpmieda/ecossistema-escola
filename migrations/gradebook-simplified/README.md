@@ -5,7 +5,7 @@ Esta pasta reconstrói o schema observado por inspeção **somente leitura** em 
 ## Arquivos
 
 - `0001_current_schema.sql`: 20 tabelas (19 centrais + diagnóstico), 127 colunas, 123 constraints (34 FKs), 38 índices, 4 funções e **3 triggers distintos**. `information_schema.triggers` enumera 6 eventos porque cada trigger cobre INSERT e UPDATE. Inclui a FK de primeiro import `DEFERRABLE INITIALLY DEFERRED`, ausente no DDL inicial da reconstrução.
-- `0002_import_diagnostics_audit_v1.sql`: extensão aditiva já homologada para registrar o ator da observação de diagnósticos. Não altera fatos acadêmicos.
+- `0002_import_diagnostics_audit_v1.sql`: migration histórica já refletida na reconstrução de `0001`; permanece como memória do passo produtivo original e **não** deve ser reaplicada depois da baseline atual.
 - `0003_council_session_v3.sql`: extensão aditiva FINAL-3 #648 com sessão, idempotência, votação numérica, históricos e fotografias imutáveis do Conselho. Não faz backfill, não persiste presentes/desempate/diretor e não altera a autoridade acadêmica.
 - `0004_council_v3_least_privilege.sql`: correção idempotente de ACL para neutralizar grants padrão do proprietário após `0003`; mantém somente as operações usadas pela role `gradebook_app` e não altera objetos ou dados.
 - `0005_relational_bulletin_snapshot_v2.sql`: extensão aditiva #654 com snapshot imutável de boletim, FKs de 2026, checks de identidade JSON e ACL `SELECT, INSERT` para `gradebook_app`; sem backfill ou DML acadêmico.
@@ -20,8 +20,9 @@ Para um ambiente PostgreSQL 17 **vazio e autorizado**, executar a baseline trans
 
 A baseline não cria extensões, contas Supabase, bindings Hyperdrive, secrets, políticas de backup nem snapshots institucionais ainda não contratados. As migrations antigas de streams/versions são memória e **não** devem ser reaplicadas sobre o modelo simplificado.
 
-As extensões `0002`, `0003`, `0004` e `0005` são aplicadas em ordem, somente sobre
-um schema já conferido contra a baseline. Para `0003`, o preflight deve confirmar
+As extensões correntes `0003`, `0004` e `0005` são aplicadas em ordem, somente sobre
+um schema já conferido contra a baseline. `0002` não integra essa sequência porque sua
+relação já existe em `0001`. Para `0003`, o preflight deve confirmar
 as oito tabelas-alvo ausentes e preservar uma cópia lógica recuperável das 20
 tabelas e sequências anteriores. O arquivo usa uma única transação e falha
 visivelmente diante de drift ou reexecução; não acrescentar `IF NOT EXISTS` para
@@ -33,6 +34,6 @@ inalteradas e somente o ano 2026. Ver
 
 Para `0005`, o preflight confirmou as 28 tabelas pós-Conselho, ausência de `boletim_snapshot`, ano exclusivo 2026 e contagens acadêmicas; uma cópia lógica das 28 tabelas/12 sequências foi validada antes do DDL. O postflight produtivo de 11/09/2026 confirmou 29 tabelas no total e a relação nova vazia, com 13 colunas, 15 constraints, 4 índices totais, 3 FKs e ACL exata `SELECT, INSERT`, sem `UPDATE/DELETE` ou acesso público/cliente. Não emitir boletim real no smoke automatizado. Ver [`RELATIONAL_BULLETINS_V2.md`](../../docs/gradebook/RELATIONAL_BULLETINS_V2.md).
 
-## O que ainda falta para declarar recuperação institucional
+## Recuperação comprovada e limites institucionais
 
-Restore de dados e identities, integridade após restore, RPO/RTO, credenciais/privilégios mínimos, configurações externas, validação das jornadas e autorização do ambiente de teste permanecem gates #406/#596. Igualdade estrutural em banco descartável não equivale a backup/restore da produção. A cópia D1 histórica não contém as novas escritas relacionais.
+A #662 restaurou o artefato lógico V2 em PostgreSQL local descartável: 28 relações/120.879 linhas, IDs, 12 sequences, catálogo pós-`0005`, FKs, ACL local e jornadas selecionadas foram conferidos. RPO/RTO institucionais, restore gerenciado da produção, credenciais/configurações externas, failover e piloto integral permanecem gates #406/#596. Igualdade e restore locais não equivalem a backup/restore operacional da produção. A cópia D1 histórica não contém as novas escritas relacionais. Ver [`RELATIONAL_RECOVERY_REHEARSAL_662.md`](../../docs/gradebook/RELATIONAL_RECOVERY_REHEARSAL_662.md).

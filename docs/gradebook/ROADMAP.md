@@ -1,6 +1,6 @@
 # Roadmap — quatro fases finais
 
-A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #660 sob FINAL-1 #633, sem reconstruir os blocos já integrados.
+A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #662 sob FINAL-1/#406/#596, sem reconstruir os blocos já integrados.
 
 ## FINAL-1 — #633: runtime relacional e verdade documental
 
@@ -8,7 +8,7 @@ A reconstrução de persistência da #613 terminou. Este roadmap substitui a fil
 
 **Primeira entrega / PR #636:** reancoragem documental e leitura em lote; projeção anual deixa de consultar fatos separadamente por oferta. Preserva motor e resultados. Não liga novas telas nem fecha toda a fase.
 
-**Blocos integrados/em execução:** baseline, Centrais, Desempenho, Conselho, Boletins, Relatórios e Auditoria atual V2 estão integrados. A #660 conclui a configuração docente como leitura relacional dos cadastros importados, uniformiza a ordem de componentes e recusa a escrita V1 incompatível. **Restante depois da #660:** contrato/durabilidade da trilha humana de Auditoria, isolamento/concorrência/frescor e remoção apenas de dependências comprovadamente mortas. Contratos compartilhados exigem issue própria.
+**Blocos integrados/em execução:** baseline, Centrais, Desempenho, Conselho, Boletins, Relatórios, Auditoria atual V2 e configuração docente estão integrados. A #662 comprova restore do artefato lógico e contenção multi-sessão local; não substitui política/restore gerenciado nem operação externa. **Restante depois da #662:** contrato/durabilidade da trilha humana de Auditoria, recuperação operacional, validação visual e remoção apenas de dependências comprovadamente mortas. Contratos compartilhados exigem issue própria.
 
 **Fechar quando:** consumidores contemplados estejam integrados e verificados, sem relações antigas no caminho migrado, com CI e evidência funcional após publicação autorizada.
 
@@ -22,7 +22,7 @@ Validar legibilidade, acessibilidade, teclado, estados vazios/zero/indisponívei
 
 A decisão #648 fixa 2026, os estados 1/2/3, voto opcional somente favoráveis/contrários e desempate do diretor fora do sistema. O V3 relacional entrega turma/aluno, fila, panorama/detalhes, não elegíveis com motivos, sessão, decisão humana, votação, histórico, fechamento e reabertura justificada. Não converte julgamento humano em cálculo nem infere diretor a partir de papel administrativo.
 
-A extensão mínima persiste sessão, idempotência, votos, históricos e fotografias de fechamento sem backfill ou mudança de fatos acadêmicos. FINAL-3 termina após CI, migration/postflight, publicação e smoke da #648/#653; restart/contenção multi-sessão, integração posterior de Boletins/Relatórios e aceite visual conjunto permanecem gates dos blocos que os possuem.
+A extensão mínima persiste sessão, idempotência, votos, históricos e fotografias de fechamento sem backfill ou mudança de fatos acadêmicos. CI, migration/postflight, publicação e smoke da #648/#653 estão verdes; a #662 comprovou restart/restauração e contenção CAS em PostgreSQL local. Aceite visual conjunto e piloto permanecem gates separados.
 
 ## FINAL-4 — #406: piloto do produto inteiro
 

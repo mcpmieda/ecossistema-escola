@@ -218,6 +218,19 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F1-658-007`: não há select HTML, storage acadêmico no browser, criação/comparação de anos, DML acadêmico, mudança de regra ou autoridade.
 - `F1-658-008`: testes direcionados, `npm run verify`, CI do head, revisão, merge/deploy e smoke somente leitura seguem BN-DEC-023; validação visual conjunta continua separada.
 
+## F14-662 — Recuperação lógica e contenção PostgreSQL
+
+- `F14-662-001`: parser aceita somente envelope/catálogo/conjunto exatos do backup V2 e nunca publica payloads em falhas.
+- `F14-662-002`: alvo precisa ser loopback, vazio e nomeado `gradebook_recovery_*`; utilitário não contém DROP nem login/senha.
+- `F14-662-003`: plano aplica `0001`, grants, `0003`, `0004`, `0005`; `0002`, já incorporada à baseline reconstruída, não é reaplicada.
+- `F14-662-004`: restore local confere 28 relações/120.879 linhas e 12 sequences, preservando IDs, binários, JSON, nulos e timestamps.
+- `F14-662-005`: postflight confere catálogo 29/227/203/62/51, quatro funções, três triggers, FKs válidas, `PUBLIC` zero, 2026 único e zero boletins inventados.
+- `F14-662-006`: banco recuperado serve catálogo, comparação T2×T1, Auditoria, Conselho e histórico de Boletins sem emissão.
+- `F14-662-007`: duas conexões provam espera no advisory lock e último snapshot de diagnósticos completo, sem mistura.
+- `F14-662-008`: falha intencional após DELETE reverte a transação e preserva o conjunto diagnóstico anterior.
+- `F14-662-009`: corrida SERIALIZABLE do Conselho repete uma vez SQLSTATE 40001; CAS resulta em um vencedor, um `version-conflict` e retry idempotente.
+- `F14-662-010`: massa sintética é removida; backup/restore gerenciado, RPO/RTO, configurações externas, piloto e visual permanecem explicitamente fora do aceite.
+
 ## CAT — Cadastro acadêmico pela importação
 
 - `CAT-001`: professor e ano são reconhecidos em `CONFIGURAÇÃO!A2/C2`.
@@ -244,7 +257,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `RDY-002`: autoridade alterada, binding presente, migration remota ou piloto real são violações de
   escopo, nunca evidência de readiness.
 - `RDY-003`: lote máximo de 50 workbooks sintéticos permanece bounded e sequencial.
-- `RDY-004`: migrations locais 0001–0005 são idempotentes e recuperam schema V5/27 tabelas.
+- `RDY-004`: baseline `0001` e extensões `0003`–`0005` recuperam o catálogo atual de 29 tabelas; `0002` já está incorporada e migrations não idempotentes falham diante de reexecução/drift.
 - `RDY-005`: 30 séries sintéticas de Boletim preservam duas versões e sobrevivem a restart.
 - `RDY-006`: fila sintética de 30 estudantes resolve versões em lote e CAS concorrente tem um vencedor.
 - `RDY-007`: falha entre raiz/versão faz rollback sem versão órfã e mantém histórico recuperável.
