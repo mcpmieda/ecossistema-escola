@@ -39,7 +39,7 @@ const cell = z.object({
 }).strict().superRefine((value, ctx) => {
   const numeric = value.state === 'complete' || value.state === 'partial';
   if (numeric !== (value.valueMilli !== null)) ctx.addIssue({ code: 'custom', message: 'cell value/state mismatch' });
-  if (value.state !== 'complete' && value.level !== 'not-classified') ctx.addIssue({ code: 'custom', message: 'incomplete cell classified' });
+  if (numeric === (value.level === 'not-classified')) ctx.addIssue({ code: 'custom', message: 'numeric cell classification mismatch' });
   if (value.sourceComparison !== 'unavailable' && (value.state !== 'complete' || value.sourceReferenceMilli === null)) ctx.addIssue({ code: 'custom', message: 'unavailable comparison' });
 });
 export type PerformanceCellV2 = z.infer<typeof cell>;

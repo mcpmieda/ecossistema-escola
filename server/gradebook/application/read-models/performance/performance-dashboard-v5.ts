@@ -34,6 +34,25 @@ export function buildPerformanceDashboardOverviewV5(
       groups.allAtOrAbove.push(studentId);
     } else groups.pending.push(studentId);
   }
+  const ranking = analysis.matrix.rows
+    .filter((row) =>
+      row.student.indicatorEligible &&
+      row.cells.length > 0 &&
+      row.cells.every((cell) => cell.valueMilli !== null),
+    )
+    .map((row) => {
+      const total = row.cells.reduce((sum, cell) => sum + BigInt(cell.valueMilli!), 0n);
+      if (total > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('performance-ranking-overflow');
+      return {
+        studentId: row.student.id,
+        totalMilli: Number(total),
+        partial: row.cells.some((cell) => cell.state === 'partial'),
+        number: row.student.number,
+      };
+    })
+    .sort((left, right) => right.totalMilli - left.totalMilli || left.number - right.number || left.studentId - right.studentId)
+    .slice(0, 10)
+    .map((entry) => ({ studentId: entry.studentId, totalMilli: entry.totalMilli, partial: entry.partial }));
   return {
     denominator: 'eligible-students-in-current-scope',
     students: {
@@ -44,6 +63,7 @@ export function buildPerformanceDashboardOverviewV5(
       pending: groups.pending.length,
     },
     groups,
+    ranking,
     columns: analysis.columns.map((column) => ({
       key: column.key,
       offerId: column.offerId,

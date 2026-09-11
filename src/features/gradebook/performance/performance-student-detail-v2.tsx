@@ -1,17 +1,25 @@
+import { useLayoutEffect, useRef } from 'react';
 import { Avatar, Button, Drawer, Table } from '@heroui/react';
 import { UserRound } from 'lucide-react';
-import type { PerformanceReadyV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
+import type { PerformancePeriodV2, PerformanceReadyV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { GradeValue, gradeText } from './performance-display-v2';
 
 type Detail = Extract<PerformanceReadyV2, { operation: 'student-detail' | 'cell-detail' }>;
-export function PerformanceStudentDetailV2({ detail, openComponent, openCenter }: {
+export function PerformanceStudentDetailV2({ detail, focusPeriod, openComponent, openCenter }: {
   readonly detail: Detail;
+  readonly focusPeriod: PerformancePeriodV2;
   readonly openComponent: (studentId: number, offerId: number) => void;
   readonly openCenter: (studentId: number) => void;
 }) {
+  const focusedTerm = useRef<HTMLElement | null>(null);
   const student = detail.operation === 'student-detail' ? detail.row.student : detail.student;
   const visibleTerms = detail.operation === 'student-detail' ? ([0, 1, 2] as const).filter((index) =>
     detail.trajectory.some((offering) => offering.terms[index].valueMilli !== null)) : [];
+  useLayoutEffect(() => {
+    if (detail.operation === 'cell-detail' && focusPeriod !== 'annual') {
+      focusedTerm.current?.scrollIntoView?.({ behavior: 'auto', block: 'start' });
+    }
+  }, [detail, focusPeriod]);
   return <>
     <Drawer.Header className="border-b border-separator pb-5 pr-10">
       <div className="flex min-w-0 items-center gap-4">
@@ -41,7 +49,7 @@ export function PerformanceStudentDetailV2({ detail, openComponent, openCenter }
       </> : <>
         {detail.terms.filter((term) => term.hasGrades ?? (term.instruments.some((value) => value.valueMilli !== null) || term.regular.valueMilli !== null || term.recovery.valueMilli !== null || term.recovery.state === 'no-show')).map((term) => {
           const instruments = term.instruments.filter((instrument) => instrument.slot !== 3 || term.showParallel === true);
-          return <section key={term.term} aria-label={`${term.term}º trimestre`} className="rounded-xl border border-separator p-4">
+          return <section key={term.term} aria-label={`${term.term}º trimestre`} ref={(element) => { if (term.term === focusPeriod) focusedTerm.current = element; }} className="rounded-xl border border-separator p-4">
             <div className="mb-4 flex items-center justify-between gap-4">
               <h3 className="text-lg font-semibold">{term.term}º trimestre</h3>
               <div className="flex items-center gap-3"><span className="text-xs text-muted">Nota do trimestre</span><GradeValue cell={term.regular} prominent/></div>

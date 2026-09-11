@@ -66,7 +66,7 @@ export function performanceCellV2(projection: PerformanceProjectionV2, period: P
   return { ...base, state, valueMilli,
     // This is a read-only proportional classification using the configured annual threshold.
     // It is not the separate central rule that determines REC eligibility.
-    level: state !== 'complete' || valueMilli === null ? 'not-classified' :
+    level: (state !== 'complete' && state !== 'partial') || valueMilli === null ? 'not-classified' :
       (BigInt(valueMilli) * BigInt(ANNUAL_MAXIMUM) >= BigInt(maximumMilli) * BigInt(projection.minimumApprovalMilli) ? 'at-or-above' : 'below'),
     sourceComparison: state !== 'complete' || base.sourceReferenceMilli === null || valueMilli === null ? 'unavailable' : valueMilli === base.sourceReferenceMilli ? 'match' : 'mismatch',
   };

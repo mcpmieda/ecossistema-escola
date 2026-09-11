@@ -17,11 +17,11 @@ const offering = { id: 10, subject: { id: 1, label: 'MATEMATICA SINTETICA' }, te
 const cell = { offerId: 10, valueMilli: 24000, maximumMilli: 30000, state: 'complete', level: 'at-or-above', sourceReferenceMilli: 24000, sourceComparison: 'match', recoveryApplicable: false, warningCodes: [] };
 const student = { id: 1, name: 'ALUNO SINTETICO', number: 1, status: null, statusLabel: 'Sem situação especial', indicatorEligible: true };
 const row = { student, calculatedAnnual: { state: 'in-progress', label: 'EM CURSO', councilEligibility: 'not-applicable' }, formalCouncilDecision: null, cells: [cell] };
-const belowCell = { ...cell, valueMilli: 12000, level: 'below', sourceReferenceMilli: 12000 };
-const belowStudent = { ...student, id: 2, name: 'OUTRO ALUNO SINTETICO', number: 2 };
+const belowCell = { ...cell, valueMilli: 12000, state: 'partial', level: 'below', sourceReferenceMilli: 12000, sourceComparison: 'unavailable' };
+const belowStudent = { ...student, id: 2, name: 'OUTRO ALUNO SINTETICO', number: 2, status: 7, statusLabel: 'Estava no' };
 const belowRow = { ...row, student: belowStudent, cells: [belowCell] };
 const selected = { classGroup: { id: 10, label: 'A1' }, period: 1, mode: 'regular' };
-const matrix = { ...common, ...selected, operation: 'matrix', offers: [offering], rows: [row, belowRow], comparison: { available: false, reason: 'comparability-not-contracted' }, statistics: { classRows: 2, visibleRows: 2, eligibleRows: 2, recoveryUnknownRows: 0, consideredCells: 2, completeCells: 2, noShowCells: 0, incompleteCells: 0, attentionRows: 1 } };
+const matrix = { ...common, ...selected, operation: 'matrix', offers: [offering], rows: [row, belowRow], comparison: { available: false, reason: 'comparability-not-contracted' }, statistics: { classRows: 2, visibleRows: 2, eligibleRows: 2, recoveryUnknownRows: 0, consideredCells: 2, completeCells: 1, noShowCells: 0, incompleteCells: 1, attentionRows: 1 } };
 const request: PerformanceRequestV2 = { transportVersion: 2, operation: 'matrix', year: 2026, classId: 10, period: 1, mode: 'regular', statuses: [null, 7] };
 const catalog = { ...common, operation: 'classes', statusOptions: [{ value: null, label: 'Sem situação especial' }, { value: 7, label: 'Estava no' }], classes: [{ id: 10, label: 'A1' }], nextOffset: null };
 let root: Root | null = null;
@@ -31,8 +31,12 @@ let requests: Record<string, unknown>[];
 const reply = (data: unknown, status = 200) => Response.json(data, { status });
 
 const animationsDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations');
+const scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollIntoView');
+let scrollIntoView: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, value: () => [] });
+  scrollIntoView = vi.fn();
+  Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   vi.stubGlobal('matchMedia', (media: string) => ({ media, matches: false, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: () => true }));
   vi.stubGlobal('ResizeObserver', class { observe = vi.fn(); unobserve = vi.fn(); disconnect = vi.fn(); });
@@ -45,6 +49,13 @@ beforeEach(() => {
     if (body.operation === 'dashboard') return reply(dashboardFixture(body));
     if (body.operation === 'matrix') return reply({ ...matrix, period: body.period, mode: body.mode });
     if (body.operation === 'student-detail') return reply({ ...common, ...selected, operation: 'student-detail', row, offers: [offering], trajectory: [{ offerId: 10, terms: [cell, cell, cell] }] });
+    if (body.operation === 'cell-detail') return reply({ ...common, ...selected, period: body.period, mode: body.mode, operation: 'cell-detail', student, offer: offering, terms: ([1,2,3] as const).map((term) => ({
+      term, hasGrades: true, showParallel: false, showRecovery: false, regular: cell,
+      recovery: { ...cell, valueMilli: null, state: 'not-applicable', level: 'not-classified', sourceReferenceMilli: null, sourceComparison: 'unavailable' },
+      quantitativeOriginalMilli: 12000, quantitativeConsideredMilli: 12000, qualitativeMilli: 12000,
+      parallelMilli: null, parallelApplicable: false,
+      instruments: [{ slot: 1, label: `AVALIAÇÃO SINTÉTICA T${term}`, maximumMilli: 6750, valueMilli: 6000 }],
+    })) });
     if (body.operation === 'context') return reply({ contractVersion: 2, state: 'ready', operation: 'context', context, counts: { students: 1, classes: 1, teachers: 1, subjects: 1, offers: 1, currentBindings: 1, historicalBindings: 0 } });
     if (body.operation === 'center') return reply({ contractVersion: 2, state: 'ready', operation: 'center', context, center: { entity: { kind: 'student', id: 1, label: student.name }, classInfo: null, bindings: [], offers: [], nextOffset: null } });
     throw new Error('unexpected-synthetic-request');
@@ -53,7 +64,7 @@ beforeEach(() => {
   host = document.createElement('div'); document.body.appendChild(host);
   window.location.hash = '#/banco-de-notas?area=performance';
 });
-afterEach(async () => { if (root) await act(async () => { root!.unmount(); }); root = null; host.remove(); vi.unstubAllGlobals(); if (animationsDescriptor) Object.defineProperty(Element.prototype, 'getAnimations', animationsDescriptor); else Reflect.deleteProperty(Element.prototype, 'getAnimations'); });
+afterEach(async () => { if (root) await act(async () => { root!.unmount(); }); root = null; host.remove(); vi.unstubAllGlobals(); if (animationsDescriptor) Object.defineProperty(Element.prototype, 'getAnimations', animationsDescriptor); else Reflect.deleteProperty(Element.prototype, 'getAnimations'); if (scrollIntoViewDescriptor) Object.defineProperty(Element.prototype, 'scrollIntoView', scrollIntoViewDescriptor); else Reflect.deleteProperty(Element.prototype, 'scrollIntoView'); });
 async function settle() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); }); }
 async function waitFor(predicate: () => boolean) {
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -147,6 +158,17 @@ describe('real shell, shared year and rendered performance journey', () => {
     expect(host.querySelector('select[aria-label="Ano letivo"]')).toBeNull();
     expect(host.textContent).toContain('Consulta somente leitura');
     expect(requests.some((value) => value.operation === 'center' && value.id === 1 && value.year === 2026)).toBe(true);
+  });
+  it('opens a component detail at the trimester currently selected in the matrix', async () => {
+    await loaded();
+    await select('Período', '2');
+    await waitFor(() => requests.some((value) => value.operation === 'dashboard' && value.period === 2));
+    const grade = host.querySelector<HTMLButtonElement>(`button[aria-label="${student.name}, ${offering.subject.label}"]`);
+    expect(grade).not.toBeNull();
+    await act(async () => { grade!.click(); });
+    await waitFor(() => requests.some((value) => value.operation === 'cell-detail' && value.period === 2));
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect((scrollIntoView.mock.contexts[0] as Element).getAttribute('aria-label')).toBe('2º trimestre');
   });
   it('reopens the same student after using Centers without discarding the performance matrix', async () => {
     await loaded();
@@ -265,20 +287,29 @@ describe('four lenses and analytical investigation V3', () => {
   });
   it('shows both component groups inside the chart without filtering the matrix', async () => {
     await loaded();
+    expect(host.textContent).not.toContain('Quantidade de estudantes por faixa oficial');
+    expect(host.textContent).not.toContain('Todos os componentes do recorte atual');
+    expect(host.textContent).not.toContain('Todos no mínimo ou acima');
+    expect(host.textContent).toContain('Classificação da turma');
+    expect(host.textContent).toContain('12*');
+    expect(host.querySelector('.performance-status-chip--regular')?.getAttribute('aria-label')).toBe('Sem situação especial');
+    expect(host.querySelector('.performance-status-chip--origin')?.getAttribute('aria-label')).toBe('Estava no');
     const bar = host.querySelector('button[aria-label="MATEMATICA SINTETICA: 1 estudante(s) no mínimo ou acima"]') as HTMLButtonElement;
     expect(bar).not.toBeNull();
     await act(async () => { bar.click(); }); await settle();
+    expect(host.querySelector('[aria-label="Barras por componente curricular"]')).toBeNull();
     expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')?.textContent).toContain(student.name);
     expect(host.querySelector('[aria-label="Notas vermelhas: 1 estudante(s)"]')?.textContent).toContain(belowStudent.name);
     expect(host.querySelector('[aria-label="Matriz de Desempenho"]')?.textContent).toContain(student.name);
     expect(host.querySelector('[aria-label="Matriz de Desempenho"]')?.textContent).toContain(belowStudent.name);
     expect(host.textContent).toContain('a matriz permanece completa');
+    await click('Voltar ao gráfico');
     const redBar = host.querySelector('button[aria-label="MATEMATICA SINTETICA: 1 estudante(s) abaixo do mínimo"]') as HTMLButtonElement;
     await act(async () => { redBar.click(); }); await settle();
     expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')?.textContent).toContain(student.name);
     expect(host.querySelector('[aria-label="Notas vermelhas: 1 estudante(s)"]')?.textContent).toContain(belowStudent.name);
     await click('Ver estatísticas'); expect(host.textContent).toContain('Mediana proporcional');
-    await click('Fechar detalhe');
+    await click('Voltar ao gráfico');
     expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')).toBeNull();
     expect(requests.filter((r) => r.operation === 'dashboard')).toHaveLength(1);
   });
