@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isQualitativeColumnOrdinalV1, meaningfulQualitativeDescriptionV1 } from '../../../shared/gradebook-contracts/source/qualitative-slot-evidence-v1';
-import { sourceSubjectAbbreviationV1 } from '../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
+import { SOURCE_SUBJECT_PRESENTATION_V1, sourceSubjectAbbreviationV1, sourceSubjectPresentationOrderV1 } from '../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { termRecoveryVisibilityV1 } from '../../../src/gradebook-domain/calculations/simplified/term-recovery-visibility-v1';
 import { resolveSimplifiedTermV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import { resolveLegacyAcademicYear } from '../../../src/platform/gradebook-legacy-year';
@@ -20,6 +20,13 @@ describe('source evidence, not per-student omission #646', () => {
     expect(sourceSubjectAbbreviationV1(' matemática ')).toBe('M');
     expect(sourceSubjectAbbreviationV1('COMPUTAÇÃO')).toBe('CT');
     expect(sourceSubjectAbbreviationV1('Nova disciplina')).toBeNull();
+  });
+  it('preserves the inspected teacher-configuration presentation order', () => {
+    expect(SOURCE_SUBJECT_PRESENTATION_V1.slice(0, 5)).toEqual([
+      ['PORTUGUES', 'P'], ['MATEMATICA', 'M'], ['HISTORIA', 'H'], ['GEOGRAFIA', 'G'], ['CIENCIAS', 'C'],
+    ]);
+    expect(sourceSubjectPresentationOrderV1(' português ')).toBe(0);
+    expect(sourceSubjectPresentationOrderV1('Nova disciplina')).toBeNull();
   });
   it.each([
     [7000, 10000, true, true, true],

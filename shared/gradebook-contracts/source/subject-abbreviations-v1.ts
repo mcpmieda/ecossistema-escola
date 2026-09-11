@@ -4,12 +4,22 @@
  * additionally supplies COMPUTACAO/CT. Missing entries are not synthesized.
  * This catalogue is presentation metadata, never the identity of a subject.
  */
-export const SOURCE_SUBJECT_ABBREVIATIONS_V1: Readonly<Record<string, string>> = Object.freeze({
-  PORTUGUES: 'P', MATEMATICA: 'M', HISTORIA: 'H', GEOGRAFIA: 'G', CIENCIAS: 'C',
-  ARTE: 'A', RELIGIAO: 'RL', REDACAO: 'RD', 'ED. FISICA': 'F', ETICA: 'ET',
-  INGLES: 'I', COMPUTACAO: 'CT',
-});
+export const SOURCE_SUBJECT_PRESENTATION_V1 = Object.freeze([
+  ['PORTUGUES', 'P'], ['MATEMATICA', 'M'], ['HISTORIA', 'H'], ['GEOGRAFIA', 'G'],
+  ['CIENCIAS', 'C'], ['ARTE', 'A'], ['RELIGIAO', 'RL'], ['REDACAO', 'RD'],
+  ['ED. FISICA', 'F'], ['ETICA', 'ET'], ['INGLES', 'I'], ['COMPUTACAO', 'CT'],
+] as const);
+export const SOURCE_SUBJECT_ABBREVIATIONS_V1: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(SOURCE_SUBJECT_PRESENTATION_V1));
+const SOURCE_SUBJECT_PRESENTATION_INDEX_V1 = new Map<string, number>(
+  SOURCE_SUBJECT_PRESENTATION_V1.map(([name], index) => [name, index]));
+export function normalizeSourceSubjectNameV1(name: string): string {
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').trim().replace(/\s+/gu, ' ').toUpperCase();
+}
+export function sourceSubjectPresentationOrderV1(name: string): number | null {
+  return SOURCE_SUBJECT_PRESENTATION_INDEX_V1.get(normalizeSourceSubjectNameV1(name)) ?? null;
+}
 export function sourceSubjectAbbreviationV1(name: string): string | null {
-  const key = name.normalize('NFD').replace(/[\u0300-\u036f]/gu, '').trim().replace(/\s+/gu, ' ').toUpperCase();
+  const key = normalizeSourceSubjectNameV1(name);
   return SOURCE_SUBJECT_ABBREVIATIONS_V1[key] ?? null;
 }

@@ -1,5 +1,5 @@
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../../persistence/postgres/active-instrument-predicate-v1';
-import { sourceSubjectAbbreviationV1 } from '../../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
+import { sourceSubjectAbbreviationV1, sourceSubjectPresentationOrderV1 } from '../../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { termRecoveryVisibilityV1 } from '../../../../../src/gradebook-domain/calculations/simplified/term-recovery-visibility-v1';
 import {
   performanceRequestSchemaV2, performanceResponseSchemaV2, performanceResponseMatchesV2, PERFORMANCE_LIMITS_V2,
@@ -45,6 +45,14 @@ function student(row: Row): PerformanceRowV2['student'] {
 function offer(row: Row): PerformanceOfferV2 {
   return { id: integer(row.id), subject: { id: integer(row.disciplina_id), label: text(row.disciplina_nome), abbreviation: sourceSubjectAbbreviationV1(text(row.disciplina_nome)) },
     teacher: { id: integer(row.professor_id), label: text(row.professor_nome) } };
+}
+function orderOffers(left: PerformanceOfferV2, right: PerformanceOfferV2): number {
+  const a = sourceSubjectPresentationOrderV1(left.subject.label);
+  const b = sourceSubjectPresentationOrderV1(right.subject.label);
+  if (a !== null || b !== null) {
+    if (a === null) return 1; if (b === null) return -1; if (a !== b) return a - b;
+  }
+  return left.subject.label.localeCompare(right.subject.label, 'pt-BR') || left.id - right.id;
 }
 function closing(row: Row): PerformanceClosingV2 {
   const nc = integer(row.rec_nc_mask ?? 0);
@@ -100,7 +108,7 @@ export async function readRelationalPerformanceV2(db: D1WriteDatabaseV1, request
     JOIN gradebook.disciplina d ON d.id=o.disciplina_id AND d.ano=o.ano
     JOIN gradebook.professor p ON p.id=o.professor_id AND p.ano=o.ano
     WHERE o.ano=? AND o.turma_id=? ${specificOffer ? 'AND o.id=?' : ''}
-    ORDER BY d.nome COLLATE "C",o.id LIMIT ?`, [request.year, request.classId, ...(specificOffer ? [request.offerId] : []), PERFORMANCE_LIMITS_V2.offers + 1])).map(offer);
+    ORDER BY d.nome COLLATE "C",o.id LIMIT ?`, [request.year, request.classId, ...(specificOffer ? [request.offerId] : []), PERFORMANCE_LIMITS_V2.offers + 1])).map(offer).sort(orderOffers);
   if (specificOffer && offers.length === 0) return fail('not-found');
   if (offers.length > PERFORMANCE_LIMITS_V2.offers || students.length * offers.length > PERFORMANCE_LIMITS_V2.pairs) return fail('scope-too-large');
   if (new Set(offers.map((value) => value.subject.id)).size !== offers.length) return fail('ambiguous-offers');
