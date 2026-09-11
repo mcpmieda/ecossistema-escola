@@ -239,20 +239,12 @@ function GradebookWorkspaceShellContent() {
 
   return (
     <section aria-labelledby="gradebook-workspace-heading" className="grid min-w-0 grid-cols-1 gap-4">
-      <Surface variant="default" className="rounded-2xl border border-border/60 p-3 sm:p-4">
-        <div className="mb-3 max-w-3xl px-1">
-          <h2 id="gradebook-workspace-heading" className="text-lg font-semibold tracking-[-0.02em]">
-            Áreas do Banco de notas
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-muted">
-            Abra somente a experiência necessária. Áreas já visitadas preservam seu estado efêmero,
-            mas ficam fora da navegação e do fluxo de foco quando inativas.
-          </p>
-        </div>
+      <h2 id="gradebook-workspace-heading" className="sr-only">Banco de notas</h2>
+      <div className="gradebook-area-nav">
         <div
           role="tablist"
           aria-label="Áreas do Banco de notas"
-          className="flex max-w-full gap-2 overflow-x-auto pb-1"
+          className="gradebook-area-tabs max-w-full overflow-x-auto"
         >
           {GRADEBOOK_WORKSPACE_SURFACES.map((surface) => {
             const selected = surface.id === activeSurface;
@@ -269,10 +261,10 @@ function GradebookWorkspaceShellContent() {
                 aria-selected={selected}
                 aria-controls={`gradebook-panel-${surface.id}`}
                 tabIndex={selected ? 0 : -1}
-                className={`shrink-0 rounded-xl border px-3 py-2 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-focus ${
+                className={`gradebook-area-tab ${
                   selected
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-border bg-surface text-foreground hover:bg-default/50'
+                    ? 'gradebook-area-tab--selected'
+                    : ''
                 }`}
                 onClick={() => activateSurface(surface.id)}
                 onKeyDown={(event) => handleTabKeyDown(surface.id, event)}
@@ -282,9 +274,8 @@ function GradebookWorkspaceShellContent() {
             );
           })}
         </div>
-      </Surface>
-
-      {activeSurface !== 'importacao' ? <GradebookYearContextBanner /> : null}
+        <GradebookYearContextBanner />
+      </div>
 
       <p className="sr-only" aria-live="polite">
         {GRADEBOOK_WORKSPACE_SURFACES.find((surface) => surface.id === activeSurface)?.label} ativa.
@@ -302,7 +293,7 @@ function GradebookWorkspaceShellContent() {
             hidden={!active}
             className="min-w-0"
           >
-            <p className="mb-4 text-sm leading-6 text-muted">{surface.description}</p>
+            <p className="sr-only">{surface.description}</p>
             {surface.id === 'importacao' ? (
               <NotesImportPanel />
             ) : (
