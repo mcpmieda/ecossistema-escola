@@ -151,6 +151,9 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `PERF-005`: comparação usa percentual quando máximos diferem.
 - `PERF-006`: sinal analítico nunca altera estado acadêmico.
 - `PERF-007`: payload e latência são medidos em cenário documentado; evidência autenticada da #668 passa as metas sem convertê-las em SLA universal.
+- `PERF-008`: trocar diretamente entre Selects abertos fecha o anterior e abre o próximo em um único clique.
+- `PERF-009`: Resultado classifica toda soma numérica pelo limite proporcional de 60%, preservando ausência como ausência; as lentes de composição continuam exigindo completude.
+- `PERF-010`: clicar em qualquer barra azul/vermelha mostra dentro do gráfico os dois grupos nominais do componente, sem filtrar a matriz; rótulos não são cortados na altura máxima.
 
 ## SEC — Segurança e privacidade
 

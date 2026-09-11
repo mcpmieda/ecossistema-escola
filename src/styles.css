@@ -653,7 +653,7 @@ button.performance-kpi__button:hover {
   gap: 0.35rem;
   margin-top: 1rem;
   overflow-x: auto;
-  padding: 0.5rem 0.2rem 0;
+  padding: 1.75rem 0.2rem 0.25rem;
 }
 
 .performance-bars__column {
@@ -729,6 +729,111 @@ button.performance-kpi__button:hover {
   padding: 0.05rem 0.25rem;
   color: #8c5a00;
   font-size: 0.58rem;
+}
+
+.performance-bars__detail {
+  margin-top: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--separator);
+  border-radius: 1rem;
+  background: var(--surface-secondary);
+}
+
+.performance-bars__detail-header {
+  display: flex;
+  min-height: 3.6rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--separator);
+  padding: 0.65rem 0.8rem;
+}
+
+.performance-bars__student-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.performance-bars__student-group {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--separator);
+  border-radius: 0.85rem;
+  background: var(--surface);
+}
+
+.performance-bars__student-group > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-left: 3px solid var(--performance-above);
+  padding: 0.65rem 0.7rem;
+}
+
+.performance-bars__student-group--below > header {
+  border-left-color: var(--performance-below);
+}
+
+.performance-bars__student-group > header strong,
+.performance-bars__student-group > header small {
+  display: block;
+}
+
+.performance-bars__student-group > header strong {
+  font-size: 0.75rem;
+}
+
+.performance-bars__student-group > header small,
+.performance-bars__student-group > p {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.performance-bars__student-group > ul {
+  max-height: 12rem;
+  overflow-y: auto;
+  border-top: 1px solid var(--separator);
+}
+
+.performance-bars__student-group li + li {
+  border-top: 1px solid color-mix(in oklab, var(--separator) 70%, transparent);
+}
+
+.performance-bars__student-group li > button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  border: 0;
+  background: transparent;
+  padding: 0.48rem 0.7rem;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.7rem;
+  text-align: left;
+}
+
+.performance-bars__student-group li > button:hover {
+  background: var(--surface-secondary);
+}
+
+.performance-bars__student-group li > button:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
+  outline-offset: -2px;
+}
+
+.performance-bars__student-group li small {
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.performance-bars__student-group > p {
+  border-top: 1px solid var(--separator);
+  padding: 0.75rem;
 }
 
 .performance-panorama {
@@ -1116,6 +1221,9 @@ button.performance-kpi__button:hover {
     border-bottom: 0;
   }
   .performance-panorama {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .performance-bars__student-groups {
     grid-template-columns: minmax(0, 1fr);
   }
   .council-filterbar {

@@ -66,13 +66,16 @@ function PerformanceKpisV5({ value, selection, onSelectionChange }: {
   </div>;
 }
 
-function ComponentBarsV5({ value, selection, onSelectionChange }: {
+function ComponentBarsV5({ value, selection, onSelectionChange, open }: {
   readonly value: PerformanceDashboardV5;
   readonly selection: PerformanceDashboardSelectionV5;
   readonly onSelectionChange: (selection: PerformanceDashboardSelectionV5) => void;
+  readonly open: (studentId: number, offerId?: number) => void;
 }) {
   const analysis = dashboardAnalysisV5(value);
   const offers = new Map(analysis.matrix.offers.map((offer) => [offer.id, offer]));
+  const students = new Map(analysis.matrix.rows.map((row) => [row.student.id, row.student]));
+  const selectedColumn = selection?.kind === 'column' ? analysis.columns.find((column) => column.key === selection.key) : undefined;
   const maximum = Math.max(1, ...value.overview.columns.flatMap((column) => [column.atOrAbove, column.below]));
   const choose = (key: string, bucket: 'above' | 'below') => {
     const active = selection?.kind === 'column' && selection.key === key && selection.bucket === bucket;
@@ -108,7 +111,20 @@ function ComponentBarsV5({ value, selection, onSelectionChange }: {
         </div>;
       })}
     </div>
-    <p className="mt-3 text-[11px] leading-5 text-muted">Incompletos, N/C e leituras sem máximo não entram nas barras azul/vermelha e aparecem ao lado da sigla.</p>
+    {selectedColumn ? <section className="performance-bars__detail" aria-label={`Estudantes por situação em ${selectedColumn.label}`} aria-live="polite">
+      <header className="performance-bars__detail-header"><span><span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Componente selecionado</span><h4 className="text-sm font-semibold">{selectedColumn.label}</h4></span><Button size="sm" variant="ghost" onPress={() => onSelectionChange(null)}>Fechar</Button></header>
+      <div className="performance-bars__student-groups">{([
+        { bucket: 'above', label: 'Notas azuis', detail: 'No mínimo ou acima', tone: 'above' },
+        { bucket: 'below', label: 'Notas vermelhas', detail: 'Abaixo do mínimo', tone: 'below' },
+      ] as const).map((group) => {
+        const members = selectedColumn.summary.groups[group.bucket].map((id) => students.get(id)).filter((student) => student !== undefined);
+        return <section className={`performance-bars__student-group performance-bars__student-group--${group.tone}`} key={group.bucket} aria-label={`${group.label}: ${members.length} estudante(s)`}>
+          <header><span><strong>{group.label}</strong><small>{group.detail}</small></span><Chip size="sm" variant="soft">{members.length}</Chip></header>
+          {members.length > 0 ? <ul>{members.map((student) => <li key={student.id}><button type="button" onClick={() => open(student.id, selectedColumn.offerId)}><span className="truncate">{student.name}</span><small>Nº {student.number}</small></button></li>)}</ul> : <p>Nenhum estudante nesta faixa.</p>}
+        </section>;
+      })}</div>
+    </section> : null}
+    <p className="mt-3 text-[11px] leading-5 text-muted">Na lente Resultado, toda soma numérica é comparada a 60% do máximo do recorte (18, 18 ou 24 nos trimestres). Ausência, N/C e leituras sem máximo não viram zero e aparecem ao lado da sigla.</p>
   </Surface>;
 }
 
@@ -125,6 +141,7 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
   const good = stats.allAtOrAbove / denominator * 100;
   const below = stats.withBelow / denominator * 100;
   const pending = stats.pending / denominator * 100;
+  const pendingLabel = analysis.lens === 'result' ? 'Sem nota numérica para classificar' : 'Ainda sem classificação';
   const students = new Map(analysis.matrix.rows.map((row) => [row.student.id, row.student]));
   const attention = value.overview.groups.withBelow.map((id) => students.get(id)).filter((item) => item !== undefined);
   const choose = (group: 'allAtOrAbove' | 'withBelow' | 'pending') => {
@@ -137,7 +154,7 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
       <span><h3 className="text-sm font-semibold">Panorama da turma</h3><p className="text-xs text-muted">Todos os componentes do recorte atual</p></span>
     </header>
     <div className="performance-panorama">
-      <div className="performance-donut" role="img" aria-label={`${stats.allAtOrAbove} estudantes com todos os componentes no mínimo ou acima, ${stats.withBelow} com pelo menos um abaixo e ${stats.pending} ainda sem classificação integral`}
+      <div className="performance-donut" role="img" aria-label={`${stats.allAtOrAbove} estudantes com todos os componentes no mínimo ou acima, ${stats.withBelow} com pelo menos um abaixo e ${stats.pending} sem leitura classificada`}
         style={{ background: `conic-gradient(var(--performance-above) 0 ${good}%, var(--performance-below) ${good}% ${good + below}%, var(--performance-pending) ${good + below}% ${good + below + pending}%)` }}>
         <div className="performance-donut__center"><strong>{number.format(good)}%</strong><span>{stats.allAtOrAbove} de {stats.eligible}</span></div>
       </div>
@@ -149,7 +166,7 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
           <i className="performance-legend performance-legend--below"/><span>Algum abaixo do mínimo</span><strong>{stats.withBelow}</strong>
         </button>
         <button type="button" className="performance-panorama__item" aria-pressed={selection?.kind === 'group' && selection.group === 'pending'} onClick={() => choose('pending')}>
-          <i className="performance-legend performance-legend--pending"/><span>Ainda sem classificação</span><strong>{stats.pending}</strong>
+          <i className="performance-legend performance-legend--pending"/><span>{pendingLabel}</span><strong>{stats.pending}</strong>
         </button>
       </div>
     </div>
@@ -172,7 +189,7 @@ export function PerformanceDashboardWidgetsV5({ value, selection, onSelectionCha
   return <div className="grid min-w-0 gap-4">
     <PerformanceKpisV5 value={value} selection={selection} onSelectionChange={onSelectionChange}/>
     <div className="performance-dashboard-grid">
-      <ComponentBarsV5 value={value} selection={selection} onSelectionChange={onSelectionChange}/>
+      <ComponentBarsV5 value={value} selection={selection} onSelectionChange={onSelectionChange} open={open}/>
       <ClassPanoramaV5 value={value} selection={selection} onSelectionChange={onSelectionChange} open={open}/>
     </div>
   </div>;

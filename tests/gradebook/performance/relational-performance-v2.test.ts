@@ -278,6 +278,13 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
     expect(summary.meanPercent).toBeCloseTo((12000/13500 + 0 + 8000/13500 + 40000/13500)*100/4);
     expect(summary.medianPercent).toBeCloseTo((8000/13500 + 12000/13500)*50);
   });
+  it('classifies a numeric partial result at 60% without converting absence into zero', async () => {
+    const result = await analysis({ lens: 'result', period: 1 });
+    const at = (id: number) => result.rows.find((row) => row.studentId === id)!.values[0]!;
+    expect(at(3)).toMatchObject({ state: 'partial', valueMilli: 2000, maximumMilli: 30000, bucket: 'below' });
+    expect(at(3).percent).toBeCloseTo(2000 / 30000 * 100);
+    expect(at(5)).toMatchObject({ state: 'not-recorded', valueMilli: null, percent: null, bucket: 'incomplete' });
+  });
   it.each([1,2,3,'annual'])('uses actual qualitative maxima in period %s, not a fabricated concept', async (period) => {
     const result = await analysis({ lens: 'qualitative', period });
     const first = result.rows[0]!.values[0]!;
@@ -354,9 +361,9 @@ describe('performance dashboard V5', () => {
     if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
     expect(queries).toHaveLength(6);
     expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
-    expect(result.overview.students).toEqual({ eligible: 6, classified: 4, allAtOrAbove: 2, withBelow: 2, pending: 2 });
-    expect(result.overview.groups).toEqual({ allAtOrAbove: [1, 8], withBelow: [2, 4], pending: [3, 5] });
-    expect(result.overview.columns[0]).toMatchObject({ considered: 6, atOrAbove: 2, below: 2, incomplete: 2, noShow: 0, unscaled: 0 });
+    expect(result.overview.students).toEqual({ eligible: 6, classified: 5, allAtOrAbove: 2, withBelow: 3, pending: 1 });
+    expect(result.overview.groups).toEqual({ allAtOrAbove: [1, 8], withBelow: [2, 3, 4], pending: [5] });
+    expect(result.overview.columns[0]).toMatchObject({ considered: 6, atOrAbove: 2, below: 3, incomplete: 1, noShow: 0, unscaled: 0 });
     expect(dashboardAnalysisV5(result).matrix.readAt).toBeTruthy();
     expect(performanceDashboardResponseSchemaV5.safeParse(result).success).toBe(true);
     expect(performanceDashboardMatchesV5(request, result)).toBe(true);

@@ -46,9 +46,13 @@ function assessment(projection: PerformanceProjectionV2, column: Column): RawRea
     return { ...base, valueMilli: null, state: outcome?.parallelApplicable === false ? 'not-applicable' : 'unavailable' };
   return { ...base, valueMilli: fact.valueMilli, state: fact.valueMilli === null ? 'not-recorded' : 'complete' };
 }
-function reading(raw: RawReading, key: string, eligible: boolean, minimum: number): AnalysisReadingV3 {
-  const percent = raw.state === 'complete' && raw.valueMilli !== null && raw.maximumMilli !== null ? raw.valueMilli / raw.maximumMilli * 100 : null;
-  const bucket = !eligible || raw.state === 'not-applicable' ? 'excluded' : raw.state === 'no-show' ? 'no-show' : raw.state !== 'complete' ? 'incomplete' : percent === null ? 'unscaled' :
+function reading(raw: RawReading, key: string, eligible: boolean, minimum: number, classifyPartialResult: boolean): AnalysisReadingV3 {
+  // Resultado may already expose a numeric term total while its instrument coverage is partial.
+  // Classify that visible total proportionally for the dashboard, without changing the source state
+  // or converting a missing value into zero. Composition lenses still require complete coverage.
+  const classificationReady = raw.state === 'complete' || (classifyPartialResult && raw.state === 'partial');
+  const percent = classificationReady && raw.valueMilli !== null && raw.maximumMilli !== null ? raw.valueMilli / raw.maximumMilli * 100 : null;
+  const bucket = !eligible || raw.state === 'not-applicable' ? 'excluded' : raw.state === 'no-show' ? 'no-show' : !classificationReady ? 'incomplete' : percent === null ? 'unscaled' :
     BigInt(raw.valueMilli!) * BigInt(ANNUAL_MAXIMUM) >= BigInt(raw.maximumMilli!) * BigInt(minimum) ? 'above' : 'below';
   return { ...raw, key, percent, bucket };
 }
@@ -71,7 +75,7 @@ export function buildPerformanceAnalysisV3(matrix: PerformanceMatrixV2, projecti
       const projection = byOffer.get(column.offerId);
       const raw: RawReading = request.lens === 'result' ? { valueMilli: cell.valueMilli, maximumMilli: cell.maximumMilli, recordedMilli: null, state: cell.state } :
         !projection ? empty() : request.lens === 'assessments' ? assessment(projection, column) : dimension(projection, request);
-      return reading(raw, column.key, row.student.indicatorEligible && (matrix.mode === 'regular' || cell.recoveryApplicable === true), matrix.context.minimumApprovalMilli);
+      return reading(raw, column.key, row.student.indicatorEligible && (matrix.mode === 'regular' || cell.recoveryApplicable === true), matrix.context.minimumApprovalMilli, request.lens === 'result');
     }) };
   });
   columns = columns.map((column, i) => {
