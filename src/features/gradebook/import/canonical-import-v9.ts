@@ -7,6 +7,7 @@ import {
   type GradebookImportRecoveryCellV9,
   type GradebookImportTermV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
+import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../../../../shared/gradebook-contracts/current-academic-year-v1';
 import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   type SourceAssessmentDefinitionV2,
@@ -306,6 +307,9 @@ export function createGradebookCanonicalImportRequestV9(
 ): GradebookImportPersistenceRequestV9 {
   const summary = result.summary as SummaryWithRelationV9;
   if (summary.masterRelationV9) {
+    if (summary.masterRelationV9.ano !== CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1) {
+      throw new Error(`A relação deve ser do ano letivo ${CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1}.`);
+    }
     runtime.onProgress?.({ stage: 'roster', current: 0, total: summary.masterRelationV9.turmas.length });
     const request = {
       transportVersion: 9,
@@ -321,6 +325,9 @@ export function createGradebookCanonicalImportRequestV9(
   }
 
   if (!Number.isSafeInteger(summary.academicYear)) throw new Error('Ano letivo ausente em CONFIGURAÇÃO!C2.');
+  if (summary.academicYear !== CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1) {
+    throw new Error(`A planilha deve ser do ano letivo ${CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1}.`);
+  }
   const professor = summary.teacherName?.trim();
   if (!professor) throw new Error('Professor não reconhecido em CONFIGURAÇÃO!A2.');
   const groups = courseGroups(summary);

@@ -18,7 +18,6 @@ import type {
 import { NotesPage } from './notes-page';
 import { OperationsPage } from './operations-page';
 import { EmptyState, formatDate, ModuleList, PageHeader, shortCorrelation } from './presentation';
-import { AcademicYearManagementPanelV1 } from '../features/gradebook/operational-workspace/academic-year-management-panel-v1';
 
 function integrationStateLabel(state: ModuleIntegrationState): string {
   switch (state) {
@@ -365,8 +364,6 @@ function SettingsPage({ snapshot }: { snapshot: PlatformSnapshotContract }) {
         title="Configurações"
         description="Consulte as configurações administrativas e seu estado de vigência."
       />
-
-      <AcademicYearManagementPanelV1 />
 
       <Card variant="default" className="overflow-hidden">
         <Card.Header className="border-b border-border/60">

@@ -53,3 +53,15 @@ Distinguir: fonte normativa, implementação na branch, código integrado, publi
 O fluxo continua: issue e contrato quando necessário → branch curta → revisão do diff → `npm run verify`/CI no head final → merge com SHA esperado → deploy pelo workflow oficial → verificação/checkpoint. Falhas de validação, conflitos ou regressões materiais interrompem a publicação. Não contornar checks, aprovações exigidas pela proteção ou limites de autorização; não habilitar merge incondicional nem criar orquestrador permanente.
 
 Não amplia autorização para apagar dados/recursos, executar migrations destrutivas, alterar regras ou autoridade acadêmica, ACL/RLS, pessoas/permissões, secrets, proteções de branches ou infraestrutura. Essas decisões continuam próprias. Deploy aprovado não é aceite acadêmico #347, piloto #406, teste de restore ou smoke autenticado/visual: registrar evidência e limitação separadamente. PR parcial não encerra FINAL-1.
+
+## BN-DEC-024 — Ano letivo 2026 fixo e comparação somente entre trimestres
+
+**Data:** 2026-09-10. **Origem:** decisão explícita do responsável; #649 e PR #650. Complementa BN-DEC-022/023 e substitui os planos correntes de criação/seleção de anos e de comparabilidade ainda não decidida em #633/#634/#646.
+
+O produto ativo fica restrito ao ano letivo **2026** nesta etapa. Remover criação/gestão de anos, seletor global, catálogo usado para escolha, preferência no browser e qualquer comparação entre anos letivos. Centrais relacionais, Desempenho e importação canônica recusam outro ano antes de ler ou persistir. `ano`/`ano_letivo` permanecem como chaves estruturais, FKs e isolamento; não apagar schema/histórico nem executar mudanças de dados produtivos. A materialização técnica do único registro 2026 pela importação da Relação continua permitida quando necessária às FKs do mesmo fluxo, sem abrir criação de outro ano.
+
+Comparações são apenas entre trimestres de 2026: T2→T1 e T3→T1 ou T2, com referência escolhida explicitamente. Comparar o mesmo aluno, turma, componente, lente e modo pela proporção `valor/máximo oficial positivo`; relação exata maior/igual/menor e diferença em pontos percentuais. Zero participa e valores acima de 100% não são limitados. Resultado, Quantitativo e Qualitativo são elegíveis; Avaliações por slot, T1 e Visão geral não são.
+
+Leitura excluída, parcial, vazia, N/C, recuperação pendente, não aplicável, indisponível ou sem máximo positivo não recebe comparação. Não criar tolerância, tendência, ranking, equivalência de instrumentos, melhora/piora pedagógica ou nova regra acadêmica. A autoridade é observação descritiva sobre a projeção calculada, nunca emissão oficial.
+
+Atual e referência devem nascer do mesmo snapshot PostgreSQL read-only/repeatable-read e do mesmo conjunto de fatos, sem N+1. Seleções ficam em memória e respostas obsoletas são canceladas/descartadas. Os registros atuais do banco podem servir como massa de teste, mas não como dados oficiais ou aceite institucional. A validação visual de FINAL-1/FINAL-2 será única e feita depois com o responsável; avisá-lo imediatamente antes de iniciá-la.

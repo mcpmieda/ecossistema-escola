@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 import { Alert, Button, Spinner, Surface } from '@heroui/react';
-import { GradebookYearProvider, GradebookYearSelector } from './gradebook-year-provider';
+import { GradebookYearContextBanner, GradebookYearProvider } from './gradebook-year-provider';
 import { useGradebookYear } from './gradebook-year-context';
 import { NotesImportPanel } from '../features/gradebook/import/import-panel';
 
@@ -23,7 +23,7 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
   {
     id: 'operational',
     label: 'Centrais',
-    description: 'Localize alunos, turmas, professores e componentes no ano acadêmico selecionado.',
+    description: 'Localize alunos, turmas, professores e componentes no ano letivo 2026.',
   },
   {
     id: 'audit',
@@ -284,7 +284,7 @@ function GradebookWorkspaceShellContent() {
         </div>
       </Surface>
 
-      {activeSurface !== 'importacao' ? <GradebookYearSelector /> : null}
+      {activeSurface !== 'importacao' ? <GradebookYearContextBanner /> : null}
 
       <p className="sr-only" aria-live="polite">
         {GRADEBOOK_WORKSPACE_SURFACES.find((surface) => surface.id === activeSurface)?.label} ativa.

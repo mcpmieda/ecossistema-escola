@@ -1,4 +1,6 @@
 import { createPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
+import { createPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
+import { performanceTermComparisonRequestSchemaV4, performanceTermComparisonResponseSchemaV4, performanceTermComparisonMatchesV4 } from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import { performanceAnalysisRequestSchemaV3, performanceAnalysisResponseSchemaV3, performanceAnalysisMatchesV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
@@ -17,29 +19,31 @@ let pg: PGlite;
 let database: GradebookPostgresDatabaseV1;
 let readsFail = false;
 const queries: string[] = [];
-const matrixRequest = (extra = {}): PerformanceRequestV2 => ({ transportVersion: 2, operation: 'matrix', year: 2090, classId: 10, period: 1, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], ...extra });
+const matrixRequest = (extra = {}): PerformanceRequestV2 => ({ transportVersion: 2, operation: 'matrix', year: 2026, classId: 10, period: 1, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], ...extra });
 const service = () => createRelationalPerformanceV2(database);
+const comparisonRequest = (extra: Record<string, unknown> = {}) => ({ transportVersion: 4, operation: 'term-comparison', year: 2026, classId: 10,
+  period: 3, referencePeriod: 1, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], lens: 'result', offerId: null, ...extra });
 
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await pg.exec(`
-    INSERT INTO gradebook.ano_letivo VALUES (2090,60000,2),(2091,65000,3);
+    INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2),(2025,65000,3);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES
-      (10,2090,'A1','TURMA SINTETICA',6,'M'),(20,2090,'B1','TURMA SINTETICA B',6,'T'),
-      (30,2091,'A1','OUTRO ANO SINTETICO',6,'M'),(40,2090,'C1','SEM DEFINICAO',6,'T'),
-      (50,2090,'D1','AMBIGUA',6,'T'),(60,2090,'E1','LIMITE DE TAMANHO',6,'T');
-    INSERT INTO gradebook.professor (id,ano,nome) VALUES (1,2090,'DOCENTE SINTETICO'),(2,2090,'OUTRO DOCENTE SINTETICO'),(3,2091,'DOCENTE SINTETICO');
-    INSERT INTO gradebook.disciplina (id,ano,nome) VALUES (1,2090,'MATEMATICA SINTETICA'),(2,2090,'PORTUGUES SINTETICO'),(3,2091,'MATEMATICA SINTETICA');
+      (10,2026,'A1','TURMA SINTETICA',6,'M'),(20,2026,'B1','TURMA SINTETICA B',6,'T'),
+      (30,2025,'A1','OUTRO ANO SINTETICO',6,'M'),(40,2026,'C1','SEM DEFINICAO',6,'T'),
+      (50,2026,'D1','AMBIGUA',6,'T'),(60,2026,'E1','LIMITE DE TAMANHO',6,'T');
+    INSERT INTO gradebook.professor (id,ano,nome) VALUES (1,2026,'DOCENTE SINTETICO'),(2,2026,'OUTRO DOCENTE SINTETICO'),(3,2025,'DOCENTE SINTETICO');
+    INSERT INTO gradebook.disciplina (id,ano,nome) VALUES (1,2026,'MATEMATICA SINTETICA'),(2,2026,'PORTUGUES SINTETICO'),(3,2025,'MATEMATICA SINTETICA');
     INSERT INTO gradebook.oferta (id,ano,turma_id,professor_id,disciplina_id) VALUES
-      (10,2090,10,1,1),(11,2090,10,1,2),(20,2090,20,1,1),(30,2091,30,3,3),
-      (40,2090,40,1,1),(50,2090,50,1,1),(51,2090,50,2,1);
-    INSERT INTO gradebook.aluno (id,ano,nome,conselho_anterior,conselho_anterior_por) SELECT n,2090,'ALUNO SINTETICO '||n,false,'11111111-1111-4111-8111-111111111111'::uuid FROM generate_series(1,10) n;
-    INSERT INTO gradebook.aluno (id,ano,nome) VALUES (99,2091,'ALUNO SINTETICO 1'),(40,2090,'SEM DEFINICAO SINTETICO');
-    INSERT INTO gradebook.vinculo SELECT 2090,10,n,n,CASE WHEN n=6 THEN 2 WHEN n=7 THEN 4 ELSE NULL END,NULL FROM generate_series(1,8) n;
-    INSERT INTO gradebook.vinculo VALUES (2090,10,9,9,6,20),(2090,20,1,9,7,10),(2091,30,1,99,NULL,NULL),(2090,40,1,40,NULL,NULL);
-    INSERT INTO gradebook.aluno (id,ano,nome) SELECT 1000+n,2090,'POPULACAO SINTETICA '||n FROM generate_series(1,151) n;
-    INSERT INTO gradebook.vinculo SELECT 2090,60,n,1000+n,NULL,NULL FROM generate_series(1,151) n;
+      (10,2026,10,1,1),(11,2026,10,1,2),(20,2026,20,1,1),(30,2025,30,3,3),
+      (40,2026,40,1,1),(50,2026,50,1,1),(51,2026,50,2,1);
+    INSERT INTO gradebook.aluno (id,ano,nome,conselho_anterior,conselho_anterior_por) SELECT n,2026,'ALUNO SINTETICO '||n,false,'11111111-1111-4111-8111-111111111111'::uuid FROM generate_series(1,10) n;
+    INSERT INTO gradebook.aluno (id,ano,nome) VALUES (99,2025,'ALUNO SINTETICO 1'),(40,2026,'SEM DEFINICAO SINTETICO');
+    INSERT INTO gradebook.vinculo SELECT 2026,10,n,n,CASE WHEN n=6 THEN 2 WHEN n=7 THEN 4 ELSE NULL END,NULL FROM generate_series(1,8) n;
+    INSERT INTO gradebook.vinculo VALUES (2026,10,9,9,6,20),(2026,20,1,9,7,10),(2025,30,1,99,NULL,NULL),(2026,40,1,40,NULL,NULL);
+    INSERT INTO gradebook.aluno (id,ano,nome) SELECT 1000+n,2026,'POPULACAO SINTETICA '||n FROM generate_series(1,151) n;
+    INSERT INTO gradebook.vinculo SELECT 2026,60,n,1000+n,NULL,NULL FROM generate_series(1,151) n;
     INSERT INTO gradebook.instrumento (id,oferta_id,trimestre,slot,maximo,descricao)
       SELECT o*100+t*20+s,o,t,s,CASE WHEN s=11 THEN CASE WHEN t=3 THEN 22000 ELSE 16500 END ELSE CASE WHEN t=3 THEN 9000 ELSE 6750 END END,'AVALIACAO SINTETICA'
       FROM (VALUES (10),(11)) a(o) CROSS JOIN generate_series(1,3) b(t) CROSS JOIN (VALUES (1),(2),(11)) c(s);
@@ -135,7 +139,7 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     expect(await service().execute(matrixRequest({ classId: 60 }))).toEqual({ transportVersion: 2, state: 'scope-too-large' });
   });
   it('loads only the requested student and offer in a cell detail', async () => {
-    const request: PerformanceRequestV2 = { transportVersion: 2, operation: 'cell-detail', year: 2090, classId: 10, period: 1, mode: 'regular', studentId: 2, offerId: 10 };
+    const request: PerformanceRequestV2 = { transportVersion: 2, operation: 'cell-detail', year: 2026, classId: 10, period: 1, mode: 'regular', studentId: 2, offerId: 10 };
     const result = await service().execute(request);
     expect(result).toMatchObject({ operation: 'cell-detail', student: { id: 2 }, offer: { id: 10 } });
     expect(performanceResponseMatchesV2(request, result)).toBe(true);
@@ -144,15 +148,19 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     expect(queries[5]).toContain('AND o.id=');
   });
   it('loads the student trajectory without a matrix for other students', async () => {
-    const result = await service().execute({ transportVersion: 2, operation: 'student-detail', year: 2090, classId: 10, period: 3, mode: 'regular', studentId: 1 });
+    const result = await service().execute({ transportVersion: 2, operation: 'student-detail', year: 2026, classId: 10, period: 3, mode: 'regular', studentId: 1 });
     expect(result).toMatchObject({ operation: 'student-detail', row: { student: { id: 1 } }, trajectory: [{ offerId: 10 }, { offerId: 11 }] });
     expect(queries).toHaveLength(6);
   });
-  it.each([{ year: 2091, classId: 10 }, { year: 2092, classId: 10 }, { classId: 999 }])('rejects a mismatched or missing year/class %j', async (extra) => {
-    expect(await service().execute(matrixRequest(extra))).toEqual({ transportVersion: 2, state: 'not-found' });
+  it.each([{ year: 2025, classId: 10 }, { year: 2027, classId: 10 }])('rejects a non-2026 year before SQL %j', async (extra) => {
+    expect(await service().execute(matrixRequest(extra))).toEqual({ transportVersion: 2, state: 'invalid-request' });
+    expect(queries).toHaveLength(0);
+  });
+  it('does not disclose whether a class exists outside the requested 2026 scope', async () => {
+    expect(await service().execute(matrixRequest({ classId: 999 }))).toEqual({ transportVersion: 2, state: 'not-found' });
   });
   it('pages registered classes without inventing a selected year', async () => {
-    const request = { transportVersion: 2, operation: 'classes', year: 2090, offset: 0, limit: 2 } as const;
+    const request = { transportVersion: 2, operation: 'classes', year: 2026, offset: 0, limit: 2 } as const;
     const result = await service().execute(request);
     expect(result).toMatchObject({ classes: [{ id: 10 }, { id: 20 }], nextOffset: 2 });
     expect(performanceResponseMatchesV2(request, result)).toBe(true);
@@ -185,6 +193,52 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     const body = await response.text();
     expect(body).not.toContain('synthetic-private-failure');
     expect(body).toContain('unavailable');
+  });
+});
+
+describe('same-year trimester comparison V4', () => {
+  it('compares exact proportions from one repeatable-read snapshot without N+1', async () => {
+    const request = performanceTermComparisonRequestSchemaV4.parse(comparisonRequest());
+    const result = await createPerformanceTermComparisonV4(database).execute(request);
+    expect(result.state).toBe('ready');
+    if (result.state !== 'ready') throw new Error('unexpected-comparison-failure');
+    expect(queries).toHaveLength(6);
+    expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
+    expect(result).toMatchObject({ authority: 'descriptive-observation', basis: 'percentage-points-of-official-maximum', referencePeriod: 1,
+      analysis: { lens: 'result', matrix: { period: 3, context: { year: 2026 } } } });
+    const row = (id: number) => result.rows.find((value) => value.studentId === id)!.values[0]!;
+    expect(row(1)).toMatchObject({ state: 'comparable', relation: 'lower' });
+    expect(row(2)).toMatchObject({ state: 'comparable', relation: 'equal', deltaPercentagePoints: 0, currentPercent: 0, referencePercent: 0 });
+    expect(row(3)).toMatchObject({ state: 'unavailable', reason: 'current-incomplete', deltaPercentagePoints: null });
+    expect(performanceTermComparisonResponseSchemaV4.safeParse(result).success).toBe(true);
+    expect(performanceTermComparisonMatchesV4(request, result)).toBe(true);
+  });
+  it('supports T3 against T2 and T2 against T1 for every non-assessment lens', async () => {
+    for (const [period, referencePeriod, lens] of [[3,2,'result'],[2,1,'quantitative'],[2,1,'qualitative']] as const) {
+      const result = await createPerformanceTermComparisonV4(database).execute(comparisonRequest({ period, referencePeriod, lens }));
+      expect(result).toMatchObject({ state: 'ready', referencePeriod, analysis: { lens, matrix: { period } } });
+    }
+  });
+  it.each([
+    { period: 1, referencePeriod: 1 }, { period: 2, referencePeriod: 2 }, { period: 'annual', referencePeriod: 1 },
+    { lens: 'assessments', offerId: 10 }, { year: 2025 },
+  ])('rejects an invalid or cross-year comparison before SQL %j', async (extra) => {
+    expect(await createPerformanceTermComparisonV4(database).execute(comparisonRequest(extra))).toEqual({ transportVersion: 4, state: 'invalid-request' });
+    expect(queries).toHaveLength(0);
+  });
+  it('routes V4 through the existing authenticated no-store boundary', async () => {
+    const response = await http(comparisonRequest());
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toContain('no-store');
+    expect(await response.json()).toMatchObject({ transportVersion: 4, state: 'ready', operation: 'term-comparison' });
+  });
+  it('rejects forged comparison membership and a mismatched reference', async () => {
+    const request = performanceTermComparisonRequestSchemaV4.parse(comparisonRequest());
+    const result = await createPerformanceTermComparisonV4(database).execute(request);
+    if (result.state !== 'ready') throw new Error('unexpected-comparison-failure');
+    expect(performanceTermComparisonMatchesV4({ ...request, referencePeriod: 2 }, result)).toBe(false);
+    result.columns[0]!.summary.groups.higher.push(9999);
+    expect(performanceTermComparisonResponseSchemaV4.safeParse(result).success).toBe(false);
   });
 });
 
@@ -271,7 +325,7 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
     const result = await analysis();
     const request = performanceAnalysisRequestSchemaV3.parse(analysisRequest());
     expect(performanceAnalysisMatchesV3(request, result)).toBe(true);
-    expect(performanceAnalysisMatchesV3({ ...request, year: 2091 }, result)).toBe(false);
+    expect(performanceAnalysisMatchesV3({ ...request, year: 2025 }, result)).toBe(false);
     result.columns[0]!.summary.groups.above.push(9999);
     expect(performanceAnalysisResponseSchemaV3.safeParse(result).success).toBe(false);
   });

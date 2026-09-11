@@ -24,7 +24,7 @@ Cada chamada usa a mesma conexão/transação com `SET TRANSACTION ISOLATION LEV
 
 Não há consulta por aluno ou por oferta. Contagem de instruções do serviço, incluindo o SET (mas não BEGIN/COMMIT): bootstrap 2; contexto 3; busca 3; central aluno/turma até 5; professor/componente até 4. A latência real de rede/Hyperdrive e os planos produtivos não foram medidos por esses limites.
 
-Página até 200 itens por lista, offset até 100.000, consulta textual até 80 caracteres e corpo HTTP até 16.384 bytes. O navegador pede páginas de 100. Cada consulta busca uma linha adicional para decidir `nextOffset`. Detalhes paginam vínculos e ofertas com o mesmo offset, cada lista em ordem própria; só termina quando ambas acabarem. Limite excedido não é truncado como sucesso. Bootstrap admite até 200 anos cadastrados; excesso resulta em indisponibilidade explícita. Busca literal por nome/código, sem curingas SQL, fuzzy, ranking pedagógico ou unificação de homônimos.
+Página até 200 itens por lista, offset até 100.000, consulta textual até 80 caracteres e corpo HTTP até 16.384 bytes. O navegador pede páginas de 100. Cada consulta busca uma linha adicional para decidir `nextOffset`. Detalhes paginam vínculos e ofertas com o mesmo offset, cada lista em ordem própria; só termina quando ambas acabarem. Limite excedido não é truncado como sucesso. Desde a #649, a interface consulta diretamente 2026; o bootstrap antigo é apenas compatibilidade e expõe no máximo esse único registro. Busca literal por nome/código, sem curingas SQL, fuzzy, ranking pedagógico ou unificação de homônimos.
 
 ## Interface e segurança
 
@@ -40,4 +40,4 @@ Os testes usam a baseline integral reconstruída em PGlite, o facade PostgreSQL 
 
 Isso não é um teste visual em navegador, medição mobile, contenção PostgreSQL multi-sessão nem homologação autenticada produtiva. A validação executável registrada ocorreu no workflow existente; o ambiente da sessão não permitiu verificar o app autenticado com Playwright. Não inferir aceite institucional de CI ou deploy verdes.
 
-Ainda faltam neste programa: manutenção cadastral/gestão de anos, contexto anual compartilhado por todas as áreas, resultados/Desempenho, Boletins/Relatórios, Conselho e piloto integral. A #640 não modificou regras do motor, schema, dados, dependências npm ou autoridade acadêmica. #637/#641 tratam a remediação de dependências separadamente, com [relatório próprio](SECURITY_REMEDIATION_637.md).
+Depois da #649, criação/gestão de anos não é mais requisito: o contexto é 2026. Ainda faltam manutenção docente, fontes/durabilidade de Boletins/Relatórios, Conselho, validação visual conjunta e piloto integral. A #640 e a #649 não modificam regras do motor, schema, dados ou autoridade acadêmica. #637/#641 tratam a remediação de dependências separadamente, com [relatório próprio](SECURITY_REMEDIATION_637.md).

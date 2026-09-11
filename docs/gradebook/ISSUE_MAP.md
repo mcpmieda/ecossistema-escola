@@ -5,9 +5,10 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Papel | Issue | Situação de execução |
 | --- | --- | --- |
 | Programa | #182 | acompanhamento das quatro fases |
-| FINAL-1 | #633 | execução incremental; PRs #636/#640/#643 são entregas parciais |
-| FINAL-2 | #634 | execução incremental; PR #645 integrada e entrega #646/#647 corrente |
-| Fonte/ano/desktop | #646 | branch `fix/bn-final2-source-and-desktop-646`; gates e integração em andamento |
+| FINAL-1 | #633 | execução incremental; PRs #636/#640/#643/#647 integradas; #649/#650 retira gestão de anos |
+| FINAL-2 | #634 | PRs #645/#647 integradas; comparação trimestral e 2026 fixo na #649/#650; visual conjunto pendente |
+| Fonte/ano/desktop | #646 | concluída pela PR #647; seleção anual posteriormente substituída pela #649 |
+| 2026/comparação trimestral | #649 | branch `feat/bn-2026-term-comparison-649`; PR #650 nos gates finais |
 | FINAL-3 | #635 | planejada; depende de base e conciliação de Conselho |
 | FINAL-4 | #406 | piloto integral após adaptações funcionais |
 | Aceite acadêmico | #347 | gate por consumidor/escopo, sem ativação automática |
@@ -26,7 +27,7 @@ As dependências são de entregas aceitas, não apenas da existência de branche
 
 ## Branches reservadas
 
-Corrente: `fix/bn-final2-source-and-desktop-646`. Reservadas para fases posteriores: `feat/bn-final-3-conselho` e `test/bn-final-4-piloto-integral`.
+Corrente: `feat/bn-2026-term-comparison-649`. Reservadas para fases posteriores: `feat/bn-final-3-conselho` e `test/bn-final-4-piloto-integral`.
 
 Branches históricas não devem ser mergeadas só por estarem abertas/existirem. Toda execução parte da `main` factual validada e registra seu próprio checkpoint na issue/PR.
 

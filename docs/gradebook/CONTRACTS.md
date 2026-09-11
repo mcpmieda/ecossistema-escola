@@ -13,7 +13,7 @@ Base: BN-DEC-022, #613 e programa #182. O [índice anterior completo](history/pr
 | Projeção oferta/aluno | `server/gradebook/application/results/relational-academic-projection-v1.ts` | aplicação interna; lote limitado na #636 |
 | Projeção anual | `server/gradebook/application/results/relational-student-annual-projection-v1.ts` | turma atual, decisão humana separada; não transporte UI |
 | Contexto/pesquisa/Centrais V2 | `shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2.ts` | contrato #639; implementação integrada na PR #640 |
-| Desempenho relacional V2/V3 | `shared/gradebook-contracts/performance/relational-performance-v2.ts` e `performance-analysis-v3.ts` | matriz #643 e lentes #645 integradas; detalhe/fonte/desktop refinados na #646 |
+| Desempenho relacional V2/V3/V4 | `shared/gradebook-contracts/performance/relational-performance-v2.ts`, `performance-analysis-v3.ts` e `performance-term-comparison-v4.ts` | matriz/lentes/detalhe integrados; comparação trimestral 2026 na #649/#650 |
 
 Comparação relacional `match | mismatch | unavailable` e reconciliação histórica `match | expected-difference | mismatch | not-comparable` não são intercambiáveis. Nunca tratar indisponibilidade como correspondência.
 
@@ -21,15 +21,15 @@ Diagnósticos V1 admitem observação vazia. A #636 envia esse vazio e substitui
 
 ## Contexto e Centrais V2 — contrato #639
 
-O mesmo endpoint operacional distingue `contractVersion: 2`. São exclusivamente consultas: anos cadastrados, contexto/contagens, pesquisa e detalhe de aluno/turma/professor/componente. Identidade inteira e ano explícito; nenhuma versão, lifecycle, data ou resultado acadêmico é fabricado. Vínculos atuais/históricos e ofertas vêm das tabelas atuais, sem carregar o runtime antigo.
+O mesmo endpoint operacional distingue `contractVersion: 2`. São exclusivamente consultas: contexto/contagens, pesquisa e detalhe de aluno/turma/professor/componente em 2026. O bootstrap antigo permanece compatibilidade e retorna, no máximo, o registro 2026; não governa mais a interface. Identidade inteira e ano explícito; nenhuma versão, lifecycle, data ou resultado acadêmico é fabricado. Vínculos atuais/históricos e ofertas vêm das tabelas atuais, sem carregar o runtime antigo.
 
 Contrato inclui validação de entrada/saída, limites de página, busca literal e snapshot por requisição somente leitura/repeatable-read. O browser cancela/descarta respostas obsoletas, confere o contexto retornado e limpa informações quando perde autorização. Detalhes e limites em [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md).
 
-V1 não foi alterado para simular equivalência. A interface de Centrais passa a V2 na #640; manutenção docente V1 deixa de ser montada ali até sua adaptação. Na #646, um seletor anual global passa a governar todas as áreas acadêmicas, mas contratos V1 recebem apenas o ID opaco cuja opção tenha rótulo único exatamente igual ao ano numérico. Isso coordena a navegação sem converter provider, fonte ou durabilidade. Gestão de anos novos permanece pendente.
+V1 não foi alterado para simular equivalência. A interface de Centrais passa a V2 na #640; manutenção docente V1 deixa de ser montada ali até sua adaptação. A #649 substitui o seletor da #646 por contexto fixo 2026. Contratos V1 recebem apenas o ID opaco cuja opção tenha rótulo único exatamente `2026`, sem converter provider, fonte ou durabilidade. A superfície/contrato/serviço de criação de anos foi removida; novos anos não são escopo pendente.
 
 ## Consumidores que exigem adaptação
 
-AuditWorkspace antigo, Boletins, Relatórios e Conselho V1/V2 ainda dependem da geração anterior nas fontes/durabilidade. O ano global da #646 não converte esses contratos; apenas impede seleções divergentes ou aproximadas. Desempenho montado no shell usa a projeção relacional V2/V3. Ver [mapa](CONSUMER_MAP.md) e [contrato #646](FINAL2_SOURCE_DESKTOP_646.md).
+AuditWorkspace antigo, Boletins, Relatórios e Conselho V1/V2 ainda dependem da geração anterior nas fontes/durabilidade. O contexto fixo 2026 não converte esses contratos; apenas impede seleção divergente ou aproximada. Desempenho montado no shell usa a projeção relacional V2/V3/V4. Ver [mapa](CONSUMER_MAP.md), [contrato #646](FINAL2_SOURCE_DESKTOP_646.md) e [comparação #649](TERM_COMPARISON_2026_V4.md).
 
 Preservar interpretação histórica, ano explícito, identidade server-side, concorrência, idempotência, histórico, emissão/reimpressão e decisão humana. Não fabricar campos/IDs apenas para formatos obsoletos. Toda mudança em `shared/` exige issue `[BN][CONTRATO]`: a #639 autoriza V2; a PR #636 não modifica contratos compartilhados.
 
@@ -39,7 +39,7 @@ Preservar interpretação histórica, ano explícito, identidade server-side, co
 
 Metas de §16.1: payload inicial até 500 KB compactados; backend inicial p95 até 600 ms aquecido; detalhe p95 até 400 ms; matriz utilizável até 2 s no cenário documentado. Não são medições realizadas nem licença para inventar regras/métricas.
 
-Comparabilidade histórica V2 só vale quando os dois períodos declaram semântica compatível. A projeção relacional atual não fornece perfil/versionamento para demonstrar isso; portanto permanece `comparability-not-contracted`. Configuração ou normalização não pode ser herdada silenciosamente do runtime antigo.
+O campo V2 legado permanece `comparability-not-contracted` para não reinterpretar clientes anteriores. A operação V4 da #649 contrata separadamente apenas a comparação proporcional T2→T1 e T3→T1/T2 dentro de 2026, nas lentes Resultado/Quantitativo/Qualitativo e no mesmo snapshot. Não compara anos, slots de avaliação nem herda configuração do runtime antigo.
 
 ## Conselho — única parte preservada do documento antigo
 

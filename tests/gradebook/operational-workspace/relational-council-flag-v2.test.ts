@@ -10,11 +10,11 @@ beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await pg.exec(`
-    INSERT INTO gradebook.ano_letivo VALUES (2090,60000,2);
+    INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.aluno (id,ano,nome,conselho_anterior,conselho_anterior_por) VALUES
-      (1,2090,'SINTETICO SIM',true,'11111111-1111-4111-8111-111111111111'),
-      (2,2090,'SINTETICO NAO',false,'11111111-1111-4111-8111-111111111111'),
-      (3,2090,'SINTETICO DESCONHECIDO',null,null);
+      (1,2026,'SINTETICO SIM',true,'11111111-1111-4111-8111-111111111111'),
+      (2,2026,'SINTETICO NAO',false,'11111111-1111-4111-8111-111111111111'),
+      (3,2026,'SINTETICO DESCONHECIDO',null,null);
   `);
   db = createGradebookPostgresDatabaseFromSqlV1({
     async unsafe() { throw new Error('read-outside-transaction'); },
@@ -31,7 +31,7 @@ afterAll(async () => { await db?.close(); });
 
 it.each([[1, true], [2, false], [3, null]] as const)(
   'preserves Council prior answer %i through the real PostgreSQL facade', async (id, councilPrevious) => {
-    const response = await createRelationalWorkspaceV2(db).execute({ contractVersion: 2, operation: 'center', year: 2090, kind: 'student', id, offset: 0, limit: 100 });
+    const response = await createRelationalWorkspaceV2(db).execute({ contractVersion: 2, operation: 'center', year: 2026, kind: 'student', id, offset: 0, limit: 100 });
     expect(response).toMatchObject({ state: 'ready', center: { studentInfo: { councilPrevious } } });
   },
 );

@@ -1,5 +1,6 @@
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../../../../shared/gradebook-contracts/current-academic-year-v1';
 import type {
   OperationalWorkspaceRequestV2,
   OperationalWorkspaceResponseV2,
@@ -14,8 +15,8 @@ import type {
 import { requestOperationalWorkspaceV2 } from './operational-workspace-client-v2';
 import { createOperationalWorkspaceRequestGate } from './operational-workspace-request-gate';
 
-type Concern = 'bootstrap'|'context'|'search'|'detail';
-const IDLE = {bootstrap:false,context:false,search:false,detail:false};
+type Concern = 'context'|'search'|'detail';
+const IDLE = {context:false,search:false,detail:false};
 const PAGE_SIZE = 100;
 function unique<T>(values: readonly T[], key: (value:T)=>string|number): T[] {
   const seen = new Set<string|number>();
@@ -23,13 +24,10 @@ function unique<T>(values: readonly T[], key: (value:T)=>string|number): T[] {
 }
 export function useRelationalWorkspaceV2() {
   const sharedYear = useGradebookYear();
-  const initialYear = sharedYear?.year ?? null;
+  const year = sharedYear?.year ?? CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1;
   const clearSharedAuthorization = sharedYear?.clearAuthorization;
   const targetStudentId = sharedYear?.targetStudentId ?? null;
-  const [gates] = useState(() => ({bootstrap:createOperationalWorkspaceRequestGate(),context:createOperationalWorkspaceRequestGate(),search:createOperationalWorkspaceRequestGate(),detail:createOperationalWorkspaceRequestGate()}));
-  const [years,setYears] = useState<readonly WorkspaceYearV2[]>([]);
-  const [year,setYear] = useState<number|null>(initialYear);
-  const selectedYear = useRef<number|null>(initialYear);
+  const [gates] = useState(() => ({context:createOperationalWorkspaceRequestGate(),search:createOperationalWorkspaceRequestGate(),detail:createOperationalWorkspaceRequestGate()}));
   const [context,setContext] = useState<{year:WorkspaceYearV2;counts:WorkspaceCountsV2}|null>(null);
   const [kind,setKindValue] = useState<WorkspaceKindV2|'all'>('all');
   const [query,setQueryValue] = useState('');
@@ -37,14 +35,12 @@ export function useRelationalWorkspaceV2() {
   const [nextOffset,setNextOffset] = useState<number|null>(null);
   const [searched,setSearched] = useState(false);
   const [detail,setDetail] = useState<WorkspaceCenterV2|null>(null);
-  const [busy,setBusy] = useState({...IDLE,context:initialYear!==null});
+  const [busy,setBusy] = useState({...IDLE,context:true});
   const [failure,setFailure] = useState<WorkspaceFailureStateV2|null>(null);
-  const [bootstrapped,setBootstrapped] = useState(false);
   useEffect(() => () => {Object.values(gates).forEach((gate) => gate.invalidate());},[gates]);
 
   useEffect(() => {
-    if (initialYear === null) return;
-    const request = {contractVersion:2,operation:'context',year:initialYear} as const;
+    const request = {contractVersion:2,operation:'context',year} as const;
     const ticket = gates.context.begin(JSON.stringify(request));
     if (!ticket) return;
     void requestOperationalWorkspaceV2(request,ticket.signal).then((response) => {
@@ -56,10 +52,10 @@ export function useRelationalWorkspaceV2() {
       if(ticket.isCurrent()) setBusy((current) => ({...current,context:false})); ticket.complete();
     });
     return () => gates.context.invalidate();
-  }, [initialYear,gates,clearSharedAuthorization]);
+  }, [year,gates,clearSharedAuthorization]);
   useEffect(() => {
-    if (targetStudentId === null || initialYear === null || context?.year.year !== initialYear) return;
-    const request = {contractVersion:2,operation:'center',year:initialYear,kind:'student',id:targetStudentId,offset:0,limit:PAGE_SIZE} as const;
+    if (targetStudentId === null || context?.year.year !== year) return;
+    const request = {contractVersion:2,operation:'center',year,kind:'student',id:targetStudentId,offset:0,limit:PAGE_SIZE} as const;
     const ticket = gates.detail.begin(JSON.stringify(request));
     if (!ticket) return;
     void requestOperationalWorkspaceV2(request,ticket.signal).then((response) => {
@@ -69,21 +65,17 @@ export function useRelationalWorkspaceV2() {
       else if(response.state !== 'ready') setFailure(response.state);
     }).catch(() => {if(ticket.isCurrent()) setFailure('unavailable');}).finally(() => ticket.complete());
     return () => gates.detail.invalidate();
-  }, [initialYear,targetStudentId,context,gates,clearSharedAuthorization]);
+  }, [year,targetStudentId,context,gates,clearSharedAuthorization]);
 
   function clearSearch() {
     gates.search.invalidate();gates.detail.invalidate();
     setItems([]);setNextOffset(null);setSearched(false);setDetail(null);
     setBusy((current) => ({...current,search:false,detail:false}));
   }
-  function clearScope() {
-    gates.context.invalidate();clearSearch();setContext(null);
-    setBusy((current) => ({...current,context:false}));
-  }
   function accessLost() {
     clearSharedAuthorization?.();
     Object.values(gates).forEach((gate) => gate.invalidate());
-    selectedYear.current=null;setYear(null);setYears([]);setContext(null);setItems([]);
+    setContext(null);setItems([]);
     setNextOffset(null);setDetail(null);setSearched(false);setBusy(IDLE);
     setFailure('not-authorized');
   }
@@ -104,37 +96,21 @@ export function useRelationalWorkspaceV2() {
       ticket.complete();
     }
   }
-  async function bootstrap() {
-    clearScope();selectedYear.current=null;setYear(null);
-    await run({contractVersion:2,operation:'bootstrap'},'bootstrap',(response) => {
-      if(response.operation!=='bootstrap') return;
-      setYears(response.years);setBootstrapped(true);
-    });
-  }
-  async function selectYear(value:number|null) {
-    clearScope();selectedYear.current=value;setYear(value);setFailure(null);
-    if(value===null) return;
-    await run({contractVersion:2,operation:'context',year:value},'context',(response) => {
-      if(response.operation==='context') setContext({year:response.context,counts:response.counts});
-    });
-  }
   function setQuery(value:string) {clearSearch();setQueryValue(value);setFailure(null);}
   function setKind(value:WorkspaceKindV2|'all') {clearSearch();setKindValue(value);setFailure(null);}
   async function search(offset=0) {
-    const scope=selectedYear.current;
-    if(scope===null || context?.year.year!==scope) return;
+    if(context?.year.year!==year) return;
     if(offset===0) {gates.detail.invalidate();setDetail(null);setItems([]);setNextOffset(null);setSearched(false);setBusy((current)=>({...current,detail:false}));}
-    await run({contractVersion:2,operation:'search',year:scope,kind,query,offset,limit:PAGE_SIZE},'search',(response) => {
+    await run({contractVersion:2,operation:'search',year,kind,query,offset,limit:PAGE_SIZE},'search',(response) => {
       if(response.operation!=='search') return;
       setItems((current)=>offset===0?response.items:unique([...current,...response.items],(item)=>`${item.entity.kind}:${item.entity.id}`));
       setNextOffset(response.nextOffset);setSearched(true);
     });
   }
   async function open(entity:WorkspaceLinkV2, offset=0) {
-    const scope=selectedYear.current;
-    if(scope===null || context?.year.year!==scope) return;
+    if(context?.year.year!==year) return;
     if(offset===0) setDetail(null);
-    await run({contractVersion:2,operation:'center',year:scope,kind:entity.kind,id:entity.id,offset,limit:PAGE_SIZE},'detail',(response) => {
+    await run({contractVersion:2,operation:'center',year,kind:entity.kind,id:entity.id,offset,limit:PAGE_SIZE},'detail',(response) => {
       if(response.operation!=='center') return;
       setDetail((current)=>offset===0||current===null?response.center:{
         ...response.center,
@@ -143,5 +119,5 @@ export function useRelationalWorkspaceV2() {
       });
     });
   }
-  return {years,year,context,kind,query,items,nextOffset,searched,detail,busy,failure,bootstrapped,bootstrap,selectYear,setQuery,setKind,search,open};
+  return {year,context,kind,query,items,nextOffset,searched,detail,busy,failure,setQuery,setKind,search,open};
 }

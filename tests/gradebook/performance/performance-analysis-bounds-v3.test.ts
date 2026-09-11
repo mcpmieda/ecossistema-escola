@@ -8,18 +8,18 @@ import { createPerformanceAnalysisV3 } from '../../../server/gradebook/applicati
 let pg: PGlite;
 let db: GradebookPostgresDatabaseV1;
 const queries: string[] = [];
-const request = { transportVersion: 3, operation: 'analysis', year: 2090, classId: 1, period: 'annual', mode: 'regular', statuses: [null, 7], lens: 'result', offerId: null };
+const request = { transportVersion: 3, operation: 'analysis', year: 2026, classId: 1, period: 'annual', mode: 'regular', statuses: [null, 7], lens: 'result', offerId: null };
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await pg.exec(`
-    INSERT INTO gradebook.ano_letivo VALUES (2090,60000,2);
-    INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES (1,2090,'A','TURMA SINTETICA',6,'M');
-    INSERT INTO gradebook.professor (id,ano,nome) VALUES (1,2090,'DOCENTE SINTETICO');
-    INSERT INTO gradebook.disciplina (id,ano,nome) SELECT n,2090,'COMPONENTE SINTETICO '||n FROM generate_series(1,10) n;
-    INSERT INTO gradebook.oferta (id,ano,turma_id,professor_id,disciplina_id) SELECT n,2090,1,1,n FROM generate_series(1,10) n;
-    INSERT INTO gradebook.aluno (id,ano,nome) SELECT n,2090,'ALUNO SINTETICO '||n FROM generate_series(1,100) n;
-    INSERT INTO gradebook.vinculo (ano,turma_id,numero,aluno_id) SELECT 2090,1,n,n FROM generate_series(1,100) n;
+    INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
+    INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES (1,2026,'A','TURMA SINTETICA',6,'M');
+    INSERT INTO gradebook.professor (id,ano,nome) VALUES (1,2026,'DOCENTE SINTETICO');
+    INSERT INTO gradebook.disciplina (id,ano,nome) SELECT n,2026,'COMPONENTE SINTETICO '||n FROM generate_series(1,10) n;
+    INSERT INTO gradebook.oferta (id,ano,turma_id,professor_id,disciplina_id) SELECT n,2026,1,1,n FROM generate_series(1,10) n;
+    INSERT INTO gradebook.aluno (id,ano,nome) SELECT n,2026,'ALUNO SINTETICO '||n FROM generate_series(1,100) n;
+    INSERT INTO gradebook.vinculo (ano,turma_id,numero,aluno_id) SELECT 2026,1,n,n FROM generate_series(1,100) n;
     INSERT INTO gradebook.instrumento (id,oferta_id,trimestre,slot,maximo,descricao)
       SELECT o*100+t*25+s,o,t,s,CASE WHEN s>=11 THEN CASE WHEN t=3 THEN 2200 ELSE 1650 END ELSE CASE WHEN t=3 THEN 9000 ELSE 6750 END END,'AVALIACAO SINTETICA '||s
       FROM generate_series(1,10) a(o) CROSS JOIN generate_series(1,3) b(t) CROSS JOIN (SELECT n AS s FROM generate_series(1,20) n WHERE n<=3 OR n>=11) c;
@@ -55,7 +55,7 @@ it.each(['result','quantitative','qualitative','assessments'])('keeps the comple
   expect(gzipSync(JSON.stringify(result)).length).toBeLessThan(500_000);
 }, 15_000);
 it('rejects 1,010 pairs before reading facts, including for the assessment lens', async () => {
-  await pg.exec("INSERT INTO gradebook.aluno (id,ano,nome) VALUES (101,2090,'LIMITE SINTETICO'); INSERT INTO gradebook.vinculo (ano,turma_id,numero,aluno_id) VALUES (2090,1,101,101)");
+  await pg.exec("INSERT INTO gradebook.aluno (id,ano,nome) VALUES (101,2026,'LIMITE SINTETICO'); INSERT INTO gradebook.vinculo (ano,turma_id,numero,aluno_id) VALUES (2026,1,101,101)");
   try {
     expect(await createPerformanceAnalysisV3(db).execute({ ...request, lens: 'assessments', offerId: 1 })).toEqual({ transportVersion: 3, state: 'scope-too-large' });
     expect(queries).toHaveLength(5);

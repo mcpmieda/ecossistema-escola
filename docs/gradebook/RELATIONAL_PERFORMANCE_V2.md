@@ -8,9 +8,9 @@ Fonte funcional: `PAINEL DESEMPENHO` de 29/08/2026, especialmente contexto/matri
 
 ## Jornada e responsabilidades
 
-Banco → Centrais ou Desempenho → catálogo anual carregado automaticamente → ano global confirmado pelo catálogo → turma → período T1/T2/T3/Visão geral → modo Regular/Recuperação → matriz → detalhe do aluno/componente → cadastro nas Centrais.
+Banco → Centrais ou Desempenho → contexto fixo 2026 → turma → período T1/T2/T3/Visão geral → modo Regular/Recuperação → matriz → comparação trimestral opcional V4 → detalhe do aluno/componente → cadastro nas Centrais.
 
-`GradebookYearProvider` mantém ano/epoch em memória no shell e somente o número como preferência da aba. A troca remonta os consumidores acadêmicos e cancela/descarta respostas antigas. Entrar na Importação não consulta nem pré-carrega catálogo acadêmico. Desde a #646, as demais áreas consomem o mesmo ano, embora contratos V1 continuem exigindo mapeamento exato para seu ID opaco. Identificador do aluno para navegação permanece em memória, não na URL. Um contador separado garante que abrir novamente o mesmo aluno atualize sua Central sem consultar novamente a matriz.
+`GradebookYearProvider` mantém 2026 e o epoch de autorização em memória no shell. Não há preferência de aba, seletor ou catálogo de escolha. Entrar na Importação não dispara consultas acadêmicas; a própria importação canônica recusa outro ano. Contratos V1 continuam exigindo mapeamento exato de `2026` para seu ID opaco. Identificador do aluno para navegação permanece em memória, não na URL. Um contador separado garante que abrir novamente o mesmo aluno atualize sua Central sem consultar novamente a matriz.
 
 A tabela começa por Nº | Situação | Aluno | componentes. Filtro múltiplo usa opções do servidor. Vínculo histórico `FOI_PARA` não entra como posição atual; situações terminais podem exibir fatos, sem entrar nos indicadores dos vínculos sem situação especial/`ESTAVA_NO`. Selecionar uma situação não cria elegibilidade acadêmica.
 
@@ -46,4 +46,4 @@ Browser plugin não disponível nesta sessão; tentativa via Playwright/Chromium
 
 ## Requisitos que permanecem na #634
 
-Quatro lentes completas, gráficos acionáveis, comparabilidade/normalização explicitamente contratadas, tendências, limiares analíticos configuráveis, personalização visual, abertura padrão configurável, inspeção responsiva/teclado e medições representativas. Comparação entre períodos permanece desabilitada com motivo; trajetórias mostram os períodos sem declarar melhora/queda. Coluna é Resultado calculado em validação, não Resultado final oficial. Boletins, Relatórios, Conselho, manutenção, recuperação de dados e aceite institucional não são concluídos por este bloco.
+Quatro lentes e gráficos foram entregues na #645. A #649 acrescenta comparação explicitamente contratada entre trimestres de 2026, sem tendência, tolerância ou melhora/queda pedagógica; ver [V4](TERM_COMPARISON_2026_V4.md). Personalização visual, abertura padrão, inspeção responsiva/teclado conjunta e medições representativas continuam próprias. Coluna é Resultado calculado em validação, não Resultado final oficial. Boletins, Relatórios, Conselho, manutenção docente, recuperação de dados e aceite institucional não são concluídos por este bloco.

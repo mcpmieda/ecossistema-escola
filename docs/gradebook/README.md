@@ -8,24 +8,26 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#642 / PR #643:** primeira matriz calculada de Desempenho sobre o schema atual, com T1/T2/T3/Visão geral, Recuperação, situação, detalhes e ano compartilhado com Centrais. Integrada em `8866b2c897bb62528970c64740cd2509c5d28602` e publicada pelo deploy 257 / `34511487276`, reconfirmado com sucesso. A consulta é identificada como **em validação**; não é emissão oficial nem aceite global da #347. [Contrato, evidências e limites](RELATIONAL_PERFORMANCE_V2.md).
 
-**#644 / PR #645:** quatro lentes sobre o mesmo snapshot relacional, com gráfico que investiga a matriz e estatísticas descritivas. Qualitativo preserva a pontuação existente, sem inventar conceitos; Avaliações exige componente explícito; comparabilidade entre períodos continua pendente. [Contrato e limites da entrega](PERFORMANCE_LENSES_V3.md). SHA integrado e deploy efetivos ficam no checkpoint #644/#645; não deduzi-los da presença deste documento.
+**#644 / PR #645:** quatro lentes sobre o mesmo snapshot relacional, com gráfico que investiga a matriz e estatísticas descritivas. Qualitativo preserva a pontuação existente, sem inventar conceitos; Avaliações exige componente explícito. A comparabilidade ainda pendente naquele checkpoint foi resolvida depois pela #649. [Contrato e limites da entrega](PERFORMANCE_LENSES_V3.md). SHA integrado e deploy efetivos ficam no checkpoint #644/#645; não deduzi-los da presença deste documento.
 
 **#646 / PR #647:** corrige placeholders qualitativos sem evidência, adota siglas observadas na fonte, conclui a composição desktop/detalhe e estende um único ano global a todas as áreas acadêmicas, com mapeamento estrito para contratos legados. Comparabilidade e configuração sem decisão permanecem fechadas; validação visual final foi adiada. [Contrato e limites da entrega](FINAL2_SOURCE_DESKTOP_646.md).
+
+**#649 / PR #650:** substitui a escolha multi-ano por contexto fixo 2026, remove a criação de anos e contrata a comparação descritiva T2→T1 e T3→T1/T2 para Resultado, Quantitativo e Qualitativo. Não compara anos nem avaliações por slot, não altera schema/dados/autoridade e mantém a validação visual conjunta adiada. [Contrato V4 e limites](TERM_COMPARISON_2026_V4.md).
 
 ## Leitura e execução
 
 1. [COMECE_AQUI.md](COMECE_AQUI.md): tarefa e dependências.
 2. [PROJECT_STATE.yaml](PROJECT_STATE.yaml): baseline e entrega corrente.
 3. [DECISIONS.md](DECISIONS.md): decisões anteriores e substituições expressas.
-4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md) e [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md): caminhos e limites.
+4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md), [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md) e [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md): caminhos e limites.
 5. [CONTRACTS.md](CONTRACTS.md), [ROADMAP.md](ROADMAP.md), [ISSUE_MAP.md](ISSUE_MAP.md) e [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
 
 ## Programa final
 
 | Fase | Issue | Entrega restante |
 | --- | --- | --- |
-| FINAL-1 | #633 | consumidores relacionais, manutenção, fontes e durabilidade restantes |
-| FINAL-2 | #634 | #646 consolida fonte/ano/desktop; decisões de comparabilidade/configuração e validação visual restantes |
+| FINAL-1 | #633 | consumidores relacionais, manutenção docente, fontes e durabilidade restantes; gestão de anos retirada pela #649 |
+| FINAL-2 | #634 | #646 consolida fonte/detalhe/desktop; #649 fixa 2026 e entrega comparação trimestral; validação visual única restante |
 | FINAL-3 | #635 | Conselho humano, histórico, durabilidade e fechamento |
 | FINAL-4 | #406 | piloto integral, recuperação e retirada seletiva do legado |
 

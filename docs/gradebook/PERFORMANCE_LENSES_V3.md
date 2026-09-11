@@ -47,8 +47,8 @@ O teste de limites usa 100 alunos × 10 ofertas, três trimestres e todos os 39 
 
 Testes React exercitam os Tabs reais HeroUI, troca de lentes, seleção de oferta, clique no gráfico, Ver mais, Limpar, navegação às Centrais, reabertura do aluno, no-store, dados forjados, perda de autorização e respostas atrasadas. O fixture jsdom fornece a API de animações ausente e a restaura após cada teste; não substitui a implementação dos Tabs. Não houve inspeção visual nem smoke autenticado novo nesta entrega. A limitação de navegador relatada na #642 permanece um gate separado, sem contorno de política nem uso de screenshots antigos como prova do novo head.
 
-## O que continua na #634
+## Evolução contratada na #649 e o que continua na #634
 
-Comparabilidade entre períodos e sua normalização quando oficialmente declarada; sinais de tendência/queda com limiares configuráveis; configurações visuais e de abertura; refinamento dos indicadores/Pontos de Atenção; validação de responsividade, teclado e performance em ambiente representativo. A comparação permanece indisponível em vez de inferida. O bloco entrega as quatro lentes e investigação básica, não todos os requisitos finais do documento. Conselho, Boletins, Relatórios, manutenção, restore e piloto integral permanecem nas respectivas fases.
+A #649/PR #650 contratou a normalização proporcional e a comparação descritiva entre trimestres de 2026 para Resultado, Quantitativo e Qualitativo; Avaliações permanece deliberadamente fora. Ver [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md). Sinais de tendência/queda, limiares configuráveis e comparação entre anos foram retirados, não inferidos. Configurações visuais/de abertura, refinamento dos indicadores, validação conjunta de responsividade/teclado e performance representativa continuam na #634. Conselho, Boletins, Relatórios, manutenção docente, restore e piloto integral permanecem nas respectivas fases.
 
 Referências: [matriz V2](RELATIONAL_PERFORMANCE_V2.md), [mapa dos consumidores](CONSUMER_MAP.md), [estado](PROJECT_STATE.yaml), [decisões](DECISIONS.md).
