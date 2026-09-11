@@ -1,6 +1,6 @@
 # Arquitetura — estado relacional e consumidores em transição
 
-Base integrada: `main@dc8005e7911b1dbfda914345a8c194987b6ebc22`; Conselho relacional #648/PR #653, Boletins V2 #654/PR #655, Relatórios V2 #656/PR #657, Auditoria atual #658/PR #659, configuração docente #660/PR #661, recuperação/contenção #662/PR #663 e retirada Audit V1 #664/PR #665 integrados e publicados. A retirada dos frontends antigos não montados está na #666. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
+Base integrada: `main@fc6547f1cf994a9f87fe5c01fd80c1b58c5de642`; Conselho relacional #648/PR #653, Boletins V2 #654/PR #655, Relatórios V2 #656/PR #657, Auditoria atual #658/PR #659, configuração docente #660/PR #661, recuperação/contenção #662/PR #663, retirada Audit V1 #664/PR #665 e frontends não montados #666/PR #667 integrados e publicados. As medições autenticadas de Desempenho estão na #668. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
 
 ## Caminho integrado de importação
 

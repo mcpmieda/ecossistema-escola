@@ -45,6 +45,10 @@ Os testes focados desta entrega foram executados em Node 22 no container, com PG
 
 O teste de limites usa 100 alunos × 10 ofertas, três trimestres e todos os 39 instrumentos anuais. As quatro lentes preservam a matriz-base completa e ficam abaixo de 500 KB gzip e 2 MB sem compressão nesse cenário sintético. 1.010 pares são recusados sem leitura de fatos. Isso é gate de integridade/tamanho, **não benchmark p95 de Hyperdrive nem SLA de renderização**.
 
+## Medição autenticada publicada — #668
+
+Após o deploy 269, um cenário sanitizado 2026/T1/Regular/Resultado com 32 linhas e 12 componentes recebeu três aquecimentos e 20 amostras sequenciais. Dashboard observou p95 de 441,3 ms e payload Brotli máximo de 6.569 B; detalhe, p95 de 193,5 ms e 1.284 B. A matriz ficou utilizável em 675,7 ms. Todas as respostas foram HTTP 200, `ready` e `no-store`. As metas da #634 passaram nesse cenário; os números não constituem SLA universal. Ver [medição completa](PERFORMANCE_MEASUREMENTS_668.md).
+
 Testes React exercitam os Tabs reais HeroUI, troca de lentes, seleção de oferta, clique no gráfico, Ver mais, Limpar, navegação às Centrais, reabertura do aluno, no-store, dados forjados, perda de autorização e respostas atrasadas. O fixture jsdom fornece a API de animações ausente e a restaura após cada teste; não substitui a implementação dos Tabs. Não houve inspeção visual nem smoke autenticado novo nesta entrega. A limitação de navegador relatada na #642 permanece um gate separado, sem contorno de política nem uso de screenshots antigos como prova do novo head.
 
 ## Evolução contratada na #649 e o que continua na #634
