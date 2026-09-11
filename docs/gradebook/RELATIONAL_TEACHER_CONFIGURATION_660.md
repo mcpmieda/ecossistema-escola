@@ -1,4 +1,4 @@
-# Configuração docente relacional — #660
+# Configuração docente relacional — #660 / PR #661
 
 ## Decisão vigente
 

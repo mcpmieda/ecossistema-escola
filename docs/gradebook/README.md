@@ -22,7 +22,7 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#658 / PR #659:** Auditoria relacional atual V2 integrada e publicada no deploy 265 (`34580485339`). A superfície ativa exibe somente a fotografia corrente de diagnósticos de 2026, em linguagem escolar, sem montar o Audit Workspace V1 ou oferecer correção automática. A trilha humana durável continua explicitamente separada. [Escopo e limites](RELATIONAL_CURRENT_AUDIT_V2.md).
 
-**#660:** configuração docente relacional em execução. Professor, componente e oferta permanecem derivados da importação; a Central apresenta o cadastro reconhecido com HeroUI e a ordem P, M, H, G, C e demais componentes configurados, enquanto o write V1 incompatível deixa de ser servido. Sem schema/DML ou autoridade nova. [Decisão e limites](RELATIONAL_TEACHER_CONFIGURATION_660.md).
+**#660 / PR #661:** configuração docente relacional em execução. Professor, componente e oferta permanecem derivados da importação; a Central apresenta o cadastro reconhecido com HeroUI e a ordem P, M, H, G, C e demais componentes configurados, enquanto o write V1 incompatível deixa de ser servido. Sem schema/DML ou autoridade nova. [Decisão e limites](RELATIONAL_TEACHER_CONFIGURATION_660.md).
 
 ## Leitura e execução
 

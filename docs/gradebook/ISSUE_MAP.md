@@ -12,7 +12,7 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Boletins relacionais V2    | #654 / PR #655 | integrado/publicado no deploy 263; migration/postflight e smoke somente leitura verdes             |
 | Relatórios relacionais V2  | #656 / PR #657 | integrado/publicado no deploy 264; CI e smoke autenticado somente leitura verdes                    |
 | Auditoria relacional atual | #658 / PR #659  | integrada/publicada no deploy 265; smoke autenticado somente leitura verde                          |
-| Configuração docente       | #660            | implementação relacional read-only e retirada do write V1 incompatível em verificação               |
+| Configuração docente       | #660 / PR #661  | implementação relacional read-only e retirada do write V1 incompatível em verificação               |
 | FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
 | FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
 | Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |

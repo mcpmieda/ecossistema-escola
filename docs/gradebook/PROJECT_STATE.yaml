@@ -150,7 +150,7 @@ work_in_progress:
   parent_issues: [633]
   phase: FINAL-1
   branch: fix/bn-teacher-settings-and-subject-order-660
-  pull_request: null
+  pull_request: 661
   scope: relational-teacher-configuration-read-only-subject-order-legacy-write-retirement
   production_activation_in_this_delivery: false
   production_schema_extension_in_this_delivery: none
