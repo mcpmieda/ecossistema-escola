@@ -1,6 +1,6 @@
 # Roadmap — quatro fases finais
 
-A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #646 sob FINAL-2 #634, sem encerrar as pendências relacionais da #633.
+A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #656 sob FINAL-1 #633, sem reconstruir os blocos já integrados.
 
 ## FINAL-1 — #633: runtime relacional e verdade documental
 
@@ -8,7 +8,7 @@ A reconstrução de persistência da #613 terminou. Este roadmap substitui a fil
 
 **Primeira entrega / PR #636:** reancoragem documental e leitura em lote; projeção anual deixa de consultar fatos separadamente por oferta. Preserva motor e resultados. Não liga novas telas nem fecha toda a fase.
 
-**Blocos integrados/em execução:** baseline/Auditoria, Centrais, Desempenho e Conselho estão integrados; Boletins relacionais, durabilidade e PDF seguem na #654. **Restante depois de #654:** manutenção docente, Audit Workspace antigo, Relatórios, isolamento/concorrência/frescor e remoção apenas de dependências comprovadamente mortas. Contratos compartilhados exigem issue própria.
+**Blocos integrados/em execução:** baseline/Auditoria de arquivos, Centrais, Desempenho, Conselho e Boletins V2 estão integrados; Relatórios V2 segue na #656. **Restante depois de #656:** manutenção docente, Audit Workspace antigo, isolamento/concorrência/frescor e remoção apenas de dependências comprovadamente mortas. Contratos compartilhados exigem issue própria.
 
 **Fechar quando:** consumidores contemplados estejam integrados e verificados, sem relações antigas no caminho migrado, com CI e evidência funcional após publicação autorizada.
 
