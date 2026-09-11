@@ -5,9 +5,9 @@ updated_at: 2026-09-10
 
 coordination:
   master_issue: 182
-  executable_issue: 646
-  current_delivery_issue: 646
-  current_integrator_issue: 646
+  executable_issue: 649
+  current_delivery_issue: 649
+  current_integrator_issue: 649
   central_state_editor: integrator-only
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
@@ -22,7 +22,8 @@ coordination:
   prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
 
 baseline:
-  last_audited_main_commit: f580ce6523a453db6a9b99612104a12a3ef66ead
+  last_audited_main_commit: 002b97a6b647c28e1eca75745425732858eae665
+  integrated_source_desktop_pr: 647
   integrated_performance_lenses_pr: 645
   integrated_performance_matrix_pr: 643
   integrated_security_pr: 641
@@ -31,11 +32,11 @@ baseline:
   integrated_import_archive_pr: 632
   storage_homologation_issue: 613
   active_diagnostics_homologation_issue: 629
-  authorized_deploy_run: 34519288361
-  authorized_deploy_number: 258
+  authorized_deploy_run: 34544618100
+  authorized_deploy_number: 259
   authorized_deploy_result: success
   authenticated_post_deploy_smoke_this_session: false
-  note: baseline-before-source-year-desktop-delivery-646
+  note: baseline-after-source-year-desktop-delivery-647-before-term-comparison-650
 
 storage:
   decision_current: BN-DEC-022
@@ -77,18 +78,25 @@ runtime:
   diagnostic_atomic_replacement: integrated-pr-636-deploy-254-success-awaiting-authenticated-smoke
   diagnostic_ordering: last-server-confirmed-observation-not-client-chronology
   relational_centers_v2: integrated-pr-640-deploy-255-success-awaiting-authenticated-smoke
-  relational_centers_operations: [bootstrap, context, search, center]
+  relational_centers_operations: [bootstrap-2026-compatibility, context, search, center]
   relational_centers_write_operations: none
   relational_centers_snapshot: per-request-read-only-repeatable-read
   relational_performance_v2: integrated-pr-643-deploy-257-success-awaiting-authenticated-smoke
   relational_performance_authority: calculated-preview-not-official-emission
   relational_performance_snapshot: per-response-read-only-repeatable-read
   performance_analysis_v3: integrated-pr-645-deploy-258-success-awaiting-authenticated-smoke
+  performance_term_comparison_v4: implemented-pr-650-awaiting-final-head-gates
   performance_lenses: [result, quantitative, qualitative, assessments]
   performance_lenses_contract: docs/gradebook/PERFORMANCE_LENSES_V3.md
-  cross_period_comparison: unavailable-until-explicit-comparability-contract
-  shared_year_consumers: [centers-v2, audit-v1, performance-v2, bulletins-v1, reports-v1, council-v1]
-  shared_year_legacy_mapping: unique-exact-catalog-label-or-fail-closed
+  cross_period_comparison: descriptive-same-year-t2-to-t1-and-t3-to-t1-or-t2
+  comparison_lenses: [result, quantitative, qualitative]
+  comparison_authority: descriptive-observation-not-pedagogical-trend-or-official-emission
+  active_academic_year: 2026
+  academic_year_creation: removed
+  academic_year_selection: removed
+  cross_academic_year_comparison: forbidden
+  shared_year_consumers: [centers-v2, audit-v1, performance-v2-v3-v4, bulletins-v1, reports-v1, council-v1]
+  shared_year_legacy_mapping: unique-exact-2026-catalog-label-or-fail-closed
   import_source_year_reinterpreted_by_navigation: false
   remaining_consumers: legacy-schema-sources-and-durability-pending-reanchoring
   global_academic_authority_switch_verified: false
@@ -98,21 +106,20 @@ runtime:
     note: describes-existing-v1-contracts-not-a-global-runtime-flag
 
 work_in_progress:
-  issue: 646
-  parent_issue: 634
-  phase: FINAL-2
-  branch: fix/bn-final2-source-and-desktop-646
-  pull_request: 647
-  scope: source-evidence-global-year-student-detail-and-desktop-composition
+  issue: 649
+  parent_issues: [633, 634]
+  phase: FINAL-1-and-FINAL-2
+  branch: feat/bn-2026-term-comparison-649
+  pull_request: 650
+  scope: fixed-2026-remove-year-management-and-descriptive-term-comparison-v4
   production_activation_in_this_delivery: false
   phase_complete: false
-  release_checkpoint: issue-646-and-pr-647
-  visual_validation_this_delivery: deferred-by-request
+  release_checkpoint: issue-649-and-pr-650
+  visual_validation_this_delivery: deferred-for-single-session-with-responsible
   remaining:
-    - explicit-cross-period-comparability-profile-normalization-and-configurable-trend-thresholds
     - visual-configuration-and-default-opening-policy-require-explicit-decision
     - visual-browser-and-authenticated-production-smoke
-    - relational-maintenance-and-academic-year-management
+    - relational-teacher-maintenance
     - relational-sources-and-durability-for-audit-bulletins-reports-and-council
     - production-data-backup-restore-and-real-multi-session-contention-pilot
     - legacy-removal-after-dependency-proof
@@ -121,11 +128,11 @@ final_phases:
   - phase: FINAL-1
     issue: 633
     branch: null
-    status: foundation-centers-and-performance-matrix-integrated-other-consumers-pending
+    status: foundation-centers-and-performance-integrated-year-management-removed-other-consumers-and-visual-validation-pending
   - phase: FINAL-2
     issue: 634
-    branch: fix/bn-final2-source-and-desktop-646
-    status: source-year-and-desktop-delivery-in-progress-residual-decisions-and-visual-validation-pending
+    branch: feat/bn-2026-term-comparison-649
+    status: source-desktop-integrated-fixed-2026-and-term-comparison-in-pr-650-visual-validation-pending
   - phase: FINAL-3
     issue: 635
     branch: feat/bn-final-3-conselho
@@ -170,7 +177,7 @@ security:
   report: docs/gradebook/SECURITY_REMEDIATION_637.md
 
 next_safe_action:
-  issue: 646
-  related_issue: 634
+  issue: 649
+  related_issues: [633, 634]
   description: verify-final-head-review-diff-and-integrate-deploy-under-bn-dec-023
-  prerequisite_release_checkpoint: issue-646-and-pr-647
+  prerequisite_release_checkpoint: issue-649-and-pr-650

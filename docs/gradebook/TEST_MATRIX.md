@@ -172,7 +172,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `CAT-005`: `VG` não participa do cadastro nem da contagem oficial.
 - `CAT-006`: IDs técnicos são emitidos no servidor e não atravessam o request V5.
 - `CAT-007`: cadastros e registros acadêmicos confirmam ou revertem juntos.
-- `CAT-008`: criação repetida do mesmo ano é idempotente; anos futuros ficam planejados.
+- `CAT-008`: somente o ano letivo 2026 é aceito pela importação canônica; outro ano falha antes da persistência e não existe criação administrativa de anos.
 
 - `REL-001`: `npm run verify` aprovado no SHA do PR.
 - `REL-002`: merge somente depois dos critérios de aceite.
@@ -211,10 +211,25 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F2-646-001`: ordinal qualitativo vazio/impresso sem máximo e sem nota não cria atividade, coluna, aviso ou denominador.
 - `F2-646-002`: máximo, zero, valor indisponível persistido, descrição real e nota de outro aluno preservam o instrumento e o histórico.
 - `F2-646-003`: sigla vem somente de `CONFIGURAÇÃO`/`CONFIGURAÇÕES!H3:I16`; componente desconhecido não recebe abreviação inventada.
-- `F2-646-004`: catálogo anual carrega automaticamente, prefere apenas ano ainda existente e nunca fabrica ano ausente.
-- `F2-646-005`: Importação não recebe seletor global; troca de ano invalida consumidores e descarta resposta anterior.
+- `F2-646-004`: supersedido pela #649: o shell usa 2026 fixo, sem catálogo de escolha, seletor ou preferência persistida.
+- `F2-646-005`: Importação não recebe seletor global e rejeita qualquer fonte fora de 2026 antes da persistência.
 - `F2-646-006`: contratos V1 recebem apenas correspondência única/exata do ano numérico; ausência, duplicidade ou vizinhança fecham o mapeamento.
 - `F2-646-007`: detalhe preserva zero/parcial/N-C/REC e recebe elegibilidade de paralela e REC final como sinais independentes do núcleo.
 - `F2-646-008`: Tabs HeroUI, quatro lentes, matriz compartilhada, gráfico investigável e controles desktop mantêm um request por seleção, não por aluno.
-- `F2-646-009`: comparação relacional permanece fail-closed enquanto perfil/normalização não forem contratados.
+- `F2-646-009`: o campo V2 histórico permanece fail-closed; a comparação trimestral posterior usa contrato V4 separado da #649.
 - `F2-646-010`: `npm run verify`, CI do head final, revisão, merge e deploy seguem BN-DEC-023; validação visual adiada não é registrada como aprovada.
+
+## F12-649 — 2026 fixo e comparação trimestral V4
+
+- `F12-649-001`: superfície, cliente, contrato e serviço de criação de anos não existem mais no produto ativo.
+- `F12-649-002`: shell/Centrais/Desempenho não exibem seletor nem usam catálogo/sessionStorage; todo request ativo leva 2026.
+- `F12-649-003`: Centrais V2, Desempenho V2/V3/V4 e importação V9 rejeitam outro ano antes de SQL/DML.
+- `F12-649-004`: T2 aceita somente T1; T3 aceita T1/T2; T1, Visão geral e Avaliações não oferecem comparação.
+- `F12-649-005`: compara o mesmo aluno/turma/componente/lente/modo por `valor/máximo oficial positivo` e relação racional exata.
+- `F12-649-006`: diferença é em pontos percentuais; zero é comparável, igualdade é zero exato e valor acima de 100% não é limitado.
+- `F12-649-007`: excluído, parcial, vazio, N/C, REC pendente, não aplicável, indisponível ou sem máximo positivo resulta indisponível com motivo.
+- `F12-649-008`: resposta declara `descriptive-observation`; não contém tendência, ranking, tolerância, melhora/piora ou emissão oficial.
+- `F12-649-009`: atual e referência usam uma transação read-only/repeatable-read, um carregamento de fatos e até seis instruções, sem N+1.
+- `F12-649-010`: cliente valida alinhamento/grupos, usa no-store, mantém seleção em memória e cancela/descarta resposta obsoleta.
+- `F12-649-011`: testes usam somente massa sintética/de teste; seu conteúdo não é evidência acadêmica oficial.
+- `F12-649-012`: validação visual de FINAL-1/FINAL-2 continua pendente e será anunciada antes da sessão única com o responsável.

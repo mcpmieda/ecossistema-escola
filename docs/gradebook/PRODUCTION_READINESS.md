@@ -6,14 +6,14 @@
 
 A PR #640, contrato #639, acrescentou contexto/pesquisa/Centrais V2 e foi integrada em `6683d1377f2dd090c1346f693a4af4c2e188d7ae`, deploy 255 / `34477526551` aprovado. PGlite e HTTP com identidade sintética não são benchmark Hyperdrive, contenção PostgreSQL multi-sessão, restore de dados reais ou aceite visual. Nenhuma dessas entregas prova automaticamente Desempenho, emissão/reimpressão, votação ou autoridade por consumidor.
 
-As PRs #643 e #645 integraram matriz relacional e quatro lentes; a `main` factual antes da #646 é `f580ce6523a453db6a9b99612104a12a3ef66ead`, publicada pelo deploy 258 / `34519288361`. A #646/#647 corrige fonte, ano global, detalhe e desktop sem ativar autoridade ou alterar schema. Validação visual/autenticada continua separada e foi adiada nesta entrega.
+As PRs #643/#645 integraram matriz relacional e quatro lentes; a #647 integrou fonte, ano global, detalhe e desktop em `002b97a6b647c28e1eca75745425732858eae665`. A #649/#650 fixa 2026, remove criação/seleção de anos e acrescenta comparação trimestral sem ativar autoridade ou alterar schema/dados. Validação visual/autenticada continua separada e foi adiada para uma única sessão com o responsável.
 
 ## Gates finais
 
 | Gate | Responsável | Evidência |
 | --- | --- | --- |
 | Schema/runtime | #633; bloco #639/#640 integrado | replay/drift e fontes relacionais por endpoint; Centrais de consulta não incluem resultados/escritas |
-| Desempenho | #634 | contrato funcional, população, comparabilidade, UI e medição |
+| Desempenho | #634 | comparação trimestral contratada na #649; validação visual conjunta, refinamentos de UI e medição restantes |
 | Conselho | #635 | lacunas contratuais, decisão humana, voto/fechamento e durabilidade |
 | Produto integral | #406 | jornadas, restart/falhas, segurança, histórico e recuperação |
 | Aceite acadêmico | #347 | consumidor/escopo, versão/vigência, divergências e emissões |

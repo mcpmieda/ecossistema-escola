@@ -1,5 +1,7 @@
 # Fonte, ano global e composição desktop — #646 / PR #647
 
+> Estado posterior: BN-DEC-024/#649/#650 substitui a seleção global descrita nesta entrega por contexto fixo 2026, remove criação de anos e contrata a comparação apenas entre trimestres. Este documento continua como evidência histórica da #646, não como instrução para restaurar o seletor. Ver [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md).
+
 ## Base, autoridade e escopo
 
 A entrega parte da `main` `f580ce6523a453db6a9b99612104a12a3ef66ead`, já contendo a PR #645 e o deploy 258 (`34519288361`). O estado factual de integração e publicação deve ser confirmado na PR #647 e na issue #646; este documento descreve o contrato do código, não prova merge, deploy, aceite visual ou homologação acadêmica.
