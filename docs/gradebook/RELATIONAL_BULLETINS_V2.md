@@ -25,7 +25,7 @@ Operações: `catalog`, `students`, `preview`, `emit`, `emit-batch`, `history` e
 
 Uma emissão pronta recebe `dataVersion` do conteúdo acadêmico e uma chave de série por ano/turma/aluno/período/detalhe. Repetir conteúdo e apresentação devolve a última versão; mudança real avança a série. A inclusão usa comparação da versão anterior e unicidade no banco. Falha de banco não é mascarada como conflito de versão.
 
-`gradebook.boletim_snapshot` é a única extensão proposta: 13 colunas, PK `snapshot_id + versao`, unicidade `chave_serie + versao`, FKs para 2026, checks de identidade do JSON e dois índices de histórico. É aditiva, sem backfill e sem DML acadêmico. `gradebook_app` recebe apenas `SELECT, INSERT`; `PUBLIC` fica sem acesso. Reimpressão consulta exclusivamente `snapshot_json`, sem materializar notas atuais nem criar nova versão.
+`gradebook.boletim_snapshot` é a única extensão: 13 colunas, PK `snapshot_id + versao`, unicidade `chave_serie + versao`, FKs para 2026, checks de identidade do JSON e dois índices de histórico explícitos. É aditiva, sem backfill e sem DML acadêmico. `gradebook_app` recebe apenas `SELECT, INSERT`; `PUBLIC`, `anon` e `authenticated` ficam sem acesso. Reimpressão consulta exclusivamente `snapshot_json`, sem materializar notas atuais nem criar nova versão.
 
 Emissão é bloqueada quando falta AM/U oficial necessária, composição está incompleta, a recuperação está pendente, o ano ainda está em curso ou a decisão humana obrigatória não foi registrada. A prévia continua mostrando a evidência disponível e os motivos legíveis.
 
@@ -39,4 +39,6 @@ Download e impressão aparecem apenas para emissão/reimpressão. O renderer é 
 
 PGlite cobre contrato estrito, migration, ACL, materialização, `N/C`, `ASSISTIDO`, idempotência, mudança de versão, histórico e contagem limitada de queries. HTTP cobre sessão/capability, 2026, `no-store` e gate produtivo. React/jsdom cobre a jornada HeroUI; PDF cobre conteúdo canônico, sanitização e falha fechada.
 
-Antes de produção: `npm run verify`, CI do head, revisão do diff, backup lógico recuperável, preflight das 28 tabelas atuais, aplicação única de `0005`, postflight estrutural/ACL/contagens, merge/deploy e smoke autenticado somente leitura. A validação visual conjunta permanece no encontro único posterior com o responsável.
+Gate produtivo executado em 11/09/2026 no head `4072211`: `npm run verify` e CI `34571001180` verdes; backup lógico pré-DDL das 28 tabelas/12 sequências/120.879 linhas validado em JSON e SHA-256; preflight confirmou somente 2026 e alvo ausente. A aplicação única de `0005` resultou em 29 tabelas, 227 colunas, 203 constraints, 62 índices, 51 FKs e 12 sequências, mantendo 4 funções e 3 triggers. A relação nova ficou vazia, com 13 colunas, 15 constraints, 4 índices totais, 3 FKs e ACL exata `SELECT, INSERT` para `gradebook_app`, sem privilégios de `PUBLIC`, `anon` ou `authenticated`. As contagens acadêmicas permaneceram idênticas.
+
+Restam documentar este postflight no head final, repetir verify/CI, revisar, integrar/publicar e executar smoke autenticado somente leitura. A automação não emite boletim real. A validação visual conjunta permanece no encontro único posterior com o responsável.

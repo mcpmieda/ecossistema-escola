@@ -1,12 +1,12 @@
 # Entrega corrente — Boletins relacionais V2
 
-**#654**, branch `feat/bn-relational-bulletins-v2-654`. Base factual: `main@4f32dd5150641d0a24c2e2c241768f953202ce56`, após Conselho V3 #648/PR #653, migration/postflight, CI 594, deploy 262 (`34565744488`) e smoke autenticado somente leitura.
+**#654 / PR #655**, branch `feat/bn-relational-bulletins-v2-654`. Base factual: `main@4f32dd5150641d0a24c2e2c241768f953202ce56`, após Conselho V3 #648/PR #653, migration/postflight, CI 594, deploy 262 (`34565744488`) e smoke autenticado somente leitura. O head `4072211` de Boletins V2 passou na CI `34571001180`; backup, preflight, migration `0005` e postflight produtivos também foram concluídos.
 
 #646/#647 integrou fonte, siglas, detalhe e desktop. #649/#650 fixou 2026, removeu criação/seleção de anos e entregou comparação descritiva entre trimestres. #651/#652 redesenhou Desempenho. #648/#653 integrou Conselho V3. Não reconstruir esses blocos. Usar `main` + branch + issue/PR + CI como estado factual; `PROJECT_STATE.yaml` é resumo e pode ficar um commit atrás.
 
 A #654 reancora Boletins em PostgreSQL relacional: catálogo/alunos, prévia, emissão individual/lote, histórico, reimpressão e PDF. AM/U importadas são oficiais; cálculo nativo é comparação descritiva. `ASSISTIDO` mostra notas sem resultado geral. REC e `N/C` aparecem junto das notas normais. Decisão formal de Conselho é somente o fato humano registrado. [Contrato detalhado](RELATIONAL_BULLETINS_V2.md).
 
-Gravar cada bloco revisável em commit antes de avançar. Executar testes, `npm run verify`, CI do head e revisão do diff. Antes de `0005`, preservar backup lógico fora do Git, confirmar as 28 tabelas atuais/ausência do alvo e contagens; depois conferir estrutura, ACL e zero linhas. Só então integrar/publicar conforme BN-DEC-023 e fazer smoke autenticado somente leitura — não emitir snapshot oficial durante automação visual.
+Gravar cada bloco revisável em commit antes de avançar. Executar testes, `npm run verify`, CI do head e revisão do diff. O gate de `0005` já preservou backup lógico fora do Git, confirmou as 28 tabelas anteriores/ausência do alvo, aplicou a extensão e conferiu catálogo, ACL, zero linhas e contagens acadêmicas. Atualizar o head documental, repetir verify/CI, integrar/publicar conforme BN-DEC-023 e fazer smoke autenticado somente leitura — não emitir snapshot oficial durante automação visual.
 
 Não criar/comparar anos, alterar dados acadêmicos, schema fora de `0005`, regras do motor, importador, binding, segredo ou autoridade #347. Falha ou drift fecha o escopo afetado. A validação visual conjunta de FINAL-1/2/3 permanece adiada para uma única sessão avisada previamente ao responsável.
 

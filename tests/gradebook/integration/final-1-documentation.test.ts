@@ -27,7 +27,10 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(section('storage')).toContain('core_table_count: 19');
     expect(section('storage')).toContain('diagnostic_table_count: 1');
     expect(section('storage')).toContain('council_v3_table_count: 8');
-    expect(section('storage')).toContain('total_table_count: 28');
+    expect(section('storage')).toContain('total_table_count: 29');
+    expect(section('storage')).toContain(
+      'relational_bulletin_snapshot_migration: applied-and-postflight-verified-2026-09-11',
+    );
     expect(section('runtime')).toContain('global_academic_authority_switch_verified: false');
     expect(section('work_in_progress')).toContain('phase_complete: false');
     expect(section('work_in_progress')).toContain('production_activation_in_this_delivery: false');
@@ -122,7 +125,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
       'relational_council_v3: integrated-pr-653-deploy-262-authenticated-read-only-smoke-success',
     );
     expect(section('runtime')).toContain(
-      'relational_bulletins_v2: implemented-on-branch-654-awaiting-final-ci-migration-merge-deploy',
+      'relational_bulletins_v2: implemented-pr-655-ci-and-production-migration-postflight-green-awaiting-final-doc-head-merge-deploy-smoke',
     );
     expect(section('security')).toContain(
       'dependency_remediation: integrated-pr-641-deploy-256-success',

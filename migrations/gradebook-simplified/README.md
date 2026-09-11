@@ -31,7 +31,7 @@ sequências, ACL mínima exata de `gradebook_app`, ausência de privilégios `PU
 inalteradas e somente o ano 2026. Ver
 [`RELATIONAL_COUNCIL_V3.md`](../../docs/gradebook/RELATIONAL_COUNCIL_V3.md).
 
-Para `0005`, o preflight confirma as 28 tabelas pós-Conselho, ausência de `boletim_snapshot`, ano exclusivo 2026 e contagens acadêmicas. Preservar cópia lógica recuperável antes do DDL. O postflight espera uma tabela vazia, 13 colunas, dois índices, FKs/checks e ACL exata sem `UPDATE/DELETE`; não emitir boletim real no smoke automatizado. Ver [`RELATIONAL_BULLETINS_V2.md`](../../docs/gradebook/RELATIONAL_BULLETINS_V2.md).
+Para `0005`, o preflight confirmou as 28 tabelas pós-Conselho, ausência de `boletim_snapshot`, ano exclusivo 2026 e contagens acadêmicas; uma cópia lógica das 28 tabelas/12 sequências foi validada antes do DDL. O postflight produtivo de 11/09/2026 confirmou 29 tabelas no total e a relação nova vazia, com 13 colunas, 15 constraints, 4 índices totais, 3 FKs e ACL exata `SELECT, INSERT`, sem `UPDATE/DELETE` ou acesso público/cliente. Não emitir boletim real no smoke automatizado. Ver [`RELATIONAL_BULLETINS_V2.md`](../../docs/gradebook/RELATIONAL_BULLETINS_V2.md).
 
 ## O que ainda falta para declarar recuperação institucional
 
