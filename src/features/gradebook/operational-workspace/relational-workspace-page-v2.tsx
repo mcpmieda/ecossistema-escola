@@ -28,7 +28,6 @@ function Center({value,onOpen,busy,onMore}:{value:WorkspaceCenterV2;onOpen:(valu
     <Card.Title ref={heading} tabIndex={-1} className="break-words outline-none focus-visible:ring-2 focus-visible:ring-focus">{value.entity.label}</Card.Title>
   </Card.Header><Card.Content className="grid min-w-0 gap-5">
     {value.classInfo?<p className="text-sm text-muted">Etapa {value.classInfo.stage} · Turno {value.classInfo.shift}</p>:null}
-    {value.studentInfo?<p className="text-sm">Aprovação pelo Conselho no ano anterior: <strong>{value.studentInfo.councilPrevious===null?'Não informado':value.studentInfo.councilPrevious?'Sim':'Não'}</strong></p>:null}
     {value.entity.kind==='student'||value.entity.kind==='class-group'?<section>
       <h3 className="mb-2 font-semibold">Vínculos do ano</h3>
       {value.bindings.length?<BindingTable values={value.bindings} onOpen={onOpen}/>:<p className="text-sm text-muted">Nenhum vínculo encontrado nesta consulta.</p>}

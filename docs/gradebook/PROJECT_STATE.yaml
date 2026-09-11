@@ -1,13 +1,13 @@
 schema_version: 2
 project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
-updated_at: 2026-09-10
+updated_at: 2026-09-11
 
 coordination:
   master_issue: 182
-  executable_issue: 649
-  current_delivery_issue: 649
-  current_integrator_issue: 649
+  executable_issue: 648
+  current_delivery_issue: 648
+  current_integrator_issue: 648
   central_state_editor: integrator-only
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
@@ -22,7 +22,9 @@ coordination:
   prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
 
 baseline:
-  last_audited_main_commit: 002b97a6b647c28e1eca75745425732858eae665
+  last_audited_main_commit: 459443db90277baf55690fe69d35dbfdba8550f1
+  integrated_performance_heroui_pr: 652
+  integrated_term_comparison_pr: 650
   integrated_source_desktop_pr: 647
   integrated_performance_lenses_pr: 645
   integrated_performance_matrix_pr: 643
@@ -32,11 +34,11 @@ baseline:
   integrated_import_archive_pr: 632
   storage_homologation_issue: 613
   active_diagnostics_homologation_issue: 629
-  authorized_deploy_run: 34544618100
-  authorized_deploy_number: 259
+  authorized_deploy_run: 34559675760
+  authorized_deploy_number: 261
   authorized_deploy_result: success
   authenticated_post_deploy_smoke_this_session: false
-  note: baseline-after-source-year-desktop-delivery-647-before-term-comparison-650
+  note: baseline-after-performance-heroui-652-before-council-v3-653
 
 storage:
   decision_current: BN-DEC-022
@@ -47,11 +49,14 @@ storage:
   cutover_completed: true
   core_table_count: 19
   diagnostic_table_count: 1
-  total_table_count: 20
-  column_count: 127
-  structural_constraint_count: 123
-  index_count: 38
-  foreign_key_count: 34
+  council_v3_table_count: 8
+  baseline_pre_council_table_count: 20
+  total_table_count: 28
+  column_count: 214
+  structural_constraint_count: 188
+  index_count: 58
+  foreign_key_count: 48
+  sequence_count: 12
   function_count: 4
   distinct_trigger_count: 3
   information_schema_trigger_event_rows: 6
@@ -65,6 +70,10 @@ storage:
   recovery_baseline_path: migrations/gradebook-simplified/
   production_data_restore_proven_by_this_pr: false
   legacy_d1_role: preserved-historical-resource-not-backup-of-new-relational-writes
+  council_v3_migration: applied-and-postflight-verified-2026-09-11
+  council_v3_new_rows_after_migration: 0
+  council_v3_acl: exact-backend-least-privilege-public-zero
+  pre_migration_copy: logical-export-validated-managed-backup-unavailable-on-free-plan
 
 runtime:
   design_system: HeroUI React v3
@@ -85,7 +94,7 @@ runtime:
   relational_performance_authority: calculated-preview-not-official-emission
   relational_performance_snapshot: per-response-read-only-repeatable-read
   performance_analysis_v3: integrated-pr-645-deploy-258-success-awaiting-authenticated-smoke
-  performance_term_comparison_v4: implemented-pr-650-awaiting-final-head-gates
+  performance_term_comparison_v4: integrated-pr-650-deploy-260-success-awaiting-joint-visual-validation
   performance_lenses: [result, quantitative, qualitative, assessments]
   performance_lenses_contract: docs/gradebook/PERFORMANCE_LENSES_V3.md
   cross_period_comparison: descriptive-same-year-t2-to-t1-and-t3-to-t1-or-t2
@@ -95,10 +104,16 @@ runtime:
   academic_year_creation: removed
   academic_year_selection: removed
   cross_academic_year_comparison: forbidden
-  shared_year_consumers: [centers-v2, audit-v1, performance-v2-v3-v4, bulletins-v1, reports-v1, council-v1]
+  relational_council_v3: migration-applied-postflight-green-pr-653-awaiting-final-ci-merge-deploy
+  relational_council_authority: calculated-eligibility-explicit-human-decision
+  relational_council_decisions: [approved-by-council, rejected-by-council, rejected-for-absence]
+  relational_council_vote_storage: favoraveis-and-contrarios-only-presentes-derived
+  relational_council_director_tie_break: outside-system
+  relational_council_lifecycle: session-cas-idempotency-history-close-snapshot-justified-reopen
+  shared_year_consumers: [centers-v2, audit-v1, performance-v2-v3-v4, bulletins-v1, reports-v1, council-v3]
   shared_year_legacy_mapping: unique-exact-2026-catalog-label-or-fail-closed
   import_source_year_reinterpreted_by_navigation: false
-  remaining_consumers: legacy-schema-sources-and-durability-pending-reanchoring
+  remaining_consumers: legacy-audit-bulletins-and-reports-sources-and-durability-pending-reanchoring
   global_academic_authority_switch_verified: false
   authority_acceptance_issue: 347
   legacy_consumer_contracts:
@@ -106,21 +121,22 @@ runtime:
     note: describes-existing-v1-contracts-not-a-global-runtime-flag
 
 work_in_progress:
-  issue: 649
-  parent_issues: [633, 634]
-  phase: FINAL-1-and-FINAL-2
-  branch: feat/bn-2026-term-comparison-649
-  pull_request: 650
-  scope: fixed-2026-remove-year-management-and-descriptive-term-comparison-v4
+  issue: 648
+  parent_issues: [633, 635]
+  phase: FINAL-1-and-FINAL-3
+  branch: feat/bn-council-final3-648
+  pull_request: 653
+  scope: relational-council-v3-session-votes-history-snapshots-heroui
   production_activation_in_this_delivery: false
+  production_schema_extension_in_this_delivery: council-v3-applied-and-postflight-verified
   phase_complete: false
-  release_checkpoint: issue-649-and-pr-650
+  release_checkpoint: issue-648-and-pr-653
   visual_validation_this_delivery: deferred-for-single-session-with-responsible
   remaining:
-    - visual-configuration-and-default-opening-policy-require-explicit-decision
-    - visual-browser-and-authenticated-production-smoke
+    - joint-visual-validation-with-responsible
+    - authenticated-production-smoke-after-deploy
     - relational-teacher-maintenance
-    - relational-sources-and-durability-for-audit-bulletins-reports-and-council
+    - relational-sources-and-durability-for-audit-bulletins-and-reports
     - production-data-backup-restore-and-real-multi-session-contention-pilot
     - legacy-removal-after-dependency-proof
 
@@ -131,12 +147,12 @@ final_phases:
     status: foundation-centers-and-performance-integrated-year-management-removed-other-consumers-and-visual-validation-pending
   - phase: FINAL-2
     issue: 634
-    branch: feat/bn-2026-term-comparison-649
-    status: source-desktop-integrated-fixed-2026-and-term-comparison-in-pr-650-visual-validation-pending
+    branch: null
+    status: source-desktop-fixed-2026-term-comparison-and-heroui-redesign-integrated-visual-validation-pending
   - phase: FINAL-3
     issue: 635
-    branch: feat/bn-final-3-conselho
-    status: planned-dependent-on-relational-contracts
+    branch: feat/bn-council-final3-648
+    status: relational-v3-implemented-pr-653-awaiting-migration-release-smoke-and-joint-visual-validation
   - phase: FINAL-4
     issue: 406
     branch: test/bn-final-4-piloto-integral
@@ -161,7 +177,8 @@ security:
   real_data_in_git_or_ci: forbidden
   public_academic_payloads_and_credentials: forbidden
   source_document_mutation: forbidden
-  production_writes_in_this_delivery: forbidden
+  production_academic_writes_in_this_delivery: forbidden
+  production_schema_extension: council-v3-applied-after-authorized-backup-preflight-ci-review
   automatic_authority_activation: forbidden
   authorization_context: server-only
   concurrency_and_atomicity: required
@@ -177,7 +194,7 @@ security:
   report: docs/gradebook/SECURITY_REMEDIATION_637.md
 
 next_safe_action:
-  issue: 649
-  related_issues: [633, 634]
-  description: verify-final-head-review-diff-and-integrate-deploy-under-bn-dec-023
-  prerequisite_release_checkpoint: issue-649-and-pr-650
+  issue: 648
+  related_issues: [633, 635]
+  description: verify-final-head-ci-review-diff-integrate-deploy-and-authenticated-smoke
+  prerequisite_release_checkpoint: issue-648-and-pr-653

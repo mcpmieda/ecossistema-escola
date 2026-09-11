@@ -17,20 +17,21 @@ describe('Council institutional HeroUI V2', () => {
   );
   const route = source('server/gradebook/http/council-routes-v1.ts');
   const surface = source('src/platform/gradebook-council-surface.tsx');
+  const activePanel = source('src/features/gradebook/council/relational-council-page-v3.tsx');
   const functions = source('functions/[[path]].ts');
   const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
 
-  it('entrega painel HeroUI e o monta pelo wiring central da #343 no bridge existente', () => {
+  it('preserva o painel V2 isolado e monta o Conselho relacional V3 no bridge existente', () => {
     expect(panel).toContain("from '@heroui/react'");
     expect(panel).toContain('<Card>');
     expect(panel).toContain('<Button');
     expect(panel).toContain('<Alert');
     expect(panel).toContain('<Surface');
     expect(panel).toContain('Fechamento institucional');
-    expect(surface).toContain('CouncilInstitutionalPanelV2');
-    expect(surface).toContain('focusedStudentReference={focusedStudentReference}');
-    expect(surface).toContain('onFocusedStudentReferenceChange={setFocusedStudentReference}');
-    expect(surface).not.toContain('focusedStudentReference={null}');
+    expect(surface).toContain('RelationalCouncilPageV3');
+    expect(surface).not.toContain('CouncilInstitutionalPanelV2');
+    expect(activePanel).toContain('Fechamentos preservados');
+    expect(activePanel).toContain('Linha do tempo');
     expect(functions).toContain('createInstitutionalWorkspace(runtimeEnv, server)');
     expect(functions).toContain('.councilInstitutionalWorkspace(');
     expect(runtime).toContain('CouncilInstitutionalWorkspaceV2');

@@ -20,9 +20,9 @@ Validar legibilidade, acessibilidade, teclado, estados vazios/zero/indisponívei
 
 ## FINAL-3 — #635: Conselho definitivo
 
-Preservar somente Conselho do documento antigo. Conciliar primeiro as diferenças entre esse documento, decisão relacional 1/2/3 e sessão institucional V2. Entregar fluxo turma/aluno/discussão/decisão, fila, panorama e detalhes, não elegíveis com motivos, voto numérico opcional, desempate com autoridade formal, edição histórica e fechamento. Não converter julgamento humano em cálculo nem inferir diretor a partir de papel administrativo.
+A decisão #648 fixa 2026, os estados 1/2/3, voto opcional somente favoráveis/contrários e desempate do diretor fora do sistema. O V3 relacional entrega turma/aluno, fila, panorama/detalhes, não elegíveis com motivos, sessão, decisão humana, votação, histórico, fechamento e reabertura justificada. Não converte julgamento humano em cálculo nem infere diretor a partir de papel administrativo.
 
-Persistir somente os fatos institucionais necessários em extensão mínima contratada quando ausentes; comprovar restart, concorrência, histórico e integração com resultados/Boletins/Relatórios.
+A extensão mínima persiste sessão, idempotência, votos, históricos e fotografias de fechamento sem backfill ou mudança de fatos acadêmicos. FINAL-3 termina após CI, migration/postflight, publicação e smoke da #648/#653; restart/contenção multi-sessão, integração posterior de Boletins/Relatórios e aceite visual conjunto permanecem gates dos blocos que os possuem.
 
 ## FINAL-4 — #406: piloto do produto inteiro
 

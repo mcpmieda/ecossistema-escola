@@ -22,7 +22,7 @@ As PRs #643/#645 integraram matriz relacional e quatro lentes; a #647 integrou f
 
 ## Recuperação não pode ser presumida
 
-Uma migration existente não comprova restore. `migrations/gradebook-simplified/` reconstrói o schema e compara com o catálogo observado: 20 tabelas, 127 colunas, 123 constraints, 38 índices, 4 funções e 3 triggers. NOT NULL é comparado por `attnotnull`; sua representação adicional em `pg_constraint` no PostgreSQL 18 é excluída para comparar com PostgreSQL 17, sem excluir a regra.
+Uma migration existente não comprova restore. `0001` reconstrói e compara a baseline observada antes do Conselho: 20 tabelas, 127 colunas, 123 constraints, 38 índices, 4 funções e 3 triggers. `0003`/`0004` acrescentam o Conselho V3 e levam o catálogo corrente a 28 tabelas, 214 colunas, 188 constraints, 58 índices, 48 FKs e 12 sequências, sem mudar as 4 funções/3 triggers. NOT NULL é comparado por `attnotnull`; sua representação adicional em `pg_constraint` no PostgreSQL 18 é excluída para comparar com PostgreSQL 17, sem excluir a regra.
 
 Grants backend são separados da baseline; testes usam roles sintéticas. Restore de dados, identities, ACLs externas, timezone, recursos, RPO/RTO e operação real continuam gates #406/#596. Não executar DDL de streams/versions. D1 histórico não contém as novas escritas; sua exclusão ou uso como rollback exige plano próprio.
 

@@ -1,12 +1,12 @@
 # FINAL-1 — baseline reproduzível e diagnósticos atômicos
 
-Refs #633 / #636. Implementação na branch, ainda não publicada. Nenhuma consulta de produção desta entrega escreveu dados ou DDL.
+Refs #633 / #636 e extensão #648. A baseline e a Auditoria foram integradas anteriormente; em 11/09/2026 a migration aditiva do Conselho V3 foi aplicada após preflight e export lógico validado. Nenhuma linha acadêmica foi alterada por esse DDL.
 
 ## Schema atual, não migração antiga
 
-A pasta `migrations/gradebook-simplified/` contém a baseline reconstruída do catálogo e uma consulta de drift. São 20 tabelas, 127 colunas, 123 constraints (34 FKs), 38 índices, 4 funções e 3 triggers distintos; os seis eventos em `information_schema.triggers` não são seis triggers. O teste reexecuta a baseline em banco descartável e compara os fingerprints estruturais coletados, sem copiar dados acadêmicos.
+A pasta `migrations/gradebook-simplified/` contém a baseline reconstruída do catálogo e suas extensões ordenadas. `0001` continua a fotografia pré-Conselho: 20 tabelas, 127 colunas, 123 constraints (34 FKs), 38 índices, 4 funções e 3 triggers distintos; os seis eventos em `information_schema.triggers` não são seis triggers. O teste de baseline reexecuta essa fotografia em banco descartável e compara os fingerprints estruturais coletados, sem copiar dados acadêmicos. `0003`/`0004` levam o estado corrente a 28 tabelas, 214 colunas, 188 constraints, 58 índices, 48 FKs e 12 sequências, mantendo 4 funções e 3 triggers. O catálogo JSON de 10/09 permanece evidência histórica da baseline de 20 tabelas, não fingerprint pós-extensão.
 
-As permissões backend estão em script separado. A consulta efetiva na produção confirmou anon/authenticated sem USAGE e sem leitura/escrita de tabelas; não habilitamos RLS nem alteramos grants por causa de alertas genéricos. O processo de recuperação ainda precisa verificar backup de dados, identities/sequence counters, ambiente, ACLs externas, timezone, RPO/RTO e jornadas da aplicação. Baseline de schema não é backup.
+As permissões backend da baseline estão em script separado. A consulta efetiva na produção confirmou anon/authenticated sem USAGE e sem leitura/escrita de tabelas; não habilitamos RLS por causa de alertas genéricos. `0004` neutraliza grants padrão do proprietário nas relações novas e mantém a ACL mínima da role backend. O export lógico pré-migration foi validado por conjunto/contagem/JSON/checksum, mas o processo de recuperação ainda precisa comprovar restore de dados, identities/sequence counters, ambiente, ACLs externas, timezone, RPO/RTO e jornadas da aplicação. Baseline de schema e export sem ensaio de restauração não são recuperação institucional comprovada.
 
 ## Uma única operação dona do conjunto de diagnósticos
 

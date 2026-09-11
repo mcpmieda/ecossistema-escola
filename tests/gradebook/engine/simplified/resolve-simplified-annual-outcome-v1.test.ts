@@ -27,13 +27,11 @@ function component(
 function resolve(input: {
   readonly status?: SimplifiedEnrollmentStatusV1;
   readonly components?: readonly SimplifiedComponentRecoveryOutcomeV1[];
-  readonly councilPrevious?: boolean | null;
   readonly maxCouncilComponents?: number;
 }) {
   return resolveSimplifiedAnnualOutcomeV1({
     status: input.status ?? null,
     components: input.components ?? [],
-    councilPrevious: input.councilPrevious ?? null,
     maxCouncilComponents: input.maxCouncilComponents ?? 2,
   });
 }
@@ -83,7 +81,6 @@ describe('simplified annual outcome v1', () => {
     expect(
       resolve({
         components: [component('not-approved'), component('not-approved'), component('not-approved')],
-        councilPrevious: false,
         maxCouncilComponents: 2,
       }),
     ).toMatchObject({
@@ -94,27 +91,9 @@ describe('simplified annual outcome v1', () => {
     });
   });
 
-  it('blocks Council eligibility while the prior-year answer is pending', () => {
+  it('exposes Council eligibility from the current 2026 result only', () => {
     expect(
-      resolve({ components: [component('not-approved')], councilPrevious: null, maxCouncilComponents: 2 }),
-    ).toMatchObject({
-      state: 'council-prior-pending',
-      visibleResult: null,
-      councilEligibility: 'pending-prior-answer',
-    });
-  });
-
-  it('disallows a second consecutive Council approval and exposes eligibility otherwise', () => {
-    expect(
-      resolve({ components: [component('not-approved')], councilPrevious: true, maxCouncilComponents: 2 }),
-    ).toMatchObject({
-      state: 'final',
-      visibleResult: 'REPROVADO APÓS RECUPERAÇÃO',
-      councilEligibility: 'not-eligible',
-    });
-
-    expect(
-      resolve({ components: [component('not-approved')], councilPrevious: false, maxCouncilComponents: 2 }),
+      resolve({ components: [component('not-approved')], maxCouncilComponents: 2 }),
     ).toMatchObject({
       state: 'council-eligible',
       visibleResult: null,

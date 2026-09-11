@@ -13,7 +13,7 @@ const year = {year:2026,minimumApprovalMilli:60000,maxCouncilComponents:2};
 const entity:WorkspaceLinkV2={kind:'student',id:1,label:'ALUNO SINTETICO'};
 const context=()=>({contractVersion:2,state:'ready',operation:'context',context:year,counts:{students:1,classes:1,teachers:1,subjects:1,offers:1,currentBindings:1,historicalBindings:0}});
 const search=(label='ALUNO SINTETICO',nextOffset:number|null=null)=>({contractVersion:2,state:'ready',operation:'search',context:year,items:[{entity:{...entity,label},description:'A1 · Nº 1'}],nextOffset});
-const detail={contractVersion:2,state:'ready',operation:'center',context:year,center:{entity,classInfo:null,studentInfo:{councilPrevious:null},bindings:[],offers:[],nextOffset:null}};
+const detail={contractVersion:2,state:'ready',operation:'center',context:year,center:{entity,classInfo:null,bindings:[],offers:[],nextOffset:null}};
 const searchRequest:Extract<OperationalWorkspaceRequestV2,{operation:'search'}>={contractVersion:2,operation:'search',year:2026,kind:'student',query:'',offset:0,limit:100};
 let fetchMock:ReturnType<typeof vi.fn<typeof fetch>>;
 let root:Root|null=null;
@@ -72,7 +72,7 @@ describe('react workspace request lifecycle with synthetic HTTP responses',()=>{
     await mount();
     fetchMock.mockResolvedValueOnce(reply(search()));await act(async()=>{await current.search();});
     fetchMock.mockResolvedValueOnce(reply(detail));await act(async()=>{await current.open(entity);});
-    expect(current.items).toHaveLength(1);expect(current.detail?.studentInfo?.councilPrevious).toBeNull();
+    expect(current.items).toHaveLength(1);expect(current.detail?.entity.id).toBe(1);
     expect(fetchMock.mock.calls.every(([,options])=>JSON.parse(String(options?.body)).contractVersion===2)).toBe(true);
   });
   it('aborts and ignores a delayed search after the query changes',async()=>{
@@ -118,7 +118,7 @@ describe('rendered Centrais surface in jsdom (not a visual browser benchmark)',(
     const student=[...host.querySelectorAll('button')].find((value)=>value.textContent==='ALUNO SINTETICO');
     expect(student).toBeDefined();fetchMock.mockResolvedValueOnce(reply(detail));
     await act(async()=>{student!.click();});
-    expect(host.textContent).toContain('Não informado');expect(host.textContent).toContain('Ofertas da turma atual');expect(host.textContent).toContain('Consulta somente leitura');
+    expect(host.textContent).not.toContain('Conselho no ano anterior');expect(host.textContent).toContain('Ofertas da turma atual');expect(host.textContent).toContain('Consulta somente leitura');
   });
   it('mounts V2 in the existing lazy shell and leaves legacy maintenance disconnected',()=>{
     const surface=readFileSync('src/platform/gradebook-operational-surface.tsx','utf8');

@@ -14,6 +14,7 @@ Base: BN-DEC-022, #613 e programa #182. O [índice anterior completo](history/pr
 | Projeção anual | `server/gradebook/application/results/relational-student-annual-projection-v1.ts` | turma atual, decisão humana separada; não transporte UI |
 | Contexto/pesquisa/Centrais V2 | `shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2.ts` | contrato #639; implementação integrada na PR #640 |
 | Desempenho relacional V2/V3/V4 | `shared/gradebook-contracts/performance/relational-performance-v2.ts`, `performance-analysis-v3.ts` e `performance-term-comparison-v4.ts` | matriz/lentes/detalhe integrados; comparação trimestral 2026 na #649/#650 |
+| Conselho relacional V3 | `shared/gradebook-contracts/council/relational-council-v3.ts` | contrato #648; sessão/CAS/idempotência/votos/histórico/fotografias, com decisão humana explícita |
 
 Comparação relacional `match | mismatch | unavailable` e reconciliação histórica `match | expected-difference | mismatch | not-comparable` não são intercambiáveis. Nunca tratar indisponibilidade como correspondência.
 
@@ -29,7 +30,7 @@ V1 não foi alterado para simular equivalência. A interface de Centrais passa a
 
 ## Consumidores que exigem adaptação
 
-AuditWorkspace antigo, Boletins, Relatórios e Conselho V1/V2 ainda dependem da geração anterior nas fontes/durabilidade. O contexto fixo 2026 não converte esses contratos; apenas impede seleção divergente ou aproximada. Desempenho montado no shell usa a projeção relacional V2/V3/V4. Ver [mapa](CONSUMER_MAP.md), [contrato #646](FINAL2_SOURCE_DESKTOP_646.md) e [comparação #649](TERM_COMPARISON_2026_V4.md).
+AuditWorkspace antigo, Boletins e Relatórios ainda dependem da geração anterior nas fontes/durabilidade. O Conselho montado no shell usa V3 relacional; V1/V2 permanecem apenas como compatibilidade não montada. O contexto fixo 2026 não converte os demais contratos; apenas impede seleção divergente ou aproximada. Desempenho montado no shell usa a projeção relacional V2/V3/V4. Ver [mapa](CONSUMER_MAP.md), [Conselho V3](RELATIONAL_COUNCIL_V3.md), [contrato #646](FINAL2_SOURCE_DESKTOP_646.md) e [comparação #649](TERM_COMPARISON_2026_V4.md).
 
 Preservar interpretação histórica, ano explícito, identidade server-side, concorrência, idempotência, histórico, emissão/reimpressão e decisão humana. Não fabricar campos/IDs apenas para formatos obsoletos. Toda mudança em `shared/` exige issue `[BN][CONTRATO]`: a #639 autoriza V2; a PR #636 não modifica contratos compartilhados.
 
@@ -43,9 +44,9 @@ O campo V2 legado permanece `comparability-not-contracted` para não reinterpret
 
 ## Conselho — única parte preservada do documento antigo
 
-`APENAS CONSELHO`, 23/08/2026, sobretudo §12.9 pp.23–24: turma/aluno/discussão/decisão, evidências em camadas, não elegíveis, votação opcional, diretor só no desempate, falta nas condições definidas, edição histórica e fechamento. Execução #635.
+`APENAS CONSELHO`, 23/08/2026, sobretudo §12.9 pp.23–24: turma/aluno/discussão/decisão, evidências em camadas, não elegíveis, votação opcional, edição histórica e fechamento. Execução #635; a conciliação vigente é a decisão explícita #648.
 
-Códigos atuais 1/2/3 não representam toda a distinção documental entre reprovações. Voto/desempate/sessão não estão inteiramente no schema. O documento admite edição e V2 antigo bloqueia alterações após fechamento: conciliar reabertura/durabilidade por decisão contratual, não silenciosamente. Conselho anterior desconhecido e identidade de diretor exigem tratamento explícito; ADMINISTRADOR não implica diretor. O restante desse documento não governa importação, armazenamento, retenção ou Desempenho.
+Os códigos são exatamente 1 `APROVADO PELO CONSELHO`, 2 `REPROVADO PELO CONSELHO` e 3 `REPROVADO POR FALTA`. Votos registram somente favoráveis/contrários e presentes é derivado. Diretor, desempate e voto de minerva ficam fora do sistema; ADMINISTRADOR não implica diretor. A sessão fecha para escrita, cria fotografia imutável e só volta a aceitar comandos depois de reabertura justificada. Conselho anterior foi retirado do caminho ativo, sem apagar colunas históricas. O restante do documento antigo não governa importação, armazenamento, retenção ou Desempenho.
 
 ## Recuperação e schema
 

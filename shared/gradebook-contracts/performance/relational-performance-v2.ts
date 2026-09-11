@@ -44,13 +44,13 @@ const cell = z.object({
 });
 export type PerformanceCellV2 = z.infer<typeof cell>;
 const annual = z.object({
-  state: z.enum(['no-result', 'in-progress', 'recovery', 'final', 'council-prior-pending', 'council-eligible']),
+  state: z.enum(['no-result', 'in-progress', 'recovery', 'final', 'council-eligible']),
   label: z.enum(SIMPLIFIED_VISIBLE_ANNUAL_RESULTS_V1).nullable(),
-  councilEligibility: z.enum(['not-applicable', 'eligible', 'not-eligible', 'pending-prior-answer']),
+  councilEligibility: z.enum(['not-applicable', 'eligible', 'not-eligible']),
 }).strict();
 const formalDecision = z.object({ code: z.union([z.literal(1), z.literal(2), z.literal(3)]), label }).strict();
 const student = z.object({ id, name: label, number: z.number().int().min(1).max(32767), status, statusLabel: label,
-  indicatorEligible: z.boolean(), councilPrevious: z.boolean().nullable() }).strict();
+  indicatorEligible: z.boolean() }).strict();
 const row = z.object({ student, calculatedAnnual: annual.nullable(), formalCouncilDecision: formalDecision.nullable(),
   cells: z.array(cell).max(PERFORMANCE_LIMITS_V2.offers) }).strict();
 export type PerformanceRowV2 = z.infer<typeof row>;

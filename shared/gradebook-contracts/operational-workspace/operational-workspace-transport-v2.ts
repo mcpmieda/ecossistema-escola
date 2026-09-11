@@ -49,7 +49,6 @@ export interface WorkspaceSearchItemV2 {
 export interface WorkspaceCenterV2 {
   readonly entity: WorkspaceLinkV2;
   readonly classInfo: { readonly code: string; readonly stage: number; readonly shift: string } | null;
-  readonly studentInfo: { readonly councilPrevious: boolean | null } | null;
   readonly bindings: readonly WorkspaceBindingV2[];
   readonly offers: readonly WorkspaceOfferV2[];
   /** Shared offset advances both independently ordered lists; no list is silently truncated. */
@@ -121,10 +120,6 @@ function center(value: unknown): value is WorkspaceCenterV2 {
     if (!object(value.classInfo) || !text(value.classInfo.code, 100) ||
         !integer(value.classInfo.stage, 1, 32767) || !text(value.classInfo.shift, 100)) return false;
   } else if (value.classInfo !== null) return false;
-  if (value.entity.kind === 'student') {
-    if (!object(value.studentInfo) || !(value.studentInfo.councilPrevious === null ||
-        typeof value.studentInfo.councilPrevious === 'boolean')) return false;
-  } else if (value.studentInfo !== null) return false;
   return true;
 }
 

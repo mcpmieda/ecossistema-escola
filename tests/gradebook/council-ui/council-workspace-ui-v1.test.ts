@@ -13,6 +13,7 @@ describe('Council Workspace HeroUI V1', () => {
   const app = source('src/App.tsx');
   const shell = source('src/platform/gradebook-workspace-shell.tsx');
   const councilSurface = source('src/platform/gradebook-council-surface.tsx');
+  const activePage = source('src/features/gradebook/council/relational-council-page-v3.tsx');
   const functions = source('functions/[[path]].ts');
   const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
 
@@ -26,7 +27,8 @@ describe('Council Workspace HeroUI V1', () => {
     expect(app).not.toContain('CouncilWorkspaceMount');
     expect(app).not.toContain('council-workspace-page');
     expect(shell).toContain("import('./gradebook-council-surface')");
-    expect(councilSurface).toContain('CouncilWorkspacePage');
+    expect(councilSurface).toContain('RelationalCouncilPageV3');
+    expect(councilSurface).not.toContain('CouncilWorkspacePage');
     expect(functions).toContain('createCouncilWorkspaceRequestHandlerV1');
   });
 
@@ -40,9 +42,10 @@ describe('Council Workspace HeroUI V1', () => {
     );
     expect(page).toContain('requestCouncilStudentV1');
     expect(page).toContain('onFocusedStudentReferenceChange(response.detail.studentReference)');
-    expect(councilSurface).toContain(
-      'onFocusedStudentReferenceChange={setFocusedStudentReference}',
-    );
+    expect(activePage).toContain('setSelectedStudentId(student.id)');
+    expect(activePage).toContain('1º tri.');
+    expect(activePage).toContain('3º tri.');
+    expect(activePage).toContain('REC');
     expect(page).toContain('A fila mantém o aluno principal em foco sem abrir detalhes em lote.');
   });
 

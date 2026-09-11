@@ -46,7 +46,6 @@ export interface RelationalStudentAnnualProjectionV1 {
     readonly numero: number;
   };
   readonly status: SimplifiedEnrollmentStatusV1;
-  readonly conselhoAnterior: boolean | null;
   readonly minimumApprovalMilli: number;
   readonly maxCouncilComponents: number;
   readonly components: readonly RelationalAnnualComponentProjectionV1[];
@@ -121,13 +120,6 @@ function isStatusTerminal(status: SimplifiedEnrollmentStatusV1): boolean {
   return status === 1 || status === 2 || status === 3 || status === 4 || status === 5;
 }
 
-function nullableBoolean(value: unknown): boolean | null {
-  if (value === null || value === undefined) return null;
-  if (value === true || value === 1) return true;
-  if (value === false || value === 0) return false;
-  throw new RelationalStudentAnnualProjectionErrorV1('invalid-relational-row');
-}
-
 function formalCouncilDecision(
   value: unknown,
 ): RelationalStudentAnnualProjectionV1['formalCouncilDecision'] {
@@ -181,7 +173,7 @@ export function createRelationalStudentAnnualProjectionServiceV1(
         throw new RelationalStudentAnnualProjectionErrorV1('invalid-relational-row');
       }
       const base = await first<Row>(database,
-        `SELECT a.ano, a.nome AS aluno_nome, a.conselho_anterior,
+        `SELECT a.ano, a.nome AS aluno_nome,
                 v.turma_id, v.numero, v.situacao,
                 t.codigo AS turma_codigo, t.nome AS turma_nome,
                 y.minimo_aprovacao, y.max_componentes_conselho,
@@ -197,7 +189,6 @@ export function createRelationalStudentAnnualProjectionServiceV1(
       const ano = asInteger(base.ano);
       const turmaId = positiveInteger(base.turma_id);
       const status = enrollmentStatus(base.situacao);
-      const conselhoAnterior = nullableBoolean(base.conselho_anterior);
       const minimumApprovalMilli = positiveInteger(base.minimo_aprovacao);
       const maxCouncilComponents = nonNegativeInteger(base.max_componentes_conselho);
       const common = {
@@ -206,7 +197,7 @@ export function createRelationalStudentAnnualProjectionServiceV1(
           id: turmaId, codigo: requiredText(base.turma_codigo),
           nome: requiredText(base.turma_nome), numero: positiveInteger(base.numero),
         },
-        status, conselhoAnterior, minimumApprovalMilli, maxCouncilComponents,
+        status, minimumApprovalMilli, maxCouncilComponents,
         formalCouncilDecision: formalCouncilDecision(base.conselho_decisao),
       } as const;
       // A terminal status is independent from grade projection. Preserve its precedence.
@@ -214,7 +205,7 @@ export function createRelationalStudentAnnualProjectionServiceV1(
         return {
           ...common, components: [],
           calculatedAnnual: resolveSimplifiedAnnualOutcomeV1({
-            status, components: [], councilPrevious: conselhoAnterior, maxCouncilComponents,
+            status, components: [], maxCouncilComponents,
           }),
           homologation: { am: EMPTY_COMPARISON_SUMMARY_V1, u: EMPTY_COMPARISON_SUMMARY_V1 },
         };
@@ -255,7 +246,7 @@ export function createRelationalStudentAnnualProjectionServiceV1(
         ...common, components,
         calculatedAnnual: resolveSimplifiedAnnualOutcomeV1({
           status, components: components.map((component) => component.projection.recovery),
-          councilPrevious: conselhoAnterior, maxCouncilComponents,
+          maxCouncilComponents,
         }),
         homologation: {
           am: comparisonSummary(components.flatMap((component) => component.projection.terms.map((term) => term.sourceComparison))),

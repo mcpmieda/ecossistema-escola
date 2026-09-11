@@ -120,7 +120,7 @@ describe('relational operational workspace with the complete schema and PostgreS
   });
   it('shows current and historical bindings without inventing dates or merging transfers', async () => {
     const result = await service().execute(center('student',2));
-    expect(result).toMatchObject({center:{studentInfo:{councilPrevious:null},bindings:[{classGroup:{id:20},number:1,status:7,position:'current',relatedClass:{id:10}},{classGroup:{id:10},number:2,status:6,position:'historical',relatedClass:{id:20}}],offers:[{id:20}]}});
+    expect(result).toMatchObject({center:{bindings:[{classGroup:{id:20},number:1,status:7,position:'current',relatedClass:{id:10}},{classGroup:{id:10},number:2,status:6,position:'historical',relatedClass:{id:20}}],offers:[{id:20}]}});
     expect(queries).toHaveLength(5);
     expect(JSON.stringify(result)).not.toMatch(/occurredOn|currentVersion|authorityMode/u);
   });
@@ -147,7 +147,7 @@ describe('relational operational workspace with the complete schema and PostgreS
   });
   it.each(['teacher','subject'] as const)('reads the %s center through current offerings', async (kind) => {
     const result = await service().execute(center(kind,11));
-    expect(result).toMatchObject({center:{entity:{kind,id:11},bindings:[],offers:[{id:10},{id:20}],classInfo:null,studentInfo:null}});
+    expect(result).toMatchObject({center:{entity:{kind,id:11},bindings:[],offers:[{id:10},{id:20}],classInfo:null}});
     expect(queries).toHaveLength(4);
   });
   it('returns not-found for an entity from another year without disclosing its facts', async () => {

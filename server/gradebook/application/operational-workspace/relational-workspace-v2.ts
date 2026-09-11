@@ -67,7 +67,7 @@ function toOffer(row: Row): WorkspaceOfferV2 {
 
 // All fragments are fixed, reviewed identifiers. No request text becomes SQL syntax.
 const ENTITY_SQL: Record<WorkspaceKindV2, string> = {
-  student: 'SELECT id, nome AS label, conselho_anterior FROM gradebook.aluno WHERE ano = ? AND id = ?',
+  student: 'SELECT id, nome AS label FROM gradebook.aluno WHERE ano = ? AND id = ?',
   'class-group': 'SELECT id, codigo AS label, codigo, etapa, turno FROM gradebook.turma WHERE ano = ? AND id = ?',
   teacher: 'SELECT id, nome AS label FROM gradebook.professor WHERE ano = ? AND id = ?',
   subject: 'SELECT id, nome AS label FROM gradebook.disciplina WHERE ano = ? AND id = ?',
@@ -105,13 +105,9 @@ async function loadCenter(db: D1WriteDatabaseV1, request: Extract<OperationalWor
     WHERE o.ano = ? AND ${OFFER_FILTER[request.kind]}
     ORDER BY t.codigo COLLATE "C",d.nome COLLATE "C",p.nome COLLATE "C",o.id
     LIMIT ? OFFSET ?`, [request.year, request.id, request.limit + 1, request.offset]);
-  const storedPrior = entity.conselho_anterior;
-  const prior = storedPrior === 0 ? false : storedPrior === 1 ? true : storedPrior;
-  if (request.kind === 'student' && !(prior === null || typeof prior === 'boolean')) throw new Error('invalid-workspace-row');
   return {
     entity: ref(request.kind, entity.id, entity.label),
     classInfo: request.kind === 'class-group' ? {code:text(entity.codigo),stage:integer(entity.etapa),shift:text(entity.turno)} : null,
-    studentInfo: request.kind === 'student' ? {councilPrevious:prior as boolean|null} : null,
     bindings: bindings.slice(0, request.limit).map(toBinding),
     offers: offers.slice(0, request.limit).map(toOffer),
     nextOffset: nextOffset(Math.max(bindings.length, offers.length), request.offset, request.limit),

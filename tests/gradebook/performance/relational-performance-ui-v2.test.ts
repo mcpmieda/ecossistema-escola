@@ -16,7 +16,7 @@ const context = { year: 2026, minimumApprovalMilli: 60000, maxCouncilComponents:
 const common = { transportVersion: 2, state: 'ready', context, readAt: '2026-05-01T12:00:00.000Z', authority: 'calculated-preview' };
 const offering = { id: 10, subject: { id: 1, label: 'MATEMATICA SINTETICA' }, teacher: { id: 1, label: 'DOCENTE SINTETICO' } };
 const cell = { offerId: 10, valueMilli: 24000, maximumMilli: 30000, state: 'complete', level: 'at-or-above', sourceReferenceMilli: 24000, sourceComparison: 'match', recoveryApplicable: false, warningCodes: [] };
-const student = { id: 1, name: 'ALUNO SINTETICO', number: 1, status: null, statusLabel: 'Sem situação especial', indicatorEligible: true, councilPrevious: null };
+const student = { id: 1, name: 'ALUNO SINTETICO', number: 1, status: null, statusLabel: 'Sem situação especial', indicatorEligible: true };
 const row = { student, calculatedAnnual: { state: 'in-progress', label: 'EM CURSO', councilEligibility: 'not-applicable' }, formalCouncilDecision: null, cells: [cell] };
 const selected = { classGroup: { id: 10, label: 'A1' }, period: 1, mode: 'regular' };
 const matrix = { ...common, ...selected, operation: 'matrix', offers: [offering], rows: [row], comparison: { available: false, reason: 'comparability-not-contracted' }, statistics: { classRows: 1, visibleRows: 1, eligibleRows: 1, recoveryUnknownRows: 0, consideredCells: 1, completeCells: 1, noShowCells: 0, incompleteCells: 0, attentionRows: 0 } };
@@ -44,7 +44,7 @@ beforeEach(() => {
     if (body.operation === 'matrix') return reply({ ...matrix, period: body.period, mode: body.mode });
     if (body.operation === 'student-detail') return reply({ ...common, ...selected, operation: 'student-detail', row, offers: [offering], trajectory: [{ offerId: 10, terms: [cell, cell, cell] }] });
     if (body.operation === 'context') return reply({ contractVersion: 2, state: 'ready', operation: 'context', context, counts: { students: 1, classes: 1, teachers: 1, subjects: 1, offers: 1, currentBindings: 1, historicalBindings: 0 } });
-    if (body.operation === 'center') return reply({ contractVersion: 2, state: 'ready', operation: 'center', context, center: { entity: { kind: 'student', id: 1, label: student.name }, classInfo: null, studentInfo: { councilPrevious: null }, bindings: [], offers: [], nextOffset: null } });
+    if (body.operation === 'center') return reply({ contractVersion: 2, state: 'ready', operation: 'center', context, center: { entity: { kind: 'student', id: 1, label: student.name }, classInfo: null, bindings: [], offers: [], nextOffset: null } });
     throw new Error('unexpected-synthetic-request');
   });
   vi.stubGlobal('fetch', mock);
@@ -135,7 +135,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     expect(host.textContent).toContain(student.name);
     expect(host.querySelectorAll('select[aria-label="Ano letivo do Banco"]')).toHaveLength(0);
     await click(student.name);
-    expect(document.body.textContent).toContain('Conselho anterior: Não informado');
+    expect(document.body.textContent).not.toContain('Conselho anterior');
     expect(requests.filter((value) => value.operation === 'dashboard')).toHaveLength(1);
     expect(requests.filter((value) => value.operation === 'student-detail')).toHaveLength(1);
     await click('Ver cadastro nas Centrais');
@@ -160,7 +160,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     for (let attempt = 0; attempt < 100 && requests.filter((value) => value.operation === 'center').length < 2; attempt++) await settle();
     expect(requests.filter((value) => value.operation === 'center' && value.id === 1)).toHaveLength(2);
     expect(requests.filter((value) => value.operation === 'dashboard')).toHaveLength(1);
-    expect(host.textContent).toContain('Aprovação pelo Conselho no ano anterior');
+    expect(host.textContent).not.toContain('Conselho no ano anterior');
   }, 10_000);
   it('drops a late old-period response rather than replacing the current trimester', async () => {
     await loaded();

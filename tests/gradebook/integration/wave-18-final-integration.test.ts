@@ -23,7 +23,7 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
     expect(bulletin).not.toContain('createLocalBulletinSnapshotRepositoryV1');
   });
 
-  it('monta Conselho V2 no mesmo bridge, sem inventar identidade de diretor', () => {
+  it('monta Conselho relacional V3 no mesmo bridge, sem inventar identidade de diretor', () => {
     const functions = source('functions/[[path]].ts');
     const route = source('server/gradebook/http/council-routes-v1.ts');
     const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
@@ -33,8 +33,9 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
     expect(functions).toContain('.councilInstitutionalWorkspace(');
     expect(route.split('/api/gradebook/council-workspace')).toHaveLength(2);
     expect(runtime).toContain('createCouncilInstitutionalWorkspaceV2');
-    expect(surface).toContain('CouncilInstitutionalPanelV2');
-    expect(route).toContain('tie-break');
+    expect(surface).toContain('RelationalCouncilPageV3');
+    expect(surface).not.toContain('CouncilInstitutionalPanelV2');
+    expect(route).toContain('createRelationalCouncilV3');
     expect(route).not.toContain('ADMINISTRADOR == diretor');
     expect(route).not.toContain('directorRole');
   });
