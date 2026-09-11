@@ -3,6 +3,7 @@ import type {
   GradebookImportDiagnosticCodeV1,
   GradebookImportDiagnosticSeverityV1,
 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
+import { RELATIONAL_INSTITUTIONAL_REPORTS_LIMITS_V2 } from '../../../../shared/gradebook-contracts/reports/relational-institutional-reports-v2';
 import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../d1/write/d1-write-adapter-v1';
 
 type Row = Record<string, unknown>;
@@ -115,9 +116,12 @@ export function createRelationalImportDiagnosticsReadV2(database: D1WriteDatabas
       ).bind(...values).all<Row>();
       const hasMore = result.results.length > request.limit;
       const rows = hasMore ? result.results.slice(0, request.limit) : result.results;
+      const candidateNextOffset = request.offset + request.limit;
       return {
         items: rows.map(relationalImportDiagnosticRecordV2),
-        nextOffset: hasMore ? request.offset + request.limit : null,
+        nextOffset: hasMore && candidateNextOffset <= RELATIONAL_INSTITUTIONAL_REPORTS_LIMITS_V2.diagnosticsOffset
+          ? candidateNextOffset
+          : null,
       };
     },
   });
