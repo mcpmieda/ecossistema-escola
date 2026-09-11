@@ -26,7 +26,7 @@ A tabela fica no schema privado `gradebook`. A role backend recebe apenas `SELEC
 `POST /api/gradebook/audit-treatment`, contrato V1:
 
 - `context`: recebe até 200 identidades visíveis e devolve suas ações em uma consulta limitada, sem N+1;
-- `history`: pagina até 100 ações, indicando se a identidade ainda existe entre os achados atuais;
+- `history`: pagina até 100 ações por cursor estável `(registrado_em, id)`, indicando se a identidade ainda existe entre os achados atuais sem deslocar páginas quando uma ação nova chega;
 - `record`: grava reconhecimento ou anotação para um `diagnosticId` que ainda esteja pendente.
 
 Leituras usam transação `REPEATABLE READ, READ ONLY`; escrita usa `SERIALIZABLE` e repete uma vez diante de aborto serializável/colisão concorrente. A interface mantém a Auditoria atual utilizável mesmo se a trilha ficar indisponível, carrega o histórico completo apenas sob demanda e reutiliza a chave idempotente quando uma tentativa tem resultado de rede incerto.

@@ -19,7 +19,6 @@ export const IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1 = Object.freeze({
   contextFindings: 200,
   contextActions: 1_000,
   historyPage: 100,
-  historyOffset: 100_000,
   noteCharacters: 2_000,
   bodyBytes: 96_000,
 });
@@ -51,6 +50,7 @@ const action = z.union([
   z.literal(IMPORT_DIAGNOSTIC_TREATMENT_ACTIONS_V1.note),
 ]);
 const findingIdentity = z.object({ fileName, key: findingKey }).strict();
+const historyCursor = z.object({ recordedAt: z.string().datetime({ offset: true }), id }).strict();
 
 export const importDiagnosticTreatmentRequestSchemaV1 = z
   .discriminatedUnion('operation', [
@@ -71,7 +71,7 @@ export const importDiagnosticTreatmentRequestSchemaV1 = z
         operation: z.literal('history'),
         year,
         limit: z.number().int().min(1).max(IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.historyPage),
-        offset: z.number().int().min(0).max(IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.historyOffset),
+        cursor: historyCursor.nullable(),
       })
       .strict(),
     z
@@ -108,6 +108,7 @@ export type ImportDiagnosticTreatmentRequestV1 = z.infer<
   typeof importDiagnosticTreatmentRequestSchemaV1
 >;
 export type ImportDiagnosticTreatmentActionV1 = z.infer<typeof action>;
+export type ImportDiagnosticTreatmentHistoryCursorV1 = z.infer<typeof historyCursor>;
 
 const treatmentRecord = z
   .object({
@@ -170,12 +171,7 @@ export const importDiagnosticTreatmentResponseSchemaV1 = z.union([
       state: z.literal('ready'),
       operation: z.literal('history'),
       items: z.array(treatmentRecord).max(IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.historyPage),
-      nextOffset: z
-        .number()
-        .int()
-        .min(1)
-        .max(IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.historyOffset)
-        .nullable(),
+      nextCursor: historyCursor.nullable(),
     })
     .strict(),
   z

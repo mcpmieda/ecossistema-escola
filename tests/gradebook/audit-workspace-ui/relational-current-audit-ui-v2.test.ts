@@ -26,6 +26,10 @@ describe('relational current Audit UI V2', () => {
     expect(page).toContain('Reconhecer');
     expect(page).toContain('Adicionar anotação');
     expect(page).toContain('Histórico de tratamento');
+    expect(page).toContain('historyNextCursor');
+    expect(page).toContain("historyState !== 'idle'");
+    expect(page).toContain("setHistoryState('ready')");
+    expect(page).not.toContain('historyNextOffset');
     expect(page).toContain('nunca alteram notas ou escondem achados');
     expect(page).not.toContain('requestAuditWorkspaceResolutionV1');
     expect(page).not.toContain('requestDeterministicCorrectionExecutionV2');

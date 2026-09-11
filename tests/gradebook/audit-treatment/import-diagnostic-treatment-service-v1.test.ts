@@ -125,6 +125,54 @@ describe('import diagnostic treatment V1 service', () => {
     ).toEqual([{ count: 2 }]);
   });
 
+  it('paginates history with a stable timestamp/id cursor while new actions arrive', async () => {
+    const service = createImportDiagnosticTreatmentServiceV1(database, ACTOR);
+    const firstPage = await service.execute({
+      contractVersion: 1,
+      operation: 'history',
+      year: 2026,
+      limit: 1,
+      cursor: null,
+    });
+    expect(firstPage).toMatchObject({ state: 'ready', operation: 'history' });
+    if (
+      firstPage.state !== 'ready' ||
+      firstPage.operation !== 'history' ||
+      firstPage.nextCursor === null
+    ) {
+      throw new Error('first-history-page-missing');
+    }
+
+    const inserted = await service.execute({
+      contractVersion: 1,
+      operation: 'record',
+      year: 2026,
+      diagnosticId: 1,
+      action: 2,
+      note: 'Nova ação entre duas páginas.',
+      idempotencyKey: 'audit:service:0003',
+    });
+    expect(inserted).toMatchObject({ state: 'ready', operation: 'record' });
+    if (inserted.state !== 'ready' || inserted.operation !== 'record') {
+      throw new Error('insert-between-pages-missing');
+    }
+
+    const secondPage = await service.execute({
+      contractVersion: 1,
+      operation: 'history',
+      year: 2026,
+      limit: 1,
+      cursor: firstPage.nextCursor,
+    });
+    expect(secondPage).toMatchObject({ state: 'ready', operation: 'history' });
+    if (secondPage.state !== 'ready' || secondPage.operation !== 'history') {
+      throw new Error('second-history-page-missing');
+    }
+    expect(secondPage.items).toHaveLength(1);
+    expect(secondPage.items[0]?.id).not.toBe(firstPage.items[0]?.id);
+    expect(secondPage.items[0]?.id).not.toBe(inserted.item.id);
+  });
+
   it('keeps history after the current snapshot row is removed', async () => {
     await pg.exec('DELETE FROM gradebook.importacao_diagnostico WHERE id=1');
     const response = await createImportDiagnosticTreatmentServiceV1(database, ACTOR).execute({
@@ -132,12 +180,12 @@ describe('import diagnostic treatment V1 service', () => {
       operation: 'history',
       year: 2026,
       limit: 100,
-      offset: 0,
+      cursor: null,
     });
-    expect(response).toMatchObject({ state: 'ready', operation: 'history', nextOffset: null });
+    expect(response).toMatchObject({ state: 'ready', operation: 'history', nextCursor: null });
     if (response.state !== 'ready' || response.operation !== 'history')
       throw new Error('history-missing');
-    expect(response.items).toHaveLength(2);
+    expect(response.items).toHaveLength(3);
     expect(response.items.every((item) => item.current === false)).toBe(true);
     expect(response.items.every((item) => item.studentName === 'ALUNO SINTETICO')).toBe(true);
     await expect(
@@ -198,7 +246,7 @@ async function http(
 
 describe('import diagnostic treatment V1 HTTP boundary', () => {
   it('is admin-only, no-store and rejects malformed requests before SQL', async () => {
-    const body = { contractVersion: 1, operation: 'history', year: 2026, limit: 100, offset: 0 };
+    const body = { contractVersion: 1, operation: 'history', year: 2026, limit: 100, cursor: null };
     const allowed = await http(body);
     expect(allowed.status).toBe(200);
     expect(allowed.headers.get('Cache-Control')).toContain('no-store');
@@ -214,7 +262,7 @@ describe('import diagnostic treatment V1 HTTP boundary', () => {
 
   it('keeps the production gate fail-closed', async () => {
     const response = await http(
-      { contractVersion: 1, operation: 'history', year: 2026, limit: 100, offset: 0 },
+      { contractVersion: 1, operation: 'history', year: 2026, limit: 100, cursor: null },
       'ADMINISTRADOR',
       { RUNTIME_ENVIRONMENT: 'production', GRADEBOOK_PRODUCTION_ENABLED: 'false' },
     );

@@ -23,7 +23,8 @@ const VERSION = IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1;
 const SELECT_COLUMNS = `
   a.id,a.diagnostico_origem_id,a.ano,a.arquivo,encode(a.hash,'hex') AS diagnostic_hash,
   a.chave,a.nivel,a.codigo,a.turma_codigo,a.disciplina,a.periodo,a.aluno_numero,
-  a.campo,a.rotulo,a.acao,a.nota,a.registrado_em,
+  a.campo,a.rotulo,a.acao,a.nota,
+  to_char(a.registrado_em AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS registrado_em,
   EXISTS (
     SELECT 1 FROM gradebook.importacao_diagnostico d
     WHERE d.ano=a.ano AND d.arquivo=a.arquivo AND d.chave=a.chave
@@ -77,7 +78,7 @@ function treatmentRecord(row: Row): ImportDiagnosticTreatmentRecordV1 {
     action,
     actionLabel: IMPORT_DIAGNOSTIC_TREATMENT_ACTION_LABELS_V1[action],
     note: nullableText(row.nota),
-    recordedAt: new Date(String(row.registrado_em)).toISOString(),
+    recordedAt: String(row.registrado_em),
     current: boolean(row.current),
   };
 }
@@ -139,26 +140,31 @@ async function listHistory(
   database: D1WriteDatabaseV1,
   request: Extract<ImportDiagnosticTreatmentRequestV1, { operation: 'history' }>,
 ): Promise<ImportDiagnosticTreatmentResponseV1> {
+  const cursorAt = request.cursor?.recordedAt ?? null;
+  const cursorId = request.cursor?.id ?? null;
   const result = await rows(
     database,
     `SELECT ${SELECT_COLUMNS}
      FROM gradebook.importacao_diagnostico_tratamento a
      ${CONTEXT_JOINS}
      WHERE a.ano=?
-     ORDER BY a.registrado_em DESC,a.id DESC LIMIT ? OFFSET ?`,
-    [request.year, request.limit + 1, request.offset],
+       AND (
+         CAST(? AS timestamptz) IS NULL
+         OR a.registrado_em < CAST(? AS timestamptz)
+         OR (a.registrado_em = CAST(? AS timestamptz) AND a.id < ?)
+       )
+     ORDER BY a.registrado_em DESC,a.id DESC LIMIT ?`,
+    [request.year, cursorAt, cursorAt, cursorAt, cursorId, request.limit + 1],
   );
   const hasMore = result.length > request.limit;
-  const nextOffset = request.offset + request.limit;
+  const items = result.slice(0, request.limit).map(treatmentRecord);
+  const lastItem = items.at(-1) ?? null;
   return {
     contractVersion: VERSION,
     state: 'ready',
     operation: 'history',
-    items: result.slice(0, request.limit).map(treatmentRecord),
-    nextOffset:
-      hasMore && nextOffset <= IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.historyOffset
-        ? nextOffset
-        : null,
+    items,
+    nextCursor: hasMore && lastItem ? { recordedAt: lastItem.recordedAt, id: lastItem.id } : null,
   };
 }
 

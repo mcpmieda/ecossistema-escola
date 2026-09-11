@@ -26,6 +26,7 @@ import {
   IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1,
   IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1,
   type ImportDiagnosticTreatmentActionV1,
+  type ImportDiagnosticTreatmentHistoryCursorV1,
   type ImportDiagnosticTreatmentRecordV1,
 } from '../../../../shared/gradebook-contracts/audit/import-diagnostic-treatment-v1';
 import type { GradebookImportDiagnosticsAuditRecordV1 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
@@ -338,11 +339,11 @@ function Finding({ value, treatments, treatmentState, busy, feedback, onRecord }
 interface TreatmentHistoryProps {
   readonly state: HistoryState;
   readonly values: readonly ImportDiagnosticTreatmentRecordV1[];
-  readonly nextOffset: number | null;
-  readonly onLoad: (offset?: number) => void;
+  readonly nextCursor: ImportDiagnosticTreatmentHistoryCursorV1 | null;
+  readonly onLoad: (cursor?: ImportDiagnosticTreatmentHistoryCursorV1 | null) => void;
 }
 
-function TreatmentHistory({ state, values, nextOffset, onLoad }: TreatmentHistoryProps) {
+function TreatmentHistory({ state, values, nextCursor, onLoad }: TreatmentHistoryProps) {
   return (
     <Card>
       <Card.Header className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
@@ -360,7 +361,7 @@ function TreatmentHistory({ state, values, nextOffset, onLoad }: TreatmentHistor
           variant="secondary"
           isPending={state === 'loading'}
           isDisabled={state === 'loading'}
-          onPress={() => onLoad(0)}
+          onPress={() => onLoad(null)}
         >
           <RefreshCw className="size-4" />
           {state === 'idle' ? 'Carregar histórico' : 'Atualizar histórico'}
@@ -423,13 +424,13 @@ function TreatmentHistory({ state, values, nextOffset, onLoad }: TreatmentHistor
             ))}
           </ol>
         )}
-        {nextOffset !== null && (
+        {nextCursor !== null && (
           <div className="mt-4 flex justify-center">
             <Button
               size="sm"
               variant="outline"
               isDisabled={state === 'loading'}
-              onPress={() => onLoad(nextOffset)}
+              onPress={() => onLoad(nextCursor)}
             >
               Carregar mais registros
             </Button>
@@ -453,7 +454,8 @@ export function RelationalCurrentAuditPageV2() {
   const [feedback, setFeedback] = useState<Readonly<Record<number, string>>>({});
   const [historyState, setHistoryState] = useState<HistoryState>('idle');
   const [history, setHistory] = useState<readonly ImportDiagnosticTreatmentRecordV1[]>([]);
-  const [historyNextOffset, setHistoryNextOffset] = useState<number | null>(null);
+  const [historyNextCursor, setHistoryNextCursor] =
+    useState<ImportDiagnosticTreatmentHistoryCursorV1 | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const historyRequestRef = useRef<AbortController | null>(null);
   const treatmentRetryKeysRef = useRef(new Map<string, string>());
@@ -599,11 +601,13 @@ export function RelationalCurrentAuditPageV2() {
         mergeTreatments([response.item]);
         treatmentRetryKeysRef.current.delete(retryIdentity);
         setTreatmentState('ready');
-        setHistory((current) =>
-          current.length === 0
-            ? current
-            : [response.item, ...current.filter((item) => item.id !== response.item.id)],
-        );
+        if (historyState !== 'idle') {
+          setHistory((current) => [
+            response.item,
+            ...current.filter((item) => item.id !== response.item.id),
+          ]);
+          setHistoryState('ready');
+        }
         setFeedback((current) => ({
           ...current,
           [value.id]: 'Ação registrada e preservada no histórico.',
@@ -623,42 +627,47 @@ export function RelationalCurrentAuditPageV2() {
         });
       }
     },
-    [mergeTreatments],
+    [historyState, mergeTreatments],
   );
 
-  const loadHistory = useCallback(async (offset = 0) => {
-    historyRequestRef.current?.abort();
-    const controller = new AbortController();
-    historyRequestRef.current = controller;
-    if (offset === 0) {
-      setHistory([]);
-      setHistoryNextOffset(null);
-    }
-    setHistoryState('loading');
-    try {
-      const response = await requestImportDiagnosticTreatmentV1(
-        {
-          contractVersion: IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1,
-          operation: 'history',
-          year: ACTIVE_YEAR,
-          limit: IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.historyPage,
-          offset,
-        },
-        controller.signal,
-      );
-      if (controller.signal.aborted) return;
-      if (response.state !== 'ready' || response.operation !== 'history') {
-        setHistoryState(response.state === 'not-authorized' ? 'not-authorized' : 'unavailable');
-        return;
+  const loadHistory = useCallback(
+    async (cursor: ImportDiagnosticTreatmentHistoryCursorV1 | null = null) => {
+      historyRequestRef.current?.abort();
+      const controller = new AbortController();
+      historyRequestRef.current = controller;
+      if (cursor === null) {
+        setHistory([]);
+        setHistoryNextCursor(null);
       }
-      setHistory((current) => (offset === 0 ? response.items : [...current, ...response.items]));
-      setHistoryNextOffset(response.nextOffset);
-      setHistoryState(response.items.length === 0 && offset === 0 ? 'empty' : 'ready');
-    } catch (cause) {
-      if (!(cause instanceof DOMException && cause.name === 'AbortError'))
-        setHistoryState('unavailable');
-    }
-  }, []);
+      setHistoryState('loading');
+      try {
+        const response = await requestImportDiagnosticTreatmentV1(
+          {
+            contractVersion: IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1,
+            operation: 'history',
+            year: ACTIVE_YEAR,
+            limit: IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.historyPage,
+            cursor,
+          },
+          controller.signal,
+        );
+        if (controller.signal.aborted) return;
+        if (response.state !== 'ready' || response.operation !== 'history') {
+          setHistoryState(response.state === 'not-authorized' ? 'not-authorized' : 'unavailable');
+          return;
+        }
+        setHistory((current) =>
+          cursor === null ? response.items : [...current, ...response.items],
+        );
+        setHistoryNextCursor(response.nextCursor);
+        setHistoryState(response.items.length === 0 && cursor === null ? 'empty' : 'ready');
+      } catch (cause) {
+        if (!(cause instanceof DOMException && cause.name === 'AbortError'))
+          setHistoryState('unavailable');
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     void load();
@@ -864,7 +873,7 @@ export function RelationalCurrentAuditPageV2() {
         <TreatmentHistory
           state={historyState}
           values={history}
-          nextOffset={historyNextOffset}
+          nextCursor={historyNextCursor}
           onLoad={(offset) => void loadHistory(offset)}
         />
       )}

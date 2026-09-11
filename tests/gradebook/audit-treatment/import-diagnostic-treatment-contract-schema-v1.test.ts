@@ -69,6 +69,24 @@ describe('import diagnostic treatment V1 contract', () => {
       importDiagnosticTreatmentRequestSchemaV1.safeParse({ ...base, action: 2, note: null })
         .success,
     ).toBe(false);
+    expect(
+      importDiagnosticTreatmentRequestSchemaV1.safeParse({
+        contractVersion: 1,
+        operation: 'history',
+        year: 2026,
+        limit: 100,
+        cursor: { recordedAt: '2026-09-11T18:00:00.000Z', id: 2 },
+      }).success,
+    ).toBe(true);
+    expect(
+      importDiagnosticTreatmentRequestSchemaV1.safeParse({
+        contractVersion: 1,
+        operation: 'history',
+        year: 2026,
+        limit: 100,
+        offset: 0,
+      }).success,
+    ).toBe(false);
   });
 
   it('adds one append-only private relation without backfill or academic DML', async () => {

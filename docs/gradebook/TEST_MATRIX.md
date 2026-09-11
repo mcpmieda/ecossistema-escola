@@ -269,11 +269,11 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F1-674-002`: migration acrescenta uma relação vazia, sem backfill/UPDATE/DELETE/TRUNCATE e sem FK destrutiva para o snapshot corrente.
 - `F1-674-003`: apagar um diagnóstico atual não apaga sua trilha; a leitura passa a classificá-lo como fora das pendências.
 - `F1-674-004`: ator vem do OID autenticado, horário vem do banco e retry com a mesma chave é idempotente; reutilização divergente conflita.
-- `F1-674-005`: contexto consulta até 200 identidades em lote, histórico pagina até 100 e nenhum caminho faz consulta por achado.
+- `F1-674-005`: contexto consulta até 200 identidades em lote; histórico pagina até 100 por cursor estável `(registrado_em, id)`, sem salto/duplicação por nova ação; nenhum caminho faz consulta por achado.
 - `F1-674-006`: somente a role backend tem `SELECT, INSERT`; sem `UPDATE/DELETE`, acesso público/cliente, cache ou confiança em ator do payload.
 - `F1-674-007`: UI HeroUI reconhece/anota, mostra timeline contextual e histórico sob demanda; falha da trilha não esconde a lista atual.
 - `F1-674-008`: não há botão de resolver/ignorar/descartar, correção automática, alteração acadêmica ou mudança de autoridade.
-- `F1-674-009`: migration e código dependente permanecem fora da main/produção até autorização explícita do DDL aditivo.
+- `F1-674-009`: BN-DEC-027 autorizou o DDL em 11/09/2026 e `0006` foi aplicada/postvalidada em produção; o código dependente continua condicionado à integração/publicação da PR #675, aberta e fora de draft.
 - `F1-674-010`: após autorização, dump privado novo abre em `pg_restore`, restaura as 29 relações e mantém contagens produtivas em PostgreSQL local descartável.
 - `F1-674-011`: preflight remoto exige baseline `29/227/203/62/51`, 12 sequências, somente 2026, zero FK inválida e relação-alvo ausente.
 - `F1-674-012`: postflight de `0006` exige catálogo `30/246/218/66/52`, 13 sequências, relação vazia `19/15/4/1`, ACL backend `SELECT/INSERT`, zero acesso cliente/público e contagens acadêmicas inalteradas.
