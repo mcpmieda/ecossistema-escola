@@ -26,11 +26,6 @@ const text = (value: unknown): string => {
   if (typeof value !== 'string' || !value.trim()) throw new Error('invalid-performance-row');
   return value;
 };
-const boolean = (value: unknown): boolean | null => {
-  if (value === null || typeof value === 'boolean') return value;
-  if (value === 0 || value === 1) return value === 1;
-  throw new Error('invalid-performance-row');
-};
 const all = async (db: D1WriteDatabaseV1, sql: string, values: readonly D1WriteValueV1[] = []): Promise<readonly Row[]> => (await db.prepare(sql).bind(...values).all<Row>()).results;
 const STATUS_LABELS = { 1: 'Especial', 2: 'Assistido', 3: 'Desistente', 4: 'Transferido', 5: 'Falecido', 7: 'Estava no' } as const;
 const DECISION_LABELS = { 1: 'APROVADO PELO CONSELHO', 2: 'REPROVADO PELO CONSELHO', 3: 'REPROVADO POR FALTA' } as const;
@@ -40,7 +35,7 @@ function student(row: Row): PerformanceRowV2['student'] {
   const status = nullable(row.situacao) as PerformanceRowV2['student']['status'];
   return { id: integer(row.id), name: text(row.nome), number: integer(row.numero), status,
     statusLabel: status === null ? 'Sem situação especial' : STATUS_LABELS[status],
-    indicatorEligible: status === null || status === 7, councilPrevious: boolean(row.conselho_anterior) };
+    indicatorEligible: status === null || status === 7 };
 }
 function offer(row: Row): PerformanceOfferV2 {
   return { id: integer(row.id), subject: { id: integer(row.disciplina_id), label: text(row.disciplina_nome), abbreviation: sourceSubjectAbbreviationV1(text(row.disciplina_nome)) },
@@ -66,7 +61,7 @@ function makeRow(source: Row, projections: readonly PerformanceProjectionV2[], r
   // Missing component definitions are never omitted to manufacture a passing annual result.
   const annual = !info.indicatorEligible || completeDefinitions ? resolveSimplifiedAnnualOutcomeV1({
     status: info.status, components: projections.flatMap((value) => value.recovery ? [value.recovery] : []),
-    councilPrevious: info.councilPrevious, maxCouncilComponents,
+    maxCouncilComponents,
   }) : null;
   const decision = nullable(source.decisao) as 1 | 2 | 3 | null;
   return { student: info, calculatedAnnual: annual ? { state: annual.state, label: annual.visibleResult, councilEligibility: annual.councilEligibility } : null,
@@ -95,7 +90,7 @@ export async function readRelationalPerformanceV2(db: D1WriteDatabaseV1, request
   const selected = { classGroup: { id: integer(classRow.id), label: text(classRow.codigo), name: text(classRow.nome) }, period: request.period, mode: request.mode };
   const specificStudent = request.operation !== 'matrix';
   const specificOffer = request.operation === 'cell-detail';
-  const students = await all(db, `SELECT a.id,a.nome,a.conselho_anterior,v.numero,v.situacao,cd.decisao
+  const students = await all(db, `SELECT a.id,a.nome,v.numero,v.situacao,cd.decisao
     FROM gradebook.vinculo v
     JOIN gradebook.aluno a ON a.id=v.aluno_id AND a.ano=v.ano
     LEFT JOIN gradebook.conselho_decisao cd ON cd.aluno_id=a.id

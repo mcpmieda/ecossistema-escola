@@ -29,7 +29,6 @@ export function PerformanceStudentDetailV2({ detail, openComponent, openCenter }
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
           <span>Nº {student.number}</span>
           {student.status !== null ? <span>{student.statusLabel}</span> : null}
-          <span>Conselho anterior: {student.councilPrevious === null ? 'Não informado' : student.councilPrevious ? 'Sim' : 'Não'}</span>
         </div>
         {detail.row.formalCouncilDecision ? <p className="text-sm font-medium">{detail.row.formalCouncilDecision.label}</p> : null}
         {visibleTerms.length ? <Table><Table.ScrollContainer><Table.Content aria-label="Notas do aluno por trimestre">

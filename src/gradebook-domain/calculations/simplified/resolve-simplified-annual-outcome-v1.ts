@@ -22,13 +22,11 @@ export type SimplifiedAnnualProgressStateV1 =
   | 'in-progress'
   | 'recovery'
   | 'final'
-  | 'council-prior-pending'
   | 'council-eligible';
 
 export interface SimplifiedAnnualOutcomeInputV1 {
   readonly status: SimplifiedEnrollmentStatusV1;
   readonly components: readonly SimplifiedComponentRecoveryOutcomeV1[];
-  readonly councilPrevious: boolean | null;
   readonly maxCouncilComponents: number;
 }
 
@@ -38,7 +36,7 @@ export interface SimplifiedAnnualOutcomeV1 {
   readonly failedComponentCount: number;
   readonly approvedDirectComponentCount: number;
   readonly approvedAfterRecoveryComponentCount: number;
-  readonly councilEligibility: 'not-applicable' | 'eligible' | 'not-eligible' | 'pending-prior-answer';
+  readonly councilEligibility: 'not-applicable' | 'eligible' | 'not-eligible';
   readonly reasons: readonly string[];
 }
 
@@ -148,26 +146,6 @@ export function resolveSimplifiedAnnualOutcomeV1(
       visibleResult: 'REPROVADO APÓS RECUPERAÇÃO',
       councilEligibility: 'not-eligible',
       reasons: [`failed-components:${failedComponentCount}:above-council-limit:${input.maxCouncilComponents}`],
-    };
-  }
-
-  if (input.councilPrevious === true) {
-    return {
-      ...base,
-      state: 'final',
-      visibleResult: 'REPROVADO APÓS RECUPERAÇÃO',
-      councilEligibility: 'not-eligible',
-      reasons: ['approved-by-council-previous-year'],
-    };
-  }
-
-  if (input.councilPrevious === null) {
-    return {
-      ...base,
-      state: 'council-prior-pending',
-      visibleResult: null,
-      councilEligibility: 'pending-prior-answer',
-      reasons: ['council-previous-answer-pending'],
     };
   }
 

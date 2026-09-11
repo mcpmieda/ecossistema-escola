@@ -29,9 +29,10 @@ beforeAll(async () => {
 }, 30_000);
 afterAll(async () => { await db?.close(); });
 
-it.each([[1, true], [2, false], [3, null]] as const)(
-  'preserves Council prior answer %i through the real PostgreSQL facade', async (id, councilPrevious) => {
+it.each([1, 2, 3] as const)(
+  'does not expose or consult the historical Council flag for current-year student %i', async (id) => {
     const response = await createRelationalWorkspaceV2(db).execute({ contractVersion: 2, operation: 'center', year: 2026, kind: 'student', id, offset: 0, limit: 100 });
-    expect(response).toMatchObject({ state: 'ready', center: { studentInfo: { councilPrevious } } });
+    expect(response).toMatchObject({ state: 'ready', center: { entity: { id } } });
+    expect(JSON.stringify(response)).not.toMatch(/councilPrevious|conselhoAnterior|ano anterior/ui);
   },
 );
