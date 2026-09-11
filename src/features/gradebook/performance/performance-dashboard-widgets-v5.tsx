@@ -1,10 +1,9 @@
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Button, Chip, Surface } from '@heroui/react';
 import {
+  ArrowLeft,
   ChartNoAxesColumnIncreasing,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   CircleAlert,
   Clock3,
   PieChart,
@@ -12,7 +11,7 @@ import {
 } from 'lucide-react';
 import type { PerformanceDashboardV5 } from '../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 import { dashboardAnalysisV5 } from '../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
-import { subjectText } from './performance-display-v2';
+import { gradeText, subjectText } from './performance-display-v2';
 
 export type PerformanceDashboardSelectionV5 =
   | { readonly kind: 'column'; readonly key: string; readonly bucket: 'above' | 'below' }
@@ -84,47 +83,48 @@ function ComponentBarsV5({ value, selection, onSelectionChange, open }: {
   return <Surface variant="default" className="performance-widget min-w-0">
     <header className="performance-widget__header">
       <span className="performance-widget__icon performance-widget__icon--accent"><ChartNoAxesColumnIncreasing size={18}/></span>
-      <span className="min-w-0"><h3 className="text-sm font-semibold">Situação por componente</h3><p className="text-xs text-muted">Quantidade de estudantes por faixa oficial</p></span>
-      <span className="ml-auto hidden flex-wrap gap-3 text-[11px] text-muted sm:flex" aria-label="Legenda">
+      <span className="min-w-0"><h3 className="text-sm font-semibold">Situação por componente</h3></span>
+      {!selectedColumn ? <span className="ml-auto hidden flex-wrap gap-3 text-[11px] text-muted sm:flex" aria-label="Legenda">
         <span className="flex items-center gap-1.5"><i className="performance-legend performance-legend--above"/>No mínimo ou acima</span>
         <span className="flex items-center gap-1.5"><i className="performance-legend performance-legend--below"/>Abaixo do mínimo</span>
-      </span>
+      </span> : null}
     </header>
-    <div className="performance-bars" role="group" aria-label="Barras por componente curricular">
-      {value.overview.columns.map((column) => {
-        const offer = offers.get(column.offerId);
-        const label = offer ? subjectText(offer) : column.label;
-        const title = offer?.subject.label ?? column.label;
-        return <div className="performance-bars__column" key={column.key}>
-          <div className="performance-bars__plot">
-            {(['above', 'below'] as const).map((bucket) => {
-              const count = bucket === 'above' ? column.atOrAbove : column.below;
-              const active = selection?.kind === 'column' && selection.key === column.key && selection.bucket === bucket;
-              return <button key={bucket} type="button" className={`performance-bar performance-bar--${bucket} ${active ? 'performance-bar--selected' : ''}`}
-                style={{ height: `${Math.max(count === 0 ? 1.5 : 8, count / maximum * 100)}%` }} aria-pressed={active}
-                aria-label={`${title}: ${count} estudante(s) ${bucket === 'above' ? 'no mínimo ou acima' : 'abaixo do mínimo'}`}
-                onClick={() => choose(column.key, bucket)}><span>{count}</span></button>;
-            })}
-          </div>
-          <span className="performance-bars__label" title={title}>{label}</span>
-          {column.incomplete + column.noShow + column.unscaled > 0 ? <span className="performance-bars__pending" title="Leituras ainda não classificadas">+{column.incomplete + column.noShow + column.unscaled}</span> : null}
-        </div>;
-      })}
-    </div>
     {selectedColumn ? <section className="performance-bars__detail" aria-label={`Estudantes por situação em ${selectedColumn.label}`} aria-live="polite">
-      <header className="performance-bars__detail-header"><span><span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Componente selecionado</span><h4 className="text-sm font-semibold">{selectedColumn.label}</h4></span><Button size="sm" variant="ghost" onPress={() => onSelectionChange(null)}>Fechar</Button></header>
+      <header className="performance-bars__detail-header"><Button size="sm" variant="ghost" onPress={() => onSelectionChange(null)}><ArrowLeft size={15}/>Voltar ao gráfico</Button><span className="min-w-0 text-right"><span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Componente selecionado</span><h4 className="truncate text-sm font-semibold">{selectedColumn.label}</h4></span></header>
       <div className="performance-bars__student-groups">{([
         { bucket: 'above', label: 'Notas azuis', detail: 'No mínimo ou acima', tone: 'above' },
         { bucket: 'below', label: 'Notas vermelhas', detail: 'Abaixo do mínimo', tone: 'below' },
       ] as const).map((group) => {
         const members = selectedColumn.summary.groups[group.bucket].map((id) => students.get(id)).filter((student) => student !== undefined);
         return <section className={`performance-bars__student-group performance-bars__student-group--${group.tone}`} key={group.bucket} aria-label={`${group.label}: ${members.length} estudante(s)`}>
-          <header><span><strong>{group.label}</strong><small>{group.detail}</small></span><Chip size="sm" variant="soft">{members.length}</Chip></header>
+          <header><span><strong>{group.label}</strong><small>{group.detail}</small></span><Chip size="sm" variant="soft" color={group.bucket === 'above' ? 'accent' : 'danger'}>{members.length}</Chip></header>
           {members.length > 0 ? <ul>{members.map((student) => <li key={student.id}><button type="button" onClick={() => open(student.id, selectedColumn.offerId)}><span className="truncate">{student.name}</span><small>Nº {student.number}</small></button></li>)}</ul> : <p>Nenhum estudante nesta faixa.</p>}
         </section>;
       })}</div>
-    </section> : null}
-    <p className="mt-3 text-[11px] leading-5 text-muted">Na lente Resultado, toda soma numérica é comparada a 60% do máximo do recorte (18, 18 ou 24 nos trimestres). Ausência, N/C e leituras sem máximo não viram zero e aparecem ao lado da sigla.</p>
+    </section> : <>
+      <div className="performance-bars" role="group" aria-label="Barras por componente curricular">
+        {value.overview.columns.map((column) => {
+          const offer = offers.get(column.offerId);
+          const label = offer ? subjectText(offer) : column.label;
+          const title = offer?.subject.label ?? column.label;
+          return <div className="performance-bars__column" key={column.key}>
+            <div className="performance-bars__plot">
+              {(['above', 'below'] as const).map((bucket) => {
+                const count = bucket === 'above' ? column.atOrAbove : column.below;
+                const active = selection?.kind === 'column' && selection.key === column.key && selection.bucket === bucket;
+                return <button key={bucket} type="button" className={`performance-bar performance-bar--${bucket} ${active ? 'performance-bar--selected' : ''}`}
+                  style={{ height: `${Math.max(count === 0 ? 1.5 : 8, count / maximum * 100)}%` }} aria-pressed={active}
+                  aria-label={`${title}: ${count} estudante(s) ${bucket === 'above' ? 'no mínimo ou acima' : 'abaixo do mínimo'}`}
+                  onClick={() => choose(column.key, bucket)}><span>{count}</span></button>;
+              })}
+            </div>
+            <span className="performance-bars__label" title={title}>{label}</span>
+            {column.incomplete + column.noShow + column.unscaled > 0 ? <span className="performance-bars__pending" title="Leituras ainda não classificadas">+{column.incomplete + column.noShow + column.unscaled}</span> : null}
+          </div>;
+        })}
+      </div>
+      <p className="mt-3 text-[11px] leading-5 text-muted">Na lente Resultado, toda soma numérica é comparada a 60% do máximo do recorte (18, 18 ou 24 nos trimestres). Ausência, N/C e leituras sem máximo não viram zero e aparecem ao lado da sigla.</p>
+    </>}
   </Surface>;
 }
 
@@ -134,7 +134,6 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
   readonly onSelectionChange: (selection: PerformanceDashboardSelectionV5) => void;
   readonly open: (studentId: number, offerId?: number) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const analysis = dashboardAnalysisV5(value);
   const stats = value.overview.students;
   const denominator = Math.max(1, stats.eligible);
@@ -143,7 +142,7 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
   const pending = stats.pending / denominator * 100;
   const pendingLabel = analysis.lens === 'result' ? 'Sem nota numérica para classificar' : 'Ainda sem classificação';
   const students = new Map(analysis.matrix.rows.map((row) => [row.student.id, row.student]));
-  const attention = value.overview.groups.withBelow.map((id) => students.get(id)).filter((item) => item !== undefined);
+  const totalLabel = analysis.matrix.period === 'annual' ? 'Total anual' : `Total do T${analysis.matrix.period}`;
   const choose = (group: 'allAtOrAbove' | 'withBelow' | 'pending') => {
     const active = selection?.kind === 'group' && selection.group === group;
     onSelectionChange(active ? null : { kind: 'group', group });
@@ -151,32 +150,36 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
   return <Surface variant="default" className="performance-widget min-w-0">
     <header className="performance-widget__header">
       <span className="performance-widget__icon performance-widget__icon--accent"><PieChart size={18}/></span>
-      <span><h3 className="text-sm font-semibold">Panorama da turma</h3><p className="text-xs text-muted">Todos os componentes do recorte atual</p></span>
+      <span><h3 className="text-sm font-semibold">Panorama da turma</h3></span>
     </header>
     <div className="performance-panorama">
       <div className="performance-donut" role="img" aria-label={`${stats.allAtOrAbove} estudantes com todos os componentes no mínimo ou acima, ${stats.withBelow} com pelo menos um abaixo e ${stats.pending} sem leitura classificada`}
         style={{ background: `conic-gradient(var(--performance-above) 0 ${good}%, var(--performance-below) ${good}% ${good + below}%, var(--performance-pending) ${good + below}% ${good + below + pending}%)` }}>
         <div className="performance-donut__center"><strong>{number.format(good)}%</strong><span>{stats.allAtOrAbove} de {stats.eligible}</span></div>
       </div>
-      <div className="grid min-w-0 gap-2">
-        <button type="button" className="performance-panorama__item" aria-pressed={selection?.kind === 'group' && selection.group === 'allAtOrAbove'} onClick={() => choose('allAtOrAbove')}>
-          <i className="performance-legend performance-legend--above"/><span>Todos no mínimo ou acima</span><strong>{stats.allAtOrAbove}</strong>
+      <div className="performance-panorama__counts" aria-label="Quantidades do panorama">
+        <button type="button" className="performance-panorama__item" title="Todos no mínimo ou acima" aria-label={`${stats.allAtOrAbove} estudante(s) com todos os componentes no mínimo ou acima`} aria-pressed={selection?.kind === 'group' && selection.group === 'allAtOrAbove'} onClick={() => choose('allAtOrAbove')}>
+          <i className="performance-legend performance-legend--above"/><strong>{stats.allAtOrAbove}</strong>
         </button>
-        <button type="button" className="performance-panorama__item" aria-pressed={selection?.kind === 'group' && selection.group === 'withBelow'} onClick={() => choose('withBelow')}>
-          <i className="performance-legend performance-legend--below"/><span>Algum abaixo do mínimo</span><strong>{stats.withBelow}</strong>
+        <button type="button" className="performance-panorama__item" title="Algum componente abaixo do mínimo" aria-label={`${stats.withBelow} estudante(s) com algum componente abaixo do mínimo`} aria-pressed={selection?.kind === 'group' && selection.group === 'withBelow'} onClick={() => choose('withBelow')}>
+          <i className="performance-legend performance-legend--below"/><strong>{stats.withBelow}</strong>
         </button>
-        <button type="button" className="performance-panorama__item" aria-pressed={selection?.kind === 'group' && selection.group === 'pending'} onClick={() => choose('pending')}>
-          <i className="performance-legend performance-legend--pending"/><span>{pendingLabel}</span><strong>{stats.pending}</strong>
+        <button type="button" className="performance-panorama__item" title={pendingLabel} aria-label={`${stats.pending} estudante(s): ${pendingLabel}`} aria-pressed={selection?.kind === 'group' && selection.group === 'pending'} onClick={() => choose('pending')}>
+          <i className="performance-legend performance-legend--pending"/><strong>{stats.pending}</strong>
         </button>
       </div>
     </div>
-    {attention.length > 0 ? <div className="mt-4 border-t border-separator pt-3">
-      <Button size="sm" variant="ghost" className="w-full justify-between" onPress={() => setExpanded((current) => !current)} aria-expanded={expanded}>
-        <span className="flex items-center gap-2"><CircleAlert size={15}/>{attention.length} estudante(s) requerem atenção</span>{expanded ? <ChevronUp size={15}/> : <ChevronDown size={15}/>}
-      </Button>
-      {expanded ? <ul className="mt-2 grid gap-1" aria-label="Estudantes com componente abaixo do mínimo">{attention.slice(0, 8).map((student) =>
-        <li key={student.id}><button type="button" className="performance-attention-row" onClick={() => open(student.id)}><span className="truncate">{student.name}</span><Chip size="sm" variant="soft" color="danger">Atenção</Chip></button></li>)}</ul> : null}
-    </div> : null}
+    <section className="performance-ranking" aria-label="Classificação da turma">
+      <header><span><strong>Classificação da turma</strong><small>10 maiores somatórios do recorte</small></span><Chip size="sm" variant="soft" color="accent">Top 10</Chip></header>
+      {value.overview.ranking.length > 0 ? <ol>{value.overview.ranking.map((entry, index) => {
+        const student = students.get(entry.studentId);
+        if (student === undefined) return null;
+        return <li key={entry.studentId}><button type="button" onClick={() => open(entry.studentId)} aria-label={`${index + 1}º lugar, ${student.name}, ${totalLabel}: ${gradeText(entry.totalMilli)}${entry.partial ? ', somatório parcial' : ''}`}>
+          <span className="performance-ranking__position">{index + 1}</span><span className="truncate">{student.name}</span><strong className="tabular-nums">{gradeText(entry.totalMilli)}{entry.partial ? '*' : ''}</strong>
+        </button></li>;
+      })}</ol> : <p>Nenhum estudante tem valor numérico em todos os componentes deste recorte.</p>}
+      <footer>{totalLabel} · soma dos componentes com valor numérico{value.overview.ranking.some((entry) => entry.partial) ? ' · * soma com componente parcial' : ''}</footer>
+    </section>
   </Surface>;
 }
 

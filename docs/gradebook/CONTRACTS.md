@@ -13,7 +13,7 @@ Base: BN-DEC-022, #613 e programa #182. O [índice anterior completo](history/pr
 | Projeção oferta/aluno | `server/gradebook/application/results/relational-academic-projection-v1.ts` | aplicação interna; lote limitado na #636 |
 | Projeção anual | `server/gradebook/application/results/relational-student-annual-projection-v1.ts` | turma atual, decisão humana separada; não transporte UI |
 | Contexto/pesquisa/Centrais V2 | `shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2.ts` | contrato #639; implementação integrada na PR #640 |
-| Desempenho relacional V2/V3/V4 | `shared/gradebook-contracts/performance/relational-performance-v2.ts`, `performance-analysis-v3.ts` e `performance-term-comparison-v4.ts` | matriz/lentes/detalhe integrados; comparação trimestral 2026 na #649/#650 |
+| Desempenho relacional V2/V3/V4/V5 | `shared/gradebook-contracts/performance/relational-performance-v2.ts`, `performance-analysis-v3.ts`, `performance-term-comparison-v4.ts` e `performance-dashboard-v5.ts` | matriz/lentes/detalhe integrados; comparação trimestral 2026 na #649/#650; panorama e ranking descritivo no servidor na #672 |
 | Conselho relacional V3 | `shared/gradebook-contracts/council/relational-council-v3.ts` | contrato #648; sessão/CAS/idempotência/votos/histórico/fotografias, com decisão humana explícita |
 | Boletins relacionais V2 | `shared/gradebook-contracts/bulletins/relational-bulletin-v2.ts` | contrato #654; 2026, AM/U oficiais, comparação descritiva, emissão/lote/histórico/reimpressão |
 | Relatórios institucionais V2 | `shared/gradebook-contracts/reports/relational-institutional-reports-v2.ts` | contrato #656; composição somente leitura das projeções relacionais vigentes |

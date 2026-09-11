@@ -80,7 +80,7 @@ export function RelationalPerformancePageV2() {
     {state.classes?.nextOffset !== null && state.classes?.nextOffset !== undefined ? <Button variant="ghost" className="justify-self-start" isDisabled={state.busy.classes} onPress={() => void state.loadClasses(state.classes!.nextOffset!)}>Mais turmas</Button> : null}
     <Drawer.Backdrop isOpen={state.detailOpen} onOpenChange={(isOpen) => { if (!isOpen) close(); }}>
       <Drawer.Content placement="right"><Drawer.Dialog className="w-full max-w-full sm:w-[min(52rem,90vw)]"><Drawer.CloseTrigger aria-label="Fechar detalhe"/>
-        {detail ? <PerformanceStudentDetailV2 detail={detail} openComponent={(id, offerId) => void state.open(id, offerId)} openCenter={(id) => { close(); state.openStudent?.(id); }}/> : <><Drawer.Header><Drawer.Heading>Detalhe do aluno</Drawer.Heading></Drawer.Header><Drawer.Body>{state.busy.detail ? <p role="status">Carregando detalhe…</p> : null}{state.detailFailure ? <p role="alert">{failures[state.detailFailure]}</p> : null}</Drawer.Body></>}
+        {detail ? <PerformanceStudentDetailV2 detail={detail} focusPeriod={state.filters.period} openComponent={(id, offerId) => void state.open(id, offerId)} openCenter={(id) => { close(); state.openStudent?.(id); }}/> : <><Drawer.Header><Drawer.Heading>Detalhe do aluno</Drawer.Heading></Drawer.Header><Drawer.Body>{state.busy.detail ? <p role="status">Carregando detalhe…</p> : null}{state.detailFailure ? <p role="alert">{failures[state.detailFailure]}</p> : null}</Drawer.Body></>}
         <Drawer.Footer><Button variant="secondary" onPress={close}>Fechar</Button></Drawer.Footer>
       </Drawer.Dialog></Drawer.Content>
     </Drawer.Backdrop>

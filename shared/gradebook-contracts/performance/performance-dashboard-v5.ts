@@ -19,6 +19,7 @@ const matrixRequest = performanceRequestSchemaV2.options[1];
 const lens = z.enum(['result', 'quantitative', 'qualitative', 'assessments']);
 const id = z.number().int().positive().max(2_147_483_647);
 const count = z.number().int().min(0).max(100_000);
+const milli = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const members = z
   .array(id)
   .max(150)
@@ -83,6 +84,17 @@ const overview = z
         pending: members,
       })
       .strict(),
+    ranking: z
+      .array(
+        z
+          .object({
+            studentId: id,
+            totalMilli: milli,
+            partial: z.boolean(),
+          })
+          .strict(),
+      )
+      .max(10),
     columns: z.array(column).max(40),
   })
   .strict();
@@ -123,6 +135,24 @@ const ready = z
       stats.eligible !== stats.classified + stats.pending
     )
       fail('inconsistent overview totals');
+    const expectedRanking = analysis.matrix.rows
+      .filter((row) => row.student.indicatorEligible && row.cells.length > 0 && row.cells.every((cell) => cell.valueMilli !== null))
+      .map((row) => ({
+        studentId: row.student.id,
+        total: row.cells.reduce((total, cell) => total + BigInt(cell.valueMilli!), 0n),
+        partial: row.cells.some((cell) => cell.state === 'partial'),
+        number: row.student.number,
+      }))
+      .sort((left, right) => left.total === right.total ? left.number - right.number || left.studentId - right.studentId : left.total > right.total ? -1 : 1)
+      .slice(0, 10);
+    if (
+      expectedRanking.some((entry) => entry.total > BigInt(Number.MAX_SAFE_INTEGER)) ||
+      expectedRanking.length !== value.overview.ranking.length ||
+      expectedRanking.some((entry, index) => {
+        const actual = value.overview.ranking[index];
+        return actual === undefined || actual.studentId !== entry.studentId || actual.totalMilli !== Number(entry.total) || actual.partial !== entry.partial;
+      })
+    ) fail('inconsistent overview ranking');
     if (
       value.overview.columns.length !== analysis.columns.length ||
       value.overview.columns.some((item, index) => {

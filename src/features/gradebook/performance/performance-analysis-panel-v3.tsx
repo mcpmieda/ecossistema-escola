@@ -29,7 +29,7 @@ export function PerformanceAnalysisPanelV3({ value, dashboard, open, renderResul
     <PerformanceDashboardWidgetsV5 value={dashboard} selection={selection} onSelectionChange={setSelection} open={open}/>
     {value.lens !== 'result' && value.matrix.mode === 'recovery' ? <p role="status" className="text-xs text-muted">Composição regular dos alunos em recuperação. A nota de REC está em Resultado.</p> : null}
     <div className="flex min-h-9 flex-wrap items-center gap-2 text-sm" role="status">
-      {selection?.kind === 'column' ? <>Detalhe de <strong>{column?.label ?? 'componente'}</strong> exibido no gráfico; a matriz permanece completa.<Button size="sm" variant="ghost" onPress={() => setSelection(null)}>Fechar detalhe</Button></> :
+      {selection?.kind === 'column' ? <>Detalhe de <strong>{column?.label ?? 'componente'}</strong> aberto no card; a matriz permanece completa.</> :
         selectionLabel ? <>Investigando: <strong>{selectionLabel}</strong> · {rows.length} estudante(s)<Button size="sm" variant="ghost" onPress={() => setSelection(null)}>Limpar filtro</Button></> :
         <span className="text-xs text-muted">Selecione uma barra para ver os dois grupos no gráfico. Indicadores e faixas do panorama filtram a matriz.</span>}
       <Button size="sm" variant="ghost" className="ml-auto" onPress={() => setExpanded((current) => !current)} aria-expanded={expanded}>{expanded ? 'Ocultar estatísticas' : 'Ver estatísticas'}</Button>

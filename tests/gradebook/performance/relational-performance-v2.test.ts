@@ -1,5 +1,5 @@
 import { createPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
-import { createPerformanceDashboardV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
+import { buildPerformanceDashboardOverviewV5, createPerformanceDashboardV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
 import { dashboardAnalysisV5, performanceDashboardMatchesV5, performanceDashboardRequestSchemaV5, performanceDashboardResponseSchemaV5 } from '../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 import { createPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
 import { performanceTermComparisonRequestSchemaV4, performanceTermComparisonResponseSchemaV4, performanceTermComparisonMatchesV4 } from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
@@ -107,7 +107,7 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     const at = (id: number) => result.rows.find((r) => r.student.id === id)!.cells[0]!;
     expect(at(1)).toMatchObject({ valueMilli: 24000, state: 'complete', sourceReferenceMilli: 24000, sourceComparison: 'match' });
     expect(at(2)).toMatchObject({ valueMilli: 0, state: 'complete', level: 'below' });
-    expect(at(3)).toMatchObject({ state: 'partial', level: 'not-classified', sourceComparison: 'unavailable' });
+    expect(at(3)).toMatchObject({ state: 'partial', level: 'below', sourceComparison: 'unavailable' });
     expect(at(5)).toMatchObject({ valueMilli: null, state: 'not-recorded' });
     const recovery = await matrix({ mode: 'recovery' });
     expect(recovery.rows.map((r) => r.student.id)).toEqual([2,4]);
@@ -356,6 +356,23 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
 });
 
 describe('performance dashboard V5', () => {
+  it('limits the descriptive ranking to ten complete component totals in stable order', async () => {
+    const base = await analysis();
+    const matrixRow = base.matrix.rows[0]!;
+    const analysisRow = base.rows[0]!;
+    const rows = Array.from({ length: 11 }, (_, index) => ({
+      ...matrixRow,
+      student: { ...matrixRow.student, id: 100 + index, number: index + 1 },
+      cells: matrixRow.cells.map((cell) => ({ ...cell, valueMilli: (11 - index) * 1000 })),
+    }));
+    const overview = buildPerformanceDashboardOverviewV5({
+      ...base,
+      matrix: { ...base.matrix, rows },
+      rows: rows.map((row) => ({ ...analysisRow, studentId: row.student.id })),
+    });
+    expect(overview.ranking).toHaveLength(10);
+    expect(overview.ranking.map((entry) => entry.studentId)).toEqual(Array.from({ length: 10 }, (_, index) => 100 + index));
+  });
   it('returns component counts and a disjoint class panorama from one snapshot', async () => {
     const request = performanceDashboardRequestSchemaV5.parse(dashboardRequest());
     const result = await createPerformanceDashboardV5(database).execute(request);
@@ -365,6 +382,8 @@ describe('performance dashboard V5', () => {
     expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
     expect(result.overview.students).toEqual({ eligible: 6, classified: 5, allAtOrAbove: 2, withBelow: 3, pending: 1 });
     expect(result.overview.groups).toEqual({ allAtOrAbove: [1, 8], withBelow: [2, 3, 4], pending: [5] });
+    expect(result.overview.ranking.map((entry) => entry.studentId)).toEqual([8, 1, 4, 3, 2]);
+    expect(result.overview.ranking.find((entry) => entry.studentId === 3)).toMatchObject({ totalMilli: 4000, partial: true });
     expect(result.overview.columns[0]).toMatchObject({ considered: 6, atOrAbove: 2, below: 3, incomplete: 1, noShow: 0, unscaled: 0 });
     expect(dashboardAnalysisV5(result).matrix.readAt).toBeTruthy();
     expect(performanceDashboardResponseSchemaV5.safeParse(result).success).toBe(true);
@@ -387,6 +406,10 @@ describe('performance dashboard V5', () => {
     if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');
     result.overview.groups.allAtOrAbove.push(9999);
     expect(performanceDashboardResponseSchemaV5.safeParse(result).success).toBe(false);
+    const fresh = await createPerformanceDashboardV5(database).execute(dashboardRequest());
+    if (fresh.state !== 'ready') throw new Error('unexpected-dashboard-failure');
+    fresh.overview.ranking.reverse();
+    expect(performanceDashboardResponseSchemaV5.safeParse(fresh).success).toBe(false);
   });
   it('routes through the authenticated no-store boundary and preserves the production gate', async () => {
     for (const role of [null, 'PROFESSOR'] as const) expect([401, 403]).toContain((await http(dashboardRequest(), role)).status);

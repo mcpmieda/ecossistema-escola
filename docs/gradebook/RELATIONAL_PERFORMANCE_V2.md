@@ -12,11 +12,11 @@ Banco → Centrais ou Desempenho → contexto fixo 2026 → turma → período T
 
 `GradebookYearProvider` mantém 2026 e o epoch de autorização em memória no shell. Não há preferência de aba, seletor ou catálogo de escolha. Entrar na Importação não dispara consultas acadêmicas; a própria importação canônica recusa outro ano. Contratos V1 continuam exigindo mapeamento exato de `2026` para seu ID opaco. Identificador do aluno para navegação permanece em memória, não na URL. Um contador separado garante que abrir novamente o mesmo aluno atualize sua Central sem consultar novamente a matriz.
 
-A tabela começa por Nº | Situação | Aluno | componentes. Filtro múltiplo usa opções do servidor. Vínculo histórico `FOI_PARA` não entra como posição atual; situações terminais podem exibir fatos, sem entrar nos indicadores dos vínculos sem situação especial/`ESTAVA_NO`. Selecionar uma situação não cria elegibilidade acadêmica.
+A tabela começa por Nº | Situação | Aluno | componentes. Filtro múltiplo usa opções do servidor. Situação é `gradebook.vinculo.situacao`, cuja autoridade é a Relação; a fonte docente só lança notas e não transporta esse campo. Os códigos são apresentados em chips cromáticos, sem virar resultado acadêmico. Vínculo histórico `FOI_PARA` não entra como posição atual; situações terminais podem exibir fatos, sem entrar nos indicadores dos vínculos sem situação especial/`ESTAVA_NO`. Selecionar uma situação não cria elegibilidade acadêmica.
 
 Recuperação filtra somente alunos elegíveis pelos fatos resolvidos pelo motor naquele período. Elegibilidade ainda desconhecida tem contagem explícita e não vira aprovação/exclusão presumida. Indicadores clicáveis investigam dados incompletos ou resultados completos abaixo do limite; limpar investigação repõe o recorte.
 
-Detalhe do aluno traz T1/T2/T3 separadamente, Conselho anterior desconhecido/Sim/Não e eventual decisão humana distinta do cálculo. Detalhe de componente carrega avaliações/atividades, máximos, quantitativo, qualitativo e paralela. Não existe inferência comportamental nem conversão em conceito qualitativo.
+Detalhe do aluno traz T1/T2/T3 separadamente, Conselho anterior desconhecido/Sim/Não e eventual decisão humana distinta do cálculo. Detalhe de componente carrega avaliações/atividades, máximos, quantitativo, qualitativo e paralela; o drawer preserva a ordem contratual e abre ancorado no trimestre selecionado pela matriz. Não existe inferência comportamental nem conversão em conceito qualitativo.
 
 ## Contrato e composição
 
@@ -26,7 +26,9 @@ Handler preserva autenticação, capability administrativa, verificação de ori
 
 `projectPerformanceFactsV2` chama o motor simplificado existente. Fato zero, ausência, parcial, definição indisponível, REC pendente, não aplicável e N/C permanecem distintos. AM/U são referências de comparação, não substitutos do cálculo. Estados parciais vêm da cobertura do núcleo; a interface não determina a regra pelo número aparente de notas. Nenhuma fórmula ou enumeração de resultado acadêmico foi criada na interface.
 
-A classificação visual é proporcional ao limite anual configurado e só classifica valores completos; não muda a regra central de elegibilidade de REC. Decisão humana e resultado calculado são campos distintos. Ofertas duplicadas por componente são rejeitadas como ambíguas, não fundidas por nome.
+A classificação visual é proporcional ao limite anual configurado e classifica todo total numérico, completo ou parcial; o parcial mantém `state=partial` e é marcado com `*`, e ausência continua sem classificação. Isso não muda a regra central de elegibilidade de REC. Decisão humana e resultado calculado são campos distintos. Ofertas duplicadas por componente são rejeitadas como ambíguas, não fundidas por nome.
+
+O dashboard V5 acrescenta um ranking descritivo produzido no servidor: no máximo dez estudantes elegíveis, com valor numérico em todos os componentes, ordenados pelo somatório decrescente e com desempate estável por número/ID. O campo `partial` preserva a incompletude de qualquer componente. O ranking não é calculado na interface, não decide aprovação e não persiste resultado.
 
 ## Consulta, tamanho e frescor
 

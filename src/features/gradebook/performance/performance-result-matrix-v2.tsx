@@ -30,7 +30,7 @@ export function PerformanceResultMatrixV2({ value, open, allowedIds, focusOffer 
       <label className="relative ml-auto min-w-48"><span className="sr-only">Buscar estudante</span><Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted"/><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar estudante" className="min-h-9 w-full rounded-xl border border-separator bg-surface pl-8 pr-3 text-xs outline-none focus-visible:ring-2 focus-visible:ring-focus"/></label>
     </div>
     <PerformanceGridV2 label="Matriz de Desempenho" columns={value.offers.map((offer) => ({ key: String(offer.id), label: subjectText(offer), title: offer.subject.label, offerId: offer.id }))}
-      rows={visibleRows.map((row) => ({ student: row.student, values: row.cells.map((cell) => <GradeValue key={cell.offerId} cell={cell}/>), annual: row.calculatedAnnual?.label }))}
+      rows={visibleRows.map((row) => ({ student: row.student, values: row.cells.map((cell) => <GradeValue key={cell.offerId} cell={cell} partialAsMarker/>), annual: row.calculatedAnnual?.label }))}
       showAnnual={value.period === 'annual' || value.period === 3 || value.mode === 'recovery'} open={open} focusOffer={focusOffer}/>
     {investigation !== 'all' ? <Button size="sm" variant="ghost" className="justify-self-start" onPress={() => setInvestigation('all')}>Limpar filtro rápido</Button> : null}
   </Surface>;

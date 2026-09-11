@@ -566,7 +566,7 @@ button.performance-kpi__button:hover {
 
 .performance-kpi__button:focus-visible,
 .performance-panorama__item:focus-visible,
-.performance-attention-row:focus-visible,
+.performance-ranking li > button:focus-visible,
 .performance-bar:focus-visible {
   outline: 2px solid color-mix(in oklab, var(--accent) 72%, transparent);
   outline-offset: -2px;
@@ -732,6 +732,7 @@ button.performance-kpi__button:hover {
 }
 
 .performance-bars__detail {
+  min-height: 14.8rem;
   margin-top: 1rem;
   overflow: hidden;
   border: 1px solid var(--separator);
@@ -793,8 +794,6 @@ button.performance-kpi__button:hover {
 }
 
 .performance-bars__student-group > ul {
-  max-height: 12rem;
-  overflow-y: auto;
   border-top: 1px solid var(--separator);
 }
 
@@ -876,7 +875,7 @@ button.performance-kpi__button:hover {
 }
 
 .performance-panorama__item,
-.performance-attention-row {
+.performance-ranking li > button {
   display: grid;
   width: 100%;
   align-items: center;
@@ -889,24 +888,138 @@ button.performance-kpi__button:hover {
 }
 
 .performance-panorama__item {
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 0.5rem;
-  padding: 0.5rem;
-  font-size: 0.72rem;
+  grid-template-columns: auto auto;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.45rem;
+  font-size: 0.8rem;
 }
 .performance-panorama__item:hover,
 .performance-panorama__item[aria-pressed='true'] {
   border-color: var(--separator);
   background: var(--surface-secondary);
 }
-.performance-attention-row {
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  padding: 0.45rem 0.55rem;
-  font-size: 0.75rem;
+
+.performance-panorama__counts {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
 }
-.performance-attention-row:hover {
+
+.performance-ranking {
+  margin-top: 1rem;
+  overflow: hidden;
+  border-top: 1px solid var(--separator);
+  padding-top: 0.8rem;
+}
+
+.performance-ranking > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0 0.15rem 0.55rem;
+}
+
+.performance-ranking > header strong,
+.performance-ranking > header small {
+  display: block;
+}
+
+.performance-ranking > header strong {
+  font-size: 0.78rem;
+}
+
+.performance-ranking > header small,
+.performance-ranking > p,
+.performance-ranking > footer {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.performance-ranking > ol {
+  overflow: hidden;
+  border: 1px solid var(--separator);
+  border-radius: 0.85rem;
+}
+
+.performance-ranking li + li {
+  border-top: 1px solid color-mix(in oklab, var(--separator) 70%, transparent);
+}
+
+.performance-ranking li > button {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  padding: 0.38rem 0.5rem;
+  font-size: 0.7rem;
+}
+
+.performance-ranking li > button:hover {
   background: var(--surface-secondary);
+}
+
+.performance-ranking__position {
+  display: grid;
+  width: 1.35rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.performance-ranking > p,
+.performance-ranking > footer {
+  padding: 0.55rem 0.15rem 0;
+}
+
+.performance-grid__row {
+  min-height: 2.2rem;
+}
+
+.performance-grid__cell {
+  line-height: 1rem;
+}
+
+.performance-status-chip {
+  min-height: 1.35rem;
+  max-width: 100%;
+  padding-inline: 0.35rem;
+  font-size: 0.62rem;
+}
+
+.performance-status-chip--regular {
+  background: color-mix(in oklab, var(--success) 12%, transparent);
+  color: color-mix(in oklab, var(--success) 82%, var(--foreground));
+}
+
+.performance-status-chip--special,
+.performance-status-chip--origin {
+  background: color-mix(in oklab, var(--accent) 13%, transparent);
+  color: var(--accent);
+}
+
+.performance-status-chip--assisted {
+  background: color-mix(in oklab, var(--warning) 15%, transparent);
+  color: color-mix(in oklab, var(--warning) 72%, var(--foreground));
+}
+
+.performance-status-chip--withdrawn {
+  background: color-mix(in oklab, var(--danger) 13%, transparent);
+  color: var(--danger);
+}
+
+.performance-status-chip--transferred {
+  background: color-mix(in oklab, var(--accent) 9%, var(--surface-secondary));
+  color: color-mix(in oklab, var(--accent) 70%, var(--foreground));
+}
+
+.performance-status-chip--deceased {
+  background: var(--surface-secondary);
+  color: var(--muted);
 }
 
 .council-filterbar {
