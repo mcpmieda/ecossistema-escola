@@ -72,7 +72,8 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
     expect(page).toContain("operation: 'bootstrap'");
     expect(client).toContain("const AUDIT_WORKSPACE_ENDPOINT = '/api/gradebook/audit-workspace'");
     expect(client).not.toContain('/server/');
-    expect(shell).toContain("activeSurface !== 'importacao' ? <GradebookYearContextBanner /> : null");
+    expect(shell).toContain('<GradebookYearContextBanner />');
+    expect(shell).not.toContain("activeSurface !== 'importacao'");
   });
 
   it('não transporta ator, instante, autorização ou operação de promoção no navegador', () => {
