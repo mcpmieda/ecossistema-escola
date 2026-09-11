@@ -286,7 +286,7 @@ describe('relational bulletin V2', () => {
         selection: {
           year: 2026,
           classId: 10,
-          studentIds: [1, 2],
+          studentIds: [2, 1],
           period: { kind: 'annual' },
           detail: 'detailed',
           presentation: { locale: 'pt-BR', dateStyle: 'long' },
@@ -295,6 +295,15 @@ describe('relational bulletin V2', () => {
       { issuerOid: 'actor-batch' },
     );
     expect(response).toMatchObject({ state: 'ready', ready: expect.any(Array) });
+    if (response.state !== 'ready' || response.operation !== 'emit-batch') {
+      throw new Error('batch-emission-missing');
+    }
+    expect(
+      response.ready.map(({ studentId, snapshot }) => [studentId, snapshot.model.student.id]),
+    ).toEqual([
+      [2, 2],
+      [1, 1],
+    ]);
     expect(academicQueries).toHaveLength(5);
   });
 });

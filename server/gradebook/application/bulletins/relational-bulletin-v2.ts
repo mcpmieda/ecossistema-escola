@@ -295,6 +295,7 @@ async function readMaterializations(
   );
   if (studentRows.length !== studentIds.length) throw new RelationalBulletinErrorV2('not-found');
   const students = studentRows.map(studentFromRow);
+  const studentsById = new Map(students.map((student) => [student.id, student]));
 
   const offerRows = await rows(
     database,
@@ -351,7 +352,9 @@ async function readMaterializations(
     }
   }
 
-  return students.map((student) => {
+  return selections.map((selection) => {
+    const student = studentsById.get(selection.studentId);
+    if (!student) throw new RelationalBulletinErrorV2('not-found');
     const projections = offers.map((offer) => {
       const projection = projectionMap.get(projectionKey(student.id, offer.id));
       if (!projection) throw new RelationalBulletinErrorV2('unavailable');
