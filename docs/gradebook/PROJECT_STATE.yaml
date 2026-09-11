@@ -5,9 +5,9 @@ updated_at: 2026-09-11
 
 coordination:
   master_issue: 182
-  executable_issue: 666
-  current_delivery_issue: 666
-  current_integrator_issue: 666
+  executable_issue: 668
+  current_delivery_issue: 668
+  current_integrator_issue: 668
   central_state_editor: integrator-only
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
@@ -22,7 +22,8 @@ coordination:
   prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
 
 baseline:
-  last_audited_main_commit: dc8005e7911b1dbfda914345a8c194987b6ebc22
+  last_audited_main_commit: fc6547f1cf994a9f87fe5c01fd80c1b58c5de642
+  integrated_unmounted_frontend_retirement_pr: 667
   integrated_audit_v1_retirement_pr: 665
   integrated_recovery_contention_pr: 663
   integrated_teacher_configuration_pr: 661
@@ -41,11 +42,11 @@ baseline:
   integrated_import_archive_pr: 632
   storage_homologation_issue: 613
   active_diagnostics_homologation_issue: 629
-  authorized_deploy_run: 34602595928
-  authorized_deploy_number: 268
+  authorized_deploy_run: 34604746376
+  authorized_deploy_number: 269
   authorized_deploy_result: success
   authenticated_post_deploy_smoke_this_session: true
-  note: baseline-after-audit-v1-surface-retirement-665-before-unmounted-frontend-retirement-666
+  note: baseline-after-unmounted-frontend-retirement-667-before-performance-measurement-668
 
 storage:
   decision_current: BN-DEC-022
@@ -111,6 +112,10 @@ runtime:
   relational_performance_snapshot: per-response-read-only-repeatable-read
   performance_analysis_v3: integrated-pr-645-deploy-258-success-awaiting-authenticated-smoke
   performance_term_comparison_v4: integrated-pr-650-deploy-260-success-awaiting-joint-visual-validation
+  performance_authenticated_measurement: issue-668-passed-2026-09-11
+  performance_dashboard_measurement: n20-p95-441.3ms-br-max-6569b-decoded-max-144508b
+  performance_detail_measurement: n20-p95-193.5ms-br-max-1284b-decoded-max-12119b
+  performance_matrix_usable_measurement: 675.7ms-three-widgets-zero-alerts
   performance_lenses: [result, quantitative, qualitative, assessments]
   performance_lenses_contract: docs/gradebook/PERFORMANCE_LENSES_V3.md
   cross_period_comparison: descriptive-same-year-t2-to-t1-and-t3-to-t1-or-t2
@@ -147,7 +152,7 @@ runtime:
   relational_teacher_configuration_order: [P, M, H, G, C, A, RL, RD, F, ET, I, CT]
   relational_teacher_legacy_write: rejected-before-legacy-runtime
   relational_teacher_legacy_exclusive_files: removed-after-static-dependency-proof
-  unmounted_legacy_frontends: retirement-in-issue-666-server-compatibility-preserved
+  unmounted_legacy_frontends: retired-pr-667-deploy-269-server-compatibility-preserved
   remaining_consumers: none-after-issue-660
   real_postgres_contention: diagnostic-advisory-lock-rollback-and-council-cas-passed-issue-662
   relational_council_serialization_retry: one-retry-on-sqlstate-40001-then-contracted-cas-response
@@ -158,22 +163,20 @@ runtime:
     note: describes-existing-v1-contracts-not-a-global-runtime-flag
 
 work_in_progress:
-  issue: 666
-  parent_issues: [633, 406, 596]
-  phase: FINAL-1-4-selective-legacy-retirement
-  branch: fix/bn-retire-unmounted-frontend-666
-  pull_request: 667
-  scope: remove-unmounted-legacy-frontend-clusters-and-preserve-server-compatibility
+  issue: 668
+  parent_issues: [634, 406, 596]
+  phase: FINAL-2-authenticated-performance-measurement
+  branch: test/bn-final2-performance-metrics-668
+  pull_request: null
+  scope: record-payload-latency-and-matrix-usable-evidence-without-runtime-change
   production_activation_in_this_delivery: false
   production_schema_extension_in_this_delivery: none
   phase_complete: false
-  release_checkpoint: issue-666
+  release_checkpoint: issue-668
   visual_validation_this_delivery: not-applicable-joint-acceptance-still-deferred
   remaining:
     - joint-visual-validation-with-responsible
-    - explicit-contract-and-durability-for-human-audit-treatment
-    - managed-production-backup-restore-rpo-rto-and-external-configuration
-    - external-v1-endpoint-removal-only-after-consumer-inventory
+    - final2-accessibility-manual-and-visual-acceptance
     - final-head-verify-ci-review-merge-deploy
 
 final_phases:
@@ -184,7 +187,7 @@ final_phases:
   - phase: FINAL-2
     issue: 634
     branch: null
-    status: source-desktop-fixed-2026-term-comparison-and-heroui-redesign-integrated-visual-validation-pending
+    status: source-desktop-fixed-2026-term-comparison-heroui-redesign-and-authenticated-technical-metrics-green-joint-visual-validation-pending
   - phase: FINAL-3
     issue: 635
     branch: null
@@ -230,7 +233,7 @@ security:
   report: docs/gradebook/SECURITY_REMEDIATION_637.md
 
 next_safe_action:
-  issue: 666
-  related_issues: [633, 406, 596]
-  description: document-test-review-verify-integrate-and-deploy-unmounted-frontend-retirement
-  prerequisite_release_checkpoint: issue-666
+  issue: 668
+  related_issues: [634, 406, 596]
+  description: document-test-review-verify-integrate-and-deploy-authenticated-performance-measurements
+  prerequisite_release_checkpoint: issue-668

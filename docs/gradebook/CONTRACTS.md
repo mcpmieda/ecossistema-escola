@@ -59,7 +59,7 @@ Preservar interpretação histórica, ano explícito, identidade server-side, co
 
 `PAINEL DESEMPENHO`, 29/08/2026: §§2–6 contexto/matriz/Recuperação/situação; §§7–14 lentes/investigação; §§15–19 leitura/segurança/frescor/HeroUI; §20 aceite. Execução #634.
 
-Metas de §16.1: payload inicial até 500 KB compactados; backend inicial p95 até 600 ms aquecido; detalhe p95 até 400 ms; matriz utilizável até 2 s no cenário documentado. Não são medições realizadas nem licença para inventar regras/métricas.
+Metas de §16.1: payload inicial até 500 KB compactados; backend inicial p95 até 600 ms aquecido; detalhe p95 até 400 ms; matriz utilizável até 2 s no cenário documentado. A #668 registrou medição autenticada verde dessas quatro metas em um recorte sanitizado publicado; o resultado não autoriza inventar regras/métricas nem se converte em SLA universal. Ver [cenário e números](PERFORMANCE_MEASUREMENTS_668.md).
 
 O campo V2 legado permanece `comparability-not-contracted` para não reinterpretar clientes anteriores. A operação V4 da #649 contrata separadamente apenas a comparação proporcional T2→T1 e T3→T1/T2 dentro de 2026, nas lentes Resultado/Quantitativo/Qualitativo e no mesmo snapshot. Não compara anos, slots de avaliação nem herda configuração do runtime antigo.
 

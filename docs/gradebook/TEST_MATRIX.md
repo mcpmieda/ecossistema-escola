@@ -150,7 +150,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `PERF-004`: detalhes são carregados sob demanda e respostas antigas são descartadas.
 - `PERF-005`: comparação usa percentual quando máximos diferem.
 - `PERF-006`: sinal analítico nunca altera estado acadêmico.
-- `PERF-007`: payload e latência são medidos em cenário documentado.
+- `PERF-007`: payload e latência são medidos em cenário documentado; evidência autenticada da #668 passa as metas sem convertê-las em SLA universal.
 
 ## SEC — Segurança e privacidade
 
@@ -249,6 +249,16 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F14-666-005`: regressões de integração apontam para páginas/hooks atuais e não recriam testes das implementações removidas.
 - `F14-666-006`: não há DDL/DML, regra, autoridade, ano adicional, comparação entre anos, segredo, binding ou configuração de produção.
 - `F14-666-007`: testes focados, `npm run verify`, CI do head, revisão, merge/deploy e smoke somente leitura seguem BN-DEC-023; visual conjunto continua separado.
+
+## F2-668 — Medições autenticadas do Desempenho
+
+- `F2-668-001`: cenário fixa 2026/T1/Regular/Resultado e registra apenas contagens sanitizadas, sem nomes, IDs, notas ou payloads.
+- `F2-668-002`: dashboard e detalhe recebem três aquecimentos e 20 amostras sequenciais; todas retornam HTTP 200, `ready` e `no-store`.
+- `F2-668-003`: dashboard observa p95 441,3 ms e 6.569 B Brotli; passa p95 ≤600 ms e payload inicial ≤500 KB compactados.
+- `F2-668-004`: detalhe observa p95 193,5 ms e 1.284 B Brotli; passa p95 ≤400 ms.
+- `F2-668-005`: matriz observa 675,7 ms do clique até três widgets utilizáveis, sem alerta; passa ≤2 s no cenário.
+- `F2-668-006`: evidência é pontual, não SLA universal, e não substitui visual/acessibilidade manual ou piloto integral.
+- `F2-668-007`: documentação não altera runtime, DDL/DML, dados, schema, regras, autoridade, ano, binding, segredo ou infraestrutura.
 
 ## CAT — Cadastro acadêmico pela importação
 
