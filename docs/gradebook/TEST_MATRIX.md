@@ -161,7 +161,20 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `SEC-005`: logs e telemetria não contêm nomes, notas ou payload acadêmico.
 - `SEC-006`: nenhuma fixture ou artefato público contém dado real.
 
-## REL — Release
+## F3-648 — Conselho relacional V3
+
+- `F3-648-001`: request/response aceitam somente 2026, limites explícitos e decisões 1/2/3 com os rótulos contratados.
+- `F3-648-002`: abertura, decisão, voto, fechamento e reabertura exigem justificativa, idempotência e CAS da sessão.
+- `F3-648-003`: sessão fechada bloqueia decisão/voto; reabertura justificada preserva fotografias anteriores e permite novo fechamento.
+- `F3-648-004`: fechamento exige referência de revisão corrente e zero estudantes elegíveis pendentes.
+- `F3-648-005`: cada fechamento preserva fotografia por aluno com elegibilidade/motivo/decisão/votos e não é alterado por comandos posteriores.
+- `F3-648-006`: somente favoráveis/contrários são persistidos; presentes é derivado e diretor/desempate/voto de minerva não existem no transporte nem no schema.
+- `F3-648-007`: elegibilidade vem do read model relacional central e não é convertida automaticamente em decisão humana.
+- `F3-648-008`: estudante não elegível recebe motivo e não aceita decisão/voto; situação de matrícula e definições incompletas falham de forma explícita.
+- `F3-648-009`: HTTP exige autenticação, `gradebook.persistence.admin`, origem oficial e `no-store`; provider/gate indisponível falha fechado.
+- `F3-648-010`: migration é aditiva/transacional, não altera linhas/colunas legadas e restringe tabelas/sequências à role backend.
+- `F3-648-011`: HeroUI cobre fila, detalhe T1/T2/T3/REC, KPIs, estados vazios/erro/loading, votação, decisão, sessão, timeline e histórico responsivo.
+- `F3-648-012`: `npm run verify`, CI do head, revisão, postflight, deploy e smoke seguem BN-DEC-023; aceite visual conjunto continua explícito e separado.
 
 ## CAT — Cadastro acadêmico pela importação
 
@@ -173,6 +186,8 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `CAT-006`: IDs técnicos são emitidos no servidor e não atravessam o request V5.
 - `CAT-007`: cadastros e registros acadêmicos confirmam ou revertem juntos.
 - `CAT-008`: somente o ano letivo 2026 é aceito pela importação canônica; outro ano falha antes da persistência e não existe criação administrativa de anos.
+
+## REL — Release
 
 - `REL-001`: `npm run verify` aprovado no SHA do PR.
 - `REL-002`: merge somente depois dos critérios de aceite.
