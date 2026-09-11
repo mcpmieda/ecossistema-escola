@@ -26,7 +26,7 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#662 / PR #663:** recuperação lógica e contenção PostgreSQL integradas em `89cb382d588364560ac250a4a1f0e0d65a079573` e publicadas no deploy 267 (`34600229510`). O artefato privado foi restaurado em banco local descartável com 120.879 linhas/28 relações, 12 sequences, catálogo pós-`0005`, FKs e ACL local conferidos. Jornadas selecionadas, advisory lock/rollback de diagnósticos e CAS/idempotência do Conselho passaram em conexões reais. Restore gerenciado, RPO/RTO e configuração externa continuam próprios. [Evidência e limites](RELATIONAL_RECOVERY_REHEARSAL_662.md).
 
-**#664:** retirada seletiva da superfície Audit Workspace V1. Três módulos UI e o endpoint dedicado sem consumidores são removidos; Auditoria Atual V2, diagnósticos relacionais e o núcleo V1 ainda usado por Relatórios V1 permanecem intactos. [Prova e limites](LEGACY_AUDIT_RETIREMENT_664.md).
+**#664 / PR #665:** retirada seletiva da superfície Audit Workspace V1. Três módulos UI e o endpoint dedicado sem consumidores são removidos; Auditoria Atual V2, diagnósticos relacionais e o núcleo V1 ainda usado por Relatórios V1 permanecem intactos. [Prova e limites](LEGACY_AUDIT_RETIREMENT_664.md).
 
 ## Leitura e execução
 

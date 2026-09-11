@@ -160,7 +160,7 @@ work_in_progress:
   parent_issues: [633, 406, 596]
   phase: FINAL-1-4-selective-legacy-retirement
   branch: fix/bn-retire-audit-v1-surface-664
-  pull_request: null
+  pull_request: 665
   scope: remove-unconsumed-audit-v1-ui-and-dedicated-http-entrypoint
   production_activation_in_this_delivery: false
   production_schema_extension_in_this_delivery: none
