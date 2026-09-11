@@ -274,6 +274,10 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F1-674-007`: UI HeroUI reconhece/anota, mostra timeline contextual e histórico sob demanda; falha da trilha não esconde a lista atual.
 - `F1-674-008`: não há botão de resolver/ignorar/descartar, correção automática, alteração acadêmica ou mudança de autoridade.
 - `F1-674-009`: migration e código dependente permanecem fora da main/produção até autorização explícita do DDL aditivo.
+- `F1-674-010`: após autorização, dump privado novo abre em `pg_restore`, restaura as 29 relações e mantém contagens produtivas em PostgreSQL local descartável.
+- `F1-674-011`: preflight remoto exige baseline `29/227/203/62/51`, 12 sequências, somente 2026, zero FK inválida e relação-alvo ausente.
+- `F1-674-012`: postflight de `0006` exige catálogo `30/246/218/66/52`, 13 sequências, relação vazia `19/15/4/1`, ACL backend `SELECT/INSERT`, zero acesso cliente/público e contagens acadêmicas inalteradas.
+- `F1-674-013`: Advisor de segurança não introduz alerta; índices da relação vazia podem aparecer apenas como informativos ainda não usados.
 
 ## CAT — Cadastro acadêmico pela importação
 

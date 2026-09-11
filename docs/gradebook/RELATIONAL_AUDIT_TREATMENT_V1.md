@@ -31,8 +31,12 @@ A tabela fica no schema privado `gradebook`. A role backend recebe apenas `SELEC
 
 Leituras usam transação `REPEATABLE READ, READ ONLY`; escrita usa `SERIALIZABLE` e repete uma vez diante de aborto serializável/colisão concorrente. A interface mantém a Auditoria atual utilizável mesmo se a trilha ficar indisponível, carrega o histórico completo apenas sob demanda e reutiliza a chave idempotente quando uma tentativa tem resultado de rede incerto.
 
-## Gate produtivo
+## Gate produtivo executado
 
-A migration `0006_import_diagnostic_treatment_v1.sql` é aditiva e não faz backfill. Nesta entrega ela é validada em PostgreSQL descartável e versionada no Git, mas não pode ser aplicada em produção sem autorização explícita do responsável para alterar o schema. Código dependente também não deve ser integrado/publicado antes desse gate, evitando uma superfície parcialmente ativa.
+O responsável autorizou explicitamente o DDL após o primeiro head verde da PR #675. Antes da aplicação foi criado um dump lógico privado das 29 relações produtivas; o arquivo teve checksum e catálogo validados, e seu restore integral foi comprovado em PostgreSQL 18 local descartável. O dump não foi enviado ao Git, CI ou issue.
 
-Aplicação futura exige backup privado recuperável, preflight de catálogo/ACL/ano, migration transacional, postflight da nova relação vazia e smoke autenticado com dados de teste. O teste não deve publicar nomes, notas, fontes, hashes ou OIDs reais.
+O preflight confirmou `29` tabelas, `227` colunas, `203` constraints, `62` índices, `51` FKs, `12` sequências, `4` funções e `3` triggers, além de somente 2026, zero FK inválida e alvo ausente. A migration registrada `import_diagnostic_treatment_v1` aplicou o mesmo núcleo transacional de `0006_import_diagnostic_treatment_v1.sql`, sem backfill.
+
+O postflight terminou em `30/246/218/66/52`, `13` sequências e preservou as quatro funções, três triggers e todas as contagens acadêmicas observadas antes do DDL. A relação nova nasceu vazia, com 19 colunas, 15 constraints, quatro índices e uma FK validada. `gradebook_app` recebeu somente `SELECT`, `INSERT` e uso/leitura da sequence; não recebeu `UPDATE`/`DELETE`, e `PUBLIC`, `anon` e `authenticated` ficaram sem leitura. O Advisor de segurança retornou zero alerta. Os dois avisos informativos de índices ainda não usados são esperados em uma tabela vazia.
+
+O smoke autenticado deve usar somente a massa de teste já autorizada e não publicar nomes, notas, fontes, hashes ou OIDs. A aplicação da migration não equivale a aceite visual, autoridade acadêmica ou recuperação gerenciada.

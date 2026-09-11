@@ -8,7 +8,7 @@ A reconstrução de persistência da #613 terminou. Este roadmap substitui a fil
 
 **Primeira entrega / PR #636:** reancoragem documental e leitura em lote; projeção anual deixa de consultar fatos separadamente por oferta. Preserva motor e resultados. Não liga novas telas nem fecha toda a fase.
 
-**Blocos integrados/em execução:** baseline, Centrais, Desempenho, Conselho, Boletins, Relatórios, Auditoria atual V2, configuração docente, recuperação/contenção local #662/#663 e retiradas seletivas #664/#666 estão integrados. A FINAL-2 foi aceita e encerrada após #672/#673. **Restante:** integrar, após autorização do DDL aditivo, a trilha humana de Auditoria preparada na #674; recuperação operacional externa; visual de FINAL-1/3 e piloto. Remoção de endpoint exige inventário próprio de consumidores; contratos compartilhados exigem issue própria.
+**Blocos integrados/em execução:** baseline, Centrais, Desempenho, Conselho, Boletins, Relatórios, Auditoria atual V2, configuração docente, recuperação/contenção local #662/#663 e retiradas seletivas #664/#666 estão integrados. A FINAL-2 foi aceita e encerrada após #672/#673. **Restante:** integrar/publicar a trilha humana de Auditoria da #674 após migration/postflight verdes; recuperação operacional externa; visual de FINAL-1/3 e piloto. Remoção de endpoint exige inventário próprio de consumidores; contratos compartilhados exigem issue própria.
 
 **Fechar quando:** consumidores contemplados estejam integrados e verificados, sem relações antigas no caminho migrado, com CI e evidência funcional após publicação autorizada.
 

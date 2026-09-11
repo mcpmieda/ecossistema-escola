@@ -85,3 +85,11 @@ A Auditoria mantém duas verdades independentes. `importacao_diagnostico` contin
 O histórico preserva contexto mínimo sem duplicar o nome do aluno; ator é o OID UUID da sessão, horário é server-side e comandos são idempotentes. Ano fixo 2026, endpoint administrativo/no-store e ACL privada de `SELECT, INSERT`, sem `UPDATE/DELETE` ou acesso público/cliente.
 
 Esta decisão autoriza contrato e implementação em branch/PR. **Não autoriza aplicar o DDL em produção**: a migration aditiva e o código dependente aguardam a autorização explícita de schema preservada pelo responsável.
+
+## BN-DEC-027 — Autorização e aplicação da trilha humana da Auditoria
+
+**Data:** 2026-09-11. **Origem:** autorização explícita do responsável após a PR #675 ficar verde. Complementa BN-DEC-026 e encerra exclusivamente seu gate de DDL.
+
+Fica autorizada a migration aditiva `0006_import_diagnostic_treatment_v1.sql` em produção e a integração/publicação do código dependente após os gates da BN-DEC-023. A autorização não alcança outro schema, backfill, mudança de dado acadêmico, resolução manual de achado, regra, autoridade, binding, segredo, permissão de pessoa ou infraestrutura.
+
+Antes do DDL foi capturado um dump lógico privado e seu restore foi comprovado em PostgreSQL descartável. O preflight confirmou a baseline `29/227/203/62/51`, 12 sequências, somente 2026 e alvo ausente. A migration registrada `import_diagnostic_treatment_v1` levou o catálogo a `30/246/218/66/52` e 13 sequências; a relação nasceu vazia, com ACL `SELECT, INSERT` somente para `gradebook_app`, sem `UPDATE/DELETE` nem acesso de `PUBLIC`, `anon` ou `authenticated`. Funções, triggers e contagens acadêmicas permaneceram iguais. O Advisor de segurança terminou sem alertas; avisos de índice não utilizado na relação vazia são esperados antes do primeiro uso.

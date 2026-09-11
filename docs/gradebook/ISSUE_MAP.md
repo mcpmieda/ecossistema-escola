@@ -2,27 +2,27 @@
 
 Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 
-| Papel                      | Issue          | Situação de execução                                                                                   |
-| -------------------------- | -------------- | ------------------------------------------------------------------------------------------------------ |
-| Programa                   | #182           | acompanhamento das quatro fases                                                                        |
-| FINAL-1                    | #633           | consumidores relacionais até Auditoria/configuração docente concluídos; gates operacionais restam      |
-| FINAL-2                    | #634           | concluída após #672/#673 e aceitação manual do responsável                                             |
-| Fonte/ano/desktop          | #646           | concluída pela PR #647; seleção anual posteriormente substituída pela #649                             |
-| 2026/comparação trimestral | #649           | concluída pela PR #650; visual conjunto permanece na #634                                              |
-| Boletins relacionais V2    | #654 / PR #655 | integrado/publicado no deploy 263; migration/postflight e smoke somente leitura verdes                 |
-| Relatórios relacionais V2  | #656 / PR #657 | integrado/publicado no deploy 264; CI e smoke autenticado somente leitura verdes                       |
-| Auditoria relacional atual | #658 / PR #659 | integrada/publicada no deploy 265; smoke autenticado somente leitura verde                             |
-| Configuração docente       | #660 / PR #661 | integrada/publicada no deploy 266; CI e smoke autenticado somente leitura verdes                       |
-| Recuperação/contenção      | #662 / PR #663 | integrado/publicado no deploy 267; restore lógico, jornadas e disputa PostgreSQL local comprovados     |
-| Retirada Audit V1          | #664 / PR #665 | integrada/publicada no deploy 268; núcleo usado por Relatórios V1 preservado                           |
-| Frontends não montados     | #666 / PR #667 | integrado/publicado no deploy 269; endpoints e serviços de compatibilidade preservados                 |
-| Métricas de Desempenho     | #668 / PR #669 | p95, payload e matriz utilizável autenticados passaram; registro documental em execução                |
-| Trilha humana da Auditoria | #674           | implementação preparada; integration/publicação bloqueadas até autorização explícita da migration 0006 |
-| FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                                |
-| FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                             |
-| Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                    |
-| Entrega institucional      | #596           | após fases, piloto, aceite e recuperação                                                               |
-| Observabilidade global     | #220           | planejada; não é banco paralelo nem gate por existência                                                |
+| Papel                      | Issue          | Situação de execução                                                                               |
+| -------------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
+| Programa                   | #182           | acompanhamento das quatro fases                                                                    |
+| FINAL-1                    | #633           | consumidores relacionais até Auditoria/configuração docente concluídos; gates operacionais restam  |
+| FINAL-2                    | #634           | concluída após #672/#673 e aceitação manual do responsável                                         |
+| Fonte/ano/desktop          | #646           | concluída pela PR #647; seleção anual posteriormente substituída pela #649                         |
+| 2026/comparação trimestral | #649           | concluída pela PR #650; visual conjunto permanece na #634                                          |
+| Boletins relacionais V2    | #654 / PR #655 | integrado/publicado no deploy 263; migration/postflight e smoke somente leitura verdes             |
+| Relatórios relacionais V2  | #656 / PR #657 | integrado/publicado no deploy 264; CI e smoke autenticado somente leitura verdes                   |
+| Auditoria relacional atual | #658 / PR #659 | integrada/publicada no deploy 265; smoke autenticado somente leitura verde                         |
+| Configuração docente       | #660 / PR #661 | integrada/publicada no deploy 266; CI e smoke autenticado somente leitura verdes                   |
+| Recuperação/contenção      | #662 / PR #663 | integrado/publicado no deploy 267; restore lógico, jornadas e disputa PostgreSQL local comprovados |
+| Retirada Audit V1          | #664 / PR #665 | integrada/publicada no deploy 268; núcleo usado por Relatórios V1 preservado                       |
+| Frontends não montados     | #666 / PR #667 | integrado/publicado no deploy 269; endpoints e serviços de compatibilidade preservados             |
+| Métricas de Desempenho     | #668 / PR #669 | p95, payload e matriz utilizável autenticados passaram; registro documental em execução            |
+| Trilha humana da Auditoria | #674 / PR #675 | migration autorizada/aplicada e postflight verde; código em integração/publicação                  |
+| FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
+| FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
+| Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |
+| Entrega institucional      | #596           | após fases, piloto, aceite e recuperação                                                           |
+| Observabilidade global     | #220           | planejada; não é banco paralelo nem gate por existência                                            |
 
 ## Trilhas preservadas, não reexecutadas
 
