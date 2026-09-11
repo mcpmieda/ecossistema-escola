@@ -21,6 +21,7 @@ beforeAll(async () => {
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await pg.exec('CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;');
   await pg.exec(readFileSync('migrations/gradebook-simplified/0003_council_session_v3.sql', 'utf8'));
+  await pg.exec(readFileSync('migrations/gradebook-simplified/0004_council_v3_least_privilege.sql', 'utf8'));
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES

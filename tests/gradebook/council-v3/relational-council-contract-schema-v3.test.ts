@@ -12,6 +12,7 @@ beforeAll(async () => {
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await pg.exec('CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;');
   await pg.exec(readFileSync('migrations/gradebook-simplified/0003_council_session_v3.sql', 'utf8'));
+  await pg.exec(readFileSync('migrations/gradebook-simplified/0004_council_v3_least_privilege.sql', 'utf8'));
 }, 30_000);
 afterAll(async () => { await pg?.close(); });
 
@@ -66,5 +67,20 @@ describe('additive Council V3 schema', () => {
       VALUES (2026,1,1,-1,0,2,'Teste','11111111-1111-4111-8111-111111111111')`)).rejects.toMatchObject({ code: '23514' });
     const publicAccess = (await pg.query("SELECT has_table_privilege('public','gradebook.conselho_sessao','SELECT') AS allowed")).rows;
     expect(publicAccess).toEqual([{ allowed: false }]);
+    const backendAccess = (await pg.query(`SELECT
+      has_table_privilege('gradebook_app','gradebook.conselho_sessao','SELECT') AS session_select,
+      has_table_privilege('gradebook_app','gradebook.conselho_sessao','INSERT') AS session_insert,
+      has_table_privilege('gradebook_app','gradebook.conselho_sessao','UPDATE') AS session_update,
+      has_table_privilege('gradebook_app','gradebook.conselho_sessao','DELETE') AS session_delete,
+      has_table_privilege('gradebook_app','gradebook.conselho_fechamento_item','SELECT') AS snapshot_select,
+      has_table_privilege('gradebook_app','gradebook.conselho_fechamento_item','INSERT') AS snapshot_insert,
+      has_table_privilege('gradebook_app','gradebook.conselho_fechamento_item','UPDATE') AS snapshot_update,
+      has_table_privilege('gradebook_app','gradebook.conselho_fechamento_item','DELETE') AS snapshot_delete,
+      has_sequence_privilege('gradebook_app','gradebook.conselho_fechamento_id_seq','USAGE') AS sequence_usage,
+      has_sequence_privilege('gradebook_app','gradebook.conselho_fechamento_id_seq','SELECT') AS sequence_select,
+      has_sequence_privilege('gradebook_app','gradebook.conselho_fechamento_id_seq','UPDATE') AS sequence_update`)).rows;
+    expect(backendAccess).toEqual([{ session_select: true, session_insert: true, session_update: true, session_delete: false,
+      snapshot_select: true, snapshot_insert: true, snapshot_update: false, snapshot_delete: false,
+      sequence_usage: true, sequence_select: true, sequence_update: false }]);
   });
 });

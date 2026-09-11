@@ -216,10 +216,18 @@ REVOKE ALL ON gradebook.conselho_sessao, gradebook.conselho_sessao_historico,
   gradebook.conselho_idempotencia, gradebook.conselho_votacao, gradebook.conselho_votacao_historico,
   gradebook.conselho_decisao_comando, gradebook.conselho_fechamento,
   gradebook.conselho_fechamento_item FROM PUBLIC;
+REVOKE ALL ON gradebook.conselho_sessao, gradebook.conselho_sessao_historico,
+  gradebook.conselho_idempotencia, gradebook.conselho_votacao, gradebook.conselho_votacao_historico,
+  gradebook.conselho_decisao_comando, gradebook.conselho_fechamento,
+  gradebook.conselho_fechamento_item FROM gradebook_app;
 REVOKE ALL ON SEQUENCE gradebook.conselho_sessao_historico_id_seq,
   gradebook.conselho_votacao_historico_id_seq,
   gradebook.conselho_decisao_comando_id_seq,
   gradebook.conselho_fechamento_id_seq FROM PUBLIC;
+REVOKE ALL ON SEQUENCE gradebook.conselho_sessao_historico_id_seq,
+  gradebook.conselho_votacao_historico_id_seq,
+  gradebook.conselho_decisao_comando_id_seq,
+  gradebook.conselho_fechamento_id_seq FROM gradebook_app;
 
 GRANT SELECT, INSERT, UPDATE ON gradebook.conselho_sessao TO gradebook_app;
 GRANT SELECT, INSERT ON gradebook.conselho_sessao_historico TO gradebook_app;

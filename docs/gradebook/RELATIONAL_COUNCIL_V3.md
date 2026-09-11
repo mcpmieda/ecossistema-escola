@@ -39,6 +39,10 @@ Históricos de sessão, decisão e votação são append-only.
 tabelas e quatro sequências ao schema relacional vigente. A migration é
 transacional, não remove ou converte colunas, não altera linhas acadêmicas, não
 faz backfill e concede acesso somente à role backend `gradebook_app`.
+`0004_council_v3_least_privilege.sql` neutraliza permissões DML herdadas dos
+default privileges do proprietário e preserva somente SELECT/INSERT e os UPDATEs
+necessários às duas tabelas correntes; históricos e fotografias não recebem
+UPDATE/DELETE.
 
 A aplicação exige preflight com as oito tabelas ausentes, cópia recuperável do
 estado anterior e revisão do SQL exato. Depois da aplicação, validar as tabelas,
