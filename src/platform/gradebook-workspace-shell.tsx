@@ -28,7 +28,7 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
   {
     id: 'audit',
     label: 'Auditoria',
-    description: 'Revise ocorrências, reconciliações e resoluções com histórico e CAS.',
+    description: 'Entenda pendências atuais da fonte e as ações sugeridas, sem correção automática.',
   },
   {
     id: 'performance',
