@@ -386,7 +386,8 @@ function BulletinArtifact({ artifact }: { readonly artifact: Artifact }) {
                                       subject.annual.classification.includes('approved')
                                         ? 'success'
                                         : subject.annual.classification === 'not-approved' ||
-                                            subject.annual.classification === 'failed-no-show'
+                                            subject.annual.classification === 'failed-no-show' ||
+                                            subject.annual.classification === 'failed-repeat'
                                           ? 'danger'
                                           : 'default'
                                     }
