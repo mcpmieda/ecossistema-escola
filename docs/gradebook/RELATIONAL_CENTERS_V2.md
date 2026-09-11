@@ -32,7 +32,7 @@ HeroUI e shell existentes; tela somente leitura. O cliente valida formato, opera
 
 Autenticação Entra/capability existente, origem oficial, bloqueio de POST de outra origem e gate de produção permanecem no backend. Erros são opacos e respostas usam `no-store`. Falha de rede não vira “nenhum resultado”. Não há operação de escrita no V2.
 
-A #660 encerra a adaptação docente sem inventar um segundo cadastro: professor, componente e oferta vêm da importação anual; a Central de professor mostra a configuração reconhecida e orienta qualquer correção pela fonte. O transporte de escrita `maintenanceVersion: 1`, incompatível com o schema simplificado, é recusado antes do runtime legado. Arquivos V1 preservados não são montagem nem fallback. As ofertas usam a ordem observada na configuração da fonte; detalhes em [Configuração docente relacional](RELATIONAL_TEACHER_CONFIGURATION_660.md).
+A #660 encerra a adaptação docente sem inventar um segundo cadastro: professor, componente e oferta vêm da importação anual; a Central de professor mostra a configuração reconhecida e orienta qualquer correção pela fonte. O transporte de escrita `maintenanceVersion: 1`, incompatível com o schema simplificado, é recusado antes do runtime legado; seus arquivos exclusivos e sem consumidor foram removidos após prova de dependência. As ofertas usam a ordem observada na configuração da fonte; detalhes em [Configuração docente relacional](RELATIONAL_TEACHER_CONFIGURATION_660.md).
 
 ## Evidências e limites de aceite
 

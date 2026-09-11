@@ -14,7 +14,7 @@ Essa ordem é apresentação, não identidade acadêmica. A tabela de notas cont
 
 ## Transporte e segurança
 
-`contractVersion: 2` permanece exclusivamente read-only e restrito a 2026. O antigo payload `maintenanceVersion: 1` não é mais servido pelo endpoint operacional: após autenticação e autorização, ele é recusado como requisição inválida antes de instanciar o runtime de entidades/versões ou tocar seu binding. As operações V1 de leitura permanecem compatibilidade apenas para consumidores ainda comprovados; não são fallback do V2.
+`contractVersion: 2` permanece exclusivamente read-only e restrito a 2026. O antigo payload `maintenanceVersion: 1` não é mais servido pelo endpoint operacional: após autenticação e autorização, ele é recusado como requisição inválida antes de instanciar o runtime de entidades/versões ou tocar seu binding. Depois de confirmar por busca estática que só se referenciavam entre si e por testes de não montagem, os arquivos de UI, cliente e aplicação exclusivos dessa manutenção foram removidos; seu histórico continua no Git. As operações V1 de leitura permanecem compatibilidade apenas para consumidores ainda comprovados; não são fallback do V2.
 
 Nenhuma migration, DDL/DML produtivo, alteração de importador, regra acadêmica ou troca de autoridade faz parte da #660. Para alterar professor, turma, componente ou oferta, corrige-se a fonte e reaplica-se a Importação, preservando o fluxo único já homologado.
 

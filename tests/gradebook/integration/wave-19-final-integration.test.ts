@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -24,23 +24,19 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(auditContract).toContain('readonly category: string;');
   });
 
-  it('preserva a manutenção F5 mas não a executa contra o schema novo na central somente leitura #639', () => {
+  it('substitui a manutenção F5 pela configuração docente relacional sem código morto', () => {
     const shell = source('src/platform/gradebook-workspace-shell.tsx');
     const surface = source('src/platform/gradebook-operational-surface.tsx');
-    const maintenance = source(
-      'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-workspace.tsx',
-    );
-    const client = source(
-      'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-client.ts',
-    );
+    const relational = source('src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx');
 
     expect(shell).toContain("import('./gradebook-operational-surface')");
     expect(surface).toContain('<OperationalWorkspacePage />');
     expect(surface).toContain('relational-workspace-page-v2');
     expect(surface).not.toContain('<TeacherAssignmentMaintenanceWorkspace');
-    expect(maintenance).toContain('Gerenciar professores e atribuições');
-    expect(maintenance).toContain('const [activated, setActivated] = useState(false)');
-    expect(client).toContain("'/api/gradebook/operational-workspace'");
+    expect(relational).toContain('Configuração docente importada');
+    expect(relational).toContain('alterações cadastrais entram pela Importação');
+    expect(existsSync(join(root, 'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-workspace.tsx'))).toBe(false);
+    expect(existsSync(join(root, 'server/gradebook/application/operational-workspace/teacher-assignment-maintenance-v1.ts'))).toBe(false);
   });
 
   it('mantém F6 comparável somente quando houver semântica oficial e monta gráficos de valores oficiais', () => {
@@ -64,9 +60,6 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
       'src/platform/gradebook-operational-surface.tsx',
       'src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx',
       'src/features/gradebook/operational-workspace/operational-workspace-client-v2.ts',
-      'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-workspace.tsx',
-      'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-panel.tsx',
-      'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-client.ts',
       'src/features/gradebook/performance/performance-official-charts.tsx',
     ].map(source).join('\n');
 

@@ -137,6 +137,7 @@ runtime:
   relational_teacher_configuration_authority: imported-source-read-only-no-parallel-registration
   relational_teacher_configuration_order: [P, M, H, G, C, A, RL, RD, F, ET, I, CT]
   relational_teacher_legacy_write: rejected-before-legacy-runtime
+  relational_teacher_legacy_exclusive_files: removed-after-static-dependency-proof
   remaining_consumers: none-after-issue-660
   global_academic_authority_switch_verified: false
   authority_acceptance_issue: 347
