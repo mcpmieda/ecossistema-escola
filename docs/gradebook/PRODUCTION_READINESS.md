@@ -12,23 +12,23 @@ A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; 
 
 ## Gates finais
 
-| Gate             | Responsável                      | Evidência                                                                                                      |
-| ---------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Schema/runtime   | #633; blocos #639/#640/#660/#662 | replay/drift e fontes relacionais; restore lógico/contenção local comprovados, operação externa ainda pendente |
-| Desempenho       | #634/#668                        | comparação trimestral e metas técnicas do cenário autenticado verdes; validação visual conjunta restante       |
-| Conselho         | #635                             | lacunas contratuais, decisão humana, voto/fechamento e durabilidade                                            |
-| Boletins         | #633/#654                        | contrato V2 integrado/publicado; migration/postflight, CI e smoke somente leitura verdes                       |
-| Relatórios       | #633/#656/#657                   | contrato V2 integrado/publicado; CI e smoke autenticado somente leitura verdes                                 |
+| Gate             | Responsável                      | Evidência                                                                                                       |
+| ---------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Schema/runtime   | #633; blocos #639/#640/#660/#662 | replay/drift e fontes relacionais; restore lógico/contenção local comprovados, operação externa ainda pendente  |
+| Desempenho       | #634/#668                        | comparação trimestral e metas técnicas do cenário autenticado verdes; validação visual conjunta restante        |
+| Conselho         | #635                             | lacunas contratuais, decisão humana, voto/fechamento e durabilidade                                             |
+| Boletins         | #633/#654                        | contrato V2 integrado/publicado; migration/postflight, CI e smoke somente leitura verdes                        |
+| Relatórios       | #633/#656/#657                   | contrato V2 integrado/publicado; CI e smoke autenticado somente leitura verdes                                  |
 | Auditoria atual  | #633/#658/#664                   | somente diagnóstico corrente 2026; UI/endpoint Audit V1 retirados; núcleo usado por Relatórios V1 preservado    |
 | Frontends ativos | #633/#666                        | somente superfícies relacionais montadas; endpoints legados externos e renderizador PDF reutilizado preservados |
-| Produto integral | #406                             | jornadas, restart/falhas, segurança, histórico e recuperação                                                   |
-| Aceite acadêmico | #347                             | consumidor/escopo, versão/vigência, divergências e emissões                                                    |
-| Entrega          | #596                             | operação, responsáveis, recuperação e aceite final                                                             |
-| Dependências     | #637/#641                        | lock corrigido e audits zerados no run 551; CI final, merge/deploy no checkpoint da issue                      |
+| Produto integral | #406                             | jornadas, restart/falhas, segurança, histórico e recuperação                                                    |
+| Aceite acadêmico | #347                             | consumidor/escopo, versão/vigência, divergências e emissões                                                     |
+| Entrega          | #596                             | operação, responsáveis, recuperação e aceite final                                                              |
+| Dependências     | #637/#641                        | lock corrigido e audits zerados no run 551; CI final, merge/deploy no checkpoint da issue                       |
 
 ## Recuperação não pode ser presumida
 
-Uma migration existente não comprova restore. `0001` reconstrói e compara a baseline observada antes do Conselho: 20 tabelas, 127 colunas, 123 constraints, 38 índices, 4 funções e 3 triggers. `0003`/`0004` acrescentam o Conselho V3 e levam o catálogo a 28 tabelas, 214 colunas, 188 constraints, 58 índices, 48 FKs e 12 sequências, sem mudar as 4 funções/3 triggers. O postflight de `0005` levou a produção a 29 tabelas, 227 colunas, 203 constraints, 62 índices, 51 FKs e 12 sequências, preservando 4 funções/3 triggers e todas as contagens acadêmicas. A tabela de snapshots nasceu vazia. NOT NULL é comparado por `attnotnull`; sua representação adicional em `pg_constraint` no PostgreSQL 18 é excluída para comparar com PostgreSQL 17, sem excluir a regra.
+Uma migration existente não comprova restore. `0001` reconstrói e compara a baseline observada antes do Conselho: 20 tabelas, 127 colunas, 123 constraints, 38 índices, 4 funções e 3 triggers. `0003`/`0004` acrescentam o Conselho V3 e levam o catálogo a 28 tabelas, 214 colunas, 188 constraints, 58 índices, 48 FKs e 12 sequências, sem mudar as 4 funções/3 triggers. O postflight de `0005` levou a produção a 29 tabelas, 227 colunas, 203 constraints, 62 índices, 51 FKs e 12 sequências. O postflight autorizado de `0006` levou o catálogo a 30 tabelas, 246 colunas, 218 constraints, 66 índices, 52 FKs e 13 sequências, preservando 4 funções/3 triggers e todas as contagens acadêmicas; tanto snapshots quanto tratamentos nasceram vazios. NOT NULL é comparado por `attnotnull`; sua representação adicional em `pg_constraint` no PostgreSQL 18 é excluída para comparar com PostgreSQL 17, sem excluir a regra.
 
 Grants backend são separados da baseline; testes usam roles sintéticas. A #662 restaurou localmente 120.879 linhas em 28 relações, 12 sequences/identities, catálogo pós-`0005`, FKs e ACLs locais; também serviu catálogo, comparação T2×T1, Auditoria, Conselho e histórico vazio de Boletins. O tempo local de 7.385 ms não é SLA. Restore gerenciado, ACLs/identidade/configurações externas, timezone operacional, recursos, política RPO/RTO e operação real continuam gates #406/#596. Não executar DDL de streams/versions. D1 histórico não contém as novas escritas; sua exclusão ou uso como rollback exige plano próprio. Ver [#662](RELATIONAL_RECOVERY_REHEARSAL_662.md).
 
@@ -42,7 +42,7 @@ A Auditoria integrada #636 usa **substituição transacional**: locks por fonte/
 
 O mesmo ensaio mostrou que uma corrida `SERIALIZABLE` do Conselho pode abortar o perdedor com SQLSTATE `40001` antes do CAS. O serviço repete uma vez apenas a transação abortada; a segunda fotografia devolve `version-conflict`. Um vencedor, um conflito e repetição idempotente foram observados. Diretor/desempate permanecem fora do sistema.
 
-A inspeção de ACL anterior encontrou anon/authenticated sem USAGE/privilégios de tabela. O postflight de `0005` confirmou somente `SELECT, INSERT` para `gradebook_app` em `boletim_snapshot`, sem `UPDATE/DELETE` e sem grants a `PUBLIC`, `anon` ou `authenticated`. RLS não foi habilitada; a proteção permanece por schema e revogações explícitas.
+A inspeção de ACL anterior encontrou anon/authenticated sem USAGE/privilégios de tabela. O postflight de `0005` confirmou somente `SELECT, INSERT` para `gradebook_app` em `boletim_snapshot`, sem `UPDATE/DELETE` e sem grants a `PUBLIC`, `anon` ou `authenticated`. Após autorização da BN-DEC-027, o postflight de `0006` confirmou a mesma ACL mínima em `importacao_diagnostico_tratamento` e uso/leitura, sem atualização, da nova sequence. RLS não foi habilitada; a proteção permanece por schema privado e revogações explícitas. O Advisor de segurança terminou sem alertas.
 
 ## Validação da interface
 

@@ -1,6 +1,6 @@
 # Roadmap — quatro fases finais
 
-A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #668 sob FINAL-2/#406/#596, sem reconstruir os blocos já integrados.
+A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #674 sob FINAL-1/#406/#596, sem reconstruir os blocos já integrados.
 
 ## FINAL-1 — #633: runtime relacional e verdade documental
 
@@ -8,7 +8,7 @@ A reconstrução de persistência da #613 terminou. Este roadmap substitui a fil
 
 **Primeira entrega / PR #636:** reancoragem documental e leitura em lote; projeção anual deixa de consultar fatos separadamente por oferta. Preserva motor e resultados. Não liga novas telas nem fecha toda a fase.
 
-**Blocos integrados/em execução:** baseline, Centrais, Desempenho, Conselho, Boletins, Relatórios, Auditoria atual V2, configuração docente, recuperação/contenção local #662/#663 e retirada Audit V1 #664/#665 estão integrados. A #666 retira clusters frontend antigos sem montagem, preservando os endpoints e serviços de compatibilidade externa. **Restante:** contrato/durabilidade da trilha humana de Auditoria, recuperação operacional externa e validação visual. Remoção de endpoint exige inventário próprio de consumidores; contratos compartilhados exigem issue própria.
+**Blocos integrados/em execução:** baseline, Centrais, Desempenho, Conselho, Boletins, Relatórios, Auditoria atual V2, configuração docente, recuperação/contenção local #662/#663 e retiradas seletivas #664/#666 estão integrados. A FINAL-2 foi aceita e encerrada após #672/#673. **Restante:** integrar/publicar a trilha humana de Auditoria da #674 após migration/postflight verdes; recuperação operacional externa; visual de FINAL-1/3 e piloto. Remoção de endpoint exige inventário próprio de consumidores; contratos compartilhados exigem issue própria.
 
 **Fechar quando:** consumidores contemplados estejam integrados e verificados, sem relações antigas no caminho migrado, com CI e evidência funcional após publicação autorizada.
 
@@ -16,7 +16,7 @@ A reconstrução de persistência da #613 terminou. Este roadmap substitui a fil
 
 Implementar o contrato `PAINEL DESEMPENHO`: contexto fixo 2026; turma/período T1–T3/Visão geral; Regular/Recuperação; matriz dominante Nº/Situação/Aluno/componentes; quatro lentes; poucos KPIs e um gráfico contextual; investigação; comparação proporcional T2→T1 e T3→T1/T2 declarada pela #649; detalhes sob demanda. Não criar ou comparar anos letivos. Dados exibidos não são automaticamente população elegível de indicadores. Não criar regras, conceitos qualitativos ou métricas sem semântica sustentada.
 
-Validar legibilidade, acessibilidade, teclado, estados vazios/zero/indisponíveis, descarte de respostas obsoletas e ausência de N+1. A #668 mediu no browser autenticado o payload, p95 de dashboard/detalhe e matriz utilizável e aprovou as metas no cenário sanitizado; isso não vira SLA universal. Validação visual/acessibilidade manual conjunta permanece explícita.
+Concluída e encerrada. A #668 mediu no browser autenticado o payload, p95 de dashboard/detalhe e matriz utilizável e aprovou as metas no cenário sanitizado; isso não vira SLA universal. A rodada manual posterior gerou os refinamentos #672/#673 e sua aceitação encerrou a #634. Piloto integral e autoridade continuam pertencendo a #406/#347.
 
 ## FINAL-3 — #635: Conselho definitivo
 

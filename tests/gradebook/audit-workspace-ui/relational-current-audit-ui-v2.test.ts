@@ -5,7 +5,10 @@ const source = (path: string) => readFileSync(path, 'utf8');
 
 describe('relational current Audit UI V2', () => {
   const surface = source('src/features/gradebook/audit-workspace/gradebook-audit-surface.tsx');
-  const page = source('src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx');
+  const page = source(
+    'src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx',
+  );
+  const pageText = page.replace(/\s+/gu, ' ');
 
   it('mounts only the current relational diagnostic experience', () => {
     expect(surface).toContain('<RelationalCurrentAuditPageV2 />');
@@ -16,13 +19,22 @@ describe('relational current Audit UI V2', () => {
     expect(page).toContain('Ano letivo 2026');
   });
 
-  it('distinguishes current findings from durable human treatment', () => {
-    expect(page).toContain('Achado atual não é histórico de tratamento');
-    expect(page).toContain('nenhuma correção é executada automaticamente');
-    expect(page).toContain('ainda não possui contrato durável');
+  it('keeps current findings separate from durable human treatment', () => {
+    expect(page).toContain('Achado atual e histórico continuam separados');
+    expect(pageText).toContain('nenhuma correção é executada automaticamente');
+    expect(page).toContain('requestImportDiagnosticTreatmentV1');
+    expect(page).toContain('Reconhecer');
+    expect(page).toContain('Adicionar anotação');
+    expect(page).toContain('Histórico de tratamento');
+    expect(page).toContain('historyNextCursor');
+    expect(page).toContain("historyState !== 'idle'");
+    expect(page).toContain("setHistoryState('ready')");
+    expect(page).not.toContain('historyNextOffset');
+    expect(page).toContain('nunca alteram notas ou escondem achados');
     expect(page).not.toContain('requestAuditWorkspaceResolutionV1');
     expect(page).not.toContain('requestDeterministicCorrectionExecutionV2');
     expect(page).not.toContain('Executar correção determinística');
+    expect(page).not.toContain('Marcar como resolvido');
   });
 
   it('uses HeroUI and stable filters without a native select or academic browser storage', () => {
@@ -30,6 +42,7 @@ describe('relational current Audit UI V2', () => {
     expect(page).toContain('<Card');
     expect(page).toContain('<Alert');
     expect(page).toContain('<Button');
+    expect(page).toContain('<TextArea');
     expect(page).toContain('Carregar mais 50');
     expect(page).not.toMatch(/<select\b/u);
     expect(page).not.toContain('localStorage');

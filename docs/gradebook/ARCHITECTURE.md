@@ -1,6 +1,6 @@
 # Arquitetura — estado relacional e consumidores em transição
 
-Base integrada: `main@fc6547f1cf994a9f87fe5c01fd80c1b58c5de642`; Conselho relacional #648/PR #653, Boletins V2 #654/PR #655, Relatórios V2 #656/PR #657, Auditoria atual #658/PR #659, configuração docente #660/PR #661, recuperação/contenção #662/PR #663, retirada Audit V1 #664/PR #665 e frontends não montados #666/PR #667 integrados e publicados. As medições autenticadas de Desempenho estão na #668. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
+Base integrada: `main@265d9ec886e3d9d5ad1f2b6d9e6af0a2ad3f6bce`; Conselho relacional #648/PR #653, Boletins V2 #654/PR #655, Relatórios V2 #656/PR #657, Auditoria atual #658/PR #659, configuração docente #660/PR #661, recuperação/contenção #662/PR #663, retiradas seletivas #664/#666 e refinamentos de Desempenho até #672/PR #673 integrados e publicados. A #674 prepara a trilha humana da Auditoria: a migration foi autorizada/aplicada/postvalidada, enquanto o código ainda está fora da base integrada na PR #675. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
 
 ## Caminho integrado de importação
 
@@ -46,7 +46,7 @@ Boletins materializa um ou mais alunos no mesmo snapshot read-only/repeatable-re
 
 Relatórios V2 é um agregador read-only e limitado dos contratos relacionais já vigentes. Desempenho e comparação usam V3/V4; Conselho usa V3; Auditoria consulta somente achados atuais; histórico/reimpressão usa exclusivamente snapshots V2. Não cria um segundo motor nem reinterpreta autoridade. Ver [RELATIONAL_REPORTS_V2.md](RELATIONAL_REPORTS_V2.md).
 
-Auditoria atual V2 apresenta a fotografia de diagnósticos de 2026 e nenhuma operação de escrita. A substituição transacional da fotografia continua pertencendo ao fluxo de importação. A trilha humana futura requer contrato e durabilidade próprios; não se deduz nem se simula a partir do Audit Workspace antigo. Ver [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md).
+Auditoria atual V2 apresenta a fotografia de diagnósticos de 2026. A substituição transacional da fotografia continua pertencendo ao fluxo de importação. A #674 acrescenta, em relação privada e append-only separada, somente reconhecimento e anotação humanos; não resolve achados nem altera fatos acadêmicos. A migration está aplicada e o código segue a integração da PR #675. Ver [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md) e [RELATIONAL_AUDIT_TREATMENT_V1.md](RELATIONAL_AUDIT_TREATMENT_V1.md).
 
 Alvo: PostgreSQL/fatos → núcleo acadêmico → read models compactos → experiências. Boletins emitidos e decisões humanas têm requisitos próprios de durabilidade; não inventar resultados ou snapshots para preencher lacunas.
 

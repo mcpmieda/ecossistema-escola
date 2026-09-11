@@ -30,7 +30,9 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#666 / PR #667:** retirada dos clusters frontend antigos de Centrais, Desempenho, Conselho, Boletins e Relatórios integrada em `fc6547f1cf994a9f87fe5c01fd80c1b58c5de642` e publicada no deploy 269 (`34604746376`). Endpoints, handlers, contratos, serviços, adapters e o renderizador PDF V1 ainda reutilizado permanecem. [Prova e limites](LEGACY_FRONTEND_RETIREMENT_666.md).
 
-**#668 / PR #669:** medição autenticada de Desempenho no site publicado. No cenário 2026/T1/Regular/Resultado, p95 de dashboard e detalhe, payload Brotli e tempo até a matriz utilizável passaram nas metas da #634. É evidência pontual, não SLA universal; a validação visual conjunta permanece separada. [Cenário e resultado](PERFORMANCE_MEASUREMENTS_668.md).
+**#668 / PR #669:** medição autenticada de Desempenho no site publicado. No cenário 2026/T1/Regular/Resultado, p95 de dashboard e detalhe, payload Brotli e tempo até a matriz utilizável passaram nas metas da #634. É evidência pontual, não SLA universal; a rodada manual posterior gerou #672/#673 e sua aceitação encerrou a FINAL-2. [Cenário e resultado](PERFORMANCE_MEASUREMENTS_668.md).
+
+**#674 / PR #675:** contrato e implementação da trilha humana da Auditoria. Reconhecimento e anotação são append-only, não resolvem nem ocultam achados e não alteram fatos acadêmicos. A BN-DEC-027 autorizou a migration `0006`; backup/restore descartável, preflight, aplicação e postflight estão verdes, e o código segue integração/publicação pela PR. [Contrato e gate](RELATIONAL_AUDIT_TREATMENT_V1.md).
 
 ## Leitura e execução
 
@@ -42,12 +44,12 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 ## Programa final
 
-| Fase    | Issue | Entrega restante                                                                                                        |
-| ------- | ----- | ----------------------------------------------------------------------------------------------------------------------- |
-| FINAL-1 | #633  | Consumidores e restore/contenção local concluídos; #664/#666 retiram legado provado; trilha humana, operação externa e visual pendentes |
-| FINAL-2 | #634  | #646 consolida fonte/detalhe/desktop; #649 fixa 2026 e entrega comparação trimestral; validação visual única restante   |
-| FINAL-3 | #635  | Conselho V3 integrado/publicado e contenção local comprovada; validação visual conjunta e piloto ainda pendentes        |
-| FINAL-4 | #406  | piloto integral, recuperação operacional externa e retirada seletiva do legado                                          |
+| Fase    | Issue | Entrega restante                                                                                                                              |
+| ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| FINAL-1 | #633  | Consumidores e restore/contenção local concluídos; trilha humana #674 em integração após migration verde; operação externa e visual pendentes |
+| FINAL-2 | #634  | Concluída após #672/#673 e validação manual do responsável; piloto/autoridade continuam em #406/#347                                          |
+| FINAL-3 | #635  | Conselho V3 integrado/publicado e contenção local comprovada; validação visual conjunta e piloto ainda pendentes                              |
+| FINAL-4 | #406  | piloto integral, recuperação operacional externa e retirada seletiva do legado                                                                |
 
 #347 registra aceite acadêmico por consumidor/escopo; #596 encerra a operação institucional; #220 é observabilidade transversal. #637 foi a remediação de dependências, com [evidências próprias](SECURITY_REMEDIATION_637.md). Nenhuma entrega parcial encerra FINAL-1/2 automaticamente.
 

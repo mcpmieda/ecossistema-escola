@@ -4,7 +4,7 @@
 
 A #643 foi integrada em `8866b2c897bb62528970c64740cd2509c5d28602` e publicada pelo deploy 257, run `34511487276`, com sucesso reconfirmado na #642. Este documento descreve o bloco seguinte, #644/#645; seu SHA integrado e deploy efetivos devem ser consultados no checkpoint dessas issues. Presença de código/documentação não comprova publicação ou aceite acadêmico.
 
-A fonte funcional é `PAINEL DESEMPENHO`, sobretudo §§7–16 e 20–22. Do documento geral antigo do Banco permanece apenas Conselho. Desempenho continua `calculated-preview`: não emite nem homologa resultados oficiais e não altera regras, notas, decisões ou elegibilidade. #347 mantém o aceite por consumidor/escopo; #634 continua aberta.
+A fonte funcional é `PAINEL DESEMPENHO`, sobretudo §§7–16 e 20–22. Do documento geral antigo do Banco permanece apenas Conselho. Desempenho continua `calculated-preview`: não emite nem homologa resultados oficiais e não altera regras, notas, decisões ou elegibilidade. #347 mantém o aceite por consumidor/escopo; #634 foi encerrada após os refinamentos #672/#673 e a aceitação manual do responsável.
 
 ## O que cada lente entrega
 
@@ -59,6 +59,6 @@ Testes React exercitam os Tabs reais HeroUI, troca de lentes, seleção de ofert
 
 ## Evolução contratada na #649 e o que continua na #634
 
-A #649/PR #650 contratou a normalização proporcional e a comparação descritiva entre trimestres de 2026 para Resultado, Quantitativo e Qualitativo; Avaliações permanece deliberadamente fora. Ver [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md). Sinais de tendência/queda, limiares configuráveis e comparação entre anos foram retirados, não inferidos. Configurações visuais/de abertura, refinamento dos indicadores, validação conjunta de responsividade/teclado e performance representativa continuam na #634. Conselho, Boletins e Relatórios foram reancorados; configuração docente é concluída pela #660. Restore e piloto integral permanecem nas respectivas fases.
+A #649/PR #650 contratou a normalização proporcional e a comparação descritiva entre trimestres de 2026 para Resultado, Quantitativo e Qualitativo; Avaliações permanece deliberadamente fora. Ver [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md). Sinais de tendência/queda, limiares configuráveis e comparação entre anos foram retirados, não inferidos. As medições #668 e os refinamentos/aceite manual #672/#673 encerraram a #634. Conselho, Boletins e Relatórios foram reancorados; configuração docente foi concluída pela #660. Restore externo e piloto integral permanecem nas respectivas fases.
 
 Referências: [matriz V2](RELATIONAL_PERFORMANCE_V2.md), [mapa dos consumidores](CONSUMER_MAP.md), [estado](PROJECT_STATE.yaml), [decisões](DECISIONS.md).
