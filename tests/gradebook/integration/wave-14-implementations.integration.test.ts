@@ -23,14 +23,13 @@ describe('integração da onda 14 F4/F5/F6/F8 após wiring da onda 16', () => {
     expect(BULLETIN_AUTHORITY_MODE_V1).toBe('imported-source');
   });
 
-  it('preserva a composição física original e reconhece somente os bridges autorizados pós-#328', () => {
+  it('preserva a composição física original e reconhece somente os bridges ainda ativos', () => {
     const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const runtimeAuthorization = source(
       'server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1.ts',
     );
     const capabilities = source('server/auth/capabilities.ts');
     const functions = source('functions/[[path]].ts');
-    const auditRoute = source('server/gradebook/http/audit-workspace-routes-v1.ts');
 
     expect(runtime).toContain('createAuditWorkspaceV1');
     expect(runtime).toContain('GradebookD1AuditWorkspaceSourceV1');
@@ -40,15 +39,11 @@ describe('integração da onda 14 F4/F5/F6/F8 após wiring da onda 16', () => {
     expect(runtime).not.toContain('createBulletinEmissionServiceV1');
 
     expect(functions.match(/handleOperationalWorkspaceRequestV1/gu)).toHaveLength(2);
-    expect(functions.match(/handleAuditWorkspaceRequestV1/gu)).toHaveLength(2);
+    expect(functions).not.toContain('handleAuditWorkspaceRequestV1');
     expect(functions.match(/handlePerformanceRequestV1/gu)).toHaveLength(2);
     expect(functions.match(/handleBulletinRequestV1/gu)).toHaveLength(2);
     expect(functions.match(/createCouncilWorkspaceRequestHandlerV1/gu)).toHaveLength(2);
     expect(functions).not.toMatch(/bulletin.*pdf|pdf.*bulletin/iu);
-    expect(auditRoute.match(/'\/api\/gradebook\/audit-workspace'/gu)).toHaveLength(1);
-    expect(auditRoute.match(/request\.method !== 'POST'/gu)).toHaveLength(1);
-    expect(auditRoute).toContain('authorizeGradebookD1RuntimeV1');
-    expect(auditRoute).not.toContain('requireCapability');
     expect(runtimeAuthorization.match(/gradebook\.persistence\.admin/gu)).toHaveLength(1);
     expect(capabilities.match(/'gradebook\.persistence\.admin'/gu)).toHaveLength(1);
   });
@@ -56,13 +51,11 @@ describe('integração da onda 14 F4/F5/F6/F8 após wiring da onda 16', () => {
   it('mantém bridges únicos e produção fail-closed antes do binding', () => {
     const runtime = source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts');
     const operationalRoute = source('server/gradebook/http/operational-workspace-routes-v1.ts');
-    const auditRoute = source('server/gradebook/http/audit-workspace-routes-v1.ts');
     const performanceRoute = source('server/gradebook/http/performance-routes-v1.ts');
     const bulletinRoute = source('server/gradebook/http/bulletin-routes-v1.ts');
     const councilRoute = source('server/gradebook/http/council-routes-v1.ts');
 
     expect(operationalRoute.match(/'\/api\/gradebook\/operational-workspace'/gu)).toHaveLength(1);
-    expect(auditRoute.match(/'\/api\/gradebook\/audit-workspace'/gu)).toHaveLength(1);
     expect(performanceRoute.match(/'\/api\/gradebook\/performance'/gu)).toHaveLength(1);
     expect(bulletinRoute.match(/'\/api\/gradebook\/bulletins'/gu)).toHaveLength(1);
     expect(councilRoute.match(/'\/api\/gradebook\/council-workspace'/gu)).toHaveLength(1);

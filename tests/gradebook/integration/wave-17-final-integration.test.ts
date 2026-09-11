@@ -61,14 +61,13 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
     expect(shell).toContain('aria-selected={selected}');
   });
 
-  it('mantém exatamente os cinco bridges existentes, auth server-side e no-store', () => {
+  it('mantém os quatro bridges dedicados restantes, auth server-side e no-store', () => {
     const functions = source('functions/[[path]].ts');
     const handlers = [
       [
         'server/gradebook/http/operational-workspace-routes-v1.ts',
         '/api/gradebook/operational-workspace',
       ],
-      ['server/gradebook/http/audit-workspace-routes-v1.ts', '/api/gradebook/audit-workspace'],
       ['server/gradebook/http/performance-routes-v1.ts', '/api/gradebook/performance'],
       ['server/gradebook/http/bulletin-routes-v1.ts', '/api/gradebook/bulletins'],
       ['server/gradebook/http/council-routes-v1.ts', '/api/gradebook/council-workspace'],
@@ -82,7 +81,8 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
       expect(handler).toContain('no-store');
     }
     expect(functions.match(/handleOperationalWorkspaceRequestV1/gu)).toHaveLength(2);
-    expect(functions.match(/handleAuditWorkspaceRequestV1/gu)).toHaveLength(2);
+    expect(functions).not.toContain('handleAuditWorkspaceRequestV1');
+    expect(functions).not.toContain('/api/gradebook/audit-workspace');
     expect(functions.match(/handlePerformanceRequestV1/gu)).toHaveLength(2);
     expect(functions.match(/handleBulletinRequestV1/gu)).toHaveLength(2);
     expect(functions.match(/createCouncilWorkspaceRequestHandlerV1/gu)).toHaveLength(2);
@@ -93,7 +93,7 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
       'src/features/gradebook/operational-workspace/operational-workspace-page.tsx',
       'src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx',
       'src/features/gradebook/operational-workspace/use-relational-workspace-v2.ts',
-      'src/features/gradebook/audit-workspace/audit-workspace-page.tsx',
+      'src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx',
       'src/features/gradebook/performance/performance-page.tsx',
       'src/features/gradebook/bulletins/bulletin-page.tsx',
       'src/features/gradebook/council/council-workspace-page.tsx',

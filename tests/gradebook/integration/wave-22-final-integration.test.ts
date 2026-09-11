@@ -129,9 +129,9 @@ describe('integração final da onda 22 — comparação e correção determiní
 
     const functions = source('functions/[[path]].ts');
     expect(functions).toContain('handlePerformanceRequestV1(request, env)');
-    expect(functions).toContain('handleAuditWorkspaceRequestV1(request, env)');
+    expect(functions).not.toContain('handleAuditWorkspaceRequestV1');
+    expect(functions).not.toContain('/api/gradebook/audit-workspace');
     expect(source('server/gradebook/http/performance-routes-v1.ts')).toContain("GRADEBOOK_PERFORMANCE_ROUTE_V1 = '/api/gradebook/performance'");
-    expect(source('server/gradebook/http/audit-workspace-routes-v1.ts')).toContain("GRADEBOOK_AUDIT_WORKSPACE_ROUTE_V1 = '/api/gradebook/audit-workspace'");
     expect(source('server/gradebook/persistence/d1/runtime/d1-runtime-v1.ts')).toContain('deterministicCorrectionWorkspace(');
   });
 

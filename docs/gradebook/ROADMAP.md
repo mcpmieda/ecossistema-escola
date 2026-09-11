@@ -1,6 +1,6 @@
 # Roadmap — quatro fases finais
 
-A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #662 sob FINAL-1/#406/#596, sem reconstruir os blocos já integrados.
+A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #664 sob FINAL-1/#406/#596, sem reconstruir os blocos já integrados.
 
 ## FINAL-1 — #633: runtime relacional e verdade documental
 
@@ -8,7 +8,7 @@ A reconstrução de persistência da #613 terminou. Este roadmap substitui a fil
 
 **Primeira entrega / PR #636:** reancoragem documental e leitura em lote; projeção anual deixa de consultar fatos separadamente por oferta. Preserva motor e resultados. Não liga novas telas nem fecha toda a fase.
 
-**Blocos integrados/em execução:** baseline, Centrais, Desempenho, Conselho, Boletins, Relatórios, Auditoria atual V2 e configuração docente estão integrados. A #662 comprova restore do artefato lógico e contenção multi-sessão local; não substitui política/restore gerenciado nem operação externa. **Restante depois da #662:** contrato/durabilidade da trilha humana de Auditoria, recuperação operacional, validação visual e remoção apenas de dependências comprovadamente mortas. Contratos compartilhados exigem issue própria.
+**Blocos integrados/em execução:** baseline, Centrais, Desempenho, Conselho, Boletins, Relatórios, Auditoria atual V2, configuração docente e recuperação/contenção local #662/#663 estão integrados. A #664 retira a UI e o endpoint dedicado da Auditoria V1 após prova de ausência de consumidor, preservando o núcleo ainda usado por Relatórios V1. **Restante:** contrato/durabilidade da trilha humana de Auditoria, recuperação operacional externa, validação visual e remoção adicional somente com nova prova. Contratos compartilhados exigem issue própria.
 
 **Fechar quando:** consumidores contemplados estejam integrados e verificados, sem relações antigas no caminho migrado, com CI e evidência funcional após publicação autorizada.
 

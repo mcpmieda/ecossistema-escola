@@ -23,7 +23,6 @@ import {
   withSecurityHeaders,
 } from '../server/http/security';
 import { sharePointHealth } from '../server/graph/sharepoint';
-import { handleAuditWorkspaceRequestV1 } from '../server/gradebook/http/audit-workspace-routes-v1';
 import { handleBulletinRequestV1 } from '../server/gradebook/http/bulletin-routes-v1';
 import {
   createCouncilWorkspaceRequestHandlerV1,
@@ -178,9 +177,6 @@ async function routeOfficialGradebookRequestV1(
 ): Promise<Response | null> {
   const operationalWorkspaceResponse = await handleOperationalWorkspaceRequestV1(request, env);
   if (operationalWorkspaceResponse) return operationalWorkspaceResponse;
-
-  const auditWorkspaceResponse = await handleAuditWorkspaceRequestV1(request, env);
-  if (auditWorkspaceResponse) return auditWorkspaceResponse;
 
   const performanceResponse = await handlePerformanceRequestV1(request, env);
   if (performanceResponse) return performanceResponse;

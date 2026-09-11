@@ -231,6 +231,15 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F14-662-009`: corrida SERIALIZABLE do Conselho repete uma vez SQLSTATE 40001; CAS resulta em um vencedor, um `version-conflict` e retry idempotente.
 - `F14-662-010`: massa sintética é removida; backup/restore gerenciado, RPO/RTO, configurações externas, piloto e visual permanecem explicitamente fora do aceite.
 
+## F14-664 — Retirada seletiva da Auditoria V1
+
+- `F14-664-001`: `GradebookAuditSurface` monta exclusivamente a Auditoria Atual V2 e o cliente ativo consulta somente `/api/gradebook/import-diagnostics` com `no-store`.
+- `F14-664-002`: página, cliente e painel da Auditoria V1 sem chamadores são removidos em vez de permanecerem como fallback oculto.
+- `F14-664-003`: o roteador genérico não importa nem despacha o handler dedicado `/api/gradebook/audit-workspace` aposentado.
+- `F14-664-004`: o núcleo `createAuditWorkspaceV1`, contrato e source D1 continuam preservados porque Relatórios V1 ainda os consome internamente.
+- `F14-664-005`: nenhuma relação, diagnóstico atual, importação, correção automática, regra, autoridade, segredo ou infraestrutura é alterada.
+- `F14-664-006`: testes focados, `npm run verify`, CI do head, revisão, merge/deploy e smoke somente leitura seguem BN-DEC-023; visual conjunto continua separado.
+
 ## CAT — Cadastro acadêmico pela importação
 
 - `CAT-001`: professor e ano são reconhecidos em `CONFIGURAÇÃO!A2/C2`.

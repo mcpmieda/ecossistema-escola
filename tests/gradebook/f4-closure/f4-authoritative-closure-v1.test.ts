@@ -113,20 +113,22 @@ describe('F4 authoritative closure V1 — ROADMAP bullet-by-bullet', () => {
     expect(readSourceTests).toContain("categories: ['synthetic-category']");
   });
 
-  it('bullet 6 — Audit Workspace exposes severity/origin/action and versioned server-side resolution', () => {
+  it('bullet 6 — preserva a semântica histórica no núcleo e mantém somente a Auditoria Atual V2 montada', () => {
     const auditContract = source('shared/gradebook-contracts/audit/audit-contract-v1.ts');
     const workspace = source('server/gradebook/application/audit-workspace/audit-workspace-v1.ts');
-    const http = source('server/gradebook/http/audit-workspace-routes-v1.ts');
-    const ui = source('src/features/gradebook/audit-workspace/audit-workspace-page.tsx');
+    const currentSurface = source(
+      'src/features/gradebook/audit-workspace/gradebook-audit-surface.tsx',
+    );
+    const functions = source('functions/[[path]].ts');
     const workspaceTests = source('tests/gradebook/audit-workspace/audit-workspace-v1.test.ts');
     expect(auditContract).toContain('readonly severity: AuditSeverityV1;');
     expect(auditContract).toContain('readonly source?: AuditSourceReferenceV1;');
     expect(auditContract).toContain('readonly recommendedAction?: string;');
     expect(workspace).toContain('expectedVersion: request.expectedVersion');
     expect(workspace).toContain('resolutionIdentity()');
-    expect(http).toContain("'/api/gradebook/audit-workspace'");
-    expect(ui).toContain('Registrar resolução');
-    expect(ui).toContain('Ação recomendada:');
+    expect(currentSurface).toContain('<RelationalCurrentAuditPageV2 />');
+    expect(functions).not.toContain('handleAuditWorkspaceRequestV1');
+    expect(functions).not.toContain('/api/gradebook/audit-workspace');
     expect(workspaceTests).toContain('resolve pela escrita CAS existente usando ator e instante do servidor');
   });
 
