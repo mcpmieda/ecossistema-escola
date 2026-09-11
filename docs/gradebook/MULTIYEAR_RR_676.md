@@ -17,4 +17,4 @@ O motor classifica o componente como `failed-repeat` sempre que qualquer fonte R
 
 ## Segurança e publicação
 
-Arquivos reais permanecem privados e inalterados. Evidência pública usa somente contagens agregadas. DDL deve ser revisado e reproduzido em PostgreSQL descartável antes da aplicação remota; após a aplicação, conferir constraints, ACL/drift, contagens acadêmicas e Advisor. Merge/deploy seguem BN-DEC-023.
+Arquivos reais permanecem privados e inalterados. Evidência pública usa somente contagens agregadas. A `0007` foi reproduzida em PostgreSQL descartável, aplicada como `multiyear_rr_v1` (`20260911201622`) e postvalidada sem alteração de contagens acadêmicas; catálogo `30/247/221/66/52`, 13 sequências, 4 funções e 3 triggers, máscaras anteriores zeradas e Advisor sem alertas. O backup gerenciado foi explicitamente adiado pelo responsável e não pode ser presumido. Merge/deploy seguem BN-DEC-023.

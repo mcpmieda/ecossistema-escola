@@ -105,3 +105,11 @@ O shell oferece um único seletor global, alimentado pelos anos já materializad
 `R/R` é um marcador de fonte exclusivo da Recuperação e distinto de nota, vazio e `N/C`. Se aparecer em qualquer trimestre de recuperação de qualquer componente, o resultado anual do aluno é exatamente `REPROVADO`, sem recuperação pendente e sem elegibilidade ao Conselho. A ocorrência é preservada em máscara própria e histórico de fechamento; não é convertida em voto nem decisão humana. AM/U importadas continuam autoridade oficial e o Conselho continua humano somente para elegíveis.
 
 A migration `0007_multiyear_rr_v1.sql` é aditiva: acrescenta a máscara R/R, amplia os estados históricos e remove apenas as duas restrições físicas que fixavam snapshots/tratamentos em 2026. Não executa backfill, `UPDATE`, `DELETE` ou reinterpretação retroativa. Detalhes em [MULTIYEAR_RR_676.md](MULTIYEAR_RR_676.md).
+
+## BN-DEC-029 — Aplicação da extensão multi-ano/R/R sem backup gerenciado
+
+**Data:** 2026-09-11. **Origem:** autorização explícita do responsável na #676 e decisão de adiar backup gerenciado. Complementa BN-DEC-028 e encerra exclusivamente o gate de DDL da `0007`.
+
+A migration `0007_multiyear_rr_v1.sql` foi aplicada em produção como `multiyear_rr_v1`, versão `20260911201622`, depois de replay PostgreSQL descartável e preflight exato. A operação não criou backup gerenciado por decisão consciente do responsável; essa limitação permanece fora do aceite de recuperação operacional e não autoriza presumir RPO/RTO.
+
+O preflight confirmou catálogo `30/246/218/66/52`, 13 sequências, somente 2026 materializado, coluna alvo ausente e as oito constraints históricas esperadas. O postflight confirmou `30/247/221/66/52`, 13 sequências, 4 funções e 3 triggers; todas as contagens acadêmicas permaneceram idênticas, os 4.463 fechamentos existentes ficaram com `rec_rr_mask = 0`, nenhuma máscara R/R foi inventada e nenhuma constraint obsoleta permaneceu. O Advisor de segurança terminou sem alertas.
