@@ -30,7 +30,7 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#666 / PR #667:** retirada dos clusters frontend antigos de Centrais, Desempenho, Conselho, Boletins e Relatórios integrada em `fc6547f1cf994a9f87fe5c01fd80c1b58c5de642` e publicada no deploy 269 (`34604746376`). Endpoints, handlers, contratos, serviços, adapters e o renderizador PDF V1 ainda reutilizado permanecem. [Prova e limites](LEGACY_FRONTEND_RETIREMENT_666.md).
 
-**#668:** medição autenticada de Desempenho no site publicado. No cenário 2026/T1/Regular/Resultado, p95 de dashboard e detalhe, payload Brotli e tempo até a matriz utilizável passaram nas metas da #634. É evidência pontual, não SLA universal; a validação visual conjunta permanece separada. [Cenário e resultado](PERFORMANCE_MEASUREMENTS_668.md).
+**#668 / PR #669:** medição autenticada de Desempenho no site publicado. No cenário 2026/T1/Regular/Resultado, p95 de dashboard e detalhe, payload Brotli e tempo até a matriz utilizável passaram nas metas da #634. É evidência pontual, não SLA universal; a validação visual conjunta permanece separada. [Cenário e resultado](PERFORMANCE_MEASUREMENTS_668.md).
 
 ## Leitura e execução
 

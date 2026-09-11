@@ -16,7 +16,7 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Recuperação/contenção      | #662 / PR #663 | integrado/publicado no deploy 267; restore lógico, jornadas e disputa PostgreSQL local comprovados |
 | Retirada Audit V1          | #664 / PR #665 | integrada/publicada no deploy 268; núcleo usado por Relatórios V1 preservado                        |
 | Frontends não montados     | #666 / PR #667 | integrado/publicado no deploy 269; endpoints e serviços de compatibilidade preservados              |
-| Métricas de Desempenho     | #668           | p95, payload e matriz utilizável autenticados passaram; registro documental em execução              |
+| Métricas de Desempenho     | #668 / PR #669 | p95, payload e matriz utilizável autenticados passaram; registro documental em execução              |
 | FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
 | FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
 | Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |

@@ -1,6 +1,6 @@
 # Entrega corrente — medições autenticadas de Desempenho
 
-**#668**, branch `test/bn-final2-performance-metrics-668`. Base factual: `main@fc6547f1cf994a9f87fe5c01fd80c1b58c5de642`, após a retirada dos frontends antigos #666/PR #667, deploy 269 (`34604746376`) e smoke autenticado somente leitura. O trabalho atual existe no head da branch e só será fato integrado depois de CI, revisão, merge e deploy.
+**#668 / PR #669**, branch `test/bn-final2-performance-metrics-668`. Base factual: `main@fc6547f1cf994a9f87fe5c01fd80c1b58c5de642`, após a retirada dos frontends antigos #666/PR #667, deploy 269 (`34604746376`) e smoke autenticado somente leitura. O trabalho atual existe no head da branch e só será fato integrado depois de CI, revisão, merge e deploy.
 
 #646/#647 integrou fonte, siglas, detalhe e desktop. #649/#650 fixou 2026, removeu criação/seleção de anos e entregou comparação descritiva entre trimestres. #651/#652 redesenhou Desempenho. #648/#653 integrou Conselho V3. #654/#655 integrou Boletins V2. #656/#657 integrou Relatórios V2. Não reconstruir esses blocos. Usar `main` + branch + issue/PR + CI como estado factual; `PROJECT_STATE.yaml` é resumo e pode ficar um commit atrás.
 

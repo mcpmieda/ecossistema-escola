@@ -41,7 +41,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
   it('has a concrete four-phase queue and separate acceptance and delivery gates', () => {
     expect(section('coordination')).toContain('executable_issue: 668');
     expect(section('coordination')).toContain('current_delivery_issue: 668');
-    expect(section('work_in_progress')).toContain('pull_request: null');
+    expect(section('work_in_progress')).toContain('pull_request: 669');
     expect(section('final_phases').match(/phase: FINAL-/gu)).toHaveLength(4);
     for (const issue of [633, 634, 635, 406])
       expect(section('final_phases')).toContain(`issue: ${issue}`);

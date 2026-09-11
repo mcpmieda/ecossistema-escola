@@ -1,4 +1,4 @@
-# Medições autenticadas de Desempenho — #668
+# Medições autenticadas de Desempenho — #668 / PR #669
 
 ## Cenário
 

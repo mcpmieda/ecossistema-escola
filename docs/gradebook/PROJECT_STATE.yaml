@@ -167,7 +167,7 @@ work_in_progress:
   parent_issues: [634, 406, 596]
   phase: FINAL-2-authenticated-performance-measurement
   branch: test/bn-final2-performance-metrics-668
-  pull_request: null
+  pull_request: 669
   scope: record-payload-latency-and-matrix-usable-evidence-without-runtime-change
   production_activation_in_this_delivery: false
   production_schema_extension_in_this_delivery: none
