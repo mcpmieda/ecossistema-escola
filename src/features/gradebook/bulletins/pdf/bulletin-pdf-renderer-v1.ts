@@ -330,8 +330,7 @@ export function assembleBulletinRasterPdfV1(pages: readonly BulletinPdfRasterPag
 
   appendBytes(
     new Uint8Array([
-      0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xe2, 0xe3, 0xcf, 0xd3,
-      0x0a,
+      0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, 0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a,
     ]),
   );
 
@@ -477,7 +476,8 @@ function canvasToJpegBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> {
         }
         void blob.arrayBuffer().then(
           (buffer: ArrayBuffer) => resolve(new Uint8Array(buffer)),
-          () => reject(new BulletinPdfRendererErrorV1('renderer-unavailable', 'canvas-encode-failed')),
+          () =>
+            reject(new BulletinPdfRendererErrorV1('renderer-unavailable', 'canvas-encode-failed')),
         );
       },
       'image/jpeg',
@@ -533,7 +533,7 @@ function createCanvasPage(): {
 
 async function renderLinesToRasterPages(
   lines: readonly BulletinPdfLineV1[],
-  snapshot: BulletinSnapshotV1,
+  snapshotVersion: number,
 ): Promise<readonly BulletinPdfRasterPageV1[]> {
   await requireBundledGeistFont(lines);
   const pages: BulletinPdfRasterPageV1[] = [];
@@ -545,7 +545,7 @@ async function renderLinesToRasterPages(
     const style = styleFor('meta');
     setCanvasFont(current.context, style);
     current.context.fillText(
-      `Boletim · continuação · snapshot v${snapshot.snapshotVersion}`,
+      `Boletim · continuação · snapshot v${snapshotVersion}`,
       PDF_LEFT,
       y,
       PDF_CONTENT_WIDTH,
@@ -628,14 +628,21 @@ async function renderLinesToRasterPages(
   return pages;
 }
 
-/**
- * Browser-only official renderer. Input is exactly BulletinPdfInputV1 ({ snapshot }); no fetch,
- * academic read, recalculation, remote font, persistent browser storage or metadata side channel.
- */
-export async function renderBulletinPdfV1(input: BulletinPdfInputV1): Promise<BulletinPdfArtifactV1> {
-  assertReadyInput(input);
-  const lines = buildBulletinPdfLinesV1(input);
-  const pages = await renderLinesToRasterPages(lines, input.snapshot);
+/** Shared browser-only layout primitive for canonical bulletin snapshot versions. */
+export async function renderBulletinPdfLinesV1(
+  lines: readonly BulletinPdfLineV1[],
+  snapshotVersion: number,
+): Promise<BulletinPdfArtifactV1> {
+  if (
+    !Number.isSafeInteger(snapshotVersion) ||
+    snapshotVersion <= 0 ||
+    lines.length === 0 ||
+    lines.reduce((total, line) => total + (line.kind === 'text' ? line.text.length : 0), 0) >
+      BULLETIN_PDF_LIMITS_V1.maxTextCharacters
+  ) {
+    throw new BulletinPdfRendererErrorV1('bounds-exceeded', 'line-input-limit');
+  }
+  const pages = await renderLinesToRasterPages(lines, snapshotVersion);
   const bytes = assembleBulletinRasterPdfV1(pages);
   const arrayBuffer = bytes.buffer.slice(
     bytes.byteOffset,
@@ -646,4 +653,16 @@ export async function renderBulletinPdfV1(input: BulletinPdfInputV1): Promise<Bu
     byteLength: bytes.length,
     pageCount: pages.length,
   };
+}
+
+/**
+ * Browser-only official renderer. Input is exactly BulletinPdfInputV1 ({ snapshot }); no fetch,
+ * academic read, recalculation, remote font, persistent browser storage or metadata side channel.
+ */
+export async function renderBulletinPdfV1(
+  input: BulletinPdfInputV1,
+): Promise<BulletinPdfArtifactV1> {
+  assertReadyInput(input);
+  const lines = buildBulletinPdfLinesV1(input);
+  return renderBulletinPdfLinesV1(lines, input.snapshot.snapshotVersion);
 }

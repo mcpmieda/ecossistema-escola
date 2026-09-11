@@ -12,7 +12,10 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
   it('mantém exatamente um bridge por superfície acadêmica autorizada', () => {
     const functions = source('functions/[[path]].ts');
     const routes = [
-      ['server/gradebook/http/operational-workspace-routes-v1.ts', '/api/gradebook/operational-workspace'],
+      [
+        'server/gradebook/http/operational-workspace-routes-v1.ts',
+        '/api/gradebook/operational-workspace',
+      ],
       ['server/gradebook/http/audit-workspace-routes-v1.ts', '/api/gradebook/audit-workspace'],
       ['server/gradebook/http/performance-routes-v1.ts', '/api/gradebook/performance'],
       ['server/gradebook/http/bulletin-routes-v1.ts', '/api/gradebook/bulletins'],
@@ -91,23 +94,22 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
   });
 
   it('preserva F8: mesma base canônica, lote isolado, snapshot histórico e PDF canônico snapshot-only', () => {
-    const service = source('server/gradebook/application/bulletins/bulletin-workspace-service-v1.ts');
-    const emission = source('server/gradebook/application/bulletins/bulletin-emission-service-v1.ts');
-    const snapshots = source('server/gradebook/application/bulletins/bulletin-snapshot-repository-v1.ts');
-    const page = source('src/features/gradebook/bulletins/bulletin-page.tsx');
-    const pdfActions = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-actions-v1.ts');
+    const service = source('server/gradebook/application/bulletins/relational-bulletin-v2.ts');
+    const snapshots = source(
+      'server/gradebook/persistence/postgres/relational-bulletin-snapshot-v2.ts',
+    );
+    const page = source('src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx');
+    const pdfActions = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-actions-v2.ts');
 
-    expect(service).toContain('emission.materialize(request.request, context)');
-    expect(service).toContain('emission.emit(request.request, context)');
-    expect(service).toContain('emission.emitBatch(request.request, context)');
-    expect(service).toContain('emission.reprint(request.request, context)');
-    expect(emission).toContain('materializeBatch');
-    expect(snapshots).toContain('freezeBulletinSnapshotV1');
-    expect(page).toContain('Cada aluno conserva seu próprio resultado.');
-    expect(page).toContain('PDF canônico sob demanda');
+    expect(service).toContain('readMaterializations(tx, selections, now())');
+    expect(service).toContain("request.operation === 'emit-batch'");
+    expect(service).toContain("source: 'historical-snapshot'");
+    expect(snapshots).toContain('snapshot_json AS payload_json');
+    expect(page).toContain('emitido(s)');
+    expect(page).toContain('O PDF usa somente a versão emitida acima');
     expect(page).toContain('Baixar PDF oficial');
     expect(page).toContain('Imprimir PDF oficial');
-    expect(pdfActions).toContain("await import('./bulletin-pdf-renderer-v1')");
+    expect(pdfActions).toContain("await import('./bulletin-pdf-renderer-v2')");
     expect(page).not.toContain('@react-pdf');
     expect(page).not.toContain('pdfkit');
     expect(page).not.toContain('jspdf');
@@ -125,7 +127,9 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     expect(app).not.toMatch(/features\/gradebook\/(?:performance|bulletins|council)/u);
     expect(notesPage).toContain("import('./gradebook-workspace-page')");
     expect(workspacePage).toContain('<GradebookWorkspaceShell />');
-    expect(shell).toContain("import('../features/gradebook/performance/relational-performance-page-v2')");
+    expect(shell).toContain(
+      "import('../features/gradebook/performance/relational-performance-page-v2')",
+    );
     expect(shell).toContain("import('../features/gradebook/bulletins/bulletin-page')");
     expect(shell).toContain("import('./gradebook-council-surface')");
     expect(councilSurface).toContain('RelationalCouncilPageV3');

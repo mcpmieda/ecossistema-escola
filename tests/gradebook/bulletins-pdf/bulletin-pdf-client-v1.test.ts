@@ -50,26 +50,28 @@ describe('Boletins PDF client V1', () => {
       loadBulletinPdfRendererV1(async () => {
         throw new Error('synthetic-module-unavailable');
       }),
-    ).rejects.toMatchObject({ code: 'renderer-unavailable' } satisfies Partial<BulletinPdfActionErrorV1>);
+    ).rejects.toMatchObject({
+      code: 'renderer-unavailable',
+    } satisfies Partial<BulletinPdfActionErrorV1>);
   });
 
   it('mantém renderer fora do import estático da página e limpa URLs/estado temporário', () => {
-    const actions = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-actions-v1.ts');
-    const page = source('src/features/gradebook/bulletins/bulletin-page.tsx');
+    const actions = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-actions-v2.ts');
+    const page = source('src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx');
 
-    expect(actions).toContain("await import('./bulletin-pdf-renderer-v1')");
+    expect(actions).toContain("await import('./bulletin-pdf-renderer-v2')");
     expect(actions).toContain('URL.createObjectURL');
     expect(actions).toContain('URL.revokeObjectURL');
     expect(actions).toContain('frame.remove()');
-    expect(page).not.toContain("from './pdf/bulletin-pdf-renderer-v1'");
+    expect(page).not.toContain("from './pdf/bulletin-pdf-renderer-v2'");
     expect(page).toContain('Baixar PDF oficial');
     expect(page).toContain('Imprimir PDF oficial');
-    expect(page).toContain('PDF indisponível. O boletim canônico permanece legível na tela');
+    expect(page).toContain('O snapshot permanece legível na tela.');
   });
 
   it('não persiste snapshot/modelo no browser e não cria resposta HTTP/Content-Disposition de PDF', () => {
-    const actions = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-actions-v1.ts');
-    const renderer = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v1.ts');
+    const actions = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-actions-v2.ts');
+    const renderer = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts');
     const combined = `${actions}\n${renderer}`;
 
     for (const forbidden of [
@@ -87,12 +89,12 @@ describe('Boletins PDF client V1', () => {
 
   it('explicita limite de um documento por vez e ausência de fan-out PDF no lote', () => {
     const renderer = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v1.ts');
-    const page = source('src/features/gradebook/bulletins/bulletin-page.tsx');
+    const page = source('src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx');
 
     expect(renderer).toContain('concurrentDocuments: 1');
     expect(renderer).toContain('maxPages: 24');
     expect(renderer).toContain('maxOutputBytes: 12 * 1024 * 1024');
-    expect(page).toContain('PDF em lote não é disparado');
-    expect(page).toContain('limitada a um snapshot por vez');
+    expect(page).toContain('um documento');
+    expect(page).toContain('pdfState !== null');
   });
 });
