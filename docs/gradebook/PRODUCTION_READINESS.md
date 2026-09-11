@@ -8,7 +8,7 @@ A PR #640, contrato #639, acrescentou contexto/pesquisa/Centrais V2 e foi integr
 
 As PRs #643/#645 integraram matriz relacional e quatro lentes; a #647 integrou fonte, ano global, detalhe e desktop em `002b97a6b647c28e1eca75745425732858eae665`. A #649/#650 fixa 2026, remove criação/seleção de anos e acrescenta comparação trimestral sem ativar autoridade ou alterar schema/dados. Validação visual/autenticada continua separada e foi adiada para uma única sessão com o responsável.
 
-A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; migration/postflight, CI 594, deploy 262 / `34565744488` e smoke autenticado somente leitura foram aprovados. A #654/PR #655 executa Boletins V2; o head `4072211` passou na CI `34571001180`, seguido por backup lógico, preflight e migration/postflight `0005` verdes. Faltam registrar o gate no head final, repetir CI/revisão, integrar/publicar e executar smoke autenticado somente leitura.
+A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; migration/postflight, CI 594, deploy 262 / `34565744488` e smoke autenticado somente leitura foram aprovados. A #654/PR #655 integrou Boletins V2 em `1512d5b37c42931b1df81bbfe6483d1ad5340130`; backup lógico, preflight, migration/postflight `0005`, CI, deploy 263 / `34572772095` e smoke autenticado somente leitura foram aprovados. A #656 executa Relatórios V2 sem schema/DML; seu head ainda depende de verificação final, CI, revisão, integração, publicação e smoke.
 
 ## Gates finais
 
@@ -17,7 +17,8 @@ A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; 
 | Schema/runtime   | #633; bloco #639/#640 integrado | replay/drift e fontes relacionais por endpoint; Centrais de consulta não incluem resultados/escritas             |
 | Desempenho       | #634                            | comparação trimestral contratada na #649; validação visual conjunta, refinamentos de UI e medição restantes      |
 | Conselho         | #635                            | lacunas contratuais, decisão humana, voto/fechamento e durabilidade                                              |
-| Boletins         | #633/#654                       | contrato V2, CI inicial e migration/postflight verdes; head documental final, publicação e smoke somente leitura |
+| Boletins         | #633/#654                       | contrato V2 integrado/publicado; migration/postflight, CI e smoke somente leitura verdes                          |
+| Relatórios       | #633/#656                       | contrato V2 somente leitura no head; integração, publicação e smoke ainda não são fatos da `main`                  |
 | Produto integral | #406                            | jornadas, restart/falhas, segurança, histórico e recuperação                                                     |
 | Aceite acadêmico | #347                            | consumidor/escopo, versão/vigência, divergências e emissões                                                      |
 | Entrega          | #596                            | operação, responsáveis, recuperação e aceite final                                                               |

@@ -192,6 +192,21 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F1-654-012`: PDF aparece somente para snapshot emitido/reimpresso, é lazy/snapshot-only, limitado a um documento e falha sem apagar a leitura em tela.
 - `F1-654-013`: `npm run verify`, CI do head, backup/preflight, migration/postflight, revisão, merge/deploy e smoke seguem BN-DEC-023; visual conjunto continua separado.
 
+## F1-656 — Relatórios institucionais relacionais V2
+
+- `F1-656-001`: request/response são estritos, aceitam somente 2026, IDs inteiros e operações catalog/performance/council/audit/bulletin-history/bulletin-reprint.
+- `F1-656-002`: catálogo vem do Boletim V2 relacional e preserva nome completo e ordem canônica das disciplinas.
+- `F1-656-003`: desempenho reutiliza V3/V4 e oferece Resultado/Quantitativo/Qualitativo, modos Regular/Recuperação e comparação somente T2→T1 ou T3→T1/T2.
+- `F1-656-004`: não há comparação entre anos, tendência inventada, nova métrica acadêmica nem relatório de avaliações sem oferta explícita; a investigação detalhada permanece em Desempenho.
+- `F1-656-005`: Conselho reutiliza V3, preserva os três rótulos oficiais, registra somente favoráveis/contrários e mantém diretor/desempate fora do sistema.
+- `F1-656-006`: Auditoria lista somente achados atuais de `importacao_diagnostico`; correção remove o achado atual em seu fluxo de origem, mas não autoriza exclusão automática de vestígio humano nem correção automática.
+- `F1-656-007`: histórico e reimpressão de Boletins consultam exclusivamente snapshots imutáveis V2 e não materializam fatos atuais.
+- `F1-656-008`: todas as operações V2 são somente leitura, limitadas e sem N+1; teste PostgreSQL valida schemas, ordem, contagem e ausência de INSERT/UPDATE/DELETE/TRUNCATE.
+- `F1-656-009`: HTTP exige autenticação, `gradebook.persistence.admin`, origem, provider/gate e `no-store`; falhas e respostas obsoletas fecham sem reusar dados anteriores.
+- `F1-656-010`: HeroUI cobre filtros estáveis, estados vazios/erro/loading, KPIs, tabelas e timeline; não há card gigante de título, select HTML visível nem drag de coluna.
+- `F1-656-011`: a interface ativa monta somente V2; V1 permanece compatibilidade isolada e não é fallback.
+- `F1-656-012`: `npm run verify`, CI do head, revisão, merge/deploy e smoke seguem BN-DEC-023; validação visual conjunta continua separada.
+
 ## CAT — Cadastro acadêmico pela importação
 
 - `CAT-001`: professor e ano são reconhecidos em `CONFIGURAÇÃO!A2/C2`.

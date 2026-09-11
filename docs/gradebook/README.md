@@ -16,21 +16,23 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#648 / PR #653:** Conselho V3 relacional integrado, migrado e publicado no deploy 262, com decisão humana 1/2/3, votos numéricos, empate fora do sistema, histórico e fotografia de fechamento. Smoke autenticado somente leitura aprovado; validação visual conjunta permanece adiada. [Contrato e evidências](RELATIONAL_COUNCIL_V3.md).
 
-**#654 / PR #655:** Boletins V2 em execução sobre o schema relacional de 2026. Prévia, emissão idempotente, lote limitado, histórico, reimpressão snapshot-only e PDF usam AM/U oficiais da fonte e cálculo apenas descritivo. CI, backup, preflight e migration/postflight append-only estão verdes; faltam head documental final, merge/deploy e smoke autenticado somente leitura. [Contrato e limites](RELATIONAL_BULLETINS_V2.md).
+**#654 / PR #655:** Boletins V2 integrado e publicado sobre o schema relacional de 2026. Prévia, emissão idempotente, lote limitado, histórico, reimpressão snapshot-only e PDF usam AM/U oficiais da fonte e cálculo apenas descritivo. CI, backup, preflight, migration/postflight append-only, deploy 263 e smoke autenticado somente leitura estão verdes. [Contrato e limites](RELATIONAL_BULLETINS_V2.md).
+
+**#656:** Relatórios institucionais V2 em execução sobre as projeções relacionais vigentes de Desempenho, Conselho, diagnósticos atuais e snapshots de Boletins. Opera somente em 2026 e apenas em leitura; não cria motor, regra, schema, correção automática ou comparação entre anos. [Contrato e limites](RELATIONAL_REPORTS_V2.md).
 
 ## Leitura e execução
 
 1. [COMECE_AQUI.md](COMECE_AQUI.md): tarefa e dependências.
 2. [PROJECT_STATE.yaml](PROJECT_STATE.yaml): baseline e entrega corrente.
 3. [DECISIONS.md](DECISIONS.md): decisões anteriores e substituições expressas.
-4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md), [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md), [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md), [RELATIONAL_COUNCIL_V3.md](RELATIONAL_COUNCIL_V3.md) e [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md): caminhos e limites.
+4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md), [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md), [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md), [RELATIONAL_COUNCIL_V3.md](RELATIONAL_COUNCIL_V3.md), [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md) e [RELATIONAL_REPORTS_V2.md](RELATIONAL_REPORTS_V2.md): caminhos e limites.
 5. [CONTRACTS.md](CONTRACTS.md), [ROADMAP.md](ROADMAP.md), [ISSUE_MAP.md](ISSUE_MAP.md) e [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
 
 ## Programa final
 
 | Fase    | Issue | Entrega restante                                                                                                                   |
 | ------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| FINAL-1 | #633  | Boletins relacionais em #654; manutenção docente, Auditoria antiga e Relatórios ainda pendentes; gestão de anos retirada pela #649 |
+| FINAL-1 | #633  | Relatórios V2 em #656; manutenção docente, Auditoria antiga, isolamento/recuperação e piloto ainda pendentes; gestão de anos retirada |
 | FINAL-2 | #634  | #646 consolida fonte/detalhe/desktop; #649 fixa 2026 e entrega comparação trimestral; validação visual única restante              |
 | FINAL-3 | #635  | Conselho humano V3 integrado/publicado; validação visual conjunta e piloto ainda separam entrega de aceite final                   |
 | FINAL-4 | #406  | piloto integral, recuperação e retirada seletiva do legado                                                                         |

@@ -5,11 +5,12 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Papel                      | Issue          | Situação de execução                                                                               |
 | -------------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
 | Programa                   | #182           | acompanhamento das quatro fases                                                                    |
-| FINAL-1                    | #633           | execução incremental; base/Centrais/Desempenho/Conselho integrados; Boletins V2 na #654            |
+| FINAL-1                    | #633           | execução incremental; base/Centrais/Desempenho/Conselho/Boletins integrados; Relatórios V2 na #656 |
 | FINAL-2                    | #634           | PRs #645/#647 integradas; comparação trimestral e 2026 fixo na #649/#650; visual conjunto pendente |
 | Fonte/ano/desktop          | #646           | concluída pela PR #647; seleção anual posteriormente substituída pela #649                         |
 | 2026/comparação trimestral | #649           | concluída pela PR #650; visual conjunto permanece na #634                                          |
-| Boletins relacionais V2    | #654 / PR #655 | implementação, CI e migration/postflight verdes; publicação/smoke pendentes                        |
+| Boletins relacionais V2    | #654 / PR #655 | integrado/publicado no deploy 263; migration/postflight e smoke somente leitura verdes             |
+| Relatórios relacionais V2  | #656           | contrato e implementação no head; verificação/PR/publicação ainda não são fatos integrados          |
 | FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
 | FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
 | Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |
@@ -28,7 +29,7 @@ As dependências são de entregas aceitas, não apenas da existência de branche
 
 ## Branches reservadas
 
-Corrente: `feat/bn-relational-bulletins-v2-654`. Reservada para o piloto posterior: `test/bn-final-4-piloto-integral`.
+Corrente: `feat/bn-relational-reports-v2-656`. Reservada para o piloto posterior: `test/bn-final-4-piloto-integral`.
 
 Branches históricas não devem ser mergeadas só por estarem abertas/existirem. Toda execução parte da `main` factual validada e registra seu próprio checkpoint na issue/PR.
 

@@ -39,14 +39,14 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     );
   });
   it('has a concrete four-phase queue and separate acceptance and delivery gates', () => {
-    expect(section('coordination')).toContain('executable_issue: 654');
-    expect(section('coordination')).toContain('current_delivery_issue: 654');
+    expect(section('coordination')).toContain('executable_issue: 656');
+    expect(section('coordination')).toContain('current_delivery_issue: 656');
     expect(section('final_phases').match(/phase: FINAL-/gu)).toHaveLength(4);
     for (const issue of [633, 634, 635, 406])
       expect(section('final_phases')).toContain(`issue: ${issue}`);
     expect(section('institutional_delivery')).toContain('issue: 596');
     expect(section('institutional_delivery')).toContain('authority_acceptance_issue: 347');
-    expect(section('next_safe_action')).toContain('issue: 654');
+    expect(section('next_safe_action')).toContain('issue: 656');
   });
   it('records current-only diagnostics separately from preserved academic history', () => {
     expect(section('storage')).toContain(
@@ -105,9 +105,9 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
   });
   it('records actual deployments separately from authenticated acceptance and the security release checkpoint', () => {
     expect(section('baseline')).toContain(
-      'last_audited_main_commit: 4f32dd5150641d0a24c2e2c241768f953202ce56',
+      'last_audited_main_commit: 1512d5b37c42931b1df81bbfe6483d1ad5340130',
     );
-    expect(section('baseline')).toContain('authorized_deploy_run: 34565744488');
+    expect(section('baseline')).toContain('authorized_deploy_run: 34572772095');
     expect(section('baseline')).toContain('authenticated_post_deploy_smoke_this_session: true');
     expect(section('storage')).toContain('distinct_trigger_count: 3');
     expect(section('storage')).toContain('information_schema_trigger_event_rows: 6');
@@ -125,7 +125,13 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
       'relational_council_v3: integrated-pr-653-deploy-262-authenticated-read-only-smoke-success',
     );
     expect(section('runtime')).toContain(
-      'relational_bulletins_v2: implemented-pr-655-ci-and-production-migration-postflight-green-awaiting-final-doc-head-merge-deploy-smoke',
+      'relational_bulletins_v2: integrated-pr-655-deploy-263-authenticated-read-only-smoke-success',
+    );
+    expect(section('runtime')).toContain(
+      'relational_reports_v2: implemented-issue-656-head-awaiting-final-verify-ci-review-merge-deploy-smoke',
+    );
+    expect(source(`${base}RELATIONAL_REPORTS_V2.md`)).toContain(
+      'As operações V2 são somente leitura',
     );
     expect(section('security')).toContain(
       'dependency_remediation: integrated-pr-641-deploy-256-success',
