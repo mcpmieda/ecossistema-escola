@@ -120,7 +120,8 @@ work_in_progress:
   branch: feat/bn-council-final3-648
   pull_request: 653
   scope: relational-council-v3-session-votes-history-snapshots-heroui
-  production_activation_in_this_delivery: authorized-after-backup-preflight-ci-and-review
+  production_activation_in_this_delivery: false
+  production_schema_extension_in_this_delivery: council-v3-authorized-after-backup-preflight-ci-and-review
   phase_complete: false
   release_checkpoint: issue-648-and-pr-653
   visual_validation_this_delivery: deferred-for-single-session-with-responsible

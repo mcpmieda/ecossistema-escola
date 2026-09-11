@@ -31,13 +31,13 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(state).not.toMatch(/^\s*(?:production_academic_runtime_enabled|production_gate_final):/mu);
   });
   it('has a concrete four-phase queue and separate acceptance and delivery gates', () => {
-    expect(section('coordination')).toContain('executable_issue: 649');
-    expect(section('coordination')).toContain('current_delivery_issue: 649');
+    expect(section('coordination')).toContain('executable_issue: 648');
+    expect(section('coordination')).toContain('current_delivery_issue: 648');
     expect(section('final_phases').match(/phase: FINAL-/gu)).toHaveLength(4);
     for (const issue of [633,634,635,406]) expect(section('final_phases')).toContain(`issue: ${issue}`);
     expect(section('institutional_delivery')).toContain('issue: 596');
     expect(section('institutional_delivery')).toContain('authority_acceptance_issue: 347');
-    expect(section('next_safe_action')).toContain('issue: 649');
+    expect(section('next_safe_action')).toContain('issue: 648');
   });
   it('records current-only diagnostics separately from preserved academic history', () => {
     expect(section('storage')).toContain('diagnostic_retention: current-evidence-only-replaced-on-next-source-observation');
@@ -66,6 +66,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(map).toContain('não equivale à Auditoria atual de arquivos');
     expect(map).toContain('não é ainda uma matriz de turma');
     expect(map).toContain('createRelationalWorkspaceV2');
+    expect(map).toContain('createRelationalCouncilV3');
   });
   it('documents remaining limits without erasing the atomicity and schema work already tested', () => {
     const readiness = source(`${base}PRODUCTION_READINESS.md`);
@@ -79,8 +80,8 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(contracts).toContain('O teste sintético de projeção não é teste de reconstrução');
   });
   it('records actual deployments separately from authenticated acceptance and the security release checkpoint', () => {
-    expect(section('baseline')).toContain('last_audited_main_commit: 002b97a6b647c28e1eca75745425732858eae665');
-    expect(section('baseline')).toContain('authorized_deploy_run: 34544618100');
+    expect(section('baseline')).toContain('last_audited_main_commit: 459443db90277baf55690fe69d35dbfdba8550f1');
+    expect(section('baseline')).toContain('authorized_deploy_run: 34559675760');
     expect(section('baseline')).toContain('authenticated_post_deploy_smoke_this_session: false');
     expect(section('storage')).toContain('distinct_trigger_count: 3');
     expect(section('storage')).toContain('information_schema_trigger_event_rows: 6');
@@ -108,7 +109,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(createHash('sha1').update(`blob ${workflow.length}\0`).update(workflow).digest('hex')).toBe('d147df2a95b4f78d965a5452bfc52109ecb6dabb');
   });
   it('keeps the canonical local documentation links resolvable', () => {
-    const pages = ['README.md','COMECE_AQUI.md','DECISIONS.md','ARCHITECTURE.md','ACADEMIC_CONTEXT.md','CONTRACTS.md','ROADMAP.md','ISSUE_MAP.md','PRODUCTION_READINESS.md','CONSUMER_MAP.md','CURRENT_SCHEMA_AND_DIAGNOSTICS.md','RELATIONAL_CENTERS_V2.md','SECURITY_REMEDIATION_637.md','RELATIONAL_PERFORMANCE_V2.md','PERFORMANCE_LENSES_V3.md','FINAL2_SOURCE_DESKTOP_646.md','TERM_COMPARISON_2026_V4.md'];
+    const pages = ['README.md','COMECE_AQUI.md','DECISIONS.md','ARCHITECTURE.md','ACADEMIC_CONTEXT.md','CONTRACTS.md','ROADMAP.md','ISSUE_MAP.md','PRODUCTION_READINESS.md','CONSUMER_MAP.md','CURRENT_SCHEMA_AND_DIAGNOSTICS.md','RELATIONAL_CENTERS_V2.md','SECURITY_REMEDIATION_637.md','RELATIONAL_PERFORMANCE_V2.md','PERFORMANCE_LENSES_V3.md','FINAL2_SOURCE_DESKTOP_646.md','TERM_COMPARISON_2026_V4.md','RELATIONAL_COUNCIL_V3.md'];
     for (const page of pages) {
       const fullPath = join(root,base,page);
       for (const match of source(`${base}${page}`).matchAll(/\]\(([^)#]+)(?:#[^)]*)?\)/gu)) {
