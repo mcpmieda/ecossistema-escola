@@ -68,13 +68,14 @@ function eligibility(
   indicatorEligible: boolean,
   maxCouncilComponents: number,
 ): RelationalCouncilStudentV3['eligibility'] {
-  const failed = projections.filter((item) => item.recovery?.classification === 'not-approved').length;
+  const failed = projections.filter((item) => item.recovery?.classification === 'not-approved' || item.recovery?.classification === 'failed-repeat').length;
   if (!indicatorEligible) return { eligible: false, code: 'status', label: 'Situação de matrícula não participa do Conselho Final.', failedComponentCount: failed };
   if (annual === null || projections.some((item) => item.recovery === null)) return { eligible: false, code: 'definitions-unavailable', label: 'Definições acadêmicas ainda não estão completas.', failedComponentCount: failed };
-  if (annual.councilEligibility === 'eligible') return { eligible: true, code: 'eligible', label: 'Elegível ao Conselho Final em 2026.', failedComponentCount: failed };
+  if (annual.councilEligibility === 'eligible') return { eligible: true, code: 'eligible', label: 'Elegível ao Conselho Final.', failedComponentCount: failed };
   if (annual.state === 'in-progress') return { eligible: false, code: 'in-progress', label: 'Cálculo anual ainda está em curso.', failedComponentCount: failed };
   if (annual.state === 'recovery') return { eligible: false, code: 'recovery-pending', label: 'Recuperação ainda não concluída.', failedComponentCount: failed };
   if (projections.some((item) => item.recovery?.classification === 'failed-no-show')) return { eligible: false, code: 'failed-no-show', label: 'Há recuperação marcada como não comparecimento.', failedComponentCount: failed };
+  if (projections.some((item) => item.recovery?.classification === 'failed-repeat')) return { eligible: false, code: 'failed-repeat', label: 'R/R determina reprovação automática, sem deliberação do Conselho.', failedComponentCount: failed };
   if (failed > maxCouncilComponents) return { eligible: false, code: 'above-limit', label: `Reprovação em ${failed} componentes, acima do limite de ${maxCouncilComponents}.`, failedComponentCount: failed };
   return { eligible: false, code: 'approved', label: annual.label ?? 'Resultado anual não exige deliberação do Conselho.', failedComponentCount: failed };
 }
@@ -96,7 +97,7 @@ async function readWorkspace(
   const version = nullableInteger(base.version) ?? 0;
   const projectionMap = new Map<number, readonly PerformanceProjectionV2[]>();
   const performance = await readRelationalPerformanceV2(db, {
-    transportVersion: 2, operation: 'matrix', year: 2026, classId, period: 'annual', mode: 'regular', statuses: [...ALL_STATUSES],
+    transportVersion: 2, operation: 'matrix', year, classId, period: 'annual', mode: 'regular', statuses: [...ALL_STATUSES],
   }, { collect: (value) => { for (const [studentId, projections] of value) projectionMap.set(studentId, projections); } });
   if (performance.state !== 'ready') return performance.state === 'scope-too-large' ? 'scope-too-large' : 'unavailable';
   if (performance.operation !== 'matrix') return 'unavailable';
@@ -168,7 +169,7 @@ async function readWorkspace(
     notEligible: students.length - eligible.length,
   };
   return {
-    context: { year: 2026, minimumApprovalMilli: integer(base.minimo_aprovacao), maxCouncilComponents },
+    context: { year, minimumApprovalMilli: integer(base.minimo_aprovacao), maxCouncilComponents },
     classGroup: { id: integer(base.id), label: text(base.codigo), name: text(base.nome) }, readAt: text(base.read_at),
     authority: 'calculated-eligibility-explicit-human-decision',
     session: { state: base.estado === null ? 'not-opened' : integer(base.estado) === SESSION_STATE.open ? 'open' : 'closed',

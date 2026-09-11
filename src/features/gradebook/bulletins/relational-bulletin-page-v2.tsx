@@ -23,7 +23,6 @@ import {
 } from 'lucide-react';
 import {
   RELATIONAL_BULLETIN_LIMITS_V2,
-  RELATIONAL_BULLETIN_YEAR_V2,
   type RelationalBulletinDetailV2,
   type RelationalBulletinFailureV2,
   type RelationalBulletinHistoryItemV2,
@@ -59,7 +58,7 @@ type PdfState = RelationalBulletinPdfActionV2 | null;
 const FAILURE: Record<RelationalBulletinFailureV2, string> = {
   'invalid-request': 'Os filtros do boletim ficaram inconsistentes. Selecione novamente o recorte.',
   'not-authorized': 'Sua sessão não possui autorização para consultar ou emitir boletins.',
-  'not-found': 'A turma, o aluno ou o snapshot não existe mais no contexto atual de 2026.',
+  'not-found': 'A turma, o aluno ou o snapshot não existe mais no contexto acadêmico atual.',
   'scope-too-large': 'O recorte ultrapassa o limite seguro e não foi truncado.',
   'ambiguous-offers': 'Há mais de uma oferta atual para a mesma disciplina nesta turma.',
   'insufficient-data':
@@ -78,12 +77,18 @@ const CLASSIFICATION: Record<
   'approved-after-recovery': 'Aprovado pela recuperação',
   'not-approved': 'Não aprovado',
   'failed-no-show': 'Não compareceu',
+  'failed-repeat': 'Reprovado (R/R)',
 };
 
 function grade(value: number | null): string {
   return value === null
     ? '—'
     : (value / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+}
+function recoveryGrade(value: number | 'NC' | 'RR' | null): string {
+  if (value === 'NC') return 'N/C';
+  if (value === 'RR') return 'R/R';
+  return grade(value);
 }
 function periodLabel(period: RelationalBulletinPeriodV2): string {
   return period.kind === 'annual' ? 'Anual' : `${period.term}º trimestre`;
@@ -193,10 +198,10 @@ function TermCell({
       {recovery?.applicable ? (
         <span
           className={
-            recovery.source === 'NC' ? 'text-xs font-semibold text-danger' : 'text-xs text-accent'
+            recovery.source === 'NC' || recovery.source === 'RR' ? 'text-xs font-semibold text-danger' : 'text-xs text-accent'
           }
         >
-          REC {recovery.source === 'NC' ? 'N/C' : grade(recovery.source)}
+          REC {recoveryGrade(recovery.source)}
         </span>
       ) : null}
       <ComparisonChip value={value.comparison} />
@@ -381,7 +386,8 @@ function BulletinArtifact({ artifact }: { readonly artifact: Artifact }) {
                                       subject.annual.classification.includes('approved')
                                         ? 'success'
                                         : subject.annual.classification === 'not-approved' ||
-                                            subject.annual.classification === 'failed-no-show'
+                                            subject.annual.classification === 'failed-no-show' ||
+                                            subject.annual.classification === 'failed-repeat'
                                           ? 'danger'
                                           : 'default'
                                     }
@@ -468,14 +474,14 @@ export function RelationalBulletinPageV2() {
     }
   };
   useEffect(() => {
-    if (year !== 2026) return;
+    if (year === null) return;
     const controller = new AbortController();
     const ticket = ++sequence.current;
     setBusy('catalog');
     setFailure(null);
     setFailureReasons([]);
     void requestRelationalBulletinV2(
-      { contractVersion: 2, operation: 'catalog', year: 2026 },
+      { contractVersion: 2, operation: 'catalog', year },
       controller.signal,
     )
       .then((response) => {
@@ -509,7 +515,7 @@ export function RelationalBulletinPageV2() {
       requestRelationalBulletinV2({
         contractVersion: 2,
         operation: 'students',
-        year: 2026,
+        year: year!,
         classId: nextClassId,
       }),
     );
@@ -519,7 +525,7 @@ export function RelationalBulletinPageV2() {
     }
   };
   const selection = (studentId: number) => ({
-    year: RELATIONAL_BULLETIN_YEAR_V2,
+    year: year!,
     classId: classId!,
     studentId,
     period,
@@ -573,7 +579,7 @@ export function RelationalBulletinPageV2() {
         contractVersion: 2,
         operation: 'emit-batch',
         selection: {
-          year: 2026,
+          year: year!,
           classId,
           studentIds: selectedIds,
           period,
@@ -598,7 +604,7 @@ export function RelationalBulletinPageV2() {
       requestRelationalBulletinV2({
         contractVersion: 2,
         operation: 'history',
-        year: 2026,
+        year: year!,
         classId,
         ...(selectedIds.length ? { studentIds: selectedIds } : {}),
       }),
@@ -643,13 +649,13 @@ export function RelationalBulletinPageV2() {
     () => students?.students.filter((student) => selectedIds.includes(student.id)) ?? [],
     [students, selectedIds],
   );
-  if (year !== 2026)
+  if (year === null)
     return (
       <Alert status="warning">
         <Alert.Content>
           <Alert.Title>Contexto indisponível</Alert.Title>
           <Alert.Description>
-            Boletins operam somente no ano letivo 2026 nesta etapa.
+            Selecione ou importe uma Relação para ativar um ano letivo.
           </Alert.Description>
         </Alert.Content>
       </Alert>
@@ -664,7 +670,7 @@ export function RelationalBulletinPageV2() {
           </p>
         </div>
         <Chip className="ml-auto" color="accent" variant="soft">
-          <Chip.Label>Relacional · 2026</Chip.Label>
+          <Chip.Label>Relacional · {year}</Chip.Label>
         </Chip>
       </header>
       <div className="bulletin-filterbar" aria-label="Filtros de Boletins">

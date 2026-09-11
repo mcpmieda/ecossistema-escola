@@ -50,15 +50,19 @@ export function performanceCellV2(projection: PerformanceProjectionV2, period: P
       state = outcomes.every((value) => value!.coverage.complete) ? 'complete' : anyRecorded ? 'partial' : 'not-recorded';
       if (state === 'complete' || state === 'partial') valueMilli = period === 'annual' ? recovery!.originalTotalMilli : term!.roundedMilli;
     }
+  } else if (period !== 'annual' && recovery?.recoveryTerms[period].source === 'RR') {
+    state = 'repeat-failure';
   } else if (applicable === false) state = 'not-applicable';
   else if (applicable === true && recovery !== null) {
     if (period === 'annual') {
-      if (recovery.classification === 'failed-no-show') state = 'no-show';
+      if (recovery.classification === 'failed-repeat') state = 'repeat-failure';
+      else if (recovery.classification === 'failed-no-show') state = 'no-show';
       else if (recovery.postRecoveryTotalMilli === null) state = 'recovery-pending';
       else { state = 'complete'; valueMilli = recovery.postRecoveryTotalMilli; }
     } else {
       const value = recovery.recoveryTerms[period].source;
-      if (value === 'NC') state = 'no-show';
+      if (value === 'RR') state = 'repeat-failure';
+      else if (value === 'NC') state = 'no-show';
       else if (value === null) state = 'recovery-pending';
       else { state = 'complete'; valueMilli = value; }
     }
@@ -66,7 +70,7 @@ export function performanceCellV2(projection: PerformanceProjectionV2, period: P
   return { ...base, state, valueMilli,
     // This is a read-only proportional classification using the configured annual threshold.
     // It is not the separate central rule that determines REC eligibility.
-    level: (state !== 'complete' && state !== 'partial') || valueMilli === null ? 'not-classified' :
+    level: state === 'repeat-failure' ? 'below' : (state !== 'complete' && state !== 'partial') || valueMilli === null ? 'not-classified' :
       (BigInt(valueMilli) * BigInt(ANNUAL_MAXIMUM) >= BigInt(maximumMilli) * BigInt(projection.minimumApprovalMilli) ? 'at-or-above' : 'below'),
     sourceComparison: state !== 'complete' || base.sourceReferenceMilli === null || valueMilli === null ? 'unavailable' : valueMilli === base.sourceReferenceMilli ? 'match' : 'mismatch',
   };

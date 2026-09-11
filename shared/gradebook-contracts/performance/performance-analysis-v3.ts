@@ -19,7 +19,7 @@ const key = z.string().regex(/^\d+(?::[123]:\d+)?$/u);
 const reading = z.object({
   key, valueMilli: milli.nullable(), maximumMilli: milli.positive().nullable(),
   recordedMilli: milli.nullable(),
-  state: z.enum(['complete', 'partial', 'not-recorded', 'unavailable', 'not-applicable', 'recovery-pending', 'no-show']),
+  state: z.enum(['complete', 'partial', 'not-recorded', 'unavailable', 'not-applicable', 'recovery-pending', 'no-show', 'repeat-failure']),
   percent: z.number().finite().nonnegative().nullable(),
   bucket: z.enum([...ANALYSIS_BUCKETS_V3, 'excluded']),
 }).strict().superRefine((value, ctx) => {
@@ -27,8 +27,10 @@ const reading = z.object({
     ctx.addIssue({ code: 'custom', message: 'reading value/state mismatch' });
   if (value.percent !== null && ((value.state !== 'complete' && value.state !== 'partial') || value.maximumMilli === null))
     ctx.addIssue({ code: 'custom', message: 'unavailable reading percentage' });
-  if ((value.bucket === 'above' || value.bucket === 'below') && value.percent === null)
+  if ((value.bucket === 'above' || value.bucket === 'below') && value.percent === null && value.state !== 'repeat-failure')
     ctx.addIssue({ code: 'custom', message: 'unscaled reading classified' });
+  if (value.state === 'repeat-failure' && value.bucket !== 'below' && value.bucket !== 'excluded')
+    ctx.addIssue({ code: 'custom', message: 'repeat failure must be below or excluded' });
 });
 export type AnalysisReadingV3 = z.infer<typeof reading>;
 const members = z.array(id).max(150).refine((values) => new Set(values).size === values.length);
@@ -64,7 +66,11 @@ const ready = z.object({
   value.columns.forEach((item, i) => {
     const groups = item.summary.groups;
     const count = ANALYSIS_BUCKETS_V3.reduce((n, bucket) => n + groups[bucket].length, 0);
-    if (count !== item.summary.considered || item.summary.scaled !== groups.above.length + groups.below.length ||
+    const scaled = value.rows.filter((row) => {
+      const reading = row.values[i];
+      return reading?.percent !== null && (reading?.bucket === 'above' || reading?.bucket === 'below');
+    }).length;
+    if (count !== item.summary.considered || item.summary.scaled !== scaled ||
       (item.summary.scaled === 0) !== (item.summary.meanPercent === null) || (item.summary.scaled === 0) !== (item.summary.medianPercent === null)) fail();
     for (const bucket of ANALYSIS_BUCKETS_V3) {
       const expected = value.rows.filter((row) => row.values[i]?.bucket === bucket).map((row) => row.studentId);

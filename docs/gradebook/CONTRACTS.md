@@ -73,3 +73,7 @@ Os códigos são exatamente 1 `APROVADO PELO CONSELHO`, 2 `REPROVADO PELO CONSEL
 ## Recuperação e schema
 
 A baseline `migrations/gradebook-simplified/` foi reconstruída do catálogo e replay/drift tem teste próprio com tabelas completas, constraints, índices, funções e triggers. O teste sintético de projeção não é teste de reconstrução; são verificações separadas, integradas na #636 sem DDL produtivo. Restore dos dados/recursos externos continua pendente. Snapshots/votos/configurações ausentes só recebem extensão mínima após contrato/autorização.
+
+## Anos materializados e R/R — contrato #676
+
+`academic-year-v2` admite anos de 2000 a 9999, mas somente uma Relação importada pode materializar o contexto. Todos os transportes ativos carregam ano explícito e nunca comparam anos. `R/R` atravessa importação V9 como `['r']`, persistência como máscara própria, projeções como `RR`, componente como `failed-repeat` e resultado anual como `REPROVADO`; o Conselho deve recusá-lo como não elegível. Ver [MULTIYEAR_RR_676.md](MULTIYEAR_RR_676.md).

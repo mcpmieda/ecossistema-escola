@@ -31,11 +31,11 @@ function request(payload: unknown) {
 }
 
 function fixture() {
-  const execute = vi.fn(async () => ({
+  const execute = vi.fn(async (request: { readonly year?: number }) => ({
     contractVersion: 2,
     operation: 'catalog',
     state: 'ready',
-    year: 2026,
+    year: request.year ?? 2026,
     classes: [{ id: 1, code: '6A', name: '6º ANO A' }],
   } as const));
   const relational = { execute } as unknown as RelationalInstitutionalReportsServiceV2;
@@ -61,13 +61,13 @@ describe('relational institutional reports HTTP V2', () => {
     expect(await response?.json()).toMatchObject({ contractVersion: 2, operation: 'catalog', state: 'ready' });
   });
 
-  it('rejects another year before composing any relational source', async () => {
+  it('routes another valid academic year to the relational source', async () => {
     const { handler, execute, createRelationalService } = fixture();
     const response = await handler(request({ contractVersion: 2, operation: 'catalog', year: 2027 }), env());
-    expect(response?.status).toBe(400);
-    expect(await response?.json()).toEqual({ contractVersion: 2, operation: 'catalog', state: 'invalid-request' });
-    expect(createRelationalService).not.toHaveBeenCalled();
-    expect(execute).not.toHaveBeenCalled();
+    expect(response?.status).toBe(200);
+    expect(await response?.json()).toMatchObject({ contractVersion: 2, operation: 'catalog', state: 'ready', year: 2027 });
+    expect(createRelationalService).toHaveBeenCalledOnce();
+    expect(execute).toHaveBeenCalledWith({ contractVersion: 2, operation: 'catalog', year: 2027 }, { oid: 'actor-oid' });
   });
 
   it('fails closed when the PostgreSQL runtime is not available', async () => {

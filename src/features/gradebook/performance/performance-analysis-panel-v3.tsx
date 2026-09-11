@@ -8,7 +8,7 @@ import { PerformanceGridV2 } from './performance-grid-v2';
 
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
 const percent = (value: number | null) => value === null ? '—' : `${number.format(value)}%`;
-const STATE: Record<AnalysisReadingV3['state'], string> = { complete: '', partial: 'Parcial', 'not-recorded': 'Sem nota', unavailable: 'Indisponível', 'not-applicable': 'Não se aplica', 'recovery-pending': 'Pendente', 'no-show': 'N/C' };
+const STATE: Record<AnalysisReadingV3['state'], string> = { complete: '', partial: 'Parcial', 'not-recorded': 'Sem nota', unavailable: 'Indisponível', 'not-applicable': 'Não se aplica', 'recovery-pending': 'Pendente', 'no-show': 'N/C', 'repeat-failure': 'R/R' };
 
 export function PerformanceAnalysisPanelV3({ value, dashboard, open, renderResult, focusOffer }: {
   readonly value: PerformanceAnalysisV3;

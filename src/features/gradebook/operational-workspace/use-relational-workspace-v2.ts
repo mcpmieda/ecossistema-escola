@@ -1,6 +1,5 @@
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { useEffect, useState } from 'react';
-import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../../../../shared/gradebook-contracts/current-academic-year-v1';
 import type {
   OperationalWorkspaceRequestV2,
   OperationalWorkspaceResponseV2,
@@ -31,7 +30,7 @@ function orderOffers(left: WorkspaceOfferV2, right: WorkspaceOfferV2): number {
 }
 export function useRelationalWorkspaceV2() {
   const sharedYear = useGradebookYear();
-  const year = sharedYear?.year ?? CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1;
+  const year = sharedYear?.year ?? null;
   const clearSharedAuthorization = sharedYear?.clearAuthorization;
   const targetStudentId = sharedYear?.targetStudentId ?? null;
   const [gates] = useState(() => ({context:createOperationalWorkspaceRequestGate(),search:createOperationalWorkspaceRequestGate(),detail:createOperationalWorkspaceRequestGate()}));
@@ -47,6 +46,7 @@ export function useRelationalWorkspaceV2() {
   useEffect(() => () => {Object.values(gates).forEach((gate) => gate.invalidate());},[gates]);
 
   useEffect(() => {
+    if (year === null) return;
     const request = {contractVersion:2,operation:'context',year} as const;
     const ticket = gates.context.begin(JSON.stringify(request));
     if (!ticket) return;
@@ -61,7 +61,7 @@ export function useRelationalWorkspaceV2() {
     return () => gates.context.invalidate();
   }, [year,gates,clearSharedAuthorization]);
   useEffect(() => {
-    if (targetStudentId === null || context?.year.year !== year) return;
+    if (year === null || targetStudentId === null || context?.year.year !== year) return;
     const request = {contractVersion:2,operation:'center',year,kind:'student',id:targetStudentId,offset:0,limit:PAGE_SIZE} as const;
     const ticket = gates.detail.begin(JSON.stringify(request));
     if (!ticket) return;
@@ -106,7 +106,7 @@ export function useRelationalWorkspaceV2() {
   function setQuery(value:string) {clearSearch();setQueryValue(value);setFailure(null);}
   function setKind(value:WorkspaceKindV2|'all') {clearSearch();setKindValue(value);setFailure(null);}
   async function search(offset=0) {
-    if(context?.year.year!==year) return;
+    if(year === null || context?.year.year!==year) return;
     if(offset===0) {gates.detail.invalidate();setDetail(null);setItems([]);setNextOffset(null);setSearched(false);setBusy((current)=>({...current,detail:false}));}
     await run({contractVersion:2,operation:'search',year,kind,query,offset,limit:PAGE_SIZE},'search',(response) => {
       if(response.operation!=='search') return;
@@ -115,7 +115,7 @@ export function useRelationalWorkspaceV2() {
     });
   }
   async function open(entity:WorkspaceLinkV2, offset=0) {
-    if(context?.year.year!==year) return;
+    if(year === null || context?.year.year!==year) return;
     if(offset===0) setDetail(null);
     await run({contractVersion:2,operation:'center',year,kind:entity.kind,id:entity.id,offset,limit:PAGE_SIZE},'detail',(response) => {
       if(response.operation!=='center') return;

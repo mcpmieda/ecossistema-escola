@@ -29,7 +29,7 @@ function PerformanceSelect({ label, value, items, disabled = false, onChange }: 
   return <Select selectedKey={value} isDisabled={disabled} onSelectionChange={(key) => { if (key !== null) onChange(String(key)); }}>
     <Label className="mb-1.5 block text-xs font-medium text-muted">{label}</Label>
     <Select.Trigger className="min-h-10 w-full"><Select.Value/><Select.Indicator/></Select.Trigger>
-    <Select.Popover isNonModal><ListBox>{items.map((item) => <ListBox.Item key={item.id} id={item.id} textValue={item.label}>{item.label}<ListBox.ItemIndicator/></ListBox.Item>)}</ListBox></Select.Popover>
+    <Select.Popover><ListBox>{items.map((item) => <ListBox.Item key={item.id} id={item.id} textValue={item.label}>{item.label}<ListBox.ItemIndicator/></ListBox.Item>)}</ListBox></Select.Popover>
   </Select>;
 }
 
@@ -47,7 +47,7 @@ export function RelationalPerformancePageV2() {
   return <section aria-label="Desempenho relacional" className="grid min-w-0 grid-cols-1 gap-4">
     <header className="flex min-h-12 flex-wrap items-center gap-2">
       <div><h2 className="text-xl font-semibold tracking-[-0.03em]">Desempenho</h2><p className="text-xs text-muted">Leitura relacional da turma, sem recalcular notas na interface.</p></div>
-      <Chip size="sm" variant="soft" color="accent" className="ml-auto">Calculado · 2026</Chip>
+      <Chip size="sm" variant="soft" color="accent" className="ml-auto">Calculado · {state.year}</Chip>
     </header>
     <div className="performance-filterbar" aria-label="Filtros de Desempenho">
       <PerformanceSelect label="Turma" value={state.filters.classId === null ? 'none' : String(state.filters.classId)} disabled={state.busy.classes}

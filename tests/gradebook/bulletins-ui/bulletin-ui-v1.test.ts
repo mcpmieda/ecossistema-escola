@@ -17,8 +17,9 @@ describe('Boletins relacionais HeroUI V2', () => {
   const shell = source('src/platform/gradebook-workspace-shell.tsx');
   const functions = source('functions/[[path]].ts');
 
-  it('fixa 2026 e mantém seleção explícita de turma, aluno, período e detalhe', () => {
-    expect(page).toContain('RELATIONAL_BULLETIN_YEAR_V2');
+  it('usa o ano global e mantém seleção explícita de turma, aluno, período e detalhe', () => {
+    expect(page).toContain('useGradebookYear');
+    expect(page).toContain('year: year!');
     expect(page).toContain('Selecione a turma');
     expect(page).toContain('Aluno da prévia');
     expect(page).toContain('1º trimestre');

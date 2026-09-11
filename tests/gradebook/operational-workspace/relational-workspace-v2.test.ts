@@ -81,8 +81,8 @@ async function http(body: unknown, role: 'ADMINISTRADOR'|'PROFESSOR'|null='ADMIN
 }
 
 describe('relational operational workspace with the complete schema and PostgreSQL facade', () => {
-  it('exposes only the fixed 2026 context in the compatibility bootstrap', async () => {
-    expect(await service().execute({contractVersion:2,operation:'bootstrap'})).toEqual({contractVersion:2,state:'ready',operation:'bootstrap',years:[{year:2026,minimumApprovalMilli:60000,maxCouncilComponents:2}]});
+  it('exposes materialized years newest-first in the global bootstrap', async () => {
+    expect(await service().execute({contractVersion:2,operation:'bootstrap'})).toEqual({contractVersion:2,state:'ready',operation:'bootstrap',years:[{year:2026,minimumApprovalMilli:60000,maxCouncilComponents:2},{year:2025,minimumApprovalMilli:65000,maxCouncilComponents:3}]});
     expect(queries).toHaveLength(2);
     expect(queries[0]).toBe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
     expect(transactions).toBe(1);
@@ -91,9 +91,10 @@ describe('relational operational workspace with the complete schema and PostgreS
     expect(await service().execute({contractVersion:2,operation:'context',year:2026})).toMatchObject({context:{year:2026},counts:{students:255,classes:2,teachers:1,subjects:5,offers:6,currentBindings:254,historicalBindings:2}});
     expect(queries).toHaveLength(3);
   });
-  it('rejects a non-2026 request before opening a transaction', async () => {
-    expect(await service().execute({contractVersion:2,operation:'context',year:2025})).toEqual({contractVersion:2,state:'invalid-request'});
-    expect(queries).toHaveLength(0);
+  it('loads another materialized year in an isolated transaction', async () => {
+    expect(await service().execute({contractVersion:2,operation:'context',year:2025})).toMatchObject({contractVersion:2,state:'ready',operation:'context',context:{year:2025}});
+    expect(queries).toHaveLength(3);
+    expect(transactions).toBe(1);
   });
   it('keeps homonyms distinct and returns only the selected year', async () => {
     const result = await service().execute(search({kind:'student',query:'ALUNO SINTETICO'}));

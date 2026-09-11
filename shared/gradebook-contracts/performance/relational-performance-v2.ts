@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../current-academic-year-v1';
+import { GRADEBOOK_ACADEMIC_YEAR_MAX_V2, GRADEBOOK_ACADEMIC_YEAR_MIN_V2 } from '../academic-year-v2';
 import { SIMPLIFIED_ENGINE_WARNING_CODES_V1, SIMPLIFIED_INSTRUMENT_SLOTS_V1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import { SIMPLIFIED_VISIBLE_ANNUAL_RESULTS_V1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
 
 /** #642: calculated read preview, not an authorization to emit official results. */
 export const PERFORMANCE_LIMITS_V2 = Object.freeze({ students: 150, offers: 40, pairs: 1000, classesPage: 100 });
 const id = z.number().int().min(1).max(2_147_483_647);
-const year = z.number().int().refine((value: number): boolean => value === CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1, 'academic year must be 2026');
+const year = z.number().int().min(GRADEBOOK_ACADEMIC_YEAR_MIN_V2).max(GRADEBOOK_ACADEMIC_YEAR_MAX_V2);
 const milli = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const label = z.string().trim().min(1).max(500).refine((value) => !value.includes('\0'));
 const status = z.union([z.null(), z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(7)]);
@@ -31,15 +31,17 @@ const context = z.object({ year, minimumApprovalMilli: milli.positive(), maxCoun
 const comparison = z.enum(['match', 'mismatch', 'unavailable']);
 const cell = z.object({
   offerId: id, valueMilli: milli.nullable(), maximumMilli: milli.positive(),
-  state: z.enum(['complete', 'partial', 'not-recorded', 'unavailable', 'not-applicable', 'recovery-pending', 'no-show']),
+  state: z.enum(['complete', 'partial', 'not-recorded', 'unavailable', 'not-applicable', 'recovery-pending', 'no-show', 'repeat-failure']),
   level: z.enum(['at-or-above', 'below', 'not-classified']),
   sourceReferenceMilli: milli.nullable(), sourceComparison: comparison,
   recoveryApplicable: z.boolean().nullable(),
   warningCodes: z.array(z.enum(SIMPLIFIED_ENGINE_WARNING_CODES_V1)).max(32),
 }).strict().superRefine((value, ctx) => {
   const numeric = value.state === 'complete' || value.state === 'partial';
+  const classified = numeric || value.state === 'repeat-failure';
   if (numeric !== (value.valueMilli !== null)) ctx.addIssue({ code: 'custom', message: 'cell value/state mismatch' });
-  if (numeric === (value.level === 'not-classified')) ctx.addIssue({ code: 'custom', message: 'numeric cell classification mismatch' });
+  if (classified === (value.level === 'not-classified')) ctx.addIssue({ code: 'custom', message: 'cell classification mismatch' });
+  if (value.state === 'repeat-failure' && value.level !== 'below') ctx.addIssue({ code: 'custom', message: 'repeat failure must be below' });
   if (value.sourceComparison !== 'unavailable' && (value.state !== 'complete' || value.sourceReferenceMilli === null)) ctx.addIssue({ code: 'custom', message: 'unavailable comparison' });
 });
 export type PerformanceCellV2 = z.infer<typeof cell>;

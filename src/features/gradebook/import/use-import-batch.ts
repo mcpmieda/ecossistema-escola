@@ -27,6 +27,7 @@ import {
 import { persistGradebookImportDiagnosticsAuditV1 } from './import-diagnostics-client-v1';
 import { persistGradebookCanonicalImportV9 } from './import-persistence-client-v9';
 import type { MasterRelationRecognitionV9 } from './master-relation-v9';
+import { useGradebookYear } from '../../../platform/gradebook-year-context';
 
 export type ImportPersistenceStateV9 =
   | { readonly state: 'recognized' | 'processing' | 'persisting' | 'auth-required' }
@@ -130,6 +131,7 @@ export function selectPendingGradebookImportResultsV1(
 }
 
 export function useImportBatch() {
+  const academicContext = useGradebookYear();
   const inFlight = useRef(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -339,6 +341,12 @@ export function useImportBatch() {
       return 'confirmation-required';
     }
     setPersistence((current) => ({ ...current, [result.id]: { state: 'completed', response } }));
+    if (
+      request.operation === 'persist-relacao' &&
+      (response.state === 'applied' || response.state === 'no-changes')
+    ) {
+      await academicContext?.refreshYears(request.ano);
+    }
     return response.state === 'blocked' || response.state === 'conflict' || response.state === 'invalid-request'
       ? 'blocked'
       : 'completed';

@@ -62,7 +62,7 @@ function treatmentRecord(row: Row): ImportDiagnosticTreatmentRecordV1 {
   return {
     id: integer(row.id),
     diagnosticSourceId: integer(row.diagnostico_origem_id),
-    academicYear: 2026,
+    academicYear: integer(row.ano),
     fileName: String(row.arquivo),
     diagnosticHash: String(row.diagnostic_hash),
     key: String(row.chave),

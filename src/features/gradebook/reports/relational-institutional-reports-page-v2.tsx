@@ -31,7 +31,6 @@ import type { PerformanceAnalysisV3 } from '../../../../shared/gradebook-contrac
 import type { PerformanceTermComparisonV4 } from '../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import {
   RELATIONAL_INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V2,
-  RELATIONAL_INSTITUTIONAL_REPORTS_YEAR_V2,
   type RelationalInstitutionalDiagnosticV2,
   type RelationalInstitutionalReportFamilyV2,
   type RelationalInstitutionalReportRequestV2,
@@ -190,7 +189,7 @@ function PerformanceReport({ response }: { readonly response: PerformanceReady }
         <Kpi label="Incompletas" value={incomplete} hint="sem classificação inventada" tone="amber" icon={<ClipboardList className="size-5" />} />
       </div>
       {comparison && (
-        <Alert status="default"><Alert.Indicator /><Alert.Content><Alert.Title>Comparação descritiva entre trimestres de 2026</Alert.Title><Alert.Description>Variação em pontos percentuais do máximo oficial; não altera nota, resultado ou decisão.</Alert.Description></Alert.Content></Alert>
+        <Alert status="default"><Alert.Indicator /><Alert.Content><Alert.Title>Comparação descritiva entre trimestres do mesmo ano</Alert.Title><Alert.Description>Variação em pontos percentuais do máximo oficial; não altera nota, resultado ou decisão.</Alert.Description></Alert.Content></Alert>
       )}
       <Surface variant="secondary" className="overflow-x-auto rounded-2xl p-1">
         <table className="w-full min-w-[820px] border-separate border-spacing-0 text-sm">
@@ -276,8 +275,8 @@ export function RelationalInstitutionalReportsPageV2() {
   const outputRef = useRef<HTMLHeadingElement | null>(null);
 
   useEffect(() => {
-    if (year !== RELATIONAL_INSTITUTIONAL_REPORTS_YEAR_V2) {
-      setCatalogState(year === null ? 'loading' : 'unavailable');
+    if (year === null) {
+      setCatalogState('loading');
       return;
     }
     const controller = new AbortController();
@@ -326,7 +325,7 @@ export function RelationalInstitutionalReportsPageV2() {
   }
 
   function buildRequest(): RelationalInstitutionalReportRequestV2 | null {
-    if (year !== RELATIONAL_INSTITUTIONAL_REPORTS_YEAR_V2) return null;
+    if (year === null) return null;
     if (family === 'audit') return {
       contractVersion: 2,
       operation: 'audit',
@@ -373,7 +372,7 @@ export function RelationalInstitutionalReportsPageV2() {
   }
 
   async function loadHistory() {
-    if (year !== 2026 || classId === null) return;
+    if (year === null || classId === null) return;
     setHistoryState('loading');
     setHistory([]);
     setSelectedSnapshots([]);
@@ -408,8 +407,8 @@ export function RelationalInstitutionalReportsPageV2() {
   return (
     <div className="grid min-w-0 gap-6" aria-busy={catalogState === 'loading' || reportState === 'loading' || historyState === 'loading'}>
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted"><FileText className="size-4" /> Relatórios institucionais</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">Leituras oficiais e rastreáveis</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-muted">Projeções relacionais de 2026, sem reconstruir indicadores ou documentos históricos a partir de dados atuais.</p></div>
-        <Chip size="lg" variant="soft">Ano letivo 2026</Chip>
+        <div><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted"><FileText className="size-4" /> Relatórios institucionais</div><h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">Leituras oficiais e rastreáveis</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-muted">Projeções relacionais do ano selecionado, sem reconstruir indicadores ou documentos históricos a partir de dados atuais.</p></div>
+        <Chip size="lg" variant="soft">Ano letivo {year}</Chip>
       </header>
 
       {catalogState === 'loading' && <div className="flex min-h-28 items-center justify-center gap-2 text-sm text-muted"><Spinner size="sm" />Carregando catálogo relacional…</div>}

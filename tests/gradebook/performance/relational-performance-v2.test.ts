@@ -156,9 +156,9 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     expect(result).toMatchObject({ operation: 'student-detail', row: { student: { id: 1 } }, trajectory: [{ offerId: 10 }, { offerId: 11 }] });
     expect(queries).toHaveLength(6);
   });
-  it.each([{ year: 2025, classId: 10 }, { year: 2027, classId: 10 }])('rejects a non-2026 year before SQL %j', async (extra) => {
-    expect(await service().execute(matrixRequest(extra))).toEqual({ transportVersion: 2, state: 'invalid-request' });
-    expect(queries).toHaveLength(0);
+  it.each([{ year: 2025, classId: 10 }, { year: 2027, classId: 10 }])('keeps class identities isolated inside any valid year %j', async (extra) => {
+    expect(await service().execute(matrixRequest(extra))).toEqual({ transportVersion: 2, state: 'not-found' });
+    expect(queries.length).toBeGreaterThan(0);
   });
   it('does not disclose whether a class exists outside the requested 2026 scope', async () => {
     expect(await service().execute(matrixRequest({ classId: 999 }))).toEqual({ transportVersion: 2, state: 'not-found' });
@@ -226,9 +226,9 @@ describe('same-year trimester comparison V4', () => {
   it.each([
     { period: 1, referencePeriod: 1 }, { period: 2, referencePeriod: 2 }, { period: 'annual', referencePeriod: 1 },
     { lens: 'assessments', offerId: 10 }, { year: 2025 },
-  ])('rejects an invalid or cross-year comparison before SQL %j', async (extra) => {
-    expect(await createPerformanceTermComparisonV4(database).execute(comparisonRequest(extra))).toEqual({ transportVersion: 4, state: 'invalid-request' });
-    expect(queries).toHaveLength(0);
+  ])('rejects an invalid comparison or isolates another year %j', async (extra) => {
+    expect(await createPerformanceTermComparisonV4(database).execute(comparisonRequest(extra))).toEqual({ transportVersion: 4, state: 'year' in extra ? 'not-found' : 'invalid-request' });
+    if (!('year' in extra)) expect(queries).toHaveLength(0);
   });
   it('routes V4 through the existing authenticated no-store boundary', async () => {
     const response = await http(comparisonRequest());
@@ -399,8 +399,9 @@ describe('performance dashboard V5', () => {
   });
   it('rejects invalid scopes and forged panorama membership', async () => {
     for (const extra of [{ year: 2025 }, { period: 1, referencePeriod: 1 }, { lens: 'assessments', offerId: 10, referencePeriod: 1 }]) {
-      expect(await createPerformanceDashboardV5(database).execute(dashboardRequest(extra))).toEqual({ transportVersion: 5, state: 'invalid-request' });
-      expect(queries).toHaveLength(0);
+      expect(await createPerformanceDashboardV5(database).execute(dashboardRequest(extra))).toEqual({ transportVersion: 5, state: 'year' in extra ? 'not-found' : 'invalid-request' });
+      if (!('year' in extra)) expect(queries).toHaveLength(0);
+      queries.length = 0;
     }
     const result = await createPerformanceDashboardV5(database).execute(dashboardRequest());
     if (result.state !== 'ready') throw new Error('unexpected-dashboard-failure');

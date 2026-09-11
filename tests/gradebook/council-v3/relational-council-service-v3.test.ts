@@ -190,8 +190,8 @@ describe('relational Council V3 HTTP boundary', () => {
     expect((await http(body, null)).status).toBe(401);
   });
 
-  it('rejects malformed V3 before SQL and preserves the production gate', async () => {
-    expect((await http({ contractVersion: 3, operation: 'classes', year: 2025, offset: 0, limit: 100 })).status).toBe(400);
+  it('accepts another valid year scope and preserves the production gate', async () => {
+    expect((await http({ contractVersion: 3, operation: 'classes', year: 2025, offset: 0, limit: 100 })).status).toBe(200);
     expect((await http({ contractVersion: 3, operation: 'classes', year: 2026, offset: 0, limit: 100 }, 'ADMINISTRADOR', {
       RUNTIME_ENVIRONMENT: 'production', GRADEBOOK_PRODUCTION_ENABLED: 'false',
     })).status).toBe(503);

@@ -47,7 +47,7 @@ export function PerformanceStudentDetailV2({ detail, focusPeriod, openComponent,
           </Table.Row>)}</Table.Body>
         </Table.Content></Table.ScrollContainer></Table> : <p className="text-sm text-muted">Nenhuma nota lançada.</p>}
       </> : <>
-        {detail.terms.filter((term) => term.hasGrades ?? (term.instruments.some((value) => value.valueMilli !== null) || term.regular.valueMilli !== null || term.recovery.valueMilli !== null || term.recovery.state === 'no-show')).map((term) => {
+        {detail.terms.filter((term) => term.hasGrades ?? (term.instruments.some((value) => value.valueMilli !== null) || term.regular.valueMilli !== null || term.recovery.valueMilli !== null || term.recovery.state === 'no-show' || term.recovery.state === 'repeat-failure')).map((term) => {
           const instruments = term.instruments.filter((instrument) => instrument.slot !== 3 || term.showParallel === true);
           return <section key={term.term} aria-label={`${term.term}º trimestre`} ref={(element) => { if (term.term === focusPeriod) focusedTerm.current = element; }} className="rounded-xl border border-separator p-4">
             <div className="mb-4 flex items-center justify-between gap-4">

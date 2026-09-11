@@ -9,7 +9,7 @@ import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../d1/write/d1-write-ada
 type Row = Record<string, unknown>;
 
 export interface RelationalImportDiagnosticsReadRequestV2 {
-  readonly year: 2026;
+  readonly year: number;
   readonly severities: readonly GradebookImportDiagnosticSeverityV1[];
   readonly codes: readonly GradebookImportDiagnosticCodeV1[];
   readonly classCode: string | null;

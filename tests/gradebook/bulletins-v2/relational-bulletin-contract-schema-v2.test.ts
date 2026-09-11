@@ -35,7 +35,7 @@ describe('relational bulletin V2 contract', () => {
     presentation: { locale: 'pt-BR', dateStyle: 'long' },
   } as const;
 
-  it('accepts only the fixed 2026 context and bounded, unique batches', () => {
+  it('accepts materialized academic years and bounded, unique batches', () => {
     expect(
       relationalBulletinRequestSchemaV2.safeParse({
         contractVersion: 2,
@@ -49,7 +49,7 @@ describe('relational bulletin V2 contract', () => {
         operation: 'preview',
         selection: { ...selection, year: 2025 },
       }).success,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       relationalBulletinRequestSchemaV2.safeParse({
         contractVersion: 2,

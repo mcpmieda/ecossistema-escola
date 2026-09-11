@@ -79,10 +79,10 @@ const CLOSING_HISTORY = `INSERT INTO gradebook.fechamento_historico
   (importacao_id, oferta_id, aluno_id, campo, valor_anterior, valor_novo, estado_anterior, estado_novo)
   VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 const CLOSING_INSERT = `INSERT INTO gradebook.fechamento
-  (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, u_fonte)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+  (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 const CLOSING_UPDATE = `UPDATE gradebook.fechamento
-  SET am1_fonte = ?, am2_fonte = ?, am3_fonte = ?, rec1 = ?, rec2 = ?, rec3 = ?, rec_nc_mask = ?, u_fonte = ?
+  SET am1_fonte = ?, am2_fonte = ?, am3_fonte = ?, rec1 = ?, rec2 = ?, rec3 = ?, rec_nc_mask = ?, rec_rr_mask = ?, u_fonte = ?
   WHERE oferta_id = ? AND aluno_id = ?`;
 const CLOSING_DELETE = `DELETE FROM gradebook.fechamento WHERE oferta_id = ? AND aluno_id = ?`;
 
@@ -143,12 +143,12 @@ describe('relational import write buffer v11', () => {
       await transaction.prepare(CLOSING_HISTORY).bind(2, 30, 40, 1, null, 10_000, 0, 1).run();
       await transaction
         .prepare(CLOSING_INSERT)
-        .bind(30, 40, 10_000, null, null, null, null, null, 0, null)
+        .bind(30, 40, 10_000, null, null, null, null, null, 0, 2, null)
         .run();
       await transaction.prepare(CLOSING_HISTORY).bind(2, 30, 41, 7, 55_000, 60_000, 1, 1).run();
       await transaction
         .prepare(CLOSING_UPDATE)
-        .bind(20_000, 20_000, 20_000, null, null, null, 0, 60_000, 30, 41)
+        .bind(20_000, 20_000, 20_000, null, null, null, 0, 0, 60_000, 30, 41)
         .run();
       await transaction.prepare(CLOSING_HISTORY).bind(2, 30, 42, 1, 5_000, null, 1, 0).run();
       await transaction.prepare(CLOSING_DELETE).bind(30, 42).run();
@@ -161,7 +161,7 @@ describe('relational import write buffer v11', () => {
     ).toHaveLength(3);
     expect(
       parsedRows(grouped.find((execution) => execution.query.includes('INSERT INTO gradebook.fechamento\n'))!),
-    ).toHaveLength(1);
+    ).toEqual([expect.objectContaining({ rec_nc_mask: 0, rec_rr_mask: 2 })]);
     expect(
       parsedRows(grouped.find((execution) => execution.query.includes('UPDATE gradebook.fechamento AS'))!),
     ).toHaveLength(1);

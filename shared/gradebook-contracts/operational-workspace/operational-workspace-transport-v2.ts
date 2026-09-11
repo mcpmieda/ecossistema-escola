@@ -1,4 +1,4 @@
-import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1, isCurrentGradebookAcademicYearV1 } from '../current-academic-year-v1';
+import { isGradebookAcademicYearV2 } from '../academic-year-v2';
 
 /** Relational, read-only workspace. V1 consumers keep their original contract. Refs #639. */
 export const OPERATIONAL_WORKSPACE_VERSION_V2 = 2 as const;
@@ -84,7 +84,7 @@ function keys(value: Record<string, unknown>, allowed: readonly string[]): boole
   return Object.keys(value).every((key) => allowed.includes(key));
 }
 function year(value: unknown): value is WorkspaceYearV2 {
-  return object(value) && isCurrentGradebookAcademicYearV1(value.year) &&
+  return object(value) && isGradebookAcademicYearV2(value.year) &&
     integer(value.minimumApprovalMilli, 0) && integer(value.maxCouncilComponents, 0, 32767);
 }
 function link(value: unknown, expected?: WorkspaceKindV2): value is WorkspaceLinkV2 {
@@ -127,7 +127,7 @@ export function isOperationalWorkspaceRequestV2(value: unknown): value is Operat
   if (!object(value) || value.contractVersion !== 2) return false;
   const base = ['contractVersion', 'operation'];
   if (value.operation === 'bootstrap') return keys(value, base);
-  if (!isCurrentGradebookAcademicYearV1(value.year)) return false;
+  if (!isGradebookAcademicYearV2(value.year)) return false;
   if (value.operation === 'context') return keys(value, [...base, 'year']);
   if (!integer(value.limit, 1, WORKSPACE_PAGE_LIMIT_V2) || !integer(value.offset, 0, WORKSPACE_MAX_OFFSET_V2)) return false;
   if (value.operation === 'search') {
@@ -142,7 +142,10 @@ export function isOperationalWorkspaceRequestV2(value: unknown): value is Operat
 export function isOperationalWorkspaceResponseV2(value: unknown): value is OperationalWorkspaceResponseV2 {
   if (!object(value) || value.contractVersion !== 2) return false;
   if (value.state !== 'ready') return ['not-found', 'invalid-request', 'unavailable', 'not-authorized'].includes(String(value.state));
-  if (value.operation === 'bootstrap') return list(value.years, year, 1) && value.years.every((item) => item.year === CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1);
+  if (value.operation === 'bootstrap') {
+    return list(value.years, year, WORKSPACE_MAX_YEARS_V2) &&
+      value.years.every((item, index, years) => index === 0 || years[index - 1]!.year > item.year);
+  }
   if (!year(value.context)) return false;
   if (value.operation === 'context') return counts(value.counts);
   if (value.operation === 'center') return center(value.center);

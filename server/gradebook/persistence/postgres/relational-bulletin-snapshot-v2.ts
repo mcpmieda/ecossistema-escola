@@ -25,7 +25,7 @@ export interface RelationalBulletinSnapshotRepositoryV2 {
     readonly snapshot: RelationalBulletinSnapshotV2;
   }): Promise<RelationalBulletinSnapshotAppendV2>;
   history(input: {
-    readonly year: 2026;
+    readonly year: number;
     readonly classId: number;
     readonly studentIds?: readonly number[];
   }): Promise<readonly RelationalBulletinHistoryItemV2[]>;

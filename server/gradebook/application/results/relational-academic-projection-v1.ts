@@ -116,7 +116,9 @@ function recoveryValue(
 ): SimplifiedRecoveryValueV1 {
   if (!row) return null;
   const mask = asInteger(row.rec_nc_mask ?? 0);
+  const rrMask = asInteger(row.rec_rr_mask ?? 0);
   const bit = 1 << (term - 1);
+  if ((rrMask & bit) !== 0) return 'RR';
   if ((mask & bit) !== 0) return 'NC';
   return nullableInteger(row[`rec${term}`]);
 }
@@ -208,9 +210,11 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
       );
       const closing = await first<Row>(
         database,
-        `SELECT am1_fonte, am2_fonte, am3_fonte,
-                rec1, rec2, rec3, rec_nc_mask, u_fonte
-         FROM gradebook.fechamento WHERE oferta_id = ? AND aluno_id = ?`,
+        `SELECT f.am1_fonte, f.am2_fonte, f.am3_fonte,
+                f.rec1, f.rec2, f.rec3, f.rec_nc_mask,
+                COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint, 0) AS rec_rr_mask,
+                f.u_fonte
+         FROM gradebook.fechamento f WHERE f.oferta_id = ? AND f.aluno_id = ?`,
         [input.ofertaId, input.alunoId],
       );
       return projectRows(input, base, instrumentRows, closing);
@@ -246,7 +250,9 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
          SELECT r.oferta_id, r.aluno_id, o.ano, y.minimo_aprovacao,
                 i.trimestre, i.slot, i.maximo, n.valor,
                 f.am1_fonte, f.am2_fonte, f.am3_fonte,
-                f.rec1, f.rec2, f.rec3, f.rec_nc_mask, f.u_fonte
+                f.rec1, f.rec2, f.rec3, f.rec_nc_mask,
+                COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint, 0) AS rec_rr_mask,
+                f.u_fonte
          FROM requested r
          JOIN gradebook.oferta o ON o.id = r.oferta_id
          JOIN gradebook.ano_letivo y ON y.ano = o.ano

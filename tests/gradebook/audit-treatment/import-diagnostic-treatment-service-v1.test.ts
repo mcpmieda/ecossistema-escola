@@ -245,7 +245,7 @@ async function http(
 }
 
 describe('import diagnostic treatment V1 HTTP boundary', () => {
-  it('is admin-only, no-store and rejects malformed requests before SQL', async () => {
+  it('is admin-only, no-store and accepts another isolated academic year', async () => {
     const body = { contractVersion: 1, operation: 'history', year: 2026, limit: 100, cursor: null };
     const allowed = await http(body);
     expect(allowed.status).toBe(200);
@@ -257,7 +257,9 @@ describe('import diagnostic treatment V1 HTTP boundary', () => {
     });
     expect((await http(body, 'PROFESSOR')).status).toBe(403);
     expect((await http(body, null)).status).toBe(401);
-    expect((await http({ ...body, year: 2025 })).status).toBe(400);
+    const otherYear = await http({ ...body, year: 2025 });
+    expect(otherYear.status).toBe(200);
+    expect(await otherYear.json()).toMatchObject({ contractVersion: 1, state: 'ready', operation: 'history', items: [] });
   });
 
   it('keeps the production gate fail-closed', async () => {

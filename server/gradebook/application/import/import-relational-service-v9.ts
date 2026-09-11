@@ -543,6 +543,10 @@ function isNc(value: GradebookImportRecoveryCellV9): boolean {
   return Array.isArray(value) && value[0] === 'n';
 }
 
+function isRr(value: GradebookImportRecoveryCellV9): boolean {
+  return Array.isArray(value) && value[0] === 'r';
+}
+
 interface InstrumentStateV9 {
   readonly id: number;
   maximo: number | null;
@@ -679,7 +683,7 @@ async function processOffer(
 
   const fechamentoRows = await all<Row>(
     database,
-    `SELECT oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, u_fonte
+    `SELECT oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte
      FROM gradebook.fechamento WHERE oferta_id = ?`,
     [ofertaId],
   );
@@ -687,7 +691,8 @@ async function processOffer(
     exists: boolean;
     am: [number | null, number | null, number | null];
     rec: [number | null, number | null, number | null];
-    mask: number;
+    ncMask: number;
+    rrMask: number;
     u: number | null;
   };
   const closing = new Map<number, Close>();
@@ -696,7 +701,8 @@ async function processOffer(
       exists: true,
       am: [row.am1_fonte === null ? null : asNumber(row.am1_fonte, 'am1'), row.am2_fonte === null ? null : asNumber(row.am2_fonte, 'am2'), row.am3_fonte === null ? null : asNumber(row.am3_fonte, 'am3')],
       rec: [row.rec1 === null ? null : asNumber(row.rec1, 'rec1'), row.rec2 === null ? null : asNumber(row.rec2, 'rec2'), row.rec3 === null ? null : asNumber(row.rec3, 'rec3')],
-      mask: asNumber(row.rec_nc_mask, 'rec-mask'),
+      ncMask: asNumber(row.rec_nc_mask, 'rec-nc-mask'),
+      rrMask: asNumber(row.rec_rr_mask ?? 0, 'rec-rr-mask'),
       u: row.u_fonte === null ? null : asNumber(row.u_fonte, 'u'),
     });
   }
@@ -724,8 +730,8 @@ async function processOffer(
   }
 
   for (const [alunoId, patch] of patches) {
-    const current = closing.get(alunoId) ?? { exists: false, am: [null, null, null], rec: [null, null, null], mask: 0, u: null };
-    const next: Close = { exists: current.exists, am: [...current.am], rec: [...current.rec], mask: current.mask, u: current.u };
+    const current = closing.get(alunoId) ?? { exists: false, am: [null, null, null], rec: [null, null, null], ncMask: 0, rrMask: 0, u: null };
+    const next: Close = { exists: current.exists, am: [...current.am], rec: [...current.rec], ncMask: current.ncMask, rrMask: current.rrMask, u: current.u };
     const changes: Array<{ campo: number; oldValue: number | null; newValue: number | null; oldState: number; newState: number }> = [];
     for (let index = 0; index < 3; index++) {
       const target = patch.am?.[index];
@@ -741,23 +747,32 @@ async function processOffer(
         const target = patch.rec[index]!;
         if (isUnavailable(target)) continue;
         const bit = 1 << index;
-        const oldNc = (next.mask & bit) !== 0;
+        const oldNc = (next.ncMask & bit) !== 0;
+        const oldRr = (next.rrMask & bit) !== 0;
         const oldValue = next.rec[index]!;
-        const oldState = oldNc ? 2 : oldValue === null ? 0 : 1;
+        const oldState = oldRr ? 3 : oldNc ? 2 : oldValue === null ? 0 : 1;
         let newState: number;
         let newValue: number | null;
         if (isNc(target)) {
           newState = 2;
           newValue = null;
-          next.mask |= bit;
+          next.ncMask |= bit;
+          next.rrMask &= ~bit;
+        } else if (isRr(target)) {
+          newState = 3;
+          newValue = null;
+          next.rrMask |= bit;
+          next.ncMask &= ~bit;
         } else if (target === null) {
           newState = 0;
           newValue = null;
-          next.mask &= ~bit;
+          next.ncMask &= ~bit;
+          next.rrMask &= ~bit;
         } else {
           newState = 1;
           newValue = target as number;
-          next.mask &= ~bit;
+          next.ncMask &= ~bit;
+          next.rrMask &= ~bit;
         }
         if (oldState === newState && oldValue === newValue) continue;
         changes.push({ campo: index + 4, oldValue, newValue, oldState, newState });
@@ -783,7 +798,7 @@ async function processOffer(
         [importId, ofertaId, alunoId, change.campo, change.oldValue, change.newValue, change.oldState, change.newState],
       );
     }
-    const empty = next.am.every((value) => value === null) && next.rec.every((value) => value === null) && next.mask === 0 && next.u === null;
+    const empty = next.am.every((value) => value === null) && next.rec.every((value) => value === null) && next.ncMask === 0 && next.rrMask === 0 && next.u === null;
     if (empty && current.exists) {
       state.writes += await run(database, `DELETE FROM gradebook.fechamento WHERE oferta_id = ? AND aluno_id = ?`, [ofertaId, alunoId]);
       continue;
@@ -793,17 +808,17 @@ async function processOffer(
       state.writes += await run(
         database,
         `INSERT INTO gradebook.fechamento
-         (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, u_fonte)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [ofertaId, alunoId, next.am[0], next.am[1], next.am[2], next.rec[0], next.rec[1], next.rec[2], next.mask, next.u],
+         (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [ofertaId, alunoId, next.am[0], next.am[1], next.am[2], next.rec[0], next.rec[1], next.rec[2], next.ncMask, next.rrMask, next.u],
       );
     } else {
       state.writes += await run(
         database,
         `UPDATE gradebook.fechamento
-         SET am1_fonte = ?, am2_fonte = ?, am3_fonte = ?, rec1 = ?, rec2 = ?, rec3 = ?, rec_nc_mask = ?, u_fonte = ?
+         SET am1_fonte = ?, am2_fonte = ?, am3_fonte = ?, rec1 = ?, rec2 = ?, rec3 = ?, rec_nc_mask = ?, rec_rr_mask = ?, u_fonte = ?
          WHERE oferta_id = ? AND aluno_id = ?`,
-        [next.am[0], next.am[1], next.am[2], next.rec[0], next.rec[1], next.rec[2], next.mask, next.u, ofertaId, alunoId],
+        [next.am[0], next.am[1], next.am[2], next.rec[0], next.rec[1], next.rec[2], next.ncMask, next.rrMask, next.u, ofertaId, alunoId],
       );
     }
   }

@@ -18,7 +18,7 @@ function component(
       2: { term: 2, applicable: false, source: null, replacementMilli: 0 },
       3: { term: 3, applicable: false, source: null, replacementMilli: 0 },
     },
-    postRecoveryTotalMilli: classification === 'recovery-pending' || classification === 'failed-no-show' ? null : 0,
+    postRecoveryTotalMilli: classification === 'recovery-pending' || classification === 'failed-no-show' || classification === 'failed-repeat' ? null : 0,
     classification,
     warnings: [],
   };
@@ -77,6 +77,15 @@ describe('simplified annual outcome v1', () => {
     });
   });
 
+  it('makes any R/R component REPROVADO and ineligible even while another recovery is pending', () => {
+    expect(resolve({ components: [component('recovery-pending'), component('failed-repeat')] })).toMatchObject({
+      state: 'final',
+      visibleResult: 'REPROVADO',
+      councilEligibility: 'not-eligible',
+      reasons: ['component:failed-repeat'],
+    });
+  });
+
   it('enforces the configured failed-component Council limit', () => {
     expect(
       resolve({
@@ -91,7 +100,7 @@ describe('simplified annual outcome v1', () => {
     });
   });
 
-  it('exposes Council eligibility from the current 2026 result only', () => {
+  it('exposes Council eligibility from the selected annual result only', () => {
     expect(
       resolve({ components: [component('not-approved')], maxCouncilComponents: 2 }),
     ).toMatchObject({

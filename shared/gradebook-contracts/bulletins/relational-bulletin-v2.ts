@@ -1,8 +1,8 @@
 import { z } from 'zod';
+import { GRADEBOOK_ACADEMIC_YEAR_MAX_V2, GRADEBOOK_ACADEMIC_YEAR_MIN_V2 } from '../academic-year-v2';
 
 export const RELATIONAL_BULLETIN_CONTRACT_VERSION_V2 = 2 as const;
 export const RELATIONAL_BULLETIN_MODEL_VERSION_V2 = 2 as const;
-export const RELATIONAL_BULLETIN_YEAR_V2 = 2026 as const;
 export const RELATIONAL_BULLETIN_LIMITS_V2 = Object.freeze({
   classes: 100,
   students: 150,
@@ -12,6 +12,7 @@ export const RELATIONAL_BULLETIN_LIMITS_V2 = Object.freeze({
 });
 
 const positiveInteger = z.number().int().positive();
+const academicYear = z.number().int().min(GRADEBOOK_ACADEMIC_YEAR_MIN_V2).max(GRADEBOOK_ACADEMIC_YEAR_MAX_V2);
 const nonNegativeInteger = z.number().int().nonnegative();
 const nullableMilli = nonNegativeInteger.nullable();
 const uniqueStudentIds = z
@@ -33,7 +34,7 @@ const presentation = z
   .strict();
 
 const selection = {
-  year: z.literal(RELATIONAL_BULLETIN_YEAR_V2),
+  year: academicYear,
   classId: positiveInteger,
   period,
   detail,
@@ -52,14 +53,14 @@ export const relationalBulletinRequestSchemaV2 = z.discriminatedUnion('operation
     .object({
       contractVersion: z.literal(RELATIONAL_BULLETIN_CONTRACT_VERSION_V2),
       operation: z.literal('catalog'),
-      year: z.literal(RELATIONAL_BULLETIN_YEAR_V2),
+      year: academicYear,
     })
     .strict(),
   z
     .object({
       contractVersion: z.literal(RELATIONAL_BULLETIN_CONTRACT_VERSION_V2),
       operation: z.literal('students'),
-      year: z.literal(RELATIONAL_BULLETIN_YEAR_V2),
+      year: academicYear,
       classId: positiveInteger,
     })
     .strict(),
@@ -93,7 +94,7 @@ export const relationalBulletinRequestSchemaV2 = z.discriminatedUnion('operation
     .object({
       contractVersion: z.literal(RELATIONAL_BULLETIN_CONTRACT_VERSION_V2),
       operation: z.literal('history'),
-      year: z.literal(RELATIONAL_BULLETIN_YEAR_V2),
+      year: academicYear,
       classId: positiveInteger,
       studentIds: uniqueStudentIds.optional(),
     })
@@ -160,7 +161,7 @@ const recoveryTerm = z
   .object({
     term,
     applicable: z.boolean().nullable(),
-    source: z.union([nonNegativeInteger, z.literal('NC')]).nullable(),
+    source: z.union([nonNegativeInteger, z.literal('NC'), z.literal('RR')]).nullable(),
     replacementMilli: nullableMilli,
   })
   .strict();
@@ -192,6 +193,7 @@ const subject = z
           'approved-after-recovery',
           'not-approved',
           'failed-no-show',
+          'failed-repeat',
         ]),
         warningCodes: z.array(z.string()),
       })
@@ -204,7 +206,7 @@ export const relationalBulletinModelSchemaV2 = z
   .object({
     contractVersion: z.literal(RELATIONAL_BULLETIN_CONTRACT_VERSION_V2),
     modelVersion: z.literal(RELATIONAL_BULLETIN_MODEL_VERSION_V2),
-    year: z.literal(RELATIONAL_BULLETIN_YEAR_V2),
+    year: academicYear,
     period,
     detail,
     authority: z
@@ -314,7 +316,7 @@ export const relationalBulletinResponseSchemaV2 = z.union([
       contractVersion: z.literal(RELATIONAL_BULLETIN_CONTRACT_VERSION_V2),
       operation: z.literal('catalog'),
       state: z.literal('ready'),
-      year: z.literal(RELATIONAL_BULLETIN_YEAR_V2),
+      year: academicYear,
       classes: z.array(classItem).max(RELATIONAL_BULLETIN_LIMITS_V2.classes),
     })
     .strict(),
