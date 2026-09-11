@@ -4,7 +4,6 @@ import { buildPerformanceAnalysisV3 } from '../../../server/gradebook/applicatio
 import { projectPerformanceFactsV2, EMPTY_PERFORMANCE_CLOSING_V2 } from '../../../server/gradebook/application/results/relational-performance-facts-v2';
 import { performanceAnalysisRequestSchemaV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { performanceTermComparisonResponseSchemaV4 } from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
-import { requestPerformanceAnalysisV3 } from '../../../src/features/gradebook/performance/performance-analysis-client-v3';
 import { buildPerformanceDashboardOverviewV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -279,16 +278,4 @@ describe('four lenses and analytical investigation V3', () => {
     expect(host.textContent).toContain('72,7%');
     expect(requests.filter((value) => value.operation === 'dashboard').at(-1)?.lens).toBe('qualitative');
   });
-  it('uses validated no-store V3 responses and rejects forged groups without throwing', async () => {
-    const request = performanceAnalysisRequestSchemaV3.parse({ ...requestV3() });
-    const abort = new AbortController();
-    expect(await requestPerformanceAnalysisV3(request, abort.signal)).toMatchObject({ state: 'ready' });
-    expect(mock).toHaveBeenLastCalledWith('/api/gradebook/performance', expect.objectContaining({ cache: 'no-store', credentials: 'same-origin', signal: abort.signal }));
-    const bad = analysisFixture(); bad.rows.push(bad.rows[0]!);
-    mock.mockResolvedValueOnce(reply(bad));
-    expect(await requestPerformanceAnalysisV3(request)).toEqual({ transportVersion: 3, state: 'unavailable' });
-    mock.mockResolvedValueOnce(reply({}, 403));
-    expect(await requestPerformanceAnalysisV3(request)).toEqual({ transportVersion: 3, state: 'not-authorized' });
-  });
 });
-function requestV3() { return { ...request, transportVersion: 3, operation: 'analysis', lens: 'result', offerId: null }; }

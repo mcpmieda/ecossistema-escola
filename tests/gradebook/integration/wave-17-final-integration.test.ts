@@ -90,13 +90,13 @@ describe('integração final da onda 17 — PDF canônico + F9', () => {
 
   it('não introduz persistência acadêmica no navegador nem retry silencioso de writes', () => {
     const frontend = [
-      'src/features/gradebook/operational-workspace/operational-workspace-page.tsx',
+      'src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx',
       'src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx',
       'src/features/gradebook/operational-workspace/use-relational-workspace-v2.ts',
       'src/features/gradebook/audit-workspace/relational-current-audit-page-v2.tsx',
-      'src/features/gradebook/performance/performance-page.tsx',
+      'src/features/gradebook/performance/relational-performance-page-v2.tsx',
       'src/features/gradebook/bulletins/bulletin-page.tsx',
-      'src/features/gradebook/council/council-workspace-page.tsx',
+      'src/features/gradebook/council/relational-council-page-v3.tsx',
       'src/platform/gradebook-workspace-shell.tsx',
     ]
       .map(source)

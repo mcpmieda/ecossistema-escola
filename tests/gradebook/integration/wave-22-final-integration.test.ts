@@ -61,15 +61,15 @@ describe('integração final da onda 22 — comparação e correção determiní
   it('mantém configuração server-side na área global e o write administrativo em hard stop', () => {
     const platformSnapshot = source('server/platform/snapshot.ts');
     const settingsPage = source('src/platform/pages.tsx');
-    const performancePanel = source('src/features/gradebook/performance/performance-comparison-configuration-panel.tsx');
+    const comparisonPanel = source('src/features/gradebook/performance/performance-term-comparison-panel-v4.tsx');
     const performanceRoute = source('server/gradebook/http/performance-routes-v1.ts');
 
     expect(platformSnapshot).toContain("byName.get('PLATAFORMA_CONFIGURACOES')");
     expect(settingsPage).toContain('snapshot.configurations.map');
     expect(settingsPage).toContain('Configurações institucionais');
     expect(performanceRoute).toContain("requireCapability(capabilities, 'platform.settings.read')");
-    expect(performancePanel).toContain('quando o controle administrativo estiver autorizado');
-    expect(`${settingsPage}${performancePanel}`).not.toMatch(/localStorage|sessionStorage|indexedDB/u);
+    expect(comparisonPanel).toContain('não mede evolução pedagógica');
+    expect(`${settingsPage}${comparisonPanel}`).not.toMatch(/localStorage|sessionStorage|indexedDB/u);
   });
 
   it('para impacto potencial e rejeita correção sem prova determinística fechada', () => {

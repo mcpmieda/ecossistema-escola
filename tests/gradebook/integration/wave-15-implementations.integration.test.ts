@@ -48,7 +48,10 @@ describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
       'server/gradebook/application/bulletins/bulletin-snapshot-repository-v1.ts',
     );
     const operationalPage = source(
-      'src/features/gradebook/operational-workspace/operational-workspace-page.tsx',
+      'src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx',
+    );
+    const operationalHook = source(
+      'src/features/gradebook/operational-workspace/use-relational-workspace-v2.ts',
     );
     const operationalGate = source(
       'src/features/gradebook/operational-workspace/operational-workspace-request-gate.ts',
@@ -58,8 +61,9 @@ describe('integração da onda 15 F4/F5/F6/F8 após wiring da onda 16', () => {
     expect(materializer).toContain('classGroups = new Map');
     expect(snapshots).toContain('cloneSnapshot');
     expect(snapshots).toContain('freezeBulletinSnapshotV1(cloneSnapshot(candidate))');
-    expect(operationalPage).toContain('createOperationalWorkspaceRequestGate');
-    expect(operationalPage).toContain('ticket.isCurrent()');
+    expect(operationalPage).toContain('useRelationalWorkspaceV2');
+    expect(operationalHook).toContain('createOperationalWorkspaceRequestGate');
+    expect(operationalHook).toContain('ticket.isCurrent()');
     expect(operationalGate).toContain('active?.controller.abort()');
   });
 
