@@ -85,7 +85,6 @@ function Center({value,onOpen,busy,onMore}:{value:WorkspaceCenterV2;onOpen:(valu
 export function RelationalWorkspacePageV2() {
   const workspace=useRelationalWorkspaceV2();
   const searchInput=useRef<HTMLInputElement>(null);
-  const year=workspace.year;
   useEffect(()=>{if(workspace.context) searchInput.current?.focus();},[workspace.context]);
   const failures={
     'not-authorized':'Sua sessão não possui autorização para consultar estas informações. Entre novamente com uma conta autorizada.',

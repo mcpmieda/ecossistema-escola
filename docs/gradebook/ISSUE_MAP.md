@@ -5,13 +5,14 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Papel                      | Issue          | Situação de execução                                                                               |
 | -------------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
 | Programa                   | #182           | acompanhamento das quatro fases                                                                    |
-| FINAL-1                    | #633           | execução incremental; Relatórios V2 integrado/publicado; Auditoria atual V2 na #658                |
+| FINAL-1                    | #633           | consumidores relacionais até Auditoria/configuração docente concluídos; gates operacionais restam  |
 | FINAL-2                    | #634           | PRs #645/#647 integradas; comparação trimestral e 2026 fixo na #649/#650; visual conjunto pendente |
 | Fonte/ano/desktop          | #646           | concluída pela PR #647; seleção anual posteriormente substituída pela #649                         |
 | 2026/comparação trimestral | #649           | concluída pela PR #650; visual conjunto permanece na #634                                          |
 | Boletins relacionais V2    | #654 / PR #655 | integrado/publicado no deploy 263; migration/postflight e smoke somente leitura verdes             |
 | Relatórios relacionais V2  | #656 / PR #657 | integrado/publicado no deploy 264; CI e smoke autenticado somente leitura verdes                    |
-| Auditoria relacional atual | #658 / PR #659  | head verificado; CI/revisão/publicação pendem antes de virar fato da `main`                           |
+| Auditoria relacional atual | #658 / PR #659  | integrada/publicada no deploy 265; smoke autenticado somente leitura verde                          |
+| Configuração docente       | #660            | implementação relacional read-only e retirada do write V1 incompatível em verificação               |
 | FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
 | FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
 | Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |
@@ -30,7 +31,7 @@ As dependências são de entregas aceitas, não apenas da existência de branche
 
 ## Branches reservadas
 
-Corrente: `feat/bn-current-audit-v2-658`. Reservada para o piloto posterior: `test/bn-final-4-piloto-integral`.
+Corrente: `fix/bn-teacher-settings-and-subject-order-660`. Reservada para o piloto posterior: `test/bn-final-4-piloto-integral`.
 
 Branches históricas não devem ser mergeadas só por estarem abertas/existirem. Toda execução parte da `main` factual validada e registra seu próprio checkpoint na issue/PR.
 

@@ -4,7 +4,7 @@ Contrato e escopo: #639, entrega da FINAL-1 #633, PR #640. Base: #636, `4d8256fa
 
 ## Jornada entregue
 
-Banco de Notas → Centrais → Carregar Centrais → selecionar explicitamente o ano → consultar o resumo cadastral → pesquisar aluno, turma, professor ou componente → abrir a central → navegar pelos vínculos e ofertas. O ano não é escolhido pelo relógio nem pela posição no catálogo.
+Banco de Notas → Centrais → contexto fixo 2026 → consultar o resumo cadastral → pesquisar aluno, turma, professor ou componente → abrir a central → navegar pelos vínculos e ofertas. O ano não é escolhido pelo relógio nem pela posição no catálogo.
 
 A Relação continua cadastro mestre anual. Na busca, pessoas com nomes iguais continuam registros distintos. A central do aluno mostra vínculos atuais e históricos, números em cada turma e informação de Conselho anterior, incluindo “Não informado”. As ofertas dessa central são as da turma atual. A central da turma mostra seu cadastro, vínculos e ofertas; professor e componente mostram suas ofertas no ano.
 
@@ -32,7 +32,7 @@ HeroUI e shell existentes; tela somente leitura. O cliente valida formato, opera
 
 Autenticação Entra/capability existente, origem oficial, bloqueio de POST de outra origem e gate de produção permanecem no backend. Erros são opacos e respostas usam `no-store`. Falha de rede não vira “nenhum resultado”. Não há operação de escrita no V2.
 
-A manutenção docente anterior fica preservada em código, mas não é montada nessa central relacional; a interface informa que a edição ainda aguarda adaptação. Seus testes legados não constituem evidência da nova tela. Outros consumidores V1 ainda existentes exigem migração própria, não uma equivalência presumida com V2.
+A #660 encerra a adaptação docente sem inventar um segundo cadastro: professor, componente e oferta vêm da importação anual; a Central de professor mostra a configuração reconhecida e orienta qualquer correção pela fonte. O transporte de escrita `maintenanceVersion: 1`, incompatível com o schema simplificado, é recusado antes do runtime legado. Arquivos V1 preservados não são montagem nem fallback. As ofertas usam a ordem observada na configuração da fonte; detalhes em [Configuração docente relacional](RELATIONAL_TEACHER_CONFIGURATION_660.md).
 
 ## Evidências e limites de aceite
 
@@ -40,4 +40,4 @@ Os testes usam a baseline integral reconstruída em PGlite, o facade PostgreSQL 
 
 Isso não é um teste visual em navegador, medição mobile, contenção PostgreSQL multi-sessão nem homologação autenticada produtiva. A validação executável registrada ocorreu no workflow existente; o ambiente da sessão não permitiu verificar o app autenticado com Playwright. Não inferir aceite institucional de CI ou deploy verdes.
 
-Depois da #649, criação/gestão de anos não é mais requisito: o contexto é 2026. Conselho, Boletins e Relatórios relacionais foram integrados; a #658 retira o Audit Workspace antigo do caminho ativo. Ainda faltam manutenção docente, durabilidade da trilha humana de Auditoria, validação visual conjunta e piloto integral. A #640 e a #649 não modificam regras do motor, schema, dados ou autoridade acadêmica. #637/#641 tratam a remediação de dependências separadamente, com [relatório próprio](SECURITY_REMEDIATION_637.md).
+Depois da #649, criação/gestão de anos não é mais requisito: o contexto é 2026. Conselho, Boletins, Relatórios e Auditoria atual relacionais foram integrados; a #660 conclui a configuração docente relacional. Ainda faltam durabilidade da trilha humana de Auditoria, recuperação/contenção, validação visual conjunta e piloto integral. A #640/#649/#660 não modificam regras do motor, schema, dados ou autoridade acadêmica. #637/#641 tratam a remediação de dependências separadamente, com [relatório próprio](SECURITY_REMEDIATION_637.md).

@@ -1,6 +1,6 @@
 # Arquitetura — estado relacional e consumidores em transição
 
-Base integrada: `main@3d762d7412fe0a5760680566ae6739f4d10c1172`; Conselho relacional #648/PR #653, Boletins V2 #654/PR #655 e Relatórios V2 #656/PR #657 integrados e publicados. Auditoria atual V2 está em execução pela #658. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
+Base integrada: `main@380b016d0c1ec5917323fe3fad35398b4fbd1a6a`; Conselho relacional #648/PR #653, Boletins V2 #654/PR #655, Relatórios V2 #656/PR #657 e Auditoria atual #658/PR #659 integrados e publicados. Configuração docente relacional está em execução pela #660. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
 
 ## Caminho integrado de importação
 
@@ -40,7 +40,7 @@ A precedência de situações terminais continua no núcleo/serviço anual. O fa
 
 ## Consumidores e reancoragem
 
-O catch-all mantém operações V1 do Operational Workspace, Audit Workspace antigo, Boletins e Relatórios. As páginas ativas de Desempenho usam V2/V3/V4 relacional, Conselho usa V3 relacional, Boletins usa V2 relacional e Relatórios usa V2 relacional; os respectivos V1 permanecem compatibilidade não montada. A #658 faz o mesmo isolamento da página antiga de Auditoria, sem remover contrato/rota antes da prova de ausência de consumidores. Manutenção docente ainda depende das fontes/durabilidade anteriores. A #649 fixa 2026 e remove criação/seleção de anos. A #648 acrescentou oito tabelas de Conselho; a #654 acrescentou uma relação append-only de snapshots de boletim; #656 e #658 não alteram schema. Ver `CONSUMER_MAP.md` antes de alterar qualquer consumidor.
+O catch-all mantém operações V1 de leitura do Operational Workspace, Audit Workspace antigo, Boletins e Relatórios. As páginas ativas de Desempenho usam V2/V3/V4 relacional, Conselho usa V3 relacional, Boletins usa V2 relacional e Relatórios usa V2 relacional; os respectivos V1 permanecem compatibilidade não montada. A #658 faz o mesmo isolamento da página antiga de Auditoria. A #660 usa as ofertas importadas como configuração docente e recusa o write `maintenanceVersion` antes do runtime antigo; reativá-lo exigiria contrato/durabilidade novos. A #649 fixa 2026 e remove criação/seleção de anos. A #648 acrescentou oito tabelas de Conselho; a #654 acrescentou uma relação append-only de snapshots de boletim; #656, #658 e #660 não alteram schema. Ver `CONSUMER_MAP.md` antes de alterar qualquer consumidor.
 
 Boletins materializa um ou mais alunos no mesmo snapshot read-only/repeatable-read, usando projeção oferta/aluno em lote e uma leitura opcional de instrumentos. AM/U oficiais ficam separadas do cálculo descritivo. Emissão grava somente o snapshot imutável; PDF e reimpressão não voltam às notas atuais. Ver [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md).
 
