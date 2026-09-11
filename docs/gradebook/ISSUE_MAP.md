@@ -10,7 +10,7 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Fonte/ano/desktop          | #646           | concluída pela PR #647; seleção anual posteriormente substituída pela #649                         |
 | 2026/comparação trimestral | #649           | concluída pela PR #650; visual conjunto permanece na #634                                          |
 | Boletins relacionais V2    | #654 / PR #655 | integrado/publicado no deploy 263; migration/postflight e smoke somente leitura verdes             |
-| Relatórios relacionais V2  | #656           | contrato e implementação no head; verificação/PR/publicação ainda não são fatos integrados          |
+| Relatórios relacionais V2  | #656 / PR #657 | contrato e implementação no head; verificação/publicação ainda não são fatos integrados             |
 | FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
 | FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
 | Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |

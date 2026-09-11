@@ -2,7 +2,7 @@
 
 ## Escopo e estado factual
 
-A #656 substitui a página ativa de Relatórios V1 por uma composição V2 das fontes relacionais vigentes. A implementação parte de `main@1512d5b37c42931b1df81bbfe6483d1ad5340130`, usa a branch `feat/bn-relational-reports-v2-656` e permanece trabalho de branch até verificação, CI, revisão, merge, deploy e smoke registrados na issue/PR.
+A #656/PR #657 substitui a página ativa de Relatórios V1 por uma composição V2 das fontes relacionais vigentes. A implementação parte de `main@1512d5b37c42931b1df81bbfe6483d1ad5340130`, usa a branch `feat/bn-relational-reports-v2-656` e permanece trabalho de branch até CI, revisão, merge, deploy e smoke registrados na issue/PR. O `npm run verify` anterior à abertura da PR passou com 1.485 testes.
 
 O contrato está em `shared/gradebook-contracts/reports/relational-institutional-reports-v2.ts`; o endpoint continua `POST /api/gradebook/reports` e distingue `contractVersion: 2`. O ano é literalmente 2026. Não existe seleção, criação ou comparação de anos.
 

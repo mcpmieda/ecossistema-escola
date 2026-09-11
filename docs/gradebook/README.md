@@ -18,7 +18,7 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#654 / PR #655:** Boletins V2 integrado e publicado sobre o schema relacional de 2026. Prévia, emissão idempotente, lote limitado, histórico, reimpressão snapshot-only e PDF usam AM/U oficiais da fonte e cálculo apenas descritivo. CI, backup, preflight, migration/postflight append-only, deploy 263 e smoke autenticado somente leitura estão verdes. [Contrato e limites](RELATIONAL_BULLETINS_V2.md).
 
-**#656:** Relatórios institucionais V2 em execução sobre as projeções relacionais vigentes de Desempenho, Conselho, diagnósticos atuais e snapshots de Boletins. Opera somente em 2026 e apenas em leitura; não cria motor, regra, schema, correção automática ou comparação entre anos. [Contrato e limites](RELATIONAL_REPORTS_V2.md).
+**#656 / PR #657:** Relatórios institucionais V2 em execução sobre as projeções relacionais vigentes de Desempenho, Conselho, diagnósticos atuais e snapshots de Boletins. Opera somente em 2026 e apenas em leitura; não cria motor, regra, schema, correção automática ou comparação entre anos. [Contrato e limites](RELATIONAL_REPORTS_V2.md).
 
 ## Leitura e execução
 

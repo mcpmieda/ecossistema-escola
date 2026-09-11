@@ -1,6 +1,6 @@
 # Arquitetura — estado relacional e consumidores em transição
 
-Base integrada: `main@1512d5b37c42931b1df81bbfe6483d1ad5340130`; Conselho relacional #648/PR #653 e Boletins V2 #654/PR #655 integrados e publicados. Relatórios V2 está em execução pela #656. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
+Base integrada: `main@1512d5b37c42931b1df81bbfe6483d1ad5340130`; Conselho relacional #648/PR #653 e Boletins V2 #654/PR #655 integrados e publicados. Relatórios V2 está em execução pela #656/PR #657. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
 
 ## Caminho integrado de importação
 
