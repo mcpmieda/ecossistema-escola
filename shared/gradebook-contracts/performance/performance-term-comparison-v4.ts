@@ -78,8 +78,12 @@ const ready = z.object({
   for (const row of value.rows) for (const item of row.values) {
     if (item.state !== 'comparable') continue;
     const delta = item.currentPercent - item.referencePercent;
-    if (Math.abs(delta - item.deltaPercentagePoints) > 1e-9 || (item.relation === 'equal') !== (item.deltaPercentagePoints === 0) ||
-        (item.relation === 'higher') !== (item.deltaPercentagePoints > 0) || (item.relation === 'lower') !== (item.deltaPercentagePoints < 0)) fail();
+    const relationContradictsDelta = item.relation === 'equal'
+      ? item.deltaPercentagePoints !== 0
+      : item.relation === 'higher'
+        ? item.deltaPercentagePoints < 0
+        : item.deltaPercentagePoints > 0;
+    if (Math.abs(delta - item.deltaPercentagePoints) > 1e-9 || relationContradictsDelta) fail();
   }
 });
 const failure = z.object({ transportVersion: z.literal(4), state: performanceResponseSchemaV2.options[0].shape.state }).strict();

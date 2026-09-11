@@ -25,7 +25,10 @@ export function PerformanceGridV2({ columns, rows, open, focusOffer, showAnnual 
         <Table.Header columns={headers}>{(header) => {
           const column = columns.find((item) => `value-${item.key}` === header.id);
           return <Table.Column id={header.id} isRowHeader={header.id === 'student'} defaultWidth={header.id === 'student' ? '1fr' : header.width} minWidth={header.width} className="px-2 py-2">
-            {column ? <button type="button" title={column.title} aria-label={`Ver avaliações de ${column.title}`} onClick={() => focusOffer?.(column.offerId)} className="w-full whitespace-normal break-words text-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-focus">{column.label}</button> : header.label}
+            {column ? focusOffer
+              ? <button type="button" title={column.title} aria-label={`Ver avaliações de ${column.title}`} onClick={() => focusOffer(column.offerId)} className="w-full whitespace-normal break-words text-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-focus">{column.label}</button>
+              : <span title={column.title} className="block w-full whitespace-normal break-words text-center font-semibold">{column.label}</span>
+              : header.label}
             <Table.ColumnResizer />
           </Table.Column>;
         }}</Table.Header>

@@ -1,3 +1,5 @@
+import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1, isCurrentGradebookAcademicYearV1 } from '../current-academic-year-v1';
+
 /** Relational, read-only workspace. V1 consumers keep their original contract. Refs #639. */
 export const OPERATIONAL_WORKSPACE_VERSION_V2 = 2 as const;
 export const WORKSPACE_KINDS_V2 = ['student', 'class-group', 'teacher', 'subject'] as const;
@@ -175,4 +177,3 @@ export function workspaceResponseMatchesRequestV2(request: OperationalWorkspaceR
   }
   return true;
 }
-import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1, isCurrentGradebookAcademicYearV1 } from '../current-academic-year-v1';

@@ -208,6 +208,7 @@ describe('four lenses and analytical investigation V3', () => {
     expect(host.textContent).toContain('T2 comparado ao T1');
     expect(host.textContent).toContain('+10 p.p.');
     expect(host.textContent).toContain('não mede evolução pedagógica');
+    expect(host.querySelector('[aria-label="Comparação entre trimestres"] button[aria-label^="Ver avaliações"]')).toBeNull();
     await select('Período', '3');
     const comparison = document.querySelector('select[aria-label="Comparar com"]') as unknown as HTMLSelectElement;
     expect([...comparison.options].map((option) => option.value)).toEqual(['','1','2']);
