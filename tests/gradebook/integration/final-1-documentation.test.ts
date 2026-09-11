@@ -39,14 +39,14 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     );
   });
   it('has a concrete four-phase queue and separate acceptance and delivery gates', () => {
-    expect(section('coordination')).toContain('executable_issue: 660');
-    expect(section('coordination')).toContain('current_delivery_issue: 660');
+    expect(section('coordination')).toContain('executable_issue: 662');
+    expect(section('coordination')).toContain('current_delivery_issue: 662');
     expect(section('final_phases').match(/phase: FINAL-/gu)).toHaveLength(4);
     for (const issue of [633, 634, 635, 406])
       expect(section('final_phases')).toContain(`issue: ${issue}`);
     expect(section('institutional_delivery')).toContain('issue: 596');
     expect(section('institutional_delivery')).toContain('authority_acceptance_issue: 347');
-    expect(section('next_safe_action')).toContain('issue: 660');
+    expect(section('next_safe_action')).toContain('issue: 662');
   });
   it('records current-only diagnostics separately from preserved academic history', () => {
     expect(section('storage')).toContain(
@@ -98,6 +98,8 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(readiness).toContain('transação read-only/repeatable-read');
     expect(readiness).toContain('substituição transacional');
     expect(readiness).toContain('última confirmada no servidor');
+    expect(readiness).toContain('A #662 restaurou localmente 120.879 linhas');
+    expect(readiness).toContain('SQLSTATE `40001`');
     const contracts = source(`${base}CONTRACTS.md`);
     expect(contracts).toContain('Conselho — única parte preservada do documento antigo');
     expect(contracts).toContain('não modifica contratos compartilhados');
@@ -105,15 +107,15 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
   });
   it('records actual deployments separately from authenticated acceptance and the security release checkpoint', () => {
     expect(section('baseline')).toContain(
-      'last_audited_main_commit: 380b016d0c1ec5917323fe3fad35398b4fbd1a6a',
+      'last_audited_main_commit: 92e9f97a23e110cb77011570e1edaef97389cb3d',
     );
-    expect(section('baseline')).toContain('authorized_deploy_run: 34580485339');
+    expect(section('baseline')).toContain('authorized_deploy_run: 34585674112');
     expect(section('baseline')).toContain('authenticated_post_deploy_smoke_this_session: true');
     expect(section('storage')).toContain('distinct_trigger_count: 3');
     expect(section('storage')).toContain('information_schema_trigger_event_rows: 6');
     expect(section('storage')).toContain('production_data_restore_proven_by_this_pr: false');
     expect(section('runtime')).toContain(
-      'diagnostic_atomic_replacement: integrated-pr-636-deploy-254-success-awaiting-authenticated-smoke',
+      'diagnostic_atomic_replacement: integrated-pr-636-and-real-postgres-contention-passed-issue-662',
     );
     expect(section('runtime')).toContain(
       'relational_centers_v2: integrated-pr-640-deploy-255-success-awaiting-authenticated-smoke',
@@ -134,7 +136,10 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
       'relational_current_audit_v2: integrated-pr-659-deploy-265-authenticated-read-only-smoke-success',
     );
     expect(section('runtime')).toContain(
-      'relational_teacher_configuration: issue-660-head-awaiting-final-verify-ci-review-merge-deploy-smoke',
+      'relational_teacher_configuration: integrated-pr-661-deploy-266-authenticated-read-only-smoke-success',
+    );
+    expect(section('runtime')).toContain(
+      'real_postgres_contention: diagnostic-advisory-lock-rollback-and-council-cas-passed-issue-662',
     );
     expect(source(`${base}RELATIONAL_REPORTS_V2.md`)).toContain(
       'As operações V2 são somente leitura',
@@ -192,6 +197,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
       'RELATIONAL_REPORTS_V2.md',
       'RELATIONAL_CURRENT_AUDIT_V2.md',
       'RELATIONAL_TEACHER_CONFIGURATION_660.md',
+      'RELATIONAL_RECOVERY_REHEARSAL_662.md',
     ];
     for (const page of pages) {
       const fullPath = join(root, base, page);
