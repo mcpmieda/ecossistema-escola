@@ -69,21 +69,20 @@ PDF continua sem método D1 próprio: o renderer recebe `BulletinSnapshotV1` já
 | Método | Rota                                   | Superfície            |
 | ------ | -------------------------------------- | --------------------- |
 | `POST` | `/api/gradebook/operational-workspace` | Operational Workspace |
-| `POST` | `/api/gradebook/audit-workspace`       | Audit Workspace       |
 | `POST` | `/api/gradebook/performance`           | Desempenho            |
 | `POST` | `/api/gradebook/bulletins`             | Boletins              |
 | `POST` | `/api/gradebook/reports`               | Relatórios            |
 | `POST` | `/api/gradebook/council-workspace`     | Conselho V1/V2        |
 
-Existe exatamente um bridge de cada tipo. Council V1/V2 compartilham o mesmo bridge. Todos usam autenticação/autorização server-side e `no-store`.
+Existe exatamente um bridge de cada tipo listado. Council V1/V2 compartilham o mesmo bridge. Todos usam autenticação/autorização server-side e `no-store`. O bridge dedicado do Audit Workspace V1 foi retirado pela #664 após prova de ausência de consumidor; a Auditoria atual usa `/api/gradebook/import-diagnostics`.
 
 ## Operational Workspace
 
 `operationalReadModels()` fornece Aluno, Turma, Professor, Componente e pesquisa. `operationalWorkspaceAcademicYears()` enumera apenas anos persistidos. Request gates abortam/deduplicam e descartam respostas obsoletas.
 
-## Audit Workspace
+## Núcleo Audit Workspace V1
 
-Listas batch/keyset; resolução `appendVersion`/CAS; ator = `session.oid`; instante = servidor; promoção permanece separada.
+Listas batch/keyset e resolução `appendVersion`/CAS permanecem no runtime somente para o Relatórios V1 histórico. Não existe página nem endpoint dedicado montado. A promoção permanece separada. A Auditoria Atual V2 é somente leitura relacional e não expõe resolução/correção.
 
 ## Desempenho F6
 

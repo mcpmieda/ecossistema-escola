@@ -22,7 +22,7 @@ A decisão mais recente da #613 também exige não apagar automaticamente uma fu
 
 `GradebookAuditSurface` monta somente `RelationalCurrentAuditPageV2`. A página usa componentes HeroUI, cabeçalho compacto, estado fixo de 2026, KPIs identificados como contagens carregadas na sessão, filtros estáveis por gravidade, paginação limitada e uma timeline dos achados. Os detalhes técnicos ficam recolhidos e o texto principal usa linguagem escolar.
 
-`AuditWorkspacePage`, `ImportDiagnosticsAuditPanelV1` e `/api/gradebook/audit-workspace` permanecem no repositório apenas por compatibilidade e investigação de dependências. Não são fallback nem aparecem na superfície ativa. Esta entrega não remove contratos/rotas legados antes da prova de ausência de consumidores.
+Na entrega original #658, `AuditWorkspacePage`, `ImportDiagnosticsAuditPanelV1` e `/api/gradebook/audit-workspace` permaneceram apenas para investigação de dependências. A #664 comprovou que esses entrypoints não possuíam consumidor ativo e os retirou. O núcleo Audit Workspace V1, seu contrato e source D1 continuam preservados porque Relatórios V1 ainda os usa internamente; eles não são fallback da superfície atual. Detalhes em [retirada seletiva #664](LEGACY_AUDIT_RETIREMENT_664.md).
 
 ## Limites e gates
 
