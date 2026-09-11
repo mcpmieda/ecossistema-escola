@@ -19,6 +19,14 @@ export function normalizeSourceSubjectNameV1(name: string): string {
 export function sourceSubjectPresentationOrderV1(name: string): number | null {
   return SOURCE_SUBJECT_PRESENTATION_INDEX_V1.get(normalizeSourceSubjectNameV1(name)) ?? null;
 }
+export function compareSourceSubjectPresentationV1(left: string, right: string): number {
+  const leftIndex = sourceSubjectPresentationOrderV1(left);
+  const rightIndex = sourceSubjectPresentationOrderV1(right);
+  return (
+    (leftIndex ?? Number.MAX_SAFE_INTEGER) - (rightIndex ?? Number.MAX_SAFE_INTEGER) ||
+    left.localeCompare(right, 'pt-BR')
+  );
+}
 export function sourceSubjectAbbreviationV1(name: string): string | null {
   const key = normalizeSourceSubjectNameV1(name);
   return SOURCE_SUBJECT_ABBREVIATIONS_V1[key] ?? null;

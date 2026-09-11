@@ -1,5 +1,5 @@
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../../persistence/postgres/active-instrument-predicate-v1';
-import { sourceSubjectAbbreviationV1, sourceSubjectPresentationOrderV1 } from '../../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
+import { compareSourceSubjectPresentationV1, sourceSubjectAbbreviationV1 } from '../../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { termRecoveryVisibilityV1 } from '../../../../../src/gradebook-domain/calculations/simplified/term-recovery-visibility-v1';
 import {
   performanceRequestSchemaV2, performanceResponseSchemaV2, performanceResponseMatchesV2, PERFORMANCE_LIMITS_V2,
@@ -42,12 +42,7 @@ function offer(row: Row): PerformanceOfferV2 {
     teacher: { id: integer(row.professor_id), label: text(row.professor_nome) } };
 }
 function orderOffers(left: PerformanceOfferV2, right: PerformanceOfferV2): number {
-  const a = sourceSubjectPresentationOrderV1(left.subject.label);
-  const b = sourceSubjectPresentationOrderV1(right.subject.label);
-  if (a !== null || b !== null) {
-    if (a === null) return 1; if (b === null) return -1; if (a !== b) return a - b;
-  }
-  return left.subject.label.localeCompare(right.subject.label, 'pt-BR') || left.id - right.id;
+  return compareSourceSubjectPresentationV1(left.subject.label, right.subject.label) || left.id - right.id;
 }
 function closing(row: Row): PerformanceClosingV2 {
   const nc = integer(row.rec_nc_mask ?? 0);

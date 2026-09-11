@@ -6,7 +6,7 @@ function source(path: string): string {
   return readFileSync(join(process.cwd(), path), 'utf8');
 }
 
-describe('teacher assignment maintenance HeroUI V1', () => {
+describe('disconnected teacher assignment maintenance V1', () => {
   const workspace = source(
     'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-workspace.tsx',
   );
@@ -73,11 +73,13 @@ describe('teacher assignment maintenance HeroUI V1', () => {
     expect(client).not.toContain('retry');
   });
 
-  it('mantém o único bridge operacional e não amplia o transporte V1 congelado', () => {
+  it('preserva o cliente histórico sem servi-lo pelo bridge operacional', () => {
     expect(client).toContain("const OPERATIONAL_WORKSPACE_ENDPOINT = '/api/gradebook/operational-workspace'");
     expect(client).toContain("cache: 'no-store'");
     expect(route.match(/'\/api\/gradebook\/operational-workspace'/gu)).toHaveLength(1);
-    expect(route).toContain('isTeacherAssignmentMaintenanceRequestV1');
+    expect(route).not.toContain('isTeacherAssignmentMaintenanceRequestV1');
+    expect(route).not.toContain('createTeacherAssignmentMaintenanceV1');
+    expect(route).toContain('maintenanceVersion write transport');
     expect(frozenTransport).not.toContain('teacher-register');
     expect(frozenTransport).not.toContain('assignment-register');
     expect(frozenTransport).not.toContain('maintenanceVersion');

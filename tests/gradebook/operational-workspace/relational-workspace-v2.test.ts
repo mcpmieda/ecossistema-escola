@@ -36,8 +36,12 @@ beforeAll(async () => {
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES
       (10,2026,'A1','TURMA SINTETICA A',6,'M'),(20,2026,'B1','TURMA SINTETICA B',6,'T'),(30,2025,'A1','OUTRO ANO SINTETICO',6,'M');
     INSERT INTO gradebook.professor (id,ano,nome) VALUES (11,2026,'DOCENTE SINTETICO'),(21,2025,'DOCENTE SINTETICO');
-    INSERT INTO gradebook.disciplina (id,ano,nome) VALUES (11,2026,'COMPONENTE SINTETICO'),(21,2025,'COMPONENTE SINTETICO');
-    INSERT INTO gradebook.oferta (id,ano,turma_id,professor_id,disciplina_id) VALUES (10,2026,10,11,11),(20,2026,20,11,11),(30,2025,30,21,21);
+    INSERT INTO gradebook.disciplina (id,ano,nome) VALUES
+      (11,2026,'PORTUGUÊS'),(12,2026,'MATEMÁTICA'),(13,2026,'HISTÓRIA'),(14,2026,'GEOGRAFIA'),(15,2026,'CIÊNCIAS'),
+      (21,2025,'COMPONENTE SINTETICO');
+    INSERT INTO gradebook.oferta (id,ano,turma_id,professor_id,disciplina_id) VALUES
+      (10,2026,10,11,11),(11,2026,10,11,12),(12,2026,10,11,13),(13,2026,10,11,14),(14,2026,10,11,15),
+      (20,2026,20,11,11),(30,2025,30,21,21);
     INSERT INTO gradebook.aluno (id,ano,nome) VALUES (1,2026,'ALUNO SINTETICO'),(2,2026,'ALUNO SINTETICO'),(3,2026,'ASSISTIDO SINTETICO'),(4,2026,'LITERAL %_ SINTETICO'),(5,2026,'HISTORICO SINTETICO'),(99,2025,'ALUNO SINTETICO');
     INSERT INTO gradebook.aluno (id,ano,nome) SELECT 1000+n,2026,'PESSOA SINTETICA '||lpad(n::text,3,'0') FROM generate_series(1,250) n;
     INSERT INTO gradebook.vinculo VALUES
@@ -84,7 +88,7 @@ describe('relational operational workspace with the complete schema and PostgreS
     expect(transactions).toBe(1);
   });
   it('returns scoped counts without conflating current bindings and eligible population', async () => {
-    expect(await service().execute({contractVersion:2,operation:'context',year:2026})).toMatchObject({context:{year:2026},counts:{students:255,classes:2,teachers:1,subjects:1,offers:2,currentBindings:254,historicalBindings:2}});
+    expect(await service().execute({contractVersion:2,operation:'context',year:2026})).toMatchObject({context:{year:2026},counts:{students:255,classes:2,teachers:1,subjects:5,offers:6,currentBindings:254,historicalBindings:2}});
     expect(queries).toHaveLength(3);
   });
   it('rejects a non-2026 request before opening a transaction', async () => {
@@ -114,8 +118,8 @@ describe('relational operational workspace with the complete schema and PostgreS
       if (result.state !== 'ready' || result.operation !== 'search') throw new Error('unexpected-result');
       items.push(...result.items);
     }
-    expect(items).toHaveLength(259);
-    expect(new Set(items.map((item)=>`${item.entity.kind}:${item.entity.id}`)).size).toBe(259);
+    expect(items).toHaveLength(263);
+    expect(new Set(items.map((item)=>`${item.entity.kind}:${item.entity.id}`)).size).toBe(263);
     expect(items.filter((item)=>item.entity.id===11).map((item)=>item.entity.kind)).toEqual(['teacher','subject']);
   });
   it('shows current and historical bindings without inventing dates or merging transfers', async () => {
@@ -126,7 +130,9 @@ describe('relational operational workspace with the complete schema and PostgreS
   });
   it('keeps ASSISTIDO in the roster without calculating or fabricating an annual result', async () => {
     const result = await service().execute(center('student',3));
-    expect(result).toMatchObject({center:{bindings:[{status:2,position:'current'}],offers:[{id:10}]}});
+    expect(result).toMatchObject({center:{bindings:[{status:2,position:'current'}]}});
+    if (result.state !== 'ready' || result.operation !== 'center') throw new Error('unexpected-result');
+    expect(result.center.offers.map((offer)=>offer.id)).toEqual([10,11,12,13,14]);
     expect(JSON.stringify(result)).not.toContain('visibleResult');
   });
   it('does not manufacture a current class or offerings for a historical-only student', async () => {
@@ -147,8 +153,15 @@ describe('relational operational workspace with the complete schema and PostgreS
   });
   it.each(['teacher','subject'] as const)('reads the %s center through current offerings', async (kind) => {
     const result = await service().execute(center(kind,11));
-    expect(result).toMatchObject({center:{entity:{kind,id:11},bindings:[],offers:[{id:10},{id:20}],classInfo:null}});
+    expect(result).toMatchObject({center:{entity:{kind,id:11},bindings:[],offers:kind==='teacher'?[{id:10},{id:11},{id:12},{id:13},{id:14},{id:20}]:[{id:10},{id:20}],classInfo:null}});
     expect(queries).toHaveLength(4);
+  });
+  it('presents class offers in the teacher-configuration order instead of alphabetically', async () => {
+    const result = await service().execute(center('class-group',10));
+    if (result.state !== 'ready' || result.operation !== 'center') throw new Error('unexpected-result');
+    expect(result.center.offers.map((offer) => offer.subject.label)).toEqual([
+      'PORTUGUÊS','MATEMÁTICA','HISTÓRIA','GEOGRAFIA','CIÊNCIAS',
+    ]);
   });
   it('returns not-found for an entity from another year without disclosing its facts', async () => {
     expect(await service().execute(center('student',99))).toEqual({contractVersion:2,state:'not-found'});

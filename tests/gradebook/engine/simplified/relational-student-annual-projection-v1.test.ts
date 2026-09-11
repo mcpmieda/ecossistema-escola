@@ -123,6 +123,23 @@ describe('relational student annual projection v1', () => {
     expect(queries[0]).toContain('COALESCE(v.situacao, 0) <> 6');
   });
 
+  it('presents annual components in the teacher-configuration order', async () => {
+    const configured: readonly Row[] = [
+      {oferta_id:51,disciplina_id:5,disciplina_nome:'CIÊNCIAS',professor_id:3,professor_nome:'PROFESSOR A'},
+      {oferta_id:52,disciplina_id:4,disciplina_nome:'GEOGRAFIA',professor_id:3,professor_nome:'PROFESSOR A'},
+      {oferta_id:53,disciplina_id:1,disciplina_nome:'PORTUGUÊS',professor_id:3,professor_nome:'PROFESSOR A'},
+      {oferta_id:54,disciplina_id:3,disciplina_nome:'HISTÓRIA',professor_id:3,professor_nome:'PROFESSOR A'},
+      {oferta_id:55,disciplina_id:2,disciplina_nome:'MATEMÁTICA',professor_id:3,professor_nome:'PROFESSOR A'},
+    ];
+    const result = await createRelationalStudentAnnualProjectionServiceV1(
+      fakeDatabase({base,offers:configured}),
+      {projectOffer:async()=>projection('approved-direct')},
+    ).project({ano:2026,alunoId:9});
+    expect(result.components.map((component)=>component.disciplina)).toEqual([
+      'PORTUGUÊS','MATEMÁTICA','HISTÓRIA','GEOGRAFIA','CIÊNCIAS',
+    ]);
+  });
+
   it('honors terminal enrollment status before any grade projection', async () => {
     const queries: string[] = [];
     let projectionCalls = 0;
