@@ -25,7 +25,7 @@ const reading = z.object({
 }).strict().superRefine((value, ctx) => {
   if ((value.state === 'complete' || value.state === 'partial') !== (value.valueMilli !== null))
     ctx.addIssue({ code: 'custom', message: 'reading value/state mismatch' });
-  if (value.percent !== null && (value.state !== 'complete' || value.maximumMilli === null))
+  if (value.percent !== null && ((value.state !== 'complete' && value.state !== 'partial') || value.maximumMilli === null))
     ctx.addIssue({ code: 'custom', message: 'unavailable reading percentage' });
   if ((value.bucket === 'above' || value.bucket === 'below') && value.percent === null)
     ctx.addIssue({ code: 'custom', message: 'unscaled reading classified' });
@@ -54,6 +54,7 @@ const ready = z.object({
   if (new Set(keys).size !== keys.length || value.rows.length !== value.matrix.rows.length) { fail(); return; }
   if (value.rows.some((row, index) => row.studentId !== value.matrix.rows[index]?.student.id ||
     row.values.length !== keys.length || row.values.some((item, i) => item.key !== keys[i]))) fail();
+  if (value.lens !== 'result' && value.rows.some((row) => row.values.some((item) => item.state === 'partial' && item.percent !== null))) fail();
   if (value.columns.some((item) => !value.matrix.offers.some((offer) => offer.id === item.offerId))) fail();
   if (value.lens === 'assessments') {
     if (value.columns.length > 39 || value.offerId === null || value.columns.some((item) => item.offerId !== value.offerId || item.term === null || item.slot === null ||

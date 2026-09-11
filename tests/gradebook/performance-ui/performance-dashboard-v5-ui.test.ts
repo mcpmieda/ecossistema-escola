@@ -7,6 +7,7 @@ const source = (path: string) => readFileSync(join(process.cwd(), path), 'utf8')
 describe('Performance dashboard V5 HeroUI', () => {
   const page = source('src/features/gradebook/performance/relational-performance-page-v2.tsx');
   const widgets = source('src/features/gradebook/performance/performance-dashboard-widgets-v5.tsx');
+  const analysis = source('src/features/gradebook/performance/performance-analysis-panel-v3.tsx');
   const grid = source('src/features/gradebook/performance/performance-grid-v2.tsx');
   const shell = source('src/platform/gradebook-workspace-shell.tsx');
   const service = source('server/gradebook/application/read-models/performance/performance-dashboard-v5.ts');
@@ -14,6 +15,7 @@ describe('Performance dashboard V5 HeroUI', () => {
   it('uses HeroUI selects and keeps the lens geometry stable while loading', () => {
     expect(page).toContain("Label, ListBox, Select");
     expect(page).toContain('<Select selectedKey=');
+    expect(page).toContain('<Select.Popover isNonModal>');
     expect(page).not.toContain('<select');
     expect(page).toContain('min-h-11');
     expect(page).toContain('min-h-8');
@@ -40,10 +42,13 @@ describe('Performance dashboard V5 HeroUI', () => {
     expect(service).toContain("buckets.every((bucket) => bucket === 'above')");
   });
 
-  it('keeps color-independent labels, keyboard filters and the same matrix investigation', () => {
+  it('keeps color-independent labels and shows both names groups without filtering the matrix', () => {
     expect(widgets).toContain('aria-label={`${title}: ${count} estudante(s)');
     expect(widgets).toContain('aria-pressed={active}');
-    expect(widgets).toContain('onSelectionChange');
+    expect(widgets).toContain("selectedColumn.summary.groups[group.bucket]");
+    expect(widgets).toContain('Notas azuis');
+    expect(widgets).toContain('Notas vermelhas');
+    expect(analysis).toContain("const ids = selection?.kind === 'group'");
     expect(page).toContain('renderResult={(ids)');
   });
 

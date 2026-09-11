@@ -29,7 +29,7 @@ function PerformanceSelect({ label, value, items, disabled = false, onChange }: 
   return <Select selectedKey={value} isDisabled={disabled} onSelectionChange={(key) => { if (key !== null) onChange(String(key)); }}>
     <Label className="mb-1.5 block text-xs font-medium text-muted">{label}</Label>
     <Select.Trigger className="min-h-10 w-full"><Select.Value/><Select.Indicator/></Select.Trigger>
-    <Select.Popover><ListBox>{items.map((item) => <ListBox.Item key={item.id} id={item.id} textValue={item.label}>{item.label}<ListBox.ItemIndicator/></ListBox.Item>)}</ListBox></Select.Popover>
+    <Select.Popover isNonModal><ListBox>{items.map((item) => <ListBox.Item key={item.id} id={item.id} textValue={item.label}>{item.label}<ListBox.ItemIndicator/></ListBox.Item>)}</ListBox></Select.Popover>
   </Select>;
 }
 

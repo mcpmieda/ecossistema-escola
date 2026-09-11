@@ -17,8 +17,11 @@ const offering = { id: 10, subject: { id: 1, label: 'MATEMATICA SINTETICA' }, te
 const cell = { offerId: 10, valueMilli: 24000, maximumMilli: 30000, state: 'complete', level: 'at-or-above', sourceReferenceMilli: 24000, sourceComparison: 'match', recoveryApplicable: false, warningCodes: [] };
 const student = { id: 1, name: 'ALUNO SINTETICO', number: 1, status: null, statusLabel: 'Sem situação especial', indicatorEligible: true };
 const row = { student, calculatedAnnual: { state: 'in-progress', label: 'EM CURSO', councilEligibility: 'not-applicable' }, formalCouncilDecision: null, cells: [cell] };
+const belowCell = { ...cell, valueMilli: 12000, level: 'below', sourceReferenceMilli: 12000 };
+const belowStudent = { ...student, id: 2, name: 'OUTRO ALUNO SINTETICO', number: 2 };
+const belowRow = { ...row, student: belowStudent, cells: [belowCell] };
 const selected = { classGroup: { id: 10, label: 'A1' }, period: 1, mode: 'regular' };
-const matrix = { ...common, ...selected, operation: 'matrix', offers: [offering], rows: [row], comparison: { available: false, reason: 'comparability-not-contracted' }, statistics: { classRows: 1, visibleRows: 1, eligibleRows: 1, recoveryUnknownRows: 0, consideredCells: 1, completeCells: 1, noShowCells: 0, incompleteCells: 0, attentionRows: 0 } };
+const matrix = { ...common, ...selected, operation: 'matrix', offers: [offering], rows: [row, belowRow], comparison: { available: false, reason: 'comparability-not-contracted' }, statistics: { classRows: 2, visibleRows: 2, eligibleRows: 2, recoveryUnknownRows: 0, consideredCells: 2, completeCells: 2, noShowCells: 0, incompleteCells: 0, attentionRows: 1 } };
 const request: PerformanceRequestV2 = { transportVersion: 2, operation: 'matrix', year: 2026, classId: 10, period: 1, mode: 'regular', statuses: [null, 7] };
 const catalog = { ...common, operation: 'classes', statusOptions: [{ value: null, label: 'Sem situação especial' }, { value: 7, label: 'Estava no' }], classes: [{ id: 10, label: 'A1' }], nextOffset: null };
 let root: Root | null = null;
@@ -188,19 +191,23 @@ function analysisFixture(extra: Record<string, unknown> = {}) {
   const base = performanceResponseSchemaV2.parse({ ...matrix, context: { ...context, year: request.year }, period: request.period, mode: request.mode });
   if (base.state !== 'ready' || base.operation !== 'matrix') throw new Error('invalid-synthetic-base');
   const facts = ([1,2,3] as const).flatMap((term) => ([1,2,11] as const).map((slot) => ({term, slot, label: `ATIVIDADE SINTETICA ${slot}`, maximumMilli: slot === 11 ? (term === 3 ? 22000 : 16500) : (term === 3 ? 9000 : 6750), valueMilli: slot === 11 ? 12000 : 6000})));
-  return buildPerformanceAnalysisV3(base, new Map([[1, [projectPerformanceFactsV2(10, facts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]]]), request);
+  const belowFacts = facts.map((fact) => ({ ...fact, valueMilli: fact.slot === 11 ? 4000 : 2000 }));
+  return buildPerformanceAnalysisV3(base, new Map([
+    [1, [projectPerformanceFactsV2(10, facts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]],
+    [2, [projectPerformanceFactsV2(10, belowFacts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]],
+  ]), request);
 }
 
 function comparisonFixture(extra: Record<string, unknown> = {}) {
   const analysis = analysisFixture({ year: extra.year, classId: extra.classId, period: extra.period, mode: extra.mode,
     statuses: extra.statuses, lens: extra.lens, offerId: null });
-  const studentId = analysis.rows[0]!.studentId;
+  const studentIds = analysis.rows.map((row) => row.studentId);
   return performanceTermComparisonResponseSchemaV4.parse({
     transportVersion: 4, operation: 'term-comparison', state: 'ready', authority: 'descriptive-observation',
     basis: 'percentage-points-of-official-maximum', referencePeriod: extra.referencePeriod,
     analysis,
     columns: analysis.columns.map((column) => ({ key: column.key, offerId: column.offerId, label: column.label,
-      summary: { comparable: 1, unavailable: 0, groups: { higher: [studentId], equal: [], lower: [], unavailable: [] } } })),
+      summary: { comparable: studentIds.length, unavailable: 0, groups: { higher: studentIds, equal: [], lower: [], unavailable: [] } } })),
     rows: analysis.rows.map((row) => ({ studentId: row.studentId, values: row.values.map((value) => ({ key: value.key,
       state: 'comparable', currentPercent: value.percent, referencePercent: value.percent! - 10,
       deltaPercentagePoints: 10, relation: 'higher', reason: null })) })),
@@ -256,15 +263,23 @@ describe('four lenses and analytical investigation V3', () => {
     expect(requests.filter((r) => r.operation === 'dashboard')).toHaveLength(5);
     expect(selectRoot('Componente das avaliações')).toBeNull();
   });
-  it('filters the matrix through a chart, opens denominators and clears without SQL', async () => {
+  it('shows both component groups inside the chart without filtering the matrix', async () => {
     await loaded();
     const bar = host.querySelector('button[aria-label="MATEMATICA SINTETICA: 1 estudante(s) no mínimo ou acima"]') as HTMLButtonElement;
     expect(bar).not.toBeNull();
     await act(async () => { bar.click(); }); await settle();
-    expect(host.textContent).toContain('Investigando: MATEMATICA SINTETICA');
+    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')?.textContent).toContain(student.name);
+    expect(host.querySelector('[aria-label="Notas vermelhas: 1 estudante(s)"]')?.textContent).toContain(belowStudent.name);
+    expect(host.querySelector('[aria-label="Matriz de Desempenho"]')?.textContent).toContain(student.name);
+    expect(host.querySelector('[aria-label="Matriz de Desempenho"]')?.textContent).toContain(belowStudent.name);
+    expect(host.textContent).toContain('a matriz permanece completa');
+    const redBar = host.querySelector('button[aria-label="MATEMATICA SINTETICA: 1 estudante(s) abaixo do mínimo"]') as HTMLButtonElement;
+    await act(async () => { redBar.click(); }); await settle();
+    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')?.textContent).toContain(student.name);
+    expect(host.querySelector('[aria-label="Notas vermelhas: 1 estudante(s)"]')?.textContent).toContain(belowStudent.name);
     await click('Ver estatísticas'); expect(host.textContent).toContain('Mediana proporcional');
-    await click('Limpar filtro');
-    expect(host.textContent).not.toContain('Investigando: MATEMATICA SINTETICA');
+    await click('Fechar detalhe');
+    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')).toBeNull();
     expect(requests.filter((r) => r.operation === 'dashboard')).toHaveLength(1);
   });
   it('discards a late quantitative response after the user selects qualitative', async () => {

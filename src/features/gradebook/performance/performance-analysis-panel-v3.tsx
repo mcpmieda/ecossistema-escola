@@ -20,21 +20,21 @@ export function PerformanceAnalysisPanelV3({ value, dashboard, open, renderResul
   const [selection, setSelection] = useState<PerformanceDashboardSelectionV5>(null);
   const [expanded, setExpanded] = useState(false);
   const column = selection?.kind === 'column' ? value.columns.find((item) => item.key === selection.key) : null;
-  const ids = selection?.kind === 'column' ? new Set(column?.summary.groups[selection.bucket] ?? []) :
-    selection?.kind === 'group' ? new Set(dashboard.overview.groups[selection.group]) : null;
+  const ids = selection?.kind === 'group' ? new Set(dashboard.overview.groups[selection.group]) : null;
   const rows = value.rows.filter((row) => ids === null || ids.has(row.studentId));
   const students = new Map(value.matrix.rows.map((row) => [row.student.id, row.student]));
   const offers = new Map(value.matrix.offers.map((offer) => [offer.id, offer]));
-  const selectionLabel = selection?.kind === 'column' ? `${column?.label ?? 'Componente'} · ${selection.bucket === 'above' ? 'no mínimo ou acima' : 'abaixo do mínimo'}` :
-    selection?.kind === 'group' ? { allAtOrAbove: 'todos os componentes no mínimo ou acima', withBelow: 'algum componente abaixo do mínimo', pending: 'ainda sem classificação integral' }[selection.group] : null;
+  const selectionLabel = selection?.kind === 'group' ? { allAtOrAbove: 'todos os componentes no mínimo ou acima', withBelow: 'algum componente abaixo do mínimo', pending: 'ainda sem classificação integral' }[selection.group] : null;
   return <>
     <PerformanceDashboardWidgetsV5 value={dashboard} selection={selection} onSelectionChange={setSelection} open={open}/>
     {value.lens !== 'result' && value.matrix.mode === 'recovery' ? <p role="status" className="text-xs text-muted">Composição regular dos alunos em recuperação. A nota de REC está em Resultado.</p> : null}
     <div className="flex min-h-9 flex-wrap items-center gap-2 text-sm" role="status">
-      {selectionLabel ? <>Investigando: <strong>{selectionLabel}</strong> · {rows.length} estudante(s)<Button size="sm" variant="ghost" onPress={() => setSelection(null)}>Limpar filtro</Button></> : <span className="text-xs text-muted">Selecione uma barra, faixa do donut ou indicador para filtrar a mesma matriz.</span>}
+      {selection?.kind === 'column' ? <>Detalhe de <strong>{column?.label ?? 'componente'}</strong> exibido no gráfico; a matriz permanece completa.<Button size="sm" variant="ghost" onPress={() => setSelection(null)}>Fechar detalhe</Button></> :
+        selectionLabel ? <>Investigando: <strong>{selectionLabel}</strong> · {rows.length} estudante(s)<Button size="sm" variant="ghost" onPress={() => setSelection(null)}>Limpar filtro</Button></> :
+        <span className="text-xs text-muted">Selecione uma barra para ver os dois grupos no gráfico. Indicadores e faixas do panorama filtram a matriz.</span>}
       <Button size="sm" variant="ghost" className="ml-auto" onPress={() => setExpanded((current) => !current)} aria-expanded={expanded}>{expanded ? 'Ocultar estatísticas' : 'Ver estatísticas'}</Button>
     </div>
-    {expanded ? <div className="overflow-x-auto rounded-xl border border-separator bg-surface p-2"><table className="w-full text-left text-xs"><caption className="mb-2 text-left text-muted">Leituras completas com máximo conhecido.</caption><thead><tr><th className="p-2">Componente / avaliação</th><th className="p-2">População considerada</th><th className="p-2">Com percentual</th><th className="p-2">Média proporcional</th><th className="p-2">Mediana proporcional</th></tr></thead><tbody>{value.columns.map((item) => <tr key={item.key} className="border-t border-separator"><th className="p-2 font-normal">{item.label}</th><td className="p-2">{item.summary.considered}</td><td className="p-2">{item.summary.scaled}</td><td className="p-2">{percent(item.summary.meanPercent)}</td><td className="p-2">{percent(item.summary.medianPercent)}</td></tr>)}</tbody></table></div> : null}
+    {expanded ? <div className="overflow-x-auto rounded-xl border border-separator bg-surface p-2"><table className="w-full text-left text-xs"><caption className="mb-2 text-left text-muted">Leituras classificadas com máximo conhecido; Resultado admite soma numérica parcial.</caption><thead><tr><th className="p-2">Componente / avaliação</th><th className="p-2">População considerada</th><th className="p-2">Com percentual</th><th className="p-2">Média proporcional</th><th className="p-2">Mediana proporcional</th></tr></thead><tbody>{value.columns.map((item) => <tr key={item.key} className="border-t border-separator"><th className="p-2 font-normal">{item.label}</th><td className="p-2">{item.summary.considered}</td><td className="p-2">{item.summary.scaled}</td><td className="p-2">{percent(item.summary.meanPercent)}</td><td className="p-2">{percent(item.summary.medianPercent)}</td></tr>)}</tbody></table></div> : null}
     {value.lens === 'result' ? renderResult(ids) : <PerformanceGridV2 label="Matriz da lente" open={open} focusOffer={focusOffer}
       columns={value.columns.map((item) => ({ key: item.key, label: value.lens === 'assessments' ? item.label : subjectText(offers.get(item.offerId)!), title: item.label, offerId: item.offerId }))}
       rows={rows.map((row) => ({ student: students.get(row.studentId)!, values: row.values.map((reading) => <span key={reading.key} className="inline-flex flex-col items-center gap-0.5">
