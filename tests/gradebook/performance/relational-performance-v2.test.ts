@@ -284,6 +284,8 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
     expect(at(3)).toMatchObject({ state: 'partial', valueMilli: 2000, maximumMilli: 30000, bucket: 'below' });
     expect(at(3).percent).toBeCloseTo(2000 / 30000 * 100);
     expect(at(5)).toMatchObject({ state: 'not-recorded', valueMilli: null, percent: null, bucket: 'incomplete' });
+    const third = await analysis({ lens: 'result', period: 3 });
+    expect(third.rows.find((row) => row.studentId === 1)!.values[0]).toMatchObject({ valueMilli: 24000, maximumMilli: 40000, percent: 60, bucket: 'above' });
   });
   it.each([1,2,3,'annual'])('uses actual qualitative maxima in period %s, not a fabricated concept', async (period) => {
     const result = await analysis({ lens: 'qualitative', period });

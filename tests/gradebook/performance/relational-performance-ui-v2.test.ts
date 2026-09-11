@@ -273,6 +273,10 @@ describe('four lenses and analytical investigation V3', () => {
     expect(host.querySelector('[aria-label="Matriz de Desempenho"]')?.textContent).toContain(student.name);
     expect(host.querySelector('[aria-label="Matriz de Desempenho"]')?.textContent).toContain(belowStudent.name);
     expect(host.textContent).toContain('a matriz permanece completa');
+    const redBar = host.querySelector('button[aria-label="MATEMATICA SINTETICA: 1 estudante(s) abaixo do mínimo"]') as HTMLButtonElement;
+    await act(async () => { redBar.click(); }); await settle();
+    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')?.textContent).toContain(student.name);
+    expect(host.querySelector('[aria-label="Notas vermelhas: 1 estudante(s)"]')?.textContent).toContain(belowStudent.name);
     await click('Ver estatísticas'); expect(host.textContent).toContain('Mediana proporcional');
     await click('Fechar detalhe');
     expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')).toBeNull();
