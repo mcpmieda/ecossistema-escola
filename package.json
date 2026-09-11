@@ -8,6 +8,7 @@
     "build": "tsc -b tsconfig.app.json tsconfig.server.json && vite build",
     "test": "vitest run",
     "test:gradebook-readiness": "vitest run tests/gradebook/readiness",
+    "gradebook:restore-rehearsal": "node --experimental-strip-types server/gradebook/recovery/run-logical-backup-recovery-v2.ts",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
