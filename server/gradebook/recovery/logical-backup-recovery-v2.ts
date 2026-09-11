@@ -145,6 +145,12 @@ function fail(code: string): never {
   throw new LogicalBackupRecoveryErrorV2(code);
 }
 
+function sqlStateSuffix(cause: unknown): string {
+  if (!record(cause)) return '';
+  const code = cause.code;
+  return typeof code === 'string' && /^[0-9A-Z]{5}$/u.test(code) ? `-${code.toLowerCase()}` : '';
+}
+
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -155,7 +161,8 @@ function safeInteger(value: unknown): value is number {
 
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
   const actual = Object.keys(value).sort();
-  return actual.length === expected.length && actual.every((key, index) => key === [...expected].sort()[index]);
+  const sortedExpected = [...expected].sort();
+  return actual.length === sortedExpected.length && actual.every((key, index) => key === sortedExpected[index]);
 }
 
 function hasExactNames(actual: readonly string[], expected: readonly string[]): boolean {
@@ -295,7 +302,11 @@ export async function applyRecoverySchemaV2(sql: RecoveryQueryV2, repositoryRoot
   await provisionLocalApplicationRoleV2(sql);
   for (const file of RECOVERY_SCHEMA_PLAN_V2) {
     const migration = await readFile(`${repositoryRoot}/migrations/gradebook-simplified/${file}`, 'utf8');
-    await sql.unsafe(migration);
+    try {
+      await sql.unsafe(migration);
+    } catch (cause) {
+      fail(`recovery-schema-${file.replace(/\.sql$/u, '').replace(/_/gu, '-')}-failed${sqlStateSuffix(cause)}`);
+    }
   }
 }
 
@@ -319,7 +330,7 @@ async function insertRowsV2(sql: RecoveryQueryV2, table: LogicalBackupTableV2, t
   const identifier = `gradebook.${quotedIdentifier(table)}`;
   for (let offset = 0; offset < tableRows.length; offset += 1_000) {
     const chunk = tableRows.slice(offset, offset + 1_000);
-    await sql.unsafe(`INSERT INTO ${identifier} SELECT * FROM json_populate_recordset(NULL::${identifier}, $1::json)`, [JSON.stringify(chunk)]);
+    await sql.unsafe(`INSERT INTO ${identifier} SELECT * FROM json_populate_recordset(NULL::${identifier}, $1::json)`, [chunk]);
   }
 }
 
@@ -343,27 +354,37 @@ async function restoreCouncilSessionClosurePointersV2(sql: RecoveryQueryV2, tabl
   if (pointers.length === 0) return;
   await sql.unsafe(`UPDATE gradebook.conselho_sessao s SET fechamento_atual_id=p.fechamento_atual_id
     FROM json_to_recordset($1::json) AS p(ano smallint,turma_id integer,fechamento_atual_id bigint)
-    WHERE s.ano=p.ano AND s.turma_id=p.turma_id`, [JSON.stringify(pointers)]);
+    WHERE s.ano=p.ano AND s.turma_id=p.turma_id`, [pointers]);
 }
 
 export async function restoreLogicalBackupV2(sql: RecoveryDatabaseV2, backup: LogicalBackupV2): Promise<void> {
   await sql.begin(async (transaction) => {
     await transaction.unsafe('SET CONSTRAINTS ALL DEFERRED');
     for (const table of LOGICAL_BACKUP_TABLE_ORDER_V2) {
-      let tableRows = backup.tables[table];
-      if (table === 'conselho_sessao') {
-        tableRows = tableRows.map((row) => ({...row, fechamento_atual_id: null}));
-      }
-      if (table === 'aluno') {
-        await transaction.unsafe('ALTER TABLE gradebook.aluno DISABLE TRIGGER aluno_preparar_conselho_anterior_trg');
-        await insertRowsV2(transaction, table, tableRows);
-        await transaction.unsafe('ALTER TABLE gradebook.aluno ENABLE TRIGGER aluno_preparar_conselho_anterior_trg');
-      } else {
-        await insertRowsV2(transaction, table, tableRows);
+      try {
+        let tableRows = backup.tables[table];
+        if (table === 'conselho_sessao') {
+          tableRows = tableRows.map((row) => ({...row, fechamento_atual_id: null}));
+        }
+        if (table === 'aluno') {
+          await transaction.unsafe('ALTER TABLE gradebook.aluno DISABLE TRIGGER aluno_preparar_conselho_anterior_trg');
+          await insertRowsV2(transaction, table, tableRows);
+          await transaction.unsafe('ALTER TABLE gradebook.aluno ENABLE TRIGGER aluno_preparar_conselho_anterior_trg');
+        } else {
+          await insertRowsV2(transaction, table, tableRows);
+        }
+      } catch (cause) {
+        if (cause instanceof LogicalBackupRecoveryErrorV2) throw cause;
+        fail(`recovery-restore-${table.replace(/_/gu, '-')}-failed${sqlStateSuffix(cause)}`);
       }
     }
-    await restoreCouncilSessionClosurePointersV2(transaction, backup.tables.conselho_sessao);
-    await restoreSequencesV2(transaction, backup.sequences);
+    try {
+      await restoreCouncilSessionClosurePointersV2(transaction, backup.tables.conselho_sessao);
+      await restoreSequencesV2(transaction, backup.sequences);
+    } catch (cause) {
+      if (cause instanceof LogicalBackupRecoveryErrorV2) throw cause;
+      fail(`recovery-restore-finalization-failed${sqlStateSuffix(cause)}`);
+    }
   });
 }
 
@@ -399,7 +420,7 @@ async function currentCatalogV2(sql: RecoveryQueryV2): Promise<RecoveryReportV2[
     (SELECT count(*)::integer FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='gradebook' AND c.contype<>'n') AS constraints,
     (SELECT count(*)::integer FROM pg_indexes WHERE schemaname='gradebook') AS indexes,
     (SELECT count(*)::integer FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='gradebook' AND c.contype='f') AS foreign_keys,
-    (SELECT count(*)::integer FROM information_schema.sequences WHERE sequence_schema='gradebook') AS sequences,
+    (SELECT count(*)::integer FROM pg_sequences WHERE schemaname='gradebook') AS sequences,
     (SELECT count(*)::integer FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='gradebook') AS functions,
     (SELECT count(*)::integer FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname='gradebook' AND NOT t.tgisinternal) AS triggers`);
   const row = result[0];

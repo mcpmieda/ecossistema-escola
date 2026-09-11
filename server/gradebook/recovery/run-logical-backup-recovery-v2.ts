@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import {
   applyRecoverySchemaV2,
   assertDisposableRecoveryTargetV2,
+  LogicalBackupRecoveryErrorV2,
   readLogicalBackupV2,
   repositoryRootForRecoveryV2,
   restoreLogicalBackupV2,
@@ -14,7 +15,7 @@ import {
 function backupArgument(): string {
   const index = process.argv.indexOf('--backup');
   const value = index >= 0 ? process.argv[index + 1] : undefined;
-  if (!value || value.startsWith('--')) throw new Error('recovery-backup-argument-missing');
+  if (!value || value.startsWith('--')) throw new LogicalBackupRecoveryErrorV2('recovery-backup-argument-missing');
   return resolve(value);
 }
 
@@ -24,7 +25,7 @@ async function run(): Promise<void> {
     const input = await readLogicalBackupV2(backupArgument());
     const postgresModule = await import('postgres');
     const sql = postgresModule.default(target.connectionString, {
-      max: 4,
+      max: 1,
       prepare: true,
       ssl: false,
       connect_timeout: 10,
