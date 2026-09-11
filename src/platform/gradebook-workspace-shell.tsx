@@ -96,8 +96,8 @@ const BulletinPage = lazy(async () => {
 });
 
 const InstitutionalReportsPage = lazy(async () => {
-  const module = await import('../features/gradebook/reports/institutional-reports-page');
-  return { default: module.GradebookInstitutionalReportsPage };
+  const module = await import('../features/gradebook/reports/relational-institutional-reports-page-v2');
+  return { default: module.GradebookRelationalInstitutionalReportsPage };
 });
 
 const CouncilWorkspaceSurface = lazy(async () => {
