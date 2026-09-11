@@ -53,12 +53,12 @@ type PerformanceReady = Extract<RelationalInstitutionalReportResponseV2, { opera
 type CouncilReady = Extract<RelationalInstitutionalReportResponseV2, { operation: 'council'; state: 'ready' }>;
 
 const ALL_STATUSES = [null, 1, 2, 3, 4, 5, 7] as const;
-const FAMILY_OPTIONS: readonly { id: RelationalInstitutionalReportFamilyV2; label: string; description: string }[] = [
-  { id: 'class-results', label: 'Resultados', description: 'Resultados por aluno e componente' },
-  { id: 'composition', label: 'Composição', description: 'Quantitativo e qualitativo' },
-  { id: 'recovery', label: 'Recuperação', description: 'Leitura da recuperação final' },
-  { id: 'council', label: 'Conselho', description: 'Decisões e sessão da turma' },
-  { id: 'audit', label: 'Auditoria', description: 'Erros e avisos de importação' },
+const FAMILY_OPTIONS: readonly { id: RelationalInstitutionalReportFamilyV2; label: string }[] = [
+  { id: 'class-results', label: 'Resultados por turma' },
+  { id: 'composition', label: 'Composição quantitativa e qualitativa' },
+  { id: 'recovery', label: 'Recuperação final' },
+  { id: 'council', label: 'Conselho de Classe' },
+  { id: 'audit', label: 'Auditoria de importação' },
 ];
 const LENS_OPTIONS: readonly { id: Lens; label: string }[] = [
   { id: 'result', label: 'Resultado' },
@@ -90,7 +90,7 @@ function SelectControl({
 }: {
   readonly label: string;
   readonly value: string;
-  readonly items: readonly { readonly id: string; readonly label: string; readonly description?: string }[];
+  readonly items: readonly { readonly id: string; readonly label: string }[];
   readonly disabled?: boolean;
   readonly onChange: (value: string) => void;
 }) {
@@ -106,10 +106,7 @@ function SelectControl({
         <ListBox>
           {items.map((item) => (
             <ListBox.Item key={item.id} id={item.id} textValue={item.label}>
-              <div className="min-w-0">
-                <span className="block font-medium">{item.label}</span>
-                {item.description && <span className="block text-xs text-muted">{item.description}</span>}
-              </div>
+              <span className="block min-w-0 truncate font-medium">{item.label}</span>
               <ListBox.ItemIndicator />
             </ListBox.Item>
           ))}
@@ -311,7 +308,7 @@ export function RelationalInstitutionalReportsPageV2() {
     if (period === 'annual' || period === 1 || (referenceTerm !== null && referenceTerm >= period)) setReferenceTerm(null);
   }, [period, referenceTerm]);
 
-  const classOptions = useMemo(() => classes.map((item) => ({ id: String(item.id), label: item.code, description: item.name })), [classes]);
+  const classOptions = useMemo(() => classes.map((item) => ({ id: String(item.id), label: `${item.code} · ${item.name}` })), [classes]);
   const referenceOptions = useMemo(() => {
     const options: { id: string; label: string }[] = [{ id: 'none', label: 'Sem comparação' }];
     if (period !== 'annual' && period >= 2) options.push({ id: '1', label: 'Comparar com 1º trimestre' });
