@@ -106,6 +106,10 @@ function isNcText(value: unknown): boolean {
   return typeof value === 'string' && value.trim().toUpperCase().replaceAll('/', '') === 'NC';
 }
 
+function isRrText(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().toUpperCase().replaceAll('/', '') === 'RR';
+}
+
 function hasExactThousandths(value: number): boolean {
   const scaled = value * 1000;
   return Number.isSafeInteger(Math.round(scaled)) && Math.abs(scaled - Math.round(scaled)) <= 1e-7;
@@ -129,7 +133,7 @@ function inspectCell(input: {
   readonly fieldLabel: string;
   readonly slot?: number;
   readonly maximum?: number | null;
-  readonly allowNc?: boolean;
+  readonly allowRecoveryMarkers?: boolean;
   readonly observation?: GradebookImportResultCellObservationV4;
 }): readonly GradebookImportDiagnosticV1[] {
   const raw = snapshot(input.sheet, input.address);
@@ -164,7 +168,7 @@ function inspectCell(input: {
   }
 
   if (raw === undefined || raw === null || raw === '') return [];
-  if (input.allowNc && isNcText(raw)) return [];
+  if (input.allowRecoveryMarkers && (isNcText(raw) || isRrText(raw))) return [];
 
   const numeric = numericValue(raw);
   if (numeric === null) {
@@ -238,7 +242,8 @@ function inspectCell(input: {
 function maximumMilli(sheet: GradeSheetRecognition, sourceSlot: string): number | null {
   const definition = sheet.assessmentDefinitions.find((value) => value.sourceSlot === sourceSlot);
   const configuration = definition?.maximumConfiguration;
-  if (!configuration || configuration.state !== 'numeric' || configuration.rawValue <= 0) return null;
+  if (!configuration || configuration.state !== 'numeric' || configuration.rawValue <= 0)
+    return null;
   return Math.round(configuration.rawValue * 1000);
 }
 
@@ -318,7 +323,9 @@ function inspectDuplicateStudentNumbers(
   return result;
 }
 
-function inspectTrimesterSheet(sheet: GradeSheetRecognition): readonly GradebookImportDiagnosticV1[] {
+function inspectTrimesterSheet(
+  sheet: GradeSheetRecognition,
+): readonly GradebookImportDiagnosticV1[] {
   const diagnostics: GradebookImportDiagnosticV1[] = [
     ...inspectRequiredMaximum(sheet, 'R', 'Avaliação quantitativa 1'),
     ...inspectRequiredMaximum(sheet, 'S', 'Avaliação quantitativa 2'),
@@ -383,7 +390,9 @@ function inspectTrimesterSheet(sheet: GradeSheetRecognition): readonly Gradebook
   return diagnostics;
 }
 
-function inspectRecoverySheet(sheet: GradeSheetRecognition): readonly GradebookImportDiagnosticV1[] {
+function inspectRecoverySheet(
+  sheet: GradeSheetRecognition,
+): readonly GradebookImportDiagnosticV1[] {
   const diagnostics: GradebookImportDiagnosticV1[] = [...inspectDuplicateStudentNumbers(sheet)];
   for (const student of sheet.students) {
     const observations = student.recovery?.resultObservations;
@@ -393,25 +402,25 @@ function inspectRecoverySheet(sheet: GradeSheetRecognition): readonly GradebookI
         column: 'R',
         label: 'Recuperação do 1º trimestre',
         observation: observations.trimester1,
-        allowNc: true,
+        allowRecoveryMarkers: true,
       },
       {
         column: 'S',
         label: 'Recuperação do 2º trimestre',
         observation: observations.trimester2,
-        allowNc: true,
+        allowRecoveryMarkers: true,
       },
       {
         column: 'T',
         label: 'Recuperação do 3º trimestre',
         observation: observations.trimester3,
-        allowNc: true,
+        allowRecoveryMarkers: true,
       },
       {
         column: 'U',
         label: 'Resultado anual após recuperação',
         observation: observations.totalAfterRecovery,
-        allowNc: false,
+        allowRecoveryMarkers: false,
       },
     ] as const;
     for (const field of fields) {
@@ -422,7 +431,7 @@ function inspectRecoverySheet(sheet: GradeSheetRecognition): readonly GradebookI
           address: `${field.column}${student.row}`,
           fieldKind: 'recovery',
           fieldLabel: field.label,
-          allowNc: field.allowNc,
+          allowRecoveryMarkers: field.allowRecoveryMarkers,
           observation: field.observation,
         }),
       );

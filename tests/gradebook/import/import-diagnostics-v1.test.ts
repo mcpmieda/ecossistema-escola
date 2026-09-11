@@ -154,6 +154,42 @@ function syntheticResult(): BatchSuccess {
   } as unknown as BatchSuccess;
 }
 
+function syntheticRecoveryResult(): BatchSuccess {
+  const source = syntheticResult();
+  const term = source.summary.gradeSheets[0]!;
+  const observation = (rawValue: string) => ({ classification: 'invalid-text' as const, rawValue });
+  return {
+    ...source,
+    summary: {
+      ...source.summary,
+      gradeSheets: [
+        {
+          ...term,
+          name: '7DREC',
+          stage: 'recovery',
+          declaredStage: 'REC',
+          assessmentDefinitions: [],
+          snapshotCellsV8: { R21: 'R/R', S21: 'nc', T21: 'OUTRO', U21: 'R/R' },
+          students: [
+            {
+              ...term.students[0]!,
+              termResultObservations: null,
+              recovery: {
+                resultObservations: {
+                  trimester1: observation('R/R'),
+                  trimester2: observation('nc'),
+                  trimester3: observation('OUTRO'),
+                  totalAfterRecovery: observation('R/R'),
+                },
+              },
+            },
+          ],
+        },
+      ],
+    },
+  } as unknown as BatchSuccess;
+}
+
 describe('import diagnostics v1', () => {
   it('presents blocking invalid text by student, class, period and activity', () => {
     const diagnostics = collectGradebookImportDiagnosticsV1(syntheticResult());
@@ -175,6 +211,15 @@ describe('import diagnostics v1', () => {
       cellAddress: 'AD21',
     });
     expect(blockingGradebookImportDiagnosticsV1(diagnostics)).toContain(invalidText);
+  });
+
+  it('accepts R/R and N/C only in the three recovery fields', () => {
+    const invalid = collectGradebookImportDiagnosticsV1(syntheticRecoveryResult()).filter(
+      (value) => value.code === 'invalid-text',
+    );
+
+    expect(invalid.map((value) => value.cellAddress)).toEqual(['T21', 'U21']);
+    expect(invalid.map((value) => value.foundValue)).toEqual(['OUTRO', 'R/R']);
   });
 
   it('details unavailable source values even when a formula has no cached snapshot', () => {
