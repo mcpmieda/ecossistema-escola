@@ -37,6 +37,9 @@ import type {
   CouncilWorkspaceV1,
 } from '../application/council/council-workspace-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../persistence/d1/runtime/d1-runtime-authorization-v1';
+import { relationalCouncilRequestSchemaV3 } from '../../../shared/gradebook-contracts/council/relational-council-v3';
+import { createRelationalCouncilV3 } from '../application/council/relational-council-v3';
+import type { D1WriteDatabaseV1 } from '../persistence/d1/write/d1-write-adapter-v1';
 
 export const GRADEBOOK_COUNCIL_WORKSPACE_ROUTE_V1 = '/api/gradebook/council-workspace';
 
@@ -172,6 +175,32 @@ export function createCouncilWorkspaceRequestHandlerV1(
       payload = await readBoundedJson(request, 16_384);
     } catch (cause) {
       return unavailable(cause instanceof HttpError ? cause.status : 400);
+    }
+
+    if (isRecord(payload) && payload.contractVersion === 3) {
+      const parsed = relationalCouncilRequestSchemaV3.safeParse(payload);
+      if (!parsed.success) return noStoreJson({ contractVersion: 3, state: 'invalid-request' }, 400);
+      const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
+      if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' ||
+          !['production', 'local', 'preview'].includes(environment) ||
+          (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') ||
+          !env.GRADEBOOK_D1) {
+        return noStoreJson({ contractVersion: 3, state: 'unavailable' }, 503);
+      }
+      try {
+        const response = await createRelationalCouncilV3(
+          env.GRADEBOOK_D1 as D1WriteDatabaseV1,
+          session.oid,
+        ).execute(parsed.data);
+        const status = response.state === 'ready' ? 200
+          : response.state === 'not-found' ? 404
+            : response.state === 'invalid-request' ? 400
+              : response.state === 'scope-too-large' || response.state === 'closure-blocked' || response.state === 'student-not-eligible' ? 422
+                : response.state === 'unavailable' ? 503 : 409;
+        return noStoreJson(response, status);
+      } catch {
+        return noStoreJson({ contractVersion: 3, state: 'unavailable' }, 503);
+      }
     }
 
     const operation = operationFromPayload(payload);
