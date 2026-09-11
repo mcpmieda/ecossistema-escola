@@ -159,7 +159,7 @@ work_in_progress:
   parent_issues: [633, 406, 596]
   phase: FINAL-1-4-operational-gate
   branch: test/bn-relational-recovery-contention-662
-  pull_request: null
+  pull_request: 663
   scope: disposable-logical-restore-service-smoke-real-postgres-contention
   production_activation_in_this_delivery: false
   production_schema_extension_in_this_delivery: none

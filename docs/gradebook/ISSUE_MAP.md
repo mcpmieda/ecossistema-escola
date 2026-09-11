@@ -13,7 +13,7 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Relatórios relacionais V2  | #656 / PR #657 | integrado/publicado no deploy 264; CI e smoke autenticado somente leitura verdes                   |
 | Auditoria relacional atual | #658 / PR #659 | integrada/publicada no deploy 265; smoke autenticado somente leitura verde                         |
 | Configuração docente       | #660 / PR #661 | integrada/publicada no deploy 266; CI e smoke autenticado somente leitura verdes                   |
-| Recuperação/contenção      | #662           | restore lógico e disputa PostgreSQL local comprovados; integração em execução                      |
+| Recuperação/contenção      | #662 / PR #663 | restore lógico e disputa PostgreSQL local comprovados; integração em execução                      |
 | FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
 | FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
 | Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |
