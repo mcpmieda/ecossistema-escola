@@ -37,8 +37,9 @@ import { IMPORT_BATCH_STATUSES_V1 } from '../../../../shared/gradebook-contracts
 import type { ImportBatchId } from '../../../../shared/gradebook-contracts/imports/import-ids-v1';
 import {
   OPERATIONAL_WORKSPACE_CONTRACT_VERSION_V1,
-  type OperationalWorkspaceAcademicYearOptionV1,
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-contract-v1';
+import { resolveLegacyAcademicYear } from '../../../platform/gradebook-legacy-year';
+import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { requestOperationalWorkspaceV1 } from '../operational-workspace/operational-workspace-client';
 import {
   AuditWorkspaceClientErrorV1,
@@ -1000,9 +1001,9 @@ function DetailCard({
 }
 
 export function AuditWorkspacePage() {
+  const globalYear = useGradebookYear()?.year ?? null;
   const [activated, setActivated] = useState(false);
   const [workspaceState, setWorkspaceState] = useState<ViewState>('idle');
-  const [years, setYears] = useState<readonly OperationalWorkspaceAcademicYearOptionV1[]>([]);
   const [selectedYear, setSelectedYear] = useState<AcademicYearId | null>(null);
   const [collection, setCollection] = useState<AuditWorkspaceCollectionV1>('import-batches');
   const [draft, setDraft] = useState<FilterDraft>(EMPTY_DRAFT);
@@ -1046,14 +1047,16 @@ export function AuditWorkspacePage() {
         operation: 'bootstrap',
       });
       if (response.state === 'ready' && 'availableAcademicYears' in response) {
-        setYears(response.availableAcademicYears);
+        const mappedYear = resolveLegacyAcademicYear(globalYear, response.availableAcademicYears);
+        setSelectedYear(mappedYear);
         setWorkspaceState('ready');
+        if (mappedYear) void loadList(mappedYear, collection, {});
         return;
       }
-      setYears([]);
+      setSelectedYear(null);
       setWorkspaceState(response.state);
     } catch {
-      setYears([]);
+      setSelectedYear(null);
       setWorkspaceState('unavailable');
     }
   };
@@ -1089,23 +1092,6 @@ export function AuditWorkspacePage() {
       setNextCursor(null);
       setListState(clientFailureState(error));
     }
-  };
-
-  const selectYear = (value: string) => {
-    listSequence.current += 1;
-    resetDetail();
-    setDraft(EMPTY_DRAFT);
-    setAppliedFilters({});
-    setItems([]);
-    setNextCursor(null);
-    if (!value) {
-      setSelectedYear(null);
-      setListState('idle');
-      return;
-    }
-    const year = value as AcademicYearId;
-    setSelectedYear(year);
-    void loadList(year, collection, {});
   };
 
   const selectCollection = (value: AuditWorkspaceCollectionV1) => {
@@ -1327,7 +1313,7 @@ export function AuditWorkspacePage() {
           </p>
         </div>
         {!activated && (
-          <Button variant="primary" onPress={() => void loadBootstrap()}>
+          <Button variant="primary" isDisabled={globalYear === null} onPress={() => void loadBootstrap()}>
             <ClipboardCheck className="size-4" />
             Abrir Auditoria
           </Button>
@@ -1355,25 +1341,9 @@ export function AuditWorkspacePage() {
           <Surface variant="secondary" className="rounded-2xl p-4 sm:p-5">
             <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
               <div>
-                <Label htmlFor="audit-academic-year" className="mb-1.5 block text-sm font-medium">
-                  Ano acadêmico
-                </Label>
-                <select
-                  id="audit-academic-year"
-                  className="h-10 w-full rounded-xl border border-border bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                  value={selectedYear ?? ''}
-                  onChange={(event) => selectYear(event.currentTarget.value)}
-                >
-                  <option value="">Selecione o ano</option>
-                  {years.map((year) => (
-                    <option key={year.id} value={year.id}>
-                      {year.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-muted">
-                  O sistema não escolhe o ano automaticamente.
-                </p>
+                <p className="text-sm font-medium">Ano letivo global</p>
+                <p className="mt-1 text-lg font-semibold">{globalYear ?? 'Não selecionado'}</p>
+                <p className="mt-1 text-xs text-muted">A Auditoria usa exatamente o ano selecionado no Banco.</p>
               </div>
               <div className="min-w-0">
                 <nav aria-label="Coleções da Auditoria" className="flex flex-wrap gap-2">
@@ -1402,9 +1372,9 @@ export function AuditWorkspacePage() {
 
           {!selectedYear && (
             <Surface variant="secondary" className="rounded-2xl p-6 text-center">
-              <p className="font-medium">Selecione um ano acadêmico</p>
+              <p className="font-medium">Ano sem correspondência no contexto de Auditoria</p>
               <p className="mt-1 text-sm text-muted">
-                Listas, filtros e resolução sempre permanecem isolados no ano escolhido.
+                O ano global não possui uma correspondência única no catálogo legado. Nenhum ano vizinho é usado.
               </p>
             </Surface>
           )}

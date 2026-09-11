@@ -37,9 +37,10 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
     expect(auditSurface).toContain('<AuditWorkspacePage />');
   });
 
-  it('mantém ano explícito, três coleções, filtros, paginação e detalhe sob demanda', () => {
-    expect(page).toContain('Selecione o ano');
-    expect(page).toContain('O sistema não escolhe o ano automaticamente.');
+  it('consome o ano global, três coleções, filtros, paginação e detalhe sob demanda', () => {
+    expect(page).toContain('Ano letivo global');
+    expect(page).toContain('resolveLegacyAcademicYear');
+    expect(page).toContain('Nenhum ano vizinho é usado');
     expect(page).toContain('AUDIT_WORKSPACE_COLLECTIONS_V1.map');
     expect(page).toContain('Aplicar filtros');
     expect(page).toContain('Limpar filtros');
@@ -71,6 +72,7 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
     expect(page).toContain("operation: 'bootstrap'");
     expect(client).toContain("const AUDIT_WORKSPACE_ENDPOINT = '/api/gradebook/audit-workspace'");
     expect(client).not.toContain('/server/');
+    expect(shell).toContain("activeSurface !== 'importacao' ? <GradebookYearSelector /> : null");
   });
 
   it('não transporta ator, instante, autorização ou operação de promoção no navegador', () => {

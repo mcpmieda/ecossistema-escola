@@ -1,13 +1,13 @@
-# Entrega corrente — leituras acadêmicas e matriz relacional
+# Entrega corrente — fonte, ano global e composição desktop
 
-**#642 / PR #643**, branch `feat/bn-relational-performance-642`. Base publicada: `cb6e3bf2309d4aa5716b600a3957046f133f850c`, deploy 256. O bloco cadastral #640 e a correção de segurança #641 já estão integrados/publicados.
+**#646 / PR #647**, branch `fix/bn-final2-source-and-desktop-646`. Base publicada: `f580ce6523a453db6a9b99612104a12a3ef66ead`, incluindo #645, deploy 258 (`34519288361`).
 
-A implementação da primeira matriz está salva no GitHub: contrato V2, fonte SQL em lote, motor reutilizado, ano compartilhado, tela e testes. Não reconstruir novamente esse código por falta de uma pasta temporária. **Gravar cada bloco revisável em commit na branch antes de avançar; registrar SHA, testes e pendências na issue.** Objetos Git sem commit/ref e arquivos locais não são checkpoint suficiente.
+A branch já contém a normalização de placeholders qualitativos por evidência, siglas observadas na fonte, predicado relacional não destrutivo, ano global, detalhe do aluno e composição desktop. Não reconstruir esses blocos. **Gravar cada bloco revisável em commit na branch antes de avançar; registrar SHA, testes e pendências na issue.** Objetos Git sem commit/ref e arquivos locais não são checkpoint suficiente.
 
-Revisar o diff, executar `npm run verify`/CI do head final, integrar com SHA esperado e conferir o workflow oficial de publicação. A autorização contínua BN-DEC-023 dispensa nova confirmação por PR; não dispensa os gates. Estado de publicação e pendências visuais/autenticadas: #642/#643.
+Revisar o diff, executar `npm run verify`/CI do head final, integrar com SHA esperado e conferir o workflow oficial de publicação. A autorização contínua BN-DEC-023 dispensa nova confirmação por PR; não dispensa os gates. Estado de publicação e pendências: #646/#647.
 
-Depois desta entrega, avançar em um bloco funcional da #634: lentes, comparabilidade explicitamente contratada, indicadores/gráficos investigáveis e configurações. Não apresentar consulta calculada como emissão oficial; aceite #347 continua separado. [Contrato e limites](RELATIONAL_PERFORMANCE_V2.md).
+Comparabilidade relacional continua indisponível porque a fonte não declara perfil/versionamento nem semântica de normalização entre períodos. Limiar de tendência, personalização e abertura padrão também aguardam decisão explícita. Não apresentar consulta calculada como emissão oficial; aceite #347 continua separado. [Contrato e limites](FINAL2_SOURCE_DESKTOP_646.md).
 
 FINAL-1 #633 permanece aberta para manutenção/gestão de anos, Boletins/Relatórios, fontes e durabilidade restantes; FINAL-2 #634 completa Desempenho; FINAL-3 #635 conclui Conselho; FINAL-4 #406 valida o produto integral. #596 fecha a entrega institucional. As branches reservadas precisam incorporar a main validada antes da execução.
 
-Não reabrir a migração física #613, não reativar importadores arquivados, não alterar regras/dados/schema/credenciais por este roteiro. Comparabilidade, recuperação e resultados não são inferidos no navegador. Memória anterior em [history/pre-final-1/README.md](history/pre-final-1/README.md).
+Não reabrir a migração física #613, não reativar importadores arquivados, não alterar regras/dados/schema/credenciais por este roteiro. O ano da navegação não reinterpreta o ano reconhecido na planilha; comparabilidade, recuperação e resultados não são inferidos no navegador. Memória anterior em [history/pre-final-1/README.md](history/pre-final-1/README.md).

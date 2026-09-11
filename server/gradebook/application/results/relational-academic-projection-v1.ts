@@ -1,3 +1,4 @@
+import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../persistence/postgres/active-instrument-predicate-v1';
 import type { D1ReadDatabaseV1 } from '../../persistence/d1/read/d1-read-adapter-v1';
 import {
   resolveSimplifiedComponentRecoveryV1,
@@ -201,7 +202,7 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
          FROM gradebook.instrumento i
          LEFT JOIN gradebook.nota n
            ON n.instrumento_id = i.id AND n.aluno_id = ?
-         WHERE i.oferta_id = ?
+         WHERE i.oferta_id = ? AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
          ORDER BY i.trimestre, i.slot`,
         [input.alunoId, input.ofertaId],
       );
@@ -249,7 +250,7 @@ export function createRelationalAcademicProjectionServiceV1(database: D1ReadData
          FROM requested r
          JOIN gradebook.oferta o ON o.id = r.oferta_id
          JOIN gradebook.ano_letivo y ON y.ano = o.ano
-         LEFT JOIN gradebook.instrumento i ON i.oferta_id = o.id
+         LEFT JOIN gradebook.instrumento i ON i.oferta_id = o.id AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
          LEFT JOIN gradebook.nota n ON n.instrumento_id = i.id AND n.aluno_id = r.aluno_id
          LEFT JOIN gradebook.fechamento f ON f.oferta_id = o.id AND f.aluno_id = r.aluno_id
          WHERE EXISTS (

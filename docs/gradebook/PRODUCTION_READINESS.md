@@ -6,6 +6,8 @@
 
 A PR #640, contrato #639, acrescentou contexto/pesquisa/Centrais V2 e foi integrada em `6683d1377f2dd090c1346f693a4af4c2e188d7ae`, deploy 255 / `34477526551` aprovado. PGlite e HTTP com identidade sintética não são benchmark Hyperdrive, contenção PostgreSQL multi-sessão, restore de dados reais ou aceite visual. Nenhuma dessas entregas prova automaticamente Desempenho, emissão/reimpressão, votação ou autoridade por consumidor.
 
+As PRs #643 e #645 integraram matriz relacional e quatro lentes; a `main` factual antes da #646 é `f580ce6523a453db6a9b99612104a12a3ef66ead`, publicada pelo deploy 258 / `34519288361`. A #646/#647 corrige fonte, ano global, detalhe e desktop sem ativar autoridade ou alterar schema. Validação visual/autenticada continua separada e foi adiada nesta entrega.
+
 ## Gates finais
 
 | Gate | Responsável | Evidência |

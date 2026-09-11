@@ -13,6 +13,8 @@ import {
 import { CouncilInstitutionalPanelV2 } from '../features/gradebook/council/council-institutional-panel-v2';
 import { CouncilWorkspacePage } from '../features/gradebook/council/council-workspace-page';
 import { requestOperationalWorkspaceV1 } from '../features/gradebook/operational-workspace/operational-workspace-client';
+import { resolveLegacyAcademicYear } from './gradebook-legacy-year';
+import { useGradebookYear } from './gradebook-year-context';
 
 type CouncilMountState = 'loading' | 'ready' | 'empty' | 'unavailable' | 'not-authorized';
 type CouncilSearchState = 'idle' | CouncilMountState;
@@ -26,10 +28,8 @@ function isAbortError(error: unknown): boolean {
 }
 
 export function GradebookCouncilSurface() {
+  const globalYear = useGradebookYear()?.year ?? null;
   const [workspaceState, setWorkspaceState] = useState<CouncilMountState>('loading');
-  const [academicYears, setAcademicYears] = useState<
-    readonly { id: AcademicYearId; label: string }[]
-  >([]);
   const [academicYearId, setAcademicYearId] = useState<AcademicYearId | null>(null);
   const [classQuery, setClassQuery] = useState('');
   const [classSearchState, setClassSearchState] = useState<CouncilSearchState>('idle');
@@ -44,6 +44,18 @@ export function GradebookCouncilSurface() {
 
   const loadAcademicYears = useCallback(() => {
     bootstrapControllerRef.current?.abort();
+    classSearchControllerRef.current?.abort();
+    searchSequenceRef.current += 1;
+    setAcademicYearId(null);
+    setClassResults([]);
+    setClassSearchState('idle');
+    setSelectedClass(null);
+    setFocusedStudentReference(null);
+    setMeetingClosed(false);
+    if (globalYear === null) {
+      setWorkspaceState('loading');
+      return;
+    }
     const controller = new AbortController();
     bootstrapControllerRef.current = controller;
     setWorkspaceState('loading');
@@ -63,8 +75,12 @@ export function GradebookCouncilSurface() {
           return;
         }
         if ('availableAcademicYears' in response) {
-          setAcademicYears(response.availableAcademicYears);
-          setWorkspaceState(response.availableAcademicYears.length === 0 ? 'empty' : 'ready');
+          if (response.availableAcademicYears.length === 0) {
+            setWorkspaceState('empty');
+            return;
+          }
+          setAcademicYearId(resolveLegacyAcademicYear(globalYear, response.availableAcademicYears));
+          setWorkspaceState('ready');
           return;
         }
         setWorkspaceState('unavailable');
@@ -72,7 +88,7 @@ export function GradebookCouncilSurface() {
       .catch((error: unknown) => {
         if (!isAbortError(error)) setWorkspaceState('unavailable');
       });
-  }, []);
+  }, [globalYear]);
 
   useEffect(() => {
     loadAcademicYears();
@@ -153,7 +169,7 @@ export function GradebookCouncilSurface() {
           </p>
           <h3 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">Abrir turma</h3>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Selecione ano e turma explicitamente. A elegibilidade vem somente da projeção oficial já
+            Use o ano global e selecione a turma explicitamente. A elegibilidade vem somente da projeção oficial já
             resolvida.
           </p>
         </div>
@@ -185,32 +201,12 @@ export function GradebookCouncilSurface() {
         {workspaceState === 'ready' && (
           <div className="mt-5 grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-end">
             <div>
-              <Label htmlFor="council-academic-year" className="mb-1.5 block text-sm font-medium">
-                Ano acadêmico
-              </Label>
-              <select
-                id="council-academic-year"
-                className="h-10 w-full rounded-xl border border-border bg-transparent px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                value={academicYearId ?? ''}
-                onChange={(event) => {
-                  classSearchControllerRef.current?.abort();
-                  searchSequenceRef.current += 1;
-                  const value = event.currentTarget.value;
-                  setAcademicYearId(value ? (value as AcademicYearId) : null);
-                  setClassResults([]);
-                  setClassSearchState('idle');
-                  setSelectedClass(null);
-                  setFocusedStudentReference(null);
-                  setMeetingClosed(false);
-                }}
-              >
-                <option value="">Selecione o ano</option>
-                {academicYears.map((year) => (
-                  <option key={year.id} value={year.id}>
-                    {year.label}
-                  </option>
-                ))}
-              </select>
+              <p className="text-sm font-medium">Ano letivo global</p>
+              <p className="mt-1 text-lg font-semibold">{globalYear ?? 'Não selecionado'}</p>
+              <p className="mt-1 text-xs text-muted">O Conselho usa exatamente o ano selecionado no Banco.</p>
+              {globalYear !== null && academicYearId === null && (
+                <p className="mt-2 text-xs text-danger">Ano sem correspondência única no catálogo legado; nenhum ano vizinho será usado.</p>
+              )}
             </div>
 
             <form

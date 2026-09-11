@@ -12,7 +12,8 @@ Base: BN-DEC-022, #613 e programa #182. O [índice anterior completo](history/pr
 | Cálculo simplificado | `src/gradebook-domain/calculations/simplified/` | núcleo em milésimos |
 | Projeção oferta/aluno | `server/gradebook/application/results/relational-academic-projection-v1.ts` | aplicação interna; lote limitado na #636 |
 | Projeção anual | `server/gradebook/application/results/relational-student-annual-projection-v1.ts` | turma atual, decisão humana separada; não transporte UI |
-| Contexto/pesquisa/Centrais V2 | `shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2.ts` | contrato #639; implementação na PR #640, ainda não integrada/publicada |
+| Contexto/pesquisa/Centrais V2 | `shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2.ts` | contrato #639; implementação integrada na PR #640 |
+| Desempenho relacional V2/V3 | `shared/gradebook-contracts/performance/relational-performance-v2.ts` e `performance-analysis-v3.ts` | matriz #643 e lentes #645 integradas; detalhe/fonte/desktop refinados na #646 |
 
 Comparação relacional `match | mismatch | unavailable` e reconciliação histórica `match | expected-difference | mismatch | not-comparable` não são intercambiáveis. Nunca tratar indisponibilidade como correspondência.
 
@@ -24,11 +25,11 @@ O mesmo endpoint operacional distingue `contractVersion: 2`. São exclusivamente
 
 Contrato inclui validação de entrada/saída, limites de página, busca literal e snapshot por requisição somente leitura/repeatable-read. O browser cancela/descarta respostas obsoletas, confere o contexto retornado e limpa informações quando perde autorização. Detalhes e limites em [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md).
 
-V1 não foi alterado para simular equivalência. A interface de Centrais passa a V2 na #640; manutenção docente V1 deixa de ser montada ali até sua adaptação. Consumidores acadêmicos ainda V1 não passam automaticamente a usar V2. O seletor anual global entre todas as áreas e gestão de anos novos permanecem pendentes.
+V1 não foi alterado para simular equivalência. A interface de Centrais passa a V2 na #640; manutenção docente V1 deixa de ser montada ali até sua adaptação. Na #646, um seletor anual global passa a governar todas as áreas acadêmicas, mas contratos V1 recebem apenas o ID opaco cuja opção tenha rótulo único exatamente igual ao ano numérico. Isso coordena a navegação sem converter provider, fonte ou durabilidade. Gestão de anos novos permanece pendente.
 
 ## Consumidores que exigem adaptação
 
-AuditWorkspace antigo, Desempenho, Boletins, Relatórios e Conselho V1/V2 ainda dependem da geração anterior nas fontes/durabilidade. Provider novo não converte seus contratos. Ver [mapa](CONSUMER_MAP.md).
+AuditWorkspace antigo, Boletins, Relatórios e Conselho V1/V2 ainda dependem da geração anterior nas fontes/durabilidade. O ano global da #646 não converte esses contratos; apenas impede seleções divergentes ou aproximadas. Desempenho montado no shell usa a projeção relacional V2/V3. Ver [mapa](CONSUMER_MAP.md) e [contrato #646](FINAL2_SOURCE_DESKTOP_646.md).
 
 Preservar interpretação histórica, ano explícito, identidade server-side, concorrência, idempotência, histórico, emissão/reimpressão e decisão humana. Não fabricar campos/IDs apenas para formatos obsoletos. Toda mudança em `shared/` exige issue `[BN][CONTRATO]`: a #639 autoriza V2; a PR #636 não modifica contratos compartilhados.
 
@@ -37,6 +38,8 @@ Preservar interpretação histórica, ano explícito, identidade server-side, co
 `PAINEL DESEMPENHO`, 29/08/2026: §§2–6 contexto/matriz/Recuperação/situação; §§7–14 lentes/investigação; §§15–19 leitura/segurança/frescor/HeroUI; §20 aceite. Execução #634.
 
 Metas de §16.1: payload inicial até 500 KB compactados; backend inicial p95 até 600 ms aquecido; detalhe p95 até 400 ms; matriz utilizável até 2 s no cenário documentado. Não são medições realizadas nem licença para inventar regras/métricas.
+
+Comparabilidade histórica V2 só vale quando os dois períodos declaram semântica compatível. A projeção relacional atual não fornece perfil/versionamento para demonstrar isso; portanto permanece `comparability-not-contracted`. Configuração ou normalização não pode ser herdada silenciosamente do runtime antigo.
 
 ## Conselho — única parte preservada do documento antigo
 

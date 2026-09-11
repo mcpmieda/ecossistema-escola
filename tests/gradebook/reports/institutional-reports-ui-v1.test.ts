@@ -10,7 +10,9 @@ describe('Institutional reports HeroUI V1', () => {
   it('mantém uma experiência HeroUI única com contexto e filtros explícitos', () => {
     const page = source('src/features/gradebook/reports/institutional-reports-page.tsx');
     expect(page).toContain("from '@heroui/react'");
-    expect(page).toContain('Ano acadêmico');
+    expect(page).toContain('Ano letivo global');
+    expect(page).toContain('resolveLegacyAcademicYear');
+    expect(page).toContain('nenhum ano vizinho será usado');
     expect(page).toContain('Família do relatório');
     expect(page).toContain('Pesquisar turma');
     expect(page).toContain('Período');

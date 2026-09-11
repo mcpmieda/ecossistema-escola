@@ -10,12 +10,14 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#644 / PR #645:** quatro lentes sobre o mesmo snapshot relacional, com gráfico que investiga a matriz e estatísticas descritivas. Qualitativo preserva a pontuação existente, sem inventar conceitos; Avaliações exige componente explícito; comparabilidade entre períodos continua pendente. [Contrato e limites da entrega](PERFORMANCE_LENSES_V3.md). SHA integrado e deploy efetivos ficam no checkpoint #644/#645; não deduzi-los da presença deste documento.
 
+**#646 / PR #647:** corrige placeholders qualitativos sem evidência, adota siglas observadas na fonte, conclui a composição desktop/detalhe e estende um único ano global a todas as áreas acadêmicas, com mapeamento estrito para contratos legados. Comparabilidade e configuração sem decisão permanecem fechadas; validação visual final foi adiada. [Contrato e limites da entrega](FINAL2_SOURCE_DESKTOP_646.md).
+
 ## Leitura e execução
 
 1. [COMECE_AQUI.md](COMECE_AQUI.md): tarefa e dependências.
 2. [PROJECT_STATE.yaml](PROJECT_STATE.yaml): baseline e entrega corrente.
 3. [DECISIONS.md](DECISIONS.md): decisões anteriores e substituições expressas.
-4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md) e [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md): caminhos e limites.
+4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md) e [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md): caminhos e limites.
 5. [CONTRACTS.md](CONTRACTS.md), [ROADMAP.md](ROADMAP.md), [ISSUE_MAP.md](ISSUE_MAP.md) e [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
 
 ## Programa final
@@ -23,7 +25,7 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 | Fase | Issue | Entrega restante |
 | --- | --- | --- |
 | FINAL-1 | #633 | consumidores relacionais, manutenção, fontes e durabilidade restantes |
-| FINAL-2 | #634 | lentes/investigação #644 em execução; comparabilidade, configurações e validação restantes |
+| FINAL-2 | #634 | #646 consolida fonte/ano/desktop; decisões de comparabilidade/configuração e validação visual restantes |
 | FINAL-3 | #635 | Conselho humano, histórico, durabilidade e fechamento |
 | FINAL-4 | #406 | piloto integral, recuperação e retirada seletiva do legado |
 

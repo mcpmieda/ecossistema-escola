@@ -1,6 +1,6 @@
 # Roadmap — quatro fases finais
 
-A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; próxima execução #633.
+A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #646 sob FINAL-2 #634, sem encerrar as pendências relacionais da #633.
 
 ## FINAL-1 — #633: runtime relacional e verdade documental
 

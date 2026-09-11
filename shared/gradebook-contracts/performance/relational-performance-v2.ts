@@ -25,7 +25,7 @@ export type PerformanceModeV2 = z.infer<typeof mode>;
 export type PerformanceStatusV2 = z.infer<typeof status>;
 
 const reference = z.object({ id, label }).strict();
-const offer = z.object({ id, subject: reference, teacher: reference }).strict();
+const offer = z.object({ id, subject: reference.extend({ abbreviation: z.string().trim().min(1).max(16).nullable().optional() }), teacher: reference }).strict();
 const context = z.object({ year, minimumApprovalMilli: milli.positive(), maxCouncilComponents: z.number().int().min(0).max(32767) }).strict();
 const comparison = z.enum(['match', 'mismatch', 'unavailable']);
 const cell = z.object({
@@ -59,9 +59,10 @@ const statistics = z.object({ classRows: count, visibleRows: count, eligibleRows
   consideredCells: count, completeCells: count, noShowCells: count, incompleteCells: count, attentionRows: count }).strict();
 const ready = { transportVersion: z.literal(2), state: z.literal('ready'), context,
   readAt: z.string().datetime({ offset: true }), authority: z.literal('calculated-preview') };
-const selected = { classGroup: reference, period, mode };
+const selected = { classGroup: reference.extend({ name: label.optional() }), period, mode };
 const termDetail = z.object({
   term: z.union([z.literal(1), z.literal(2), z.literal(3)]), regular: cell, recovery: cell,
+  hasGrades: z.boolean().optional(), showParallel: z.boolean().optional(), showRecovery: z.boolean().optional(),
   quantitativeOriginalMilli: milli.nullable(), quantitativeConsideredMilli: milli.nullable(),
   qualitativeMilli: milli.nullable(), parallelMilli: milli.nullable(), parallelApplicable: z.boolean().nullable(),
   instruments: z.array(z.object({ slot: z.union(SIMPLIFIED_INSTRUMENT_SLOTS_V1.map((value) => z.literal(value))),
