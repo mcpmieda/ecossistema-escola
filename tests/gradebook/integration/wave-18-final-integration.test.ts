@@ -49,7 +49,8 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
     expect(route.split('/api/gradebook/reports')).toHaveLength(2);
     expect(functions.match(/handleInstitutionalReportsRequestV1/gu)).toHaveLength(2);
     expect(shell).toContain("id: 'reports'");
-    expect(shell).toContain("import('../features/gradebook/reports/institutional-reports-page')");
+    expect(shell).toContain("import('../features/gradebook/reports/relational-institutional-reports-page-v2')");
+    expect(shell).not.toContain("import('../features/gradebook/reports/institutional-reports-page')");
     expect(notes).toContain("notesAreaHref('reports')");
   });
 
