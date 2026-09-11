@@ -9,14 +9,13 @@ function source(path: string): string {
 }
 
 describe('integração final da onda 16 — F6/F7/F8', () => {
-  it('mantém exatamente um bridge por superfície acadêmica autorizada', () => {
+  it('mantém exatamente um bridge por endpoint acadêmico ainda autorizado', () => {
     const functions = source('functions/[[path]].ts');
     const routes = [
       [
         'server/gradebook/http/operational-workspace-routes-v1.ts',
         '/api/gradebook/operational-workspace',
       ],
-      ['server/gradebook/http/audit-workspace-routes-v1.ts', '/api/gradebook/audit-workspace'],
       ['server/gradebook/http/performance-routes-v1.ts', '/api/gradebook/performance'],
       ['server/gradebook/http/bulletin-routes-v1.ts', '/api/gradebook/bulletins'],
       ['server/gradebook/http/council-routes-v1.ts', '/api/gradebook/council-workspace'],
@@ -26,7 +25,8 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
       expect(source(path).split(endpoint)).toHaveLength(2);
     }
     expect(functions.match(/handleOperationalWorkspaceRequestV1/gu)).toHaveLength(2);
-    expect(functions.match(/handleAuditWorkspaceRequestV1/gu)).toHaveLength(2);
+    expect(functions).not.toContain('handleAuditWorkspaceRequestV1');
+    expect(functions).not.toContain('/api/gradebook/audit-workspace');
     expect(functions.match(/handlePerformanceRequestV1/gu)).toHaveLength(2);
     expect(functions.match(/handleBulletinRequestV1/gu)).toHaveLength(2);
     expect(functions.match(/createCouncilWorkspaceRequestHandlerV1/gu)).toHaveLength(2);

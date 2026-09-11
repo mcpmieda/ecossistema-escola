@@ -30,7 +30,6 @@ const academicFrontend = academicFrontendFiles.map(source).join('\n');
 
 const handlers = [
   'server/gradebook/http/operational-workspace-routes-v1.ts',
-  'server/gradebook/http/audit-workspace-routes-v1.ts',
   'server/gradebook/http/performance-routes-v1.ts',
   'server/gradebook/http/bulletin-routes-v1.ts',
   'server/gradebook/http/council-routes-v1.ts',
@@ -133,7 +132,7 @@ describe('F9 — privacidade, auth e transporte', () => {
     }
   });
 
-  it('mantém os cinco handlers com auth opaca, origin gates e headers anti-cache completos', () => {
+  it('mantém os quatro handlers dedicados restantes com auth opaca, origin gates e headers anti-cache completos', () => {
     for (const path of handlers) {
       const handler = source(path);
       expect(handler, path).toContain('requireAuth');
