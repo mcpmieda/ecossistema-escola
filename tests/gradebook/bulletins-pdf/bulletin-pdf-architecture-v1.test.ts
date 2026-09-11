@@ -7,82 +7,69 @@ function source(path: string): string {
 }
 
 describe('Boletins PDF arquitetura V1', () => {
-  const emission = source('server/gradebook/application/bulletins/bulletin-emission-service-v1.ts');
-  const workspace = source('server/gradebook/application/bulletins/bulletin-workspace-service-v1.ts');
+  const service = source('server/gradebook/application/bulletins/relational-bulletin-v2.ts');
+  const snapshots = source(
+    'server/gradebook/persistence/postgres/relational-bulletin-snapshot-v2.ts',
+  );
   const transport = source('shared/gradebook-contracts/bulletins/bulletin-transport-v1.ts');
-  const page = source('src/features/gradebook/bulletins/bulletin-page.tsx');
-  const renderer = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v1.ts');
-  const presentation = source('src/features/gradebook/bulletins/bulletin-presentation-v1.ts');
+  const page = source('src/features/gradebook/bulletins/relational-bulletin-page-v2.tsx');
+  const actions = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-actions-v2.ts');
+  const renderer = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts');
 
-  it('ancora PDF oficial em BulletinSnapshotV1 recebido da emissão existente', () => {
-    expect(workspace).toContain('emission: await emission.emit(request.request, context)');
-    expect(transport).toContain('readonly emission: BulletinEmissionResultV1');
-    expect(page).toContain('setSnapshot(response.emission.snapshot)');
-    expect(page).toContain("runPdfAction('download', snapshot)");
-    expect(page).toContain("runPdfAction('print', snapshot)");
-    expect(renderer).toContain('renderBulletinPdfV1(input: BulletinPdfInputV1)');
-    expect(renderer).toContain('const lines = buildBulletinPdfLinesV1(input)');
+  it('ancora PDF oficial no snapshot V2 recebido da emissão relacional', () => {
+    expect(service).toContain('snapshot: RelationalBulletinSnapshotV2');
+    expect(snapshots).toContain('snapshot_json AS payload_json');
+    expect(page).toContain("{ mode: 'emission', snapshot: response.snapshot }");
+    expect(page).toContain("runPdf('download')");
+    expect(page).toContain("runPdf('print')");
+    expect(actions).toContain('runRelationalBulletinPdfActionV2');
+    expect(renderer).toContain('buildRelationalBulletinPdfLinesV2(snapshot)');
   });
 
   it('mantém reimpressão histórica sem leitura/materialização acadêmica atual nem nova versão', () => {
-    const reprintSection = emission.split('async reprint(request, authorization) {')[1]?.split('async emitBatch(request, context) {')[0] ?? '';
-
-    expect(reprintSection).toContain('dependencies.snapshots.getHistorical');
-    expect(reprintSection).toContain("source: 'historical-snapshot'");
-    expect(reprintSection).toContain('snapshot: freezeBulletinSnapshotV1(historical)');
-    expect(reprintSection).not.toContain('materializer.materialize');
-    expect(reprintSection).not.toContain('academicRecords');
-    expect(reprintSection).not.toContain('dependencies.now');
-    expect(reprintSection).not.toContain('createSnapshotId');
-    expect(reprintSection).not.toContain('snapshots.append');
-    expect(page).toContain('setSnapshot(response.reprint.snapshot)');
+    expect(service).toContain('dependencies.snapshots.get(');
+    expect(service).toContain('request.snapshotId');
+    expect(service).toContain('request.snapshotVersion');
+    expect(service).toContain("source: 'historical-snapshot'");
+    expect(page).toContain("{ mode: 'reprint', snapshot: response.snapshot }");
+    const repositoryGet =
+      snapshots
+        .split('async get(snapshotId, snapshotVersion)')[1]
+        ?.split('async append(input)')[0] ?? '';
+    expect(repositoryGet).not.toMatch(/instrumento|nota|fechamento|materialize/u);
+    expect(repositoryGet).not.toContain('INSERT');
   });
 
   it('não cria segundo bridge nem geração server-side para PDF', () => {
     expect(renderer).not.toContain('/api/gradebook/');
     expect(renderer).not.toContain('fetch(');
-    expect(page).toContain("const result = action === 'download'");
+    expect(actions).toContain('URL.createObjectURL');
+    expect(actions).toContain('URL.revokeObjectURL');
     expect(transport).not.toContain("operation: 'pdf'");
   });
 
-  it('compartilha os mesmos formatadores semânticos entre preview e PDF', () => {
-    for (const helper of [
-      'bulletinGradeValueLabelV1',
-      'bulletinApplicabilityLabelV1',
-      'bulletinCoverageLabelV1',
-      'bulletinAcademicStateLabelV1',
-      'bulletinFinalDecisionLabelV1',
-      'bulletinPeriodLabelV1',
-      'bulletinModelLabelV1',
-    ]) {
-      expect(presentation).toContain(`function ${helper}`);
-      expect(page).toContain(helper);
-      expect(renderer).toContain(helper);
-    }
-
+  it('preserva os mesmos campos semânticos entre preview e PDF sem recalcular', () => {
     for (const field of [
-      'term.quantitative.original',
-      'term.quantitative.parallelRecovery',
-      'term.quantitative.parallelRecoveryApplicability',
-      'term.quantitative.considered',
-      'term.qualitativeOperational',
-      'term.officialGrade',
-      'term.percentage',
-      'annualResult.originalTotal',
-      'annualResult.postRecoveryTotal',
-      'annualResult.academicState',
-      'annualResult.finalDecision',
+      'sourceAmMilli',
+      'calculatedAmMilli',
+      'quantitative.consideredMilli',
+      'qualitativeMilli',
+      'sourceUMilli',
+      'recoveryTerms',
+      'classification',
     ]) {
       expect(page).toContain(field);
       expect(renderer).toContain(field);
     }
+    expect(renderer).toContain('term.quantitative.originalMilli');
+    expect(renderer).toContain('term.quantitative.parallelMilli');
   });
 
   it('preserva fallback: erro do renderer não destrói preview/modelo na tela', () => {
-    const pdfActionSection = page.split('const runPdfAction = async')[1]?.split('return (')[0] ?? '';
-    expect(pdfActionSection).toContain("setPdfState('error')");
-    expect(pdfActionSection).toContain('O boletim canônico permanece legível na tela');
-    expect(pdfActionSection).not.toContain('setPreviewModel(null)');
-    expect(pdfActionSection).not.toContain('setSnapshot(null)');
+    const pdfActionSection =
+      page.split('const runPdf = async')[1]?.split('const selectedStudents')[0] ?? '';
+    expect(pdfActionSection).toContain('setPdfNotice(`PDF indisponível');
+    expect(pdfActionSection).toContain('O snapshot permanece legível na tela');
+    expect(pdfActionSection).not.toContain('setArtifact(null)');
   });
 });

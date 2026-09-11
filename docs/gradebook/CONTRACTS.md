@@ -15,6 +15,7 @@ Base: BN-DEC-022, #613 e programa #182. O [índice anterior completo](history/pr
 | Contexto/pesquisa/Centrais V2 | `shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2.ts` | contrato #639; implementação integrada na PR #640 |
 | Desempenho relacional V2/V3/V4 | `shared/gradebook-contracts/performance/relational-performance-v2.ts`, `performance-analysis-v3.ts` e `performance-term-comparison-v4.ts` | matriz/lentes/detalhe integrados; comparação trimestral 2026 na #649/#650 |
 | Conselho relacional V3 | `shared/gradebook-contracts/council/relational-council-v3.ts` | contrato #648; sessão/CAS/idempotência/votos/histórico/fotografias, com decisão humana explícita |
+| Boletins relacionais V2 | `shared/gradebook-contracts/bulletins/relational-bulletin-v2.ts` | contrato #654; 2026, AM/U oficiais, comparação descritiva, emissão/lote/histórico/reimpressão |
 
 Comparação relacional `match | mismatch | unavailable` e reconciliação histórica `match | expected-difference | mismatch | not-comparable` não são intercambiáveis. Nunca tratar indisponibilidade como correspondência.
 
@@ -30,7 +31,13 @@ V1 não foi alterado para simular equivalência. A interface de Centrais passa a
 
 ## Consumidores que exigem adaptação
 
-AuditWorkspace antigo, Boletins e Relatórios ainda dependem da geração anterior nas fontes/durabilidade. O Conselho montado no shell usa V3 relacional; V1/V2 permanecem apenas como compatibilidade não montada. O contexto fixo 2026 não converte os demais contratos; apenas impede seleção divergente ou aproximada. Desempenho montado no shell usa a projeção relacional V2/V3/V4. Ver [mapa](CONSUMER_MAP.md), [Conselho V3](RELATIONAL_COUNCIL_V3.md), [contrato #646](FINAL2_SOURCE_DESKTOP_646.md) e [comparação #649](TERM_COMPARISON_2026_V4.md).
+AuditWorkspace antigo e Relatórios ainda dependem da geração anterior nas fontes/durabilidade. Boletins montado no shell usa V2 relacional da #654; Conselho usa V3 relacional. Os contratos anteriores permanecem apenas como compatibilidade não montada. O contexto fixo 2026 não converte os consumidores restantes; apenas impede seleção divergente ou aproximada. Desempenho usa a projeção relacional V2/V3/V4. Ver [mapa](CONSUMER_MAP.md), [Boletins V2](RELATIONAL_BULLETINS_V2.md), [Conselho V3](RELATIONAL_COUNCIL_V3.md), [contrato #646](FINAL2_SOURCE_DESKTOP_646.md) e [comparação #649](TERM_COMPARISON_2026_V4.md).
+
+## Boletins V2 — contrato #654
+
+`contractVersion: 2` opera somente em 2026 e lê turma, aluno, oferta, instrumentos, notas, fechamento e decisão humana atuais numa transação read-only/repeatable-read. AM/U importadas têm autoridade oficial; valores nativos são comparação descritiva. `ASSISTIDO` mostra notas sem resultado geral; `N/C` é preservado em REC. Emissão incompleta falha fechada com motivos explícitos.
+
+Snapshot é append-only, idempotente por conteúdo/série e versionado por CAS. Reimpressão não consulta fatos acadêmicos atuais. PDF recebe exclusivamente o snapshot persistido e é gerado localmente, sem segundo endpoint. Detalhes, limites e gates em [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md).
 
 Preservar interpretação histórica, ano explícito, identidade server-side, concorrência, idempotência, histórico, emissão/reimpressão e decisão humana. Não fabricar campos/IDs apenas para formatos obsoletos. Toda mudança em `shared/` exige issue `[BN][CONTRATO]`: a #639 autoriza V2; a PR #636 não modifica contratos compartilhados.
 

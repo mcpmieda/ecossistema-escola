@@ -1,6 +1,6 @@
 # Arquitetura — estado relacional e consumidores em transição
 
-Base integrada: `main@459443db90277baf55690fe69d35dbfdba8550f1`; Conselho relacional em execução pela #648/PR #653. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
+Base integrada: `main@4f32dd5150641d0a24c2e2c241768f953202ce56`; Conselho relacional #648/PR #653 integrado e publicado. Boletins relacionais estão em execução pela #654. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
 
 ## Caminho integrado de importação
 
@@ -38,15 +38,17 @@ A leitura `projectMany` da PR #636 aceita até 1.000 pares únicos oferta/aluno,
 
 A precedência de situações terminais continua no núcleo/serviço anual. O fato de não calcular resultado para ASSISTIDO não dispensa uma futura projeção de visualização das suas notas quando exigida pelo contrato de Desempenho/Boletim.
 
-## Consumidores ainda não reancorados
+## Consumidores e reancoragem
 
-O catch-all mantém operações V1 do Operational Workspace, Audit Workspace antigo, Boletins e Relatórios compostos pelo runtime da geração anterior. As páginas ativas de Desempenho usam V2/V3/V4 relacional e Conselho usa V3 relacional; os contratos V1/V2 do Conselho permanecem somente para compatibilidade não montada. A #649 fixa o contexto em 2026 e remove criação/seleção de anos. A #648 acrescenta oito tabelas mínimas de sessão/voto/histórico/fotografia, levando o schema corrente de 20 para 28 tabelas sem converter os demais consumidores. Ver `CONSUMER_MAP.md` antes de alterar qualquer um.
+O catch-all mantém operações V1 do Operational Workspace, Audit Workspace antigo, Boletins e Relatórios. As páginas ativas de Desempenho usam V2/V3/V4 relacional, Conselho usa V3 relacional e Boletins passa a usar V2 relacional na #654; V1 permanece compatibilidade não montada. Audit Workspace antigo e Relatórios ainda dependem das fontes/durabilidade anteriores. A #649 fixa 2026 e remove criação/seleção de anos. A #648 acrescentou oito tabelas de Conselho; a #654 propõe uma relação append-only de snapshots de boletim. Ver `CONSUMER_MAP.md` antes de alterar qualquer consumidor.
+
+Boletins materializa um ou mais alunos no mesmo snapshot read-only/repeatable-read, usando projeção oferta/aluno em lote e uma leitura opcional de instrumentos. AM/U oficiais ficam separadas do cálculo descritivo. Emissão grava somente o snapshot imutável; PDF e reimpressão não voltam às notas atuais. Ver [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md).
 
 Alvo: PostgreSQL/fatos → núcleo acadêmico → read models compactos → experiências. Boletins emitidos e decisões humanas têm requisitos próprios de durabilidade; não inventar resultados ou snapshots para preencher lacunas.
 
 ## Segurança e publicação
 
-Mesmo shell, Entra e autorização server-side. Respostas acadêmicas `no-store`, sem storage persistente no browser. Os handlers e gates têm composições diferentes; não declarar todas as rotas OFF/ON por uma única flag documental. A #648 não altera binding, segredo ou identidade; somente restringe as ACLs das novas tabelas/sequências à role backend já provisionada.
+Mesmo shell, Entra e autorização server-side. Respostas acadêmicas `no-store`, sem storage persistente no browser. Os handlers e gates têm composições diferentes; não declarar todas as rotas OFF/ON por uma única flag documental. #648/#654 não alteram binding, segredo ou identidade; suas relações novas têm ACL mínima para a role backend já provisionada.
 
 Logs não podem divulgar payloads, SQL sensível, credenciais ou dados acadêmicos. Homologação de autenticação, consistência, frescor, concorrência e recuperação ocorre por consumidor antes do aceite #347/#406/#596.
 
