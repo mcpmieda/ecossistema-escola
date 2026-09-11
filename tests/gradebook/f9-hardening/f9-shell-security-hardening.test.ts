@@ -156,7 +156,7 @@ describe('F9 — privacidade, auth e transporte', () => {
   });
 
   it('não introduz retry automático de decisão do Conselho nem emissão de Boletim', () => {
-    const council = source('src/features/gradebook/council/council-workspace-page.tsx');
+    const council = source('src/features/gradebook/council/relational-council-page-v3.tsx');
     const bulletins = source('src/features/gradebook/bulletins/bulletin-page.tsx');
 
     expect(council).not.toMatch(/setInterval|retryDecision|retryEmit|autoRetry/u);

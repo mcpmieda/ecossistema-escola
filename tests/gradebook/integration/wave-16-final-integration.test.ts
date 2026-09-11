@@ -72,7 +72,9 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
   });
 
   it('preserva F6: quatro lentes, recovery oficial, comparação canônica, paginação/drill-down e raw evidence fora do HTTP', () => {
-    const page = source('src/features/gradebook/performance/performance-page.tsx');
+    const page = source('src/features/gradebook/performance/relational-performance-page-v2.tsx');
+    const hook = source('src/features/gradebook/performance/use-relational-performance-v2.ts');
+    const matrix = source('src/features/gradebook/performance/performance-result-matrix-v2.tsx');
     const route = source('server/gradebook/http/performance-routes-v1.ts');
     const physicalSource = source(
       'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
@@ -81,11 +83,13 @@ describe('integração final da onda 16 — F6/F7/F8', () => {
     for (const label of ['Resultado', 'Quantitativo', 'Qualitativo', 'Avaliações']) {
       expect(page).toContain(label);
     }
-    expect(page).toContain('rowHistory');
-    expect(page).toContain('columnHistory');
-    expect(page).toContain('openStudentDetail');
-    expect(page).toContain('openCellDetail');
-    expect(page).toContain('ticket.isCurrent()');
+    expect(page).toContain('<PerformanceStudentDetailV2');
+    expect(page).toContain('<PerformanceResultMatrixV2');
+    expect(page).toContain('<PerformanceTermComparisonPanelV4');
+    expect(page).toContain('state.classes?.nextOffset');
+    expect(hook).toContain('ticket.isCurrent()');
+    expect(matrix).toContain('<PerformanceGridV2');
+    expect(matrix).toContain('open={open}');
     expect(physicalSource).toContain("source: 'final-recovery'");
     expect(physicalSource).toContain('resolvePerformanceComparisonProjectionV2');
     expect(physicalSource).toContain('official-projection-unavailable');

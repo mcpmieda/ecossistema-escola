@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -54,19 +54,15 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
     expect(notes).toContain("notesAreaHref('reports')");
   });
 
-  it('preserva fail-closed analítico e limites bounded dos artefatos', () => {
+  it('preserva fail-closed analítico e aposenta o gerador em lote sem montagem', () => {
     const reports = source('server/gradebook/application/reports/institutional-reports-service-v1.ts');
     const contract = source('shared/gradebook-contracts/reports/institutional-reports-contract-v1.ts');
-    const batch = source('src/features/gradebook/bulletins/pdf/bulletin-pdf-batch-actions-v1.ts');
 
     expect(reports).toContain('INSTITUTIONAL_REPORT_DERIVED_INDICATORS_HARD_STOP_V1');
     expect(contract).toContain('official-semantics-not-integrated');
     expect(contract).toContain('derived-academic-indicators');
-    expect(batch).toContain('maxDocuments: 3');
-    expect(batch).toContain('maxTotalPages: 72');
-    expect(batch).toContain('concurrentDocuments: 1');
-    expect(batch).not.toContain('Promise.all');
-    expect(batch).toContain("result.source !== 'historical-snapshot'");
+    expect(existsSync(join(root, 'src/features/gradebook/bulletins/pdf/bulletin-pdf-batch-actions-v1.ts'))).toBe(false);
+    expect(source('src/features/gradebook/bulletins/pdf/bulletin-pdf-renderer-v2.ts')).toContain("from './bulletin-pdf-renderer-v1'");
   });
 
   it('mantém produção e autoridade acadêmica fechadas na onda 18', () => {
@@ -84,10 +80,10 @@ describe('integração final da onda 18 — durabilidade, Conselho V2 e relatór
 
   it('não introduz storage acadêmico persistente no navegador nas novas superfícies', () => {
     const frontend = [
-      'src/features/gradebook/reports/institutional-reports-page.tsx',
-      'src/features/gradebook/reports/institutional-reports-client.ts',
-      'src/features/gradebook/council/council-institutional-panel-v2.tsx',
-      'src/features/gradebook/council/council-institutional-client-v2.ts',
+      'src/features/gradebook/reports/relational-institutional-reports-page-v2.tsx',
+      'src/features/gradebook/reports/relational-institutional-reports-client-v2.ts',
+      'src/features/gradebook/council/relational-council-page-v3.tsx',
+      'src/features/gradebook/council/relational-council-client-v3.ts',
       'src/platform/gradebook-council-surface.tsx',
       'src/platform/gradebook-workspace-shell.tsx',
     ]

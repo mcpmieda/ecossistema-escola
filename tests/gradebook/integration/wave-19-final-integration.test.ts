@@ -39,16 +39,17 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(existsSync(join(root, 'server/gradebook/application/operational-workspace/teacher-assignment-maintenance-v1.ts'))).toBe(false);
   });
 
-  it('mantém F6 comparável somente quando houver semântica oficial e monta gráficos de valores oficiais', () => {
-    const performancePage = source('src/features/gradebook/performance/performance-page.tsx');
-    const charts = source('src/features/gradebook/performance/performance-official-charts.tsx');
+  it('mantém F6 comparável somente quando houver semântica oficial e monta o dashboard relacional atual', () => {
+    const performancePage = source('src/features/gradebook/performance/relational-performance-page-v2.tsx');
+    const analysis = source('src/features/gradebook/performance/performance-analysis-panel-v3.tsx');
+    const widgets = source('src/features/gradebook/performance/performance-dashboard-widgets-v5.tsx');
     const physicalSource = source(
       'server/gradebook/persistence/d1/performance/d1-class-performance-source-v1.ts',
     );
 
-    expect(performancePage).toContain('<PerformanceOfficialCharts matrix={matrix} />');
-    expect(charts).toContain('cell.projection.percentage.imported');
-    expect(charts).not.toContain('.calculated');
+    expect(performancePage).toContain('<PerformanceAnalysisPanelV3');
+    expect(analysis).toContain('<PerformanceDashboardWidgetsV5');
+    expect(widgets).toContain('dashboardAnalysisV5');
     expect(physicalSource).toContain('resolvePerformanceComparisonProjectionV2');
     expect(physicalSource).not.toContain('tolerance');
   });
@@ -60,7 +61,7 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
       'src/platform/gradebook-operational-surface.tsx',
       'src/features/gradebook/operational-workspace/relational-workspace-page-v2.tsx',
       'src/features/gradebook/operational-workspace/operational-workspace-client-v2.ts',
-      'src/features/gradebook/performance/performance-official-charts.tsx',
+      'src/features/gradebook/performance/performance-dashboard-widgets-v5.tsx',
     ].map(source).join('\n');
 
     expect(functions.match(/\/api\/gradebook\/operational-workspace/g) ?? []).toHaveLength(0);

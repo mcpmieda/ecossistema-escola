@@ -240,6 +240,16 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F14-664-005`: nenhuma relação, diagnóstico atual, importação, correção automática, regra, autoridade, segredo ou infraestrutura é alterada.
 - `F14-664-006`: testes focados, `npm run verify`, CI do head, revisão, merge/deploy e smoke somente leitura seguem BN-DEC-023; visual conjunto continua separado.
 
+## F14-666 — Retirada dos frontends antigos não montados
+
+- `F14-666-001`: shell e wrappers montam somente as superfícies relacionais atuais de Centrais, Desempenho, Conselho, Boletins e Relatórios.
+- `F14-666-002`: 19 módulos frontend antigos sem import de produção são removidos, incluindo o helper de ano substituído pelo contexto fixo 2026.
+- `F14-666-003`: handlers, endpoints, contratos, serviços, adapters e migrations permanecem; compatibilidade server-side não é inferida como morta pela ausência de frontend.
+- `F14-666-004`: `bulletin-pdf-renderer-v1.ts` permanece e continua sendo importado pelo V2; somente ações V1 sem chamadores são retiradas.
+- `F14-666-005`: regressões de integração apontam para páginas/hooks atuais e não recriam testes das implementações removidas.
+- `F14-666-006`: não há DDL/DML, regra, autoridade, ano adicional, comparação entre anos, segredo, binding ou configuração de produção.
+- `F14-666-007`: testes focados, `npm run verify`, CI do head, revisão, merge/deploy e smoke somente leitura seguem BN-DEC-023; visual conjunto continua separado.
+
 ## CAT — Cadastro acadêmico pela importação
 
 - `CAT-001`: professor e ano são reconhecidos em `CONFIGURAÇÃO!A2/C2`.

@@ -26,21 +26,23 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#662 / PR #663:** recuperação lógica e contenção PostgreSQL integradas em `89cb382d588364560ac250a4a1f0e0d65a079573` e publicadas no deploy 267 (`34600229510`). O artefato privado foi restaurado em banco local descartável com 120.879 linhas/28 relações, 12 sequences, catálogo pós-`0005`, FKs e ACL local conferidos. Jornadas selecionadas, advisory lock/rollback de diagnósticos e CAS/idempotência do Conselho passaram em conexões reais. Restore gerenciado, RPO/RTO e configuração externa continuam próprios. [Evidência e limites](RELATIONAL_RECOVERY_REHEARSAL_662.md).
 
-**#664 / PR #665:** retirada seletiva da superfície Audit Workspace V1. Três módulos UI e o endpoint dedicado sem consumidores são removidos; Auditoria Atual V2, diagnósticos relacionais e o núcleo V1 ainda usado por Relatórios V1 permanecem intactos. [Prova e limites](LEGACY_AUDIT_RETIREMENT_664.md).
+**#664 / PR #665:** retirada seletiva da superfície Audit Workspace V1 integrada em `dc8005e7911b1dbfda914345a8c194987b6ebc22` e publicada no deploy 268 (`34602595928`). Três módulos UI e o endpoint dedicado sem consumidores foram removidos; Auditoria Atual V2, diagnósticos relacionais e o núcleo V1 ainda usado por Relatórios V1 permanecem intactos. [Prova e limites](LEGACY_AUDIT_RETIREMENT_664.md).
+
+**#666 / PR #667:** retirada dos clusters frontend antigos de Centrais, Desempenho, Conselho, Boletins e Relatórios que não têm montagem ou import de produção. Endpoints, handlers, contratos, serviços, adapters e o renderizador PDF V1 ainda reutilizado permanecem. [Prova e limites](LEGACY_FRONTEND_RETIREMENT_666.md).
 
 ## Leitura e execução
 
 1. [COMECE_AQUI.md](COMECE_AQUI.md): tarefa e dependências.
 2. [PROJECT_STATE.yaml](PROJECT_STATE.yaml): baseline e entrega corrente.
 3. [DECISIONS.md](DECISIONS.md): decisões anteriores e substituições expressas.
-4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_TEACHER_CONFIGURATION_660.md](RELATIONAL_TEACHER_CONFIGURATION_660.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md), [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md), [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md), [RELATIONAL_COUNCIL_V3.md](RELATIONAL_COUNCIL_V3.md), [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md), [RELATIONAL_REPORTS_V2.md](RELATIONAL_REPORTS_V2.md), [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md), [RELATIONAL_RECOVERY_REHEARSAL_662.md](RELATIONAL_RECOVERY_REHEARSAL_662.md) e [LEGACY_AUDIT_RETIREMENT_664.md](LEGACY_AUDIT_RETIREMENT_664.md): caminhos e limites.
+4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_TEACHER_CONFIGURATION_660.md](RELATIONAL_TEACHER_CONFIGURATION_660.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md), [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md), [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md), [RELATIONAL_COUNCIL_V3.md](RELATIONAL_COUNCIL_V3.md), [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md), [RELATIONAL_REPORTS_V2.md](RELATIONAL_REPORTS_V2.md), [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md), [RELATIONAL_RECOVERY_REHEARSAL_662.md](RELATIONAL_RECOVERY_REHEARSAL_662.md), [LEGACY_AUDIT_RETIREMENT_664.md](LEGACY_AUDIT_RETIREMENT_664.md) e [LEGACY_FRONTEND_RETIREMENT_666.md](LEGACY_FRONTEND_RETIREMENT_666.md): caminhos e limites.
 5. [CONTRACTS.md](CONTRACTS.md), [ROADMAP.md](ROADMAP.md), [ISSUE_MAP.md](ISSUE_MAP.md) e [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
 
 ## Programa final
 
 | Fase    | Issue | Entrega restante                                                                                                        |
 | ------- | ----- | ----------------------------------------------------------------------------------------------------------------------- |
-| FINAL-1 | #633  | Consumidores e restore/contenção local concluídos; #664 retira legado provado; trilha humana, operação externa e visual pendentes |
+| FINAL-1 | #633  | Consumidores e restore/contenção local concluídos; #664/#666 retiram legado provado; trilha humana, operação externa e visual pendentes |
 | FINAL-2 | #634  | #646 consolida fonte/detalhe/desktop; #649 fixa 2026 e entrega comparação trimestral; validação visual única restante   |
 | FINAL-3 | #635  | Conselho V3 integrado/publicado e contenção local comprovada; validação visual conjunta e piloto ainda pendentes        |
 | FINAL-4 | #406  | piloto integral, recuperação operacional externa e retirada seletiva do legado                                          |

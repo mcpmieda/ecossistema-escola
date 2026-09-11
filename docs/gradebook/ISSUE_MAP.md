@@ -14,7 +14,8 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Auditoria relacional atual | #658 / PR #659 | integrada/publicada no deploy 265; smoke autenticado somente leitura verde                         |
 | Configuração docente       | #660 / PR #661 | integrada/publicada no deploy 266; CI e smoke autenticado somente leitura verdes                   |
 | Recuperação/contenção      | #662 / PR #663 | integrado/publicado no deploy 267; restore lógico, jornadas e disputa PostgreSQL local comprovados |
-| Retirada Audit V1          | #664 / PR #665 | UI e endpoint dedicados sem consumidores em retirada; núcleo usado por Relatórios V1 preservado    |
+| Retirada Audit V1          | #664 / PR #665 | integrada/publicada no deploy 268; núcleo usado por Relatórios V1 preservado                        |
+| Frontends não montados     | #666 / PR #667 | clusters antigos sem imports de produção em retirada; endpoints e serviços preservados              |
 | FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
 | FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
 | Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |
@@ -33,7 +34,7 @@ As dependências são de entregas aceitas, não apenas da existência de branche
 
 ## Branches reservadas
 
-Corrente: `fix/bn-retire-audit-v1-surface-664`. Reservada para o piloto posterior: `test/bn-final-4-piloto-integral`.
+Corrente: `fix/bn-retire-unmounted-frontend-666`. Reservada para o piloto posterior: `test/bn-final-4-piloto-integral`.
 
 Branches históricas não devem ser mergeadas só por estarem abertas/existirem. Toda execução parte da `main` factual validada e registra seu próprio checkpoint na issue/PR.
 

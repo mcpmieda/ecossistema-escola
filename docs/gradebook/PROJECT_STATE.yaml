@@ -5,9 +5,9 @@ updated_at: 2026-09-11
 
 coordination:
   master_issue: 182
-  executable_issue: 664
-  current_delivery_issue: 664
-  current_integrator_issue: 664
+  executable_issue: 666
+  current_delivery_issue: 666
+  current_integrator_issue: 666
   central_state_editor: integrator-only
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
@@ -22,7 +22,8 @@ coordination:
   prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
 
 baseline:
-  last_audited_main_commit: 89cb382d588364560ac250a4a1f0e0d65a079573
+  last_audited_main_commit: dc8005e7911b1dbfda914345a8c194987b6ebc22
+  integrated_audit_v1_retirement_pr: 665
   integrated_recovery_contention_pr: 663
   integrated_teacher_configuration_pr: 661
   integrated_current_audit_pr: 659
@@ -40,11 +41,11 @@ baseline:
   integrated_import_archive_pr: 632
   storage_homologation_issue: 613
   active_diagnostics_homologation_issue: 629
-  authorized_deploy_run: 34600229510
-  authorized_deploy_number: 267
+  authorized_deploy_run: 34602595928
+  authorized_deploy_number: 268
   authorized_deploy_result: success
   authenticated_post_deploy_smoke_this_session: true
-  note: baseline-after-recovery-rehearsal-663-before-audit-v1-surface-retirement-664
+  note: baseline-after-audit-v1-surface-retirement-665-before-unmounted-frontend-retirement-666
 
 storage:
   decision_current: BN-DEC-022
@@ -135,7 +136,7 @@ runtime:
   relational_current_audit_v2: integrated-pr-659-deploy-265-authenticated-read-only-smoke-success
   relational_current_audit_source: current-import-diagnostics-2026
   relational_current_audit_writes: none
-  relational_current_audit_legacy_workspace: dedicated-ui-and-http-retirement-in-issue-664-core-retained-for-reports-v1
+  relational_current_audit_legacy_workspace: dedicated-ui-and-http-retired-pr-665-core-retained-for-reports-v1
   relational_current_audit_human_treatment_history: pending-explicit-contract-and-durability
   shared_year_consumers:
     [centers-v2, current-audit-v2, performance-v2-v3-v4, bulletins-v2, reports-v2, council-v3]
@@ -146,6 +147,7 @@ runtime:
   relational_teacher_configuration_order: [P, M, H, G, C, A, RL, RD, F, ET, I, CT]
   relational_teacher_legacy_write: rejected-before-legacy-runtime
   relational_teacher_legacy_exclusive_files: removed-after-static-dependency-proof
+  unmounted_legacy_frontends: retirement-in-issue-666-server-compatibility-preserved
   remaining_consumers: none-after-issue-660
   real_postgres_contention: diagnostic-advisory-lock-rollback-and-council-cas-passed-issue-662
   relational_council_serialization_retry: one-retry-on-sqlstate-40001-then-contracted-cas-response
@@ -156,29 +158,29 @@ runtime:
     note: describes-existing-v1-contracts-not-a-global-runtime-flag
 
 work_in_progress:
-  issue: 664
+  issue: 666
   parent_issues: [633, 406, 596]
   phase: FINAL-1-4-selective-legacy-retirement
-  branch: fix/bn-retire-audit-v1-surface-664
-  pull_request: 665
-  scope: remove-unconsumed-audit-v1-ui-and-dedicated-http-entrypoint
+  branch: fix/bn-retire-unmounted-frontend-666
+  pull_request: 667
+  scope: remove-unmounted-legacy-frontend-clusters-and-preserve-server-compatibility
   production_activation_in_this_delivery: false
   production_schema_extension_in_this_delivery: none
   phase_complete: false
-  release_checkpoint: issue-664
+  release_checkpoint: issue-666
   visual_validation_this_delivery: not-applicable-joint-acceptance-still-deferred
   remaining:
     - joint-visual-validation-with-responsible
     - explicit-contract-and-durability-for-human-audit-treatment
     - managed-production-backup-restore-rpo-rto-and-external-configuration
-    - additional-legacy-removal-only-after-new-dependency-proof
+    - external-v1-endpoint-removal-only-after-consumer-inventory
     - final-head-verify-ci-review-merge-deploy
 
 final_phases:
   - phase: FINAL-1
     issue: 633
     branch: null
-    status: functional-consumers-integrated-local-restore-and-contention-green-audit-v1-surface-retirement-in-issue-664-external-gates-and-visual-validation-pending
+    status: functional-consumers-integrated-local-restore-and-contention-green-audit-v1-retired-unmounted-frontends-in-issue-666-external-gates-and-visual-validation-pending
   - phase: FINAL-2
     issue: 634
     branch: null
@@ -228,7 +230,7 @@ security:
   report: docs/gradebook/SECURITY_REMEDIATION_637.md
 
 next_safe_action:
-  issue: 664
+  issue: 666
   related_issues: [633, 406, 596]
-  description: document-test-review-verify-integrate-and-deploy-selective-audit-v1-retirement
-  prerequisite_release_checkpoint: issue-664
+  description: document-test-review-verify-integrate-and-deploy-unmounted-frontend-retirement
+  prerequisite_release_checkpoint: issue-666

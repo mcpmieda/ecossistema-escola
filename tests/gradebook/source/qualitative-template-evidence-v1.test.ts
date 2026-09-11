@@ -3,7 +3,6 @@ import { isQualitativeColumnOrdinalV1, meaningfulQualitativeDescriptionV1 } from
 import { compareSourceSubjectPresentationV1, SOURCE_SUBJECT_PRESENTATION_V1, sourceSubjectAbbreviationV1, sourceSubjectPresentationOrderV1 } from '../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import { termRecoveryVisibilityV1 } from '../../../src/gradebook-domain/calculations/simplified/term-recovery-visibility-v1';
 import { resolveSimplifiedTermV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
-import { resolveLegacyAcademicYear } from '../../../src/platform/gradebook-legacy-year';
 
 describe('source evidence, not per-student omission #646', () => {
   it.each([undefined, '', '5', ' 5 ', '5,0', '5.00'])('does not manufacture activity from ordinal %s', (description) => {
@@ -48,10 +47,5 @@ describe('source evidence, not per-student omission #646', () => {
   });
   it('does not assert recovery eligibility for a missing definition', () => {
     expect(termRecoveryVisibilityV1(null, true)).toEqual({ showParallel: false, showRecovery: false });
-  });
-  it('maps only unique real year IDs, never fabricated IDs or a neighboring year', () => {
-    expect(resolveLegacyAcademicYear(2026, [{ id: 'opaque-year-id', label: '2026' }])).toBe('opaque-year-id');
-    expect(resolveLegacyAcademicYear(2026, [{ id: 'x', label: '2025' }])).toBeNull();
-    expect(resolveLegacyAcademicYear(2026, [{ id: 'x', label: '2026' }, { id: 'y', label: '2026' }])).toBeNull();
   });
 });
