@@ -28,7 +28,7 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#664 / PR #665:** retirada seletiva da superfície Audit Workspace V1 integrada em `dc8005e7911b1dbfda914345a8c194987b6ebc22` e publicada no deploy 268 (`34602595928`). Três módulos UI e o endpoint dedicado sem consumidores foram removidos; Auditoria Atual V2, diagnósticos relacionais e o núcleo V1 ainda usado por Relatórios V1 permanecem intactos. [Prova e limites](LEGACY_AUDIT_RETIREMENT_664.md).
 
-**#666:** retirada dos clusters frontend antigos de Centrais, Desempenho, Conselho, Boletins e Relatórios que não têm montagem ou import de produção. Endpoints, handlers, contratos, serviços, adapters e o renderizador PDF V1 ainda reutilizado permanecem. [Prova e limites](LEGACY_FRONTEND_RETIREMENT_666.md).
+**#666 / PR #667:** retirada dos clusters frontend antigos de Centrais, Desempenho, Conselho, Boletins e Relatórios que não têm montagem ou import de produção. Endpoints, handlers, contratos, serviços, adapters e o renderizador PDF V1 ainda reutilizado permanecem. [Prova e limites](LEGACY_FRONTEND_RETIREMENT_666.md).
 
 ## Leitura e execução
 

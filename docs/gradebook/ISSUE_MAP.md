@@ -15,7 +15,7 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Configuração docente       | #660 / PR #661 | integrada/publicada no deploy 266; CI e smoke autenticado somente leitura verdes                   |
 | Recuperação/contenção      | #662 / PR #663 | integrado/publicado no deploy 267; restore lógico, jornadas e disputa PostgreSQL local comprovados |
 | Retirada Audit V1          | #664 / PR #665 | integrada/publicada no deploy 268; núcleo usado por Relatórios V1 preservado                        |
-| Frontends não montados     | #666           | clusters antigos sem imports de produção em retirada; endpoints e serviços preservados              |
+| Frontends não montados     | #666 / PR #667 | clusters antigos sem imports de produção em retirada; endpoints e serviços preservados              |
 | FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
 | FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
 | Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |

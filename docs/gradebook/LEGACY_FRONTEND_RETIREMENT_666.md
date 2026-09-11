@@ -1,4 +1,4 @@
-# Retirada dos frontends antigos não montados — #666
+# Retirada dos frontends antigos não montados — #666 / PR #667
 
 ## Base e prova de dependência
 

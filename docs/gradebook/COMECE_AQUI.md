@@ -1,6 +1,6 @@
 # Entrega corrente — retirada dos frontends antigos não montados
 
-**#666**, branch `fix/bn-retire-unmounted-frontend-666`. Base factual: `main@dc8005e7911b1dbfda914345a8c194987b6ebc22`, após a retirada seletiva da Auditoria V1 #664/PR #665, deploy 268 (`34602595928`) e smoke autenticado somente leitura. O trabalho atual existe no head da branch e só será fato integrado depois de CI, revisão, merge e deploy.
+**#666 / PR #667**, branch `fix/bn-retire-unmounted-frontend-666`. Base factual: `main@dc8005e7911b1dbfda914345a8c194987b6ebc22`, após a retirada seletiva da Auditoria V1 #664/PR #665, deploy 268 (`34602595928`) e smoke autenticado somente leitura. O trabalho atual existe no head da branch e só será fato integrado depois de CI, revisão, merge e deploy.
 
 #646/#647 integrou fonte, siglas, detalhe e desktop. #649/#650 fixou 2026, removeu criação/seleção de anos e entregou comparação descritiva entre trimestres. #651/#652 redesenhou Desempenho. #648/#653 integrou Conselho V3. #654/#655 integrou Boletins V2. #656/#657 integrou Relatórios V2. Não reconstruir esses blocos. Usar `main` + branch + issue/PR + CI como estado factual; `PROJECT_STATE.yaml` é resumo e pode ficar um commit atrás.
 

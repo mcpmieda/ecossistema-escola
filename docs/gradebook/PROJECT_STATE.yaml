@@ -162,7 +162,7 @@ work_in_progress:
   parent_issues: [633, 406, 596]
   phase: FINAL-1-4-selective-legacy-retirement
   branch: fix/bn-retire-unmounted-frontend-666
-  pull_request: null
+  pull_request: 667
   scope: remove-unmounted-legacy-frontend-clusters-and-preserve-server-compatibility
   production_activation_in_this_delivery: false
   production_schema_extension_in_this_delivery: none
