@@ -1,6 +1,6 @@
 # Roadmap — quatro fases finais
 
-A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #656 sob FINAL-1 #633, sem reconstruir os blocos já integrados.
+A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #658 sob FINAL-1 #633, sem reconstruir os blocos já integrados.
 
 ## FINAL-1 — #633: runtime relacional e verdade documental
 
@@ -8,7 +8,7 @@ A reconstrução de persistência da #613 terminou. Este roadmap substitui a fil
 
 **Primeira entrega / PR #636:** reancoragem documental e leitura em lote; projeção anual deixa de consultar fatos separadamente por oferta. Preserva motor e resultados. Não liga novas telas nem fecha toda a fase.
 
-**Blocos integrados/em execução:** baseline/Auditoria de arquivos, Centrais, Desempenho, Conselho e Boletins V2 estão integrados; Relatórios V2 segue na #656. **Restante depois de #656:** manutenção docente, Audit Workspace antigo, isolamento/concorrência/frescor e remoção apenas de dependências comprovadamente mortas. Contratos compartilhados exigem issue própria.
+**Blocos integrados/em execução:** baseline, Centrais, Desempenho, Conselho, Boletins e Relatórios V2 estão integrados. A #658 retira o Audit Workspace V1 do caminho ativo e apresenta somente diagnósticos relacionais atuais. **Restante depois da #658:** manutenção docente, contrato/durabilidade da trilha humana de Auditoria, isolamento/concorrência/frescor e remoção apenas de dependências comprovadamente mortas. Contratos compartilhados exigem issue própria.
 
 **Fechar quando:** consumidores contemplados estejam integrados e verificados, sem relações antigas no caminho migrado, com CI e evidência funcional após publicação autorizada.
 
