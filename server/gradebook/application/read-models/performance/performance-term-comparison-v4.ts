@@ -30,7 +30,7 @@ function projectReferenceMatrix(
       recoveryUnknownRows: rows.filter((row) => row.student.indicatorEligible && row.cells.some((cell) => cell.recoveryApplicable === null)).length,
       consideredCells: consideredCells.length, completeCells: consideredCells.filter((cell) => cell.state === 'complete').length,
       noShowCells: consideredCells.filter((cell) => cell.state === 'no-show').length,
-      incompleteCells: consideredCells.filter((cell) => cell.state !== 'complete' && cell.state !== 'no-show').length,
+      incompleteCells: consideredCells.filter((cell) => cell.state !== 'complete' && cell.state !== 'no-show' && cell.state !== 'repeat-failure').length,
       attentionRows: eligible.filter((row) => row.cells.some((cell) => cell.level === 'below')).length,
     },
   }) as PerformanceMatrixV2;

@@ -177,7 +177,7 @@ export async function readRelationalPerformanceV2(db: D1WriteDatabaseV1, request
       recoveryUnknownRows: statusRows.filter((value) => value.student.indicatorEligible && value.cells.some((cell) => cell.recoveryApplicable === null)).length,
       consideredCells: consideredCells.length, completeCells: consideredCells.filter((value) => value.state === 'complete').length,
       noShowCells: consideredCells.filter((value) => value.state === 'no-show').length,
-      incompleteCells: consideredCells.filter((value) => value.state !== 'complete' && value.state !== 'no-show').length,
+      incompleteCells: consideredCells.filter((value) => value.state !== 'complete' && value.state !== 'no-show' && value.state !== 'repeat-failure').length,
       attentionRows: eligible.filter((value) => value.cells.some((cell) => cell.level === 'below')).length } };
 }
 

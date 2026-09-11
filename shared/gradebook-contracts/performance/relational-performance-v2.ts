@@ -38,8 +38,10 @@ const cell = z.object({
   warningCodes: z.array(z.enum(SIMPLIFIED_ENGINE_WARNING_CODES_V1)).max(32),
 }).strict().superRefine((value, ctx) => {
   const numeric = value.state === 'complete' || value.state === 'partial';
+  const classified = numeric || value.state === 'repeat-failure';
   if (numeric !== (value.valueMilli !== null)) ctx.addIssue({ code: 'custom', message: 'cell value/state mismatch' });
-  if (numeric === (value.level === 'not-classified')) ctx.addIssue({ code: 'custom', message: 'numeric cell classification mismatch' });
+  if (classified === (value.level === 'not-classified')) ctx.addIssue({ code: 'custom', message: 'cell classification mismatch' });
+  if (value.state === 'repeat-failure' && value.level !== 'below') ctx.addIssue({ code: 'custom', message: 'repeat failure must be below' });
   if (value.sourceComparison !== 'unavailable' && (value.state !== 'complete' || value.sourceReferenceMilli === null)) ctx.addIssue({ code: 'custom', message: 'unavailable comparison' });
 });
 export type PerformanceCellV2 = z.infer<typeof cell>;

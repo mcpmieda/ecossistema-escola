@@ -15,7 +15,7 @@ export function PerformanceResultMatrixV2({ value, open, allowedIds, focusOffer 
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLocaleLowerCase('pt-BR');
   const rows = value.rows.filter((row) => allowedIds === null || allowedIds.has(row.student.id)).filter((row) => investigation === 'all' || (row.student.indicatorEligible && row.cells.some((cell) =>
-    investigation === 'below' ? cell.level === 'below' : cell.state !== 'complete' && cell.state !== 'no-show' && (value.mode === 'regular' || cell.recoveryApplicable === true))));
+    investigation === 'below' ? cell.level === 'below' : cell.state !== 'complete' && cell.state !== 'no-show' && cell.state !== 'repeat-failure' && (value.mode === 'regular' || cell.recoveryApplicable === true))));
   const visibleRows = normalizedQuery ? rows.filter((row) => row.student.name.toLocaleLowerCase('pt-BR').includes(normalizedQuery) || String(row.student.number) === normalizedQuery) : rows;
   return <Surface variant="default" className="performance-widget grid min-w-0 gap-3">
     <header className="performance-widget__header">

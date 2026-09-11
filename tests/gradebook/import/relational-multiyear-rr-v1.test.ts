@@ -4,6 +4,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
 import { createRelationalCouncilV3 } from '../../../server/gradebook/application/council/relational-council-v3';
 import { createRelationalAcademicProjectionServiceV1 } from '../../../server/gradebook/application/results/relational-academic-projection-v1';
+import { createRelationalPerformanceV2 } from '../../../server/gradebook/application/read-models/performance/relational-performance-v2';
+import { createPerformanceDashboardV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -136,8 +138,27 @@ describe('materialização multi-ano e R/R terminal', () => {
     expect(resolveSimplifiedAnnualOutcomeV1({ status: null, components: [projection.recovery], maxCouncilComponents: 2 }))
       .toMatchObject({ visibleResult: 'REPROVADO', councilEligibility: 'not-eligible', reasons: ['component:failed-repeat'] });
 
+    const classId = (await pg.query<{ id: number }>("SELECT id FROM gradebook.turma WHERE ano=2025 AND codigo='T25'")).rows[0]!.id;
+    const performance = await createRelationalPerformanceV2(database).execute({
+      transportVersion: 2, operation: 'matrix', year: 2025, classId, period: 1, mode: 'recovery', statuses: [null, 7],
+    });
+    expect(performance).toMatchObject({
+      state: 'ready', operation: 'matrix',
+      rows: [{ cells: [{ state: 'repeat-failure', level: 'below' }], calculatedAnnual: { label: 'REPROVADO' } }],
+      statistics: { incompleteCells: 0, attentionRows: 1 },
+    });
+
+    const dashboard = await createPerformanceDashboardV5(database).execute({
+      transportVersion: 5, operation: 'dashboard', year: 2025, classId, period: 1, mode: 'recovery',
+      statuses: [null, 7], lens: 'result', offerId: null, referencePeriod: null,
+    });
+    expect(dashboard).toMatchObject({
+      state: 'ready',
+      overview: { students: { withBelow: 1, pending: 0 }, groups: { withBelow: [pair.aluno_id] }, columns: [{ below: 1, incomplete: 0 }] },
+    });
+
     const council = await createRelationalCouncilV3(database, '11111111-1111-4111-8111-111111111111')
-      .execute({ contractVersion: 3, operation: 'workspace', year: 2025, classId: (await pg.query<{ id: number }>("SELECT id FROM gradebook.turma WHERE ano=2025 AND codigo='T25'")).rows[0]!.id });
+      .execute({ contractVersion: 3, operation: 'workspace', year: 2025, classId });
     expect(council).toMatchObject({ state: 'ready', operation: 'workspace' });
     if (council.state !== 'ready' || council.operation !== 'workspace') throw new Error('workspace-unavailable');
     expect(council.workspace.students[0]).toMatchObject({

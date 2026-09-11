@@ -52,7 +52,7 @@ function reading(raw: RawReading, key: string, eligible: boolean, minimum: numbe
   // or converting a missing value into zero. Composition lenses still require complete coverage.
   const classificationReady = raw.state === 'complete' || (classifyPartialResult && raw.state === 'partial');
   const percent = classificationReady && raw.valueMilli !== null && raw.maximumMilli !== null ? raw.valueMilli / raw.maximumMilli * 100 : null;
-  const bucket = !eligible || raw.state === 'not-applicable' ? 'excluded' : raw.state === 'no-show' ? 'no-show' : !classificationReady ? 'incomplete' : percent === null ? 'unscaled' :
+  const bucket = !eligible || raw.state === 'not-applicable' ? 'excluded' : raw.state === 'repeat-failure' ? 'below' : raw.state === 'no-show' ? 'no-show' : !classificationReady ? 'incomplete' : percent === null ? 'unscaled' :
     BigInt(raw.valueMilli!) * BigInt(ANNUAL_MAXIMUM) >= BigInt(raw.maximumMilli!) * BigInt(minimum) ? 'above' : 'below';
   return { ...raw, key, percent, bucket };
 }
