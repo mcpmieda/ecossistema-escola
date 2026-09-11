@@ -153,4 +153,17 @@ describe('simplified academic engine v1', () => {
     expect(outcome.classification).toBe('failed-no-show');
     expect(outcome.postRecoveryTotalMilli).toBeNull();
   });
+
+  it('treats R/R in any recovery component as terminal automatic failure', () => {
+    const outcome = resolveSimplifiedComponentRecoveryV1({
+      terms: [completeTerm(1, 30_000), completeTerm(2, 30_000), completeTerm(3, 40_000)],
+      recovery: { 1: null, 2: 'RR', 3: null },
+      minimumApprovalMilli: 60_000,
+    });
+
+    expect(outcome.recoveryRequired).toBe(false);
+    expect(outcome.recoveryTerms[2].source).toBe('RR');
+    expect(outcome.classification).toBe('failed-repeat');
+    expect(outcome.postRecoveryTotalMilli).toBe(100_000);
+  });
 });

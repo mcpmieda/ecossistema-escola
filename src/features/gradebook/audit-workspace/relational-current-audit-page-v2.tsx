@@ -43,7 +43,6 @@ type HistoryState = 'idle' | 'loading' | 'ready' | 'empty' | 'not-authorized' | 
 type SeverityFilter = 'all' | 'blocking-error' | 'warning';
 
 const PAGE_SIZE = 50;
-const ACTIVE_YEAR = 2026;
 
 const DIAGNOSTIC_LABELS: Readonly<Record<string, string>> = {
   'invalid-text': 'Texto em campo de nota',
@@ -86,7 +85,7 @@ function treatmentLocation(value: ImportDiagnosticTreatmentRecordV1): string {
     .join(' · ');
 }
 
-function StateAlert({ state }: { readonly state: Exclude<LoadState, 'loading' | 'ready'> }) {
+function StateAlert({ state, year }: { readonly state: Exclude<LoadState, 'loading' | 'ready'>; readonly year: number | null }) {
   if (state === 'not-authorized') {
     return (
       <Alert status="warning">
@@ -119,7 +118,7 @@ function StateAlert({ state }: { readonly state: Exclude<LoadState, 'loading' | 
       <Alert.Content>
         <Alert.Title>Nenhum achado atual</Alert.Title>
         <Alert.Description>
-          O recorte de 2026 não possui erro ou aviso de importação pendente.
+          O recorte de {year ?? 'ano selecionado'} não possui erro ou aviso de importação pendente.
         </Alert.Description>
       </Alert.Content>
     </Alert>
@@ -337,13 +336,14 @@ function Finding({ value, treatments, treatmentState, busy, feedback, onRecord }
 }
 
 interface TreatmentHistoryProps {
+  readonly year: number | null;
   readonly state: HistoryState;
   readonly values: readonly ImportDiagnosticTreatmentRecordV1[];
   readonly nextCursor: ImportDiagnosticTreatmentHistoryCursorV1 | null;
   readonly onLoad: (cursor?: ImportDiagnosticTreatmentHistoryCursorV1 | null) => void;
 }
 
-function TreatmentHistory({ state, values, nextCursor, onLoad }: TreatmentHistoryProps) {
+function TreatmentHistory({ year, state, values, nextCursor, onLoad }: TreatmentHistoryProps) {
   return (
     <Card>
       <Card.Header className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">
@@ -380,7 +380,7 @@ function TreatmentHistory({ state, values, nextCursor, onLoad }: TreatmentHistor
           </div>
         )}
         {state === 'empty' && (
-          <p className="text-sm text-muted">Nenhuma ação humana foi registrada em 2026.</p>
+          <p className="text-sm text-muted">Nenhuma ação humana foi registrada em {year ?? 'este ano'}.</p>
         )}
         {state === 'not-authorized' && (
           <p className="text-sm text-warning">Sua sessão não pode consultar o histórico.</p>
@@ -487,7 +487,7 @@ export function RelationalCurrentAuditPageV2() {
           {
             contractVersion: IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1,
             operation: 'context',
-            year: ACTIVE_YEAR,
+            year: year!,
             findings: findings.map((item) => ({ fileName: item.fileName, key: item.key })),
           },
           signal,
@@ -505,7 +505,7 @@ export function RelationalCurrentAuditPageV2() {
         }
       }
     },
-    [mergeTreatments],
+    [mergeTreatments, year],
   );
 
   const load = useCallback(async () => {
@@ -514,8 +514,8 @@ export function RelationalCurrentAuditPageV2() {
     setItems([]);
     setNextOffset(null);
     setFeedback({});
-    if (year !== ACTIVE_YEAR) {
-      setState('unavailable');
+    if (year === null) {
+      setState('loading');
       return;
     }
     const controller = new AbortController();
@@ -523,7 +523,7 @@ export function RelationalCurrentAuditPageV2() {
     setState('loading');
     try {
       const response = await listGradebookImportDiagnosticsAuditV1(
-        { academicYear: ACTIVE_YEAR, limit: PAGE_SIZE, offset: 0 },
+        { academicYear: year, limit: PAGE_SIZE, offset: 0 },
         controller.signal,
       );
       if (controller.signal.aborted) return;
@@ -539,14 +539,14 @@ export function RelationalCurrentAuditPageV2() {
   }, [loadTreatments, year]);
 
   const loadMore = useCallback(async () => {
-    if (year !== ACTIVE_YEAR || nextOffset === null || loadingMore) return;
+    if (year === null || nextOffset === null || loadingMore) return;
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
     setLoadingMore(true);
     try {
       const response = await listGradebookImportDiagnosticsAuditV1(
-        { academicYear: ACTIVE_YEAR, limit: PAGE_SIZE, offset: nextOffset },
+        { academicYear: year, limit: PAGE_SIZE, offset: nextOffset },
         controller.signal,
       );
       if (controller.signal.aborted) return;
@@ -570,6 +570,7 @@ export function RelationalCurrentAuditPageV2() {
       action: ImportDiagnosticTreatmentActionV1,
       note: string | null,
     ): Promise<boolean> => {
+      if (year === null) return false;
       const retryIdentity = `${value.id}\0${String(action)}\0${note ?? ''}`;
       const idempotencyKey =
         treatmentRetryKeysRef.current.get(retryIdentity) ??
@@ -581,7 +582,7 @@ export function RelationalCurrentAuditPageV2() {
         const response = await requestImportDiagnosticTreatmentV1({
           contractVersion: IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1,
           operation: 'record',
-          year: ACTIVE_YEAR,
+          year,
           diagnosticId: value.id,
           action,
           note,
@@ -627,11 +628,12 @@ export function RelationalCurrentAuditPageV2() {
         });
       }
     },
-    [historyState, mergeTreatments],
+    [historyState, mergeTreatments, year],
   );
 
   const loadHistory = useCallback(
     async (cursor: ImportDiagnosticTreatmentHistoryCursorV1 | null = null) => {
+      if (year === null) return;
       historyRequestRef.current?.abort();
       const controller = new AbortController();
       historyRequestRef.current = controller;
@@ -645,7 +647,7 @@ export function RelationalCurrentAuditPageV2() {
           {
             contractVersion: IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1,
             operation: 'history',
-            year: ACTIVE_YEAR,
+            year,
             limit: IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.historyPage,
             cursor,
           },
@@ -666,7 +668,7 @@ export function RelationalCurrentAuditPageV2() {
           setHistoryState('unavailable');
       }
     },
-    [],
+    [year],
   );
 
   useEffect(() => {
@@ -706,12 +708,12 @@ export function RelationalCurrentAuditPageV2() {
             Pendências da fonte em linguagem escolar
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            Achados atuais das planilhas de 2026. A Auditoria explica e sugere; nenhuma correção é
+            Achados atuais das planilhas do ano selecionado. A Auditoria explica e sugere; nenhuma correção é
             executada automaticamente.
           </p>
         </div>
         <Chip size="lg" variant="soft">
-          Ano letivo 2026
+          Ano letivo {year ?? '—'}
         </Chip>
       </header>
 
@@ -735,7 +737,7 @@ export function RelationalCurrentAuditPageV2() {
         </div>
       )}
       {(state === 'empty' || state === 'not-authorized' || state === 'unavailable') && (
-        <StateAlert state={state} />
+        <StateAlert state={state} year={year} />
       )}
 
       {state === 'ready' && (
@@ -871,6 +873,7 @@ export function RelationalCurrentAuditPageV2() {
 
       {(state === 'ready' || state === 'empty') && (
         <TreatmentHistory
+          year={year}
           state={historyState}
           values={history}
           nextCursor={historyNextCursor}

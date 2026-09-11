@@ -9,6 +9,7 @@ export const SIMPLIFIED_VISIBLE_ANNUAL_RESULTS_V1 = [
   'APROVADO PELA RECUPERAÇÃO',
   'REPROVADO APÓS RECUPERAÇÃO',
   'REPROVADO POR NÃO COMPARECIMENTO',
+  'REPROVADO',
   'APROVADO',
   'DESISTENTE',
   'TRANSFERIDO',
@@ -86,7 +87,7 @@ export function resolveSimplifiedAnnualOutcomeV1(
     (component) => component.classification === 'approved-after-recovery',
   ).length;
   const failedComponentCount = input.components.filter(
-    (component) => component.classification === 'not-approved',
+    (component) => component.classification === 'not-approved' || component.classification === 'failed-repeat',
   ).length;
 
   const base = {
@@ -94,6 +95,16 @@ export function resolveSimplifiedAnnualOutcomeV1(
     approvedDirectComponentCount,
     approvedAfterRecoveryComponentCount,
   } as const;
+
+  if (input.components.some((component) => component.classification === 'failed-repeat')) {
+    return {
+      ...base,
+      state: 'final',
+      visibleResult: 'REPROVADO',
+      councilEligibility: 'not-eligible',
+      reasons: ['component:failed-repeat'],
+    };
+  }
 
   if (
     input.components.length === 0 ||

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { GRADEBOOK_ACADEMIC_YEAR_MAX_V2, GRADEBOOK_ACADEMIC_YEAR_MIN_V2 } from '../academic-year-v2';
 import {
   GRADEBOOK_IMPORT_DIAGNOSTIC_CODES_V1,
   GRADEBOOK_IMPORT_DIAGNOSTIC_SEVERITIES_V1,
@@ -13,7 +14,6 @@ import { relationalCouncilResponseSchemaV3 } from '../council/relational-council
 import { relationalBulletinResponseSchemaV2 } from '../bulletins/relational-bulletin-v2';
 
 export const RELATIONAL_INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V2 = 2 as const;
-export const RELATIONAL_INSTITUTIONAL_REPORTS_YEAR_V2 = 2026 as const;
 export const RELATIONAL_INSTITUTIONAL_REPORTS_LIMITS_V2 = Object.freeze({
   classes: 100,
   students: 150,
@@ -35,7 +35,7 @@ export type RelationalInstitutionalReportFamilyV2 =
   (typeof RELATIONAL_INSTITUTIONAL_REPORT_FAMILIES_V2)[number];
 
 const id = z.number().int().positive().max(2_147_483_647);
-const year = z.literal(RELATIONAL_INSTITUTIONAL_REPORTS_YEAR_V2);
+const year = z.number().int().min(GRADEBOOK_ACADEMIC_YEAR_MIN_V2).max(GRADEBOOK_ACADEMIC_YEAR_MAX_V2);
 const term = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 const period = z.union([term, z.literal('annual')]);
 const status = z.union([
@@ -83,7 +83,7 @@ const performanceRequest = z
         context.addIssue({
           code: 'custom',
           path: ['referenceTerm'],
-          message: 'reference term must precede the current term in 2026',
+          message: 'reference term must precede the current term in the selected academic year',
         });
       }
     }

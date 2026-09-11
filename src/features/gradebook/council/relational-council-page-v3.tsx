@@ -22,7 +22,7 @@ import { useRelationalCouncilV3 } from './use-relational-council-v3';
 const FAILURE: Record<RelationalCouncilFailureV3, string> = {
   'invalid-request': 'A operação não pôde ser interpretada. Atualize a tela antes de tentar novamente.',
   'not-authorized': 'Sua sessão não possui autorização para operar o Conselho.',
-  'not-found': 'A turma ou o aluno não foi encontrado no contexto atual de 2026.',
+  'not-found': 'A turma ou o aluno não foi encontrado no contexto acadêmico atual.',
   unavailable: 'O Conselho está temporariamente indisponível; nenhuma alteração parcial foi mantida.',
   'scope-too-large': 'A turma excede o limite seguro desta leitura e não foi truncada.',
   'version-conflict': 'Outra alteração foi salva antes desta. O estado atual foi recarregado.',
@@ -37,7 +37,7 @@ const FAILURE: Record<RelationalCouncilFailureV3, string> = {
 const RESULT_LABEL: Record<RelationalCouncilStudentV3['components'][number]['result'], string> = {
   'in-progress': 'Em curso', 'approved-direct': 'Aprovado direto', 'recovery-pending': 'Recuperação pendente',
   'approved-after-recovery': 'Aprovado pela recuperação', 'not-approved': 'Não aprovado',
-  'failed-no-show': 'N/C', unavailable: 'Indisponível',
+  'failed-no-show': 'N/C', 'failed-repeat': 'Reprovado (R/R)', unavailable: 'Indisponível',
 };
 const TIMELINE_LABEL = {
   opened: 'Reunião aberta', 'decision-recorded': 'Decisão registrada', 'vote-recorded': 'Contagem registrada',
@@ -116,7 +116,7 @@ function StudentPanel({ student, sessionOpen, busy, onCommand, onMessage }: {
             <Table.Cell><span className="font-medium">{component.subject.abbreviation ?? component.subject.label}</span><span className="ml-2 text-xs text-muted">{component.subject.label}</span></Table.Cell>
             {component.terms.map((term, index) => <Table.Cell key={index}><Grade value={term.valueMilli} state={term.state}/></Table.Cell>)}
             <Table.Cell><Grade value={component.recovery.valueMilli} state={component.recovery.state}/></Table.Cell>
-            <Table.Cell><Chip size="sm" variant="soft" color={component.result === 'not-approved' || component.result === 'failed-no-show' ? 'danger' : component.result.startsWith('approved') ? 'success' : 'default'}><Chip.Label>{RESULT_LABEL[component.result]}</Chip.Label></Chip></Table.Cell>
+            <Table.Cell><Chip size="sm" variant="soft" color={component.result === 'not-approved' || component.result === 'failed-no-show' || component.result === 'failed-repeat' ? 'danger' : component.result.startsWith('approved') ? 'success' : 'default'}><Chip.Label>{RESULT_LABEL[component.result]}</Chip.Label></Chip></Table.Cell>
           </Table.Row>}</Table.Body>
         </Table.Content></Table.ScrollContainer></Table>
       </Card.Content>
@@ -184,8 +184,8 @@ export function RelationalCouncilPageV3() {
   }
 
   return <section aria-label="Conselho de Classe relacional" className="grid min-w-0 gap-4">
-    <header className="flex min-h-12 flex-wrap items-center gap-3"><div><h2 className="text-xl font-semibold tracking-[-0.03em]">Conselho de Classe</h2><p className="text-xs text-muted">Deliberação humana auditável sobre a elegibilidade calculada de 2026.</p></div>
-      <Chip size="sm" variant="soft" color="accent" className="ml-auto"><Chip.Label>2026 · decisão explícita</Chip.Label></Chip></header>
+    <header className="flex min-h-12 flex-wrap items-center gap-3"><div><h2 className="text-xl font-semibold tracking-[-0.03em]">Conselho de Classe</h2><p className="text-xs text-muted">Deliberação humana auditável sobre a elegibilidade calculada do ano selecionado.</p></div>
+      <Chip size="sm" variant="soft" color="accent" className="ml-auto"><Chip.Label>{state.year} · decisão explícita</Chip.Label></Chip></header>
     <Surface className="council-filterbar"><div className="min-w-0 flex-1"><CouncilClassSelect value={state.classId} disabled={state.busy.classes || state.busy.command} classes={state.classes} onChange={(value) => void state.selectClass(value)}/></div>
       <Button variant="secondary" isDisabled={state.classId === null || state.busy.workspace || state.busy.command} onPress={() => { if (state.classId !== null) void state.loadWorkspace(state.classId); }}><RefreshCw size={16}/>Atualizar</Button></Surface>
     <div className="min-h-10" aria-live="polite">{state.busy.classes || state.busy.workspace ? <p role="status" className="flex items-center gap-2 text-sm text-muted"><Spinner size="sm"/>Carregando a leitura segura do Conselho…</p> : null}

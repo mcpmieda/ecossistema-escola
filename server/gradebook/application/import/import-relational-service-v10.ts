@@ -76,7 +76,7 @@ function filterOffer(
 }
 
 /**
- * Temporary 2026 movement rule approved in #613:
+ * Movement rule approved in #613, applied independently inside each selected year:
  * facts from a FOI_PARA binding belong to the previous class and are discarded
  * before persistence. There is deliberately no fallback to the previous class.
  */

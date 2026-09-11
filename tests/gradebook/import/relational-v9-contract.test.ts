@@ -216,7 +216,8 @@ describe('gradebook relational import v9', () => {
       ],
     };
     expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
-    expect(inspectGradebookImportPersistenceRequestV9({...request, ano: 2025})).toBe('invalid-request');
+    expect(inspectGradebookImportPersistenceRequestV9({...request, ano: 2025})).toBe('ready');
+    expect(inspectGradebookImportPersistenceRequestV9({...request, ano: 1999})).toBe('invalid-request');
   });
 
   it('validates explicit empty, unavailable and N/C without student names in teacher rows', () => {
@@ -235,12 +236,12 @@ describe('gradebook relational import v9', () => {
             instrumentos: [[1, 10000], [2, 10000], [3, null]],
             alunos: [[1, [7250, null, ['u'] as const], null]],
           })) as unknown as GradebookNotesImportRequestV9['ofertas'][number]['trimestres'],
-          recuperacao: [[1, ['n'], null, ['u'], 60000]],
+          recuperacao: [[1, ['n'], ['r'], ['u'], 60000]],
         },
       ],
     };
     expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
-    expect(inspectGradebookImportPersistenceRequestV9({...request, ano: 2027})).toBe('invalid-request');
+    expect(inspectGradebookImportPersistenceRequestV9({...request, ano: 2025})).toBe('ready');
     expect(JSON.stringify(request)).not.toContain('ALUNO TESTE');
   });
 });

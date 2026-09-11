@@ -43,6 +43,7 @@ beforeEach(() => {
   requests = [];
   mock = vi.fn<typeof fetch>(async (_url, init) => {
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>; requests.push(body);
+    if (body.operation === 'bootstrap') return reply({ contractVersion: 2, state: 'ready', operation: 'bootstrap', years: [context] });
     if (body.operation === 'classes') return reply({ ...catalog, context: { ...context, year: body.year } });
     if (body.operation === 'term-comparison') return reply(comparisonFixture(body));
     if (body.operation === 'analysis') return reply(analysisFixture(body));
@@ -130,17 +131,18 @@ describe('V2 contract and transport', () => {
 });
 
 describe('real shell, shared year and rendered performance journey', () => {
-  it('does not preload an academic catalog in Importation', async () => {
+  it('loads only the global year catalogue in Importation', async () => {
     window.location.hash = '#/banco-de-notas'; await mount();
-    expect(requests.filter((value) => ['bootstrap','classes','matrix','analysis','dashboard'].includes(String(value.operation)))).toHaveLength(0);
+    expect(requests.filter((value) => value.operation === 'bootstrap')).toHaveLength(1);
+    expect(requests.filter((value) => ['classes','matrix','analysis','dashboard'].includes(String(value.operation)))).toHaveLength(0);
     expect(host.querySelector('[aria-label="Contexto acadêmico atual"]')?.textContent).toContain('2026');
   });
-  it('uses 2026 directly without loading or persisting a year catalogue', async () => {
+  it('loads the global catalogue and uses its selected year without browser persistence', async () => {
     await mount();
     await waitFor(() => requests.some((value) => value.operation === 'classes' && value.year === 2026));
     expect(document.querySelector('select[aria-label="Ano letivo do Banco"]')).toBeNull();
     expect(host.querySelector('[aria-label="Contexto acadêmico atual"]')?.textContent).toContain('2026');
-    expect(requests.filter((value) => value.operation === 'bootstrap')).toHaveLength(0);
+    expect(requests.filter((value) => value.operation === 'bootstrap')).toHaveLength(1);
   });
   it('loads shared year, class and matrix, then a student drawer and the existing center', async () => {
     await loaded();

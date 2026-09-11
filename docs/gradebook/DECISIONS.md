@@ -93,3 +93,15 @@ Esta decisão autoriza contrato e implementação em branch/PR. **Não autoriza 
 Fica autorizada a migration aditiva `0006_import_diagnostic_treatment_v1.sql` em produção e a integração/publicação do código dependente após os gates da BN-DEC-023. A autorização não alcança outro schema, backfill, mudança de dado acadêmico, resolução manual de achado, regra, autoridade, binding, segredo, permissão de pessoa ou infraestrutura.
 
 Antes do DDL foi capturado um dump lógico privado e seu restore foi comprovado em PostgreSQL descartável. O preflight confirmou a baseline `29/227/203/62/51`, 12 sequências, somente 2026 e alvo ausente. A migration registrada `import_diagnostic_treatment_v1` levou o catálogo a `30/246/218/66/52` e 13 sequências; a relação nasceu vazia, com ACL `SELECT, INSERT` somente para `gradebook_app`, sem `UPDATE/DELETE` nem acesso de `PUBLIC`, `anon` ou `authenticated`. Funções, triggers e contagens acadêmicas permaneceram iguais. O Advisor de segurança terminou sem alertas; avisos de índice não utilizado na relação vazia são esperados antes do primeiro uso.
+
+## BN-DEC-028 — Anos materializados pela Relação e reprovação terminal R/R
+
+**Data:** 2026-09-11. **Origem:** decisão explícita do responsável; contrato #676. Substitui BN-DEC-024 somente quanto ao ano fixo e à ausência de seleção global; complementa BN-DEC-022/025–027. Comparação entre anos continua proibida.
+
+A importação da Relação materializa idempotentemente o ano letivo declarado. Planilhas de notas somente ingressam depois da Relação do mesmo ano e nunca são reinterpretadas em outro ano. Aluno, vínculo, turma, oferta, fatos, diagnósticos, Conselho, fechamento, boletim e relatório permanecem isolados por `ano`; a mesma pessoa nominal em anos diferentes recebe IDs distintos e não é unida pelo nome.
+
+O shell oferece um único seletor global, alimentado pelos anos já materializados e mantido somente em memória. O ano mais recente abre por padrão. Trocar o ano invalida leituras anteriores e todas as áreas passam a operar no novo contexto sem seletores locais. Comparações continuam restritas a trimestres do mesmo ano, conforme a regra proporcional da BN-DEC-024.
+
+`R/R` é um marcador de fonte exclusivo da Recuperação e distinto de nota, vazio e `N/C`. Se aparecer em qualquer trimestre de recuperação de qualquer componente, o resultado anual do aluno é exatamente `REPROVADO`, sem recuperação pendente e sem elegibilidade ao Conselho. A ocorrência é preservada em máscara própria e histórico de fechamento; não é convertida em voto nem decisão humana. AM/U importadas continuam autoridade oficial e o Conselho continua humano somente para elegíveis.
+
+A migration `0007_multiyear_rr_v1.sql` é aditiva: acrescenta a máscara R/R, amplia os estados históricos e remove apenas as duas restrições físicas que fixavam snapshots/tratamentos em 2026. Não executa backfill, `UPDATE`, `DELETE` ou reinterpretação retroativa. Detalhes em [MULTIYEAR_RR_676.md](MULTIYEAR_RR_676.md).

@@ -19,7 +19,7 @@ const key = z.string().regex(/^\d+(?::[123]:\d+)?$/u);
 const reading = z.object({
   key, valueMilli: milli.nullable(), maximumMilli: milli.positive().nullable(),
   recordedMilli: milli.nullable(),
-  state: z.enum(['complete', 'partial', 'not-recorded', 'unavailable', 'not-applicable', 'recovery-pending', 'no-show']),
+  state: z.enum(['complete', 'partial', 'not-recorded', 'unavailable', 'not-applicable', 'recovery-pending', 'no-show', 'repeat-failure']),
   percent: z.number().finite().nonnegative().nullable(),
   bucket: z.enum([...ANALYSIS_BUCKETS_V3, 'excluded']),
 }).strict().superRefine((value, ctx) => {

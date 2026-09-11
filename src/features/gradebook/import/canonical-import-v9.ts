@@ -7,7 +7,7 @@ import {
   type GradebookImportRecoveryCellV9,
   type GradebookImportTermV9,
 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
-import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../../../../shared/gradebook-contracts/current-academic-year-v1';
+import { isGradebookAcademicYearV2 } from '../../../../shared/gradebook-contracts/academic-year-v2';
 import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   type SourceAssessmentDefinitionV2,
@@ -110,6 +110,10 @@ function ncText(value: unknown): boolean {
   return typeof value === 'string' && value.trim().toUpperCase().replaceAll('/', '') === 'NC';
 }
 
+function rrText(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().toUpperCase().replaceAll('/', '') === 'RR';
+}
+
 function cellFromObservation(
   sheet: GradeSheetRecognition,
   address: string,
@@ -130,6 +134,7 @@ function cellFromObservation(
       throw new Error(`Nota negativa em ${sheet.name}!${address}.`);
     case 'invalid-text':
       if (allowNc && ncText(observation.rawValue)) return ['n'];
+      if (allowNc && rrText(observation.rawValue)) return ['r'];
       throw new Error(`Texto inválido em ${sheet.name}!${address}.`);
     case 'manual-positive-number': {
       if (observation.rawValue === 0.1) return 0;
@@ -307,9 +312,7 @@ export function createGradebookCanonicalImportRequestV9(
 ): GradebookImportPersistenceRequestV9 {
   const summary = result.summary as SummaryWithRelationV9;
   if (summary.masterRelationV9) {
-    if (summary.masterRelationV9.ano !== CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1) {
-      throw new Error(`A relação deve ser do ano letivo ${CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1}.`);
-    }
+    if (!isGradebookAcademicYearV2(summary.masterRelationV9.ano)) throw new Error('Ano letivo inválido na Relação.');
     runtime.onProgress?.({ stage: 'roster', current: 0, total: summary.masterRelationV9.turmas.length });
     const request = {
       transportVersion: 9,
@@ -324,10 +327,7 @@ export function createGradebookCanonicalImportRequestV9(
     return request;
   }
 
-  if (!Number.isSafeInteger(summary.academicYear)) throw new Error('Ano letivo ausente em CONFIGURAÇÃO!C2.');
-  if (summary.academicYear !== CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1) {
-    throw new Error(`A planilha deve ser do ano letivo ${CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1}.`);
-  }
+  if (!isGradebookAcademicYearV2(summary.academicYear)) throw new Error('Ano letivo ausente ou inválido em CONFIGURAÇÃO!C2.');
   const professor = summary.teacherName?.trim();
   if (!professor) throw new Error('Professor não reconhecido em CONFIGURAÇÃO!A2.');
   const groups = courseGroups(summary);

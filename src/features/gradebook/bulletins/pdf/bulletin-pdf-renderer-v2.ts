@@ -54,6 +54,7 @@ function classification(
     'approved-after-recovery': 'APROVADO PELA RECUPERAÇÃO',
     'not-approved': 'NÃO APROVADO',
     'failed-no-show': 'REPROVADO POR NÃO COMPARECIMENTO',
+    'failed-repeat': 'REPROVADO',
   } as const;
   return labels[value];
 }
@@ -70,6 +71,12 @@ function text(
     text: clean(value),
     ...(indent === 0 ? {} : { indent }),
   });
+}
+
+function recoveryGrade(value: number | 'NC' | 'RR' | null): string {
+  if (value === 'NC') return 'N/C';
+  if (value === 'RR') return 'R/R';
+  return grade(value);
 }
 
 export function inspectRelationalBulletinPdfV2(
@@ -181,7 +188,7 @@ export function buildRelationalBulletinPdfLinesV2(
         `REC: ${subject.annual.recoveryTerms
           .map((recovery) =>
             recovery.applicable
-              ? `${recovery.term}º ${recovery.source === 'NC' ? 'N/C' : grade(recovery.source)}`
+              ? `${recovery.term}º ${recoveryGrade(recovery.source)}`
               : `${recovery.term}º —`,
           )
           .join(' · ')}`,

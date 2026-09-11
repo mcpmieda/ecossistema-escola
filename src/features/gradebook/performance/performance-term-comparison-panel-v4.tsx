@@ -25,7 +25,7 @@ export function PerformanceTermComparisonPanelV4({ value, open }: {
   const current = value.analysis.matrix.period;
   return <section aria-label="Comparação entre trimestres" className="grid min-w-0 gap-3 rounded-xl border border-separator bg-surface p-4">
     <div><h3 className="font-semibold">T{current} comparado ao T{value.referencePeriod}</h3>
-      <p className="text-xs text-muted">Leitura descritiva da mesma turma, aluno, componente e lente em 2026. A diferença usa pontos percentuais do máximo oficial; não mede evolução pedagógica.</p></div>
+      <p className="text-xs text-muted">Leitura descritiva da mesma turma, aluno, componente e lente no ano selecionado. A diferença usa pontos percentuais do máximo oficial; não mede evolução pedagógica.</p></div>
     <div className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="Resumo comparativo">
       <div className="rounded-xl border border-separator p-3"><strong className="text-2xl tabular-nums">{totals.higher}</strong><p className="text-xs text-muted">Maior no T{current}</p></div>
       <div className="rounded-xl border border-separator p-3"><strong className="text-2xl tabular-nums">{totals.equal}</strong><p className="text-xs text-muted">Igual</p></div>

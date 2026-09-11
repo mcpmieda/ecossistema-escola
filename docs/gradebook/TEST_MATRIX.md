@@ -354,3 +354,15 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F12-649-010`: cliente valida alinhamento/grupos, usa no-store, mantém seleção em memória e cancela/descarta resposta obsoleta.
 - `F12-649-011`: testes usam somente massa sintética/de teste; seu conteúdo não é evidência acadêmica oficial.
 - `F12-649-012`: validação visual de FINAL-1/FINAL-2 continua pendente e será anunciada antes da sessão única com o responsável.
+
+## F13-676 — Anos materializados e R/R
+
+- `F13-676-001`: Relação 2025 materializa o ano; notas 2025 sem Relação são bloqueadas e reimportação idêntica não duplica contexto.
+- `F13-676-002`: bootstrap retorna todos os anos materializados, mais recente primeiro; troca global invalida as leituras e não persiste preferência no browser.
+- `F13-676-003`: aluno nominalmente igual em 2025/2026 possui IDs, vínculos, notas e resultados distintos; consultas cruzadas falham fechadas.
+- `F13-676-004`: `R/R` é reconhecido somente em REC, persiste em máscara própria disjunta de `N/C` e produz histórico com estado 3.
+- `F13-676-005`: qualquer `R/R` em qualquer componente produz `REPROVADO` e `not-eligible`; não entra na fila nem aceita decisão/voto de Conselho.
+- `F13-676-006`: Boletins, PDFs, Desempenho e Relatórios preservam `R/R` e o resultado terminal sem exigir U oficial inexistente para esse caso.
+- `F13-676-007`: comparação permanece somente entre trimestres do mesmo ano; nenhum contrato oferece comparação interanual.
+- `F13-676-008`: migration 0007 é aditiva, sem backfill/DML destrutivo, e passa replay, constraints, drift/ACL e Advisor.
+- `F13-676-009`: piloto privado percorre importação, movimentações, recuperação, Conselho, votos, fechamento, boletins e relatórios com massas de teste, sem publicar PII.

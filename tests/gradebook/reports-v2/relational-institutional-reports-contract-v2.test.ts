@@ -7,7 +7,7 @@ import {
 } from '../../../shared/gradebook-contracts/reports/relational-institutional-reports-v2';
 
 describe('relational institutional reports V2 contract', () => {
-  it('fixes 2026 and rejects cross-year or non-previous term comparisons', () => {
+  it('accepts valid academic years and rejects cross-year or non-previous term comparisons', () => {
     const base = {
       contractVersion: RELATIONAL_INSTITUTIONAL_REPORTS_CONTRACT_VERSION_V2,
       operation: 'performance',
@@ -20,7 +20,8 @@ describe('relational institutional reports V2 contract', () => {
       statuses: [null, 1, 2, 3, 4, 5, 7],
     } as const;
     expect(relationalInstitutionalReportRequestSchemaV2.safeParse(base).success).toBe(true);
-    expect(relationalInstitutionalReportRequestSchemaV2.safeParse({ ...base, year: 2025 }).success).toBe(false);
+    expect(relationalInstitutionalReportRequestSchemaV2.safeParse({ ...base, year: 2025 }).success).toBe(true);
+    expect(relationalInstitutionalReportRequestSchemaV2.safeParse({ ...base, year: 1999 }).success).toBe(false);
     expect(relationalInstitutionalReportRequestSchemaV2.safeParse({ ...base, referenceTerm: 3 }).success).toBe(false);
     expect(relationalInstitutionalReportRequestSchemaV2.safeParse({ ...base, period: 'annual', referenceTerm: 1 }).success).toBe(false);
     expect(relationalInstitutionalReportRequestSchemaV2.safeParse({ ...base, statuses: [1, 1] }).success).toBe(false);

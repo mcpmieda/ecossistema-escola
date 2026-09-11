@@ -374,3 +374,7 @@ A onda 21 pré-piloto foi integrada na sequência obrigatória:
 ```
 
 Após a #367, nenhum piloto real, D1 acadêmico produtivo, migration remota, smoke acadêmico produtivo ou ativação de `native-engine` é automático. Cada ação continua exigindo autorização própria.
+
+## Extensão vigente #676
+
+`CONFIGURAÇÃO!C2` e a Relação declaram o ano real do arquivo; não há coerção para 2026. A Relação materializa o ano antes das notas. Em guias `REC`, texto normalizado `R/R` é um marcador terminal distinto de `N/C`, vazio e número: qualquer ocorrência em qualquer componente produz `REPROVADO`, sem fila de recuperação ou Conselho. O arquivo original não é alterado.

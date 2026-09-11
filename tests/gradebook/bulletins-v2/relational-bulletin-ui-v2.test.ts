@@ -105,6 +105,14 @@ beforeEach(() => {
     vi.fn<typeof fetch>(async (_url, init) => {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       requests.push(body);
+      if (body.operation === 'bootstrap') {
+        return reply({
+          contractVersion: 2,
+          operation: 'bootstrap',
+          state: 'ready',
+          years: [{ year: 2026, minimumApprovalMilli: 60_000, maxCouncilComponents: 2 }],
+        });
+      }
       if (body.operation === 'catalog') {
         return reply({
           contractVersion: 2,
@@ -235,7 +243,8 @@ describe('relational bulletin V2 HeroUI journey', () => {
     );
     expect(source).not.toContain('<select');
     expect(source).not.toMatch(/ano anterior|comparação entre anos|criar ano|draggable=/iu);
-    expect(source).toContain('year: RELATIONAL_BULLETIN_YEAR_V2');
+    expect(source).toContain('year: year!');
+    expect(source).toContain('useGradebookYear');
     expect(source).toContain("runPdf('download')");
     expect(source).toContain("runPdf('print')");
   });

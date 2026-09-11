@@ -56,6 +56,7 @@ interface ClosingRowV11 {
   readonly rec2: number | null;
   readonly rec3: number | null;
   readonly rec_nc_mask: number;
+  readonly rec_rr_mask: number;
   readonly u_fonte: number | null;
 }
 
@@ -251,13 +252,13 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     }
 
     if (sql.startsWith('insert into gradebook.fechamento (oferta_id, aluno_id,')) {
-      assertLength(values, 10, 'closing-insert');
+      assertLength(values, 11, 'closing-insert');
       this.pending.closingInsert.push(this.closingRow(values, false));
       return true;
     }
 
     if (sql.startsWith('update gradebook.fechamento set am1_fonte = ?')) {
-      assertLength(values, 10, 'closing-update');
+      assertLength(values, 11, 'closing-update');
       this.pending.closingUpdate.push(this.closingRow(values, true));
       return true;
     }
@@ -276,8 +277,8 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
 
   private closingRow(values: readonly D1WriteValueV1[], update: boolean): ClosingRowV11 {
     const offset = update ? 0 : 2;
-    const ofertaIndex = update ? 8 : 0;
-    const alunoIndex = update ? 9 : 1;
+    const ofertaIndex = update ? 9 : 0;
+    const alunoIndex = update ? 10 : 1;
     return {
       oferta_id: integer(values[ofertaIndex]!, 'offer-id'),
       aluno_id: integer(values[alunoIndex]!, 'student-id'),
@@ -288,7 +289,8 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
       rec2: nullableInteger(values[offset + 4]!, 'rec2'),
       rec3: nullableInteger(values[offset + 5]!, 'rec3'),
       rec_nc_mask: integer(values[offset + 6]!, 'rec-mask'),
-      u_fonte: nullableInteger(values[offset + 7]!, 'u'),
+      rec_rr_mask: integer(values[offset + 7]!, 'rr-mask'),
+      u_fonte: nullableInteger(values[offset + 8]!, 'u'),
     };
   }
 
@@ -393,6 +395,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
            rec2 = incoming.rec2,
            rec3 = incoming.rec3,
            rec_nc_mask = incoming.rec_nc_mask,
+           rec_rr_mask = incoming.rec_rr_mask,
            u_fonte = incoming.u_fonte
        FROM jsonb_to_recordset(?::jsonb) AS incoming(
          oferta_id integer,
@@ -404,6 +407,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
          rec2 integer,
          rec3 integer,
          rec_nc_mask smallint,
+         rec_rr_mask smallint,
          u_fonte integer
        )
        WHERE current.oferta_id = incoming.oferta_id
@@ -413,8 +417,8 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     );
     await this.groupedRun(
       `INSERT INTO gradebook.fechamento
-       (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, u_fonte)
-       SELECT oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, u_fonte
+       (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte)
+       SELECT oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte
        FROM jsonb_to_recordset(?::jsonb) AS incoming(
          oferta_id integer,
          aluno_id integer,
@@ -425,6 +429,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
          rec2 integer,
          rec3 integer,
          rec_nc_mask smallint,
+         rec_rr_mask smallint,
          u_fonte integer
        )`,
       current.closingInsert,

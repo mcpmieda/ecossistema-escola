@@ -2,7 +2,6 @@ import {
   RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
   RELATIONAL_BULLETIN_LIMITS_V2,
   RELATIONAL_BULLETIN_MODEL_VERSION_V2,
-  RELATIONAL_BULLETIN_YEAR_V2,
   relationalBulletinModelSchemaV2,
   type RelationalBulletinFailureV2,
   type RelationalBulletinModelV2,
@@ -420,6 +419,7 @@ async function readMaterializations(
         if (
           recovery.recoveryRequired === true &&
           recovery.classification !== 'failed-no-show' &&
+          recovery.classification !== 'failed-repeat' &&
           projection.sourceUMilli === null
         ) {
           reasons.add(`missing-official-u:${offer.id}`);
@@ -465,7 +465,7 @@ async function readMaterializations(
     const model = {
       contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
       modelVersion: RELATIONAL_BULLETIN_MODEL_VERSION_V2,
-      year: RELATIONAL_BULLETIN_YEAR_V2,
+      year: first.year,
       period: currentPeriod,
       detail: first.detail,
       authority: {
@@ -588,7 +588,7 @@ export function createRelationalBulletinServiceV2(
             contractVersion: RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
             operation: request.operation,
             state: 'ready',
-            year: RELATIONAL_BULLETIN_YEAR_V2,
+            year: request.year,
             classes: values.map((row) => ({
               id: integer(row.id, true),
               code: text(row.codigo),

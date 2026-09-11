@@ -364,8 +364,8 @@ describe('relational bulletin V2 HTTP boundary', () => {
     expect((await http(catalog, null)).status).toBe(401);
   });
 
-  it('rejects another year and keeps the production feature gate closed', async () => {
-    expect((await http({ ...catalog, year: 2025 })).status).toBe(400);
+  it('accepts another valid year scope and keeps the production feature gate closed', async () => {
+    expect((await http({ ...catalog, year: 2025 })).status).toBe(200);
     expect(
       (
         await http(catalog, 'ADMINISTRADOR', {

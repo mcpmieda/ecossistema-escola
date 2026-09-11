@@ -33,8 +33,11 @@ const TERMS = [1, 2, 3] as const;
 
 function student(row: Row): PerformanceRowV2['student'] {
   const status = nullable(row.situacao) as PerformanceRowV2['student']['status'];
+  const relatedClass = typeof row.turma_relacionada_codigo === 'string' && row.turma_relacionada_codigo.trim()
+    ? row.turma_relacionada_codigo.trim()
+    : null;
   return { id: integer(row.id), name: text(row.nome), number: integer(row.numero), status,
-    statusLabel: status === null ? 'Sem situação especial' : STATUS_LABELS[status],
+    statusLabel: status === null ? 'Sem situação especial' : status === 7 && relatedClass !== null ? `ESTAVA NO ${relatedClass}` : STATUS_LABELS[status],
     indicatorEligible: status === null || status === 7 };
 }
 function offer(row: Row): PerformanceOfferV2 {
@@ -46,7 +49,13 @@ function orderOffers(left: PerformanceOfferV2, right: PerformanceOfferV2): numbe
 }
 function closing(row: Row): PerformanceClosingV2 {
   const nc = integer(row.rec_nc_mask ?? 0);
-  const rec = TERMS.map((term): SimplifiedRecoveryValueV1 => (nc & (1 << (term - 1))) !== 0 ? 'NC' : nullable(row[`rec${term}`])) as unknown as PerformanceClosingV2['rec'];
+  const rr = integer(row.rec_rr_mask ?? 0);
+  const rec = TERMS.map((term): SimplifiedRecoveryValueV1 => {
+    const bit = 1 << (term - 1);
+    if ((rr & bit) !== 0) return 'RR';
+    if ((nc & bit) !== 0) return 'NC';
+    return nullable(row[`rec${term}`]);
+  }) as unknown as PerformanceClosingV2['rec'];
   return { am: [nullable(row.am1_fonte), nullable(row.am2_fonte), nullable(row.am3_fonte)], rec, u: nullable(row.u_fonte) };
 }
 function makeRow(source: Row, projections: readonly PerformanceProjectionV2[], request: Exclude<PerformanceRequestV2, { operation: 'classes' }>, maxCouncilComponents: number): PerformanceRowV2 {
@@ -85,9 +94,10 @@ export async function readRelationalPerformanceV2(db: D1WriteDatabaseV1, request
   const selected = { classGroup: { id: integer(classRow.id), label: text(classRow.codigo), name: text(classRow.nome) }, period: request.period, mode: request.mode };
   const specificStudent = request.operation !== 'matrix';
   const specificOffer = request.operation === 'cell-detail';
-  const students = await all(db, `SELECT a.id,a.nome,v.numero,v.situacao,cd.decisao
+  const students = await all(db, `SELECT a.id,a.nome,v.numero,v.situacao,tr.codigo AS turma_relacionada_codigo,cd.decisao
     FROM gradebook.vinculo v
     JOIN gradebook.aluno a ON a.id=v.aluno_id AND a.ano=v.ano
+    LEFT JOIN gradebook.turma tr ON tr.id=v.turma_relacionada_id AND tr.ano=v.ano
     LEFT JOIN gradebook.conselho_decisao cd ON cd.aluno_id=a.id
     WHERE v.ano=? AND v.turma_id=? AND v.situacao IS DISTINCT FROM 6 ${specificStudent ? 'AND a.id=?' : ''}
     ORDER BY v.numero,a.id LIMIT ?`, [request.year, request.classId, ...(specificStudent ? [request.studentId] : []), PERFORMANCE_LIMITS_V2.students + 1]);
@@ -108,7 +118,8 @@ export async function readRelationalPerformanceV2(db: D1WriteDatabaseV1, request
     // One query for the entire bounded scope. A detail restricts SQL, not just its response.
     const facts = await all(db, `SELECT v.aluno_id,o.id AS oferta_id,i.trimestre,i.slot,i.maximo,n.valor,
       ${specificOffer ? 'i.descricao' : options.descriptionOfferId === undefined ? 'NULL::text' : 'CASE WHEN o.id=? THEN i.descricao ELSE NULL::text END'} AS descricao,
-      f.am1_fonte,f.am2_fonte,f.am3_fonte,f.rec1,f.rec2,f.rec3,f.rec_nc_mask,f.u_fonte
+      f.am1_fonte,f.am2_fonte,f.am3_fonte,f.rec1,f.rec2,f.rec3,f.rec_nc_mask,
+      COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint,0) AS rec_rr_mask,f.u_fonte
       FROM gradebook.vinculo v JOIN gradebook.oferta o ON o.ano=v.ano AND o.turma_id=v.turma_id
       LEFT JOIN gradebook.instrumento i ON i.oferta_id=o.id AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
       LEFT JOIN gradebook.nota n ON n.instrumento_id=i.id AND n.aluno_id=v.aluno_id

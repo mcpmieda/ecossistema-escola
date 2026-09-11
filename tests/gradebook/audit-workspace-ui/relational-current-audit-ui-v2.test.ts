@@ -15,8 +15,9 @@ describe('relational current Audit UI V2', () => {
     expect(surface).not.toContain('AuditWorkspacePage');
     expect(surface).not.toContain('ImportDiagnosticsAuditPanelV1');
     expect(page).toContain('listGradebookImportDiagnosticsAuditV1');
-    expect(page).toContain('academicYear: ACTIVE_YEAR');
-    expect(page).toContain('Ano letivo 2026');
+    expect(page).toContain('academicYear: year');
+    expect(page).toContain("Ano letivo {year ?? '—'}");
+    expect(page).toContain('useGradebookYear');
   });
 
   it('keeps current findings separate from durable human treatment', () => {

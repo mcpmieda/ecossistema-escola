@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../../../../shared/gradebook-contracts/current-academic-year-v1';
 import type {
   RelationalCouncilFailureV3,
   RelationalCouncilRequestV3,
@@ -20,7 +19,7 @@ const PAGE_SIZE = 100;
 
 export function useRelationalCouncilV3() {
   const sharedYear = useGradebookYear();
-  const year = CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1;
+  const year = sharedYear?.year ?? null;
   const clearAuthorization = sharedYear?.clearAuthorization;
   const [classes, setClasses] = useState<readonly CouncilClass[]>([]);
   const [classId, setClassId] = useState<number | null>(null);
@@ -37,6 +36,7 @@ export function useRelationalCouncilV3() {
   }, [clearAuthorization]);
 
   const loadClasses = useCallback(async () => {
+    if (year === null) return;
     classesController.current?.abort();
     const controller = new AbortController(); classesController.current = controller;
     setBusy((current) => ({ ...current, classes: true })); setFailure(null);
@@ -55,6 +55,7 @@ export function useRelationalCouncilV3() {
   }, [year, loseAccess]);
 
   const loadWorkspace = useCallback(async (target: number) => {
+    if (year === null) return;
     workspaceController.current?.abort();
     const controller = new AbortController(); workspaceController.current = controller;
     const ticket = ++sequence.current;
@@ -84,7 +85,7 @@ export function useRelationalCouncilV3() {
   }
 
   async function command(request: CommandInput) {
-    if (!workspace || classId === null || busy.command) return null;
+    if (!workspace || classId === null || year === null || busy.command) return null;
     workspaceController.current?.abort(); sequence.current += 1;
     const operation = request.operation;
     const commandRequest = {

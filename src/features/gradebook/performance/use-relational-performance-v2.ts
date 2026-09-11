@@ -8,7 +8,6 @@ import type {
   PerformancePeriodV2, PerformanceModeV2, PerformanceStatusV2,
 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
-import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../../../../shared/gradebook-contracts/current-academic-year-v1';
 import { createOperationalWorkspaceRequestGate } from '../operational-workspace/operational-workspace-request-gate';
 import { requestRelationalPerformanceV2 } from './relational-performance-client-v2';
 
@@ -16,7 +15,7 @@ type Filters = { classId: number | null; period: PerformancePeriodV2; mode: Perf
 type Detail = Extract<PerformanceReadyV2, { operation: 'student-detail' | 'cell-detail' }>;
 export function useRelationalPerformanceV2() {
   const shared = useGradebookYear();
-  const year = shared?.year ?? CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1;
+  const year = shared?.year ?? null;
   const clearAuthorization = shared?.clearAuthorization;
   const [gates] = useState(() => ({ classes: createOperationalWorkspaceRequestGate(), matrix: createOperationalWorkspaceRequestGate(), detail: createOperationalWorkspaceRequestGate() }));
   const [classes, setClasses] = useState<Extract<PerformanceReadyV2, { operation: 'classes' }> | null>(null);

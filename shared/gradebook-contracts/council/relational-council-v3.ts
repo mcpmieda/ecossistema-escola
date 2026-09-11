@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../current-academic-year-v1';
+import { GRADEBOOK_ACADEMIC_YEAR_MAX_V2, GRADEBOOK_ACADEMIC_YEAR_MIN_V2 } from '../academic-year-v2';
 
 export const RELATIONAL_COUNCIL_CONTRACT_VERSION_V3 = 3 as const;
 export const RELATIONAL_COUNCIL_LIMITS_V3 = Object.freeze({
@@ -21,7 +21,7 @@ const id = z.number().int().min(1).max(2_147_483_647);
 const count = z.number().int().min(0).max(100_000);
 const version = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const milli = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
-const year = z.literal(CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1);
+const year = z.number().int().min(GRADEBOOK_ACADEMIC_YEAR_MIN_V2).max(GRADEBOOK_ACADEMIC_YEAR_MAX_V2);
 const label = z.string().trim().min(1).max(500).refine((value) => !value.includes('\0'));
 const justification = z.string().trim().min(3).max(2_000).refine((value) => !value.includes('\0'));
 const idempotencyKey = z.string().trim().min(8).max(120)
@@ -50,14 +50,14 @@ const reference = z.object({ id, label }).strict();
 const grade = z.object({
   valueMilli: milli.nullable(),
   maximumMilli: milli.positive(),
-  state: z.enum(['complete', 'partial', 'not-recorded', 'unavailable', 'not-applicable', 'recovery-pending', 'no-show']),
+  state: z.enum(['complete', 'partial', 'not-recorded', 'unavailable', 'not-applicable', 'recovery-pending', 'no-show', 'repeat-failure']),
 }).strict();
 const component = z.object({
   offerId: id,
   subject: reference.extend({ abbreviation: z.string().trim().min(1).max(16).nullable() }),
   terms: z.tuple([grade, grade, grade]),
   recovery: grade,
-  result: z.enum(['in-progress', 'approved-direct', 'recovery-pending', 'approved-after-recovery', 'not-approved', 'failed-no-show', 'unavailable']),
+  result: z.enum(['in-progress', 'approved-direct', 'recovery-pending', 'approved-after-recovery', 'not-approved', 'failed-no-show', 'failed-repeat', 'unavailable']),
 }).strict();
 const decision = z.object({
   code: decisionCode,
@@ -81,7 +81,7 @@ const vote = z.object({
 });
 const eligibility = z.object({
   eligible: z.boolean(),
-  code: z.enum(['eligible', 'status', 'in-progress', 'recovery-pending', 'failed-no-show', 'above-limit', 'approved', 'definitions-unavailable']),
+  code: z.enum(['eligible', 'status', 'in-progress', 'recovery-pending', 'failed-no-show', 'failed-repeat', 'above-limit', 'approved', 'definitions-unavailable']),
   label,
   failedComponentCount: count,
 }).strict();

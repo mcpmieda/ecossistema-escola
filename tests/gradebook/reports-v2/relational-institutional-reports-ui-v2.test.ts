@@ -29,8 +29,9 @@ describe('relational institutional reports HeroUI V2', () => {
   });
 
   it('keeps current authority, audit and snapshot language explicit', () => {
-    expect(page).toContain('Ano letivo 2026');
-    expect(page).toContain('Comparação descritiva entre trimestres de 2026');
+    expect(page).toContain('Ano letivo {year}');
+    expect(page).toContain('Comparação descritiva entre trimestres do mesmo ano');
+    expect(page).toContain('useGradebookYear');
     expect(page).toContain('Eventual desempate do diretor ocorre fora do sistema');
     expect(page).toContain('Achados atuais, sem correção automática');
     expect(page).toContain('Somente snapshots imutáveis V2');

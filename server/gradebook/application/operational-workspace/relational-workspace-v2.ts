@@ -14,7 +14,6 @@ import {
   type WorkspaceStatusV2,
   type WorkspaceYearV2,
 } from '../../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
-import { CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1 } from '../../../../shared/gradebook-contracts/current-academic-year-v1';
 import { compareSourceSubjectPresentationV1 } from '../../../../shared/gradebook-contracts/source/subject-abbreviations-v1';
 import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../../persistence/d1/write/d1-write-adapter-v1';
 
@@ -124,7 +123,7 @@ async function loadCenter(db: D1WriteDatabaseV1, request: Extract<OperationalWor
 async function execute(db: D1WriteDatabaseV1, request: OperationalWorkspaceRequestV2): Promise<OperationalWorkspaceResponseV2> {
   if (request.operation === 'bootstrap') {
     const rows = await all(db, `SELECT ano,minimo_aprovacao,max_componentes_conselho
-      FROM gradebook.ano_letivo WHERE ano = ? LIMIT ?`, [CURRENT_GRADEBOOK_ACADEMIC_YEAR_V1, WORKSPACE_MAX_YEARS_V2 + 1]);
+      FROM gradebook.ano_letivo ORDER BY ano DESC LIMIT ?`, [WORKSPACE_MAX_YEARS_V2 + 1]);
     if (rows.length > WORKSPACE_MAX_YEARS_V2) throw new Error('workspace-year-catalog-limit');
     return {contractVersion:2,state:'ready',operation:'bootstrap',years:rows.map(context)};
   }

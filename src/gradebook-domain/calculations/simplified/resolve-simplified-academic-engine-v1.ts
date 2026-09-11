@@ -70,7 +70,7 @@ export interface SimplifiedTermOutcomeV1 {
   readonly warnings: readonly SimplifiedEngineWarningV1[];
 }
 
-export type SimplifiedRecoveryValueV1 = number | null | 'NC';
+export type SimplifiedRecoveryValueV1 = number | null | 'NC' | 'RR';
 
 export interface SimplifiedComponentRecoveryInputV1 {
   readonly terms: readonly [
@@ -89,6 +89,7 @@ export const SIMPLIFIED_COMPONENT_CLASSIFICATIONS_V1 = [
   'approved-after-recovery',
   'not-approved',
   'failed-no-show',
+  'failed-repeat',
 ] as const;
 export type SimplifiedComponentClassificationV1 =
   (typeof SIMPLIFIED_COMPONENT_CLASSIFICATIONS_V1)[number];
@@ -304,11 +305,13 @@ export function resolveSimplifiedComponentRecoveryV1(
 
   const recoveryTerms = {} as Record<SimplifiedAcademicTermV1, SimplifiedRecoveryTermOutcomeV1>;
   let hasNc = false;
+  let hasRr = false;
   let missingApplicableRecovery = false;
   for (const termNumber of [1, 2, 3] as const) {
     const term = terms[termNumber];
     const source = input.recovery[termNumber];
     if (typeof source === 'number') assertMilli(source, `recovery[${termNumber}]`);
+    if (source === 'RR') hasRr = true;
     const applicable =
       recoveryRequired === null
         ? null
@@ -335,6 +338,8 @@ export function resolveSimplifiedComponentRecoveryV1(
     if (applicable === true) {
       if (source === 'NC') {
         hasNc = true;
+        replacement = null;
+      } else if (source === 'RR') {
         replacement = null;
       } else if (source === null) {
         missingApplicableRecovery = true;
@@ -366,7 +371,8 @@ export function resolveSimplifiedComponentRecoveryV1(
     : null;
 
   let classification: SimplifiedComponentClassificationV1;
-  if (!originalComplete) classification = 'in-progress';
+  if (hasRr) classification = 'failed-repeat';
+  else if (!originalComplete) classification = 'in-progress';
   else if (recoveryRequired === false) classification = 'approved-direct';
   else if (hasNc) classification = 'failed-no-show';
   else if (missingApplicableRecovery || postRecoveryTotal === null) classification = 'recovery-pending';

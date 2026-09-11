@@ -10,6 +10,7 @@ Esta pasta reconstrói o schema observado por inspeção **somente leitura** em 
 - `0004_council_v3_least_privilege.sql`: correção idempotente de ACL para neutralizar grants padrão do proprietário após `0003`; mantém somente as operações usadas pela role `gradebook_app` e não altera objetos ou dados.
 - `0005_relational_bulletin_snapshot_v2.sql`: extensão aditiva #654 com snapshot imutável de boletim, FKs de 2026, checks de identidade JSON e ACL `SELECT, INSERT` para `gradebook_app`; sem backfill ou DML acadêmico.
 - `0006_import_diagnostic_treatment_v1.sql`: extensão aditiva #674 com reconhecimento/anotação append-only separados do snapshot corrente, ator server-side e ACL `SELECT, INSERT`; sem backfill, resolução manual ou DML acadêmico. Aplicada em produção após autorização explícita e postflight.
+- `0007_multiyear_rr_v1.sql`: extensão aditiva #676 que acrescenta a máscara terminal `R/R`, amplia os estados do histórico de fechamento e remove apenas os checks físicos que limitavam boletins/tratamentos a 2026. Sem backfill ou DML acadêmico; deve ser aplicada somente depois de `0003`–`0006` e do preflight autorizado.
 - `inspect_current_schema.sql`: consulta read-only e fingerprints estruturais por categoria. O JSON de referência é `catalog_20260910.json`, coletado do catálogo, não de notas ou arquivos. MD5 é checksum de drift, não garantia criptográfica. O comparador cobre tabelas/RLS, colunas/tipos/defaults/identidade, constraints, índices, funções e triggers. Não cobre dados, sequence counters, grants, proprietários, extensions ou infraestrutura.
 - `application_role_grants.sql`: concessões para a role backend já provisionada, sem criar senha/login/superuser. Aplicar separadamente somente no ambiente autorizado e pelo proprietário de objetos previsto; default privileges valem para esse proprietário. Revisar grants/defaults herdados ao reconstruir em Supabase, em vez de presumir que a role anon/authenticated está bloqueada.
 
@@ -21,7 +22,7 @@ Para um ambiente PostgreSQL 17 **vazio e autorizado**, executar a baseline trans
 
 A baseline não cria extensões, contas Supabase, bindings Hyperdrive, secrets, políticas de backup nem snapshots institucionais ainda não contratados. As migrations antigas de streams/versions são memória e **não** devem ser reaplicadas sobre o modelo simplificado.
 
-As extensões correntes `0003`, `0004` e `0005` são aplicadas em ordem, somente sobre
+As extensões correntes `0003` a `0007` são aplicadas em ordem, somente sobre
 um schema já conferido contra a baseline. `0002` não integra essa sequência porque sua
 relação já existe em `0001`. Para `0003`, o preflight deve confirmar
 as oito tabelas-alvo ausentes e preservar uma cópia lógica recuperável das 20
@@ -36,6 +37,8 @@ inalteradas e somente o ano 2026. Ver
 Para `0005`, o preflight confirmou as 28 tabelas pós-Conselho, ausência de `boletim_snapshot`, ano exclusivo 2026 e contagens acadêmicas; uma cópia lógica das 28 tabelas/12 sequências foi validada antes do DDL. O postflight produtivo de 11/09/2026 confirmou 29 tabelas no total e a relação nova vazia, com 13 colunas, 15 constraints, 4 índices totais, 3 FKs e ACL exata `SELECT, INSERT`, sem `UPDATE/DELETE` ou acesso público/cliente. Não emitir boletim real no smoke automatizado. Ver [`RELATIONAL_BULLETINS_V2.md`](../../docs/gradebook/RELATIONAL_BULLETINS_V2.md).
 
 Para `0006`, a autorização explícita foi registrada depois do head verde da PR #675. Um dump privado novo das 29 tabelas foi validado e restaurado localmente antes do DDL. Preflight e postflight produtivos confirmaram a 30ª relação vazia, catálogo `30/246/218/66/52`, 13 sequências, ACL mínima e contagens acadêmicas inalteradas. O plano de recovery integrado deve passar a incluir essa relação depois da integração da #674, sem publicar o backup. Ver [`RELATIONAL_AUDIT_TREATMENT_V1.md`](../../docs/gradebook/RELATIONAL_AUDIT_TREATMENT_V1.md).
+
+Para `0007`, o replay descartável deve partir da baseline `0001`, ignorar `0002` já refletida nela e aplicar `0003`–`0007` em ordem. O postflight deve comprovar a coluna `rec_rr_mask`, as máscaras disjuntas, os estados históricos `0..3`, a ausência dos dois checks de ano removidos e nenhuma alteração nas contagens acadêmicas. A Relação materializa o ano; planilhas de notas não o criam. Ver [`MULTIYEAR_RR_676.md`](../../docs/gradebook/MULTIYEAR_RR_676.md).
 
 ## Recuperação comprovada e limites institucionais
 

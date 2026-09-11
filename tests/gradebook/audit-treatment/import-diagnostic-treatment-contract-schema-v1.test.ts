@@ -41,7 +41,7 @@ function treatmentValues(action: 1 | 2, note: string): string {
 }
 
 describe('import diagnostic treatment V1 contract', () => {
-  it('accepts only 2026 and keeps acknowledgement distinct from a note', () => {
+  it('accepts valid academic years and keeps acknowledgement distinct from a note', () => {
     const base = {
       contractVersion: 1,
       operation: 'record',
@@ -54,6 +54,9 @@ describe('import diagnostic treatment V1 contract', () => {
     expect(importDiagnosticTreatmentRequestSchemaV1.safeParse(base).success).toBe(true);
     expect(
       importDiagnosticTreatmentRequestSchemaV1.safeParse({ ...base, year: 2025 }).success,
+    ).toBe(true);
+    expect(
+      importDiagnosticTreatmentRequestSchemaV1.safeParse({ ...base, year: 1999 }).success,
     ).toBe(false);
     expect(
       importDiagnosticTreatmentRequestSchemaV1.safeParse({ ...base, note: 'indevida' }).success,

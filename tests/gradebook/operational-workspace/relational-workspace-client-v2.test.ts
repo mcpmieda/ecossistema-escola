@@ -6,10 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { requestOperationalWorkspaceV2 } from '../../../src/features/gradebook/operational-workspace/operational-workspace-client-v2';
 import { useRelationalWorkspaceV2 } from '../../../src/features/gradebook/operational-workspace/use-relational-workspace-v2';
 import { RelationalWorkspacePageV2 } from '../../../src/features/gradebook/operational-workspace/relational-workspace-page-v2';
+import { GradebookYearProvider } from '../../../src/platform/gradebook-year-provider';
 import type { OperationalWorkspaceRequestV2, WorkspaceLinkV2 } from '../../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
 
 // This suite uses createElement, not JSX; .test.ts is the existing runner's discovery pattern.
 const year = {year:2026,minimumApprovalMilli:60000,maxCouncilComponents:2};
+const bootstrap=()=>({contractVersion:2,state:'ready',operation:'bootstrap',years:[year,{year:2025,minimumApprovalMilli:60000,maxCouncilComponents:2}]});
 const entity:WorkspaceLinkV2={kind:'student',id:1,label:'ALUNO SINTETICO'};
 const context=()=>({contractVersion:2,state:'ready',operation:'context',context:year,counts:{students:1,classes:1,teachers:1,subjects:1,offers:1,currentBindings:1,historicalBindings:0}});
 const search=(label='ALUNO SINTETICO',nextOffset:number|null=null)=>({contractVersion:2,state:'ready',operation:'search',context:year,items:[{entity:{...entity,label},description:'A1 · Nº 1'}],nextOffset});
@@ -36,8 +38,8 @@ beforeEach(()=>{
 });
 afterEach(async()=>{if(root) {await act(async()=>{root!.unmount();});root=null;}host.remove();vi.unstubAllGlobals();});
 async function mount() {
-  fetchMock.mockResolvedValueOnce(reply(context()));
-  root=createRoot(host);await act(async()=>{root!.render(createElement(Harness));});
+  fetchMock.mockResolvedValueOnce(reply(bootstrap())).mockResolvedValueOnce(reply(context()));
+  root=createRoot(host);await act(async()=>{root!.render(createElement(GradebookYearProvider,null,createElement(Harness)));});
 }
 
 describe('V2 transport rejects invalid, stale-context and false-success responses',()=>{
@@ -54,19 +56,21 @@ describe('V2 transport rejects invalid, stale-context and false-success response
     fetchMock.mockResolvedValueOnce(reply(value));
     expect(await requestOperationalWorkspaceV2(searchRequest)).toEqual({contractVersion:2,state:'unavailable'});
   });
-  it('rejects non-2026 and malformed inputs without any network operation',async()=>{
-    expect(await requestOperationalWorkspaceV2({...searchRequest,year:2025})).toEqual({contractVersion:2,state:'invalid-request'});
+  it('accepts another materialized year and rejects malformed inputs before any invalid network operation',async()=>{
+    fetchMock.mockResolvedValueOnce(reply({...search(),context:{...year,year:2025}}));
+    expect(await requestOperationalWorkspaceV2({...searchRequest,year:2025})).toMatchObject({state:'ready',context:{year:2025}});
     expect(await requestOperationalWorkspaceV2({...searchRequest,limit:201})).toEqual({contractVersion:2,state:'invalid-request'});
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await requestOperationalWorkspaceV2({...searchRequest,year:1999})).toEqual({contractVersion:2,state:'invalid-request'});
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('react workspace request lifecycle with synthetic HTTP responses',()=>{
-  it('loads the fixed 2026 context immediately without a catalogue request',async()=>{
+  it('loads the newest materialized year after the global catalogue request',async()=>{
     await mount();
     expect(current.year).toBe(2026);expect(current.context?.year.year).toBe(2026);
-    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({operation:'context',year:2026});
-    expect(fetchMock.mock.calls.some(([,options])=>JSON.parse(String(options?.body)).operation==='bootstrap')).toBe(false);
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({operation:'bootstrap'});
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toMatchObject({operation:'context',year:2026});
   });
   it('loads search and center without invoking the V1 transport',async()=>{
     await mount();
@@ -84,7 +88,7 @@ describe('react workspace request lifecycle with synthetic HTTP responses',()=>{
     await act(async()=>{old.resolve(reply(search('OLD SYNTHETIC')));await pending;});
     expect(current.items[0]?.entity.label).toBe('NEW SYNTHETIC');expect(current.failure).toBeNull();
   });
-  it('clears loaded academic data on loss of authorization but keeps the fixed year',async()=>{
+  it('clears loaded academic data on loss of authorization but keeps the selected year',async()=>{
     await mount();fetchMock.mockResolvedValueOnce(reply(search()));await act(async()=>{await current.search();});
     fetchMock.mockResolvedValueOnce(reply({state:'not-authorized'},403));await act(async()=>{await current.open(entity);});
     expect(current.failure).toBe('not-authorized');expect(current.year).toBe(2026);expect(current.context).toBeNull();expect(current.items).toEqual([]);expect(current.detail).toBeNull();
@@ -117,9 +121,9 @@ describe('react workspace request lifecycle with synthetic HTTP responses',()=>{
 });
 
 describe('rendered Centrais surface in jsdom (not a visual browser benchmark)',()=>{
-  it('loads the fixed context, search and center through the real HeroUI page',async()=>{
-    fetchMock.mockResolvedValueOnce(reply(context()));root=createRoot(host);
-    await act(async()=>{root!.render(createElement(RelationalWorkspacePageV2));});
+  it('loads the selected context, search and center through the real HeroUI page',async()=>{
+    fetchMock.mockResolvedValueOnce(reply(bootstrap())).mockResolvedValueOnce(reply(context()));root=createRoot(host);
+    await act(async()=>{root!.render(createElement(GradebookYearProvider,null,createElement(RelationalWorkspacePageV2)));});
     expect(host.querySelector('select[aria-label="Ano letivo"]')).toBeNull();
     expect(host.textContent).toContain('Cadastros e configuração docente');
     expect(host.querySelector('select:not([tabindex="-1"])')).toBeNull();

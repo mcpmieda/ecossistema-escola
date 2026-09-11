@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RelationalCouncilPageV3 } from '../../../src/features/gradebook/council/relational-council-page-v3';
 import { requestRelationalCouncilV3 } from '../../../src/features/gradebook/council/relational-council-client-v3';
+import { GradebookYearProvider } from '../../../src/platform/gradebook-year-provider';
 import type {
   RelationalCouncilStudentV3,
   RelationalCouncilWorkspaceV3,
@@ -44,7 +45,8 @@ beforeEach(() => {
   current = workspace(); requests = [];
   fetchMock = vi.fn<typeof fetch>(async (_url, init) => {
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>; requests.push(body);
-    if (body.operation === 'classes') return reply({ contractVersion: 3, state: 'ready', operation: 'classes', year: 2026,
+    if (body.operation === 'bootstrap') return reply({ contractVersion: 2, state: 'ready', operation: 'bootstrap', years: [{ year: 2026, minimumApprovalMilli: 60_000, maxCouncilComponents: 2 }] });
+    if (body.operation === 'classes') return reply({ contractVersion: 3, state: 'ready', operation: 'classes', year: Number(body.year),
       classes: [{ id: 10, label: '6A', name: 'TURMA SINTETICA', sessionState: current.session.state, sessionVersion: current.session.version }], nextOffset: null });
     if (body.operation === 'workspace') return reply({ contractVersion: 3, state: 'ready', operation: 'workspace', workspace: current });
     if (body.operation === 'open') current = workspace({ ...current, session: { ...current.session, state: 'open', version: 1, reviewReference: 'council-review:2026:10:1' },
@@ -63,7 +65,7 @@ beforeEach(() => {
 afterEach(async () => { if (root) await act(async () => root!.unmount()); root = null; host.remove(); vi.unstubAllGlobals(); });
 async function settle() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 20)); }); }
 async function waitFor(predicate: () => boolean) { for (let attempt = 0; attempt < 100; attempt++) { if (predicate()) return; await settle(); } expect(predicate()).toBe(true); }
-async function mount() { root = createRoot(host); await act(async () => root!.render(createElement(RelationalCouncilPageV3))); await waitFor(() => requests.some((request) => request.operation === 'classes')); }
+async function mount() { root = createRoot(host); await act(async () => root!.render(createElement(GradebookYearProvider, null, createElement(RelationalCouncilPageV3)))); await waitFor(() => requests.some((request) => request.operation === 'classes')); }
 async function select(label: string, value: string) {
   const root = [...host.querySelectorAll<HTMLElement>('[data-slot="select"]')].find((element) => element.querySelector('[data-slot="label"]')?.textContent === label);
   const control = root?.querySelector('select') as HTMLSelectElement | null; expect(control).not.toBeNull();
@@ -77,7 +79,7 @@ describe('relational Council V3 client and HeroUI journey', () => {
     const request = { contractVersion: 3, operation: 'classes', year: 2026, offset: 0, limit: 100 } as const;
     await requestRelationalCouncilV3(request);
     expect(fetchMock).toHaveBeenCalledWith('/api/gradebook/council-workspace', expect.objectContaining({ credentials: 'same-origin', cache: 'no-store' }));
-    expect(await requestRelationalCouncilV3({ ...request, year: 2025 } as never)).toEqual({ contractVersion: 3, state: 'invalid-request' });
+    expect(await requestRelationalCouncilV3({ ...request, year: 2025 })).toMatchObject({ contractVersion: 3, state: 'ready', operation: 'classes', year: 2025 });
   });
 
   it('renders the static Kanban-inspired queue, annual table and audit timeline without prior-year controls', async () => {

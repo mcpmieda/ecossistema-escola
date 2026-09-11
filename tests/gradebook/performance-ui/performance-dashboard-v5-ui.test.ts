@@ -15,7 +15,8 @@ describe('Performance dashboard V5 HeroUI', () => {
   it('uses HeroUI selects and keeps the lens geometry stable while loading', () => {
     expect(page).toContain("Label, ListBox, Select");
     expect(page).toContain('<Select selectedKey=');
-    expect(page).toContain('<Select.Popover isNonModal>');
+    expect(page).toContain('<Select.Popover>');
+    expect(page).not.toContain('isNonModal');
     expect(page).not.toContain('<select');
     expect(page).toContain('min-h-11');
     expect(page).toContain('min-h-8');

@@ -17,11 +17,12 @@ beforeAll(async () => {
 afterAll(async () => { await pg?.close(); });
 
 describe('relational Council V3 contract', () => {
-  it('accepts only fixed 2026 commands with CAS, idempotency and justification', () => {
+  it('accepts valid academic-year commands with CAS, idempotency and justification', () => {
     const valid = { contractVersion: 3, operation: 'decision', year: 2026, classId: 1,
       studentId: 2, decision: 1, expectedVersion: 3, idempotencyKey: 'decision:test:0001', justification: 'Deliberação registrada.' };
     expect(relationalCouncilRequestSchemaV3.safeParse(valid).success).toBe(true);
-    expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, year: 2025 }).success).toBe(false);
+    expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, year: 2025 }).success).toBe(true);
+    expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, year: 1999 }).success).toBe(false);
     expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, expectedVersion: -1 }).success).toBe(false);
     expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, tieBreak: true }).success).toBe(false);
     expect(relationalCouncilRequestSchemaV3.safeParse({ ...valid, presentes: 3 }).success).toBe(false);

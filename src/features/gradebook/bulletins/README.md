@@ -4,11 +4,11 @@ A página montada pelo shell usa `RelationalBulletinPageV2`, o contrato comparti
 
 ## Invariantes
 
-- contexto fixo 2026; sem criação, seleção ou comparação entre anos;
+- contexto vindo do seletor global de anos materializados pela Relação; sem comparação entre anos;
 - turma/alunos/ofertas/instrumentos/notas/fechamentos vêm das relações atuais;
 - AM/U importadas são oficiais; cálculo nativo é comparação descritiva;
 - disciplinas seguem a ordem de apresentação da fonte;
-- REC normal e `N/C` aparecem junto da AM; `ASSISTIDO` não recebe resultado geral;
+- REC normal, `N/C` e `R/R` aparecem junto da AM; qualquer `R/R` produz `REPROVADO`, sem Conselho, e `ASSISTIDO` não recebe resultado geral;
 - prévia não persiste; emissão pronta é append-only/idempotente/CAS;
 - lote limitado a 50 alunos; materialização acadêmica não faz N+1;
 - reimpressão usa somente o snapshot histórico;
