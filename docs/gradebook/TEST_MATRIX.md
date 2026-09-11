@@ -263,6 +263,18 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F2-668-006`: evidência é pontual, não SLA universal, e não substitui visual/acessibilidade manual ou piloto integral.
 - `F2-668-007`: documentação não altera runtime, DDL/DML, dados, schema, regras, autoridade, ano, binding, segredo ou infraestrutura.
 
+## F1-674 — Trilha humana durável da Auditoria
+
+- `F1-674-001`: contrato aceita somente 2026 e as ações `RECONHECIDO` sem texto ou `ANOTAÇÃO` com 3–2.000 caracteres.
+- `F1-674-002`: migration acrescenta uma relação vazia, sem backfill/UPDATE/DELETE/TRUNCATE e sem FK destrutiva para o snapshot corrente.
+- `F1-674-003`: apagar um diagnóstico atual não apaga sua trilha; a leitura passa a classificá-lo como fora das pendências.
+- `F1-674-004`: ator vem do OID autenticado, horário vem do banco e retry com a mesma chave é idempotente; reutilização divergente conflita.
+- `F1-674-005`: contexto consulta até 200 identidades em lote, histórico pagina até 100 e nenhum caminho faz consulta por achado.
+- `F1-674-006`: somente a role backend tem `SELECT, INSERT`; sem `UPDATE/DELETE`, acesso público/cliente, cache ou confiança em ator do payload.
+- `F1-674-007`: UI HeroUI reconhece/anota, mostra timeline contextual e histórico sob demanda; falha da trilha não esconde a lista atual.
+- `F1-674-008`: não há botão de resolver/ignorar/descartar, correção automática, alteração acadêmica ou mudança de autoridade.
+- `F1-674-009`: migration e código dependente permanecem fora da main/produção até autorização explícita do DDL aditivo.
+
 ## CAT — Cadastro acadêmico pela importação
 
 - `CAT-001`: professor e ano são reconhecidos em `CONFIGURAÇÃO!A2/C2`.

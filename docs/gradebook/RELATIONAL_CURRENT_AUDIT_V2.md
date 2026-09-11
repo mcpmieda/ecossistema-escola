@@ -18,6 +18,8 @@ A superfície ativa consulta apenas `GET /api/gradebook/import-diagnostics` para
 
 A decisão mais recente da #613 também exige não apagar automaticamente uma futura trilha mínima de ações humanas quando o problema corrente desaparecer. Essa durabilidade ainda não possui contrato nem relações próprias. A #658 não inventa esse histórico e não altera schema; sua contratação e eventual DDL permanecem uma entrega separada e explícita.
 
+A sucessora #674 contrata e prepara essa durabilidade em uma relação privada, separada e append-only, limitada a reconhecimento e anotação. O DDL e o código dependente permanecem fora da base integrada até autorização explícita. Ver [RELATIONAL_AUDIT_TREATMENT_V1.md](RELATIONAL_AUDIT_TREATMENT_V1.md).
+
 ## Interface e isolamento
 
 `GradebookAuditSurface` monta somente `RelationalCurrentAuditPageV2`. A página usa componentes HeroUI, cabeçalho compacto, estado fixo de 2026, KPIs identificados como contagens carregadas na sessão, filtros estáveis por gravidade, paginação limitada e uma timeline dos achados. Os detalhes técnicos ficam recolhidos e o texto principal usa linguagem escolar.

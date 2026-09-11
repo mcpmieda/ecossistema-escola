@@ -75,3 +75,13 @@ Professor, componente e oferta de 2026 são reconhecidos e materializados pelas 
 A ordem de apresentação dos componentes é a observada em `CONFIGURAÇÃO`/`CONFIGURAÇÕES!H3:I16`: P, M, H, G, C, A, RL, RD, F, ET, I e CT. Desempenho, Boletins, resultados anuais e Centrais usam a mesma função. Componente desconhecido fica depois, em ordem estável, sem sigla/posição inventada. Ordem não integra a identidade acadêmica e não autoriza arraste manual de colunas.
 
 Esta decisão não altera importador, dados/schema de produção, cálculo, regras ou autoridade oficial. Uma futura edição cadastral dentro da aplicação exigiria contrato, durabilidade e decisão próprios; não pode reaproveitar silenciosamente o modelo V1.
+
+## BN-DEC-026 — Trilha humana mínima sem resolução manual de achado
+
+**Data:** 2026-09-11. **Origem:** decisão final da #613 sobre achado corrente × histórico de tratamento; autonomia de produto delegada pelo responsável; contrato #674. Complementa BN-DEC-022 e substitui apenas a lacuna declarada pela #658.
+
+A Auditoria mantém duas verdades independentes. `importacao_diagnostico` continua sendo o snapshot substituível das pendências atuais. A trilha humana é append-only e oferece somente `RECONHECIDO` e `ANOTAÇÃO`. Não criar estado ou botão manual `RESOLVIDO`, `IGNORADO` ou `DESCARTADO`: o achado sai das pendências apenas quando a fonte é corrigida e reimportada. A ação humana nunca altera fato acadêmico nem oculta diagnóstico.
+
+O histórico preserva contexto mínimo sem duplicar o nome do aluno; ator é o OID UUID da sessão, horário é server-side e comandos são idempotentes. Ano fixo 2026, endpoint administrativo/no-store e ACL privada de `SELECT, INSERT`, sem `UPDATE/DELETE` ou acesso público/cliente.
+
+Esta decisão autoriza contrato e implementação em branch/PR. **Não autoriza aplicar o DDL em produção**: a migration aditiva e o código dependente aguardam a autorização explícita de schema preservada pelo responsável.
