@@ -6,7 +6,7 @@ function source(path: string): string {
   return readFileSync(join(process.cwd(), path), 'utf8');
 }
 
-describe('Audit Workspace HeroUI local/preview V1', () => {
+describe('Audit Workspace V1 preserved outside the active relational surface', () => {
   const page = source('src/features/gradebook/audit-workspace/audit-workspace-page.tsx');
   const client = source('src/features/gradebook/audit-workspace/audit-workspace-client.ts');
   const importDiagnostics = source(
@@ -33,8 +33,9 @@ describe('Audit Workspace HeroUI local/preview V1', () => {
     expect(shell).toContain(
       "import('../features/gradebook/audit-workspace/gradebook-audit-surface')",
     );
-    expect(auditSurface).toContain('<ImportDiagnosticsAuditPanelV1 />');
-    expect(auditSurface).toContain('<AuditWorkspacePage />');
+    expect(auditSurface).toContain('<RelationalCurrentAuditPageV2 />');
+    expect(auditSurface).not.toContain('<ImportDiagnosticsAuditPanelV1 />');
+    expect(auditSurface).not.toContain('<AuditWorkspacePage />');
   });
 
   it('consome o ano global, três coleções, filtros, paginação e detalhe sob demanda', () => {

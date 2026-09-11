@@ -17,6 +17,7 @@ Base: BN-DEC-022, #613 e programa #182. O [índice anterior completo](history/pr
 | Conselho relacional V3 | `shared/gradebook-contracts/council/relational-council-v3.ts` | contrato #648; sessão/CAS/idempotência/votos/histórico/fotografias, com decisão humana explícita |
 | Boletins relacionais V2 | `shared/gradebook-contracts/bulletins/relational-bulletin-v2.ts` | contrato #654; 2026, AM/U oficiais, comparação descritiva, emissão/lote/histórico/reimpressão |
 | Relatórios institucionais V2 | `shared/gradebook-contracts/reports/relational-institutional-reports-v2.ts` | contrato #656; composição somente leitura das projeções relacionais vigentes |
+| Auditoria atual V2 | `shared/gradebook-contracts/imports/import-diagnostics-v1.ts` | #658 reutiliza o contrato vigente apenas para leitura corrente 2026; sem novo contrato ou DDL |
 
 Comparação relacional `match | mismatch | unavailable` e reconciliação histórica `match | expected-difference | mismatch | not-comparable` não são intercambiáveis. Nunca tratar indisponibilidade como correspondência.
 
@@ -32,7 +33,13 @@ V1 não foi alterado para simular equivalência. A interface de Centrais passa a
 
 ## Consumidores que exigem adaptação
 
-AuditWorkspace antigo e manutenção docente ainda dependem da geração anterior nas fontes/durabilidade. Boletins montado no shell usa V2 relacional da #654; Conselho usa V3 relacional; Relatórios passa a usar V2 relacional na #656. Os contratos anteriores permanecem apenas como compatibilidade não montada. O contexto fixo 2026 não converte os consumidores restantes; apenas impede seleção divergente ou aproximada. Desempenho usa a projeção relacional V2/V3/V4. Ver [mapa](CONSUMER_MAP.md), [Relatórios V2](RELATIONAL_REPORTS_V2.md), [Boletins V2](RELATIONAL_BULLETINS_V2.md), [Conselho V3](RELATIONAL_COUNCIL_V3.md), [contrato #646](FINAL2_SOURCE_DESKTOP_646.md) e [comparação #649](TERM_COMPARISON_2026_V4.md).
+Manutenção docente ainda depende da geração anterior. Boletins montado no shell usa V2 relacional da #654; Conselho usa V3 relacional; Relatórios usa V2 relacional da #656. A #658 retira o AuditWorkspace antigo da montagem e usa somente diagnósticos relacionais atuais. Os contratos anteriores permanecem apenas como compatibilidade não montada. O contexto fixo 2026 não converte consumidores restantes; apenas impede seleção divergente ou aproximada. Desempenho usa a projeção relacional V2/V3/V4. Ver [mapa](CONSUMER_MAP.md), [Auditoria atual V2](RELATIONAL_CURRENT_AUDIT_V2.md), [Relatórios V2](RELATIONAL_REPORTS_V2.md), [Boletins V2](RELATIONAL_BULLETINS_V2.md), [Conselho V3](RELATIONAL_COUNCIL_V3.md), [contrato #646](FINAL2_SOURCE_DESKTOP_646.md) e [comparação #649](TERM_COMPARISON_2026_V4.md).
+
+## Auditoria atual V2 — #658
+
+A superfície ativa reutiliza `import-diagnostics-v1` somente para listar a fotografia corrente de `gradebook.importacao_diagnostico` em 2026. Ela detecta, explica e sugere; não reconhece, resolve, descarta ou corrige registros. `AuditWorkspacePage` e o endpoint V1 permanecem compatibilidade não montada e não são fallback.
+
+Achado corrente e trilha humana não são equivalentes. O snapshot corrente é substituído pelo fluxo de nova observação da fonte, inclusive vazio. Uma futura trilha mínima de reconhecimento, justificativa e resolução não pode ser apagada automaticamente quando o achado desaparecer; como sua durabilidade ainda não está contratada, a #658 não cria schema nem simula histórico. Detalhes em [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md).
 
 ## Relatórios institucionais V2 — contrato #656
 

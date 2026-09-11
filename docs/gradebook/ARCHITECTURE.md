@@ -1,6 +1,6 @@
 # Arquitetura — estado relacional e consumidores em transição
 
-Base integrada: `main@1512d5b37c42931b1df81bbfe6483d1ad5340130`; Conselho relacional #648/PR #653 e Boletins V2 #654/PR #655 integrados e publicados. Relatórios V2 está em execução pela #656/PR #657. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
+Base integrada: `main@3d762d7412fe0a5760680566ae6739f4d10c1172`; Conselho relacional #648/PR #653, Boletins V2 #654/PR #655 e Relatórios V2 #656/PR #657 integrados e publicados. Auditoria atual V2 está em execução pela #658. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
 
 ## Caminho integrado de importação
 
@@ -20,7 +20,7 @@ A unidade acadêmica de escrita e idempotência foi homologada na #613. Atualiza
 
 ## Auditoria de importação atual
 
-`GET/POST /api/gradebook/import-diagnostics` usa `gradebook.importacao_diagnostico` e resolve identificação do aluno por turma/vínculo/cadastro. A última observação de arquivo/ano substitui as ocorrências anteriores, conforme #629; resolvidos não formam histórico separado. O endpoint `/audit-workspace` antigo é outro consumidor e não deve ser confundido com essa implementação.
+`GET/POST /api/gradebook/import-diagnostics` usa `gradebook.importacao_diagnostico` e resolve identificação do aluno por turma/vínculo/cadastro. A última observação de arquivo/ano substitui as ocorrências anteriores, conforme #629; resolvidos não formam histórico separado. A #658 monta somente a leitura desse estado corrente. O endpoint `/audit-workspace` antigo é outro consumidor, fica fora da superfície ativa e não é fallback nem histórico humano durável.
 
 ## Provedor não é modelo de dados
 
@@ -40,11 +40,13 @@ A precedência de situações terminais continua no núcleo/serviço anual. O fa
 
 ## Consumidores e reancoragem
 
-O catch-all mantém operações V1 do Operational Workspace, Audit Workspace antigo, Boletins e Relatórios. As páginas ativas de Desempenho usam V2/V3/V4 relacional, Conselho usa V3 relacional, Boletins usa V2 relacional e Relatórios passa a usar V2 relacional na #656; os respectivos V1 permanecem compatibilidade não montada. Audit Workspace antigo e manutenção docente ainda dependem das fontes/durabilidade anteriores. A #649 fixa 2026 e remove criação/seleção de anos. A #648 acrescentou oito tabelas de Conselho; a #654 acrescentou uma relação append-only de snapshots de boletim; a #656 não altera schema. Ver `CONSUMER_MAP.md` antes de alterar qualquer consumidor.
+O catch-all mantém operações V1 do Operational Workspace, Audit Workspace antigo, Boletins e Relatórios. As páginas ativas de Desempenho usam V2/V3/V4 relacional, Conselho usa V3 relacional, Boletins usa V2 relacional e Relatórios usa V2 relacional; os respectivos V1 permanecem compatibilidade não montada. A #658 faz o mesmo isolamento da página antiga de Auditoria, sem remover contrato/rota antes da prova de ausência de consumidores. Manutenção docente ainda depende das fontes/durabilidade anteriores. A #649 fixa 2026 e remove criação/seleção de anos. A #648 acrescentou oito tabelas de Conselho; a #654 acrescentou uma relação append-only de snapshots de boletim; #656 e #658 não alteram schema. Ver `CONSUMER_MAP.md` antes de alterar qualquer consumidor.
 
 Boletins materializa um ou mais alunos no mesmo snapshot read-only/repeatable-read, usando projeção oferta/aluno em lote e uma leitura opcional de instrumentos. AM/U oficiais ficam separadas do cálculo descritivo. Emissão grava somente o snapshot imutável; PDF e reimpressão não voltam às notas atuais. Ver [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md).
 
 Relatórios V2 é um agregador read-only e limitado dos contratos relacionais já vigentes. Desempenho e comparação usam V3/V4; Conselho usa V3; Auditoria consulta somente achados atuais; histórico/reimpressão usa exclusivamente snapshots V2. Não cria um segundo motor nem reinterpreta autoridade. Ver [RELATIONAL_REPORTS_V2.md](RELATIONAL_REPORTS_V2.md).
+
+Auditoria atual V2 apresenta a fotografia de diagnósticos de 2026 e nenhuma operação de escrita. A substituição transacional da fotografia continua pertencendo ao fluxo de importação. A trilha humana futura requer contrato e durabilidade próprios; não se deduz nem se simula a partir do Audit Workspace antigo. Ver [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md).
 
 Alvo: PostgreSQL/fatos → núcleo acadêmico → read models compactos → experiências. Boletins emitidos e decisões humanas têm requisitos próprios de durabilidade; não inventar resultados ou snapshots para preencher lacunas.
 

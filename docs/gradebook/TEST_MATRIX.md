@@ -207,6 +207,17 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F1-656-011`: a interface ativa monta somente V2; V1 permanece compatibilidade isolada e não é fallback.
 - `F1-656-012`: `npm run verify`, CI do head, revisão, merge/deploy e smoke seguem BN-DEC-023; validação visual conjunta continua separada.
 
+## F1-658 — Auditoria relacional atual V2
+
+- `F1-658-001`: a superfície ativa monta somente `RelationalCurrentAuditPageV2`; Audit Workspace e painel V1 não são montados nem usados como fallback.
+- `F1-658-002`: a leitura usa apenas `GET /api/gradebook/import-diagnostics`, fixa 2026 e não consulta entidades/records do modelo anterior.
+- `F1-658-003`: achados correntes vêm de `gradebook.importacao_diagnostico`; uma nova observação transacional da fonte substitui o snapshot anterior, inclusive por vazio.
+- `F1-658-004`: a interface explica que achado atual não é histórico de tratamento e não oferece reconhecer, resolver, descartar ou corrigir.
+- `F1-658-005`: a trilha humana durável futura permanece pendente de contrato explícito; nenhum histórico, linha ou schema é fabricado nesta entrega.
+- `F1-658-006`: HeroUI cobre cabeçalho compacto, KPIs identificados como itens carregados, filtros por gravidade, paginação, timeline, detalhes recolhidos e estados loading/vazio/erro/autorização.
+- `F1-658-007`: não há select HTML, storage acadêmico no browser, criação/comparação de anos, DML acadêmico, mudança de regra ou autoridade.
+- `F1-658-008`: testes direcionados, `npm run verify`, CI do head, revisão, merge/deploy e smoke somente leitura seguem BN-DEC-023; validação visual conjunta continua separada.
+
 ## CAT — Cadastro acadêmico pela importação
 
 - `CAT-001`: professor e ano são reconhecidos em `CONFIGURAÇÃO!A2/C2`.

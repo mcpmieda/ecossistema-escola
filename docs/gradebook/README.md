@@ -18,21 +18,23 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#654 / PR #655:** Boletins V2 integrado e publicado sobre o schema relacional de 2026. Prévia, emissão idempotente, lote limitado, histórico, reimpressão snapshot-only e PDF usam AM/U oficiais da fonte e cálculo apenas descritivo. CI, backup, preflight, migration/postflight append-only, deploy 263 e smoke autenticado somente leitura estão verdes. [Contrato e limites](RELATIONAL_BULLETINS_V2.md).
 
-**#656 / PR #657:** Relatórios institucionais V2 em execução sobre as projeções relacionais vigentes de Desempenho, Conselho, diagnósticos atuais e snapshots de Boletins. Opera somente em 2026 e apenas em leitura; não cria motor, regra, schema, correção automática ou comparação entre anos. [Contrato e limites](RELATIONAL_REPORTS_V2.md).
+**#656 / PR #657:** Relatórios institucionais V2 integrado e publicado no deploy 264 (`34577894561`), sobre as projeções relacionais vigentes de Desempenho, Conselho, diagnósticos atuais e snapshots de Boletins. CI e smoke autenticado somente leitura estão verdes. [Contrato e limites](RELATIONAL_REPORTS_V2.md).
+
+**#658 / PR #659:** Auditoria relacional atual V2 em execução. A superfície ativa passa a exibir somente a fotografia corrente de diagnósticos de 2026, em linguagem escolar, sem montar o Audit Workspace V1 ou oferecer correção automática. A trilha humana durável continua explicitamente separada e não recebe schema nesta entrega. [Escopo e limites](RELATIONAL_CURRENT_AUDIT_V2.md).
 
 ## Leitura e execução
 
 1. [COMECE_AQUI.md](COMECE_AQUI.md): tarefa e dependências.
 2. [PROJECT_STATE.yaml](PROJECT_STATE.yaml): baseline e entrega corrente.
 3. [DECISIONS.md](DECISIONS.md): decisões anteriores e substituições expressas.
-4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md), [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md), [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md), [RELATIONAL_COUNCIL_V3.md](RELATIONAL_COUNCIL_V3.md), [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md) e [RELATIONAL_REPORTS_V2.md](RELATIONAL_REPORTS_V2.md): caminhos e limites.
+4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [RELATIONAL_CENTERS_V2.md](RELATIONAL_CENTERS_V2.md), [RELATIONAL_PERFORMANCE_V2.md](RELATIONAL_PERFORMANCE_V2.md), [PERFORMANCE_LENSES_V3.md](PERFORMANCE_LENSES_V3.md), [FINAL2_SOURCE_DESKTOP_646.md](FINAL2_SOURCE_DESKTOP_646.md), [TERM_COMPARISON_2026_V4.md](TERM_COMPARISON_2026_V4.md), [RELATIONAL_COUNCIL_V3.md](RELATIONAL_COUNCIL_V3.md), [RELATIONAL_BULLETINS_V2.md](RELATIONAL_BULLETINS_V2.md), [RELATIONAL_REPORTS_V2.md](RELATIONAL_REPORTS_V2.md) e [RELATIONAL_CURRENT_AUDIT_V2.md](RELATIONAL_CURRENT_AUDIT_V2.md): caminhos e limites.
 5. [CONTRACTS.md](CONTRACTS.md), [ROADMAP.md](ROADMAP.md), [ISSUE_MAP.md](ISSUE_MAP.md) e [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
 
 ## Programa final
 
 | Fase    | Issue | Entrega restante                                                                                                                   |
 | ------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| FINAL-1 | #633  | Relatórios V2 em #656; manutenção docente, Auditoria antiga, isolamento/recuperação e piloto ainda pendentes; gestão de anos retirada |
+| FINAL-1 | #633  | Relatórios V2 integrados; Auditoria atual na #658; manutenção docente, trilha humana, isolamento/recuperação e piloto pendentes |
 | FINAL-2 | #634  | #646 consolida fonte/detalhe/desktop; #649 fixa 2026 e entrega comparação trimestral; validação visual única restante              |
 | FINAL-3 | #635  | Conselho humano V3 integrado/publicado; validação visual conjunta e piloto ainda separam entrega de aceite final                   |
 | FINAL-4 | #406  | piloto integral, recuperação e retirada seletiva do legado                                                                         |
