@@ -3,6 +3,7 @@ import { act, createElement } from 'react';
 import { buildPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
 import { projectPerformanceFactsV2, EMPTY_PERFORMANCE_CLOSING_V2 } from '../../../server/gradebook/application/results/relational-performance-facts-v2';
 import { performanceAnalysisRequestSchemaV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
+import { performanceTermComparisonResponseSchemaV4 } from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import { requestPerformanceAnalysisV3 } from '../../../src/features/gradebook/performance/performance-analysis-client-v3';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -36,6 +37,7 @@ beforeEach(() => {
   mock = vi.fn<typeof fetch>(async (_url, init) => {
     const body = JSON.parse(String(init?.body)) as Record<string, unknown>; requests.push(body);
     if (body.operation === 'classes') return reply({ ...catalog, context: { ...context, year: body.year } });
+    if (body.operation === 'term-comparison') return reply(comparisonFixture(body));
     if (body.operation === 'analysis') return reply(analysisFixture(body));
     if (body.operation === 'matrix') return reply({ ...matrix, period: body.period, mode: body.mode });
     if (body.operation === 'student-detail') return reply({ ...common, ...selected, operation: 'student-detail', row, offers: [offering], trajectory: [{ offerId: 10, terms: [cell, cell, cell] }] });
@@ -179,7 +181,39 @@ function analysisFixture(extra: Record<string, unknown> = {}) {
   return buildPerformanceAnalysisV3(base, new Map([[1, [projectPerformanceFactsV2(10, facts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]]]), request);
 }
 
+function comparisonFixture(extra: Record<string, unknown> = {}) {
+  const analysis = analysisFixture({ year: extra.year, classId: extra.classId, period: extra.period, mode: extra.mode,
+    statuses: extra.statuses, lens: extra.lens, offerId: null });
+  const studentId = analysis.rows[0]!.studentId;
+  return performanceTermComparisonResponseSchemaV4.parse({
+    transportVersion: 4, operation: 'term-comparison', state: 'ready', authority: 'descriptive-observation',
+    basis: 'percentage-points-of-official-maximum', referencePeriod: extra.referencePeriod,
+    analysis,
+    columns: analysis.columns.map((column) => ({ key: column.key, offerId: column.offerId, label: column.label,
+      summary: { comparable: 1, unavailable: 0, groups: { higher: [studentId], equal: [], lower: [], unavailable: [] } } })),
+    rows: analysis.rows.map((row) => ({ studentId: row.studentId, values: row.values.map((value) => ({ key: value.key,
+      state: 'comparable', currentPercent: value.percent, referencePercent: value.percent! - 10,
+      deltaPercentagePoints: 10, relation: 'higher', reason: null })) })),
+  });
+}
+
 describe('four lenses and analytical investigation V3', () => {
+  it('offers only explicit prior-trimester comparisons and renders descriptive percentage-point differences', async () => {
+    await loaded();
+    expect(document.querySelector('select[aria-label="Comparar com"]')).toBeNull();
+    await select('Período', '2');
+    await select('Comparar com', '1');
+    await waitFor(() => requests.some((value) => value.operation === 'term-comparison'));
+    expect(requests.at(-1)).toMatchObject({ transportVersion: 4, operation: 'term-comparison', year: 2026, period: 2, referencePeriod: 1, lens: 'result', offerId: null });
+    expect(host.textContent).toContain('T2 comparado ao T1');
+    expect(host.textContent).toContain('+10 p.p.');
+    expect(host.textContent).toContain('não mede evolução pedagógica');
+    await select('Período', '3');
+    const comparison = document.querySelector('select[aria-label="Comparar com"]') as unknown as HTMLSelectElement;
+    expect([...comparison.options].map((option) => option.value)).toEqual(['','1','2']);
+    await click('Avaliações');
+    expect(document.querySelector('select[aria-label="Comparar com"]')).toBeNull();
+  });
   it('changes all four lenses with one request per selection, not per student', async () => {
     await loaded();
     await click('Quantitativo');

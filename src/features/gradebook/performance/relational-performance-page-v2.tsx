@@ -1,6 +1,7 @@
 import { PerformanceStudentDetailV2 } from './performance-student-detail-v2';
 import { PerformanceResultMatrixV2 } from './performance-result-matrix-v2';
 import { PerformanceAnalysisPanelV3 } from './performance-analysis-panel-v3';
+import { PerformanceTermComparisonPanelV4 } from './performance-term-comparison-panel-v4';
 import { PERFORMANCE_LENSES_V3, type PerformanceLensV3 } from '../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { useRef } from 'react';
 import { Alert, Button, Chip, Drawer, Spinner, Tabs } from '@heroui/react';
@@ -31,6 +32,7 @@ export function RelationalPerformancePageV2() {
       <label className="grid gap-1 text-sm">Turma<select aria-label="Turma" className={`${css} text-sm`} value={state.filters.classId ?? ''} disabled={state.busy.classes} onChange={(event) => void state.select({ classId: event.target.value ? Number(event.target.value) : null })}><option value="">Selecione a turma</option>{state.classes?.classes.map((value) => <option key={value.id} value={value.id}>{value.label}</option>)}</select></label>
       <label className="grid gap-1 text-sm">Período<select aria-label="Período" className={`${css} text-sm`} value={state.filters.period} onChange={(event) => void state.select({ period: event.target.value === 'annual' ? 'annual' : Number(event.target.value) as PerformancePeriodV2 })}><option value="1">1º trimestre</option><option value="2">2º trimestre</option><option value="3">3º trimestre</option><option value="annual">Visão geral</option></select></label>
       <label className="grid gap-1 text-sm">Modo<select aria-label="Modo" className={`${css} text-sm`} value={state.filters.mode} onChange={(event) => void state.select({ mode: event.target.value as PerformanceModeV2 })}><option value="regular">Regular</option><option value="recovery">Recuperação</option></select></label>
+      {state.filters.lens !== 'assessments' && (state.filters.period === 2 || state.filters.period === 3) ? <label className="grid gap-1 text-sm">Comparar com<select aria-label="Comparar com" className={`${css} text-sm`} value={state.filters.referencePeriod ?? ''} onChange={(event) => void state.select({ referencePeriod: event.target.value ? Number(event.target.value) as 1 | 2 : null })}><option value="">Sem comparação</option><option value="1">1º trimestre</option>{state.filters.period === 3 ? <option value="2">2º trimestre</option> : null}</select></label> : null}
       <Button variant="secondary" isDisabled={state.busy.matrix || state.filters.classId === null} onPress={() => void state.select({})}>Atualizar consulta</Button>
       {!state.classes && !state.busy.classes ? <Button variant="secondary" onPress={() => void state.loadClasses()}>Tentar carregar turmas</Button> : null}
       {state.classes?.nextOffset !== null && state.classes?.nextOffset !== undefined ? <Button variant="ghost" isDisabled={state.busy.classes} onPress={() => void state.loadClasses(state.classes!.nextOffset!)}>Mais turmas</Button> : null}
@@ -43,6 +45,7 @@ export function RelationalPerformancePageV2() {
       {PERFORMANCE_LENSES_V3.map((lens) => <Tabs.Panel key={lens} id={lens} className="grid min-w-0 gap-4">
         {state.filters.lens === lens ? <>
           {lens === 'assessments' ? <label className="grid gap-1 text-sm">Componente das avaliações<select aria-label="Componente das avaliações" className={`${css} text-sm`} value={state.filters.offerId ?? ''} onChange={(event) => void state.select({ offerId: event.target.value ? Number(event.target.value) : null })}><option value="">Selecione o componente</option>{state.offers.map((offer) => <option key={offer.id} value={offer.id}>{offer.subject.label} · {offer.teacher.label}</option>)}</select></label> : null}
+          {state.comparison ? <PerformanceTermComparisonPanelV4 key={`comparison:${state.comparison.analysis.matrix.readAt}:${JSON.stringify(state.filters)}`} value={state.comparison} open={open}/> : null}
           {state.analysis ? <PerformanceAnalysisPanelV3 key={`${state.analysis.matrix.readAt}:${JSON.stringify(state.filters)}`} value={state.analysis} open={open} focusOffer={(offerId) => void state.select({ lens: 'assessments', offerId })} renderResult={(ids) => <PerformanceResultMatrixV2 value={state.analysis!.matrix} open={open} allowedIds={ids} focusOffer={(offerId) => void state.select({ lens: 'assessments', offerId })}/>}/> : null}
         </> : null}
       </Tabs.Panel>)}

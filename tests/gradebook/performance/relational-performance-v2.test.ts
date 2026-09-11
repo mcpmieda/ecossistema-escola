@@ -1,4 +1,6 @@
 import { createPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
+import { createPerformanceTermComparisonV4 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
+import { performanceTermComparisonRequestSchemaV4, performanceTermComparisonResponseSchemaV4, performanceTermComparisonMatchesV4 } from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import { performanceAnalysisRequestSchemaV3, performanceAnalysisResponseSchemaV3, performanceAnalysisMatchesV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
@@ -19,6 +21,8 @@ let readsFail = false;
 const queries: string[] = [];
 const matrixRequest = (extra = {}): PerformanceRequestV2 => ({ transportVersion: 2, operation: 'matrix', year: 2026, classId: 10, period: 1, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], ...extra });
 const service = () => createRelationalPerformanceV2(database);
+const comparisonRequest = (extra: Record<string, unknown> = {}) => ({ transportVersion: 4, operation: 'term-comparison', year: 2026, classId: 10,
+  period: 3, referencePeriod: 1, mode: 'regular', statuses: [null, 1, 2, 3, 4, 5, 7], lens: 'result', offerId: null, ...extra });
 
 beforeAll(async () => {
   pg = new PGlite();
@@ -189,6 +193,52 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     const body = await response.text();
     expect(body).not.toContain('synthetic-private-failure');
     expect(body).toContain('unavailable');
+  });
+});
+
+describe('same-year trimester comparison V4', () => {
+  it('compares exact proportions from one repeatable-read snapshot without N+1', async () => {
+    const request = performanceTermComparisonRequestSchemaV4.parse(comparisonRequest());
+    const result = await createPerformanceTermComparisonV4(database).execute(request);
+    expect(result.state).toBe('ready');
+    if (result.state !== 'ready') throw new Error('unexpected-comparison-failure');
+    expect(queries).toHaveLength(6);
+    expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
+    expect(result).toMatchObject({ authority: 'descriptive-observation', basis: 'percentage-points-of-official-maximum', referencePeriod: 1,
+      analysis: { lens: 'result', matrix: { period: 3, context: { year: 2026 } } } });
+    const row = (id: number) => result.rows.find((value) => value.studentId === id)!.values[0]!;
+    expect(row(1)).toMatchObject({ state: 'comparable', relation: 'lower' });
+    expect(row(2)).toMatchObject({ state: 'comparable', relation: 'equal', deltaPercentagePoints: 0, currentPercent: 0, referencePercent: 0 });
+    expect(row(3)).toMatchObject({ state: 'unavailable', reason: 'current-incomplete', deltaPercentagePoints: null });
+    expect(performanceTermComparisonResponseSchemaV4.safeParse(result).success).toBe(true);
+    expect(performanceTermComparisonMatchesV4(request, result)).toBe(true);
+  });
+  it('supports T3 against T2 and T2 against T1 for every non-assessment lens', async () => {
+    for (const [period, referencePeriod, lens] of [[3,2,'result'],[2,1,'quantitative'],[2,1,'qualitative']] as const) {
+      const result = await createPerformanceTermComparisonV4(database).execute(comparisonRequest({ period, referencePeriod, lens }));
+      expect(result).toMatchObject({ state: 'ready', referencePeriod, analysis: { lens, matrix: { period } } });
+    }
+  });
+  it.each([
+    { period: 1, referencePeriod: 1 }, { period: 2, referencePeriod: 2 }, { period: 'annual', referencePeriod: 1 },
+    { lens: 'assessments', offerId: 10 }, { year: 2025 },
+  ])('rejects an invalid or cross-year comparison before SQL %j', async (extra) => {
+    expect(await createPerformanceTermComparisonV4(database).execute(comparisonRequest(extra))).toEqual({ transportVersion: 4, state: 'invalid-request' });
+    expect(queries).toHaveLength(0);
+  });
+  it('routes V4 through the existing authenticated no-store boundary', async () => {
+    const response = await http(comparisonRequest());
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toContain('no-store');
+    expect(await response.json()).toMatchObject({ transportVersion: 4, state: 'ready', operation: 'term-comparison' });
+  });
+  it('rejects forged comparison membership and a mismatched reference', async () => {
+    const request = performanceTermComparisonRequestSchemaV4.parse(comparisonRequest());
+    const result = await createPerformanceTermComparisonV4(database).execute(request);
+    if (result.state !== 'ready') throw new Error('unexpected-comparison-failure');
+    expect(performanceTermComparisonMatchesV4({ ...request, referencePeriod: 2 }, result)).toBe(false);
+    result.columns[0]!.summary.groups.higher.push(9999);
+    expect(performanceTermComparisonResponseSchemaV4.safeParse(result).success).toBe(false);
   });
 });
 
