@@ -49,11 +49,14 @@ storage:
   cutover_completed: true
   core_table_count: 19
   diagnostic_table_count: 1
-  total_table_count: 20
-  column_count: 127
-  structural_constraint_count: 123
-  index_count: 38
-  foreign_key_count: 34
+  council_v3_table_count: 8
+  baseline_pre_council_table_count: 20
+  total_table_count: 28
+  column_count: 214
+  structural_constraint_count: 188
+  index_count: 58
+  foreign_key_count: 48
+  sequence_count: 12
   function_count: 4
   distinct_trigger_count: 3
   information_schema_trigger_event_rows: 6
@@ -67,6 +70,10 @@ storage:
   recovery_baseline_path: migrations/gradebook-simplified/
   production_data_restore_proven_by_this_pr: false
   legacy_d1_role: preserved-historical-resource-not-backup-of-new-relational-writes
+  council_v3_migration: applied-and-postflight-verified-2026-09-11
+  council_v3_new_rows_after_migration: 0
+  council_v3_acl: exact-backend-least-privilege-public-zero
+  pre_migration_copy: logical-export-validated-managed-backup-unavailable-on-free-plan
 
 runtime:
   design_system: HeroUI React v3
@@ -97,7 +104,7 @@ runtime:
   academic_year_creation: removed
   academic_year_selection: removed
   cross_academic_year_comparison: forbidden
-  relational_council_v3: implemented-pr-653-awaiting-migration-final-head-gates
+  relational_council_v3: migration-applied-postflight-green-pr-653-awaiting-final-ci-merge-deploy
   relational_council_authority: calculated-eligibility-explicit-human-decision
   relational_council_decisions: [approved-by-council, rejected-by-council, rejected-for-absence]
   relational_council_vote_storage: favoraveis-and-contrarios-only-presentes-derived
@@ -121,7 +128,7 @@ work_in_progress:
   pull_request: 653
   scope: relational-council-v3-session-votes-history-snapshots-heroui
   production_activation_in_this_delivery: false
-  production_schema_extension_in_this_delivery: council-v3-authorized-after-backup-preflight-ci-and-review
+  production_schema_extension_in_this_delivery: council-v3-applied-and-postflight-verified
   phase_complete: false
   release_checkpoint: issue-648-and-pr-653
   visual_validation_this_delivery: deferred-for-single-session-with-responsible
@@ -171,7 +178,7 @@ security:
   public_academic_payloads_and_credentials: forbidden
   source_document_mutation: forbidden
   production_academic_writes_in_this_delivery: forbidden
-  production_schema_extension: council-v3-only-after-authorized-backup-preflight-ci-review
+  production_schema_extension: council-v3-applied-after-authorized-backup-preflight-ci-review
   automatic_authority_activation: forbidden
   authorization_context: server-only
   concurrency_and_atomicity: required
@@ -189,5 +196,5 @@ security:
 next_safe_action:
   issue: 648
   related_issues: [633, 635]
-  description: validate-logical-copy-apply-and-postflight-council-v3-then-final-head-ci-review-integrate-deploy
+  description: verify-final-head-ci-review-diff-integrate-deploy-and-authenticated-smoke
   prerequisite_release_checkpoint: issue-648-and-pr-653

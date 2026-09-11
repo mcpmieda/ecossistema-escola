@@ -24,7 +24,8 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(section('storage')).toContain('cutover_completed: true');
     expect(section('storage')).toContain('core_table_count: 19');
     expect(section('storage')).toContain('diagnostic_table_count: 1');
-    expect(section('storage')).toContain('total_table_count: 20');
+    expect(section('storage')).toContain('council_v3_table_count: 8');
+    expect(section('storage')).toContain('total_table_count: 28');
     expect(section('runtime')).toContain('global_academic_authority_switch_verified: false');
     expect(section('work_in_progress')).toContain('phase_complete: false');
     expect(section('work_in_progress')).toContain('production_activation_in_this_delivery: false');

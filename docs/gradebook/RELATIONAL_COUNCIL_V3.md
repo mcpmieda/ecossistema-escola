@@ -50,6 +50,25 @@ sequências, FKs, ACLs, contagens centrais e a permanência exclusiva do ano 202
 Falha antes do `COMMIT` reverte a migration inteira. Reexecução depois de sucesso
 deve falhar de forma visível; não há `IF NOT EXISTS` que mascare drift.
 
+## Aplicação controlada em 11/09/2026
+
+O plano Free não oferecia backup gerenciado. Antes do DDL foi criado um export
+lógico local das 20 tabelas e 8 sequências existentes; os 21 conjuntos, payloads
+JSON, contagens e checksum foram validados. Isso reduz risco operacional, mas não
+é prova de restore institucional nem substitui o gate de recuperação #406/#596.
+
+O preflight encontrou somente 2026, 384 alunos, 15 turmas, zero decisões e as
+oito tabelas-alvo ausentes. Após `0003` e a correção de ACL `0004`, o catálogo
+tem 28 tabelas, 214 colunas, 188 constraints, 58 índices, 48 FKs e 12 sequências;
+funções e triggers anteriores permaneceram 4 e 3. As oito tabelas novas estavam
+vazias. Contagens de aluno/turma/nota/fechamento/importação e o único registro de
+2026 permaneceram iguais; nenhum outro ano foi criado.
+
+O postflight também confirmou 18 grants de tabela esperados para
+`gradebook_app`, zero ausentes ou adicionais, USAGE/SELECT sem UPDATE nas quatro
+sequências novas, zero privilégios `PUBLIC` e ausência de campos de
+presentes/diretor/desempate.
+
 ## Limites do aceite
 
 Testes PGlite/HTTP/React cobrem contrato, grants, ciclo completo, reabertura,

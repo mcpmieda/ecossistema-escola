@@ -1,6 +1,6 @@
 # Arquitetura — estado relacional e consumidores em transição
 
-Base auditada: `main@0a05606aa790bb3a4908308ec865e03438401b0a`. A PR #636 acrescenta lote de projeção e documentação; não ativa outro endpoint. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
+Base integrada: `main@459443db90277baf55690fe69d35dbfdba8550f1`; Conselho relacional em execução pela #648/PR #653. O [mapa por consumidor](CONSUMER_MAP.md) é parte deste documento.
 
 ## Caminho integrado de importação
 
@@ -40,13 +40,13 @@ A precedência de situações terminais continua no núcleo/serviço anual. O fa
 
 ## Consumidores ainda não reancorados
 
-O catch-all mantém operações V1 do Operational Workspace, Audit Workspace antigo, Boletins, Relatórios e Conselho compostos pelo runtime da geração anterior. A página de Desempenho usa V2/V3/V4 relacional. A #649 fixa o contexto em 2026 e remove criação/seleção de anos, mas não converte fontes ou durabilidade V1. Esses contratos restringem autoridades e recursos que não existem automaticamente nas 20 tabelas atuais. Ver `CONSUMER_MAP.md` antes de alterar qualquer um.
+O catch-all mantém operações V1 do Operational Workspace, Audit Workspace antigo, Boletins e Relatórios compostos pelo runtime da geração anterior. As páginas ativas de Desempenho usam V2/V3/V4 relacional e Conselho usa V3 relacional; os contratos V1/V2 do Conselho permanecem somente para compatibilidade não montada. A #649 fixa o contexto em 2026 e remove criação/seleção de anos. A #648 acrescenta oito tabelas mínimas de sessão/voto/histórico/fotografia, levando o schema corrente de 20 para 28 tabelas sem converter os demais consumidores. Ver `CONSUMER_MAP.md` antes de alterar qualquer um.
 
 Alvo: PostgreSQL/fatos → núcleo acadêmico → read models compactos → experiências. Boletins emitidos e decisões humanas têm requisitos próprios de durabilidade; não inventar resultados ou snapshots para preencher lacunas.
 
 ## Segurança e publicação
 
-Mesmo shell, Entra e autorização server-side. Respostas acadêmicas `no-store`, sem storage persistente no browser. Os handlers e gates têm composições diferentes; não declarar todas as rotas OFF/ON por uma única flag documental. Nenhuma variável/binding/role foi alterada nesta PR.
+Mesmo shell, Entra e autorização server-side. Respostas acadêmicas `no-store`, sem storage persistente no browser. Os handlers e gates têm composições diferentes; não declarar todas as rotas OFF/ON por uma única flag documental. A #648 não altera binding, segredo ou identidade; somente restringe as ACLs das novas tabelas/sequências à role backend já provisionada.
 
 Logs não podem divulgar payloads, SQL sensível, credenciais ou dados acadêmicos. Homologação de autenticação, consistência, frescor, concorrência e recuperação ocorre por consumidor antes do aceite #347/#406/#596.
 
