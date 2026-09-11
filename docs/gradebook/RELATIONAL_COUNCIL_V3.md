@@ -75,4 +75,4 @@ Testes PGlite/HTTP/React cobrem contrato, grants, ciclo completo, reabertura,
 fotografias, idempotência, CAS, autorização e estados da interface. Eles não
 substituem restauração institucional, ensaio de contenção PostgreSQL
 multi-sessão, aceite acadêmico #347 nem a validação visual única com o
-responsável. Boletins e Relatórios ainda têm adaptação própria na FINAL-1.
+responsável. Boletins seguem a adaptação própria #654; Relatórios continuam pendentes na FINAL-1.

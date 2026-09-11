@@ -176,6 +176,22 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F3-648-011`: HeroUI cobre fila, detalhe T1/T2/T3/REC, KPIs, estados vazios/erro/loading, votação, decisão, sessão, timeline e histórico responsivo.
 - `F3-648-012`: `npm run verify`, CI do head, revisão, postflight, deploy e smoke seguem BN-DEC-023; aceite visual conjunto continua explícito e separado.
 
+## F1-654 — Boletins relacionais V2
+
+- `F1-654-001`: request/response aceitam somente 2026, rejeitam campos extras, lotes duplicados e mais de 50 alunos.
+- `F1-654-002`: catálogo usa nome completo da turma e materialização ordena disciplinas pela fonte canônica.
+- `F1-654-003`: AM/U importadas permanecem oficiais e cálculo nativo aparece somente como comparação descritiva.
+- `F1-654-004`: boletim anual mostra AM normal, REC e `N/C` juntos; `ASSISTIDO` mantém notas sem resultado geral.
+- `F1-654-005`: ausência de fonte oficial necessária, cobertura incompleta, recuperação ou Conselho pendente bloqueiam emissão com motivos explícitos.
+- `F1-654-006`: materialização de lote usa transação read-only/repeatable-read e contagem limitada de consultas, sem N+1 por aluno/componente.
+- `F1-654-007`: repetição do mesmo conteúdo é idempotente; mudança real avança versão; CAS impede séries conflitantes.
+- `F1-654-008`: reimpressão lê exclusivamente o snapshot histórico e não materializa fatos atuais nem grava nova versão.
+- `F1-654-009`: migration adiciona uma relação/13 colunas/2 índices, FKs/checks de 2026 e ACL `SELECT, INSERT`, sem backfill/DML acadêmico.
+- `F1-654-010`: HTTP exige autenticação, `gradebook.persistence.admin`, origem, provider/gate e `no-store`.
+- `F1-654-011`: HeroUI cobre filtros estáveis, preview, emissão/lote, histórico, estados acessíveis, tabela anual e instrumentos sem drag/select nativo no código.
+- `F1-654-012`: PDF aparece somente para snapshot emitido/reimpresso, é lazy/snapshot-only, limitado a um documento e falha sem apagar a leitura em tela.
+- `F1-654-013`: `npm run verify`, CI do head, backup/preflight, migration/postflight, revisão, merge/deploy e smoke seguem BN-DEC-023; visual conjunto continua separado.
+
 ## CAT — Cadastro acadêmico pela importação
 
 - `CAT-001`: professor e ano são reconhecidos em `CONFIGURAÇÃO!A2/C2`.

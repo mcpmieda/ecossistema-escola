@@ -8,7 +8,7 @@ A reconstrução de persistência da #613 terminou. Este roadmap substitui a fil
 
 **Primeira entrega / PR #636:** reancoragem documental e leitura em lote; projeção anual deixa de consultar fatos separadamente por oferta. Preserva motor e resultados. Não liga novas telas nem fecha toda a fase.
 
-**Blocos restantes:** reconstrução/teste de schema e privilégios; contexto/catálogos/centrais; transporte de resultados e Desempenho; Boletins/Relatórios e durabilidade; Conselho; isolamento/concorrência/frescor e remoção apenas de dependências comprovadamente mortas. Contratos compartilhados exigem issue própria.
+**Blocos integrados/em execução:** baseline/Auditoria, Centrais, Desempenho e Conselho estão integrados; Boletins relacionais, durabilidade e PDF seguem na #654. **Restante depois de #654:** manutenção docente, Audit Workspace antigo, Relatórios, isolamento/concorrência/frescor e remoção apenas de dependências comprovadamente mortas. Contratos compartilhados exigem issue própria.
 
 **Fechar quando:** consumidores contemplados estejam integrados e verificados, sem relações antigas no caminho migrado, com CI e evidência funcional após publicação autorizada.
 

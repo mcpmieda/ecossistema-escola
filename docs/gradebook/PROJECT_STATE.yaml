@@ -5,9 +5,9 @@ updated_at: 2026-09-11
 
 coordination:
   master_issue: 182
-  executable_issue: 648
-  current_delivery_issue: 648
-  current_integrator_issue: 648
+  executable_issue: 654
+  current_delivery_issue: 654
+  current_integrator_issue: 654
   central_state_editor: integrator-only
   canonical_decisions: docs/gradebook/DECISIONS.md
   canonical_roadmap: docs/gradebook/ROADMAP.md
@@ -22,7 +22,8 @@ coordination:
   prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
 
 baseline:
-  last_audited_main_commit: 459443db90277baf55690fe69d35dbfdba8550f1
+  last_audited_main_commit: 4f32dd5150641d0a24c2e2c241768f953202ce56
+  integrated_council_pr: 653
   integrated_performance_heroui_pr: 652
   integrated_term_comparison_pr: 650
   integrated_source_desktop_pr: 647
@@ -34,11 +35,11 @@ baseline:
   integrated_import_archive_pr: 632
   storage_homologation_issue: 613
   active_diagnostics_homologation_issue: 629
-  authorized_deploy_run: 34559675760
-  authorized_deploy_number: 261
+  authorized_deploy_run: 34565744488
+  authorized_deploy_number: 262
   authorized_deploy_result: success
-  authenticated_post_deploy_smoke_this_session: false
-  note: baseline-after-performance-heroui-652-before-council-v3-653
+  authenticated_post_deploy_smoke_this_session: true
+  note: baseline-after-council-v3-653-before-bulletins-v2-654
 
 storage:
   decision_current: BN-DEC-022
@@ -73,6 +74,7 @@ storage:
   council_v3_migration: applied-and-postflight-verified-2026-09-11
   council_v3_new_rows_after_migration: 0
   council_v3_acl: exact-backend-least-privilege-public-zero
+  relational_bulletin_snapshot_migration: planned-in-issue-654-not-yet-applied
   pre_migration_copy: logical-export-validated-managed-backup-unavailable-on-free-plan
 
 runtime:
@@ -104,16 +106,19 @@ runtime:
   academic_year_creation: removed
   academic_year_selection: removed
   cross_academic_year_comparison: forbidden
-  relational_council_v3: migration-applied-postflight-green-pr-653-awaiting-final-ci-merge-deploy
+  relational_council_v3: integrated-pr-653-deploy-262-authenticated-read-only-smoke-success
   relational_council_authority: calculated-eligibility-explicit-human-decision
   relational_council_decisions: [approved-by-council, rejected-by-council, rejected-for-absence]
   relational_council_vote_storage: favoraveis-and-contrarios-only-presentes-derived
   relational_council_director_tie_break: outside-system
   relational_council_lifecycle: session-cas-idempotency-history-close-snapshot-justified-reopen
-  shared_year_consumers: [centers-v2, audit-v1, performance-v2-v3-v4, bulletins-v1, reports-v1, council-v3]
+  relational_bulletins_v2: implemented-on-branch-654-awaiting-final-ci-migration-merge-deploy
+  relational_bulletins_authority: imported-am-u-official-native-calculation-descriptive
+  relational_bulletins_durability: append-only-snapshot-cas-idempotency-history-reprint
+  shared_year_consumers: [centers-v2, audit-v1, performance-v2-v3-v4, bulletins-v2, reports-v1, council-v3]
   shared_year_legacy_mapping: unique-exact-2026-catalog-label-or-fail-closed
   import_source_year_reinterpreted_by_navigation: false
-  remaining_consumers: legacy-audit-bulletins-and-reports-sources-and-durability-pending-reanchoring
+  remaining_consumers: legacy-audit-reports-and-teacher-maintenance-pending-reanchoring-after-bulletins-v2
   global_academic_authority_switch_verified: false
   authority_acceptance_issue: 347
   legacy_consumer_contracts:
@@ -121,22 +126,22 @@ runtime:
     note: describes-existing-v1-contracts-not-a-global-runtime-flag
 
 work_in_progress:
-  issue: 648
-  parent_issues: [633, 635]
-  phase: FINAL-1-and-FINAL-3
-  branch: feat/bn-council-final3-648
-  pull_request: 653
-  scope: relational-council-v3-session-votes-history-snapshots-heroui
+  issue: 654
+  parent_issues: [633]
+  phase: FINAL-1
+  branch: feat/bn-relational-bulletins-v2-654
+  pull_request: null
+  scope: relational-bulletins-v2-preview-emission-history-reprint-pdf-heroui
   production_activation_in_this_delivery: false
-  production_schema_extension_in_this_delivery: council-v3-applied-and-postflight-verified
+  production_schema_extension_in_this_delivery: planned-one-append-only-bulletin-snapshot-table-not-applied
   phase_complete: false
-  release_checkpoint: issue-648-and-pr-653
+  release_checkpoint: issue-654
   visual_validation_this_delivery: deferred-for-single-session-with-responsible
   remaining:
     - joint-visual-validation-with-responsible
-    - authenticated-production-smoke-after-deploy
+    - final-head-ci-review-backup-migration-postflight-merge-deploy-authenticated-smoke
     - relational-teacher-maintenance
-    - relational-sources-and-durability-for-audit-bulletins-and-reports
+    - relational-sources-and-durability-for-legacy-audit-and-reports
     - production-data-backup-restore-and-real-multi-session-contention-pilot
     - legacy-removal-after-dependency-proof
 
@@ -144,15 +149,15 @@ final_phases:
   - phase: FINAL-1
     issue: 633
     branch: null
-    status: foundation-centers-and-performance-integrated-year-management-removed-other-consumers-and-visual-validation-pending
+    status: foundation-centers-performance-council-integrated-bulletins-v2-in-issue-654-other-consumers-and-visual-validation-pending
   - phase: FINAL-2
     issue: 634
     branch: null
     status: source-desktop-fixed-2026-term-comparison-and-heroui-redesign-integrated-visual-validation-pending
   - phase: FINAL-3
     issue: 635
-    branch: feat/bn-council-final3-648
-    status: relational-v3-implemented-pr-653-awaiting-migration-release-smoke-and-joint-visual-validation
+    branch: null
+    status: relational-v3-integrated-migrated-deployed-smoke-green-joint-visual-validation-and-pilot-pending
   - phase: FINAL-4
     issue: 406
     branch: test/bn-final-4-piloto-integral
@@ -178,7 +183,7 @@ security:
   public_academic_payloads_and_credentials: forbidden
   source_document_mutation: forbidden
   production_academic_writes_in_this_delivery: forbidden
-  production_schema_extension: council-v3-applied-after-authorized-backup-preflight-ci-review
+  production_schema_extension: council-v3-applied-bulletin-v2-extension-planned-after-backup-preflight-ci-review
   automatic_authority_activation: forbidden
   authorization_context: server-only
   concurrency_and_atomicity: required
@@ -194,7 +199,7 @@ security:
   report: docs/gradebook/SECURITY_REMEDIATION_637.md
 
 next_safe_action:
-  issue: 648
-  related_issues: [633, 635]
-  description: verify-final-head-ci-review-diff-integrate-deploy-and-authenticated-smoke
-  prerequisite_release_checkpoint: issue-648-and-pr-653
+  issue: 654
+  related_issues: [633]
+  description: finish-docs-verify-final-head-ci-review-backup-migrate-postflight-integrate-deploy-smoke
+  prerequisite_release_checkpoint: issue-654

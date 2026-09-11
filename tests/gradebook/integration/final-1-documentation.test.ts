@@ -36,14 +36,14 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     );
   });
   it('has a concrete four-phase queue and separate acceptance and delivery gates', () => {
-    expect(section('coordination')).toContain('executable_issue: 648');
-    expect(section('coordination')).toContain('current_delivery_issue: 648');
+    expect(section('coordination')).toContain('executable_issue: 654');
+    expect(section('coordination')).toContain('current_delivery_issue: 654');
     expect(section('final_phases').match(/phase: FINAL-/gu)).toHaveLength(4);
     for (const issue of [633, 634, 635, 406])
       expect(section('final_phases')).toContain(`issue: ${issue}`);
     expect(section('institutional_delivery')).toContain('issue: 596');
     expect(section('institutional_delivery')).toContain('authority_acceptance_issue: 347');
-    expect(section('next_safe_action')).toContain('issue: 648');
+    expect(section('next_safe_action')).toContain('issue: 654');
   });
   it('records current-only diagnostics separately from preserved academic history', () => {
     expect(section('storage')).toContain(
@@ -92,7 +92,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
   it('documents remaining limits without erasing the atomicity and schema work already tested', () => {
     const readiness = source(`${base}PRODUCTION_READINESS.md`);
     expect(readiness).toContain('Uma migration existente não comprova restore');
-    expect(readiness).toContain('contexto e ofertas separadamente');
+    expect(readiness).toContain('transação read-only/repeatable-read');
     expect(readiness).toContain('substituição transacional');
     expect(readiness).toContain('última confirmada no servidor');
     const contracts = source(`${base}CONTRACTS.md`);
@@ -102,10 +102,10 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
   });
   it('records actual deployments separately from authenticated acceptance and the security release checkpoint', () => {
     expect(section('baseline')).toContain(
-      'last_audited_main_commit: 459443db90277baf55690fe69d35dbfdba8550f1',
+      'last_audited_main_commit: 4f32dd5150641d0a24c2e2c241768f953202ce56',
     );
-    expect(section('baseline')).toContain('authorized_deploy_run: 34559675760');
-    expect(section('baseline')).toContain('authenticated_post_deploy_smoke_this_session: false');
+    expect(section('baseline')).toContain('authorized_deploy_run: 34565744488');
+    expect(section('baseline')).toContain('authenticated_post_deploy_smoke_this_session: true');
     expect(section('storage')).toContain('distinct_trigger_count: 3');
     expect(section('storage')).toContain('information_schema_trigger_event_rows: 6');
     expect(section('storage')).toContain('production_data_restore_proven_by_this_pr: false');
@@ -117,6 +117,12 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     );
     expect(section('runtime')).toContain(
       'relational_performance_v2: integrated-pr-643-deploy-257-success-awaiting-authenticated-smoke',
+    );
+    expect(section('runtime')).toContain(
+      'relational_council_v3: integrated-pr-653-deploy-262-authenticated-read-only-smoke-success',
+    );
+    expect(section('runtime')).toContain(
+      'relational_bulletins_v2: implemented-on-branch-654-awaiting-final-ci-migration-merge-deploy',
     );
     expect(section('security')).toContain(
       'dependency_remediation: integrated-pr-641-deploy-256-success',
@@ -167,6 +173,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
       'FINAL2_SOURCE_DESKTOP_646.md',
       'TERM_COMPARISON_2026_V4.md',
       'RELATIONAL_COUNCIL_V3.md',
+      'RELATIONAL_BULLETINS_V2.md',
     ];
     for (const page of pages) {
       const fullPath = join(root, base, page);

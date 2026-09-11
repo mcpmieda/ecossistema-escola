@@ -1,31 +1,22 @@
-# Boletins local/preview V1
+# Boletins relacionais V2
 
-A experiência de Boletins está integrada ao shell do Banco de Notas com transporte serializável, serviço provider-independent, handler autorizado, página HeroUI e PDF canônico sob demanda.
+A página montada pelo shell usa `RelationalBulletinPageV2`, o contrato compartilhado V2 e o endpoint existente `/api/gradebook/bulletins`. O handler preserva V1 como compatibilidade não montada e despacha V2 somente com PostgreSQL autorizado.
 
 ## Invariantes
 
-- seleção explícita de ano, turma, aluno(s), período e modelo;
-- `synthetic`, `composition` e `detailed` usam exclusivamente `BulletinModelV1`;
-- prévia não recalcula nota nem regra acadêmica;
-- emissão individual e lote reutilizam o materializador agregado existente;
-- `ready`, `blocked` e `insufficient-data` permanecem isolados por estudante;
-- snapshots continuam append-only, profundamente imutáveis e versionados com CAS;
-- reimpressão lê somente o snapshot histórico, sem leitura acadêmica atual;
-- o registry de snapshots é local/preview, descartável e não garante durabilidade entre restart/isolate;
-- autoridade permanece `imported-source`; `native-engine` continua rejeitado pelo materializador;
-- imported/calculated e estados `absent`, zero, `not-applicable` e `insufficient-data` são apenas apresentados, nunca reinterpretados na UI.
+- contexto fixo 2026; sem criação, seleção ou comparação entre anos;
+- turma/alunos/ofertas/instrumentos/notas/fechamentos vêm das relações atuais;
+- AM/U importadas são oficiais; cálculo nativo é comparação descritiva;
+- disciplinas seguem a ordem de apresentação da fonte;
+- REC normal e `N/C` aparecem junto da AM; `ASSISTIDO` não recebe resultado geral;
+- prévia não persiste; emissão pronta é append-only/idempotente/CAS;
+- lote limitado a 50 alunos; materialização acadêmica não faz N+1;
+- reimpressão usa somente o snapshot histórico;
+- falha ou ausência de valor oficial necessário bloqueia emissão sem inventar zero;
+- HeroUI, `no-store`, auth/origin/capability server-side e nenhum storage acadêmico no browser.
 
 ## PDF
 
-A #335 integrou renderer **client-side** sob demanda, sem biblioteca PDF adicional.
+Download/impressão só aparecem para emissão ou reimpressão. `bulletin-pdf-actions-v2.ts` carrega o renderer V2 por `import()`; o renderer recebe exclusivamente `RelationalBulletinSnapshotV2` e reutiliza o envelope raster limitado/Geist do V1. Não há endpoint adicional, recálculo, fonte remota ou persistência no navegador. Um documento é produzido por vez.
 
-- PDF oficial aceita exclusivamente `BulletinPdfInputV1`, isto é, um `BulletinSnapshotV1` canônico;
-- emissão oficial segue `snapshot → renderer → PDF`;
-- reimpressão PDF usa exclusivamente snapshot histórico, com zero leitura/materialização acadêmica atual e sem criar nova versão;
-- renderer é carregado por `import()` e permanece fora do chunk inicial;
-- layout é P&B/raster, com `Geist Variable` já empacotada no projeto e sem CDN/fonte privada/fonte do sistema;
-- Blob URLs são temporárias e revogadas; não há `localStorage`, `sessionStorage`, IndexedDB ou Cache API para modelo/snapshot;
-- bounds atuais: 32 componentes, 96 períodos, 320 avaliações, 160 mil caracteres canônicos, 24 páginas, 12 MiB e um documento concorrente;
-- geração de PDF em lote não é disparada nesta versão; a emissão acadêmica em lote continua disponível, mas o arquivo PDF é gerado por snapshot individual.
-
-O PDF é uma apresentação do snapshot canônico. O renderer não calcula nota, percentual, REC, média, arredondamento, resultado ou elegibilidade.
+Contrato operacional e gates: [`docs/gradebook/RELATIONAL_BULLETINS_V2.md`](../../../../docs/gradebook/RELATIONAL_BULLETINS_V2.md).

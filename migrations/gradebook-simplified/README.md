@@ -8,6 +8,7 @@ Esta pasta reconstrói o schema observado por inspeção **somente leitura** em 
 - `0002_import_diagnostics_audit_v1.sql`: extensão aditiva já homologada para registrar o ator da observação de diagnósticos. Não altera fatos acadêmicos.
 - `0003_council_session_v3.sql`: extensão aditiva FINAL-3 #648 com sessão, idempotência, votação numérica, históricos e fotografias imutáveis do Conselho. Não faz backfill, não persiste presentes/desempate/diretor e não altera a autoridade acadêmica.
 - `0004_council_v3_least_privilege.sql`: correção idempotente de ACL para neutralizar grants padrão do proprietário após `0003`; mantém somente as operações usadas pela role `gradebook_app` e não altera objetos ou dados.
+- `0005_relational_bulletin_snapshot_v2.sql`: extensão aditiva #654 com snapshot imutável de boletim, FKs de 2026, checks de identidade JSON e ACL `SELECT, INSERT` para `gradebook_app`; sem backfill ou DML acadêmico.
 - `inspect_current_schema.sql`: consulta read-only e fingerprints estruturais por categoria. O JSON de referência é `catalog_20260910.json`, coletado do catálogo, não de notas ou arquivos. MD5 é checksum de drift, não garantia criptográfica. O comparador cobre tabelas/RLS, colunas/tipos/defaults/identidade, constraints, índices, funções e triggers. Não cobre dados, sequence counters, grants, proprietários, extensions ou infraestrutura.
 - `application_role_grants.sql`: concessões para a role backend já provisionada, sem criar senha/login/superuser. Aplicar separadamente somente no ambiente autorizado e pelo proprietário de objetos previsto; default privileges valem para esse proprietário. Revisar grants/defaults herdados ao reconstruir em Supabase, em vez de presumir que a role anon/authenticated está bloqueada.
 
@@ -19,7 +20,7 @@ Para um ambiente PostgreSQL 17 **vazio e autorizado**, executar a baseline trans
 
 A baseline não cria extensões, contas Supabase, bindings Hyperdrive, secrets, políticas de backup nem snapshots institucionais ainda não contratados. As migrations antigas de streams/versions são memória e **não** devem ser reaplicadas sobre o modelo simplificado.
 
-As extensões `0002`, `0003` e `0004` são aplicadas em ordem, somente sobre
+As extensões `0002`, `0003`, `0004` e `0005` são aplicadas em ordem, somente sobre
 um schema já conferido contra a baseline. Para `0003`, o preflight deve confirmar
 as oito tabelas-alvo ausentes e preservar uma cópia lógica recuperável das 20
 tabelas e sequências anteriores. O arquivo usa uma única transação e falha
@@ -29,6 +30,8 @@ não substitui o gate de `0003`. O postflight confere 28 tabelas, as quatro nova
 sequências, ACL mínima exata de `gradebook_app`, ausência de privilégios `PUBLIC`, contagens centrais
 inalteradas e somente o ano 2026. Ver
 [`RELATIONAL_COUNCIL_V3.md`](../../docs/gradebook/RELATIONAL_COUNCIL_V3.md).
+
+Para `0005`, o preflight confirma as 28 tabelas pós-Conselho, ausência de `boletim_snapshot`, ano exclusivo 2026 e contagens acadêmicas. Preservar cópia lógica recuperável antes do DDL. O postflight espera uma tabela vazia, 13 colunas, dois índices, FKs/checks e ACL exata sem `UPDATE/DELETE`; não emitir boletim real no smoke automatizado. Ver [`RELATIONAL_BULLETINS_V2.md`](../../docs/gradebook/RELATIONAL_BULLETINS_V2.md).
 
 ## O que ainda falta para declarar recuperação institucional
 
