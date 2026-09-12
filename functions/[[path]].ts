@@ -5,7 +5,16 @@ import {
   SESSION_COOKIE,
   requireAuth,
   AuthenticationError,
+  createApplicationSession,
+  reconfigureApplicationSession,
 } from '../server/auth/session';
+import {
+  createSessionDurationPreferenceCookie,
+  DEFAULT_SESSION_DURATION_HOURS,
+  isSessionDurationHours,
+  readSessionDurationPreference,
+  SESSION_DURATION_OPTIONS_HOURS,
+} from '../server/auth/session-policy';
 import {
   authorizationUrl,
   exchangeCode,
@@ -59,6 +68,22 @@ type AuthFailureCategory =
   | 'institutional_role_missing';
 
 const MAX_AUTH_TRANSACTIONS = 4;
+
+function sessionPolicyPayload(
+  session: Awaited<ReturnType<typeof requireAuth>>,
+  now = Math.floor(Date.now() / 1000),
+) {
+  return {
+    version: 1,
+    policy: 'absolute' as const,
+    defaultDurationHours: DEFAULT_SESSION_DURATION_HOURS,
+    allowedDurationsHours: SESSION_DURATION_OPTIONS_HOURS,
+    currentDurationHours: session.durationHours ?? DEFAULT_SESSION_DURATION_HOURS,
+    configured: session.durationHours !== undefined,
+    authenticatedAt: new Date((session.authenticatedAt ?? now) * 1000).toISOString(),
+    expiresAt: new Date(session.exp * 1000).toISOString(),
+  };
+}
 
 function json(value: unknown, status = 200): Response {
   return Response.json(value, { status });
@@ -314,18 +339,29 @@ async function route(context: Context, correlationId: string): Promise<Response>
       });
     }
 
-    const session = await seal(
+    const authenticatedAt = Math.floor(Date.now() / 1000);
+    const durationHours = await readSessionDurationPreference(
+      request,
+      env,
+      claims.oid,
+      authenticatedAt,
+    );
+    const applicationSession = createApplicationSession(
       {
         oid: claims.oid,
         name: claims.name,
         username: claims.preferred_username,
         roles: mappedRoles,
-        exp: Math.min(claims.exp, Math.floor(Date.now() / 1000) + 28_800),
       },
-      env.SESSION_SECRET,
+      durationHours,
+      authenticatedAt,
     );
+    const session = await seal(applicationSession, env.SESSION_SECRET);
     const headers = new Headers({ Location: env.OFFICIAL_ORIGIN });
-    headers.append('Set-Cookie', secureCookie(SESSION_COOKIE, session, { maxAge: 28_800 }));
+    headers.append(
+      'Set-Cookie',
+      secureCookie(SESSION_COOKIE, session, { maxAge: durationHours * 60 * 60 }),
+    );
     headers.append('Set-Cookie', remainingAuthCookie);
     return new Response(null, { status: 302, headers });
   }
@@ -348,6 +384,52 @@ async function route(context: Context, correlationId: string): Promise<Response>
       roles: session.roles,
       capabilities: capabilitiesForRoles(session.roles),
     });
+  }
+
+  if (url.pathname === '/api/platform/settings/session') {
+    method(request, ['GET', 'POST']);
+    const currentSession = await requireAuth(request, env);
+    const capabilities = capabilitiesForRoles(currentSession.roles);
+
+    if (request.method === 'GET') {
+      requireCapability(capabilities, 'platform.settings.read');
+      return json(sessionPolicyPayload(currentSession));
+    }
+
+    enforceWriteOrigin(request, env);
+    requireCapability(capabilities, 'platform.settings.write');
+    const input = (await request.json().catch(() => null)) as { durationHours?: unknown } | null;
+    if (!isSessionDurationHours(input?.durationHours)) {
+      throw new HttpError(400, 'Invalid session duration');
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const updatedSession = reconfigureApplicationSession(currentSession, input.durationHours, now);
+    if (!updatedSession) throw new HttpError(409, 'Reauthentication required');
+
+    const sessionToken = await seal(updatedSession, env.SESSION_SECRET);
+    const headers = new Headers();
+    headers.append(
+      'Set-Cookie',
+      secureCookie(SESSION_COOKIE, sessionToken, { maxAge: updatedSession.exp - now }),
+    );
+    headers.append(
+      'Set-Cookie',
+      await createSessionDurationPreferenceCookie(
+        env,
+        currentSession.oid,
+        input.durationHours,
+        now,
+      ),
+    );
+    console.info(
+      JSON.stringify({
+        message: 'administrative_session_duration_updated',
+        durationHours: input.durationHours,
+        correlationId,
+      }),
+    );
+    return Response.json(sessionPolicyPayload(updatedSession, now), { headers });
   }
 
   // This route always targets the preserved D1 rollback store, including after cutover.

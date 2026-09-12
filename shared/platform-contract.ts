@@ -18,6 +18,7 @@ export const PLATFORM_CAPABILITIES = [
   'platform.modules.read',
   'platform.audit.read',
   'platform.settings.read',
+  'platform.settings.write',
   'gradebook.persistence.admin',
 ] as const;
 

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { clearCookie, readCookie, secureCookie } from '../server/auth/cookies';
 import { seal, unseal } from '../server/auth/sealed';
-import { readSession, SESSION_COOKIE } from '../server/auth/session';
+import {
+  createApplicationSession,
+  readSession,
+  reconfigureApplicationSession,
+  SESSION_COOKIE,
+} from '../server/auth/session';
 import { testEnv } from './fixtures';
 
 describe('sealed cookies and sessions', () => {
@@ -58,5 +63,40 @@ describe('sealed cookies and sessions', () => {
       headers: { Cookie: `${SESSION_COOKIE}=${token}` },
     });
     await expect(readSession(request, testEnv)).resolves.toBeNull();
+  });
+
+  it('issues an eight-hour application session independently from the validated identity token', () => {
+    const authenticatedAt = 1_800_000_000;
+    const session = createApplicationSession(
+      {
+        oid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        name: 'Pessoa',
+        roles: ['ADMINISTRADOR'],
+      },
+      undefined,
+      authenticatedAt,
+    );
+
+    expect(session.authenticatedAt).toBe(authenticatedAt);
+    expect(session.durationHours).toBe(8);
+    expect(session.exp).toBe(authenticatedAt + 8 * 60 * 60);
+  });
+
+  it('keeps duration changes absolute from authentication instead of sliding on activity', () => {
+    const authenticatedAt = 1_800_000_000;
+    const original = createApplicationSession(
+      {
+        oid: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        name: 'Pessoa',
+        roles: ['ADMINISTRADOR'],
+      },
+      8,
+      authenticatedAt,
+    );
+
+    expect(reconfigureApplicationSession(original, 12, authenticatedAt + 3_600)?.exp).toBe(
+      authenticatedAt + 12 * 60 * 60,
+    );
+    expect(reconfigureApplicationSession(original, 4, authenticatedAt + 5 * 60 * 60)).toBeNull();
   });
 });
