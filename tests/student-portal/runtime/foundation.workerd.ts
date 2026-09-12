@@ -23,7 +23,18 @@ async function workerForTest(name: string) {
       return caller.fetch('http://harness.invalid/dispatch', {
         method: 'POST',
         body: JSON.stringify({
-          target: name === 'caller' ? 'SELF' : name === 'portal' ? 'DEFAULT' : 'PREVIEW',
+          target:
+            name === 'edge'
+              ? 'EDGE'
+              : name === 'edge-preview'
+                ? 'EDGE_PREVIEW'
+                : name === 'edge-echo'
+                  ? 'EDGE_ECHO'
+                  : name === 'caller'
+                    ? 'SELF'
+                    : name === 'portal'
+                      ? 'DEFAULT'
+                      : 'PREVIEW',
           url,
           init,
         }),
@@ -36,6 +47,32 @@ beforeAll(async () => {
   runtime = new Miniflare(
     convertV4MiniflareOptions({
       workers: [
+        ...['edge', 'edge-preview', 'edge-echo'].map((name) => ({
+          name,
+          modules: true,
+          scriptPath: 'node_modules/.cache/student-portal-edge/_worker.js',
+          compatibilityDate: config.compatibility_date,
+          compatibilityFlags: config.compatibility_flags,
+          bindings: name === 'edge-preview' ? config.env.preview.vars : config.env.production.vars,
+          serviceBindings:
+            name === 'edge-preview'
+              ? undefined
+              : {
+                  PORTAL_SELF:
+                    name === 'edge-echo'
+                      ? 'echo'
+                      : { name: 'portal', entrypoint: 'PortalSelfEntrypoint' },
+                },
+        })),
+        {
+          name: 'echo',
+          modules: true,
+          compatibilityDate: config.compatibility_date,
+          script: `export default { async fetch(request) {
+            return Response.json({url:request.url,cookie:request.headers.get('cookie'),origin:request.headers.get('origin'),body:await request.text()},
+              {headers:[['Set-Cookie','synthetic_a=one; Secure; HttpOnly; SameSite=Strict'],['Set-Cookie','synthetic_b=two; Secure; HttpOnly; SameSite=Strict']]});
+          } }`,
+        },
         {
           name: 'portal',
           modules: true,
@@ -57,6 +94,9 @@ beforeAll(async () => {
           modules: true,
           compatibilityDate: config.compatibility_date,
           serviceBindings: {
+            EDGE: 'edge',
+            EDGE_PREVIEW: 'edge-preview',
+            EDGE_ECHO: 'edge-echo',
             DEFAULT: 'portal',
             PREVIEW: 'preview',
             SELF: { name: 'portal', entrypoint: 'PortalSelfEntrypoint' },
@@ -91,6 +131,39 @@ afterAll(async () => {
 });
 
 describe('bundled Worker foundation in actual workerd', () => {
+  it('routes the bundled Pages edge only to the self entrypoint', async () => {
+    const edge = await workerForTest('edge');
+    expect((await edge.fetch(`${origin}/healthz`)).status).toBe(200);
+    expect((await edge.fetch(`${origin}/api/student/session`)).status).toBe(503);
+    expect((await edge.fetch(`${origin}/api/student-portal/admin/query`)).status).toBe(404);
+    expect((await edge.fetch('https://student-portal-edge.pages.dev/healthz')).status).toBe(403);
+    expect(
+      (await edge.fetch(`${origin}/healthz`, { headers: { host: 'evil.invalid' } })).status,
+    ).toBe(403);
+    const preview = await workerForTest('edge-preview');
+    expect((await preview.fetch(`${origin}/healthz`)).status).toBe(403);
+  });
+  it('preserves original cookies, origin, body and separate Set-Cookie headers through Pages', async () => {
+    const edge = await workerForTest('edge-echo');
+    const url = `${origin}/api/student/auth/login`;
+    const response = await edge.fetch(url, {
+      method: 'POST',
+      headers: { cookie: 'synthetic=request', origin, 'content-type': 'application/json' },
+      body: '{"synthetic":true}',
+    });
+    expect(await response.json()).toEqual({
+      url,
+      cookie: 'synthetic=request',
+      origin,
+      body: '{"synthetic":true}',
+    });
+    expect(response.headers.getSetCookie()).toHaveLength(2);
+    expect(
+      response.headers
+        .getSetCookie()
+        .every((cookie) => cookie.includes('Secure; HttpOnly; SameSite=Strict')),
+    ).toBe(true);
+  });
   it('reports liveness without database information or cookies through the self binding', async () => {
     const caller = await workerForTest('caller');
     const response = await caller.fetch(`${origin}/healthz`);

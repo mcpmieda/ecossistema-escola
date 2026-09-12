@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "student-portal-edge",
+  "pages_build_output_dir": ".",
+  "compatibility_date": "2026-09-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "limits": { "cpu_ms": 1000 },
+  "vars": {
+    "PORTAL_ENVIRONMENT": "preview",
+    "PORTAL_ORIGIN": "https://student-portal-preview.invalid"
+  },
+  "services": [],
+  "env": {
+    "preview": {
+      "vars": {
+        "PORTAL_ENVIRONMENT": "preview",
+        "PORTAL_ORIGIN": "https://student-portal-preview.invalid"
+      },
+      "services": []
+    },
+    "production": {
+      "vars": {
+        "PORTAL_ENVIRONMENT": "production",
+        "PORTAL_ORIGIN": "https://aluno.escolaieda.com"
+      },
+      "services": [
+        {
+          "binding": "PORTAL_SELF",
+          "service": "student-portal-production",
+          "entrypoint": "PortalSelfEntrypoint"
+        }
+      ]
+    }
+  }
+}

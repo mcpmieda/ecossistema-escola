@@ -17,8 +17,19 @@ jobs:
   deploy:
     name: Deploy production
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     environment: production
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: portal_test_admin
+          POSTGRES_DB: portal705_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U portal_test_admin -d portal705_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -32,8 +43,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Verify expected production head
+        shell: bash
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+
+      - name: Verify all applications and runtime
+        run: npm run verify
+
+      - name: Verify real PostgreSQL isolation
+        env:
+          PORTAL_TEST_DATABASE_URL: postgres://portal_test_admin@127.0.0.1:5432/portal705_test
+        run: npm run test:student-portal-postgres
 
       - name: Configure private production bindings
         shell: bash
@@ -73,16 +96,45 @@ jobs:
             throw new Error('PROD_DB Hyperdrive binding is invalid.');
           }
 
+          const services = config.services;
+          if (
+            !Array.isArray(services) || services.length !== 1 ||
+            services[0]?.binding !== 'PORTAL_SERVICE' ||
+            services[0]?.service !== 'student-portal-production' ||
+            services[0]?.entrypoint !== 'PortalAdminEntrypoint'
+          ) throw new Error('PORTAL_SERVICE private entrypoint binding is invalid.');
+
           config.env ??= {};
           config.env.production = {
             ...(config.env.production ?? {}),
             vars: config.vars ?? {},
             d1_databases: [binding],
             hyperdrive,
+            services,
           };
 
           await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
           NODE
+
+      - name: Recheck production head before publishing
+        run: test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+
+      - name: Deploy compatible Portal backend before consumers
+        run: npx wrangler deploy --config wrangler.student-portal.jsonc --env production
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy Portal HTTPS self entrypoint
+        run: >-
+          npx wrangler pages deploy
+          --cwd node_modules/.cache/student-portal-edge
+          --project-name student-portal-edge
+          --branch main
+          --commit-hash "${GITHUB_SHA}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy Cloudflare Pages
         run: >-

@@ -45,5 +45,5 @@ jobs:
           PORTAL_TEST_DATABASE_URL: postgres://portal_test_admin@127.0.0.1:5432/portal705_test
         run: npm run test:student-portal-postgres
 
-# Production deployment is deliberately absent until #705 records the real
-# resources, authenticated plan/quota evidence and Worker -> Pages ordering.
+# The single official deploy-cloudflare-pages workflow verifies this SQL gate
+# again, then publishes the Portal Worker before its Pages consumers.

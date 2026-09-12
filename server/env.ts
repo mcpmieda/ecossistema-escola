@@ -22,6 +22,7 @@ export type RuntimeEnv = Omit<
   | 'GRADEBOOK_STORAGE_PROVIDER'
   | 'OFFICIAL_ORIGIN'
   | 'PROD_DB'
+  | 'PORTAL_SERVICE'
   | 'RUNTIME_ENVIRONMENT'
 > &
   RuntimeSecrets & {
@@ -31,6 +32,7 @@ export type RuntimeEnv = Omit<
     GRADEBOOK_STORAGE_PROVIDER?: 'd1' | 'postgres';
     GRADEBOOK_D1?: unknown;
     PROD_DB?: unknown;
+    PORTAL_SERVICE?: unknown;
   };
 
 const PRODUCTION_ORIGIN = 'https://admin.escolaieda.com';
@@ -61,6 +63,7 @@ const envSchema = z
     GRADEBOOK_STORAGE_PROVIDER: z.enum(['d1', 'postgres']).default('d1'),
     GRADEBOOK_D1: z.unknown().optional(),
     PROD_DB: z.unknown().optional(),
+    PORTAL_SERVICE: z.unknown().optional(),
   })
   .superRefine((value, context) => {
     let origin: URL;
