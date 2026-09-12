@@ -1,3 +1,4 @@
+import { SYNTHETIC_SELF_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
 import { createYearResetServiceV1 } from '../../../server/gradebook/application/settings/year-reset-v1';
@@ -132,6 +133,7 @@ beforeAll(async () => {
   `);
   await migrator.unsafe(readFileSync('migrations/student-portal/0005_year_reset_protocol_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0006_gradebook_revision_year_range_v1.sql', 'utf8'));
+  await migrator.unsafe(readFileSync('migrations/student-portal/0007_lifecycle_integration_v1.sql', 'utf8'));
 });
 
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });
@@ -161,6 +163,17 @@ describe('native PostgreSQL migrations and runtime role isolation', () => {
       throw new Error('synthetic-rollback');
     })).rejects.toThrow('synthetic-rollback');
     expect((await portal`SELECT blocked FROM student_portal.account WHERE id=${ACCOUNT}`)[0]?.blocked).toBe(false);
+  });
+
+  it('stores verifier and projection JSON objects through postgres.js without double encoding', async () => {
+    const verifier={algorithm:'synthetic-kdf',parameters:{cost:1},salt:'synthetic-salt',pepperVersion:1,digest:'synthetic-digest'};
+    await persistence.transaction(async(tx)=>{
+      await tx.saveCredentials({accountId:ACCOUNT,credentialId:'s'.repeat(32),keyVersion:1,state:'active',pin:verifier,password:verifier,pinVersion:0});
+      expect(await tx.swapProjection(ACCOUNT,{...SYNTHETIC_SELF_V1,profile:{...SYNTHETIC_SELF_V1.profile,link:{academicYear:2026,studentId:1}}},SYNTHETIC_SELF_V1.revisions)).toBe(true);
+    });
+    expect((await portal`SELECT jsonb_typeof(pin_verifier) AS kind FROM student_portal.password_credential WHERE account_id=${ACCOUNT}`)[0]?.kind).toBe('object');
+    expect((await portal`SELECT jsonb_typeof(payload_json) AS kind FROM student_portal.published_projection WHERE account_id=${ACCOUNT}`)[0]?.kind).toBe('object');
+    expect(await persistence.transaction((tx)=>tx.readCredentials(ACCOUNT))).toMatchObject({pin:verifier,password:verifier});
   });
 
   it('denies academic tables and DDL while allowing the narrow academic view', async () => {
@@ -570,5 +583,100 @@ describe('native diagnostic scope race', () => {
     expect(attempts).toBe(2);
     expect((await admin`SELECT ano FROM gradebook.importacao_diagnostico WHERE hash=decode(repeat('9',64),'hex')`).map((row)=>row.ano)).toEqual([2027]);
     expect((await admin`SELECT count(*)::integer AS n FROM student_portal.revision_event WHERE academic_year IN (2027,2028)`)[0]?.n).toBe(3);
+  });
+});
+import { LifecycleServiceV1 } from '../../../server/student-portal/integration/lifecycle/lifecycle-service-v1';
+import { LinkClosureServiceV1 } from '../../../server/student-portal/integration/lifecycle/link-closure-v1';
+import { AcademicEligibilityReaderPostgresV1 } from '../../../server/student-portal/integration/lifecycle/academic-eligibility-v1';
+
+describe('native lifecycle transactions and least privilege', () => {
+  it('serializes simultaneous initial synchronization to one account and refuses Gradebook gate escalation', async () => {
+    await admin`INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES (900010,2026,'S707','SYNTHETIC LIFECYCLE CLASS',6,'TESTE')`;
+    await admin`INSERT INTO gradebook.aluno(id,ano,nome) VALUES (900020,2026,'SYNTHETIC LIFECYCLE STUDENT')`;
+    await admin`INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) VALUES (2026,900010,1,900020)`;
+    await expect(gradebook`SELECT * FROM student_portal.synchronize_profiles_v1(true)`).rejects.toMatchObject({code:'42501'});
+    await expect(gradebook`UPDATE student_portal.lifecycle_control SET population_enabled=true`).rejects.toMatchObject({code:'42501'});
+    await expect(anonymous`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`).rejects.toMatchObject({code:'42501'});
+    expect((await gradebook`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`)[0]?.created_count).toBe(0);
+    await portal`UPDATE student_portal.lifecycle_control SET population_enabled=true`;
+    const other=asRole('gradebook_app');
+    const outcomes=await Promise.all([
+      gradebook`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`,
+      other`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`,
+    ]);
+    expect(outcomes.reduce((n,rows)=>n+Number(rows[0]?.created_count),0)).toBe(1);
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.account WHERE gradebook_student_id=900020`)[0]?.n).toBe(1);
+  });
+
+  it('waits behind the reset barrier before reading or creating links', async () => {
+    const barrier=asRole('gradebook_app');
+    const contender=asRole('student_portal_app');
+    const lifecycle=new LifecycleServiceV1(contender as unknown as StudentPortalPostgresSqlV1);
+    const pid=(await contender`SELECT pg_backend_pid() AS pid`)[0]!.pid;
+    await barrier.unsafe('BEGIN');
+    let pending:ReturnType<typeof lifecycle.synchronize>|undefined;
+    try {
+      await barrier`SELECT pg_advisory_xact_lock(613,0)`;
+      await barrier`SELECT pg_advisory_xact_lock(613,2026)`;
+      pending=lifecycle.synchronize({createProfiles:true});
+      let waiting=false;
+      for(let attempt=0;attempt<100;attempt++) {
+        waiting=(await admin`SELECT wait_event_type='Lock' AS waiting FROM pg_stat_activity WHERE pid=${pid}`)[0]?.waiting===true;
+        if(waiting) break;
+        await new Promise((resolve)=>setTimeout(resolve,10));
+      }
+      expect(waiting).toBe(true);
+      await barrier.unsafe('COMMIT');
+      expect(await pending).toMatchObject({created:0});
+    } finally {
+      await barrier.unsafe('ROLLBACK');
+      await pending?.catch(()=>undefined);
+    }
+  });
+
+  it('rolls back native V11 exit, revision and revocation after the lifecycle hook, then commits a safe retry', async () => {
+    const account=(await portal`SELECT id,security_version FROM student_portal.account WHERE gradebook_student_id=900020`)[0]!;
+    await portal`INSERT INTO student_portal.session(id,account_id,token_hash,security_version,expires_at,persistent)
+      VALUES (gen_random_uuid(),${account.id},'synthetic-native-707-session',${account.security_version},now()+interval '1 day',false)`;
+    let failAfterSync=true;
+    const database=createGradebookPostgresDatabaseFromSqlV1({
+      unsafe:()=>{throw new Error('outside-transaction');},
+      begin:(operation)=>gradebook.begin(async(tx)=>operation({
+        typed:(value,oid)=>tx.typed(value,oid),
+        async unsafe(query,parameters=[]) {
+          const result=await tx.unsafe(query,[...parameters] as never[]);
+          if(failAfterSync && query.includes('synchronize_gradebook_profiles_v1')) throw new Error('synthetic-native-after-lifecycle');
+          return result;
+        },
+      })) as ReturnType<GradebookPostgresSqlV1['begin']>,
+    } as GradebookPostgresSqlV1);
+    const service=createGradebookRelationalImportServiceV11(database);
+    const request={transportVersion:9 as const,operation:'persist-relacao' as const,ano:2026,
+      manifest:{fileName:'synthetic-707.xlsx',sha256:'7'.repeat(64),parserVersion:'synthetic-v1'},
+      turmas:[{codigo:'S707',nome:'SYNTHETIC LIFECYCLE CLASS',etapa:6,turno:'TESTE',alunos:[[1,'SYNTHETIC LIFECYCLE STUDENT',3] as const]}]};
+    const before=await portal`SELECT academic_counter,reset_counter FROM student_portal.academic_revision WHERE academic_year=2026`;
+    await expect(service.execute(request)).rejects.toThrow('synthetic-native-after-lifecycle');
+    expect(await portal`SELECT academic_counter,reset_counter FROM student_portal.academic_revision WHERE academic_year=2026`).toEqual(before);
+    expect((await portal`SELECT revoked_at FROM student_portal.session WHERE token_hash='synthetic-native-707-session'`)[0]?.revoked_at).toBeNull();
+    failAfterSync=false;
+    expect(await service.execute(request)).toMatchObject({state:'applied'});
+    expect((await portal`SELECT revoked_at IS NOT NULL AS revoked FROM student_portal.session WHERE token_hash='synthetic-native-707-session'`)[0]?.revoked).toBe(true);
+    const eligibility=new AcademicEligibilityReaderPostgresV1(portal as unknown as StudentPortalPostgresSqlV1);
+    expect(await eligibility.readCurrent({academicYear:2026,studentId:900020})).toMatchObject({state:'exit'});
+  });
+
+  it('rejects stale closure then commits a tombstone and cannot repopulate the closed identity', async () => {
+    const actor='88888888-8888-4888-8888-888888888888';
+    const closure=new LinkClosureServiceV1(portal as unknown as StudentPortalPostgresSqlV1);
+    const stale=await closure.preview(actor);
+    await portal`UPDATE student_portal.account SET version=version+1 WHERE gradebook_student_id=900020`;
+    const command=(preview:typeof stale)=>({contractVersion:1,operation:'links-close',academicYear:2026,
+      expectedVersion:preview.version,expectedCount:preview.count,previewToken:preview.previewToken,confirmed:true,idempotencyKey:crypto.randomUUID()});
+    await expect(closure.execute(actor,command(stale))).rejects.toThrow('student-portal-link-preview-conflict');
+    const current=await closure.preview(actor);
+    expect(await closure.execute(actor,command(current))).toMatchObject({closed:1});
+    expect((await gradebook`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`)[0]?.created_count).toBe(0);
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.link_closure WHERE gradebook_student_id=900020`)[0]?.n).toBe(1);
+    expect((await admin`SELECT count(*)::integer AS n FROM gradebook.aluno WHERE id=900020`)[0]?.n).toBe(1);
   });
 });

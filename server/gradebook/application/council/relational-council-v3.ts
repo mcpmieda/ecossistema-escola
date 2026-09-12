@@ -361,9 +361,19 @@ export function createRelationalCouncilV3(database: D1WriteDatabaseV1, actorId: 
       }
       if (request.operation === 'workspace') return ready(db, request);
       const duplicate = await idempotency(db, request);
+      const previousDecision = request.operation === 'decision'
+        ? await first(db, 'SELECT decisao FROM gradebook.conselho_decisao WHERE aluno_id=?', [request.studentId])
+        : null;
       const result = await mutate(db, request, actorId);
       // The persisted command proves a write even if rebuilding the response is unavailable.
-      if (duplicate === 'new' && await idempotency(db, request) === 'same') await recordResetWriteV1(db, request.year, 'council');
+      if (duplicate === 'new' && await idempotency(db, request) === 'same') {
+        const academicChange = request.operation === 'close' || request.operation === 'reopen'
+          || (request.operation === 'decision' && (previousDecision === null || integer(previousDecision.decisao) !== request.decision));
+        await recordResetWriteV1(db, request.year, 'council', {
+          changed: academicChange,
+          studentIds: request.operation === 'decision' ? [request.studentId] : [],
+        });
+      }
       return result;
     });
     let response: unknown;

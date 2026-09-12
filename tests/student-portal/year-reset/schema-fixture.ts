@@ -19,6 +19,7 @@ export async function installResetSchemaFixtureV1(database: {
     '0004_gradebook_integration_usage_v1.sql',
     '0005_year_reset_protocol_v1.sql',
     '0006_gradebook_revision_year_range_v1.sql',
+    '0007_lifecycle_integration_v1.sql',
   ])
     await database.exec(readFileSync(`migrations/student-portal/${name}`, 'utf8'));
 }
