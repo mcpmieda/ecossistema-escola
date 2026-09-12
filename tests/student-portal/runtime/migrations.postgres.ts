@@ -680,3 +680,66 @@ describe('native lifecycle transactions and least privilege', () => {
     expect((await admin`SELECT count(*)::integer AS n FROM gradebook.aluno WHERE id=900020`)[0]?.n).toBe(1);
   });
 });
+
+import { PolicyServiceV1 } from '../../../server/student-portal/policies/policy-service-v1';
+
+describe('native policy persistence and concurrency', () => {
+  const school={kind:'school' as const,academicYear:2026 as const};
+  const actor='99999999-9999-4999-8999-999999999999';
+  const policy=new PolicyServiceV1(portal as unknown as StudentPortalPostgresSqlV1);
+
+  it('persists complete defaults as JSON and serializes competing CAS commands on real connections', async () => {
+    const initialized=await policy.initializeDefaults();
+    expect(initialized.settings.version).toBe(1);
+    expect((await portal`SELECT jsonb_typeof(value_json) AS value_kind,jsonb_typeof(source_scope_json) AS source_kind
+      FROM student_portal.setting WHERE scope_key='school:2026' AND field_key='accessEnabled'`)[0])
+      .toMatchObject({value_kind:'boolean',source_kind:'object'});
+    const other=new PolicyServiceV1(asRole('student_portal_app') as unknown as StudentPortalPostgresSqlV1);
+    const command=(value:Record<string,boolean>)=>({contractVersion:1,operation:'settings-set',scope:school,
+      value,expectedVersion:1,acknowledgeImmediateEffect:true,idempotencyKey:crypto.randomUUID()});
+    const commands=[command({accessEnabled:true}),command({showPartials:true})];
+    const results=await Promise.allSettled([policy.mutate(actor,commands[0]),other.mutate(actor,commands[1])]);
+    expect(results.filter((result)=>result.status==='fulfilled')).toHaveLength(1);
+    const rejected=results.find((result)=>result.status==='rejected');
+    expect(rejected?.status==='rejected' && rejected.reason.message).toBe('student-portal-policy-version-conflict');
+    const winner=results.findIndex((result)=>result.status==='fulfilled');
+    const won=results[winner]!;
+    expect(await policy.mutate(actor,commands[winner])).toEqual(won.status==='fulfilled'?won.value:null);
+    expect((await policy.read(school)).version).toBe(2);
+  });
+
+  it('rejects a stale account policy after a Gradebook class change commits', async () => {
+    await admin`INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES (900011,2026,'S708','SYNTHETIC POLICY NEXT CLASS',6,'TESTE')`;
+    await admin`INSERT INTO gradebook.aluno(id,ano,nome) VALUES (900021,2026,'SYNTHETIC POLICY NATIVE STUDENT')`;
+    await admin`INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) VALUES (2026,900010,2,900021)`;
+    await gradebook`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`;
+    const row=(await portal`SELECT id FROM student_portal.account WHERE gradebook_student_id=900021`)[0]!;
+    const scope={kind:'account' as const,academicYear:2026 as const,accountId:String(row.id)};
+    const before=await policy.readSnapshot(scope);
+    await gradebook.begin(async(tx)=>{
+      await tx`SELECT pg_advisory_xact_lock_shared(613,0)`;
+      await tx`SELECT pg_advisory_xact_lock(613,2026)`;
+      await tx`UPDATE gradebook.vinculo SET turma_id=900011 WHERE aluno_id=900021`;
+      await tx`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`;
+    });
+    const after=await policy.readSnapshot(scope);
+    expect(after.classId).toBe(900011);
+    expect(after.policyVersion).not.toBe(before.policyVersion);
+    await expect(policy.mutate(actor,{contractVersion:1,operation:'settings-set',scope,value:{accessEnabled:false},
+      expectedVersion:before.settings.version,acknowledgeImmediateEffect:true,idempotencyKey:crypto.randomUUID()}))
+      .rejects.toThrow('student-portal-policy-version-conflict');
+  });
+
+  it('rolls back policy and command receipt with a failed publication composition', async () => {
+    const before=await policy.readSnapshot(school);
+    const key=crypto.randomUUID();
+    await expect(portal.begin(async(tx)=>{
+      await policy.mutateInTransaction(tx as unknown as StudentPortalPostgresSqlV1,actor,{contractVersion:1,
+        operation:'settings-set',scope:school,value:{showFinalResult:true},expectedVersion:before.settings.version,
+        acknowledgeImmediateEffect:true,idempotencyKey:key});
+      throw new Error('synthetic-native-policy-publication-rollback');
+    })).rejects.toThrow('synthetic-native-policy-publication-rollback');
+    expect(await policy.readSnapshot(school)).toEqual(before);
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.operation_receipt WHERE idempotency_key=${key}`)[0]?.n).toBe(0);
+  });
+});
