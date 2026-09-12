@@ -735,8 +735,6 @@ export function RelationalBulletinPageV2() {
           onChange={(value) => {
             const id = value === 'none' ? null : Number(value);
             setPreviewStudentId(id);
-            if (id !== null && !selectedIds.includes(id))
-              setSelectedIds((current) => [...current, id]);
             setArtifact(null);
           }}
         />

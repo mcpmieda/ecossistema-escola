@@ -5,8 +5,11 @@ import {
 } from '../../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import type { PerformanceMatrixV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { SIMPLIFIED_TERM_MAXIMUM_MILLI_V1 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
-import type { PerformanceProjectionV2 } from '../../results/relational-performance-facts-v2';
 import type { D1WriteDatabaseV1 } from '../../../persistence/d1/write/d1-write-adapter-v1';
+import {
+  performanceRecoveryCellIsRelevantV2,
+  type PerformanceProjectionV2,
+} from '../../results/relational-performance-facts-v2';
 import { readRelationalPerformanceV2 } from './relational-performance-v2';
 
 const TERMS = [1, 2, 3] as const;
@@ -75,7 +78,9 @@ export function buildPerformanceAnalysisV3(matrix: PerformanceMatrixV2, projecti
       const projection = byOffer.get(column.offerId);
       const raw: RawReading = request.lens === 'result' ? { valueMilli: cell.valueMilli, maximumMilli: cell.maximumMilli, recordedMilli: null, state: cell.state } :
         !projection ? empty() : request.lens === 'assessments' ? assessment(projection, column) : dimension(projection, request);
-      return reading(raw, column.key, row.student.indicatorEligible && (matrix.mode === 'regular' || cell.recoveryApplicable === true), matrix.context.minimumApprovalMilli, request.lens === 'result');
+      return reading(raw, column.key, row.student.indicatorEligible &&
+        (matrix.mode === 'regular' || performanceRecoveryCellIsRelevantV2(cell)),
+      matrix.context.minimumApprovalMilli, request.lens === 'result');
     }) };
   });
   columns = columns.map((column, i) => {

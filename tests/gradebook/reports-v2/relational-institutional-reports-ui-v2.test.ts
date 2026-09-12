@@ -35,6 +35,9 @@ describe('relational institutional reports HeroUI V2', () => {
     expect(page).toContain('Eventual desempate do diretor ocorre fora do sistema');
     expect(page).toContain('Achados atuais, sem correção automática');
     expect(page).toContain('Somente snapshots imutáveis V2');
+    expect(page).toContain("reading.state === 'repeat-failure'");
+    expect(page).toContain("? 'R/R'");
+    expect(page).toContain('Reprovação automática');
     expect(page).toContain("runRelationalBulletinPdfActionV2('download'");
   });
 });

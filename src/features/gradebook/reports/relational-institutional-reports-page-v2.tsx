@@ -120,6 +120,17 @@ function formatMilli(value: number | null): string {
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(value / 1_000);
 }
 
+function readingStateLabel(state: PerformanceAnalysisV3['rows'][number]['values'][number]['state']): string {
+  if (state === 'repeat-failure') return 'Reprovação automática';
+  if (state === 'no-show') return 'Não compareceu';
+  if (state === 'recovery-pending') return 'Pendente';
+  if (state === 'not-applicable') return 'Não se aplica';
+  if (state === 'not-recorded') return 'Sem nota';
+  if (state === 'partial') return 'Parcial';
+  if (state === 'unavailable') return 'Indisponível';
+  return 'Concluído';
+}
+
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 }
@@ -200,8 +211,11 @@ function PerformanceReport({ response }: { readonly response: PerformanceReady }
               <th scope="row" className="sticky left-0 z-10 bg-surface px-3 py-3 text-left align-top"><span className="block font-medium">{row.student.number}. {row.student.name}</span><span className="mt-1 block text-xs font-normal text-muted">{row.student.statusLabel}</span></th>
               {analysis.rows[rowIndex]?.values.map((reading, columnIndex) => {
                 const compared = comparison?.rows[rowIndex]?.values[columnIndex];
+                const marker = reading.state === 'repeat-failure'
+                  ? 'R/R'
+                  : reading.state === 'no-show' ? 'N/C' : null;
                 return <td key={reading.key} className="px-3 py-3 align-top">
-                  {compared?.state === 'comparable' ? <><span className={`font-semibold ${compared.relation === 'higher' ? 'text-success' : compared.relation === 'lower' ? 'text-danger' : ''}`}>{compared.deltaPercentagePoints > 0 ? '+' : ''}{compared.deltaPercentagePoints.toFixed(1)} pp</span><span className="mt-1 block text-xs text-muted">{compared.referencePercent.toFixed(1)}% → {compared.currentPercent.toFixed(1)}%</span></> : compared ? <span className="text-xs text-muted">Sem comparação</span> : <><span className="font-semibold">{formatMilli(reading.valueMilli)}</span><span className="mt-1 block text-xs text-muted">{reading.percent === null ? reading.state : `${reading.percent.toFixed(1)}% do máximo`}</span></>}
+                  {compared?.state === 'comparable' ? <><span className={`font-semibold ${compared.relation === 'higher' ? 'text-success' : compared.relation === 'lower' ? 'text-danger' : ''}`}>{compared.deltaPercentagePoints > 0 ? '+' : ''}{compared.deltaPercentagePoints.toFixed(1)} pp</span><span className="mt-1 block text-xs text-muted">{compared.referencePercent.toFixed(1)}% → {compared.currentPercent.toFixed(1)}%</span></> : compared ? <span className="text-xs text-muted">Sem comparação</span> : <><span className="font-semibold">{marker ?? formatMilli(reading.valueMilli)}</span><span className="mt-1 block text-xs text-muted">{reading.percent === null ? readingStateLabel(reading.state) : `${reading.percent.toFixed(1)}% do máximo`}</span></>}
                 </td>;
               })}
             </tr>

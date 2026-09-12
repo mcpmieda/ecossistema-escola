@@ -365,6 +365,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F13-676-004`: `R/R` é reconhecido somente em REC, persiste em máscara própria disjunta de `N/C` e produz histórico com estado 3.
 - `F13-676-005`: qualquer `R/R` em qualquer componente produz `REPROVADO` e `not-eligible`; não entra na fila nem aceita decisão/voto de Conselho.
 - `F13-676-006`: Boletins, PDFs, Desempenho e Relatórios preservam `R/R` e o resultado terminal sem exigir U oficial inexistente para esse caso.
+  A regressão de #684 também comprova emissão/reimpressão com AM oficial preservada apesar de composição calculada incompleta, presença na matriz/relatório de Recuperação e bloqueio mantido para o mesmo recorte sem R/R.
 - `F13-676-007`: comparação permanece somente entre trimestres do mesmo ano; nenhum contrato oferece comparação interanual.
 - `F13-676-008`: migration 0007 é aditiva, sem backfill/DML destrutivo, e passa replay, constraints, drift/ACL e Advisor.
 - `F13-676-009`: piloto privado percorre importação, movimentações, recuperação, Conselho, votos, fechamento, boletins e relatórios com massas de teste, sem publicar PII.

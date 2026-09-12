@@ -30,6 +30,9 @@ beforeAll(async () => {
       'utf8',
     ),
   );
+  await pg.exec(
+    'ALTER TABLE gradebook.fechamento ADD COLUMN rec_rr_mask SMALLINT NOT NULL DEFAULT 0;',
+  );
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES (10,2026,'6A','6º ANO A',6,'M');
@@ -83,13 +86,13 @@ afterAll(async () => {
   await database?.close();
 });
 
-function service() {
+function service(snapshotId = '11111111-1111-4111-8111-111111111111') {
   let instant = 0;
   return createRelationalBulletinServiceV2({
     database,
     snapshots: createRelationalBulletinSnapshotRepositoryV2(database),
     now: () => new Date(Date.UTC(2026, 8, 11, 12, 0, instant++)).toISOString(),
-    createSnapshotId: () => '11111111-1111-4111-8111-111111111111',
+    createSnapshotId: () => snapshotId,
   });
 }
 
@@ -202,6 +205,131 @@ describe('relational bulletin V2', () => {
     if (assisted.state !== 'ready' || assisted.operation !== 'preview')
       throw new Error('assisted-preview-missing');
     expect(assisted.model.subjects).toHaveLength(2);
+  });
+
+  it('emits and reprints terminal R/R while ordinary incomplete annual bulletins remain blocked', async () => {
+    await pg.exec(`
+      INSERT INTO gradebook.conselho_decisao (aluno_id, decisao, justificativa, registrado_por)
+        VALUES (1, 1, 'DECISAO ANTERIOR SINTETICA', '11111111-1111-4111-8111-111111111111');
+      UPDATE gradebook.fechamento SET rec_rr_mask = 1 WHERE oferta_id = 10 AND aluno_id = 1;
+      UPDATE gradebook.fechamento SET rec_nc_mask = 0 WHERE oferta_id = 20 AND aluno_id = 1;
+      DELETE FROM gradebook.nota
+       WHERE aluno_id = 1
+         AND instrumento_id = (
+           SELECT id FROM gradebook.instrumento
+            WHERE oferta_id = 20 AND trimestre = 1 AND slot = 2
+         );
+    `);
+    const selection = {
+      ...base,
+      studentId: 1,
+      period: { kind: 'annual' as const },
+    };
+    try {
+      const workspace = service('22222222-2222-4222-8222-222222222222');
+      const preview = await workspace.execute(
+        { contractVersion: 2, operation: 'preview', selection },
+        { issuerOid: 'actor' },
+      );
+      expect(preview).toMatchObject({
+        state: 'ready',
+        model: {
+          overall: { formalCouncilDecision: null, visibleResult: 'REPROVADO' },
+          emissionReadiness: { ready: true, reasons: [] },
+        },
+      });
+      if (preview.state !== 'ready' || preview.operation !== 'preview')
+        throw new Error('repeat-preview-missing');
+      expect(preview.model.subjects.some((subject) =>
+        subject.annual?.classification === 'failed-repeat')).toBe(true);
+
+      const emitted = await workspace.execute(
+        { contractVersion: 2, operation: 'emit', selection },
+        { issuerOid: 'actor' },
+      );
+      expect(emitted).toMatchObject({
+        state: 'ready',
+        snapshot: {
+          snapshotId: '22222222-2222-4222-8222-222222222222',
+          model: { overall: { visibleResult: 'REPROVADO' } },
+        },
+      });
+      if (emitted.state !== 'ready' || emitted.operation !== 'emit')
+        throw new Error('repeat-snapshot-missing');
+      await expect(workspace.execute({
+        contractVersion: 2,
+        operation: 'emit-batch',
+        selection: {
+          ...base,
+          studentIds: [1],
+          period: { kind: 'annual' },
+        },
+      }, { issuerOid: 'actor' })).resolves.toMatchObject({
+        state: 'ready',
+        ready: [{
+          studentId: 1,
+          snapshot: { snapshotId: '22222222-2222-4222-8222-222222222222' },
+        }],
+        blocked: [],
+      });
+      await expect(workspace.execute({
+        contractVersion: 2,
+        operation: 'reprint',
+        snapshotId: emitted.snapshot.snapshotId,
+        snapshotVersion: emitted.snapshot.snapshotVersion,
+      }, { issuerOid: 'actor' })).resolves.toMatchObject({
+        state: 'ready',
+        source: 'historical-snapshot',
+        snapshot: { model: { overall: { visibleResult: 'REPROVADO' } } },
+      });
+
+      await pg.exec(
+        'UPDATE gradebook.fechamento SET am1_fonte = NULL WHERE oferta_id = 20 AND aluno_id = 1;',
+      );
+      const missingOfficialAm = await service(
+        '33333333-3333-4333-8333-333333333333',
+      ).execute(
+        { contractVersion: 2, operation: 'emit', selection },
+        { issuerOid: 'actor' },
+      );
+      expect(missingOfficialAm).toMatchObject({ state: 'insufficient-data' });
+      if (missingOfficialAm.state !== 'insufficient-data')
+        throw new Error('repeat-bulletin-without-official-am-was-not-blocked');
+      expect(missingOfficialAm.reasons).toEqual(expect.arrayContaining([
+        expect.stringMatching(/^missing-official-am:/u),
+      ]));
+      await pg.exec(
+        'UPDATE gradebook.fechamento SET am1_fonte = 0 WHERE oferta_id = 20 AND aluno_id = 1;',
+      );
+
+      await pg.exec(
+        'UPDATE gradebook.fechamento SET rec_rr_mask = 0 WHERE oferta_id = 10 AND aluno_id = 1;',
+      );
+      const incomplete = await service('33333333-3333-4333-8333-333333333333').execute(
+        { contractVersion: 2, operation: 'emit', selection },
+        { issuerOid: 'actor' },
+      );
+      expect(incomplete).toMatchObject({ state: 'insufficient-data' });
+      if (incomplete.state !== 'insufficient-data')
+        throw new Error('ordinary-incomplete-bulletin-was-not-blocked');
+      expect(incomplete.reasons).toEqual(expect.arrayContaining([
+        expect.stringMatching(/^incomplete-calculation:/u),
+        expect.stringMatching(/^annual-in-progress:/u),
+      ]));
+    } finally {
+      await pg.exec(`
+        DELETE FROM gradebook.boletim_snapshot
+         WHERE snapshot_id = '22222222-2222-4222-8222-222222222222';
+        DELETE FROM gradebook.conselho_decisao WHERE aluno_id = 1;
+        UPDATE gradebook.fechamento SET rec_rr_mask = 0 WHERE oferta_id = 10 AND aluno_id = 1;
+        UPDATE gradebook.fechamento SET am1_fonte = 0, rec_nc_mask = 1
+         WHERE oferta_id = 20 AND aluno_id = 1;
+        INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor)
+          SELECT id, 1, 0 FROM gradebook.instrumento
+           WHERE oferta_id = 20 AND trimestre = 1 AND slot = 2
+          ON CONFLICT (instrumento_id, aluno_id) DO UPDATE SET valor = EXCLUDED.valor;
+      `);
+    }
   });
 
   it('emits idempotently, advances on changed facts and reprints only the historical snapshot', async () => {

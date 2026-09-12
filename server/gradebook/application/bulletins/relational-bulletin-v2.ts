@@ -361,13 +361,22 @@ async function readMaterializations(
       components: projections.map(({ projection }) => projection.recovery),
       maxCouncilComponents: classGroup.maxCouncilComponents,
     });
+    const hasRepeatFailure = projections.some(
+      ({ projection }) => projection.recovery.classification === 'failed-repeat',
+    );
     const formalCouncilDecision =
-      student.status === null || student.status === 7 ? student.councilDecision : null;
+      (student.status === null || student.status === 7) && !hasRepeatFailure
+        ? student.councilDecision
+        : null;
     const visibleResult =
       student.status === 2 ? null : (formalCouncilDecision ?? annualOutcome.visibleResult);
     const reasons = new Set<string>();
 
     const currentPeriod = first.period;
+    const terminalRepeatFailure =
+      currentPeriod.kind === 'annual' &&
+      annualOutcome.visibleResult === 'REPROVADO' &&
+      hasRepeatFailure;
     const subjects = projections.map(({ offer, projection }) => {
       const selectedTerms =
         currentPeriod.kind === 'term'
@@ -375,7 +384,7 @@ async function readMaterializations(
           : projection.terms;
       const terms = selectedTerms.map(
         ({ term: currentTerm, outcome, sourceAmMilli, sourceComparison }) => {
-          if (!outcome.coverage.complete)
+          if (!outcome.coverage.complete && !terminalRepeatFailure)
             reasons.add(`incomplete-calculation:${offer.id}:t${currentTerm}`);
           if (sourceAmMilli === null)
             reasons.add(`missing-official-am:${offer.id}:t${currentTerm}`);
@@ -412,11 +421,12 @@ async function readMaterializations(
       );
       const recovery = projection.recovery;
       if (currentPeriod.kind === 'annual') {
-        if (recovery.classification === 'in-progress')
+        if (recovery.classification === 'in-progress' && !terminalRepeatFailure)
           reasons.add(`annual-in-progress:${offer.id}`);
-        if (recovery.classification === 'recovery-pending')
+        if (recovery.classification === 'recovery-pending' && !terminalRepeatFailure)
           reasons.add(`final-recovery-pending:${offer.id}`);
         if (
+          !terminalRepeatFailure &&
           recovery.recoveryRequired === true &&
           recovery.classification !== 'failed-no-show' &&
           recovery.classification !== 'failed-repeat' &&

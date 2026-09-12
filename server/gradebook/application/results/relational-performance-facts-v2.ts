@@ -16,6 +16,11 @@ export interface PerformanceProjectionV2 {
   readonly closing: PerformanceClosingV2;
   readonly minimumApprovalMilli: number;
 }
+
+export function performanceRecoveryCellIsRelevantV2(cell: PerformanceCellV2): boolean {
+  return cell.recoveryApplicable === true || cell.state === 'repeat-failure';
+}
+
 const TERMS = [1, 2, 3] as const;
 const ANNUAL_MAXIMUM = TERMS.reduce((sum, term) => sum + SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term], 0);
 
@@ -50,6 +55,8 @@ export function performanceCellV2(projection: PerformanceProjectionV2, period: P
       state = outcomes.every((value) => value!.coverage.complete) ? 'complete' : anyRecorded ? 'partial' : 'not-recorded';
       if (state === 'complete' || state === 'partial') valueMilli = period === 'annual' ? recovery!.originalTotalMilli : term!.roundedMilli;
     }
+  } else if (period === 'annual' && recovery?.classification === 'failed-repeat') {
+    state = 'repeat-failure';
   } else if (period !== 'annual' && recovery?.recoveryTerms[period].source === 'RR') {
     state = 'repeat-failure';
   } else if (applicable === false) state = 'not-applicable';
