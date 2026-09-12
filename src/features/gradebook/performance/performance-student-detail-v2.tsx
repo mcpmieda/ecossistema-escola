@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Avatar, Button, Drawer, Table } from '@heroui/react';
 import { UserRound } from 'lucide-react';
 import type { PerformancePeriodV2, PerformanceReadyV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
@@ -15,10 +15,18 @@ export function PerformanceStudentDetailV2({ detail, focusPeriod, openComponent,
   const student = detail.operation === 'student-detail' ? detail.row.student : detail.student;
   const visibleTerms = detail.operation === 'student-detail' ? ([0, 1, 2] as const).filter((index) =>
     detail.trajectory.some((offering) => offering.terms[index].valueMilli !== null)) : [];
-  useLayoutEffect(() => {
-    if (detail.operation === 'cell-detail' && focusPeriod !== 'annual') {
-      focusedTerm.current?.scrollIntoView?.({ behavior: 'auto', block: 'start' });
-    }
+  useEffect(() => {
+    if (detail.operation !== 'cell-detail' || focusPeriod === 'annual') return;
+    let settledFrame = 0;
+    const mountedFrame = window.requestAnimationFrame(() => {
+      settledFrame = window.requestAnimationFrame(() => {
+        focusedTerm.current?.scrollIntoView?.({ behavior: 'auto', block: 'start' });
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(mountedFrame);
+      window.cancelAnimationFrame(settledFrame);
+    };
   }, [detail, focusPeriod]);
   return <>
     <Drawer.Header className="border-b border-separator pb-5 pr-10">
