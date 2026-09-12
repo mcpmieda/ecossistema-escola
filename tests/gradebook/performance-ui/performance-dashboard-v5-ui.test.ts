@@ -27,7 +27,9 @@ describe('Performance dashboard V5 HeroUI', () => {
     expect(page).toContain('performance-lens-tabs');
     expect(page).toContain('<Tabs.ListContainer className="h-10');
     expect(page).toContain('className="min-w-28"');
+    expect(page).toContain('<div className="performance-lens-status"');
     expect(styles).toContain('.performance-lens-tabs > .tabs__list-container');
+    expect(styles).toContain('.performance-lens-panel.tabs__panel {');
     expect(styles).toContain("margin-top: 0.25rem");
   });
 
