@@ -28,7 +28,8 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
   {
     id: 'audit',
     label: 'Auditoria',
-    description: 'Entenda pendências atuais da fonte e as ações sugeridas, sem correção automática.',
+    description:
+      'Entenda pendências atuais da fonte e as ações sugeridas, sem correção automática.',
   },
   {
     id: 'performance',
@@ -38,17 +39,25 @@ export const GRADEBOOK_WORKSPACE_SURFACES = [
   {
     id: 'bulletins',
     label: 'Boletins',
-    description: 'Consulte preview, emissão, PDF e histórico baseados no modelo canônico existente.',
+    description:
+      'Consulte preview, emissão, PDF e histórico baseados no modelo canônico existente.',
   },
   {
     id: 'reports',
     label: 'Relatórios',
-    description: 'Produza relatórios institucionais e lotes PDF bounded somente sobre dados oficiais.',
+    description:
+      'Produza relatórios institucionais e lotes PDF bounded somente sobre dados oficiais.',
   },
   {
     id: 'council',
     label: 'Conselho',
-    description: 'Abra a fila oficial, registre decisões humanas e feche a turma institucionalmente.',
+    description:
+      'Abra a fila oficial, registre decisões humanas e feche a turma institucionalmente.',
+  },
+  {
+    id: 'settings',
+    label: 'Configurações',
+    description: 'Administre com segurança o ciclo de vida dos anos letivos materializados.',
   },
 ] as const;
 
@@ -96,13 +105,19 @@ const BulletinPage = lazy(async () => {
 });
 
 const InstitutionalReportsPage = lazy(async () => {
-  const module = await import('../features/gradebook/reports/relational-institutional-reports-page-v2');
+  const module =
+    await import('../features/gradebook/reports/relational-institutional-reports-page-v2');
   return { default: module.GradebookRelationalInstitutionalReportsPage };
 });
 
 const CouncilWorkspaceSurface = lazy(async () => {
   const module = await import('./gradebook-council-surface');
   return { default: module.GradebookCouncilSurface };
+});
+
+const SettingsPage = lazy(async () => {
+  const module = await import('../features/gradebook/settings/gradebook-settings-page-v1');
+  return { default: module.GradebookSettingsPageV1 };
 });
 
 const SURFACE_COMPONENTS: Record<
@@ -115,6 +130,7 @@ const SURFACE_COMPONENTS: Record<
   bulletins: BulletinPage,
   reports: InstitutionalReportsPage,
   council: CouncilWorkspaceSurface,
+  settings: SettingsPage,
 };
 
 type SurfaceBoundaryProps = {
@@ -181,13 +197,16 @@ function nextSurfaceFromKey(
   if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return null;
   const direction = event.key === 'ArrowRight' ? 1 : -1;
   const nextIndex =
-    (index + direction + GRADEBOOK_WORKSPACE_SURFACES.length) %
-    GRADEBOOK_WORKSPACE_SURFACES.length;
+    (index + direction + GRADEBOOK_WORKSPACE_SURFACES.length) % GRADEBOOK_WORKSPACE_SURFACES.length;
   return GRADEBOOK_WORKSPACE_SURFACES[nextIndex]?.id ?? null;
 }
 
 export function GradebookWorkspaceShell() {
-  return <GradebookYearProvider><GradebookWorkspaceShellContent /></GradebookYearProvider>;
+  return (
+    <GradebookYearProvider>
+      <GradebookWorkspaceShellContent />
+    </GradebookYearProvider>
+  );
 }
 
 function GradebookWorkspaceShellContent() {
@@ -238,8 +257,13 @@ function GradebookWorkspaceShellContent() {
   };
 
   return (
-    <section aria-labelledby="gradebook-workspace-heading" className="grid min-w-0 grid-cols-1 gap-4">
-      <h2 id="gradebook-workspace-heading" className="sr-only">Banco de notas</h2>
+    <section
+      aria-labelledby="gradebook-workspace-heading"
+      className="grid min-w-0 grid-cols-1 gap-4"
+    >
+      <h2 id="gradebook-workspace-heading" className="sr-only">
+        Banco de notas
+      </h2>
       <div className="gradebook-area-nav">
         <div
           role="tablist"
@@ -261,11 +285,7 @@ function GradebookWorkspaceShellContent() {
                 aria-selected={selected}
                 aria-controls={`gradebook-panel-${surface.id}`}
                 tabIndex={selected ? 0 : -1}
-                className={`gradebook-area-tab ${
-                  selected
-                    ? 'gradebook-area-tab--selected'
-                    : ''
-                }`}
+                className={`gradebook-area-tab ${selected ? 'gradebook-area-tab--selected' : ''}`}
                 onClick={() => activateSurface(surface.id)}
                 onKeyDown={(event) => handleTabKeyDown(surface.id, event)}
               >
@@ -304,9 +324,10 @@ function GradebookWorkspaceShellContent() {
                 <Suspense fallback={<SurfaceLoading label={surface.label} />}>
                   {(() => {
                     const SurfaceComponent = SURFACE_COMPONENTS[surface.id];
-                    const scopeKey = surface.id === 'operational'
-                      ? `${scope?.epoch}:${scope?.targetStudentId}:${scope?.studentNavigationEpoch}`
-                      : scope?.epoch;
+                    const scopeKey =
+                      surface.id === 'operational'
+                        ? `${scope?.epoch}:${scope?.targetStudentId}:${scope?.studentNavigationEpoch}`
+                        : scope?.epoch;
                     return <SurfaceComponent key={scopeKey} />;
                   })()}
                 </Suspense>

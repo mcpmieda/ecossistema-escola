@@ -369,3 +369,16 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `F13-676-007`: comparação permanece somente entre trimestres do mesmo ano; nenhum contrato oferece comparação interanual.
 - `F13-676-008`: migration 0007 é aditiva, sem backfill/DML destrutivo, e passa replay, constraints, drift/ACL e Advisor.
 - `F13-676-009`: piloto privado percorre importação, movimentações, recuperação, Conselho, votos, fechamento, boletins e relatórios com massas de teste, sem publicar PII.
+
+## F15-688 — Configurações e reset anual
+
+- `F15-688-001`: o shell e a busca montam uma única aba Configurações atual, sem fallback ou tela legada.
+- `F15-688-002`: prévia aceita somente ano materializado e retorna contagens de todas as 30 relações atribuíveis, revisão e frase `RESETAR <ano>`.
+- `F15-688-003`: execução exige confirmação de irreversibilidade, frase exata e revisão ainda vigente; mudança desde a prévia retorna conflito sem DML.
+- `F15-688-004`: reset usa uma transação serializável e bloqueio do conjunto; falha injetada depois de exclusões reverte todas.
+- `F15-688-005`: cadastro, notas, históricos, diagnósticos/tratamentos, Conselho e boletins do ano são removidos; diagnóstico sem ano, schema, sequências e outros anos permanecem.
+- `F15-688-006`: ano removido sai do bootstrap e pode ser materializado novamente pela Relação, com novas identidades anuais.
+- `F15-688-007`: HTTP exige autenticação, `gradebook.persistence.admin`, mesma origem, body bounded, provider/gate e `no-store`; falha é opaca.
+- `F15-688-008`: ACL acrescenta somente `DELETE` às dez relações append-only necessárias; não concede `ALL`, `TRUNCATE`, DDL ou acesso público/cliente.
+- `F15-688-009`: `vinculo.situacao = NULL` é apresentado como chip `Em curso` na matriz, sem mudar dado persistido ou regra acadêmica.
+- `F15-688-010`: testes focados, `npm run verify`, CI do head, revisão, merge/deploy e smoke seguem BN-DEC-023; smoke não confirma reset produtivo.
