@@ -113,3 +113,17 @@ A migration `0007_multiyear_rr_v1.sql` é aditiva: acrescenta a máscara R/R, am
 A migration `0007_multiyear_rr_v1.sql` foi aplicada em produção como `multiyear_rr_v1`, versão `20260911201622`, depois de replay PostgreSQL descartável e preflight exato. A operação não criou backup gerenciado por decisão consciente do responsável; essa limitação permanece fora do aceite de recuperação operacional e não autoriza presumir RPO/RTO.
 
 O preflight confirmou catálogo `30/246/218/66/52`, 13 sequências, somente 2026 materializado, coluna alvo ausente e as oito constraints históricas esperadas. O postflight confirmou `30/247/221/66/52`, 13 sequências, 4 funções e 3 triggers; todas as contagens acadêmicas permaneceram idênticas, os 4.463 fechamentos existentes ficaram com `rec_rr_mask = 0`, nenhuma máscara R/R foi inventada e nenhuma constraint obsoleta permaneceu. O Advisor de segurança terminou sem alertas.
+
+## BN-DEC-030 — Configurações, reset anual e vínculo Em curso
+
+**Data:** 2026-09-12. **Origem:** solicitação explícita do responsável; contrato #688. Complementa BN-DEC-022/023/026/028/029 e cria uma exceção deliberada de retenção somente para o reset anual confirmado.
+
+O Banco de Notas passa a ter a área **Configurações**. Sua primeira operação administrativa é `Resetar o sistema`: limpar integralmente um único ano letivo materializado, escolhido pelo seletor global, para permitir novo lançamento a partir das planilhas. Não existe reset global, reset de sequências, `DROP`, `TRUNCATE`, reconstrução de schema ou efeito sobre outro ano.
+
+O reset anual é uma ação excepcional e explícita. Prévia somente leitura enumera as contagens; execução exige a frase exata `RESETAR <ano>`, confirmação de irreversibilidade e a mesma revisão da prévia. O servidor autentica a capability administrativa, confere origem/provider/gate e executa o conjunto em transação serializável com bloqueio. Mudança desde a prévia, ano ausente ou qualquer falha encerram sem exclusão parcial.
+
+Para esse comando confirmado, “tudo referente ao ano” inclui cadastro anual, vínculos, ofertas, instrumentos, notas, fechamentos, importações, diagnósticos e tratamentos, deliberações/fotografias do Conselho, boletins emitidos e históricos atribuíveis ao ano. Esta decisão substitui a retenção append-only da BN-DEC-022/026 **somente durante esse reset anual deliberado**. Diagnóstico sem ano permanece porque não pode ser atribuído com segurança. Ao final, o próprio registro `ano_letivo` é removido; o ano só volta ao catálogo quando uma Relação o materializa novamente.
+
+A migration `0008_year_reset_acl_v1.sql` autoriza somente `DELETE` nas dez relações posteriores que tinham ACL append-only; não concede `ALL`, `TRUNCATE`, DDL, acesso público/cliente ou permissão a usuário. A aplicação/publicação da ACL fica autorizada como parte da entrega #688 sob os gates da BN-DEC-023. Isso não autoriza executar um reset produtivo durante desenvolvimento, deploy ou smoke; cada execução continua dependendo da confirmação final do operador na própria interface. A ausência de backup gerenciado deve permanecer visível e não pode ser apresentada como resolvida.
+
+Na matriz de Desempenho, `vinculo.situacao = NULL` significa vínculo regular vigente e é apresentado como **Em curso**. É rótulo de interface derivado da Relação, não nova situação persistida nem resultado acadêmico. A limpeza de código permanece seletiva: não adicionar fallback legado e não remover contratos ainda consumidos apenas por semelhança de nome.
