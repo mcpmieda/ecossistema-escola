@@ -1,0 +1,23 @@
+module: student_portal
+contract_version: 1
+academic_year: 2026
+audited_main: ad38a7847eb49462818dca554e225155a57f49b4
+current_issue: 702
+delivery_branch: feat/pa-contracts-702
+delivery_scope: contracts_and_documentation_only
+integration_evidence: "Git history and issue #702 handoff record the actual merge SHA; no self-referential SHA is fabricated here."
+gates:
+  G-V: partial_billing_and_authenticated_smoke_unverified
+  G-C: pending_703_shared_bn_contract
+  G-B: not_executed
+runtime: absent_at_audit
+student_portal_schema: absent_at_audit
+ddl_applied_by_702: false
+dns_changed_by_702: false
+secrets_changed_by_702: false
+browser_automation_active: false
+ui_changes: false
+next_safe_issue: 703
+first_parallel_wave_after: "703 integrated and G-C PASS"
+parallel_wave: [704, 705]
+automatic_queue_execution: false
