@@ -1,4 +1,6 @@
 import { SYNTHETIC_SELF_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';
+import { AcademicStudentReaderPostgresV1, ACADEMIC_STUDENT_QUERY_V1 } from '../../../server/student-portal/academic/academic-reader-v1';
+import { ACADEMIC_FIXTURE_SQL_V1 } from '../academic/academic-fixture-v1';
 import { BirthYearServiceV1 } from '../../../server/student-portal/birth-year/birth-year-service-v1';
 import type { CryptoPortV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
@@ -792,5 +794,29 @@ describe('native birth CAS and PIN invalidation', () => {
     expect((await portal`SELECT count(*)::integer AS n FROM student_portal.session WHERE account_id=${id} AND revoked_at IS NULL`)[0]?.n).toBe(1);
     expect((await portal`SELECT auth_state,security_version::integer FROM student_portal.account WHERE id=${id}`)[0])
       .toMatchObject({auth_state:'active',security_version:0});
+  });
+});
+
+describe('native official academic reader and query plan', () => {
+  const reader=new AcademicStudentReaderPostgresV1(portal as unknown as StudentPortalPostgresSqlV1);
+  let revision:string;
+  it('reads through only approved views with the production Portal role and preserves source facts', async()=>{
+    await admin.unsafe(ACADEMIC_FIXTURE_SQL_V1);
+    revision=String((await portal`SELECT academic_generation||':'||academic_counter::text AS revision FROM student_portal.academic_revision WHERE academic_year=2026`)[0]!.revision);
+    const result=await reader.readOfficial({academicYear:2026,studentId:910001},revision);
+    expect(result!.subjects.map((subject)=>subject.label)).toEqual(['PORTUGUES','MATEMATICA']);
+    expect(result!.subjects[1]!.periods[0]!.final).toMatchObject({kind:'score',value:25,maximum:30});
+    expect(result!.subjects[1]!.periods[1]!.final).toEqual({kind:'absent'});
+    expect(result!.subjects[1]!.periods[2]!.final).toMatchObject({kind:'score',value:0});
+    expect(JSON.stringify(result)).not.toMatch(/PRIVATE TEACHER|ACADEMIC OTHER|officialAnnual|sourceAm|offerId/);
+    expect(await reader.readOfficial({academicYear:2026,studentId:910001},`${'b'.repeat(32)}:999`)).toBeNull();
+  });
+  it('executes a bounded statement plan and rejects a fresh exit even before lifecycle jobs run', async()=>{
+    const plan=await portal.unsafe(`EXPLAIN (ANALYZE,BUFFERS,FORMAT JSON) ${ACADEMIC_STUDENT_QUERY_V1}`,[2026,910001]);
+    const report=plan[0]!['QUERY PLAN'][0];
+    expect(report.Plan['Actual Rows']).toBe(1);
+    expect(report['Execution Time']).toBeLessThan(5000);
+    await admin`UPDATE gradebook.vinculo SET situacao=3 WHERE aluno_id=910001`;
+    expect(await reader.readOfficial({academicYear:2026,studentId:910001},revision)).toBeNull();
   });
 });
