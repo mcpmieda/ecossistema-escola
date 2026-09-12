@@ -13,11 +13,20 @@ BEGIN
     CREATE ROLE student_portal_app
       LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
   END IF;
+  -- Managed PostgreSQL administrators cannot ALTER SUPERUSER/BYPASSRLS,
+  -- even to repeat their negative values. Refuse unsafe pre-existing roles.
+  IF EXISTS (
+    SELECT 1 FROM pg_roles WHERE rolname = 'student_portal_app'
+      AND (rolsuper OR rolcreatedb OR rolcreaterole OR rolinherit OR rolbypassrls OR rolreplication OR NOT rolcanlogin)
+  ) OR EXISTS (
+    SELECT 1 FROM pg_auth_members m JOIN pg_roles r ON r.oid = m.member
+    WHERE r.rolname = 'student_portal_app'
+  ) THEN
+    RAISE EXCEPTION 'student-portal-runtime-role-unsafe' USING ERRCODE = '42501';
+  END IF;
 END
 $$;
 
-ALTER ROLE student_portal_app
-  NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
 GRANT USAGE ON SCHEMA student_portal TO student_portal_app;
 
 CREATE TABLE student_portal.account (

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.server.json",
+  "include": [
+    "workers/student-portal",
+    "server/student-portal/runtime",
+    "shared/student-portal-contracts"
+  ],
+  "exclude": [],
+  "compilerOptions": { "tsBuildInfoFile": "./node_modules/.cache/student-portal.tsbuildinfo" }
+}
