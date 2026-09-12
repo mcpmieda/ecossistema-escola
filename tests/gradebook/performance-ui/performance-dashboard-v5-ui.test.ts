@@ -53,6 +53,8 @@ describe('Performance dashboard V5 HeroUI', () => {
     expect(widgets).not.toContain('Notas azuis');
     expect(widgets).toContain('Notas vermelhas');
     expect(widgets).toContain('<details className="performance-ranking"');
+    expect(analysis).toContain('quem ficou abaixo do mínimo');
+    expect(analysis).not.toContain('dois grupos');
     expect(analysis).toContain("const ids = selection?.kind === 'group'");
     expect(page).toContain('renderResult={(ids)');
   });
