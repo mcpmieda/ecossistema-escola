@@ -1,5 +1,7 @@
 # Banco de Notas: cutover PostgreSQL e rollback D1
 
+> **Documento histórico do cutover.** Não executar o rollback para D1 como restauração do estado atual: o D1 não recebeu as escritas posteriores, inclusive os anos materializados e históricos recentes. A operação vigente e os passos seguros de incidente estão em [FINAL_OPERATION_596.md](FINAL_OPERATION_596.md). Reverter código não reverte dados; reconciliação/restauração exige autorização própria.
+
 ## Estado oficial
 
 - Provedor oficial: `GRADEBOOK_STORAGE_PROVIDER=postgres`.

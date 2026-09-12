@@ -1,21 +1,31 @@
-# Entrega corrente — medições autenticadas de Desempenho
+# Banco de Notas — estado operacional
 
-**#674 / PR #675**, branch `feat/bn-audit-human-trail-674`, head inicial verde `c6471060061bb708fdbede51408b9ba22b62cb46`. Base factual: `main@265d9ec886e3d9d5ad1f2b6d9e6af0a2ad3f6bce`, após os refinamentos de Desempenho #672/PR #673 e a aceitação manual que encerrou a FINAL-2 #634. A autorização da BN-DEC-027 permitiu aplicar/postvalidar a migration `0006`; o código dependente segue para verify/CI, integração e publicação.
+Data da consolidação: 11/09/2026 (America/Sao_Paulo).
 
-#646/#647 integrou fonte, siglas, detalhe e desktop. #649/#650 fixou 2026, removeu criação/seleção de anos e entregou comparação descritiva entre trimestres. #651/#652 redesenhou Desempenho. #648/#653 integrou Conselho V3. #654/#655 integrou Boletins V2. #656/#657 integrou Relatórios V2. Não reconstruir esses blocos. Usar `main` + branch + issue/PR + CI como estado factual; `PROJECT_STATE.yaml` é resumo e pode ficar um commit atrás.
+O programa relacional está implementado, publicado e exercitado. FINAL-1 #633, FINAL-2 #634, FINAL-3 #635, FINAL-4 #406 e o aceite acadêmico #347 estão encerrados. A matriz do piloto está em [FINAL4_PILOT_406.md](FINAL4_PILOT_406.md) e a operação final em [FINAL_OPERATION_596.md](FINAL_OPERATION_596.md).
 
-A #662 restaurou a cópia lógica V2 em PostgreSQL local descartável, conferiu dados/identities/catalog/ACL e executou jornadas e contenção com conexões reais. A PR #663 foi integrada e publicada; não converte a medida local em RPO/RTO institucional. [Escopo e evidência](RELATIONAL_RECOVERY_REHEARSAL_662.md).
+Baseline factual desta memória: `main@80b2916185fc6a49df7c5ab0af71e2be4dcdeb66`, CI `34667519751` e deploy `34667699446` verdes. Usar sempre `main` + branch + PR + issues + CI como estado mais recente; `PROJECT_STATE.yaml` é apenas um resumo auditado e pode ficar atrás do head.
 
-A #664 retirou somente os três módulos de UI e o endpoint dedicado do Audit Workspace V1 sem consumidores ativos. A Auditoria Atual V2 e `/api/gradebook/import-diagnostics` não mudaram; o núcleo V1 continua preservado porque Relatórios V1 ainda o consome. [Prova e limite](LEGACY_AUDIT_RETIREMENT_664.md).
+## Contrato vigente
 
-A #666 retira os clusters frontend antigos de Centrais, Desempenho, Conselho, Boletins e Relatórios que não são montados nem importados pela aplicação atual. Endpoints, handlers, contratos, serviços, adapters e o renderizador PDF V1 ainda reutilizado permanecem. [Prova e limite](LEGACY_FRONTEND_RETIREMENT_666.md).
+- PostgreSQL/Supabase via Hyperdrive `PROD_DB` é a persistência atual.
+- `imported-source` é a autoridade dos consumidores; `native-engine` permanece descritivo.
+- 2026 é o ano oficial em curso. A massa materializada de 2025 é descartável e serve apenas para teste integral.
+- O ano é selecionado globalmente e isola dados e identidades. Comparação existe somente entre trimestres do mesmo ano.
+- R/R em qualquer componente implica `REPROVADO` e exclui o aluno do Conselho.
+- Conselho registra decisão humana e votos favoráveis/contrários; desempate do diretor ocorre fora do sistema.
+- Situação do aluno vem exclusivamente da Relação; AM/U vêm da fonte importada.
 
-A #668 registra as medições autenticadas já executadas no Desempenho publicado: payload, p95 de dashboard/detalhe e tempo até a matriz utilizável passaram nas metas da #634 no cenário sanitizado. A rodada manual posterior gerou #672/#673, foi aceita pelo responsável e encerrou a FINAL-2. [Cenário e resultado](PERFORMANCE_MEASUREMENTS_668.md).
+## Limite operacional aceito
 
-Gravar cada bloco revisável em commit antes de avançar. Executar testes, `npm run verify`, CI do head e revisão do diff. Atualizar o head documental e integrar/publicar conforme BN-DEC-023.
+Backup/restore gerenciado, retenção, RPO e RTO não estão implementados. O responsável decidiu adiar esse trabalho e operar por enquanto sem a garantia. A restauração local da #662 não deve ser apresentada como backup institucional, e o D1 histórico não recupera escritas novas.
 
-Não criar/comparar anos, alterar dados acadêmicos, regras do motor, importador, binding, segredo ou autoridade #347. A única mudança de schema autorizada nesta entrega é a relação aditiva da #674, já postvalidada. Falha ou drift fecha o escopo afetado. A validação visual conjunta de FINAL-1/3 permanece adiada para uma única sessão avisada previamente ao responsável.
+## Ordem de leitura
 
-Os consumidores funcionais relacionais da FINAL-1 #633 estão reancorados. A #662 comprova restore do artefato e contenção local; a #664 remove a superfície dedicada Audit V1; a #666 retira somente frontends antigos sem montagem. A #674 acrescenta a durabilidade explícita da trilha humana de Auditoria; migration e postflight estão verdes e a integração/publicação segue pela PR #675. Recuperação operacional externa e visual ainda faltam. Endpoints V1 externos só podem ser retirados após inventário próprio. FINAL-2 #634 está concluída. FINAL-3 #635 tem código/publicação e contenção local do Conselho concluídos, mas visual/piloto continuam separados. FINAL-4 #406 valida o produto integral; #596 encerra a entrega institucional.
+1. [FINAL_OPERATION_596.md](FINAL_OPERATION_596.md): rotina, responsabilidades, monitoramento e incidente.
+2. [FINAL4_PILOT_406.md](FINAL4_PILOT_406.md): matriz sanitizada do percurso integral.
+3. [DECISIONS.md](DECISIONS.md): decisões e limites normativos.
+4. [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md) e [CONTRACTS.md](CONTRACTS.md): arquitetura e contratos.
+5. [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md), [ROADMAP.md](ROADMAP.md), [ISSUE_MAP.md](ISSUE_MAP.md) e [TEST_MATRIX.md](TEST_MATRIX.md): evidências e histórico executável.
 
-Leia também [PROJECT_STATE.yaml](PROJECT_STATE.yaml), [DECISIONS.md](DECISIONS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [CONSUMER_MAP.md](CONSUMER_MAP.md), [CONTRACTS.md](CONTRACTS.md), [ROADMAP.md](ROADMAP.md) e [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md). Memória anterior: [history/pre-final-1/README.md](history/pre-final-1/README.md).
+Toda mudança segue `issue → branch → commit → npm run verify → CI do head → revisão → merge por SHA → deploy oficial → smoke`. BN-DEC-023 dispensa confirmação por PR concluída, não autoriza publicar check falhando nem ampliar regra, dado, schema, autoridade ou infraestrutura.

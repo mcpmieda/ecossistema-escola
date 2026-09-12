@@ -5,10 +5,10 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Papel                      | Issue          | Situação de execução                                                                               |
 | -------------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
 | Programa                   | #182           | acompanhamento das quatro fases                                                                    |
-| FINAL-1                    | #633           | consumidores relacionais até Auditoria/configuração docente concluídos; gates operacionais restam  |
+| FINAL-1                    | #633           | concluída, publicada e aceita visualmente                                                          |
 | FINAL-2                    | #634           | concluída após #672/#673 e aceitação manual do responsável                                         |
 | Fonte/ano/desktop          | #646           | concluída pela PR #647; seleção anual posteriormente substituída pela #649                         |
-| 2026/comparação trimestral | #649           | concluída pela PR #650; visual conjunto permanece na #634                                          |
+| Comparação trimestral      | #649           | concluída pela PR #650; contexto anual depois ampliado pela #676, sem comparação entre anos         |
 | Boletins relacionais V2    | #654 / PR #655 | integrado/publicado no deploy 263; migration/postflight e smoke somente leitura verdes             |
 | Relatórios relacionais V2  | #656 / PR #657 | integrado/publicado no deploy 264; CI e smoke autenticado somente leitura verdes                   |
 | Auditoria relacional atual | #658 / PR #659 | integrada/publicada no deploy 265; smoke autenticado somente leitura verde                         |
@@ -16,12 +16,15 @@ Referências: #182, `PROJECT_STATE.yaml`, `COMECE_AQUI.md` e `CONSUMER_MAP.md`.
 | Recuperação/contenção      | #662 / PR #663 | integrado/publicado no deploy 267; restore lógico, jornadas e disputa PostgreSQL local comprovados |
 | Retirada Audit V1          | #664 / PR #665 | integrada/publicada no deploy 268; núcleo usado por Relatórios V1 preservado                       |
 | Frontends não montados     | #666 / PR #667 | integrado/publicado no deploy 269; endpoints e serviços de compatibilidade preservados             |
-| Métricas de Desempenho     | #668 / PR #669 | p95, payload e matriz utilizável autenticados passaram; registro documental em execução            |
-| Trilha humana da Auditoria | #674 / PR #675 | migration autorizada/aplicada e postflight verde; código em integração/publicação                  |
-| FINAL-3                    | #635           | Conselho V3 integrado/publicado pela #648/#653; visual/piloto restantes                            |
-| FINAL-4                    | #406           | piloto integral após adaptações funcionais                                                         |
-| Aceite acadêmico           | #347           | gate por consumidor/escopo, sem ativação automática                                                |
-| Entrega institucional      | #596           | após fases, piloto, aceite e recuperação                                                           |
+| Métricas de Desempenho     | #668 / PR #669 | p95, payload e matriz utilizável autenticados passaram e foram documentados                          |
+| Trilha humana da Auditoria | #674 / PR #675 | concluída, migrada, publicada e validada                                                            |
+| Multi-ano e R/R            | #676 / PR #678 | concluída; ano global isolado e R/R terminal                                                        |
+| Refinos de Desempenho      | #677 / PRs #681–#683 | concluídos e validados em desktop/mobile                                                       |
+| Emissão terminal R/R       | #684 / PR #685 | concluída; individual, lote, snapshot, PDF e relatórios                                             |
+| FINAL-3                    | #635           | concluída: Conselho V3, visual, contenção e ciclo anual humano                                      |
+| FINAL-4                    | #406 / PR #686 | concluída: piloto integral e matriz sanitizada                                                      |
+| Aceite acadêmico           | #347           | concluído; `imported-source` oficial e motor nativo descritivo                                      |
+| Entrega institucional      | #596           | consolidação final; backup gerenciado explicitamente adiado                                         |
 | Observabilidade global     | #220           | planejada; não é banco paralelo nem gate por existência                                            |
 
 ## Trilhas preservadas, não reexecutadas
@@ -36,7 +39,7 @@ As dependências são de entregas aceitas, não apenas da existência de branche
 
 ## Branches reservadas
 
-Corrente: `feat/bn-audit-human-trail-674`. Reservada para o piloto posterior: `test/bn-final-4-piloto-integral`.
+As branches das fases finais são históricas. Nova manutenção deve partir da `main` factual e usar issue/branch/PR próprios.
 
 Branches históricas não devem ser mergeadas só por estarem abertas/existirem. Toda execução parte da `main` factual validada e registra seu próprio checkpoint na issue/PR.
 
