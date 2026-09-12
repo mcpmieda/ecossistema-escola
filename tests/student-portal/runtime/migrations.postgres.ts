@@ -1,4 +1,6 @@
 import { SYNTHETIC_SELF_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';
+import { BirthYearServiceV1 } from '../../../server/student-portal/birth-year/birth-year-service-v1';
+import type { CryptoPortV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
 import { createYearResetServiceV1 } from '../../../server/gradebook/application/settings/year-reset-v1';
@@ -741,5 +743,54 @@ describe('native policy persistence and concurrency', () => {
     })).rejects.toThrow('synthetic-native-policy-publication-rollback');
     expect(await policy.readSnapshot(school)).toEqual(before);
     expect((await portal`SELECT count(*)::integer AS n FROM student_portal.operation_receipt WHERE idempotency_key=${key}`)[0]?.n).toBe(0);
+  });
+});
+
+describe('native birth CAS and PIN invalidation', () => {
+  const actor='77777777-7777-4777-8777-777777777777';
+  const unused=()=>{throw new Error('synthetic-unused');};
+  const cryptoPort:CryptoPortV1={randomToken:unused,hashOpaqueToken:unused,verifySecret:unused,signQr:unused,verifyQr:unused,
+    async deriveVerifier(_secret,pepperVersion){return {algorithm:'synthetic-only',parameters:{},salt:crypto.randomUUID(),digest:crypto.randomUUID(),pepperVersion};}};
+  const birth=new BirthYearServiceV1(portal as unknown as StudentPortalPostgresSqlV1,cryptoPort,1);
+  let id:string;
+
+  it('serializes competing account/field CAS on two real Portal connections', async()=>{
+    await admin`INSERT INTO gradebook.aluno(id,ano,nome) VALUES (900022,2026,'SYNTHETIC NATIVE BIRTH STUDENT')`;
+    await admin`INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) VALUES (2026,900011,3,900022)`;
+    await gradebook`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`;
+    id=String((await portal`SELECT id FROM student_portal.account WHERE gradebook_student_id=900022`)[0]!.id);
+    const initial=(await birth.readClass(900011)).items.find((item)=>item.accountId===id)!;
+    const make=(year:string)=>({contractVersion:1,operation:'birth-write',expectedVersion:initial.accountVersion,idempotencyKey:crypto.randomUUID(),
+      item:{action:'set',accountId:id,expectedVersion:0,year,confirmation:'unconfirmed-test'}});
+    const inputs=[make('2001'),make('2002')];
+    const other=new BirthYearServiceV1(asRole('student_portal_app') as unknown as StudentPortalPostgresSqlV1,cryptoPort,1);
+    const results=await Promise.allSettled([birth.write(actor,inputs[0]),other.write(actor,inputs[1])]);
+    expect(results.filter((result)=>result.status==='fulfilled')).toHaveLength(1);
+    const rejected=results.find((result)=>result.status==='rejected');
+    expect(rejected?.status==='rejected' && rejected.reason.message).toBe('student-portal-birth-version-conflict');
+    const winner=results.findIndex((result)=>result.status==='fulfilled');
+    const won=results[winner]!;
+    expect(await birth.write(actor,inputs[winner])).toEqual(won.status==='fulfilled'?won.value:null);
+    expect((await portal`SELECT jsonb_typeof(pin_verifier) AS kind,pin_version::integer FROM student_portal.password_credential WHERE account_id=${id}`)[0])
+      .toMatchObject({kind:'object',pin_version:1});
+  });
+
+  it('clears the PIN and consumes challenges while preserving active password and sessions', async()=>{
+    const verifier={algorithm:'synthetic-only',parameters:{},salt:'synthetic-salt',digest:'synthetic-password-digest',pepperVersion:1};
+    await portal`UPDATE student_portal.account SET auth_state='active' WHERE id=${id}`;
+    await portal`UPDATE student_portal.password_credential SET password_verifier=${portal.json(verifier)} WHERE account_id=${id}`;
+    await portal`INSERT INTO student_portal.auth_challenge(token_hash,account_id,security_version,pin_version,expires_at)
+      VALUES (repeat('b',32),${id},0,1,now()+interval '5 minutes')`;
+    await portal`INSERT INTO student_portal.session(id,account_id,token_hash,security_version,expires_at,persistent)
+      VALUES (gen_random_uuid(),${id},repeat('n',32),0,now()+interval '1 day',true)`;
+    const current=(await birth.readClass(900011)).items.find((item)=>item.accountId===id)!;
+    await birth.write(actor,{contractVersion:1,operation:'birth-write',expectedVersion:current.accountVersion,idempotencyKey:crypto.randomUUID(),
+      item:{action:'clear',accountId:id,expectedVersion:current.version}});
+    expect((await portal`SELECT pin_verifier,password_verifier,pin_version::integer FROM student_portal.password_credential WHERE account_id=${id}`)[0])
+      .toMatchObject({pin_verifier:null,password_verifier:verifier,pin_version:2});
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.auth_challenge WHERE account_id=${id} AND consumed_at IS NULL`)[0]?.n).toBe(0);
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.session WHERE account_id=${id} AND revoked_at IS NULL`)[0]?.n).toBe(1);
+    expect((await portal`SELECT auth_state,security_version::integer FROM student_portal.account WHERE id=${id}`)[0])
+      .toMatchObject({auth_state:'active',security_version:0});
   });
 });
