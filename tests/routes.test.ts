@@ -228,6 +228,79 @@ describe('identity capability resolution', () => {
   });
 });
 
+describe('administrative session settings', () => {
+  it('returns the server-enforced duration and allowed limits to an administrator', async () => {
+    const response = await invoke(
+      await authenticatedRequest('/api/platform/settings/session', ['ADMINISTRADOR']),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      version: 1,
+      policy: 'absolute',
+      defaultDurationHours: 8,
+      allowedDurationsHours: [4, 8, 12],
+      currentDurationHours: 8,
+      configured: false,
+    });
+  });
+
+  it('updates the current sealed session and persistent preference with an exact-origin POST', async () => {
+    const headers = await sessionHeaders(['ADMINISTRADOR']);
+    headers.set('Origin', testEnv.OFFICIAL_ORIGIN);
+    headers.set('Content-Type', 'application/json');
+    const response = await invoke(
+      new Request(`${testEnv.OFFICIAL_ORIGIN}/api/platform/settings/session`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ durationHours: 12 }),
+      }),
+    );
+    const session = await unseal<{
+      durationHours: number;
+      authenticatedAt: number;
+      exp: number;
+    }>(responseCookie(response, SESSION_COOKIE), testEnv.SESSION_SECRET);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Set-Cookie')).toContain('__Host-ecossistema_session_policy=');
+    expect(session?.durationHours).toBe(12);
+    expect(session?.exp).toBe(session!.authenticatedAt + 12 * 60 * 60);
+  });
+
+  it('rejects invalid duration, cross-origin writes and non-administrative access', async () => {
+    const invalidHeaders = await sessionHeaders(['ADMINISTRADOR']);
+    invalidHeaders.set('Origin', testEnv.OFFICIAL_ORIGIN);
+    invalidHeaders.set('Content-Type', 'application/json');
+    const invalid = await invoke(
+      new Request(`${testEnv.OFFICIAL_ORIGIN}/api/platform/settings/session`, {
+        method: 'POST',
+        headers: invalidHeaders,
+        body: JSON.stringify({ durationHours: 24 }),
+      }),
+    );
+
+    const foreignHeaders = await sessionHeaders(['ADMINISTRADOR']);
+    foreignHeaders.set('Origin', 'https://evil.test');
+    foreignHeaders.set('Content-Type', 'application/json');
+    const foreign = await invoke(
+      new Request(`${testEnv.OFFICIAL_ORIGIN}/api/platform/settings/session`, {
+        method: 'POST',
+        headers: foreignHeaders,
+        body: JSON.stringify({ durationHours: 8 }),
+      }),
+    );
+
+    const professor = await invoke(
+      await authenticatedRequest('/api/platform/settings/session', ['PROFESSOR']),
+    );
+
+    expect(invalid.status).toBe(400);
+    expect(foreign.status).toBe(403);
+    expect(professor.status).toBe(403);
+  });
+});
+
 describe('platform snapshot authorization', () => {
   it('rejects requests without an authenticated session', async () => {
     const response = await invoke(await authenticatedRequest('/api/platform/snapshot'));

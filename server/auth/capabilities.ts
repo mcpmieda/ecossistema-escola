@@ -11,6 +11,7 @@ export const capabilityGrantsByRole: Record<Role, readonly PlatformCapability[]>
     'platform.modules.read',
     'platform.audit.read',
     'platform.settings.read',
+    'platform.settings.write',
     'gradebook.persistence.admin',
   ],
   PROFESSOR: [],
