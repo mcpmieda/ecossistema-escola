@@ -84,3 +84,47 @@ A baseline `migrations/gradebook-simplified/` foi reconstruída do catálogo e r
 `year-reset-contract-v1` expõe somente `preview` e `execute`. A prévia retorna contagens fechadas, revisão SHA-256 do ano/contagens e a frase exata de confirmação. A execução aceita somente a mesma revisão, `understandsIrreversible: true` e `RESETAR <ano>`; uma revisão divergente retorna `preview-changed`.
 
 O serviço apaga exclusivamente registros atribuíveis ao ano em uma transação serializável. O conjunto inclui as 30 relações atuais, mas diagnósticos `ano IS NULL` não são inferidos. O registro anual também sai; sequências/schema ficam. HTTP exige origem oficial, autenticação, `gradebook.persistence.admin`, provider PostgreSQL, gate produtivo e `no-store`. Ver [YEAR_RESET_SETTINGS.md](YEAR_RESET_SETTINGS.md).
+
+## Portal do Aluno P1 — contrato BN #703
+
+Baseline inspecionada: `9ac131b6be55f265b224c5096e45b63fbf37374a`, com #702 integrada. Esta seção congela contrato; não declara reader, revisionamento ou guard implantados. G-C exige #702 e #703 integradas e CI verde. DDL, implementação e concorrência real continuam nos owners D/G/S/H/I (#704/#706/#707/#714/#715).
+
+| Contrato em `shared/gradebook-contracts/student-portal/` | Garantia e consumidor |
+| --- | --- |
+| `academic-revision-v1.ts` — AcademicRevisionV1 | Ano 2026, geração aleatória durável de 128 bits + contador decimal positivo (até 20 dígitos), serializados `generation:counter`; nunca `readAt`. D/S persistem; publicação compara por igualdade, sem ordenar strings. |
+| `eligibility-v1.ts` — EligibilityV1 | Chave exclusivamente `(2026, aluno.id)`; vínculo corrente único, excluindo situação 6. S/Auth/Self usam a mesma versão e transação. |
+| `academic-student-reader-v1.ts` — AcademicStudentReaderV1 | Leitura interna individual, estrita e mínima, na transação recebida. Não aceita escolha de aluno pelo navegador; S projeta, Self entrega somente publicação autorizada. |
+| `year-reset-portal-guard-v1.ts` — YearResetPortalGuardV1 | Mesmo handle/conexão/transação do reset; resultado sem lista individual. G implementa ambas as operações; erro/ausência do adapter falha fechado. |
+
+Os ports genéricos recebem o handle transacional real, não iniciam outra conexão. `null` no reader significa indisponível, versão divergente, vínculo ambíguo/inexistente ou saída; nunca libera projeção antiga como fallback. Ano ausente/fora de 2026 não produz identidade Portal. Os contratos BN não recebem conta, senha, QR, nascimento, token nem políticas Portal.
+
+### Identidade e elegibilidade
+
+Relação materializa `aluno.id`; nome não é chave de vínculo Portal. NOVATO é normalizado pelo importador atual para `NULL` (regular), e não se introduz situação 0 no DTO. Situações 1 ESPECIAL e 2 ASSISTIDO são elegíveis; 3 DESISTENTE, 4 TRANSFERIDO e 5 FALECIDO impedem autenticação/leitura imediatamente. Situação 6 FOI PARA é exclusivamente histórica; 7 ESTAVA NO é corrente regular. Zero ou múltiplos vínculos não-6 resultam `unresolved`, inclusive se houver históricos. Mudança de turma conserva conta/chave; retorno 3/4/5 → NULL/1/2/7 no mesmo ID pode restaurar elegibilidade, mas não desfaz bloqueio administrativo nem revive sessão, credencial ou vínculo explicitamente encerrado. Um ID novo exige vínculo explícito; nunca casamento por nome.
+
+### Autoridade e minimização
+
+| Campo/caso | Fonte e regra única |
+| --- | --- |
+| T1/T2/T3 finais | `fechamento.am` → `sourceAmMilli` da projeção relacional; nunca `calculatedAmMilli` como substituto. Ausente permanece `absent`. |
+| Anual | `fechamento.u` → `sourceUMilli`, preservado internamente como `officialAnnual`; nenhuma soma Portal. O self PA V1 não tem célula anual: o adapter não inventa um novo período para U. |
+| Resultado | Mesmo núcleo `resolveSimplifiedAnnualOutcomeV1` e precedência humana de `application/bulletins/relational-bulletin-v2.ts`: decisão formal somente regular/7, sem R/R; 1 aprovado, 2 sem resultado geral. Nunca exportar razões internas. |
+| R/R e N/C | Máscaras de fechamento/projeção oficial: marcadores `rr`/`nc` em REC aplicável, distintos de zero. R/R resulta reprovado, sem Conselho; N/C segue núcleo como não comparecimento. `failed-attendance` é decisão humana 3 (falta), não tradução automática de N/C. |
+| Zero/ausente | Usar milésimos já normalizados pelo importador. Zero acadêmico é `score:0`, ausente é `absent`; não reprocessar 0,1 ou texto bruto no Portal. |
+| Máximo desconhecido | `maximumMilli:null`, nunca zero/fictício. `meetsMinimum:null` se a autoridade não permitir comparação; Portal não cria limiar acadêmico. |
+| REC | Incluir apenas períodos cuja aplicabilidade oficial seja `true`; omitir os `false`/indeterminados, sem fabricar nota. Aplicável ainda pendente usa `recovery-pending`; não extrapolar regra do calendário. |
+| Instrumentos/ordem | Instrumentos ativos segundo `active-instrument-predicate-v1.ts`, sem evidência bruta. `compareSourceSubjectPresentationV1` de `source/subject-abbreviations-v1.ts`, desempate por ID e `order` contíguo na saída. |
+
+O adapter S converte milésimos para decimal apenas para apresentação e injeta `accountId` a partir da conta autenticada. Mapeia perfil/disciplinas para `shared/student-portal-contracts/ports-v1.ts` da #702; `classId` fica interno e `officialAnnual` não vaza por spread. Resultado anual EM CURSO/EM RECUPERAÇÃO/Conselho pendente → `in-progress`; aprovações → `approved`; reprovações, inclusive R/R e N/C → `failed`; decisão humana 3 → `failed-attendance`; ASSISTIDO → `not-applicable`. O schema não calcula a regra: testes com o núcleo oficial fixam a autoridade, e S deve provar a composição SQL completa.
+
+São proibidos campos de professor, nome de arquivo, fórmula, comparação calculada, justificativa, voto, diagnóstico, fonte bruta e dados de terceiros. Schemas estritos rejeitam acréscimos em todas as camadas. O reader interno também contém PII e só pode circular no servidor autorizado, sem logs. Autorização e filtragem de publicação/calendário continuam responsabilidade PA; não são conferidas por `zod.parse`.
+
+### Revisionamento e publicação
+
+Toda transação com mudança efetiva no estado acadêmico relevante incrementa uma vez o contador anual e grava evento/outbox atomicamente. Sem mudança, rollback ou replay idempotente: nenhum incremento/evento. A geração persiste fora do conjunto apagado pelo reset; reset/restore muda a geração para impedir ABA. Não usar relógio, contagens ou hash do nome. Contador esgotado deve falhar fechado, nunca reciclar. Eventos anuais expandem os alunos via consulta paginada estável no consumidor S; o port PA com `studentIds` recebe lotes internos, não uma lista potencialmente truncada no evento BN.
+
+Versão, elegibilidade e fatos vêm do mesmo snapshot; worker só troca publicação por CAS contra versões atuais acadêmica, política e segurança. Revisão mudou durante processamento: descarta resultado e reprograma, preservando falha fechada. A garantia inicia após bootstrap/versionamento de todos os produtores no [mapa](CONSUMER_MAP.md), não no merge deste schema. Hooks parciais não liberam S em produção.
+
+### Matriz de aceite contratual
+
+`tests/student-portal/bn-contract/contracts-v1.test.ts` verifica identidade/movimento/saída/retorno/ambiguidade, ano inválido, versões duráveis, invalidação sem mudança de contagem, geração nova, janela/ator/consumo, zero/ausente/máximo, marcadores REC, allowlist PA, ordem institucional, precedência do núcleo anual e compatibilidade real do cliente reset com HTTP 409. Teste de envelope sem filtro de status não prova consulta de contas bloqueadas/inativas: a fixture SQL dessas contas, preview/execute/encerramento atômicos, no-op/rollback de revisionamento e disputa entre conexões permanecem G/S/H. AM/U/decisão humana exigem ainda teste de adapter SQL contra o núcleo/boletim em S; o schema não pode provar procedência de um número. Limites de 100 disciplinas/6 períodos/12 parciais seguem #702; exceder é erro explícito, nunca truncamento silencioso. Falta de aplicabilidade oficial não autoriza inventar REC.
