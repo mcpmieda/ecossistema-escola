@@ -95,7 +95,7 @@ describe('StudentPortalPostgresPersistenceV1', () => {
   it('persists birth CAS, verifiers, challenge and opaque session hashes', async () => {
     const birth = await persistence.transaction(async (tx) => {
       expect(await tx.compareAndSetBirth({ accountId: ACCOUNT, year: '2012', confirmation: 'unconfirmed-test', version: 1 }, 0)).toBe(true);
-      expect(await tx.compareAndSetBirth({ accountId: ACCOUNT, year: '2011', confirmation: 'confirmed', version: 2 }, 0)).toBe(false);
+      expect(await tx.compareAndSetBirth({ accountId: ACCOUNT, year: '2011', confirmation: 'confirmed', version: 1 }, 0)).toBe(false);
       return tx.readBirth(ACCOUNT);
     });
     expect(birth).toEqual({ accountId: ACCOUNT, year: '2012', confirmation: 'unconfirmed-test', version: 1 });
