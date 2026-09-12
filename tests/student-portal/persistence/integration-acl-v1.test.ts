@@ -48,7 +48,7 @@ describe('gradebook_app narrow Portal integration surface', () => {
   it('returns the reset guard state without exposing Portal tables', async () => {
     await pg.exec('SET ROLE gradebook_app');
     const guard = (await pg.query<{ linked_count: bigint; state: string; portal_link_revision: string }>(
-      'SELECT * FROM student_portal.inspect_year_reset_guard_v1(2026)',
+      'SELECT * FROM student_portal.inspect_year_reset_guard_v1(2026::smallint)',
     )).rows[0]!;
     expect(Number(guard.linked_count)).toBe(1);
     expect(guard.state).toBe('portal-linked-accounts');
