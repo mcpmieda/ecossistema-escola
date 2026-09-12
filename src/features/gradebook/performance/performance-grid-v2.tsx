@@ -20,7 +20,7 @@ export function PerformanceGridV2({ columns, rows, open, focusOffer, showAnnual 
   readonly label: string;
 }) {
   const headers = [
-    { id: 'number', label: 'Nº', width: 40 }, { id: 'status', label: 'Situação', width: 96 },
+    { id: 'number', label: 'Nº', width: 40 }, { id: 'status', label: 'Situação', width: 144 },
     { id: 'student', label: 'Aluno', width: 192 },
     ...columns.map((column) => ({ id: `value-${column.key}`, label: column.label, width: column.label.length > 5 ? 112 : 48 })),
     ...(showAnnual ? [{ id: 'annual', label: 'Resultado', width: 150 }] : []),
@@ -30,7 +30,7 @@ export function PerformanceGridV2({ columns, rows, open, focusOffer, showAnnual 
       <Table.Content aria-label={label} className="w-full text-xs" style={{ minWidth: headers.reduce((sum, col) => sum + col.width, 0) }}>
         <Table.Header columns={headers}>{(header) => {
           const column = columns.find((item) => `value-${item.key}` === header.id);
-          return <Table.Column id={header.id} isRowHeader={header.id === 'student'} defaultWidth={header.id === 'student' ? '1fr' : header.width} minWidth={header.width} className="px-2 py-1.5">
+          return <Table.Column id={header.id} isRowHeader={header.id === 'student'} defaultWidth={header.id === 'student' ? '1fr' : header.width} minWidth={header.width} className="px-2 py-1">
             {column ? focusOffer
               ? <button type="button" title={column.title} aria-label={`Ver avaliações de ${column.title}`} onClick={() => focusOffer(column.offerId)} className="w-full whitespace-normal break-words text-center font-semibold outline-none focus-visible:ring-2 focus-visible:ring-focus">{column.label}</button>
               : <span title={column.title} className="block w-full whitespace-normal break-words text-center font-semibold">{column.label}</span>
@@ -39,13 +39,13 @@ export function PerformanceGridV2({ columns, rows, open, focusOffer, showAnnual 
         }}</Table.Header>
         <Table.Body items={rows} renderEmptyState={() => 'Nenhum aluno neste recorte.'}>{(row) => <Table.Row id={row.student.id} columns={headers} className="performance-grid__row">{(header) => {
           const index = headers.indexOf(header) - 3;
-          return <Table.Cell className="performance-grid__cell px-2 py-1">
+          return <Table.Cell className="performance-grid__cell px-2 py-0.5">
             {header.id === 'number' ? <span className="tabular-nums">{row.student.number}</span> :
               header.id === 'status' ? <Chip size="sm" variant="soft" title={row.student.statusLabel} aria-label={row.student.statusLabel}
-                className={`performance-status-chip performance-status-chip--${row.student.status === null ? 'regular' : STATUS_TONE[row.student.status]}`}><Chip.Label>{row.student.status === null ? 'Sem situação' : STATUS_SHORT[row.student.status]}</Chip.Label></Chip> :
-              header.id === 'student' ? <Button size="sm" variant="ghost" className="min-h-7 h-auto w-full justify-start whitespace-normal break-words px-0 py-0 text-left text-xs leading-4" onPress={() => open(row.student.id)}>{row.student.name}</Button> :
+                className={`performance-status-chip performance-status-chip--${row.student.status === null ? 'regular' : STATUS_TONE[row.student.status]}`}><Chip.Label className="whitespace-nowrap">{row.student.status === null ? 'Sem situação' : row.student.status === 7 ? row.student.statusLabel : STATUS_SHORT[row.student.status]}</Chip.Label></Chip> :
+              header.id === 'student' ? <Button size="sm" variant="ghost" className="min-h-6 h-auto w-full justify-start whitespace-normal break-words px-0 py-0 text-left text-xs leading-4" onPress={() => open(row.student.id)}>{row.student.name}</Button> :
               header.id === 'annual' ? <span className="text-xs">{row.annual ?? '—'}</span> :
-              <Button size="sm" variant="ghost" className="min-h-7 h-auto w-full min-w-0 px-0 py-0 text-xs" aria-label={`${row.student.name}, ${columns[index]!.title}`} onPress={() => open(row.student.id, columns[index]!.offerId)}>{row.values[index]}</Button>}
+              <Button size="sm" variant="ghost" className="min-h-6 h-auto w-full min-w-0 px-0 py-0 text-xs" aria-label={`${row.student.name}, ${columns[index]!.title}`} onPress={() => open(row.student.id, columns[index]!.offerId)}>{row.values[index]}</Button>}
           </Table.Cell>;
         }}</Table.Row>}</Table.Body>
       </Table.Content>

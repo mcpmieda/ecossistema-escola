@@ -606,6 +606,7 @@ button.performance-kpi__button:hover {
 .performance-dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(19rem, 0.85fr);
+  align-items: start;
   gap: 1rem;
 }
 
@@ -732,7 +733,9 @@ button.performance-kpi__button:hover {
 }
 
 .performance-bars__detail {
-  min-height: 14.8rem;
+  display: grid;
+  height: 14.8rem;
+  grid-template-rows: auto minmax(0, 1fr);
   margin-top: 1rem;
   overflow: hidden;
   border: 1px solid var(--separator);
@@ -752,14 +755,18 @@ button.performance-kpi__button:hover {
 
 .performance-bars__student-groups {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.75rem;
   padding: 0.75rem;
 }
 
 .performance-bars__student-group {
+  display: grid;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
+  grid-template-rows: auto minmax(0, 1fr);
   border: 1px solid var(--separator);
   border-radius: 0.85rem;
   background: var(--surface);
@@ -794,6 +801,8 @@ button.performance-kpi__button:hover {
 }
 
 .performance-bars__student-group > ul {
+  min-height: 0;
+  overflow-y: auto;
   border-top: 1px solid var(--separator);
 }
 
@@ -914,24 +923,39 @@ button.performance-kpi__button:hover {
   padding-top: 0.8rem;
 }
 
-.performance-ranking > header {
+.performance-ranking > summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0 0.15rem 0.55rem;
+  cursor: pointer;
+  list-style: none;
 }
 
-.performance-ranking > header strong,
-.performance-ranking > header small {
+.performance-ranking > summary::-webkit-details-marker {
+  display: none;
+}
+
+.performance-ranking__chevron {
+  color: var(--muted);
+  transition: transform 150ms var(--platform-ease);
+}
+
+.performance-ranking[open] .performance-ranking__chevron {
+  transform: rotate(180deg);
+}
+
+.performance-ranking > summary strong,
+.performance-ranking > summary small {
   display: block;
 }
 
-.performance-ranking > header strong {
+.performance-ranking > summary strong {
   font-size: 0.78rem;
 }
 
-.performance-ranking > header small,
+.performance-ranking > summary small,
 .performance-ranking > p,
 .performance-ranking > footer {
   color: var(--muted);
@@ -977,7 +1001,7 @@ button.performance-kpi__button:hover {
 }
 
 .performance-grid__row {
-  min-height: 2.2rem;
+  min-height: 2rem;
 }
 
 .performance-grid__cell {
