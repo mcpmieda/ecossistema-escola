@@ -180,6 +180,31 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     expect(queries[5]).toContain('AND v.aluno_id=');
     expect(queries[5]).toContain('AND o.id=');
   });
+  it('shows the quantitative AV1 + AV2 maximum for the parallel exam', async () => {
+    await pg.exec(
+      "INSERT INTO gradebook.instrumento (id,oferta_id,trimestre,slot,maximo,descricao) VALUES (9901,10,1,3,NULL,'PARALELA SINTETICA')",
+    );
+    try {
+      const result = await service().execute({
+        transportVersion: 2,
+        operation: 'cell-detail',
+        year: 2026,
+        classId: 10,
+        period: 1,
+        mode: 'regular',
+        studentId: 2,
+        offerId: 10,
+      });
+      if (result.state !== 'ready' || result.operation !== 'cell-detail')
+        throw new Error(JSON.stringify(result));
+      expect(result.terms[0].instruments.find((instrument) => instrument.slot === 3)).toMatchObject({
+        slot: 3,
+        maximumMilli: 13_500,
+      });
+    } finally {
+      await pg.exec('DELETE FROM gradebook.instrumento WHERE id=9901');
+    }
+  });
   it('loads the student trajectory without a matrix for other students', async () => {
     const result = await service().execute({ transportVersion: 2, operation: 'student-detail', year: 2026, classId: 10, period: 3, mode: 'regular', studentId: 1 });
     expect(result).toMatchObject({ operation: 'student-detail', row: { student: { id: 1 } }, trajectory: [{ offerId: 10 }, { offerId: 11 }] });

@@ -380,7 +380,7 @@ export async function readRelationalPerformanceV2(
             .map(({ slot, label, maximumMilli, valueMilli }) => ({
               slot,
               label,
-              maximumMilli,
+              maximumMilli: slot === 3 ? outcome?.quantitativeMaximumMilli ?? null : maximumMilli,
               valueMilli,
             })),
         };

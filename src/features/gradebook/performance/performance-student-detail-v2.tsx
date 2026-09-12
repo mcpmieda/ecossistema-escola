@@ -49,7 +49,7 @@ export function PerformanceStudentDetailV2({ detail, focusPeriod, openComponent,
       </> : <>
         {detail.terms.filter((term) => term.hasGrades ?? (term.instruments.some((value) => value.valueMilli !== null) || term.regular.valueMilli !== null || term.recovery.valueMilli !== null || term.recovery.state === 'no-show' || term.recovery.state === 'repeat-failure')).map((term) => {
           const instruments = term.instruments.filter((instrument) => instrument.slot !== 3 || term.showParallel === true);
-          return <section key={term.term} aria-label={`${term.term}º trimestre`} ref={(element) => { if (term.term === focusPeriod) focusedTerm.current = element; }} className="rounded-xl border border-separator p-4">
+          return <section key={term.term} aria-label={`${term.term}º trimestre`} ref={(element) => { if (term.term === focusPeriod) focusedTerm.current = element; }} className="scroll-mt-5 rounded-xl border border-separator p-4">
             <div className="mb-4 flex items-center justify-between gap-4">
               <h3 className="text-lg font-semibold">{term.term}º trimestre</h3>
               <div className="flex items-center gap-3"><span className="text-xs text-muted">Nota do trimestre</span><GradeValue cell={term.regular} prominent/></div>

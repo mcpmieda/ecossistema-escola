@@ -9,6 +9,9 @@ describe('Performance dashboard V5 HeroUI', () => {
   const widgets = source('src/features/gradebook/performance/performance-dashboard-widgets-v5.tsx');
   const analysis = source('src/features/gradebook/performance/performance-analysis-panel-v3.tsx');
   const grid = source('src/features/gradebook/performance/performance-grid-v2.tsx');
+  const matrix = source('src/features/gradebook/performance/performance-result-matrix-v2.tsx');
+  const display = source('src/features/gradebook/performance/performance-display-v2.tsx');
+  const styles = source('src/styles.css');
   const shell = source('src/platform/gradebook-workspace-shell.tsx');
   const service = source('server/gradebook/application/read-models/performance/performance-dashboard-v5.ts');
 
@@ -21,9 +24,11 @@ describe('Performance dashboard V5 HeroUI', () => {
     expect(page).toContain("target.closest<HTMLElement>('[data-performance-select]')");
     expect(page).toContain('<Select.Popover isNonModal data-performance-select-popover={id}>');
     expect(page).not.toContain('<select');
-    expect(page).toContain('min-h-11');
-    expect(page).toContain('min-h-8');
-    expect(page.indexOf('<Tabs.ListContainer')).toBeLessThan(page.indexOf('<div className="min-h-8'));
+    expect(page).toContain('performance-lens-tabs');
+    expect(page).toContain('<Tabs.ListContainer className="h-10');
+    expect(page).toContain('className="min-w-28"');
+    expect(styles).toContain('.performance-lens-tabs > .tabs__list-container');
+    expect(styles).toContain("margin-top: 0.25rem");
   });
 
   it('removes the redundant workspace hero while preserving accessible stable navigation', () => {
@@ -53,10 +58,23 @@ describe('Performance dashboard V5 HeroUI', () => {
     expect(widgets).not.toContain('Notas azuis');
     expect(widgets).toContain('Notas vermelhas');
     expect(widgets).toContain('<details className="performance-ranking"');
-    expect(analysis).toContain('quem ficou abaixo do mínimo');
+    expect(analysis).not.toContain('Selecione uma barra para ver');
     expect(analysis).not.toContain('dois grupos');
     expect(analysis).toContain("const ids = selection?.kind === 'group'");
     expect(page).toContain('renderResult={(ids)');
+  });
+
+  it('keeps status selection in the matrix header and partial markers out of the row flow', () => {
+    expect(page).not.toContain('SlidersHorizontal');
+    expect(matrix).toContain('<TagGroup');
+    expect(matrix).toContain('selectionMode="multiple"');
+    expect(matrix).toContain('disallowEmptySelection');
+    expect(matrix).toContain('performance-matrix-header');
+    expect(matrix).not.toContain('Situação dos estudantes por componente curricular');
+    expect(display).toContain('absolute -right-2 -top-1');
+    expect(styles).toContain('height: 2.25rem');
+    expect(styles).toContain('align-items: stretch');
+    expect(widgets).not.toContain('Na lente Resultado');
   });
 
   it('keeps columns in server order and removes every manual drag/resize affordance', () => {

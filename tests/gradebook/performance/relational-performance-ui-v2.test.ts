@@ -16,6 +16,7 @@ import {
   performanceResponseMatchesV2,
   performanceResponseSchemaV2,
   type PerformanceRequestV2,
+  type PerformanceStatusV2,
 } from '../../../shared/gradebook-contracts/performance/relational-performance-v2';
 
 const context = { year: 2026, minimumApprovalMilli: 60000, maxCouncilComponents: 2 };
@@ -465,11 +466,11 @@ describe('real shell, shared year and rendered performance journey', () => {
       ),
     ).toBe(true);
   });
-  it('opens a component detail at the trimester currently selected in the matrix', async () => {
+  it.each([2, 3] as const)('opens a component detail at trimester %i selected in the matrix', async (period) => {
     await loaded();
-    await select('Período', '2');
+    await select('Período', String(period));
     await waitFor(() =>
-      requests.some((value) => value.operation === 'dashboard' && value.period === 2),
+      requests.some((value) => value.operation === 'dashboard' && value.period === period),
     );
     const grade = host.querySelector<HTMLButtonElement>(
       `button[aria-label="${student.name}, ${offering.subject.label}"]`,
@@ -479,11 +480,30 @@ describe('real shell, shared year and rendered performance journey', () => {
       grade!.click();
     });
     await waitFor(() =>
-      requests.some((value) => value.operation === 'cell-detail' && value.period === 2),
+      requests.some((value) => value.operation === 'cell-detail' && value.period === period),
     );
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
     expect((scrollIntoView.mock.contexts[0] as Element).getAttribute('aria-label')).toBe(
-      '2º trimestre',
+      `${period}º trimestre`,
+    );
+  });
+  it('updates the matrix immediately from the multiple status tags', async () => {
+    await loaded();
+    const group = host.querySelector('[data-slot="tag-group"]');
+    expect(group?.textContent).toContain('Situações exibidas');
+    expect(group?.querySelector('[data-slot="tag-group-list"]')?.getAttribute('aria-label')).toBe(
+      'Situações exibidas',
+    );
+    const tags = [...group!.querySelectorAll<HTMLElement>('[data-slot="tag"]')];
+    expect(tags.map((tag) => tag.textContent)).toEqual(['Em curso', 'Estava no']);
+    expect(tags.every((tag) => tag.getAttribute('data-selected') === 'true')).toBe(true);
+    await act(async () => {
+      tags[1]!.click();
+    });
+    await waitFor(() =>
+      requests.some(
+        (value) => value.operation === 'dashboard' && JSON.stringify(value.statuses) === '[null]',
+      ),
     );
   });
   it('reopens the same student after using Centers without discarding the performance matrix', async () => {
@@ -568,11 +588,16 @@ function analysisFixture(extra: Record<string, unknown> = {}) {
     offerId: null,
     ...extra,
   });
+  const scopedRows = matrix.rows.filter((row) =>
+    request.statuses.includes(row.student.status as PerformanceStatusV2),
+  );
   const base = performanceResponseSchemaV2.parse({
     ...matrix,
     context: { ...context, year: request.year },
     period: request.period,
     mode: request.mode,
+    rows: scopedRows,
+    statistics: { ...matrix.statistics, visibleRows: scopedRows.length },
   });
   if (base.state !== 'ready' || base.operation !== 'matrix')
     throw new Error('invalid-synthetic-base');
@@ -589,9 +614,9 @@ function analysisFixture(extra: Record<string, unknown> = {}) {
   return buildPerformanceAnalysisV3(
     base,
     new Map([
-      [1, [projectPerformanceFactsV2(10, facts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]],
-      [2, [projectPerformanceFactsV2(10, belowFacts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]],
-    ]),
+      [1, [projectPerformanceFactsV2(10, facts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]] as const,
+      [2, [projectPerformanceFactsV2(10, belowFacts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]] as const,
+    ].filter(([studentId]) => scopedRows.some((row) => row.student.id === studentId))),
     request,
   );
 }
