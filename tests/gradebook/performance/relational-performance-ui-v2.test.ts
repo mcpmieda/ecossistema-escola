@@ -482,6 +482,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     await waitFor(() =>
       requests.some((value) => value.operation === 'cell-detail' && value.period === period),
     );
+    await waitFor(() => scrollIntoView.mock.calls.length === 1);
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
     expect((scrollIntoView.mock.contexts[0] as Element).getAttribute('aria-label')).toBe(
       `${period}º trimestre`,
