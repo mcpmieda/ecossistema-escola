@@ -149,7 +149,7 @@ describe('real shell, shared year and rendered performance journey', () => {
     await waitFor(() => requests.some((value) => value.operation === 'classes'));
     await act(async () => { selectTrigger('Turma')!.click(); }); await settle();
     expect(selectRoot('Turma')?.hasAttribute('data-open')).toBe(true);
-    await act(async () => { selectTrigger('Período')!.click(); }); await settle();
+    await act(async () => { selectTrigger('Período')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })); }); await settle();
     expect(selectRoot('Turma')?.hasAttribute('data-open')).toBe(false);
     expect(selectRoot('Período')?.hasAttribute('data-open')).toBe(true);
     await act(async () => { document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })); }); await settle();
