@@ -31,6 +31,7 @@ const dashboardRequest = (extra: Record<string, unknown> = {}) => ({ transportVe
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
+  await pg.exec('ALTER TABLE gradebook.fechamento ADD COLUMN rec_rr_mask SMALLINT NOT NULL DEFAULT 0;');
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2),(2025,65000,3);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno) VALUES
@@ -113,6 +114,34 @@ describe('relational performance V2 on the complete PostgreSQL baseline', () => 
     expect(recovery.rows.map((r) => r.student.id)).toEqual([2,4]);
     expect(recovery.rows[1]!.cells[0]).toMatchObject({ valueMilli: null, state: 'no-show' });
     expect(recovery.rows[1]!.cells[1]).toMatchObject({ state: 'recovery-pending' });
+  });
+  it('keeps terminal R/R in the annual recovery matrix even when a recovery exam is not applicable', async () => {
+    await pg.exec(`
+      INSERT INTO gradebook.conselho_decisao (aluno_id,decisao,justificativa,registrado_por)
+        VALUES (1,1,'DECISAO ANTERIOR SINTETICA','11111111-1111-4111-8111-111111111111');
+      UPDATE gradebook.fechamento SET rec_rr_mask=1 WHERE oferta_id=10 AND aluno_id=1;
+    `);
+    try {
+      const recovery = await matrix({ mode: 'recovery', period: 'annual' });
+      const row = recovery.rows.find((value) => value.student.id === 1);
+      expect(row).toBeDefined();
+      expect(row?.calculatedAnnual).toMatchObject({ label: 'REPROVADO' });
+      expect(row?.formalCouncilDecision).toBeNull();
+      expect(row?.cells[0]).toMatchObject({
+        state: 'repeat-failure',
+        level: 'below',
+        recoveryApplicable: false,
+      });
+      const result = await analysis({ mode: 'recovery', period: 'annual' });
+      const resultRow = result.rows.find((value) => value.studentId === 1);
+      expect(resultRow?.values[0]).toMatchObject({ state: 'repeat-failure', bucket: 'below' });
+      expect(result.columns[0]?.summary.groups.below).toContain(1);
+    } finally {
+      await pg.exec(`
+        DELETE FROM gradebook.conselho_decisao WHERE aluno_id=1;
+        UPDATE gradebook.fechamento SET rec_rr_mask=0 WHERE oferta_id=10 AND aluno_id=1;
+      `);
+    }
   });
   it('does not promote statuses to active indicators or override human decisions', async () => {
     const result = await matrix({ period: 'annual' });

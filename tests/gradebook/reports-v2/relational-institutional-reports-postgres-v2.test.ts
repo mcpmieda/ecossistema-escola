@@ -33,6 +33,9 @@ beforeAll(async () => {
   ]) {
     await pg.exec(readFileSync(`migrations/gradebook-simplified/${migration}`, 'utf8'));
   }
+  await pg.exec(
+    'ALTER TABLE gradebook.fechamento ADD COLUMN rec_rr_mask SMALLINT NOT NULL DEFAULT 0;',
+  );
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno)
@@ -140,6 +143,35 @@ describe('relational institutional reports V2 on PostgreSQL', () => {
       expect(analysis.columns.map((item) => item.label)).toEqual(['PORTUGUÊS', 'MATEMÁTICA']);
     }
     expect(queries.length).toBeLessThanOrEqual(7);
+  });
+
+  it('includes terminal R/R in the recovery report without turning it into a pending exam', async () => {
+    await pg.exec('UPDATE gradebook.fechamento SET rec_rr_mask=1 WHERE oferta_id=10 AND aluno_id=1');
+    try {
+      const request: RelationalInstitutionalReportRequestV2 = {
+        contractVersion: 2, operation: 'performance', family: 'recovery', year: 2026,
+        classId: 10, period: 'annual', lens: 'result', referenceTerm: null,
+        statuses: [null,1,2,3,4,5,7],
+      };
+      const response = await execute(request);
+      expect(response).toMatchObject({ state: 'ready', operation: 'performance' });
+      if (response.state !== 'ready' || response.operation !== 'performance')
+        throw new Error('recovery-report-missing');
+      const analysis = response.report.operation === 'term-comparison'
+        ? response.report.analysis
+        : response.report;
+      const rowIndex = analysis.matrix.rows.findIndex((row) => row.student.id === 1);
+      expect(rowIndex).toBeGreaterThanOrEqual(0);
+      expect(analysis.matrix.rows[rowIndex]?.calculatedAnnual).toMatchObject({
+        label: 'REPROVADO',
+      });
+      expect(analysis.rows[rowIndex]?.values[0]).toMatchObject({
+        state: 'repeat-failure',
+        bucket: 'below',
+      });
+    } finally {
+      await pg.exec('UPDATE gradebook.fechamento SET rec_rr_mask=0 WHERE oferta_id=10 AND aluno_id=1');
+    }
   });
 
   it('reads only current import diagnostics and exposes empty bulletin history', async () => {

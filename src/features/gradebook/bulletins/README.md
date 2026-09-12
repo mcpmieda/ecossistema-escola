@@ -9,6 +9,7 @@ A página montada pelo shell usa `RelationalBulletinPageV2`, o contrato comparti
 - AM/U importadas são oficiais; cálculo nativo é comparação descritiva;
 - disciplinas seguem a ordem de apresentação da fonte;
 - REC normal, `N/C` e `R/R` aparecem junto da AM; qualquer `R/R` produz `REPROVADO`, sem Conselho, e `ASSISTIDO` não recebe resultado geral;
+- no anual terminal por `R/R`, AM oficiais continuam obrigatórias, mas lacunas do cálculo apenas descritivo e a U inexistente não bloqueiam emissão;
 - prévia não persiste; emissão pronta é append-only/idempotente/CAS;
 - lote limitado a 50 alunos; materialização acadêmica não faz N+1;
 - reimpressão usa somente o snapshot histórico;

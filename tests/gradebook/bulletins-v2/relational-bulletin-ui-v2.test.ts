@@ -212,6 +212,13 @@ describe('relational bulletin V2 HeroUI journey', () => {
     await select('Turma', '10');
     await waitFor(() => host.textContent?.includes('ALUNO SINTÉTICO') === true);
     await select('Aluno da prévia', '20');
+    expect(host.textContent).toContain('0 selecionado(s)');
+    expect(host.querySelector<HTMLInputElement>('input[type="checkbox"]')?.checked).toBe(false);
+    const batch = [...host.querySelectorAll('button')].find((item) =>
+      item.textContent?.includes('Emitir lote (0)'),
+    );
+    expect(batch).toBeDefined();
+    expect(batch?.hasAttribute('disabled')).toBe(true);
     await click('Gerar prévia');
     expect(requests.at(-1)).toMatchObject({
       operation: 'preview',

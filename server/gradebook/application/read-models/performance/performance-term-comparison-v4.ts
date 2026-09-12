@@ -7,7 +7,11 @@ import {
 } from '../../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import { performanceResponseSchemaV2, type PerformanceMatrixV2 } from '../../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { performanceAnalysisRequestSchemaV3, type AnalysisReadingV3 } from '../../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
-import { performanceCellV2, type PerformanceProjectionV2 } from '../../results/relational-performance-facts-v2';
+import {
+  performanceCellV2,
+  performanceRecoveryCellIsRelevantV2,
+  type PerformanceProjectionV2,
+} from '../../results/relational-performance-facts-v2';
 import type { D1WriteDatabaseV1 } from '../../../persistence/d1/write/d1-write-adapter-v1';
 import { buildPerformanceAnalysisV3 } from './performance-analysis-v3';
 import { readRelationalPerformanceV2 } from './relational-performance-v2';
@@ -22,7 +26,8 @@ function projectReferenceMatrix(
     return { ...row, cells: matrix.offers.map((offer) => performanceCellV2(byOffer.get(offer.id)!, period, matrix.mode)) };
   });
   const eligible = rows.filter((row) => row.student.indicatorEligible);
-  const consideredCells = eligible.flatMap((row) => row.cells).filter((cell) => matrix.mode === 'regular' || cell.recoveryApplicable === true);
+  const consideredCells = eligible.flatMap((row) => row.cells).filter((cell) =>
+    matrix.mode === 'regular' || performanceRecoveryCellIsRelevantV2(cell));
   return performanceResponseSchemaV2.parse({
     ...matrix, period, rows,
     statistics: {

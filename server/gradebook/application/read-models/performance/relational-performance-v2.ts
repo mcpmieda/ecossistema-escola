@@ -10,7 +10,8 @@ import { resolveSimplifiedAnnualOutcomeV1 } from '../../../../../src/gradebook-d
 import type { SimplifiedInstrumentSlotV1, SimplifiedAcademicTermV1, SimplifiedRecoveryValueV1 } from '../../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import type { D1WriteDatabaseV1, D1WriteValueV1 } from '../../../persistence/d1/write/d1-write-adapter-v1';
 import {
-  projectPerformanceFactsV2, performanceCellV2, EMPTY_PERFORMANCE_CLOSING_V2,
+  projectPerformanceFactsV2, performanceCellV2, performanceRecoveryCellIsRelevantV2,
+  EMPTY_PERFORMANCE_CLOSING_V2,
   type PerformanceFactV2, type PerformanceClosingV2, type PerformanceProjectionV2,
 } from '../../results/relational-performance-facts-v2';
 
@@ -68,8 +69,11 @@ function makeRow(source: Row, projections: readonly PerformanceProjectionV2[], r
     maxCouncilComponents,
   }) : null;
   const decision = nullable(source.decisao) as 1 | 2 | 3 | null;
+  const repeatFailure = projections.some(
+    (projection) => projection.recovery?.classification === 'failed-repeat',
+  );
   return { student: info, calculatedAnnual: annual ? { state: annual.state, label: annual.visibleResult, councilEligibility: annual.councilEligibility } : null,
-    formalCouncilDecision: decision === null ? null : { code: decision, label: DECISION_LABELS[decision] },
+    formalCouncilDecision: decision === null || repeatFailure ? null : { code: decision, label: DECISION_LABELS[decision] },
     cells: projections.map((value) => performanceCellV2(value, request.period, request.mode)) };
 }
 
@@ -168,9 +172,11 @@ export async function readRelationalPerformanceV2(db: D1WriteDatabaseV1, request
   options.collect?.(projections);
   const allRows = students.map((value) => makeRow(value, projections.get(integer(value.id))!, request, common.context.maxCouncilComponents));
   const statusRows = allRows.filter((value) => request.statuses.includes(value.student.status));
-  const rows = request.mode === 'regular' ? statusRows : statusRows.filter((value) => value.student.indicatorEligible && value.cells.some((cell) => cell.recoveryApplicable === true));
+  const rows = request.mode === 'regular' ? statusRows : statusRows.filter((value) =>
+    value.student.indicatorEligible && value.cells.some(performanceRecoveryCellIsRelevantV2));
   const eligible = rows.filter((value) => value.student.indicatorEligible);
-  const consideredCells = eligible.flatMap((value) => value.cells).filter((value) => request.mode === 'regular' || value.recoveryApplicable === true);
+  const consideredCells = eligible.flatMap((value) => value.cells).filter((value) =>
+    request.mode === 'regular' || performanceRecoveryCellIsRelevantV2(value));
   return { ...common, ...selected, operation: 'matrix', offers, rows,
     comparison: { available: false, reason: 'comparability-not-contracted' },
     statistics: { classRows: allRows.length, visibleRows: rows.length, eligibleRows: eligible.length,
