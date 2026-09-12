@@ -36,12 +36,17 @@ function PerformanceSelect({ id, label, value, items, disabled = false, isOpen, 
     const closeOutside = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Element) || root.current?.contains(target) || target.closest(`[data-performance-select-popover="${id}"]`)) return;
+      const nextSelect = target.closest<HTMLElement>('[data-performance-select]')?.dataset.performanceSelect as PerformanceSelectId | undefined;
+      if (nextSelect !== undefined && event.pointerType !== 'touch') {
+        onOpenChange(nextSelect, true);
+        return;
+      }
       onOpenChange(id, false);
     };
     document.addEventListener('pointerdown', closeOutside, true);
     return () => document.removeEventListener('pointerdown', closeOutside, true);
   }, [id, isOpen, onOpenChange]);
-  return <Select ref={root} selectedKey={value} isDisabled={disabled} isOpen={isOpen} onOpenChange={(open) => onOpenChange(id, open)}
+  return <Select ref={root} data-performance-select={id} selectedKey={value} isDisabled={disabled} isOpen={isOpen} onOpenChange={(open) => onOpenChange(id, open)}
     onSelectionChange={(key) => { if (key !== null) onChange(String(key)); }}>
     <Label className="mb-1.5 block text-xs font-medium text-muted">{label}</Label>
     <Select.Trigger className="min-h-10 w-full"><Select.Value/><Select.Indicator/></Select.Trigger>

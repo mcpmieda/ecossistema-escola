@@ -14,10 +14,11 @@ describe('Performance dashboard V5 HeroUI', () => {
 
   it('uses HeroUI selects and keeps the lens geometry stable while loading', () => {
     expect(page).toContain("Label, ListBox, Select");
-    expect(page).toContain('<Select ref={root} selectedKey=');
+    expect(page).toContain('<Select ref={root} data-performance-select={id} selectedKey=');
     expect(page).toContain('isOpen={isOpen}');
     expect(page).toContain('onOpenChange={(open) => onOpenChange(id, open)}');
     expect(page).toContain('document.addEventListener(\'pointerdown\', closeOutside, true)');
+    expect(page).toContain("target.closest<HTMLElement>('[data-performance-select]')");
     expect(page).toContain('<Select.Popover isNonModal data-performance-select-popover={id}>');
     expect(page).not.toContain('<select');
     expect(page).toContain('min-h-11');
