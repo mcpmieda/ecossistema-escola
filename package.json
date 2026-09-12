@@ -13,8 +13,10 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc -b tsconfig.app.json tsconfig.server.json --pretty false",
-    "verify": "npm run lint && npm run typecheck && npm test && npm run build"
+    "typecheck": "tsc -b tsconfig.app.json tsconfig.server.json --pretty false && tsc -b tsconfig.student-portal.json --pretty false",
+    "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run build:student-portal && npm run test:student-portal-runtime",
+    "build:student-portal": "tsc -b tsconfig.student-portal.json && wrangler deploy --config wrangler.student-portal.jsonc --env preview --dry-run --outdir node_modules/.cache/student-portal",
+    "test:student-portal-runtime": "vitest run --config tests/student-portal/runtime/vitest.runtime.config.ts"
   },
   "dependencies": {
     "@azure/msal-browser": "5.19.0",
@@ -34,7 +36,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "latest",
-    "@cloudflare/workers-types": "latest",
+    "@cloudflare/workers-types": "5.20260911.1",
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "latest",
     "@tailwindcss/vite": "^4.3.3",
@@ -49,11 +51,12 @@
     "eslint-plugin-react-refresh": "latest",
     "globals": "latest",
     "jsdom": "latest",
+    "miniflare": "5.20260911.0-alpha",
     "prettier": "latest",
     "typescript": "latest",
     "typescript-eslint": "latest",
     "vitest": "latest",
-    "wrangler": "latest"
+    "wrangler": "4.131.1"
   },
   "overrides": {
     "miniflare": {

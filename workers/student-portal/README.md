@@ -1,0 +1,19 @@
+# Preparação #705
+
+Worker inerte: `/healthz` comprova apenas liveness; as seis rotas self retornam indisponibilidade, sem sessão, segredo, banco ou dados. RPC administrativo existe exclusivamente no entrypoint nomeado `PortalAdminEntrypoint`; default/self não recebem capacidade admin. Contexto recebido por HTTP nunca autentica operador. Não há interface de aluno.
+
+`npm run build:student-portal` faz dry-run local e `npm run test:student-portal-runtime` executa o bundle em workerd via Miniflare, sem bindings remotos. `npm run verify` inclui ambos. Configuração production/preview não contém IDs fictícios de banco nem secrets. `workers_dev`, URLs de preview e cron permanecem desativados; preview recusa todas as requisições. Logs automáticos de invocação/traces ficam desligados para não capturar URL/cookie; esta fundação não registra payloads.
+
+Ferramentas fixadas: Wrangler 4.131.1, Miniflare 5.20260911.0-alpha e Workers types 5.20260911.1. Data de compatibilidade 2026-09-11 corresponde ao runtime publicado disponível na preparação de 12/09; não usar data futura ao binário de teste. Tipos do Portal são gerados em `env.d.ts` e compilados em projeto TS separado para não acrescentar bindings obrigatórios ao Env do ADM. O harness constrói o Request dentro de workerd para preservar Host real, pois o proxy Node do Miniflare sobrescreve Host com loopback; nenhuma regra de origem produtiva foi relaxada para passar testes.
+
+Auditoria somente leitura de 12/09: conector Cloudflare recusou autenticação; CLI OAuth autenticado consultou account-settings e Pages com sucesso, mas subscriptions retornou 403. `default_usage_model:standard` não comprova assinatura/cota. Pages listou apenas o ADM existente; nenhum destino Portal foi criado. Não houve tentativa de alterar cobrança, recursos ou DNS.
+
+## Continuação necessária da mesma issue
+
+A #704 precisa ser integrada antes do merge/fechamento da #705 e antes da aplicação de DDL. Esta preparação não satisfaz os aceites remotos. Depois do schema aprovado: replay PostgreSQL real e ACL negativos; confirmar plano/cotas autenticados; provisionar role/credencial dedicada, PORTAL_DB no-cache/limite explícito e secrets próprios QR_HMAC_KEYS/PASSWORD_PEPPER/TURNSTILE_SECRET_KEY; conferir versões sem registrar valores. Não reutilizar SESSION_SECRET/PROD_DB. As gerações/coordenação/provas de reset da #703 sobrevivem ao reset acadêmico.
+
+O pipeline de publicação Portal ainda precisa da configuração real. Não acrescentar binding no ADM para um Worker inexistente nem mudar o pipeline ADM antecipadamente. Serviço compatível deve ser publicado e verificado antes de adicionar `PORTAL_SERVICE` com entrypoint admin em `wrangler.jsonc` e `env.production` do workflow. ADM conserva único Hyperdrive PROD_DB. A entrada Pages aluno terá somente binding self, nunca admin, e preservará URL/origin/cookie originais sem confiar em headers de proxy fornecidos pelo cliente.
+
+Topologia Pages + bindings tem suporte documental, mas custo/associação/negativas RPC/host/TLS reais continuam pendentes. Criar Pages/associar `aluno.escolaieda.com` antes de cadastrar CNAME real autorizado no GoDaddy; não apontar para workers.dev nem trocar NS. Encerrar navegador após DNS. Não habilitar credenciais produtivas em pages.dev/preview. Cron, SQL CI e pipeline Worker→Pages serão completados após os recursos/DDL aprovados, sem mock em caminho habilitado.
+
+Evidências atuais de integração/CI ficam no PR da #705. Nenhuma alteração de PROJECT_STATE: delta reservado a I. Ownership de package/config continua com R até handoff explícito. Fonte de APIs: [WorkerEntrypoint/RPC](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/), [Pages bindings](https://developers.cloudflare.com/pages/functions/bindings/), [Wrangler](https://developers.cloudflare.com/workers/wrangler/configuration/).
