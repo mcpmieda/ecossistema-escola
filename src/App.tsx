@@ -427,7 +427,13 @@ function AdminShell({ identity }: { identity: Identity }) {
           </div>
         </Surface>
 
-        <main className="mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main
+          className={
+            route === 'banco-de-notas'
+              ? 'w-full px-4 py-4 sm:px-5 lg:px-5'
+              : 'mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8'
+          }
+        >
           {loadState.status === 'loading' && <LoadingWorkspace />}
 
           {loadState.status === 'error' && (
