@@ -405,7 +405,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
       this.sql,
       `INSERT INTO student_portal.password_credential
          (account_id,pin_verifier,password_verifier,pin_version)
-       VALUES ($1::uuid,$2::jsonb,$3::jsonb,$4)
+       VALUES ($1::uuid,$2::text::jsonb,$3::text::jsonb,$4)
        ON CONFLICT (account_id) DO UPDATE
          SET pin_verifier=EXCLUDED.pin_verifier,password_verifier=EXCLUDED.password_verifier,
              pin_version=EXCLUDED.pin_version,updated_at=now()`,
@@ -523,7 +523,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
       this.sql,
       `INSERT INTO student_portal.audit_event
          (event_id,occurred_at,actor_id,account_id,scope_json,kind,result,request_id,version,masked_ip)
-       VALUES ($1::uuid,$2::timestamptz,$3::uuid,$4::uuid,$5::jsonb,$6,$7,$8::uuid,$9,$10)`,
+       VALUES ($1::uuid,$2::timestamptz,$3::uuid,$4::uuid,$5::text::jsonb,$6,$7,$8::uuid,$9,$10)`,
       [parsed.eventId, parsed.at, parsed.actorId, parsed.accountId, JSON.stringify(parsed.scope), parsed.kind, parsed.result, parsed.requestId, parsed.version, parsed.maskedIp],
     );
   }
@@ -541,7 +541,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
         this.sql,
         `INSERT INTO student_portal.setting
            (scope_key,field_key,scope_kind,academic_year,class_id,account_id,value_json,source_scope_json,version)
-         VALUES ($1,$2,$3,$4,$5,$6::uuid,$7::jsonb,$8::jsonb,$9)`,
+         VALUES ($1,$2,$3,$4,$5,$6::uuid,$7::text::jsonb,$8::text::jsonb,$9)`,
         [key, field, kind, year, classId, accountId, JSON.stringify(parsed.value[field]), JSON.stringify(parsed.sources[field]), parsed.version],
       );
     }
@@ -558,7 +558,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
       this.sql,
       `INSERT INTO student_portal.published_projection
          (account_id,academic_year,payload_json,data_version,policy_version,publication_version,generated_at)
-       VALUES ($1::uuid,2026,$2::jsonb,$3,$4,$5,$6::timestamptz)
+       VALUES ($1::uuid,2026,$2::text::jsonb,$3,$4,$5,$6::timestamptz)
        ON CONFLICT (account_id,academic_year) DO UPDATE SET
          payload_json=EXCLUDED.payload_json,data_version=EXCLUDED.data_version,
          policy_version=EXCLUDED.policy_version,publication_version=EXCLUDED.publication_version,

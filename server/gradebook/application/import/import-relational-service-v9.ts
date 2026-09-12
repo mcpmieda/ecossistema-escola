@@ -22,6 +22,7 @@ type Row = Record<string, unknown>;
 type ImportStateV9 = {
   importId: number | null;
   writes: number;
+  academicWrites: number;
 };
 
 class RelationalImportErrorV9 extends Error {
@@ -81,6 +82,17 @@ async function run(
   return result.meta?.changes ?? result.changes ?? 0;
 }
 
+async function academicRun(
+  database: D1WriteDatabaseV1,
+  state: ImportStateV9,
+  query: string,
+  values: readonly D1WriteValueV1[],
+): Promise<number> {
+  const changes = await run(database, query, values);
+  state.academicWrites += changes;
+  return changes;
+}
+
 async function lockAcademicYear(database: D1WriteDatabaseV1, ano: number): Promise<void> {
   await lockResetWriterV1(database, ano);
 }
@@ -131,10 +143,12 @@ async function changedRun(
   tipo: 1 | 2,
   query: string,
   values: readonly D1WriteValueV1[],
+  affectsAcademic = true,
 ): Promise<number> {
   await ensureImport(database, state, request, tipo);
   const changes = await run(database, query, values);
   state.writes += changes;
+  if (affectsAcademic) state.academicWrites += changes;
   return changes;
 }
 
@@ -145,11 +159,13 @@ async function changedFirst<T extends Row>(
   tipo: 1 | 2,
   query: string,
   values: readonly D1WriteValueV1[],
+  affectsAcademic = true,
 ): Promise<T> {
   await ensureImport(database, state, request, tipo);
   const row = await first<T>(database, query, values);
   if (!row) throw new Error('write-without-returning-row');
   state.writes++;
+  if (affectsAcademic) state.academicWrites++;
   return row;
 }
 
@@ -443,8 +459,8 @@ async function persistRelation(
       [importId, item.turmaId, item.numero, current.situacao, item.situacao, current.turmaRelacionadaId, item.relatedTurmaId],
     );
     state.writes++;
-    state.writes += await run(
-      database,
+    state.writes += await academicRun(
+      database, state,
       `UPDATE gradebook.vinculo SET situacao = ?, turma_relacionada_id = ?
        WHERE turma_id = ? AND numero = ?`,
       [item.situacao, item.relatedTurmaId, item.turmaId, item.numero],
@@ -470,12 +486,13 @@ async function resolveProfessor(
       2,
       `INSERT INTO gradebook.professor (ano, nome) VALUES (?, ?) RETURNING id`,
       [request.ano, request.professor.trim()],
+      false,
     );
     return asNumber(created.id, 'professor-id');
   }
   const id = asNumber(current.id, 'professor-id');
   if (String(current.nome) !== request.professor.trim()) {
-    await changedRun(database, state, request, 2, `UPDATE gradebook.professor SET nome = ? WHERE id = ?`, [request.professor.trim(), id]);
+    await changedRun(database, state, request, 2, `UPDATE gradebook.professor SET nome = ? WHERE id = ?`, [request.professor.trim(), id], false);
   }
   return id;
 }
@@ -645,8 +662,8 @@ async function processOffer(
              VALUES (?, ?, ?, ?, ?, ?)`,
             [importId, instrument.id, instrument.maximo, nextMaximum, instrument.descricao, nextDescription],
           );
-          state.writes += await run(
-            database,
+          state.writes += await academicRun(
+            database, state,
             `UPDATE gradebook.instrumento SET maximo = ?, descricao = ? WHERE id = ?`,
             [nextMaximum, nextDescription, instrument.id],
           );
@@ -669,13 +686,13 @@ async function processOffer(
         if (previous === next) continue;
         await historyNote(database, state, request, instrument.id, alunoId, previous, next);
         if (next === null) {
-          state.writes += await run(database, `DELETE FROM gradebook.nota WHERE instrumento_id = ? AND aluno_id = ?`, [instrument.id, alunoId]);
+          state.writes += await academicRun(database, state, `DELETE FROM gradebook.nota WHERE instrumento_id = ? AND aluno_id = ?`, [instrument.id, alunoId]);
           notes.delete(noteKey);
         } else if (previous === null) {
-          state.writes += await run(database, `INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor) VALUES (?, ?, ?)`, [instrument.id, alunoId, next]);
+          state.writes += await academicRun(database, state, `INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor) VALUES (?, ?, ?)`, [instrument.id, alunoId, next]);
           notes.set(noteKey, next);
         } else {
-          state.writes += await run(database, `UPDATE gradebook.nota SET valor = ? WHERE instrumento_id = ? AND aluno_id = ?`, [next, instrument.id, alunoId]);
+          state.writes += await academicRun(database, state, `UPDATE gradebook.nota SET valor = ? WHERE instrumento_id = ? AND aluno_id = ?`, [next, instrument.id, alunoId]);
           notes.set(noteKey, next);
         }
       }
@@ -801,21 +818,21 @@ async function processOffer(
     }
     const empty = next.am.every((value) => value === null) && next.rec.every((value) => value === null) && next.ncMask === 0 && next.rrMask === 0 && next.u === null;
     if (empty && current.exists) {
-      state.writes += await run(database, `DELETE FROM gradebook.fechamento WHERE oferta_id = ? AND aluno_id = ?`, [ofertaId, alunoId]);
+      state.writes += await academicRun(database, state, `DELETE FROM gradebook.fechamento WHERE oferta_id = ? AND aluno_id = ?`, [ofertaId, alunoId]);
       continue;
     }
     if (empty) continue;
     if (!current.exists) {
-      state.writes += await run(
-        database,
+      state.writes += await academicRun(
+        database, state,
         `INSERT INTO gradebook.fechamento
          (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [ofertaId, alunoId, next.am[0], next.am[1], next.am[2], next.rec[0], next.rec[1], next.rec[2], next.ncMask, next.rrMask, next.u],
       );
     } else {
-      state.writes += await run(
-        database,
+      state.writes += await academicRun(
+        database, state,
         `UPDATE gradebook.fechamento
          SET am1_fonte = ?, am2_fonte = ?, am3_fonte = ?, rec1 = ?, rec2 = ?, rec3 = ?, rec_nc_mask = ?, rec_rr_mask = ?, u_fonte = ?
          WHERE oferta_id = ? AND aluno_id = ?`,
@@ -879,10 +896,10 @@ export function createGradebookRelationalImportServiceV9(database: D1WriteDataba
       try {
         const result = await transactionDatabase(database).transaction(async (transaction) => {
           await lockAcademicYear(transaction, request.ano);
-          const state: ImportStateV9 = { importId: null, writes: 0 };
+          const state: ImportStateV9 = { importId: null, writes: 0, academicWrites: 0 };
           if (request.operation === 'persist-relacao') await persistRelation(transaction, request, state);
           else await persistNotes(transaction, request, state);
-          if (state.writes > 0) await recordImportResetWriteV1(transaction, request.ano, request.operation === 'persist-relacao' ? 'relation' : 'marks');
+          if (state.writes > 0) await recordImportResetWriteV1(transaction, request.ano, request.operation === 'persist-relacao' ? 'relation' : 'marks', { changed: state.academicWrites > 0 });
           return state;
         });
         return {
