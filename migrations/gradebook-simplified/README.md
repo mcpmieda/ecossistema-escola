@@ -41,7 +41,7 @@ Para `0006`, a autorização explícita foi registrada depois do head verde da P
 
 Para `0007`, o replay descartável deve partir da baseline `0001`, ignorar `0002` já refletida nela e aplicar `0003`–`0007` em ordem. O postflight deve comprovar a coluna `rec_rr_mask`, as máscaras disjuntas, os estados históricos `0..3`, a ausência dos dois checks de ano removidos e nenhuma alteração nas contagens acadêmicas. A Relação materializa o ano; planilhas de notas não o criam. Ver [`MULTIYEAR_RR_676.md`](../../docs/gradebook/MULTIYEAR_RR_676.md).
 
-Para `0008`, conferir primeiro o catálogo pós-`0007` e a existência exata das dez relações alvo. A migration apenas amplia a ACL de `gradebook_app` com `DELETE`; `PUBLIC`, `anon` e `authenticated` continuam sem acesso. O replay e o postflight devem comprovar zero DML e contagens idênticas. O smoke do deploy pode gerar prévia, mas não deve executar reset produtivo. Ver [`YEAR_RESET_SETTINGS.md`](../../docs/gradebook/YEAR_RESET_SETTINGS.md).
+Para `0008`, o preflight confirmou o catálogo pós-`0007` e a existência exata das dez relações alvo. Aplicada em produção como `year_reset_acl_v1` (`20260912004843`), a migration ampliou somente a ACL de `gradebook_app` com `DELETE`; `PUBLIC`, `anon` e `authenticated` continuaram sem acesso. O postflight comprovou zero DML, contagens anuais idênticas e Advisor de segurança limpo. O smoke do deploy pode gerar prévia, mas não deve executar reset produtivo. Ver [`YEAR_RESET_SETTINGS.md`](../../docs/gradebook/YEAR_RESET_SETTINGS.md).
 
 ## Recuperação comprovada e limites institucionais
 
