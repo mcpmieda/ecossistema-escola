@@ -100,6 +100,7 @@ describe('platform search model', () => {
       'notes:bulletins',
       'notes:reports',
       'notes:council',
+      'notes:settings',
       'config:config-1',
     ]);
     expect(filterSearchItems(items, 'SEGREDO_NAO_INDEXAR')).toEqual([]);
@@ -115,6 +116,7 @@ describe('platform search model', () => {
     expect(filterSearchItems(items, 'conselho classe')[0]?.id).toBe('notes:council');
     expect(filterSearchItems(items, 'desempenho resultado')[0]?.id).toBe('notes:performance');
     expect(filterSearchItems(items, 'relatórios recuperação')[0]?.id).toBe('notes:reports');
+    expect(filterSearchItems(items, 'resetar ano letivo')[0]?.id).toBe('notes:settings');
   });
 
   it('enforces the result limit', () => {

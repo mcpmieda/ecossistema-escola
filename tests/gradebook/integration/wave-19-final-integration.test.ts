@@ -34,7 +34,7 @@ describe('integração final da onda 19 — fechamentos F4/F5/F6', () => {
     expect(surface).toContain('relational-workspace-page-v2');
     expect(surface).not.toContain('<TeacherAssignmentMaintenanceWorkspace');
     expect(relational).toContain('Configuração docente importada');
-    expect(relational).toContain('alterações cadastrais entram pela Importação');
+    expect(relational).toMatch(/alterações cadastrais\s+entram pela Importação/u);
     expect(existsSync(join(root, 'src/features/gradebook/operational-workspace/teacher-assignment-maintenance-workspace.tsx'))).toBe(false);
     expect(existsSync(join(root, 'server/gradebook/application/operational-workspace/teacher-assignment-maintenance-v1.ts'))).toBe(false);
   });
