@@ -16,12 +16,16 @@ export function GradeValue({ cell, prominent = false, partialAsMarker = false }:
   readonly partialAsMarker?: boolean;
 }) {
   const tone = cell.level === 'below' ? 'text-danger' : cell.level === 'at-or-above' ? 'text-accent' : 'text-foreground';
+  const partialMarker = cell.state === 'partial' && partialAsMarker;
   return <span className={`inline-flex flex-col items-center ${prominent ? 'gap-0.5' : 'gap-0'} ${tone}`}>
-    <span className={`font-semibold tabular-nums ${prominent ? 'text-4xl tracking-tight' : 'text-sm leading-4'}`}>
-      {cell.state === 'no-show' ? 'N/C' : cell.state === 'repeat-failure' ? 'R/R' : cell.state === 'recovery-pending' ? 'REC' : gradeText(cell.valueMilli)}
+    <span className="relative inline-flex items-start">
+      <span className={`font-semibold tabular-nums ${prominent ? 'text-4xl tracking-tight' : 'text-sm leading-4'}`}>
+        {cell.state === 'no-show' ? 'N/C' : cell.state === 'repeat-failure' ? 'R/R' : cell.state === 'recovery-pending' ? 'REC' : gradeText(cell.valueMilli)}
+      </span>
+      {partialMarker ? <span className="absolute -right-2 -top-1 text-[10px] font-bold leading-none" title="Resultado parcial"><span aria-hidden="true">*</span><span className="sr-only">Resultado parcial</span></span> : null}
     </span>
     {cell.state === 'complete' ? <span className="sr-only">{cell.level === 'below' ? 'Abaixo do limite' : 'No limite ou acima'}</span> : cell.state !== 'no-show' && cell.state !== 'repeat-failure' ?
-      cell.state === 'partial' && partialAsMarker ? <span className="text-xs font-bold leading-3" title="Resultado parcial"><span aria-hidden="true">*</span><span className="sr-only">Resultado parcial</span></span> :
+      partialMarker ? null :
         prominent ? <Chip size="sm" color={cell.state === 'partial' ? 'warning' : 'default'} variant="soft"><Chip.Label>{stateText[cell.state]}</Chip.Label></Chip> :
         <span className="text-[10px] leading-tight">{stateText[cell.state]}</span> : null}
   </span>;

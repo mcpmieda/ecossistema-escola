@@ -119,7 +119,6 @@ function ComponentBarsV5({ value, selection, onSelectionChange, open }: {
           </div>;
         })}
       </div>
-      <p className="mt-3 text-[11px] leading-5 text-muted">Na lente Resultado, toda soma numérica é comparada a 60% do máximo do recorte (18, 18 ou 24 nos trimestres). Ausência, N/C e leituras sem máximo não viram zero e aparecem ao lado da sigla.</p>
     </>}
   </Surface>;
 }

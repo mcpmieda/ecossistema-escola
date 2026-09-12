@@ -606,8 +606,12 @@ button.performance-kpi__button:hover {
 .performance-dashboard-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.65fr) minmax(19rem, 0.85fr);
-  align-items: start;
+  align-items: stretch;
   gap: 1rem;
+}
+
+.performance-dashboard-grid > .performance-widget {
+  height: 100%;
 }
 
 .performance-widget {
@@ -854,7 +858,7 @@ button.performance-kpi__button:hover {
 
 .performance-donut {
   display: grid;
-  width: min(100%, 12rem);
+  width: min(100%, 13rem);
   aspect-ratio: 1;
   place-items: center;
   justify-self: center;
@@ -1001,11 +1005,64 @@ button.performance-kpi__button:hover {
 }
 
 .performance-grid__row {
-  min-height: 2rem;
+  height: 2.25rem;
 }
 
 .performance-grid__cell {
+  height: 2.25rem;
   line-height: 1rem;
+  vertical-align: middle;
+}
+
+.performance-matrix-header {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.performance-status-filter {
+  min-width: 0;
+  flex: 1 1 42rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.performance-status-filter .tag-group__list {
+  justify-content: flex-end;
+}
+
+.performance-status-filter .tag {
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.performance-status-filter .tag[data-selected='true'] {
+  border-color: color-mix(in oklab, var(--accent) 24%, transparent);
+}
+
+.performance-lens-tabs > .tabs__list-container,
+.performance-lens-tabs .tabs__list {
+  height: 2.5rem;
+}
+
+.performance-lens-tabs .tabs__list {
+  align-items: center;
+}
+
+.performance-lens-tabs .tabs__indicator {
+  transform: translateZ(0);
+  will-change: translate, width, height;
+}
+
+.performance-lens-status {
+  display: flex;
+  align-items: center;
+}
+
+.performance-lens-panel.tabs__panel[data-orientation='horizontal'] {
+  margin-top: 0.25rem;
+  padding: 0;
 }
 
 .performance-status-chip {
