@@ -1060,7 +1060,7 @@ button.performance-kpi__button:hover {
   align-items: center;
 }
 
-.performance-lens-panel.tabs__panel[data-orientation='horizontal'] {
+.performance-lens-panel.tabs__panel {
   margin-top: 0.25rem;
   padding: 0;
 }
