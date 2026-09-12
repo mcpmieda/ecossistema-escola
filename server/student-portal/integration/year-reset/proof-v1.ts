@@ -1,0 +1,73 @@
+import type { D1WriteDatabaseV1 } from '../../../gradebook/persistence/d1/write/d1-write-adapter-v1';
+
+type ProofState = 'clear' | 'portal-linked-accounts' | 'not-found' | 'preview-changed';
+
+function hex(bytes: Uint8Array): string {
+  return [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
+}
+
+export async function yearResetDigestV1(value: string): Promise<string> {
+  return hex(
+    new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))),
+  );
+}
+
+export function newYearResetTokenV1(): string {
+  return hex(crypto.getRandomValues(new Uint8Array(32)));
+}
+
+// Receives the caller's physical transaction. It never opens another connection.
+export async function lockYearResetV1(
+  transaction: D1WriteDatabaseV1,
+  year: number,
+  operation: 'preview' | 'execute',
+): Promise<void> {
+  if (!Number.isInteger(year) || year < 2000 || year > 9999) {
+    throw new Error('year-reset-invalid-year');
+  }
+  await transaction
+    .prepare(
+      operation === 'execute'
+        ? 'SELECT pg_advisory_xact_lock(613,0)'
+        : 'SELECT pg_advisory_xact_lock_shared(613,0)',
+    )
+    .first();
+  await transaction.prepare('SELECT pg_advisory_xact_lock(613,?::integer)').bind(year).first();
+}
+
+export async function yearResetProofV1(
+  transaction: D1WriteDatabaseV1,
+  operation: 'prepare' | 'consume',
+  year: number,
+  actorDigest: string,
+  tokenDigest: string,
+): Promise<ProofState> {
+  const query =
+    operation === 'prepare'
+      ? 'SELECT student_portal.prepare_year_reset_v1(?::smallint,?::text,?::text) AS state'
+      : 'SELECT student_portal.consume_year_reset_v1(?::smallint,?::text,?::text) AS state';
+  const row = await transaction
+    .prepare(query)
+    .bind(year, actorDigest, tokenDigest)
+    .first<{ state: unknown }>();
+  const allowed =
+    operation === 'prepare'
+      ? ['clear', 'portal-linked-accounts', 'not-found']
+      : ['clear', 'portal-linked-accounts', 'preview-changed'];
+  if (!row || typeof row.state !== 'string' || !allowed.includes(row.state)) {
+    throw new Error('year-reset-proof-unavailable');
+  }
+  return row.state as ProofState;
+}
+
+export async function completeYearResetV1(
+  transaction: D1WriteDatabaseV1,
+  year: number,
+  actorDigest: string,
+  tokenDigest: string,
+): Promise<void> {
+  await transaction
+    .prepare('SELECT student_portal.complete_year_reset_v1(?::smallint,?::text,?::text)')
+    .bind(year, actorDigest, tokenDigest)
+    .first();
+}

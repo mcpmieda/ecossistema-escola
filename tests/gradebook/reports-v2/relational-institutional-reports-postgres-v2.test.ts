@@ -1,3 +1,4 @@
+import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -76,6 +77,7 @@ beforeAll(async () => {
     const result = await pg.query<Record<string, unknown>>(sql, [...values]);
     return Object.assign(result.rows, { count: result.affectedRows ?? result.rows.length });
   };
+  await installResetSchemaFixtureV1(pg);
   database = createGradebookPostgresDatabaseFromSqlV1({
     unsafe: execute,
     async begin(operation) {

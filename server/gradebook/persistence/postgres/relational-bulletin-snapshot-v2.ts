@@ -1,3 +1,4 @@
+import { lockResetWriterV1, recordResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
 import {
   RELATIONAL_BULLETIN_LIMITS_V2,
   relationalBulletinSnapshotSchemaV2,
@@ -133,6 +134,7 @@ export function createRelationalBulletinSnapshotRepositoryV2(
       }
       try {
         return await transactional.transaction(async (tx) => {
+          await lockResetWriterV1(tx, input.snapshot.model.year);
           const current = await tx
             .prepare(
               `SELECT snapshot_id, versao
@@ -179,6 +181,7 @@ export function createRelationalBulletinSnapshotRepositoryV2(
               .run(),
           );
           if (inserted !== 1) throw new Error('relational-bulletin-snapshot-write-failed');
+          await recordResetWriteV1(tx, model.year, 'bulletin-snapshot');
           return { state: 'appended', snapshot: input.snapshot } as const;
         });
       } catch (cause) {

@@ -1,3 +1,4 @@
+import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -50,6 +51,7 @@ async function execute(client:Pick<PGlite,'query'>,query:string,values:readonly 
 beforeAll(async () => {
   pg=new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql','utf8'));
+  await installResetSchemaFixtureV1(pg);
   const sql:GradebookPostgresSqlV1={
     unsafe:(query,values=[]) => execute(pg,query,values,false),
     async begin(operation) {
@@ -92,15 +94,31 @@ async function request(method:'GET'|'POST',body?:unknown,origin='https://school.
 }
 
 describe('atomic current diagnostic snapshot on the complete relational schema', () => {
+  it('keeps an identical observation unchanged and revisions only years whose evidence changes', async () => {
+    const revision = async (year:number) => (await pg.query<{reset_counter:number;academic_counter:number}>(
+      'SELECT reset_counter::integer,academic_counter::integer FROM student_portal.academic_revision WHERE academic_year=$1',[year])).rows[0];
+    await replace(database,observation(['same']));
+    const before=await state();
+    const version=await revision(2090);
+    expect(await replace(database,observation(['same']))).toBe(0);
+    expect(await state()).toEqual(before);
+    expect(await revision(2090)).toEqual(version);
+    await replace(database,observation(['same'],{year:2091}));
+    expect(await revision(2090)).toEqual({reset_counter:version!.reset_counter+1,academic_counter:version!.academic_counter});
+    expect(await revision(2091)).toMatchObject({academic_counter:1});
+    expect(await state()).toMatchObject([{ano:2091}]);
+  });
+
   it('locks before replacing and writes the entire set in one transaction', async () => {
     expect(await replace(database,observation(['k1','k2']))).toBe(2);
     expect(transactions).toBe(1);
-    expect(queries).toHaveLength(4);
-    expect(queries[0]).toContain('pg_advisory_xact_lock');
-    expect(queries[0]).not.toContain('::jsonb');
-    expect(queries[1]).toContain('pg_advisory_xact_lock');
-    expect(queries[2]).toMatch(/^DELETE FROM/u);
-    expect(queries[3]).toMatch(/^INSERT INTO/u);
+    expect(queries[0]).toContain('pg_advisory_xact_lock_shared(613,0)');
+    const deletion = queries.findIndex((query) => query.startsWith('DELETE FROM'));
+    const insertion = queries.findIndex((query) => query.startsWith('INSERT INTO'));
+    const revision = queries.findIndex((query) => query.includes('record_gradebook_change_v1'));
+    expect(deletion).toBeGreaterThan(0);
+    expect(insertion).toBeGreaterThan(deletion);
+    expect(revision).toBeGreaterThan(insertion);
     expect((await state()).map((row)=>row.chave)).toEqual(['k1','k2']);
   });
 
@@ -166,7 +184,8 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
   it('supports the existing 5,000-item bound without per-item SQL', async () => {
     const value=observation(Array.from({length:5000},(_,index)=>`key-${index}`));
     expect(await replace(database,value)).toBe(5000);
-    expect(queries).toHaveLength(4);
+    expect(queries.length).toBeLessThanOrEqual(12);
+    expect(queries.filter((query)=>/^(DELETE|INSERT) /u.test(query))).toHaveLength(2);
     expect(await state()).toHaveLength(5000);
     const counts=(await pg.query('SELECT (SELECT count(*)::integer FROM gradebook.nota) AS notas,(SELECT count(*)::integer FROM gradebook.importacao) AS imports')).rows;
     expect(counts).toEqual([{notas:0,imports:0}]);

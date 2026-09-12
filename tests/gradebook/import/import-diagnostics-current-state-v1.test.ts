@@ -11,7 +11,7 @@ describe('current import diagnostics retention', () => {
     expect(service).toContain('.transaction(async (transaction)');
     expect(service).toContain('pg_advisory_xact_lock');
     expect(service).toContain('ano IS NOT DISTINCT FROM ? AND arquivo = ?');
-    expect(service).toContain('if (rows.length === 0) return clearedCount;');
+    expect(service).toContain('recordChanges');
     expect(service).toContain('writtenCount !== rows.length');
     expect(route).not.toContain('DELETE FROM');
   });

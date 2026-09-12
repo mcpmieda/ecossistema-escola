@@ -66,6 +66,31 @@ async function http(
 }
 
 describe('year reset V1 HTTP and UI boundary', () => {
+  it('returns a private 409 for linked accounts and a 503 for a missing guard response', async () => {
+    for (const state of ['portal-linked-accounts', null]) {
+      const transaction = {
+        exec: async () => undefined,
+        prepare: () => {
+          const statement = {
+            bind: (..._values: unknown[]) => statement,
+            first: async () => (state === null ? null : { state }),
+          };
+          return statement;
+        },
+      };
+      const response = await http('ADMINISTRADOR', {
+        GRADEBOOK_D1: {
+          ...transaction,
+          transaction: async (operation: (tx: unknown) => Promise<unknown>) =>
+            operation(transaction),
+        },
+      } as unknown as Partial<RuntimeEnv>);
+      expect(response.status).toBe(state === null ? 503 : 409);
+      expect(response.headers.get('Cache-Control')).toContain('no-store');
+      expect(await response.json()).toEqual({ contractVersion: 1, state: state ?? 'unavailable' });
+    }
+  });
+
   it('is admin-only, no-store and fail-closed behind the PostgreSQL production gate', async () => {
     expect((await http(null)).status).toBe(401);
     expect((await http('PROFESSOR')).status).toBe(403);

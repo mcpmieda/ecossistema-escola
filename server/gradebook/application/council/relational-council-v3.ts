@@ -1,3 +1,4 @@
+import { lockResetWriterV1, recordResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
 import {
   RELATIONAL_COUNCIL_DECISIONS_V3,
   RELATIONAL_COUNCIL_LIMITS_V3,
@@ -347,6 +348,7 @@ export function createRelationalCouncilV3(database: D1WriteDatabaseV1, actorId: 
         await db.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
       } else {
         await db.exec('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+        await lockResetWriterV1(db, request.year);
       }
       if (request.operation === 'classes') {
         const rows = await all(db, `SELECT t.id,t.codigo,t.nome,s.estado,s.versao AS version
@@ -358,7 +360,11 @@ export function createRelationalCouncilV3(database: D1WriteDatabaseV1, actorId: 
             sessionVersion: nullableInteger(row.version) ?? 0 })), nextOffset: rows.length > request.limit ? request.offset + request.limit : null };
       }
       if (request.operation === 'workspace') return ready(db, request);
-      return mutate(db, request, actorId);
+      const duplicate = await idempotency(db, request);
+      const result = await mutate(db, request, actorId);
+      // The persisted command proves a write even if rebuilding the response is unavailable.
+      if (duplicate === 'new' && await idempotency(db, request) === 'same') await recordResetWriteV1(db, request.year, 'council');
+      return result;
     });
     let response: unknown;
     try {

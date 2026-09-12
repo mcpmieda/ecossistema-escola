@@ -38,6 +38,9 @@ const COUNT_ITEMS = [
 function failureMessage(state: Exclude<YearResetResponseV1['state'], 'ready'>): string {
   if (state === 'not-authorized') return 'Sua sessão não possui autorização para esta operação.';
   if (state === 'not-found') return 'O ano não está mais materializado. Atualize o contexto.';
+  if (state === 'portal-linked-accounts') {
+    return 'Existem contas do Portal vinculadas a este ano. Encerre os vínculos nas Configurações do Portal e gere uma nova prévia antes de resetar.';
+  }
   if (state === 'preview-changed') {
     return 'Os dados mudaram depois da prévia. Gere uma nova conferência antes de continuar.';
   }
@@ -109,7 +112,15 @@ export function GradebookSettingsPageV1() {
     if (response.state !== 'ready' || response.operation !== 'execute') {
       setBusy(null);
       setMessage(failureMessage(response.state === 'ready' ? 'unavailable' : response.state));
-      if (response.state === 'preview-changed' || response.state === 'not-found') setPreview(null);
+      if (
+        response.state === 'preview-changed' ||
+        response.state === 'not-found' ||
+        response.state === 'portal-linked-accounts'
+      ) {
+        setPreview(null);
+        setConfirmation('');
+        setUnderstood(false);
+      }
       return;
     }
     setPreview(null);
@@ -178,7 +189,7 @@ export function GradebookSettingsPageV1() {
                 Conferir dados de {year}
               </Button>
               <p className="text-xs text-muted">
-                A conferência é somente leitura e não altera nenhum registro.
+                A conferência não altera os dados acadêmicos e vale por cinco minutos.
               </p>
             </div>
           )}

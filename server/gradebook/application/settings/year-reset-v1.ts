@@ -1,4 +1,11 @@
 import {
+  completeYearResetV1,
+  lockYearResetV1,
+  newYearResetTokenV1,
+  yearResetDigestV1,
+  yearResetProofV1,
+} from '../../../student-portal/integration/year-reset/proof-v1';
+import {
   confirmationPhraseForYearResetV1,
   YEAR_RESET_CONTRACT_VERSION_V1,
   yearResetRequestSchemaV1,
@@ -129,14 +136,6 @@ async function loadCounts(database: D1WriteDatabaseV1, year: number): Promise<Ye
   };
 }
 
-async function revisionFor(year: number, counts: YearResetCountsV1): Promise<string> {
-  const bytes = new TextEncoder().encode(
-    JSON.stringify({ contractVersion: YEAR_RESET_CONTRACT_VERSION_V1, year, counts }),
-  );
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
-}
-
 function changed(result: {
   readonly changes?: number;
   readonly meta?: { readonly changes?: number };
@@ -212,71 +211,89 @@ async function removeYear(database: D1WriteDatabaseV1, year: number): Promise<nu
   return deleted;
 }
 
-export function createYearResetServiceV1(database: D1WriteDatabaseV1) {
+export function createYearResetServiceV1(database: D1WriteDatabaseV1, actorOid: string) {
   return {
     async execute(input: unknown): Promise<YearResetResponseV1> {
       const parsed = yearResetRequestSchemaV1.safeParse(input);
       if (!parsed.success) {
         return { contractVersion: YEAR_RESET_CONTRACT_VERSION_V1, state: 'invalid-request' };
       }
+      if (!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/iu.test(actorOid)) {
+        return { contractVersion: YEAR_RESET_CONTRACT_VERSION_V1, state: 'not-authorized' };
+      }
       if (!('transaction' in database) || typeof database.transaction !== 'function') {
         return { contractVersion: YEAR_RESET_CONTRACT_VERSION_V1, state: 'unavailable' };
       }
-      const request = { ...parsed.data };
-      const response = await (database as TransactionalDatabase).transaction(
-        async (transaction) => {
-          if (request.operation === 'preview') {
-            await transaction.exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
-            const counts = await loadCounts(transaction, request.year);
-            if (counts.academicYear !== 1) {
+      const request = parsed.data;
+      const actorDigest = await yearResetDigestV1(actorOid.toLowerCase());
+      const token =
+        request.operation === 'preview' ? newYearResetTokenV1() : request.previewRevision;
+      const tokenDigest = await yearResetDigestV1(token);
+      if (
+        request.operation === 'execute' &&
+        request.confirmationPhrase !== confirmationPhraseForYearResetV1(request.year)
+      ) {
+        return { contractVersion: YEAR_RESET_CONTRACT_VERSION_V1, state: 'preview-changed' };
+      }
+      // Restart the entire physical transaction once; never continue an old snapshot.
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          const response = await (database as TransactionalDatabase).transaction(
+            async (transaction) => {
+              await transaction.exec(
+                request.operation === 'preview'
+                  ? 'SET TRANSACTION ISOLATION LEVEL READ COMMITTED'
+                  : 'SET TRANSACTION ISOLATION LEVEL SERIALIZABLE',
+              );
+              await lockYearResetV1(transaction, request.year, request.operation);
+              if (request.operation === 'execute') {
+                await transaction.exec(
+                  `LOCK TABLE ${RESET_TABLES_V1.map((table) => `gradebook.${table}`).join(',')} IN SHARE ROW EXCLUSIVE MODE`,
+                );
+              }
+              const state = await yearResetProofV1(
+                transaction,
+                request.operation === 'preview' ? 'prepare' : 'consume',
+                request.year,
+                actorDigest,
+                tokenDigest,
+              );
+              if (state !== 'clear')
+                return { contractVersion: YEAR_RESET_CONTRACT_VERSION_V1, state };
+              const counts = await loadCounts(transaction, request.year);
+              if (counts.academicYear !== 1) throw new Error('year-reset-year-missing-after-proof');
+              if (request.operation === 'preview') {
+                return {
+                  contractVersion: YEAR_RESET_CONTRACT_VERSION_V1,
+                  state: 'ready',
+                  operation: 'preview',
+                  year: request.year,
+                  counts,
+                  previewRevision: token,
+                  confirmationPhrase: confirmationPhraseForYearResetV1(request.year),
+                } as const;
+              }
+              const deletedRows = await removeYear(transaction, request.year);
+              if (deletedRows !== counts.totalRows) throw new Error('year-reset-incomplete-delete');
+              const remaining = await loadCounts(transaction, request.year);
+              if (remaining.totalRows !== 0) throw new Error('year-reset-postcondition-failed');
+              await completeYearResetV1(transaction, request.year, actorDigest, tokenDigest);
               return {
                 contractVersion: YEAR_RESET_CONTRACT_VERSION_V1,
-                state: 'not-found',
+                state: 'ready',
+                operation: 'execute',
+                year: request.year,
+                deletedRows,
               } as const;
-            }
-            return {
-              contractVersion: YEAR_RESET_CONTRACT_VERSION_V1,
-              state: 'ready',
-              operation: 'preview',
-              year: request.year,
-              counts,
-              previewRevision: await revisionFor(request.year, counts),
-              confirmationPhrase: confirmationPhraseForYearResetV1(request.year),
-            } as const;
-          }
-
-          await transaction.exec('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
-          await transaction.exec(
-            `LOCK TABLE ${RESET_TABLES_V1.map((table) => `gradebook.${table}`).join(',')}
-           IN SHARE ROW EXCLUSIVE MODE`,
+            },
           );
-          const counts = await loadCounts(transaction, request.year);
-          if (counts.academicYear !== 1) {
-            return { contractVersion: YEAR_RESET_CONTRACT_VERSION_V1, state: 'not-found' } as const;
-          }
-          if (
-            request.confirmationPhrase !== confirmationPhraseForYearResetV1(request.year) ||
-            request.previewRevision !== (await revisionFor(request.year, counts))
-          ) {
-            return {
-              contractVersion: YEAR_RESET_CONTRACT_VERSION_V1,
-              state: 'preview-changed',
-            } as const;
-          }
-          const deletedRows = await removeYear(transaction, request.year);
-          if (deletedRows !== counts.totalRows) throw new Error('year-reset-incomplete-delete');
-          const remaining = await loadCounts(transaction, request.year);
-          if (remaining.totalRows !== 0) throw new Error('year-reset-postcondition-failed');
-          return {
-            contractVersion: YEAR_RESET_CONTRACT_VERSION_V1,
-            state: 'ready',
-            operation: 'execute',
-            year: request.year,
-            deletedRows,
-          } as const;
-        },
-      );
-      return yearResetResponseSchemaV1.parse(response);
+          return yearResetResponseSchemaV1.parse(response);
+        } catch (cause) {
+          const code = cause && typeof cause === 'object' && 'code' in cause ? cause.code : null;
+          if (code === '40001' && attempt === 0) continue;
+          throw cause;
+        }
+      }
     },
   };
 }

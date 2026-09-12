@@ -1,5 +1,18 @@
+import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
+import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
+import { createYearResetServiceV1 } from '../../../server/gradebook/application/settings/year-reset-v1';
 import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
+import {
+  createGradebookPostgresDatabaseFromSqlV1,
+  type GradebookPostgresSqlV1,
+} from '../../../server/gradebook/persistence/postgres/postgres-database-v1';
+import {
+  lockYearResetV1,
+  newYearResetTokenV1,
+  yearResetDigestV1,
+  yearResetProofV1,
+} from '../../../server/student-portal/integration/year-reset/proof-v1';
 import { provePortalHyperdriveV1 } from '../../../server/student-portal/runtime/hyperdrive-proof-v1';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withPortalPersistenceV1 } from '../../../server/student-portal/runtime/database-v1';
@@ -29,6 +42,60 @@ const authenticated = asRole('authenticated');
 const migrator = asRole('portal_migration_admin');
 const persistence = createStudentPortalPostgresPersistenceV1(portal as unknown as StudentPortalPostgresSqlV1);
 const ACCOUNT = '11111111-1111-4111-8111-111111111111';
+
+describe('reset proof through the application PostgreSQL facade', () => {
+  it('persists only the digest and rejects a different authenticated actor', async () => {
+    const database = createGradebookPostgresDatabaseFromSqlV1(
+      gradebook as unknown as GradebookPostgresSqlV1,
+    );
+    const token = newYearResetTokenV1();
+    expect(token).toMatch(/^[a-f0-9]{64}$/u);
+    expect(newYearResetTokenV1()).not.toBe(token);
+    const digest = await yearResetDigestV1(token);
+    const actor = await yearResetDigestV1('synthetic-operator-one');
+    await database.transaction(async (tx) => {
+      await tx.exec('SET TRANSACTION ISOLATION LEVEL READ COMMITTED');
+      await lockYearResetV1(tx, 2025, 'preview');
+      expect(await yearResetProofV1(tx, 'prepare', 2025, actor, digest)).toBe('clear');
+    });
+    expect(
+      (
+        await admin`SELECT token_digest FROM student_portal.year_reset_preview_proof WHERE token_digest=${digest}`
+      )[0]?.token_digest,
+    ).toBe(digest);
+    expect(
+      (
+        await admin`SELECT count(*)::integer AS n FROM student_portal.year_reset_preview_proof WHERE token_digest=${token}`
+      )[0]?.n,
+    ).toBe(0);
+    await database.transaction(async (tx) => {
+      await tx.exec('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+      await lockYearResetV1(tx, 2025, 'execute');
+      expect(
+        await yearResetProofV1(
+          tx,
+          'consume',
+          2025,
+          await yearResetDigestV1('synthetic-operator-two'),
+          digest,
+        ),
+      ).toBe('preview-changed');
+    });
+    await expect(
+      database.transaction(async (tx) => {
+        await tx.exec('SET TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+        await lockYearResetV1(tx, 2025, 'execute');
+        expect(await yearResetProofV1(tx, 'consume', 2025, actor, digest)).toBe('clear');
+        throw new Error('synthetic-adapter-rollback');
+      }),
+    ).rejects.toThrow('synthetic-adapter-rollback');
+    expect(
+      (
+        await admin`SELECT consumed_at FROM student_portal.year_reset_preview_proof WHERE token_digest=${digest}`
+      )[0]?.consumed_at,
+    ).toBeNull();
+  });
+});
 
 beforeAll(async () => {
   const existing = await admin`SELECT to_regnamespace('student_portal') IS NOT NULL AS present`;
@@ -64,6 +131,7 @@ beforeAll(async () => {
     INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho) VALUES (2025,60000,2),(2024,60000,2);
   `);
   await migrator.unsafe(readFileSync('migrations/student-portal/0005_year_reset_protocol_v1.sql', 'utf8'));
+  await migrator.unsafe(readFileSync('migrations/student-portal/0006_gradebook_revision_year_range_v1.sql', 'utf8'));
 });
 
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });
@@ -309,5 +377,198 @@ describe('native private reset proof support #706', () => {
     });
     expect(await outcome).toBe('40001');
     expect(await lockedProof('consume', 11)).toBe('preview-changed');
+  });
+});
+
+
+describe('native application reset service', () => {
+  it('blocks a linked account and atomically resets only a synthetic empty year', async () => {
+    const database = createGradebookPostgresDatabaseFromSqlV1(gradebook as unknown as GradebookPostgresSqlV1);
+    const service = createYearResetServiceV1(database, '44444444-4444-4444-8444-444444444444');
+    expect(await service.execute({ contractVersion: 1, operation: 'preview', year: 2026 }))
+      .toEqual({ contractVersion: 1, state: 'portal-linked-accounts' });
+    await admin`INSERT INTO gradebook.ano_letivo VALUES (2023,60000,2)`;
+    await gradebook.begin(async (tx) => {
+      await tx`SELECT pg_advisory_xact_lock_shared(613,0)`;
+      await tx`SELECT pg_advisory_xact_lock(613,2023)`;
+      await tx`SELECT student_portal.ensure_year_coordination_v1(2023::smallint)`;
+    });
+    const preview = await service.execute({ contractVersion: 1, operation: 'preview', year: 2023 });
+    if (preview.state !== 'ready' || preview.operation !== 'preview') throw new Error('synthetic-preview-failed');
+    const command = { contractVersion: 1, operation: 'execute', year: 2023,
+      previewRevision: preview.previewRevision, confirmationPhrase: preview.confirmationPhrase,
+      understandsIrreversible: true };
+    expect(await service.execute(command)).toEqual({ contractVersion: 1, state: 'ready',
+      operation: 'execute', year: 2023, deletedRows: 1 });
+    expect(await service.execute(command)).toEqual({ contractVersion: 1, state: 'preview-changed' });
+    expect((await admin`SELECT count(*)::integer AS n FROM gradebook.ano_letivo WHERE ano=2023`)[0]?.n).toBe(0);
+    expect((await admin`SELECT count(*)::integer AS n FROM gradebook.ano_letivo WHERE ano IN (2025,2026)`)[0]?.n).toBe(2);
+    expect((await admin`SELECT count(*)::integer AS n FROM student_portal.account`)[0]?.n).toBe(1);
+  });
+});
+
+
+describe('native auxiliary reset revisions', () => {
+  it('moves current diagnostic evidence across years and keeps identical observations unchanged', async () => {
+    const database = createGradebookPostgresDatabaseFromSqlV1(gradebook as unknown as GradebookPostgresSqlV1);
+    const observation = (year:number) => ({ version: 1 as const, academicYear: year,
+      fileName: 'synthetic-reset-diagnostics.xlsx', sha256: 'e'.repeat(64),
+      diagnostics: [{ key: 'synthetic-finding', severity: 'warning' as const,
+        code: 'source-unavailable' as const, message: 'Synthetic finding', recommendedAction: 'Check synthetic fixture', fieldKind: 'recovery' as const }] });
+    expect(await replaceGradebookImportDiagnosticsSnapshotV1(database, observation(2021))).toBe(1);
+    const before = await admin`SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2021`;
+    expect(await replaceGradebookImportDiagnosticsSnapshotV1(database, observation(2021))).toBe(0);
+    expect(await admin`SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2021`).toEqual(before);
+    expect(await replaceGradebookImportDiagnosticsSnapshotV1(database, observation(2022))).toBe(2);
+    expect((await admin`SELECT count(*)::integer AS n FROM gradebook.importacao_diagnostico WHERE ano=2021`)[0]?.n).toBe(0);
+    expect((await admin`SELECT count(*)::integer AS n FROM gradebook.importacao_diagnostico WHERE ano=2022`)[0]?.n).toBe(1);
+    expect((await admin`SELECT count(*)::integer AS n FROM student_portal.revision_event WHERE academic_year IN (2021,2022) AND NOT affects_academic`)[0]?.n).toBe(3);
+  });
+});
+
+
+describe('native import reset revisions', () => {
+  it('commits buffered writes before one revision and does not revise an identical import', async () => {
+    await admin`SELECT setval(pg_get_serial_sequence('gradebook.aluno','id'),100)`;
+    const queries:string[] = [];
+    let failRevision = false;
+    const database = createGradebookPostgresDatabaseFromSqlV1({
+      unsafe: () => { throw new Error('outside-import-transaction'); },
+      begin: (operation) => gradebook.begin(async (tx) => operation({
+        typed: (value,oid) => tx.typed(value,oid),
+        async unsafe(query,parameters=[]) {
+          queries.push(query);
+          if(failRevision && query.includes('record_gradebook_change_v1')) throw new Error('synthetic-finalizer-failure');
+          return tx.unsafe(query,[...parameters] as never[]);
+        },
+      })) as ReturnType<GradebookPostgresSqlV1['begin']>,
+    } as GradebookPostgresSqlV1);
+    const service = createGradebookRelationalImportServiceV11(database);
+    const manifest = { fileName:'synthetic-reset-import.xlsx',sha256:'f'.repeat(64),parserVersion:'synthetic-v1' };
+    expect(await service.execute({ transportVersion:9, operation:'persist-relacao', manifest, ano:2020,
+      turmas:[{codigo:'T20',nome:'SYNTHETIC CLASS',etapa:6,turno:'MATUTINO',alunos:[[1,'SYNTHETIC IMPORT STUDENT',0]]}] }))
+      .toMatchObject({state:'applied'});
+    const term = (trimestre: 1 | 2 | 3) => ({trimestre, instrumentos:[[1,10000,'SYNTHETIC ASSESSMENT']] as const,alunos:[[1,[3000],3000]] as const});
+    const notes = { transportVersion:9 as const, operation:'persist-notas' as const, manifest, ano:2020,professor:'SYNTHETIC TEACHER',
+      ofertas:[{turmaCodigo:'T20',disciplina:'SYNTHETIC SUBJECT',trimestres:[term(1),term(2),term(3)] as const,recuperacao:[]}] };
+    queries.length=0;
+    expect(await service.execute(notes)).toMatchObject({state:'applied'});
+    const eventIndex=queries.findIndex((query)=>query.includes('record_gradebook_change_v1'));
+    const bufferIndexes=queries.flatMap((query,index)=>query.includes('jsonb_to_recordset')?[index]:[]);
+    expect(bufferIndexes.length).toBeGreaterThan(0);
+    expect(bufferIndexes.every((index)=>index<eventIndex)).toBe(true);
+    expect(queries.filter((query)=>query.includes('record_gradebook_change_v1'))).toHaveLength(1);
+    const before=await admin`SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2020`;
+    expect(await service.execute(notes)).toMatchObject({state:'no-changes'});
+    expect(await admin`SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2020`).toEqual(before);
+    failRevision=true;
+    const changed={...notes,ofertas:[{...notes.ofertas[0]!,trimestres:[
+      {...term(1),alunos:[[1,[4000],4000]] as const},term(2),term(3)] as const}]};
+    await expect(service.execute(changed)).rejects.toThrow('synthetic-finalizer-failure');
+    failRevision=false;
+    expect(await admin`SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2020`).toEqual(before);
+    expect((await admin`SELECT count(*)::integer AS n FROM gradebook.nota n JOIN gradebook.instrumento i ON i.id=n.instrumento_id JOIN gradebook.oferta o ON o.id=i.oferta_id WHERE o.ano=2020 AND n.valor<>3000`)[0]?.n).toBe(0);
+
+  });
+});
+
+
+describe('native service contention with live Portal links', () => {
+  it('retries after link creation or closure commits during its wait, without deleting academic data', async () => {
+    await portal`UPDATE student_portal.account SET gradebook_student_id=NULL,closed_at=clock_timestamp(),eligibility='unlinked' WHERE id=${ACCOUNT}`;
+    const writer=asRole('student_portal_app');
+    const contender=asRole('gradebook_app');
+    const database=createGradebookPostgresDatabaseFromSqlV1(contender as unknown as GradebookPostgresSqlV1);
+    const service=createYearResetServiceV1(database,'55555555-5555-4555-8555-555555555555');
+    const preview=await service.execute({contractVersion:1,operation:'preview',year:2026});
+    if(preview.state!=='ready'||preview.operation!=='preview') throw new Error('preview-missing');
+    const command={contractVersion:1,operation:'execute',year:2026,previewRevision:preview.previewRevision,
+      confirmationPhrase:preview.confirmationPhrase,understandsIrreversible:true};
+    const pid=(await contender`SELECT pg_backend_pid() AS pid`)[0]!.pid;
+    const linked='66666666-6666-4666-8666-666666666666';
+    for(const closing of [false,true]) {
+      await writer.unsafe('BEGIN');
+      let pending:ReturnType<typeof service.execute>|undefined;
+      try {
+        await writer`SELECT pg_advisory_xact_lock_shared(613,0)`;
+        await writer`SELECT pg_advisory_xact_lock(613,2026)`;
+        if(closing) {
+          await writer`UPDATE student_portal.account SET gradebook_student_id=NULL,closed_at=clock_timestamp(),eligibility='unlinked' WHERE id=${linked}`;
+        } else {
+          await writer`INSERT INTO student_portal.account(id,academic_year,gradebook_student_id,auth_state,eligibility,blocked)
+            VALUES (${linked},2026,1,'pending-activation','eligible',true)`;
+        }
+        await writer`UPDATE student_portal.academic_revision SET reset_counter=reset_counter+1,portal_link_counter=portal_link_counter+1 WHERE academic_year=2026`;
+        pending=service.execute(command);
+        let waiting=false;
+        for(let attempt=0;attempt<100;attempt++) {
+          waiting=(await admin`SELECT wait_event_type='Lock' AS waiting FROM pg_stat_activity WHERE pid=${pid}`)[0]?.waiting===true;
+          if(waiting) break;
+          await new Promise((resolve)=>setTimeout(resolve,10));
+        }
+        expect(waiting).toBe(true);
+        await writer.unsafe('COMMIT');
+        expect(await pending).toEqual({contractVersion:1,state:closing?'preview-changed':'portal-linked-accounts'});
+      } finally {
+        await writer.unsafe('ROLLBACK');
+        await pending?.catch(()=>undefined);
+      }
+    }
+    expect((await admin`SELECT count(*)::integer AS n FROM gradebook.aluno WHERE ano=2026`)[0]?.n).toBe(1);
+    expect((await admin`SELECT count(*)::integer AS n FROM student_portal.account WHERE gradebook_student_id IS NOT NULL`)[0]?.n).toBe(0);
+  });
+
+  it('times out behind a different-year writer without consuming the preview', async () => {
+    const writer=asRole('gradebook_app');
+    const contender=asRole('gradebook_app');
+    const service=createYearResetServiceV1(createGradebookPostgresDatabaseFromSqlV1(contender as unknown as GradebookPostgresSqlV1), '77777777-7777-4777-8777-777777777777');
+    const preview=await service.execute({contractVersion:1,operation:'preview',year:2025});
+    if(preview.state!=='ready'||preview.operation!=='preview') throw new Error('preview-missing');
+    await contender.unsafe("SET lock_timeout='100ms'");
+    await writer.unsafe('BEGIN');
+    try {
+      await writer`SELECT pg_advisory_xact_lock_shared(613,0)`;
+      await writer`SELECT pg_advisory_xact_lock(613,2026)`;
+      await expect(service.execute({contractVersion:1,operation:'execute',year:2025,
+        previewRevision:preview.previewRevision,confirmationPhrase:preview.confirmationPhrase,understandsIrreversible:true}))
+        .rejects.toMatchObject({code:'55P03'});
+    } finally { await writer.unsafe('ROLLBACK'); }
+    const digest=await yearResetDigestV1(preview.previewRevision);
+    expect((await admin`SELECT consumed_at FROM student_portal.year_reset_preview_proof WHERE token_digest=${digest}`)[0]?.consumed_at).toBeNull();
+    expect((await admin`SELECT count(*)::integer AS n FROM gradebook.ano_letivo WHERE ano=2025`)[0]?.n).toBe(1);
+  });
+});
+
+
+describe('native diagnostic scope race', () => {
+  it('restarts before deleting a newly discovered year instead of acquiring locks out of order', async () => {
+    const connection=asRole('gradebook_app');
+    const concurrent=asRole('gradebook_app');
+    const other=createGradebookPostgresDatabaseFromSqlV1(concurrent as unknown as GradebookPostgresSqlV1);
+    const observation=(year:number)=>({version:1 as const,academicYear:year,fileName:'synthetic-scope-race.xlsx',sha256:'9'.repeat(64),
+      diagnostics:[{key:'synthetic-scope',severity:'warning' as const,code:'source-unavailable' as const,message:'Synthetic',recommendedAction:'Synthetic',fieldKind:'recovery' as const}]});
+    let injected=false;
+    let attempts=0;
+    const database=createGradebookPostgresDatabaseFromSqlV1({
+      unsafe:()=>{throw new Error('outside-transaction');},
+      begin:(operation)=>{
+        attempts++;
+        return connection.begin(async(tx)=>operation({
+          typed:(value,oid)=>tx.typed(value,oid),
+          async unsafe(query,parameters=[]) {
+            const result=await tx.unsafe(query,[...parameters] as never[]);
+            if(!injected && query.includes('SELECT DISTINCT ano')) {
+              injected=true;
+              await replaceGradebookImportDiagnosticsSnapshotV1(other,observation(2028));
+            }
+            return result;
+          },
+        })) as ReturnType<GradebookPostgresSqlV1['begin']>;
+      },
+    } as GradebookPostgresSqlV1);
+    expect(await replaceGradebookImportDiagnosticsSnapshotV1(database,observation(2027))).toBe(2);
+    expect(attempts).toBe(2);
+    expect((await admin`SELECT ano FROM gradebook.importacao_diagnostico WHERE hash=decode(repeat('9',64),'hex')`).map((row)=>row.ano)).toEqual([2027]);
+    expect((await admin`SELECT count(*)::integer AS n FROM student_portal.revision_event WHERE academic_year IN (2027,2028)`)[0]?.n).toBe(3);
   });
 });
