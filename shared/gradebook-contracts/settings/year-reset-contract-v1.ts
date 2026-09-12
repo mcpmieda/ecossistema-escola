@@ -70,6 +70,7 @@ const failureState = z.enum([
   'not-authorized',
   'not-found',
   'preview-changed',
+  'portal-linked-accounts',
   'unavailable',
 ]);
 export type YearResetFailureV1 = z.infer<typeof failureState>;
