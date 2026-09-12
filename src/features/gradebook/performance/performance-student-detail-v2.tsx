@@ -11,7 +11,9 @@ export function PerformanceStudentDetailV2({ detail, focusPeriod, openComponent,
   readonly openComponent: (studentId: number, offerId: number) => void;
   readonly openCenter: (studentId: number) => void;
 }) {
+  const drawerBody = useRef<HTMLDivElement | null>(null);
   const focusedTerm = useRef<HTMLElement | null>(null);
+  const focusSpacer = useRef<HTMLDivElement | null>(null);
   const student = detail.operation === 'student-detail' ? detail.row.student : detail.student;
   const visibleTerms = detail.operation === 'student-detail' ? ([0, 1, 2] as const).filter((index) =>
     detail.trajectory.some((offering) => offering.terms[index].valueMilli !== null)) : [];
@@ -20,12 +22,25 @@ export function PerformanceStudentDetailV2({ detail, focusPeriod, openComponent,
     let settledFrame = 0;
     const mountedFrame = window.requestAnimationFrame(() => {
       settledFrame = window.requestAnimationFrame(() => {
-        focusedTerm.current?.scrollIntoView?.({ behavior: 'auto', block: 'start' });
+        const body = drawerBody.current;
+        const target = focusedTerm.current;
+        const spacer = focusSpacer.current;
+        if (body !== null && target !== null && spacer !== null) {
+          spacer.style.height = '0px';
+          const desiredScrollTop = body.scrollTop
+            + target.getBoundingClientRect().top
+            - body.getBoundingClientRect().top
+            - 20;
+          const availableScrollTop = body.scrollHeight - body.clientHeight;
+          spacer.style.height = `${Math.max(0, desiredScrollTop - availableScrollTop)}px`;
+        }
+        target?.scrollIntoView?.({ behavior: 'auto', block: 'start' });
       });
     });
     return () => {
       window.cancelAnimationFrame(mountedFrame);
       window.cancelAnimationFrame(settledFrame);
+      if (focusSpacer.current !== null) focusSpacer.current.style.height = '0px';
     };
   }, [detail, focusPeriod]);
   return <>
@@ -40,7 +55,7 @@ export function PerformanceStudentDetailV2({ detail, focusPeriod, openComponent,
         </div>
       </div>
     </Drawer.Header>
-    <Drawer.Body className="flex min-w-0 flex-col gap-5 pt-5">
+    <Drawer.Body ref={drawerBody} className="flex min-w-0 flex-col gap-5 pt-5">
       {detail.operation === 'student-detail' ? <>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
           <span>Nº {student.number}</span>
@@ -74,6 +89,7 @@ export function PerformanceStudentDetailV2({ detail, focusPeriod, openComponent,
         {!detail.terms.some((term) => term.hasGrades ?? term.instruments.some((value) => value.valueMilli !== null)) ? <p className="text-sm text-muted">Nenhuma nota lançada.</p> : null}
       </>}
       <Button variant="secondary" className="self-start" onPress={() => openCenter(student.id)}>Ver cadastro nas Centrais</Button>
+      <div ref={focusSpacer} aria-hidden="true" className="shrink-0" />
     </Drawer.Body>
   </>;
 }
