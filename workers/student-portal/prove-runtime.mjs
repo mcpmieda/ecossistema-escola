@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
+import { deletePortalProof } from './proof-cleanup.ts';
 
 const cli = resolve('node_modules/wrangler/bin/wrangler.js');
 const manifest = resolve('node_modules/.cache/portal-runtime-proof.json');
@@ -13,11 +14,11 @@ async function cleanup() {
     state.name !== `student-portal-proof-${state.runId.slice(0, 12)}`
   )
     throw new Error('invalid-proof-cleanup');
-  const configPath = resolve('node_modules/.cache', state.name, 'wrangler.jsonc');
-  execFileSync(process.execPath, [cli, 'delete', state.name, '--config', configPath], {
-    stdio: 'inherit',
-    timeout: 120_000,
-  });
+  await deletePortalProof(
+    state,
+    process.env.CLOUDFLARE_ACCOUNT_ID,
+    process.env.CLOUDFLARE_API_TOKEN,
+  );
   await writeFile(manifest, JSON.stringify({ ...state, cleaned: true }));
 }
 if (process.argv.includes('--cleanup')) {
@@ -58,9 +59,13 @@ try {
   });
   const result = await new Promise((resolveProof, reject) => {
     let buffer = '';
-    tail = spawn(process.execPath, [cli, 'tail', name, '--format', 'json'], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    tail = spawn(
+      process.execPath,
+      [cli, 'tail', name, '--config', configPath, '--format', 'json'],
+      {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
     tail.stdout.on('data', (chunk) => {
       buffer = (buffer + chunk.toString()).slice(-64_000);
       if (buffer.includes(`PORTAL_PROOF_V1:${runId}:pass`)) resolveProof(true);
