@@ -8,6 +8,7 @@ const portalMigrations = [
   '0001_identity_credentials_acl_v1.sql',
   '0002_policy_publication_revision_v1.sql',
   '0003_audit_receipts_closure_integration_v1.sql',
+  '0004_gradebook_integration_usage_v1.sql',
 ] as const;
 
 async function applyGradebookBaseline() {
@@ -54,7 +55,7 @@ describe('student_portal additive schema and ACL', () => {
       "SELECT tablename FROM pg_tables WHERE schemaname='student_portal' ORDER BY tablename",
     )).rows.map((row) => row.tablename);
     expect(tables).toEqual([
-      'account','account_access_data','academic_revision','audit_event','auth_attempt','auth_challenge',
+      'academic_revision','account','account_access_data','audit_event','auth_attempt','auth_challenge',
       'link_closure','operation_receipt','password_credential','publication','publication_job',
       'published_projection','qr_credential','revision_event','session','setting','year_reset_preview_proof',
     ]);
@@ -141,16 +142,17 @@ describe('student_portal additive schema and ACL', () => {
     expect(columns).not.toContain('qr_payload');
   });
 
-  it('exposes only the narrow integration function to gradebook_app and records an idempotent revision', async () => {
-    const privilege = (await pg.query<{ execute: boolean }>(`SELECT has_function_privilege(
-      'gradebook_app','student_portal.record_gradebook_change_v1(uuid,smallint,text,boolean,integer[],timestamptz)','EXECUTE') AS execute`)).rows[0];
-    expect(privilege).toEqual({ execute: true });
+  it('exposes only narrow integration functions to gradebook_app and records an idempotent revision', async () => {
+    const privileges = (await pg.query<{ revision_execute: boolean; guard_execute: boolean }>(`SELECT
+      has_function_privilege('gradebook_app','student_portal.record_gradebook_change_v1(uuid,smallint,text,boolean,integer[],timestamptz)','EXECUTE') AS revision_execute,
+      has_function_privilege('gradebook_app','student_portal.inspect_year_reset_guard_v1(smallint)','EXECUTE') AS guard_execute`)).rows[0];
+    expect(privileges).toEqual({ revision_execute: true, guard_execute: true });
     const before = (await pg.query<{ academic_counter: number; reset_counter: number }>(
       `SELECT academic_counter::integer,reset_counter::integer FROM student_portal.academic_revision WHERE academic_year=2026`,
     )).rows[0]!;
     const event = '77777777-7777-4777-8777-777777777777';
-    await pg.query(`SELECT * FROM student_portal.record_gradebook_change_v1($1::uuid,2026,'marks',true,ARRAY[2]::integer[],now())`, [event]);
-    await pg.query(`SELECT * FROM student_portal.record_gradebook_change_v1($1::uuid,2026,'marks',true,ARRAY[2]::integer[],now())`, [event]);
+    await pg.query(`SELECT * FROM student_portal.record_gradebook_change_v1($1::uuid,2026::smallint,'marks'::text,true,ARRAY[2]::integer[],now())`, [event]);
+    await pg.query(`SELECT * FROM student_portal.record_gradebook_change_v1($1::uuid,2026::smallint,'marks'::text,true,ARRAY[2]::integer[],now())`, [event]);
     const after = (await pg.query<{ academic_counter: number; reset_counter: number }>(
       `SELECT academic_counter::integer,reset_counter::integer FROM student_portal.academic_revision WHERE academic_year=2026`,
     )).rows[0]!;
