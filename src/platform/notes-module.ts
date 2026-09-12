@@ -37,7 +37,8 @@ export const notesSections: NotesSection[] = [
     label: 'Centrais',
     description: 'Consultar cadastros e a configuração docente do ano letivo selecionado.',
     href: notesAreaHref('operational'),
-    searchTerms: 'central cadastro aluno turma professor componente oferta configuração docente ano letivo',
+    searchTerms:
+      'central cadastro aluno turma professor componente oferta configuração docente ano letivo',
   },
   {
     id: 'audit',
@@ -65,7 +66,8 @@ export const notesSections: NotesSection[] = [
     label: 'Relatórios',
     description: 'Abrir relatórios institucionais e artefatos PDF em lote bounded.',
     href: notesAreaHref('reports'),
-    searchTerms: 'relatório relatórios institucional resultados composição recuperação conselho auditoria pdf lote',
+    searchTerms:
+      'relatório relatórios institucional resultados composição recuperação conselho auditoria pdf lote',
   },
   {
     id: 'council',
@@ -73,6 +75,13 @@ export const notesSections: NotesSection[] = [
     description: 'Abrir fila, decisões e fechamento institucional do Conselho de Classe.',
     href: notesAreaHref('council'),
     searchTerms: 'conselho classe fila elegibilidade decisão anual fechamento votação histórico',
+  },
+  {
+    id: 'settings',
+    label: 'Configurações',
+    description: 'Administrar o ciclo de vida dos anos letivos do Banco de Notas.',
+    href: notesAreaHref('settings'),
+    searchTerms: 'configuração configurações reset resetar limpar ano letivo reiniciar sistema',
   },
 ];
 
