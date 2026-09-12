@@ -228,10 +228,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
   student_portal.setting,
   student_portal.publication,
   student_portal.published_projection,
-  student_portal.publication_job,
-  student_portal.academic_revision,
-  student_portal.revision_event
+  student_portal.publication_job
 TO student_portal_app;
+GRANT SELECT, UPDATE ON student_portal.academic_revision TO student_portal_app;
+GRANT SELECT, INSERT ON student_portal.revision_event TO student_portal_app;
 GRANT SELECT ON
   student_portal.academic_student_v1,
   student_portal.academic_binding_v1,
