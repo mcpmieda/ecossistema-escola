@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
+import { provePortalHyperdriveV1 } from '../../../server/student-portal/runtime/hyperdrive-proof-v1';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withPortalPersistenceV1 } from '../../../server/student-portal/runtime/database-v1';
 import {
@@ -65,6 +66,14 @@ beforeAll(async () => {
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });
 
 describe('native PostgreSQL migrations and runtime role isolation', () => {
+  it('runs the synthetic deployment proof and removes its committed row', async () => {
+    const connection = new URL(target);
+    connection.username = 'student_portal_app';
+    expect(await provePortalHyperdriveV1({ connectionString: connection.toString() }, '11111111111111111111111111111111')).toBe(true);
+    expect((await admin`SELECT count(*)::int AS n FROM student_portal.setting
+      WHERE scope_key='runtime-705-11111111111111111111111111111111'`)[0]?.n).toBe(0);
+    expect(await provePortalHyperdriveV1({ connectionString: target.toString() }, '22222222222222222222222222222222')).toBe(false);
+  });
   it('connects as the dedicated role and commits through the actual postgres.js adapter', async () => {
     expect((await portal`SELECT current_user AS role`)[0]?.role).toBe('student_portal_app');
     expect(await persistence.transaction((tx) => tx.insertAccount({
