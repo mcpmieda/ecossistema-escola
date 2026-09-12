@@ -1,3 +1,4 @@
+import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -59,6 +60,7 @@ beforeAll(async () => {
     }),
     end: () => pg.close(),
   };
+  await installResetSchemaFixtureV1(pg);
   database = createGradebookPostgresDatabaseFromSqlV1(sql);
 }, 30_000);
 
@@ -117,7 +119,9 @@ describe('materialização multi-ano e R/R terminal', () => {
     const importService = createGradebookRelationalImportServiceV11(database);
     const request = notes2025();
     await expect(importService.execute(request)).resolves.toMatchObject({ state: 'applied' });
+    const resetBeforeReplay = (await pg.query('SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2025')).rows;
     await expect(importService.execute(request)).resolves.toMatchObject({ state: 'no-changes' });
+    expect((await pg.query('SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2025')).rows).toEqual(resetBeforeReplay);
 
     const pair = (await pg.query<{ oferta_id: number; aluno_id: number }>(`
       SELECT o.id AS oferta_id,a.id AS aluno_id

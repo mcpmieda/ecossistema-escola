@@ -115,11 +115,7 @@ function nullableInteger(value: D1WriteValueV1, label: string): number | null {
   return integer(value, label);
 }
 
-function assertLength(
-  values: readonly D1WriteValueV1[],
-  expected: number,
-  label: string,
-): void {
+function assertLength(values: readonly D1WriteValueV1[], expected: number, label: string): void {
   if (values.length !== expected) {
     throw new Error(`gradebook-import-buffer-invalid-${label}`);
   }
@@ -150,18 +146,27 @@ class BufferedStatementV11 implements D1WriteStatementV1 {
 
   async first<ResultRow extends Row>(): Promise<ResultRow | null> {
     await this.owner.flush();
-    return this.owner.underlying.prepare(this.query).bind(...this.values).first<ResultRow>();
+    return this.owner.underlying
+      .prepare(this.query)
+      .bind(...this.values)
+      .first<ResultRow>();
   }
 
   async all<ResultRow extends Row>(): Promise<{ readonly results: readonly ResultRow[] }> {
     await this.owner.flush();
-    return this.owner.underlying.prepare(this.query).bind(...this.values).all<ResultRow>();
+    return this.owner.underlying
+      .prepare(this.query)
+      .bind(...this.values)
+      .all<ResultRow>();
   }
 
   async run(): Promise<D1WriteRunResultV1> {
     if (this.owner.bufferRun(this.query, this.values)) return oneChange();
     await this.owner.flush();
-    return this.owner.underlying.prepare(this.query).bind(...this.values).run();
+    return this.owner.underlying
+      .prepare(this.query)
+      .bind(...this.values)
+      .run();
   }
 }
 
@@ -169,7 +174,12 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
   readonly underlying: D1WriteDatabaseV1;
   private pending: BufferedWritesV11 = emptyBuffer();
 
-  constructor(database: D1WriteDatabaseV1) {
+  constructor(
+    database: D1WriteDatabaseV1,
+    private readonly finalizers: Array<
+      (database: D1WriteDatabaseV1) => Promise<void>
+    > | null = null,
+  ) {
     this.underlying = database;
   }
 
@@ -182,12 +192,21 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     return await this.underlying.exec(query);
   }
 
+  afterImportFlush(operation: (database: D1WriteDatabaseV1) => Promise<void>): void {
+    if (this.finalizers === null) throw new Error('import-finalizer-outside-transaction');
+    this.finalizers.push(operation);
+  }
+
   async transaction<T>(operation: (database: D1WriteDatabaseV1) => Promise<T>): Promise<T> {
     await this.flush();
     return transactionDatabase(this.underlying).transaction(async (transaction) => {
-      const nested = new BufferedDatabaseV11(transaction);
+      const finalizers = this.finalizers ?? [];
+      const nested = new BufferedDatabaseV11(transaction, finalizers);
       const result = await operation(nested);
       await nested.flush();
+      if (this.finalizers === null) {
+        for (const finalize of finalizers) await finalize(transaction);
+      }
       return result;
     });
   }
@@ -439,11 +458,7 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
     this.pending = emptyBuffer();
   }
 
-  private async groupedRun(
-    query: string,
-    rows: readonly object[],
-    label: string,
-  ): Promise<void> {
+  private async groupedRun(query: string, rows: readonly object[], label: string): Promise<void> {
     if (rows.length === 0) return;
     const result = await this.underlying.prepare(query).bind(JSON.stringify(rows)).run();
     if (resultChanges(result) !== rows.length) {

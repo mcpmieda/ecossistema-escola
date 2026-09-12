@@ -1,3 +1,4 @@
+import { lockResetWriterV1, recordImportResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
 import type {
   GradebookImportCellV9,
   GradebookImportOfferV9,
@@ -81,7 +82,7 @@ async function run(
 }
 
 async function lockAcademicYear(database: D1WriteDatabaseV1, ano: number): Promise<void> {
-  await first<Row>(database, `SELECT pg_advisory_xact_lock(613, ?) AS locked`, [ano]);
+  await lockResetWriterV1(database, ano);
 }
 
 function summary(writes: number, importWritten: boolean) {
@@ -881,6 +882,7 @@ export function createGradebookRelationalImportServiceV9(database: D1WriteDataba
           const state: ImportStateV9 = { importId: null, writes: 0 };
           if (request.operation === 'persist-relacao') await persistRelation(transaction, request, state);
           else await persistNotes(transaction, request, state);
+          if (state.writes > 0) await recordImportResetWriteV1(transaction, request.ano, request.operation === 'persist-relacao' ? 'relation' : 'marks');
           return state;
         });
         return {

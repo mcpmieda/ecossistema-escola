@@ -1,3 +1,4 @@
+import { lockResetWriterV1, recordResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
 import {
   IMPORT_DIAGNOSTIC_TREATMENT_ACTION_LABELS_V1,
   IMPORT_DIAGNOSTIC_TREATMENT_CONTRACT_VERSION_V1,
@@ -251,6 +252,7 @@ async function recordTreatment(
     )
     .run();
 
+  await recordResetWriteV1(database, request.year, 'audit-treatment');
   const inserted = await storedCommand(database, request.idempotencyKey);
   if (!inserted) throw new Error('treatment-insert-missing');
   return {
@@ -287,6 +289,7 @@ export function createImportDiagnosticTreatmentServiceV1(
           );
           if (parsed.data.operation === 'context') return listContext(transaction, parsed.data);
           if (parsed.data.operation === 'history') return listHistory(transaction, parsed.data);
+          await lockResetWriterV1(transaction, parsed.data.year);
           return recordTreatment(transaction, parsed.data, actorOid);
         });
 

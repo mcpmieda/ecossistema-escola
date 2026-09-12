@@ -1,3 +1,4 @@
+import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -45,6 +46,7 @@ beforeAll(async () => {
     INSERT INTO gradebook.fechamento (oferta_id,aluno_id,rec1,rec2,rec3,rec_nc_mask,u_fonte)
       VALUES (10,1,10000,10000,10000,0,30000);
   `);
+  await installResetSchemaFixtureV1(pg);
   database = createGradebookPostgresDatabaseFromSqlV1({
     async unsafe() { throw new Error('outside-transaction'); },
     async begin(operation) {
@@ -113,7 +115,9 @@ describe('relational Council V3 lifecycle', () => {
       idempotencyKey: 'decision:synthetic:0001', justification: 'Deliberação favorável registrada.' });
     const decided = await service.execute(decisionRequest);
     expect(decided).toMatchObject({ state: 'ready', workspace: { session: { version: 2 }, summary: { decided: 1, approved: 1, pending: 0 } } });
+    const revisionBeforeReplay = (await pg.query('SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2026')).rows;
     expect(await service.execute(decisionRequest)).toMatchObject({ state: 'ready', workspace: { session: { version: 2 } } });
+    expect((await pg.query('SELECT reset_counter FROM student_portal.academic_revision WHERE academic_year=2026')).rows).toEqual(revisionBeforeReplay);
     expect(await service.execute({ ...decisionRequest, decision: 2 })).toEqual({ contractVersion: 3, state: 'idempotency-conflict' });
 
     const voted = await service.execute(request('vote', { studentId: 1, favoraveis: 2, contrarios: 2,

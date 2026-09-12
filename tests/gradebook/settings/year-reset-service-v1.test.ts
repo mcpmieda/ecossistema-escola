@@ -144,6 +144,14 @@ beforeAll(async () => {
     (id,ano,arquivo,hash,chave,nivel,codigo,campo)
     VALUES (99,NULL,'fonte-sem-ano.xlsx',decode(repeat('d',64),'hex'),'sem-ano','warning',
       'source-unavailable','file')`);
+  for (const file of [
+    '0001_identity_credentials_acl_v1.sql',
+    '0002_policy_publication_revision_v1.sql',
+    '0003_audit_receipts_closure_integration_v1.sql',
+    '0004_gradebook_integration_usage_v1.sql',
+    '0005_year_reset_protocol_v1.sql',
+  ])
+    await pg.exec(readFileSync(`migrations/student-portal/${file}`, 'utf8'));
   database = createGradebookPostgresDatabaseFromSqlV1({
     async unsafe() {
       throw new Error('outside-transaction');
@@ -174,7 +182,7 @@ afterAll(async () => {
 });
 
 async function preview(year: number) {
-  return createYearResetServiceV1(database).execute({
+  return createYearResetServiceV1(database, ACTOR).execute({
     contractVersion: 1,
     operation: 'preview',
     year,
@@ -182,13 +190,60 @@ async function preview(year: number) {
 }
 
 describe('year reset V1 PostgreSQL service', () => {
+  it('blocks pending and blocked linked accounts on preview and execution without deletion', async () => {
+    const before = await preview(2026);
+    if (before.state !== 'ready' || before.operation !== 'preview') throw new Error('preview');
+    await pg.exec(`INSERT INTO student_portal.account
+      (id,academic_year,gradebook_student_id,auth_state,eligibility,blocked)
+      VALUES ('22222222-2222-4222-8222-222222222222',2026,2,'pending-activation','eligible',true)`);
+    const blocked = { contractVersion: 1, state: 'portal-linked-accounts' };
+    await expect(preview(2026)).resolves.toEqual(blocked);
+    await expect(
+      createYearResetServiceV1(database, ACTOR).execute({
+        contractVersion: 1,
+        operation: 'execute',
+        year: 2026,
+        previewRevision: before.previewRevision,
+        confirmationPhrase: before.confirmationPhrase,
+        understandsIrreversible: true,
+      }),
+    ).resolves.toEqual(blocked);
+    await pg.exec(
+      "DELETE FROM student_portal.account WHERE id='22222222-2222-4222-8222-222222222222'",
+    );
+    await expect(preview(2026)).resolves.toMatchObject({ counts: before.counts });
+  });
+
+  it('refuses another actor and changed content with identical counts', async () => {
+    const before = await preview(2026);
+    if (before.state !== 'ready' || before.operation !== 'preview') throw new Error('preview');
+    const command = {
+      contractVersion: 1,
+      operation: 'execute',
+      year: 2026,
+      previewRevision: before.previewRevision,
+      confirmationPhrase: before.confirmationPhrase,
+      understandsIrreversible: true,
+    };
+    await expect(
+      createYearResetServiceV1(database, '33333333-3333-4333-8333-333333333333').execute(command),
+    ).resolves.toEqual({ contractVersion: 1, state: 'preview-changed' });
+    await pg.exec(`UPDATE gradebook.nota SET valor=19000 WHERE instrumento_id=2;
+      UPDATE student_portal.academic_revision SET reset_counter=reset_counter+1 WHERE academic_year=2026`);
+    await expect(preview(2026)).resolves.toMatchObject({ counts: before.counts });
+    await expect(createYearResetServiceV1(database, ACTOR).execute(command)).resolves.toEqual({
+      contractVersion: 1,
+      state: 'preview-changed',
+    });
+  });
+
   it('rolls back an injected failure without losing any row', async () => {
     const before = await preview(2025);
     expect(before).toMatchObject({ state: 'ready', operation: 'preview' });
     if (before.state !== 'ready' || before.operation !== 'preview') throw new Error('preview');
     failOnNoteDelete = true;
     await expect(
-      createYearResetServiceV1(database).execute({
+      createYearResetServiceV1(database, ACTOR).execute({
         contractVersion: 1,
         operation: 'execute',
         year: 2025,
@@ -198,7 +253,10 @@ describe('year reset V1 PostgreSQL service', () => {
       }),
     ).rejects.toThrow('synthetic-delete-failure');
     failOnNoteDelete = false;
-    await expect(preview(2025)).resolves.toEqual(before);
+    await expect(preview(2025)).resolves.toMatchObject({
+      state: before.state,
+      counts: before.counts,
+    });
   });
 
   it('rejects a stale preview, then removes exactly one year and permits rematerialization', async () => {
@@ -207,9 +265,10 @@ describe('year reset V1 PostgreSQL service', () => {
     await pg.exec(`INSERT INTO gradebook.importacao_diagnostico
       (id,ano,arquivo,hash,chave,nivel,codigo,campo)
       VALUES (3,2025,'nova-fonte.xlsx',decode(repeat('c',64),'hex'),'novo-achado','warning',
-        'source-unavailable','file')`);
+        'source-unavailable','file');
+      UPDATE student_portal.academic_revision SET reset_counter=reset_counter+1 WHERE academic_year=2025`);
     await expect(
-      createYearResetServiceV1(database).execute({
+      createYearResetServiceV1(database, ACTOR).execute({
         contractVersion: 1,
         operation: 'execute',
         year: 2025,
@@ -223,7 +282,7 @@ describe('year reset V1 PostgreSQL service', () => {
     if (current.state !== 'ready' || current.operation !== 'preview') throw new Error('preview');
     expect(current.counts.totalRows).toBeGreaterThan(30);
     const untouchedBefore = await preview(2026);
-    const result = await createYearResetServiceV1(database).execute({
+    const result = await createYearResetServiceV1(database, ACTOR).execute({
       contractVersion: 1,
       operation: 'execute',
       year: 2025,
@@ -239,7 +298,9 @@ describe('year reset V1 PostgreSQL service', () => {
       deletedRows: current.counts.totalRows,
     });
     await expect(preview(2025)).resolves.toEqual({ contractVersion: 1, state: 'not-found' });
-    await expect(preview(2026)).resolves.toEqual(untouchedBefore);
+    if (untouchedBefore.state !== 'ready' || untouchedBefore.operation !== 'preview')
+      throw new Error('preview');
+    await expect(preview(2026)).resolves.toMatchObject({ counts: untouchedBefore.counts });
     expect(
       (
         await pg.query(`SELECT count(*)::integer AS count FROM gradebook.importacao_diagnostico

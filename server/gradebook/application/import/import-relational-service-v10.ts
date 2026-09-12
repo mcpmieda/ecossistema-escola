@@ -1,3 +1,4 @@
+import { lockResetWriterV1 } from '../../../student-portal/integration/year-reset/writer-v1';
 import type {
   GradebookImportOfferV9,
   GradebookImportPersistenceRequestV9,
@@ -127,10 +128,7 @@ export function createGradebookRelationalImportServiceV10(database: D1WriteDatab
         // Hold the same year lock used by V9 while selecting the current/historical
         // bindings, so a concurrent Relação import cannot change the movement state
         // between filtering and persistence. V9 reuses this transaction and lock.
-        await transaction
-          .prepare(`SELECT pg_advisory_xact_lock(613, ?) AS locked`)
-          .bind(request.ano)
-          .first<Row>();
+        await lockResetWriterV1(transaction, request.ano);
         const historicalBindings = await loadHistoricalBindingsV10(transaction, request.ano);
         const filtered = filterHistoricalClassFactsV10(request, historicalBindings);
         return createGradebookRelationalImportServiceV9(transaction).execute(filtered);

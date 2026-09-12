@@ -39,7 +39,7 @@ function statusFor(value: YearResetResponseV1): number {
   if (value.state === 'invalid-request') return 400;
   if (value.state === 'not-authorized') return 403;
   if (value.state === 'not-found') return 404;
-  if (value.state === 'preview-changed') return 409;
+  if (value.state === 'preview-changed' || value.state === 'portal-linked-accounts') return 409;
   return 503;
 }
 
@@ -50,8 +50,11 @@ export function createYearResetRequestHandlerV1() {
     if (request.method !== 'POST') throw new HttpError(405, 'Method not allowed');
     enforceWriteOrigin(request, env);
 
+    let actorOid: string;
     try {
-      authorizeGradebookD1RuntimeV1(await requireAuth(request, env));
+      const session = await requireAuth(request, env);
+      authorizeGradebookD1RuntimeV1(session);
+      actorOid = session.oid;
     } catch (cause) {
       if (cause instanceof AuthenticationError) return failure('not-authorized', 401);
       if (cause instanceof AuthorizationError) return failure('not-authorized', 403);
@@ -76,9 +79,10 @@ export function createYearResetRequestHandlerV1() {
     }
 
     try {
-      const value = await createYearResetServiceV1(env.GRADEBOOK_D1 as D1WriteDatabaseV1).execute(
-        payload,
-      );
+      const value = await createYearResetServiceV1(
+        env.GRADEBOOK_D1 as D1WriteDatabaseV1,
+        actorOid,
+      ).execute(payload);
       if (value.state === 'ready' && value.operation === 'execute') {
         console.info(
           JSON.stringify({

@@ -1,3 +1,4 @@
+import { installResetSchemaFixtureV1 } from '../../student-portal/year-reset/schema-fixture';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -36,6 +37,7 @@ beforeAll(async () => {
         'warning','source-unavailable','6A','MATEMATICA','1 trimestre',1,
         'term-result','Resultado');
   `);
+  await installResetSchemaFixtureV1(pg);
   database = createGradebookPostgresDatabaseFromSqlV1({
     async unsafe() {
       throw new Error('outside-transaction');
