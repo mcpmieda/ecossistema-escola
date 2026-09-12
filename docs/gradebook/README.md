@@ -1,5 +1,11 @@
 # Banco de Notas — ponto de entrada
 
+## Fechamento factual em 11/09/2026
+
+FINAL-1 #633, FINAL-2 #634, FINAL-3 #635, FINAL-4 #406 e aceite acadêmico #347 estão encerrados. A baseline consolidada é `main@80b2916185fc6a49df7c5ab0af71e2be4dcdeb66`, com CI `34667519751` e deploy `34667699446` verdes. O [piloto integral](FINAL4_PILOT_406.md) e a [operação institucional](FINAL_OPERATION_596.md) substituem os estados intermediários abaixo como ponto de execução.
+
+O ano oficial é 2026; 2025 é massa descartável de teste materializada para o ciclo anual. `imported-source` permanece oficial, `native-engine` descritivo, comparação é apenas trimestral dentro do mesmo ano e R/R é reprovação automática fora do Conselho. Backup gerenciado/RPO/RTO foi explicitamente adiado e continua ausente.
+
 ## Estado integrado e entrega corrente
 
 A #613 encerrou a reconstrução e homologou a persistência PostgreSQL/Supabase via Hyperdrive `PROD_DB`: 19 tabelas centrais + `importacao_diagnostico` = 20. Importador externo V9, serviços internos V10/V11 e retenção de diagnósticos atuais estão homologados. Não reabrir streams/versions, backfill ou importadores arquivados.
@@ -12,7 +18,7 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#646 / PR #647:** corrige placeholders qualitativos sem evidência, adota siglas observadas na fonte, conclui a composição desktop/detalhe e estende um único ano global a todas as áreas acadêmicas, com mapeamento estrito para contratos legados. Comparabilidade e configuração sem decisão permanecem fechadas; validação visual final foi adiada. [Contrato e limites da entrega](FINAL2_SOURCE_DESKTOP_646.md).
 
-**#649 / PR #650:** substitui a escolha multi-ano por contexto fixo 2026, remove a criação de anos e contrata a comparação descritiva T2→T1 e T3→T1/T2 para Resultado, Quantitativo e Qualitativo. Não compara anos nem avaliações por slot, não altera schema/dados/autoridade e mantém a validação visual conjunta adiada. [Contrato V4 e limites](TERM_COMPARISON_2026_V4.md).
+**#649 / PR #650:** naquele checkpoint, substituiu a escolha multi-ano por contexto fixo 2026 e contratou a comparação descritiva T2→T1 e T3→T1/T2. A #676/#678 posteriormente materializou anos por importação e restabeleceu o seletor global isolado. Continua proibida a comparação entre anos. [Contrato V4 histórico](TERM_COMPARISON_2026_V4.md) e [extensão atual](MULTIYEAR_RR_676.md).
 
 **#648 / PR #653:** Conselho V3 relacional integrado, migrado e publicado no deploy 262, com decisão humana 1/2/3, votos numéricos, empate fora do sistema, histórico e fotografia de fechamento. Smoke autenticado somente leitura aprovado; validação visual conjunta permanece adiada. [Contrato e evidências](RELATIONAL_COUNCIL_V3.md).
 
@@ -32,7 +38,7 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 **#668 / PR #669:** medição autenticada de Desempenho no site publicado. No cenário 2026/T1/Regular/Resultado, p95 de dashboard e detalhe, payload Brotli e tempo até a matriz utilizável passaram nas metas da #634. É evidência pontual, não SLA universal; a rodada manual posterior gerou #672/#673 e sua aceitação encerrou a FINAL-2. [Cenário e resultado](PERFORMANCE_MEASUREMENTS_668.md).
 
-**#674 / PR #675:** contrato e implementação da trilha humana da Auditoria. Reconhecimento e anotação são append-only, não resolvem nem ocultam achados e não alteram fatos acadêmicos. A BN-DEC-027 autorizou a migration `0006`; backup/restore descartável, preflight, aplicação e postflight estão verdes, e o código segue integração/publicação pela PR. [Contrato e gate](RELATIONAL_AUDIT_TREATMENT_V1.md).
+**#674 / PR #675:** trilha humana append-only da Auditoria integrada e publicada. Reconhecimento e anotação não resolvem nem ocultam achados e não alteram fatos acadêmicos. A migration `0006`, CI, deploy e smoke autenticado estão verdes. [Contrato e gate](RELATIONAL_AUDIT_TREATMENT_V1.md).
 
 ## Leitura e execução
 
@@ -44,14 +50,14 @@ A #636 integrou planejamento reconciliado, leituras em lote, baseline de schema 
 
 ## Programa final
 
-| Fase    | Issue | Entrega restante                                                                                                                              |
+| Fase    | Issue | Resultado                                                                                                                                      |
 | ------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| FINAL-1 | #633  | Consumidores e restore/contenção local concluídos; trilha humana #674 em integração após migration verde; operação externa e visual pendentes |
-| FINAL-2 | #634  | Concluída após #672/#673 e validação manual do responsável; piloto/autoridade continuam em #406/#347                                          |
-| FINAL-3 | #635  | Conselho V3 integrado/publicado e contenção local comprovada; validação visual conjunta e piloto ainda pendentes                              |
-| FINAL-4 | #406  | piloto integral, recuperação operacional externa e retirada seletiva do legado                                                                |
+| FINAL-1 | #633  | Concluída: consumidores relacionais, Auditoria humana, restore/contenção local e aceite visual                                                 |
+| FINAL-2 | #634  | Concluída: Desempenho, comparação trimestral, refinamentos e aceite visual                                                                     |
+| FINAL-3 | #635  | Concluída: Conselho humano, votos, histórico, fechamento e aceite visual                                                                        |
+| FINAL-4 | #406  | Concluída: piloto integral, ciclo anual descartável, matriz sanitizada e limitações classificadas                                                |
 
-#347 registra aceite acadêmico por consumidor/escopo; #596 encerra a operação institucional; #220 é observabilidade transversal. #637 foi a remediação de dependências, com [evidências próprias](SECURITY_REMEDIATION_637.md). Nenhuma entrega parcial encerra FINAL-1/2 automaticamente.
+#347 encerrou o aceite acadêmico por consumidor/escopo. #596 consolida a operação institucional com o risco de backup aceito e adiado; #220 permanece expansão transversal não bloqueante. #637 foi a remediação de dependências, com [evidências próprias](SECURITY_REMEDIATION_637.md).
 
 ## Fontes funcionais e invariantes
 

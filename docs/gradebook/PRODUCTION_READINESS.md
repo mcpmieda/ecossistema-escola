@@ -1,12 +1,18 @@
 # Readiness — produto relacional e entrega institucional
 
+## Fechamento factual em 11/09/2026
+
+FINAL-1 #633, FINAL-2 #634, FINAL-3 #635, FINAL-4 #406 e aceite acadêmico #347 estão encerrados. O head consolidado `main@80b2916185fc6a49df7c5ab0af71e2be4dcdeb66` passou no CI `34667519751`, foi publicado pelo deploy `34667699446` e carregou no smoke autenticado. A evidência integral está em [FINAL4_PILOT_406.md](FINAL4_PILOT_406.md); rotina, responsáveis, monitoramento e incidente estão em [FINAL_OPERATION_596.md](FINAL_OPERATION_596.md).
+
+Backup/restore gerenciado, retenção, RPO e RTO continuam ausentes por decisão explícita do responsável. O aceite corrente não transforma o ensaio local da #662 nem o D1 histórico em garantia de recuperação.
+
 ## Evidência aceita, integração e publicação
 
 #613 homologou persistência/idempotência; #629, retenção de diagnósticos atuais; #632, arquivo dos importadores exclusivos. A #636 foi integrada em `4d8256fa6f741f4fb0b6ade8676d0f9193b7a460`, com deploy oficial 254 / `34468184541` aprovado. Inclui baseline de schema, lote de projeção e proteção transacional da Auditoria. Não houve smoke autenticado pós-deploy nesta sessão.
 
 A PR #640, contrato #639, acrescentou contexto/pesquisa/Centrais V2 e foi integrada em `6683d1377f2dd090c1346f693a4af4c2e188d7ae`, deploy 255 / `34477526551` aprovado. PGlite e HTTP com identidade sintética não são benchmark Hyperdrive, contenção PostgreSQL multi-sessão, restore de dados reais ou aceite visual. Nenhuma dessas entregas prova automaticamente Desempenho, emissão/reimpressão, votação ou autoridade por consumidor.
 
-As PRs #643/#645 integraram matriz relacional e quatro lentes; a #647 integrou fonte, ano global, detalhe e desktop em `002b97a6b647c28e1eca75745425732858eae665`. A #649/#650 fixa 2026, remove criação/seleção de anos e acrescenta comparação trimestral sem ativar autoridade ou alterar schema/dados. A #666 retira apenas frontends antigos sem montagem; as superfícies relacionais continuam sendo o caminho ativo. A #668 registra payload/latência/matriz utilizável autenticados e verdes no cenário documentado. Validação visual conjunta continua separada e foi adiada para uma única sessão com o responsável.
+As PRs #643/#645 integraram matriz relacional e quatro lentes; a #647 integrou fonte, ano global, detalhe e desktop em `002b97a6b647c28e1eca75745425732858eae665`. A #649/#650 fixou 2026 naquele checkpoint e acrescentou comparação trimestral; a #676/#678 posteriormente materializou anos por importação e restabeleceu a seleção global isolada, sem comparação entre anos. A #666 retirou apenas frontends antigos sem montagem; as superfícies relacionais continuam sendo o caminho ativo. A #668 registrou payload/latência/matriz utilizável autenticados e verdes. A validação visual conjunta e os refinamentos #677/#681–#683 foram concluídos depois.
 
 A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; migration/postflight, CI 594, deploy 262 / `34565744488` e smoke autenticado somente leitura foram aprovados. A #654/PR #655 integrou Boletins V2 em `1512d5b37c42931b1df81bbfe6483d1ad5340130`; backup lógico, preflight, migration/postflight `0005`, CI, deploy 263 / `34572772095` e smoke autenticado somente leitura foram aprovados. A #656/PR #657 integrou Relatórios V2 em `3d762d7412fe0a5760680566ae6739f4d10c1172`; CI, deploy 264 / `34577894561` e smoke autenticado somente leitura foram aprovados. A #658/PR #659 integrou Auditoria atual V2 em `380b016d0c1ec5917323fe3fad35398b4fbd1a6a`; CI, deploy 265 / `34580485339` e smoke autenticado somente leitura foram aprovados. A #660/PR #661 foi integrada em `92e9f97a23e110cb77011570e1edaef97389cb3d`, deploy 266 / `34585674112` e smoke autenticado somente leitura verdes. A #662/PR #663 foi integrada em `89cb382d588364560ac250a4a1f0e0d65a079573`, deploy 267 / `34600229510`, com restore/contenção local e smoke somente leitura verdes. A #664/PR #665 foi integrada em `dc8005e7911b1dbfda914345a8c194987b6ebc22`, deploy 268 / `34602595928`, retirando somente entrypoints Audit V1 comprovadamente sem consumidor. A #666 retira os demais frontends antigos sem montagem e preserva a compatibilidade server-side.
 
@@ -14,16 +20,16 @@ A PR #653 integrou o Conselho V3 em `4f32dd5150641d0a24c2e2c241768f953202ce56`; 
 
 | Gate             | Responsável                      | Evidência                                                                                                       |
 | ---------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Schema/runtime   | #633; blocos #639/#640/#660/#662 | replay/drift e fontes relacionais; restore lógico/contenção local comprovados, operação externa ainda pendente  |
-| Desempenho       | #634/#668                        | comparação trimestral e metas técnicas do cenário autenticado verdes; validação visual conjunta restante        |
-| Conselho         | #635                             | lacunas contratuais, decisão humana, voto/fechamento e durabilidade                                             |
-| Boletins         | #633/#654                        | contrato V2 integrado/publicado; migration/postflight, CI e smoke somente leitura verdes                        |
-| Relatórios       | #633/#656/#657                   | contrato V2 integrado/publicado; CI e smoke autenticado somente leitura verdes                                  |
-| Auditoria atual  | #633/#658/#664                   | somente diagnóstico corrente 2026; UI/endpoint Audit V1 retirados; núcleo usado por Relatórios V1 preservado    |
+| Schema/runtime   | #633; blocos #639/#640/#660/#662 | concluído; restore lógico/contenção local comprovados, backup externo explicitamente adiado                     |
+| Desempenho       | #634/#668/#677                   | concluído; comparação trimestral, metas, refinamentos e validação visual desktop/mobile verdes                  |
+| Conselho         | #635/#648                        | concluído; decisão humana, votos, empate externo, fechamento/reabertura e durabilidade                           |
+| Boletins         | #633/#654/#684                   | concluído; emissão individual/lote, R/R terminal, snapshot, reprint e PDF exercitados                           |
+| Relatórios       | #633/#656/#684                   | concluído; cinco famílias e R/R terminal exercitados                                                            |
+| Auditoria atual  | #633/#658/#674                   | concluído; diagnóstico atual e trilha humana append-only                                                        |
 | Frontends ativos | #633/#666                        | somente superfícies relacionais montadas; endpoints legados externos e renderizador PDF reutilizado preservados |
-| Produto integral | #406                             | jornadas, restart/falhas, segurança, histórico e recuperação                                                    |
-| Aceite acadêmico | #347                             | consumidor/escopo, versão/vigência, divergências e emissões                                                     |
-| Entrega          | #596                             | operação, responsáveis, recuperação e aceite final                                                              |
+| Produto integral | #406/#686                        | concluído; matriz sanitizada, ciclo anual, restart/falhas, segurança e histórico                                |
+| Aceite acadêmico | #347                             | concluído; `imported-source` oficial nos consumidores atuais                                                    |
+| Entrega          | #596                             | operação final documentada; lacuna de backup aceita e adiada                                                    |
 | Dependências     | #637/#641                        | lock corrigido e audits zerados no run 551; CI final, merge/deploy no checkpoint da issue                       |
 
 ## Recuperação não pode ser presumida

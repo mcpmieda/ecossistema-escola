@@ -1,6 +1,6 @@
 # Roadmap — quatro fases finais
 
-A reconstrução de persistência da #613 terminou. Este roadmap substitui a fila antiga de cinco etapas, não apaga evidências anteriores. Programa #182; entrega corrente #674 sob FINAL-1/#406/#596, sem reconstruir os blocos já integrados.
+A reconstrução de persistência da #613 e as quatro fases finais terminaram. Este roadmap preserva a fila executada e não apaga evidências anteriores. O fechamento factual está em [FINAL4_PILOT_406.md](FINAL4_PILOT_406.md) e [FINAL_OPERATION_596.md](FINAL_OPERATION_596.md).
 
 ## FINAL-1 — #633: runtime relacional e verdade documental
 
@@ -8,13 +8,13 @@ A reconstrução de persistência da #613 terminou. Este roadmap substitui a fil
 
 **Primeira entrega / PR #636:** reancoragem documental e leitura em lote; projeção anual deixa de consultar fatos separadamente por oferta. Preserva motor e resultados. Não liga novas telas nem fecha toda a fase.
 
-**Blocos integrados/em execução:** baseline, Centrais, Desempenho, Conselho, Boletins, Relatórios, Auditoria atual V2, configuração docente, recuperação/contenção local #662/#663 e retiradas seletivas #664/#666 estão integrados. A FINAL-2 foi aceita e encerrada após #672/#673. **Restante:** integrar/publicar a trilha humana de Auditoria da #674 após migration/postflight verdes; recuperação operacional externa; visual de FINAL-1/3 e piloto. Remoção de endpoint exige inventário próprio de consumidores; contratos compartilhados exigem issue própria.
+**Blocos concluídos:** baseline, Centrais, Desempenho, Conselho, Boletins, Relatórios, Auditoria atual e trilha humana, configuração docente, recuperação/contenção local e retiradas seletivas estão integrados e publicados. Recuperação gerenciada externa foi explicitamente adiada; não é declarada como implementada.
 
 **Fechar quando:** consumidores contemplados estejam integrados e verificados, sem relações antigas no caminho migrado, com CI e evidência funcional após publicação autorizada.
 
 ## FINAL-2 — #634: Desempenho completo
 
-Implementar o contrato `PAINEL DESEMPENHO`: contexto fixo 2026; turma/período T1–T3/Visão geral; Regular/Recuperação; matriz dominante Nº/Situação/Aluno/componentes; quatro lentes; poucos KPIs e um gráfico contextual; investigação; comparação proporcional T2→T1 e T3→T1/T2 declarada pela #649; detalhes sob demanda. Não criar ou comparar anos letivos. Dados exibidos não são automaticamente população elegível de indicadores. Não criar regras, conceitos qualitativos ou métricas sem semântica sustentada.
+Implementar o contrato `PAINEL DESEMPENHO`: turma/período T1–T3/Visão geral; Regular/Recuperação; matriz dominante Nº/Situação/Aluno/componentes; quatro lentes; poucos KPIs e um gráfico contextual; investigação; comparação proporcional T2→T1 e T3→T1/T2 declarada pela #649; detalhes sob demanda. Naquele checkpoint, o contexto estava fixo em 2026; a #676 posteriormente acrescentou seleção anual global e isolamento, sem comparação entre anos. Dados exibidos não são automaticamente população elegível de indicadores. Não criar regras, conceitos qualitativos ou métricas sem semântica sustentada.
 
 Concluída e encerrada. A #668 mediu no browser autenticado o payload, p95 de dashboard/detalhe e matriz utilizável e aprovou as metas no cenário sanitizado; isso não vira SLA universal. A rodada manual posterior gerou os refinamentos #672/#673 e sua aceitação encerrou a #634. Piloto integral e autoridade continuam pertencendo a #406/#347.
 
@@ -22,7 +22,7 @@ Concluída e encerrada. A #668 mediu no browser autenticado o payload, p95 de da
 
 A decisão #648 fixa 2026, os estados 1/2/3, voto opcional somente favoráveis/contrários e desempate do diretor fora do sistema. O V3 relacional entrega turma/aluno, fila, panorama/detalhes, não elegíveis com motivos, sessão, decisão humana, votação, histórico, fechamento e reabertura justificada. Não converte julgamento humano em cálculo nem infere diretor a partir de papel administrativo.
 
-A extensão mínima persiste sessão, idempotência, votos, históricos e fotografias de fechamento sem backfill ou mudança de fatos acadêmicos. CI, migration/postflight, publicação e smoke da #648/#653 estão verdes; a #662 comprovou restart/restauração e contenção CAS em PostgreSQL local. Aceite visual conjunto e piloto permanecem gates separados.
+A extensão mínima persiste sessão, idempotência, votos, históricos e fotografias de fechamento sem backfill ou mudança de fatos acadêmicos. CI, migration/postflight, publicação e smoke da #648/#653 estão verdes; a #662 comprovou restart/restauração e contenção CAS em PostgreSQL local. Aceite visual conjunto e piloto anual foram concluídos posteriormente, sem registrar voto de minerva do diretor.
 
 ## FINAL-4 — #406: piloto do produto inteiro
 
@@ -30,9 +30,11 @@ Reutilizar evidência da #613; testar o que é novo/regressão e todas as jornad
 
 **Fechar quando:** matriz sanitizada requisito/caso/resultado/commit verde, divergências materiais reconciliadas e recuperação comprovada. Código/testes sintéticos não substituem esse piloto.
 
+Concluída pela #406/PR #686. O corpus descartável de 2025 permitiu exercitar o ano completo, enquanto o corpus canônico de 2026 preservou a prova de importação/reimportação idêntica. A recuperação local foi comprovada; backup externo/RPO/RTO permanece como risco aceito e adiado.
+
 ## Aceite e entrega
 
-#347 mantém o aceite acadêmico explícito por consumidor/escopo, versão/vigência e efeito sobre emissões futuras. Não é uma segunda migração física e não cria um flip global obrigatório. #596 encerra operação, runbook, recuperação e aceite institucional. #220 é expansão transversal de observabilidade; falhas críticas bloqueiam, recursos extras planejados não.
+#347 foi encerrada com `imported-source` oficial nos consumidores atuais e `native-engine` descritivo. #596 consolida operação, runbook, limitações e aceite institucional. #220 continua expansão transversal de observabilidade; falhas críticas bloqueiam quando demonstradas, recursos extras planejados não.
 
 ## Continuidade histórica
 
