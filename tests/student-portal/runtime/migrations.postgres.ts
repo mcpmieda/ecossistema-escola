@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { withPortalPersistenceV1 } from '../../../server/student-portal/runtime/database-v1';
 import {
   createStudentPortalPostgresPersistenceV1,
   type StudentPortalPostgresSqlV1,
@@ -112,5 +113,38 @@ describe('native PostgreSQL migrations and runtime role isolation', () => {
       code: expect.stringMatching(/^(23503|23001)$/),
       constraint_name: 'student_portal_account_gradebook_fk_v1',
     });
+  });
+
+  it('uses the bounded runtime connection and closes it after reading', async () => {
+    const connection = new URL(target);
+    connection.username = 'student_portal_app';
+    expect(await withPortalPersistenceV1({ connectionString: connection.toString() }, (port) =>
+      port.transaction((tx) => tx.findAccount(ACCOUNT)),
+    )).toMatchObject({ id: ACCOUNT, blocked: false });
+    expect((await admin`SELECT count(*)::int AS count FROM pg_stat_activity
+      WHERE application_name='student-portal-v1'`)[0]?.count).toBe(0);
+  });
+
+  it('refuses a privileged connection before calling the application', async () => {
+    let called = false;
+    await expect(withPortalPersistenceV1({ connectionString: target.toString() }, async () => {
+      called = true;
+    })).rejects.toThrow('student-portal-database-unavailable');
+    expect(called).toBe(false);
+  });
+
+  it('bounds lock waits and closes the failed runtime connection', async () => {
+    const connection = new URL(target);
+    connection.username = 'student_portal_app';
+    await admin.begin(async (held) => {
+      await held`SELECT id FROM student_portal.account WHERE id=${ACCOUNT} FOR UPDATE`;
+      const started = Date.now();
+      await expect(withPortalPersistenceV1({ connectionString: connection.toString() }, (port) =>
+        port.transaction((tx) => tx.lockAccounts([ACCOUNT])),
+      )).rejects.toThrow('student-portal-database-unavailable');
+      expect(Date.now() - started).toBeLessThan(5000);
+    });
+    expect((await admin`SELECT count(*)::int AS count FROM pg_stat_activity
+      WHERE application_name='student-portal-v1'`)[0]?.count).toBe(0);
   });
 });
