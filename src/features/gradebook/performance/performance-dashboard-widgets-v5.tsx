@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   ChartNoAxesColumnIncreasing,
   CheckCircle2,
+  ChevronDown,
   CircleAlert,
   Clock3,
   PieChart,
@@ -75,6 +76,7 @@ function ComponentBarsV5({ value, selection, onSelectionChange, open }: {
   const offers = new Map(analysis.matrix.offers.map((offer) => [offer.id, offer]));
   const students = new Map(analysis.matrix.rows.map((row) => [row.student.id, row.student]));
   const selectedColumn = selection?.kind === 'column' ? analysis.columns.find((column) => column.key === selection.key) : undefined;
+  const selectedBelowStudents = selectedColumn?.summary.groups.below.map((id) => students.get(id)).filter((student) => student !== undefined) ?? [];
   const maximum = Math.max(1, ...value.overview.columns.flatMap((column) => [column.atOrAbove, column.below]));
   const choose = (key: string, bucket: 'above' | 'below') => {
     const active = selection?.kind === 'column' && selection.key === key && selection.bucket === bucket;
@@ -91,16 +93,10 @@ function ComponentBarsV5({ value, selection, onSelectionChange, open }: {
     </header>
     {selectedColumn ? <section className="performance-bars__detail" aria-label={`Estudantes por situação em ${selectedColumn.label}`} aria-live="polite">
       <header className="performance-bars__detail-header"><Button size="sm" variant="ghost" onPress={() => onSelectionChange(null)}><ArrowLeft size={15}/>Voltar ao gráfico</Button><span className="min-w-0 text-right"><span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted">Componente selecionado</span><h4 className="truncate text-sm font-semibold">{selectedColumn.label}</h4></span></header>
-      <div className="performance-bars__student-groups">{([
-        { bucket: 'above', label: 'Notas azuis', detail: 'No mínimo ou acima', tone: 'above' },
-        { bucket: 'below', label: 'Notas vermelhas', detail: 'Abaixo do mínimo', tone: 'below' },
-      ] as const).map((group) => {
-        const members = selectedColumn.summary.groups[group.bucket].map((id) => students.get(id)).filter((student) => student !== undefined);
-        return <section className={`performance-bars__student-group performance-bars__student-group--${group.tone}`} key={group.bucket} aria-label={`${group.label}: ${members.length} estudante(s)`}>
-          <header><span><strong>{group.label}</strong><small>{group.detail}</small></span><Chip size="sm" variant="soft" color={group.bucket === 'above' ? 'accent' : 'danger'}>{members.length}</Chip></header>
-          {members.length > 0 ? <ul>{members.map((student) => <li key={student.id}><button type="button" onClick={() => open(student.id, selectedColumn.offerId)}><span className="truncate">{student.name}</span><small>Nº {student.number}</small></button></li>)}</ul> : <p>Nenhum estudante nesta faixa.</p>}
-        </section>;
-      })}</div>
+      <div className="performance-bars__student-groups"><section className="performance-bars__student-group performance-bars__student-group--below" aria-label={`Notas vermelhas: ${selectedBelowStudents.length} estudante(s)`}>
+        <header><span><strong>Abaixo do mínimo</strong><small>Estudantes que requerem atenção neste componente</small></span><Chip size="sm" variant="soft" color="danger">{selectedBelowStudents.length}</Chip></header>
+        {selectedBelowStudents.length > 0 ? <ul>{selectedBelowStudents.map((student) => <li key={student.id}><button type="button" onClick={() => open(student.id, selectedColumn.offerId)}><span className="truncate">{student.name}</span><small>Nº {student.number}</small></button></li>)}</ul> : <p>Nenhum estudante abaixo do mínimo neste componente.</p>}
+      </section></div>
     </section> : <>
       <div className="performance-bars" role="group" aria-label="Barras por componente curricular">
         {value.overview.columns.map((column) => {
@@ -113,7 +109,7 @@ function ComponentBarsV5({ value, selection, onSelectionChange, open }: {
                 const count = bucket === 'above' ? column.atOrAbove : column.below;
                 const active = selection?.kind === 'column' && selection.key === column.key && selection.bucket === bucket;
                 return <button key={bucket} type="button" className={`performance-bar performance-bar--${bucket} ${active ? 'performance-bar--selected' : ''}`}
-                  style={{ height: `${Math.max(count === 0 ? 1.5 : 8, count / maximum * 100)}%` }} aria-pressed={active}
+                  style={{ height: `${Math.max(count === 0 ? 1.5 : 8, count / maximum * 86)}%` }} aria-pressed={active}
                   aria-label={`${title}: ${count} estudante(s) ${bucket === 'above' ? 'no mínimo ou acima' : 'abaixo do mínimo'}`}
                   onClick={() => choose(column.key, bucket)}><span>{count}</span></button>;
               })}
@@ -169,8 +165,8 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
         </button>
       </div>
     </div>
-    <section className="performance-ranking" aria-label="Classificação da turma">
-      <header><span><strong>Classificação da turma</strong><small>10 maiores somatórios do recorte</small></span><Chip size="sm" variant="soft" color="accent">Top 10</Chip></header>
+    <details className="performance-ranking" aria-label="Classificação da turma">
+      <summary><span><strong>Classificação da turma</strong><small>10 maiores somatórios do recorte</small></span><span className="flex items-center gap-1.5"><Chip size="sm" variant="soft" color="accent">Top 10</Chip><ChevronDown className="performance-ranking__chevron" size={15}/></span></summary>
       {value.overview.ranking.length > 0 ? <ol>{value.overview.ranking.map((entry, index) => {
         const student = students.get(entry.studentId);
         if (student === undefined) return null;
@@ -179,7 +175,7 @@ function ClassPanoramaV5({ value, selection, onSelectionChange, open }: {
         </button></li>;
       })}</ol> : <p>Nenhum estudante tem valor numérico em todos os componentes deste recorte.</p>}
       <footer>{totalLabel} · soma dos componentes com valor numérico{value.overview.ranking.some((entry) => entry.partial) ? ' · * soma com componente parcial' : ''}</footer>
-    </section>
+    </details>
   </Surface>;
 }
 

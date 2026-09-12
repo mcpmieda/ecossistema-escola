@@ -14,9 +14,11 @@ describe('Performance dashboard V5 HeroUI', () => {
 
   it('uses HeroUI selects and keeps the lens geometry stable while loading', () => {
     expect(page).toContain("Label, ListBox, Select");
-    expect(page).toContain('<Select selectedKey=');
-    expect(page).toContain('<Select.Popover>');
-    expect(page).not.toContain('isNonModal');
+    expect(page).toContain('<Select ref={root} selectedKey=');
+    expect(page).toContain('isOpen={isOpen}');
+    expect(page).toContain('onOpenChange={(open) => onOpenChange(id, open)}');
+    expect(page).toContain('document.addEventListener(\'pointerdown\', closeOutside, true)');
+    expect(page).toContain('<Select.Popover isNonModal data-performance-select-popover={id}>');
     expect(page).not.toContain('<select');
     expect(page).toContain('min-h-11');
     expect(page).toContain('min-h-8');
@@ -43,12 +45,13 @@ describe('Performance dashboard V5 HeroUI', () => {
     expect(service).toContain("buckets.every((bucket) => bucket === 'above')");
   });
 
-  it('keeps color-independent labels and shows both names groups without filtering the matrix', () => {
+  it('keeps color-independent labels and shows only below-minimum names without filtering the matrix', () => {
     expect(widgets).toContain('aria-label={`${title}: ${count} estudante(s)');
     expect(widgets).toContain('aria-pressed={active}');
-    expect(widgets).toContain("selectedColumn.summary.groups[group.bucket]");
-    expect(widgets).toContain('Notas azuis');
+    expect(widgets).toContain('selectedColumn?.summary.groups.below');
+    expect(widgets).not.toContain('Notas azuis');
     expect(widgets).toContain('Notas vermelhas');
+    expect(widgets).toContain('<details className="performance-ranking"');
     expect(analysis).toContain("const ids = selection?.kind === 'group'");
     expect(page).toContain('renderResult={(ids)');
   });

@@ -18,7 +18,7 @@ const cell = { offerId: 10, valueMilli: 24000, maximumMilli: 30000, state: 'comp
 const student = { id: 1, name: 'ALUNO SINTETICO', number: 1, status: null, statusLabel: 'Sem situação especial', indicatorEligible: true };
 const row = { student, calculatedAnnual: { state: 'in-progress', label: 'EM CURSO', councilEligibility: 'not-applicable' }, formalCouncilDecision: null, cells: [cell] };
 const belowCell = { ...cell, valueMilli: 12000, state: 'partial', level: 'below', sourceReferenceMilli: 12000, sourceComparison: 'unavailable' };
-const belowStudent = { ...student, id: 2, name: 'OUTRO ALUNO SINTETICO', number: 2, status: 7, statusLabel: 'Estava no' };
+const belowStudent = { ...student, id: 2, name: 'OUTRO ALUNO SINTETICO', number: 2, status: 7, statusLabel: 'ESTAVA NO 6A' };
 const belowRow = { ...row, student: belowStudent, cells: [belowCell] };
 const selected = { classGroup: { id: 10, label: 'A1' }, period: 1, mode: 'regular' };
 const matrix = { ...common, ...selected, operation: 'matrix', offers: [offering], rows: [row, belowRow], comparison: { available: false, reason: 'comparability-not-contracted' }, statistics: { classRows: 2, visibleRows: 2, eligibleRows: 2, recoveryUnknownRows: 0, consideredCells: 2, completeCells: 1, noShowCells: 0, incompleteCells: 1, attentionRows: 1 } };
@@ -143,6 +143,17 @@ describe('real shell, shared year and rendered performance journey', () => {
     expect(document.querySelector('select[aria-label="Ano letivo do Banco"]')).toBeNull();
     expect(host.querySelector('[aria-label="Contexto acadêmico atual"]')?.textContent).toContain('2026');
     expect(requests.filter((value) => value.operation === 'bootstrap')).toHaveLength(1);
+  });
+  it('hands an open filter directly to the next select and closes it outside', async () => {
+    await mount();
+    await waitFor(() => requests.some((value) => value.operation === 'classes'));
+    await act(async () => { selectTrigger('Turma')!.click(); }); await settle();
+    expect(selectRoot('Turma')?.hasAttribute('data-open')).toBe(true);
+    await act(async () => { selectTrigger('Período')!.click(); }); await settle();
+    expect(selectRoot('Turma')?.hasAttribute('data-open')).toBe(false);
+    expect(selectRoot('Período')?.hasAttribute('data-open')).toBe(true);
+    await act(async () => { document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })); }); await settle();
+    expect(selectRoot('Período')?.hasAttribute('data-open')).toBe(false);
   });
   it('loads shared year, class and matrix, then a student drawer and the existing center', async () => {
     await loaded();
@@ -287,7 +298,7 @@ describe('four lenses and analytical investigation V3', () => {
     expect(requests.filter((r) => r.operation === 'dashboard')).toHaveLength(5);
     expect(selectRoot('Componente das avaliações')).toBeNull();
   });
-  it('shows both component groups inside the chart without filtering the matrix', async () => {
+  it('shows only below-minimum students inside the chart without filtering the matrix', async () => {
     await loaded();
     expect(host.textContent).not.toContain('Quantidade de estudantes por faixa oficial');
     expect(host.textContent).not.toContain('Todos os componentes do recorte atual');
@@ -295,12 +306,14 @@ describe('four lenses and analytical investigation V3', () => {
     expect(host.textContent).toContain('Classificação da turma');
     expect(host.textContent).toContain('12*');
     expect(host.querySelector('.performance-status-chip--regular')?.getAttribute('aria-label')).toBe('Sem situação especial');
-    expect(host.querySelector('.performance-status-chip--origin')?.getAttribute('aria-label')).toBe('Estava no');
+    expect(host.querySelector('.performance-status-chip--origin')?.getAttribute('aria-label')).toBe('ESTAVA NO 6A');
+    expect(host.querySelector('.performance-status-chip--origin')?.textContent).toBe('ESTAVA NO 6A');
+    expect(host.querySelector('details.performance-ranking')?.hasAttribute('open')).toBe(false);
     const bar = host.querySelector('button[aria-label="MATEMATICA SINTETICA: 1 estudante(s) no mínimo ou acima"]') as HTMLButtonElement;
     expect(bar).not.toBeNull();
     await act(async () => { bar.click(); }); await settle();
     expect(host.querySelector('[aria-label="Barras por componente curricular"]')).toBeNull();
-    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')?.textContent).toContain(student.name);
+    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')).toBeNull();
     expect(host.querySelector('[aria-label="Notas vermelhas: 1 estudante(s)"]')?.textContent).toContain(belowStudent.name);
     expect(host.querySelector('[aria-label="Matriz de Desempenho"]')?.textContent).toContain(student.name);
     expect(host.querySelector('[aria-label="Matriz de Desempenho"]')?.textContent).toContain(belowStudent.name);
@@ -308,7 +321,7 @@ describe('four lenses and analytical investigation V3', () => {
     await click('Voltar ao gráfico');
     const redBar = host.querySelector('button[aria-label="MATEMATICA SINTETICA: 1 estudante(s) abaixo do mínimo"]') as HTMLButtonElement;
     await act(async () => { redBar.click(); }); await settle();
-    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')?.textContent).toContain(student.name);
+    expect(host.querySelector('[aria-label="Notas azuis: 1 estudante(s)"]')).toBeNull();
     expect(host.querySelector('[aria-label="Notas vermelhas: 1 estudante(s)"]')?.textContent).toContain(belowStudent.name);
     await click('Ver estatísticas'); expect(host.textContent).toContain('Mediana proporcional');
     await click('Voltar ao gráfico');
