@@ -24,6 +24,11 @@
     "OFFICIAL_ORIGIN": "https://admin.escolaieda.com",
     "GRADEBOOK_STORAGE_PROVIDER": "postgres"
   },
+  "services": [{
+    "binding": "PORTAL_SERVICE",
+    "service": "student-portal-production",
+    "entrypoint": "PortalAdminEntrypoint"
+  }],
   "hyperdrive": [
     {
       "binding": "PROD_DB",

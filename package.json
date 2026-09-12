@@ -15,7 +15,7 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc -b tsconfig.app.json tsconfig.server.json --pretty false && tsc -b tsconfig.student-portal.json --pretty false",
     "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run build:student-portal && npm run test:student-portal-runtime",
-    "build:student-portal": "tsc -b tsconfig.student-portal.json && wrangler deploy --config wrangler.student-portal.jsonc --env preview --dry-run --outdir node_modules/.cache/student-portal",
+    "build:student-portal": "tsc -b tsconfig.student-portal.json && wrangler deploy --config wrangler.student-portal.jsonc --env preview --dry-run --outdir node_modules/.cache/student-portal && node workers/student-portal/build-edge.mjs",
     "test:student-portal-runtime": "vitest run --config tests/student-portal/runtime/vitest.runtime.config.ts",
     "test:student-portal-postgres": "vitest run --config tests/student-portal/runtime/vitest.postgres.config.ts"
   },
