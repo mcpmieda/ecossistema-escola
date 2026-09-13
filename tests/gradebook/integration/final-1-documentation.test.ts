@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -7,7 +7,13 @@ const root = process.cwd();
 const base = 'docs/gradebook/';
 const history = `${base}history/pre-final-1/`;
 const source = (path: string) => readFileSync(join(root, path), 'utf8');
-const state = source(`${base}PROJECT_STATE.yaml`);
+const currentState = source(`${base}PROJECT_STATE.yaml`);
+// FINAL-1 remains an immutable checkpoint, not the executable P2 state.
+const state = currentState.split(/^historical_checkpoint_668:\r?\n/mu)[1]!
+  .replace(/^ {2}/gmu, '');
+// Hash canonical Git bytes, respecting checkout LF/CRLF conversion on Windows.
+const blobHash = (path: string) =>
+  execFileSync('git', ['hash-object', '--path', path, path], { cwd: root, encoding: 'utf8' }).trim();
 function section(name: string): string {
   const lines = state.split(/\r?\n/u);
   const start = lines.indexOf(`${name}:`);
@@ -18,6 +24,20 @@ function section(name: string): string {
 }
 
 describe('FINAL-1 documentation distinguishes facts, migration debt and historical checkpoints', () => {
+  it('keeps the completed BN program separate from the Portal P2 queue and pending gates', () => {
+    const current = currentState.split(/^historical_checkpoint_668:/mu)[0]!;
+    expect(current).toMatch(/^schema_version: 3$/mu);
+    expect(current).toContain('executable_issue: null');
+    expect(current).toContain('program_status: completed-functional-program-596');
+    expect(current).toContain('total_table_count: 30');
+    expect(current).toContain('materialized_years: [2025, 2026]');
+    expect(current).toContain('academic_authority: imported-source');
+    expect(current).toContain('gate_g_b: partial-real-acceptance-deferred-to-759');
+    expect(current).toContain('population_enabled: false');
+    expect(current).toContain('general_school_opening: false');
+    expect(current).toContain('managed_backup_rpo_rto: explicitly-deferred-not-implemented');
+    expect(state).toBeDefined();
+  });
   it('records relational storage as official without declaring every consumer accepted', () => {
     expect(state).toMatch(/^schema_version: 2$/mu);
     expect(section('storage')).toContain(
@@ -65,12 +85,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
       'DECISIONS.md': '32c4b5126563c72593a0f368d80431332bda642d',
     };
     for (const [path, expected] of Object.entries(originals)) {
-      const bytes = readFileSync(join(root, history, path));
-      const digest = createHash('sha1')
-        .update(`blob ${bytes.length}\0`)
-        .update(bytes)
-        .digest('hex');
-      expect(digest, path).toBe(expected);
+      expect(blobHash(`${history}${path}`), path).toBe(expected);
     }
   });
   it('maps all exposed consumers and does not conflate file diagnostics with legacy audit', () => {
@@ -170,10 +185,8 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(source('AGENTS.md')).toContain('Não contorne checks');
     expect(source('AGENTS.md')).toContain('CI no head final');
     expect(section('security')).toContain('automatic_authority_activation: forbidden');
-    const workflow = readFileSync(join(root, '.github/workflows/validate-pull-request.yml'));
-    expect(
-      createHash('sha1').update(`blob ${workflow.length}\0`).update(workflow).digest('hex'),
-    ).toBe('d147df2a95b4f78d965a5452bfc52109ecb6dabb');
+    expect(blobHash('.github/workflows/validate-pull-request.yml'))
+      .toBe('d147df2a95b4f78d965a5452bfc52109ecb6dabb');
   });
   it('keeps the canonical local documentation links resolvable', () => {
     const pages = [
