@@ -1,0 +1,236 @@
+.pa-shell {
+  min-height: 100dvh;
+  color: var(--foreground);
+  background: var(--background);
+}
+.pa-shell-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.pa-header-inner {
+  display: grid;
+  grid-template-columns: minmax(4rem, 1fr) minmax(0, 34rem) minmax(4rem, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 4.5rem;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding: 0.75rem 1rem;
+}
+.pa-school-mark {
+  justify-self: start;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+}
+/* The existing IA brand stays functional with the student app's isolated CSS scan. */
+.pa-school-mark > div {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  background: var(--accent);
+  color: var(--accent-foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: inherit;
+}
+.pa-header-title {
+  min-width: 0;
+  text-align: center;
+}
+.pa-header-title h1 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.3;
+  font-weight: 650;
+  letter-spacing: 0.025em;
+}
+.pa-header-title p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  font-weight: 400;
+}
+.pa-header-action {
+  justify-self: end;
+}
+.pa-header-action button {
+  min-width: 3.5rem;
+  min-height: 2.5rem;
+}
+.pa-shell-content {
+  max-width: 72rem;
+  margin-inline: auto;
+  padding: 1.75rem 1rem 3rem;
+  min-width: 0;
+}
+.pa-shell-content:focus {
+  outline: none;
+}
+.pa-section-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.pa-profile-card {
+  padding: 0;
+  gap: 0;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.pa-profile-content {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.25rem;
+}
+.pa-student-avatar,
+.pa-skeleton-avatar {
+  flex-shrink: 0;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 1rem;
+}
+.pa-profile-identity {
+  min-width: 0;
+  flex: 1;
+}
+.pa-student-name {
+  margin: 0;
+  font-size: 1.375rem;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
+.pa-student-class {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.pa-profile-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.65rem;
+}
+.pa-profile-time {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.pa-grades-section,
+.pa-grades-title {
+  margin-top: 1.75rem;
+  min-width: 0;
+}
+.pa-empty-card {
+  border: 1px solid var(--border);
+  background: var(--surface-secondary);
+  text-align: center;
+  color: var(--muted);
+}
+.pa-empty-card > div {
+  padding: 2.5rem 1rem;
+}
+.pa-empty-card p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+.pa-shell-alert {
+  max-width: 38rem;
+  margin-inline: auto;
+}
+.pa-state-action {
+  margin-top: 0.75rem;
+}
+.pa-skeleton-lines {
+  display: grid;
+  gap: 0.5rem;
+}
+.pa-skeleton-name {
+  height: 1.65rem;
+  width: min(85%, 23rem);
+}
+.pa-skeleton-class {
+  height: 1.25rem;
+  width: min(65%, 12rem);
+}
+.pa-skeleton-chip {
+  height: 1.25rem;
+  width: 4rem;
+  border-radius: 999px;
+}
+.pa-skeleton-grades {
+  border: 1px solid var(--border);
+}
+.pa-skeleton-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+  padding-block: 0.85rem;
+}
+.pa-skeleton-row > div {
+  height: 0.875rem;
+}
+.pa-skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 100;
+  padding: 0.65rem 1rem;
+  color: var(--accent-foreground);
+  background: var(--accent);
+  border-radius: 0.5rem;
+  transform: translateY(-200%);
+}
+.pa-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+@media (max-width: 420px) {
+  .pa-header-title h1 {
+    font-size: 0.8125rem;
+    letter-spacing: 0;
+  }
+  .pa-header-title p {
+    font-size: 0.6875rem;
+  }
+  .pa-shell-content {
+    padding-top: 1.25rem;
+  }
+  .pa-profile-content {
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+  .pa-student-avatar,
+  .pa-skeleton-avatar {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.875rem;
+  }
+  .pa-student-name {
+    font-size: 1.125rem;
+  }
+  .pa-profile-meta {
+    align-items: flex-start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa-page-skeleton .skeleton,
+  .pa-page-skeleton .skeleton::after {
+    animation: none;
+  }
+}
