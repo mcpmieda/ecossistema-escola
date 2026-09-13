@@ -1,5 +1,13 @@
 # Prontidão e limites de evidência
 
+## Encerramento técnico P1 — PA-DEC-006
+
+O responsável aceitou adiar as provas finais de navegador para o encerramento da Parte2 e pediu concluir a fila atual. #715 e #701 encerram o escopo técnico já implementado/publicado e a coordenação, preservando G-B PARCIAL. As pendências anteriores abaixo são checkpoints históricos; a lista vigente de aceite futuro está em TEST_MATRIX. Não existe liberação escolar ou PASS implícito pelo fechamento de uma issue.
+
+Baseline publicada antes deste encerramento: PR740/mainc4f8897505e3f5c236227c9bf56f48751df90c05, deploy34745755388 SUCCESS, verify1694PASS+3skips históricos/18workerd e CI55PostgreSQL+2smokes PASS. Dez smokes HTTP pós-publicação PASS. Esta entrega modifica apenas documentação, sem repetir DDL, população, rotação ou mutações de teste.
+
+Estado preservado do piloto:3contas, nascimento2000 não confirmado e calendários provisórios nos3 perfis;0acessos/sessões/períodos publicados,populaçãofalse. A passagem para P2 deve preservar essas restrições até o aceite institucional.
+
 ## Estado em13/09/2026 — #715 publicada, aceite parcial
 
 #702–#714 e contratos complementares #732/#735 estão integrados. Composição #715 publicada na main `6071d725bbc4a0d1ed89e63e9f11e49852464df8`, PR738/head20450e2163e237ab2bd3f86b43675c7966f0d5d5. Verify1694 PASS+3 skips históricos/18workerd PASS; CI34736731069 e34736731070 PASS, incluindo PostgreSQL17.6 com55 provas nativas+2 smokes compostos. Deploy oficial34737943189 SUCCESS. A tentativa34737296460 foi cancelada após mais de15min em fila, sem runner/steps; uma nova execução oficial publicou o mesmo SHA, sem bypass.

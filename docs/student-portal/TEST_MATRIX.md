@@ -1,5 +1,19 @@
 # Matriz de requisitos e provas
 
+## Aceite integrado obrigatório ao encerrar a Parte2 — PA-DEC-006
+
+As issues técnicas P1 podem encerrar conforme a decisão do responsável. As provas abaixo continuam PENDENTES; devem entrar na futura fila P2 e bloquear a liberação aos alunos. A evidência deverá registrar versão publicada, ambiente, resultado e limitações, sem PII/credenciais.
+
+- [ ] Sessão Entra real no ADM → API Portal → binding privado → PostgreSQL, com autorização e negativas.
+- [ ] Widget Turnstile produtivo positivo, token expirado/reutilizado e indisponibilidade, com interação legítima.
+- [ ] Telas: QR → PIN com nascimento confirmado → criação de senha → login → leitura autorizada → saída.
+- [ ] Sessão persistente/curta, expiração, logout, bloqueio/desbloqueio, revogação, regeneração de QR e resets em massa sintética.
+- [ ] Visibilidade por período, datas, publicação/atualização/retirada e ausência de dados de terceiros no navegador.
+- [ ] Regressões funcionais de importação, boletins e prévia de reset, preservando dados acadêmicos e sem reset real.
+- [ ] Encerrar o piloto: substituir/remover dados provisórios de teste e confirmar configuração institucional antes de liberar acesso.
+
+Responsável técnico: integrador da Parte2; responsável institucional: confirma dados e calendário definitivos. Não repetir mutações em alunos reais para demonstrar ações destrutivas. G-B continua parcial; checklist vazia não é aprovação.
+
 ## Piloto privado parcial da6A
 
 Em13/09/2026,3 perfis autorizados passaram pelas provas delimitadas no [handoff715](https://github.com/mcpmieda/ecossistema-escola/issues/715#issuecomment-5651945258) e em PRODUCTION_READINESS. Transporte de leitura/autenticação negativa público real; administração por serviços diretos no papel PostgreSQL restrito, sem atribuir identidade Entra ao operador técnico. PIN fictício não confirmado foi recusado; login positivo/widget/API privada autenticada continuam pendentes.55P03 inicial foi seguido de fechamento e repetição delimitada; não se declara ausência de contenção. Estado final0 acessos/sessões/publicações e3 perfis com nascimento de teste. Nenhuma escrita acadêmica.
