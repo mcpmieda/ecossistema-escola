@@ -1,3 +1,6 @@
+import { PublicationServiceV1 } from '../../../server/student-portal/publication/publication-service-v1';
+import { SelfProjectionReaderV1 } from '../../../server/student-portal/publication/self-projection-reader-v1';
+import { PublicationJobsV1 } from '../../../server/student-portal/jobs/publication-jobs-v1';
 import { SYNTHETIC_SELF_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';
 import { AuthServiceV1 } from '../../../server/student-portal/auth/auth-service-v1';
 import { QrServiceV1 } from '../../../server/student-portal/auth/qr-service-v1';
@@ -930,5 +933,87 @@ describe('native authentication locks with real scrypt and separate connections'
     await sessions.revoke(actor, { contractVersion: 1, operation: 'sessions-revoke', scope: classScope,
       expectedVersion: scopeSnapshot.version, confirmed: true, idempotencyKey: crypto.randomUUID() });
     expect(await sessions.read(second.token, crypto.randomUUID())).toBeNull();
+  });
+});
+
+
+describe('native publication targets and competing job leases', () => {
+  const actor = '99999999-9999-4999-8999-999999999999';
+  const primary = portal as unknown as StudentPortalPostgresSqlV1;
+  const secondary = asRole('student_portal_app') as unknown as StudentPortalPostgresSqlV1;
+  const publications = new PublicationServiceV1(primary);
+  const jobs = new PublicationJobsV1(primary);
+  const other = new PublicationJobsV1(secondary);
+  const reader = new SelfProjectionReaderV1(primary);
+  const policy = new PolicyServiceV1(secondary);
+  let accountId: string;
+  const scope = () => ({ kind: 'account', academicYear: 2026, accountId } as const);
+  async function command(operation = 'publish', period = 'T1') {
+    const target = String((await portal`SELECT academic_generation||':'||academic_counter::text AS revision FROM student_portal.academic_revision WHERE academic_year=2026`)[0]!.revision);
+    return { contractVersion: 1, operation, scope: scope(), period, expectedVersion: (await publications.read(scope())).version,
+      idempotencyKey: crypto.randomUUID(), ...(operation === 'unpublish' ? { confirmed: true } : { targetDataVersion: target }) };
+  }
+  const self = () => reader.read(accountId, crypto.randomUUID());
+  const t1 = async () => (await self())?.subjects.flatMap((subject) => subject.periods).filter((period) => period.period === 'T1');
+
+  it('claims once across real connections and commits only the exact approved target', async () => {
+    await admin`UPDATE gradebook.vinculo SET situacao=NULL,turma_id=910001 WHERE aluno_id=910001`;
+    await gradebook`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`;
+    accountId = String((await portal`SELECT id FROM student_portal.account WHERE gradebook_student_id=910001`)[0]!.id);
+    await portal`UPDATE student_portal.account SET auth_state='active',blocked=false WHERE id=${accountId}`;
+    const current = await policy.read(scope());
+    const clock = Math.floor(Date.now() / 1000) * 1000;
+    const at = (days: number) => new Date(clock + days * 86400_000).toISOString();
+    await policy.mutate(actor, { contractVersion: 1, operation: 'settings-set', scope: scope(), expectedVersion: current.version,
+      idempotencyKey: crypto.randomUUID(), acknowledgeImmediateEffect: true, value: { accessEnabled: true, allowedPeriods: ['T1','T2','T3'],
+        calendar: { ...current.value.calendar, yearStartsAt: at(-60),t1EndsAt:at(-50),t2EndsAt:at(-40),t3EndsAt:at(-30),
+          recoveriesStartAt:at(-20),yearEndsAt:at(30),finalDisclosureAt:at(-10),disclosure:{mode:'single',at:at(-10),periods:['T1','T2','T3']} } } });
+    const request = await command();
+    const [first, replay] = await Promise.all([publications.command(actor, request), new PublicationServiceV1(secondary).command(actor, request)]);
+    expect(replay).toEqual(first);
+    const claimed = (await Promise.all([jobs.claim(), other.claim()])).filter((job) => job !== null);
+    expect(claimed).toHaveLength(1);
+    expect(await other.perform(claimed[0]!)).toBe('done');
+    expect((await t1())!.length).toBeGreaterThan(0);
+    expect(await jobs.perform(claimed[0]!)).toBe('stale');
+  });
+
+  it('unpublish wins over an already claimed job on another Portal connection', async () => {
+    await publications.command(actor, await command('publish-update'));
+    const claimed = await other.claim();
+    expect(claimed).not.toBeNull();
+    await publications.command(actor, await command('unpublish'));
+    expect(await other.perform(claimed!)).toBe('stale');
+    expect(await t1()).toHaveLength(0);
+    await publications.command(actor, await command());
+    expect(await t1()).toHaveLength(0);
+    await jobs.run();
+    expect((await t1())!.length).toBeGreaterThan(0);
+  });
+
+  it('a changed policy fences pending work and filters the committed copy immediately', async () => {
+    await publications.command(actor, await command('publish-update'));
+    const claimed = await jobs.claim();
+    const before = await self();
+    const current = await policy.read(scope());
+    await policy.mutate(actor, { contractVersion: 1, operation: 'settings-set', scope: scope(), expectedVersion: current.version,
+      idempotencyKey: crypto.randomUUID(), acknowledgeImmediateEffect: true, value: { allowedPeriods: [] } });
+    expect(await other.perform(claimed!)).toBe('stale');
+    expect(await t1()).toHaveLength(0);
+    expect(await reader.readAuthorized(accountId, before!.revisions)).toBeNull();
+  });
+
+  it('a restarted claimant fences the expired worker with a new attempt generation', async () => {
+    const current = await policy.read(scope());
+    await policy.mutate(actor, { contractVersion: 1, operation: 'settings-set', scope: scope(), expectedVersion: current.version,
+      idempotencyKey: crypto.randomUUID(), acknowledgeImmediateEffect: true, value: { allowedPeriods: ['T1'] } });
+    await publications.command(actor, await command());
+    const first = await jobs.claim();
+    await portal`UPDATE student_portal.publication_job SET lease_until=statement_timestamp()-interval '1 second' WHERE id=${first!.id}`;
+    const second = await other.claim();
+    expect(second!.attempts).toBe(first!.attempts + 1);
+    expect(await jobs.perform(first!)).toBe('stale');
+    expect(await other.perform(second!)).toBe('done');
+    expect((await t1())!.length).toBeGreaterThan(0);
   });
 });
