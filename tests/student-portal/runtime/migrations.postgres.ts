@@ -1,4 +1,8 @@
 import { SYNTHETIC_SELF_V1 } from '../../../shared/student-portal-contracts/fixtures-v1';
+import { AuthServiceV1 } from '../../../server/student-portal/auth/auth-service-v1';
+import { QrServiceV1 } from '../../../server/student-portal/auth/qr-service-v1';
+import { SessionServiceV1 } from '../../../server/student-portal/auth/session-service-v1';
+import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
 import { AcademicStudentReaderPostgresV1, ACADEMIC_STUDENT_QUERY_V1 } from '../../../server/student-portal/academic/academic-reader-v1';
 import { ACADEMIC_FIXTURE_SQL_V1 } from '../academic/academic-fixture-v1';
 import { BirthYearServiceV1 } from '../../../server/student-portal/birth-year/birth-year-service-v1';
@@ -818,5 +822,113 @@ describe('native official academic reader and query plan', () => {
     expect(report['Execution Time']).toBeLessThan(5000);
     await admin`UPDATE gradebook.vinculo SET situacao=3 WHERE aluno_id=910001`;
     expect(await reader.readOfficial({academicYear:2026,studentId:910001},revision)).toBeNull();
+  });
+});
+
+describe('native authentication locks with real scrypt and separate connections', () => {
+  const actor = '88888888-8888-4888-8888-888888888888';
+  const cryptography = new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(31)]]), new Map([[1, new Uint8Array(32).fill(32)]]));
+  const connection = asRole('student_portal_app');
+  const primary = portal as unknown as StudentPortalPostgresSqlV1;
+  const secondary = connection as unknown as StudentPortalPostgresSqlV1;
+  const auth = new AuthServiceV1(primary, cryptography, 1, { verify: async () => true });
+  const other = new AuthServiceV1(secondary, cryptography, 1, { verify: async () => true });
+  const qrService = new QrServiceV1(secondary, cryptography, 1);
+  const sessions = new SessionServiceV1(primary, cryptography);
+  const births = new BirthYearServiceV1(secondary, cryptography, 1);
+  let number = 0;
+  async function fixture() {
+    const studentId = 920001 + number++;
+    await admin`INSERT INTO gradebook.aluno(id,ano,nome) VALUES (${studentId},2026,'SYNTHETIC NATIVE AUTH')`;
+    await admin`INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) VALUES (2026,900011,${30 + number},${studentId})`;
+    await gradebook`SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()`;
+    const accountId = String((await portal`SELECT id FROM student_portal.account WHERE gradebook_student_id=${studentId}`)[0]!.id);
+    const scope = { kind: 'account', academicYear: 2026, accountId } as const;
+    const policy = new PolicyServiceV1(primary);
+    const current = await policy.read(scope);
+    const clock = Math.floor(Date.now() / 1000) * 1000;
+    await policy.mutate(actor, { contractVersion: 1, operation: 'settings-set', scope, expectedVersion: current.version,
+      idempotencyKey: crypto.randomUUID(), acknowledgeImmediateEffect: true, value: { accessEnabled: true,
+        calendar: { ...current.value.calendar, yearStartsAt: new Date(clock - 86400_000).toISOString(),
+          yearEndsAt: new Date(clock + 60 * 86400_000).toISOString() } } });
+    const version = async () => Number((await portal`SELECT version::text FROM student_portal.account WHERE id=${accountId}`)[0]!.version);
+    const command = async (operation: string, extra: Record<string, unknown> = {}) => ({ contractVersion: 1, operation, accountId,
+      expectedVersion: await version(), idempotencyKey: crypto.randomUUID(), ...extra });
+    await births.write(actor, { contractVersion: 1, operation: 'birth-write', expectedVersion: await version(), idempotencyKey: crypto.randomUUID(),
+      item: { action: 'set', accountId, expectedVersion: 0, year: '2001', confirmation: 'confirmed' } });
+    const qr = (await qrService.command(actor, await command('qr-issue'))).qr!;
+    const challenge = await auth.challenge({ contractVersion: 1, qr, pin: '2001' }, crypto.randomUUID());
+    if (challenge.state !== 'password-creation') throw new Error('synthetic-native-challenge-failed');
+    const activate = { contractVersion: 1, challenge: challenge.challenge, password: '123456', confirmation: '123456', keepConnected: false };
+    return { accountId, scope, version, command, qr, activate };
+  }
+
+  it('only one concurrent activation commits its single-use proof and session', async () => {
+    const fixtureData = await fixture();
+    const results = await Promise.all([auth.activate(fixtureData.activate, crypto.randomUUID()), other.activate(fixtureData.activate, crypto.randomUUID())]);
+    expect(results.filter((result) => 'token' in result)).toHaveLength(1);
+    expect(results.filter((result) => 'state' in result && result.state === 'unauthenticated')).toHaveLength(1);
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.session WHERE account_id=${fixtureData.accountId}`)[0]?.n).toBe(1);
+  });
+
+  it('login racing with password reset, blocking or QR rotation cannot leave an authorized old session', async () => {
+    for (const operation of ['password-reset', 'block', 'qr-regenerate']) {
+      const data = await fixture();
+      const initial = await auth.activate(data.activate, crypto.randomUUID());
+      if (!('token' in initial)) throw new Error('synthetic-native-activation-failed');
+      const command = await data.command(operation, { confirmed: true, ...(operation === 'block' ? { blocked: true } : {}) });
+      const [login] = await Promise.all([
+        auth.login({ contractVersion: 1, qr: data.qr, password: '123456', keepConnected: false }, crypto.randomUUID()),
+        qrService.command(actor, command),
+      ]);
+      expect(await sessions.read(initial.token, crypto.randomUUID())).toBeNull();
+      if ('token' in login) expect(await sessions.read(login.token, crypto.randomUUID())).toBeNull();
+      if (operation === 'qr-regenerate') {
+        const old = await auth.login({ contractVersion: 1, qr: data.qr, password: '123456', keepConnected: false }, crypto.randomUUID());
+        expect(old).toMatchObject({ state: 'unauthenticated' });
+      }
+    }
+  }, 30_000);
+
+  it('birth correction wins over an outstanding proof while preserving login sessions on a different active account', async () => {
+    const pending = await fixture();
+    const birthCommand = { contractVersion: 1, operation: 'birth-write', expectedVersion: await pending.version(), idempotencyKey: crypto.randomUUID(),
+      item: { action: 'set', accountId: pending.accountId, expectedVersion: 1, year: '2002', confirmation: 'confirmed' } };
+    await births.write(actor, birthCommand);
+    expect(await auth.activate(pending.activate, crypto.randomUUID())).toMatchObject({ state: 'unauthenticated' });
+    const active = await fixture();
+    const signed = await auth.activate(active.activate, crypto.randomUUID());
+    if (!('token' in signed)) throw new Error('synthetic-native-activation-failed');
+    const [login] = await Promise.all([
+      auth.login({ contractVersion: 1, qr: active.qr, password: '123456', keepConnected: false }, crypto.randomUUID()),
+      births.write(actor, { contractVersion: 1, operation: 'birth-write', expectedVersion: await active.version(), idempotencyKey: crypto.randomUUID(),
+        item: { action: 'clear', accountId: active.accountId, expectedVersion: 1 } }),
+    ]);
+    expect(login).toHaveProperty('token');
+    expect(await sessions.read(signed.token, crypto.randomUUID())).toMatchObject({ state: 'authenticated' });
+    if ('token' in login) expect(await sessions.read(login.token, crypto.randomUUID())).toMatchObject({ state: 'authenticated' });
+  });
+
+  it('commits distributed failure counters without losing increments and revokes only the selected session', async () => {
+    const data = await fixture();
+    const signed = await auth.activate(data.activate, crypto.randomUUID());
+    if (!('token' in signed)) throw new Error('synthetic-native-activation-failed');
+    const bad = { contractVersion: 1, qr: data.qr, password: '000000', keepConnected: false };
+    await Promise.all([auth.login(bad, crypto.randomUUID()), other.login(bad, crypto.randomUUID())]);
+    expect((await portal`SELECT failures FROM student_portal.auth_attempt WHERE account_id=${data.accountId}`)[0]?.failures).toBe(2);
+    const second = await auth.login({ ...bad, password: '123456' }, crypto.randomUUID());
+    if (!('token' in second)) throw new Error('synthetic-native-login-failed');
+    const hash = await cryptography.hashOpaqueToken(signed.token);
+    const sessionId = String((await portal`SELECT id FROM student_portal.session WHERE token_hash=${hash}`)[0]!.id);
+    const result = await sessions.revoke(actor, { contractVersion: 1, operation: 'sessions-revoke', scope: data.scope, sessionId,
+      expectedVersion: (await sessions.readRevocationScope(data.scope)).version, confirmed: true, idempotencyKey: crypto.randomUUID() });
+    expect(result.version).toBeGreaterThan(0);
+    expect(await sessions.read(signed.token, crypto.randomUUID())).toBeNull();
+    expect(await sessions.read(second.token, crypto.randomUUID())).toMatchObject({ state: 'authenticated' });
+    const classScope = { kind: 'class', academicYear: 2026, classId: 900011 } as const;
+    const scopeSnapshot = await sessions.readRevocationScope(classScope);
+    await sessions.revoke(actor, { contractVersion: 1, operation: 'sessions-revoke', scope: classScope,
+      expectedVersion: scopeSnapshot.version, confirmed: true, idempotencyKey: crypto.randomUUID() });
+    expect(await sessions.read(second.token, crypto.randomUUID())).toBeNull();
   });
 });
