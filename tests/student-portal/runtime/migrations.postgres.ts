@@ -821,9 +821,11 @@ describe('native official academic reader and query plan', () => {
     revision=String((await portal`SELECT academic_generation||':'||academic_counter::text AS revision FROM student_portal.academic_revision WHERE academic_year=2026`)[0]!.revision);
     const result=await reader.readOfficial({academicYear:2026,studentId:910001},revision);
     expect(result!.subjects.map((subject)=>subject.label)).toEqual(['PORTUGUES','MATEMATICA']);
-    expect(result!.subjects[1]!.periods[0]!.final).toMatchObject({kind:'score',value:25,maximum:30});
+    expect(result!.subjects[1]!.periods[0]!.final).toMatchObject({kind:'score',value:25,maximum:30,meetsMinimum:true});
     expect(result!.subjects[1]!.periods[1]!.final).toEqual({kind:'absent'});
-    expect(result!.subjects[1]!.periods[2]!.final).toMatchObject({kind:'score',value:0});
+    expect(result!.subjects[1]!.periods[2]!.final).toMatchObject({kind:'score',value:0,meetsMinimum:false});
+    const official=await reader.readOfficialInTransaction(portal as unknown as StudentPortalPostgresSqlV1,{academicYear:2026,studentId:910001},revision);
+    expect(official!.subjects[1]!.officialAnnual).toEqual({kind:'score',valueMilli:99000,maximumMilli:null,meetsMinimum:null});
     expect(JSON.stringify(result)).not.toMatch(/PRIVATE TEACHER|ACADEMIC OTHER|officialAnnual|sourceAm|offerId/);
     expect(await reader.readOfficial({academicYear:2026,studentId:910001},`${'b'.repeat(32)}:999`)).toBeNull();
   });

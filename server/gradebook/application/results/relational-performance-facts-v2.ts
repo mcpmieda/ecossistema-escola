@@ -4,6 +4,7 @@ import {
   type SimplifiedComponentRecoveryOutcomeV1, type SimplifiedRecoveryValueV1,
 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import type { PerformanceCellV2, PerformanceModeV2, PerformancePeriodV2 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
+import { resolveStudentMarkPresentationV1 } from '../../../../src/gradebook-domain/calculations/simplified/resolve-student-mark-presentation-v1';
 
 export interface PerformanceFactV2 extends SimplifiedInstrumentFactV1 { readonly term: SimplifiedAcademicTermV1; readonly label: string }
 export interface PerformanceClosingV2 { readonly am: readonly [number | null, number | null, number | null]; readonly rec: readonly [SimplifiedRecoveryValueV1, SimplifiedRecoveryValueV1, SimplifiedRecoveryValueV1]; readonly u: number | null }
@@ -74,11 +75,12 @@ export function performanceCellV2(projection: PerformanceProjectionV2, period: P
       else { state = 'complete'; valueMilli = value; }
     }
   }
+  const meetsMinimum = state === 'complete' || state === 'partial'
+    ? resolveStudentMarkPresentationV1({ valueMilli, maximumMilli, minimumApprovalMilli: projection.minimumApprovalMilli }) : null;
   return { ...base, state, valueMilli,
     // This is a read-only proportional classification using the configured annual threshold.
     // It is not the separate central rule that determines REC eligibility.
-    level: state === 'repeat-failure' ? 'below' : (state !== 'complete' && state !== 'partial') || valueMilli === null ? 'not-classified' :
-      (BigInt(valueMilli) * BigInt(ANNUAL_MAXIMUM) >= BigInt(maximumMilli) * BigInt(projection.minimumApprovalMilli) ? 'at-or-above' : 'below'),
+    level: state === 'repeat-failure' ? 'below' : meetsMinimum === null ? 'not-classified' : meetsMinimum ? 'at-or-above' : 'below',
     sourceComparison: state !== 'complete' || base.sourceReferenceMilli === null || valueMilli === null ? 'unavailable' : valueMilli === base.sourceReferenceMilli ? 'match' : 'mismatch',
   };
 }

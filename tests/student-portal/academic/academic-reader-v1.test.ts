@@ -35,6 +35,32 @@ afterEach(async () => { await pg.exec('ROLLBACK'); });
 afterAll(async () => { await pg?.close(); });
 
 describe('official academic snapshot and self allowlist', () => {
+  it('classifies official and partial values from the same revision without rounding or changing AM/U', async () => {
+    for (const [minimum, am1, expected] of [[60000,17999,false],[60000,18000,true],[75000,22499,false],[75000,22500,true]] as const) {
+      await pg.query('UPDATE gradebook.ano_letivo SET minimo_aprovacao=$1 WHERE ano=2026', [minimum]);
+      await pg.query('UPDATE gradebook.fechamento SET am1_fonte=$1 WHERE oferta_id=910001', [am1]);
+      await pg.query("SELECT * FROM student_portal.record_gradebook_change_v1($1::uuid,2026::smallint,'academic-policy',true,ARRAY[910001],statement_timestamp())", [crypto.randomUUID()]);
+      const current = (await pg.query<{ revision: string }>("SELECT academic_generation||':'||academic_counter::text AS revision FROM student_portal.academic_revision WHERE academic_year=2026")).rows[0]!.revision;
+      count = 0;
+      const result = await reader.readOfficialInTransaction(sql, link, current);
+      expect(count).toBe(1);
+      expect(result!.subjects[1]!.periods[0]!.final).toEqual({ kind: 'score', valueMilli: am1, maximumMilli: 30000, meetsMinimum: expected });
+      expect(result!.subjects[1]!.officialAnnual).toEqual({ kind: 'score', valueMilli: 99000, maximumMilli: null, meetsMinimum: null });
+      expect(result!.subjects[1]!.periods[1]!.final).toEqual({ kind: 'absent' });
+      expect(result!.subjects[1]!.periods[2]!.final).toMatchObject({ valueMilli: 0, meetsMinimum: false });
+      expect(await reader.readOfficial(link, revision)).toBeNull();
+      for (const [value, classified] of [[5062,false],[5063,true]] as const) {
+        if (minimum !== 75000) continue;
+        await pg.query('UPDATE gradebook.nota SET valor=$1 WHERE aluno_id=910001 AND instrumento_id=(SELECT id FROM gradebook.instrumento WHERE oferta_id=910001 AND trimestre=1 AND slot=1)', [value]);
+        await pg.query("SELECT * FROM student_portal.record_gradebook_change_v1($1::uuid,2026::smallint,'marks',true,ARRAY[910001],statement_timestamp())", [crypto.randomUUID()]);
+        const partialRevision = (await pg.query<{ revision: string }>("SELECT academic_generation||':'||academic_counter::text AS revision FROM student_portal.academic_revision WHERE academic_year=2026")).rows[0]!.revision;
+        const self = await reader.readOfficial(link, partialRevision);
+        const partial = self!.subjects[1]!.periods[0]!.partials![0]!.mark;
+        expect(partial).toEqual({ kind: 'score', value: value / 1000, maximum: 6.75, meetsMinimum: classified });
+      }
+    }
+  });
+
   it('reads one snapshot in one query and preserves official AM/U, zero and absent values', async () => {
     const result = await reader.readOfficialInTransaction(sql, link, revision);
     expect(count).toBe(1);
@@ -62,7 +88,7 @@ describe('official academic snapshot and self allowlist', () => {
       INSERT INTO gradebook.conselho_decisao(aluno_id,decisao,justificativa,registrado_por) VALUES (910001,1,'SYNTHETIC ONLY','11111111-1111-4111-8111-111111111111');`);
     const result = await reader.readOfficialInTransaction(sql, link, revision);
     expect(result!.subjects[1]!.periods.slice(3).map((period) => period.final)).toEqual([
-      { kind: 'nc' }, { kind: 'rr' }, { kind: 'score', valueMilli: 0, maximumMilli: 40000, meetsMinimum: null },
+      { kind: 'nc' }, { kind: 'rr' }, { kind: 'score', valueMilli: 0, maximumMilli: 40000, meetsMinimum: false },
     ]);
     expect(result!.profile.result).toBe('failed');
   });
