@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.app.json",
+  "include": ["src/student-portal", "src/features/student-portal", "shared/student-portal-contracts"],
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.cache/student-portal-ui.tsbuildinfo"
+  }
+}

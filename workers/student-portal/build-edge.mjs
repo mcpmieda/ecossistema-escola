@@ -1,8 +1,13 @@
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, cp, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
+import { resolve, sep } from 'node:path';
 
 const output = 'node_modules/.cache/student-portal-edge';
+const cache = await realpath('node_modules/.cache');
+if (resolve(output) !== `${cache}${sep}student-portal-edge`) throw new Error('Unexpected build output path');
+await rm(resolve(output), { recursive: true, force: true });
 await mkdir(output, { recursive: true });
+await cp('node_modules/.cache/student-portal-ui', output, { recursive: true });
 execFileSync(
   process.execPath,
   [
