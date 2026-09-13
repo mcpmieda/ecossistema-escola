@@ -1,0 +1,131 @@
+import { z } from 'zod';
+import { createHash } from 'node:crypto';
+import { adminCommandV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import { opaqueV1, scopeV1, versionV1, type ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
+import { sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';
+import type { CryptoPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
+import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
+import { sessionExpiryV1 } from '../policies/calendar-v1';
+import { accessContextV1, accountScopeV1, authAuditV1, authInstantV1, authNowV1, authTransactionV1, type AccessContextV1 } from './transaction-v1';
+
+/** Only internal callers see the token. HTTP emits it exclusively as Set-Cookie after commit. */
+export async function createSessionV1(store: PortalTransactionV1, context: AccessContextV1,
+  cryptoPort: CryptoPortV1, persistent: boolean, requestId: string) {
+  const expiresAt = sessionExpiryV1(context.policy.settings.value, context.now, persistent);
+  if (!expiresAt) throw new Error('student-portal-session-unavailable');
+  const token = cryptoPort.randomToken(32);
+  await store.saveSession({ id: crypto.randomUUID(), accountId: context.account.id,
+    tokenHash: await cryptoPort.hashOpaqueToken(token), securityVersion: context.account.securityVersion,
+    expiresAt, revokedAt: null, persistent });
+  return { token, body: sessionResponseV1.parse({ contractVersion: 1, requestId, state: 'authenticated', expiresAt, persistent }) };
+}
+
+export class SessionServiceV1 {
+  constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly cryptoPort: CryptoPortV1) {}
+
+  private async revocationScope(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
+    const scope = scopeV1.parse(input);
+    const predicate = scope.kind === 'account' ? 'a.id=$1::uuid' : scope.kind === 'school' ? 'true' : `a.id IN (
+      SELECT a2.id FROM student_portal.account a2 JOIN student_portal.academic_binding_v1 b
+        ON b.student_id=a2.gradebook_student_id AND b.academic_year=a2.academic_year
+      WHERE b.class_id=$1 AND b.status IS DISTINCT FROM 6)`;
+    const rows = await tx.unsafe(`SELECT a.id,a.version::text FROM student_portal.account a
+      WHERE a.academic_year=2026 AND ${predicate} ORDER BY a.id`,
+    scope.kind === 'account' ? [scope.accountId] : scope.kind === 'class' ? [scope.classId] : []);
+    const accounts = rows.map((row) => ({ id: z.uuid().parse(row.id), version: versionV1.parse(Number(row.version)) }));
+    if (scope.kind === 'account') return { accounts, version: accounts[0]?.version ?? 0 };
+    const revision = await tx.unsafe('SELECT (academic_counter+portal_link_counter)::text AS version FROM student_portal.academic_revision WHERE academic_year=2026');
+    if (revision.length !== 1) throw new Error('student-portal-session-scope-unavailable');
+    return { accounts, version: versionV1.parse(Number(revision[0]!.version) + accounts.reduce((sum, account) => sum + account.version, 0)) };
+  }
+
+  /** Private CAS metadata for the admin facade; accounts use aggregate version, broader scopes also include revision. */
+  async readRevocationScope(scope: ScopeV1) {
+    return authTransactionV1(this.sql, async (tx) => {
+      const snapshot = await this.revocationScope(tx, scope);
+      return { version: snapshot.version, count: snapshot.accounts.length };
+    });
+  }
+
+  async revoke(actorId: string, input: unknown) {
+    const actor = z.uuid().parse(actorId).toLowerCase();
+    const command = adminCommandV1.parse(input);
+    if (command.operation !== 'sessions-revoke') throw new Error('student-portal-session-command-invalid');
+    const scope = command.scope.kind === 'account' ? { ...command.scope, accountId: command.scope.accountId.toLowerCase() } : command.scope;
+    const digest = createHash('sha256').update(JSON.stringify({ ...command, scope })).digest('hex');
+    const receiptActor = `sessions-revoke:${actor}`;
+    return authTransactionV1(this.sql, async (tx, store) => {
+      const now = await authNowV1(tx);
+      const receipt = await store.readIdempotency(command.idempotencyKey, receiptActor);
+      if (receipt && Date.parse(receipt.expiresAt) > now.getTime()) {
+        if (receipt.requestDigest !== digest) throw new Error('student-portal-session-idempotency-conflict');
+        return { operationId: receipt.operationId, version: receipt.version };
+      }
+      if (receipt) await tx.unsafe('DELETE FROM student_portal.operation_receipt WHERE idempotency_key=$1 AND actor_id=$2', [command.idempotencyKey, receiptActor]);
+      const snapshot = await this.revocationScope(tx, scope);
+      if (snapshot.version !== command.expectedVersion) throw new Error('student-portal-session-version-conflict');
+      await store.lockAccounts(snapshot.accounts.map((account) => account.id));
+      for (const item of snapshot.accounts) {
+        const account = await store.findAccount(item.id);
+        if (!account || account.version !== item.version) throw new Error('student-portal-session-version-conflict');
+        const changed = await store.revokeSessions(accountScopeV1(item.id), now.toISOString(), command.sessionId);
+        if (changed === 0) continue;
+        const next = { ...account, version: account.version + 1 };
+        if (!await store.compareAndSetAccount(next, account.version)) throw new Error('student-portal-session-version-conflict');
+        await authAuditV1(store, next, 'session-revoked', now, command.idempotencyKey, actor);
+      }
+      const version = (await this.revocationScope(tx, scope)).version;
+      const operationId = crypto.randomUUID();
+      await store.saveIdempotency({ key: command.idempotencyKey, actorId: receiptActor, requestDigest: digest,
+        operationId, version, expiresAt: new Date(now.getTime() + 86400_000).toISOString() });
+      return { operationId, version };
+    });
+  }
+
+  /** The consumer runs before lock release: no stale authorization gap before reading self data. */
+  async withAuthorized<T>(token: string, operation: (context: AccessContextV1, tx: StudentPortalPostgresQueryV1,
+    session: { id: string; expiresAt: string; persistent: boolean }) => Promise<T>): Promise<T | null> {
+    if (!opaqueV1.safeParse(token).success) return null;
+    const hash = await this.cryptoPort.hashOpaqueToken(token);
+    return authTransactionV1(this.sql, async (tx, store) => {
+      const located = await tx.unsafe('SELECT account_id FROM student_portal.session WHERE token_hash=$1', [hash]);
+      if (located.length !== 1) return null;
+      const accountId = z.uuid().parse(located[0]!.account_id);
+      await store.lockAccounts([accountId]);
+      const context = await accessContextV1(this.sql, tx, store, accountId);
+      if (!context || context.account.state !== 'active') return null;
+      const rows = await tx.unsafe(`SELECT id,security_version::text,expires_at,revoked_at,persistent,created_at
+        FROM student_portal.session WHERE token_hash=$1 AND account_id=$2::uuid FOR UPDATE`, [hash, accountId]);
+      const row = rows[0];
+      if (!row || row.revoked_at !== null || Number(row.security_version) !== context.account.securityVersion) return null;
+      const persistent = z.boolean().parse(row.persistent);
+      const ttl = persistent ? context.policy.settings.value.risk.persistentSeconds : context.policy.settings.value.risk.shortSeconds;
+      const end = Math.min(authInstantV1(row.expires_at).getTime(), authInstantV1(row.created_at).getTime() + ttl * 1000,
+        Date.parse(context.policy.settings.value.calendar.yearEndsAt!));
+      if (end <= context.now.getTime()) return null;
+      return operation(context, tx, { id: z.uuid().parse(row.id), expiresAt: new Date(end).toISOString(), persistent });
+    });
+  }
+
+  async read(token: string, requestId: string) {
+    return this.withAuthorized(token, async (_context, _tx, session) => sessionResponseV1.parse({
+      contractVersion: 1, requestId, state: 'authenticated', expiresAt: session.expiresAt, persistent: session.persistent,
+    }));
+  }
+
+  async logout(token: string, requestId: string): Promise<void> {
+    if (!opaqueV1.safeParse(token).success) return;
+    const hash = await this.cryptoPort.hashOpaqueToken(token);
+    await authTransactionV1(this.sql, async (tx, store) => {
+      const rows = await tx.unsafe('SELECT id,account_id FROM student_portal.session WHERE token_hash=$1 AND revoked_at IS NULL', [hash]);
+      if (rows.length !== 1) return;
+      const accountId = z.uuid().parse(rows[0]!.account_id);
+      await store.lockAccounts([accountId]);
+      const account = await store.findAccount(accountId);
+      if (!account) return;
+      const now = await authNowV1(tx);
+      await store.revokeSessions(accountScopeV1(accountId), now.toISOString(), z.uuid().parse(rows[0]!.id));
+      await authAuditV1(store, account, 'session-revoked', now, requestId);
+    });
+  }
+}

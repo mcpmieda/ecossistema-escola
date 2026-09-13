@@ -1,0 +1,86 @@
+import { ZodError } from 'zod';
+import { AUTH_BODY_BYTES_V1, SESSION_COOKIE_V1, logoutRequestV1, logoutResponseV1 } from '../../../../shared/student-portal-contracts/auth-v1';
+import { ERROR_HTTP_V1, type FailureV1 } from '../../../../shared/student-portal-contracts/core-v1';
+import { portalJsonV1, portalRequestOriginAllowedV1 } from '../../runtime/http-v1';
+import type { AuthServiceV1 } from '../../auth/auth-service-v1';
+import type { SessionServiceV1 } from '../../auth/session-service-v1';
+
+const COOKIE = `${SESSION_COOKIE_V1.name}=`;
+const FLAGS = '; Path=/; Secure; HttpOnly; SameSite=Strict';
+const routes = new Map([['/api/student/auth/challenge', 'challenge'], ['/api/student/auth/activate', 'activate'],
+  ['/api/student/auth/login', 'login'], ['/api/student/auth/logout', 'logout'], ['/api/student/session', 'session']] as const);
+
+export function sessionCookieTokenV1(request: Request): string {
+  const values = (request.headers.get('cookie') ?? '').split(';').map((part) => part.trim()).filter((part) => part.startsWith(COOKIE));
+  if (values.length !== 1) return '';
+  const token = values[0]!.slice(COOKIE.length);
+  return /^[A-Za-z0-9_-]{43}$/u.test(token) ? token : '';
+}
+function cookie(token: string, expiresAt: string, persistent: boolean): string {
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(token)) throw new Error('student-portal-session-token-invalid');
+  return `${COOKIE}${token}${FLAGS}${persistent ? `; Expires=${new Date(expiresAt).toUTCString()}` : ''}`;
+}
+async function readBody(request: Request): Promise<unknown> {
+  const length = request.headers.get('content-length');
+  if (length !== null && (!/^\d+$/u.test(length) || Number(length) > AUTH_BODY_BYTES_V1)) throw new Error('body-too-large');
+  const reader = request.body?.getReader();
+  if (!reader) throw new Error('invalid-request');
+  let size = 0;
+  const chunks: Uint8Array[] = [];
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      size += chunk.value.byteLength;
+      if (size > AUTH_BODY_BYTES_V1) { await reader.cancel(); throw new Error('body-too-large'); }
+      chunks.push(chunk.value);
+    }
+  } finally { reader.releaseLock(); }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown; }
+  catch { throw new Error('invalid-request'); }
+}
+
+/** Standalone handler for #715 composition. No entrypoint or production gate is changed here. */
+export async function servePortalAuthV1(request: Request, environment: string, origin: string,
+  auth: Pick<AuthServiceV1, 'challenge' | 'activate' | 'login'>, sessions: Pick<SessionServiceV1, 'read' | 'logout'>): Promise<Response> {
+  const requestId = crypto.randomUUID();
+  const fail = (state: FailureV1['state']) => portalJsonV1({ contractVersion: 1, requestId, state }, ERROR_HTTP_V1[state]);
+  if (!portalRequestOriginAllowedV1(request, environment, origin)) return fail('forbidden');
+  const route = routes.get(new URL(request.url).pathname as Parameters<typeof routes.get>[0]);
+  if (!route) return portalJsonV1({ contractVersion: 1, requestId, state: 'unavailable' }, 404);
+  if (request.method !== (route === 'session' ? 'GET' : 'POST')) return fail('invalid-request');
+  try {
+    if (route === 'session') {
+      const result = await sessions.read(sessionCookieTokenV1(request), requestId);
+      return result ? portalJsonV1(result, 200) : fail('unauthenticated');
+    }
+    if (request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json') return fail('invalid-request');
+    const input = await readBody(request);
+    if (route === 'logout') {
+      logoutRequestV1.parse(input);
+      await sessions.logout(sessionCookieTokenV1(request), requestId);
+      const response = portalJsonV1(logoutResponseV1.parse({ contractVersion: 1, requestId, state: 'logged-out' }), 200);
+      response.headers.set('Set-Cookie', `${COOKIE}${FLAGS}; Max-Age=0`);
+      return response;
+    }
+    const result = await auth[route](input, requestId);
+    if ('token' in result) {
+      const response = portalJsonV1(result.body, 200);
+      response.headers.set('Set-Cookie', cookie(result.token, result.body.expiresAt, result.body.persistent));
+      return response;
+    }
+    if (result.state in ERROR_HTTP_V1) {
+      const response = portalJsonV1(result, ERROR_HTTP_V1[result.state as FailureV1['state']]);
+      if ('retryAfterSeconds' in result && result.retryAfterSeconds) response.headers.set('Retry-After', String(result.retryAfterSeconds));
+      return response;
+    }
+    return portalJsonV1(result, 200);
+  } catch (error) {
+    if (error instanceof ZodError || (error instanceof Error && error.message === 'invalid-request')) return fail('invalid-request');
+    if (error instanceof Error && error.message === 'body-too-large') return fail('body-too-large');
+    return fail('unavailable'); // Never serialize provider errors, SQL, inputs or credentials.
+  }
+}
