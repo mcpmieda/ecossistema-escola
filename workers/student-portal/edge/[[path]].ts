@@ -8,11 +8,37 @@ interface PortalEdgeEnv {
   PORTAL_ENVIRONMENT: string;
   PORTAL_ORIGIN: string;
   PORTAL_SELF?: Fetcher;
+  ASSETS?: Fetcher;
 }
 
 export const onRequest: PagesFunction<PortalEdgeEnv> = async ({ request, env }) => {
   if (!portalRequestOriginAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN))
     return portalJsonV1(portalFailureV1('forbidden'), 403);
+  const url = new URL(request.url);
+  const document = url.pathname === '/' || url.pathname === '/access';
+  const asset = /^\/assets\/[A-Za-z0-9_.-]+\.(?:js|css|woff2?|png|svg)$/u.test(url.pathname);
+  if (document || asset) {
+    if (request.method !== 'GET' && request.method !== 'HEAD')
+      return portalJsonV1(portalFailureV1('invalid-request'), 400);
+    if (!env.ASSETS) return portalJsonV1(portalFailureV1('unavailable'), 503);
+    try {
+      if (document) url.pathname = '/';
+      const upstream = await env.ASSETS.fetch(new Request(url, { method: request.method }));
+      if (upstream.status !== 200 || (asset && upstream.headers.get('Content-Type')?.includes('text/html')))
+        return portalJsonV1(portalFailureV1('unavailable'), 404);
+      const response = new Response(upstream.body, upstream);
+      response.headers.set('Content-Security-Policy', "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; connect-src 'self'; font-src 'self'; worker-src 'self' blob:");
+      response.headers.set('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(), payment=(), usb=()');
+      response.headers.set('Referrer-Policy', 'no-referrer');
+      response.headers.set('X-Content-Type-Options', 'nosniff');
+      response.headers.set('X-Frame-Options', 'DENY');
+      response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+      response.headers.set('Cache-Control', document ? 'no-store' : 'public, max-age=31536000, immutable');
+      return response;
+    } catch { return portalJsonV1(portalFailureV1('unavailable'), 503); }
+  }
+  if (url.pathname !== '/healthz' && !url.pathname.startsWith('/api/student/'))
+    return portalJsonV1(portalFailureV1('unavailable'), 404);
   if (!env.PORTAL_SELF) return portalJsonV1(portalFailureV1('unavailable'), 503);
   try {
     // Forward the original URL, headers, cookies and stream; never rewrite to the official host.
