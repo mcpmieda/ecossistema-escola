@@ -165,7 +165,7 @@ describe('publication interface', () => {
       targetDataVersion: 'synthetic:2026:revision:2',
     });
     expect(screen.queryByRole('button', { name: 'Repetir a mesma decisão' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Recarregar estado' }));
+    await user.click(await screen.findByRole('button', { name: 'Recarregar estado' }));
     await ready();
     await user.click(screen.getByRole('button', { name: 'Publicar atualização de T2' }));
     expect(within(screen.getByRole('dialog')).getByText('synthetic:2026:revision:3')).toBeTruthy();
@@ -198,9 +198,9 @@ describe('publication interface', () => {
       confirmed: true,
     });
     expect(mock.writes[0]).not.toHaveProperty('targetDataVersion');
-    const remaining = screen
-      .getByRole('heading', { name: 'REC1' })
-      .closest('.pa-publication-card')!;
+    const remaining = (await screen.findByRole('heading', { name: 'REC1' })).closest(
+      '.pa-publication-card',
+    )!;
     expect(within(remaining as HTMLElement).getByText('Publicado')).toBeTruthy();
   });
   it('discards an open decision before painting a changed write capability', async () => {
