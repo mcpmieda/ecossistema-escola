@@ -1,0 +1,116 @@
+.pa-publication {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  color: var(--foreground);
+}
+.pa-publication h2,
+.pa-publication h3,
+.pa-publication p {
+  margin: 0;
+}
+.pa-publication h2 {
+  font-size: 1.25rem;
+  font-weight: 650;
+}
+.pa-publication h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.pa-publication p,
+.pa-publication-details {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.pa-publication-heading,
+.pa-publication-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.pa-publication-heading > div {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+.pa-publication-actions {
+  justify-content: flex-start;
+}
+.pa-publication-periods {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.pa-publication-card,
+.pa-publication-policy {
+  min-width: 0;
+  border: 1px solid var(--border);
+}
+.pa-publication-card .card__content,
+.pa-publication-policy .card__content {
+  display: grid;
+  gap: 1rem;
+}
+.pa-publication-details {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+.pa-publication-details > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+.pa-publication-details dt,
+.pa-publication-hint {
+  color: var(--muted);
+}
+.pa-publication-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.pa-publication-error,
+.pa-publication-feedback {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.pa-publication-error {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger-soft-foreground);
+}
+.pa-publication-feedback > button {
+  justify-self: start;
+}
+.pa-publication-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 0;
+}
+.pa-publication-review {
+  display: grid;
+  gap: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.pa-publication .button,
+.pa-publication-actions .button {
+  max-width: 100%;
+  height: auto;
+  min-height: 2rem;
+  white-space: normal;
+  text-align: center;
+}
+@media (max-width: 640px) {
+  .pa-publication-periods {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
