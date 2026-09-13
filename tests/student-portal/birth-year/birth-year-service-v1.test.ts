@@ -160,7 +160,7 @@ describe('birth year transactions through the frozen crypto port', () => {
     expect(cleared.sessions).toEqual(before.sessions);
     expect(cleared.qr).toEqual(before.qr);
     expect(cleared.account).toMatchObject({ auth_state: 'active', security_version: 0 });
-    const auditRows = (await pg.query('SELECT * FROM student_portal.audit_event')).rows;
+    const auditRows = (await pg.query<Record<string, unknown>>('SELECT * FROM student_portal.audit_event')).rows;
     for (const event of auditRows) {
       // UUIDs/timestamps may contain the same digits as a year; forbid secret
       // values and extra payload fields, not coincidental identifier substrings.
