@@ -1,0 +1,17 @@
+# Leituras administrativas V2 — handoff #746
+
+As leituras optam por `contractVersion: 2` no endpoint ADM existente. V1 continua estrita e disponível, inclusive comandos, CAS, birth-batch e audit-detail com capacidade de escrita. Falhas continuam no envelope FailureV1. A integração do consumer pertence a #757.
+
+- Catálogo: `adminClassCatalogRequestV2` consome o serviço BN operacional V2 existente, com ano 2026 explícito. Percorrer nextOffset até null; inclui turmas sem vínculo/conta. Não derivar filtros da página de contas. O endpoint BN verifica sua própria sessão/capacidade. Nenhum grant ou contrato BN novo.
+- `accounts-read`: páginas padrão 50/máximo 100, ordenadas por UUID, cursor assinado por ator, versão, operação, filtros, limite e TTL. Filtros de nome são literais, sem curingas. A leitura usa transação REPEATABLE READ READ ONLY. Mudanças entre páginas permanecem sujeitas ao estado corrente; não é exportação com snapshot durável.
+- `classId` null identifica contexto não resolvido; não inferir turma pelo rótulo. Elegibilidade é recalculada pelo resolver BN único. Contas ambíguas/sem vínculo não recebem origem de acesso inventada.
+- `access.enabled` e `source` vêm da política herdada escola→turma→conta. `accessPermitted` indica elegibilidade, ausência de bloqueio e janela de acesso vigente; não atesta senha, QR, nascimento ou autenticação já realizada. `settingsVersion` mantém a versão de política existente e `version` mantém o CAS da conta. A versão de escopo não é CAS de configuração.
+- `lastAuthenticationAt` considera apenas login/activated com success nos últimos 12 meses, excluindo o futuro. null significa desconhecido na janela retida, não “nunca acessou”. Não usar updated_at. A retenção existente não muda.
+- Sessões válidas: conta ativa e acesso permitido, sem revogação, security_version corrente, criação não futura e validade limitada pelo vencimento persistido, TTL corrente e fim do ano. Zero não comprova ausência de histórico.
+- `overview`: totais completos do escopo/filtros até 5.000 contas; acima disso retorna indisponível, jamais total truncado. PendingActivation é o estado operacional de primeiro acesso pendente; não é contagem histórica de visitantes. Saúde reutiliza V1. Publicação permanece na consulta publication V1 do escopo selecionado; não há dado de última importação externa.
+
+Orçamento observado: listagem sem sessões até 5 comandos SQL incluindo SET TRANSACTION/relógio/versão; overview com sessões até 8, independente do número de contas (lotes SQL, sem consultas de serviço por aluno). Role-check da composição acrescenta uma consulta. A suíte verifica páginas 100+5, catálogo 100+6 e turma vazia, autorização, retenção, ambiguidade, herança, TTL/revogação/versão e limite de resumo.
+
+A suíte PostgreSQL usa banco novo com prefixo validado portal746_read_ em cluster exclusivamente local portal705_test. Fixtures são inventadas; os grants de catálogo e a remoção/restauração temporária do índice para simular corrupção só ocorrem nesse banco descartável. Nenhum DDL ou dado produtivo faz parte da entrega. PostgreSQL nativo testa também a composição RPC real com student_portal_app e a recusa de leitura direta do cadastro BN.
+
+Rollback de código: reverter a entrega compatível, antes de integrar consumidores V2; depois disso coordenar sua reversão. Não alterar schema, chaves, sessões ou dados. Homologação visual/autenticada do conjunto pertence a #757–#759.

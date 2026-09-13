@@ -69,6 +69,42 @@ function immediateCalendarChange(previous: unknown, next: unknown, now: number):
   return false;
 }
 
+/** Shared pure policy resolution for single-target and batched administrative reads. */
+export async function resolvePolicySnapshotRowsV1(input: ScopeV1, rows: readonly Record<string, unknown>[]) {
+  const scope = normalizedScope(input);
+  if (rows.length !== 1 || rows[0]!.resolved !== true) throw new Error('student-portal-policy-target-unresolved');
+  const target = rows[0]!;
+  const records = z.array(storedRow).parse(target.settings_rows);
+  const school = records.filter((row) => row.scope_key === key(SCHOOL));
+  if (school.length !== FIELDS.length || new Set(school.map((row) => row.field_key)).size !== FIELDS.length
+    || new Set(school.map((row) => row.version)).size !== 1) throw new Error('student-portal-policy-defaults-unavailable');
+  if (school.some((row) => key(normalizedScope(row.source_scope_json)) !== key(SCHOOL))) throw new Error('student-portal-policy-defaults-unavailable');
+  try {
+    const defaults = settingsValueV1.parse(Object.fromEntries(school.map((row) => [row.field_key, row.value_json])));
+    normalizeCalendarV1(defaults.calendar);
+  } catch {
+    throw new Error('student-portal-policy-defaults-unavailable');
+  }
+  const epoch = school[0]!.version;
+  const classId = target.class_id === null ? null : z.number().int().positive().parse(target.class_id);
+  const chain: ScopeV1[] = [SCHOOL];
+  if (classId !== null) chain.push({ kind: 'class', academicYear: 2026, classId });
+  if (scope.kind === 'account') chain.push(scope);
+  const value: Record<string, unknown> = {};
+  const sources: Record<string, ScopeV1> = {};
+  for (const origin of chain) {
+    for (const row of records.filter((item) => item.scope_key === key(origin))) {
+      // Foundation snapshots may annotate inherited values. Only the owning scope overrides.
+      if (key(normalizedScope(row.source_scope_json)) !== key(origin)) continue;
+      value[row.field_key] = row.field_key === 'calendar' ? normalizeCalendarV1(row.value_json) : row.value_json;
+      sources[row.field_key] = origin;
+    }
+  }
+  const version = versionV1.parse(epoch + z.coerce.number().int().safe().nonnegative().parse(target.account_version));
+  const settings = effectiveSettingsV1.parse({ scope, version, value, sources });
+  return { settings, classId, epoch, policyVersion: `policy:${await hash({ settings, classId })}` };
+}
+
 export class PolicyServiceV1 implements EffectivePolicyPortV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
 
@@ -99,37 +135,7 @@ export class PolicyServiceV1 implements EffectivePolicyPortV1 {
         OR s.scope_key='class:2026:'||target.class_id::text
         OR ($1='account' AND s.scope_key='account:2026:'||$2::uuid::text)), '[]'::jsonb) AS settings_rows FROM target`,
     [scope.kind, scope.kind === 'account' ? scope.accountId : null, scope.kind === 'class' ? scope.classId : null]);
-    if (rows.length !== 1 || rows[0]!.resolved !== true) throw new Error('student-portal-policy-target-unresolved');
-    const target = rows[0]!;
-    const records = z.array(storedRow).parse(target.settings_rows);
-    const school = records.filter((row) => row.scope_key === key(SCHOOL));
-    if (school.length !== FIELDS.length || new Set(school.map((row) => row.field_key)).size !== FIELDS.length
-      || new Set(school.map((row) => row.version)).size !== 1) throw new Error('student-portal-policy-defaults-unavailable');
-    if (school.some((row) => key(normalizedScope(row.source_scope_json)) !== key(SCHOOL))) throw new Error('student-portal-policy-defaults-unavailable');
-    try {
-      const defaults = settingsValueV1.parse(Object.fromEntries(school.map((row) => [row.field_key, row.value_json])));
-      normalizeCalendarV1(defaults.calendar);
-    } catch {
-      throw new Error('student-portal-policy-defaults-unavailable');
-    }
-    const epoch = school[0]!.version;
-    const classId = target.class_id === null ? null : z.number().int().positive().parse(target.class_id);
-    const chain: ScopeV1[] = [SCHOOL];
-    if (classId !== null) chain.push({ kind: 'class', academicYear: 2026, classId });
-    if (scope.kind === 'account') chain.push(scope);
-    const value: Record<string, unknown> = {};
-    const sources: Record<string, ScopeV1> = {};
-    for (const origin of chain) {
-      for (const row of records.filter((item) => item.scope_key === key(origin))) {
-        // Foundation snapshots may annotate inherited values. Only the owning scope overrides.
-        if (key(normalizedScope(row.source_scope_json)) !== key(origin)) continue;
-        value[row.field_key] = row.field_key === 'calendar' ? normalizeCalendarV1(row.value_json) : row.value_json;
-        sources[row.field_key] = origin;
-      }
-    }
-    const version = versionV1.parse(epoch + z.coerce.number().int().safe().nonnegative().parse(target.account_version));
-    const settings = effectiveSettingsV1.parse({ scope, version, value, sources });
-    return { settings, classId, epoch, policyVersion: `policy:${await hash({ settings, classId })}` };
+    return resolvePolicySnapshotRowsV1(scope, rows);
   }
 
   async initializeDefaults() {

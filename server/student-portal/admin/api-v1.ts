@@ -1,5 +1,7 @@
 import { withAuditSqlV1 } from '../observability/audit-context-v1';
 import { z } from 'zod';
+import { adminReadQueryV2, type AdminReadResponseV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
+import { readAdminV2 } from './queries-v2';
 import { adminCommandV1, adminQueryV1, adminResponseV1, trustedAdminContextV1, type AdminQueryV1, type AdminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import type { FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CryptoPortV1, PortalAdminEntrypointV1 } from '../../../shared/student-portal-contracts/ports-v1';
@@ -38,7 +40,21 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
     return { ...value, actorId: value.actorId.toLowerCase() };
   }
   private failure(requestId: string, state: FailureV1['state']): FailureV1 { return { contractVersion: 1, requestId, state }; }
-  async query(inputContext: unknown, input: unknown): Promise<AdminResponseV1 | FailureV1> {
+  async query(inputContext: unknown, input: unknown): Promise<AdminResponseV1 | AdminReadResponseV2 | FailureV1> {
+    if (input === null || typeof input !== 'object' || !('contractVersion' in input) || input.contractVersion !== 2)
+      return this.queryV1(inputContext, input);
+    const context = this.context(inputContext, false);
+    if (!context) return this.failure(crypto.randomUUID(), 'forbidden');
+    const parsed = adminReadQueryV2.safeParse(input);
+    if (!parsed.success) return this.failure(context.requestId, 'invalid-request');
+    try {
+      return await this.sql.begin(async (tx) => {
+        await tx.unsafe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
+        return readAdminV2(tx, parsed.data, context.actorId, context.requestId, await authNowV1(tx), this.cursor);
+      });
+    } catch (error) { return this.failure(context.requestId, adminFailureStateV1(error)); }
+  }
+  private async queryV1(inputContext: unknown, input: unknown): Promise<AdminResponseV1 | FailureV1> {
     const context = this.context(inputContext, false);
     if (!context) return this.failure(crypto.randomUUID(), 'forbidden');
     const parsed = adminQueryV1.safeParse(input);
