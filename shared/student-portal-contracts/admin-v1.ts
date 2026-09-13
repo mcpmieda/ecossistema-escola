@@ -50,9 +50,9 @@ export const auditEventV1 = z.object({ eventId: portalIdV1, at: instantV1, actor
 const base = { contractVersion: z.literal(1), requestId: portalIdV1 };
 const paging = { nextCursor: opaqueV1.nullable() };
 export const adminResponseV1 = z.discriminatedUnion('state', [
-  z.object({ ...base, state: z.literal('accounts'), items: z.array(accountSummaryV1).max(100), ...paging }).strict(),
-  z.object({ ...base, state: z.literal('sessions'), items: z.array(z.object({ sessionId: portalIdV1, accountId: portalIdV1, expiresAt: instantV1, revokedAt: instantV1.nullable() }).strict()).max(100), ...paging }).strict(),
-  z.object({ ...base, state: z.literal('birth-years'), items: z.array(z.object({ accountId: portalIdV1, year: birthYearV1.nullable(), confirmation: z.enum(['confirmed', 'unconfirmed-test']).nullable(), version: versionV1 }).strict()).max(100), ...paging }).strict(),
+  z.object({ ...base, state: z.literal('accounts'), scopeVersion: versionV1, items: z.array(accountSummaryV1).max(100), ...paging }).strict(),
+  z.object({ ...base, state: z.literal('sessions'), version: versionV1, items: z.array(z.object({ sessionId: portalIdV1, accountId: portalIdV1, expiresAt: instantV1, revokedAt: instantV1.nullable() }).strict()).max(100), ...paging }).strict(),
+  z.object({ ...base, state: z.literal('birth-years'), scopeVersion: versionV1, items: z.array(z.object({ accountId: portalIdV1, accountVersion: versionV1, year: birthYearV1.nullable(), confirmation: z.enum(['confirmed', 'unconfirmed-test']).nullable(), version: versionV1 }).strict()).max(100), ...paging }).strict(),
   z.object({ ...base, state: z.literal('settings'), settings: effectiveSettingsV1 }).strict(),
   z.object({ ...base, state: z.literal('publication'), items: z.array(z.object({ period: periodV1, state: publicationStateV1, availableRevision: revisionV1.nullable(), publishedRevision: revisionV1.nullable(), version: versionV1 }).strict()).max(6) }).strict(),
   z.object({ ...base, state: z.literal('audit'), items: z.array(auditEventV1).max(100), ...paging }).strict(),
