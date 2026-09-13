@@ -1,0 +1,97 @@
+// @vitest-environment node
+import { describe, expect, it } from 'vitest';
+import { PDFDocument } from 'pdf-lib';
+import jsQR from 'jsqr';
+import {
+  qrMatrixV1,
+  renderQrPdfV1,
+  wrapQrLabelV1,
+} from '../../../src/features/student-portal-admin/credentials/qr-artifacts-v1';
+import { validatePrintCardsV1 } from '../../../src/features/student-portal-admin/credentials/qr-values-v1';
+import { qrPrintCardsV1, qrPrintUrlV1 } from './fixtures-v1';
+
+describe('private QR print artifacts', () => {
+  it.each(['qr-only', 'qr-name', 'qr-name-class'] as const)(
+    'renders a real bounded PDF with %s and complete long labels',
+    async (mode) => {
+      const progress: number[] = [];
+      const artifact = await renderQrPdfV1(
+        qrPrintCardsV1(100, mode),
+        new AbortController().signal,
+        (count) => progress.push(count),
+      );
+      expect(artifact).toMatchObject({ count: 100, pages: 17, format: 'pdf' });
+      expect(artifact.blob.type).toBe('application/pdf');
+      const bytes = new Uint8Array(await artifact.blob.arrayBuffer());
+      const pdf = await PDFDocument.load(bytes);
+      expect(pdf.getPageCount()).toBe(17);
+      expect(
+        pdf.getPages().every((page) => page.getWidth() === 595.28 && page.getHeight() === 841.89),
+      ).toBe(true);
+      expect(progress).toEqual(Array.from({ length: 101 }, (_, n) => n));
+      expect(new TextDecoder().decode(bytes)).not.toContain('https://aluno.escolaieda.com');
+      expect(bytes.byteLength).toBeLessThan(5_000_000);
+    },
+    30_000,
+  );
+  it('decodes the same credential from a four-module quiet-zone bitmap inside a larger image', () => {
+    const qr = qrPrintUrlV1(37),
+      matrix = qrMatrixV1(qr),
+      scale = 6,
+      quiet = 4;
+    const size = (matrix.size + quiet * 2) * scale,
+      width = size + 220,
+      height = size + 140;
+    const pixels = new Uint8ClampedArray(width * height * 4).fill(255);
+    for (let row = 0; row < matrix.size; row++)
+      for (let col = 0; col < matrix.size; col++)
+        if (matrix.get(row, col)) {
+          for (let y = 0; y < scale; y++)
+            for (let x = 0; x < scale; x++) {
+              const offset =
+                ((70 + (row + quiet) * scale + y) * width + 110 + (col + quiet) * scale + x) * 4;
+              pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 0;
+            }
+        }
+    expect(jsQR(pixels, width, height)?.data).toBe(qr);
+    expect([...qrMatrixV1(qr).data]).toEqual([...matrix.data]);
+  });
+  it('rejects zero, 101, duplicate, mixed-mode and forbidden extra card fields', () => {
+    const repeatedQr = qrPrintCardsV1(2);
+    repeatedQr[1]!.qr = repeatedQr[0]!.qr;
+    for (const cards of [
+      [],
+      repeatedQr,
+      qrPrintCardsV1(101),
+      [...qrPrintCardsV1(), ...qrPrintCardsV1()],
+      [qrPrintCardsV1()[0], { ...qrPrintCardsV1(2, 'qr-only')[1] }],
+      [{ ...qrPrintCardsV1()[0], pin: '0000' }],
+    ])
+      expect(() => validatePrintCardsV1(cards)).toThrow('invalid-cards');
+    expect(() => qrMatrixV1('https://example.com/access#forged')).toThrow('invalid-cards');
+  });
+  it('cancels before the next card and never produces an artifact after cancellation', async () => {
+    const controller = new AbortController(),
+      progress: number[] = [];
+    await expect(
+      renderQrPdfV1(qrPrintCardsV1(100), controller.signal, (count) => {
+        progress.push(count);
+        if (count === 2) controller.abort();
+      }),
+    ).rejects.toThrow();
+    expect(progress).toEqual([0, 1, 2]);
+  });
+  it('wraps whole names, unbroken words and graphemes without truncation', () => {
+    const name = 'ÁLVARES ' + 'W'.repeat(200);
+    const lines = wrapQrLabelV1(name, 24, (s) => Array.from(s).length);
+    expect(lines.every((line) => line.length <= 24)).toBe(true);
+    expect(lines.join('').replaceAll(' ', '')).toBe(name.replaceAll(' ', ''));
+    expect(
+      wrapQrLabelV1(
+        'Á李',
+        1,
+        (s) => [...new Intl.Segmenter('pt-BR', { granularity: 'grapheme' }).segment(s)].length,
+      ),
+    ).toEqual(['Á', '李']);
+  });
+});
