@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { AdminCommandV1, AdminQueryV1, AdminResponseV1, auditEventV1 } from './admin-v1';
+import type { AdminCommandV1, AdminQueryV1, AdminResponseV1, auditEventV1, trustedAdminContextV1 } from './admin-v1';
 import type { AcademicLinkV1, ScopeV1, RevisionsV1, FailureV1, accountStateV1, eligibilityStateV1 } from './core-v1';
 import type { EffectiveSettingsV1 } from './policy-v1';
 import type { SelfResponseV1 } from './self-v1';
@@ -88,10 +88,7 @@ export interface YearResetPortalGuardPortV1 {
 export interface PublishedProjectionPortV1 {
   readAuthorized(accountId: string, expected: RevisionsV1): Promise<SelfResponseV1 | null>;
 }
-export interface TrustedAdminContextV1 {
-  actorId: string; tenantId: string; requestId: string; authenticatedAt: string;
-  capability: 'platform.settings.read' | 'platform.settings.write';
-}
+export type TrustedAdminContextV1 = z.infer<typeof trustedAdminContextV1>;
 export interface PortalAdminEntrypointV1 {
   query(context: TrustedAdminContextV1, request: AdminQueryV1): Promise<AdminResponseV1 | FailureV1>;
   command(context: TrustedAdminContextV1, request: AdminCommandV1): Promise<AdminResponseV1 | FailureV1>;

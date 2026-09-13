@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { academicLinkV1, ERROR_HTTP_V1, failureV1, healthV1, pageRequestV1, scopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { activateRequestV1, challengeRequestV1, challengeResponseV1, loginRequestV1, logoutRequestV1, logoutResponseV1, passwordV1, pinV1, qrUrlV1, sessionResponseV1 } from '../../../shared/student-portal-contracts/auth-v1';
-import { adminCommandV1, adminQueryV1, adminResponseV1, birthYearV1, printCardV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import { adminCommandV1, adminQueryV1, adminResponseV1, birthYearV1, printCardV1, trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { calendarV1, DEFAULT_RISK_V1, disclosureV1, effectiveSettingsV1, riskPolicyV1, settingsOverrideV1 } from '../../../shared/student-portal-contracts/policy-v1';
 import { markV1, selfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import { EMPTY_CALENDAR_V1, SYNTHETIC_ID_V1 as id, SYNTHETIC_QR_V1 as qr, SYNTHETIC_SELF_V1 as self } from '../../../shared/student-portal-contracts/fixtures-v1';
@@ -13,6 +13,22 @@ const at = '2026-09-01T12:00:00Z';
 const value = { accessEnabled: false, showPartials: false, autoUpdate: false, showFinalResult: false, allowedPeriods: [], risk: DEFAULT_RISK_V1, calendar: EMPTY_CALENDAR_V1 };
 
 describe('Portal V1 identity and envelope', () => {
+  it('constrains private audit metadata without expanding public requests or accepting claims', () => {
+    const context = { actorId: id, tenantId: id, requestId: id, authenticatedAt: at, capability: 'platform.settings.read' };
+    expect(trustedAdminContextV1.parse(context)).toEqual(context);
+    for (const clientIp of [null, '192.0.2.10', '2001:db8::1', '::1']) {
+      expect(trustedAdminContextV1.parse({ ...context, clientIp }).clientIp).toBe(clientIp);
+    }
+    for (const clientIp of ['', 'example.com', '192.0.2.10/24', '2001:db8::/48', '192.0.2.10, 192.0.2.11', '999.0.0.1', 123]) {
+      expect(trustedAdminContextV1.safeParse({ ...context, clientIp }).success).toBe(false);
+    }
+    for (const invalid of [{ ...context, roles: ['ADMINISTRADOR'] }, { ...context, capability: 'admin' }, { ...context, actorId: 'invented' }, { ...context, authenticatedAt: undefined }]) {
+      expect(trustedAdminContextV1.safeParse(invalid).success).toBe(false);
+    }
+    expect(trustedAdminContextV1.safeParse({ ...context, capability: 'platform.settings.write' }).success).toBe(true);
+    expect(adminQueryV1.safeParse({ contractVersion: 1, operation: 'health', scope, page: {}, clientIp: '192.0.2.10' }).success).toBe(false);
+    expect(adminCommandV1.safeParse({ ...meta, operation: 'qr-issue', accountId: id, clientIp: '192.0.2.10' }).success).toBe(false);
+  });
   it('limits link/scope to 2026 and rejects invented identity fields', () => {
     expect(academicLinkV1.parse({ academicYear: 2026, studentId: 1 }).studentId).toBe(1);
     for (const academicYear of [2025, 2027]) expect(academicLinkV1.safeParse({ academicYear, studentId: 1 }).success).toBe(false);

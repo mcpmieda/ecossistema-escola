@@ -3,6 +3,13 @@ import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, inst
 import { qrUrlV1 } from './auth-v1';
 import { effectiveSettingsV1, settingsOverrideV1 } from './policy-v1';
 
+// Private binding metadata only. Valid shape does not authenticate the caller.
+export const trustedAdminContextV1 = z.object({
+  actorId: portalIdV1, tenantId: portalIdV1, requestId: portalIdV1,
+  authenticatedAt: instantV1, capability: z.enum(['platform.settings.read', 'platform.settings.write']),
+  clientIp: z.union([z.ipv4(), z.ipv6()]).nullable().optional(),
+}).strict();
+
 export const birthYearV1 = z.string().regex(/^[0-9]{4}$/u).refine((s) => Number(s) >= 1900 && Number(s) <= 2026, 'Birth year outside V1 range');
 export const birthWriteV1 = z.discriminatedUnion('action', [
   z.object({ action: z.literal('set'), accountId: portalIdV1, expectedVersion: versionV1, year: birthYearV1, confirmation: z.enum(['confirmed', 'unconfirmed-test']) }).strict(),
