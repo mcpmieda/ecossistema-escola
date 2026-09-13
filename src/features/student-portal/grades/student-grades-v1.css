@@ -1,0 +1,140 @@
+.pa-grades-table {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.pa-grades-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.pa-grades-scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.pa-grades-resizable {
+  width: max(100%, var(--pa-grades-width));
+  overflow: visible;
+}
+.pa-grades-table .table__content {
+  table-layout: fixed;
+  overflow: visible;
+}
+.pa-grades-table .table__column {
+  height: 2.75rem;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+.pa-grade-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem;
+}
+.pa-grade-resize-button {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.pa-grades-table .table__cell {
+  padding: 0.85rem 1rem;
+  vertical-align: top;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.pa-grades-table .pa-subject-column,
+.pa-grades-table .pa-subject-cell {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  border-right: 1px solid var(--border);
+}
+.pa-grades-table .pa-subject-column {
+  z-index: 3;
+  background: var(--surface-secondary);
+}
+.pa-grades-table .pa-subject-cell,
+.pa-grades-table .table__row:hover .pa-subject-cell {
+  background: var(--surface);
+}
+.pa-subject-name {
+  font-weight: 550;
+}
+.pa-mark {
+  font-variant-numeric: tabular-nums;
+}
+.pa-mark[data-minimum='met'] .pa-mark-value {
+  color: var(--accent-soft-foreground);
+}
+.pa-mark[data-minimum='below'] .pa-mark-value {
+  color: var(--danger-soft-foreground);
+}
+.pa-mark[data-minimum='unknown'] .pa-mark-value {
+  color: var(--foreground);
+}
+.pa-mark-neutral,
+.pa-mark-maximum {
+  color: var(--muted);
+}
+.pa-period-final {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.pa-partials {
+  margin: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+.pa-partial {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+.pa-partial dt {
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.pa-partial dd {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+.pa-period-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+  font-weight: 600;
+}
+.pa-period-total > span:first-child {
+  font-size: 0.75rem;
+}
+.pa-period-total .pa-mark-value {
+  font-size: 0.9375rem;
+}
+.pa-grades-empty {
+  border: 1px solid var(--border);
+  text-align: center;
+  background: var(--surface-secondary);
+  color: var(--muted);
+}
+.pa-grades-empty p {
+  margin: 0;
+  padding: 1.5rem;
+  font-size: 0.875rem;
+}
+@media (max-width: 640px), (pointer: coarse) {
+  .pa-grade-resizer,
+  .pa-grade-resize-button {
+    display: none;
+  }
+  .pa-grades-table .table__cell {
+    padding: 0.75rem;
+  }
+}
