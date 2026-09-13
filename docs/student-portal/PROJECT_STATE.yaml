@@ -3,7 +3,7 @@ contract_version: 1
 academic_year: 2026
 updated_at: 2026-09-13
 current_issue: 715
-delivery_branch: docs/pa-evidence-715
+delivery_branch: docs/pa-pilot-715
 delivery_scope: backend_composition_and_integrated_proof
 last_verified_main: 6071d725bbc4a0d1ed89e63e9f11e49852464df8
 last_verified_pr: 738
@@ -18,7 +18,7 @@ runtime: production_composed_backend_remote_http_and_cron_verified
 student_portal_schema: migrations_0001_through_0007_applied
 production_defaults: seven_fields_initialized_explicitly_2026_09_13
 population_enabled: false
-accounts_last_observed: 0
+accounts_last_observed: 3
 access_settings_enabled_last_observed: 0
 school_calendar: unset
 public_origin: https://aluno.escolaieda.com
@@ -29,4 +29,7 @@ secrets_rotated_in_this_delivery: false
 execution_authorization: continuous_until_user_requests_stop
 execution_mode: direct_sequential_no_subagents
 next_safe_issue: 715
-pending_human_scope: private_6A_accounts_actions_and_institutional_dates_no_invented_birth_confirmation
+pilot_scope: three_6A_accounts_authorized_2000_unconfirmed_test
+pilot_calendar: account_only_sources_plus_labeled_test_supplements
+pilot_access_after_tests: closed
+pending_human_scope: real_authenticated_portal_rpc_widget_and_confirmed_birth_for_positive_activation

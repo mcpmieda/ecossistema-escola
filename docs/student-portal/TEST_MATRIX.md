@@ -1,5 +1,9 @@
 # Matriz de requisitos e provas
 
+## Piloto privado parcial da6A
+
+Em13/09/2026,3 perfis autorizados passaram pelas provas delimitadas no [handoff715](https://github.com/mcpmieda/ecossistema-escola/issues/715#issuecomment-5651945258) e em PRODUCTION_READINESS. Transporte de leitura/autenticação negativa público real; administração por serviços diretos no papel PostgreSQL restrito, sem atribuir identidade Entra ao operador técnico. PIN fictício não confirmado foi recusado; login positivo/widget/API privada autenticada continuam pendentes.55P03 inicial foi seguido de fechamento e repetição delimitada; não se declara ausência de contenção. Estado final0 acessos/sessões/publicações e3 perfis com nascimento de teste. Nenhuma escrita acadêmica.
+
 ## Release I publicada — evidência atual
 
 PR738/main6071d725bbc4a0d1ed89e63e9f11e49852464df8, deploy34737943189 SUCCESS. Verify1694 PASS+3 skips históricos/18workerd PASS; CI PostgreSQL17.6:55 nativos+2 smokes compostos PASS. Dez smokes HTTP remotos PASS; cron cleanup/publication ok em2026-09-13T04:36:43Z. SSO ADM e prévia de reset sem execução PASS. Inventário e limites detalhados em [PRODUCTION_READINESS](PRODUCTION_READINESS.md).

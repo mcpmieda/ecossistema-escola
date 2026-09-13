@@ -34,6 +34,20 @@ SSO Entra real e navegação ADM na release publicada PASS. Prévia de reset2026
 
 Próximas provas dependentes: responsável coordena privadamente contas/ações6A e datas institucionais; executor realiza roteiro delimitado sem notas/reset/distribuição de credenciais. Nascimento não confirmado de teste não permite ativação; não inventar confirmação produtiva. Widget positivo/replay exige interação legítima e a API Portal autenticada ainda requer prova dedicada. Interface P2 permanece fora de escopo.
 
+## Piloto privado em13/09/2026 — atualização posterior à PR739
+
+O responsável autorizou selecionar uma amostra da6A e testar as ações; forneceu calendários e autorizou2000 temporário e datas complementares de teste. Foram criados somente3 perfis por adapter existente/papel restrito, com locks e revisões, sem habilitar população global. [Handoff sanitizado](https://github.com/mcpmieda/ecossistema-escola/issues/715#issuecomment-5651945258).
+
+Nos3 perfis passaram leitura oficial/revisão obsoleta, nascimento2000 unconfirmed-test, emissão/reimpressão/regeneraçãoQR, bloqueio/desbloqueio/CAS, revogação vazia como no-op, override/herança, leitura dos6 períodos, publicação/materialização/atualizaçãoT1, espera deT2 até14/09 e retirada das publicações. QR válido na rota produtiva solicitou PIN;2000 não confirmado foi recusado401 sem cookie. Não é prova de login positivo. Escritas administrativas utilizaram os serviços diretamente por operador técnico autenticado no PostgreSQL; não representam sessão Entra ou prova da API privada por RPC.
+
+Disputa de lock55P03 no terceiro perfil interrompeu o primeiro roteiro; fechamento verificado antes da repetição. Retry limitado no harness sem mudar limites produtivos concluiu o caso. O resultado é de amostra funcional, não medição de carga. Dados acadêmicos não foram escritos. Nenhum QR/senha foi distribuído ou registrado nas evidências.
+
+Calendário apenas nos3 perfis:matrícula02/02,início23/02,fins inclusivos15/05,31/08,15/12,recuperação16–22/12; boletins26/05 e14/09,conselho final23/12. Fins convertidos para meia-noite seguinte. Horários08h,divulgaçãoT3 em16/12,recuperações/resultado em24/12 e limite do ano31/12 são complementos provisórios de teste. O contrato usa fimT1 como começoT2, sem marco separado para o intervalo16–17/05. Não tratar esses complementos como calendário institucional aprovado.
+
+Estado após o piloto:3 contas,3 nascimentos2000/unconfirmed-test,0 acessos habilitados,0 sessões,0 períodos publicados,populaçãofalse. Calendário escolar continua nulo; overrides de calendário e anos de teste permanecem nos3 perfis para continuidade. Esta observação substitui as contagens0 contas dos checkpoints históricos acima.
+
+G-B continua PARCIAL: API Portal com sessão Entra real, widget produtivo positivo/replay e ativação/login reais não foram comprovados. Nascimento fictício não será promovido a confirmado. Fluxos positivos de senha/sessão e destrutivos continuam delimitados à massa sintética; nenhuma execução de reset acadêmico. A autorização de amostra/datas já foi atendida, não é mais bloqueio genérico.
+
 ## Operação e rollback
 
 PORTAL_SERVING_ENABLED é manutenção externa; não equivale a acesso escolar ou população. Ausente/diferente de true fecha negócio/mutações/materialização; health e diagnóstico ADM autorizado permanecem. Fechar antes de qualquer restore. Preservar chaves/revogações/schema/guarda reset; nunca reativar D1. [Recovery](../../tests/student-portal/recovery/RECOVERY_V1.md) delimita quarentena/reconciliação antes de reabrir.

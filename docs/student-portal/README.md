@@ -1,6 +1,6 @@
 # Portal do Aluno — Parte 1
 
-A implementação segue a autorização contínua do responsável, uma fase por vez, sem agentes auxiliares. #702–#714 estão integradas e publicadas; #715 está integrada e publicada, com HTTP e cron remotos verificados; ainda faltam o RPC Portal com sessão real, widget produtivo e piloto privado. **G-B PARCIAL: não há abertura escolar nem interface P2.**
+A implementação segue a autorização contínua do responsável, uma fase por vez, sem agentes auxiliares. #702–#714 estão integradas e publicadas; #715 está integrada e publicada, com HTTP e cron remotos verificados; o piloto privado de3 perfis6A foi executado parcialmente. Ainda faltam RPC Portal com sessão real, widget produtivo e ativação positiva com nascimento confirmado. **G-B PARCIAL: não há abertura escolar nem interface P2.**
 
 Baseline integrada verificada: `6071d725bbc4a0d1ed89e63e9f11e49852464df8`, PR738, deploy oficial34737943189 SUCCESS. Verify no head20450e2163e237ab2bd3f86b43675c7966f0d5d5:1694 PASS+3 skips históricos,18workerd; CI PostgreSQL17.6:55 nativos+2 smokes compostos PASS. Evidências e limites em [PRODUCTION_READINESS](PRODUCTION_READINESS.md).
 
