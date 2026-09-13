@@ -1,5 +1,21 @@
 # Arquitetura e contratos V1
 
+## Composição P2 congelada pela preparação #743
+
+O backend existente e a topologia Pages aluno → PORTAL_SELF → Worker/PORTAL_DB e ADM Entra → PORTAL_SERVICE privado permanecem. #744 acrescenta build estudantil separado; #757 monta o produto. HTML/assets têm headers próprios, separados do JSON default-src none. A permissão de câmera pertence ao host aluno; ADM conserva camera=(). /access usa fragmento QR local, não o roteamento de hash do ADM. Nada de bundle Entra/SQL/BN no navegador estudantil, API administrativa pública ou binding produtivo em preview.
+
+Interfaces de UI (somente composição, sem nova autoridade HTTP):
+
+- Shell recebe `profile: SelfResponseV1['profile'] | null`, `content: ReactNode`, estado visual e `onLogout: () => Promise<void>`. Perfil e tabela vêm da mesma resposta/revisão; conteúdo é slot e domínio nunca importa React.
+- Grades recebe `SelfResponseV1`, sem callback para recalcular nota/publicação; mapeia somente marks/officialOutcome autorizados. `no-publication` é distinto de erro/carregamento.
+- Auth recebe cliente tipado e `onAuthenticated`; servidor escolhe credential-required/password-creation. Segredos/QR ficam em memória temporária, nunca storage; tracks/URLs de objetos são encerrados no ciclo da tela.
+- Módulos ADM recebem `scope` do contrato, cliente e callbacks de composição. AccountId/classId são identidade; rótulo, posição e ano global BN não definem escopo. Ficha usa slots para nascimento/QR/sessões/publicação/auditoria.
+- Cliente self separa `session`, `me`, `challenge`, `activate`, `login`, `logout`; ADM separa `query`/`command` e só envia schemas públicos. Contexto confiável Pages/tenant/capability/IP não é parâmetro da UI. #746 define a extensão compatível antes de #757 integrá-la.
+- Estado de carregamento: idle/loading/ready/error; payload protegido só no ready do escopo corrente. Nova seleção aborta request anterior e incrementa geração; resposta atrasada não confirma edição nem devolve nota de outra conta. Logout/401 esvazia dados e exige sessão fresca ao retornar.
+- Mutações mantêm idempotencyKey, versão e intenção enquanto retomam a mesma operação; conflito exige recarga/revisão, não troca silenciosa de versão. Birth-batch mostra resultados por item e retoma respeitando orçamento backend.
+
+#744 implementa shared UI/clientes nesses limites; telas não editam essa fundação. #757 recebe ownership explicitamente. #745 contrato BN → #747 helper único/adapter; #746 contrato/queries ADM; testes e paths próprios por issue. Nenhum DDL nesta fila sem lacuna e escopo dedicados. [DAG e reservas](ISSUE_MAP.md).
+
 ## Delta integrado #703–#714 e composição publicada #715
 
 A descrição original abaixo é o registro de desenho da #702, não inventário atual. Runtime, DNS, schema/ACL, KDF e módulos isolados foram implementados; inventário/evidência atual em PRODUCTION_READINESS e PROJECT_STATE. Locks ratificados: global compartilhado(613,0)→ano exclusivo(613,2026)→revisão→contas ordenadas; reset global exclusivo. Migrations0001–0007 aplicadas. API/DTOs complementares #732/CAS e #735/IP integram contratosV1.

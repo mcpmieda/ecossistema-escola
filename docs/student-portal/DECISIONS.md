@@ -1,5 +1,15 @@
 # Decisões e pendências
 
+## PA-DEC-007 — Parte 2 autorizada, execução sequencial e identidades preservadas
+
+Em 13/09/2026 o responsável aprovou a fila #742/#743–#760 e solicitou execução autônoma, uma issue por vez, inclusive as identificadas como CHAT ONLINE. Preservar os marcadores **CODEX e CHAT ONLINE** dos títulos; eles mantêm a identidade do planejamento. O executor desta sessão realiza diretamente todas as entregas, sem agentes auxiliares. [PARALELO] continua registrando independência técnica, não concorrência operacional nesta execução.
+
+Esta decisão substitui a parada após o planejamento e as ondas simultâneas da #742. Não altera escopo, contratos, dependências, testes, gates ou limites de dados. Atualizar AGORA/DEPOIS/CONCLUÍDA conforme a execução; uma única filha em AGORA por vez. Prosseguir autonomamente após cada entrega; interromper somente quando uma intervenção humana for imprescindível. Integração e deploy continuam condicionados ao AGENTS/BN-DEC-023, sem confirmação repetida por PR.
+
+A #743 é a integradora documental da preparação; #744 reserva build/clientes e transfere ownership à #757. #758 valida qualidade, #759 encerra a checklist real PA-DEC-006 e #760 consolida operação. G-B permanece PARCIAL até as provas reais; a montagem das telas não exige antecipar o próprio aceite que elas viabilizam. Não há abertura geral, confirmação de nascimento fictício, reset acadêmico, autorização de novo plano ou distribuição de credenciais por consequência desta decisão.
+
+Registro de autorização: [issue-mãe #742](https://github.com/mcpmieda/ecossistema-escola/issues/742), seção vigente, e mesma atualização nas 18 filhas.
+
 ## PA-DEC-006 — Encerramento técnico da fila P1 e aceite com as telas
 
 Em13/09/2026, o responsável aceitou executar as provas finais de navegador no encerramento da Parte2 ([aceite registrado](https://github.com/mcpmieda/ecossistema-escola/issues/715#issuecomment-5652363419)). Em seguida solicitou terminar todas as issues atuais antes de avançar. Restavam abertas somente #715 e #701.

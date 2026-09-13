@@ -1,253 +1,333 @@
-schema_version: 2
+schema_version: 3
 project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
-updated_at: 2026-09-11
-
+updated_at: 2026-09-13
 coordination:
   master_issue: 182
-  executable_issue: 668
-  current_delivery_issue: 668
-  current_integrator_issue: 668
+  executable_issue: null
+  current_delivery_issue: null
+  current_integrator_issue: 743
   central_state_editor: integrator-only
-  canonical_decisions: docs/gradebook/DECISIONS.md
-  canonical_roadmap: docs/gradebook/ROADMAP.md
-  consumer_map: docs/gradebook/CONSUMER_MAP.md
-  issue_map: docs/gradebook/ISSUE_MAP.md
-  start_here: docs/gradebook/COMECE_AQUI.md
-  branch_model: short-lived-per-delivery
-  merge_target: main
-  merge_and_deploy: standing-authorization-after-final-head-verification
-  authorization_decision: BN-DEC-023
-  authorization_comment: 5618750384
-  prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
-
+  active_queue: student-portal-part-2-742
+  program_status: completed-functional-program-596
+  execution_authority: PA-DEC-007
 baseline:
-  last_audited_main_commit: fc6547f1cf994a9f87fe5c01fd80c1b58c5de642
-  integrated_unmounted_frontend_retirement_pr: 667
-  integrated_audit_v1_retirement_pr: 665
-  integrated_recovery_contention_pr: 663
-  integrated_teacher_configuration_pr: 661
-  integrated_current_audit_pr: 659
-  integrated_reports_pr: 657
-  integrated_bulletins_pr: 655
-  integrated_council_pr: 653
-  integrated_performance_heroui_pr: 652
-  integrated_term_comparison_pr: 650
-  integrated_source_desktop_pr: 647
-  integrated_performance_lenses_pr: 645
-  integrated_performance_matrix_pr: 643
-  integrated_security_pr: 641
-  integrated_centers_pr: 640
-  integrated_foundation_pr: 636
-  integrated_import_archive_pr: 632
-  storage_homologation_issue: 613
-  active_diagnostics_homologation_issue: 629
-  authorized_deploy_run: 34604746376
-  authorized_deploy_number: 269
+  last_audited_main_commit: 9066c04d01b8d62bf59e1de0b51c6ce4c567c668
+  last_verified_pr: 741
+  authorized_deploy_run: 34749391273
   authorized_deploy_result: success
-  authenticated_post_deploy_smoke_this_session: true
-  note: baseline-after-unmounted-frontend-retirement-667-before-performance-measurement-668
-
+  functional_acceptance_main: 80b2916185fc6a49df7c5ab0af71e2be4dcdeb66
+  functional_acceptance_evidence: docs/gradebook/FINAL4_PILOT_406.md
+  operation_evidence: docs/gradebook/FINAL_OPERATION_596.md
 storage:
-  decision_current: BN-DEC-022
-  provider_decision: BN-DEC-021
   current_official_storage: supabase-postgresql-via-cloudflare-hyperdrive
   binding: PROD_DB
   schema: gradebook
-  cutover_completed: true
+  total_table_count: 30
   core_table_count: 19
   diagnostic_table_count: 1
   council_v3_table_count: 8
   relational_bulletin_table_count: 1
-  baseline_pre_council_table_count: 20
-  total_table_count: 29
-  column_count: 227
-  structural_constraint_count: 203
-  index_count: 62
-  foreign_key_count: 51
-  sequence_count: 12
-  function_count: 4
-  distinct_trigger_count: 3
-  information_schema_trigger_event_rows: 6
-  legacy_streams_versions_are_current_schema: false
+  diagnostic_treatment_table_count: 1
   import_transport: canonical-v9
   import_service: relational-v11-over-v10
-  academic_no_changes_policy: zero-academic-dml-and-zero-new-history
-  diagnostic_retention: current-evidence-only-replaced-on-next-source-observation
-  historical_academic_retention: preserved-real-deltas
-  recovery_baseline_in_git: reconstructed-replay-tested-and-integrated-pr-636
-  recovery_baseline_path: migrations/gradebook-simplified/
-  production_data_restore_proven_by_this_pr: false
-  disposable_logical_restore: issue-662-passed-28-tables-120879-rows-12-sequences
-  disposable_restore_current_catalog: passed-29-tables-227-columns-203-constraints-62-indexes-51-fks
-  disposable_restore_elapsed_milliseconds: 7385
-  disposable_restore_scope: artifact-and-local-machine-measurement-not-managed-production-rto
-  institutional_rpo_rto: pending-explicit-policy-and-managed-restore
-  legacy_d1_role: preserved-historical-resource-not-backup-of-new-relational-writes
-  council_v3_migration: applied-and-postflight-verified-2026-09-11
-  council_v3_new_rows_after_migration: 0
-  council_v3_acl: exact-backend-least-privilege-public-zero
-  relational_bulletin_snapshot_migration: applied-and-postflight-verified-2026-09-11
-  relational_bulletin_snapshot_rows_after_migration: 0
-  relational_bulletin_snapshot_acl: select-insert-backend-only-public-and-clients-zero
-  pre_migration_copy: logical-export-28-tables-12-sequences-120879-rows-sha256-562e9ac562294db560c0bface1e2ef1b392c7de7d6336bb351d2018cafcdeb4c
-
+  latest_gradebook_migration: year_reset_acl_v1
+  legacy_streams_versions_are_current_schema: false
 runtime:
   design_system: HeroUI React v3
   authentication: Microsoft Entra ID inherited from the Admin Center
   capability: gradebook.persistence.admin
-  cache_control: no-store
-  academic_browser_persistent_storage: forbidden
-  production_flags_last_verified_this_pr: false
-  provider_facade_uses_gradebook_d1_interface: true
-  import_and_diagnostics: relational-integrated-and-homologated
-  diagnostic_atomic_replacement: integrated-pr-636-and-real-postgres-contention-passed-issue-662
-  diagnostic_ordering: last-server-confirmed-observation-not-client-chronology
-  relational_centers_v2: integrated-pr-640-deploy-255-success-awaiting-authenticated-smoke
-  relational_centers_operations: [bootstrap-2026-compatibility, context, search, center]
-  relational_centers_write_operations: none
-  relational_centers_snapshot: per-request-read-only-repeatable-read
-  relational_performance_v2: integrated-pr-643-deploy-257-success-awaiting-authenticated-smoke
-  relational_performance_authority: calculated-preview-not-official-emission
-  relational_performance_snapshot: per-response-read-only-repeatable-read
-  performance_analysis_v3: integrated-pr-645-deploy-258-success-awaiting-authenticated-smoke
-  performance_term_comparison_v4: integrated-pr-650-deploy-260-success-awaiting-joint-visual-validation
-  performance_authenticated_measurement: issue-668-passed-2026-09-11
-  performance_dashboard_measurement: n20-p95-441.3ms-br-max-6569b-decoded-max-144508b
-  performance_detail_measurement: n20-p95-193.5ms-br-max-1284b-decoded-max-12119b
-  performance_matrix_usable_measurement: 675.7ms-three-widgets-zero-alerts
-  performance_lenses: [result, quantitative, qualitative, assessments]
-  performance_lenses_contract: docs/gradebook/PERFORMANCE_LENSES_V3.md
-  cross_period_comparison: descriptive-same-year-t2-to-t1-and-t3-to-t1-or-t2
-  comparison_lenses: [result, quantitative, qualitative]
-  comparison_authority: descriptive-observation-not-pedagogical-trend-or-official-emission
-  active_academic_year: 2026
-  academic_year_creation: removed
-  academic_year_selection: removed
+  academic_authority: imported-source
+  native_engine: descriptive-only
+  official_academic_year: 2026
+  materialized_years: [2025, 2026]
+  year_2025_status: disposable-test-data-not-official
+  academic_year_selection: global-in-memory-isolated-per-year
+  academic_year_creation: materialized-by-relation-import
   cross_academic_year_comparison: forbidden
-  relational_council_v3: integrated-pr-653-deploy-262-authenticated-read-only-smoke-success
-  relational_council_authority: calculated-eligibility-explicit-human-decision
-  relational_council_decisions: [approved-by-council, rejected-by-council, rejected-for-absence]
-  relational_council_vote_storage: favoraveis-and-contrarios-only-presentes-derived
-  relational_council_director_tie_break: outside-system
-  relational_council_lifecycle: session-cas-idempotency-history-close-snapshot-justified-reopen
-  relational_bulletins_v2: integrated-pr-655-deploy-263-authenticated-read-only-smoke-success
-  relational_bulletins_authority: imported-am-u-official-native-calculation-descriptive
-  relational_bulletins_durability: append-only-snapshot-cas-idempotency-history-reprint
-  relational_reports_v2: integrated-pr-657-deploy-264-authenticated-read-only-smoke-success
-  relational_reports_authority: read-only-composition-of-current-relational-contracts
-  relational_reports_sources:
-    [performance-v3-v4, council-v3, current-import-diagnostics, bulletins-v2-snapshots]
-  relational_current_audit_v2: integrated-pr-659-deploy-265-authenticated-read-only-smoke-success
-  relational_current_audit_source: current-import-diagnostics-2026
-  relational_current_audit_writes: none
-  relational_current_audit_legacy_workspace: dedicated-ui-and-http-retired-pr-665-core-retained-for-reports-v1
-  relational_current_audit_human_treatment_history: pending-explicit-contract-and-durability
-  shared_year_consumers:
-    [centers-v2, current-audit-v2, performance-v2-v3-v4, bulletins-v2, reports-v2, council-v3]
-  shared_year_legacy_mapping: unique-exact-2026-catalog-label-or-fail-closed
-  import_source_year_reinterpreted_by_navigation: false
-  relational_teacher_configuration: integrated-pr-661-deploy-266-authenticated-read-only-smoke-success
-  relational_teacher_configuration_authority: imported-source-read-only-no-parallel-registration
-  relational_teacher_configuration_order: [P, M, H, G, C, A, RL, RD, F, ET, I, CT]
-  relational_teacher_legacy_write: rejected-before-legacy-runtime
-  relational_teacher_legacy_exclusive_files: removed-after-static-dependency-proof
-  unmounted_legacy_frontends: retired-pr-667-deploy-269-server-compatibility-preserved
-  remaining_consumers: none-after-issue-660
-  real_postgres_contention: diagnostic-advisory-lock-rollback-and-council-cas-passed-issue-662
-  relational_council_serialization_retry: one-retry-on-sqlstate-40001-then-contracted-cas-response
-  global_academic_authority_switch_verified: false
-  authority_acceptance_issue: 347
-  legacy_consumer_contracts:
-    academic_authority_mode: imported-source
-    note: describes-existing-v1-contracts-not-a-global-runtime-flag
-
-work_in_progress:
-  issue: 668
-  parent_issues: [634, 406, 596]
-  phase: FINAL-2-authenticated-performance-measurement
-  branch: test/bn-final2-performance-metrics-668
-  pull_request: 669
-  scope: record-payload-latency-and-matrix-usable-evidence-without-runtime-change
-  production_activation_in_this_delivery: false
-  production_schema_extension_in_this_delivery: none
-  phase_complete: false
-  release_checkpoint: issue-668
-  visual_validation_this_delivery: not-applicable-joint-acceptance-still-deferred
-  remaining:
-    - joint-visual-validation-with-responsible
-    - final2-accessibility-manual-and-visual-acceptance
-    - final-head-verify-ci-review-merge-deploy
-
-final_phases:
-  - phase: FINAL-1
-    issue: 633
-    branch: null
-    status: functional-consumers-integrated-local-restore-and-contention-green-audit-v1-retired-unmounted-frontends-in-issue-666-external-gates-and-visual-validation-pending
-  - phase: FINAL-2
-    issue: 634
-    branch: null
-    status: source-desktop-fixed-2026-term-comparison-heroui-redesign-and-authenticated-technical-metrics-green-joint-visual-validation-pending
-  - phase: FINAL-3
-    issue: 635
-    branch: null
-    status: relational-v3-integrated-migrated-deployed-smoke-and-local-contention-green-joint-visual-validation-and-pilot-pending
-  - phase: FINAL-4
-    issue: 406
-    branch: test/bn-final-4-piloto-integral
-    status: blocked-until-functional-phases-verified
-
-institutional_delivery:
-  issue: 596
-  authority_acceptance_issue: 347
-  observability_issue: 220
-  dependency_security_issue: 637
-  status: pending-pilot-acceptance-and-proven-recovery
-
-history:
-  prior_state: docs/gradebook/history/pre-final-1/PROJECT_STATE.yaml
-  prior_decisions: docs/gradebook/history/pre-final-1/DECISIONS.md
-  legacy_importers: Aprendizados/IMPORTADORES-LEGADOS/
-  obsolete_execution_queues: [185, 192, 593]
-  obsolete_storage_sequence: [592, 594, 595]
-  note: obligations-transferred-not-erased-and-prior-evidence-not-reinterpreted
-
-security:
-  real_data_in_git_or_ci: forbidden
-  public_academic_payloads_and_credentials: forbidden
-  source_document_mutation: forbidden
-  production_academic_writes_in_this_delivery: forbidden
-  production_schema_extension: council-v3-and-bulletin-v2-applied-postflight-verified
-  automatic_authority_activation: forbidden
-  authorization_context: server-only
-  concurrency_and_atomicity: required
-  recovery: must-be-proven-not-inferred-from-migration-presence
-  npm_audit_baseline: six-dev-entries-two-dependency-chains
-  npm_audit_omit_dev_baseline: zero-reported-entries-not-proof-of-zero-risk
-  dependency_remediation: integrated-pr-641-deploy-256-success
-  npm_audit_full_after: 0
-  npm_audit_omit_dev_after: 0
-  npm_audit_date: 2026-09-10
-  npm_audit_run: 34478370996
-  audited_lock_blob: ad6059ec46be02970b340f97e7cbb585abd79715
-  report: docs/gradebook/SECURITY_REMEDIATION_637.md
-
-next_safe_action:
-  issue: 668
-  related_issues: [634, 406, 596]
-  description: document-test-review-verify-integrate-and-deploy-authenticated-performance-measurements
-  prerequisite_release_checkpoint: issue-668
-
-# Integração Portal: delta exclusivo I, sem reabrir a fila histórica BN acima.
+  audit_treatment: append-only-recognized-and-annotation-current-diagnostics-separate
+  rr: terminal-failed-outside-council
+  year_reset: explicit-annual-preview-and-confirmation-portal-guard-required
+  academic_browser_persistent_storage: forbidden
+  cache_control: no-store
+completed_final_issues: [633, 634, 635, 406, 347, 596]
+recovery:
+  technical_disposable_restore: passed-662
+  managed_backup_rpo_rto: explicitly-deferred-not-implemented
+  legacy_d1_is_backup_of_new_writes: false
 student_portal_integration:
-  issue: 715
-  baseline_main: 6071d725bbc4a0d1ed89e63e9f11e49852464df8
-  baseline_deploy: 34737943189
-  status: published_http_cron_verified_private_acceptance_pending
+  parent_issue: 742
+  current_preparation_issue: 743
+  part_1_issues: [701, 715]
+  part_1_status: technically-completed-741
+  gate_g_b: partial-real-acceptance-deferred-to-759
+  schema_table_count: 20
   schema: student_portal_migrations_0001_through_0007_applied
-  reset_guard: integrated_706_before_population
-  transactional_producers: integrated_707
-  academic_authority: unchanged_official_imported_source
+  academic_authority: unchanged-official-imported-source
+  reset_guard: integrated-706-before-population
+  transactional_producers: integrated-707
   population_enabled: false
   general_school_opening: false
   canonical_state: docs/student-portal/PROJECT_STATE.yaml
+  planned_bn_contract: 745
+  planned_academic_presentation: 747
+next_safe_action:
+  issue: 743
+  description: complete-documentary-preparation-without-reopening-gradebook-final-queue
+
+# Immutable context of the older #668 snapshot follows; these keys are historical,
+# not current tasks, runtime flags, catalog counts or release authorization.
+historical_checkpoint_668:
+  schema_version: 2
+  project: banco-de-notas
+  repository: mcpmieda/ecossistema-escola
+  updated_at: 2026-09-11
+
+  coordination:
+    master_issue: 182
+    executable_issue: 668
+    current_delivery_issue: 668
+    current_integrator_issue: 668
+    central_state_editor: integrator-only
+    canonical_decisions: docs/gradebook/DECISIONS.md
+    canonical_roadmap: docs/gradebook/ROADMAP.md
+    consumer_map: docs/gradebook/CONSUMER_MAP.md
+    issue_map: docs/gradebook/ISSUE_MAP.md
+    start_here: docs/gradebook/COMECE_AQUI.md
+    branch_model: short-lived-per-delivery
+    merge_target: main
+    merge_and_deploy: standing-authorization-after-final-head-verification
+    authorization_decision: BN-DEC-023
+    authorization_comment: 5618750384
+    prohibited_orchestration: [app-factory, factory-runs, auxiliary-agents, permanent-orchestrators]
+
+  baseline:
+    last_audited_main_commit: fc6547f1cf994a9f87fe5c01fd80c1b58c5de642
+    integrated_unmounted_frontend_retirement_pr: 667
+    integrated_audit_v1_retirement_pr: 665
+    integrated_recovery_contention_pr: 663
+    integrated_teacher_configuration_pr: 661
+    integrated_current_audit_pr: 659
+    integrated_reports_pr: 657
+    integrated_bulletins_pr: 655
+    integrated_council_pr: 653
+    integrated_performance_heroui_pr: 652
+    integrated_term_comparison_pr: 650
+    integrated_source_desktop_pr: 647
+    integrated_performance_lenses_pr: 645
+    integrated_performance_matrix_pr: 643
+    integrated_security_pr: 641
+    integrated_centers_pr: 640
+    integrated_foundation_pr: 636
+    integrated_import_archive_pr: 632
+    storage_homologation_issue: 613
+    active_diagnostics_homologation_issue: 629
+    authorized_deploy_run: 34604746376
+    authorized_deploy_number: 269
+    authorized_deploy_result: success
+    authenticated_post_deploy_smoke_this_session: true
+    note: baseline-after-unmounted-frontend-retirement-667-before-performance-measurement-668
+
+  storage:
+    decision_current: BN-DEC-022
+    provider_decision: BN-DEC-021
+    current_official_storage: supabase-postgresql-via-cloudflare-hyperdrive
+    binding: PROD_DB
+    schema: gradebook
+    cutover_completed: true
+    core_table_count: 19
+    diagnostic_table_count: 1
+    council_v3_table_count: 8
+    relational_bulletin_table_count: 1
+    baseline_pre_council_table_count: 20
+    total_table_count: 29
+    column_count: 227
+    structural_constraint_count: 203
+    index_count: 62
+    foreign_key_count: 51
+    sequence_count: 12
+    function_count: 4
+    distinct_trigger_count: 3
+    information_schema_trigger_event_rows: 6
+    legacy_streams_versions_are_current_schema: false
+    import_transport: canonical-v9
+    import_service: relational-v11-over-v10
+    academic_no_changes_policy: zero-academic-dml-and-zero-new-history
+    diagnostic_retention: current-evidence-only-replaced-on-next-source-observation
+    historical_academic_retention: preserved-real-deltas
+    recovery_baseline_in_git: reconstructed-replay-tested-and-integrated-pr-636
+    recovery_baseline_path: migrations/gradebook-simplified/
+    production_data_restore_proven_by_this_pr: false
+    disposable_logical_restore: issue-662-passed-28-tables-120879-rows-12-sequences
+    disposable_restore_current_catalog: passed-29-tables-227-columns-203-constraints-62-indexes-51-fks
+    disposable_restore_elapsed_milliseconds: 7385
+    disposable_restore_scope: artifact-and-local-machine-measurement-not-managed-production-rto
+    institutional_rpo_rto: pending-explicit-policy-and-managed-restore
+    legacy_d1_role: preserved-historical-resource-not-backup-of-new-relational-writes
+    council_v3_migration: applied-and-postflight-verified-2026-09-11
+    council_v3_new_rows_after_migration: 0
+    council_v3_acl: exact-backend-least-privilege-public-zero
+    relational_bulletin_snapshot_migration: applied-and-postflight-verified-2026-09-11
+    relational_bulletin_snapshot_rows_after_migration: 0
+    relational_bulletin_snapshot_acl: select-insert-backend-only-public-and-clients-zero
+    pre_migration_copy: logical-export-28-tables-12-sequences-120879-rows-sha256-562e9ac562294db560c0bface1e2ef1b392c7de7d6336bb351d2018cafcdeb4c
+
+  runtime:
+    design_system: HeroUI React v3
+    authentication: Microsoft Entra ID inherited from the Admin Center
+    capability: gradebook.persistence.admin
+    cache_control: no-store
+    academic_browser_persistent_storage: forbidden
+    production_flags_last_verified_this_pr: false
+    provider_facade_uses_gradebook_d1_interface: true
+    import_and_diagnostics: relational-integrated-and-homologated
+    diagnostic_atomic_replacement: integrated-pr-636-and-real-postgres-contention-passed-issue-662
+    diagnostic_ordering: last-server-confirmed-observation-not-client-chronology
+    relational_centers_v2: integrated-pr-640-deploy-255-success-awaiting-authenticated-smoke
+    relational_centers_operations: [bootstrap-2026-compatibility, context, search, center]
+    relational_centers_write_operations: none
+    relational_centers_snapshot: per-request-read-only-repeatable-read
+    relational_performance_v2: integrated-pr-643-deploy-257-success-awaiting-authenticated-smoke
+    relational_performance_authority: calculated-preview-not-official-emission
+    relational_performance_snapshot: per-response-read-only-repeatable-read
+    performance_analysis_v3: integrated-pr-645-deploy-258-success-awaiting-authenticated-smoke
+    performance_term_comparison_v4: integrated-pr-650-deploy-260-success-awaiting-joint-visual-validation
+    performance_authenticated_measurement: issue-668-passed-2026-09-11
+    performance_dashboard_measurement: n20-p95-441.3ms-br-max-6569b-decoded-max-144508b
+    performance_detail_measurement: n20-p95-193.5ms-br-max-1284b-decoded-max-12119b
+    performance_matrix_usable_measurement: 675.7ms-three-widgets-zero-alerts
+    performance_lenses: [result, quantitative, qualitative, assessments]
+    performance_lenses_contract: docs/gradebook/PERFORMANCE_LENSES_V3.md
+    cross_period_comparison: descriptive-same-year-t2-to-t1-and-t3-to-t1-or-t2
+    comparison_lenses: [result, quantitative, qualitative]
+    comparison_authority: descriptive-observation-not-pedagogical-trend-or-official-emission
+    active_academic_year: 2026
+    academic_year_creation: removed
+    academic_year_selection: removed
+    cross_academic_year_comparison: forbidden
+    relational_council_v3: integrated-pr-653-deploy-262-authenticated-read-only-smoke-success
+    relational_council_authority: calculated-eligibility-explicit-human-decision
+    relational_council_decisions: [approved-by-council, rejected-by-council, rejected-for-absence]
+    relational_council_vote_storage: favoraveis-and-contrarios-only-presentes-derived
+    relational_council_director_tie_break: outside-system
+    relational_council_lifecycle: session-cas-idempotency-history-close-snapshot-justified-reopen
+    relational_bulletins_v2: integrated-pr-655-deploy-263-authenticated-read-only-smoke-success
+    relational_bulletins_authority: imported-am-u-official-native-calculation-descriptive
+    relational_bulletins_durability: append-only-snapshot-cas-idempotency-history-reprint
+    relational_reports_v2: integrated-pr-657-deploy-264-authenticated-read-only-smoke-success
+    relational_reports_authority: read-only-composition-of-current-relational-contracts
+    relational_reports_sources:
+      [performance-v3-v4, council-v3, current-import-diagnostics, bulletins-v2-snapshots]
+    relational_current_audit_v2: integrated-pr-659-deploy-265-authenticated-read-only-smoke-success
+    relational_current_audit_source: current-import-diagnostics-2026
+    relational_current_audit_writes: none
+    relational_current_audit_legacy_workspace: dedicated-ui-and-http-retired-pr-665-core-retained-for-reports-v1
+    relational_current_audit_human_treatment_history: pending-explicit-contract-and-durability
+    shared_year_consumers:
+      [centers-v2, current-audit-v2, performance-v2-v3-v4, bulletins-v2, reports-v2, council-v3]
+    shared_year_legacy_mapping: unique-exact-2026-catalog-label-or-fail-closed
+    import_source_year_reinterpreted_by_navigation: false
+    relational_teacher_configuration: integrated-pr-661-deploy-266-authenticated-read-only-smoke-success
+    relational_teacher_configuration_authority: imported-source-read-only-no-parallel-registration
+    relational_teacher_configuration_order: [P, M, H, G, C, A, RL, RD, F, ET, I, CT]
+    relational_teacher_legacy_write: rejected-before-legacy-runtime
+    relational_teacher_legacy_exclusive_files: removed-after-static-dependency-proof
+    unmounted_legacy_frontends: retired-pr-667-deploy-269-server-compatibility-preserved
+    remaining_consumers: none-after-issue-660
+    real_postgres_contention: diagnostic-advisory-lock-rollback-and-council-cas-passed-issue-662
+    relational_council_serialization_retry: one-retry-on-sqlstate-40001-then-contracted-cas-response
+    global_academic_authority_switch_verified: false
+    authority_acceptance_issue: 347
+    legacy_consumer_contracts:
+      academic_authority_mode: imported-source
+      note: describes-existing-v1-contracts-not-a-global-runtime-flag
+
+  work_in_progress:
+    issue: 668
+    parent_issues: [634, 406, 596]
+    phase: FINAL-2-authenticated-performance-measurement
+    branch: test/bn-final2-performance-metrics-668
+    pull_request: 669
+    scope: record-payload-latency-and-matrix-usable-evidence-without-runtime-change
+    production_activation_in_this_delivery: false
+    production_schema_extension_in_this_delivery: none
+    phase_complete: false
+    release_checkpoint: issue-668
+    visual_validation_this_delivery: not-applicable-joint-acceptance-still-deferred
+    remaining:
+      - joint-visual-validation-with-responsible
+      - final2-accessibility-manual-and-visual-acceptance
+      - final-head-verify-ci-review-merge-deploy
+
+  final_phases:
+    - phase: FINAL-1
+      issue: 633
+      branch: null
+      status: functional-consumers-integrated-local-restore-and-contention-green-audit-v1-retired-unmounted-frontends-in-issue-666-external-gates-and-visual-validation-pending
+    - phase: FINAL-2
+      issue: 634
+      branch: null
+      status: source-desktop-fixed-2026-term-comparison-heroui-redesign-and-authenticated-technical-metrics-green-joint-visual-validation-pending
+    - phase: FINAL-3
+      issue: 635
+      branch: null
+      status: relational-v3-integrated-migrated-deployed-smoke-and-local-contention-green-joint-visual-validation-and-pilot-pending
+    - phase: FINAL-4
+      issue: 406
+      branch: test/bn-final-4-piloto-integral
+      status: blocked-until-functional-phases-verified
+
+  institutional_delivery:
+    issue: 596
+    authority_acceptance_issue: 347
+    observability_issue: 220
+    dependency_security_issue: 637
+    status: pending-pilot-acceptance-and-proven-recovery
+
+  history:
+    prior_state: docs/gradebook/history/pre-final-1/PROJECT_STATE.yaml
+    prior_decisions: docs/gradebook/history/pre-final-1/DECISIONS.md
+    legacy_importers: Aprendizados/IMPORTADORES-LEGADOS/
+    obsolete_execution_queues: [185, 192, 593]
+    obsolete_storage_sequence: [592, 594, 595]
+    note: obligations-transferred-not-erased-and-prior-evidence-not-reinterpreted
+
+  security:
+    real_data_in_git_or_ci: forbidden
+    public_academic_payloads_and_credentials: forbidden
+    source_document_mutation: forbidden
+    production_academic_writes_in_this_delivery: forbidden
+    production_schema_extension: council-v3-and-bulletin-v2-applied-postflight-verified
+    automatic_authority_activation: forbidden
+    authorization_context: server-only
+    concurrency_and_atomicity: required
+    recovery: must-be-proven-not-inferred-from-migration-presence
+    npm_audit_baseline: six-dev-entries-two-dependency-chains
+    npm_audit_omit_dev_baseline: zero-reported-entries-not-proof-of-zero-risk
+    dependency_remediation: integrated-pr-641-deploy-256-success
+    npm_audit_full_after: 0
+    npm_audit_omit_dev_after: 0
+    npm_audit_date: 2026-09-10
+    npm_audit_run: 34478370996
+    audited_lock_blob: ad6059ec46be02970b340f97e7cbb585abd79715
+    report: docs/gradebook/SECURITY_REMEDIATION_637.md
+
+  next_safe_action:
+    issue: 668
+    related_issues: [634, 406, 596]
+    description: document-test-review-verify-integrate-and-deploy-authenticated-performance-measurements
+    prerequisite_release_checkpoint: issue-668
+
+  # Integração Portal: delta exclusivo I, sem reabrir a fila histórica BN acima.
+  student_portal_integration:
+    issue: 715
+    baseline_main: 6071d725bbc4a0d1ed89e63e9f11e49852464df8
+    baseline_deploy: 34737943189
+    status: published_http_cron_verified_private_acceptance_pending
+    schema: student_portal_migrations_0001_through_0007_applied
+    reset_guard: integrated_706_before_population
+    transactional_producers: integrated_707
+    academic_authority: unchanged_official_imported_source
+    population_enabled: false
+    general_school_opening: false
+    canonical_state: docs/student-portal/PROJECT_STATE.yaml

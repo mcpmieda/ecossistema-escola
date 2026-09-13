@@ -1,3 +1,103 @@
+# Entregas P1/P2, dependências e ownership
+
+## Fila vigente — #742
+
+PA-DEC-007: execução direta e sequencial, uma filha por vez, inclusive CHAT ONLINE, mantendo as identidades dos títulos. [PARALELO] é independência arquitetural preservada, sem autorizar concorrência agora. P1 #701/#715 e demais entregas estão encerradas; G-B continua parcial até #759.
+
+| Chave / issue | Entrega | Família | Identidade preservada | Estado / independência | Depende de |
+| --- | --- | --- | --- | --- | --- |
+| A [#743](https://github.com/mcpmieda/ecossistema-escola/issues/743) | Reconciliar estado, contratos de interface e ownership da Parte 2 | P2-00 | CODEX | AGORA / SEQUENCIAL | início autorizado |
+| B [#744](https://github.com/mcpmieda/ecossistema-escola/issues/744) | Preparar build estudantil, transporte e ambiente de teste isolado | P2-01A / P2-06 preparação | CODEX | DEPOIS / PARALELO | #743 |
+| C [#745](https://github.com/mcpmieda/ecossistema-escola/issues/745) | Contratar classificação de notas pela regra acadêmica oficial | P2-03 pré-requisito BN | CHAT ONLINE | DEPOIS / PARALELO | #743 |
+| D [#746](https://github.com/mcpmieda/ecossistema-escola/issues/746) | Completar consultas administrativas necessárias às telas | P2-04/05 pré-requisito PA | CHAT ONLINE | DEPOIS / PARALELO | #743 |
+| E [#747](https://github.com/mcpmieda/ecossistema-escola/issues/747) | Projetar classificação acadêmica oficial sem duplicar cálculos | P2-03 integração BN | CODEX | DEPOIS / PARALELO | #745 |
+| F [#748](https://github.com/mcpmieda/ecossistema-escola/issues/748) | Construir shell, Perfil do aluno e estados visuais HeroUI | P2-01 | CHAT ONLINE | DEPOIS / PARALELO | #744 |
+| G [#749](https://github.com/mcpmieda/ecossistema-escola/issues/749) | Implementar leitor QR, ativação, senha e sessão estudantil | P2-02 | CODEX | DEPOIS / PARALELO | #744 |
+| H [#750](https://github.com/mcpmieda/ecossistema-escola/issues/750) | Construir Minhas notas com períodos publicados e estados oficiais | P2-03 | CHAT ONLINE | DEPOIS / PARALELO | #744, #745 |
+| I [#751](https://github.com/mcpmieda/ecossistema-escola/issues/751) | Configurar acesso, herança, calendário e encerramento de vínculos no ADM | P2-04A | CHAT ONLINE | DEPOIS / PARALELO | #744, #746 |
+| J [#752](https://github.com/mcpmieda/ecossistema-escola/issues/752) | Operar publicação e atualização de períodos no ADM | P2-04B | CHAT ONLINE | DEPOIS / PARALELO | #744, #746 |
+| K [#753](https://github.com/mcpmieda/ecossistema-escola/issues/753) | Criar lista e ficha de contas com ações de acesso no ADM | P2-05A | CHAT ONLINE | DEPOIS / PARALELO | #744, #746 |
+| L [#754](https://github.com/mcpmieda/ecossistema-escola/issues/754) | Cadastrar nascimento por turma com autosave e lotes retomáveis | P2-05B | CHAT ONLINE | DEPOIS / PARALELO | #744, #746 |
+| M [#755](https://github.com/mcpmieda/ecossistema-escola/issues/755) | Gerar e copiar QR e PDF em três modos no ADM | P2-05C | CODEX | DEPOIS / PARALELO | #744, #746 |
+| N [#756](https://github.com/mcpmieda/ecossistema-escola/issues/756) | Gerenciar sessões, auditoria e saúde operacional no ADM | P2-05D | CHAT ONLINE | DEPOIS / PARALELO | #744, #746 |
+| O [#757](https://github.com/mcpmieda/ecossistema-escola/issues/757) | Integrar telas aos serviços reais e à navegação existente | P2-06 | CODEX | DEPOIS / SEQUENCIAL | #744, #746, #747, #748, #749, #750, #751, #752, #753, #754, #755, #756 |
+| P [#758](https://github.com/mcpmieda/ecossistema-escola/issues/758) | Validar segurança, acessibilidade, desempenho e regressões integradas | P2-07 | CODEX | DEPOIS / SEQUENCIAL | #757 |
+| Q [#759](https://github.com/mcpmieda/ecossistema-escola/issues/759) | Executar aceite real, piloto 6A e checklist adiada da Parte 1 | P2-08 | CODEX | DEPOIS / SEQUENCIAL | #758 |
+| R [#760](https://github.com/mcpmieda/ecossistema-escola/issues/760) | Preparar liberação deliberada, operação e continuidade do Portal | P2-09 | CODEX | DEPOIS / SEQUENCIAL | #759 |
+
+## Grafo de dependências de integração
+
+```mermaid
+graph TD
+  A["A #743"]
+  B["B #744"]
+  C["C #745"]
+  D["D #746"]
+  E["E #747"]
+  F["F #748"]
+  G["G #749"]
+  H["H #750"]
+  I["I #751"]
+  J["J #752"]
+  K["K #753"]
+  L["L #754"]
+  M["M #755"]
+  N["N #756"]
+  O["O #757"]
+  P["P #758"]
+  Q["Q #759"]
+  R["R #760"]
+  A --> B
+  A --> C
+  A --> D
+  C --> E
+  B --> F
+  B --> G
+  B --> H
+  C --> H
+  B --> I
+  D --> I
+  B --> J
+  D --> J
+  B --> K
+  D --> K
+  B --> L
+  D --> L
+  B --> M
+  D --> M
+  B --> N
+  D --> N
+  B --> O
+  D --> O
+  E --> O
+  F --> O
+  G --> O
+  H --> O
+  I --> O
+  J --> O
+  K --> O
+  L --> O
+  M --> O
+  N --> O
+  O --> P
+  P --> Q
+  Q --> R
+```
+
+São 18 filhas, 35 arestas e nenhum ciclo. Todas as frentes chegam à #757. Dependência exige main integrada e handoff; não basta PR aberto. Sequência direta recomendada: #743 → #744 → #745 → #746 → #747 → #748 → #749 → #750 → #751 → #752 → #753 → #754 → #755 → #756 → #757 → #758 → #759 → #760. A ordem adicional resulta da execução sequencial, não de dependências técnicas inventadas.
+
+## Ownership e promoção
+
+#743 edita memória central; #744 reserva package/lock/config/build/edge e shared UI/clients até transferência para #757. #745 é o contrato BN, #746 contrato/consultas ADM, #747 helper acadêmico e adapter. #748 shell; #749 auth/leitor; #750 grades; #751 settings; #752 publication; #753 accounts; #754 birth-year; #755 credentials/PDF; #756 sessions/audit/overview. Paths completos reservados em cada issue.
+
+#757 centraliza montagem/roteador/navegação/docs/release; #758 recebe apenas matriz/readiness na sua janela; #759 registra gates/dados institucionais/aceite; #760 consolida operação. Fora da janela, alterações documentais são deltas no handoff. Uma lacuna de contrato/allowlist é resolvida antes da alteração; não implica autorização de nova regra/DDL.
+
+Ao concluir uma filha, registrar main/deploy/provas, marcar CONCLUÍDA e promover somente a próxima filha da sequência a AGORA. Preservar literalmente CODEX/CHAT ONLINE e a classificação SEQUENCIAL/PARALELO. Teste legítimo/dispositivo/calendário só bloqueia sua operação dependente, sem PASS presumido. Nenhuma abertura geral na montagem das telas.
+
+## Planejamento P1 preservado como histórico
+
+Os títulos, contagens e instruções de execução abaixo são checkpoints anteriores, substituídos no estado corrente por PA-DEC-006/007 e pela matriz acima. Não retomar #715 ou criar novamente sua fila.
+
 # Entregas P1, dependÃªncias e ownership
 
 ## Encerramento da fila técnica P1

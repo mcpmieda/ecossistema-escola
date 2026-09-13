@@ -1,5 +1,17 @@
 # Prontidão e limites de evidência
 
+## Baseline atual e preparação P2 — #743, 13/09/2026
+
+Main `9066c04d01b8d62bf59e1de0b51c6ce4c567c668`, PR741 integrada, workflow oficial34749391273 SUCCESS; Pages aluno e ADM consultados na API no mesmo SHA. IDs de publicação: aluno e8a68afa-47d9-46f8-a8fc-40b1be911330; ADM46356cc2-986b-4b53-9eea-5fd4bb6d08ae. P1 #701/#715 encerrada; nenhum frontend P2 nesta entrega documental. Os checkpoints abaixo preservam suas datas, não substituem este estado.
+
+Auditoria autenticada somente leitura para #742: projeto Supabase ACTIVE_HEALTHY, PG17.6, schema gradebook30 tabelas/student_portal20. Roles backend sem superuser/createdb/createrole/bypassrls; zero grants de tabelas a PUBLIC/anon/authenticated nessa consulta. Portal sem vínculos órfãos, três contas/nascimentos unconfirmed-test, zero sessões/acessos habilitados/revisões publicadas, population=false. Calendário escolar contém objeto com oito marcos nulos; calendários provisórios só nos perfis do piloto. Nenhum dado pessoal foi selecionado para evidência pública.
+
+Cloudflare: PORTAL_DB cache desativado, role student_portal_app, limite de origem5; Worker cpu1000ms e serving=true (não é liberação escolar). PORTAL_SELF/PORTAL_SERVICE continuam nos entrypoints separados; preview sem service binding observado. Widget managed no host aluno, sem prova produtiva positiva nesta auditoria. Secrets inspecionados apenas por nome; logs de invocação/traces desativados, logs técnicos amostrados habilitados. Não alegar observabilidade toda desativada.
+
+Capacidade/codecs/licenças serão verificados em #744; assinatura/uso/cotas atuais antes da carga #758. Acesso HeroUI Pro não comprovado; base HeroUI3.2.4 MIT disponível. Browser/Entra/widget/dispositivo/impressora são provas específicas da #759, sem retomar diagnóstico antigo nesta preparação. Backup gerenciado/RPO/RTO continua adiado.
+
+PA-DEC-007 autoriza execução direta sequencial com identidades dos títulos preservadas. G-C P1 aprovado; deltas#745/#746 são locais a seus consumidores. G-B PARCIAL; qualidade#758 e checklist#759 antes de G-P/operação#760. Datas/nascimento legítimos/distribuição/abertura não são inferidos de deploy. #743 ainda registra trabalho documental candidato: verify/CI/merge/deploy desta entrega ficam no handoff, não são presumidos pelo SHA de baseline.
+
 ## Encerramento técnico P1 — PA-DEC-006
 
 O responsável aceitou adiar as provas finais de navegador para o encerramento da Parte2 e pediu concluir a fila atual. #715 e #701 encerram o escopo técnico já implementado/publicado e a coordenação, preservando G-B PARCIAL. As pendências anteriores abaixo são checkpoints históricos; a lista vigente de aceite futuro está em TEST_MATRIX. Não existe liberação escolar ou PASS implícito pelo fechamento de uma issue.

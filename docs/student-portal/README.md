@@ -1,17 +1,23 @@
-# Portal do Aluno — Parte 1
+# Portal do Aluno — Parte 2
 
-A fila técnica da Parte1 está concluída, com backend integrado/publicado e piloto privado delimitado. O responsável autorizou encerrar #715 e #701 e executar as provas finais de navegador ao concluir a Parte2, conforme [PA-DEC-006](DECISIONS.md). **G-B continua PARCIAL; nenhuma abertura escolar foi autorizada.**
+A Parte 1 está tecnicamente encerrada (#701/#715). A fila da Parte 2 é [#742](https://github.com/mcpmieda/ecossistema-escola/issues/742), com entregas #743–#760. O responsável autorizou execução autônoma **uma issue por vez**, preservando CODEX/CHAT ONLINE nos títulos: [PA-DEC-007](DECISIONS.md). Preparação atual: #743; próxima entrega: #744 depois de sua integração/publicação verificada.
 
-A próxima fila deve incorporar a [checklist obrigatória de aceite integrado](TEST_MATRIX.md). Encerramento de issue não substitui teste. Esta entrega encerra apenas as issues atuais, sem criar ou implementar P2.
+**G-B continua PARCIAL.** A [checklist de aceite integrado](TEST_MATRIX.md) pertence à #759, antes de G-P e qualquer liberação aos alunos. O backend publicado não equivale a homologação funcional das telas. Nenhuma interface P2 foi implementada pela preparação documental.
 
-Baseline integrada verificada: `6071d725bbc4a0d1ed89e63e9f11e49852464df8`, PR738, deploy oficial34737943189 SUCCESS. Verify no head20450e2163e237ab2bd3f86b43675c7966f0d5d5:1694 PASS+3 skips históricos,18workerd; CI PostgreSQL17.6:55 nativos+2 smokes compostos PASS. Evidências e limites em [PRODUCTION_READINESS](PRODUCTION_READINESS.md).
+## Baseline e evidência
 
-Ordem de leitura: AGENTS → [MASTER_SPEC](MASTER_SPEC.md) → [ARCHITECTURE](ARCHITECTURE.md) → [DECISIONS](DECISIONS.md) → [PROJECT_STATE](PROJECT_STATE.yaml) → issue → [TEST_MATRIX](TEST_MATRIX.md) → [PRODUCTION_READINESS](PRODUCTION_READINESS.md). [ISSUE_MAP](ISSUE_MAP.md) mantém rastreio dos nove grupos. Contratos executáveis: shared/student-portal-contracts e shared/gradebook-contracts.
+Main auditada `9066c04d01b8d62bf59e1de0b51c6ce4c567c668`, PR #741, workflow oficial `34749391273` SUCCESS. A publicação do aluno e do ADM foi reconfirmada no mesmo SHA em 13/09/2026. Evidência P1: 1694 testes aprovados, 3 skips históricos, 18 workerd; CI PostgreSQL: 55 provas nativas e 2 smokes compostos; dez verificações HTTP aprovadas. Essa evidência não foi repetida para a varredura.
 
-O endereço é https://aluno.escolaieda.com, com Pages mínimo e Worker separado. ADM usa seu SSO e binding administrativo privado. PostgreSQL/Supabase via Hyperdrive próprio, papel restrito e cache desativado; sete migrations Portal já aplicadas. Sem DDL nesta integração.
+Supabase: `gradebook` com 30 tabelas e `student_portal` com 20; Portal V1 somente 2026, independente do seletor multi-ano do BN. Piloto preservado: três contas com nascimento não confirmado e calendário provisório, zero acessos/sessões/períodos publicados, população global false. O objeto calendário escolar existe, mas seus marcos continuam nulos. [Inventário e limites](PRODUCTION_READINESS.md).
 
-Composição: server/student-portal/composition; Worker/edge: workers/student-portal; rota ADM: functions/[[path]].ts. Políticas/calendário, nascimento, autenticação, publicação, manutenção e leitura acadêmica são serviços reais. Nenhuma fórmula acadêmica duplicada. Default público não tem RPC administrativo.
+## Leitura e execução
 
-`npm run verify` valida lint/types/test/build e18 provas workerd. `npm run test:student-portal-postgres` exige banco local novo portal705_test, roda55 provas nativas e depois smoke da composição real em workerd com PostgreSQL restrito. Dados e identidades de teste são inteiramente sintéticos. Isso não substitui Entra e piloto real6A.
+AGENTS → [MASTER_SPEC](MASTER_SPEC.md) → [ARCHITECTURE](ARCHITECTURE.md) → [DECISIONS](DECISIONS.md) → [PROJECT_STATE](PROJECT_STATE.yaml) → issue atribuída e handoff anterior → [TEST_MATRIX](TEST_MATRIX.md) → [PRODUCTION_READINESS](PRODUCTION_READINESS.md). Ao consumir BN, ler seus contratos, decisões e CONSUMER_MAP. [ISSUE_MAP](ISSUE_MAP.md) contém dependências, ownership, sequência e rastreio P1/P2.
 
-Títulos atuais: [AGORA] pode ser executada dentro de suas dependências/ownership; [DEPOIS] aguarda. [SEQUENCIAL]/[PARALELO] descrevem concorrência permitida; [CODEX]/[CHAT ONLINE], executor. A execução corrente é sequencial e direta. Não criar issues P2.
+Uma branch curta e um PR por entrega, verify/CI no head final, revisão, merge com SHA esperado e deploy oficial. Atualizar somente o marcador de estado; não renomear CODEX/CHAT ONLINE. Nenhum subagente ou execução simultânea. O editor integrador mantém os oito docs; outros owners entregam deltas nas issues.
+
+## Runtime preservado
+
+`aluno.escolaieda.com`: Pages HTTPS e Worker próprio, PORTAL_SELF para entrypoint self. ADM mantém Entra e PORTAL_SERVICE privado. PostgreSQL/Supabase via PORTAL_DB Hyperdrive sem cache e role restrita. Migrations Portal 0001–0007 já aplicadas; nenhuma DDL nesta preparação. Composição em `server/student-portal/composition`, entrada em `workers/student-portal`, rota ADM em `functions/[[path]].ts`.
+
+`npm run verify` cobre lint, tipos, testes, builds e 18 provas workerd. `npm run test:student-portal-postgres` usa PostgreSQL descartável `portal705_test`, 55 provas nativas e dois smokes compostos. Fixture e selo sintético não provam Entra real, dispositivo ou piloto legítimo.
