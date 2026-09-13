@@ -1,3 +1,4 @@
+import { PortalAdminApiV1 } from '../../../server/student-portal/admin/api-v1';
 import { PublicationServiceV1 } from '../../../server/student-portal/publication/publication-service-v1';
 import { SelfProjectionReaderV1 } from '../../../server/student-portal/publication/self-projection-reader-v1';
 import { PublicationJobsV1 } from '../../../server/student-portal/jobs/publication-jobs-v1';
@@ -1015,5 +1016,75 @@ describe('native publication targets and competing job leases', () => {
     expect(await jobs.perform(first!)).toBe('stale');
     expect(await other.perform(second!)).toBe('done');
     expect((await t1())!.length).toBeGreaterThan(0);
+  });
+});
+
+
+describe('native administrative facade and atomic batch receipts', () => {
+  const actor = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const tenant = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  const cryptography = new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(41)]]), new Map([[1, new Uint8Array(32).fill(42)]]));
+  const options = { tenantId: tenant, cryptoPort: cryptography, qrKeyVersion: 1, pepperVersion: 1, cursorSecret: 'synthetic-native-cursor-713-'.repeat(3) };
+  const api = new PortalAdminApiV1(portal as unknown as StudentPortalPostgresSqlV1, options);
+  const other = new PortalAdminApiV1(asRole('student_portal_app') as unknown as StudentPortalPostgresSqlV1, options);
+  const context = () => ({ actorId: actor, tenantId: tenant, requestId: crypto.randomUUID(), authenticatedAt: new Date().toISOString(), capability: 'platform.settings.write' });
+  const scope = { kind: 'class', academicYear: 2026, classId: 910001 } as const;
+  const school = { kind: 'school', academicYear: 2026 } as const;
+  let accountIds: string[];
+
+  it('executes the accounts SQL under the restricted role and commits one QR batch across competing connections', async () => {
+    const accounts = await api.query(context(), { contractVersion: 1, operation: 'accounts', scope, page: { limit: 100 } });
+    if (accounts.state !== 'accounts') throw new Error(`synthetic-native-accounts-${accounts.state}`);
+    expect(accounts.items).toHaveLength(2);
+    accountIds = accounts.items.map((item) => item.accountId);
+    const request = { contractVersion: 1, operation: 'qr-batch', classId: scope.classId, accountIds,
+      expectedVersion: accounts.scopeVersion, mode: 'qr-name-class', confirmed: true, idempotencyKey: crypto.randomUUID() };
+    const [first, replay] = await Promise.all([api.command(context(), request), other.command(context(), request)]);
+    expect(first.state).toBe('qr');
+    expect(replay.state).toBe('qr');
+    if (first.state !== 'qr' || replay.state !== 'qr') throw new Error('synthetic-native-qr-failed');
+    expect(first.cards).toHaveLength(2);
+    expect(replay.cards).toEqual(first.cards);
+    expect(replay.version).toBe(first.version);
+    expect(JSON.stringify(first)).not.toMatch(/birth|password|verifier|pin|tokenHash/);
+    const births = await api.query(context(), { contractVersion: 1, operation: 'birth-years', scope, page: {} });
+    expect(births.state).toBe('birth-years');
+    const sessions = await api.query(context(), { contractVersion: 1, operation: 'sessions', scope, page: {} });
+    expect(sessions.state).toBe('sessions');
+  });
+
+  it('keeps timestamp microseconds in scoped audit cursors and exposes raw IP only within retention', async () => {
+    await portal.unsafe(`UPDATE student_portal.audit_event SET occurred_at=date_trunc('second',statement_timestamp())+interval '0.123456 seconds',
+      raw_ip='192.0.2.21',masked_ip='192.0.2.0/24',ip_expires_at=statement_timestamp()+interval '1 day'
+      WHERE account_id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb)) AND kind='qr-issued'`, [JSON.stringify(accountIds)]);
+    const request = { contractVersion: 1, operation: 'audit', scope, event: 'qr-issued', page: { limit: 1 } };
+    const first = await api.query(context(), request);
+    if (first.state !== 'audit') throw new Error(`synthetic-native-audit-${first.state}`);
+    expect(first.items).toHaveLength(1);
+    expect(first.nextCursor).not.toBeNull();
+    const second = await api.query(context(), { ...request, page: { limit: 1, cursor: first.nextCursor } });
+    if (second.state !== 'audit') throw new Error(`synthetic-native-audit-page-${second.state}`);
+    expect(second.items).toHaveLength(1);
+    expect(second.items[0]!.eventId).not.toBe(first.items[0]!.eventId);
+    const detail = { contractVersion: 1, operation: 'audit-detail', scope, page: {}, eventId: first.items[0]!.eventId };
+    const visible = await api.query(context(), detail);
+    expect(visible).toMatchObject({ state: 'audit-detail', ip: '192.0.2.21' });
+    await portal`UPDATE student_portal.audit_event SET occurred_at=statement_timestamp()-interval '91 days' WHERE event_id=${detail.eventId}`;
+    expect(await api.query(context(), detail)).toMatchObject({ state: 'audit-detail', ip: null, ipExpiresAt: null });
+    expect(await api.query({ ...context(), capability: 'platform.settings.read' }, detail)).toMatchObject({ state: 'forbidden' });
+  });
+
+  it('replays link closure after commit without consuming another preview or touching academic records', async () => {
+    const before = Number((await admin`SELECT count(*)::integer AS n FROM gradebook.aluno`)[0]!.n);
+    const preview = await api.query(context(), { contractVersion: 1, operation: 'links-preview', scope: school, page: {} });
+    if (preview.state !== 'links-preview') throw new Error(`synthetic-native-preview-${preview.state}`);
+    const request = { contractVersion: 1, operation: 'links-close', academicYear: 2026, previewToken: preview.previewToken,
+      expectedCount: preview.count, expectedVersion: preview.version, confirmed: true, idempotencyKey: crypto.randomUUID() };
+    const [first, replay] = await Promise.all([api.command(context(), request), other.command(context(), request)]);
+    if (first.state !== 'committed' || replay.state !== 'committed') throw new Error(`synthetic-native-close-${first.state}-${replay.state}`);
+    expect(replay.operationId).toBe(first.operationId);
+    expect(replay.version).toBe(first.version);
+    expect(Number((await admin`SELECT count(*)::integer AS n FROM gradebook.aluno`)[0]!.n)).toBe(before);
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.account WHERE gradebook_student_id IS NOT NULL`)[0]!.n).toBe(0);
   });
 });
