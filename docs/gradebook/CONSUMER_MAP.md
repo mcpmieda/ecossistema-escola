@@ -1,5 +1,24 @@
 # Mapa dos consumidores — FINAL-1
 
+## Delta Portal P2 #745 — apresentação acadêmica
+
+Contrato `shared/gradebook-contracts/student-portal/academic-presentation-v1.ts`:
+valor/máximo da nota e mínimo anual no mesmo snapshot; saída V1 `boolean | null`.
+Regra proporcional já comprovada em `application/results/relational-performance-facts-v2.ts`;
+fatos oficiais AM/U continuam independentes dos cálculos descritivos.
+
+| Caminho | Papel / estado desta entrega |
+| --- | --- |
+| `application/import/import-relational-service-v9.ts` → V10/V11/finalizer | Produtor atual: cria ano/parâmetros com a Relação e versiona mudanças acadêmicas efetivas. Não há setter ativo de mínimo anual. |
+| `student_portal.academic_year_policy_v1` → `server/student-portal/academic/academic-reader-v1.ts` | Fonte restrita do mínimo anual e fatos/revisão numa query; a classificação ainda é `null` até #747. |
+| `migrations/student-portal/0006_gradebook_revision_year_range_v1.sql`, `record_gradebook_change_v1` | Mecanismo já aceita `academic-policy`; não é trigger. Futuro editor de política deve registrar mudança efetiva na transação, com escopo próprio antes de ser habilitado. |
+| `src/gradebook-domain/calculations/simplified/resolve-student-mark-presentation-v1.ts` | Único helper BN para o Portal, reservado à implementação #747; sem fórmula no schema ou UI. |
+| `server/student-portal/academic/academic-reader-v1.ts` → publicação/Self | #747 liga helper às parciais e finais oficiais; mantém filtragem/CAS/revisões, U interna e marcadores. |
+| `src/features/student-portal/grades/` | #750 apresenta classificação recebida, sem mínimo fixo, aritmética, reconstrução de nota ou resultado. |
+
+Detalhes de fonte, limites, perfis sintéticos e testes em [CONTRACTS.md](CONTRACTS.md).
+O inventário #703 abaixo é histórico de implantação; não reabre a P1 integrada.
+
 ## Delta Portal #703 — produtores e consumidores congelados
 
 Inventário de código em `9ac131b6be55f265b224c5096e45b63fbf37374a`. Prefixo de aplicação: `server/gradebook/application/`; persistência: `server/gradebook/persistence/postgres/`. Abaixo são pontos de implantação futura, não hooks já existentes.
