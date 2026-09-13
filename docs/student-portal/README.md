@@ -1,8 +1,8 @@
 # Portal do Aluno — Parte 1
 
-A implementação segue a autorização contínua do responsável, uma fase por vez, sem agentes auxiliares. #702–#714 estão integradas e publicadas; #715 compõe o backend real e ainda precisa concluir as provas remotas e o piloto privado. **G-B PARCIAL: não há abertura escolar nem interface P2.**
+A implementação segue a autorização contínua do responsável, uma fase por vez, sem agentes auxiliares. #702–#714 estão integradas e publicadas; #715 está integrada e publicada, com HTTP e cron remotos verificados; ainda faltam o RPC Portal com sessão real, widget produtivo e piloto privado. **G-B PARCIAL: não há abertura escolar nem interface P2.**
 
-Baseline integrada verificada: `5699a8ac69687920c6319a325444159ac1334669`, PR737, deploy oficial34735666281 SUCCESS. Código de composição nesta entrega candidata pertence à #715; a issue registra seu SHA final, CI, merge, deploy e smoke separadamente.
+Baseline integrada verificada: `6071d725bbc4a0d1ed89e63e9f11e49852464df8`, PR738, deploy oficial34737943189 SUCCESS. Verify no head20450e2163e237ab2bd3f86b43675c7966f0d5d5:1694 PASS+3 skips históricos,18workerd; CI PostgreSQL17.6:55 nativos+2 smokes compostos PASS. Evidências e limites em [PRODUCTION_READINESS](PRODUCTION_READINESS.md).
 
 Ordem de leitura: AGENTS → [MASTER_SPEC](MASTER_SPEC.md) → [ARCHITECTURE](ARCHITECTURE.md) → [DECISIONS](DECISIONS.md) → [PROJECT_STATE](PROJECT_STATE.yaml) → issue → [TEST_MATRIX](TEST_MATRIX.md) → [PRODUCTION_READINESS](PRODUCTION_READINESS.md). [ISSUE_MAP](ISSUE_MAP.md) mantém rastreio dos nove grupos. Contratos executáveis: shared/student-portal-contracts e shared/gradebook-contracts.
 

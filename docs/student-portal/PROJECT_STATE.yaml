@@ -3,18 +3,18 @@ contract_version: 1
 academic_year: 2026
 updated_at: 2026-09-13
 current_issue: 715
-delivery_branch: feat/pa-integration-715
+delivery_branch: docs/pa-evidence-715
 delivery_scope: backend_composition_and_integrated_proof
-last_verified_main: 5699a8ac69687920c6319a325444159ac1334669
-last_verified_pr: 737
-last_verified_deploy: 34735666281
-candidate_integration: pending_final_head_verify_ci_merge_deploy
+last_verified_main: 6071d725bbc4a0d1ed89e63e9f11e49852464df8
+last_verified_pr: 738
+last_verified_deploy: 34737943189
+candidate_integration: published_verified_technical_scope_private_acceptance_pending
 completed_issues: [702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 732, 735]
 gates:
   G-C: passed_integrated_contracts
-  G-B: partial_pending_remote_composition_and_private_pilot
+  G-B: partial_pending_authenticated_portal_rpc_widget_and_private_pilot
   G-P: outside_part_1
-runtime: production_foundation_with_integrated_modules_composition_candidate
+runtime: production_composed_backend_remote_http_and_cron_verified
 student_portal_schema: migrations_0001_through_0007_applied
 production_defaults: seven_fields_initialized_explicitly_2026_09_13
 population_enabled: false

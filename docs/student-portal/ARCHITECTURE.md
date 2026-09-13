@@ -1,6 +1,6 @@
 # Arquitetura e contratos V1
 
-## Delta integrado #703–#714 e composição candidata #715
+## Delta integrado #703–#714 e composição publicada #715
 
 A descrição original abaixo é o registro de desenho da #702, não inventário atual. Runtime, DNS, schema/ACL, KDF e módulos isolados foram implementados; inventário/evidência atual em PRODUCTION_READINESS e PROJECT_STATE. Locks ratificados: global compartilhado(613,0)→ano exclusivo(613,2026)→revisão→contas ordenadas; reset global exclusivo. Migrations0001–0007 aplicadas. API/DTOs complementares #732/CAS e #735/IP integram contratosV1.
 
