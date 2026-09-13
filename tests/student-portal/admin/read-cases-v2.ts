@@ -240,6 +240,7 @@ export function adminReadCasesV2(
       );
       expect(get().calls()).toBe(0);
     });
+    // Includes inserting/removing 5,001 fixtures; verifies bounded correctness, not latency.
     it('refuses an oversized overview instead of returning truncated school totals', async () => {
       await get().admin
         .unsafe(`INSERT INTO student_portal.account(id,auth_state,eligibility,closed_at)
@@ -258,6 +259,6 @@ export function adminReadCasesV2(
           [readAccountIdV2(1000), readAccountIdV2(6000)],
         );
       }
-    });
+    }, 30_000);
   });
 }

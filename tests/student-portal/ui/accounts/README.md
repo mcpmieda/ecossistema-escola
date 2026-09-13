@@ -80,6 +80,9 @@ proteção de credencial/callback após commit, readonly, vínculo encerrado,
 troca de identidade/capability, busca obsoleta e expiração durante comando.
 Casos compartilhados de leitura passam no PGlite e são executados no PostgreSQL
 nativo/role restrita pelo gate de CI. Checkpoint no head final fica na issue/PR.
+O caso de resumo excessivo inclui criar/remover5.001 contas sintéticas: seu limite
+local é30s, após timeout do padrão5s no Windows (6,537s, CI passou). É uma prova de
+recusa/ausência de totais truncados, não um SLO de latência; as asserções permanecem.
 
 QA local em build Vite compilado com CSP exata do ADM:1280×850,390×740,320×700.
 Lista105 e catálogo106 (incluindo última turma vazia), ficha/foco, retorno,
