@@ -7,6 +7,7 @@ import type { AcademicStudentReaderPortV1 } from '../../../shared/student-portal
 import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import { resolveSimplifiedTermV1, resolveSimplifiedComponentRecoveryV1, SIMPLIFIED_TERM_MAXIMUM_MILLI_V1, type SimplifiedAcademicTermV1, type SimplifiedInstrumentSlotV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-academic-engine-v1';
 import { resolveSimplifiedAnnualOutcomeV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-simplified-annual-outcome-v1';
+import { resolveStudentMarkPresentationV1 } from '../../../src/gradebook-domain/calculations/simplified/resolve-student-mark-presentation-v1';
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../gradebook/persistence/postgres/active-instrument-predicate-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 
@@ -51,8 +52,9 @@ const closureSchema = z.object({ am1: milli.nullable(), am2: milli.nullable(), a
 const offerSchema = z.object({ offerId: id, subjectId: id, label: z.string().min(1).max(120), instruments: z.array(instrumentSchema).max(39), closure: closureSchema.nullable() });
 type Mark = z.infer<typeof academicMarkSchemaV1>;
 
-function mark(value: number | null, maximumMilli: number | null): Mark {
-  return value === null ? { kind: 'absent' } : { kind: 'score', valueMilli: value, maximumMilli, meetsMinimum: null };
+function mark(value: number | null, maximumMilli: number | null, minimumApprovalMilli: number): Mark {
+  return value === null ? { kind: 'absent' } : { kind: 'score', valueMilli: value, maximumMilli,
+    meetsMinimum: resolveStudentMarkPresentationV1({ valueMilli: value, maximumMilli, minimumApprovalMilli }) };
 }
 
 function instrumentLabel(slot: number, label: string | null): string {
@@ -124,15 +126,15 @@ export class AcademicStudentReaderPostgresV1 implements AcademicStudentReaderV1<
       const recovery = resolveSimplifiedComponentRecoveryV1({ terms, minimumApprovalMilli: minimum,
         recovery: { 1: recoveryValue(1), 2: recoveryValue(2), 3: recoveryValue(3) } });
       const periods: AcademicStudentV1['subjects'][number]['periods'] = ([1, 2, 3] as const).map((term) => ({
-        period: `T${term}`, final: mark(offer.closure?.[`am${term}`] ?? null, SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term]),
+        period: `T${term}`, final: mark(offer.closure?.[`am${term}`] ?? null, SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term], minimum),
         partials: offer.instruments.filter((item) => item.term === term).map((item) => ({
-          assessmentId: item.id, label: instrumentLabel(item.slot, item.label), mark: mark(item.value, item.maximum) })),
+          assessmentId: item.id, label: instrumentLabel(item.slot, item.label), mark: mark(item.value, item.maximum, minimum) })),
       }));
       for (const term of [1, 2, 3] as const) {
         const rec = recovery.recoveryTerms[term];
         if (rec.applicable !== true) continue;
         periods.push({ period: `REC${term}`, final: rec.source === 'RR' ? { kind: 'rr' } : rec.source === 'NC' ? { kind: 'nc' }
-          : rec.source === null ? { kind: 'recovery-pending' } : mark(rec.source, SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term]) });
+          : rec.source === null ? { kind: 'recovery-pending' } : mark(rec.source, SIMPLIFIED_TERM_MAXIMUM_MILLI_V1[term], minimum) });
       }
       const classification = recovery.classification;
       const officialOutcome = status === 2 ? undefined : classification === 'approved-direct' || classification === 'approved-after-recovery'
@@ -142,7 +144,7 @@ export class AcademicStudentReaderPostgresV1 implements AcademicStudentReaderV1<
       const sourceAgrees = sourceComplete && terms.every((term) => term.coverage.complete && offer.closure?.[`am${term.term}`] === term.roundedMilli)
         && offer.closure?.annual === recovery.postRecoveryTotalMilli;
       return { recovery, sourceComplete, sourceAgrees, subject: { subjectId: offer.subjectId, label: offer.label, order, periods,
-        officialAnnual: mark(offer.closure?.annual ?? null, null), ...(officialOutcome === undefined ? {} : { officialOutcome }) } };
+        officialAnnual: mark(offer.closure?.annual ?? null, null, minimum), ...(officialOutcome === undefined ? {} : { officialOutcome }) } };
     });
     const annual = resolveSimplifiedAnnualOutcomeV1({ status, components: projections.map((item) => item.recovery), maxCouncilComponents: maxCouncil });
     const hasRepeat = projections.some((item) => item.recovery.classification === 'failed-repeat');
