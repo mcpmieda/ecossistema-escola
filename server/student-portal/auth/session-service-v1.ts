@@ -1,3 +1,4 @@
+import { withAuditSqlV1 } from '../observability/audit-context-v1';
 import { z } from 'zod';
 import { createHash } from 'node:crypto';
 import { adminCommandV1 } from '../../../shared/student-portal-contracts/admin-v1';
@@ -21,7 +22,9 @@ export async function createSessionV1(store: PortalTransactionV1, context: Acces
 }
 
 export class SessionServiceV1 {
-  constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly cryptoPort: CryptoPortV1) {}
+  constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly cryptoPort: CryptoPortV1, clientIp?: string | null) {
+    if (clientIp !== undefined) this.sql = withAuditSqlV1(sql, clientIp);
+  }
 
   private async revocationScope(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
     const scope = scopeV1.parse(input);

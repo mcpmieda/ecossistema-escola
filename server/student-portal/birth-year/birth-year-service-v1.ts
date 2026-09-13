@@ -137,8 +137,38 @@ export class BirthYearServiceV1 {
       await store.saveIdempotency(created);
       return created;
     }));
+    // Preload immutable committed outcomes once; retries must not spend a transaction per old item.
+    const completed = await this.sql.begin(async (tx) => {
+      const rows = await tx.unsafe(`SELECT actor_id,version::text,request_digest FROM student_portal.operation_receipt
+        WHERE idempotency_key=$1 AND starts_with(actor_id,$2) AND expires_at>statement_timestamp()
+        ORDER BY actor_id LIMIT 101`, [command.idempotencyKey, `${receiptActor}:`]);
+      if (rows.length > 100) throw new Error('student-portal-birth-receipt-invalid');
+      const result = new Map<string, ItemResult>();
+      for (const row of rows) {
+        if (row.request_digest !== requestDigest) throw new Error('student-portal-birth-idempotency-conflict');
+        const [accountId, state] = String(row.actor_id).slice(receiptActor.length + 1).split(':');
+        const account = z.uuid().parse(accountId);
+        if (result.has(account)) throw new Error('student-portal-birth-receipt-invalid');
+        result.set(account, { accountId: account, state: z.enum(['committed', 'conflict', 'forbidden']).parse(state),
+          version: versionV1.parse(Number(row.version)) });
+      }
+      return result;
+    });
+    let derivations = 0;
+    let attemptedItems = 0;
+    const takeKdf = () => {
+      if (derivations >= 1) throw new Error('student-portal-birth-budget-unavailable');
+      derivations += 1; // Failed crypto calls also consume CPU budget.
+    };
     const items: ItemResult[] = [];
     for (const item of command.items) {
+      const previous = completed.get(item.accountId);
+      if (previous) { items.push(previous); continue; }
+      if (attemptedItems >= 2 || derivations >= 1) {
+        items.push({ accountId: item.accountId, state: 'unavailable', version: item.expectedVersion });
+        continue;
+      }
+      attemptedItems++;
       try {
         items.push(await this.sql.begin(async (tx) => persistence(tx).transaction(async (store) => {
           await store.lockAcademicYear(2026);
@@ -158,7 +188,7 @@ export class BirthYearServiceV1 {
           let result: ItemResult;
           if (await currentClass(tx, item.accountId) !== command.classId) result = { accountId: item.accountId, state: 'forbidden', version: 0 };
           else if (await scopeVersion(tx) !== command.expectedVersion) result = { accountId: item.accountId, state: 'conflict', version: item.expectedVersion };
-          else result = await this.apply(tx, store, actor, command.idempotencyKey, item, clock);
+          else result = await this.apply(tx, store, actor, command.idempotencyKey, item, clock, takeKdf);
           await store.saveIdempotency({ key: command.idempotencyKey, actorId: prefix + result.state, requestDigest,
             operationId: parent.operationId, version: result.version, expiresAt: parent.expiresAt });
           return result;
@@ -171,7 +201,7 @@ export class BirthYearServiceV1 {
     return { operationId: parent.operationId, items };
   }
 
-  private async apply(tx: StudentPortalPostgresQueryV1, store: PortalTransactionV1, actor: string, requestId: string, item: Item, clock: Date): Promise<ItemResult> {
+  private async apply(tx: StudentPortalPostgresQueryV1, store: PortalTransactionV1, actor: string, requestId: string, item: Item, clock: Date, takeKdf?: () => void): Promise<ItemResult> {
     const account = await store.findAccount(item.accountId);
     if (!account?.link || account.closedAt !== null) return { accountId: item.accountId, state: 'forbidden', version: 0 };
     const before = await store.readBirth(item.accountId);
@@ -180,6 +210,7 @@ export class BirthYearServiceV1 {
     const year = item.action === 'set' ? item.year : null;
     const confirmation = item.action === 'set' ? item.confirmation : null;
     if ((before?.year ?? null) === year && (before?.confirmation ?? null) === confirmation) return { accountId: item.accountId, state: 'committed', version };
+    if (year !== null) takeKdf?.();
     const verifier = year === null ? null : await this.cryptoPort.deriveVerifier(year, this.pepperVersion);
     const nextVersion = versionV1.parse(version + 1);
     const nextPinVersion = versionV1.parse(account.pinVersion + 1);

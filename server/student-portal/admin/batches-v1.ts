@@ -1,3 +1,4 @@
+import { AUDIT_IP_MASK_V1, AUDIT_IP_SOURCE_V1 } from '../observability/audit-context-v1';
 import { z } from 'zod';
 import { auditEventV1, type AdminCommandV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { PORTAL_ORIGIN_V1 } from '../../../shared/student-portal-contracts/core-v1';
@@ -60,10 +61,11 @@ export async function qrBatchV1(sql: StudentPortalPostgresSqlV1, cryptoPort: Cry
       await tx.unsafe(`UPDATE student_portal.account SET version=version+1,updated_at=$2::timestamptz
         WHERE id IN (SELECT account_id FROM jsonb_to_recordset($1::text::jsonb) AS q(account_id uuid))`, [json, now.toISOString()]);
     }
-    await tx.unsafe(`INSERT INTO student_portal.audit_event(event_id,occurred_at,actor_id,account_id,scope_json,kind,result,request_id,version,masked_ip)
-      SELECT event_id,occurred_at,actor_id,account_id,scope_json,kind,'success',request_id,version,NULL
+    await tx.unsafe(`INSERT INTO student_portal.audit_event(event_id,occurred_at,actor_id,account_id,scope_json,kind,result,request_id,version,masked_ip,raw_ip,ip_expires_at)
+      SELECT event_id,occurred_at,actor_id,account_id,scope_json,kind,'success',request_id,version,${AUDIT_IP_MASK_V1},client_ip,
+        CASE WHEN client_ip IS NOT NULL THEN occurred_at+interval '90 days' END
         FROM jsonb_to_recordset($1::text::jsonb) AS e(event_id uuid,occurred_at timestamptz,actor_id uuid,account_id uuid,
-          scope_json jsonb,kind text,request_id uuid,version bigint)`,
+          scope_json jsonb,kind text,request_id uuid,version bigint) CROSS JOIN ${AUDIT_IP_SOURCE_V1}`,
     [JSON.stringify(audits.map((event) => ({ event_id: event.eventId, occurred_at: event.at, actor_id: event.actorId, account_id: event.accountId,
       scope_json: event.scope, kind: event.kind, request_id: event.requestId, version: event.version })))]);
     const version = await accountsScopeVersionV1(tx);

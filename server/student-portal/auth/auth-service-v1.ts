@@ -1,3 +1,5 @@
+import { withAuditSqlV1 } from '../observability/audit-context-v1';
+import type { AuthBurstGuardV1 } from '../observability/auth-burst-v1';
 import { z } from 'zod';
 import { activateRequestV1, challengeRequestV1, challengeResponseV1, loginRequestV1, qrUrlV1 } from '../../../shared/student-portal-contracts/auth-v1';
 import type { FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
@@ -46,7 +48,8 @@ async function clearAttempts(store: PortalTransactionV1, context: AccessContextV
 
 export class AuthServiceV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly cryptoPort: CryptoPortV1,
-    private readonly pepperVersion: number, private readonly risk: RiskVerifierV1) {
+    private readonly pepperVersion: number, private readonly risk: RiskVerifierV1, clientIp?: string | null, private readonly burst?: AuthBurstGuardV1) {
+    if (clientIp !== undefined) this.sql = withAuditSqlV1(sql, clientIp);
     z.number().int().positive().safe().parse(pepperVersion);
   }
 
@@ -58,6 +61,7 @@ export class AuthServiceV1 {
 
   async challenge(input: unknown, requestId: string) {
     const request = challengeRequestV1.parse(input);
+    if (this.burst && !await this.burst(request.qr)) return { contractVersion: 1 as const, requestId, state: 'rate-limited' as const, retryAfterSeconds: 60 };
     const qr = await this.qrAccount(request.qr);
     if (!qr) return denied(requestId);
     // Remote verification finishes before acquiring any database lock.
@@ -92,6 +96,7 @@ export class AuthServiceV1 {
 
   async activate(input: unknown, requestId: string) {
     const request = activateRequestV1.parse(input);
+    if (this.burst && !await this.burst(request.challenge)) return { contractVersion: 1 as const, requestId, state: 'rate-limited' as const, retryAfterSeconds: 60 };
     const hash = await this.cryptoPort.hashOpaqueToken(request.challenge);
     return authTransactionV1(this.sql, async (tx, store) => {
       const rows = await tx.unsafe(`SELECT account_id FROM student_portal.auth_challenge WHERE token_hash=$1
@@ -128,6 +133,7 @@ export class AuthServiceV1 {
 
   async login(input: unknown, requestId: string) {
     const request = loginRequestV1.parse(input);
+    if (this.burst && !await this.burst(request.qr)) return { contractVersion: 1 as const, requestId, state: 'rate-limited' as const, retryAfterSeconds: 60 };
     const qr = await this.qrAccount(request.qr);
     if (!qr) return denied(requestId);
     const riskPassed = request.riskToken === undefined ? false : await this.risk.verify(request.riskToken);

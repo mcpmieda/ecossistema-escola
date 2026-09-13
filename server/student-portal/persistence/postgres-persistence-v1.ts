@@ -1,3 +1,4 @@
+import { AUDIT_IP_MASK_V1, AUDIT_IP_SOURCE_V1 } from '../observability/audit-context-v1';
 import {
   accountStateV1,
   eligibilityStateV1,
@@ -522,8 +523,10 @@ class StudentPortalTransaction implements PortalTransactionV1 {
     await rows(
       this.sql,
       `INSERT INTO student_portal.audit_event
-         (event_id,occurred_at,actor_id,account_id,scope_json,kind,result,request_id,version,masked_ip)
-       VALUES ($1::uuid,$2::timestamptz,$3::uuid,$4::uuid,$5::text::jsonb,$6,$7,$8::uuid,$9,$10)`,
+         (event_id,occurred_at,actor_id,account_id,scope_json,kind,result,request_id,version,masked_ip,raw_ip,ip_expires_at)
+       SELECT $1::uuid,$2::text::timestamptz,$3::uuid,$4::uuid,$5::text::jsonb,$6,$7,$8::uuid,$9,
+         COALESCE(${AUDIT_IP_MASK_V1},$10),client_ip,
+         CASE WHEN client_ip IS NOT NULL THEN $2::text::timestamptz+interval '90 days' END FROM ${AUDIT_IP_SOURCE_V1}`,
       [parsed.eventId, parsed.at, parsed.actorId, parsed.accountId, JSON.stringify(parsed.scope), parsed.kind, parsed.result, parsed.requestId, parsed.version, parsed.maskedIp],
     );
   }

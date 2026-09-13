@@ -1,3 +1,4 @@
+import { cleanupPortalV1 } from '../../../server/student-portal/maintenance/retention-v1';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -249,6 +250,10 @@ describe('private administrative API with real persistence', () => {
   });
 
   it('reports sanitized health and requires school preview for idempotent link closure without resetting the BN', async () => {
+    state(await api.command({ ...context(), clientIp: '192.0.2.71' }, await accountCommand('qr-issue')), 'qr');
+    await pg.exec("UPDATE student_portal.audit_event SET occurred_at=statement_timestamp()-interval '91 days',ip_expires_at=statement_timestamp()-interval '1 day'");
+    expect(await query('health')).toMatchObject({ status: 'intervention' });
+    await cleanupPortalV1(sql);
     expect(await query('health')).toMatchObject({ status: 'normal' });
     await pg.query(`INSERT INTO student_portal.publication_job(id,account_id,data_version,policy_version,publication_version,state,attempts,next_attempt_at)
       VALUES ($1,$2,'synthetic-data','synthetic-policy','synthetic-publication','queued',0,statement_timestamp()-interval '6 minutes')`, [crypto.randomUUID(), accounts[0]!.id]);

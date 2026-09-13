@@ -6,9 +6,9 @@ import {
 } from '../persistence/postgres-persistence-v1';
 
 /** One connection per invocation; Hyperdrive owns the shared origin pool. */
-export async function withPortalPersistenceV1<T>(
+export async function withPortalSqlV1<T>(
   binding: Pick<Hyperdrive, 'connectionString'>,
-  operation: (persistence: PersistencePortV1) => Promise<T>,
+  operation: (sql: StudentPortalPostgresSqlV1) => Promise<T>,
 ): Promise<T> {
   let sql: ReturnType<typeof postgres> | undefined;
   try {
@@ -30,12 +30,17 @@ export async function withPortalPersistenceV1<T>(
     const identity = await sql`SELECT current_user AS role`;
     if (identity[0]?.role !== 'student_portal_app') throw new Error('wrong-role');
     // The native driver contract is exercised by the PostgreSQL CI suite.
-    const persistence = createStudentPortalPostgresPersistenceV1(sql as unknown as StudentPortalPostgresSqlV1);
-    return await operation(persistence);
+    return await operation(sql as unknown as StudentPortalPostgresSqlV1);
   } catch {
     // Driver errors may include connection details or SQL values. Never export them.
     throw new Error('student-portal-database-unavailable');
   } finally {
     await sql?.end({ timeout: 1 }).catch(() => undefined);
   }
+}
+
+/** Existing persistence port delegates to the same connection/role/timeout lifecycle. */
+export function withPortalPersistenceV1<T>(binding: Pick<Hyperdrive, 'connectionString'>,
+  operation: (persistence: PersistencePortV1) => Promise<T>): Promise<T> {
+  return withPortalSqlV1(binding, (sql) => operation(createStudentPortalPostgresPersistenceV1(sql)));
 }
