@@ -1,0 +1,148 @@
+.pa-settings {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  color: var(--foreground);
+}
+.pa-settings h2,
+.pa-settings h3,
+.pa-settings p {
+  margin: 0;
+}
+.pa-settings h2 {
+  font-size: 1.25rem;
+  font-weight: 650;
+}
+.pa-settings h3 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.pa-settings p {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.pa-settings-heading,
+.pa-settings-card-heading,
+.pa-settings-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.pa-settings-heading > div {
+  display: grid;
+  gap: 0.35rem;
+}
+.pa-settings-fields {
+  display: grid;
+  gap: 1rem;
+}
+.pa-settings-card {
+  border: 1px solid var(--border);
+}
+.pa-settings-card .card__header {
+  display: grid;
+  gap: 0.6rem;
+}
+.pa-settings-origin,
+.pa-settings-hint {
+  color: var(--muted);
+}
+.pa-settings .pa-settings-hint {
+  font-size: 0.75rem;
+}
+.pa-settings-actions {
+  justify-content: flex-start;
+}
+.pa-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.pa-settings-grid > *,
+.pa-settings-calendar > * {
+  min-width: 0;
+}
+.pa-settings-calendar {
+  display: grid;
+  gap: 1rem;
+}
+.pa-settings-periods {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.pa-settings-periods legend {
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.pa-settings-periods > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.pa-settings-error,
+.pa-settings-warning {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-lg);
+  background: var(--danger-soft);
+  color: var(--danger-soft-foreground);
+}
+.pa-settings-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 0;
+}
+.pa-settings-summary {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.75rem 0 0;
+  font-size: 0.8125rem;
+}
+.pa-settings-summary > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+}
+.pa-settings-summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.pa-settings-summary dt {
+  color: var(--muted);
+}
+.pa-settings-review {
+  display: grid;
+  gap: 1rem;
+  overflow-wrap: anywhere;
+}
+.pa-settings-review p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.pa-settings-danger {
+  border: 1px solid var(--danger);
+}
+.pa-settings-danger .card__content {
+  display: grid;
+  gap: 1rem;
+}
+@media (max-width: 640px) {
+  .pa-settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pa-settings-summary > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+  .pa-settings-heading {
+    align-items: flex-start;
+  }
+}
