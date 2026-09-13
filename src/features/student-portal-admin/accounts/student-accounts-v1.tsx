@@ -320,7 +320,8 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
                             variant="secondary"
                             aria-label={'Abrir ficha de ' + (account.name || 'conta sem nome')}
                             onPress={(event) => {
-                              selectedTrigger.current = event.target;
+                              selectedTrigger.current =
+                                event.target instanceof HTMLElement ? event.target : null;
                               setSelectedId(account.accountId);
                             }}
                           >
