@@ -1,22 +1,9 @@
 import { Chip, Description, Label, ListBox, Surface } from '@heroui/react';
 import { Boxes, type LucideIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import type { CoreModuleContract } from '../../shared/platform-contract';
 import { platformHref, routeIcons } from './routes';
 
-export function BrandMark({ compact = false }: { compact?: boolean }) {
-  return (
-    <div
-      className={cn(
-        'grid shrink-0 place-items-center rounded-2xl bg-accent font-semibold tracking-tight text-accent-foreground shadow-sm',
-        compact ? 'size-9 text-xs' : 'size-11 text-sm',
-      )}
-      aria-hidden="true"
-    >
-      IA
-    </div>
-  );
-}
+export { BrandMark } from '../lib/brand-mark';
 
 export function EmptyState({
   icon: Icon = Boxes,
