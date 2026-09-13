@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { adminResponseV1 } from '../../../../shared/student-portal-contracts/admin-v1';
 import { readBirthPageV1 } from '../../../../src/features/student-portal-admin/birth-year/birth-read-v1';
 import {
   birthDirtyV1,
@@ -66,7 +67,11 @@ describe('birth values and bounded joined reads', () => {
         return mock
           .defaultQuery(query)
           .json()
-          .then((data) => birthJsonV1({ ...data, items: data.items.reverse() }));
+          .then((raw) => {
+            const data = adminResponseV1.parse(raw);
+            if (data.state !== 'birth-years') throw new Error('synthetic-unexpected-response');
+            return birthJsonV1({ ...data, items: data.items.reverse() });
+          });
       },
     });
     const page = await readBirthPageV1(
@@ -86,8 +91,10 @@ describe('birth values and bounded joined reads', () => {
         return mock
           .defaultQuery(query)
           .json()
-          .then((data) => {
-            data.items[0].accountVersion++;
+          .then((raw) => {
+            const data = adminResponseV1.parse(raw);
+            if (data.state !== 'birth-years') throw new Error('synthetic-unexpected-response');
+            data.items[0]!.accountVersion++;
             return birthJsonV1(data);
           });
       },
@@ -120,11 +127,11 @@ describe('birth values and bounded joined reads', () => {
       readBirthPageV1(mock.client, mock.reader, BIRTH_CLASS_V1, undefined, signal),
     ).rejects.toMatchObject({ state: 'conflict' });
     const before = mock.queries.length;
-    // @ts-expect-error unsupported runtime input from a composition bug must also fail closed
     await expect(
       readBirthPageV1(
         mock.client,
         mock.reader,
+        // @ts-expect-error unsupported runtime input from a composition bug must also fail closed
         { kind: 'school', academicYear: 2026 },
         undefined,
         signal,

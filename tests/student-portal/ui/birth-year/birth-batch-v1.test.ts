@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { adminResponseV1 } from '../../../../shared/student-portal-contracts/admin-v1';
 import {
   createBirthBatchV1,
   emptyBirthBatchV1,
@@ -152,8 +153,9 @@ describe('birth batch receipt replay', () => {
         calls++;
         const response = mock.defaultWrite(input);
         if (calls === 1) return response;
-        const result = await response.json();
-        result.items[0].state = 'unavailable';
+        const result = adminResponseV1.parse(await response.json());
+        if (result.state !== 'batch') throw new Error('synthetic-unexpected-response');
+        result.items[0]!.state = 'unavailable';
         return birthJsonV1(result);
       },
     });
