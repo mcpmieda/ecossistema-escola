@@ -1,18 +1,14 @@
 import { z } from 'zod';
+import { ADMIN_ACCOUNT_FIELDS_V2, accountReadContextV2 } from './account-read-context-v2';
+import { readSessionsV2 } from './sessions-read-v2';
 import {
   ADMIN_OVERVIEW_ACCOUNT_LIMIT_V2,
   adminAccountReadV2,
   adminReadResponseV2,
   type AdminReadQueryV2,
 } from '../../../shared/student-portal-contracts/admin-read-v2';
-import {
-  academicBindingSchemaV1,
-  resolveEligibilityV1,
-} from '../../../shared/gradebook-contracts/student-portal/eligibility-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
-import { resolvePolicySnapshotRowsV1 } from '../policies/policy-service-v1';
-import { sessionExpiryV1 } from '../policies/calendar-v1';
-import { accountsScopeVersionV1, adminInstantV1 } from './common-v1';
+import { accountsScopeVersionV1 } from './common-v1';
 import { ACCOUNT_JOIN_V1, readAdminHealthV1 } from './queries-v1';
 import type { AdminCursorV1 } from './cursor-v1';
 
@@ -27,6 +23,8 @@ export async function readAdminV2(
   now: Date,
   cursor: AdminCursorV1,
 ) {
+  if (query.operation === 'sessions-read')
+    return readSessionsV2(tx, query, actor, requestId, now, cursor);
   const after = await cursor.read(query, actor, now);
   if (after?.at) throw new Error('student-portal-cursor-invalid-request');
   const values: unknown[] = [];
@@ -45,18 +43,7 @@ export async function readAdminV2(
   const clock = bind(now.toISOString());
   const limit = query.operation === 'overview' ? ADMIN_OVERVIEW_ACCOUNT_LIMIT_V2 : query.page.limit;
   const rows = await tx.unsafe(
-    `SELECT a.id,a.gradebook_student_id,a.auth_state,a.eligibility,a.blocked,
-    a.version::text AS account_version,a.security_version::text,a.closed_at,
-    COALESCE(s.name,'') AS name,COALESCE(b.class_name,'') AS class_name,b.class_id,
-    (b.class_id IS NOT NULL AND a.closed_at IS NULL AND a.gradebook_student_id IS NOT NULL) AS resolved,
-    (SELECT academic_generation||':'||academic_counter::text FROM student_portal.academic_revision WHERE academic_year=2026) AS data_version,
-    COALESCE((SELECT jsonb_agg(jsonb_build_object('academicYear',bb.academic_year,'studentId',bb.student_id,
-      'classId',bb.class_id,'status',bb.status)) FROM student_portal.academic_binding_v1 bb
-      WHERE bb.academic_year=2026 AND bb.student_id=a.gradebook_student_id),'[]'::jsonb) AS bindings,
-    COALESCE((SELECT jsonb_agg(jsonb_build_object('scope_key',p.scope_key,'field_key',p.field_key,
-      'value_json',p.value_json,'source_scope_json',p.source_scope_json,'version',p.version))
-      FROM student_portal.setting p WHERE p.scope_key='school:2026'
-        OR p.scope_key='class:2026:'||b.class_id::text OR p.scope_key='account:2026:'||a.id::text),'[]'::jsonb) AS settings_rows,
+    `SELECT ${ADMIN_ACCOUNT_FIELDS_V2},
     (SELECT max(e.occurred_at) FROM student_portal.audit_event e WHERE e.account_id=a.id
       AND e.kind IN ('login','activated') AND e.result='success'
       AND e.occurred_at>${clock}::timestamptz-interval '12 months'
@@ -76,73 +63,16 @@ export async function readAdminV2(
   }[] = [];
   const items: z.infer<typeof adminAccountReadV2>[] = [];
   for (const row of selected) {
-    const accountId = z.uuid().parse(row.id);
-    const link =
-      row.gradebook_student_id === null
-        ? null
-        : {
-            academicYear: 2026 as const,
-            studentId: z.number().int().positive().safe().parse(row.gradebook_student_id),
-          };
-    const eligibility =
-      link === null
-        ? 'unlinked'
-        : resolveEligibilityV1(
-            link,
-            z.string().parse(row.data_version),
-            z.array(academicBindingSchemaV1).parse(row.bindings),
-          ).state;
-    let access: z.infer<typeof adminAccountReadV2>['access'] = {
-      state: 'unresolved',
-      enabled: null,
-      source: null,
-      settingsVersion: null,
-      accessPermitted: false,
-    };
-    if (row.resolved === true) {
-      const policy = await resolvePolicySnapshotRowsV1(
-        { kind: 'account', academicYear: 2026, accountId },
-        [row],
-      );
-      const accessPermitted =
-        eligibility === 'eligible' &&
-        row.eligibility === 'eligible' &&
-        row.blocked === false &&
-        sessionExpiryV1(policy.settings.value, now, false) !== null;
-      access = {
-        state: 'resolved',
-        enabled: policy.settings.value.accessEnabled,
-        source: policy.settings.sources.accessEnabled,
-        settingsVersion: policy.settings.version,
-        accessPermitted,
-      };
-      if (accessPermitted && row.auth_state === 'active')
-        sessionPolicies.push({
-          id: accountId,
-          security: z.coerce.number().int().nonnegative().safe().parse(row.security_version),
-          end: policy.settings.value.calendar.yearEndsAt!,
-          persistent: policy.settings.value.risk.persistentSeconds,
-          short: policy.settings.value.risk.shortSeconds,
-        });
-    }
-    items.push(
-      adminAccountReadV2.parse({
-        accountId,
-        link,
-        linkClosed: row.closed_at !== null,
-        name: row.name,
-        classLabel: row.class_name,
-        classId: row.class_id,
-        state: row.auth_state,
-        eligibility,
-        blocked: row.blocked,
-        version: Number(row.account_version),
-        access,
-        lastAuthenticationAt:
-          row.last_authentication === null ? null : adminInstantV1(row.last_authentication),
-        validSessionCount: 0,
-      }),
-    );
+    const { item, policy, securityVersion } = await accountReadContextV2(row, now);
+    items.push(item);
+    if (item.access.accessPermitted && item.state === 'active' && policy)
+      sessionPolicies.push({
+        id: item.accountId,
+        security: securityVersion,
+        end: policy.settings.value.calendar.yearEndsAt!,
+        persistent: policy.settings.value.risk.persistentSeconds,
+        short: policy.settings.value.risk.shortSeconds,
+      });
   }
   if (sessionPolicies.length > 0) {
     const sessions = await tx.unsafe(

@@ -1,0 +1,125 @@
+import type { AdminResponseV1 } from '../../../../shared/student-portal-contracts/admin-v1';
+import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
+import type { OperationsPropsV1 } from '../overview/operations-values-v1';
+import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
+type DetailV1 = Extract<AdminResponseV1, { state: 'audit-detail' }>;
+export type AuditDetailStateV1 =
+  | { state: 'idle' | 'loading' | 'expired' }
+  | { state: 'ready'; detail: DetailV1; ipExpired: boolean }
+  | { state: 'error'; error: PortalClientErrorV1; retryAt: number };
+/** The server enforces capability and 90 days. A conservative monotonic clock removes
+ * the returned IP at its remaining deadline; the whole private detail expires after 5 min.
+ */
+export function createAuditDetailV1(
+  props: Pick<OperationsPropsV1, 'client' | 'reader' | 'canWrite'>,
+  publish: (state: AuditDetailStateV1) => void,
+  monotonic = () => performance.now(),
+) {
+  let generation = 0,
+    active: AbortController | undefined;
+  let expiry: ReturnType<typeof setTimeout> | undefined,
+    lifetime: ReturnType<typeof setTimeout> | undefined;
+  let retryAt = 0;
+  function clear() {
+    generation++;
+    active?.abort();
+    active = undefined;
+    clearTimeout(expiry);
+    clearTimeout(lifetime);
+    expiry = lifetime = undefined;
+    publish({ state: 'idle' });
+  }
+  async function open(scope: ScopeV1, eventId: string) {
+    if (!props.canWrite) return;
+    if (Date.now() < retryAt) {
+      publish({ state: 'error', error: new PortalClientErrorV1('rate-limited'), retryAt });
+      return;
+    }
+    clear();
+    const current = ++generation,
+      controller = new AbortController(),
+      started = monotonic();
+    active = controller;
+    publish({ state: 'loading' });
+    try {
+      const [detail, clock] = await Promise.all([
+        props.client.query(
+          { contractVersion: 1, operation: 'audit-detail', scope, eventId, page: { limit: 1 } },
+          controller.signal,
+        ),
+        props.reader.query(
+          { contractVersion: 2, operation: 'accounts-read', scope, page: { limit: 1 } },
+          controller.signal,
+        ),
+      ]);
+      if (generation !== current || controller.signal.aborted) return;
+      if (
+        detail.state !== 'audit-detail' ||
+        detail.event.eventId !== eventId ||
+        clock.state !== 'accounts-read'
+      )
+        throw new PortalClientErrorV1('invalid-response');
+      if (scope.kind === 'account' && detail.event.accountId !== scope.accountId)
+        throw new PortalClientErrorV1('invalid-response');
+      const serverNow = Date.parse(clock.observedAt) + Math.max(0, monotonic() - started);
+      const occurred = new Date(detail.event.at);
+      const metadataEnd = new Date(occurred);
+      metadataEnd.setUTCDate(1);
+      metadataEnd.setUTCFullYear(metadataEnd.getUTCFullYear() + 1);
+      const lastDay = new Date(
+        Date.UTC(metadataEnd.getUTCFullYear(), metadataEnd.getUTCMonth() + 1, 0),
+      ).getUTCDate();
+      metadataEnd.setUTCDate(Math.min(occurred.getUTCDate(), lastDay));
+      const remainingMetadata = metadataEnd.getTime() - serverNow;
+      if (remainingMetadata <= 0) {
+        publish({ state: 'expired' });
+        return;
+      }
+      const deadline = Math.min(
+        detail.ipExpiresAt ? Date.parse(detail.ipExpiresAt) : 0,
+        Date.parse(detail.event.at) + 90 * 86400_000,
+      );
+      const allowed = detail.ip !== null && deadline > serverNow;
+      const safe: DetailV1 = {
+        ...detail,
+        ip: allowed ? detail.ip : null,
+        ipExpiresAt: allowed ? detail.ipExpiresAt : null,
+      };
+      publish({ state: 'ready', detail: safe, ipExpired: !allowed });
+      if (allowed)
+        expiry = setTimeout(
+          () => {
+            if (generation === current)
+              publish({
+                state: 'ready',
+                detail: { ...safe, ip: null, ipExpiresAt: null },
+                ipExpired: true,
+              });
+            // Release the original raw value retained by this callback as well.
+            safe.ip = null;
+            safe.ipExpiresAt = null;
+          },
+          Math.min(deadline - serverNow, 300_000),
+        );
+      lifetime = setTimeout(
+        () => {
+          if (generation === current) {
+            clear();
+            publish({ state: 'expired' });
+          }
+        },
+        Math.min(300_000, remainingMetadata),
+      );
+    } catch (error) {
+      if (generation !== current || controller.signal.aborted) return;
+      controller.abort();
+      const failure =
+        error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('network-error');
+      retryAt = Date.now() + (failure.retryAfterSeconds ?? 0) * 1000;
+      publish({ state: 'error', error: failure, retryAt });
+    } finally {
+      if (generation === current) active = undefined;
+    }
+  }
+  return { open, clear };
+}
