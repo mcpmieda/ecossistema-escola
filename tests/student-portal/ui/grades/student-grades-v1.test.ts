@@ -1,5 +1,5 @@
 import { createElement } from 'react';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -34,6 +34,42 @@ afterEach(() => {
 const table = (data = gradesFixtureV1()) => createElement(StudentGradesV1, { data });
 
 describe('annual published grades', () => {
+  it('resets a wide sticky column when the viewport becomes compact', async () => {
+    let compact = false;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query === '(max-width: 640px), (pointer: coarse)' && compact,
+      addEventListener: (_event: string, callback: () => void) => {
+        listeners.add(callback);
+      },
+      removeEventListener: (_event: string, callback: () => void) => {
+        listeners.delete(callback);
+      },
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    }));
+    const user = userEvent.setup();
+    render(table(gradesFixtureV1(false)));
+    await user.click(screen.getByRole('button', { name: 'Ajustar largura de Disciplina' }));
+    const old = screen.getByRole('slider', {
+      name: /Redimensionar Disciplina/u,
+    }) as HTMLInputElement;
+    await vi.waitFor(() => expect(document.activeElement).toBe(old));
+    await user.keyboard('{ArrowRight}{ArrowRight}{Enter}');
+    expect(Number(old.value)).toBeGreaterThan(136);
+    act(() => {
+      compact = true;
+      listeners.forEach((callback) => callback());
+    });
+    const current = screen.getByRole('slider', {
+      name: /Redimensionar Disciplina/u,
+    }) as HTMLInputElement;
+    expect(current).not.toBe(old);
+    expect(Number(current.value)).toBe(136);
+    expect(document.querySelector('.pa-grades-resizable')?.getAttribute('style')).toContain(
+      '662px',
+    );
+  });
   it('enters resize from the grid with keyboard navigation and changes the width within its minimum', async () => {
     const user = userEvent.setup();
     render(table(gradesFixtureV1(false)));

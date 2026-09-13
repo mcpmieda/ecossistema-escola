@@ -21,12 +21,15 @@ Nenhum fetch, armazenamento, cálculo acadêmico, turma ou dado de terceiros.
   Resize desktop por arraste ou pelo botão de ajuste: na grade, seta para cima chega
   ao cabeçalho; Enter inicia, setas ajustam e Enter/Escape concluem. Celulares usam
   rolagem horizontal local, sem controles de resize.
+  Em viewport compacta ou com ponteiro de toque, Disciplina fica em 136 px mesmo
+  após ter sido ampliada no desktop. A troca de modo reinicia as larguras para
+  evitar que um ajuste anterior esconda as notas ou deixe uma área de scroll vazia.
 - Troca de conta/revisões remonta o estado de largura. Nada persiste no navegador.
   Loading/erro/logout devem desmontar a tabela pelo shell/session de #748/#749.
 
 ## Evidência sintética
 
-25 testes desta pasta e seis do shell: união de períodos, revisão que remove colunas,
+26 testes desta pasta e seis do shell: união de períodos, revisão que remove colunas,
 13 disciplinas invertidas na entrada, 12 parciais por trimestre, nomes extensos,
 zero/ausente/N-C/R-R, REC pendente/nota/não aplicável, máximo nulo, resultados,
 ASSISTIDO, vazio, teclado e vetores do contrato #745 sem recalcular a classificação.
@@ -39,6 +42,8 @@ rolagem horizontal. A correção pontual do mínimo global em shared/styles.css,
 registrada antes da edição na issue, eliminou 15 px de overflow do documento em
 Windows com barra vertical clássica: largura útil/scroll do documento = 305/305
 para viewport externa de 320 px; a tabela continuou rolando em seu próprio contêiner.
+Também foi reproduzida e corrigida a transição desktop → celular após ampliar
+Disciplina para 600 px: a regra compacta evita que a coluna fixa cubra todas as notas.
 
 Browser Act foi bloqueado pelo Controle de Aplicativos do Windows já documentado
 em #744/#748; o navegador in-app disponível foi usado sem contornar essa política.

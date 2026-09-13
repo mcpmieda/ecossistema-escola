@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties } from 'react';
+import { useMemo, useSyncExternalStore, type CSSProperties } from 'react';
 import { Card } from '@heroui/react/card';
 import { Button } from '@heroui/react/button';
 import { MoveHorizontal } from 'lucide-react';
@@ -21,6 +21,14 @@ const resultLabels = {
   failed: 'Reprovado',
   'failed-attendance': 'Reprovado por frequência',
 } as const;
+const COMPACT_QUERY = '(max-width: 640px), (pointer: coarse)';
+function subscribeCompact(callback: () => void) {
+  const media = window.matchMedia(COMPACT_QUERY);
+  media.addEventListener('change', callback);
+  return () => media.removeEventListener('change', callback);
+}
+const compactSnapshot = () => window.matchMedia(COMPACT_QUERY).matches;
+const serverCompactSnapshot = () => false;
 
 /** Text/colour mapping only. It never derives a threshold, average, result or new mark. */
 export function StudentMarkV1({
@@ -108,9 +116,9 @@ interface GradeColumnV1 {
   width: number;
   minimum: number;
 }
-function columnsForV1(subjects: readonly SubjectV1[]): GradeColumnV1[] {
+function columnsForV1(subjects: readonly SubjectV1[], compact: boolean): GradeColumnV1[] {
   const columns: GradeColumnV1[] = [
-    { id: 'subject', label: 'Disciplina', width: 180, minimum: 136 },
+    { id: 'subject', label: 'Disciplina', width: compact ? 136 : 180, minimum: 136 },
   ];
   for (const id of PERIODS_V1) {
     if (!subjects.some((subject) => subject.periods.some((period) => period.period === id)))
@@ -141,11 +149,12 @@ function OutcomeCellV1({ subject, assisted }: { subject: SubjectV1; assisted: bo
 
 /** Receives only the already-authorized self payload; no requests, cache or academic arithmetic. */
 export function StudentGradesV1({ data }: { data: SelfResponseV1 }) {
+  const compact = useSyncExternalStore(subscribeCompact, compactSnapshot, serverCompactSnapshot);
   const subjects = useMemo(
     () => [...data.subjects].sort((a, b) => a.order - b.order),
     [data.subjects],
   );
-  const columns = useMemo(() => columnsForV1(subjects), [subjects]);
+  const columns = useMemo(() => columnsForV1(subjects, compact), [subjects, compact]);
   const width = columns.reduce((sum, column) => sum + column.width, 0);
   if (data.state === 'no-publication' || subjects.length === 0)
     return (
@@ -159,7 +168,7 @@ export function StudentGradesV1({ data }: { data: SelfResponseV1 }) {
     <Table
       className="pa-grades-table"
       variant="secondary"
-      key={`${data.profile.accountId}:${data.revisions.dataVersion}:${data.revisions.policyVersion}:${data.revisions.publicationVersion}`}
+      key={`${data.profile.accountId}:${data.revisions.dataVersion}:${data.revisions.policyVersion}:${data.revisions.publicationVersion}:${compact}`}
     >
       <ScrollShadow
         className="pa-grades-scroll"
