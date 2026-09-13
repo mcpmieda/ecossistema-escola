@@ -1,4 +1,14 @@
-# Preparação #705
+# Runtime Portal — integração #715
+
+A composição candidata agora está em server/student-portal/composition e substitui os stubs nos entrypoints. HTTP self e RPC privado usam serviços reais; o ADM autentica no Pages. PORTAL_SERVING_ENABLED é o gate externo de manutenção, distinto da população e das políticas escolares. Preview continua sem bindings produtivos. Defaults escolares inicializados explicitamente, acesso desligado e calendário vazio; nenhuma conta criada.
+
+Cron1/min tem até5 reconciliações,1 materialização e100 expurgos por família. Rate limit regional600/min e30/sujeito/min ocorre antes da conexão, além do contador PostgreSQL. Logs aceitam apenas métricas sanitizadas. QR/PASSWORD usam mapas JSON versionados de chaves base64 de32bytes já provisionados; não registrar os valores. Cursor recebe chave derivada com domínio próprio. Configs/tipos são da integração I; evidências atuais e limites em docs/student-portal/PRODUCTION_READINESS.md e issue715.
+
+`npm run test:student-portal-postgres` executa a suíte nativa e o smoke da composição com PostgreSQL local restrito, sessão ADM sintética assinada, RPC/workerd/Hyperdrive, ativação/self/logout e cron. Não é Entra/piloto produtivo. G-B permanece parcial até as provas remotas e humanas exigidas.
+
+## Registro histórico da preparação #705
+
+Os parágrafos abaixo registram o estado e as decisões durante a fundação; referências a Worker inerte e recursos ausentes não descrevem o código da composição atual.
 
 Worker inerte: `/healthz` comprova apenas liveness; as seis rotas self retornam indisponibilidade, sem sessão, segredo, banco ou dados. RPC administrativo existe exclusivamente no entrypoint nomeado `PortalAdminEntrypoint`; default/self não recebem capacidade admin. Contexto recebido por HTTP nunca autentica operador. Não há interface de aluno.
 

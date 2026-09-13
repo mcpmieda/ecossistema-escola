@@ -1,11 +1,15 @@
-# Portal do Aluno
+# Portal do Aluno — Parte 1
 
-Fundação da Parte 1, issue #702, filha da #701. Esta entrega contém contratos e documentação, sem runtime, migrations, dados ou UI. O gate G-C aguarda o contrato BN #703. Não iniciar consumidores automaticamente.
+A implementação segue a autorização contínua do responsável, uma fase por vez, sem agentes auxiliares. #702–#714 estão integradas e publicadas; #715 compõe o backend real e ainda precisa concluir as provas remotas e o piloto privado. **G-B PARCIAL: não há abertura escolar nem interface P2.**
 
-Ordem: AGENTS.md → este README → [MASTER_SPEC](MASTER_SPEC.md) → [ARCHITECTURE](ARCHITECTURE.md) → [DECISIONS](DECISIONS.md) → [PROJECT_STATE](PROJECT_STATE.yaml) → issue → [ISSUE_MAP](ISSUE_MAP.md) e [TEST_MATRIX](TEST_MATRIX.md). A prontidão está em [PRODUCTION_READINESS](PRODUCTION_READINESS.md).
+Baseline integrada verificada: `5699a8ac69687920c6319a325444159ac1334669`, PR737, deploy oficial34735666281 SUCCESS. Código de composição nesta entrega candidata pertence à #715; a issue registra seu SHA final, CI, merge, deploy e smoke separadamente.
 
-Contratos executáveis: [shared/student-portal-contracts](../../shared/student-portal-contracts/). core-v1: identidade/escopo/versões/erros; auth-v1: HTTP e QR; policy-v1: configurações; self-v1: payload estudantil; admin-v1: comandos/consultas/DTOs ADM; ports-v1: interfaces internas; fixtures-v1: exemplos inteiramente inventados, nunca seeds produtivos.
+Ordem de leitura: AGENTS → [MASTER_SPEC](MASTER_SPEC.md) → [ARCHITECTURE](ARCHITECTURE.md) → [DECISIONS](DECISIONS.md) → [PROJECT_STATE](PROJECT_STATE.yaml) → issue → [TEST_MATRIX](TEST_MATRIX.md) → [PRODUCTION_READINESS](PRODUCTION_READINESS.md). [ISSUE_MAP](ISSUE_MAP.md) mantém rastreio dos nove grupos. Contratos executáveis: shared/student-portal-contracts e shared/gradebook-contracts.
 
-Validação: `npm run verify`; suite focal `npx vitest run tests/student-portal/contracts/`. Nenhum teste de schema demonstra locks, ACL, KDF, autenticação real ou publicação: esses aceites pertencem às issues indicadas na matriz.
+O endereço é https://aluno.escolaieda.com, com Pages mínimo e Worker separado. ADM usa seu SSO e binding administrativo privado. PostgreSQL/Supabase via Hyperdrive próprio, papel restrito e cache desativado; sete migrations Portal já aplicadas. Sem DDL nesta integração.
 
-Títulos: **[SEQUENCIAL]** significa aguardar predecessor e janela própria de integração. **[PARALELO]** significa que a autoria pode coexistir com outra frente somente após seus pré-requisitos e sem compartilhar paths/recursos mutáveis. O segundo marcador é **[CODEX]** ou **[CHAT ONLINE]**. Nenhum marcador significa iniciar agora. Primeiro paralelismo: #704 e preparação da #705, após #703/G-C. CODEX não significa autorização para delegar a agentes auxiliares.
+Composição: server/student-portal/composition; Worker/edge: workers/student-portal; rota ADM: functions/[[path]].ts. Políticas/calendário, nascimento, autenticação, publicação, manutenção e leitura acadêmica são serviços reais. Nenhuma fórmula acadêmica duplicada. Default público não tem RPC administrativo.
+
+`npm run verify` valida lint/types/test/build e18 provas workerd. `npm run test:student-portal-postgres` exige banco local novo portal705_test, roda55 provas nativas e depois smoke da composição real em workerd com PostgreSQL restrito. Dados e identidades de teste são inteiramente sintéticos. Isso não substitui Entra e piloto real6A.
+
+Títulos atuais: [AGORA] pode ser executada dentro de suas dependências/ownership; [DEPOIS] aguarda. [SEQUENCIAL]/[PARALELO] descrevem concorrência permitida; [CODEX]/[CHAT ONLINE], executor. A execução corrente é sequencial e direta. Não criar issues P2.

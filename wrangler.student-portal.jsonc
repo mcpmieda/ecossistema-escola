@@ -35,12 +35,17 @@
       "name": "student-portal-production",
       "vars": {
         "PORTAL_ENVIRONMENT": "production",
+        "PORTAL_SERVING_ENABLED": "true",
         "PORTAL_ORIGIN": "https://aluno.escolaieda.com",
         "PORTAL_ADMIN_TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188"
       },
       "services": [],
       "hyperdrive": [{ "binding": "PORTAL_DB", "id": "46ac2fcb25ad4ad5b5662d536ccd968a" }],
-      "triggers": { "crons": [] }
+      "ratelimits": [
+        { "name": "PORTAL_AUTH_GLOBAL", "namespace_id": "100715", "simple": { "limit": 600, "period": 60 } },
+        { "name": "PORTAL_AUTH_SUBJECT", "namespace_id": "200715", "simple": { "limit": 30, "period": 60 } }
+      ],
+      "triggers": { "crons": ["* * * * *"] }
     }
   }
 }

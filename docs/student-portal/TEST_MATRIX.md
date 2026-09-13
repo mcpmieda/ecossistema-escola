@@ -1,24 +1,42 @@
 # Matriz de requisitos e provas
 
-Suite executável #702: tests/student-portal/contracts/contracts-v1.test.ts. Fixtures inventadas em shared/student-portal-contracts/fixtures-v1.ts; não derivadas da massa real. O nome e resultado da execução efetiva/commit/ambiente vão no handoff #702. A tabela distingue contrato testável aqui e prova de implementação futura: não são equivalentes.
+## EvidÃªncias acumuladas e gate I (13/09/2026)
+
+Baseline H main5699a8ac69687920c6319a325444159ac1334669: verify1691PASS+3skips histÃ³ricos,18workerdPASS,55PostgreSQL18.6 local/17.6CI PASS; PR737,CI34735341167/34735341164,deploy34735666281. Nenhum skip Ã© aprovaÃ§Ã£o.
+
+| Grupo | EvidÃªncia de implementaÃ§Ã£o | ValidaÃ§Ã£o integrada restante |
+|---|---|---|
+| P1-01 | Contratos #702/#703/#732/#735, schemas/CAS/unknown keys | Compatibilidade runtime I |
+| P1-02 | Migrations0001â€“0007, ACL/locks/reset nativo | Hyperdrive via rotas compostas |
+| P1-03 | DNS/TLS/billing/Worker/Pages privados #705 | Release I, cron remoto/preview |
+| P1-04 | Lifecycle/polÃ­ticas/birth CAS/per-item #707â€“709 | Piloto privado; nenhuma data institucional inventada |
+| P1-05 | Scrypt real/QR/revogaÃ§Ã£o/risco/sessÃ£o #711/#714 | Widget produtivo e fluxo real autorizado |
+| P1-06 | Fonte oficial/revisÃµes/jobs/leases/auto/manual #710/#712/#714 | PerÃ­odo autorizado no piloto privado |
+| P1-07 | Admin schemas/cursors/SSO adapter #713; IP #735 | Entra realâ†’Pagesâ†’RPCâ†’PG |
+| P1-08 | IP/retention/NAT/carga/CPU/recovery #714 | ComposiÃ§Ã£o de mÃ©tricas/cron I |
+| P1-09 | Smoke local real em smoke/composition.postgres.ts | SHA final/CI/deploy/SSO/6A e G-B |
+
+O smoke local I utiliza seal verificado do ADM com identidade inteiramente sintÃ©tica, WorkerEntrypoint real, binding Hyperdrive local e student_portal_app: nascimento/QR/ativaÃ§Ã£o/cookie/me/logout e cron. NÃ£o chama isso de Entra real. boundaries-v1.test.ts usa mock sÃ³ para provar que requisiÃ§Ã£o negada nÃ£o abre conexÃ£o; nÃ£o sustenta aceite de banco. O registro abaixo Ã© a matriz original de requisitos da #702, cujos testes posteriores estÃ£o agora nos mÃ³dulos correspondentes.
+
+Suite executÃ¡vel #702: tests/student-portal/contracts/contracts-v1.test.ts. Fixtures inventadas em shared/student-portal-contracts/fixtures-v1.ts; nÃ£o derivadas da massa real. O nome e resultado da execuÃ§Ã£o efetiva/commit/ambiente vÃ£o no handoff #702. A tabela distingue contrato testÃ¡vel aqui e prova de implementaÃ§Ã£o futura: nÃ£o sÃ£o equivalentes.
 
 | Requisito / origem | Testes #702 | Prova posterior |
 |---|---|---|
-| vínculo/2026/sem nome AD-01/02 | identity and envelope: ano/ID/unknown keys/escopo | #703/#704/#707 FK/unique/movimentos reais |
-| HTTP erro/paginação cap. 8 | bounds pagination and public errors | #713 limites bytes/cursor/authz |
+| vÃ­nculo/2026/sem nome AD-01/02 | identity and envelope: ano/ID/unknown keys/escopo | #703/#704/#707 FK/unique/movimentos reais |
+| HTTP erro/paginaÃ§Ã£o cap. 8 | bounds pagination and public errors | #713 limites bytes/cursor/authz |
 | PIN4/senha6/confirm cap. 4 AD-07 | authentication boundary | #711 KDF/locks/replay/cookies |
-| QR mesma origem/rota/version cap. 4 | constrains QR origin | #711 HMAC/rotação/reprint; não provar assinatura pelo regex |
-| calendário/risco AD-04…07 | calendar, inheritance and birth | #708 resolução efetiva/datas/efeito imediato; #714 carga |
-| nascimento completo/CAS/clear/batch AD-03 | rejects incomplete; explicit clear/batch | #709/#711 corridaPIN/desafio/sessão |
+| QR mesma origem/rota/version cap. 4 | constrains QR origin | #711 HMAC/rotaÃ§Ã£o/reprint; nÃ£o provar assinatura pelo regex |
+| calendÃ¡rio/risco AD-04â€¦07 | calendar, inheritance and birth | #708 resoluÃ§Ã£o efetiva/datas/efeito imediato; #714 carga |
+| nascimento completo/CAS/clear/batch AD-03 | rejects incomplete; explicit clear/batch | #709/#711 corridaPIN/desafio/sessÃ£o |
 | autoridadeBN/N-C/0/R-R/assistido cap. 5 | preserves zero/NC/absent/RR | #703/#710 fonte oficial/EXPLAIN/sem N+1 |
-| admin completo/privacidade cap. 8/16 | parses all mutation operations; safe responses | #713/#715 Entra→RPC/IDOR/CSRF/contexto falso |
-| QR três modos cap. 4/17 | three print modes | #713 autorização/lote; PDF/câmera física P2 |
-| publicação cap. 5 AD-05/06 | self strict/no-publication/partials absent | #712/#714 version/manual/auto-update/race/despublicação |
-| schema/ACL cap3 | tipos/ports, sem DDL nesta issue | #704/#705 PG real/replay/ACL+/−/rollback |
-| reset opção A | comando links-close distinto de account-reset | #706/#707 multiconexão/reset×create/import/close/deadlock |
-| jobs/revisões cap. 5/7 | ports versionados | #707/#712/#714 flushV11/crash/retry/lease |
-| retenção90d/12m cap. 6/7 | DTO restrito/auditoria | #714 limpeza verificável/IP/telemetria sem secrets |
-| recovery cap7 AD-backup | contrato sem fallbackD1 | #714 chaves/restauraçãoantiga/revogações; gerenciado adiado |
+| admin completo/privacidade cap. 8/16 | parses all mutation operations; safe responses | #713/#715 Entraâ†’RPC/IDOR/CSRF/contexto falso |
+| QR trÃªs modos cap. 4/17 | three print modes | #713 autorizaÃ§Ã£o/lote; PDF/cÃ¢mera fÃ­sica P2 |
+| publicaÃ§Ã£o cap. 5 AD-05/06 | self strict/no-publication/partials absent | #712/#714 version/manual/auto-update/race/despublicaÃ§Ã£o |
+| schema/ACL cap3 | tipos/ports, sem DDL nesta issue | #704/#705 PG real/replay/ACL+/âˆ’/rollback |
+| reset opÃ§Ã£o A | comando links-close distinto de account-reset | #706/#707 multiconexÃ£o/resetÃ—create/import/close/deadlock |
+| jobs/revisÃµes cap. 5/7 | ports versionados | #707/#712/#714 flushV11/crash/retry/lease |
+| retenÃ§Ã£o90d/12m cap. 6/7 | DTO restrito/auditoria | #714 limpeza verificÃ¡vel/IP/telemetria sem secrets |
+| recovery cap7 AD-backup | contrato sem fallbackD1 | #714 chaves/restauraÃ§Ã£oantiga/revogaÃ§Ãµes; gerenciado adiado |
 | isolamento/nodepsUI cap. 18 | typecheck contratos semReact/runtime | #705/#715 driverWorker/TLS/preview/BNregression |
 
-Cada cenário de segurança exige positivo/negativo/limite e regressão de defeito. #704…#715 atualizam seus testes e entregam delta documental ao integrador, sem disputar arquivo central. CI usa Node22; execução local desta entrega Node24.16.0/Windows deve ser identificada. verify inclui lint/types/test/build; CI final no SHA esperado antes de merge. Teste omitido/skip não vira evidência. Sem dados reais em outputs públicos. Nenhum G-B por mocks/PGlite: PostgreSQL descartável/múltiplas conexões/Worker/Hyperdrive/browser reais exigidos nas entregas designadas.
+Cada cenÃ¡rio de seguranÃ§a exige positivo/negativo/limite e regressÃ£o de defeito. #704â€¦#715 atualizam seus testes e entregam delta documental ao integrador, sem disputar arquivo central. CI usa Node22; execuÃ§Ã£o local desta entrega Node24.16.0/Windows deve ser identificada. verify inclui lint/types/test/build; CI final no SHA esperado antes de merge. Teste omitido/skip nÃ£o vira evidÃªncia. Sem dados reais em outputs pÃºblicos. Nenhum G-B por mocks/PGlite: PostgreSQL descartÃ¡vel/mÃºltiplas conexÃµes/Worker/Hyperdrive/browser reais exigidos nas entregas designadas.

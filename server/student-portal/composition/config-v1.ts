@@ -1,0 +1,38 @@
+import { createHmac } from 'node:crypto';
+import { z } from 'zod';
+import { PortalCryptoV1 } from '../crypto/crypto-v1';
+
+export interface PortalCompositionEnvV1 {
+  PORTAL_ENVIRONMENT: string;
+  PORTAL_ORIGIN: string;
+  PORTAL_ADMIN_TENANT_ID: string;
+  PORTAL_SERVING_ENABLED?: string;
+  PORTAL_DB?: Pick<Hyperdrive, 'connectionString'>;
+  QR_HMAC_KEYS?: string;
+  PASSWORD_PEPPER?: string;
+  TURNSTILE_SECRET_KEY?: string;
+  PORTAL_AUTH_GLOBAL?: Pick<RateLimit, 'limit'>;
+  PORTAL_AUTH_SUBJECT?: Pick<RateLimit, 'limit'>;
+}
+
+function keyring(value: string | undefined) {
+  const parsed = z.record(z.string().regex(/^[1-9][0-9]{0,5}$/u),
+    z.string().regex(/^[A-Za-z0-9+/]{43}=$/u)).parse(JSON.parse(value ?? '{}'));
+  const ring = new Map(Object.entries(parsed).map(([version, encoded]) => {
+    const bytes = Buffer.from(encoded, 'base64');
+    if (bytes.length !== 32 || bytes.toString('base64') !== encoded) throw new Error('student-portal-key-invalid');
+    return [Number(version), bytes] as const;
+  }));
+  if (!ring.size) throw new Error('student-portal-key-unavailable');
+  return ring;
+}
+
+/** Existing versioned Portal keys only. Cursor key is a domain-separated child, never the ADM session key. */
+export function portalKeysV1(env: PortalCompositionEnvV1) {
+  const peppers = keyring(env.PASSWORD_PEPPER);
+  const qrKeys = keyring(env.QR_HMAC_KEYS);
+  const pepperVersion = Math.max(...peppers.keys());
+  const qrKeyVersion = Math.max(...qrKeys.keys());
+  return { cryptoPort: new PortalCryptoV1(peppers, qrKeys), pepperVersion, qrKeyVersion,
+    cursorSecret: createHmac('sha256', qrKeys.get(qrKeyVersion)!).update('student-portal:admin-cursor:v1').digest('hex') };
+}

@@ -1,5 +1,15 @@
 # Decisões e pendências
 
+## PA-DEC-005 — Execução contínua e integração I (13/09/2026)
+
+O responsável autorizou executar autonomamente cada fase, uma por vez, até pedir parada; substitui as restrições de início manual/sem fila automática da PA-DEC-001 e H-06 abaixo. Autorização inclui tarefas CODEX/CHAT; executor atua diretamente, sem subagentes. Integração/deploy condicionados aos gates do AGENTS. #715 recebe ownership central de R/C por comentário5650811878; expectativa de teste de fundação ajustada por5650876121.
+
+Marcadores [AGORA]/[DEPOIS] complementam PA-DEC-004. #702–#714 concluídas; #715 atual. Defaults escolares inicializados explicitamente e fechados, sem inferir calendário ou população. Dados reais/piloto dependem de coordenação privada, não de decisões técnicas inventadas.
+
+Decisões técnicas provadas: scryptN32768/r8/p3, salt16/pepper32; birth-batch até1KDF/2itens novos por invocação, retomável. Mais parâmetros/evidência em tests/student-portal/load e observability. Handoff H em issue714 comentário5650858559. Integração candidata liga serviços reais, mantém limite1000msCPU e não contrata plano. G-B ainda parcial.
+
+## Decisões históricas da #702, observadas as substituições acima
+
 ## PA-DEC-001 — Precedência e escopo (12/09/2026)
 
 Especificação v3.0 + Adendo01, com substituições explícitas registradas em MASTER_SPEC. #702 autorizada pelo responsável após planejamento #701; não iniciar #703+ automaticamente. Autoria aqui limita-se aos oito docs e contratos/tests PA. Nenhuma mudança de BN, app, schema, DNS, secret ou deploy manual. Merge sujeito ao AGENTS/verify no head esperado; workflow oficial existente pode publicar automaticamente o commit integrado, sem nova funcionalidade visível.

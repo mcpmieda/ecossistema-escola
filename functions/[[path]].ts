@@ -1,5 +1,8 @@
 import type { RuntimeEnv } from '../server/env';
 import { validateEnv } from '../server/env';
+import { servePortalAdminV1 } from '../server/student-portal/http/admin/handler-v1';
+import { portalJsonV1, portalFailureV1 } from '../server/student-portal/runtime/http-v1';
+import type { PortalAdminEntrypointV1 } from '../shared/student-portal-contracts/ports-v1';
 import {
   AUTH_COOKIE,
   SESSION_COOKIE,
@@ -224,6 +227,13 @@ async function route(context: Context, correlationId: string): Promise<Response>
   const request = context.request;
   const url = new URL(request.url);
   enforceOfficialOrigin(request, env);
+
+  if (url.pathname.startsWith('/api/student-portal/admin/')) {
+    const binding = env.PORTAL_SERVICE as PortalAdminEntrypointV1 | undefined;
+    if (!binding || typeof binding.query !== 'function' || typeof binding.command !== 'function')
+      return portalJsonV1(portalFailureV1('unavailable'), 503);
+    return servePortalAdminV1(request, env, binding);
+  }
 
   if (url.pathname === '/api/health') {
     method(request, ['GET']);

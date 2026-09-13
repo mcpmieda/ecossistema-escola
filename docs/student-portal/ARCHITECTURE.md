@@ -1,5 +1,15 @@
 # Arquitetura e contratos V1
 
+## Delta integrado #703–#714 e composição candidata #715
+
+A descrição original abaixo é o registro de desenho da #702, não inventário atual. Runtime, DNS, schema/ACL, KDF e módulos isolados foram implementados; inventário/evidência atual em PRODUCTION_READINESS e PROJECT_STATE. Locks ratificados: global compartilhado(613,0)→ano exclusivo(613,2026)→revisão→contas ordenadas; reset global exclusivo. Migrations0001–0007 aplicadas. API/DTOs complementares #732/CAS e #735/IP integram contratosV1.
+
+A composição usa adapters HTTP já validados e conexões por invocação; métodos auth são lazy para validar bytes/schema e rate limit antes de SQL. Self lê sessão/projeção na mesma transação autorizada. Contexto ADM é criado da sessão Entra selada no Pages, transportado apenas pelo binding nomeado e revalidado no Worker. IP é metadata Cloudflare, nunca identidade; fonte em subrequest pode ser o Worker intermediário. SQL de toda operação ADM recebe contexto IP, inclusive configurações/publicação.
+
+Cron e manutenção estão delimitados na prontidão e em server/student-portal/observability/OPERATIONS_V1.md. O gate externo não habilita população. Nenhuma interface P2; /access visual não é implementado. Mapa HTTP abaixo permanece contrato futuro da UI.
+
+## Registro de arquitetura na fundação #702
+
 Baseline auditada: ad38a7847eb49462818dca554e225155a57f49b4. Leitura fonte: server/auth/{roles,capabilities,session}.ts, functions/[[path]].ts, server/env.ts, wrangler.jsonc e workflows; BN import-relational-service-v9/v10/v11, relational-import-write-buffer-v11, relational-council-v3, year-reset-v1, relational-bulletin-v2 e projeções oficiais. Sem alteração desses arquivos em #702. Contrato acadêmico compartilhado é exclusivamente #703.
 
 ## Mapa e topologia
