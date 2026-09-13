@@ -24,6 +24,26 @@ const response = {
   lastAuthenticationWindowMonths: 12,
 };
 describe('opt-in administrative read contract', () => {
+  it('requires authoritative session time/status and forbids filters that hide revocation members', () => {
+    const sessions = { ...query, operation: 'sessions-read' };
+    expect(adminReadQueryV2.safeParse(sessions).success).toBe(true);
+    for (const fields of [{ nameSearch: 'a' }, { blocked: false }, { accountState: 'active' }])
+      expect(adminReadQueryV2.safeParse({ ...sessions, ...fields }).success).toBe(false);
+    const data = {
+      contractVersion: 2,
+      requestId: response.requestId,
+      state: 'sessions-read',
+      observedAt: response.observedAt,
+      scope,
+      version: 1,
+      revocableCount: 0,
+      items: [],
+      nextCursor: null,
+    };
+    expect(adminReadResponseV2.safeParse(data).success).toBe(true);
+    expect(adminReadResponseV2.safeParse({ ...data, observedAt: undefined }).success).toBe(false);
+    expect(adminResponseV1.safeParse(data).success).toBe(false);
+  });
   it('requires an explicit Portal closure instead of inferring it from unresolved access', () => {
     const item = {
       accountId: response.requestId,

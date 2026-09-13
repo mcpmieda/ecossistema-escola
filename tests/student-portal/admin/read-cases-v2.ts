@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { sessionsCasesV2 } from './sessions-cases-v2';
 import {
   adminClassCatalogRequestV2,
   adminReadResponseV2,
@@ -46,6 +47,7 @@ export function adminReadCasesV2(
     await resetAdminReadFixtureV2(get().admin);
     get().resetCalls();
   });
+  sessionsCasesV2(get);
   describe('administrative read V2, bounded and compatible', () => {
     it('returns complete keyset pages without N+1 and preserves V1 response shape', async () => {
       const first = await read();

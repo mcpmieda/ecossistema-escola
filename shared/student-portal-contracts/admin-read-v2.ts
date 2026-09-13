@@ -39,7 +39,7 @@ export function adminClassCatalogRequestV2(
 export const adminReadQueryV2 = z
   .object({
     contractVersion: z.literal(2),
-    operation: z.enum(['accounts-read', 'overview']),
+    operation: z.enum(['accounts-read', 'overview', 'sessions-read']),
     scope: scopeV1,
     page: pageRequestV1,
     accountState: accountStateV1.optional(),
@@ -47,9 +47,12 @@ export const adminReadQueryV2 = z
     nameSearch: z.string().min(1).max(200).optional(),
   })
   .strict()
+  .refine((value) => value.operation !== 'overview' || !value.page.cursor, 'Overview has no cursor')
   .refine(
-    (value) => value.operation !== 'overview' || !value.page.cursor,
-    'Overview has no cursor',
+    (value) =>
+      value.operation !== 'sessions-read' ||
+      [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined),
+    'Session scope must match the complete revocation scope',
   );
 export const adminQueryRequestV2 = z.union([adminQueryV1, adminReadQueryV2]);
 export const adminAccessV2 = z
@@ -77,6 +80,37 @@ const base = { contractVersion: z.literal(2), requestId: portalIdV1, observedAt:
 const count = z.number().int().nonnegative().safe();
 export const ADMIN_OVERVIEW_ACCOUNT_LIMIT_V2 = 5_000;
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
+  z
+    .object({
+      ...base,
+      state: z.literal('sessions-read'),
+      scope: scopeV1,
+      // Same CAS as sessions-revoke; count includes expired but not yet revoked sessions.
+      version: versionV1,
+      revocableCount: count,
+      items: z
+        .array(
+          z
+            .object({
+              sessionId: portalIdV1,
+              accountId: portalIdV1,
+              name: z.string().max(200),
+              classLabel: z.string().max(80),
+              classId: z.number().int().positive().safe().nullable(),
+              accountVersion: versionV1,
+              createdAt: instantV1,
+              expiresAt: instantV1,
+              effectiveExpiresAt: instantV1.nullable(),
+              revokedAt: instantV1.nullable(),
+              persistent: z.boolean(),
+              validity: z.enum(['valid', 'expired', 'revoked', 'unavailable']),
+            })
+            .strict(),
+        )
+        .max(100),
+      nextCursor: opaqueV1.nullable(),
+    })
+    .strict(),
   z
     .object({
       ...base,

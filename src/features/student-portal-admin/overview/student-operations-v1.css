@@ -1,0 +1,107 @@
+.pa-operations {
+  min-width: 0;
+  max-width: 100%;
+  display: grid;
+  gap: 1rem;
+}
+.pa-operations-card {
+  min-width: 0;
+  overflow: hidden;
+}
+.pa-operations-header,
+.pa-operations-actions,
+.pa-operations-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+}
+.pa-operations-header {
+  justify-content: space-between;
+  align-items: start;
+}
+.pa-operations-header h2 {
+  font-size: 1.25rem;
+  font-weight: 650;
+}
+.pa-operations-filters > * {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 12rem;
+}
+.pa-operations-actions button {
+  white-space: normal;
+  height: auto;
+  min-height: 2.5rem;
+  padding-block: 0.5rem;
+}
+.pa-operations-scroll {
+  max-width: 100%;
+  max-height: 32rem;
+  overflow: auto;
+}
+.pa-operations-scroll table {
+  min-width: 780px;
+}
+.pa-operations-scroll td {
+  overflow-wrap: anywhere;
+  max-width: 20rem;
+}
+.pa-operations-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  gap: 0.75rem;
+}
+.pa-operations-counts > div {
+  border: 1px solid var(--border);
+  padding: 1rem;
+  border-radius: 0.75rem;
+}
+.pa-operations-counts dt {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.pa-operations-counts dd {
+  font-size: 1.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.pa-operations-dialog {
+  width: min(36rem, calc(100vw - 2rem));
+  max-height: 85dvh;
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+.pa-operations-dialog [data-slot='alert-dialog-footer'],
+.pa-operations-dialog [data-slot='modal-footer'] {
+  flex-wrap: wrap;
+}
+.pa-operations-dialog [data-slot='alert-dialog-footer'] button,
+.pa-operations-dialog [data-slot='modal-footer'] button {
+  flex: 1 1 8rem;
+  white-space: normal;
+  min-height: 2.5rem;
+  height: auto;
+}
+.pa-operations-detail {
+  display: grid;
+  gap: 0.75rem;
+  overflow-wrap: anywhere;
+}
+.pa-operations-detail dt {
+  font-weight: 600;
+}
+.pa-operations-muted {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+@media (max-width: 480px) {
+  .pa-operations-actions {
+    align-items: stretch;
+  }
+  .pa-operations-actions button {
+    flex: 1 1 9rem;
+  }
+  .pa-operations-scroll {
+    max-height: 27rem;
+  }
+}
