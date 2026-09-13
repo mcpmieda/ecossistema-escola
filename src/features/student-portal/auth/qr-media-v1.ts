@@ -1,0 +1,109 @@
+import {
+  QrInputErrorV1,
+  QR_IMAGE_MAX_PIXELS_V1,
+  selectStudentQrV1,
+  validateQrImageFileV1,
+} from './qr-input-v1';
+
+export type QrFrameDecoderV1 = (frame: ImageData, signal: AbortSignal) => Promise<string[]>;
+export const decodeQrFrameV1: QrFrameDecoderV1 = (frame, signal) =>
+  new Promise((resolve, reject) => {
+    signal.throwIfAborted();
+    const worker = new Worker(new URL('./qr-decoder.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    let settled = false;
+    const finish = (codes?: string[], error?: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal.removeEventListener('abort', abort);
+      worker.terminate();
+      if (error) reject(error);
+      else resolve(codes!);
+    };
+    const abort = () => finish(undefined, new DOMException('Cancelled', 'AbortError'));
+    const timer = setTimeout(() => finish(undefined, new QrInputErrorV1('unavailable')), 8000);
+    signal.addEventListener('abort', abort, { once: true });
+    worker.onerror = () => finish(undefined, new QrInputErrorV1('unavailable'));
+    worker.onmessage = (event: MessageEvent<{ codes?: string[]; error?: boolean }>) => {
+      if (
+        Array.isArray(event.data.codes) &&
+        event.data.codes.every((code) => typeof code === 'string')
+      )
+        finish(event.data.codes);
+      else finish(undefined, new QrInputErrorV1('unavailable'));
+    };
+    try {
+      worker.postMessage({ pixels: frame.data, width: frame.width, height: frame.height }, [
+        frame.data.buffer,
+      ]);
+    } catch {
+      finish(undefined, new QrInputErrorV1('unavailable'));
+    }
+  });
+
+/** Image stays local. No object URL/upload; bitmap and worker are released on every path. */
+export async function readQrImageV1(
+  file: File,
+  signal: AbortSignal,
+  decode: QrFrameDecoderV1 = decodeQrFrameV1,
+): Promise<string> {
+  validateQrImageFileV1(file);
+  signal.throwIfAborted();
+  let bitmap: ImageBitmap | undefined;
+  try {
+    bitmap = await createImageBitmap(file);
+    signal.throwIfAborted();
+    if (bitmap.width * bitmap.height > QR_IMAGE_MAX_PIXELS_V1 || !bitmap.width || !bitmap.height)
+      throw new QrInputErrorV1('large');
+    const scale = Math.min(1, 2048 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) throw new QrInputErrorV1('unavailable');
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const codes = await decode(context.getImageData(0, 0, canvas.width, canvas.height), signal);
+    signal.throwIfAborted();
+    return selectStudentQrV1(codes);
+  } catch (error) {
+    signal.throwIfAborted();
+    if (error instanceof QrInputErrorV1) throw error;
+    throw new QrInputErrorV1('unsupported');
+  } finally {
+    bitmap?.close();
+  }
+}
+
+export function stopCameraTracksV1(stream: MediaStream | null | undefined) {
+  stream?.getTracks().forEach((track) => track.stop());
+}
+
+/** Late permission responses cannot resurrect a camera after a switch/unmount. */
+export function createCameraLeaseV1(media: Pick<MediaDevices, 'getUserMedia'>) {
+  let generation = 0;
+  let current: MediaStream | undefined;
+  const stop = () => {
+    generation += 1;
+    stopCameraTracksV1(current);
+    current = undefined;
+  };
+  return {
+    stop,
+    async open(facing: 'environment' | 'user'): Promise<MediaStream | null> {
+      stop();
+      const request = generation;
+      const stream = await media.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      if (request !== generation) {
+        stopCameraTracksV1(stream);
+        return null;
+      }
+      current = stream;
+      return stream;
+    },
+  };
+}
