@@ -1,0 +1,153 @@
+.pa-accounts {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.pa-accounts header h2 {
+  font-size: 1.5rem;
+  font-weight: 650;
+}
+.pa-account-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+.pa-account-class-filter {
+  display: grid;
+  gap: 0.6rem;
+  grid-column: 1 / -1;
+}
+.pa-account-filters input {
+  min-width: 0;
+  width: 100%;
+}
+.pa-account-identity {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  min-width: 0;
+}
+.pa-account-identity div {
+  min-width: 0;
+}
+.pa-account-identity strong,
+.pa-account-identity span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.pa-account-identity span {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.pa-account-tags,
+.pa-account-actions,
+.pa-account-page-controls {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pa-account-page-controls {
+  margin-bottom: 0.75rem;
+}
+.pa-account-scroll {
+  max-width: 100%;
+  max-height: 32rem;
+  overflow-y: auto;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.pa-account-table {
+  min-width: 0;
+  margin-top: 1rem;
+}
+.pa-account-table table {
+  min-width: 980px;
+  width: 100%;
+}
+.pa-account-table td,
+.pa-account-table th {
+  vertical-align: top;
+  white-space: normal;
+}
+.pa-account-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-secondary);
+}
+.pa-account-table td > span {
+  display: block;
+}
+.pa-account-table th:first-child {
+  min-width: 220px;
+  max-width: 320px;
+}
+.pa-account-selected {
+  background: var(--surface-tertiary);
+}
+.pa-account-detail {
+  min-width: 0;
+}
+.pa-account-detail h3 {
+  font-size: 1.25rem;
+  font-weight: 650;
+}
+.pa-account-detail [data-slot='card-content'] {
+  display: grid;
+  gap: 1rem;
+}
+.pa-account-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+.pa-account-facts dt {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.pa-account-facts dd {
+  overflow-wrap: anywhere;
+}
+.pa-account-notice {
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.65rem;
+}
+.pa-account-slot {
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  min-width: 0;
+}
+.pa-account-dialog {
+  max-height: 85dvh;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+.pa-account-dialog p + p {
+  margin-top: 0.8rem;
+}
+.pa-account-dialog button {
+  white-space: normal;
+  min-height: 2.75rem;
+  min-width: 7rem;
+  flex: 1 1 7rem;
+  overflow-wrap: normal;
+}
+.pa-account-dialog [data-slot='alert-dialog-footer'] {
+  flex-wrap: wrap;
+}
+@media (max-width: 640px) {
+  .pa-account-filters,
+  .pa-account-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pa-account-actions button,
+  .pa-account-page-controls button {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+  }
+}

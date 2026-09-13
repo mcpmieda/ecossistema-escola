@@ -62,6 +62,7 @@ export function adminReadCasesV2(
       expect(firstCalls).toBeLessThanOrEqual(5);
       expect(get().calls()).toBeLessThanOrEqual(5);
       expect(first.items[0]).toMatchObject({
+        linkClosed: false,
         classId: 746001,
         lastAuthenticationAt: null,
         access: {
@@ -110,6 +111,7 @@ export function adminReadCasesV2(
           scope: { kind: 'account', academicYear: 2026, accountId: readAccountIdV2(1) },
         });
         expect(ambiguous.items[0]).toMatchObject({
+          linkClosed: false,
           classId: null,
           eligibility: 'unresolved',
           access: { state: 'unresolved', enabled: null, accessPermitted: false },
@@ -126,6 +128,7 @@ export function adminReadCasesV2(
         scope: { kind: 'account', academicYear: 2026, accountId: readAccountIdV2(200) },
       });
       expect(unlinked.items[0]).toMatchObject({
+        linkClosed: true,
         link: null,
         classId: null,
         eligibility: 'unlinked',

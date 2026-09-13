@@ -4,6 +4,7 @@ import {
   adminReadQueryV2,
   adminReadResponseV2,
   adminQueryRequestV2,
+  adminAccountReadV2,
 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import {
   adminCommandV1,
@@ -23,6 +24,39 @@ const response = {
   lastAuthenticationWindowMonths: 12,
 };
 describe('opt-in administrative read contract', () => {
+  it('requires an explicit Portal closure instead of inferring it from unresolved access', () => {
+    const item = {
+      accountId: response.requestId,
+      link: { academicYear: 2026, studentId: 753001 },
+      name: 'SYNTHETIC ACCOUNT',
+      classLabel: 'TEST CLASS',
+      classId: 753001,
+      state: 'active',
+      eligibility: 'eligible',
+      blocked: false,
+      version: 1,
+      access: {
+        state: 'unresolved',
+        enabled: null,
+        source: null,
+        settingsVersion: null,
+        accessPermitted: false,
+      },
+      lastAuthenticationAt: null,
+      validSessionCount: 0,
+    };
+    expect(adminAccountReadV2.safeParse(item).success).toBe(false);
+    expect(
+      adminAccountReadV2.parse({
+        ...item,
+        linkClosed: true,
+        link: null,
+        classId: null,
+        eligibility: 'unlinked',
+      }).linkClosed,
+    ).toBe(true);
+    expect(adminAccountReadV2.parse({ ...item, linkClosed: false }).linkClosed).toBe(false);
+  });
   it('keeps V1 envelopes strict and accepts either version only at the read boundary', () => {
     expect(adminReadQueryV2.parse(query).page.limit).toBe(50);
     const legacy = { ...query, contractVersion: 1, operation: 'accounts' };
