@@ -112,14 +112,16 @@ describe('Portal V1 admin and self privacy', () => {
   it('bounds queries and requires safe responses', () => {
     for (const operation of ['accounts', 'sessions', 'birth-years', 'settings', 'publication', 'audit', 'health', 'links-preview']) expect(adminQueryV1.safeParse({ contractVersion: 1, operation, scope, page: {} }).success).toBe(true);
     expect(adminResponseV1.safeParse({ ...envelope, state: 'committed', operationId: id, version: 1 }).success).toBe(true);
-    expect(adminResponseV1.safeParse({ ...envelope, state: 'accounts', items: [], nextCursor: null }).success).toBe(true);
+    expect(adminResponseV1.safeParse({ ...envelope, state: 'accounts', scopeVersion: 0, items: [], nextCursor: null }).success).toBe(true);
     expect(adminResponseV1.safeParse({ ...envelope, state: 'committed', operationId: id, version: 1, password: '123456' }).success).toBe(false);
   });
   it('covers each administrative response without leaking credential internals', () => {
     const sources = Object.fromEntries(Object.keys(value).map((key) => [key, scope]));
     const event = { eventId: id, at, actorId: id, accountId: id, scope, kind: 'birth-changed', result: 'success', requestId: id, version: 1, maskedIp: null };
     const responses = [
-      ...['accounts', 'sessions', 'birth-years', 'audit'].map((state) => ({ ...envelope, state, items: [], nextCursor: null })),
+      ...['accounts', 'birth-years'].map((state) => ({ ...envelope, state, scopeVersion: 0, items: [], nextCursor: null })),
+      { ...envelope, state: 'sessions', version: 0, items: [], nextCursor: null },
+      { ...envelope, state: 'audit', items: [], nextCursor: null },
       { ...envelope, state: 'settings', settings: { scope, version: 1, value, sources } },
       { ...envelope, state: 'publication', items: [{ period: 'T1', state: 'published', availableRevision: 'a:1', publishedRevision: 'a:1', version: 1 }] },
       { ...envelope, state: 'health', status: 'normal' },
@@ -134,6 +136,26 @@ describe('Portal V1 admin and self privacy', () => {
     }
     expect(adminQueryV1.safeParse({ contractVersion: 1, operation: 'audit-detail', scope, page: {} }).success).toBe(false);
     expect(adminQueryV1.safeParse({ contractVersion: 1, operation: 'audit-detail', scope, page: {}, eventId: id }).success).toBe(true);
+  });
+  it('requires distinct scope, account and birth versions without weakening the administrative allowlist', () => {
+    const item = { accountId: id, accountVersion: 11, year: null, confirmation: null, version: 3 };
+    const response = { ...envelope, state: 'birth-years', scopeVersion: 27, items: [item], nextCursor: null };
+    expect(adminResponseV1.parse(response)).toEqual(response);
+    expect(adminResponseV1.safeParse({ ...response, scopeVersion: undefined }).success).toBe(false);
+    expect(adminResponseV1.safeParse({ ...response, items: [{ ...item, accountVersion: undefined }] }).success).toBe(false);
+    for (const invalid of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(adminResponseV1.safeParse({ ...response, scopeVersion: invalid }).success).toBe(false);
+      expect(adminResponseV1.safeParse({ ...response, items: [{ ...item, accountVersion: invalid }] }).success).toBe(false);
+    }
+    for (const privateKey of ['password', 'pin', 'verifier', 'tokenHash'])
+      expect(adminResponseV1.safeParse({ ...response, items: [{ ...item, [privateKey]: 'private' }] }).success).toBe(false);
+    for (const [state, key] of [['accounts', 'scopeVersion'], ['sessions', 'version']] as const) {
+      const base = { ...envelope, state, items: [], nextCursor: null };
+      expect(adminResponseV1.safeParse(base).success).toBe(false);
+      expect(adminResponseV1.safeParse({ ...base, [key]: 0 }).success).toBe(true);
+      expect(adminResponseV1.safeParse({ ...base, [key]: Number.MAX_SAFE_INTEGER }).success).toBe(true);
+      expect(adminResponseV1.safeParse({ ...base, [key]: -1 }).success).toBe(false);
+    }
   });
   it('enforces the three print modes without adding secrets or names to QR-only', () => {
     for (const card of [{ mode: 'qr-only', accountId: id, qr }, { mode: 'qr-name', accountId: id, qr, name: 'Example' }, { mode: 'qr-name-class', accountId: id, qr, name: 'Example', classLabel: 'Example class' }]) {
