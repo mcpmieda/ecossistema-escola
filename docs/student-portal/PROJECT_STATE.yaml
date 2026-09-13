@@ -2,17 +2,17 @@ module: student_portal
 contract_version: 1
 academic_year: 2026
 updated_at: 2026-09-13
-current_issue: 715
-delivery_branch: docs/pa-pilot-715
-delivery_scope: backend_composition_and_integrated_proof
-last_verified_main: 6071d725bbc4a0d1ed89e63e9f11e49852464df8
-last_verified_pr: 738
-last_verified_deploy: 34737943189
-candidate_integration: published_verified_technical_scope_private_acceptance_pending
-completed_issues: [702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 732, 735]
+current_issue: null
+delivery_branch: docs/pa-close-p1
+delivery_scope: technical_part_1_closure_with_deferred_integrated_acceptance
+last_verified_main: c4f8897505e3f5c236227c9bf56f48751df90c05
+last_verified_pr: 740
+last_verified_deploy: 34745755388
+candidate_integration: technical_scope_completed_integrated_acceptance_deferred_by_owner
+completed_issues: [702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 732, 735, 701]
 gates:
   G-C: passed_integrated_contracts
-  G-B: partial_pending_authenticated_portal_rpc_widget_and_private_pilot
+  G-B: partial_deferred_to_part_2_integrated_acceptance
   G-P: outside_part_1
 runtime: production_composed_backend_remote_http_and_cron_verified
 student_portal_schema: migrations_0001_through_0007_applied
@@ -28,7 +28,10 @@ ddl_in_this_delivery: false
 secrets_rotated_in_this_delivery: false
 execution_authorization: continuous_until_user_requests_stop
 execution_mode: direct_sequential_no_subagents
-next_safe_issue: 715
+next_safe_issue: null
+next_stage: part_2_planning_after_current_queue_closed
+deferred_acceptance: docs/student-portal/TEST_MATRIX.md
+closure_authority: PA-DEC-006
 pilot_scope: three_6A_accounts_authorized_2000_unconfirmed_test
 pilot_calendar: account_only_sources_plus_labeled_test_supplements
 pilot_access_after_tests: closed

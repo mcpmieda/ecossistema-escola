@@ -1,5 +1,9 @@
 # Entregas P1, dependÃªncias e ownership
 
+## Encerramento da fila técnica P1
+
+PA-DEC-006 autoriza concluir #715 e #701 após a entrega documental final. #702–#714 e contratos #732/#735 já estavam encerrados. Nenhuma issue atual é transferida silenciosamente para PASS: as provas finais permanecem na checklist de TEST_MATRIX e devem ser incorporadas ao planejamento da Parte2. Os títulos e regras de permanência abaixo são memória do planejamento original, substituídos apenas quanto ao momento do aceite por PA-DEC-006.
+
 ## SituaÃ§Ã£o atual (13/09/2026)
 
 #702â€“#714 integradas/publicadas, inclusive #732 e #735 para lacunas contratuais especÃ­ficas. #715 Ã© [AGORA][SEQUENCIAL][CODEX], execuÃ§Ã£o direta. O quadro original abaixo Ã© rastreio de planejamento: rÃ³tulos/executor histÃ³ricos nÃ£o substituem o estado atual no GitHub. Nenhuma P2 criada.

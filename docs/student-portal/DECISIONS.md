@@ -1,5 +1,15 @@
 # Decisões e pendências
 
+## PA-DEC-006 — Encerramento técnico da fila P1 e aceite com as telas
+
+Em13/09/2026, o responsável aceitou executar as provas finais de navegador no encerramento da Parte2 ([aceite registrado](https://github.com/mcpmieda/ecossistema-escola/issues/715#issuecomment-5652363419)). Em seguida solicitou terminar todas as issues atuais antes de avançar. Restavam abertas somente #715 e #701.
+
+Fica encerrado o escopo técnico/coordenação da fila P1 após esta entrega documental integrada, publicada e verificada. Esta decisão substitui a exigência histórica de manter #715/#701 abertas até G-B PASS. O encerramento das issues não aprova os testes adiados: G-B permanece parcial até o aceite integrado no fim da Parte2. Nenhuma issue P2 é criada nesta entrega.
+
+A próxima fila deverá incorporar, antes da liberação aos alunos, a checklist obrigatória de TEST_MATRIX. Permanecem necessários API Portal com sessão Entra real, widget produtivo positivo/replay e fluxo real pelas telas, com credenciais legítimas, revogação/bloqueios e regressões dos consumidores acadêmicos. Nascimento2000/unconfirmed-test e calendários provisórios nunca são confirmação institucional. Não há abertura escolar por consequência desta decisão.
+
+Acesso manual a healthz200/ok foi confirmado pelo responsável no Edge e navegador interno; controle automático do Edge apresentou ERR_BLOCKED_BY_CLIENT. Causa específica não identificada. A página inicial ainda retorna404 por ausência da interface P2. Não atribuir isso a falha de DNS ou a uma extensão específica sem prova.
+
 ## PA-DEC-005 — Execução contínua e integração I (13/09/2026)
 
 O responsável autorizou executar autonomamente cada fase, uma por vez, até pedir parada; substitui as restrições de início manual/sem fila automática da PA-DEC-001 e H-06 abaixo. Autorização inclui tarefas CODEX/CHAT; executor atua diretamente, sem subagentes. Integração/deploy condicionados aos gates do AGENTS. #715 recebe ownership central de R/C por comentário5650811878; expectativa de teste de fundação ajustada por5650876121.
