@@ -101,8 +101,9 @@ it('uses real sealed ADM identity, named RPC and restricted Hyperdrive for the c
 
 it('executes the actual scheduled entrypoint and physically removes expired synthetic receipts', async () => {
   const id = crypto.randomUUID();
-  await sql`INSERT INTO student_portal.operation_receipt(idempotency_key,actor_id,request_digest,operation_id,version,expires_at)
-    VALUES(${id},'synthetic-cron-715',${'a'.repeat(64)},${crypto.randomUUID()},0,statement_timestamp()-interval '1 minute')`;
+  await sql`INSERT INTO student_portal.operation_receipt(idempotency_key,actor_id,request_digest,operation_id,version,created_at,expires_at)
+    VALUES(${id},'synthetic-cron-715',${'a'.repeat(64)},${crypto.randomUUID()},0,
+      statement_timestamp()-interval '2 minutes',statement_timestamp()-interval '1 minute')`;
   const worker = await runtime.getWorker('portal');
   await worker.scheduled({ cron: '* * * * *' });
   const rows = await sql`SELECT count(*)::integer AS count FROM student_portal.operation_receipt WHERE idempotency_key=${id}`;
