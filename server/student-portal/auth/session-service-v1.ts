@@ -34,12 +34,16 @@ export class SessionServiceV1 {
     scope.kind === 'account' ? [scope.accountId] : scope.kind === 'class' ? [scope.classId] : []);
     const accounts = rows.map((row) => ({ id: z.uuid().parse(row.id), version: versionV1.parse(Number(row.version)) }));
     if (scope.kind === 'account') return { accounts, version: accounts[0]?.version ?? 0 };
-    const revision = await tx.unsafe('SELECT (academic_counter+portal_link_counter)::text AS version FROM student_portal.academic_revision WHERE academic_year=2026');
+    // Sum the whole year's account versions, not the changing class membership.
+    // Removing an account from a class must never cancel a revision increment (ABA).
+    const revision = await tx.unsafe(`SELECT (r.academic_counter+r.portal_link_counter+
+      COALESCE((SELECT sum(version) FROM student_portal.account WHERE academic_year=2026),0))::text AS version
+      FROM student_portal.academic_revision r WHERE r.academic_year=2026`);
     if (revision.length !== 1) throw new Error('student-portal-session-scope-unavailable');
-    return { accounts, version: versionV1.parse(Number(revision[0]!.version) + accounts.reduce((sum, account) => sum + account.version, 0)) };
+    return { accounts, version: versionV1.parse(Number(revision[0]!.version)) };
   }
 
-  /** Private CAS metadata for the admin facade; accounts use aggregate version, broader scopes also include revision. */
+  /** Private CAS metadata: account aggregate or conservative school-wide revision for broader scopes. */
   async readRevocationScope(scope: ScopeV1) {
     return authTransactionV1(this.sql, async (tx) => {
       const snapshot = await this.revocationScope(tx, scope);

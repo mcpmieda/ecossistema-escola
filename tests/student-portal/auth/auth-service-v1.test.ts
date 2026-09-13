@@ -76,7 +76,7 @@ beforeEach(async () => {
     student_portal.account_access_data,student_portal.password_credential,student_portal.qr_credential,
     student_portal.session,student_portal.auth_attempt,student_portal.auth_challenge;
     UPDATE student_portal.account SET version=0,pin_version=0,security_version=0,auth_state='pending-activation',blocked=false,eligibility='eligible';
-    UPDATE gradebook.vinculo SET situacao=NULL;`);
+    UPDATE gradebook.vinculo SET situacao=NULL,turma_id=900001;`);
   await policy.initializeDefaults();
   const current = await policy.read(SCHOOL);
   const now = Date.now();
@@ -207,6 +207,21 @@ describe('auth with real schema, policies, birth service and scrypt', () => {
     expect(await sessions.read(signed.token, id())).toBeNull();
     if ('token' in second) expect(await sessions.read(second.token, id())).toBeNull();
     await expect(sessions.revoke(ACTOR, { ...input, idempotencyKey: id() })).rejects.toThrow('version-conflict');
+  });
+
+  it('cannot reuse an old class confirmation when removing an account would offset the revision increase', async () => {
+    const scope = { kind: 'class', academicYear: 2026, classId: 900001 } as const;
+    const before = await sessions.readRevocationScope(scope);
+    await pg.exec(`INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES
+      (900002,2026,'A2','SYNTHETIC MOVED AUTH CLASS',6,'TESTE') ON CONFLICT DO NOTHING;
+      UPDATE gradebook.vinculo SET turma_id=900002 WHERE aluno_id=900001;
+      UPDATE student_portal.academic_revision SET academic_counter=academic_counter+
+        (SELECT version FROM student_portal.account WHERE gradebook_student_id=900001) WHERE academic_year=2026;`);
+    const after = await sessions.readRevocationScope(scope);
+    expect(after.count).toBe(0);
+    expect(after.version).toBeGreaterThan(before.version);
+    await expect(sessions.revoke(ACTOR, { contractVersion: 1, operation: 'sessions-revoke', scope,
+      expectedVersion: before.version, idempotencyKey: id(), confirmed: true })).rejects.toThrow('version-conflict');
   });
 
   it('rolls back activation and proof consumption on DB failure, and never sends a cookie before commit', async () => {

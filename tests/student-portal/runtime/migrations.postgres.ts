@@ -925,5 +925,10 @@ describe('native authentication locks with real scrypt and separate connections'
     expect(result.version).toBeGreaterThan(0);
     expect(await sessions.read(signed.token, crypto.randomUUID())).toBeNull();
     expect(await sessions.read(second.token, crypto.randomUUID())).toMatchObject({ state: 'authenticated' });
+    const classScope = { kind: 'class', academicYear: 2026, classId: 900011 } as const;
+    const scopeSnapshot = await sessions.readRevocationScope(classScope);
+    await sessions.revoke(actor, { contractVersion: 1, operation: 'sessions-revoke', scope: classScope,
+      expectedVersion: scopeSnapshot.version, confirmed: true, idempotencyKey: crypto.randomUUID() });
+    expect(await sessions.read(second.token, crypto.randomUUID())).toBeNull();
   });
 });
