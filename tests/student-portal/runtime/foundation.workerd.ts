@@ -215,7 +215,7 @@ describe('bundled Worker foundation in actual workerd', () => {
     expect((await caller.fetch(`${origin}/probe-self-admin`)).status).toBe(403);
     expect((await caller.fetch(`${origin}/admin-http`)).status).toBe(404);
   });
-  it('bounds auth bodies and leaves login disabled', async () => {
+  it('bounds auth bodies and rejects malformed login before unavailable dependencies', async () => {
     const worker = await workerForTest('portal');
     const url = `${origin}/api/student/auth/login`;
     expect(
@@ -235,7 +235,7 @@ describe('bundled Worker foundation in actual workerd', () => {
           body: '{}',
         })
       ).status,
-    ).toBe(503);
+    ).toBe(400);
     expect((await worker.fetch(url, { method: 'POST', body: '{}' })).status).toBe(400);
     expect((await worker.fetch(url)).status).toBe(400);
   });

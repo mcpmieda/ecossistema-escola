@@ -1,0 +1,9 @@
+{
+  "name": "portal-local-caller-715",
+  "main": "caller-worker.ts",
+  "compatibility_date": "2026-09-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false
+}

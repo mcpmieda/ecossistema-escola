@@ -1,5 +1,9 @@
 # Especificação operacional — v3.0 + Adendo 01
 
+## Estado de implementação
+
+Esta especificação preserva requisitos canônicos; não constitui comprovação de execução. #702–#714 estão integradas, #715 em validação integrada. O estado factual e os bloqueios ficam em PROJECT_STATE/PRODUCTION_READINESS. Autorização contínua substitui início manual conforme PA-DEC-005; não modifica produto, dados permitidos ou escopo P2.
+
 Fontes: PORTAL_DO_ALUNO_ESPECIFICACAO_CANONICA_v3.0 e PORTAL_DO_ALUNO_ADENDO_CANONICO_DECISOES_E_PLANEJAMENTO_P1_v1.0, entregues pelo responsável e lidos integralmente na auditoria. O Adendo prevalece nas substituições explícitas. O comando de planejamento não autorizou implementação; a autorização posterior nomeou somente #702. O Word não é autorização operacional independente.
 
 ## Requisitos vigentes P1
