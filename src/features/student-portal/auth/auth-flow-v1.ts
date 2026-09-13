@@ -1,0 +1,250 @@
+import {
+  activateRequestV1,
+  passwordV1,
+  pinV1,
+} from '../../../../shared/student-portal-contracts/auth-v1';
+import type { PortalSelfClientV1 } from '../shared/self-client-v1';
+import { PortalClientErrorV1 } from '../shared/transport-v1';
+import { validateStudentQrV1 } from './qr-input-v1';
+
+export type StudentAuthStepV1 =
+  'scan' | 'loading' | 'pin' | 'password' | 'risk' | 'create' | 'authenticated';
+export interface StudentAuthStateV1 {
+  step: StudentAuthStepV1;
+  needsRisk: boolean;
+  revision: number;
+  message?: string;
+  retryAt?: number;
+  expiresAt?: string;
+}
+export const INITIAL_AUTH_STATE_V1: StudentAuthStateV1 = {
+  step: 'scan',
+  needsRisk: false,
+  revision: 0,
+};
+const failureMessage = (error: unknown) =>
+  error instanceof PortalClientErrorV1 && error.state === 'rate-limited'
+    ? 'Muitas tentativas. Aguarde antes de tentar novamente.'
+    : error instanceof PortalClientErrorV1 && ['unavailable', 'network-error'].includes(error.state)
+      ? 'Não foi possível conectar. Tente novamente.'
+      : 'Não foi possível entrar. Confira os dados e tente novamente.';
+
+/** Only presentation state is published. QR and one-use proof stay in this short-lived closure. */
+export function createStudentAuthFlowV1(
+  client: PortalSelfClientV1,
+  publish: (state: StudentAuthStateV1) => void,
+  authenticated: () => void,
+  now: () => number = Date.now,
+) {
+  let state = INITIAL_AUTH_STATE_V1;
+  let qr: string | undefined,
+    proof: string | undefined,
+    proofExpiresAt = 0;
+  let generation = 0,
+    active: AbortController | undefined;
+  let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+  let disposed = false;
+  const emit = (next: Omit<StudentAuthStateV1, 'revision'>) => {
+    state = { ...next, revision: state.revision + 1 };
+    if (!disposed) publish(state);
+  };
+  const invalidate = () => {
+    generation++;
+    active?.abort();
+    active = undefined;
+    clearTimeout(expiryTimer);
+    proof = undefined;
+    proofExpiresAt = 0;
+  };
+  const reset = (message?: string) => {
+    invalidate();
+    qr = undefined;
+    emit({ step: 'scan', needsRisk: false, message });
+  };
+  const challengeResult = (
+    result: Awaited<ReturnType<PortalSelfClientV1['challenge']>>,
+    needsRisk: boolean,
+  ) => {
+    if (result.state === 'credential-required')
+      emit({ step: result.next, needsRisk: needsRisk || result.next === 'risk' });
+    else {
+      proof = result.challenge;
+      proofExpiresAt = Date.parse(result.expiresAt);
+      if (proofExpiresAt <= now()) {
+        reset('O prazo para criar a senha terminou. Leia o QR novamente.');
+        return;
+      }
+      emit({ step: 'create', needsRisk: false, expiresAt: result.expiresAt });
+      expiryTimer = setTimeout(
+        () => reset('O prazo para criar a senha terminou. Leia o QR novamente.'),
+        Math.min(2147483647, proofExpiresAt - now()),
+      );
+    }
+  };
+  const run = async (
+    action: (signal: AbortSignal) => Promise<void>,
+    fallback: StudentAuthStepV1,
+    risk: boolean,
+  ) => {
+    if (disposed || state.step === 'loading' || (state.retryAt && state.retryAt > now())) return;
+    const current = ++generation;
+    active?.abort();
+    const controller = new AbortController();
+    active = controller;
+    emit({ step: 'loading', needsRisk: risk });
+    try {
+      await action(controller.signal);
+    } catch (error) {
+      if (current === generation && !controller.signal.aborted) {
+        const delay = error instanceof PortalClientErrorV1 ? error.retryAfterSeconds : undefined;
+        emit({
+          step: fallback,
+          needsRisk: risk,
+          message: failureMessage(error),
+          ...(delay ? { retryAt: now() + delay * 1000 } : {}),
+        });
+      }
+    } finally {
+      if (current === generation) active = undefined;
+    }
+  };
+  const ensureCurrent = (signal: AbortSignal) => {
+    signal.throwIfAborted();
+    if (disposed) throw new DOMException('Cancelled', 'AbortError');
+  };
+  const success = (signal: AbortSignal) => {
+    ensureCurrent(signal);
+    invalidate();
+    qr = undefined;
+    emit({ step: 'authenticated', needsRisk: false });
+    authenticated();
+  };
+  return {
+    reset,
+    dispose() {
+      disposed = true;
+      invalidate();
+      qr = undefined;
+    },
+    async begin(candidate: string) {
+      reset();
+      qr = validateStudentQrV1(candidate);
+      await run(
+        async (signal) => {
+          const result = await client.challenge({ contractVersion: 1, qr: qr! }, signal);
+          ensureCurrent(signal);
+          challengeResult(result, false);
+        },
+        'scan',
+        false,
+      );
+    },
+    async risk(token: string) {
+      if (state.step !== 'risk' || !qr || !token) return;
+      await run(
+        async (signal) => {
+          const result = await client.challenge(
+            { contractVersion: 1, qr: qr!, riskToken: token },
+            signal,
+          );
+          ensureCurrent(signal);
+          challengeResult(result, true);
+        },
+        'risk',
+        true,
+      );
+    },
+    async pin(value: string, riskToken?: string) {
+      if (
+        state.step !== 'pin' ||
+        !qr ||
+        !pinV1.safeParse(value).success ||
+        (state.needsRisk && !riskToken)
+      )
+        return;
+      const risk = state.needsRisk;
+      await run(
+        async (signal) => {
+          const result = await client.challenge(
+            { contractVersion: 1, qr: qr!, pin: value, ...(riskToken ? { riskToken } : {}) },
+            signal,
+          );
+          ensureCurrent(signal);
+          challengeResult(result, risk);
+        },
+        'pin',
+        risk,
+      );
+    },
+    async login(value: string, keepConnected: boolean, riskToken?: string) {
+      if (
+        state.step !== 'password' ||
+        !qr ||
+        !passwordV1.safeParse(value).success ||
+        (state.needsRisk && !riskToken)
+      )
+        return;
+      const risk = state.needsRisk;
+      await run(
+        async (signal) => {
+          try {
+            await client.login(
+              {
+                contractVersion: 1,
+                qr: qr!,
+                password: value,
+                keepConnected,
+                ...(riskToken ? { riskToken } : {}),
+              },
+              signal,
+            );
+            success(signal);
+          } catch (error) {
+            ensureCurrent(signal);
+            if (!(error instanceof PortalClientErrorV1) || error.state !== 'unauthenticated')
+              throw error;
+            // Ask the server again; do not guess whether risk/PIN/reset is now required.
+            const result = await client.challenge({ contractVersion: 1, qr: qr! }, signal);
+            ensureCurrent(signal);
+            challengeResult(result, risk);
+            if (state.step !== 'create') emit({ ...state, message: failureMessage(error) });
+          }
+        },
+        'password',
+        risk,
+      );
+    },
+    async activate(password: string, confirmation: string, keepConnected: boolean) {
+      if (state.step !== 'create' || !proof) return;
+      if (proofExpiresAt <= now()) {
+        reset('O prazo para criar a senha terminou. Leia o QR novamente.');
+        return;
+      }
+      const input = {
+        contractVersion: 1 as const,
+        challenge: proof,
+        password,
+        confirmation,
+        keepConnected,
+      };
+      if (!activateRequestV1.safeParse(input).success) return;
+      // A lost response may have committed. Never automatically replay a consumed challenge.
+      clearTimeout(expiryTimer);
+      proof = undefined;
+      await run(
+        async (signal) => {
+          try {
+            await client.activate(input, signal);
+            success(signal);
+          } catch (error) {
+            ensureCurrent(signal);
+            qr = undefined;
+            throw error;
+          }
+        },
+        'scan',
+        false,
+      );
+    },
+  };
+}
