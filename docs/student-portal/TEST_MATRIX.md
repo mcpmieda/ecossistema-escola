@@ -1,5 +1,11 @@
 # Matriz de requisitos e provas
 
+## Release I publicada — evidência atual
+
+PR738/main6071d725bbc4a0d1ed89e63e9f11e49852464df8, deploy34737943189 SUCCESS. Verify1694 PASS+3 skips históricos/18workerd PASS; CI PostgreSQL17.6:55 nativos+2 smokes compostos PASS. Dez smokes HTTP remotos PASS; cron cleanup/publication ok em2026-09-13T04:36:43Z. SSO ADM e prévia de reset sem execução PASS. Inventário e limites detalhados em [PRODUCTION_READINESS](PRODUCTION_READINESS.md).
+
+O quadro seguinte registra as pendências anteriores à publicação: compatibilidade I, release/cron/preview e métricas remotas foram exercitados acima. Continuam pendentes API Portal autenticada por Entra real, widget produtivo positivo/replay, piloto privado6A e regressões funcionais privadas de importação/boletins. G-B permanece PARCIAL.
+
 ## EvidÃªncias acumuladas e gate I (13/09/2026)
 
 Baseline H main5699a8ac69687920c6319a325444159ac1334669: verify1691PASS+3skips histÃ³ricos,18workerdPASS,55PostgreSQL18.6 local/17.6CI PASS; PR737,CI34735341167/34735341164,deploy34735666281. Nenhum skip Ã© aprovaÃ§Ã£o.

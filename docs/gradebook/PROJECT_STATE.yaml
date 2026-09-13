@@ -241,9 +241,9 @@ next_safe_action:
 # Integração Portal: delta exclusivo I, sem reabrir a fila histórica BN acima.
 student_portal_integration:
   issue: 715
-  baseline_main: 5699a8ac69687920c6319a325444159ac1334669
-  baseline_deploy: 34735666281
-  status: composed_backend_candidate_pending_integrated_acceptance
+  baseline_main: 6071d725bbc4a0d1ed89e63e9f11e49852464df8
+  baseline_deploy: 34737943189
+  status: published_http_cron_verified_private_acceptance_pending
   schema: student_portal_migrations_0001_through_0007_applied
   reset_guard: integrated_706_before_population
   transactional_producers: integrated_707
