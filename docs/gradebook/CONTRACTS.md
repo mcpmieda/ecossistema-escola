@@ -1,5 +1,72 @@
 # Contratos — vigência, compatibilidade e lacunas
 
+## Portal P2 — classificação de apresentação #745
+
+`academic-presentation-v1.ts` contrata a entrada interna BN e reutiliza o valor
+`meetsMinimum: boolean | null` do reader V1, sem campo/versão HTTP adicional.
+Esta entrega define o contrato; o helper e a composição serão implementados na #747.
+
+A autoridade proporcional já está em `application/results/relational-performance-facts-v2.ts`,
+`performanceCellV2`. O mínimo vem de `gradebook.ano_letivo.minimo_aprovacao`, exposto
+por `student_portal.academic_year_policy_v1.minimum_approval` no mesmo snapshot dos fatos
+e da revisão. É um mínimo **anual em milésimos**, não percentual nem limiar absoluto
+de cada instrumento. O denominador anual é a soma das constantes do núcleo
+`SIMPLIFIED_TERM_MAXIMUM_MILLI_V1` (30.000 + 30.000 + 40.000 = 100.000).
+Classificar exatamente `valor * máximoAnual >= máximoDaNota * mínimoAnual`, com
+produtos inteiros sem perda de precisão; nunca arredondar o limiar, usar tolerância,
+limitar a 100% ou fixar 60%. Esta classificação de apresentação não determina REC,
+Conselho ou resultado anual, nem substitui AM/U oficiais pelos cálculos descritivos.
+
+| Caso | Contrato |
+| --- | --- |
+| Valor abaixo / igual / acima do limiar | `false` / `true` / `true`; igualdade exata. |
+| Zero normalizado pelo BN | Continua `score:0`; participa da comparação. |
+| Ausente / N/C / R/R / REC pendente | Preservar `kind`; não acrescentar valor, máximo ou booleano. R/R continua terminal conforme núcleo, sem Conselho. |
+| Máximo ausente, zero ou negativo | `null` na classificação; máximo inválido nunca vira denominador. Wire continua aceitando somente máximo positivo ou `null`. |
+| Mínimo ausente | `null`; número inválido, fracionário ou não seguro é erro de contrato, sem coerção. |
+| Acima do máximo | Preservar valor e classificar sem clamp; não corrigir fato oficial. |
+| Parciais / T1…T3 / REC numérica aplicável | Mesmo helper; máximo do instrumento ou constante do trimestre, respectivamente. Aplicabilidade/ocultação continua antes da apresentação. |
+| U interna | Preservar fato e máximo atualmente desconhecido (`null`), portanto classificação `null`; não criar célula anual no self V1. |
+
+Exemplos exclusivamente sintéticos: com mínimo anual 60.000, máximo 30.000,
+17.999 fica abaixo e 18.000 atinge; com mínimo anual 75.000, o mesmo máximo exige
+22.500. Uma parcial de máximo 2.000 atinge o segundo perfil em 1.500, não em
+75.000. Esses dois perfis verificam parametrização; não alegam dois mínimos
+produtivos nem autorizam editar o mínimo atual.
+
+Ownership: somente `src/gradebook-domain/calculations/simplified/resolve-student-mark-presentation-v1.ts`
+implementará `ResolveStudentMarkPresentationV1` na #747; o adapter
+`server/student-portal/academic/academic-reader-v1.ts` fornece os fatos e o mínimo.
+Frontend #750 apenas mapeia `true`/`false`/`null` para apresentação azul/vermelha/neutra,
+preservando texto e os marcadores; nenhum cálculo ou política acadêmica no browser.
+Não mover nem modificar a classificação descritiva de Desempenho nesta entrega.
+
+### Revisão de parâmetros e limite do produtor
+
+O importador V11 finaliza mudanças efetivas do V9 após o flush físico; criação do
+ano inclui os parâmetros iniciais e evento de Relação. Nome/turma/vínculo e
+instrumentos/notas já participam do fluxo de revisão. Não confundir sincronização
+de perfil cadastral Portal com edição da política acadêmica anual.
+Na baseline auditada `910bb6f`, **não existe operação ativa para editar
+`minimo_aprovacao`**. A função instalada `student_portal.record_gradebook_change_v1`
+aceita `academic-policy`, mas não é trigger automático sobre a tabela.
+O wrapper atual `server/student-portal/integration/year-reset/writer-v1.ts`
+também não aceita essa causa; sua extensão tipada pertence ao futuro editor,
+não a esta entrega de apresentação.
+Qualquer produtor futuro de política exige escopo próprio: comparar mudança real,
+adquirir a coordenação existente, atualizar parâmetros e registrar uma vez
+`academic-policy`, `affects_academic=true`, lista anual vazia, na mesma transação.
+No-op não chama o registrador; rollback desfaz tudo; replay conserva o evento.
+Publicação/reader devem recusar a revisão antiga e exigir atualização explícita,
+sem mudar por conta própria a publicação vigente ou o resultado acadêmico.
+
+Provas em `tests/student-portal/bn-contract/presentation-*.ts`: compatibilidade e
+entrada estrita, vetores de conformidade para #747, comparação com o classificador
+BN existente para mínimos 60.000/75.000 e simulação PGlite de evento de política,
+replay e rollback. A simulação prova capacidade do mecanismo, não um endpoint de
+edição de perfil nem concorrência PostgreSQL nativa. Implementação/adapter e
+aceite visual permanecem #747/#750/#757–#759.
+
 Base: BN-DEC-022, #613 e programa #182. O [índice anterior completo](history/pre-final-1/CONTRACTS.md) é preservado; seus estados pertencem à época/modelo anteriores.
 
 ## Caminho relacional

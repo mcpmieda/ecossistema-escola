@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { academicMeetsMinimumSchemaV1 } from './academic-presentation-v1';
 import {
   academicVersionSchemaV1,
   portalAcademicLinkSchemaV1,
@@ -12,7 +13,8 @@ export const academicMarkSchemaV1 = z.discriminatedUnion('kind', [
       kind: z.literal('score'),
       valueMilli: milli,
       maximumMilli: milli.positive().nullable(),
-      meetsMinimum: z.boolean().nullable(),
+      // Supplied by BN presentation; consumers must not recompute a threshold.
+      meetsMinimum: academicMeetsMinimumSchemaV1,
     })
     .strict(),
   z.object({ kind: z.literal('absent') }).strict(),
