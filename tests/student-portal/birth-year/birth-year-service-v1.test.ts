@@ -191,8 +191,10 @@ describe('birth year transactions through the frozen crypto port', () => {
     const input = await batch([(await command(0)).item, { ...(await command(1)).item, expectedVersion: 99 }, (await command(2)).item]);
     const first = await service.batch(ACTOR, input);
     expect(first.items).toEqual([{ accountId: ids[0], state: 'committed', version: 1 },
-      { accountId: ids[1], state: 'conflict', version: 0 }, { accountId: ids[2], state: 'forbidden', version: 0 }]);
-    expect(await service.batch(ACTOR, input)).toEqual(first);
+      { accountId: ids[1], state: 'unavailable', version: 99 }, { accountId: ids[2], state: 'unavailable', version: 0 }]);
+    const resumed = await service.batch(ACTOR, input);
+    expect(resumed.items).toEqual([first.items[0], { accountId: ids[1], state: 'conflict', version: 0 }, { accountId: ids[2], state: 'forbidden', version: 0 }]);
+    expect(await service.batch(ACTOR, input)).toEqual(resumed);
     expect((await security()).account).toMatchObject({ pin_version: 1 });
     await expect(service.batch(ACTOR, { ...input, items: input.items.slice().reverse() })).rejects.toThrow('student-portal-birth-idempotency-conflict');
   });
@@ -203,6 +205,7 @@ describe('birth year transactions through the frozen crypto port', () => {
     expect((await service.batch(ACTOR, input)).items.every((item) => item.state === 'unavailable')).toBe(true);
     failCrypto = false;
     await pg.exec('UPDATE gradebook.vinculo SET turma_id=900002 WHERE aluno_id=900002');
+    expect((await service.batch(ACTOR, input)).items.map((item) => item.state)).toEqual(['committed', 'unavailable']);
     expect((await service.batch(ACTOR, input)).items.map((item) => item.state)).toEqual(['committed', 'forbidden']);
     await expect(service.batch(ACTOR, { ...input, idempotencyKey: crypto.randomUUID(), expectedVersion: 999 })).rejects.toThrow('student-portal-birth-scope-conflict');
     await expect(service.batch(ACTOR, { ...input, items: [input.items[0], input.items[0]] })).rejects.toThrow();

@@ -1,5 +1,6 @@
+import { withAuditSqlV1 } from '../observability/audit-context-v1';
 import { z } from 'zod';
-import { adminCommandV1, adminQueryV1, adminResponseV1, type AdminQueryV1, type AdminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import { adminCommandV1, adminQueryV1, adminResponseV1, trustedAdminContextV1, type AdminQueryV1, type AdminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import type { FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CryptoPortV1, PortalAdminEntrypointV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
@@ -15,8 +16,7 @@ import { adminFailureStateV1, boundSqlV1 } from './common-v1';
 import { readAccountListV1, readAdminHealthV1, readAuditV1 } from './queries-v1';
 import { closeLinksIdempotentlyV1, qrBatchV1 } from './batches-v1';
 
-export const trustedAdminContextV1 = z.object({ actorId: z.uuid(), tenantId: z.uuid(), requestId: z.uuid(),
-  authenticatedAt: z.iso.datetime({ offset: true }), capability: z.enum(['platform.settings.read', 'platform.settings.write']) }).strict();
+export { trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
 export type AdminApiOptionsV1 = { tenantId: string; cryptoPort: CryptoPortV1; qrKeyVersion: number; pepperVersion: number; cursorSecret: string };
 
 /** Only the dedicated server-to-server ADM binding may invoke this facade. Shape validation is not authentication. */
@@ -48,7 +48,11 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
       return this.failure(context.requestId, 'forbidden');
     if (!this.queryFieldsAllowed(query)) return this.failure(context.requestId, 'invalid-request');
     try {
-      return await authTransactionV1(this.sql, async (tx) => {
+      // Diagnostics must remain observable while a business transaction owns the year lock.
+      if (query.operation === 'health') return await this.sql.begin(async (tx) => adminResponseV1.parse({
+        contractVersion: 1, requestId: context.requestId, state: 'health', ...await readAdminHealthV1(tx, query),
+      }));
+      return await authTransactionV1(withAuditSqlV1(this.sql, context.clientIp ?? null), async (tx) => {
         const sql = boundSqlV1(tx);
         const now = await authNowV1(tx);
         const base = { contractVersion: 1, requestId: context.requestId, state: query.operation };
@@ -62,10 +66,10 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
           case 'settings': return adminResponseV1.parse({ ...base, settings: await new PolicyServiceV1(sql).read(query.scope) });
           case 'publication': return adminResponseV1.parse({ ...base, items: (await new PublicationServiceV1(sql).read(query.scope)).items });
           case 'audit': case 'audit-detail': return adminResponseV1.parse({ ...base, ...await readAuditV1(tx, query, context.actorId, now, this.cursor) });
-          case 'health': return adminResponseV1.parse({ ...base, ...await readAdminHealthV1(tx, query) });
           case 'links-preview':
             if (query.scope.kind !== 'school') throw new Error('student-portal-preview-forbidden');
             return adminResponseV1.parse({ ...base, ...await new LinkClosureServiceV1(sql).preview(context.actorId) });
+          default: throw new Error('student-portal-query-invalid-request');
         }
       });
     } catch (error) { return this.failure(context.requestId, adminFailureStateV1(error)); }
@@ -86,20 +90,21 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
     const command = parsed.data;
     const base = { contractVersion: 1, requestId: context.requestId };
     const committed = (result: { operationId: string; version: number }) => adminResponseV1.parse({ ...base, state: 'committed', ...result });
+    const sql = withAuditSqlV1(this.sql, context.clientIp ?? null);
     try {
       switch (command.operation) {
         case 'qr-issue': case 'qr-reprint': case 'qr-regenerate': case 'password-reset': case 'account-reset': case 'block': {
-          const result = await new QrServiceV1(this.sql, this.options.cryptoPort, this.options.qrKeyVersion).command(context.actorId, command);
+          const result = await new QrServiceV1(sql, this.options.cryptoPort, this.options.qrKeyVersion).command(context.actorId, command);
           return command.operation.startsWith('qr-') ? adminResponseV1.parse({ ...base, state: 'qr', version: result.version,
             cards: [{ accountId: command.accountId.toLowerCase(), mode: 'qr-only', qr: result.qr }] }) : committed(result);
         }
-        case 'qr-batch': return adminResponseV1.parse({ ...base, state: 'qr', ...await qrBatchV1(this.sql, this.options.cryptoPort, this.options.qrKeyVersion, context.actorId, command) });
-        case 'sessions-revoke': return committed(await new SessionServiceV1(this.sql, this.options.cryptoPort).revoke(context.actorId, command));
-        case 'birth-write': return committed(await new BirthYearServiceV1(this.sql, this.options.cryptoPort, this.options.pepperVersion).write(context.actorId, command));
-        case 'birth-batch': return adminResponseV1.parse({ ...base, state: 'batch', ...await new BirthYearServiceV1(this.sql, this.options.cryptoPort, this.options.pepperVersion).batch(context.actorId, command) });
+        case 'qr-batch': return adminResponseV1.parse({ ...base, state: 'qr', ...await qrBatchV1(sql, this.options.cryptoPort, this.options.qrKeyVersion, context.actorId, command) });
+        case 'sessions-revoke': return committed(await new SessionServiceV1(sql, this.options.cryptoPort).revoke(context.actorId, command));
+        case 'birth-write': return committed(await new BirthYearServiceV1(sql, this.options.cryptoPort, this.options.pepperVersion).write(context.actorId, command));
+        case 'birth-batch': return adminResponseV1.parse({ ...base, state: 'batch', ...await new BirthYearServiceV1(sql, this.options.cryptoPort, this.options.pepperVersion).batch(context.actorId, command) });
         case 'settings-set': case 'settings-inherit': return committed(await new PolicyServiceV1(this.sql).mutate(context.actorId, command));
         case 'publish': case 'publish-update': case 'unpublish': return committed(await new PublicationServiceV1(this.sql).command(context.actorId, command));
-        case 'links-close': return committed(await closeLinksIdempotentlyV1(this.sql, context.actorId, command));
+        case 'links-close': return committed(await closeLinksIdempotentlyV1(sql, context.actorId, command));
       }
     } catch (error) { return this.failure(context.requestId, adminFailureStateV1(error)); }
   }

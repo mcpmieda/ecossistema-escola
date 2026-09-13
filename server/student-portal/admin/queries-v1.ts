@@ -1,3 +1,4 @@
+import { portalMaintenanceHealthV1 } from '../observability/maintenance-health-v1';
 import { z } from 'zod';
 import { auditEventV1, type AdminQueryV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { versionV1 } from '../../../shared/student-portal-contracts/core-v1';
@@ -105,5 +106,7 @@ export async function readAdminHealthV1(tx: StudentPortalPostgresQueryV1, query:
     COALESCE(bool_or(j.state IN ('queued','running') AND j.next_attempt_at<statement_timestamp()-interval '5 minutes'
       AND (j.lease_until IS NULL OR j.lease_until<statement_timestamp())),false) AS attention
     ${ACCOUNT_JOIN_V1} JOIN student_portal.publication_job j ON j.account_id=a.id WHERE ${filter}`, parameters);
-  return { status: rows[0]?.intervention ? 'intervention' as const : rows[0]?.attention ? 'attention' as const : 'normal' as const };
+  const maintenance = await portalMaintenanceHealthV1(tx);
+  return { status: rows[0]?.intervention || maintenance.status === 'intervention' ? 'intervention' as const
+    : rows[0]?.attention || maintenance.status === 'attention' ? 'attention' as const : 'normal' as const };
 }

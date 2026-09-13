@@ -1,4 +1,5 @@
 import { capabilitiesForRoles } from '../../auth/capabilities';
+import { cloudflareClientIpV1 } from '../observability/audit-context-v1';
 import { readSession, SESSION_COOKIE } from '../../auth/session';
 import type { RuntimeEnv } from '../../env';
 import type { TrustedAdminContextV1 } from '../../../shared/student-portal-contracts/ports-v1';
@@ -12,5 +13,5 @@ export async function verifiedPagesContextV1(request: Request, env: RuntimeEnv, 
   const capability = write ? 'platform.settings.write' : 'platform.settings.read';
   if (!capabilitiesForRoles(session.roles).includes(capability)) return 'forbidden';
   // Timestamp of this verification, not the first Entra sign-in: a valid twelve-hour session remains usable.
-  return { actorId: session.oid, tenantId: env.TENANT_ID, requestId, capability, authenticatedAt: new Date().toISOString() };
+  return { actorId: session.oid, tenantId: env.TENANT_ID, requestId, capability, authenticatedAt: new Date().toISOString(), clientIp: cloudflareClientIpV1(request) };
 }

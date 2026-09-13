@@ -1,3 +1,11 @@
+import { proveWorkerLockTimeoutV1 } from '../load/lock-timeout-harness-v1';
+import { proveWorkerPublicationV1 } from '../load/publication-harness-v1';
+import { quarantineSyntheticRestoreV1 } from '../recovery/quarantine-synthetic-v1';
+import { runPortalHarnessScenariosV1 } from '../load/harness-scenarios-v1';
+import { createLocalPortalHarnessV1 } from '../load/local-harness-v1';
+import { adminResponseV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import { withAuditSqlV1 } from '../../../server/student-portal/observability/audit-context-v1';
+import { cleanupPortalV1 } from '../../../server/student-portal/maintenance/retention-v1';
 import { PortalAdminApiV1 } from '../../../server/student-portal/admin/api-v1';
 import { PublicationServiceV1 } from '../../../server/student-portal/publication/publication-service-v1';
 import { SelfProjectionReaderV1 } from '../../../server/student-portal/publication/self-projection-reader-v1';
@@ -14,7 +22,7 @@ import type { CryptoPortV1 } from '../../../shared/student-portal-contracts/port
 import { createGradebookRelationalImportServiceV11 } from '../../../server/gradebook/application/import/import-relational-service-v11';
 import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
 import { createYearResetServiceV1 } from '../../../server/gradebook/application/settings/year-reset-v1';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import postgres from 'postgres';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
@@ -1088,3 +1096,140 @@ describe('native administrative facade and atomic batch receipts', () => {
     expect((await portal`SELECT count(*)::integer AS n FROM student_portal.account WHERE gradebook_student_id IS NOT NULL`)[0]!.n).toBe(0);
   });
 });
+
+
+describe('H audit retention through native restricted PostgreSQL connections', () => {
+  it('isolates concurrent IP metadata, rolls back with the event and physically purges bounded expired data', async () => {
+    const other = asRole('student_portal_app');
+    const ids = [crypto.randomUUID(), crypto.randomUUID()] as const;
+    const make = (eventId: string) => ({ eventId, at: new Date().toISOString(), actorId: ACCOUNT, accountId: null,
+      scope: { kind: 'school', academicYear: 2026 }, kind: 'settings-changed', result: 'success',
+      requestId: crypto.randomUUID(), version: 1, maskedIp: null } as const);
+    await Promise.all([portal, other].map((connection, i) => createStudentPortalPostgresPersistenceV1(
+      withAuditSqlV1(connection as unknown as StudentPortalPostgresSqlV1, i ? '2001:db8:abcd:1234::1' : '192.0.2.55'))
+      .transaction((tx) => tx.appendAudit(make(ids[i]!)))));
+    const rows = await portal`SELECT event_id,host(raw_ip) AS ip,masked_ip FROM student_portal.audit_event WHERE event_id IN (${ids[0]},${ids[1]})`;
+    expect(rows.find((r) => r.event_id === ids[0])).toMatchObject({ ip: '192.0.2.55', masked_ip: '192.0.2.0/24' });
+    expect(rows.find((r) => r.event_id === ids[1])).toMatchObject({ ip: '2001:db8:abcd:1234::1', masked_ip: '2001:db8:abcd::/48' });
+    const clean = crypto.randomUUID();
+    await persistence.transaction((tx) => tx.appendAudit(make(clean)));
+    expect((await portal`SELECT raw_ip FROM student_portal.audit_event WHERE event_id=${clean}`)[0]!.raw_ip).toBeNull();
+    const failed = crypto.randomUUID();
+    await expect(createStudentPortalPostgresPersistenceV1(withAuditSqlV1(portal as unknown as StudentPortalPostgresSqlV1, '192.0.2.99'))
+      .transaction(async (tx) => { await tx.appendAudit(make(failed)); throw new Error('synthetic-rollback'); })).rejects.toThrow('synthetic-rollback');
+    expect(await portal`SELECT event_id FROM student_portal.audit_event WHERE event_id=${failed}`).toHaveLength(0);
+    await portal`UPDATE student_portal.audit_event SET occurred_at=statement_timestamp()-interval '91 days',ip_expires_at=statement_timestamp()-interval '1 day'
+      WHERE event_id IN (${ids[0]},${ids[1]})`;
+    const a = await cleanupPortalV1(portal as unknown as StudentPortalPostgresSqlV1, 1);
+    expect(Object.values(a).every((n) => n <= 1)).toBe(true);
+    // Other scenarios intentionally left expired synthetic audit; repeated bounded passes drain all.
+    for (let i = 0; i < 10; i++) await cleanupPortalV1(portal as unknown as StudentPortalPostgresSqlV1, 100);
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.audit_event WHERE raw_ip IS NOT NULL
+      AND (ip_expires_at<=statement_timestamp() OR occurred_at<=statement_timestamp()-interval '90 days')`)[0]!.n).toBe(0);
+    expect(await portal`SELECT event_id FROM student_portal.audit_event WHERE event_id IN (${ids[0]},${ids[1]},${clean})`).toHaveLength(3);
+  });
+});
+
+
+describe('H actual workerd and PostgreSQL application harness', () => {
+  it('reaches the restricted database through the real bundled runtime factory', async () => {
+    const connection = new URL(target);
+    connection.username = 'student_portal_app';
+    const harness = await createLocalPortalHarnessV1(connection.toString());
+    try {
+      const response = await harness.runtime.dispatchFetch('https://aluno.escolaieda.com/harness/admin/query', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contractVersion: 1, operation: 'health', scope: { kind: 'school', academicYear: 2026 }, page: {} }),
+      });
+      expect(response.status).toBe(200);
+      const body = adminResponseV1.parse(await response.json());
+      expect(body.state).toBe('health');
+      expect(Number(response.headers.get('x-harness-queries'))).toBeGreaterThan(0);
+    } finally { await harness.close(); }
+  }, 90_000);
+});
+
+
+it('runs synthetic account activation, sessions and bounded load through real workerd/PostgreSQL', async () => {
+  await admin.unsafe(`INSERT INTO gradebook.turma(id,ano,codigo,nome,etapa,turno) VALUES(950001,2026,'HLOAD','SYNTHETIC WORKER LOAD',6,'TESTE');
+    INSERT INTO gradebook.aluno(id,ano,nome) SELECT 950000+i,2026,'SYNTHETIC WORKER '||i FROM generate_series(1,5) i;
+    INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id) SELECT 2026,950001,i,950000+i FROM generate_series(1,5) i;
+    SELECT * FROM student_portal.synchronize_profiles_v1(true);`);
+  const connection = new URL(target);
+  connection.username = 'student_portal_app';
+  const report = await runPortalHarnessScenariosV1(connection.toString());
+  if (process.env.PORTAL_TEST_METRICS_PATH) writeFileSync(process.env.PORTAL_TEST_METRICS_PATH, JSON.stringify(report, null, 2));
+  console.info('PORTAL_SYNTHETIC_HARNESS_METRICS', JSON.stringify(report));
+}, 120_000);
+
+
+it('quarantines an old synthetic security snapshot before reopening and preserves academic data', async () => {
+  const account = (await portal`SELECT id,security_version FROM student_portal.account WHERE gradebook_student_id=950002`)[0]!;
+  const cryptography = new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(51)]]), new Map([[1, new Uint8Array(32).fill(52)]]));
+  const token = cryptography.randomToken(32);
+  const tokenHash = await cryptography.hashOpaqueToken(token);
+  await portal`INSERT INTO student_portal.session(id,account_id,token_hash,security_version,expires_at,persistent)
+    VALUES(gen_random_uuid(),${account.id},${tokenHash},${account.security_version},statement_timestamp()+interval '1 day',true)`;
+  const qr = (await portal`SELECT credential_id,key_version FROM student_portal.qr_credential WHERE account_id=${account.id} AND state='active'`)[0]!;
+  const signedQr = `https://aluno.escolaieda.com/access#v1.${qr.credential_id}.${qr.key_version}.${await cryptography.signQr(String(qr.credential_id), Number(qr.key_version))}`;
+  const sessions = new SessionServiceV1(portal as unknown as StudentPortalPostgresSqlV1, cryptography);
+  expect(await sessions.read(token, crypto.randomUUID())).not.toBeNull();
+  const academicBefore = (await admin`SELECT count(*)::integer AS n FROM gradebook.aluno`)[0]!.n;
+  const closuresBefore = (await portal`SELECT count(*)::integer AS n FROM student_portal.link_closure`)[0]!.n;
+  // An actual SQL snapshot of synthetic security state, restored after a later revocation.
+  // This exercises stale data restoration, not a managed pg_dump backup/RPO/RTO service.
+  await admin.unsafe('CREATE TEMP TABLE recovery_old_session AS SELECT * FROM student_portal.session');
+  await admin.unsafe('CREATE TEMP TABLE recovery_old_qr AS SELECT * FROM student_portal.qr_credential');
+  await portal`UPDATE student_portal.session SET revoked_at=statement_timestamp() WHERE token_hash=${tokenHash}`;
+  await portal`UPDATE student_portal.qr_credential SET state='revoked',revoked_at=statement_timestamp() WHERE credential_id=${qr.credential_id}`;
+  expect(await sessions.read(token, crypto.randomUUID())).toBeNull();
+  const connection = new URL(target); connection.username = 'student_portal_app';
+  const closed = await createLocalPortalHarnessV1(connection.toString(), 'false');
+  try {
+    await admin.unsafe(`UPDATE student_portal.session s SET revoked_at=old.revoked_at FROM recovery_old_session old WHERE old.id=s.id;
+      UPDATE student_portal.qr_credential q SET state=old.state,revoked_at=old.revoked_at FROM recovery_old_qr old WHERE old.credential_id=q.credential_id`);
+    const response = await closed.runtime.dispatchFetch('https://aluno.escolaieda.com/api/student/session', { headers: { cookie: `__Host-student_portal_session=${token}` } });
+    expect(response.status).toBe(503);
+    const sql = portal as unknown as StudentPortalPostgresSqlV1;
+    const failing: StudentPortalPostgresSqlV1 = { unsafe: (query, args) => sql.unsafe(query, args), begin: (op) => sql.begin((tx) => op({
+      unsafe: (query, args) => { if (query.includes('UPDATE student_portal.password_credential')) throw new Error('synthetic-quarantine-crash'); return tx.unsafe(query, args); },
+    })) };
+    await expect(quarantineSyntheticRestoreV1(failing, 'closed')).rejects.toThrow('synthetic-quarantine-crash');
+    expect((await portal`SELECT blocked FROM student_portal.account WHERE id=${account.id}`)[0]!.blocked).toBe(false);
+    await quarantineSyntheticRestoreV1(sql, 'closed');
+    expect(await sessions.read(token, crypto.randomUUID())).toBeNull();
+    expect((await new AuthServiceV1(sql, cryptography, 1, { verify: async () => false }).login(
+      { contractVersion: 1, qr: signedQr, password: '012345', keepConnected: false }, crypto.randomUUID()))).toMatchObject({ state: 'unauthenticated' });
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.qr_credential WHERE state='active'`)[0]!.n).toBe(0);
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.password_credential WHERE pin_verifier IS NOT NULL OR password_verifier IS NOT NULL`)[0]!.n).toBe(0);
+    expect((await portal`SELECT population_enabled FROM student_portal.lifecycle_control WHERE academic_year=2026`)[0]!.population_enabled).toBe(false);
+    expect((await admin`SELECT count(*)::integer AS n FROM gradebook.aluno`)[0]!.n).toBe(academicBefore);
+    expect((await portal`SELECT count(*)::integer AS n FROM student_portal.link_closure`)[0]!.n).toBe(closuresBefore);
+  } finally { await closed.close(); }
+}, 90_000);
+
+
+it('materializes approved BN data and unpublishes it through actual workerd and PostgreSQL', async () => {
+  await admin.unsafe(ACADEMIC_FIXTURE_SQL_V1.replaceAll('910', '960').replaceAll('S710', 'H714A').replaceAll('S712', 'H714B')
+    .replaceAll('SYNTHETIC PRIVATE TEACHER', 'SYNTHETIC H WORKER TEACHER').replaceAll('MATEMATICA', 'SYNTHETIC WORKER MATH').replaceAll('PORTUGUES', 'SYNTHETIC WORKER LANGUAGE'));
+  const account = (await portal`SELECT id FROM student_portal.account WHERE gradebook_student_id=960001`)[0]!;
+  await portal`UPDATE student_portal.account SET auth_state='active' WHERE id=${account.id}`;
+  const cryptography = new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(51)]]), new Map([[1, new Uint8Array(32).fill(52)]]));
+  const token = cryptography.randomToken(32);
+  await portal`INSERT INTO student_portal.session(id,account_id,token_hash,security_version,expires_at,persistent)
+    VALUES(gen_random_uuid(),${account.id},${await cryptography.hashOpaqueToken(token)},0,statement_timestamp()+interval '1 day',true)`;
+  const connection = new URL(target); connection.username = 'student_portal_app';
+  await proveWorkerPublicationV1(connection.toString(), String(account.id), token);
+}, 90_000);
+
+
+it('fails closed at native lock timeout and keeps maintenance diagnostics readable', async () => {
+  const account = (await portal`SELECT id,security_version FROM student_portal.account WHERE gradebook_student_id=960001`)[0]!;
+  const cryptography = new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(51)]]), new Map([[1, new Uint8Array(32).fill(52)]]));
+  const token = cryptography.randomToken(32);
+  await portal`INSERT INTO student_portal.session(id,account_id,token_hash,security_version,expires_at,persistent)
+    VALUES(gen_random_uuid(),${account.id},${await cryptography.hashOpaqueToken(token)},${account.security_version},statement_timestamp()+interval '1 day',true)`;
+  const connection = new URL(target); connection.username = 'student_portal_app';
+  await proveWorkerLockTimeoutV1(connection.toString(), portal as unknown as StudentPortalPostgresSqlV1,
+    asRole('student_portal_app') as unknown as StudentPortalPostgresSqlV1, token);
+}, 90_000);
