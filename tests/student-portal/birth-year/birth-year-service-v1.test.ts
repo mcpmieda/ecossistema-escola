@@ -160,7 +160,17 @@ describe('birth year transactions through the frozen crypto port', () => {
     expect(cleared.sessions).toEqual(before.sessions);
     expect(cleared.qr).toEqual(before.qr);
     expect(cleared.account).toMatchObject({ auth_state: 'active', security_version: 0 });
-    expect(JSON.stringify((await pg.query('SELECT * FROM student_portal.audit_event')).rows)).not.toMatch(/2001|2002|synthetic-password/);
+    const auditRows = (await pg.query('SELECT * FROM student_portal.audit_event')).rows;
+    for (const event of auditRows) {
+      // UUIDs/timestamps may contain the same digits as a year; forbid secret
+      // values and extra payload fields, not coincidental identifier substrings.
+      expect(Object.keys(event).sort()).toEqual([
+        'event_id', 'occurred_at', 'actor_id', 'account_id', 'scope_json', 'kind',
+        'result', 'request_id', 'version', 'masked_ip', 'raw_ip', 'ip_expires_at', 'created_at',
+      ].sort());
+      expect(event.scope_json).toEqual({ kind: 'account', academicYear: 2026, accountId: ids[0] });
+    }
+    expect(JSON.stringify(auditRows)).not.toMatch(/"(?:2001|2002)"|:(?:2001|2002)(?=[,}])|synthetic-password/);
   });
 
   it('does not silently promote an unconfirmed record or churn versions on an identical value', async () => {
