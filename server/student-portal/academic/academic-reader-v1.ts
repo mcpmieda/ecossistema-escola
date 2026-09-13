@@ -90,6 +90,12 @@ export class AcademicStudentReaderPostgresV1 implements AcademicStudentReaderV1<
     return (await this.snapshot(tx, link, expectedDataVersion))?.student ?? null;
   }
 
+  /** Internal disclosure evidence; never part of the student DTO or a second academic calculation. */
+  async readPublicationSourceInTransaction(tx: StudentPortalPostgresQueryV1, link: PortalAcademicLinkV1, expectedDataVersion: string) {
+    const result = await this.snapshot(tx, link, expectedDataVersion);
+    return result === null ? null : { student: result.student, finalAuthority: result.finalAuthority };
+  }
+
   private async snapshot(tx: StudentPortalPostgresQueryV1, input: PortalAcademicLinkV1, expectedDataVersion: string) {
     const link = portalAcademicLinkSchemaV1.parse(input);
     academicVersionSchemaV1.parse(expectedDataVersion);
@@ -131,7 +137,11 @@ export class AcademicStudentReaderPostgresV1 implements AcademicStudentReaderV1<
       const classification = recovery.classification;
       const officialOutcome = status === 2 ? undefined : classification === 'approved-direct' || classification === 'approved-after-recovery'
         ? 'approved' as const : ['not-approved', 'failed-no-show', 'failed-repeat'].includes(classification) ? 'failed' as const : undefined;
-      return { recovery, subject: { subjectId: offer.subjectId, label: offer.label, order, periods,
+      const sourceComplete = offer.closure?.annual !== null && offer.closure?.annual !== undefined
+        && terms.every((term) => offer.closure?.[`am${term.term}`] !== null && offer.closure?.[`am${term.term}`] !== undefined);
+      const sourceAgrees = sourceComplete && terms.every((term) => term.coverage.complete && offer.closure?.[`am${term.term}`] === term.roundedMilli)
+        && offer.closure?.annual === recovery.postRecoveryTotalMilli;
+      return { recovery, sourceComplete, sourceAgrees, subject: { subjectId: offer.subjectId, label: offer.label, order, periods,
         officialAnnual: mark(offer.closure?.annual ?? null, null), ...(officialOutcome === undefined ? {} : { officialOutcome }) } };
     });
     const annual = resolveSimplifiedAnnualOutcomeV1({ status, components: projections.map((item) => item.recovery), maxCouncilComponents: maxCouncil });
@@ -143,6 +153,10 @@ export class AcademicStudentReaderPostgresV1 implements AcademicStudentReaderV1<
       profile: { name: row.name, classId: eligibility.current.classId, classLabel: bindings[0]!.classLabel,
         academicState: status === 2 ? 'assisted' : status === 1 ? 'special' : 'regular', result },
       subjects: projections.map((item) => item.subject) });
-    return { student, accountId: z.uuid().parse(row.account_id) };
+    return { student, accountId: z.uuid().parse(row.account_id), finalAuthority: {
+      global: status === 1 || (projections.length > 0 && projections.every((item) => item.sourceComplete)
+        && (formal !== null || hasRepeat || projections.every((item) => item.sourceAgrees))),
+      subjectIds: projections.filter((item) => item.sourceAgrees).map((item) => item.subject.subjectId),
+    } };
   }
 }
