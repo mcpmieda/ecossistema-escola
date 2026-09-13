@@ -17,7 +17,7 @@
     "verify": "npm run lint && npm run typecheck && npm test && npm run build && npm run build:student-portal && npm run test:student-portal-runtime",
     "build:student-portal": "npm run build:student-portal-ui && tsc -b tsconfig.student-portal.json && wrangler deploy --config wrangler.student-portal.jsonc --env preview --dry-run --outdir node_modules/.cache/student-portal && node workers/student-portal/build-edge.mjs",
     "test:student-portal-runtime": "vitest run --config tests/student-portal/runtime/vitest.runtime.config.ts && vitest run --config tests/student-portal/frontend-foundation/vitest.edge.config.ts",
-    "test:student-portal-postgres": "npm run build:student-portal && vitest run --config tests/student-portal/runtime/vitest.postgres.config.ts && vitest run --config tests/student-portal/smoke/vitest.smoke.config.ts && vitest run --config tests/student-portal/frontend-foundation/vitest.postgres.config.ts",
+    "test:student-portal-postgres": "npm run build:student-portal && vitest run --config tests/student-portal/runtime/vitest.postgres.config.ts && vitest run --config tests/student-portal/smoke/vitest.smoke.config.ts && vitest run --config tests/student-portal/frontend-foundation/vitest.postgres.config.ts && vitest run --config tests/student-portal/admin/vitest.postgres.config.ts",
     "dev:student-portal": "vite --config vite.student-portal.config.ts",
     "build:student-portal-ui": "tsc -b tsconfig.student-portal-ui.json && vite build --config vite.student-portal.config.ts"
   },

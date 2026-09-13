@@ -1,4 +1,5 @@
 import { cleanupPortalV1 } from '../../../server/student-portal/maintenance/retention-v1';
+import type { AdminReadResponseV2 } from '../../../shared/student-portal-contracts/admin-read-v2';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -28,7 +29,7 @@ let accounts: { id: string; student: number }[];
 let failReceipt = false;
 let calls = 0;
 const accountScope = () => ({ kind: 'account', academicYear: 2026, accountId: accounts[0]!.id } as const);
-function state<T extends AdminResponseV1['state']>(result: AdminResponseV1 | FailureV1, expected: T): Extract<AdminResponseV1, { state: T }> {
+function state<T extends AdminResponseV1['state']>(result: AdminResponseV1 | AdminReadResponseV2 | FailureV1, expected: T): Extract<AdminResponseV1, { state: T }> {
   expect(result.state).toBe(expected);
   if (result.state !== expected) throw new Error(`synthetic-unexpected-state-${result.state}`);
   return result as Extract<AdminResponseV1, { state: T }>;

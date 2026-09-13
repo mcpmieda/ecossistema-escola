@@ -1,4 +1,5 @@
-import { ADMIN_BODY_BYTES_V1, adminCommandV1, adminQueryV1, adminResponseV1, type AdminCommandV1, type AdminQueryV1 } from '../../../../shared/student-portal-contracts/admin-v1';
+import { ADMIN_BODY_BYTES_V1, adminCommandV1, adminResponseV1, type AdminCommandV1 } from '../../../../shared/student-portal-contracts/admin-v1';
+import { adminQueryRequestV2, adminReadResponseV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import { ERROR_HTTP_V1, failureV1, type FailureV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminEntrypointV1 } from '../../../../shared/student-portal-contracts/ports-v1';
 import type { RuntimeEnv } from '../../../env';
@@ -39,10 +40,12 @@ export async function servePortalAdminV1(request: Request, env: RuntimeEnv, bind
     const body = await readBoundedJson(request, ADMIN_BODY_BYTES_V1);
     let result: unknown;
     let expected: string;
+    let expectedVersion = 1;
     if (kind === 'query') {
-      const parsed = adminQueryV1.safeParse(body);
+      const parsed = adminQueryRequestV2.safeParse(body);
       if (!parsed.success) return fail('invalid-request');
-      const query: AdminQueryV1 = parsed.data;
+      const query = parsed.data;
+      expectedVersion = query.contractVersion;
       const context = await verifiedPagesContextV1(request, env, ['audit-detail', 'links-preview'].includes(query.operation), requestId);
       if (typeof context === 'string') return fail(context);
       result = await binding.query(context, query);
@@ -62,7 +65,7 @@ export async function servePortalAdminV1(request: Request, env: RuntimeEnv, bind
       if (failure.data.retryAfterSeconds) response.headers.set('Retry-After', String(failure.data.retryAfterSeconds));
       return response;
     }
-    const response = adminResponseV1.safeParse(result);
+    const response = expectedVersion === 2 ? adminReadResponseV2.safeParse(result) : adminResponseV1.safeParse(result);
     if (!response.success || response.data.state !== expected || response.data.requestId !== requestId) return fail('unavailable');
     return portalJsonV1(response.data, 200);
   } catch (error) {

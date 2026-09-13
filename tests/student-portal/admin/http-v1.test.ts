@@ -33,6 +33,25 @@ function binding() {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('ADM Pages to private Portal binding', () => {
+  it('passes opt-in V2 reads through sealed ADM authentication and validates their own envelope', async () => {
+    const input = { ...query, contractVersion: 2, operation: 'accounts-read' };
+    const rpc: PortalAdminEntrypointV1 = {
+      ...binding().rpc,
+      async query(context) { return { contractVersion: 2, requestId: context.requestId,
+        observedAt: new Date().toISOString(), state: 'accounts-read', scopeVersion: 0,
+        items: [], nextCursor: null, lastAuthenticationWindowMonths: 12 }; },
+    };
+    const response = await servePortalAdminV1(await request(input), env, rpc);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ contractVersion: 2, state: 'accounts-read' });
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect((await servePortalAdminV1(await request(input, { headers: { cookie: '' } }), env, rpc)).status).toBe(401);
+    expect((await servePortalAdminV1(await request(input, { headers: { cookie: await cookie(['PROFESSOR']) } }), env, rpc)).status).toBe(403);
+    expect((await servePortalAdminV1(await request(input, { headers: { origin: 'https://attacker.invalid' } }), env, rpc)).status).toBe(403);
+    expect((await servePortalAdminV1(await request(input), env, binding().rpc)).status).toBe(503);
+    expect((await servePortalAdminV1(await request(query), env, rpc)).status).toBe(503);
+  });
+
   it('verifies the existing sealed session and produces fresh context rather than accepting browser identity', async () => {
     const { rpc, seen } = binding();
     const response = await servePortalAdminV1(await request(query, { headers: { 'x-portal-actor': TENANT, 'x-portal-capability': 'platform.settings.write' } }), env, rpc);
