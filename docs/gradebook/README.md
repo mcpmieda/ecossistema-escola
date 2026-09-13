@@ -1,5 +1,11 @@
 # Banco de Notas — ponto de entrada
 
+## Continuidade atual — 13/09/2026
+
+O programa funcional BN e a entrega #596 estão encerrados. Main auditada `9066c04d01b8d62bf59e1de0b51c6ce4c567c668`, PR741/deploy34749391273 SUCCESS, schema gradebook com30 tabelas. O seletor global opera2025/2026;2025 é massa de teste e não há comparação entre anos. Trilha humana, R/R e reset anual já foram integrados conforme decisões vigentes. Não retomar a #668 ou reconstruir persistência por um checkpoint antigo.
+
+A fila ativa é [Portal do Aluno Parte2 #742](https://github.com/mcpmieda/ecossistema-escola/issues/742), execução sequencial autorizada, começando pela integradora documental#743. As identidades CODEX/CHAT ONLINE dos títulos permanecem. Os deltas BN de contrato/classificação estão em#745/#747 e não reabrem o programa final. Estado atual em PROJECT_STATE.yaml; checkpoint antigo preservado sob historical_checkpoint_668. G-B Portal continua parcial até#759; dados e autoridade BN permanecem preservados.
+
 ## Fechamento factual em 11/09/2026
 
 FINAL-1 #633, FINAL-2 #634, FINAL-3 #635, FINAL-4 #406 e aceite acadêmico #347 estão encerrados. A baseline consolidada é `main@80b2916185fc6a49df7c5ab0af71e2be4dcdeb66`, com CI `34667519751` e deploy `34667699446` verdes. O [piloto integral](FINAL4_PILOT_406.md) e a [operação institucional](FINAL_OPERATION_596.md) substituem os estados intermediários abaixo como ponto de execução.

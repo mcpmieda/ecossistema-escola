@@ -2,25 +2,25 @@ module: student_portal
 contract_version: 1
 academic_year: 2026
 updated_at: 2026-09-13
-current_issue: null
-delivery_branch: docs/pa-close-p1
-delivery_scope: technical_part_1_closure_with_deferred_integrated_acceptance
-last_verified_main: c4f8897505e3f5c236227c9bf56f48751df90c05
-last_verified_pr: 740
-last_verified_deploy: 34745755388
-candidate_integration: technical_scope_completed_integrated_acceptance_deferred_by_owner
+current_issue: 743
+delivery_branch: docs/pa-p2-foundation-743
+delivery_scope: part_2_documentary_foundation
+last_verified_main: 9066c04d01b8d62bf59e1de0b51c6ce4c567c668
+last_verified_pr: 741
+last_verified_deploy: 34749391273
+candidate_integration: issue_743_documentation_in_branch_not_yet_verified_published
 completed_issues: [702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 732, 735, 701]
 gates:
   G-C: passed_integrated_contracts
   G-B: partial_deferred_to_part_2_integrated_acceptance
-  G-P: outside_part_1
+  G-P: pending_part_2_pilot_and_deliberate_opening
 runtime: production_composed_backend_remote_http_and_cron_verified
 student_portal_schema: migrations_0001_through_0007_applied
 production_defaults: seven_fields_initialized_explicitly_2026_09_13
 population_enabled: false
 accounts_last_observed: 3
 access_settings_enabled_last_observed: 0
-school_calendar: unset
+school_calendar: object_present_required_dates_null
 public_origin: https://aluno.escolaieda.com
 browser_automation_active: false
 ui_changes: false
@@ -28,11 +28,24 @@ ddl_in_this_delivery: false
 secrets_rotated_in_this_delivery: false
 execution_authorization: continuous_until_user_requests_stop
 execution_mode: direct_sequential_no_subagents
-next_safe_issue: null
-next_stage: part_2_planning_after_current_queue_closed
+next_safe_issue: 744
+next_stage: part_2_frontend_foundation_after_743_gates
 deferred_acceptance: docs/student-portal/TEST_MATRIX.md
 closure_authority: PA-DEC-006
+execution_authority: PA-DEC-007
 pilot_scope: three_6A_accounts_authorized_2000_unconfirmed_test
 pilot_calendar: account_only_sources_plus_labeled_test_supplements
 pilot_access_after_tests: closed
 pending_human_scope: real_authenticated_portal_rpc_widget_and_confirmed_birth_for_positive_activation
+
+part_2:
+  parent_issue: 742
+  planned_issues: [743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760]
+  execution: one_issue_at_a_time_direct
+  preserve_title_identities: [CODEX, CHAT ONLINE]
+  integration_issue: 757
+  quality_issue: 758
+  integrated_acceptance_issue: 759
+  operation_issue: 760
+  ui_implemented_by_this_delivery: false
+  planned_contract_deltas: [745, 746]

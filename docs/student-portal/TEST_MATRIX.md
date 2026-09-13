@@ -1,8 +1,33 @@
 # Matriz de requisitos e provas
 
+## Rastreio da Parte 2 — #743
+
+Todas as provas P2 abaixo estão PENDENTES. #743 verifica apenas documentação/links/ownership; suites anteriores são evidência histórica, não novos testes de tela. Registrar nome do teste, SHA, ambiente, resultado, limitação e owner em cada handoff.
+
+| Requisito / risco | Autoria | Prova integrada |
+| --- | --- | --- |
+| Build separado, assets/deep-link, CSP/câmera por origem e preview sem produção | #744 | #757/#758 |
+| Header/Perfil/Avatar, skeleton,320px/desktop/zoom | #748 | visual/acessibilidade #758 |
+| QR/câmera/imagem local, PIN4/senha6 3+3/paste/risco | #749 | #758 sintético; dispositivo e Turnstile real #759 |
+| Classificação oficial/zero/máximo ausente/limite do mínimo | #745/#747/#750 | #758; sem cálculo na UI |
+| Períodos/partials ocultos fora payload, REC/N-C/R-R/ASSISTIDO/resultados | #750/#752 | rede/SQL/browser #757–#759 |
+| Catálogo/último acesso/contexto/resumo sem N+1 | #746/#753/#756 | PG real/contrato/query-budget #746/#758 |
+| AD-03 autosave completo, clear explícito/CAS/retomada por item | #754 | #758/#759, senha/QR preservados |
+| AD-04 calendário/herança/data única/seis datas/efeito imediato | #751/#752 | limites de fuso/data e jobs #758/#759 |
+| Bloqueio/reset/regeneração/reprint/cookie/revogação | #749/#753/#756 | #758 sintético; legítimos #759 |
+| QR-only/QR+nome/QR+nome+turma, cópia imagem, PDF/cancelamento | #755 | decode/render #755; impressão física #759 |
+| Entra/API real/binding privado, IDOR/CSRF/Origin/Host/no-store | #757 | #758 sintético; Entra legítimo #759 |
+| Audit IP90d/metadados12m e saúde sem dado inventado | #756 | #758; detalhes reais delimitados #759 |
+| Opção A links-preview/close distinta do reset, isolamento2025/2026 | #751/#757 | #758 sintético; preview real somente leitura #759 |
+| Regressão BN importação/boletins/Conselho/relatórios/autoridade | #747/#757 | #758/#759 sem reset real |
+| Carga/KDF/queries/bundle/recovery/rollback sem reativação | #758 | #759 quando pertinente, sem backup gerenciado alegado |
+| Dados/calendário legítimos, encerramento de piloto, G-B/G-P | #759 | #760 somente após aceite e abertura deliberada |
+
+PA-DEC-006 mantém a checklist abaixo como condição de G-B e do aceite integrado. #757 pode montar candidato e #758 provar ambiente sintético antes dela; isso não é ciclo nem PASS real. Nenhum skip pode substituir requisito obrigatório.
+
 ## Aceite integrado obrigatório ao encerrar a Parte2 — PA-DEC-006
 
-As issues técnicas P1 podem encerrar conforme a decisão do responsável. As provas abaixo continuam PENDENTES; devem entrar na futura fila P2 e bloquear a liberação aos alunos. A evidência deverá registrar versão publicada, ambiente, resultado e limitações, sem PII/credenciais.
+As issues técnicas P1 podem encerrar conforme a decisão do responsável. As provas abaixo continuam PENDENTES; estão atribuídas à #759 e bloqueiam a liberação aos alunos. A evidência deverá registrar versão publicada, ambiente, resultado e limitações, sem PII/credenciais.
 
 - [ ] Sessão Entra real no ADM → API Portal → binding privado → PostgreSQL, com autorização e negativas.
 - [ ] Widget Turnstile produtivo positivo, token expirado/reutilizado e indisponibilidade, com interação legítima.
