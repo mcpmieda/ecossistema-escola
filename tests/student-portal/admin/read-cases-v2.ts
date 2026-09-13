@@ -62,6 +62,7 @@ export function adminReadCasesV2(
       expect(firstCalls).toBeLessThanOrEqual(5);
       expect(get().calls()).toBeLessThanOrEqual(5);
       expect(first.items[0]).toMatchObject({
+        linkClosed: false,
         classId: 746001,
         lastAuthenticationAt: null,
         access: {
@@ -110,6 +111,7 @@ export function adminReadCasesV2(
           scope: { kind: 'account', academicYear: 2026, accountId: readAccountIdV2(1) },
         });
         expect(ambiguous.items[0]).toMatchObject({
+          linkClosed: false,
           classId: null,
           eligibility: 'unresolved',
           access: { state: 'unresolved', enabled: null, accessPermitted: false },
@@ -126,6 +128,7 @@ export function adminReadCasesV2(
         scope: { kind: 'account', academicYear: 2026, accountId: readAccountIdV2(200) },
       });
       expect(unlinked.items[0]).toMatchObject({
+        linkClosed: true,
         link: null,
         classId: null,
         eligibility: 'unlinked',
@@ -237,6 +240,7 @@ export function adminReadCasesV2(
       );
       expect(get().calls()).toBe(0);
     });
+    // Includes inserting/removing 5,001 fixtures; verifies bounded correctness, not latency.
     it('refuses an oversized overview instead of returning truncated school totals', async () => {
       await get().admin
         .unsafe(`INSERT INTO student_portal.account(id,auth_state,eligibility,closed_at)
@@ -255,6 +259,6 @@ export function adminReadCasesV2(
           [readAccountIdV2(1000), readAccountIdV2(6000)],
         );
       }
-    });
+    }, 30_000);
   });
 }

@@ -63,6 +63,8 @@ export const adminAccessV2 = z
   .strict();
 export const adminAccountReadV2 = accountSummaryV1
   .extend({
+    // Explicit lifecycle fact; the UI must not infer closure from unresolved access.
+    linkClosed: z.boolean(),
     classId: z.number().int().positive().safe().nullable(),
     access: adminAccessV2,
     // Latest successful login/activation event retained in the preceding 12 months.

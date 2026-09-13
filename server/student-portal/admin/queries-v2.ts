@@ -129,6 +129,7 @@ export async function readAdminV2(
       adminAccountReadV2.parse({
         accountId,
         link,
+        linkClosed: row.closed_at !== null,
         name: row.name,
         classLabel: row.class_name,
         classId: row.class_id,
