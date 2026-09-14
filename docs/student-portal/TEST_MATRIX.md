@@ -1,5 +1,11 @@
 # Matriz de requisitos e provas
 
+## Retomada de teclado e zoom #758
+
+Base publicada `83e4b346d47d7a5c6b97a7e512e2ccb5e2ceb035` (PR #776, deploy34800038404). A aba pública aberta manualmente pelo responsável permite inspeção e interação; a falha `ERR_BLOCKED_BY_CLIENT` foi reproduzida ao abrir nova aba pela automação, não ao ler a aba existente. Nenhuma proteção foi alterada. No login público, zoom200% confirmado pelo responsável e pela mudança DPR1,25→2,5/largura1142→571; controles legíveis, sem overflow externo. Esse resultado não presume zoom das notas autenticadas nem leitura assistiva efetiva.
+
+O teste de teclado encontrou perda de foco no atalho de conteúdo: navegação por fragmento dispara `popstate`, revalida a sessão e remonta o shell. A correção focará o `main` sem navegar no histórico, preservando as guardas de retorno/expiração. `ui-quality/skip-link.test.tsx` reproduziu a falha em sessão anônima e autenticada; verifica foco, identidade do conteúdo, histórico inalterado e ausência de consulta redundante. Evidências finais de verify/CI/browser/publicação e limites ficam no handoff da #758; o requisito não é encerrado por esta anotação.
+
 ## Candidata de qualidade #758
 
 Base publicada `dda837fddeb32d9eefd2b523975fd36fbd71e6dc` (PR #775); branch `test/pa-quality-758`. A execução final, SHA, CI e publicação são registrados no handoff da [#758](https://github.com/mcpmieda/ecossistema-escola/issues/758). Esta matriz descreve cobertura; não antecipa resultado dos gates nem o aceite real da #759.

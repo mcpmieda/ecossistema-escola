@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useId, useRef, type ReactNode } from 'react';
 import { Alert } from '@heroui/react/alert';
 import { Avatar } from '@heroui/react/avatar';
 import { Button } from '@heroui/react/button';
@@ -51,9 +51,18 @@ export function StudentPortalShellV1({
   busy = false,
 }: StudentShellPropsV1) {
   const contentId = useId();
+  const content = useRef<HTMLElement>(null);
   return (
     <div className="pa-shell">
-      <a className="pa-skip-link" href={'#' + contentId}>
+      <a
+        className="pa-skip-link"
+        href={'#' + contentId}
+        onClick={(event) => {
+          // Fragment navigation triggers popstate and the session's security revalidation.
+          event.preventDefault();
+          content.current?.focus();
+        }}
+      >
         Ir para o conteúdo
       </a>
       <header className="pa-shell-header">
@@ -80,7 +89,13 @@ export function StudentPortalShellV1({
           </div>
         </div>
       </header>
-      <main id={contentId} className="pa-shell-content" tabIndex={-1} aria-busy={busy}>
+      <main
+        ref={content}
+        id={contentId}
+        className="pa-shell-content"
+        tabIndex={-1}
+        aria-busy={busy}
+      >
         {children}
       </main>
     </div>

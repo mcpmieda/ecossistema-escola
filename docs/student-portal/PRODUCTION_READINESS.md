@@ -1,5 +1,9 @@
 # Prontidão e limites de evidência
 
+## Retomada de acessibilidade #758
+
+A entrega técnica parcial #776 está publicada em `83e4b346d47d7a5c6b97a7e512e2ccb5e2ceb035`, deploy34800038404 SUCCESS, verify2028+3skips históricos/21workerd, CI81PostgreSQL e14smokes HTTP PASS. A inspeção pública funciona na aba aberta manualmente pelo responsável. Zoom nativo200% da entrada foi observado; o teste de teclado revelou perda de foco no atalho de conteúdo por navegação de histórico. A entrega seguinte corrige somente esse atalho e sua regressão, com ownership registrado. Provas de notas com zoom e leitura assistiva permanecem discriminadas; mãe15/18, #758 em andamento, G-B PARCIAL/G-P pendente. Os registros abaixo são checkpoints históricos.
+
 ## Qualidade integrada #758 — candidata
 
 A retomada de segurança solicitada pelo responsável corrige o cabeçalho transitório antes do login: a entrada agora mostra apenas verificação de acesso até sessão e perfil serem resolvidos. A inspeção da composição confirmou autorização no servidor antes de consultar o perfil ou invocar o binding administrativo; o skeleton anterior não continha dados privados. O build das duas superfícies passa a rejeitar imports diretos/indiretos de servidor, Worker, Functions e PostgreSQL; o aluno também mantém a vedação a módulos ADM/Entra. Regressões exercitam respostas adiadas 401/503/200 e um grafo Vite real com import dinâmico/reexport. Isso reforça a separação do código, sem substituir autorização por esconder elementos visuais. Não foram encontrados segredos de backend ou storage persistente de sessão nos fontes de `src`; chaves públicas de widget e contratos HTTP não são segredos. Resultados, SHA e limitações da retomada ficam no handoff da #758.
