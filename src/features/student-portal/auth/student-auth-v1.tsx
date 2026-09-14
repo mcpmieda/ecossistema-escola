@@ -22,19 +22,33 @@ function NumericCredentialV1({
   value,
   onChange,
   secret = false,
+  disabled = false,
 }: {
   label: string;
   length: 4 | 6;
   value: string;
   onChange: (value: string) => void;
   secret?: boolean;
+  disabled?: boolean;
 }) {
   const id = useId();
+  const [focused, setFocused] = useState(false);
+  const slot = (index: number) => (
+    <InputOTP.Slot
+      key={index}
+      index={index}
+      aria-hidden={secret || undefined}
+      data-masked={(secret && (!focused || index < value.length - 2)) || undefined}
+    />
+  );
   return (
     <div className="pa-credential-field" data-secret={secret || undefined}>
       <label htmlFor={id}>{label}</label>
       <InputOTP
         id={id}
+        isDisabled={disabled}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         aria-label={label}
         value={value}
         onChange={(next) => {
@@ -49,18 +63,12 @@ function NumericCredentialV1({
         noScriptCSSFallback={null}
       >
         <InputOTP.Group>
-          {Array.from({ length: length === 6 ? 3 : 4 }, (_, index) => (
-            <InputOTP.Slot key={index} index={index} />
-          ))}
+          {Array.from({ length: length === 6 ? 3 : 4 }, (_, index) => slot(index))}
         </InputOTP.Group>
         {length === 6 ? (
           <>
             <InputOTP.Separator />
-            <InputOTP.Group>
-              {[3, 4, 5].map((index) => (
-                <InputOTP.Slot key={index} index={index} />
-              ))}
-            </InputOTP.Group>
+            <InputOTP.Group>{[3, 4, 5].map((index) => slot(index))}</InputOTP.Group>
           </>
         ) : null}
       </InputOTP>
@@ -101,7 +109,7 @@ function CredentialFormV1({
     state.step === 'risk' ||
     (value.length === length && (state.step !== 'create' || confirmation.length === 6));
   const submit = () => {
-    if (blocked || !valid || (needsRisk && !riskToken)) return;
+    if (state.pending || blocked || !valid || (needsRisk && !riskToken)) return;
     if (state.step === 'create' && value !== confirmation) {
       setValidation('As senhas precisam ser iguais.');
       return;
@@ -121,6 +129,7 @@ function CredentialFormV1({
   return (
     <form
       className="pa-auth-form"
+      aria-busy={state.pending || undefined}
       onSubmit={(event) => {
         event.preventDefault();
         submit();
@@ -141,6 +150,7 @@ function CredentialFormV1({
           value={value}
           onChange={setValue}
           secret={state.step !== 'pin'}
+          disabled={state.pending}
         />
       ) : null}
       {state.step === 'create' ? (
@@ -150,10 +160,11 @@ function CredentialFormV1({
           value={confirmation}
           onChange={setConfirmation}
           secret
+          disabled={state.pending}
         />
       ) : null}
       {state.step === 'password' || state.step === 'create' ? (
-        <Checkbox isSelected={keepConnected} onChange={setKeepConnected}>
+        <Checkbox isDisabled={state.pending} isSelected={keepConnected} onChange={setKeepConnected}>
           <Checkbox.Content>
             <Checkbox.Control>
               <Checkbox.Indicator />
@@ -171,12 +182,21 @@ function CredentialFormV1({
           Tente novamente em {Math.max(1, Math.ceil((state.retryAt! - now) / 1000))} segundos.
         </p>
       ) : null}
-      <Button type="submit" isDisabled={!valid || blocked || (needsRisk && !riskToken)}>
-        {state.step === 'create'
-          ? 'Criar senha e entrar'
-          : state.step === 'password'
-            ? 'Entrar'
-            : 'Continuar'}
+      <Button
+        type="submit"
+        isDisabled={state.pending || !valid || blocked || (needsRisk && !riskToken)}
+      >
+        {state.pending
+          ? state.step === 'password'
+            ? 'Entrando…'
+            : state.step === 'create'
+              ? 'Criando senha…'
+              : 'Validando…'
+          : state.step === 'create'
+            ? 'Criar senha e entrar'
+            : state.step === 'password'
+              ? 'Entrar'
+              : 'Continuar'}
       </Button>
     </form>
   );
@@ -226,7 +246,6 @@ export function StudentAuthenticationV1({
   }, [client, initialQr]);
   const titles = {
     scan: 'Acessar minhas notas',
-    loading: 'Verificando acesso',
     pin: 'Primeiro acesso',
     password: 'Entrar',
     risk: 'Verificação de segurança',
@@ -249,14 +268,20 @@ export function StudentAuthenticationV1({
           </Alert>
         ) : null}
         {state.step === 'scan' ? (
-          <StudentQrReaderV1
-            onQr={(qr) => {
-              setInvalidQr(false);
-              void flow.current?.begin(qr).catch(() => setInvalidQr(true));
-            }}
-          />
+          <fieldset
+            className="pa-qr-controls"
+            disabled={state.pending}
+            aria-busy={state.pending || undefined}
+          >
+            <StudentQrReaderV1
+              onQr={(qr) => {
+                setInvalidQr(false);
+                void flow.current?.begin(qr).catch(() => setInvalidQr(true));
+              }}
+            />
+            {state.pending ? <p role="status">Preparando entrada…</p> : null}
+          </fieldset>
         ) : null}
-        {state.step === 'loading' ? <p role="status">Aguarde…</p> : null}
         {['pin', 'password', 'risk', 'create'].includes(state.step) && flow.current ? (
           <CredentialFormV1
             key={state.revision}
@@ -268,7 +293,7 @@ export function StudentAuthenticationV1({
             setKeepConnected={setKeepConnected}
           />
         ) : null}
-        {state.step !== 'scan' && state.step !== 'authenticated' ? (
+        {state.step !== 'authenticated' && (state.step !== 'scan' || state.pending) ? (
           <Button
             variant="tertiary"
             onPress={() => {
@@ -277,7 +302,7 @@ export function StudentAuthenticationV1({
               setInvalidQr(false);
             }}
           >
-            Cancelar e ler outro QR
+            {state.step === 'create' ? 'Cancelar' : 'Cancelar e ler outro QR'}
           </Button>
         ) : null}
       </Card.Content>

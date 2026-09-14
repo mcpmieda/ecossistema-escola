@@ -46,8 +46,18 @@
 .pa-credential-field [data-slot='input-otp-separator'] {
   width: 0.5rem;
 }
-.pa-credential-field[data-secret] [data-slot='input-otp-slot-value'] {
-  -webkit-text-security: disc;
+.pa-credential-field [data-masked] [data-slot='input-otp-slot-value'] {
+  font-size: 0;
+}
+.pa-credential-field [data-masked] [data-slot='input-otp-slot-value']::after {
+  content: '*';
+  font-size: 1rem;
+}
+.pa-qr-controls {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
 }
 .pa-qr-video {
   display: block;
