@@ -181,6 +181,18 @@ function AccountDetailBodyV1({
         {mutation.state === 'committed' && (
           <div role="status" className="pa-account-notice">
             <p>Ação concluída pelo servidor. Os dados abaixo dependem da consulta atualizada.</p>
+            {mutation.operation === 'account-reset' && (
+              <p>
+                Conta redefinida: o QR anterior, a senha e as sessões foram invalidados. Reimprima o
+                QR atual e leia a nova imagem no Portal para voltar ao PIN.
+              </p>
+            )}
+            {mutation.operation === 'password-reset' && (
+              <p>
+                Senha redefinida e sessões invalidadas. Leia novamente o mesmo QR no Portal para
+                voltar ao PIN.
+              </p>
+            )}
             {mutation.artifact === 'preparing' && <p>Preparando a imagem do novo QR…</p>}
             {mutation.artifact === 'unavailable' && (
               <p>

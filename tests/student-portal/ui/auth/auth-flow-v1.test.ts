@@ -148,3 +148,40 @@ describe('student authentication state machine', () => {
     s.flow.dispose();
   });
 });
+
+it('discards a revoked QR after a stale password screen and never resubmits the old credential', async () => {
+  const s = setup();
+  s.client.challenge.mockResolvedValueOnce(REQUIRED('password'));
+  await s.flow.begin(SYNTHETIC_QR_V1);
+  s.client.login.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
+  s.client.challenge.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
+  await s.flow.login('001234', false);
+  expect(s.state()).toMatchObject({ step: 'scan', needsRisk: false });
+  expect(s.state().message).toContain('Leia o cartão atual');
+  await s.flow.login('001234', false);
+  expect(s.client.login).toHaveBeenCalledOnce();
+  expect(s.success).not.toHaveBeenCalled();
+  s.client.challenge.mockResolvedValueOnce(REQUIRED('pin'));
+  await s.flow.begin(SYNTHETIC_QR_V1);
+  expect(s.state().step).toBe('pin');
+  s.flow.dispose();
+});
+
+it.each([
+  ['unavailable', 'O serviço de acesso está temporariamente indisponível'],
+  ['network-error', 'Não foi possível conectar'],
+] as const)(
+  'distinguishes %s from invalid credentials without replaying login',
+  async (code, message) => {
+    const s = setup();
+    s.client.challenge.mockResolvedValueOnce(REQUIRED('password'));
+    await s.flow.begin(SYNTHETIC_QR_V1);
+    s.client.login.mockRejectedValueOnce(new PortalClientErrorV1(code));
+    await s.flow.login('001234', false);
+    expect(s.state()).toMatchObject({ step: 'password' });
+    expect(s.state().message).toContain(message);
+    expect(s.client.login).toHaveBeenCalledOnce();
+    expect(s.client.challenge).toHaveBeenCalledOnce();
+    s.flow.dispose();
+  },
+);

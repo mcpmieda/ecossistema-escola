@@ -25,9 +25,11 @@ export const INITIAL_AUTH_STATE_V1: StudentAuthStateV1 = {
 const failureMessage = (error: unknown) =>
   error instanceof PortalClientErrorV1 && error.state === 'rate-limited'
     ? 'Muitas tentativas. Aguarde antes de tentar novamente.'
-    : error instanceof PortalClientErrorV1 && ['unavailable', 'network-error'].includes(error.state)
-      ? 'Não foi possível conectar. Tente novamente.'
-      : 'Não foi possível entrar. Confira os dados e tente novamente.';
+    : error instanceof PortalClientErrorV1 && error.state === 'unavailable'
+      ? 'O serviço de acesso está temporariamente indisponível. Tente novamente.'
+      : error instanceof PortalClientErrorV1 && error.state === 'network-error'
+        ? 'Não foi possível conectar. Tente novamente.'
+        : 'Não foi possível entrar. Confira os dados e tente novamente.';
 
 /** Only presentation state is published. QR and one-use proof stay in this short-lived closure. */
 export function createStudentAuthFlowV1(
@@ -204,7 +206,20 @@ export function createStudentAuthFlowV1(
             if (!(error instanceof PortalClientErrorV1) || error.state !== 'unauthenticated')
               throw error;
             // Ask the server again; do not guess whether risk/PIN/reset is now required.
-            const result = await client.challenge({ contractVersion: 1, qr: qr! }, signal);
+            let result: Awaited<ReturnType<PortalSelfClientV1['challenge']>>;
+            try {
+              result = await client.challenge({ contractVersion: 1, qr: qr! }, signal);
+            } catch (discoveryError) {
+              ensureCurrent(signal);
+              if (
+                discoveryError instanceof PortalClientErrorV1 &&
+                discoveryError.state === 'unauthenticated'
+              ) {
+                reset('Não foi possível usar este QR. Leia o cartão atual para continuar.');
+                return;
+              }
+              throw discoveryError;
+            }
             ensureCurrent(signal);
             challengeResult(result, risk);
             if (state.step !== 'create') emit({ ...state, message: failureMessage(error) });
