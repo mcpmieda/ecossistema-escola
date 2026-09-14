@@ -1,53 +1,63 @@
 module: student_portal
 contract_version: 1
 academic_year: 2026
-updated_at: 2026-09-13
-current_issue: 757
-delivery_branch: feat/pa-integration-757
-delivery_scope: part_2_frontend_composition
-last_verified_main: 270ab8a442e833cd089d4d139bacbef55c7c52a0
-last_verified_pr: 774
-last_verified_deploy: 34788638736
-candidate_integration: issue_757_branch_requires_own_gates_see_issue_handoff
-completed_issues: [702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 732, 735, 701, 743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756]
+updated_at: 2026-09-14
+program_status: technically_complete_release_closed_by_policy
+current_issue: null
+delivery_branch: docs/pa-final-operation-760
+delivery_scope: part_2_final_operation_and_continuity
+last_verified_runtime_main: 436e9db8aebd67ea8e9765676aca47d385cd3119
+last_verified_runtime_pr: 787
+last_verified_runtime_deploy: 34871838273
+final_documentation_evidence: issue_760_handoff
+completed_issues: [702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 732, 735, 701, 743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760]
 gates:
   G-C: passed_integrated_contracts
-  G-B: partial_deferred_to_part_2_integrated_acceptance
-  G-P: pending_part_2_pilot_and_deliberate_opening
-runtime: production_composed_backend_remote_http_and_cron_verified
+  G-B: accepted_real_flow_with_explicit_physical_device_deferrals
+  G-P: passed_technical_release_general_opening_closed_by_policy
+runtime: production_composed_and_verified
 student_portal_schema: migrations_0001_through_0007_applied
-production_defaults: seven_fields_initialized_explicitly_2026_09_13
 population_enabled: false
+general_school_opening: false
 accounts_last_observed: 3
 access_settings_enabled_last_observed: 0
-school_calendar: object_present_required_dates_null
+active_sessions_last_observed: 0
+published_or_pending_periods_last_observed: 0
+materialized_projections_last_observed: 3
+materialized_projections_accessible: false
+school_calendar: institutional_opening_not_authorized
 public_origin: https://aluno.escolaieda.com
 browser_automation_active: false
-ui_changes: true
 ddl_in_this_delivery: false
+runtime_code_in_this_delivery: false
 secrets_rotated_in_this_delivery: false
-execution_authorization: continuous_until_user_requests_stop
+infrastructure_changed_in_this_delivery: false
+execution_authorization: completed
 execution_mode: direct_sequential_no_subagents
-next_safe_issue: 758_after_757_gates
-next_stage: integrated_quality_after_757_verified_publication
-deferred_acceptance: docs/student-portal/TEST_MATRIX.md
-closure_authority: PA-DEC-006
+next_safe_issue: null
+next_stage: maintenance_by_new_issue_when_reproducible
+closure_authority: PA-DEC-009
 execution_authority: PA-DEC-007
-pilot_scope: three_6A_accounts_authorized_2000_unconfirmed_test
-pilot_calendar: account_only_sources_plus_labeled_test_supplements
+pilot_scope: test_mass_retained_closed_and_inaccessible
 pilot_access_after_tests: closed
-pending_human_scope: real_authenticated_portal_rpc_widget_and_confirmed_birth_for_positive_activation
+deferred_acceptance:
+  - physical_camera
+  - physical_printing
+  - narrator_reading
+  - broad_device_matrix
+  - production_adversarial_turnstile_replay
+managed_backup_rpo_rto: explicitly_deferred_not_implemented
 
 part_2:
   parent_issue: 742
   planned_issues: [743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760]
+  completed_issues: [743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760]
+  completed_count: 18
+  total_issues: 18
   execution: one_issue_at_a_time_direct
   preserve_title_identities: [CODEX, CHAT ONLINE]
   integration_issue: 757
   quality_issue: 758
   integrated_acceptance_issue: 759
   operation_issue: 760
-  ui_implemented_by_this_delivery: true
-  completed_at_published_baseline: 14
-  total_issues: 18
-  integrated_contract_deltas: [745, 746, 756]
+  general_opening_authorized: false

@@ -24,7 +24,7 @@ function section(name: string): string {
 }
 
 describe('FINAL-1 documentation distinguishes facts, migration debt and historical checkpoints', () => {
-  it('keeps the completed BN program separate from the Portal P2 queue and pending gates', () => {
+  it('keeps the completed BN program separate from the completed Portal P2 release', () => {
     const current = currentState.split(/^historical_checkpoint_668:/mu)[0]!;
     expect(current).toMatch(/^schema_version: 3$/mu);
     expect(current).toContain('executable_issue: null');
@@ -32,7 +32,9 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(current).toContain('total_table_count: 30');
     expect(current).toContain('materialized_years: [2025, 2026]');
     expect(current).toContain('academic_authority: imported-source');
-    expect(current).toContain('gate_g_b: partial-real-acceptance-deferred-to-759');
+    expect(current).toContain('part_2_status: technically-complete-release-closed-by-policy');
+    expect(current).toContain('gate_g_b: accepted-with-explicit-physical-device-deferrals');
+    expect(current).toContain('gate_g_p: passed-technical-release-general-opening-not-authorized');
     expect(current).toContain('population_enabled: false');
     expect(current).toContain('general_school_opening: false');
     expect(current).toContain('managed_backup_rpo_rto: explicitly-deferred-not-implemented');

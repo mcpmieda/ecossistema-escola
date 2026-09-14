@@ -1,5 +1,17 @@
 # Prontidão e limites de evidência
 
+## Encerramento operacional #760 — estado vigente
+
+Runtime: main `436e9db8aebd67ea8e9765676aca47d385cd3119`, PR #787, deploy oficial `34871838273` SUCCESS. A entrega passou por 2072 testes gerais, 3 skips históricos, 21 provas workerd e 87 composições PostgreSQL. CI geral e PostgreSQL passaram. Em produção, 20 recargas do ADM não reproduziram indisponibilidade nem retorno indevido ao login; `/healthz` respondeu 20/20 com HTTP 200, `state=ok` e `no-store`.
+
+O responsável executou o fluxo real de redefinição → QR → PIN → senha → entrada → saída → QR → senha → reentrada e confirmou o resultado. Depois encerrou o acesso do piloto e autorizou revogar as duas sessões residuais. A observação final sanitizada registrou população global desabilitada, zero acesso explicitamente habilitado, zero sessão válida e zero período publicado ou pendente. Três projeções materializadas históricas permanecem preservadas e inacessíveis com essas guardas fechadas.
+
+**G-B ACEITO COM LIMITAÇÕES; G-P APROVADO PARA RELEASE TÉCNICA FECHADA POR POLÍTICA.** Não existe autorização de abertura geral, população, publicação escolar ou distribuição de QR. Câmera física, impressão física, Narrador, matriz ampla de dispositivos e o ensaio adversarial produtivo específico do widget foram adiados sem PASS. Backup gerenciado/RPO/RTO continua explicitamente fora da garantia.
+
+A abertura futura exige autorização institucional nominal, calendário e períodos definitivos, escopo mínimo de contas/turmas, distribuição privada e capacidade imediata de fechar acesso e revogar sessões. Alterações de capacidade Hyperdrive só ocorrem com nova evidência e autorização própria. Defeitos posteriores são tratados em issues novas, preservando esta baseline.
+
+As seções abaixo são checkpoints históricos e não substituem este estado vigente.
+
 ## Retomada de acessibilidade #758
 
 A entrega técnica parcial #776 está publicada em `83e4b346d47d7a5c6b97a7e512e2ccb5e2ceb035`, deploy34800038404 SUCCESS, verify2028+3skips históricos/21workerd, CI81PostgreSQL e14smokes HTTP PASS. A inspeção pública funciona na aba aberta manualmente pelo responsável. Zoom nativo200% da entrada foi observado; o teste de teclado revelou perda de foco no atalho de conteúdo por navegação de histórico. A entrega seguinte corrige somente esse atalho e sua regressão, com ownership registrado. Provas de notas com zoom e leitura assistiva permanecem discriminadas; mãe15/18, #758 em andamento, G-B PARCIAL/G-P pendente. Os registros abaixo são checkpoints históricos.
