@@ -16,6 +16,8 @@ import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-
 import {
   ACCOUNT_ACTIONS_V1,
   accountAccessOriginV1,
+  accountCredentialPreparableV1,
+  firstAccessLabelV1,
   accountCommandV1,
   accountLinkLabelV1,
   accountManageableV1,
@@ -275,6 +277,18 @@ function AccountDetailBodyV1({
                 </dd>
               </div>
               <div>
+                <dt>Prontidão do primeiro acesso</dt>
+                <dd>{firstAccessLabelV1(account)}</dd>
+              </div>
+              <div>
+                <dt>Recuperação de acesso</dt>
+                <dd>
+                  {account.firstAccess.recoveryReady
+                    ? 'Pronta'
+                    : 'Requer nascimento confirmado e PIN atual'}
+                </dd>
+              </div>
+              <div>
                 <dt>Última autenticação bem-sucedida</dt>
                 <dd>{lastAuthenticationLabelV1(account.lastAuthenticationAt)}</dd>
               </div>
@@ -306,7 +320,12 @@ function AccountDetailBodyV1({
                 <Button
                   key={action}
                   variant="secondary"
-                  isDisabled={!editable}
+                  isDisabled={
+                    !editable ||
+                    ((['password-reset', 'account-reset'].includes(action) ||
+                      (action === 'qr-regenerate' && account.state !== 'active')) &&
+                      !account.firstAccess.recoveryReady)
+                  }
                   onPress={() =>
                     setReview({
                       action,
@@ -321,7 +340,11 @@ function AccountDetailBodyV1({
               {onReprint && (
                 <Button
                   variant="secondary"
-                  isDisabled={!editable}
+                  isDisabled={
+                    !editable ||
+                    !accountCredentialPreparableV1(account) ||
+                    !account.firstAccess.qrIssued
+                  }
                   onPress={() => onReprint(context)}
                 >
                   Reimprimir QR

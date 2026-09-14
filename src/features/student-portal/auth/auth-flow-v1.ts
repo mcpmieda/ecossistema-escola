@@ -4,7 +4,7 @@ import {
   pinV1,
 } from '../../../../shared/student-portal-contracts/auth-v1';
 import type { PortalSelfClientV1 } from '../shared/self-client-v1';
-import { PortalClientErrorV1 } from '../shared/transport-v1';
+import { isAmbiguousPortalResponseV1, PortalClientErrorV1 } from '../shared/transport-v1';
 import { validateStudentQrV1 } from './qr-input-v1';
 
 export type StudentAuthStepV1 = 'scan' | 'pin' | 'password' | 'risk' | 'create' | 'authenticated';
@@ -243,7 +243,6 @@ export function createStudentAuthFlowV1(
         keepConnected,
       };
       if (!activateRequestV1.safeParse(input).success) return;
-      // A lost response may have committed. Never automatically replay a consumed challenge.
       clearTimeout(expiryTimer);
       proof = undefined;
       await run(
@@ -253,8 +252,54 @@ export function createStudentAuthFlowV1(
             success(signal);
           } catch (error) {
             ensureCurrent(signal);
-            qr = undefined;
-            throw error;
+            if (!isAmbiguousPortalResponseV1(error)) {
+              qr = undefined;
+              throw error;
+            }
+            const confirmLogin = () =>
+              client.login(
+                {
+                  contractVersion: 1,
+                  qr: qr!,
+                  password,
+                  keepConnected,
+                },
+                signal,
+              );
+            try {
+              // If activation committed but its response was lost, the chosen password confirms it.
+              await confirmLogin();
+              success(signal);
+              return;
+            } catch (confirmationError) {
+              ensureCurrent(signal);
+              if (
+                !(confirmationError instanceof PortalClientErrorV1) ||
+                confirmationError.state !== 'unauthenticated'
+              ) {
+                qr = undefined;
+                throw confirmationError;
+              }
+            }
+            try {
+              // A 401 confirmation proves that activation did not commit; the proof is still usable.
+              await client.activate(input, signal);
+              success(signal);
+            } catch (retryError) {
+              ensureCurrent(signal);
+              if (!isAmbiguousPortalResponseV1(retryError)) {
+                qr = undefined;
+                throw retryError;
+              }
+              // The bounded replay may also have committed before losing its response.
+              try {
+                await confirmLogin();
+                success(signal);
+              } catch (finalError) {
+                qr = undefined;
+                throw finalError;
+              }
+            }
           }
         },
         'scan',

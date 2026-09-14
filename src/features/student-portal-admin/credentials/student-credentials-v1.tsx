@@ -28,7 +28,11 @@ import type {
 import { ClassFilterV1 } from '../accounts/class-filter-v1';
 import { useAccountsReadV1 } from '../accounts/accounts-read-v1';
 import { AccountsErrorV1 } from '../accounts/accounts-presentation-v1';
-import { accountManageableV1, accountPageMatchesV1 } from '../accounts/accounts-values-v1';
+import {
+  accountCredentialPreparableV1,
+  firstAccessLabelV1,
+  accountPageMatchesV1,
+} from '../accounts/accounts-values-v1';
 import { SettingsCheckboxV1 } from '../settings/settings-editors-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
@@ -219,7 +223,7 @@ function CredentialsPageV1({
   }, [operationState]);
   const busy = operationState.state === 'requesting' || operationState.state === 'rendering';
   const started = operationState.state !== 'idle';
-  const candidates = data?.items.filter(accountManageableV1) ?? [];
+  const candidates = data?.items.filter(accountCredentialPreparableV1) ?? [];
   const chosen = candidates.filter((item) => selected.has(item.accountId));
   function openReview(kind: 'pdf' | 'qr-issue' | 'qr-reprint', target: EventTarget | null) {
     if (!data || !canWrite || started || !chosen.length || (kind !== 'pdf' && chosen.length !== 1))
@@ -331,7 +335,12 @@ function CredentialsPageV1({
                   </Button>
                   <Button
                     variant="secondary"
-                    isDisabled={!canWrite || started || chosen.length !== 1}
+                    isDisabled={
+                      !canWrite ||
+                      started ||
+                      chosen.length !== 1 ||
+                      !chosen[0]?.firstAccess.qrIssued
+                    }
                     onPress={(event) => openReview('qr-reprint', event.target)}
                   >
                     Reimprimir QR existente
@@ -452,7 +461,7 @@ const CredentialSelectionV1 = memo(function CredentialSelectionV1({
   enabled: boolean;
   onChange: Dispatch<SetStateAction<Set<string>>>;
 }) {
-  const candidates = rows.filter(accountManageableV1);
+  const candidates = rows.filter(accountCredentialPreparableV1);
   return (
     <>
       <SettingsCheckboxV1
@@ -477,6 +486,7 @@ const CredentialSelectionV1 = memo(function CredentialSelectionV1({
                 Aluno
               </Table.Column>
               <Table.Column id="class">Turma</Table.Column>
+              <Table.Column id="readiness">Primeiro acesso</Table.Column>
               <Table.Column id="selection">Seleção</Table.Column>
             </Table.Header>
             <Table.Body>
@@ -484,11 +494,12 @@ const CredentialSelectionV1 = memo(function CredentialSelectionV1({
                 <Table.Row key={item.accountId} id={item.accountId}>
                   <Table.Cell>{item.name || 'Nome indisponível'}</Table.Cell>
                   <Table.Cell>{item.classLabel || 'Turma indisponível'}</Table.Cell>
+                  <Table.Cell>{firstAccessLabelV1(item)}</Table.Cell>
                   <Table.Cell>
                     <SettingsCheckboxV1
                       label={'Selecionar ' + (item.name || 'conta')}
                       selected={selected.has(item.accountId)}
-                      disabled={!enabled || !accountManageableV1(item)}
+                      disabled={!enabled || !accountCredentialPreparableV1(item)}
                       onChange={(value) =>
                         onChange((before) => {
                           const next = new Set(before);
@@ -498,7 +509,9 @@ const CredentialSelectionV1 = memo(function CredentialSelectionV1({
                         })
                       }
                     />
-                    {!accountManageableV1(item) && <span>Vínculo indisponível</span>}
+                    {!accountCredentialPreparableV1(item) && (
+                      <span>Corrija a pendência antes de preparar o cartão</span>
+                    )}
                   </Table.Cell>
                 </Table.Row>
               ))}

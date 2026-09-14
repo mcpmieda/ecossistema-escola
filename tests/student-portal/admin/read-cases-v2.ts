@@ -73,6 +73,10 @@ export function adminReadCasesV2(
           source: READ_SCHOOL_V2,
           accessPermitted: false,
         },
+        firstAccess: { state: 'not-required', qrIssued: false, recoveryReady: false },
+      });
+      expect(first.items[1]).toMatchObject({
+        firstAccess: { state: 'birth-missing', qrIssued: false, recoveryReady: false },
       });
       const legacy = await readApiV2(get().sql).query(readContextV2(), {
         ...input(),

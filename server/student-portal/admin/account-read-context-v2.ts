@@ -20,7 +20,32 @@ export const ADMIN_ACCOUNT_FIELDS_V2 = `a.id,a.gradebook_student_id,a.auth_state
     COALESCE((SELECT jsonb_agg(jsonb_build_object('scope_key',p.scope_key,'field_key',p.field_key,
       'value_json',p.value_json,'source_scope_json',p.source_scope_json,'version',p.version))
       FROM student_portal.setting p WHERE p.scope_key='school:2026'
-        OR p.scope_key='class:2026:'||b.class_id::text OR p.scope_key='account:2026:'||a.id::text),'[]'::jsonb) AS settings_rows`;
+        OR p.scope_key='class:2026:'||b.class_id::text OR p.scope_key='account:2026:'||a.id::text),'[]'::jsonb) AS settings_rows,
+    (SELECT d.birth_year FROM student_portal.account_access_data d WHERE d.account_id=a.id) AS birth_year,
+    (SELECT d.confirmation FROM student_portal.account_access_data d WHERE d.account_id=a.id) AS birth_confirmation,
+    EXISTS(SELECT 1 FROM student_portal.qr_credential q WHERE q.account_id=a.id AND q.state='active') AS qr_issued,
+    EXISTS(SELECT 1 FROM student_portal.password_credential c WHERE c.account_id=a.id AND c.pin_verifier IS NOT NULL) AS pin_registered,
+    EXISTS(SELECT 1 FROM student_portal.password_credential c WHERE c.account_id=a.id AND c.pin_verifier IS NOT NULL
+      AND c.pin_version=a.pin_version) AS pin_current`;
+
+function firstAccessV2(row: Record<string, unknown>) {
+  const qrIssued = row.qr_issued === true;
+  const recoveryReady =
+    row.birth_year !== null &&
+    row.birth_confirmation === 'confirmed' &&
+    row.pin_registered === true &&
+    row.pin_current === true;
+  if (row.auth_state === 'active')
+    return { state: 'not-required' as const, qrIssued, recoveryReady };
+  if (row.birth_year === null) return { state: 'birth-missing' as const, qrIssued, recoveryReady };
+  if (row.birth_confirmation !== 'confirmed')
+    return { state: 'birth-unconfirmed' as const, qrIssued, recoveryReady };
+  if (row.pin_registered !== true)
+    return { state: 'pin-missing' as const, qrIssued, recoveryReady };
+  if (row.pin_current !== true) return { state: 'pin-outdated' as const, qrIssued, recoveryReady };
+  if (!qrIssued) return { state: 'qr-missing' as const, qrIssued, recoveryReady };
+  return { state: 'ready' as const, qrIssued, recoveryReady };
+}
 
 export async function accountReadContextV2(row: Record<string, unknown>, now: Date) {
   const accountId = z.uuid().parse(row.id);
@@ -79,6 +104,7 @@ export async function accountReadContextV2(row: Record<string, unknown>, now: Da
     lastAuthenticationAt:
       row.last_authentication == null ? null : adminInstantV1(row.last_authentication),
     validSessionCount: 0,
+    firstAccess: firstAccessV2(row),
   });
   return {
     item,

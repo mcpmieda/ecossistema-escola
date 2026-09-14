@@ -74,6 +74,21 @@ export const adminAccountReadV2 = accountSummaryV1
     // Null means unknown in the retained window, never proof of no previous access.
     lastAuthenticationAt: instantV1.nullable(),
     validSessionCount: z.number().int().nonnegative().safe(),
+    firstAccess: z
+      .object({
+        state: z.enum([
+          'ready',
+          'birth-missing',
+          'birth-unconfirmed',
+          'qr-missing',
+          'pin-missing',
+          'pin-outdated',
+          'not-required',
+        ]),
+        qrIssued: z.boolean(),
+        recoveryReady: z.boolean(),
+      })
+      .strict(),
   })
   .strict();
 const base = { contractVersion: z.literal(2), requestId: portalIdV1, observedAt: instantV1 };

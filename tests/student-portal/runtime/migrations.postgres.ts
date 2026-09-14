@@ -1146,6 +1146,17 @@ describe('native administrative facade and atomic batch receipts', () => {
     if (accounts.state !== 'accounts') throw new Error(`synthetic-native-accounts-${accounts.state}`);
     expect(accounts.items).toHaveLength(2);
     accountIds = accounts.items.map((item) => item.accountId);
+    const pinVerifier = await cryptography.deriveVerifier('2001', 1);
+    await portal.unsafe(`INSERT INTO student_portal.account_access_data(account_id,birth_year,confirmation)
+      SELECT id,2001,'confirmed' FROM student_portal.account
+      WHERE id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb))
+      ON CONFLICT (account_id) DO UPDATE SET birth_year=EXCLUDED.birth_year,confirmation=EXCLUDED.confirmation`,
+    [JSON.stringify(accountIds)]);
+    await portal.unsafe(`INSERT INTO student_portal.password_credential(account_id,pin_verifier,pin_version)
+      SELECT id,$2::text::jsonb,pin_version FROM student_portal.account
+      WHERE id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb))
+      ON CONFLICT (account_id) DO UPDATE SET pin_verifier=EXCLUDED.pin_verifier,pin_version=EXCLUDED.pin_version`,
+    [JSON.stringify(accountIds), JSON.stringify(pinVerifier)]);
     const request = { contractVersion: 1, operation: 'qr-batch', classId: scope.classId, accountIds,
       expectedVersion: accounts.scopeVersion, mode: 'qr-name-class', confirmed: true, idempotencyKey: crypto.randomUUID() };
     const [first, replay] = await Promise.all([api.command(context(), request), other.command(context(), request)]);

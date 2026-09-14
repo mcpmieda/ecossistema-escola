@@ -166,6 +166,21 @@ describe('account list and detail', () => {
     expect(screen.getAllByText('Vínculo Portal encerrado')).toHaveLength(2);
     expect(mock.writes).toHaveLength(0);
   });
+  it('blocks destructive recovery actions when the backend says recovery is not ready', async () => {
+    const mock = accountsMockV1();
+    mock.accounts[0]!.firstAccess.recoveryReady = false;
+    render(createElement(StudentAccountsV1, mock.props));
+    const user = userEvent.setup();
+    await user.click(await ready());
+    await detail();
+    expect((screen.getByRole('button', { name: 'Redefinir senha' }) as HTMLButtonElement).disabled)
+      .toBe(true);
+    expect((screen.getByRole('button', { name: 'Redefinir conta' }) as HTMLButtonElement).disabled)
+      .toBe(true);
+    expect((screen.getByRole('button', { name: 'Regenerar QR' }) as HTMLButtonElement).disabled)
+      .toBe(false);
+    expect(screen.getByText('Requer nascimento confirmado e PIN atual')).toBeTruthy();
+  });
   it('clears selected data and open confirmation when identity or capability changes', async () => {
     const mock = accountsMockV1();
     const view = render(createElement(StudentAccountsV1, mock.props));
