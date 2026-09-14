@@ -28,7 +28,7 @@ describe('session revocation receipts and cancellation', () => {
     let calls = 0;
     const mock = operationsMockV1({
       write: () =>
-        ++calls === 1 ? Promise.reject(new Error('synthetic lost response')) : undefined,
+        ++calls <= 2 ? Promise.reject(new Error('synthetic lost response')) : undefined,
     });
     const states: SessionMutationStateV1[] = [];
     const op = createSessionMutationV1(mock.client, true, (s) => states.push(s));
@@ -36,9 +36,10 @@ describe('session revocation receipts and cancellation', () => {
     await op.submit(command);
     command.expectedVersion = 900;
     await op.submit({ ...input(), sessionId: opIdV1(100) });
-    expect(mock.writes).toHaveLength(1);
+    expect(mock.writes).toHaveLength(2);
     await op.retry();
-    expect(mock.bodies[0]).toBe(mock.bodies[1]);
+    expect(mock.bodies).toHaveLength(3);
+    expect(new Set(mock.bodies).size).toBe(1);
     expect(states.at(-1)).toMatchObject({ state: 'committed', version: 12 });
     expect(mock.receipts.size).toBe(1);
   });

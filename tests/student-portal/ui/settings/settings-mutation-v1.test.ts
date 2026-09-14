@@ -36,7 +36,7 @@ describe('settings mutation receipts and scope disposal', () => {
     const client = createPortalAdminClientV1({
       fetch: async (_path, init) => {
         bodies.push(String(init.body));
-        if (bodies.length === 1) throw new Error('synthetic lost response');
+        if (bodies.length <= 2) throw new Error('synthetic lost response');
         return response('committed');
       },
     });
@@ -46,9 +46,9 @@ describe('settings mutation receipts and scope disposal', () => {
     expect(states.at(-1)).toMatchObject({ state: 'error', retryable: true });
     if (input.operation === 'settings-set') input.value.accessEnabled = true;
     await mutation.retry();
-    expect(bodies).toHaveLength(2);
-    expect(bodies[1]).toBe(bodies[0]);
-    expect(JSON.parse(bodies[1]!)).toMatchObject({
+    expect(bodies).toHaveLength(3);
+    expect(new Set(bodies).size).toBe(1);
+    expect(JSON.parse(bodies[2]!)).toMatchObject({
       expectedVersion: 4,
       value: { accessEnabled: false, allowedPeriods: [] },
     });

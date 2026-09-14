@@ -249,7 +249,7 @@ describe('account list and detail', () => {
     let attempt = 0;
     const mock = accountsMockV1({
       write: async () => {
-        if (attempt++ === 0) throw new Error('Synthetic lost response');
+        if (attempt++ < 2) throw new Error('Synthetic lost response');
         return accountJsonV1({
           ...ACCOUNT_META_V1,
           state: 'committed',
@@ -266,7 +266,8 @@ describe('account list and detail', () => {
     await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
     await user.click(await screen.findByRole('button', { name: 'Repetir mesma solicitação' }));
     await screen.findByText(/Ação concluída pelo servidor/);
-    expect(mock.bodies[0]).toBe(mock.bodies[1]);
+    expect(mock.bodies).toHaveLength(3);
+    expect(new Set(mock.bodies).size).toBe(1);
   });
 });
 

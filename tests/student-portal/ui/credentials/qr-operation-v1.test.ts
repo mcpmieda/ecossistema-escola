@@ -40,7 +40,7 @@ describe('private credential operation lifecycle', () => {
     let count = 0;
     const mock = qrMockV1({
       write: () =>
-        ++count === 1 ? Promise.reject(new Error('lost synthetic response')) : undefined,
+        ++count <= 2 ? Promise.reject(new Error('lost synthetic response')) : undefined,
     });
     const { op, states } = setup(mock);
     const input = command();
@@ -48,7 +48,8 @@ describe('private credential operation lifecycle', () => {
     if (input.operation === 'qr-batch') input.accountIds = [qrPrintIdV1(2)];
     expect(states.at(-1)).toMatchObject({ state: 'error', stage: 'request', retryable: true });
     await op.retry();
-    expect(mock.bodies[0]).toBe(mock.bodies[1]);
+    expect(mock.bodies).toHaveLength(3);
+    expect(new Set(mock.bodies).size).toBe(1);
     expect(mock.receipts.size).toBe(1);
     expect(states.at(-1)).toMatchObject({ state: 'ready', count: 1, format: 'pdf' });
     expect(JSON.stringify(states)).not.toContain('SYNTHETIC');

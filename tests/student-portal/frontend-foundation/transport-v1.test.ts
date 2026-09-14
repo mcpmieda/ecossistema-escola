@@ -54,8 +54,66 @@ it('preserves command bytes, CAS and idempotency when resuming partial batches',
   await operation.execute();
   expect(fetch.mock.calls[0]?.[1]?.body).toBe(fetch.mock.calls[1]?.[1]?.body);
   expect(JSON.parse(String(fetch.mock.calls[1]?.[1]?.body))).toMatchObject({ expectedVersion: 3, idempotencyKey: id, items: [{ year: '2001' }] });
-  fetch.mockResolvedValueOnce(json({ contractVersion: 1, requestId: id, state: 'health', status: 'normal' }));
+  fetch
+    .mockResolvedValueOnce(json({ contractVersion: 1, requestId: id, state: 'health', status: 'normal' }))
+    .mockResolvedValueOnce(json({ contractVersion: 1, requestId: id, state: 'health', status: 'normal' }));
   await expect(operation.execute()).rejects.toMatchObject({ state: 'invalid-response' });
+});
+
+it('confirms an ambiguous admin command once with the exact same bytes', async () => {
+  const input = { contractVersion: 1 as const, operation: 'birth-batch' as const, classId: 970744,
+    expectedVersion: 3, idempotencyKey: id, expectedCount: 1, confirmed: true as const,
+    items: [{ action: 'set' as const, accountId: id, expectedVersion: 2, year: '2001', confirmation: 'confirmed' as const }] };
+  const response = { contractVersion: 1, requestId: id, state: 'batch', operationId: id,
+    items: [{ accountId: id, state: 'committed', version: 3 }] } as const;
+  const fetch = vi.fn<PortalFetchV1>()
+    .mockRejectedValueOnce(new Error('synthetic-lost-response'))
+    .mockResolvedValueOnce(json(response));
+  const operation = createPortalAdminClientV1({ fetch }).prepareCommand(input);
+  await expect(operation.execute()).resolves.toMatchObject({ state: 'batch' });
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(fetch.mock.calls[0]?.[1]?.body).toBe(fetch.mock.calls[1]?.[1]?.body);
+
+  const invalid = vi.fn<PortalFetchV1>()
+    .mockResolvedValueOnce(json({ contractVersion: 1, requestId: id, state: 'health', status: 'normal' }))
+    .mockResolvedValueOnce(json(response));
+  await expect(createPortalAdminClientV1({ fetch: invalid }).prepareCommand(input).execute())
+    .resolves.toMatchObject({ state: 'batch' });
+  expect(invalid).toHaveBeenCalledTimes(2);
+
+  const unavailable = vi.fn<PortalFetchV1>()
+    .mockResolvedValueOnce(json({ contractVersion: 1, requestId: id, state: 'unavailable' }, 503))
+    .mockResolvedValueOnce(json(response));
+  await expect(createPortalAdminClientV1({ fetch: unavailable }).prepareCommand(input).execute())
+    .resolves.toMatchObject({ state: 'batch' });
+  expect(unavailable).toHaveBeenCalledTimes(2);
+});
+
+it('does not automatically repeat reads, refusals, rate limits or more than one ambiguous command response', async () => {
+  const input = { contractVersion: 1 as const, operation: 'birth-batch' as const, classId: 970744,
+    expectedVersion: 3, idempotencyKey: id, expectedCount: 1, confirmed: true as const,
+    items: [{ action: 'clear' as const, accountId: id, expectedVersion: 2 }] };
+  const lost = vi.fn<PortalFetchV1>(async () => { throw new Error('synthetic-offline'); });
+  await expect(createPortalAdminClientV1({ fetch: lost }).prepareCommand(input).execute())
+    .rejects.toMatchObject({ state: 'network-error' });
+  expect(lost).toHaveBeenCalledTimes(2);
+
+  const refused = vi.fn<PortalFetchV1>(async () =>
+    json({ contractVersion: 1, requestId: id, state: 'forbidden' }, 403));
+  await expect(createPortalAdminClientV1({ fetch: refused }).prepareCommand(input).execute())
+    .rejects.toMatchObject({ state: 'forbidden' });
+  expect(refused).toHaveBeenCalledOnce();
+
+  const limited = vi.fn<PortalFetchV1>(async () =>
+    json({ contractVersion: 1, requestId: id, state: 'rate-limited', retryAfterSeconds: 10 }, 429));
+  await expect(createPortalAdminClientV1({ fetch: limited }).prepareCommand(input).execute())
+    .rejects.toMatchObject({ state: 'rate-limited' });
+  expect(limited).toHaveBeenCalledOnce();
+
+  const read = vi.fn<PortalFetchV1>(async () => { throw new Error('synthetic-offline'); });
+  await expect(createPortalSelfClientV1({ fetch: read }).session())
+    .rejects.toMatchObject({ state: 'network-error' });
+  expect(read).toHaveBeenCalledOnce();
 });
 
 it('clears old data synchronously and never publishes stale completions after a scope change or logout', async () => {

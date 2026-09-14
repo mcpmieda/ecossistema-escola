@@ -59,7 +59,7 @@ function fixture(count = 2, lifetime = 300_000, failFirst = false) {
       }
       bodies.push(String(init.body));
       writes.push(JSON.parse(String(init.body)));
-      if (failFirst && writes.length === 1) throw new Error('synthetic response lost');
+      if (failFirst && writes.length <= 2) throw new Error('synthetic response lost');
       return json({ ...base, state: 'committed', version: 10, operationId: SYNTHETIC_ID_V1 });
     },
   });
@@ -132,7 +132,7 @@ describe('separate link closure risk area', () => {
     );
     await user.click(screen.getByRole('button', { name: 'Repetir o mesmo encerramento' }));
     await vi.waitFor(() => expect(mock.onClosed).toHaveBeenCalledOnce());
-    expect(mock.bodies[1]).toBe(mock.bodies[0]);
-    expect(mock.writes).toHaveLength(2);
+    expect(new Set(mock.bodies).size).toBe(1);
+    expect(mock.writes).toHaveLength(3);
   });
 });

@@ -8,11 +8,11 @@ import { accountJsonV1, accountsMockV1, ACCOUNT_META_V1, accountIdV1 } from './f
 
 describe('account command lifecycle', () => {
   it('keeps captured bytes on uncertain retry and blocks duplicate pending sends', async () => {
-    let resolve!: (response: Response) => void;
+    const resolves: Array<(response: Response) => void> = [];
     const mock = accountsMockV1({
       write: () =>
         new Promise((done) => {
-          resolve = done;
+          resolves.push(done);
         }),
     });
     const states: AccountMutationStateV1[] = [];
@@ -26,11 +26,14 @@ describe('account command lifecycle', () => {
     await writer.submit(command);
     expect(mock.writes).toHaveLength(1);
     command.expectedVersion = 90;
-    resolve(accountJsonV1({ ...ACCOUNT_META_V1, state: 'unavailable' }, 503));
+    resolves[0]!(accountJsonV1({ ...ACCOUNT_META_V1, state: 'unavailable' }, 503));
+    await vi.waitFor(() => expect(mock.writes).toHaveLength(2));
+    resolves[1]!(accountJsonV1({ ...ACCOUNT_META_V1, state: 'unavailable' }, 503));
     await pending;
     expect(states.at(-1)).toMatchObject({ state: 'error', retryable: true });
     const retry = writer.retry();
-    resolve(
+    await vi.waitFor(() => expect(mock.writes).toHaveLength(3));
+    resolves[2]!(
       accountJsonV1({
         ...ACCOUNT_META_V1,
         state: 'committed',
@@ -39,7 +42,7 @@ describe('account command lifecycle', () => {
       }),
     );
     await retry;
-    expect(mock.bodies[0]).toBe(mock.bodies[1]);
+    expect(new Set(mock.bodies).size).toBe(1);
     expect(states.at(-1)).toMatchObject({ state: 'committed' });
     writer.clear();
   });
