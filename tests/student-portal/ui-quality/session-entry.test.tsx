@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StudentPortalApp } from '../../../src/student-portal/app';
 import { createPortalSelfClientV1 } from '../../../src/features/student-portal/shared/self-client-v1';
@@ -21,6 +21,49 @@ function deferredResponse() {
   });
   return { promise, resolve };
 }
+
+it('keeps the anonymous file input mounted when the native picker returns focus', async () => {
+  const fetcher = vi.fn(async () => json({ ...meta, state: 'unauthenticated' }, 401));
+  render(<StudentPortalApp client={createPortalSelfClientV1({ fetch: fetcher })} />);
+  await screen.findByRole('button', { name: 'Escolher imagem' });
+  const input = document.querySelector('input[type="file"]');
+  expect(input).toBeTruthy();
+  await act(async () => {
+    fireEvent(window, new Event('blur'));
+    fireEvent(window, new Event('focus'));
+  });
+  expect(document.querySelector('input[type="file"]')).toBe(input);
+  expect(input?.isConnected).toBe(true);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+it.each(['focus', 'pageshow', 'popstate'])(
+  'hides authenticated data and revalidates before revealing it on %s',
+  async (event) => {
+    let revoked = false;
+    const fetcher = vi.fn(async (path: string) =>
+      path === '/api/student/session'
+        ? revoked
+          ? json({ ...meta, state: 'unauthenticated' }, 401)
+          : json({
+              ...meta,
+              state: 'authenticated',
+              persistent: false,
+              expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+            })
+        : json(SYNTHETIC_SELF_V1),
+    );
+    render(<StudentPortalApp client={createPortalSelfClientV1({ fetch: fetcher })} />);
+    await screen.findByText(SYNTHETIC_SELF_V1.profile.name);
+    revoked = true;
+    act(() => {
+      fireEvent(window, new Event(event));
+    });
+    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
+    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+  },
+);
 beforeEach(() => {
   setupOperationsDomV1();
   window.history.replaceState(null, '', '/');

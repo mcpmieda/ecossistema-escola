@@ -95,10 +95,24 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
   const [logoutState, setLogoutState] = useState<LogoutStateV1>('idle');
   const session = useRef<ReturnType<typeof createStudentSessionV1> | null>(null);
   useEffect(() => {
-    const current = createStudentSessionV1(client, setLoad, setLogoutState);
+    let currentLoad: PortalLoadStateV1<SelfResponseV1> = { state: 'idle' };
+    const current = createStudentSessionV1(
+      client,
+      (next) => {
+        currentLoad = next;
+        setLoad(next);
+      },
+      setLogoutState,
+    );
     session.current = current;
     const resume = () => {
       if (document.visibilityState !== 'hidden') void current.refresh();
+    };
+    const focus = () => {
+      // A native file picker returns focus without restoring a protected page.
+      // Keep its input/decoder mounted once the server has confirmed no session.
+      if (currentLoad.state === 'error' && currentLoad.error.state === 'unauthenticated') return;
+      resume();
     };
     // Clear synchronously before the browser can freeze a protected DOM in its history cache.
     const hide = () => flushSync(() => current.clear());
@@ -109,7 +123,7 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
     window.addEventListener('pagehide', hide);
     window.addEventListener('pageshow', resume);
     window.addEventListener('popstate', resume);
-    window.addEventListener('focus', resume);
+    window.addEventListener('focus', focus);
     document.addEventListener('visibilitychange', visibility);
     resume();
     return () => {
@@ -118,7 +132,7 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
       window.removeEventListener('pagehide', hide);
       window.removeEventListener('pageshow', resume);
       window.removeEventListener('popstate', resume);
-      window.removeEventListener('focus', resume);
+      window.removeEventListener('focus', focus);
       document.removeEventListener('visibilitychange', visibility);
     };
   }, [client]);
