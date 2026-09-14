@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Button, Spinner } from '@heroui/react';
 import { StudentAuthenticationV1 } from '../features/student-portal/auth/student-auth-v1';
 import { useStudentSessionV1 } from '../features/student-portal/auth/student-session-v1';
@@ -32,7 +32,6 @@ export function StudentPortalApp({
   const [initialQr, setInitialQr] = useState(entry.qr);
   const [invalidQr, setInvalidQr] = useState(entry.invalidQr);
   const [access, setAccess] = useState(entry.route === 'access');
-  const seenSession = useRef(false);
   const session = useStudentSessionV1(client);
   const discardQr = () => {
     entry.qr = null;
@@ -40,9 +39,6 @@ export function StudentPortalApp({
     setInitialQr(null);
     setInvalidQr(false);
   };
-  useEffect(() => {
-    if (session.load.state === 'ready') seenSession.current = true;
-  }, [session.load]);
   useEffect(
     () => () => {
       entry.qr = null;
@@ -86,10 +82,9 @@ export function StudentPortalApp({
     );
   const anonymous =
     session.load.state === 'error' && session.load.error.state === 'unauthenticated';
-  if (access || session.logoutState === 'done' || (anonymous && !seenSession.current))
+  if (access || session.logoutState === 'done' || anonymous)
     return (
       <StudentPortalShellV1>
-        {session.logoutState === 'done' && <p role="status">Você saiu do Portal.</p>}
         {invalidQr && (
           <Alert status="warning">
             <Alert.Content>

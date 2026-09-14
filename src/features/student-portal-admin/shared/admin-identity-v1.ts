@@ -82,13 +82,14 @@ export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) 
         knownIdentity.current = identity;
         setState({ state: 'ready', identity });
         clearTimeout(expiry.current);
-        // Fail closed at the timer boundary; do not overflow even for an unexpected long session.
-        expiry.current = setTimeout(
-          () => {
-            lost();
-          },
-          Math.min(remaining, 2147483647),
-        );
+        // Recheck the server deadline: a capped browser timer is not session expiration.
+        const checkExpiry = () => {
+          if (knownIdentity.current !== identity) return;
+          const left = Date.parse(identity.expiresAt) - Date.now();
+          if (left <= 0) lost();
+          else expiry.current = setTimeout(checkExpiry, Math.min(left, 2147483647));
+        };
+        checkExpiry();
       } catch (error) {
         if (controller.signal.aborted || generation.current !== current) return;
         lost(error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable'));
