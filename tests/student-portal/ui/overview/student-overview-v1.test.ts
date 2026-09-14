@@ -76,6 +76,32 @@ describe('actual operational summary and health', () => {
     expect(screen.getByText(/Os totais não foram substituídos por zero/)).toBeTruthy();
     expect(document.querySelector('dl')).toBeNull();
   });
+  it('reviews and starts the complete school population without issuing credentials or publications', async () => {
+    const user = userEvent.setup(),
+      mock = operationsMockV1();
+    render(
+      createElement(StudentOverviewV1, {
+        ...mock.props,
+        scope: { kind: 'school', academicYear: 2026 },
+        scopeLabel: 'Escola',
+      }),
+    );
+    await screen.findByText('População desativada');
+    expect(screen.getByText(/353 alunos elegíveis/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Revisar ativação da população' }));
+    const review = await screen.findByRole('alertdialog');
+    expect(review.textContent).toContain('381 perfis');
+    expect(review.textContent).toContain('Nenhum QR será emitido');
+    await user.click(screen.getByRole('button', { name: 'Ativar e sincronizar' }));
+    await screen.findByText('População ativa');
+    expect(mock.writes).toHaveLength(1);
+    expect(mock.writes[0]).toMatchObject({
+      operation: 'population-start',
+      academicYear: 2026,
+      clearOverrides: true,
+      confirmed: true,
+    });
+  });
   it('does not invent normal health on failure and clears counts if either request loses authorization', async () => {
     const mock = operationsMockV1({
       query: (q) =>

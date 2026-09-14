@@ -76,6 +76,10 @@ export function operationsMockV1(
     bodies: string[] = [];
   const receipts = new Map<string, { operationId: string; version: number }>();
   let version = 756;
+  let populationEnabled = false,
+    populationAccounts = 3,
+    populationMissing = 381,
+    populationOverrides = 9;
   const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
     const body = String(init?.body),
       value = JSON.parse(body);
@@ -85,26 +89,36 @@ export function operationsMockV1(
       bodies.push(body);
       const custom = options.write?.(command, init?.signal);
       if (custom) return custom;
-      if (command.operation !== 'sessions-revoke')
+      if (command.operation !== 'sessions-revoke' && command.operation !== 'population-start')
         return opJsonV1({ ...OP_META_V1, state: 'invalid-request' }, 400);
       let receipt = receipts.get(command.idempotencyKey);
       if (!receipt) {
-        const scope = command.scope;
+        const scope =
+          command.operation === 'sessions-revoke'
+            ? command.scope
+            : { kind: 'school' as const, academicYear: 2026 as const };
         const expected =
           scope.kind === 'account'
             ? accounts.find((a) => a.accountId === scope.accountId)?.version
             : version;
         if (expected !== command.expectedVersion)
           return opJsonV1({ ...OP_META_V1, state: 'conflict' }, 409);
-        for (const session of sessions)
-          if (
-            (scope.kind !== 'account' || session.accountId === scope.accountId) &&
-            (!command.sessionId || command.sessionId === session.sessionId)
-          ) {
-            session.revokedAt = at();
-            session.validity = 'revoked';
-          }
-        accounts[0]!.version++;
+        if (command.operation === 'sessions-revoke') {
+          for (const session of sessions)
+            if (
+              (scope.kind !== 'account' || session.accountId === scope.accountId) &&
+              (!command.sessionId || command.sessionId === session.sessionId)
+            ) {
+              session.revokedAt = at();
+              session.validity = 'revoked';
+            }
+          accounts[0]!.version++;
+        } else {
+          populationEnabled = true;
+          populationAccounts += populationMissing;
+          populationMissing = 0;
+          populationOverrides = 0;
+        }
         version++;
         receipt = {
           operationId: opIdV1(9800 + receipts.size),
@@ -182,6 +196,22 @@ export function operationsMockV1(
       });
     if (query.operation === 'health')
       return opJsonV1({ ...OP_META_V1, state: 'health', status: 'normal' });
+    if (query.operation === 'population')
+      return opJsonV1({
+        ...OP_META_V1,
+        state: 'population',
+        enabled: populationEnabled,
+        version,
+        sourceProfiles: 384,
+        eligibleSourceProfiles: 353,
+        exitSourceProfiles: 31,
+        classes: 15,
+        accounts: populationAccounts,
+        eligibleAccounts: populationEnabled ? 353 : 3,
+        deniedAccounts: populationEnabled ? 31 : 0,
+        missingProfiles: populationMissing,
+        overrideRows: populationOverrides,
+      });
     if (query.contractVersion !== 1)
       return opJsonV1({ ...OP_META_V1, state: 'invalid-request' }, 400);
     const events = Array.from({ length: options.count ?? 4 }, (_, i) => ({

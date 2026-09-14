@@ -16,13 +16,13 @@ export function disclosureDueV1(policy: PolicyValueV1, periods: readonly PeriodV
   let due = Date.parse(calendar.yearStartsAt);
   for (const period of periods) {
     if (!policy.allowedPeriods.includes(period)) return null;
-    const start = period === 'T1' ? calendar.yearStartsAt : period === 'T2' ? calendar.t1EndsAt
-      : period === 'T3' ? calendar.t2EndsAt : calendar.recoveriesStartAt;
+    const start = period === 'T1' ? calendar.yearStartsAt : period === 'T2' ? calendar.t2StartsAt ?? calendar.t1EndsAt
+      : period === 'T3' ? calendar.t3StartsAt ?? calendar.t2EndsAt : calendar.recoveriesStartAt;
     const disclosure = calendar.disclosure;
     if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) return null;
     const at = disclosure.mode === 'single' ? disclosure.at : disclosure.at[period];
-    if (!start || !at) return null;
-    due = Math.max(due, Date.parse(start), Date.parse(at));
+    if (!start) return null;
+    due = Math.max(due, Date.parse(start), at ? Date.parse(at) : Date.parse(start));
   }
   return due < Date.parse(calendar.yearEndsAt) ? new Date(due) : null;
 }

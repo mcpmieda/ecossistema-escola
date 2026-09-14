@@ -23,7 +23,8 @@ export function normalizeCalendarV1(input: unknown): CalendarV1 {
   return calendarV1.parse({
     ...parsed,
     enrollmentStartsAt: instant(parsed.enrollmentStartsAt), yearStartsAt: instant(parsed.yearStartsAt),
-    t1EndsAt: instant(parsed.t1EndsAt), t2EndsAt: instant(parsed.t2EndsAt), t3EndsAt: instant(parsed.t3EndsAt),
+    t1EndsAt: instant(parsed.t1EndsAt), t2StartsAt: instant(parsed.t2StartsAt),
+    t2EndsAt: instant(parsed.t2EndsAt), t3StartsAt: instant(parsed.t3StartsAt), t3EndsAt: instant(parsed.t3EndsAt),
     recoveriesStartAt: instant(parsed.recoveriesStartAt), yearEndsAt: instant(parsed.yearEndsAt),
     finalDisclosureAt: instant(parsed.finalDisclosureAt),
     disclosure: parsed.disclosure.mode === 'single'
@@ -48,13 +49,13 @@ export function periodDisclosureV1(input: PolicyValueV1, period: PeriodV1, now: 
   if (!Number.isFinite(now.getTime())) throw new Error('student-portal-clock-invalid');
   if (!value.allowedPeriods.includes(period)) return 'disabled';
   const calendar = value.calendar;
-  const start = timestamp(period === 'T1' ? calendar.yearStartsAt : period === 'T2' ? calendar.t1EndsAt
-    : period === 'T3' ? calendar.t2EndsAt : calendar.recoveriesStartAt);
+  const start = timestamp(period === 'T1' ? calendar.yearStartsAt : period === 'T2' ? calendar.t2StartsAt ?? calendar.t1EndsAt
+    : period === 'T3' ? calendar.t3StartsAt ?? calendar.t2EndsAt : calendar.recoveriesStartAt);
   const disclosure = calendar.disclosure;
   if (disclosure.mode === 'single' && !disclosure.periods.includes(period)) return 'disabled';
   const at = timestamp(disclosure.mode === 'single' ? disclosure.at : disclosure.at[period]);
-  if (start === null || at === null) return 'unavailable';
-  return now.getTime() >= Math.max(start, at) ? 'allowed' : 'not-yet';
+  if (start === null) return 'unavailable';
+  return now.getTime() >= Math.max(start, at ?? start) ? 'allowed' : 'not-yet';
 }
 
 export function mayDiscloseFinalV1(input: PolicyValueV1, now: Date, officialSourceAuthorized: boolean): boolean {

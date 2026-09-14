@@ -53,7 +53,7 @@ function immediateCalendarChange(previous: unknown, next: unknown, now: number):
   const after = normalizeCalendarV1(next);
   const past = (value: string | null) => value !== null && Date.parse(value) <= now;
   const changedDate = (left: string | null, right: string | null) => left !== right && (past(left) || past(right));
-  const dates = ['enrollmentStartsAt', 'yearStartsAt', 't1EndsAt', 't2EndsAt', 't3EndsAt',
+  const dates = ['enrollmentStartsAt', 'yearStartsAt', 't1EndsAt', 't2StartsAt', 't2EndsAt', 't3StartsAt', 't3EndsAt',
     'recoveriesStartAt', 'yearEndsAt', 'finalDisclosureAt'] as const;
   if (dates.some((field) => changedDate(before[field], after[field]))) return true;
   const left = before.disclosure;

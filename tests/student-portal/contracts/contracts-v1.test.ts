@@ -83,6 +83,8 @@ describe('Portal V1 calendar, inheritance and birth', () => {
   it('allows unfilled dates but rejects reversed chronology and ambiguous disclosure modes', () => {
     expect(calendarV1.safeParse(EMPTY_CALENDAR_V1).success).toBe(true);
     expect(calendarV1.safeParse({ ...EMPTY_CALENDAR_V1, yearStartsAt: '2026-02-01T00:00:00-03:00', t1EndsAt: '2026-01-01T00:00:00-03:00' }).success).toBe(false);
+    expect(calendarV1.safeParse({ ...EMPTY_CALENDAR_V1, t1EndsAt: '2026-05-16T00:00:00-03:00', t2StartsAt: '2026-05-18T00:00:00-03:00' }).success).toBe(true);
+    expect(calendarV1.safeParse({ ...EMPTY_CALENDAR_V1, t1EndsAt: '2026-05-18T00:00:00-03:00', t2StartsAt: '2026-05-16T00:00:00-03:00' }).success).toBe(false);
     expect(disclosureV1.safeParse({ mode: 'single', at: null, periods: ['T1', 'T1'] }).success).toBe(false);
     expect(disclosureV1.safeParse({ mode: 'per-period', at: { T1: null, T2: null, T3: null, REC1: null, REC2: null, REC3: null } }).success).toBe(true);
     expect(disclosureV1.safeParse({ mode: 'single', at: null, periods: ['T1'], perPeriod: {} }).success).toBe(false);

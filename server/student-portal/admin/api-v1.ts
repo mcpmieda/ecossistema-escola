@@ -17,6 +17,7 @@ import { AdminCursorV1 } from './cursor-v1';
 import { adminFailureStateV1, boundSqlV1 } from './common-v1';
 import { readAccountListV1, readAdminHealthV1, readAuditV1 } from './queries-v1';
 import { closeLinksIdempotentlyV1, qrBatchV1 } from './batches-v1';
+import { readPopulationV1, startPopulationV1 } from './population-v1';
 
 export { trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
 export type AdminApiOptionsV1 = { tenantId: string; cryptoPort: CryptoPortV1; qrKeyVersion: number; pepperVersion: number; cursorSecret: string };
@@ -85,6 +86,9 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
           case 'links-preview':
             if (query.scope.kind !== 'school') throw new Error('student-portal-preview-forbidden');
             return adminResponseV1.parse({ ...base, ...await new LinkClosureServiceV1(sql).preview(context.actorId) });
+          case 'population':
+            if (query.scope.kind !== 'school') throw new Error('student-portal-population-forbidden');
+            return adminResponseV1.parse({ ...base, ...await readPopulationV1(tx) });
           default: throw new Error('student-portal-query-invalid-request');
         }
       });
@@ -121,6 +125,7 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
         case 'settings-set': case 'settings-inherit': return committed(await new PolicyServiceV1(this.sql).mutate(context.actorId, command));
         case 'publish': case 'publish-update': case 'unpublish': return committed(await new PublicationServiceV1(this.sql).command(context.actorId, command));
         case 'links-close': return committed(await closeLinksIdempotentlyV1(sql, context.actorId, command));
+        case 'population-start': return committed(await startPopulationV1(sql, context.actorId, command));
       }
     } catch (error) { return this.failure(context.requestId, adminFailureStateV1(error)); }
   }
