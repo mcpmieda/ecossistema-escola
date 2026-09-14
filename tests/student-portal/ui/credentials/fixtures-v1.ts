@@ -61,6 +61,7 @@ export function qrMockV1(
     },
     lastAuthenticationAt: null,
     validSessionCount: 0,
+    firstAccess: { state: 'ready', qrIssued: true, recoveryReady: true },
   }));
   const writes: AdminCommandV1[] = [],
     bodies: string[] = [],

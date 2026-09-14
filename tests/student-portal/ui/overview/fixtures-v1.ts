@@ -53,6 +53,7 @@ export function operationsMockV1(
     },
     lastAuthenticationAt: null,
     validSessionCount: 1,
+    firstAccess: { state: 'not-required', qrIssued: true, recoveryReady: true },
   }));
   const sessions: Extract<AdminReadResponseV2, { state: 'sessions-read' }>['items'] = Array.from(
     { length: options.count ?? 4 },

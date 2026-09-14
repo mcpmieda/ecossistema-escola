@@ -47,6 +47,7 @@ export function birthMockV1(
     },
     lastAuthenticationAt: null,
     validSessionCount: 0,
+    firstAccess: { state: 'not-required', qrIssued: true, recoveryReady: true },
   }));
   const births = new Map<string, BirthValueV1>(
     accounts.map((account, index) => [

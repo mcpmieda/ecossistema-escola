@@ -61,6 +61,27 @@ export function accountStateLabelV1(account: AdminAccountReadV2) {
     'reset-required': 'Redefinição pendente',
   }[account.state];
 }
+export function firstAccessLabelV1(account: AdminAccountReadV2) {
+  return {
+    ready: 'Pronto para o primeiro acesso',
+    'birth-missing': 'Cadastre o ano de nascimento',
+    'birth-unconfirmed': 'Confirme o ano de nascimento',
+    'qr-missing': 'Emita o QR de acesso',
+    'pin-missing': 'PIN de primeiro acesso ausente',
+    'pin-outdated': 'PIN de primeiro acesso desatualizado',
+    'not-required': account.firstAccess.qrIssued
+      ? 'Conta ativa com QR'
+      : 'Conta ativa sem QR válido',
+  }[account.firstAccess.state];
+}
+export function accountCredentialPreparableV1(account: AdminAccountReadV2) {
+  return (
+    accountManageableV1(account) &&
+    (account.firstAccess.state === 'ready' ||
+      account.firstAccess.state === 'qr-missing' ||
+      account.firstAccess.state === 'not-required')
+  );
+}
 export function accountCommandV1(
   account: AdminAccountReadV2,
   action: AccountActionV1,

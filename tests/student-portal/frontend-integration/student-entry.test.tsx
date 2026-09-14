@@ -125,7 +125,7 @@ it('discards the parent QR when the internal authentication is cancelled or hidd
   });
   expect(api.calls.filter((call) => call.path.endsWith('/challenge'))).toHaveLength(count);
 });
-it('clears profile immediately on logout failure and retries logout instead of refreshing a blocked session', async () => {
+it('clears profile immediately after both logout confirmations fail and allows a manual retry', async () => {
   const api = transport(true);
   render(<StudentPortalApp client={api.client} />);
   await screen.findByText(SYNTHETIC_SELF_V1.profile.name);
@@ -142,7 +142,7 @@ it('clears profile immediately on logout failure and retries logout instead of r
   await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar sair novamente' }));
   expect(await screen.findByRole('button', { name: 'Ler QR com câmera' })).toBeTruthy();
   expect(screen.queryByText('Você saiu do Portal.')).toBeNull();
-  expect(api.calls.filter((call) => call.path.endsWith('/logout'))).toHaveLength(2);
+  expect(api.calls.filter((call) => call.path.endsWith('/logout'))).toHaveLength(3);
 });
 it('removes protected DOM before history restoration and requires a fresh session after revocation', async () => {
   const api = transport(true);

@@ -36,6 +36,62 @@ async function confirm() {
 }
 
 describe('credential preparation UI', () => {
+  it('shows backend readiness and blocks cards whose first access cannot succeed', async () => {
+    const mock = qrMockV1();
+    mock.accounts[0]!.firstAccess = {
+      state: 'birth-unconfirmed',
+      qrIssued: true,
+      recoveryReady: false,
+    };
+    render(createElement(StudentCredentialsV1, mock.props));
+    const checkbox = await screen.findByRole('checkbox', {
+      name: 'Selecionar SYNTHETIC PRINT 001',
+    });
+    expect((checkbox as HTMLInputElement).disabled).toBe(true);
+    expect(screen.getByText('Confirme o ano de nascimento')).toBeTruthy();
+    expect(screen.getByText('Corrija a pendência antes de preparar o cartão')).toBeTruthy();
+  });
+  it('allows issuing a missing QR but does not offer an impossible reprint', async () => {
+    const mock = qrMockV1();
+    mock.accounts[0]!.firstAccess = {
+      state: 'qr-missing',
+      qrIssued: false,
+      recoveryReady: true,
+    };
+    render(createElement(StudentCredentialsV1, mock.props));
+    fireEvent.click(
+      await screen.findByRole('checkbox', { name: 'Selecionar SYNTHETIC PRINT 001' }),
+    );
+    expect(
+      (screen.getByRole('button', { name: 'Emitir ou recuperar QR' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+    expect(
+      (screen.getByRole('button', { name: 'Reimprimir QR existente' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
+  it('allows restoring a missing QR for an active account without offering reprint', async () => {
+    const mock = qrMockV1();
+    mock.accounts[0]!.state = 'active';
+    mock.accounts[0]!.firstAccess = {
+      state: 'not-required',
+      qrIssued: false,
+      recoveryReady: true,
+    };
+    render(createElement(StudentCredentialsV1, mock.props));
+    fireEvent.click(
+      await screen.findByRole('checkbox', { name: 'Selecionar SYNTHETIC PRINT 001' }),
+    );
+    expect(
+      (screen.getByRole('button', { name: 'Emitir ou recuperar QR' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+    expect(
+      (screen.getByRole('button', { name: 'Reimprimir QR existente' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+  });
   it('defaults to QR/name/class, captures scope CAS and selected IDs only after review', async () => {
     const mock = qrMockV1();
     render(createElement(StudentCredentialsV1, mock.props));

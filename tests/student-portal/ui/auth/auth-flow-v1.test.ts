@@ -5,7 +5,7 @@ import {
 } from '../../../../src/features/student-portal/auth/auth-flow-v1';
 import { SYNTHETIC_QR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
 import { PortalClientErrorV1 } from '../../../../src/features/student-portal/shared/transport-v1';
-import { clientFixtureV1, NOW, PROOF, REQUIRED } from './fixtures-v1';
+import { clientFixtureV1, NOW, PROOF, REQUIRED, SESSION } from './fixtures-v1';
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -65,15 +65,37 @@ describe('student authentication state machine', () => {
     expect(s.client.activate).not.toHaveBeenCalled();
     s.flow.dispose();
   });
-  it('does not replay an activation whose response was lost', async () => {
+  it('confirms a committed activation with the chosen password when its response was lost', async () => {
     const s = setup();
     s.client.challenge.mockResolvedValueOnce(PROOF);
     await s.flow.begin(SYNTHETIC_QR_V1);
     s.client.activate.mockRejectedValueOnce(new PortalClientErrorV1('network-error'));
     await s.flow.activate('001234', '001234', true);
-    expect(s.state().step).toBe('scan');
-    await s.flow.activate('001234', '001234', true);
+    expect(s.state().step).toBe('authenticated');
     expect(s.client.activate).toHaveBeenCalledOnce();
+    expect(s.client.login).toHaveBeenCalledOnce();
+    expect(s.client.login.mock.calls[0]?.[0]).toMatchObject({
+      qr: SYNTHETIC_QR_V1,
+      password: '001234',
+      keepConnected: true,
+    });
+    expect(s.success).toHaveBeenCalledOnce();
+    s.flow.dispose();
+  });
+  it('retries activation only after login proves that the first request did not commit', async () => {
+    const s = setup();
+    s.client.challenge.mockResolvedValueOnce(PROOF);
+    await s.flow.begin(SYNTHETIC_QR_V1);
+    s.client.activate
+      .mockRejectedValueOnce(new PortalClientErrorV1('unavailable', 503))
+      .mockResolvedValueOnce(SESSION);
+    s.client.login.mockRejectedValueOnce(new PortalClientErrorV1('unauthenticated', 401));
+    await s.flow.activate('001234', '001234', false);
+    expect(s.client.activate).toHaveBeenCalledTimes(2);
+    expect(s.client.activate.mock.calls[0]?.[0]).toEqual(s.client.activate.mock.calls[1]?.[0]);
+    expect(s.client.login).toHaveBeenCalledOnce();
+    expect(s.state().step).toBe('authenticated');
+    expect(s.success).toHaveBeenCalledOnce();
     s.flow.dispose();
   });
   it('uses a fresh risk token for the actual password attempt, never the discovery token', async () => {

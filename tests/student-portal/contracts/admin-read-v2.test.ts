@@ -64,6 +64,7 @@ describe('opt-in administrative read contract', () => {
       },
       lastAuthenticationAt: null,
       validSessionCount: 0,
+      firstAccess: { state: 'not-required', qrIssued: true, recoveryReady: true },
     };
     expect(adminAccountReadV2.safeParse(item).success).toBe(false);
     expect(

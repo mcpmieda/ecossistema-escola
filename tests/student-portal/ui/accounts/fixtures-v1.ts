@@ -39,6 +39,7 @@ export function accountFixtureV1(n = 1): AdminAccountReadV2 {
     },
     lastAuthenticationAt: null,
     validSessionCount: 0,
+    firstAccess: { state: 'not-required', qrIssued: true, recoveryReady: true },
   };
 }
 export function accountPageV1(

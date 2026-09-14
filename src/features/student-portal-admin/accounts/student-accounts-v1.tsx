@@ -22,6 +22,7 @@ import { useAccountsReadV1 } from './accounts-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
 import {
   accountAccessOriginV1,
+  firstAccessLabelV1,
   accountLinkLabelV1,
   accountPageMatchesV1,
   lastAuthenticationLabelV1,
@@ -293,6 +294,7 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
                         <Table.Cell>
                           <AccountStatusV1 account={account} />
                           <span>{accountLinkLabelV1(account)}</span>
+                          <span>{firstAccessLabelV1(account)}</span>
                         </Table.Cell>
                         <Table.Cell>
                           <strong>
