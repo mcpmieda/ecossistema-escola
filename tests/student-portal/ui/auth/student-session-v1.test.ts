@@ -21,6 +21,47 @@ function setup() {
   return { client, publish, logoutState, session, state: () => publish.mock.lastCall![0] };
 }
 describe('student session revalidation and data clearing', () => {
+  it('preserves a valid snapshot while revalidating and expires even if that request stalls', async () => {
+    const s = setup();
+    s.client.session.mockResolvedValueOnce({
+      ...SESSION,
+      expiresAt: new Date(NOW + 2000).toISOString(),
+    });
+    await s.session.refresh();
+    const ready = s.state();
+    let resolve!: (value: typeof SESSION) => void;
+    s.client.session.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    const pending = s.session.refresh(true);
+    const duplicate = s.session.refresh(true);
+    expect(s.state()).toBe(ready);
+    expect(s.client.session).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(s.state()).toMatchObject({ state: 'error', error: { state: 'unauthenticated' } });
+    resolve(SESSION);
+    await Promise.all([pending, duplicate]);
+    expect(s.state().state).toBe('error');
+    expect(s.client.me).toHaveBeenCalledTimes(1);
+    s.session.dispose();
+  });
+  it('rejects an account change during background revalidation instead of mixing student state', async () => {
+    const s = setup();
+    await s.session.refresh();
+    s.client.me.mockResolvedValueOnce({
+      ...SYNTHETIC_SELF_V1,
+      profile: {
+        ...SYNTHETIC_SELF_V1.profile,
+        accountId: '00000000-0000-4000-8000-000000000099',
+      },
+    });
+    await s.session.refresh(true);
+    expect(s.state()).toMatchObject({ state: 'error', error: { state: 'unauthenticated' } });
+    s.session.dispose();
+  });
   it('validates session before self and replaces the old payload immediately on refresh', async () => {
     const s = setup();
     await s.session.refresh();

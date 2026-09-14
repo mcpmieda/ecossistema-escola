@@ -217,16 +217,11 @@ export function StudentAuthenticationV1({
         current.reset();
         discard.current?.();
       });
-    const hidden = () => {
-      if (document.visibilityState === 'hidden') clear();
-    };
     window.addEventListener('pagehide', clear);
-    document.addEventListener('visibilitychange', hidden);
     return () => {
       current.dispose();
       flow.current = null;
       window.removeEventListener('pagehide', clear);
-      document.removeEventListener('visibilitychange', hidden);
     };
   }, [client, initialQr]);
   const titles = {

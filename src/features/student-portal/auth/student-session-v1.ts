@@ -17,6 +17,9 @@ export function createStudentSessionV1(
     blocked = false,
     disposed = false;
   let logoutRequest: AbortController | undefined;
+  let lastLoad: PortalLoadStateV1<SelfResponseV1> = { state: 'idle' };
+  let preserve = false;
+  let pending: Promise<void> | undefined;
   const checkExpiry = () => {
     if (disposed) return;
     if (expiresAt > now()) {
@@ -28,26 +31,41 @@ export function createStudentSessionV1(
   };
   const latest = createLatestPortalRequestV1<SelfResponseV1>((load) => {
     if (disposed) return;
+    if (load.state === 'loading' && preserve) return;
+    lastLoad = load;
+    clearTimeout(timer);
     publish(load);
     if (load.state === 'ready')
       timer = setTimeout(checkExpiry, Math.min(2147483647, Math.max(0, expiresAt - now())));
   });
   const clear = () => {
+    pending = undefined;
     clearTimeout(timer);
     latest.clear();
   };
-  const refresh = async () => {
+  const refresh = async (background = false) => {
     if (blocked || disposed) return;
-    clearTimeout(timer);
-    await latest.run(async (signal) => {
+    if (background && pending) return pending;
+    preserve = background && lastLoad.state === 'ready' && expiresAt > now();
+    const previousAccount = lastLoad.state === 'ready' ? lastLoad.data.profile.accountId : null;
+    if (!preserve) clearTimeout(timer);
+    const request = latest.run(async (signal) => {
       const session = await client.session(signal);
       signal.throwIfAborted();
       const data = await client.me(signal);
       signal.throwIfAborted();
+      if (previousAccount !== null && previousAccount !== data.profile.accountId)
+        throw new PortalClientErrorV1('unauthenticated', 401);
       expiresAt = Date.parse(session.expiresAt);
       if (expiresAt <= now()) throw new PortalClientErrorV1('unauthenticated', 401);
       return data;
     });
+    pending = request;
+    try {
+      await request;
+    } finally {
+      if (pending === request) pending = undefined;
+    }
   };
   return {
     clear,
@@ -89,7 +107,7 @@ export function createStudentSessionV1(
   };
 }
 
-/** Revalidates the server session before revealing data after history/background restoration. */
+/** Tab switches revalidate discreetly; real history restoration still clears protected data. */
 export function useStudentSessionV1(client: PortalSelfClientV1) {
   const [load, setLoad] = useState<PortalLoadStateV1<SelfResponseV1>>({ state: 'idle' });
   const [logoutState, setLogoutState] = useState<LogoutStateV1>('idle');
@@ -112,13 +130,12 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
       // A native file picker returns focus without restoring a protected page.
       // Keep its input/decoder mounted once the server has confirmed no session.
       if (currentLoad.state === 'error' && currentLoad.error.state === 'unauthenticated') return;
-      resume();
+      if (document.visibilityState !== 'hidden') void current.refresh(true);
     };
     // Clear synchronously before the browser can freeze a protected DOM in its history cache.
     const hide = () => flushSync(() => current.clear());
     const visibility = () => {
-      if (document.visibilityState === 'hidden') hide();
-      else resume();
+      if (document.visibilityState !== 'hidden') focus();
     };
     window.addEventListener('pagehide', hide);
     window.addEventListener('pageshow', resume);
