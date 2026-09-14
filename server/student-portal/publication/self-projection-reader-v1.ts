@@ -3,7 +3,7 @@ import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-por
 import type { PublishedProjectionPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import { revisionsV1, type RevisionsV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { StudentPortalPostgresPersistenceV1, type StudentPortalPostgresQueryV1, type StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
-import { accountScopeV1, authNowV1, authTransactionV1 } from '../auth/transaction-v1';
+import { accountScopeV1, authNowV1, accountTransactionV1 } from '../auth/transaction-v1';
 import { applyPublishedVisibilityV1, sessionExpiryV1 } from '../policies/calendar-v1';
 import { PolicyServiceV1 } from '../policies/policy-service-v1';
 import { AcademicEligibilityReaderPostgresV1 } from '../integration/lifecycle/academic-eligibility-v1';
@@ -48,11 +48,11 @@ export class SelfProjectionReaderV1 implements PublishedProjectionPortV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
   async read(accountId: string, requestId: string): Promise<SelfResponseV1 | null> {
     z.uuid().parse(accountId);
-    return authTransactionV1(this.sql, (tx, store) => this.authorized(tx, store, accountId, requestId));
+    return accountTransactionV1(this.sql, (tx, store) => this.authorized(tx, store, accountId, requestId));
   }
   async readInTransaction(tx: StudentPortalPostgresQueryV1, accountId: string, requestId: string) {
     return new StudentPortalPostgresPersistenceV1({ unsafe: (query, parameters) => tx.unsafe(query, parameters), begin: (operation) => operation(tx) })
-      .transaction(async (store) => { await store.lockAcademicYear(2026); return this.authorized(tx, store, accountId, requestId); });
+      .transaction(async (store) => { await store.lockAcademicYear(2026, 'shared'); return this.authorized(tx, store, accountId, requestId); });
   }
   async readAuthorized(accountId: string, expected: RevisionsV1): Promise<SelfResponseV1 | null> {
     revisionsV1.parse(expected);

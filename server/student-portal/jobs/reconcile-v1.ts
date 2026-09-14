@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
-import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
+import { authNowV1, accountTransactionV1 } from '../auth/transaction-v1';
 import { AcademicStudentReaderPostgresV1 } from '../academic/academic-reader-v1';
 import { publicationContextV1, storedProjectionV1 } from '../publication/self-projection-reader-v1';
 import { currentRevisionV1, jobMaskV1, jobPolicyVersionV1, jobPublicationVersionV1, parseDataVectorV1,
@@ -12,7 +12,7 @@ export class PublicationReconcilerV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
   async run(limit = 20) {
     z.number().int().min(1).max(100).parse(limit);
-    const ids = await authTransactionV1(this.sql, async (tx) => {
+    const ids = await accountTransactionV1(this.sql, async (tx) => {
       const revision = await currentRevisionV1(tx);
       // revision_event is the transactional producer ledger; a full revision comparison also repairs a missed trigger/restart.
       const rows = await tx.unsafe(`SELECT a.id FROM student_portal.account a
@@ -45,7 +45,7 @@ export class PublicationReconcilerV1 {
   }
 
   private async reconcileAccount(accountId: string) {
-    await authTransactionV1(this.sql, async (tx, store) => {
+    await accountTransactionV1(this.sql, async (tx, store) => {
       const context = await publicationContextV1(this.sql, tx, store, accountId, false);
       if (!context) return;
       const revision = await currentRevisionV1(tx);

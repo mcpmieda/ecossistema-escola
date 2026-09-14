@@ -7,7 +7,7 @@ import { sessionResponseV1 } from '../../../shared/student-portal-contracts/auth
 import type { CryptoPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { sessionExpiryV1 } from '../policies/calendar-v1';
-import { accessContextV1, accountScopeV1, authAuditV1, authInstantV1, authNowV1, authTransactionV1, type AccessContextV1 } from './transaction-v1';
+import { accessContextV1, accountScopeV1, authAuditV1, authInstantV1, authNowV1, authTransactionV1, accountTransactionV1, type AccessContextV1 } from './transaction-v1';
 
 /** Only internal callers see the token. HTTP emits it exclusively as Set-Cookie after commit. */
 export async function createSessionV1(store: PortalTransactionV1, context: AccessContextV1,
@@ -94,7 +94,7 @@ export class SessionServiceV1 {
     session: { id: string; expiresAt: string; persistent: boolean }) => Promise<T>): Promise<T | null> {
     if (!opaqueV1.safeParse(token).success) return null;
     const hash = await this.cryptoPort.hashOpaqueToken(token);
-    return authTransactionV1(this.sql, async (tx, store) => {
+    return accountTransactionV1(this.sql, async (tx, store) => {
       const located = await tx.unsafe('SELECT account_id FROM student_portal.session WHERE token_hash=$1', [hash]);
       if (located.length !== 1) return null;
       const accountId = z.uuid().parse(located[0]!.account_id);
@@ -123,7 +123,7 @@ export class SessionServiceV1 {
   async logout(token: string, requestId: string): Promise<void> {
     if (!opaqueV1.safeParse(token).success) return;
     const hash = await this.cryptoPort.hashOpaqueToken(token);
-    await authTransactionV1(this.sql, async (tx, store) => {
+    await accountTransactionV1(this.sql, async (tx, store) => {
       const rows = await tx.unsafe('SELECT id,account_id FROM student_portal.session WHERE token_hash=$1 AND revoked_at IS NULL', [hash]);
       if (rows.length !== 1) return;
       const accountId = z.uuid().parse(rows[0]!.account_id);

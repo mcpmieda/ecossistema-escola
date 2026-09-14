@@ -8,12 +8,18 @@ import { sessionExpiryV1 } from '../policies/calendar-v1';
 
 export const accountScopeV1 = (accountId: string) => ({ kind: 'account', academicYear: 2026, accountId } as const);
 export function authTransactionV1<T>(sql: StudentPortalPostgresSqlV1,
-  operation: (tx: StudentPortalPostgresQueryV1, store: PortalTransactionV1) => Promise<T>): Promise<T> {
+  operation: (tx: StudentPortalPostgresQueryV1, store: PortalTransactionV1) => Promise<T>,
+  yearMode: 'exclusive' | 'shared' = 'exclusive'): Promise<T> {
   return sql.begin((tx) => new StudentPortalPostgresPersistenceV1({ unsafe: (query, parameters) => tx.unsafe(query, parameters),
     begin: (callback) => callback(tx) }).transaction(async (store) => {
-    await store.lockAcademicYear(2026);
+    await store.lockAcademicYear(2026, yearMode);
     return operation(tx, store);
   }));
+}
+/** Account-local work shares the academic snapshot barrier; account/credential/job locks still serialize mutations. */
+export function accountTransactionV1<T>(sql: StudentPortalPostgresSqlV1,
+  operation: (tx: StudentPortalPostgresQueryV1, store: PortalTransactionV1) => Promise<T>): Promise<T> {
+  return authTransactionV1(sql, operation, 'shared');
 }
 export function authInstantV1(value: unknown): Date {
   const date = value instanceof Date ? value : new Date(z.string().parse(value));

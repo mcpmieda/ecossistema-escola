@@ -1,5 +1,9 @@
 # Mapa dos consumidores — FINAL-1
 
+## Delta de concorrência Portal #782
+
+Auth individual, sessão própria/Self e jobs/reconciliação são consumidores da revisão acadêmica: compartilham o advisory anual e bloqueiam a revisão `FOR SHARE`, mantendo conta exclusiva e CAS até commit. Escritores/importação/Conselho/reset, políticas, vínculo e comandos administrativos preservam os locks exclusivos existentes. Nenhuma mudança de fatos, motor, DDL ou hook BN. O default de `lockAcademicYear` continua exclusivo; `accountTransactionV1` opta explicitamente pelo compartilhado. A composição Self aninhada mantém o mesmo modo/conexão. Protocolo completo e limites em YEAR_RESET_SETTINGS e PA-DEC-008.
+
 ## Delta Portal P2 #745 — apresentação acadêmica
 
 Contrato `shared/gradebook-contracts/student-portal/academic-presentation-v1.ts`:

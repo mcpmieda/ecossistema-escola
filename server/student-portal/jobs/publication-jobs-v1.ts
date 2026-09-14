@@ -1,7 +1,7 @@
 import { selfResponseV1, type SelfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { AcademicStudentReaderPostgresV1, academicToSelfV1 } from '../academic/academic-reader-v1';
-import { accountScopeV1, authNowV1, authTransactionV1 } from '../auth/transaction-v1';
+import { accountScopeV1, authNowV1, accountTransactionV1 } from '../auth/transaction-v1';
 import { applyPublishedVisibilityV1, type PolicyValueV1 } from '../policies/calendar-v1';
 import { publicationContextV1, storedProjectionV1 } from '../publication/self-projection-reader-v1';
 import { currentRevisionV1, dataVectorV1, jobMaskV1, jobPolicyVersionV1, jobPublicationVersionV1, parseDataVectorV1,
@@ -33,12 +33,12 @@ function hasFacts(period: SelfResponseV1['subjects'][number]['periods'][number])
 export class PublicationJobsV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
   async claim(): Promise<ClaimedJobV1 | null> {
-    return authTransactionV1(this.sql, async (tx) => claimJobV1(tx, await authNowV1(tx)));
+    return accountTransactionV1(this.sql, async (tx) => claimJobV1(tx, await authNowV1(tx)));
   }
 
   async perform(job: ClaimedJobV1): Promise<'done' | 'stale' | 'deferred' | 'failed'> {
     try {
-      return await authTransactionV1(this.sql, async (tx, store) => {
+      return await accountTransactionV1(this.sql, async (tx, store) => {
         // Account precedes job row locks, matching mutations and reset/lifecycle producers.
         await store.lockAccounts([job.accountId]);
         const owned = await tx.unsafe(`SELECT id FROM student_portal.publication_job WHERE id=$1::uuid AND state='running'
@@ -125,7 +125,7 @@ export class PublicationJobsV1 {
       });
     } catch (error) {
       const terminal = error instanceof Error && ['student-portal-publication-stale', 'student-portal-publication-policy-unavailable'].includes(error.message);
-      await authTransactionV1(this.sql, async (tx, store) => {
+      await accountTransactionV1(this.sql, async (tx, store) => {
         await store.lockAccounts([job.accountId]);
         await failJobV1(tx, job, await authNowV1(tx), terminal);
       });
