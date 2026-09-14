@@ -15,6 +15,7 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": [
+    "build",
     "functions",
     "server",
     "shared",

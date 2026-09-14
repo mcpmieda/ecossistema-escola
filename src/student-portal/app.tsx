@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button } from '@heroui/react';
+import { Alert, Button, Spinner } from '@heroui/react';
 import { StudentAuthenticationV1 } from '../features/student-portal/auth/student-auth-v1';
 import { useStudentSessionV1 } from '../features/student-portal/auth/student-session-v1';
 import { StudentGradesV1 } from '../features/student-portal/grades/student-grades-v1';
@@ -111,6 +111,13 @@ export function StudentPortalApp({
           }}
         />
       </StudentPortalShellV1>
+    );
+  if (session.load.state === 'idle' || session.load.state === 'loading')
+    return (
+      <main className="pa-access-check" aria-busy="true" aria-label="Verificando acesso ao Portal">
+        <Spinner size="sm" aria-label="Aguarde" />
+        <p role="status">Verificando acesso…</p>
+      </main>
     );
   return (
     <StudentPortalPageV1

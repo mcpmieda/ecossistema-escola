@@ -1,5 +1,17 @@
 # Prontidão e limites de evidência
 
+## Qualidade integrada #758 — candidata
+
+A retomada de segurança solicitada pelo responsável corrige o cabeçalho transitório antes do login: a entrada agora mostra apenas verificação de acesso até sessão e perfil serem resolvidos. A inspeção da composição confirmou autorização no servidor antes de consultar o perfil ou invocar o binding administrativo; o skeleton anterior não continha dados privados. O build das duas superfícies passa a rejeitar imports diretos/indiretos de servidor, Worker, Functions e PostgreSQL; o aluno também mantém a vedação a módulos ADM/Entra. Regressões exercitam respostas adiadas 401/503/200 e um grafo Vite real com import dinâmico/reexport. Isso reforça a separação do código, sem substituir autorização por esconder elementos visuais. Não foram encontrados segredos de backend ou storage persistente de sessão nos fontes de `src`; chaves públicas de widget e contratos HTTP não são segredos. Resultados, SHA e limitações da retomada ficam no handoff da #758.
+
+A entrega anterior #757 foi integrada em `dda837fddeb32d9eefd2b523975fd36fbd71e6dc`, PR #775, deploy oficial `34793329758` SUCCESS. Mãe #742 em 15/18 ao iniciar #758. O [handoff #757](https://github.com/mcpmieda/ecossistema-escola/issues/757) registra 2014 PASS + 3 skips históricos, 21 workerd e 77 provas PostgreSQL em CI, além dos limites de latência da execução local anterior. Os checkpoints abaixo preservam seu contexto histórico.
+
+#758 acrescenta isolamento HTTP composto, persistência de revogação após reinício e regressões de artefatos/contraste. Os dois defeitos visuais têm ownership nominal registrado na issue: anúncio de preparação do QR e tokens de ação/risco restritos ao Portal. O trabalho herdado na branch foi preservado; resultado final exige verify, PostgreSQL, revisão, CI no head e deploy oficial, com SHA e métricas no handoff da [#758](https://github.com/mcpmieda/ecossistema-escola/issues/758).
+
+Carga exclusivamente em PostgreSQL descartável loopback, sem aumentar CPU/plano nem enfraquecer scrypt. As medições remotas da #714 continuam datadas em `tests/student-portal/load/MEASUREMENTS_V1.md`; não são nova medição faturada da P2. Reinício compatível não equivale a restore gerenciado; rollback conserva schema, chaves, dados e revogações, pelo publicador oficial.
+
+**G-B PARCIAL e G-P pendente.** Não há alteração de nascimento/calendário legítimos, população, acesso escolar ou autoridade imported-source. Zoom nativo, leitor de tela, câmera/impressão física e aceite produtivo não são deduzidos de viewport, DOM, mocks ou CI. Provas reais da #759 e abertura deliberada da #760 continuam obrigatórias. Nenhuma entrega é declarada publicada pela simples presença deste registro na branch.
+
 ## Baseline publicada #756 e candidata #757
 
 Main `270ab8a442e833cd089d4d139bacbef55c7c52a0`, PR #774, deploy oficial `34788638736` SUCCESS. Pages aluno `6b4502b5-b9a9-4e52-9f56-137aa0ef563b` e ADM `dc3faec0-1ec2-4771-b509-2657e1ba4f2b` verificados no mesmo SHA, com 12 smokes HTTP aprovados. Verify anterior: 1990 PASS + 3 skips históricos/21 workerd; CI PostgreSQL 17.6: 55 + 2 + 1 + 16 PASS. Fila 14/18 concluídas; #757 monta o produto candidato e registra seu próprio head, CI e publicação no handoff.
