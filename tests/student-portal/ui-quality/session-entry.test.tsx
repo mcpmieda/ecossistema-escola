@@ -38,7 +38,7 @@ it('keeps the anonymous file input mounted when the native picker returns focus'
 });
 
 it.each(['focus', 'pageshow', 'popstate'])(
-  'hides authenticated data and revalidates before revealing it on %s',
+  'removes revoked data after revalidation on %s, clearing history immediately',
   async (event) => {
     let revoked = false;
     const fetcher = vi.fn(async (path: string) =>
@@ -59,9 +59,9 @@ it.each(['focus', 'pageshow', 'popstate'])(
     act(() => {
       fireEvent(window, new Event(event));
     });
-    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+    if (event !== 'focus') expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3));
-    expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
+    await waitFor(() => expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull());
   },
 );
 beforeEach(() => {

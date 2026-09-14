@@ -27,81 +27,102 @@ export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) 
   const active = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const expiry = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const stop = useCallback(() => {
+  const knownIdentity = useRef<PortalAdminIdentityV1 | null>(null);
+  const stop = useCallback((preserveDeadline = false) => {
     generation.current++;
     active.current?.abort();
     active.current = null;
-    clearTimeout(expiry.current);
+    if (!preserveDeadline) clearTimeout(expiry.current);
   }, []);
   const lost = useCallback(
     (error = new PortalClientErrorV1('unauthenticated', 401)) => {
       stop();
+      knownIdentity.current = null;
       setState({ state: 'error', error });
     },
     [stop],
   );
-  const refresh = useCallback(async () => {
-    stop();
-    const current = generation.current;
-    const controller = new AbortController();
-    active.current = controller;
-    setState({ state: 'checking' });
-    try {
-      const response = await fetcher('/api/me', {
-        method: 'GET',
-        credentials: 'same-origin',
-        cache: 'no-store',
-        redirect: 'error',
-        referrerPolicy: 'no-referrer',
-        signal: controller.signal,
-        headers: { Accept: 'application/json' },
-      });
-      controller.signal.throwIfAborted();
-      if (response.status === 401) throw new PortalClientErrorV1('unauthenticated', 401);
-      if (response.status === 403) throw new PortalClientErrorV1('forbidden', 403);
-      if (!response.ok || !hasPortalNoStoreV1(response.headers))
-        throw new PortalClientErrorV1('unavailable');
-      const identity = identitySchema.parse(await response.json());
-      controller.signal.throwIfAborted();
-      if (generation.current !== current) return;
-      if (!identity.capabilities.includes('platform.settings.read'))
-        throw new PortalClientErrorV1('forbidden', 403);
-      const remaining = Date.parse(identity.expiresAt) - Date.now();
-      if (remaining <= 0) throw new PortalClientErrorV1('unauthenticated', 401);
-      setState({ state: 'ready', identity });
-      // Fail closed at the timer boundary; do not overflow even for an unexpected long session.
-      expiry.current = setTimeout(
-        () => {
-          if (generation.current === current) lost();
-        },
-        Math.min(remaining, 2147483647),
-      );
-    } catch (error) {
-      if (controller.signal.aborted || generation.current !== current) return;
-      lost(error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable'));
-    } finally {
-      if (active.current === controller) active.current = null;
-    }
-  }, [fetcher, lost, stop]);
+  const refresh = useCallback(
+    async (background = false) => {
+      if (background && active.current) return;
+      const preserve =
+        background &&
+        knownIdentity.current !== null &&
+        Date.parse(knownIdentity.current.expiresAt) > Date.now();
+      stop(preserve);
+      const current = generation.current;
+      const controller = new AbortController();
+      active.current = controller;
+      if (!preserve) {
+        knownIdentity.current = null;
+        setState({ state: 'checking' });
+      }
+      try {
+        const response = await fetcher('/api/me', {
+          method: 'GET',
+          credentials: 'same-origin',
+          cache: 'no-store',
+          redirect: 'error',
+          referrerPolicy: 'no-referrer',
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        });
+        controller.signal.throwIfAborted();
+        if (response.status === 401) throw new PortalClientErrorV1('unauthenticated', 401);
+        if (response.status === 403) throw new PortalClientErrorV1('forbidden', 403);
+        if (!response.ok || !hasPortalNoStoreV1(response.headers))
+          throw new PortalClientErrorV1('unavailable');
+        const identity = identitySchema.parse(await response.json());
+        controller.signal.throwIfAborted();
+        if (generation.current !== current) return;
+        if (!identity.capabilities.includes('platform.settings.read'))
+          throw new PortalClientErrorV1('forbidden', 403);
+        const remaining = Date.parse(identity.expiresAt) - Date.now();
+        if (remaining <= 0) throw new PortalClientErrorV1('unauthenticated', 401);
+        knownIdentity.current = identity;
+        setState({ state: 'ready', identity });
+        clearTimeout(expiry.current);
+        // Fail closed at the timer boundary; do not overflow even for an unexpected long session.
+        expiry.current = setTimeout(
+          () => {
+            lost();
+          },
+          Math.min(remaining, 2147483647),
+        );
+      } catch (error) {
+        if (controller.signal.aborted || generation.current !== current) return;
+        lost(error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable'));
+      } finally {
+        if (active.current === controller) active.current = null;
+      }
+    },
+    [fetcher, lost, stop],
+  );
   useEffect(() => {
     const hide = () => {
       stop();
+      knownIdentity.current = null;
       flushSync(() => setState({ state: 'paused' }));
     };
     const resume = () => {
       if (document.visibilityState !== 'hidden') void refresh();
     };
-    const visibility = () => (document.visibilityState === 'hidden' ? hide() : resume());
+    const focus = () => {
+      if (document.visibilityState !== 'hidden') void refresh(true);
+    };
+    const visibility = () => {
+      if (document.visibilityState !== 'hidden') focus();
+    };
     window.addEventListener('pagehide', hide);
     window.addEventListener('pageshow', resume);
-    window.addEventListener('focus', resume);
+    window.addEventListener('focus', focus);
     document.addEventListener('visibilitychange', visibility);
     resume();
     return () => {
       stop();
       window.removeEventListener('pagehide', hide);
       window.removeEventListener('pageshow', resume);
-      window.removeEventListener('focus', resume);
+      window.removeEventListener('focus', focus);
       document.removeEventListener('visibilitychange', visibility);
     };
   }, [refresh, stop]);
