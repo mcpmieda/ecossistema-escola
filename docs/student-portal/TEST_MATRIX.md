@@ -4,6 +4,10 @@
 
 `runtime/migrations.postgres.ts` acrescenta sobreposição real: login pausado após lock de conta permite login/sessão/Self/logout de outra conta; snapshot de reconciliação não serializa login; job de publicação pausado permite transação de outra conta. `load/paused-query-v1.ts` apenas pausa depois da query real, sem substituir SQL/resultados. Testes existentes preservam ativação única, falhas concorrentes sem perda de contador, reset/bloqueio/rotação, revogação, leases/CAS/publicação e barreiras de reset/timeout. `persistence/postgres-persistence-v1.test.ts` recusa promoção de lock e escrita de vínculo/revisão compartilhada. PGlite verifica a guarda; somente PostgreSQL nativo prova contenção. Gates/ambiente/SHA/limites efetivos na #782, sem presumir ausência universal de indisponibilidade.
 
+## Recuperação de conexão — #786
+
+`runtime/database-v1.test.ts` prova que uma falha transitória antes da validação do papel abre um cliente novo e executa a operação exatamente uma vez. Falha dentro da operação nunca é repetida; papel inesperado fecha a conexão e falha sem nova tentativa. A recuperação continua limitada a duas aberturas, preserva `max: 1`, timeouts, TLS do binding, papel restrito e erro sanitizado. Ela não reproduz autenticação, derivação de senha, transação ou escrita. A contenção produtiva do Hyperdrive e a capacidade do PostgreSQL exigem evidência remota separada.
+
 ## Retomada de teclado e zoom #758
 
 Base publicada `83e4b346d47d7a5c6b97a7e512e2ccb5e2ceb035` (PR #776, deploy34800038404). A aba pública aberta manualmente pelo responsável permite inspeção e interação; a falha `ERR_BLOCKED_BY_CLIENT` foi reproduzida ao abrir nova aba pela automação, não ao ler a aba existente. Nenhuma proteção foi alterada. No login público, zoom200% confirmado pelo responsável e pela mudança DPR1,25→2,5/largura1142→571; controles legíveis, sem overflow externo. Esse resultado não presume zoom das notas autenticadas nem leitura assistiva efetiva.
