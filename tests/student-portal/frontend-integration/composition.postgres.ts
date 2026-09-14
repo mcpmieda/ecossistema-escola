@@ -247,6 +247,78 @@ it('composes typed clients, actual SQL/RPC, activation, official publication, re
     keepConnected: false,
   });
   expect((await student.session()).persistent).toBe(false);
+  let activeQr = qr.cards[0]!.qr;
+  // Repeat the whole reset through Pages/RPC/PG; replay must not rotate twice.
+  for (let round = 0; round < 2; round++) {
+    const beforeReset = await reader.query({
+      contractVersion: 2,
+      operation: 'accounts-read',
+      scope,
+      page: {},
+    });
+    if (beforeReset.state !== 'accounts-read') throw new Error('Synthetic reset read failed');
+    const resetCommand = {
+      contractVersion: 1 as const,
+      operation: 'account-reset' as const,
+      accountId: account.accountId,
+      expectedVersion: beforeReset.items[0]!.version,
+      confirmed: true as const,
+      idempotencyKey: crypto.randomUUID(),
+    };
+    const reset = await client.command(resetCommand);
+    if (reset.state !== 'committed') throw new Error('Synthetic reset not committed');
+    expect(await client.command(resetCommand)).toMatchObject({
+      state: reset.state,
+      version: reset.version,
+    });
+    const afterReset = await reader.query({
+      contractVersion: 2,
+      operation: 'accounts-read',
+      scope,
+      page: {},
+    });
+    if (afterReset.state !== 'accounts-read') throw new Error('Synthetic reset read failed');
+    expect(afterReset.items[0]).toMatchObject({
+      state: 'pending-activation',
+      validSessionCount: 0,
+    });
+    await expect(student.session()).rejects.toMatchObject({ state: 'unauthenticated' });
+    await expect(student.me()).rejects.toMatchObject({ state: 'unauthenticated' });
+    const reprinted = await client.command({
+      contractVersion: 1,
+      operation: 'qr-reprint',
+      accountId: account.accountId,
+      expectedVersion: afterReset.items[0]!.version,
+      idempotencyKey: crypto.randomUUID(),
+    });
+    if (reprinted.state !== 'qr') throw new Error('Synthetic reset QR missing');
+    const newQr = reprinted.cards[0]!.qr;
+    expect(newQr).not.toBe(activeQr);
+    await expect(student.challenge({ contractVersion: 1, qr: activeQr })).rejects.toMatchObject({
+      state: 'unauthenticated',
+    });
+    await expect(
+      student.login({ contractVersion: 1, qr: activeQr, password: '012345', keepConnected: false }),
+    ).rejects.toMatchObject({ state: 'unauthenticated' });
+    await expect(
+      student.login({ contractVersion: 1, qr: newQr, password: '012345', keepConnected: false }),
+    ).rejects.toMatchObject({ state: 'unauthenticated' });
+    expect(await student.challenge({ contractVersion: 1, qr: newQr })).toMatchObject({
+      state: 'credential-required',
+      next: 'pin',
+    });
+    const proof = await student.challenge({ contractVersion: 1, qr: newQr, pin: '2001' });
+    if (proof.state !== 'password-creation') throw new Error('Synthetic reset PIN failed');
+    await student.activate({
+      contractVersion: 1,
+      challenge: proof.challenge,
+      password: '012345',
+      confirmation: '012345',
+      keepConnected: false,
+    });
+    expect((await student.me()).profile.accountId).toBe(account.accountId);
+    activeQr = newQr;
+  }
   await student.logout();
   await expect(student.session()).rejects.toMatchObject({ state: 'unauthenticated' });
 });

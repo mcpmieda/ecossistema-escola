@@ -9,6 +9,7 @@ export type AccountMutationStateV1 =
   | {
       state: 'committed';
       version: number;
+      operation?: AccountCommandV1['operation'];
       artifact: 'none' | 'preparing' | 'offered' | 'unavailable';
     }
   | { state: 'error'; error: PortalClientErrorV1; retryable: boolean; retryAt: number };
@@ -30,6 +31,7 @@ export function createAccountMutationV1(
   async function run() {
     if (pending || !prepared || now() < retryAt) return;
     const command = prepared,
+      completedOperation = operation,
       current = ++generation,
       controller = new AbortController();
     active = controller;
@@ -53,6 +55,7 @@ export function createAccountMutationV1(
       const committed = {
         state: 'committed' as const,
         version: result.version,
+        operation: completedOperation,
         artifact: result.state === 'qr' ? ('unavailable' as const) : ('none' as const),
       };
       publish(result.state === 'qr' && onQr ? { ...committed, artifact: 'preparing' } : committed);

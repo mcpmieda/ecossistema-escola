@@ -269,3 +269,16 @@ describe('account list and detail', () => {
     expect(mock.bodies[0]).toBe(mock.bodies[1]);
   });
 });
+
+it('confirms a complete reset and tells the operator to reprint the current QR', async () => {
+  const mock = accountsMockV1();
+  render(createElement(StudentAccountsV1, mock.props));
+  const user = userEvent.setup();
+  await user.click(await ready());
+  await detail();
+  await user.click(screen.getByRole('button', { name: 'Redefinir conta' }));
+  await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
+  await screen.findByText(/Conta redefinida: o QR anterior/);
+  expect(mock.writes[0]?.operation).toBe('account-reset');
+  expect(screen.getByText(/Reimprima o QR atual/)).toBeTruthy();
+});
