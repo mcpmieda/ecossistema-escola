@@ -12,6 +12,8 @@ Base publicada `dda837fddeb32d9eefd2b523975fd36fbd71e6dc` (PR #775); branch `tes
 | `ui-quality/committed-qr.test.ts`: preparação até renderização concluir ou falhar, sem repetir rotação confirmada | Regressão do anúncio prematuro de cartão indisponível |
 | `ui-quality/qr-handoff.test.tsx`: diálogo acessível, sem QR bruto, URL revogada, descarte tardio e expiração | DOM sintético e renderer controlado; PNG/PDF reais continuam em `qr-print` |
 | `ui-quality/contrast.test.ts`: tokens reais de ação/risco, normal e hover, razão mínima 4,5:1 | Tokens restritos às superfícies Portal e diálogos; conferir também CSS computado no browser |
+| `ui-quality/session-entry.test.tsx`: espera neutra sem cabeçalho/perfil/notas; sessão 401/503 não consulta perfil; página somente após sessão e perfil válidos | Regressão do cabeçalho transitório antes do login; respostas adiadas, sem temporizadores artificiais |
+| `frontend-security/browser-boundary.test.ts`: build Vite real com import dinâmico e reexport, rejeitando servidor/Worker/Functions/PostgreSQL nos dois frontends e módulos ADM no aluno | Barreira no grafo de dependências; contrato público e apresentação ADM continuam permitidos na superfície correta |
 | Suítes existentes `runtime`, `smoke`, `frontend-foundation`, `admin` e `frontend-integration` | Reutilizam provas de auth/Host/Origin/CSRF, cache, publicação, orçamento SQL, KDF/NAT, recovery e isolamento; nenhum skip é PASS |
 | `npm run verify`: regressões do BN, auth/Entra, importação, boletins/reimpressão, Conselho, relatórios e reset | Fixtures sintéticas; não repete mutações acadêmicas produtivas nem constitui aceite institucional |
 
