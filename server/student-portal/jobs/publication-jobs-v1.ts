@@ -143,6 +143,8 @@ export class PublicationJobsV1 {
       outcomes.push(await this.perform(job));
     }
     return { processed: outcomes.length, done: outcomes.filter((outcome) => outcome === 'done').length,
-      deferred: outcomes.filter((outcome) => outcome === 'deferred').length, failed: outcomes.filter((outcome) => outcome === 'failed' || outcome === 'stale').length };
+      deferred: outcomes.filter((outcome) => outcome === 'deferred').length,
+      failed: outcomes.filter((outcome) => outcome === 'failed' || outcome === 'stale').length,
+      unavailable: outcomes.filter((outcome) => outcome === 'failed').length };
   }
 }
