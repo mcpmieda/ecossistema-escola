@@ -15,7 +15,9 @@ import {
   useOverlayState,
 } from '@heroui/react';
 import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, ShieldCheck } from 'lucide-react';
+import { z } from 'zod';
 import {
+  PLATFORM_CAPABILITIES,
   normalizePlatformRoute,
   type PlatformCapability,
   type PlatformRoute,
@@ -34,6 +36,16 @@ type Identity = {
   roles?: string[];
   capabilities?: PlatformCapability[];
 };
+
+const identityResponse = z.discriminatedUnion('authenticated', [
+  z.object({ authenticated: z.literal(false) }),
+  z.object({
+    authenticated: z.literal(true),
+    name: z.string().optional(),
+    roles: z.array(z.string()).optional(),
+    capabilities: z.array(z.enum(PLATFORM_CAPABILITIES)),
+  }),
+]);
 
 type LoadState =
   | { status: 'loading' }
@@ -491,17 +503,59 @@ function AdminShell({ identity }: { identity: Identity }) {
 
 export function App() {
   const [identity, setIdentity] = useState<Identity | null>(null);
+  const [accessError, setAccessError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const authFailure = authFailureFromUrl();
 
   useEffect(() => {
-    fetch('/api/me', { credentials: 'same-origin', cache: 'no-store' })
-      .then(async (response) =>
-        response.ok ? ((await response.json()) as Identity) : { authenticated: false },
-      )
-      .then(setIdentity)
-      .catch(() => setIdentity({ authenticated: false }));
-  }, []);
+    const controller = new AbortController();
+    fetch('/api/me', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      redirect: 'error',
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (response.status === 401) return { authenticated: false };
+        if (!response.ok) throw new Error('identity-unavailable');
+        return identityResponse.parse(await response.json());
+      })
+      .then((result) => {
+        if (!controller.signal.aborted) setIdentity(result);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setAccessError(true);
+      });
+    return () => controller.abort();
+  }, [attempt]);
 
+  if (accessError) {
+    return (
+      <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
+        <Surface className="platform-card-surface w-full max-w-xl rounded-[2rem] p-6 sm:p-8">
+          <Alert status="warning">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>Não foi possível verificar seu acesso.</Alert.Title>
+              <Alert.Description>
+                Confira sua conexão e tente novamente em instantes.
+              </Alert.Description>
+            </Alert.Content>
+          </Alert>
+          <Button
+            variant="outline"
+            className="mt-5"
+            onPress={() => {
+              setAccessError(false);
+              setAttempt((current) => current + 1);
+            }}
+          >
+            Tentar novamente
+          </Button>
+        </Surface>
+      </main>
+    );
+  }
   if (identity === null) return <SessionCheckExperience />;
   if (authFailure && !identity.authenticated) {
     return <AuthErrorExperience correlationId={authFailure.correlationId} />;
