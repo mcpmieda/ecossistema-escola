@@ -36,6 +36,36 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+it('waits for the actual server deadline across capped timers and a pending background refresh', async () => {
+  vi.useFakeTimers();
+  const deadline = Date.now() + 2147483647 + 1000;
+  const fetcher = vi
+    .fn<PortalFetchV1>()
+    .mockResolvedValueOnce(opJsonV1({ ...identity(), expiresAt: new Date(deadline).toISOString() }))
+    .mockImplementation(() => new Promise(() => {}));
+  const hook = renderHook(() => usePortalAdminIdentityV1(fetcher));
+  await act(async () => {});
+  expect(hook.result.current.state.state).toBe('ready');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2147483647);
+  });
+  expect(hook.result.current.state.state).toBe('ready');
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'));
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(999);
+  });
+  expect(hook.result.current.state.state).toBe('ready');
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  expect(hook.result.current.state).toMatchObject({
+    state: 'error',
+    error: { state: 'unauthenticated' },
+  });
 });
 it('inherits exact capabilities and rechecks a new identity after protected history is cleared', async () => {
   let current = identity();
@@ -70,6 +100,28 @@ it.each([401, 403, 503])('fails closed for an authoritative identity HTTP%s', as
   const hook = renderHook(() => usePortalAdminIdentityV1(fetcher));
   await waitFor(() => expect(hook.result.current.state.state).toBe('error'));
 });
+it.each([401, 403, 503, 'network', 'expired'] as const)(
+  'only redirects to institutional login for confirmed authentication loss: %s',
+  async (result) => {
+    const onLogin = vi.fn();
+    const fetcher: PortalFetchV1 = async () => {
+      if (result === 'network') throw new TypeError('Synthetic network failure');
+      return result === 'expired'
+        ? opJsonV1({ ...identity(), expiresAt: new Date(Date.now() - 1000).toISOString() })
+        : opJsonV1({}, result);
+    };
+    render(<StudentPortalAdminPage fetcher={fetcher} onLogin={onLogin} />);
+    if (result === 401 || result === 'expired') {
+      await waitFor(() => expect(onLogin).toHaveBeenCalledTimes(1));
+      expect(screen.getByRole('status').textContent).toContain('Abrindo entrada institucional');
+      expect(screen.queryByRole('button', { name: 'Consultar sessão novamente' })).toBeNull();
+    } else {
+      expect(await screen.findByText('Acesso administrativo indisponível')).toBeTruthy();
+      expect(onLogin).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Consultar sessão novamente' })).toBeTruthy();
+    }
+  },
+);
 it('rejects missing capability, expired identity and cached identity without exposing a workspace', async () => {
   const cases = [
     opJsonV1({ ...identity(), capabilities: [] }),

@@ -47,8 +47,21 @@ function AccountSlot({ title, children }: { title: string; children: () => React
     </details>
   );
 }
-export function StudentPortalAdminPage({ fetcher }: { fetcher?: PortalFetchV1 }) {
+const enterInstitutionalLogin = () => window.location.replace('/auth/login');
+export function StudentPortalAdminPage({
+  fetcher,
+  onLogin = enterInstitutionalLogin,
+}: {
+  fetcher?: PortalFetchV1;
+  onLogin?: () => void;
+}) {
   const auth = usePortalAdminIdentityV1(fetcher);
+  const unauthenticated =
+    auth.state.state === 'error' && auth.state.error.state === 'unauthenticated';
+  useEffect(() => {
+    if (unauthenticated) onLogin();
+  }, [unauthenticated, onLogin]);
+  if (unauthenticated) return <p role="status">Abrindo entrada institucional…</p>;
   if (auth.state.state !== 'ready')
     return (
       <section className="pa-admin-page">
@@ -73,11 +86,6 @@ export function StudentPortalAdminPage({ fetcher }: { fetcher?: PortalFetchV1 })
               >
                 Consultar sessão novamente
               </Button>
-              {auth.state.state === 'error' && auth.state.error.state === 'unauthenticated' && (
-                <Button variant="secondary" onPress={() => window.location.assign('/auth/login')}>
-                  Entrar com conta institucional
-                </Button>
-              )}
             </Alert.Content>
           </Alert>
         )}

@@ -101,8 +101,11 @@ describe('student authentication forms', () => {
       confirmation = screen.getByLabelText('Confirmar senha');
     expect(document.querySelectorAll('[data-slot="input-otp-separator"]')).toHaveLength(2);
     expect(document.querySelectorAll('[data-slot="input-otp-slot"]')).toHaveLength(12);
-    await s.user.type(password, '001234');
-    await s.user.type(confirmation, '001235');
+    await s.user.type(password, '00123');
+    expect(document.activeElement).toBe(password);
+    await s.user.keyboard('4');
+    await waitFor(() => expect(document.activeElement).toBe(confirmation));
+    await s.user.keyboard('001235');
     await s.user.click(screen.getByRole('button', { name: 'Criar senha e entrar' }));
     expect(screen.getByRole('alert').textContent).toContain('As senhas precisam ser iguais');
     expect(s.client.activate).not.toHaveBeenCalled();
@@ -118,7 +121,7 @@ describe('student authentication forms', () => {
     await s.user.paste('１２３４');
     expect((pin as HTMLInputElement).value).toBe('');
     await s.user.type(pin, '0001');
-    await s.user.click(screen.getByRole('button', { name: 'Cancelar e ler outro QR' }));
+    await s.user.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(screen.queryByLabelText('PIN de 4 dígitos')).toBeNull();
     expect(screen.getByRole('button', { name: 'Ler QR com câmera' })).toBeTruthy();
   });

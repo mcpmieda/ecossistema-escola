@@ -131,3 +131,39 @@ it('reveals the complete student page only after both server session and private
   expect(screen.getByRole('banner')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Sair' })).toBeTruthy();
 });
+
+it.each(['unavailable', 'network-error'] as const)(
+  'does not send an existing session to login on %s and recovers without credentials',
+  async (failure) => {
+    let failing = false;
+    const client = createPortalSelfClientV1({
+      fetch: async (path) => {
+        if (path === '/api/student/session') {
+          if (failing && failure === 'network-error') throw new TypeError('Synthetic offline');
+          if (failing) return json({ ...meta, state: 'unavailable' }, 503);
+          return json({
+            ...meta,
+            state: 'authenticated',
+            persistent: false,
+            expiresAt: new Date(Date.now() + 3600_000).toISOString(),
+          });
+        }
+        return json(SYNTHETIC_SELF_V1);
+      },
+    });
+    render(<StudentPortalApp client={client} />);
+    await screen.findByText(SYNTHETIC_SELF_V1.profile.name);
+    failing = true;
+    await act(async () => {
+      fireEvent(window, new Event('focus'));
+    });
+    expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Acessar minhas notas' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Entrar' })).toBeNull();
+    failing = false;
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    });
+    expect(await screen.findByText(SYNTHETIC_SELF_V1.profile.name)).toBeTruthy();
+  },
+);

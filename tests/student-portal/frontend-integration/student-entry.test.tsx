@@ -106,7 +106,8 @@ it('composes QR, password, session, profile and real grades under StrictMode wit
     expect(call.init.referrerPolicy).toBe('no-referrer');
   }
   await user.click(screen.getByRole('button', { name: 'Sair' }));
-  expect(await screen.findByText('Você saiu do Portal.')).toBeTruthy();
+  expect(await screen.findByRole('button', { name: 'Ler QR com câmera' })).toBeTruthy();
+  expect(screen.queryByText('Você saiu do Portal.')).toBeNull();
   expect(screen.queryByText(SYNTHETIC_SELF_V1.profile.name)).toBeNull();
 });
 it('discards the parent QR when the internal authentication is cancelled or hidden', async () => {
@@ -114,7 +115,7 @@ it('discards the parent QR when the internal authentication is cancelled or hidd
   const entry: StudentEntryV1 = { qr: SYNTHETIC_QR_V1, invalidQr: false, route: 'access' };
   render(<StudentPortalApp client={api.client} entry={entry} />);
   await screen.findByLabelText('Senha');
-  await userEvent.setup().click(screen.getByRole('button', { name: 'Cancelar e ler outro QR' }));
+  await userEvent.setup().click(screen.getByRole('button', { name: 'Cancelar' }));
   expect(entry.qr).toBeNull();
   expect(await screen.findByRole('button', { name: 'Ler QR com câmera' })).toBeTruthy();
   const count = api.calls.filter((call) => call.path.endsWith('/challenge')).length;
@@ -139,7 +140,8 @@ it('clears profile immediately on logout failure and retries logout instead of r
   expect(api.calls).toHaveLength(count);
   api.setLogoutFailure(false);
   await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar sair novamente' }));
-  expect(await screen.findByText('Você saiu do Portal.')).toBeTruthy();
+  expect(await screen.findByRole('button', { name: 'Ler QR com câmera' })).toBeTruthy();
+  expect(screen.queryByText('Você saiu do Portal.')).toBeNull();
   expect(api.calls.filter((call) => call.path.endsWith('/logout'))).toHaveLength(2);
 });
 it('removes protected DOM before history restoration and requires a fresh session after revocation', async () => {
@@ -152,7 +154,8 @@ it('removes protected DOM before history restoration and requires a fresh sessio
   await act(async () => {
     window.dispatchEvent(new Event('pageshow'));
   });
-  expect(await screen.findByText('Sessão expirada')).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Acessar minhas notas' })).toBeTruthy();
+  expect(screen.queryByText('Sessão expirada')).toBeNull();
   expect(screen.queryByText('Disciplina de exemplo')).toBeNull();
   expect(api.calls.filter((call) => call.path === '/api/student/me')).toHaveLength(1);
 });

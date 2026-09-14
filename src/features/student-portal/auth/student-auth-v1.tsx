@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type Ref } from 'react';
 import { flushSync } from 'react-dom';
 import { Alert } from '@heroui/react/alert';
 import { Button } from '@heroui/react/button';
@@ -23,6 +23,8 @@ function NumericCredentialV1({
   onChange,
   secret = false,
   disabled = false,
+  inputRef,
+  onComplete,
 }: {
   label: string;
   length: 4 | 6;
@@ -30,6 +32,8 @@ function NumericCredentialV1({
   onChange: (value: string) => void;
   secret?: boolean;
   disabled?: boolean;
+  inputRef?: Ref<HTMLInputElement>;
+  onComplete?: () => void;
 }) {
   const id = useId();
   const [focused, setFocused] = useState(false);
@@ -45,6 +49,8 @@ function NumericCredentialV1({
     <div className="pa-credential-field" data-secret={secret || undefined}>
       <label htmlFor={id}>{label}</label>
       <InputOTP
+        ref={inputRef}
+        onComplete={onComplete}
         id={id}
         isDisabled={disabled}
         onFocus={() => setFocused(true)}
@@ -96,6 +102,7 @@ function CredentialFormV1({
     [confirmation, setConfirmation] = useState('');
   const [riskToken, setRiskToken] = useState<string | null>(null);
   const [validation, setValidation] = useState<string>();
+  const confirmationInput = useRef<HTMLInputElement>(null);
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!state.retryAt || state.retryAt <= Date.now()) return;
@@ -149,6 +156,9 @@ function CredentialFormV1({
           length={length}
           value={value}
           onChange={setValue}
+          onComplete={
+            state.step === 'create' ? () => confirmationInput.current?.focus() : undefined
+          }
           secret={state.step !== 'pin'}
           disabled={state.pending}
         />
@@ -156,6 +166,7 @@ function CredentialFormV1({
       {state.step === 'create' ? (
         <NumericCredentialV1
           label="Confirmar senha"
+          inputRef={confirmationInput}
           length={6}
           value={confirmation}
           onChange={setConfirmation}
@@ -302,7 +313,7 @@ export function StudentAuthenticationV1({
               setInvalidQr(false);
             }}
           >
-            {state.step === 'create' ? 'Cancelar' : 'Cancelar e ler outro QR'}
+            Cancelar
           </Button>
         ) : null}
       </Card.Content>
