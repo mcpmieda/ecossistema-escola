@@ -4,7 +4,7 @@ import { cleanupPortalV1 } from '../maintenance/retention-v1';
 import type { PortalCompositionEnvV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
 
-/** One passage per minute: at most five reconciliations, one materialization and 100 expirations per family. */
+/** One passage per minute: at most five reconciliations, ten materializations and 100 expirations per family. */
 export async function portalScheduledV1(env: PortalCompositionEnvV1): Promise<void> {
   if (env.PORTAL_ENVIRONMENT !== 'production' || env.PORTAL_SERVING_ENABLED !== 'true') return;
   // Independent attempts: publication failure must not starve privacy retention.
@@ -15,10 +15,10 @@ export async function portalScheduledV1(env: PortalCompositionEnvV1): Promise<vo
     await portalDatabaseV1(env, 'publication', async (sql) => {
       const reconciled = await new PublicationReconcilerV1(sql).run(5);
       const jobs = new PublicationJobsV1(sql);
-      const job = await jobs.claim();
-      const result = job ? await jobs.perform(job) : 'empty';
-      if (reconciled.failed || result === 'failed') throw new Error('student-portal-publication-unavailable');
-      return result;
+      const result = await jobs.run(10);
+      if (reconciled.failed || result.unavailable)
+        throw new Error('student-portal-publication-unavailable');
+      return result.processed ? 'done' : 'empty';
     });
   } catch { /* Durable leases/retries and the authorized health query expose pending work. */ }
 }
