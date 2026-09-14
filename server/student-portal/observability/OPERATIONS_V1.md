@@ -1,5 +1,31 @@
 # Operação e integração H → I
 
+## Estado final e responsabilidade — #760
+
+O Portal está publicado e tecnicamente aceito, com abertura escolar geral **não autorizada**. Estado fechado esperado: `populationEnabled=false`, nenhum acesso explicitamente habilitado, nenhuma sessão válida e nenhum período publicado ou pendente. `PORTAL_SERVING_ENABLED=true` mantém o software disponível para operação controlada; não substitui as guardas de população, conta e período.
+
+Responsável institucional: autoriza por escrito calendário, turmas/contas, períodos e distribuição privada. Responsável técnico: executa o menor escopo autorizado, acompanha saúde e conserva rollback. Suporte registra uma issue nova com horário, rota/ação, estado esperado e observado, sem nome, nota, nascimento, QR, PIN, senha, cookie, token, IP ou captura com PII.
+
+### Abertura deliberada futura
+
+1. Confirmar autorização institucional e calendário definitivo; não reutilizar automaticamente datas da massa de teste.
+2. Confirmar `healthz=ok`, deploy esperado, filas sem atraso e ausência de lock/statement timeout recorrente.
+3. Habilitar somente a população e as contas/turmas autorizadas. Manter os demais escopos fechados.
+4. Publicar somente os períodos aprovados e aguardar a projeção correspondente.
+5. Distribuir QR por canal privado; nunca por issue, log, captura ou repositório.
+6. Exercitar uma conta de verificação: entrada, leitura autorizada, saída e reentrada. Interromper a abertura se houver mistura de identidade, repetição de erro transitório ou redirecionamento indevido.
+7. Ampliar somente após a amostra estável. Registrar contagens e tempos agregados, sem identificadores.
+
+### Contenção e rollback operacional
+
+Na ordem mais segura aplicável: impedir novas entradas desligando acesso no escopo afetado; retirar períodos se a visibilidade acadêmica estiver incorreta; revogar sessões; pausar população; usar `PORTAL_SERVING_ENABLED` apenas para manutenção ou incidente amplo. Rollback de código usa o workflow oficial e preserva schema, chaves, revogações, contas e projeções. Não voltar a D1, limpar histórico ou reativar credenciais antigas.
+
+Depois da contenção, confirmar por agregados: acesso habilitado=0 no escopo, sessões válidas=0, períodos ativos=0 quando retirados e população no valor deliberado. Recovery de dados segue o roteiro técnico existente; backup gerenciado/RPO/RTO continua fora da garantia.
+
+### Monitoramento e escalonamento
+
+`/healthz` prova liveness/estado agregado, não login nem integridade acadêmica. Repetir 503 somente em leitura idempotente e limitada; autenticação, ativação, reset e demais mutações nunca recebem retry cego. Lock timeout/55P03 indica contenção; identificar a operação concorrente antes de considerar capacidade. Não aumentar Hyperdrive, plano ou timeouts sem evidência, medição e autorização específica.
+
 ## Logs e auditoria
 
 `metrics-v1.ts` aceita somente operação enumerada, resultado enumerado e contagens/tempos. O emissor recusa campos extras e falha de logging não altera o resultado de um commit. Não passar Error, Request, URL, headers, parâmetros SQL ou DTOs ao logger. Manter invocation logs desativados; URLs podem conter informação sensível. O schema de métricas não aceita identificadores de aluno, nome, notas, nascimento, PIN, senha, QR, cookie, token ou IP.

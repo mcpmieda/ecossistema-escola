@@ -1,5 +1,15 @@
 # Decisões e pendências
 
+## PA-DEC-009 — Aceite final, publicação técnica e abertura fechada por política
+
+Em 14/09/2026, após a correção das falhas de sessão e conexão, o responsável repetiu o fluxo produtivo de redefinição, QR, PIN, senha, entrada, saída e reentrada e informou que funcionou. Em seguida autorizou encerrar todas as issues da Parte 2 e tratar eventual defeito posterior em issue nova. A evidência sanitizada está na #759.
+
+G-B fica **ACEITO COM LIMITAÇÕES EXPLÍCITAS**. Câmera física, impressão física, leitura pelo Narrador e matriz ampla de dispositivos foram dispensadas ou adiadas; nenhum desses itens recebe PASS. O login produtivo cobre o caminho positivo do widget, mas o ensaio adversarial produtivo específico de token expirado/reutilizado continua adiado; as negativas automatizadas permanecem válidas dentro de seus ambientes declarados.
+
+G-P fica **APROVADO PARA RELEASE TÉCNICA FECHADA POR POLÍTICA**. O bundle publicado não autoriza abertura geral. População global, acesso por conta e publicação por período continuam guardas independentes. O encerramento deixou zero acesso explicitamente habilitado, zero sessão válida e zero período publicado ou pendente. A massa de teste e três projeções históricas são preservadas para rastreabilidade, inacessíveis com as guardas fechadas.
+
+Abertura escolar futura exige autorização institucional específica para população, contas/turmas, calendário, períodos e distribuição privada de QR. O roteiro começa com escopo mínimo, uma conta de verificação, monitoramento e capacidade de fechar acesso/revogar sessões. Alteração de Hyperdrive, plano, segredo, Entra ou backup gerenciado continua fora desta decisão. `ERR_BLOCKED_BY_CLIENT` ao abrir uma nova guia pela extensão é registrado como limitação da automação do navegador; não foi atribuído ao Portal, ao firewall ou ao Cloudflare sem prova.
+
 ## PA-DEC-008 — Concorrência de contas sem exclusividade acadêmica desnecessária
 
 Em 14/09/2026, a auditoria solicitada pelo responsável encontrou timeout de lock na autenticação produtiva. A #782 reproduziu a assinatura em PostgreSQL local com a função real: uma transação segurando o advisory anual exclusivo impediu o login; liberado o lock, a operação concluiu. Isso identifica a contenção, não o titular específico da trava no incidente produtivo.

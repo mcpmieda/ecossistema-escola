@@ -2,7 +2,7 @@
 
 ## Fila vigente — #742
 
-PA-DEC-007: execução direta e sequencial, uma filha por vez, inclusive CHAT ONLINE, mantendo as identidades dos títulos. [PARALELO] é independência arquitetural preservada, sem autorizar concorrência agora. P1 #701/#715 e demais entregas estão encerradas; G-B continua parcial até #759.
+PA-DEC-007 manteve a execução direta e sequencial, inclusive CHAT ONLINE, preservando as identidades dos títulos. As 18 filhas #743–#760 e a mãe #742 encerram após a integração da #760. PA-DEC-009 registra G-B aceito com limitações e G-P aprovado para release técnica fechada por política.
 
 | Chave / issue | Entrega | Família | Identidade preservada | Estado / independência | Depende de |
 | --- | --- | --- | --- | --- | --- |
@@ -20,10 +20,10 @@ PA-DEC-007: execução direta e sequencial, uma filha por vez, inclusive CHAT ON
 | L [#754](https://github.com/mcpmieda/ecossistema-escola/issues/754) | Cadastrar nascimento por turma com autosave e lotes retomáveis | P2-05B | CHAT ONLINE | CONCLUÍDA / PARALELO | #744, #746 |
 | M [#755](https://github.com/mcpmieda/ecossistema-escola/issues/755) | Gerar e copiar QR e PDF em três modos no ADM | P2-05C | CODEX | CONCLUÍDA / PARALELO | #744, #746 |
 | N [#756](https://github.com/mcpmieda/ecossistema-escola/issues/756) | Gerenciar sessões, auditoria e saúde operacional no ADM | P2-05D | CHAT ONLINE | CONCLUÍDA / PARALELO | #744, #746 |
-| O [#757](https://github.com/mcpmieda/ecossistema-escola/issues/757) | Integrar telas aos serviços reais e à navegação existente | P2-06 | CODEX | AGORA / SEQUENCIAL | #744, #746, #747, #748, #749, #750, #751, #752, #753, #754, #755, #756 |
-| P [#758](https://github.com/mcpmieda/ecossistema-escola/issues/758) | Validar segurança, acessibilidade, desempenho e regressões integradas | P2-07 | CODEX | DEPOIS / SEQUENCIAL | #757 |
-| Q [#759](https://github.com/mcpmieda/ecossistema-escola/issues/759) | Executar aceite real, piloto 6A e checklist adiada da Parte 1 | P2-08 | CODEX | DEPOIS / SEQUENCIAL | #758 |
-| R [#760](https://github.com/mcpmieda/ecossistema-escola/issues/760) | Preparar liberação deliberada, operação e continuidade do Portal | P2-09 | CODEX | DEPOIS / SEQUENCIAL | #759 |
+| O [#757](https://github.com/mcpmieda/ecossistema-escola/issues/757) | Integrar telas aos serviços reais e à navegação existente | P2-06 | CODEX | CONCLUÍDA / SEQUENCIAL | #744, #746, #747, #748, #749, #750, #751, #752, #753, #754, #755, #756 |
+| P [#758](https://github.com/mcpmieda/ecossistema-escola/issues/758) | Validar segurança, acessibilidade, desempenho e regressões integradas | P2-07 | CODEX | CONCLUÍDA / SEQUENCIAL | #757 |
+| Q [#759](https://github.com/mcpmieda/ecossistema-escola/issues/759) | Executar aceite real, piloto 6A e checklist adiada da Parte 1 | P2-08 | CODEX | CONCLUÍDA / SEQUENCIAL | #758 |
+| R [#760](https://github.com/mcpmieda/ecossistema-escola/issues/760) | Preparar liberação deliberada, operação e continuidade do Portal | P2-09 | CODEX | CONCLUÍDA / SEQUENCIAL | #759 |
 
 ## Grafo de dependências de integração
 
@@ -84,7 +84,7 @@ graph TD
   Q --> R
 ```
 
-São 18 filhas, 35 arestas e nenhum ciclo. Todas as frentes chegam à #757. Dependência exige main integrada e handoff; não basta PR aberto. Sequência direta recomendada: #743 → #744 → #745 → #746 → #747 → #748 → #749 → #750 → #751 → #752 → #753 → #754 → #755 → #756 → #757 → #758 → #759 → #760. A ordem adicional resulta da execução sequencial, não de dependências técnicas inventadas.
+São 18 filhas, 35 arestas e nenhum ciclo. Estado final: 18/18 concluídas. Todas as frentes chegam à #757. Dependência exige main integrada e handoff; não basta PR aberto. Sequência direta recomendada: #743 → #744 → #745 → #746 → #747 → #748 → #749 → #750 → #751 → #752 → #753 → #754 → #755 → #756 → #757 → #758 → #759 → #760. A ordem adicional resulta da execução sequencial, não de dependências técnicas inventadas.
 
 ## Ownership e promoção
 

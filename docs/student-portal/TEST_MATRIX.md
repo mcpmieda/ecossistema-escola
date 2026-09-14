@@ -1,5 +1,20 @@
 # Matriz de requisitos e provas
 
+## Disposição final da Parte 2 — #759/#760
+
+| Grupo | Estado final | Evidência e limite |
+| --- | --- | --- |
+| Entra ADM → API privada → Worker/Hyperdrive/PostgreSQL | APROVADO | Operações administrativas reais do piloto, suíte integrada e CI; negativas automatizadas permanecem delimitadas aos ambientes declarados |
+| Redefinição, QR, PIN, criação de senha, entrada, saída e reentrada | APROVADO | Fluxo produtivo repetido pelo responsável após o deploy final |
+| Expiração e indisponibilidade | APROVADO | 401 expira para a entrada; 403/503/rede não simulam logout; 20 recargas ADM sem regressão |
+| Revogação e fechamento do piloto | APROVADO | acesso habilitado=0, sessões válidas=0, períodos publicados/pendentes=0, população=false |
+| Regressões BN/Portal e concorrência PostgreSQL | APROVADO | 2072 testes, 3 skips históricos, 21 workerd, 87 composições PostgreSQL e CI verde |
+| Câmera física, impressão física, Narrador e matriz ampla de dispositivos | ADIADO | dispensa/adiamento explícito; nenhum PASS inferido de DOM, PDF ou viewport |
+| Widget produtivo adversarial: expiração/replay/indisponibilidade | ADIADO | caminho positivo incluído no login real; negativas automatizadas não viram interação produtiva legítima |
+| Backup gerenciado/RPO/RTO | FORA DA GARANTIA | recovery técnico descartável existe; não há promessa de restore gerenciado |
+
+G-B é aceito com essas limitações. G-P aprova a release técnica fechada por política, sem abrir a escola. Uma futura abertura deve executar apenas as provas dependentes do novo escopo e da configuração institucional então autorizada.
+
 ## Contenção de autenticação — #782
 
 `runtime/migrations.postgres.ts` acrescenta sobreposição real: login pausado após lock de conta permite login/sessão/Self/logout de outra conta; snapshot de reconciliação não serializa login; job de publicação pausado permite transação de outra conta. `load/paused-query-v1.ts` apenas pausa depois da query real, sem substituir SQL/resultados. Testes existentes preservam ativação única, falhas concorrentes sem perda de contador, reset/bloqueio/rotação, revogação, leases/CAS/publicação e barreiras de reset/timeout. `persistence/postgres-persistence-v1.test.ts` recusa promoção de lock e escrita de vínculo/revisão compartilhada. PGlite verifica a guarda; somente PostgreSQL nativo prova contenção. Gates/ambiente/SHA/limites efetivos na #782, sem presumir ausência universal de indisponibilidade.
@@ -58,21 +73,20 @@ Autoria #743–#756 concluída, testada e publicada; os handoffs das filhas cont
 | Carga/KDF/queries/bundle/recovery/rollback sem reativação | #758 | #759 quando pertinente, sem backup gerenciado alegado |
 | Dados/calendário legítimos, encerramento de piloto, G-B/G-P | #759 | #760 somente após aceite e abertura deliberada |
 
-PA-DEC-006 mantém a checklist abaixo como condição de G-B e do aceite integrado. #757 pode montar candidato e #758 provar ambiente sintético antes dela; isso não é ciclo nem PASS real. Nenhum skip pode substituir requisito obrigatório.
+PA-DEC-009 encerra a checklist após o aceite real da #759. Resultados sintéticos continuam identificados como tais; itens físicos e o ensaio adversarial produtivo do widget permanecem adiados, sem transformar skip em PASS.
 
-## Aceite integrado obrigatório ao encerrar a Parte2 — PA-DEC-006
+## Checklist de aceite encerrada pela #759 — PA-DEC-006/009
 
-As issues técnicas P1 podem encerrar conforme a decisão do responsável. As provas abaixo continuam PENDENTES; estão atribuídas à #759 e bloqueiam a liberação aos alunos. A evidência deverá registrar versão publicada, ambiente, resultado e limitações, sem PII/credenciais.
+- [x] Sessão Entra real no ADM → API Portal → binding privado → PostgreSQL no fluxo autorizado; negativas preservadas nas suítes integradas.
+- [ ] Widget Turnstile produtivo adversarial completo. Login positivo real aprovado; token expirado/reutilizado e indisponibilidade produtivos ficaram adiados.
+- [x] Telas: QR → PIN → criação de senha → login → leitura autorizada → saída e reentrada.
+- [x] Sessão, expiração, logout, bloqueio/desbloqueio, revogação, regeneração de QR e resets cobertos pelo aceite real mais massa sintética.
+- [x] Visibilidade por período, publicação/atualização/retirada e isolamento de terceiros cobertos pelas provas integradas; nenhum período ficou publicado.
+- [x] Regressões de importação, boletins e prévia de reset aprovadas sem reset acadêmico real.
+- [x] Piloto encerrado: acesso, sessões, períodos e população fechados. Massa/projeções de teste retidas para rastreabilidade, inacessíveis; configuração institucional continua requisito de qualquer abertura futura.
+- [ ] Câmera física, impressão física, Narrador e matriz ampla de dispositivos adiados expressamente.
 
-- [ ] Sessão Entra real no ADM → API Portal → binding privado → PostgreSQL, com autorização e negativas.
-- [ ] Widget Turnstile produtivo positivo, token expirado/reutilizado e indisponibilidade, com interação legítima.
-- [ ] Telas: QR → PIN com nascimento confirmado → criação de senha → login → leitura autorizada → saída.
-- [ ] Sessão persistente/curta, expiração, logout, bloqueio/desbloqueio, revogação, regeneração de QR e resets em massa sintética.
-- [ ] Visibilidade por período, datas, publicação/atualização/retirada e ausência de dados de terceiros no navegador.
-- [ ] Regressões funcionais de importação, boletins e prévia de reset, preservando dados acadêmicos e sem reset real.
-- [ ] Encerrar o piloto: substituir/remover dados provisórios de teste e confirmar configuração institucional antes de liberar acesso.
-
-Responsável técnico: integrador da Parte2; responsável institucional: confirma dados e calendário definitivos. Não repetir mutações em alunos reais para demonstrar ações destrutivas. G-B continua parcial; checklist vazia não é aprovação.
+Os itens não marcados são limitações conhecidas, não falhas ocultas nem PASS. O responsável aceitou o produto com esses adiamentos e autorizou encerrar a fila. Nenhuma mutação deve ser repetida em aluno real apenas para completar contagem.
 
 ## Piloto privado parcial da6A
 

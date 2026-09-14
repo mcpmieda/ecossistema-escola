@@ -1,20 +1,20 @@
 schema_version: 3
 project: banco-de-notas
 repository: mcpmieda/ecossistema-escola
-updated_at: 2026-09-13
+updated_at: 2026-09-14
 coordination:
   master_issue: 182
   executable_issue: null
   current_delivery_issue: null
-  current_integrator_issue: 757
+  current_integrator_issue: null
   central_state_editor: integrator-only
-  active_queue: student-portal-part-2-742
+  active_queue: student-portal-part-2-742-completed
   program_status: completed-functional-program-596
-  execution_authority: PA-DEC-007
+  execution_authority: PA-DEC-009
 baseline:
-  last_audited_main_commit: 270ab8a442e833cd089d4d139bacbef55c7c52a0
-  last_verified_pr: 774
-  authorized_deploy_run: 34788638736
+  last_audited_main_commit: 436e9db8aebd67ea8e9765676aca47d385cd3119
+  last_verified_pr: 787
+  authorized_deploy_run: 34871838273
   authorized_deploy_result: success
   functional_acceptance_main: 80b2916185fc6a49df7c5ab0af71e2be4dcdeb66
   functional_acceptance_evidence: docs/gradebook/FINAL4_PILOT_406.md
@@ -57,10 +57,13 @@ recovery:
   legacy_d1_is_backup_of_new_writes: false
 student_portal_integration:
   parent_issue: 742
-  current_integration_issue: 757
+  current_integration_issue: null
   part_1_issues: [701, 715]
   part_1_status: technically-completed-741
-  gate_g_b: partial-real-acceptance-deferred-to-759
+  part_2_issues: [743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756, 757, 758, 759, 760]
+  part_2_status: technically-complete-release-closed-by-policy
+  gate_g_b: accepted-with-explicit-physical-device-deferrals
+  gate_g_p: passed-technical-release-general-opening-not-authorized
   schema_table_count: 20
   schema: student_portal_migrations_0001_through_0007_applied
   academic_authority: unchanged-official-imported-source
@@ -72,8 +75,8 @@ student_portal_integration:
   integrated_bn_contract: 745
   integrated_academic_presentation: 747
 next_safe_action:
-  issue: 757
-  description: validate-and-publish-frontend-composition-then-quality-758-without-reopening-gradebook-final-queue
+  issue: null
+  description: maintain-current-release-and-open-new-reproducible-issue-for-future-defects
 
 # Immutable context of the older #668 snapshot follows; these keys are historical,
 # not current tasks, runtime flags, catalog counts or release authorization.
