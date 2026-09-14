@@ -79,7 +79,7 @@ it('expires admin access at its deadline even with a stalled background request'
     await vi.advanceTimersByTimeAsync(0);
   });
   expect(hook.result.current.state.state).toBe('ready');
-  act(() => window.dispatchEvent(new Event('focus')));
+  void act(() => window.dispatchEvent(new Event('focus')));
   await act(async () => {
     await vi.advanceTimersByTimeAsync(2000);
   });
