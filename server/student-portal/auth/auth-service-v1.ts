@@ -5,7 +5,7 @@ import { activateRequestV1, challengeRequestV1, challengeResponseV1, loginReques
 import type { FailureV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { AttemptRecordV1, CryptoPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
-import { accessContextV1, authAuditV1, authNowV1, authTransactionV1, revokeChallengesV1, type AccessContextV1 } from './transaction-v1';
+import { accessContextV1, authAuditV1, authNowV1, accountTransactionV1, revokeChallengesV1, type AccessContextV1 } from './transaction-v1';
 import { createSessionV1 } from './session-service-v1';
 import type { RiskVerifierV1 } from './turnstile-v1';
 
@@ -66,7 +66,7 @@ export class AuthServiceV1 {
     if (!qr) return denied(requestId);
     // Remote verification finishes before acquiring any database lock.
     const riskPassed = request.riskToken === undefined ? false : await this.risk.verify(request.riskToken);
-    return authTransactionV1(this.sql, async (tx, store) => {
+    return accountTransactionV1(this.sql, async (tx, store) => {
       const rows = await tx.unsafe('SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state=\'active\'', [qr.credentialId, qr.keyVersion]);
       if (rows.length !== 1) return denied(requestId);
       const accountId = z.uuid().parse(rows[0]!.account_id);
@@ -98,7 +98,7 @@ export class AuthServiceV1 {
     const request = activateRequestV1.parse(input);
     if (this.burst && !await this.burst(request.challenge)) return { contractVersion: 1 as const, requestId, state: 'rate-limited' as const, retryAfterSeconds: 60 };
     const hash = await this.cryptoPort.hashOpaqueToken(request.challenge);
-    return authTransactionV1(this.sql, async (tx, store) => {
+    return accountTransactionV1(this.sql, async (tx, store) => {
       const rows = await tx.unsafe(`SELECT account_id FROM student_portal.auth_challenge WHERE token_hash=$1
         AND consumed_at IS NULL AND expires_at>statement_timestamp()`, [hash]);
       if (rows.length !== 1) return denied(requestId);
@@ -137,7 +137,7 @@ export class AuthServiceV1 {
     const qr = await this.qrAccount(request.qr);
     if (!qr) return denied(requestId);
     const riskPassed = request.riskToken === undefined ? false : await this.risk.verify(request.riskToken);
-    return authTransactionV1(this.sql, async (tx, store) => {
+    return accountTransactionV1(this.sql, async (tx, store) => {
       const rows = await tx.unsafe('SELECT account_id FROM student_portal.qr_credential WHERE credential_id=$1 AND key_version=$2 AND state=\'active\'', [qr.credentialId, qr.keyVersion]);
       if (rows.length !== 1) return denied(requestId);
       const accountId = z.uuid().parse(rows[0]!.account_id);

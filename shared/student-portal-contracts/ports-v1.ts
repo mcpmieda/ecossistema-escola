@@ -45,7 +45,8 @@ export interface BirthRecordV1 { accountId: string; year: string | null; confirm
 export interface AttemptRecordV1 { accountId: string; failures: number; windowStartedAt: string; blockedUntil: string | null; version: number }
 export interface IdempotencyRecordV1 { key: string; actorId: string; requestDigest: string; operationId: string; version: number; expiresAt: string }
 export interface PortalTransactionV1 {
-  lockAcademicYear(year: 2026): Promise<void>;
+  /** Shared consumers never change academic/link revisions; writers retain the exclusive default. */
+  lockAcademicYear(year: 2026, mode?: 'exclusive' | 'shared'): Promise<void>;
   lockAccounts(accountIdsSorted: readonly string[]): Promise<void>;
   findAccount(id: string): Promise<AccountRecordV1 | null>;
   findByLink(link: AcademicLinkV1): Promise<AccountRecordV1 | null>;

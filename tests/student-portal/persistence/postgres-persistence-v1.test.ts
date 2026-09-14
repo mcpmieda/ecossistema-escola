@@ -76,6 +76,18 @@ function account(id = ACCOUNT, studentId = 1) {
 }
 
 describe('StudentPortalPostgresPersistenceV1', () => {
+  it('refuses shared-to-exclusive promotion and revision/link writes in a shared year transaction', async () => {
+    await persistence.transaction(async (tx) => {
+      await tx.lockAcademicYear(2026, 'shared');
+      await expect(tx.lockAcademicYear(2026)).rejects.toThrow('student-portal-shared-year-write-forbidden');
+      await expect(tx.insertAccount(account())).rejects.toThrow('student-portal-shared-year-write-forbidden');
+      await expect(tx.closeAcademicLinks(2026, 0, new Date().toISOString())).rejects.toThrow('student-portal-shared-year-write-forbidden');
+      await expect(tx.appendRevision({ eventId: crypto.randomUUID(), academicYear: 2026,
+        studentIds: [], dataVersion: 'synthetic-unused', cause: 'marks', occurredAt: new Date().toISOString() }))
+        .rejects.toThrow('student-portal-shared-year-write-forbidden');
+    });
+  });
+
   it('creates one durable linked account and increments portal-link coordination only once', async () => {
     const before = (await pg.query<{ portal_link_counter: number }>(
       'SELECT portal_link_counter::integer FROM student_portal.academic_revision WHERE academic_year=2026',

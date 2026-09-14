@@ -1,4 +1,7 @@
 import { proveWorkerLockTimeoutV1 } from '../load/lock-timeout-harness-v1';
+import { pausedPortalQueryV1 } from '../load/paused-query-v1';
+import { accountTransactionV1 } from '../../../server/student-portal/auth/transaction-v1';
+import { PublicationReconcilerV1 } from '../../../server/student-portal/jobs/reconcile-v1';
 import { proveWorkerPublicationV1 } from '../load/publication-harness-v1';
 import { quarantineSyntheticRestoreV1 } from '../recovery/quarantine-synthetic-v1';
 import { runPortalHarnessScenariosV1 } from '../load/harness-scenarios-v1';
@@ -157,6 +160,41 @@ beforeAll(async () => {
 });
 
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });
+
+describe('shared account transaction barriers', () => {
+  const connection = asRole('student_portal_app');
+  const primary = portal as unknown as StudentPortalPostgresSqlV1;
+  const secondary = connection as unknown as StudentPortalPostgresSqlV1;
+  it.each([0, 2026])('still waits for an exclusive global/year writer (613,%s)', async (key) => {
+    const statement = `SELECT pg_advisory_xact_lock(613,${key})`;
+    const pause = pausedPortalQueryV1(secondary, (query) => query === statement);
+    const pending = pause.sql.begin(async (tx) => { await tx.unsafe(statement); });
+    try {
+      await pause.entered(pending);
+      await portal.unsafe("SET lock_timeout='150ms'");
+      await expect(accountTransactionV1(primary, async () => true)).rejects.toMatchObject({ code: '55P03' });
+    } finally {
+      pause.release();
+      await pending;
+      await portal.unsafe('RESET lock_timeout');
+    }
+    expect(await accountTransactionV1(primary, async () => true)).toBe(true);
+  });
+  it.each([0, 2026])('holds back an exclusive global/year writer until its consumer commits (613,%s)', async (key) => {
+    const pause = pausedPortalQueryV1(primary, (query) => query.includes('FOR SHARE'));
+    const pending = accountTransactionV1(pause.sql, async () => true);
+    try {
+      await pause.entered(pending);
+      await connection.unsafe("SET lock_timeout='150ms'");
+      await expect(secondary.begin(async (tx) => { await tx.unsafe(`SELECT pg_advisory_xact_lock(613,${key})`); }))
+        .rejects.toMatchObject({ code: '55P03' });
+    } finally {
+      pause.release();
+      await pending;
+      await connection.unsafe('RESET lock_timeout');
+    }
+  });
+});
 
 describe('native PostgreSQL migrations and runtime role isolation', () => {
   it('runs the synthetic deployment proof and removes its committed row', async () => {
@@ -877,6 +915,54 @@ describe('native authentication locks with real scrypt and separate connections'
     return { accountId, scope, version, command, qr, activate };
   }
 
+  it('serves another account login, session, Self and logout while the first login holds its account lock', async () => {
+    const first = await fixture(), second = await fixture();
+    await auth.activate(first.activate, crypto.randomUUID());
+    const initial = await auth.activate(second.activate, crypto.randomUUID());
+    if (!('token' in initial)) throw new Error('Synthetic activation failed');
+    const pause = pausedPortalQueryV1(primary, (query) => query.includes('SELECT id FROM student_portal.account') && query.includes('FOR UPDATE'));
+    const delayed = new AuthServiceV1(pause.sql, cryptography, 1, { verify: async () => true });
+    const pending = delayed.login({ contractVersion: 1, qr: first.qr, password: '123456', keepConnected: false }, crypto.randomUUID());
+    try {
+      await pause.entered(pending);
+      await connection.unsafe("SET lock_timeout='1500ms'");
+      const login = await other.login({ contractVersion: 1, qr: second.qr, password: '123456', keepConnected: false }, crypto.randomUUID());
+      expect(login).toHaveProperty('token');
+      const concurrentSessions = new SessionServiceV1(secondary, cryptography);
+      expect(await concurrentSessions.read(initial.token, crypto.randomUUID())).toMatchObject({ state: 'authenticated' });
+      const reader = new SelfProjectionReaderV1(secondary);
+      const self = await concurrentSessions.withAuthorized(initial.token, (context, tx) => reader.readInTransaction(tx, context.account.id, crypto.randomUUID()));
+      expect(self?.profile.accountId).toBe(second.accountId);
+      await concurrentSessions.logout(initial.token, crypto.randomUUID());
+      expect(await concurrentSessions.read(initial.token, crypto.randomUUID())).toBeNull();
+    } finally {
+      pause.release();
+      await pending;
+      await connection.unsafe('RESET lock_timeout');
+    }
+  }, 30_000);
+
+  it('does not serialize authentication behind the cron reconciliation snapshot', async () => {
+    const data = await fixture();
+    await auth.activate(data.activate, crypto.randomUUID());
+    const stopped = new Error('Synthetic stop after reconciliation snapshot');
+    const snapshotOnly: StudentPortalPostgresSqlV1 = {
+      unsafe: (query, parameters) => primary.unsafe(query, parameters),
+      begin: (operation) => primary.begin(async (tx) => { await operation(tx); throw stopped; }),
+    };
+    const pause = pausedPortalQueryV1(snapshotOnly, (query) => query.includes('FROM student_portal.academic_revision') && query.includes('FOR SHARE'));
+    const pending = new PublicationReconcilerV1(pause.sql).run(1);
+    try {
+      await pause.entered(pending);
+      await connection.unsafe("SET lock_timeout='1500ms'");
+      expect(await other.login({ contractVersion: 1, qr: data.qr, password: '123456', keepConnected: false }, crypto.randomUUID())).toHaveProperty('token');
+    } finally {
+      pause.release();
+      await expect(pending).rejects.toBe(stopped);
+      await connection.unsafe('RESET lock_timeout');
+    }
+  });
+
   it('only one concurrent activation commits its single-use proof and session', async () => {
     const fixtureData = await fixture();
     const results = await Promise.all([auth.activate(fixtureData.activate, crypto.randomUUID()), other.activate(fixtureData.activate, crypto.randomUUID())]);
@@ -984,7 +1070,20 @@ describe('native publication targets and competing job leases', () => {
     expect(replay).toEqual(first);
     const claimed = (await Promise.all([jobs.claim(), other.claim()])).filter((job) => job !== null);
     expect(claimed).toHaveLength(1);
-    expect(await other.perform(claimed[0]!)).toBe('done');
+    const pause = pausedPortalQueryV1(secondary, (query) => query.includes('SELECT id FROM student_portal.account') && query.includes('FOR UPDATE'));
+    const pending = new PublicationJobsV1(pause.sql).perform(claimed[0]!);
+    try {
+      await pause.entered(pending);
+      await portal.unsafe("SET lock_timeout='1500ms'");
+      await accountTransactionV1(primary, async (_tx, store) => {
+        await store.lockAccounts([ACCOUNT]);
+        expect(await store.findAccount(ACCOUNT)).not.toBeNull();
+      });
+    } finally {
+      pause.release();
+      await portal.unsafe('RESET lock_timeout');
+    }
+    expect(await pending).toBe('done');
     expect((await t1())!.length).toBeGreaterThan(0);
     expect(await jobs.perform(claimed[0]!)).toBe('stale');
   });

@@ -52,6 +52,8 @@ Desvinculação é comando Portal separado com escopo/versão/contagem esperada,
 
 ### Ordem de locks revisada por CODEX
 
+**Delta #782 / PA-DEC-008 (14/09/2026):** a exclusividade anual descrita abaixo permanece para escritores, preview/execute de reset e comandos administrativos. Autenticação individual, sessão própria/Self e jobs/reconciliação Portal passam a global compartilhado → ano compartilhado → coordenação `FOR SHARE` → contas exclusivas ordenadas → credenciais/sessões/jobs. Não alteram fatos acadêmicos, vínculos ou coordenação. O escritor exclusivo anual conflita com esses leitores; reset global exclusivo também os exclui. A ordem e a mesma conexão até commit/rollback permanecem. Nunca promover uma transação compartilhada para escritora; o adapter rejeita esse uso. Nenhuma alteração do SQL/DDL ou da autoridade dos produtores BN é necessária. Evidência nativa e publicação são registradas na #782; a regra anterior permanece como histórico do protocolo #703.
+
 Os locks das 30 tabelas são globais mesmo quando o DELETE filtra um ano. Portanto, somente `(613,ano)` não coordena reset com escritores de outros anos. Reservar `(613,0)` como barreira global: writers usam `pg_advisory_xact_lock_shared(613,0)`; execute reset usa `pg_advisory_xact_lock(613,0)`. Zero está fora do intervalo de anos BN. Todas as aquisições são transacionais, na mesma conexão, até commit/rollback.
 
 1. Antes de qualquer leitura bloqueante/escrita/FK: barreira global (compartilhada para escritores e preview; exclusiva para reset). Nunca promover shared para exclusive na mesma transação.

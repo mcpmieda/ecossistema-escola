@@ -196,13 +196,23 @@ async function bumpPortalLinkRevision(
 }
 
 class StudentPortalTransaction implements PortalTransactionV1 {
+  private yearLock: 'exclusive' | 'shared' | null = null;
   constructor(private readonly sql: StudentPortalPostgresQueryV1) {}
 
-  async lockAcademicYear(year: 2026): Promise<void> {
+  private requireYearWriter(): void {
+    if (this.yearLock === 'shared') throw new Error('student-portal-shared-year-write-forbidden');
+  }
+
+  async lockAcademicYear(year: 2026, mode: 'exclusive' | 'shared' = 'exclusive'): Promise<void> {
     if (year !== 2026) throw new Error('student-portal-year-not-supported');
+    if (mode === 'exclusive') this.requireYearWriter();
     await rows(this.sql, 'SELECT pg_advisory_xact_lock_shared($1,$2)', [613, 0]);
-    await rows(this.sql, 'SELECT pg_advisory_xact_lock($1,$2)', [613, year]);
-    await rows(this.sql, 'SELECT academic_year FROM student_portal.academic_revision WHERE academic_year=$1 FOR UPDATE', [year]);
+    await rows(this.sql, mode === 'shared'
+      ? 'SELECT pg_advisory_xact_lock_shared($1,$2)' : 'SELECT pg_advisory_xact_lock($1,$2)', [613, year]);
+    await rows(this.sql, mode === 'shared'
+      ? 'SELECT academic_year FROM student_portal.academic_revision WHERE academic_year=$1 FOR SHARE'
+      : 'SELECT academic_year FROM student_portal.academic_revision WHERE academic_year=$1 FOR UPDATE', [year]);
+    if (this.yearLock !== 'exclusive') this.yearLock = mode;
   }
 
   async lockAccounts(accountIdsSorted: readonly string[]): Promise<void> {
@@ -239,6 +249,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
   }
 
   async insertAccount(record: AccountRecordV1): Promise<'created' | 'existing'> {
+    this.requireYearWriter();
     const result = await rows(
       this.sql,
       `INSERT INTO student_portal.account
@@ -532,6 +543,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
   }
 
   async compareAndSetSettings(settings: EffectiveSettingsV1, expectedVersion: number): Promise<boolean> {
+    this.requireYearWriter();
     const parsed = effectiveSettingsV1.parse(settings);
     const key = scopeKey(parsed.scope);
     const existing = await rows(this.sql, 'SELECT field_key,version FROM student_portal.setting WHERE scope_key=$1 FOR UPDATE', [key]);
@@ -621,6 +633,7 @@ class StudentPortalTransaction implements PortalTransactionV1 {
   }
 
   async appendRevision(event: RevisionEventV1): Promise<void> {
+    this.requireYearWriter();
     const state = await rows(
       this.sql,
       `SELECT academic_generation,academic_counter,reset_generation,reset_counter,

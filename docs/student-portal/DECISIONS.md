@@ -1,5 +1,15 @@
 # Decisões e pendências
 
+## PA-DEC-008 — Concorrência de contas sem exclusividade acadêmica desnecessária
+
+Em 14/09/2026, a auditoria solicitada pelo responsável encontrou timeout de lock na autenticação produtiva. A #782 reproduziu a assinatura em PostgreSQL local com a função real: uma transação segurando o advisory anual exclusivo impediu o login; liberado o lock, a operação concluiu. Isso identifica a contenção, não o titular específico da trava no incidente produtivo.
+
+A #782 substitui a exigência da #703 de ano exclusivo para **todo** consumidor Portal somente em autenticação individual, sessão própria/Self e tarefas de reconciliação/publicação. Esses consumidores usam global compartilhado → ano compartilhado → revisão `FOR SHARE` → conta exclusiva → credencial/sessão/job. Compartilham o ano, mas continuam serializando alterações da mesma conta. Não modificam fatos, vínculos ou revisão acadêmica. O adapter recusa promoção shared→exclusive e mutações de vínculo/revisão/política no modo compartilhado.
+
+Escritores BN, reset, sincronização/encerramento de vínculos, políticas e comandos administrativos conservam o protocolo exclusivo existente. O modo padrão continua exclusivo. Self aninhado reutiliza a conexão e o modo compartilhado, sem upgrade. Publicação conserva CAS, lease/attempt, fonte oficial e filtragem; não autoriza publicação por efeito do login. Não há DDL, novo grant, relaxamento de KDF/timeout ou retry automático de autenticação.
+
+Testes de conexões PostgreSQL reais verificam progresso de outra conta durante login/publicação/reconciliação, segurança de reset/revogação, contadores e barreira de escritor. Espera por manutenção exclusiva legítima e falhas externas continuam possíveis; essa correção não promete disponibilidade absoluta. SHA, gates e publicação efetivos ficam na #782.
+
 ## PA-DEC-007 — Parte 2 autorizada, execução sequencial e identidades preservadas
 
 Em 13/09/2026 o responsável aprovou a fila #742/#743–#760 e solicitou execução autônoma, uma issue por vez, inclusive as identificadas como CHAT ONLINE. Preservar os marcadores **CODEX e CHAT ONLINE** dos títulos; eles mantêm a identidade do planejamento. O executor desta sessão realiza diretamente todas as entregas, sem agentes auxiliares. [PARALELO] continua registrando independência técnica, não concorrência operacional nesta execução.

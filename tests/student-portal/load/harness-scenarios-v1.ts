@@ -111,7 +111,7 @@ export async function runPortalHarnessScenariosV1(connectionString: string) {
       const result = { kind, count: times.length, p50: percentile(.5), p95: percentile(.95), p99: percentile(.99),
         maxQueries: Math.max(...values.map((sample) => sample.queries)), maxRows: Math.max(...values.map((sample) => sample.rows)), maxBytes: Math.max(...values.map((sample) => sample.bytes)) };
       if (kind.startsWith('self-')) { expect(result.p95).toBeLessThanOrEqual(750); expect(result.p99).toBeLessThanOrEqual(1500); expect(result.maxQueries).toBeLessThanOrEqual(40); }
-      if (kind.startsWith('login-')) { expect(result.p95).toBeLessThanOrEqual(1500); expect(result.p99).toBeLessThanOrEqual(2500); expect(result.maxQueries).toBeLessThanOrEqual(40); }
+      if (kind.startsWith('login-')) { expect(result.p95, `${kind} p95`).toBeLessThanOrEqual(1500); expect(result.p99, `${kind} p99`).toBeLessThanOrEqual(2500); expect(result.maxQueries).toBeLessThanOrEqual(40); }
       if (kind === 'birth-batch') { expect(result.p95).toBeLessThanOrEqual(2000); expect(result.p99).toBeLessThanOrEqual(3000); expect(result.maxQueries).toBeLessThanOrEqual(65); }
       expect(result.maxRows).toBeLessThanOrEqual(1500);
       return result;

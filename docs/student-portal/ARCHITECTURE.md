@@ -1,5 +1,9 @@
 # Arquitetura e contratos V1
 
+## Concorrência de contas — #782
+
+`accountTransactionV1` usa global compartilhado(613,0) → ano compartilhado(613,2026) → revisão `FOR SHARE`; contas continuam `FOR UPDATE` antes de credenciais/sessões/jobs. Auth individual, sessão própria/Self (inclusive leitura aninhada), cron/reconciliação e execução/claim de jobs usam esse modo. `authTransactionV1` conserva o padrão exclusivo para demais operações. Escritores BN, políticas, reset e comandos administrativos continuam excluindo os consumidores. O adapter impede upgrade e escritas acadêmicas/de vínculo no modo compartilhado. Ver PA-DEC-008 e o delta em `docs/gradebook/YEAR_RESET_SETTINGS.md`; essa exceção substitui somente a exclusividade dos consumidores rotineiros no inventário histórico abaixo. Sem DDL, cache, retry cego ou mudança de autorização.
+
 ## Composição corrente — #757
 
 Aluno: entrada própria consome e remove o fragmento de /access antes do React/widget; QR e senha ficam em memória transitória. StudentPortalShellV1 recebe children/onLogout; StudentPortalPageV1 recebe o estado Self e o slot grades, ambos da mesma resposta. Session precede me; expiração, saída e retorno do histórico limpam dados. Saída com falha mantém a tela protegida vazia e permite tentar a saída novamente. Cancelar/ocultar autenticação também descarta o QR na composição.
