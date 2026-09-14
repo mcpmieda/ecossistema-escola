@@ -251,7 +251,7 @@ describe('publication interface', () => {
     let attempts = 0;
     const mock = setup({
       write: async () => {
-        if (++attempts === 1) throw new TypeError('lost');
+        if (++attempts <= 2) throw new TypeError('lost');
         return json({
           ...PUBLICATION_META_V1,
           state: 'committed',
@@ -268,7 +268,8 @@ describe('publication interface', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Repetir a mesma decisão' }));
     await screen.findByText('Decisão de T1 aceita pelo servidor.');
-    expect(mock.bodies[0]).toBe(mock.bodies[1]);
+    expect(mock.bodies).toHaveLength(3);
+    expect(new Set(mock.bodies).size).toBe(1);
   });
   it('never manufactures six no-data cards from an unavailable response', async () => {
     const client = createPortalAdminClientV1({

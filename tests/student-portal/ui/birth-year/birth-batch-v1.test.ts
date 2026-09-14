@@ -107,10 +107,11 @@ describe('birth batch receipt replay', () => {
     expect(state.outcomes).toHaveLength(0);
     await vi.advanceTimersByTimeAsync(2000);
     expect(mock.writes).toHaveLength(2);
-    await vi.advanceTimersByTimeAsync(29_000);
+    await vi.advanceTimersByTimeAsync(27_000);
     expect(mock.writes).toHaveLength(2);
-    await vi.advanceTimersByTimeAsync(2000);
+    await vi.advanceTimersByTimeAsync(3000);
     expect(state.state).toBe('complete');
+    expect(mock.writes).toHaveLength(4);
     expect(new Set(mock.bodies).size).toBe(1);
     runner.clear();
   });

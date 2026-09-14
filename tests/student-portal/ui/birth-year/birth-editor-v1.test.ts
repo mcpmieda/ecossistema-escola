@@ -111,12 +111,12 @@ describe('birth editor concurrency and autosave', () => {
     editor.clear();
   });
   it('repeats exactly the same uncertain request and accepts no new intent before resolving it', async () => {
-    let lost = true;
+    let lost = 2;
     const mock = birthMockV1({
       write: async (input) => {
         const response = mock.defaultWrite(input);
-        if (lost) {
-          lost = false;
+        if (lost > 0) {
+          lost--;
           throw new Error('synthetic-lost-reply');
         }
         return response;
@@ -129,13 +129,14 @@ describe('birth editor concurrency and autosave', () => {
     expect(state().singleFailure).toMatchObject({ retryable: true, committed: false });
     editor.edit(birthIdV1(1), '2002');
     await vi.advanceTimersByTimeAsync(1000);
-    expect(mock.writes).toHaveLength(1);
+    expect(mock.writes).toHaveLength(2);
     await editor.retry();
     expect(mock.bodies[0]).toBe(mock.bodies[1]);
+    expect(mock.bodies[1]).toBe(mock.bodies[2]);
     expect(state().rows[0]?.year).toBe('2002');
     await vi.advanceTimersByTimeAsync(1000);
-    expect(mock.writes).toHaveLength(3);
-    expect(mock.bodies[2]).not.toBe(mock.bodies[0]);
+    expect(mock.writes).toHaveLength(4);
+    expect(mock.bodies[3]).not.toBe(mock.bodies[0]);
     editor.clear();
   });
   it('retries only the read after a committed write whose fresh query failed', async () => {

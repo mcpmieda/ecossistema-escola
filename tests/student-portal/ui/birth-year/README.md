@@ -76,7 +76,8 @@ credenciais, PIN padrão, escrita na Relação ou confirmação fictícia em pro
 ## Retomada limitada
 
 Um prepareCommand captura bytes/CAS/idempotência uma única vez. Resposta incerta
-individual mantém a operação e bloqueia novas intenções até resolver/reconsultar.
+recebe uma repetição automática delimitada dos mesmos bytes; se ela também falhar,
+a operação individual é mantida e bloqueia novas intenções até resolver/reconsultar.
 Se commit já foi confirmado e somente a consulta falha, retry repete a consulta,
 nunca a escrita.409 exige recarga/revisão;401/403 removem linhas/rascunhos/retomadas.
 

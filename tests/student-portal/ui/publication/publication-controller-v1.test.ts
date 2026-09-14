@@ -142,7 +142,7 @@ describe('publication command and bounded observation', () => {
     let attempts = 0;
     const mock = setup(undefined, {
       write: async () => {
-        if (++attempts === 1) throw new TypeError('lost');
+        if (++attempts <= 2) throw new TypeError('lost');
         return json({
           ...PUBLICATION_META_V1,
           state: 'committed',
@@ -158,8 +158,8 @@ describe('publication command and bounded observation', () => {
     if ('targetDataVersion' in command) command.targetDataVersion = 'synthetic:changed';
     await mock.controller.retry();
     await vi.advanceTimersByTimeAsync(0);
-    expect(mock.writes[0]).toBe(mock.writes[1]);
-    expect(mock.writes).toHaveLength(2);
+    expect(new Set(mock.writes).size).toBe(1);
+    expect(mock.writes).toHaveLength(3);
     expect(mock.state().mutation).toMatchObject({
       state: 'accepted',
       command: { targetDataVersion: 'synthetic:2026:revision:2' },

@@ -24,7 +24,7 @@ Depois da contenção, confirmar por agregados: acesso habilitado=0 no escopo, s
 
 ### Monitoramento e escalonamento
 
-`/healthz` prova liveness/estado agregado, não login nem integridade acadêmica. Repetir 503 somente em leitura idempotente e limitada; autenticação, ativação, reset e demais mutações nunca recebem retry cego. Lock timeout/55P03 indica contenção; identificar a operação concorrente antes de considerar capacidade. Não aumentar Hyperdrive, plano ou timeouts sem evidência, medição e autorização específica.
+`/healthz` prova liveness/estado agregado, não login nem integridade acadêmica. Leituras podem repetir 503 de forma limitada. Comandos administrativos fazem no máximo uma repetição de confirmação apenas para resposta ambígua, preservando exatamente corpo, CAS e chave de idempotência; recusas, conflitos, autenticação e rate limit não repetem. Lock timeout/55P03 indica contenção; identificar a operação concorrente antes de considerar capacidade. Não aumentar Hyperdrive, plano ou timeouts sem evidência, medição e autorização específica.
 
 ## Logs e auditoria
 
