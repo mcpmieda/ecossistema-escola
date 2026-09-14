@@ -10,6 +10,10 @@ A #743 é a integradora documental da preparação; #744 reserva build/clientes 
 
 Registro de autorização: [issue-mãe #742](https://github.com/mcpmieda/ecossistema-escola/issues/742), seção vigente, e mesma atualização nas 18 filhas.
 
+### Composição técnica na #757
+
+A autorização sequencial inclui montar as telas já entregues nos hosts existentes e registrar o módulo ADM sob capacidades herdadas. Exposição dos assets e da entrada visual não habilita acesso escolar. A #757 concentra a integração e reconciliação dos documentos; os ajustes nominais de escopo constam na issue antes de seus respectivos arquivos. Mantêm-se ausência de DDL e de novos grants, população desabilitada e aceite real reservado à #759. O contador nativo da mãe #742 acompanha filhas concluídas sem alterar suas identidades.
+
 ## PA-DEC-006 — Encerramento técnico da fila P1 e aceite com as telas
 
 Em13/09/2026, o responsável aceitou executar as provas finais de navegador no encerramento da Parte2 ([aceite registrado](https://github.com/mcpmieda/ecossistema-escola/issues/715#issuecomment-5652363419)). Em seguida solicitou terminar todas as issues atuais antes de avançar. Restavam abertas somente #715 e #701.

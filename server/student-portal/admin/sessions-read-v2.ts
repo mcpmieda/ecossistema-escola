@@ -61,8 +61,8 @@ export async function readSessionsV2(
   if (ids.length) {
     const accounts = await tx.unsafe(
       `SELECT ${ADMIN_ACCOUNT_FIELDS_V2} ${ACCOUNT_JOIN_V1}
-      WHERE a.academic_year=2026 AND a.id=ANY($1::uuid[]) ORDER BY a.id`,
-      [ids],
+      WHERE a.academic_year=2026 AND a.id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb)) ORDER BY a.id`,
+      [JSON.stringify(ids)],
     );
     for (const account of accounts) {
       const context = await accountReadContextV2(account, now);

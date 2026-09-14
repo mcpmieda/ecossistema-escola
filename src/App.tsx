@@ -26,6 +26,7 @@ import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
 import { routeLabels } from './platform/routes';
 import { PlatformSearch } from './platform/search';
+import { withStudentPortalModule } from './platform/student-portal-module';
 
 type Identity = {
   authenticated: boolean;
@@ -308,8 +309,11 @@ function AdminShell({ identity }: { identity: Identity }) {
     () => identity.name?.trim().split(/\s+/u)[0] || 'Administrador',
     [identity.name],
   );
-  const modules = loadState.status === 'ready' ? loadState.snapshot.coreModules : [];
-  const snapshot = loadState.status === 'ready' ? loadState.snapshot : null;
+  const snapshot = useMemo(() => loadState.status === 'ready' ? {
+    ...loadState.snapshot,
+    coreModules: withStudentPortalModule(loadState.snapshot.coreModules, identity.capabilities ?? []),
+  } : null, [loadState, identity.capabilities]);
+  const modules = snapshot?.coreModules ?? [];
 
   return (
     <div className="platform-shell min-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
@@ -469,7 +473,7 @@ function AdminShell({ identity }: { identity: Identity }) {
                   Olá, {firstName}. O Centro de Administração está disponível.
                 </Chip>
               )}
-              <PageContent route={route} snapshot={loadState.snapshot} />
+              <PageContent route={route} snapshot={snapshot ?? loadState.snapshot} />
               <Separator className="mt-8" />
               <footer className="grid gap-2 pt-5 text-xs text-muted sm:grid-cols-2 sm:items-center">
                 <span>Centro de Administração · Escola Iêda Alves de Oliveira</span>

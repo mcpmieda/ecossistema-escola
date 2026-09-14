@@ -1,0 +1,127 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import { z } from 'zod';
+import { PLATFORM_CAPABILITIES } from '../../../../shared/platform-contract';
+import {
+  hasPortalNoStoreV1,
+  PortalClientErrorV1,
+  type PortalFetchV1,
+} from '../../student-portal/shared/transport-v1';
+
+const identitySchema = z.object({
+  authenticated: z.literal(true),
+  identityKey: z.string().min(1).max(160),
+  expiresAt: z.iso.datetime(),
+  capabilities: z.array(z.enum(PLATFORM_CAPABILITIES)),
+});
+export type PortalAdminIdentityV1 = z.infer<typeof identitySchema>;
+type IdentityStateV1 =
+  | { state: 'checking' | 'paused' }
+  | { state: 'ready'; identity: PortalAdminIdentityV1 }
+  | { state: 'error'; error: PortalClientErrorV1 };
+const defaultFetch: PortalFetchV1 = (path, init) => fetch(path, init);
+
+/** Same Entra session and capabilities as the Center; this is a fresh read, never a new role system. */
+export function usePortalAdminIdentityV1(fetcher: PortalFetchV1 = defaultFetch) {
+  const [state, setState] = useState<IdentityStateV1>({ state: 'checking' });
+  const active = useRef<AbortController | null>(null);
+  const generation = useRef(0);
+  const expiry = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const stop = useCallback(() => {
+    generation.current++;
+    active.current?.abort();
+    active.current = null;
+    clearTimeout(expiry.current);
+  }, []);
+  const lost = useCallback(
+    (error = new PortalClientErrorV1('unauthenticated', 401)) => {
+      stop();
+      setState({ state: 'error', error });
+    },
+    [stop],
+  );
+  const refresh = useCallback(async () => {
+    stop();
+    const current = generation.current;
+    const controller = new AbortController();
+    active.current = controller;
+    setState({ state: 'checking' });
+    try {
+      const response = await fetcher('/api/me', {
+        method: 'GET',
+        credentials: 'same-origin',
+        cache: 'no-store',
+        redirect: 'error',
+        referrerPolicy: 'no-referrer',
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      });
+      controller.signal.throwIfAborted();
+      if (response.status === 401) throw new PortalClientErrorV1('unauthenticated', 401);
+      if (response.status === 403) throw new PortalClientErrorV1('forbidden', 403);
+      if (!response.ok || !hasPortalNoStoreV1(response.headers))
+        throw new PortalClientErrorV1('unavailable');
+      const identity = identitySchema.parse(await response.json());
+      controller.signal.throwIfAborted();
+      if (generation.current !== current) return;
+      if (!identity.capabilities.includes('platform.settings.read'))
+        throw new PortalClientErrorV1('forbidden', 403);
+      const remaining = Date.parse(identity.expiresAt) - Date.now();
+      if (remaining <= 0) throw new PortalClientErrorV1('unauthenticated', 401);
+      setState({ state: 'ready', identity });
+      // Fail closed at the timer boundary; do not overflow even for an unexpected long session.
+      expiry.current = setTimeout(
+        () => {
+          if (generation.current === current) lost();
+        },
+        Math.min(remaining, 2147483647),
+      );
+    } catch (error) {
+      if (controller.signal.aborted || generation.current !== current) return;
+      lost(error instanceof PortalClientErrorV1 ? error : new PortalClientErrorV1('unavailable'));
+    } finally {
+      if (active.current === controller) active.current = null;
+    }
+  }, [fetcher, lost, stop]);
+  useEffect(() => {
+    const hide = () => {
+      stop();
+      flushSync(() => setState({ state: 'paused' }));
+    };
+    const resume = () => {
+      if (document.visibilityState !== 'hidden') void refresh();
+    };
+    const visibility = () => (document.visibilityState === 'hidden' ? hide() : resume());
+    window.addEventListener('pagehide', hide);
+    window.addEventListener('pageshow', resume);
+    window.addEventListener('focus', resume);
+    document.addEventListener('visibilitychange', visibility);
+    resume();
+    return () => {
+      stop();
+      window.removeEventListener('pagehide', hide);
+      window.removeEventListener('pageshow', resume);
+      window.removeEventListener('focus', resume);
+      document.removeEventListener('visibilitychange', visibility);
+    };
+  }, [refresh, stop]);
+  return { state, refresh, lost };
+}
+
+/** Observe status before a module decodes an error; a late aborted response cannot clear a new identity. */
+export function authorizationAwareFetchV1(
+  onLost: (error: PortalClientErrorV1) => void,
+  fetcher: PortalFetchV1 = defaultFetch,
+): PortalFetchV1 {
+  return async (path, init) => {
+    const response = await fetcher(path, init);
+    if (!init.signal?.aborted && (response.status === 401 || response.status === 403))
+      onLost(
+        new PortalClientErrorV1(
+          response.status === 401 ? 'unauthenticated' : 'forbidden',
+          response.status,
+        ),
+      );
+    return response;
+  };
+}

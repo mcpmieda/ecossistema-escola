@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Settings2,
   ShieldCheck,
+  GraduationCap,
   type LucideIcon,
 } from 'lucide-react';
 import type { PlatformRoute } from '../../shared/platform-contract';
@@ -16,6 +17,7 @@ export const routeLabels: Record<PlatformRoute, string> = {
   publicacoes: 'Publicações',
   paginas: 'Páginas',
   'banco-de-notas': 'Banco de notas',
+  'painel-do-aluno': 'Painel do Aluno',
   sistemas: 'Sistemas',
   auditoria: 'Auditoria',
   configuracoes: 'Configurações',
@@ -27,6 +29,7 @@ export const routeIcons: Record<PlatformRoute, LucideIcon> = {
   publicacoes: BookOpenText,
   paginas: FileText,
   'banco-de-notas': BookOpenText,
+  'painel-do-aluno': GraduationCap,
   sistemas: Boxes,
   auditoria: ShieldCheck,
   configuracoes: Settings2,

@@ -2,14 +2,14 @@ module: student_portal
 contract_version: 1
 academic_year: 2026
 updated_at: 2026-09-13
-current_issue: 743
-delivery_branch: docs/pa-p2-foundation-743
-delivery_scope: part_2_documentary_foundation
-last_verified_main: 9066c04d01b8d62bf59e1de0b51c6ce4c567c668
-last_verified_pr: 741
-last_verified_deploy: 34749391273
-candidate_integration: issue_743_documentation_in_branch_not_yet_verified_published
-completed_issues: [702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 732, 735, 701]
+current_issue: 757
+delivery_branch: feat/pa-integration-757
+delivery_scope: part_2_frontend_composition
+last_verified_main: 270ab8a442e833cd089d4d139bacbef55c7c52a0
+last_verified_pr: 774
+last_verified_deploy: 34788638736
+candidate_integration: issue_757_branch_requires_own_gates_see_issue_handoff
+completed_issues: [702, 703, 704, 705, 706, 707, 708, 709, 710, 711, 712, 713, 714, 715, 732, 735, 701, 743, 744, 745, 746, 747, 748, 749, 750, 751, 752, 753, 754, 755, 756]
 gates:
   G-C: passed_integrated_contracts
   G-B: partial_deferred_to_part_2_integrated_acceptance
@@ -23,13 +23,13 @@ access_settings_enabled_last_observed: 0
 school_calendar: object_present_required_dates_null
 public_origin: https://aluno.escolaieda.com
 browser_automation_active: false
-ui_changes: false
+ui_changes: true
 ddl_in_this_delivery: false
 secrets_rotated_in_this_delivery: false
 execution_authorization: continuous_until_user_requests_stop
 execution_mode: direct_sequential_no_subagents
-next_safe_issue: 744
-next_stage: part_2_frontend_foundation_after_743_gates
+next_safe_issue: 758_after_757_gates
+next_stage: integrated_quality_after_757_verified_publication
 deferred_acceptance: docs/student-portal/TEST_MATRIX.md
 closure_authority: PA-DEC-006
 execution_authority: PA-DEC-007
@@ -47,5 +47,7 @@ part_2:
   quality_issue: 758
   integrated_acceptance_issue: 759
   operation_issue: 760
-  ui_implemented_by_this_delivery: false
-  planned_contract_deltas: [745, 746]
+  ui_implemented_by_this_delivery: true
+  completed_at_published_baseline: 14
+  total_issues: 18
+  integrated_contract_deltas: [745, 746, 756]

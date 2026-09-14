@@ -1,0 +1,68 @@
+.pa-admin-page {
+  min-width: 0;
+  display: grid;
+  gap: 1.25rem;
+}
+.pa-admin-page > header h1 {
+  font-size: clamp(1.4rem, 2.2vw, 2rem);
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+.pa-admin-page > header p {
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.pa-admin-page > nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.75rem;
+}
+.pa-admin-page > nav a {
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.65rem;
+  font-size: 0.875rem;
+  text-decoration: none;
+  color: var(--foreground);
+}
+.pa-admin-page > nav a[aria-current] {
+  background: var(--accent-soft);
+  color: var(--accent-soft-foreground);
+  font-weight: 600;
+}
+.pa-admin-page > nav a:focus-visible,
+.pa-integrated-slot > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+.pa-admin-content {
+  min-width: 0;
+}
+.pa-qr-handoff {
+  min-width: 0;
+  width: min(32rem, calc(100vw - 2rem));
+  overflow-wrap: anywhere;
+}
+.pa-qr-handoff [data-slot='modal-footer'] {
+  flex-wrap: wrap;
+}
+.pa-integrated-slot {
+  min-width: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+}
+.pa-integrated-slot > summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+}
+@media (max-width: 400px) {
+  .pa-admin-page {
+    gap: 0.85rem;
+  }
+  .pa-admin-page > nav a {
+    padding: 0.5rem;
+  }
+}

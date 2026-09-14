@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   PLATFORM_CAPABILITIES,
   PLATFORM_ROUTES,
+  STUDENT_PORTAL_MODULE,
   type CoreModuleContract,
 } from '../../shared/platform-contract';
 
@@ -20,6 +21,7 @@ export const coreModuleSchema = z.object({
 });
 
 export const coreModules: CoreModuleContract[] = z.array(coreModuleSchema).parse([
+  STUDENT_PORTAL_MODULE,
   {
     id: 'core.overview',
     name: 'Visão geral',

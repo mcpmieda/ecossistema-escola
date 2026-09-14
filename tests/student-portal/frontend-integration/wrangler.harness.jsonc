@@ -1,0 +1,9 @@
+{
+  "name": "portal-disposable-integration-757",
+  "main": "admin-worker.ts",
+  "compatibility_date": "2026-09-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+}
