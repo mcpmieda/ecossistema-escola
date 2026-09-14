@@ -10,7 +10,7 @@ import {
 import { useStudentSessionV1 } from '../../../../src/features/student-portal/auth/student-session-v1';
 import { StudentQrReaderV1 } from '../../../../src/features/student-portal/auth/qr-reader-v1';
 import { SYNTHETIC_QR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
-import { clientFixtureV1, NOW, PROOF, REQUIRED } from './fixtures-v1';
+import { clientFixtureV1, NOW, PROOF, REQUIRED, SESSION } from './fixtures-v1';
 beforeEach(() => {
   vi.spyOn(Date, 'now').mockReturnValue(NOW);
   vi.stubGlobal('matchMedia', () => ({
@@ -168,4 +168,74 @@ describe('student authentication forms', () => {
     await screen.findByText('Estudante de exemplo');
     expect(client.session).toHaveBeenCalledTimes(2);
   });
+});
+
+it('keeps the password form mounted while the first submission is pending and sends every digit once', async () => {
+  const client = clientFixtureV1();
+  client.challenge.mockResolvedValueOnce(REQUIRED('password'));
+  let finish!: (result: Awaited<ReturnType<typeof client.login>>) => void;
+  const result = SESSION;
+  client.login.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const s = view(client);
+  const password = await screen.findByLabelText('Senha');
+  await s.user.type(password, '001234');
+  await s.user.click(screen.getByRole('button', { name: 'Entrar' }));
+  expect(screen.getByLabelText('Senha')).toBe(password);
+  expect(screen.queryByText('Verificando acesso')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Entrando…' }).hasAttribute('disabled')).toBe(true);
+  expect(client.login).toHaveBeenCalledOnce();
+  expect(client.login.mock.calls[0]?.[0]).toMatchObject({ password: '001234' });
+  await act(async () => finish(result));
+  expect(s.success).toHaveBeenCalledOnce();
+});
+
+it('reveals only the trailing two password digits while focused and masks all on blur', async () => {
+  const client = clientFixtureV1();
+  client.challenge.mockResolvedValueOnce(REQUIRED('password'));
+  const s = view(client);
+  const password = await screen.findByLabelText('Senha');
+  await s.user.type(password, '001234');
+  const slots = () => Array.from(document.querySelectorAll('[data-slot="input-otp-slot"]'));
+  expect(slots().map((slot) => slot.hasAttribute('data-masked'))).toEqual([
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+  ]);
+  expect(password.getAttribute('type')).toBe('password');
+  await s.user.tab();
+  expect(slots().every((slot) => slot.hasAttribute('data-masked'))).toBe(true);
+  await s.user.click(password);
+  await s.user.keyboard('{Backspace}');
+  expect(
+    slots()
+      .slice(0, 5)
+      .map((slot) => slot.hasAttribute('data-masked')),
+  ).toEqual([true, true, true, false, false]);
+});
+
+it('keeps QR discovery on the entry card and uses Cancelar for password creation', async () => {
+  const client = clientFixtureV1();
+  let finish!: (result: typeof PROOF) => void;
+  client.challenge.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const s = view(client);
+  expect(screen.getByRole('heading', { name: 'Acessar minhas notas' })).toBeTruthy();
+  expect(screen.queryByText('Verificando acesso')).toBeNull();
+  await act(async () => finish(PROOF));
+  expect(screen.getByRole('button', { name: 'Cancelar' })).toBeTruthy();
+  await s.user.click(screen.getByRole('button', { name: 'Cancelar' }));
+  expect(screen.queryByLabelText('Nova senha')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Escolher imagem' })).toBeTruthy();
 });

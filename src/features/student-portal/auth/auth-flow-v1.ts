@@ -7,11 +7,11 @@ import type { PortalSelfClientV1 } from '../shared/self-client-v1';
 import { PortalClientErrorV1 } from '../shared/transport-v1';
 import { validateStudentQrV1 } from './qr-input-v1';
 
-export type StudentAuthStepV1 =
-  'scan' | 'loading' | 'pin' | 'password' | 'risk' | 'create' | 'authenticated';
+export type StudentAuthStepV1 = 'scan' | 'pin' | 'password' | 'risk' | 'create' | 'authenticated';
 export interface StudentAuthStateV1 {
   step: StudentAuthStepV1;
   needsRisk: boolean;
+  pending?: boolean;
   revision: number;
   message?: string;
   retryAt?: number;
@@ -45,7 +45,7 @@ export function createStudentAuthFlowV1(
   let expiryTimer: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
   const emit = (next: Omit<StudentAuthStateV1, 'revision'>) => {
-    state = { ...next, revision: state.revision + 1 };
+    state = { ...next, revision: state.revision + (next.pending ? 0 : 1) };
     if (!disposed) publish(state);
   };
   const invalidate = () => {
@@ -86,12 +86,12 @@ export function createStudentAuthFlowV1(
     fallback: StudentAuthStepV1,
     risk: boolean,
   ) => {
-    if (disposed || state.step === 'loading' || (state.retryAt && state.retryAt > now())) return;
+    if (disposed || state.pending || (state.retryAt && state.retryAt > now())) return;
     const current = ++generation;
     active?.abort();
     const controller = new AbortController();
     active = controller;
-    emit({ step: 'loading', needsRisk: risk });
+    emit({ ...state, pending: true, message: undefined, needsRisk: risk });
     try {
       await action(controller.signal);
     } catch (error) {
