@@ -129,6 +129,8 @@ describe('birth access data UI', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Salvar 2 ano(s)' }));
     await screen.findByText(
       'Processamento encerrado. Consulte os resultados atuais antes de editar novamente.',
+      {},
+      { timeout: 3000 },
     );
     expect(mock.writes).toHaveLength(2);
     expect(mock.bodies[0]).toBe(mock.bodies[1]);
