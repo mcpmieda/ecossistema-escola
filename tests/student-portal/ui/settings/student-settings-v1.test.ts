@@ -235,7 +235,7 @@ describe('administrative settings UI', () => {
     fireEvent.change(screen.getByLabelText('Início do ano / T1'), {
       target: { value: '2026-03-01T00:00' },
     });
-    fireEvent.change(screen.getByLabelText('Fim de T1 / início de T2'), {
+    fireEvent.change(screen.getByLabelText('Fim de T1'), {
       target: { value: '2026-02-01T00:00' },
     });
     await user.click(screen.getByRole('button', { name: 'Revisar Calendário' }));

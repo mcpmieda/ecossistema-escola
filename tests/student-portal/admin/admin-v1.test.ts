@@ -220,6 +220,22 @@ describe('private administrative API with real persistence', () => {
     }
   });
 
+  it('starts the school population idempotently and removes pilot policy overrides', async () => {
+    expect((await api.query(context(), { contractVersion: 1, operation: 'population', scope: CLASS, page: {} })).state).toBe('forbidden');
+    const accountSettings = await query('settings', { scope: accountScope() });
+    state(await api.command(context(), command('settings-set', accountSettings.settings.version, { scope: accountScope(), value: { showPartials: true }, acknowledgeImmediateEffect: true })), 'committed');
+    const before = await query('population', { scope: SCHOOL });
+    expect(before).toMatchObject({ enabled: false, sourceProfiles: 2, accounts: 2, missingProfiles: 0, overrideRows: 1 });
+    const input = command('population-start', before.version, { academicYear: 2026, clearOverrides: true, confirmed: true });
+    expect((await api.command(context(), { ...input, confirmed: false })).state).toBe('invalid-request');
+    const first = state(await api.command(context(), input), 'committed');
+    const replay = state(await api.command(context(), input), 'committed');
+    expect(replay).toMatchObject({ operationId: first.operationId, version: first.version });
+    expect(await query('population', { scope: SCHOOL })).toMatchObject({ enabled: true, sourceProfiles: 2, accounts: 2, missingProfiles: 0, overrideRows: 0 });
+    expect((await api.command(context(), { ...input, expectedVersion: first.version, idempotencyKey: crypto.randomUUID() })).state).toBe('conflict');
+    expect((await pg.query<{ n: number }>("SELECT count(*)::integer AS n FROM student_portal.audit_event WHERE kind='settings-changed'")).rows).toEqual([{ n: 2 }]);
+  });
+
   it('paginates audit tuples precisely, masks lists and restricts raw IP to write capability within ninety days', async () => {
     for (const account of accounts) await api.command(context(), command('qr-issue', 0, { accountId: account.id }));
     await pg.exec("UPDATE student_portal.audit_event SET occurred_at=date_trunc('second',statement_timestamp())+interval '0.123456 seconds',raw_ip='192.0.2.10',masked_ip='192.0.2.0/24',ip_expires_at=statement_timestamp()+interval '1 day'");

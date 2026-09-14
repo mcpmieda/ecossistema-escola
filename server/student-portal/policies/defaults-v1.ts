@@ -7,7 +7,7 @@ export function initialPolicyDefaultsV1() {
     risk: DEFAULT_RISK_V1,
     calendar: {
       timezone: 'America/Sao_Paulo', enrollmentStartsAt: null, yearStartsAt: null, t1EndsAt: null,
-      t2EndsAt: null, t3EndsAt: null, recoveriesStartAt: null, yearEndsAt: null, finalDisclosureAt: null,
+      t2StartsAt: null, t2EndsAt: null, t3StartsAt: null, t3EndsAt: null, recoveriesStartAt: null, yearEndsAt: null, finalDisclosureAt: null,
       disclosure: { mode: 'single', at: null, periods: ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] },
     },
   });

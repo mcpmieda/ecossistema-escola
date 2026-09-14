@@ -7,7 +7,7 @@ export const SYNTHETIC_ID_V1 = '11111111-1111-4111-8111-111111111111';
 export const SYNTHETIC_QR_V1 = `https://aluno.escolaieda.com/access#v1.${'a'.repeat(43)}.1.${'b'.repeat(43)}`;
 export const EMPTY_CALENDAR_V1: z.infer<typeof calendarV1> = {
   timezone: 'America/Sao_Paulo', enrollmentStartsAt: null, yearStartsAt: null,
-  t1EndsAt: null, t2EndsAt: null, t3EndsAt: null, recoveriesStartAt: null, yearEndsAt: null,
+  t1EndsAt: null, t2StartsAt: null, t2EndsAt: null, t3StartsAt: null, t3EndsAt: null, recoveriesStartAt: null, yearEndsAt: null,
   finalDisclosureAt: null, disclosure: { mode: 'single', at: null, periods: ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] },
 };
 export const SYNTHETIC_SELF_V1: SelfResponseV1 = {

@@ -21,8 +21,10 @@ export const PERIODS_V1 = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] as const;
 export const CALENDAR_LABELS_V1 = {
   enrollmentStartsAt: 'Início das matrículas',
   yearStartsAt: 'Início do ano / T1',
-  t1EndsAt: 'Fim de T1 / início de T2',
-  t2EndsAt: 'Fim de T2 / início de T3',
+  t1EndsAt: 'Fim de T1',
+  t2StartsAt: 'Início de T2',
+  t2EndsAt: 'Fim de T2',
+  t3StartsAt: 'Início de T3',
   t3EndsAt: 'Fim de T3',
   recoveriesStartAt: 'Início das recuperações',
   yearEndsAt: 'Fim do ano e limite das sessões',

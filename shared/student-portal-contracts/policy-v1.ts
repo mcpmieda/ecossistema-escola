@@ -19,10 +19,11 @@ export const disclosureV1 = z.discriminatedUnion('mode', [
 ]);
 export const calendarV1 = z.object({
   timezone: z.literal('America/Sao_Paulo'), enrollmentStartsAt: instantV1.nullable(), yearStartsAt: instantV1.nullable(),
-  t1EndsAt: instantV1.nullable(), t2EndsAt: instantV1.nullable(), t3EndsAt: instantV1.nullable(),
+  t1EndsAt: instantV1.nullable(), t2StartsAt: instantV1.nullable().default(null), t2EndsAt: instantV1.nullable(),
+  t3StartsAt: instantV1.nullable().default(null), t3EndsAt: instantV1.nullable(),
   recoveriesStartAt: instantV1.nullable(), yearEndsAt: instantV1.nullable(), finalDisclosureAt: instantV1.nullable(), disclosure: disclosureV1,
 }).strict().superRefine((v, ctx) => {
-  const ordered = ['enrollmentStartsAt', 'yearStartsAt', 't1EndsAt', 't2EndsAt', 't3EndsAt', 'recoveriesStartAt', 'yearEndsAt'] as const;
+  const ordered = ['enrollmentStartsAt', 'yearStartsAt', 't1EndsAt', 't2StartsAt', 't2EndsAt', 't3StartsAt', 't3EndsAt', 'recoveriesStartAt', 'yearEndsAt'] as const;
   let previous = -Infinity;
   for (const key of ordered) {
     const raw = v[key];
