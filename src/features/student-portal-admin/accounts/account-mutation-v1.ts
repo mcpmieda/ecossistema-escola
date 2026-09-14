@@ -6,7 +6,11 @@ import type { AccountCommandV1 } from './accounts-values-v1';
 export type AccountQrResultV1 = Extract<AdminResponseV1, { state: 'qr' }>;
 export type AccountMutationStateV1 =
   | { state: 'idle' | 'pending' }
-  | { state: 'committed'; version: number; artifact: 'none' | 'offered' | 'unavailable' }
+  | {
+      state: 'committed';
+      version: number;
+      artifact: 'none' | 'preparing' | 'offered' | 'unavailable';
+    }
   | { state: 'error'; error: PortalClientErrorV1; retryable: boolean; retryAt: number };
 
 /** Credentials exist only in the handoff callback, never in generic presentation state. */
@@ -51,7 +55,7 @@ export function createAccountMutationV1(
         version: result.version,
         artifact: result.state === 'qr' ? ('unavailable' as const) : ('none' as const),
       };
-      publish(committed);
+      publish(result.state === 'qr' && onQr ? { ...committed, artifact: 'preparing' } : committed);
       if (result.state === 'qr' && onQr) {
         try {
           await onQr(result, controller.signal);

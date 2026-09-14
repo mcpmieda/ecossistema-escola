@@ -1,6 +1,7 @@
 @import 'tailwindcss' source(none);
 @import '@heroui/styles';
 @import '@fontsource-variable/geist';
+@import './accessibility-v1.css';
 @source '../';
 @source '../../../student-portal';
 

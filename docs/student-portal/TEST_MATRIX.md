@@ -1,5 +1,24 @@
 # Matriz de requisitos e provas
 
+## Candidata de qualidade #758
+
+Base publicada `dda837fddeb32d9eefd2b523975fd36fbd71e6dc` (PR #775); branch `test/pa-quality-758`. A execução final, SHA, CI e publicação são registrados no handoff da [#758](https://github.com/mcpmieda/ecossistema-escola/issues/758). Esta matriz descreve cobertura; não antecipa resultado dos gates nem o aceite real da #759.
+
+| Risco / prova executável | Ambiente e limite |
+| --- | --- |
+| `e2e/quality.postgres.ts`: duas sessões cookie reais, ID/ano indevidos, mutação administrativa forjada e escopo de cursor | Pages/Worker/PostgreSQL descartável, identidade administrativa sintética; não é Entra |
+| Mesmo arquivo: regeneração de QR e revogação sobrevivem ao reinício compatível, segunda conta continua válida | Reutiliza harness #757; não é restauração de backup gerenciado |
+| Mesmo arquivo: 12 leituras HTTP sequenciais, todos os status contados, no-store, bytes e p95/p99 | Teto existente 256 KiB, p95 750 ms, p99 1500 ms; amostra local não é SLA produtivo |
+| `ui-quality/committed-qr.test.ts`: preparação até renderização concluir ou falhar, sem repetir rotação confirmada | Regressão do anúncio prematuro de cartão indisponível |
+| `ui-quality/qr-handoff.test.tsx`: diálogo acessível, sem QR bruto, URL revogada, descarte tardio e expiração | DOM sintético e renderer controlado; PNG/PDF reais continuam em `qr-print` |
+| `ui-quality/contrast.test.ts`: tokens reais de ação/risco, normal e hover, razão mínima 4,5:1 | Tokens restritos às superfícies Portal e diálogos; conferir também CSS computado no browser |
+| Suítes existentes `runtime`, `smoke`, `frontend-foundation`, `admin` e `frontend-integration` | Reutilizam provas de auth/Host/Origin/CSRF, cache, publicação, orçamento SQL, KDF/NAT, recovery e isolamento; nenhum skip é PASS |
+| `npm run verify`: regressões do BN, auth/Entra, importação, boletins/reimpressão, Conselho, relatórios e reset | Fixtures sintéticas; não repete mutações acadêmicas produtivas nem constitui aceite institucional |
+
+O comando nativo `test:student-portal-postgres` inclui a nova configuração e2e, portanto os workflows oficiais de PR e deploy executam esses quatro cenários. Não há novo workflow, contrato, dependência ou redução de budget/KDF.
+
+QA de navegador da mesma candidata, antes da retomada: QR regenerado com preparação e diálogo, cópia somente PNG com clipboard restaurado, calendário civil editado pelo teclado e persistido após recarga, senha existente por colagem, login/saída, resize por teclado e tabela com scroll local a 320 px. Reduzir viewport a 640 px comprova reflow, **não comprova zoom nativo de 200%**. Árvore acessível não comprova uso de leitor de tela físico. Essas distinções permanecem no handoff; câmera/dispositivo, impressão física, Entra/widget e piloto legítimos continuam na #759.
+
 ## Rastreio da Parte 2 — integração #757
 
 Autoria #743–#756 concluída, testada e publicada; os handoffs das filhas contêm resultados e limites. A baseline #756 tem 1990 PASS + 3 skips históricos/21 workerd e CI PostgreSQL 55 + 2 + 1 + 16 PASS. #757 valida composição candidata; #758 amplia a qualidade integrada e #759 conserva o aceite real abaixo. Registrar teste, SHA, ambiente, resultado, limitação e owner; nenhum resultado anterior presume PASS do novo head.

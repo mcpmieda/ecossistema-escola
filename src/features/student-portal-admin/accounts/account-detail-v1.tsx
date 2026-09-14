@@ -181,6 +181,7 @@ function AccountDetailBodyV1({
         {mutation.state === 'committed' && (
           <div role="status" className="pa-account-notice">
             <p>Ação concluída pelo servidor. Os dados abaixo dependem da consulta atualizada.</p>
+            {mutation.artifact === 'preparing' && <p>Preparando a imagem do novo QR…</p>}
             {mutation.artifact === 'unavailable' && (
               <p>
                 O novo QR foi gerado, mas o cartão não foi aberto. Use a reimpressão; não é
