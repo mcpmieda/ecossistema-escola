@@ -186,12 +186,14 @@ export function StudentAuthenticationV1({
   client,
   onAuthenticated,
   initialQr,
+  onQrDiscarded,
   sitekey,
   riskMount,
 }: {
   client: PortalSelfClientV1;
   onAuthenticated: () => void;
   initialQr?: string | null;
+  onQrDiscarded?: () => void;
   sitekey: string;
   riskMount?: RiskMountV1;
 }) {
@@ -201,11 +203,20 @@ export function StudentAuthenticationV1({
   const flow = useRef<FlowV1 | null>(null);
   const success = useRef(onAuthenticated);
   success.current = onAuthenticated;
+  const discard = useRef(onQrDiscarded);
+  discard.current = onQrDiscarded;
   useEffect(() => {
-    const current = createStudentAuthFlowV1(client, setState, () => success.current());
+    const current = createStudentAuthFlowV1(client, setState, () => {
+      discard.current?.();
+      success.current();
+    });
     flow.current = current;
     if (initialQr) void current.begin(initialQr).catch(() => setInvalidQr(true));
-    const clear = () => flushSync(() => current.reset());
+    const clear = () =>
+      flushSync(() => {
+        current.reset();
+        discard.current?.();
+      });
     const hidden = () => {
       if (document.visibilityState === 'hidden') clear();
     };
@@ -267,6 +278,7 @@ export function StudentAuthenticationV1({
             variant="tertiary"
             onPress={() => {
               flow.current?.reset();
+              discard.current?.();
               setInvalidQr(false);
             }}
           >

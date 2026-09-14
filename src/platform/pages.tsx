@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import {
   Alert,
   Button,
@@ -31,6 +31,9 @@ import type {
 } from '../../shared/platform-contract';
 import { NotesPage } from './notes-page';
 import { OperationsPage } from './operations-page';
+const StudentPortalAdminPage = lazy(() => import('../features/student-portal-admin/student-portal-admin-page').then(
+  (module) => ({ default: module.StudentPortalAdminPage }),
+));
 import { EmptyState, formatDate, ModuleList, PageHeader, shortCorrelation } from './presentation';
 
 function integrationStateLabel(state: ModuleIntegrationState): string {
@@ -740,6 +743,8 @@ export function PageContent({
   snapshot: PlatformSnapshotContract;
 }) {
   switch (route) {
+    case 'painel-do-aluno':
+      return <Suspense fallback={<p role="status">Carregando Painel do Aluno…</p>}><StudentPortalAdminPage /></Suspense>;
     case 'operacao':
       return <OperationsPage snapshot={snapshot} />;
     case 'sistemas':

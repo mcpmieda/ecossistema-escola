@@ -390,6 +390,8 @@ async function route(context: Context, correlationId: string): Promise<Response>
     const session = await requireAuth(request, env);
     return json({
       authenticated: true,
+      identityKey: session.oid + ':' + (session.authenticatedAt ?? session.exp),
+      expiresAt: new Date(session.exp * 1000).toISOString(),
       name: session.name,
       roles: session.roles,
       capabilities: capabilitiesForRoles(session.roles),

@@ -1,8 +1,8 @@
 # Matriz de requisitos e provas
 
-## Rastreio da Parte 2 — #743
+## Rastreio da Parte 2 — integração #757
 
-Todas as provas P2 abaixo estão PENDENTES. #743 verifica apenas documentação/links/ownership; suites anteriores são evidência histórica, não novos testes de tela. Registrar nome do teste, SHA, ambiente, resultado, limitação e owner em cada handoff.
+Autoria #743–#756 concluída, testada e publicada; os handoffs das filhas contêm resultados e limites. A baseline #756 tem 1990 PASS + 3 skips históricos/21 workerd e CI PostgreSQL 55 + 2 + 1 + 16 PASS. #757 valida composição candidata; #758 amplia a qualidade integrada e #759 conserva o aceite real abaixo. Registrar teste, SHA, ambiente, resultado, limitação e owner; nenhum resultado anterior presume PASS do novo head.
 
 | Requisito / risco | Autoria | Prova integrada |
 | --- | --- | --- |

@@ -6,15 +6,15 @@ coordination:
   master_issue: 182
   executable_issue: null
   current_delivery_issue: null
-  current_integrator_issue: 743
+  current_integrator_issue: 757
   central_state_editor: integrator-only
   active_queue: student-portal-part-2-742
   program_status: completed-functional-program-596
   execution_authority: PA-DEC-007
 baseline:
-  last_audited_main_commit: 9066c04d01b8d62bf59e1de0b51c6ce4c567c668
-  last_verified_pr: 741
-  authorized_deploy_run: 34749391273
+  last_audited_main_commit: 270ab8a442e833cd089d4d139bacbef55c7c52a0
+  last_verified_pr: 774
+  authorized_deploy_run: 34788638736
   authorized_deploy_result: success
   functional_acceptance_main: 80b2916185fc6a49df7c5ab0af71e2be4dcdeb66
   functional_acceptance_evidence: docs/gradebook/FINAL4_PILOT_406.md
@@ -57,7 +57,7 @@ recovery:
   legacy_d1_is_backup_of_new_writes: false
 student_portal_integration:
   parent_issue: 742
-  current_preparation_issue: 743
+  current_integration_issue: 757
   part_1_issues: [701, 715]
   part_1_status: technically-completed-741
   gate_g_b: partial-real-acceptance-deferred-to-759
@@ -69,11 +69,11 @@ student_portal_integration:
   population_enabled: false
   general_school_opening: false
   canonical_state: docs/student-portal/PROJECT_STATE.yaml
-  planned_bn_contract: 745
-  planned_academic_presentation: 747
+  integrated_bn_contract: 745
+  integrated_academic_presentation: 747
 next_safe_action:
-  issue: 743
-  description: complete-documentary-preparation-without-reopening-gradebook-final-queue
+  issue: 757
+  description: validate-and-publish-frontend-composition-then-quality-758-without-reopening-gradebook-final-queue
 
 # Immutable context of the older #668 snapshot follows; these keys are historical,
 # not current tasks, runtime flags, catalog counts or release authorization.

@@ -14,6 +14,12 @@ export class PortalClientErrorV1 extends Error {
 export interface PortalTransportOptionsV1 {
   fetch?: PortalFetchV1;
   onUnauthorized?: () => void;
+  respectRetryAfter?: boolean;
+}
+
+/** Pages adds private/no-cache directives; require the exact no-store directive, not header equality. */
+export function hasPortalNoStoreV1(headers: Headers): boolean {
+  return (headers.get('Cache-Control') ?? '').split(',').some((value) => value.trim().toLowerCase() === 'no-store');
 }
 
 function retryDelay(header: string | null): number | undefined {
@@ -25,10 +31,13 @@ function retryDelay(header: string | null): number | undefined {
 /** Fixed same-origin paths only; no identity headers, persistence, logging or automatic retries. */
 export function createPortalTransportV1(options: PortalTransportOptionsV1 = {}) {
   const fetcher = options.fetch ?? ((path, init) => fetch(path, init));
+  const cooldowns = new Map<string, number>();
   return async <T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal, body?: string): Promise<T> => {
     if (!/^\/api\/(?:student\/(?:session|me|auth\/(?:challenge|activate|login|logout))|student-portal\/admin\/(?:query|command))$/u.test(path))
       throw new PortalClientErrorV1('invalid-request');
     signal?.throwIfAborted();
+    const remaining = (cooldowns.get(path) ?? 0) - Date.now();
+    if (options.respectRetryAfter && remaining > 0) throw new PortalClientErrorV1('rate-limited', 429, Math.ceil(remaining / 1000));
     let response: Response;
     try {
       response = await fetcher(path, {
@@ -54,11 +63,14 @@ export function createPortalTransportV1(options: PortalTransportOptionsV1 = {}) 
     }
     signal?.throwIfAborted();
     const failure = failureV1.safeParse(value);
-    if (failure.success && response.status === ERROR_HTTP_V1[failure.data.state])
+    if (failure.success && response.status === ERROR_HTTP_V1[failure.data.state]) {
+      if (options.respectRetryAfter && failure.data.state === 'rate-limited')
+        cooldowns.set(path, Date.now() + Math.max(delay ?? 1, failure.data.retryAfterSeconds ?? 1) * 1000);
       throw new PortalClientErrorV1(failure.data.state, response.status,
         Math.max(delay ?? 0, failure.data.retryAfterSeconds ?? 0) || undefined, failure.data.requestId);
+    }
     const success = schema.safeParse(value);
-    if (response.status !== 200 || !success.success || response.headers.get('Cache-Control') !== 'no-store')
+    if (response.status !== 200 || !success.success || !hasPortalNoStoreV1(response.headers))
       throw new PortalClientErrorV1('invalid-response', response.status, delay);
     return success.data;
   };

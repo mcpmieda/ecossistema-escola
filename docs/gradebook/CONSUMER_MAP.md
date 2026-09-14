@@ -10,11 +10,11 @@ fatos oficiais AM/U continuam independentes dos cálculos descritivos.
 | Caminho | Papel / estado desta entrega |
 | --- | --- |
 | `application/import/import-relational-service-v9.ts` → V10/V11/finalizer | Produtor atual: cria ano/parâmetros com a Relação e versiona mudanças acadêmicas efetivas. Não há setter ativo de mínimo anual. |
-| `student_portal.academic_year_policy_v1` → `server/student-portal/academic/academic-reader-v1.ts` | Fonte restrita do mínimo anual e fatos/revisão numa query; a classificação ainda é `null` até #747. |
+| `student_portal.academic_year_policy_v1` → `server/student-portal/academic/academic-reader-v1.ts` | Fonte restrita do mínimo anual e fatos/revisão numa query; #747 integrou classificação proporcional oficial; máximo ausente continua `null`. |
 | `migrations/student-portal/0006_gradebook_revision_year_range_v1.sql`, `record_gradebook_change_v1` | Mecanismo já aceita `academic-policy`; não é trigger. Futuro editor de política deve registrar mudança efetiva na transação, com escopo próprio antes de ser habilitado. |
-| `src/gradebook-domain/calculations/simplified/resolve-student-mark-presentation-v1.ts` | Único helper BN para o Portal, reservado à implementação #747; sem fórmula no schema ou UI. |
-| `server/student-portal/academic/academic-reader-v1.ts` → publicação/Self | #747 liga helper às parciais e finais oficiais; mantém filtragem/CAS/revisões, U interna e marcadores. |
-| `src/features/student-portal/grades/` | #750 apresenta classificação recebida, sem mínimo fixo, aritmética, reconstrução de nota ou resultado. |
+| `src/gradebook-domain/calculations/simplified/resolve-student-mark-presentation-v1.ts` | Único helper BN para o Portal, implementado na #747; sem fórmula no schema ou UI. |
+| `server/student-portal/academic/academic-reader-v1.ts` → publicação/Self | #747 ligou o helper às parciais e finais oficiais; mantém filtragem/CAS/revisões, U interna e marcadores. |
+| `src/features/student-portal/grades/` | #750/#757 apresentam classificação recebida, sem mínimo fixo, aritmética, reconstrução de nota ou resultado. |
 
 Detalhes de fonte, limites, perfis sintéticos e testes em [CONTRACTS.md](CONTRACTS.md).
 O inventário #703 abaixo é histórico de implantação; não reabre a P1 integrada.

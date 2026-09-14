@@ -4,6 +4,7 @@ export const PLATFORM_ROUTES = [
   'publicacoes',
   'paginas',
   'banco-de-notas',
+  'painel-do-aluno',
   'sistemas',
   'auditoria',
   'configuracoes',
@@ -56,6 +57,16 @@ export type CoreModuleContract = {
   state: ModuleState;
   requiredRole: 'ADMINISTRADOR';
   capabilities: PlatformCapability[];
+};
+
+export const STUDENT_PORTAL_MODULE: CoreModuleContract = {
+  id: 'student-portal.admin',
+  name: 'Painel do Aluno',
+  description: 'Acesso, contas, notas publicadas e operação do Portal de 2026.',
+  route: 'painel-do-aluno',
+  state: 'ready',
+  requiredRole: 'ADMINISTRADOR',
+  capabilities: ['platform.settings.read'],
 };
 
 export type RegisteredModule = {

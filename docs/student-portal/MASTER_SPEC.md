@@ -2,7 +2,7 @@
 
 ## Escopo vigente da Parte 2 — #742 / PA-DEC-007
 
-P1 está tecnicamente encerrada em PR741; P2 foi autorizada para execução sequencial, preservando identidades CODEX/CHAT ONLINE. A #743 apenas consolida documentação; não implementa tela, altera HTTP/contrato acadêmico ou habilita dados. As decisões de produto v3.0 + Adendo01 permanecem: Portal2026, fonte BN, nascimento manual, calendário administrável, navegação ADM atual, sem correspondência externa/foto/rede social. O comando histórico do Word para planejar somente P1 não governa o início de P2 agora autorizado.
+P1 está tecnicamente encerrada em PR741; P2 foi autorizada para execução sequencial, preservando identidades CODEX/CHAT ONLINE. A preparação #743 consolidou a documentação; #744–#756 implementaram os contratos e componentes. #757 integra telas e serviços, sem habilitar acesso escolar. As decisões de produto v3.0 + Adendo01 permanecem: Portal2026, fonte BN, nascimento manual, calendário administrável, navegação ADM atual, sem correspondência externa/foto/rede social. O comando histórico do Word para planejar somente P1 não governa o início de P2 agora autorizado.
 
 P2-01: #744 build e #748 shell; P2-02: #749; P2-03: #745 contrato, #747 apresentação oficial, #750 tabela; P2-04: #746 consultas, #751 configuração e #752 publicação; P2-05: #753 contas, #754 nascimento, #755 QR/PDF e #756 sessões/auditoria; P2-06 #757; P2-07 #758; P2-08 #759; P2-09 #760. [Grafo e ownership](ISSUE_MAP.md).
 
@@ -23,7 +23,7 @@ Fontes visuais: capítulos11/26 e dez imagens incorporadas ao Word v3.0 fornecid
 
 ### Lacunas delimitadas
 
-O mark() acadêmico atualmente retorna meetsMinimum:null; #745 deve definir a relação oficial entre mínimo institucional e máximo, e #747 implementá-la. A UI nunca calcula percentual nem fixa60%. #746 supre consultas administrativas ausentes (turmas/último acesso/contexto/resumo), sem inventar dado nem N+1. Ambos são deltas explícitos; não revogam G-C P1.
+#745 contratou e #747 integrou o helper acadêmico único: valor/máximo versus mínimo anual oficial no mesmo snapshot, com comparação exata BigInt. Máximo ausente mantém meetsMinimum:null; não há arredondamento, clamp nem mínimo fixo na UI. #746 integrou accounts-read/overview V2, catálogo completo e último acesso; #756 acrescentou sessions-read V2 com validade efetiva e contexto compartilhado. A composição #757 consome esses deltas, sem criar regra acadêmica ou DDL.
 
 ## Estado de implementação
 

@@ -1,6 +1,16 @@
 # Arquitetura e contratos V1
 
-## Composição P2 congelada pela preparação #743
+## Composição corrente — #757
+
+Aluno: entrada própria consome e remove o fragmento de /access antes do React/widget; QR e senha ficam em memória transitória. StudentPortalShellV1 recebe children/onLogout; StudentPortalPageV1 recebe o estado Self e o slot grades, ambos da mesma resposta. Session precede me; expiração, saída e retorno do histórico limpam dados. Saída com falha mantém a tela protegida vazia e permite tentar a saída novamente. Cancelar/ocultar autenticação também descarta o QR na composição.
+
+ADM: Painel do Aluno integra manifesto, rota, pesquisa e shell existentes, com platform.settings.read/write herdadas. /api/me fornece identityKey e expiresAt da mesma sessão Entra; esses campos só delimitam a vida da UI, sem conceder autoridade. Os oito módulos recebem clientes estáveis e scope 2026, independente do ano global BN. Troca/perda/expiração de identidade desmonta dados e artefatos privados; 401/403 das APIs invalida a composição. Ficha oferece slots sob demanda; colapsar um slot já aberto não interrompe autosave.
+
+Accounts/overview/sessions usam leitura V2; comandos e demais consultas V1 permanecem. Cursor assinado delimita ator/operação/filtro/contrato/TTL, não substitui CAS. Validade de sessão usa política efetiva; contagem de revogações é observação e não lock. Publicação aceita não equivale a projeção já observada. Cada editor preserva intenção/idempotência e revisão; QR emitido entrega PNG privado, sem reemitir silenciosamente quando falha a renderização. IP de auditoria mantém retenção própria.
+
+Topologia, origem, cookies, headers, roles SQL e bindings permanecem. O harness de composição usa os handlers Pages, Worker/RPC e PostgreSQL reais com massa exclusivamente inventada; selo Entra sintético e bootstrap SharePoint inventado são limites explícitos, nunca prova de autenticação institucional. Sem DDL, abertura, população, nascimento confirmado ou reset produtivo. #758/#759 recebem a validação integrada e o aceite real.
+
+## Desenho histórico da preparação #743 (interfaces substituídas pela composição acima)
 
 O backend existente e a topologia Pages aluno → PORTAL_SELF → Worker/PORTAL_DB e ADM Entra → PORTAL_SERVICE privado permanecem. #744 acrescenta build estudantil separado; #757 monta o produto. HTML/assets têm headers próprios, separados do JSON default-src none. A permissão de câmera pertence ao host aluno; ADM conserva camera=(). /access usa fragmento QR local, não o roteamento de hash do ADM. Nada de bundle Entra/SQL/BN no navegador estudantil, API administrativa pública ou binding produtivo em preview.
 
@@ -22,7 +32,7 @@ A descrição original abaixo é o registro de desenho da #702, não inventário
 
 A composição usa adapters HTTP já validados e conexões por invocação; métodos auth são lazy para validar bytes/schema e rate limit antes de SQL. Self lê sessão/projeção na mesma transação autorizada. Contexto ADM é criado da sessão Entra selada no Pages, transportado apenas pelo binding nomeado e revalidado no Worker. IP é metadata Cloudflare, nunca identidade; fonte em subrequest pode ser o Worker intermediário. SQL de toda operação ADM recebe contexto IP, inclusive configurações/publicação.
 
-Cron e manutenção estão delimitados na prontidão e em server/student-portal/observability/OPERATIONS_V1.md. O gate externo não habilita população. Nenhuma interface P2; /access visual não é implementado. Mapa HTTP abaixo permanece contrato futuro da UI.
+Cron e manutenção estão delimitados na prontidão e em server/student-portal/observability/OPERATIONS_V1.md. O gate externo não habilita população. Naquele checkpoint P1 ainda não havia interface P2; a composição corrente está descrita acima.
 
 ## Registro de arquitetura na fundação #702
 

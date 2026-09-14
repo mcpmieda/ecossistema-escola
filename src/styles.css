@@ -3,14 +3,14 @@
 @import '@fontsource-variable/geist';
 
 html {
-  min-width: 320px;
+  min-width: 0;
   min-height: 100%;
   background: #f4f4f5;
 }
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
   min-height: 100vh;
   background: #f4f4f5;
   color: var(--foreground);

@@ -1,6 +1,12 @@
 # Prontidão e limites de evidência
 
-## Baseline atual e preparação P2 — #743, 13/09/2026
+## Baseline publicada #756 e candidata #757
+
+Main `270ab8a442e833cd089d4d139bacbef55c7c52a0`, PR #774, deploy oficial `34788638736` SUCCESS. Pages aluno `6b4502b5-b9a9-4e52-9f56-137aa0ef563b` e ADM `dc3faec0-1ec2-4771-b509-2657e1ba4f2b` verificados no mesmo SHA, com 12 smokes HTTP aprovados. Verify anterior: 1990 PASS + 3 skips históricos/21 workerd; CI PostgreSQL 17.6: 55 + 2 + 1 + 16 PASS. Fila 14/18 concluídas; #757 monta o produto candidato e registra seu próprio head, CI e publicação no handoff.
+
+A inspeção SQL produtiva abaixo é a observação datada da #742, não uma nova consulta. A integração usa PostgreSQL 18.6 descartável local e 17.6 em CI; massa, nascimento confirmado, credenciais e calendário de teste existem somente nesse ambiente inventado. Selo sintético não comprova Entra; proxy local não comprova cookie HTTPS/dispositivo; teste de PNG/PDF não comprova impressão física. G-B continua PARCIAL até #759, e abertura deliberada pertence à #760. Nenhum deploy altera automaticamente os sete campos de configuração, população ou permissões acadêmicas.
+
+## Checkpoint histórico de preparação P2 — #743, 13/09/2026
 
 Main `9066c04d01b8d62bf59e1de0b51c6ce4c567c668`, PR741 integrada, workflow oficial34749391273 SUCCESS; Pages aluno e ADM consultados na API no mesmo SHA. IDs de publicação: aluno e8a68afa-47d9-46f8-a8fc-40b1be911330; ADM46356cc2-986b-4b53-9eea-5fd4bb6d08ae. P1 #701/#715 encerrada; nenhum frontend P2 nesta entrega documental. Os checkpoints abaixo preservam suas datas, não substituem este estado.
 

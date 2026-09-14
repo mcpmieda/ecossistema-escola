@@ -1,6 +1,7 @@
 import type { PlatformRoute, PlatformSnapshotContract } from '../../shared/platform-contract';
 import { notesModule, notesSections, withNotesModule } from './notes-module';
 import { platformHref } from './routes';
+import { studentPortalModule, studentPortalSections, studentPortalHref } from './student-portal-module';
 
 export type SearchCategory = 'Área' | 'Seção' | 'Sistema' | 'Configuração';
 export type SearchIconKind = 'route' | 'system' | 'configuration';
@@ -76,7 +77,18 @@ export function buildSearchItems(snapshot: PlatformSnapshotContract): PlatformSe
     route: 'configuracoes' as const,
   }));
 
-  return [...core, ...notes, ...systems, ...configurations];
+  const portal = snapshot.coreModules.some((module) => module.route === 'painel-do-aluno') ?
+    studentPortalSections.map((section) => ({
+      id: 'student-portal:' + section.id,
+      label: section.label,
+      description: studentPortalModule.name + ' · ' + section.description,
+      category: 'Seção' as const,
+      href: studentPortalHref(section.id),
+      searchText: normalizeSearch(studentPortalModule.name + ' portal aluno 2026 ' + section.label + ' ' + section.description),
+      iconKind: 'route' as const,
+      route: studentPortalModule.route,
+    })) : [];
+  return [...core, ...notes, ...portal, ...systems, ...configurations];
 }
 
 export function filterSearchItems(
