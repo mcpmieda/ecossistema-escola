@@ -351,18 +351,19 @@ describe('relational Council V3 client and HeroUI journey', () => {
     await waitFor(() => host.textContent?.includes(student.name) === true);
     await fill('#council-session-reason', 'Início da reunião sintética.');
     await click('Abrir reunião');
-    expect(requests.at(-1)).toMatchObject({
+    const openRequest = requests.filter((request) => request.operation === 'open').at(-1);
+    expect(openRequest).toMatchObject({
       operation: 'open',
       year: 2026,
       classId: 10,
       expectedVersion: 0,
       justification: 'Início da reunião sintética.',
     });
-    expect(String(requests.at(-1)?.idempotencyKey)).toMatch(/^open:/u);
+    expect(String(openRequest?.idempotencyKey)).toMatch(/^open:/u);
     await select('Situação após o Conselho', '2');
     await fill('#decision-reason-1', 'Deliberação humana sintética.');
     await click('Registrar decisão');
-    expect(requests.at(-1)).toMatchObject({
+    expect(requests.filter((request) => request.operation === 'decision').at(-1)).toMatchObject({
       operation: 'decision',
       studentId: 1,
       decision: 2,
@@ -373,14 +374,15 @@ describe('relational Council V3 client and HeroUI journey', () => {
     await fill('#votes-against-1', '2');
     await fill('#vote-reason-1', 'Contagem numérica sintética.');
     await click('Registrar contagem');
-    expect(requests.at(-1)).toMatchObject({
+    const voteRequest = requests.filter((request) => request.operation === 'vote').at(-1);
+    expect(voteRequest).toMatchObject({
       operation: 'vote',
       favoraveis: 2,
       contrarios: 2,
       expectedVersion: 2,
     });
-    expect(requests.at(-1)).not.toHaveProperty('presentes');
-    expect(requests.at(-1)).not.toHaveProperty('desempate');
+    expect(voteRequest).not.toHaveProperty('presentes');
+    expect(voteRequest).not.toHaveProperty('desempate');
     expect(host.textContent).toContain('4 presente(s)');
     expect(host.textContent).toContain('Empate · decisão fora do sistema');
   }, 15_000);
