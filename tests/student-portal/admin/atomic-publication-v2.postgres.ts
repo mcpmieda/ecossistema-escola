@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { ScopedPublicationServiceV2 } from '../../../server/student-portal/publication/scoped-publication-service-v2';
 import { SelfProjectionReaderV1 } from '../../../server/student-portal/publication/self-projection-reader-v1';
 import { PublicationServiceV1 } from '../../../server/student-portal/publication/publication-service-v1';
+import { PublicationJobsV1 } from '../../../server/student-portal/jobs/publication-jobs-v1';
 import { AcademicStudentReaderPostgresV1 } from '../../../server/student-portal/academic/academic-reader-v1';
 import { currentRevisionV1 } from '../../../server/student-portal/publication/state-v1';
 import { scopedPublicationEnabledV2 } from '../../../server/student-portal/publication/scoped-source-v2';
@@ -12,11 +13,15 @@ import { initialPolicyDefaultsV1 } from '../../../server/student-portal/policies
 import { withAuditSqlV1 } from '../../../server/student-portal/observability/audit-context-v1';
 import { PortalAdminApiV1 } from '../../../server/student-portal/admin/api-v1';
 import { PortalCryptoV1 } from '../../../server/student-portal/crypto/crypto-v1';
+import { accountTransactionV1, accessContextV1 } from '../../../server/student-portal/auth/transaction-v1';
+import { createSessionV1 } from '../../../server/student-portal/auth/session-service-v1';
+import { servePortalSelfV1 } from '../../../server/student-portal/composition/self-v1';
+import { portalAdminRpcV1 } from '../../../server/student-portal/composition/admin-v1';
+import { SESSION_COOKIE_V1 } from '../../../shared/student-portal-contracts/auth-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import type { ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { installAdminReadFixtureV2, readAccountIdV2, readContextV2, READ_ACTOR_V2, READ_TENANT_V2, READ_CLASS_V2, READ_SCHOOL_V2 } from './read-fixture-v2';
 
-// Never connect a destructive fixture to a non-local or production database.
 const target = new URL(process.env.PORTAL_TEST_DATABASE_URL ?? 'http://invalid');
 if (target.protocol !== 'postgres:' || target.hostname !== '127.0.0.1' || target.pathname !== '/portal705_test' || target.search || target.hash)
   throw new Error('Atomic publication requires the disposable local portal705_test cluster.');
@@ -34,11 +39,15 @@ let failReceipt = false;
 const queries: string[] = [];
 const own = readAccountIdV2(1);
 const ownScope = { kind: 'account', academicYear: 2026, accountId: own } as const;
-function client(role?: string) {
+const cryptography = new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(7)]]), new Map([[1, new Uint8Array(32).fill(8)]]));
+function connection(role?: string) {
   const url = new URL(target);
   url.pathname = '/' + databaseName;
   if (role) url.username = role;
-  const sql = postgres(url.toString(), { max: 1, onnotice: () => undefined,
+  return url.toString();
+}
+function client(role?: string) {
+  const sql = postgres(connection(role), { max: 1, onnotice: () => undefined,
     connection: { lock_timeout: 250, statement_timeout: 5000 } });
   clients.push(sql);
   return sql;
@@ -75,7 +84,7 @@ async function preparedChange(value: number, bumps = 1) {
 async function command(scope: ScopeV1 = READ_SCHOOL_V2, operation: 'publish' | 'publish-update' | 'unpublish' = 'publish', period = 'T1') {
   const state = await new ScopedPublicationServiceV2(portal).read(scope);
   return { contractVersion: 1, operation, scope, period, expectedVersion: state.version, idempotencyKey: crypto.randomUUID(),
-    ...(operation === 'unpublish' ? {} : { targetDataVersion: state.dataVersion }) };
+    ...(operation === 'unpublish' ? { confirmed: true } : { targetDataVersion: state.dataVersion }) };
 }
 async function release(scope: ScopeV1 = READ_SCHOOL_V2, operation: 'publish' | 'publish-update' | 'unpublish' = 'publish', period = 'T1') {
   return new ScopedPublicationServiceV2(portal).command(READ_ACTOR_V2, await command(scope, operation, period));
@@ -83,6 +92,13 @@ async function release(scope: ScopeV1 = READ_SCHOOL_V2, operation: 'publish' | '
 const self = (account = own) => new SelfProjectionReaderV1(portal, true).read(account, crypto.randomUUID());
 const score = async () => (await self())?.subjects[0]?.periods.find((item) => item.period === 'T1')?.final;
 const count = async (table: string) => Number((await owner.unsafe('SELECT count(*) AS n FROM student_portal.' + table))[0]!.n);
+async function legacyRelease() {
+  await owner.unsafe('UPDATE student_portal.publication_control_v2 SET enabled=false');
+  const service = new PublicationServiceV1(portal);
+  const state = await service.read(ownScope);
+  await service.command(READ_ACTOR_V2, { contractVersion: 1, operation: 'publish', scope: ownScope, period: 'T1',
+    expectedVersion: state.version, targetDataVersion: await currentRevisionV1(portal), idempotencyKey: crypto.randomUUID() });
+}
 
 beforeAll(async () => {
   await cluster.unsafe('CREATE DATABASE ' + databaseName);
@@ -93,7 +109,10 @@ beforeAll(async () => {
   await owner.unsafe(`INSERT INTO gradebook.professor(id,ano,nome) VALUES(803001,2026,'SYNTHETIC PRIVATE TEACHER');
     INSERT INTO gradebook.disciplina(id,ano,nome) VALUES(803001,2026,'MATEMATICA');
     INSERT INTO gradebook.oferta(id,ano,turma_id,professor_id,disciplina_id) VALUES(803001,2026,746001,803001,803001);
-    INSERT INTO gradebook.instrumento(id,oferta_id,trimestre,slot,maximo,descricao) VALUES(803001,803001,1,1,6750,'SYNTHETIC AV1');
+    INSERT INTO gradebook.instrumento(id,oferta_id,trimestre,slot,maximo,descricao)
+      SELECT 803000+(t-1)*20+s,803001,t,s,CASE WHEN s=11 THEN CASE WHEN t=3 THEN 22000 ELSE 16500 END
+        ELSE CASE WHEN t=3 THEN 9000 ELSE 6750 END END,'SYNTHETIC ASSESSMENT '||s
+      FROM generate_series(1,3) t CROSS JOIN (VALUES(1),(2),(11)) slots(s);
     INSERT INTO gradebook.nota(instrumento_id,aluno_id,valor) SELECT 803001,746000+n,CASE WHEN n=1 THEN 0 ELSE 1000+n END FROM generate_series(1,106) n;
     INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte) SELECT 803001,746000+n,8000+n FROM generate_series(1,106) n;
     UPDATE student_portal.account SET auth_state='active' WHERE closed_at IS NULL;
@@ -113,6 +132,7 @@ beforeEach(async () => {
     DELETE FROM student_portal.published_projection;
     DELETE FROM student_portal.operation_receipt;
     DELETE FROM student_portal.audit_event;
+    DELETE FROM student_portal.session;
     DELETE FROM student_portal.setting WHERE scope_kind<>'school';
     UPDATE student_portal.setting SET value_json='false'::jsonb WHERE field_key='autoUpdate';
     UPDATE gradebook.vinculo SET turma_id=746001,situacao=NULL WHERE aluno_id=746001;
@@ -133,8 +153,7 @@ it('installs closed and prepares students independently of account creation', as
   expect(disabledAtInstall).toBe(true);
   const prepared = await owner.unsafe('SELECT count(DISTINCT student_id) AS n FROM student_portal.publication_source_v2');
   expect(Number(prepared[0]!.n)).toBe(106);
-  const state = await new ScopedPublicationServiceV2(portal).read(READ_SCHOOL_V2);
-  expect(state.count).toBe(106);
+  expect((await new ScopedPublicationServiceV2(portal).read(READ_SCHOOL_V2)).count).toBe(106);
   expect(await count('publication_release_v2')).toBe(0);
   expect((await self())?.state).toBe('no-publication');
 });
@@ -255,16 +274,13 @@ it('denies blocked accounts and private snapshot writes even when a school relea
 });
 it('runs the real administrative facade with its audit wrapper and without a nested isolation upgrade', async () => {
   const api = new PortalAdminApiV1(withAuditSqlV1(portal, null), { tenantId: READ_TENANT_V2, cursorSecret: 'synthetic-scoped-803-'.repeat(4),
-    cryptoPort: new PortalCryptoV1(new Map([[1, new Uint8Array(32).fill(7)]]), new Map([[1, new Uint8Array(32).fill(8)]])),
-    qrKeyVersion: 1, pepperVersion: 1, scopedPublication: true, scopedPublicationCapable: true });
+    cryptoPort: cryptography, qrKeyVersion: 1, pepperVersion: 1, scopedPublication: true, scopedPublicationCapable: true });
   expect((await api.query(readContextV2(), { contractVersion: 1, operation: 'publication', scope: READ_SCHOOL_V2, page: {} })).state).toBe('publication');
-  const input = await command();
-  expect((await api.command({ ...readContextV2(), capability: 'platform.settings.write' }, input)).state).toBe('committed');
+  expect((await api.command({ ...readContextV2(), capability: 'platform.settings.write' }, await command())).state).toBe('committed');
   expect((await self())?.state).toBe('ready');
 });
 it('rejects a legacy command that waited across cutover instead of recreating account jobs', async () => {
-  const input = await command();
-  await expect(new PublicationServiceV1(portal, true).command(READ_ACTOR_V2, input)).rejects.toThrow('cutover-conflict');
+  await expect(new PublicationServiceV1(portal, true).command(READ_ACTOR_V2, await command())).rejects.toThrow('cutover-conflict');
   expect(await count('publication_job')).toBe(0);
 });
 it('does not wait on the academic year or another account while publishing prepared data', async () => {
@@ -276,12 +292,70 @@ it('does not wait on the academic year or another account while publishing prepa
   const holding = peer.begin(async (tx) => {
     await tx.unsafe('SELECT pg_advisory_xact_lock(613,2026)');
     await tx.unsafe('SELECT id FROM student_portal.account WHERE id=$1::uuid FOR UPDATE', [own]);
-    entered();
-    await gate;
+    entered(); await gate;
   });
   try {
     await acquired;
     await expect(new ScopedPublicationServiceV2(portal).command(READ_ACTOR_V2, input)).resolves.toHaveProperty('operationId');
     expect((await new ScopedPublicationServiceV2(portal).read(READ_SCHOOL_V2)).items[0]?.state).toBe('published');
   } finally { releaseLock(); await holding; }
+});
+it('adopts an exact pending legacy approval at cutover without creating another publication', async () => {
+  await legacyRelease();
+  expect(await count('publication_job')).toBe(1);
+  const switched = await owner.unsafe('SELECT student_portal.activate_scoped_publication_v2() AS result');
+  expect(switched[0]!.result).toMatchObject({ state: 'active', adoptedPendingPeriods: 1 });
+  expect(await score()).toMatchObject({ value: 8.001 });
+  expect(await new PublicationJobsV1(portal).claim()).toBeNull();
+});
+it('refuses to substitute current grades for an old pending source during cutover', async () => {
+  await legacyRelease();
+  await preparedChange(9000);
+  await expect(owner.unsafe('SELECT student_portal.activate_scoped_publication_v2()')).rejects.toThrow('pending-source-conflict');
+  expect(await scopedPublicationEnabledV2(portal)).toBe(false);
+  expect(await count('publication_release_v2')).toBe(0);
+});
+it('preserves an exact historical legacy projection when that source predates the new store', async () => {
+  await legacyRelease();
+  const jobs = new PublicationJobsV1(portal);
+  const job = await jobs.claim();
+  expect(job).not.toBeNull();
+  expect(await jobs.perform(job!)).toBe('done');
+  const next = await preparedChange(9000);
+  // Simulate an initial migration that only had the new current source, not the already published historical edition.
+  await owner.unsafe('DELETE FROM student_portal.publication_source_v2 WHERE student_id=746001 AND revision<$1::numeric', [next.split(':')[1]!]);
+  await owner.unsafe('SELECT student_portal.activate_scoped_publication_v2()');
+  expect(await score()).toMatchObject({ value: 8.001 });
+  await release(ownScope, 'unpublish');
+  expect((await self())?.state).toBe('no-publication');
+  await release(ownScope);
+  expect(await score()).toMatchObject({ value: 9 });
+});
+it('serves an actual opaque session through the new HTTP and private administrative compositions', async () => {
+  const session = await accountTransactionV1(portal, async (tx, store) => {
+    await store.lockAccounts([own]);
+    const context = await accessContextV1(portal, tx, store, own);
+    if (!context) throw new Error('Synthetic session context unavailable');
+    return createSessionV1(store, context, cryptography, false, crypto.randomUUID());
+  });
+  const env = { PORTAL_ENVIRONMENT: 'production', PORTAL_ORIGIN: 'https://aluno.escolaieda.com', PORTAL_ADMIN_TENANT_ID: READ_TENANT_V2,
+    PORTAL_SERVING_ENABLED: 'true', PORTAL_PUBLICATION_MODE: 'scoped-v2', PORTAL_DB: { connectionString: connection('student_portal_app') },
+    PASSWORD_PEPPER: JSON.stringify({ '1': Buffer.alloc(32, 7).toString('base64') }), QR_HMAC_KEYS: JSON.stringify({ '1': Buffer.alloc(32, 8).toString('base64') }) };
+  const read = () => servePortalSelfV1(new Request(env.PORTAL_ORIGIN + '/api/student/me', {
+    headers: { cookie: `${SESSION_COOKIE_V1.name}=${session.token}`, origin: env.PORTAL_ORIGIN },
+  }), env);
+  expect((await (await read()).json()).state).toBe('no-publication');
+  const result = await portalAdminRpcV1(env, 'command', { ...readContextV2(), capability: 'platform.settings.write' }, await command());
+  expect(result.state).toBe('committed');
+  const response = await read();
+  expect(response.status).toBe(200);
+  expect(response.headers.get('Cache-Control')).toContain('no-store');
+  const data = await response.json();
+  expect(data.state).toBe('ready');
+  expect(data.profile.accountId).toBe(own);
+  expect(data.subjects[0].periods[0].final).toMatchObject({ value: 8.001 });
+  await release(READ_SCHOOL_V2, 'unpublish');
+  expect((await (await read()).json()).state).toBe('no-publication');
+  await owner.unsafe('UPDATE student_portal.session SET revoked_at=statement_timestamp() WHERE account_id=$1::uuid', [own]);
+  expect((await read()).status).toBe(401);
 });
