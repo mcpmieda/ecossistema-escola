@@ -103,7 +103,14 @@ export class AcademicStudentReaderPostgresV1 implements AcademicStudentReaderV1<
     academicVersionSchemaV1.parse(expectedDataVersion);
     const rows = await tx.unsafe(ACADEMIC_STUDENT_QUERY_V1, [link.academicYear, link.studentId]);
     if (rows.length !== 1 || rows[0]!.data_version !== expectedDataVersion) return null;
-    const row = rows[0]!;
+    return this.projectPreparedSourceV2(link, expectedDataVersion, rows[0]!);
+  }
+
+  /** The same validated engine consumes a stored edition, without querying current marks or another account. */
+  projectPreparedSourceV2(input: PortalAcademicLinkV1, expectedDataVersion: string, row: Record<string, unknown>) {
+    const link = portalAcademicLinkSchemaV1.parse(input);
+    academicVersionSchemaV1.parse(expectedDataVersion);
+    if (row.data_version !== expectedDataVersion) return null;
     const bindings = z.array(z.object({ academicYear: z.literal(2026), studentId: id, classId: id,
       status: z.union([z.null(), z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(7)]), classLabel: z.string().min(1).max(80) })).parse(row.bindings);
     const eligibility = resolveEligibilityV1(link, expectedDataVersion, bindings.map(({ classLabel: _label, ...binding }) => binding));

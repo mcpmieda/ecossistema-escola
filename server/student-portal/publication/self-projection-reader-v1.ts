@@ -8,6 +8,7 @@ import { applyPublishedVisibilityV1, sessionExpiryV1 } from '../policies/calenda
 import { PolicyServiceV1 } from '../policies/policy-service-v1';
 import { AcademicEligibilityReaderPostgresV1 } from '../integration/lifecycle/academic-eligibility-v1';
 import { dataVectorV1, parseDataVectorV1, PERIODS_V1, publicationDigestV1, publicationRowsV1 } from './state-v1';
+import { scopedSelfV2 } from './scoped-self-v2';
 
 /** Fresh names/status come from the BN; the lifecycle snapshot only proves the stored projection's scope. */
 export async function publicationContextV1(sql: StudentPortalPostgresSqlV1, tx: StudentPortalPostgresQueryV1,
@@ -45,7 +46,7 @@ export async function storedProjectionV1(tx: StudentPortalPostgresQueryV1, accou
 }
 
 export class SelfProjectionReaderV1 implements PublishedProjectionPortV1 {
-  constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
+  constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly scopedPublication = false) {}
   async read(accountId: string, requestId: string): Promise<SelfResponseV1 | null> {
     z.uuid().parse(accountId);
     return accountTransactionV1(this.sql, (tx, store) => this.authorized(tx, store, accountId, requestId));
@@ -65,6 +66,7 @@ export class SelfProjectionReaderV1 implements PublishedProjectionPortV1 {
     const previous = await storedProjectionV1(tx, accountId);
     if (previous && (previous.profile.link.studentId !== context.account.link!.studentId || previous.profile.link.academicYear !== 2026)) return null;
     const rows = await publicationRowsV1(tx, accountId);
+    if (this.scopedPublication) return scopedSelfV2(tx, context, previous, rows, requestId);
     const vector = previous ? parseDataVectorV1(previous.revisions.dataVersion) : PERIODS_V1.map(() => null);
     const accepted = rows.map((row, index) => row.publishedRevision !== null && row.publishedRevision === vector[index] ? row.publishedRevision : null);
     const sameState = previous?.profile.academicState === context.profile.academicState;

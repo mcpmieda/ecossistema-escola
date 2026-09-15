@@ -36,6 +36,7 @@
       "vars": {
         "PORTAL_ENVIRONMENT": "production",
         "PORTAL_SERVING_ENABLED": "true",
+        "PORTAL_PUBLICATION_MODE": "scoped-v2",
         "PORTAL_ORIGIN": "https://aluno.escolaieda.com",
         "PORTAL_ADMIN_TENANT_ID": "f04e0fa3-b8dc-4f77-be3c-7dfda0635188"
       },

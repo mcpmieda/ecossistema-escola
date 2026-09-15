@@ -106,10 +106,7 @@ function PublicationPeriodV1({
           <p>A consulta não informa dados disponíveis para publicar neste período.</p>
         ) : null}
         {item.state === 'update-pending' ? (
-          <p>
-            A consulta informa uma atualização pendente; isso não confirma a conclusão de um
-            processamento.
-          </p>
+          <p>Há uma edição mais recente disponível para revisão e publicação.</p>
         ) : null}
       </Card.Content>
       {canWrite ? (
@@ -219,7 +216,7 @@ function PublicationFeedbackV1({
           <p>
             {removed
               ? 'Conferindo a retirada na leitura atual.'
-              : 'A publicação é processada em segundo plano. O aceite ainda não comprova a materialização.'}
+              : 'Conferindo a edição liberada na consulta do servidor.'}
           </p>
           <p>
             Consultas de acompanhamento: {mutation.checks} de até {PUBLICATION_CHECKS_V1}.
@@ -243,8 +240,8 @@ function PublicationFeedbackV1({
           </p>
           {!removed ? (
             <p>
-              A consulta de {scope.kind === 'school' ? 'escola' : 'turma'} não informa quantos
-              alunos concluíram. Confira a ficha de cada aluno quando precisar dessa confirmação.
+              Publicação de {scope.kind === 'school' ? 'escola' : 'turma'} verificada.
+              O acesso de cada aluno continua sujeito ao vínculo, ao calendário e às permissões vigentes.
             </p>
           ) : null}
         </>
@@ -253,7 +250,7 @@ function PublicationFeedbackV1({
           <p>
             {mutation.observation === 'stopped'
               ? 'Acompanhamento parado. Isso não cancela a decisão aceita nem o processamento no servidor.'
-              : 'O acompanhamento terminou sem comprovar o resultado. Não é possível distinguir espera, mudança de configuração ou falha da fila por esta consulta.'}
+              : 'Não foi possível confirmar o estado atual. A decisão aceita foi preservada; consulte novamente sem criar outra publicação.'}
           </p>
           <div className="pa-publication-actions">
             <Button size="sm" variant="secondary" isDisabled={reloadDisabled} onPress={reload}>
@@ -308,9 +305,8 @@ function PublicationReviewV1({
             ) : null}
             {command.operation === 'unpublish' ? (
               <p>
-                A retirada remove imediatamente os dados publicados deste período. Ela pode retirar
-                também o resultado final da projeção. O histórico acadêmico e os demais períodos são
-                preservados.
+                A retirada bloqueia a consulta deste período e pode ocultar também o resultado final.
+                O histórico acadêmico e os demais períodos são preservados.
               </p>
             ) : (
               <>
@@ -321,13 +317,12 @@ function PublicationReviewV1({
                 {command.operation === 'publish' && command.scope.kind !== 'account' ? (
                   <p>
                     Publicar neste escopo abrange seus vínculos elegíveis, incluindo os ainda não
-                    publicados. A consulta agregada não informa uma contagem de conclusão.
+                    publicados. Uma nova decisão neste escopo substitui as decisões anteriores abrangidas.
                   </p>
                 ) : null}
                 <p>
-                  O processamento depende do calendário e das configurações vigentes em cada aluno.
-                  Uma data futura ou ausente pode manter a materialização pendente. Aceite não
-                  significa que os dados já estejam disponíveis ao aluno.
+                  A consulta das notas respeita o calendário e as configurações vigentes em cada aluno.
+                  Uma data futura adia a exibição; sem data de divulgação específica, vale a publicação manual.
                 </p>
               </>
             )}
@@ -434,8 +429,8 @@ function PublicationScopeV1({
       </p>
       {fixedScope.kind !== 'account' ? (
         <p className="pa-publication-hint">
-          Os estados deste escopo são agregados. “Publicado” pode representar parte dos alunos; não
-          é uma contagem de conclusão.
+          Os estados deste escopo são agregados. As permissões individuais e o calendário continuam
+          sendo verificados em cada acesso.
         </p>
       ) : null}
       {notice ? (

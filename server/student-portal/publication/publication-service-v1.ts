@@ -6,9 +6,10 @@ import { accountTransactionV1, authNowV1, authTransactionV1 } from '../auth/tran
 import { enqueueJobsV1, type JobInputV1 } from '../jobs/queue-v1';
 import { currentRevisionV1, jobMaskV1, jobPublicationVersionV1, normalizePublicationRowsV1, PERIODS_V1,
   publicationAccountsV1, publicationDigestV1, publicationMaskV1, publicationScopeVersionV1 } from './state-v1';
+import { scopedPublicationEnabledV2 } from './scoped-source-v2';
 
 export class PublicationServiceV1 {
-  constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
+  constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly guardScopedCutover = false) {}
 
   /** Read-only consumers share the academic barrier, including calls nested in the admin facade. */
   async read(scope: ScopeV1) {
@@ -27,10 +28,9 @@ export class PublicationServiceV1 {
           || (row.published_revision !== null && row.published_revision !== currentRevision));
         return { period, state: pending ? 'update-pending' as const : published ? 'published' as const
           : selected.some((row) => row.state === 'available') ? 'available' as const : 'no-data' as const,
-        // There is no historical source store: the only approvable source is the current revision.
         availableRevision: selected.some((row) => row.available_revision !== null) ? currentRevision : null,
         publishedRevision: revisions.length === 1 ? String(revisions[0]) : revisions.length > 1 ? `mixed:${publicationDigestV1(revisions.sort())}` : null,
-        version }; // Frozen admin DTO exposes this scope CAS on every period item.
+        version };
       }) };
     });
   }
@@ -44,6 +44,9 @@ export class PublicationServiceV1 {
     const digest = publicationDigestV1({ ...command, scope });
     const receiptActor = `${command.operation}:${actor}`;
     return authTransactionV1(this.sql, async (tx, store) => {
+      // Cutover also owns the legacy year barrier. Recheck after acquiring it, not before waiting.
+      if (this.guardScopedCutover && await scopedPublicationEnabledV2(tx))
+        throw new Error('student-portal-publication-cutover-conflict');
       const now = await authNowV1(tx);
       const receipt = await store.readIdempotency(command.idempotencyKey, receiptActor);
       if (receipt && Date.parse(receipt.expiresAt) > now.getTime()) {
@@ -57,11 +60,9 @@ export class PublicationServiceV1 {
       const accounts = await publicationAccountsV1(tx, scope);
       if (accounts.length === 0) throw new Error('student-portal-publication-forbidden');
       const ids = JSON.stringify(accounts.map((account) => account.id));
-      // Preserve year -> ordered accounts -> jobs, without one network round trip per student.
       await tx.unsafe(`SELECT id FROM student_portal.account
         WHERE id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb))
         ORDER BY id FOR UPDATE`, [ids]);
-      // Lifecycle deletes the projection on class change. Its old period approvals cannot seed a new class.
       await tx.unsafe(`UPDATE student_portal.publication p SET published_revision=NULL,
         state=CASE WHEN available_revision IS NULL THEN 'no-data' ELSE 'available' END
         WHERE p.account_id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb))
@@ -85,7 +86,6 @@ export class PublicationServiceV1 {
       await tx.unsafe(`UPDATE student_portal.publication_job SET state='failed',lease_until=NULL,updated_at=$2::timestamptz
         WHERE account_id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb)) AND state IN ('queued','running')`, [ids, now.toISOString()]);
       if (removed) {
-        // Revoke the stored data itself in one bounded SQL operation; re-publish cannot resurrect it.
         await tx.unsafe(`UPDATE student_portal.published_projection p SET payload_json=jsonb_set(jsonb_set(jsonb_set(p.payload_json,
           '{subjects}',f.subjects),'{state}',CASE WHEN jsonb_array_length(f.subjects)=0 THEN '"no-publication"'::jsonb ELSE '"ready"'::jsonb END),
           '{profile,result}',CASE WHEN p.payload_json#>>'{profile,academicState}'='assisted' THEN '"not-applicable"'::jsonb ELSE '"in-progress"'::jsonb END),updated_at=$3::timestamptz
@@ -105,7 +105,6 @@ export class PublicationServiceV1 {
         const old = before.get(account.id)!;
         const updated = old.map((row) => row.period === command.period ? { ...row, version: row.version + 1 } : row);
         const policyVersion = `epoch:${settings[0]!.epoch}:account:${account.version}`;
-        // Preserve unrelated pending approvals at their exact source target when this command changes the fencing vector.
         for (const pending of queued.filter((job) => job.account_id === account.id)) {
           const mask = jobMaskV1(String(pending.publication_version));
           const retained = mask & ~bit;
