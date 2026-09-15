@@ -69,6 +69,8 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
       if (query.operation === 'health') return await this.sql.begin(async (tx) => adminResponseV1.parse({
         contractVersion: 1, requestId: context.requestId, state: 'health', ...await readAdminHealthV1(tx, query),
       }));
+      // Only these pure reads share the barrier. Preview and all commands retain writer semantics.
+      const yearMode = query.operation === 'publication' || query.operation === 'settings' ? 'shared' : 'exclusive';
       return await authTransactionV1(withAuditSqlV1(this.sql, context.clientIp ?? null), async (tx) => {
         const sql = boundSqlV1(tx);
         const now = await authNowV1(tx);
@@ -91,7 +93,7 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
             return adminResponseV1.parse({ ...base, ...await readPopulationV1(tx) });
           default: throw new Error('student-portal-query-invalid-request');
         }
-      });
+      }, yearMode);
     } catch (error) { return this.failure(context.requestId, adminFailureStateV1(error)); }
   }
   private queryFieldsAllowed(query: AdminQueryV1) {
