@@ -14,7 +14,10 @@ export class TurnstileVerifierV1 implements RiskVerifierV1 {
     const timer = setTimeout(() => controller.abort(), 5000);
     try {
       const response = await this.fetcher('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-        method: 'POST', redirect: 'error', signal: controller.signal,
+        // Workers rejects redirect=error before the subrequest. Manual mode
+        // prevents the secret from following a redirect; response.ok below
+        // keeps every 3xx response fail-closed.
+        method: 'POST', redirect: 'manual', signal: controller.signal,
         body: new URLSearchParams({ secret: this.secret, response: token }),
       });
       if (!response.ok) throw new Error('student-portal-risk-unavailable');
