@@ -151,6 +151,7 @@ export async function getPlatformConfigurations(env: RuntimeEnv, capabilities: r
   requireCapability(capabilities, 'platform.settings.read');
   const token = await getGraphToken(env);
   const lists = await readLists(env, token);
-  return platformConfigurationsFromItems(await readListItems(env, lists.find((list) => list.displayName === 'PLATAFORMA_CONFIGURACOES')?.id,
+  const byName = new Map(lists.map((list) => [list.displayName, list.id]));
+  return platformConfigurationsFromItems(await readListItems(env, byName.get('PLATAFORMA_CONFIGURACOES'),
     'Chave,Escopo,Versao,Ativo,VigenciaInicioUTC,VigenciaFimUTC,AtualizadoEmUTC', token));
 }
