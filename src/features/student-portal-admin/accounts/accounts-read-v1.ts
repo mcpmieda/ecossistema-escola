@@ -34,7 +34,8 @@ export function useAccountsReadV1<T>(load: (signal: AbortSignal) => Promise<T>) 
   }, [error]);
   useLiveRefreshV1(() => reader.run(load, { background: true }), {
     domains: ['portal', 'gradebook'],
-    canRefresh: () => Date.now() >= deadline.current && (state.state === 'ready'
+    canRefresh: () => Date.now() >= deadline.current && (state.state === 'idle'
+      || (state.state === 'ready' && !state.refreshing)
       || (state.state === 'error' && ['network-error', 'unavailable', 'rate-limited'].includes(state.error.state))),
   });
   return {

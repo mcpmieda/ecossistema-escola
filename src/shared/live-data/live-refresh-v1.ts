@@ -64,6 +64,7 @@ function start() {
   if (listening) return;
   listening = true;
   window.addEventListener('focus', resume);
+  window.addEventListener('pageshow', resume);
   window.addEventListener('online', resume);
   window.addEventListener('offline', resume);
   document.addEventListener('visibilitychange', resume);
@@ -77,12 +78,13 @@ function start() {
         if (value.domain === 'gradebook' || value.domain === 'portal') invalidate(value.domain);
       };
     }
-  } catch { channel = undefined; } // Polling remains available when channels are unavailable.
+  } catch { channel = undefined; }
 }
 function stop() {
   if (subscriptions.size || !listening) return;
   clearTimeout(timer); timer = undefined;
   window.removeEventListener('focus', resume);
+  window.removeEventListener('pageshow', resume);
   window.removeEventListener('online', resume);
   window.removeEventListener('offline', resume);
   document.removeEventListener('visibilitychange', resume);
