@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PLATFORM_CAPABILITIES } from '../shared/platform-contract';
 import { platformSnapshotSchemaV2, platformRouteUnavailableV2, platformRouteNeedsMicrosoftV2, PLATFORM_SOURCE_SECTIONS_V2 } from '../shared/platform-snapshot-v2';
 import { buildPlatformSnapshot, EXPECTED_PLATFORM_LISTS, getPlatformSnapshotV2, type PlatformSnapshotDependenciesV2 } from '../server/platform/snapshot';
-import { GraphError } from '../server/graph/client';
+import { GraphError, GraphTokenError } from '../server/graph/client';
 import { onRequest as bootstrap } from '../functions/api/platform/bootstrap';
 import { onRequest as auxiliary } from '../functions/api/platform/snapshot-v2';
 import { SESSION_COOKIE } from '../server/auth/session';
@@ -76,6 +76,18 @@ describe('section-aware Microsoft snapshot', () => {
       message: 'platform_microsoft_source_unavailable', stage: 'list-catalogue', failureKind: 'graph-response',
       providerStatus: 403, providerCorrelationId: 'provider-correlation', correlationId: snapshot.correlationId,
     });
+  });
+  it('reports a sanitized token preparation stage without its exception message', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const source = dependencies();
+    source.token.mockRejectedValue(new GraphTokenError('assertion', 'A'));
+    const snapshot = await getPlatformSnapshotV2(testEnv, PLATFORM_CAPABILITIES, source);
+    const recorded = String(warning.mock.calls[0]?.[0]);
+    expect(JSON.parse(recorded)).toMatchObject({
+      message: 'platform_microsoft_source_unavailable', stage: 'token', failureKind: 'token-assertion',
+      tokenStage: 'assertion', credentialSlot: 'A', correlationId: snapshot.correlationId,
+    });
+    expect(recorded).not.toContain('Graph token preparation failed');
   });
   it('does not request sources without the current capability and never calls Microsoft before authorization', async () => {
     const source = dependencies();
