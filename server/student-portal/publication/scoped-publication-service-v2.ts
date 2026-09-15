@@ -10,10 +10,8 @@ import { scopedKeyV2, scopedSummaryV2 } from './scoped-source-v2';
 export class ScopedPublicationServiceV2 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
   async read(scope: ScopeV1) {
-    return this.sql.begin(async (tx) => {
-      await tx.unsafe('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY');
-      return scopedSummaryV2(tx, scope);
-    });
+    // All fields come from one SELECT snapshot. No isolation upgrade after the audit wrapper's SET LOCAL.
+    return scopedSummaryV2(this.sql, scope);
   }
   async command(actorId: string, input: unknown) {
     const actor = z.uuid().parse(actorId).toLowerCase();
@@ -46,7 +44,7 @@ export class ScopedPublicationServiceV2 {
         if (!removed && 'targetDataVersion' in command && command.targetDataVersion !== summary.dataVersion)
           throw new Error('student-portal-publication-source-conflict');
         if (!removed && !summary.items.find((item) => item.period === command.period)?.availableRevision)
-          throw new Error('student-portal-publication-no-data');
+          throw new Error('student-portal-publication-no-data-conflict');
         if (command.operation === 'publish-update' && !summary.allPublished.has(command.period))
           throw new Error('student-portal-publication-not-published');
         const version = versionV1.parse(current + 1);
