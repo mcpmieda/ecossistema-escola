@@ -102,7 +102,8 @@ describe('native bootstrap HTTP boundaries', () => {
     const network = vi.fn(); vi.stubGlobal('fetch', network);
     expect((await handler({ env: testEnv, request: await request('/api/platform/bootstrap') } as never)).status).toBe(401);
     expect((await handler({ env: testEnv, request: await request('/api/platform/bootstrap', ['PROFESSOR']) } as never)).status).toBe(403);
-    expect((await handler({ env: testEnv, request: await request('/api/platform/bootstrap', ['ADMINISTRADOR'], 'https://untrusted.invalid') } as never)).status).toBe(403);
+    // A request addressed to another host is misdirected (421), not an authenticated role denial.
+    expect((await handler({ env: testEnv, request: await request('/api/platform/bootstrap', ['ADMINISTRADOR'], 'https://untrusted.invalid') } as never)).status).toBe(421);
     expect(network).not.toHaveBeenCalled();
   });
 });
