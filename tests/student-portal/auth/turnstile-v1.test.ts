@@ -8,7 +8,7 @@ describe('server-side Turnstile verification', () => {
     expect(await verifier.verify('synthetic-token')).toBe(true);
     const [endpoint, options] = fetcher.mock.calls[0]!;
     expect(endpoint).toBe('https://challenges.cloudflare.com/turnstile/v0/siteverify');
-    expect(options?.redirect).toBe('error');
+    expect(options?.redirect).toBe('manual');
     const form = options?.body as URLSearchParams;
     expect([...form.keys()].sort()).toEqual(['response', 'secret']);
     for (const result of [{ success: false }, { success: true, hostname: 'attacker.invalid', action: TURNSTILE_ACTION_V1 },

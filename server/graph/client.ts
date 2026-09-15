@@ -30,7 +30,10 @@ export async function getGraphToken(env: RuntimeEnv, dependencies: GraphDependen
     }
     let response: Response;
     try {
-      response = await dependencies.fetch(endpoint, { method: 'POST', redirect: 'error',
+      // Workers intentionally rejects `redirect: "error"` before issuing the
+      // subrequest. Manual mode keeps the assertion on the approved origin and
+      // lets the status handling below fail closed on every 3xx response.
+      response = await dependencies.fetch(endpoint, { method: 'POST', redirect: 'manual',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ client_id: env.GRAPH_CLIENT_ID, scope: 'https://graph.microsoft.com/.default',
           grant_type: 'client_credentials', client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: assertion }),

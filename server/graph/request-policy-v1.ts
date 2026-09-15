@@ -62,7 +62,10 @@ export async function graphFetchV1(input: {
     try {
       const timeout = AbortSignal.timeout(Math.max(1, Math.floor(Math.min(input.attemptTimeoutMs ?? 12_000, remaining))));
       response = await input.dependencies.fetch(input.url, { ...input.init,
-        redirect: input.allowContentRedirect && method === 'GET' ? 'follow' : 'error',
+        // Cloudflare Workers only accepts follow/manual. Manual is the
+        // fail-closed equivalent here: non-2xx responses are rejected below,
+        // without forwarding the bearer token to a redirect destination.
+        redirect: input.allowContentRedirect && method === 'GET' ? 'follow' : 'manual',
         signal: input.signal ? AbortSignal.any([input.signal, timeout]) : timeout });
       if (response.ok) return response;
       lastStatus = response.status;
