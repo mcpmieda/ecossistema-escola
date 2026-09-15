@@ -11,6 +11,7 @@ import { SessionServiceV1 } from '../auth/session-service-v1';
 import { BirthYearServiceV1 } from '../birth-year/birth-year-service-v1';
 import { PolicyServiceV1 } from '../policies/policy-service-v1';
 import { PublicationServiceV1 } from '../publication/publication-service-v1';
+import { ScopedPublicationServiceV2 } from '../publication/scoped-publication-service-v2';
 import { LinkClosureServiceV1 } from '../integration/lifecycle/link-closure-v1';
 import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { AdminCursorV1 } from './cursor-v1';
@@ -20,7 +21,8 @@ import { closeLinksIdempotentlyV1, qrBatchV1 } from './batches-v1';
 import { readPopulationV1, startPopulationV1 } from './population-v1';
 
 export { trustedAdminContextV1 } from '../../../shared/student-portal-contracts/admin-v1';
-export type AdminApiOptionsV1 = { tenantId: string; cryptoPort: CryptoPortV1; qrKeyVersion: number; pepperVersion: number; cursorSecret: string };
+export type AdminApiOptionsV1 = { tenantId: string; cryptoPort: CryptoPortV1; qrKeyVersion: number; pepperVersion: number;
+  cursorSecret: string; scopedPublication?: boolean; scopedPublicationCapable?: boolean };
 
 /** Only the dedicated server-to-server ADM binding may invoke this facade. Shape validation is not authentication. */
 export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
@@ -65,16 +67,20 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
       return this.failure(context.requestId, 'forbidden');
     if (!this.queryFieldsAllowed(query)) return this.failure(context.requestId, 'invalid-request');
     try {
+      const base = { contractVersion: 1, requestId: context.requestId, state: query.operation };
+      // These read models are single-statement snapshots; neither needs an academic writer barrier.
+      if (this.options.scopedPublication && query.operation === 'publication')
+        return adminResponseV1.parse({ ...base, items: (await new ScopedPublicationServiceV2(this.sql).read(query.scope)).items });
+      if (this.options.scopedPublication && query.operation === 'settings')
+        return adminResponseV1.parse({ ...base, settings: await new PolicyServiceV1(this.sql).read(query.scope) });
       // Diagnostics must remain observable while a business transaction owns the year lock.
       if (query.operation === 'health') return await this.sql.begin(async (tx) => adminResponseV1.parse({
-        contractVersion: 1, requestId: context.requestId, state: 'health', ...await readAdminHealthV1(tx, query),
+        ...base, ...await readAdminHealthV1(tx, query),
       }));
-      // Only these pure reads share the barrier. Preview and all commands retain writer semantics.
       const yearMode = query.operation === 'publication' || query.operation === 'settings' ? 'shared' : 'exclusive';
       return await authTransactionV1(withAuditSqlV1(this.sql, context.clientIp ?? null), async (tx) => {
         const sql = boundSqlV1(tx);
         const now = await authNowV1(tx);
-        const base = { contractVersion: 1, requestId: context.requestId, state: query.operation };
         switch (query.operation) {
           case 'accounts': case 'birth-years':
             return adminResponseV1.parse({ ...base, ...await readAccountListV1(tx, query, context.actorId, now, this.cursor) });
@@ -124,8 +130,9 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
         case 'sessions-revoke': return committed(await new SessionServiceV1(sql, this.options.cryptoPort).revoke(context.actorId, command));
         case 'birth-write': return committed(await new BirthYearServiceV1(sql, this.options.cryptoPort, this.options.pepperVersion).write(context.actorId, command));
         case 'birth-batch': return adminResponseV1.parse({ ...base, state: 'batch', ...await new BirthYearServiceV1(sql, this.options.cryptoPort, this.options.pepperVersion).batch(context.actorId, command) });
-        case 'settings-set': case 'settings-inherit': return committed(await new PolicyServiceV1(this.sql).mutate(context.actorId, command));
-        case 'publish': case 'publish-update': case 'unpublish': return committed(await new PublicationServiceV1(this.sql).command(context.actorId, command));
+        case 'settings-set': case 'settings-inherit': return committed(await new PolicyServiceV1(sql).mutate(context.actorId, command));
+        case 'publish': case 'publish-update': case 'unpublish': return committed(await (this.options.scopedPublication
+          ? new ScopedPublicationServiceV2(sql) : new PublicationServiceV1(sql, this.options.scopedPublicationCapable)).command(context.actorId, command));
         case 'links-close': return committed(await closeLinksIdempotentlyV1(sql, context.actorId, command));
         case 'population-start': return committed(await startPopulationV1(sql, context.actorId, command));
       }
