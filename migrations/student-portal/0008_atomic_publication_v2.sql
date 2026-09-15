@@ -57,7 +57,7 @@ CREATE TABLE student_portal.publication_release_v2 (
 CREATE FUNCTION student_portal.publication_source_rows_v2()
 RETURNS TABLE(student_id integer,class_id integer,payload_json jsonb,period_mask integer)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog AS $$
-WITH context AS (
+WITH context AS MATERIALIZED (
   SELECT s.student_id,s.name,y.minimum_approval,y.max_council_components,
     COALESCE((SELECT jsonb_agg(jsonb_build_object('academicYear',b.academic_year,'studentId',b.student_id,
       'classId',b.class_id,'status',b.status,'classLabel',b.class_name))
@@ -70,7 +70,9 @@ WITH context AS (
   WHERE s.academic_year=2026
 ), target AS (
   SELECT *,CASE WHEN jsonb_array_length(bindings)=1 THEN (bindings->0->>'classId')::integer END AS class_id FROM context
-), raw AS (
+), raw AS MATERIALIZED (
+  -- Keep the payload evaluation separate: the six-period availability check must not
+  -- cause PostgreSQL to rebuild every subject/instrument JSON expression repeatedly.
   SELECT target.student_id,target.class_id,jsonb_build_object('name',target.name,
     'minimum_approval',target.minimum_approval,'max_council_components',target.max_council_components,
     'bindings',target.bindings,'decision',target.decision,
