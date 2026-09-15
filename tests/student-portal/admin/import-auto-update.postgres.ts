@@ -81,6 +81,9 @@ beforeAll(async () => {
   owner = postgres(url.toString(), { max: 1, fetch_types: false, prepare: true, onnotice: () => undefined });
   const sql = owner as unknown as StudentPortalPostgresSqlV1;
   await installAdminReadFixtureV2({ exec: (text) => owner.unsafe(text, [], { prepare: false }) }, sql);
+  // The shared fixture activates only account 1. Both invented readers must be active
+  // to compare their distinct grades; production authentication is not changed.
+  await owner.unsafe("UPDATE student_portal.account SET auth_state='active' WHERE id=$1::uuid", [readAccountIdV2(2)]);
   gradebook = createGradebookPostgresDatabaseFromSqlV1(owner as unknown as GradebookPostgresSqlV1);
   expect(await importer().execute(notes())).toMatchObject({ state: 'applied' });
   await owner.unsafe('SELECT * FROM student_portal.synchronize_profiles_v1(false)');
