@@ -34,4 +34,24 @@ jobs:
         run: npm ci
 
       - name: Verify
-        run: npm run verify
+        shell: bash
+        run: |
+          log="$(mktemp)"
+          status=0
+          npm run verify >"$log" 2>&1 || status=$?
+          # Keep every gate and its exit status. Surface useful failures without flooding
+          # reviewers with thousands of successful test lines or repeated DOM dumps.
+          node --input-type=module - "$log" <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const lines = readFileSync(process.argv[2], 'utf8').replace(/\u001b\[[0-9;]*m/g, '').split('\n');
+          const selected = new Set();
+          for (let i = 0; i < lines.length; i++) {
+            if (/\b(?:FAIL|Error|AssertionError|Test Files|Tests|failed|TS\d{4})\b/.test(lines[i])) {
+              for (let j = Math.max(0, i - 2); j < Math.min(lines.length, i + 15); j++) selected.add(j);
+            }
+          }
+          for (let i = Math.max(0, lines.length - 100); i < lines.length; i++) selected.add(i);
+          console.log([...selected].sort((a, b) => a - b).map((i) => lines[i]).join('\n'));
+          NODE
+          rm -f "$log"
+          exit "$status"
