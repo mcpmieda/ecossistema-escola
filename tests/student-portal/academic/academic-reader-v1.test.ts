@@ -151,11 +151,18 @@ describe('official academic snapshot and self allowlist', () => {
     await expect(reader.readOfficial(link, revision)).rejects.toThrow();
   });
 
-  it('rejects more than twelve active partials without silently dropping an assessment', async () => {
+  it('preserves all thirteen legitimate partials, including parallel recovery and ten qualitative activities', async () => {
     await pg.exec(`INSERT INTO gradebook.instrumento(id,oferta_id,trimestre,slot,maximo,descricao)
       SELECT 920000+s,910001,1,s,1000,'SYNTHETIC EXTRA '||s FROM generate_series(12,20) s;
       INSERT INTO gradebook.instrumento(id,oferta_id,trimestre,slot,maximo,descricao) VALUES (920003,910001,1,3,13500,'SYNTHETIC PARALLEL');`);
-    await expect(reader.readOfficial(link, revision)).rejects.toThrow();
+    const result = await reader.readOfficial(link, revision);
+    const partials = result?.subjects.find((subject) => subject.subjectId === 910001)?.periods[0]?.partials;
+    expect(partials).toHaveLength(13);
+    expect(new Set(partials?.map((partial) => partial.assessmentId)).size).toBe(13);
+    expect(partials?.find((partial) => partial.assessmentId === 920003)?.label).toBe('SYNTHETIC PARALLEL');
+    for (let slot = 12; slot <= 20; slot++)
+      expect(partials?.some((partial) => partial.assessmentId === 920000 + slot)).toBe(true);
+    expect(count).toBe(1);
   });
 
   it('does not fabricate a term engine result when required assessment maximums are unavailable', async () => {
