@@ -33,25 +33,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prepare temporary source-only QA bundle for PR809
-        if: github.event.pull_request.number == 809
-        shell: bash
-        run: |
-          mkdir -p /tmp/live-data-qa
-          git archive --format=tar.gz HEAD > /tmp/live-data-qa/source.tar.gz
-          tar --exclude=node_modules/.cache --exclude=node_modules/.wrangler -czf /tmp/live-data-qa/dependencies.tar.gz node_modules
-          git rev-parse HEAD > /tmp/live-data-qa/source-commit.txt
-          sha256sum /tmp/live-data-qa/*.tar.gz > /tmp/live-data-qa/SHA256SUMS
-
-      - name: Export temporary QA bundle for PR809
-        if: github.event.pull_request.number == 809
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: live-data-qa-809
-          path: /tmp/live-data-qa/
-          retention-days: 1
-          compression-level: 0
-          if-no-files-found: error
-
       - name: Verify
         run: npm run verify
