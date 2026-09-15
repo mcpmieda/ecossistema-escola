@@ -3,6 +3,7 @@ import {
   createBirthEditorV1,
   emptyBirthEditorV1,
 } from '../../../../src/features/student-portal-admin/birth-year/birth-editor-v1';
+import { adminResponseV1 } from '../../../../shared/student-portal-contracts/admin-v1';
 import { BIRTH_META_V1, birthIdV1, birthJsonV1, birthMockV1 } from './fixtures-v1';
 
 beforeEach(() => {
@@ -26,6 +27,84 @@ function setup(mock = birthMockV1(), canWrite = true) {
   return { mock, editor, state: () => state, lost };
 }
 describe('birth editor concurrency and autosave', () => {
+  it('uses a validated direct acknowledgement without a second read', async () => {
+    const mock = birthMockV1({
+      write: async (input) => {
+        const response = mock.defaultWrite(input);
+        const parsed = adminResponseV1.parse(await response.json());
+        if (input.operation !== 'birth-write' || parsed.state !== 'committed') return birthJsonV1(parsed);
+        const account = mock.accounts.find((item) => item.accountId === input.item.accountId)!;
+        const birth = mock.births.get(input.item.accountId)!;
+        return birthJsonV1({ ...parsed, savedBirth: { accountId: account.accountId,
+          classId: account.classId!, accountVersion: account.version, version: birth.version,
+          year: birth.year, confirmation: birth.confirmation } });
+      },
+    });
+    const { editor, state } = setup(mock);
+    await editor.load();
+    editor.edit(birthIdV1(1), '2001');
+    await editor.flush(birthIdV1(1));
+    expect(mock.writes[0]).toMatchObject({ includeSavedBirth: true });
+    expect(mock.queries.filter((query) => query.scope.kind === 'account')).toHaveLength(0);
+    expect(state().rows[0]).toMatchObject({ year: '2001', status: 'saved',
+      record: { birth: { year: '2001', confirmation: 'unconfirmed-test' } } });
+    editor.clear();
+  });
+  it('rebases but does not overwrite a newer draft when an older direct acknowledgement arrives', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const mock = birthMockV1({
+      write: async (input) => {
+        const response = mock.defaultWrite(input);
+        const parsed = adminResponseV1.parse(await response.json());
+        await gate;
+        if (input.operation !== 'birth-write' || parsed.state !== 'committed') return birthJsonV1(parsed);
+        const account = mock.accounts.find((item) => item.accountId === input.item.accountId)!;
+        const birth = mock.births.get(input.item.accountId)!;
+        return birthJsonV1({ ...parsed, savedBirth: { accountId: account.accountId,
+          classId: account.classId!, accountVersion: account.version, version: birth.version,
+          year: birth.year, confirmation: birth.confirmation } });
+      },
+    });
+    const { editor, state } = setup(mock);
+    await editor.load();
+    editor.edit(birthIdV1(1), '2001');
+    const saving = editor.flush(birthIdV1(1));
+    await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
+    editor.edit(birthIdV1(1), '2002');
+    release();
+    await saving;
+    expect(state().rows[0]).toMatchObject({ year: '2002', status: 'draft',
+      record: { account: { version: 20 }, birth: { year: '2001', version: 8 } } });
+    expect(mock.queries.filter((query) => query.scope.kind === 'account')).toHaveLength(0);
+    editor.clear();
+  });
+  it('refreshes quietly, keeps a valid selection and ignores an in-flight result after typing starts', async () => {
+    let delayed = false, release!: () => void;
+    const mock = birthMockV1({
+      query: (query) => delayed && query.operation === 'birth-years'
+        ? new Promise<Response>((resolve) => { release = () => resolve(mock.defaultQuery(query)); })
+        : undefined,
+    });
+    const { editor, state } = setup(mock);
+    await editor.load();
+    editor.setMode('batch');
+    editor.select(birthIdV1(1), true);
+    mock.accounts[0]!.version++;
+    mock.births.set(birthIdV1(1), { ...mock.births.get(birthIdV1(1))!, year: '2004',
+      version: 8, accountVersion: mock.accounts[0]!.version });
+    await editor.refresh();
+    expect(state().rows[0]).toMatchObject({ selected: true, year: '2004' });
+    editor.setMode('single');
+    delayed = true;
+    const refreshing = editor.refresh();
+    await vi.waitFor(() => expect(state().refreshing).toBe(true));
+    editor.edit(birthIdV1(1), '2005');
+    release();
+    await refreshing;
+    expect(state().rows[0]).toMatchObject({ year: '2005', status: 'draft' });
+    editor.clear();
+  });
   it('debounces rapid input, never saves partial/invalid/empty drafts and uses distinct CAS versions', async () => {
     const { mock, editor, state } = setup();
     await editor.load();

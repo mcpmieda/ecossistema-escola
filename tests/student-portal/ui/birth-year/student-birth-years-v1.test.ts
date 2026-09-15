@@ -127,16 +127,10 @@ describe('birth access data UI', () => {
       }),
     );
     await user.click(within(dialog).getByRole('button', { name: 'Salvar 2 ano(s)' }));
-    await screen.findByText(
-      'Processamento encerrado. Consulte os resultados atuais antes de editar novamente.',
-      {},
-      { timeout: 3000 },
-    );
+    await waitFor(() => expect(mock.queries.length).toBeGreaterThan(2));
     expect(mock.writes).toHaveLength(2);
     expect(mock.bodies[0]).toBe(mock.bodies[1]);
-    expect(screen.getAllByText('Salvo pelo lote')).toHaveLength(2);
-    await user.click(screen.getByRole('button', { name: 'Recarregar dados' }));
-    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Recarregar/u })).toBeNull();
     await waitFor(() =>
       expect(
         (
@@ -188,7 +182,7 @@ describe('birth access data UI', () => {
     expect(mock.writes).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Repetir mesma gravação' })).toBeNull();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Recarregar dados' }));
+    await user.click(screen.getByRole('button', { name: 'Recarregar e revisar' }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Descartar e continuar' }));
     await waitFor(() =>

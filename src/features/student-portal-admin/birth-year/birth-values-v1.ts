@@ -63,6 +63,7 @@ export function birthSingleCommandV1(
   return {
     contractVersion: 1,
     operation: 'birth-write',
+    includeSavedBirth: true,
     idempotencyKey: crypto.randomUUID(),
     expectedVersion: row.record.account.version,
     item,

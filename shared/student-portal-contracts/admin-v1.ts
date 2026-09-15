@@ -25,7 +25,7 @@ export const adminCommandV1 = z.discriminatedUnion('operation', [
   z.object({ ...account, operation: z.literal('account-reset'), confirmed: z.literal(true) }).strict(),
   z.object({ ...account, operation: z.literal('block'), blocked: z.boolean(), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('sessions-revoke'), scope: scopeV1, sessionId: portalIdV1.optional(), confirmed: z.literal(true) }).strict(),
-  z.object({ ...commandMetaV1, operation: z.literal('birth-write'), item: birthWriteV1 }).strict(),
+  z.object({ ...commandMetaV1, operation: z.literal('birth-write'), item: birthWriteV1, includeSavedBirth: z.literal(true).optional() }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('birth-batch'), classId: z.number().int().positive(), expectedCount: z.number().int().min(1).max(100), items: z.array(birthWriteV1).min(1).max(100), confirmed: z.literal(true) }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('settings-set'), scope: scopeV1, value: settingsOverrideV1, acknowledgeImmediateEffect: z.boolean() }).strict(),
   z.object({ ...commandMetaV1, operation: z.literal('settings-inherit'), scope: scopeV1, keys: z.array(z.enum(['accessEnabled', 'showPartials', 'autoUpdate', 'showFinalResult', 'allowedPeriods', 'risk', 'calendar'])).min(1).max(7) }).strict(),
@@ -55,6 +55,15 @@ export const printCardV1 = z.discriminatedUnion('mode', [
   z.object({ ...card, mode: z.literal('qr-name-class'), name: z.string().min(1).max(200), classLabel: z.string().min(1).max(80) }).strict(),
 ]);
 export const auditEventV1 = z.object({ eventId: portalIdV1, at: instantV1, actorId: portalIdV1, accountId: portalIdV1.nullable(), scope: scopeV1, kind: auditKindV1, result: z.enum(['success', 'denied', 'failed']), requestId: portalIdV1, version: versionV1, maskedIp: z.string().max(64).nullable() }).strict();
+/** Opt-in acknowledgement read inside the write transaction; no credential material.
+ * A replay after a later account change omits this snapshot and retains the original receipt.
+ */
+export const savedBirthV1 = z.object({
+  accountId: portalIdV1, classId: z.number().int().positive().safe(),
+  accountVersion: versionV1, version: versionV1,
+  year: birthYearV1.nullable(), confirmation: z.enum(['confirmed', 'unconfirmed-test']).nullable(),
+}).strict();
+export type SavedBirthV1 = z.infer<typeof savedBirthV1>;
 const base = { contractVersion: z.literal(1), requestId: portalIdV1 };
 const paging = { nextCursor: opaqueV1.nullable() };
 export const adminResponseV1 = z.discriminatedUnion('state', [
@@ -68,7 +77,7 @@ export const adminResponseV1 = z.discriminatedUnion('state', [
   z.object({ ...base, state: z.literal('health'), status: z.enum(['normal', 'attention', 'intervention']) }).strict(),
   z.object({ ...base, state: z.literal('links-preview'), count: z.number().int().nonnegative(), previewToken: opaqueV1, expiresAt: instantV1, version: versionV1 }).strict(),
   z.object({ ...base, state: z.literal('population'), enabled: z.boolean(), version: versionV1, sourceProfiles: z.number().int().nonnegative().safe(), eligibleSourceProfiles: z.number().int().nonnegative().safe(), exitSourceProfiles: z.number().int().nonnegative().safe(), classes: z.number().int().nonnegative().safe(), accounts: z.number().int().nonnegative().safe(), eligibleAccounts: z.number().int().nonnegative().safe(), deniedAccounts: z.number().int().nonnegative().safe(), missingProfiles: z.number().int().nonnegative().safe(), overrideRows: z.number().int().nonnegative().safe() }).strict(),
-  z.object({ ...base, state: z.literal('committed'), operationId: portalIdV1, version: versionV1 }).strict(),
+  z.object({ ...base, state: z.literal('committed'), operationId: portalIdV1, version: versionV1, savedBirth: savedBirthV1.optional() }).strict(),
   z.object({ ...base, state: z.literal('qr'), cards: z.array(printCardV1).min(1).max(100), version: versionV1 }).strict(),
   z.object({ ...base, state: z.literal('batch'), operationId: portalIdV1, items: z.array(z.object({ accountId: portalIdV1, state: z.enum(['committed', 'conflict', 'forbidden', 'unavailable']), version: versionV1 }).strict()).max(100) }).strict(),
 ]);

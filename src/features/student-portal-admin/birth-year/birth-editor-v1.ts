@@ -1,3 +1,4 @@
+import type { SavedBirthV1 } from '../../../../shared/student-portal-contracts/admin-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import type { PortalAdminReadClientV2 } from '../accounts/accounts-client-v2';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
@@ -41,6 +42,8 @@ export interface BirthEditorStateV1 {
   batch: BirthBatchStateV1;
   error?: PortalClientErrorV1;
   retryAt: number;
+  refreshing?: boolean;
+  refreshError?: PortalClientErrorV1;
 }
 export const emptyBirthEditorV1 = (): BirthEditorStateV1 => ({
   state: 'idle',
@@ -74,7 +77,7 @@ export function createBirthEditorV1(options: {
     generation = 0,
     clearing = false,
     navigationPaused = false;
-  let active: AbortController | undefined;
+  let active: AbortController | undefined, background: AbortController | undefined;
   const timers = new Map<string, ReturnType<typeof setTimeout>>(),
     queued = new Set<string>();
   let single:
@@ -83,6 +86,7 @@ export function createBirthEditorV1(options: {
         revision: number;
         prepared: ReturnType<PortalAdminClientV1['prepareCommand']>;
         receipt?: number;
+        savedBirth?: SavedBirthV1;
       }
     | undefined;
   const emit = (patch: Partial<BirthEditorStateV1> = {}) => {
@@ -120,6 +124,7 @@ export function createBirthEditorV1(options: {
   function clear() {
     generation++;
     active?.abort();
+    background?.abort(); background = undefined;
     active = undefined;
     stopTimers();
     single = undefined;
@@ -223,17 +228,23 @@ export function createBirthEditorV1(options: {
     const pending = single;
     if (!pending || pending.receipt === undefined) return;
     const id = pending.command.item.accountId;
-    const result = await readBirthPageV1(
-      client,
-      reader,
-      { kind: 'account', academicYear: 2026, accountId: id },
-      undefined,
-      controller.signal,
-      scope.kind === 'class' ? scope.classId : undefined,
-    );
+    const existing = find(id);
+    if (!existing) throw new PortalClientErrorV1('conflict');
+    const saved = pending.savedBirth;
+    if (saved && (saved.accountId !== id || saved.accountVersion !== pending.receipt
+      || (scope.kind === 'class' && saved.classId !== scope.classId)))
+      throw new PortalClientErrorV1('conflict');
+    // New servers return the committed value directly. Responses without a current snapshot and superseded replays
+    // keep the established bounded read-after-write path without a duplicate mutation.
+    const record = saved ? {
+      account: { ...existing.record.account, version: saved.accountVersion },
+      birth: { accountId: saved.accountId, accountVersion: saved.accountVersion,
+        year: saved.year, confirmation: saved.confirmation, version: saved.version },
+    } : (await readBirthPageV1(client, reader,
+      { kind: 'account', academicYear: 2026, accountId: id }, undefined, controller.signal,
+      scope.kind === 'class' ? scope.classId : undefined)).rows[0];
     if (current !== generation || controller.signal.aborted || single !== pending) return;
-    const record = result.rows[0],
-      item = pending.command.item;
+    const item = pending.command.item;
     if (
       !record ||
       record.account.version !== pending.receipt ||
@@ -277,6 +288,7 @@ export function createBirthEditorV1(options: {
         if (current !== generation || controller.signal.aborted) return;
         if (result.state !== 'committed') throw new PortalClientErrorV1('invalid-response');
         pending.receipt = result.version;
+        pending.savedBirth = result.savedBirth;
       }
       await refreshSingle(current, controller);
     } catch (error) {
@@ -399,8 +411,42 @@ export function createBirthEditorV1(options: {
       for (const item of state.rows) schedule(item.record.account.accountId);
     } else await batch.start(value.command);
   }
+  function canRefresh() {
+    return state.state === 'ready' && !active && !background && !single
+      && !navigationPaused && !state.review && !state.singleFailure
+      && state.batch.state === 'idle' && !state.rows.some(birthDirtyV1)
+      && now() >= state.retryAt;
+  }
+  async function refresh() {
+    if (!canRefresh()) return;
+    const current = generation, controller = new AbortController();
+    background = controller;
+    emit({ refreshing: true });
+    try {
+      const page = await readBirthPageV1(client, reader, scope, options.cursor, controller.signal);
+      if (current !== generation || controller.signal.aborted) return;
+      // A user may start typing or a command may begin while this read is in flight.
+      if (active || single || state.review || navigationPaused || state.batch.state !== 'idle'
+        || state.rows.some(birthDirtyV1)) return;
+      const previous = new Map(state.rows.map((row) => [row.record.account.accountId, row]));
+      emit({ rows: page.rows.map((record) => {
+        const old = previous.get(record.account.accountId);
+        return { ...birthDraftRowV1(record), selected: old?.selected ?? false,
+          status: old?.status === 'saved' ? 'saved' as const : 'idle' as const };
+      }), scopeVersion: page.scopeVersion, next: page.next, refreshError: undefined, retryAt: 0 });
+    } catch (error) {
+      if (current !== generation || controller.signal.aborted) return;
+      const failure = birthErrorV1(error);
+      if (birthProtectedFailureV1(failure)) protectedFailure(failure);
+      else emit({ refreshError: failure, retryAt: now() + Math.max(5, failure.retryAfterSeconds ?? 0) * 1000 });
+    } finally {
+      if (background === controller) { background = undefined; emit({ refreshing: false }); }
+    }
+  }
   return {
     load,
+    refresh,
+    canRefresh,
     clear,
     edit,
     review,
