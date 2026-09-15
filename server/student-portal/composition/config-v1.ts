@@ -7,6 +7,7 @@ export interface PortalCompositionEnvV1 {
   PORTAL_ORIGIN: string;
   PORTAL_ADMIN_TENANT_ID: string;
   PORTAL_SERVING_ENABLED?: string;
+  PORTAL_PUBLICATION_MODE?: string;
   PORTAL_DB?: Pick<Hyperdrive, 'connectionString'>;
   QR_HMAC_KEYS?: string;
   PASSWORD_PEPPER?: string;
