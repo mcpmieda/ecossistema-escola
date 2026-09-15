@@ -105,8 +105,19 @@ export function createPublicationControllerV1(
     if (generation !== observationGeneration || view.mutation.state !== 'accepted') return;
     const checks = accepted.checks + 1;
     if (view.load.state !== 'ready') {
-      view = { ...view, mutation: { ...accepted, checks, observation: 'unconfirmed' } };
+      // A transient read failure is not evidence that the accepted publication failed.
+      // Keep the same bounded observation budget; denial/rate-limit/invalid data stop here.
+      const retryable = view.load.state === 'error'
+        && ['network-error', 'unavailable'].includes(view.load.error.state);
+      const observation = retryable && checks < maxChecks ? 'observing' : 'unconfirmed';
+      view = { ...view, mutation: { ...accepted, checks, observation } };
       emit();
+      if (observation === 'observing') {
+        timer = setTimeout(() => {
+          timer = undefined;
+          void observe(generation);
+        }, Math.max(delay, view.readRetryAt - now()));
+      }
       return;
     }
     const observation = publicationObservationV1(ownScope, accepted.command, view.load.data.items);
