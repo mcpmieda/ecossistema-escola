@@ -37,7 +37,8 @@ export const academicSubjectSchemaV1 = z
             final: academicMarkSchemaV1,
             partials: z
               .array(z.object({ assessmentId: id, label, mark: academicMarkSchemaV1 }).strict())
-              .max(12)
+              // AV1, AV2, parallel recovery and ten qualitative activities.
+              .max(13)
               .optional(),
           })
           .strict(),
