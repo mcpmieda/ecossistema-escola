@@ -96,7 +96,7 @@ describe('accepted publication observation #801', () => {
       fixture.fail();
       await fixture.controller.submit(fixture.command());
       await vi.advanceTimersByTimeAsync(0);
-      expect(fixture.view().load.state).toBe('error');
+      expect(fixture.view().load).toMatchObject({ state: 'ready', refreshError: { state: 'unavailable' } });
       expect(fixture.view().mutation).toMatchObject({ state: 'accepted', observation: 'observing', checks: 1 });
       fixture.recover();
       await vi.advanceTimersByTimeAsync(100);
@@ -113,7 +113,7 @@ describe('accepted publication observation #801', () => {
       await fixture.controller.submit(fixture.command());
       await vi.advanceTimersByTimeAsync(2000);
       expect(fixture.view().mutation).toMatchObject({ observation: 'unconfirmed', checks: 3 });
-      expect(fixture.view().load.state).toBe('error');
+      expect(fixture.view().load).toMatchObject({ state: 'ready', refreshError: { state: 'unavailable' } });
       expect(fixture.reads()).toBe(7); // one initial read plus two transport attempts per observation
       expect(fixture.writes).toHaveLength(1);
     } finally { fixture.controller.reset(); }

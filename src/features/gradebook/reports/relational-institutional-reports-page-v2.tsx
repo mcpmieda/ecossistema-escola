@@ -38,6 +38,8 @@ import {
 } from '../../../../shared/gradebook-contracts/reports/relational-institutional-reports-v2';
 import type { RelationalBulletinHistoryItemV2 } from '../../../../shared/gradebook-contracts/bulletins/relational-bulletin-v2';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
+import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
+import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { runRelationalBulletinPdfActionV2 } from '../bulletins/pdf/bulletin-pdf-actions-v2';
 import {
   RelationalInstitutionalReportsClientErrorV2,
@@ -285,10 +287,13 @@ export function RelationalInstitutionalReportsPageV2() {
   const [selectedSnapshots, setSelectedSnapshots] = useState<readonly string[]>([]);
   const [downloadState, setDownloadState] = useState<LoadState>('idle');
   const [downloadMessage, setDownloadMessage] = useState('');
+  const [stale, setStale] = useState(false);
   const requestRef = useRef<AbortController | null>(null);
   const outputRef = useRef<HTMLHeadingElement | null>(null);
 
   useEffect(() => {
+    requestRef.current?.abort(); setClasses([]); setClassId(null); setReport(null); setReportState('idle');
+    setHistory([]); setHistoryState('idle'); setSelectedSnapshots([]); setStale(false);
     if (year === null) {
       setCatalogState('loading');
       return;
@@ -300,9 +305,9 @@ export function RelationalInstitutionalReportsPageV2() {
       operation: 'catalog',
       year,
     }, controller.signal).then((response) => {
-      if (response.state !== 'ready' || response.operation !== 'catalog') return;
+      if (response.state !== 'ready' || response.operation !== 'catalog') { setClasses([]); setCatalogState(response.state === 'not-authorized' ? 'not-authorized' : 'unavailable'); return; }
       setClasses(response.classes);
-      setClassId((current) => current ?? response.classes[0]?.id ?? null);
+      setClassId(response.classes[0]?.id ?? null);
       setCatalogState(response.classes.length === 0 ? 'empty' : 'ready');
     }).catch((cause: unknown) => {
       if (!(cause instanceof DOMException && cause.name === 'AbortError')) setCatalogState(toLoadState(cause));
@@ -365,39 +370,72 @@ export function RelationalInstitutionalReportsPageV2() {
     };
   }
 
-  async function generate() {
+  async function generate(background = false) {
     const request = buildRequest();
     if (request === null) return;
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
-    setReport(null);
-    setReportState('loading');
+    if (!background) { setReport(null); setReportState('loading'); }
     try {
       const response = await requestRelationalInstitutionalReportV2(request, controller.signal);
       if (controller.signal.aborted) return;
+      if (response.state !== 'ready') {
+        if (response.state === 'not-authorized') { setReport(null); setHistory([]); }
+        if (background) setStale(true); else setReportState(response.state === 'invalid-request' ? 'unavailable' : response.state);
+        return;
+      }
       setReport(response);
       const empty = response.state === 'ready' && response.operation === 'audit' && response.items.length === 0;
       setReportState(empty ? 'empty' : 'ready');
-      window.requestAnimationFrame(() => outputRef.current?.focus());
+      setStale(false);
+      if (!background) window.requestAnimationFrame(() => outputRef.current?.focus());
     } catch (cause) {
-      if (!(cause instanceof DOMException && cause.name === 'AbortError')) setReportState(toLoadState(cause));
+      if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
+        if (background) setStale(true); else setReportState(toLoadState(cause));
+      }
     }
   }
 
-  async function loadHistory() {
+  async function loadHistory(background = false) {
     if (year === null || classId === null) return;
-    setHistoryState('loading');
-    setHistory([]);
-    setSelectedSnapshots([]);
+    if (!background) { setHistoryState('loading'); setHistory([]); setSelectedSnapshots([]); }
     try {
       const response = await requestRelationalInstitutionalReportV2({ contractVersion: 2, operation: 'bulletin-history', year, classId });
       if (response.state === 'ready' && response.operation === 'bulletin-history') {
         setHistory(response.report.items);
+        setSelectedSnapshots((current) => current.filter((key) => response.report.items.some((item) => `${item.snapshotId}:${item.snapshotVersion}` === key)));
         setHistoryState(response.report.items.length === 0 ? 'empty' : 'ready');
+        setStale(false);
+      } else if (response.state === 'not-authorized') {
+        setHistory([]); setReport(null); setHistoryState('not-authorized');
+      } else if (background) {
+        setStale(true);
       }
-    } catch (cause) { setHistoryState(toLoadState(cause)); }
+    } catch (cause) { if (background) setStale(true); else setHistoryState(toLoadState(cause)); }
   }
+
+  useLiveRefreshV1(async () => {
+    if (year === null) return;
+    try {
+      const catalog = await requestRelationalInstitutionalReportV2({ contractVersion: 2, operation: 'catalog', year });
+      if (catalog.state !== 'ready' || catalog.operation !== 'catalog') {
+        if (catalog.state === 'not-authorized') { setClasses([]); setClassId(null); setReport(null); setHistory([]); setCatalogState('not-authorized'); }
+        else setStale(true);
+        return;
+      }
+      setClasses(catalog.classes);
+      if (classId !== null && !catalog.classes.some((item) => item.id === classId)) {
+        setClassId(null); setReport(null); setReportState('idle'); setHistory([]); setHistoryState('idle'); setSelectedSnapshots([]);
+        return;
+      }
+    } catch { setStale(true); return; }
+    if (report !== null) await generate(true);
+    if (historyState === 'ready' || historyState === 'empty') await loadHistory(true);
+  }, {
+    domains: ['gradebook'], enabled: catalogState === 'ready',
+    canRefresh: () => reportState !== 'loading' && historyState !== 'loading' && downloadState !== 'loading',
+  });
 
   async function downloadSelected() {
     const selected = history.filter((item) => selectedSnapshots.includes(`${item.snapshotId}:${item.snapshotVersion}`));
@@ -427,6 +465,7 @@ export function RelationalInstitutionalReportsPageV2() {
 
       {catalogState === 'loading' && <div className="flex min-h-28 items-center justify-center gap-2 text-sm text-muted"><Spinner size="sm" />Carregando catálogo relacional…</div>}
       {(catalogState === 'empty' || catalogState === 'not-authorized' || catalogState === 'unavailable') && <StateAlert state={catalogState} />}
+      <LiveReadNoticeV1 failed={stale} />
       {catalogState === 'ready' && <>
         <Card className="overflow-visible"><Card.Content className="grid gap-4 p-4 sm:p-5 lg:grid-cols-3">
           <SelectControl label="Família" value={family} items={FAMILY_OPTIONS} onChange={(value) => { setFamily(value as RelationalInstitutionalReportFamilyV2); setAuditOffset(0); resetOutput(); }} />
@@ -454,7 +493,7 @@ export function RelationalInstitutionalReportsPageV2() {
           {readyAudit && <AuditReport items={readyAudit.items} />}
         </section>
 
-        <Card><Card.Header><div className="flex items-center gap-2 text-primary"><ArchiveRestore className="size-5" /><Card.Title>Reimpressão de boletins emitidos</Card.Title></div><Card.Description>Somente snapshots imutáveis V2. Selecione até 3 documentos por vez.</Card.Description></Card.Header><Card.Content className="grid gap-3"><div className="flex flex-wrap gap-2"><Button variant="secondary" isDisabled={classId === null || historyState === 'loading'} onPress={() => void loadHistory()}>{historyState === 'loading' ? <Spinner size="sm" /> : <History className="size-4" />}Carregar histórico</Button><Button variant="primary" isDisabled={selectedSnapshots.length === 0 || downloadState === 'loading'} onPress={() => void downloadSelected()}>{downloadState === 'loading' ? <Spinner size="sm" /> : <FileDown className="size-4" />}Baixar selecionados ({selectedSnapshots.length})</Button></div>{historyState === 'empty' && <p className="text-sm text-muted">Nenhum boletim emitido para esta turma.</p>}{historyState === 'ready' && <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{history.map((item) => { const key = `${item.snapshotId}:${item.snapshotVersion}`; const selected = selectedSnapshots.includes(key); const disabled = !selected && selectedSnapshots.length >= 3; return <Button key={key} variant={selected ? 'primary' : 'outline'} isDisabled={disabled} aria-pressed={selected} className="h-auto min-h-20 justify-start p-3 text-left" onPress={() => setSelectedSnapshots(selected ? selectedSnapshots.filter((value) => value !== key) : [...selectedSnapshots, key])}><span className="min-w-0"><span className="block truncate font-semibold">{item.studentName}</span><span className="mt-1 block text-xs opacity-80">{item.className} · {item.period.kind === 'annual' ? 'Anual + REC' : `${item.period.term}º trimestre`} · v{item.snapshotVersion}</span><span className="mt-1 block text-xs opacity-70">Emitido em {formatDate(item.emittedAt)}</span></span></Button>; })}</div>}{downloadMessage && <p className={`text-sm ${downloadState === 'unavailable' ? 'text-danger' : 'text-success'}`}>{downloadMessage}</p>}</Card.Content></Card>
+        <Card><Card.Header><div className="flex items-center gap-2 text-primary"><ArchiveRestore className="size-5" /><Card.Title>Reimpressão de boletins emitidos</Card.Title></div><Card.Description>Somente snapshots imutáveis V2. Selecione até 3 documentos por vez.</Card.Description></Card.Header><Card.Content className="grid gap-3"><div className="flex flex-wrap gap-2">{(historyState === 'idle' || historyState === 'unavailable') && <Button variant="secondary" isDisabled={classId === null} onPress={() => void loadHistory()}><History className="size-4" />{historyState === 'idle' ? 'Carregar histórico' : 'Tentar histórico novamente'}</Button>}<Button variant="primary" isDisabled={selectedSnapshots.length === 0 || downloadState === 'loading'} onPress={() => void downloadSelected()}>{downloadState === 'loading' ? <Spinner size="sm" /> : <FileDown className="size-4" />}Baixar selecionados ({selectedSnapshots.length})</Button></div>{historyState === 'empty' && <p className="text-sm text-muted">Nenhum boletim emitido para esta turma.</p>}{historyState === 'ready' && <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{history.map((item) => { const key = `${item.snapshotId}:${item.snapshotVersion}`; const selected = selectedSnapshots.includes(key); const disabled = !selected && selectedSnapshots.length >= 3; return <Button key={key} variant={selected ? 'primary' : 'outline'} isDisabled={disabled} aria-pressed={selected} className="h-auto min-h-20 justify-start p-3 text-left" onPress={() => setSelectedSnapshots(selected ? selectedSnapshots.filter((value) => value !== key) : [...selectedSnapshots, key])}><span className="min-w-0"><span className="block truncate font-semibold">{item.studentName}</span><span className="mt-1 block text-xs opacity-80">{item.className} · {item.period.kind === 'annual' ? 'Anual + REC' : `${item.period.term}º trimestre`} · v{item.snapshotVersion}</span><span className="mt-1 block text-xs opacity-70">Emitido em {formatDate(item.emittedAt)}</span></span></Button>; })}</div>}{downloadMessage && <p className={`text-sm ${downloadState === 'unavailable' ? 'text-danger' : 'text-success'}`}>{downloadMessage}</p>}</Card.Content></Card>
       </>}
     </div>
   );

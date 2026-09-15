@@ -12,6 +12,7 @@ import {
   type OperationsPropsV1,
 } from '../overview/operations-values-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
+import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import {
   createSessionMutationV1,
   type RevokeCommandV1,
@@ -200,9 +201,7 @@ function SessionsBodyV1(props: OperationsPropsV1) {
             <h2>Sessões</h2>
             <p>{props.scopeLabel} · 2026</p>
           </div>
-          <Button variant="secondary" isDisabled={busy || !read.canReload} onPress={read.reload}>
-            Atualizar sessões
-          </Button>
+          <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
         </div>
       </Card.Header>
       <Card.Content>

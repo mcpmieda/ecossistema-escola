@@ -3,6 +3,8 @@ import { Button, Card, Chip, Modal, Spinner } from '@heroui/react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { settingsScopeKeyV1, settingsScopeLabelV1 } from '../settings/settings-values-v1';
+import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
+import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import {
   PUBLICATION_CHECKS_V1,
   createPublicationControllerV1,
@@ -368,10 +370,17 @@ function PublicationScopeV1({
     view.readRetryAt,
     view.mutation.state === 'error' ? view.mutation.retryAt : 0,
   );
+  const busy =
+    view.mutation.state === 'sending' ||
+    (view.mutation.state === 'accepted' && view.mutation.observation === 'observing');
   useEffect(() => {
     void controller.load();
     return () => controller.reset();
   }, [controller]);
+  useLiveRefreshV1(controller.refresh, {
+    domains: ['portal', 'gradebook'],
+    canRefresh: () => review === null && view.mutation.state !== 'error' && !busy,
+  });
   useEffect(() => {
     if (view.mutation.state === 'error' || view.mutation.state === 'accepted') setReview(null);
   }, [view.mutation.state]);
@@ -381,9 +390,6 @@ function PublicationScopeV1({
     const timer = setInterval(() => setClock(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [view.mutation, view.load.state, retryAt]);
-  const busy =
-    view.mutation.state === 'sending' ||
-    (view.mutation.state === 'accepted' && view.mutation.observation === 'observing');
   const reload = () => {
     setReview(null);
     setNotice(null);
@@ -414,14 +420,7 @@ function PublicationScopeV1({
           <h2>Publicação de períodos</h2>
           <p>{label}</p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          isDisabled={busy || review !== null || view.refreshing || clock < retryAt}
-          onPress={reload}
-        >
-          Recarregar publicação
-        </Button>
+        <LiveReadNoticeV1 failed={view.load.state === 'ready' && Boolean(view.load.refreshError)} />
       </header>
       <p>
         Importar notas e publicar são operações separadas. Cada período mantém sua própria decisão;

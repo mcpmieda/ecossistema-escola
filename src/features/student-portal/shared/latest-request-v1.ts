@@ -14,6 +14,10 @@ export function createLatestPortalRequestV1<T>(publish: (state: PortalLoadStateV
   let verifiedAt = 0;
   const emit = (next: PortalLoadStateV1<T>) => { state = next; publish(next); };
   return {
+    cancel() {
+      generation += 1; active?.abort(); active = undefined;
+      if (state.state === 'ready') emit({ ...state, refreshing: false });
+    },
     clear() {
       generation += 1; active?.abort(); active = undefined; verifiedAt = 0; emit({ state: 'idle' });
     },

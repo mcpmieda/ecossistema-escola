@@ -6,6 +6,7 @@ import type {
   RelationalCouncilWorkspaceV3,
 } from '../../../../shared/gradebook-contracts/council/relational-council-v3';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
+import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { requestRelationalCouncilV3 } from './relational-council-client-v3';
 
 type CouncilClass = Extract<RelationalCouncilResponseV3, { state: 'ready'; operation: 'classes' }>['classes'][number];
@@ -25,51 +26,70 @@ export function useRelationalCouncilV3() {
   const [classId, setClassId] = useState<number | null>(null);
   const [workspace, setWorkspace] = useState<RelationalCouncilWorkspaceV3 | null>(null);
   const [failure, setFailure] = useState<RelationalCouncilFailureV3 | null>(null);
+  const [stale, setStale] = useState(false);
   const [busy, setBusy] = useState({ classes: true, workspace: false, command: false });
   const classesController = useRef<AbortController | null>(null);
   const workspaceController = useRef<AbortController | null>(null);
   const sequence = useRef(0);
+  const draftProtected = useRef(false);
+  const selectedClass = useRef<number | null>(null);
 
   const loseAccess = useCallback(() => {
-    clearAuthorization?.(); setClasses([]); setClassId(null); setWorkspace(null);
+    clearAuthorization?.(); selectedClass.current = null; setClasses([]); setClassId(null); setWorkspace(null);
     setFailure('not-authorized'); setBusy({ classes: false, workspace: false, command: false });
   }, [clearAuthorization]);
 
-  const loadClasses = useCallback(async () => {
+  const loadClasses = useCallback(async (background = false) => {
     if (year === null) return;
     classesController.current?.abort();
     const controller = new AbortController(); classesController.current = controller;
-    setBusy((current) => ({ ...current, classes: true })); setFailure(null);
+    if (!background) { setBusy((current) => ({ ...current, classes: true })); setFailure(null); }
     try {
       const response = await requestRelationalCouncilV3({ contractVersion: 3, operation: 'classes', year, offset: 0, limit: PAGE_SIZE }, controller.signal);
       if (controller.signal.aborted) return;
       if (response.state === 'not-authorized') { loseAccess(); return; }
-      if (response.state !== 'ready' || response.operation !== 'classes') { setFailure(response.state === 'ready' ? 'unavailable' : response.state); return; }
+      if (response.state !== 'ready' || response.operation !== 'classes') {
+        if (background) setStale(true); else setFailure(response.state === 'ready' ? 'unavailable' : response.state);
+        return;
+      }
       setClasses(response.classes);
-      setClassId((current) => current !== null && response.classes.some((item) => item.id === current) ? current : null);
+      if (selectedClass.current !== null && !response.classes.some((item) => item.id === selectedClass.current)) {
+        selectedClass.current = null; setClassId(null); setWorkspace(null);
+      }
+      setStale(false);
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) setFailure('unavailable');
+      if (!(error instanceof DOMException && error.name === 'AbortError')) {
+        if (background) setStale(true); else setFailure('unavailable');
+      }
     } finally {
-      if (!controller.signal.aborted) setBusy((current) => ({ ...current, classes: false }));
+      if (!background && !controller.signal.aborted) setBusy((current) => ({ ...current, classes: false }));
     }
   }, [year, loseAccess]);
 
-  const loadWorkspace = useCallback(async (target: number) => {
-    if (year === null) return;
+  const loadWorkspace = useCallback(async (target: number, background = false) => {
+    if (year === null || (background && draftProtected.current)) return;
     workspaceController.current?.abort();
     const controller = new AbortController(); workspaceController.current = controller;
     const ticket = ++sequence.current;
-    setBusy((current) => ({ ...current, workspace: true })); setFailure(null);
+    if (!background) { setBusy((current) => ({ ...current, workspace: true })); setFailure(null); }
     try {
       const response = await requestRelationalCouncilV3({ contractVersion: 3, operation: 'workspace', year, classId: target }, controller.signal);
       if (controller.signal.aborted || ticket !== sequence.current) return;
       if (response.state === 'not-authorized') { loseAccess(); return; }
-      if (response.state !== 'ready' || response.operation === 'classes') { setFailure(response.state === 'ready' ? 'unavailable' : response.state); setWorkspace(null); return; }
+      if (response.state !== 'ready' || response.operation === 'classes') {
+        if (background) setStale(true);
+        else { setFailure(response.state === 'ready' ? 'unavailable' : response.state); setWorkspace(null); }
+        return;
+      }
+      if (background && draftProtected.current) return;
       setWorkspace(response.workspace);
+      setStale(false);
     } catch (error) {
-      if (!(error instanceof DOMException && error.name === 'AbortError') && ticket === sequence.current) setFailure('unavailable');
+      if (!(error instanceof DOMException && error.name === 'AbortError') && ticket === sequence.current) {
+        if (background) setStale(true); else setFailure('unavailable');
+      }
     } finally {
-      if (!controller.signal.aborted && ticket === sequence.current) setBusy((current) => ({ ...current, workspace: false }));
+      if (!background && !controller.signal.aborted && ticket === sequence.current) setBusy((current) => ({ ...current, workspace: false }));
     }
   }, [year, loseAccess]);
 
@@ -78,8 +98,19 @@ export function useRelationalCouncilV3() {
     return () => { classesController.current?.abort(); workspaceController.current?.abort(); sequence.current += 1; };
   }, [loadClasses]);
 
+  const refresh = useCallback(async () => {
+    if (busy.command || draftProtected.current || failure === 'not-authorized') return;
+    await loadClasses(true);
+    if (classId !== null && !draftProtected.current) await loadWorkspace(classId, true);
+  }, [busy.command, classId, failure, loadClasses, loadWorkspace]);
+  useLiveRefreshV1(refresh, {
+    domains: ['gradebook'], enabled: year !== null,
+    canRefresh: () => !busy.classes && !busy.workspace && !busy.command && !draftProtected.current,
+  });
+
   async function selectClass(next: number | null) {
     workspaceController.current?.abort(); sequence.current += 1;
+    selectedClass.current = next;
     setClassId(next); setWorkspace(null); setFailure(null);
     if (next !== null) await loadWorkspace(next);
   }
@@ -113,5 +144,6 @@ export function useRelationalCouncilV3() {
     }
   }
 
-  return { year, classes, classId, workspace, failure, busy, loadClasses, loadWorkspace, selectClass, command };
+  return { year, classes, classId, workspace, failure, stale, busy, loadClasses, loadWorkspace,
+    protectDrafts: (value: boolean) => { draftProtected.current = value; }, selectClass, command };
 }
