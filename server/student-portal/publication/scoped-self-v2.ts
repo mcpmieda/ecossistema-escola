@@ -59,12 +59,12 @@ export async function scopedSelfV2(tx: StudentPortalPostgresQueryV1, context: Co
       accepted[index] = revision;
       usedLegacy = true;
     }
-    // A student added or moved after a frozen release has no matching edition in that cohort.
-    for (const { officialOutcome: _outcome, ...subject } of available) {
+    for (const subject of available) {
       const selected = subject.periods.filter((item) => item.period === period && hasFacts(item));
       if (!selected.length) continue;
       const existing = subjects.get(subject.subjectId);
-      subjects.set(subject.subjectId, { ...subject, periods: [...(existing?.periods ?? []), ...selected] });
+      subjects.set(subject.subjectId, { subjectId: subject.subjectId, label: subject.label, order: subject.order,
+        periods: [...(existing?.periods ?? []), ...selected] });
     }
   }
   const sameState = finalSource ? finalSource.student.profile.academicState === context.profile.academicState
