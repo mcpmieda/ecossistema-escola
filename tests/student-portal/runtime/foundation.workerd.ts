@@ -213,7 +213,7 @@ describe('bundled Worker foundation in actual workerd', () => {
     ).toBe(404);
     const caller = await workerForTest('caller');
     expect((await caller.fetch(`${origin}/probe-self-admin`)).status).toBe(403);
-    expect((await caller.fetch(`${origin}/admin-http`)).status).toBe(404);
+    expect((await caller.fetch(`${origin}/admin-http`)).status).toBe(403);
   });
   it('bounds auth bodies and rejects malformed login before unavailable dependencies', async () => {
     const worker = await workerForTest('portal');

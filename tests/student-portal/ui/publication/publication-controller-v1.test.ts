@@ -235,7 +235,7 @@ describe('publication command and bounded observation', () => {
     await vi.waitFor(() =>
       expect(mock.state().mutation).toMatchObject({ observation: 'unconfirmed' }),
     );
-    expect(mock.state().load.state).toBe('error');
+    expect(mock.state().load).toMatchObject({ state: 'ready', refreshError: { state: 'rate-limited' } });
     expect(mock.writes).toHaveLength(1);
     mock.controller.reset();
   });

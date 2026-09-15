@@ -16,6 +16,8 @@ import {
 import { birthDirtyV1, validBirthYearV1, type BirthDraftRowV1 } from './birth-values-v1';
 import type { BirthCursorsV1, BirthScopeV1 } from './birth-read-v1';
 import { BirthDiscardDialogV1, BirthReviewDialogV1 } from './birth-review-v1';
+import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
+import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import './student-birth-years-v1.css';
 
 export interface StudentBirthYearsPropsV1 {
@@ -125,6 +127,14 @@ function BirthPageBodyV1(
     return () => editor.clear();
   }, [editor]);
   useEffect(() => {
+    // A confirmed batch is reconciled automatically before another edit; no second write is issued.
+    if (state.batch.state === 'complete') void editor.load();
+  }, [editor, state.batch.state]);
+  useLiveRefreshV1(editor.refresh, {
+    domains: ['portal', 'gradebook'],
+    canRefresh: editor.canRefresh,
+  });
+  useEffect(() => {
     if (state.review || !restoreReviewFocus.current) return;
     restoreReviewFocus.current = false;
     const target = reviewTrigger.current;
@@ -178,13 +188,17 @@ function BirthPageBodyV1(
     <Card aria-label="Anos de nascimento">
       <Card.Header>
         <h3>{props.scopeLabel}</h3>
-        <Button
-          variant="secondary"
-          isDisabled={active || !!state.review || clock < retryAt || state.state === 'loading'}
-          onPress={() => navigate('reload')}
-        >
-          Recarregar dados
-        </Button>
+        <LiveReadNoticeV1 failed={Boolean(state.refreshError)} />
+        {(state.state === 'error' || (state.singleFailure && !state.singleFailure.retryable)
+          || state.batch.state === 'error' || state.batch.reason === 'expired') && (
+          <Button
+            variant="secondary"
+            isDisabled={active || !!state.review || clock < retryAt || state.state === 'loading'}
+            onPress={() => navigate('reload')}
+          >
+            Recarregar e revisar
+          </Button>
+        )}
       </Card.Header>
       <Card.Content>
         <p>

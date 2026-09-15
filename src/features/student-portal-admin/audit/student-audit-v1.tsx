@@ -31,6 +31,7 @@ import {
 } from '../overview/operations-values-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { createAuditDetailV1, type AuditDetailStateV1 } from './audit-detail-v1';
+import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 const eventLabels: Record<NonNullable<AdminQueryV1['event']>, string> = {
   login: 'Entrada',
   'login-failed': 'Tentativa de entrada',
@@ -163,16 +164,7 @@ function AuditBodyV1(props: OperationsPropsV1) {
             <h2>Auditoria</h2>
             <p>{props.scopeLabel} · 2026</p>
           </div>
-          <Button
-            variant="secondary"
-            isDisabled={!read.canReload}
-            onPress={() => {
-              close();
-              read.reload();
-            }}
-          >
-            Atualizar auditoria
-          </Button>
+          <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
         </div>
       </Card.Header>
       <Card.Content>

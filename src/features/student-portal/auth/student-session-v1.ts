@@ -32,7 +32,7 @@ export function createStudentSessionV1(
   };
   const latest = createLatestPortalRequestV1<SelfResponseV1>((load) => {
     if (disposed) return;
-    if (load.state === 'loading' && preserve) return;
+    if (preserve && (load.state === 'loading' || (load.state === 'ready' && load.refreshing))) return;
     lastLoad = load;
     clearTimeout(timer);
     publish(load);
@@ -60,7 +60,7 @@ export function createStudentSessionV1(
       expiresAt = Date.parse(session.expiresAt);
       if (expiresAt <= now()) throw new PortalClientErrorV1('unauthenticated', 401);
       return data;
-    });
+    }, { background: preserve });
     pending = request;
     try {
       await request;
@@ -120,8 +120,8 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
       client,
       (next) => {
         currentLoad = next;
-        readRetryAt = next.state === 'error'
-          ? Date.now() + (next.error.retryAfterSeconds ?? 0) * 1000 : 0;
+        const error = next.state === 'error' ? next.error : next.state === 'ready' ? next.refreshError : undefined;
+        readRetryAt = error ? Date.now() + Math.max(5, error.retryAfterSeconds ?? 0) * 1000 : 0;
         setLoad(next);
       },
       setLogoutState,
@@ -134,7 +134,7 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
       // A native file picker returns focus without restoring a protected page.
       // Keep its input/decoder mounted once the server has confirmed no session.
       if (currentLoad.state === 'error' && currentLoad.error.state === 'unauthenticated') return;
-      if (document.visibilityState !== 'hidden') void current.refresh(true);
+      if (document.visibilityState !== 'hidden' && navigator.onLine !== false && Date.now() >= readRetryAt) void current.refresh(true);
     };
     // Clear synchronously before the browser can freeze a protected DOM in its history cache.
     const hide = () => flushSync(() => current.clear());
@@ -152,6 +152,7 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
     window.addEventListener('pageshow', resume);
     window.addEventListener('popstate', resume);
     window.addEventListener('focus', focus);
+    window.addEventListener('online', focus);
     document.addEventListener('visibilitychange', visibility);
     resume();
     return () => {
@@ -162,6 +163,7 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
       window.removeEventListener('pageshow', resume);
       window.removeEventListener('popstate', resume);
       window.removeEventListener('focus', focus);
+      window.removeEventListener('online', focus);
       document.removeEventListener('visibilitychange', visibility);
     };
   }, [client]);

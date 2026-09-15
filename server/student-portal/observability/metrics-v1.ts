@@ -4,7 +4,7 @@ import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '.
 const count = z.number().int().nonnegative().safe();
 export const portalMetricV1 = z.object({
   event: z.literal('student-portal-operation-v1'),
-  operation: z.enum(['auth', 'self', 'admin-query', 'admin-command', 'cleanup', 'publication']),
+  operation: z.enum(['auth', 'self', 'admin-query', 'admin-command', 'cleanup', 'publication', 'live', 'live-drain']),
   outcome: z.enum(['ok', 'denied', 'unavailable']),
   elapsedMs: count, queries: count, rows: count, lockTimeouts: count, statementTimeouts: count,
 }).strict();

@@ -1,3 +1,4 @@
+import { notifyLiveChangeV1 } from '../../../shared/live-data/live-refresh-v1';
 import {
   relationalCouncilRequestSchemaV3,
   relationalCouncilResponseMatchesV3,
@@ -28,5 +29,6 @@ export async function requestRelationalCouncilV3(
   const parsed = relationalCouncilResponseSchemaV3.safeParse(value);
   if (!parsed.success || !relationalCouncilResponseMatchesV3(request, parsed.data)) return unavailable;
   if (!response.ok && parsed.data.state === 'ready') return unavailable;
+  if (parsed.data.state === 'ready' && request.operation !== 'classes' && request.operation !== 'workspace') notifyLiveChangeV1('gradebook');
   return parsed.data;
 }

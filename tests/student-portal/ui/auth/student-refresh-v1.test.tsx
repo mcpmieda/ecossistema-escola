@@ -82,7 +82,7 @@ it('honors Retry-After after a transient background failure and recovers through
   await settle();
   client.session.mockRejectedValueOnce(new PortalClientErrorV1('unavailable', 503, 90));
   await advance(STUDENT_REFRESH_INTERVAL_V1);
-  expect(result.current.load).toMatchObject({ state: 'error', error: { state: 'unavailable' } });
+  expect(result.current.load).toMatchObject({ state: 'ready', data: SYNTHETIC_SELF_V1, refreshError: { state: 'unavailable' } });
   await advance(STUDENT_REFRESH_INTERVAL_V1 * 2);
   expect(client.session).toHaveBeenCalledTimes(2);
   await advance(STUDENT_REFRESH_INTERVAL_V1);

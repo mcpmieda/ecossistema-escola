@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card, Chip, Modal, Spinner } from '@heroui/react';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
@@ -21,6 +21,8 @@ import {
   type SettingsFieldV1,
 } from './settings-values-v1';
 import { LinkClosureV1 } from './link-closure-v1';
+import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
+import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import './student-settings-v1.css';
 
 type ReviewIntentV1 =
@@ -55,6 +57,7 @@ function FieldCardV1({
   canWrite,
   sourceLabel,
   review,
+  onDirtyChange,
 }: {
   field: SettingsFieldV1;
   settings: EffectiveSettingsV1;
@@ -62,9 +65,23 @@ function FieldCardV1({
   canWrite: boolean;
   sourceLabel: string;
   review: (review: ReviewIntentV1) => void;
+  onDirtyChange: (field: SettingsFieldV1, dirty: boolean) => void;
 }) {
-  const [draft, setDraft] = useState(() => settingsDraftV1(field, settings.value));
+  const sourceDraft = useMemo(() => settingsDraftV1(field, settings.value), [field, settings]);
+  const sourceKey = JSON.stringify(sourceDraft);
+  const [draft, setDraft] = useState(sourceDraft);
+  const precedingSource = useRef(sourceKey);
   const [error, setError] = useState<string | null>(null);
+  const dirty = JSON.stringify(draft) !== sourceKey;
+  useEffect(() => {
+    const wasDirty = JSON.stringify(draft) !== precedingSource.current;
+    precedingSource.current = sourceKey;
+    if (!wasDirty) setDraft(sourceDraft);
+  }, [sourceDraft, sourceKey]);
+  useEffect(() => {
+    onDirtyChange(field, dirty);
+    return () => onDirtyChange(field, false);
+  }, [dirty, field, onDirtyChange]);
   const owns = ownsSettingV1(settings, field);
   function prepare() {
     try {
@@ -244,11 +261,13 @@ function SettingsScopeV1({
   const [notice, setNotice] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [clock, setClock] = useState(Date.now);
+  const [discardVersion, setDiscardVersion] = useState(0);
+  const [dirtyFields, setDirtyFields] = useState<Set<SettingsFieldV1>>(() => new Set());
   const request = useMemo(() => createLatestPortalRequestV1<EffectiveSettingsV1>(setLoad), []);
   const writer = useMemo(() => createSettingsMutationV1(client, setMutation), [client]);
   const label = scopeLabel ?? settingsScopeLabelV1(fixedScope);
   const reload = useCallback(
-    () =>
+    (background = false) =>
       request.run(async (signal) => {
         const result = await client.query(
           { contractVersion: 1, operation: 'settings', scope: fixedScope, page: { limit: 50 } },
@@ -260,11 +279,11 @@ function SettingsScopeV1({
         )
           throw new PortalClientErrorV1('invalid-response');
         return result.settings;
-      }),
+      }, { background }),
     [client, fixedScope, request],
   );
   useEffect(() => {
-    void reload();
+    void reload(false);
     return () => request.clear();
   }, [reload, request]);
   useEffect(() => () => writer.clear(), [writer]);
@@ -284,7 +303,7 @@ function SettingsScopeV1({
     setReview(null);
     setNotice('Configuração salva. Confira o estado atualizado abaixo.');
     writer.clear();
-    void reload();
+    void reload(true);
     onCommitted?.();
   }, [mutation, onCommitted, reload, writer]);
   useEffect(() => {
@@ -300,17 +319,32 @@ function SettingsScopeV1({
     }
   }, [canWrite, writer]);
   const busy = mutation.state === 'pending' || closing;
+  const onDirtyChange = useCallback((field: SettingsFieldV1, dirty: boolean) => {
+    setDirtyFields((previous) => {
+      if (previous.has(field) === dirty) return previous;
+      const next = new Set(previous);
+      if (dirty) next.add(field); else next.delete(field);
+      return next;
+    });
+  }, []);
   const discardAndReload = useCallback(() => {
     writer.clear();
     setReview(null);
     setNotice(null);
-    void reload();
+    setDiscardVersion((value) => value + 1);
+    setDirtyFields(new Set());
+    void reload(false);
   }, [reload, writer]);
   const linksClosed = useCallback(() => {
     setNotice('Vínculos de 2026 encerrados. O histórico foi preservado.');
-    void reload();
+    void reload(true);
     onCommitted?.();
   }, [onCommitted, reload]);
+  useLiveRefreshV1(() => reload(true), {
+    domains: ['portal', 'gradebook'],
+    canRefresh: () => load.state === 'ready' && !load.refreshing && dirtyFields.size === 0
+      && review === null && mutation.state === 'idle' && !closing,
+  });
   async function confirm() {
     if (!canWrite || busy || !review || load.state !== 'ready') return;
     const common = {
@@ -345,9 +379,12 @@ function SettingsScopeV1({
           <h2>Configurações do Portal</h2>
           <p>{label}</p>
         </div>
-        <Button size="sm" variant="outline" isDisabled={busy} onPress={discardAndReload}>
-          Descartar edições e recarregar
-        </Button>
+        <LiveReadNoticeV1 failed={load.state === 'ready' && Boolean(load.refreshError)} />
+        {dirtyFields.size > 0 ? (
+          <Button size="sm" variant="outline" isDisabled={busy} onPress={discardAndReload}>
+            Descartar edições e recarregar
+          </Button>
+        ) : null}
       </header>
       <p>
         As configurações seguem escola → turma → aluno. Cada campo mostra sua origem; salvar no
@@ -368,7 +405,7 @@ function SettingsScopeV1({
                 ? 'Sem permissão para consultar este escopo.'
                 : 'Configuração indisponível. Não é possível editar sem uma política válida do servidor.'}
           </p>
-          <Button size="sm" variant="secondary" onPress={() => void reload()}>
+          <Button size="sm" variant="secondary" onPress={() => void reload(false)}>
             Tentar carregar novamente
           </Button>
         </div>
@@ -402,13 +439,14 @@ function SettingsScopeV1({
           <div className="pa-settings-fields">
             {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map((field) => (
               <FieldCardV1
-                key={`${load.data.version}:${field}`}
+                key={`${discardVersion}:${field}`}
                 field={field}
                 settings={load.data}
                 canWrite={canWrite}
                 disabled={busy || mutation.state === 'error' || review !== null}
                 sourceLabel={sourceLabel(load.data.sources[field])}
                 review={(intent) => setReview({ ...intent, expectedVersion: load.data.version })}
+                onDirtyChange={onDirtyChange}
               />
             ))}
           </div>

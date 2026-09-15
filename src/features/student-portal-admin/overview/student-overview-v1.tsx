@@ -1,3 +1,4 @@
+import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertDialog, Button, Card, Chip } from '@heroui/react';
 import { OperationsScopeV1 } from './operations-scope-v1';
@@ -149,9 +150,7 @@ function OverviewBodyV1(props: OperationsPropsV1) {
             <h2>Visão geral do Portal</h2>
             <p>{props.scopeLabel} · 2026</p>
           </div>
-          <Button variant="secondary" isDisabled={!read.canReload} onPress={read.reload}>
-            Atualizar visão geral
-          </Button>
+          <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
         </div>
       </Card.Header>
       <Card.Content>

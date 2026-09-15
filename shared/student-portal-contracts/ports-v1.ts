@@ -95,3 +95,6 @@ export interface PortalAdminEntrypointV1 {
   query(context: TrustedAdminContextV1, request: AdminQueryV1 | AdminReadQueryV2): Promise<AdminResponseV1 | AdminReadResponseV2 | FailureV1>;
   command(context: TrustedAdminContextV1, request: AdminCommandV1): Promise<AdminResponseV1 | FailureV1>;
 }
+export interface PortalAdminServiceBindingV1 extends PortalAdminEntrypointV1 {
+  fetch?(request: Request): Promise<Response>;
+}

@@ -12,9 +12,10 @@ import { scopedPublicationEnabledV2 } from '../publication/scoped-source-v2';
 import { portalFailureV1, portalJsonV1, portalRequestOriginAllowedV1 } from '../runtime/http-v1';
 import { portalKeysV1, type PortalCompositionEnvV1 } from './config-v1';
 import { portalDatabaseV1 } from './database-v1';
+import { connectPortalLiveV1 } from '../live/live-connect-v1';
 
 const paths = new Set(['/api/student/auth/challenge', '/api/student/auth/activate', '/api/student/auth/login',
-  '/api/student/auth/logout', '/api/student/session', '/api/student/me']);
+  '/api/student/auth/logout', '/api/student/session', '/api/student/me', '/api/student/live']);
 
 export async function servePortalSelfV1(request: Request, env: PortalCompositionEnvV1): Promise<Response> {
   if (!portalRequestOriginAllowedV1(request, env.PORTAL_ENVIRONMENT, env.PORTAL_ORIGIN))
@@ -41,6 +42,27 @@ export async function servePortalSelfV1(request: Request, env: PortalComposition
       const keys = portalKeysV1(env);
       return portalDatabaseV1(env, 'self', (sql) => new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads).read(token, requestId));
     };
+    if (path === '/api/student/live') {
+      if (request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket')
+        return portalJsonV1(portalFailureV1('invalid-request'), 400);
+      if (portalServingGateV1(env.PORTAL_SERVING_ENABLED))
+        return portalJsonV1(portalFailureV1('unavailable'), 503);
+      const keys = portalKeysV1(env);
+      const identity = await portalDatabaseV1(env, 'live', (sql) =>
+        new SessionServiceV1(sql, keys.cryptoPort, undefined, true).withAuthorized(
+          sessionCookieTokenV1(request), async (context, tx, session) => {
+            if (!context.account.link) return null;
+            const classes = await tx.unsafe(`SELECT class_id FROM student_portal.academic_binding_v1
+              WHERE academic_year=2026 AND student_id=$1 AND status IS DISTINCT FROM 6
+              ORDER BY class_id LIMIT 2`, [context.account.link.studentId]);
+            if (classes.length > 1) throw new Error('student-portal-live-class-ambiguous');
+            return { audience: 'student' as const, expiresAt: session.expiresAt,
+              accountId: context.account.id, studentId: context.account.link.studentId,
+              classId: classes[0]?.class_id === undefined ? null : Number(classes[0].class_id) };
+          }));
+      if (!identity) return portalJsonV1(portalFailureV1('unauthenticated'), 401);
+      return connectPortalLiveV1(env, request, identity);
+    }
     const logout: SessionServiceV1['logout'] = async (token, requestId) => {
       if (portalServingGateV1(env.PORTAL_SERVING_ENABLED)) throw new Error('student-portal-maintenance');
       const keys = portalKeysV1(env);

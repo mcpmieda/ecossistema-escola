@@ -20,6 +20,7 @@ import { AccountDetailV1, type AccountDetailPropsV1 } from './account-detail-v1'
 import { ClassFilterV1 } from './class-filter-v1';
 import { useAccountsReadV1 } from './accounts-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
+import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import {
   accountAccessOriginV1,
   firstAccessLabelV1,
@@ -207,15 +208,9 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
               Página {page + 1}
               {current ? ' · ' + current.items.length + ' contas nesta consulta' : ''}
             </p>
+            <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
             <Button
               ref={listControl}
-              variant="secondary"
-              isDisabled={!read.canReload}
-              onPress={reload}
-            >
-              Atualizar lista
-            </Button>
-            <Button
               variant="secondary"
               isDisabled={page === 0}
               onPress={() => setPage((value) => value - 1)}

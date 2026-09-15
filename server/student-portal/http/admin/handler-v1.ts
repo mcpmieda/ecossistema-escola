@@ -1,11 +1,12 @@
 import { ADMIN_BODY_BYTES_V1, adminCommandV1, adminResponseV1, type AdminCommandV1 } from '../../../../shared/student-portal-contracts/admin-v1';
 import { adminQueryRequestV2, adminReadResponseV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import { ERROR_HTTP_V1, failureV1, type FailureV1 } from '../../../../shared/student-portal-contracts/core-v1';
-import type { PortalAdminEntrypointV1 } from '../../../../shared/student-portal-contracts/ports-v1';
+import type { PortalAdminServiceBindingV1 } from '../../../../shared/student-portal-contracts/ports-v1';
 import type { RuntimeEnv } from '../../../env';
 import { HttpError, readBoundedJson } from '../../../http/security';
 import { portalJsonV1 } from '../../runtime/http-v1';
 import { verifiedPagesContextV1 } from '../../admin-client/pages-context-v1';
+import { readSession } from '../../../auth/session';
 
 function allowed(request: Request, env: RuntimeEnv): boolean {
   const url = new URL(request.url);
@@ -25,11 +26,27 @@ function commandState(command: AdminCommandV1): 'qr' | 'batch' | 'committed' {
 }
 
 /** Standalone ADM Pages adapter; #715 owns routing and the dedicated service binding. */
-export async function servePortalAdminV1(request: Request, env: RuntimeEnv, binding: PortalAdminEntrypointV1): Promise<Response> {
+export async function servePortalAdminV1(request: Request, env: RuntimeEnv, binding: PortalAdminServiceBindingV1): Promise<Response> {
   const requestId = crypto.randomUUID();
   const fail = (state: FailureV1['state']) => portalJsonV1({ contractVersion: 1, requestId, state }, ERROR_HTTP_V1[state]);
   if (!allowed(request, env)) return fail('forbidden');
   const path = new URL(request.url).pathname;
+  if (path === '/api/student-portal/admin/live') {
+    if (request.method !== 'GET' || request.headers.get('upgrade')?.toLowerCase() !== 'websocket')
+      return fail('invalid-request');
+    const context = await verifiedPagesContextV1(request, env, false, requestId);
+    if (typeof context === 'string') return fail(context);
+    const session = await readSession(request, env);
+    if (!session || session.oid.toLowerCase() !== context.actorId.toLowerCase()
+      || typeof binding.fetch !== 'function') return fail('unauthenticated');
+    return binding.fetch(new Request('https://portal-admin.internal/live', { headers: {
+      Upgrade: 'websocket',
+      'x-admin-actor-id': context.actorId,
+      'x-admin-tenant-id': context.tenantId,
+      'x-admin-capability': 'platform.settings.read',
+      'x-admin-expires-at': new Date(session.exp * 1000).toISOString(),
+    } }));
+  }
   const kind = path === '/api/student-portal/admin/query' ? 'query' : path === '/api/student-portal/admin/command' ? 'command' : null;
   if (!kind) return portalJsonV1({ contractVersion: 1, requestId, state: 'unavailable' }, 404);
   if (request.method !== 'POST') return fail('invalid-request');

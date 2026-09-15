@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { adminCommandV1, birthWriteV1 } from '../../../shared/student-portal-contracts/admin-v1';
+import { adminCommandV1, birthWriteV1, savedBirthV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { versionV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { CryptoPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import { StudentPortalPostgresPersistenceV1, type StudentPortalPostgresQueryV1, type StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
@@ -97,10 +97,21 @@ export class BirthYearServiceV1 {
       await store.lockAccounts([item.accountId]);
       const clock = await now(tx);
       const receiptActor = `birth-write:${actor}`;
+      const savedValue = async (version: number) => {
+        if (!command.includeSavedBirth) return {};
+        const current = await store.findAccount(item.accountId);
+        if (!current?.link || current.closedAt !== null || current.version !== version) return {};
+        const birth = await store.readBirth(current.id);
+        const classId = await currentClass(tx, current.id);
+        if (!birth || classId === null) return {};
+        return { savedBirth: savedBirthV1.parse({ accountId: current.id, classId,
+          accountVersion: current.version, version: birth.version, year: birth.year,
+          confirmation: birth.confirmation }) };
+      };
       const receipt = await store.readIdempotency(command.idempotencyKey, receiptActor);
       if (receipt && Date.parse(receipt.expiresAt) > clock.getTime()) {
         if (receipt.requestDigest !== requestDigest) throw new Error('student-portal-birth-idempotency-conflict');
-        return { operationId: receipt.operationId, version: receipt.version };
+        return { operationId: receipt.operationId, version: receipt.version, ...await savedValue(receipt.version) };
       }
       if (receipt) await tx.unsafe('DELETE FROM student_portal.operation_receipt WHERE idempotency_key=$1 AND actor_id=$2', [command.idempotencyKey, receiptActor]);
       const account = await store.findAccount(item.accountId);
@@ -112,7 +123,8 @@ export class BirthYearServiceV1 {
       const version = (await store.findAccount(item.accountId))!.version;
       await store.saveIdempotency({ key: command.idempotencyKey, actorId: receiptActor, requestDigest, operationId,
         version, expiresAt: new Date(clock.getTime() + 86400_000).toISOString() });
-      return { operationId, version };
+      // The surrounding begin() resolves only after COMMIT; the HTTP layer awaits write().
+      return { operationId, version, ...await savedValue(version) };
     }));
   }
 

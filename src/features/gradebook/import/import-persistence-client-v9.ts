@@ -1,3 +1,4 @@
+import { notifyLiveChangeV1 } from '../../../shared/live-data/live-refresh-v1';
 import {
   isGradebookImportPersistenceRequestV9,
   isGradebookImportPersistenceResponseV9,
@@ -37,6 +38,7 @@ export async function persistGradebookCanonicalImportV9(
     }
     const raw = response.headers.get('X-Gradebook-Server-Ms');
     const parsed = raw === null ? NaN : Number(raw);
+    if (value.state === 'applied' || value.state === 'no-changes') notifyLiveChangeV1('gradebook');
     return {
       response: value,
       serverMs: Number.isFinite(parsed) && parsed >= 0 ? parsed : null,

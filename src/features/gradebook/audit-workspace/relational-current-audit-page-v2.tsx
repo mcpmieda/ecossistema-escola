@@ -31,6 +31,8 @@ import {
 } from '../../../../shared/gradebook-contracts/audit/import-diagnostic-treatment-v1';
 import type { GradebookImportDiagnosticsAuditRecordV1 } from '../../../../shared/gradebook-contracts/imports/import-diagnostics-v1';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
+import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
+import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { listGradebookImportDiagnosticsAuditV1 } from '../import/import-diagnostics-client-v1';
 import {
   importDiagnosticTreatmentIdempotencyKeyV1,
@@ -178,9 +180,10 @@ interface FindingProps {
     action: ImportDiagnosticTreatmentActionV1,
     note: string | null,
   ) => Promise<boolean>;
+  readonly onDraftChange: (id: number, dirty: boolean) => void;
 }
 
-function Finding({ value, treatments, treatmentState, busy, feedback, onRecord }: FindingProps) {
+function Finding({ value, treatments, treatmentState, busy, feedback, onRecord, onDraftChange }: FindingProps) {
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState('');
   const blocking = value.severity === 'blocking-error';
@@ -195,6 +198,7 @@ function Finding({ value, treatments, treatmentState, busy, feedback, onRecord }
     if (await onRecord(value, IMPORT_DIAGNOSTIC_TREATMENT_ACTIONS_V1.note, normalized)) {
       setNote('');
       setNoteOpen(false);
+      onDraftChange(value.id, false);
     }
   };
 
@@ -274,7 +278,7 @@ function Finding({ value, treatments, treatmentState, busy, feedback, onRecord }
             variant="secondary"
             isDisabled={busy || treatmentUnavailable}
             aria-expanded={noteOpen}
-            onPress={() => setNoteOpen((current) => !current)}
+            onPress={() => setNoteOpen((current) => { const next = !current; onDraftChange(value.id, next); return next; })}
           >
             <MessageSquarePlus className="size-4" />
             Adicionar anotação
@@ -292,7 +296,7 @@ function Finding({ value, treatments, treatmentState, busy, feedback, onRecord }
                 rows={3}
                 maxLength={IMPORT_DIAGNOSTIC_TREATMENT_LIMITS_V1.noteCharacters}
                 value={note}
-                onChange={(event) => setNote(event.currentTarget.value)}
+                onChange={(event) => { onDraftChange(value.id, true); setNote(event.currentTarget.value); }}
                 placeholder="Registre o acompanhamento realizado. A anotação não altera a nota nem oculta a pendência."
               />
             </TextField>
@@ -308,6 +312,7 @@ function Finding({ value, treatments, treatmentState, busy, feedback, onRecord }
                   onPress={() => {
                     setNote('');
                     setNoteOpen(false);
+                    onDraftChange(value.id, false);
                   }}
                 >
                   Cancelar
@@ -356,16 +361,14 @@ function TreatmentHistory({ year, state, values, nextCursor, onLoad }: Treatment
             Registros humanos preservados mesmo depois que a pendência sai da lista atual.
           </Card.Description>
         </div>
-        <Button
+        {(state === 'idle' || state === 'unavailable') && <Button
           size="sm"
           variant="secondary"
-          isPending={state === 'loading'}
-          isDisabled={state === 'loading'}
           onPress={() => onLoad(null)}
         >
           <RefreshCw className="size-4" />
-          {state === 'idle' ? 'Carregar histórico' : 'Atualizar histórico'}
-        </Button>
+          {state === 'idle' ? 'Carregar histórico' : 'Tentar histórico novamente'}
+        </Button>}
       </Card.Header>
       <Card.Content>
         {state === 'idle' && (
@@ -454,10 +457,13 @@ export function RelationalCurrentAuditPageV2() {
   const [feedback, setFeedback] = useState<Readonly<Record<number, string>>>({});
   const [historyState, setHistoryState] = useState<HistoryState>('idle');
   const [history, setHistory] = useState<readonly ImportDiagnosticTreatmentRecordV1[]>([]);
+  const [draftFindings, setDraftFindings] = useState<ReadonlySet<number>>(() => new Set());
+  const [stale, setStale] = useState(false);
   const [historyNextCursor, setHistoryNextCursor] =
     useState<ImportDiagnosticTreatmentHistoryCursorV1 | null>(null);
   const requestRef = useRef<AbortController | null>(null);
   const historyRequestRef = useRef<AbortController | null>(null);
+  const draftFindingsRef = useRef<ReadonlySet<number>>(new Set());
   const treatmentRetryKeysRef = useRef(new Map<string, string>());
 
   const mergeTreatments = useCallback((incoming: readonly ImportDiagnosticTreatmentRecordV1[]) => {
@@ -508,33 +514,36 @@ export function RelationalCurrentAuditPageV2() {
     [mergeTreatments, year],
   );
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (background = false) => {
     requestRef.current?.abort();
-    setLoadingMore(false);
-    setItems([]);
-    setNextOffset(null);
-    setFeedback({});
+    if (!background) {
+      setLoadingMore(false); setItems([]); setNextOffset(null); setFeedback({});
+    }
     if (year === null) {
       setState('loading');
       return;
     }
     const controller = new AbortController();
     requestRef.current = controller;
-    setState('loading');
+    if (!background) setState('loading');
     try {
       const response = await listGradebookImportDiagnosticsAuditV1(
         { academicYear: year, limit: PAGE_SIZE, offset: 0 },
         controller.signal,
       );
       if (controller.signal.aborted) return;
-      if (response.state === 'not-authorized') return setState('not-authorized');
-      if (response.state !== 'ready') return setState('unavailable');
+      if (response.state === 'not-authorized') { setItems([]); return setState('not-authorized'); }
+      if (response.state !== 'ready') { if (background) setStale(true); else setState('unavailable'); return; }
+      if (background && draftFindingsRef.current.size > 0) return;
       setItems(response.items);
       setNextOffset(response.nextOffset);
       setState(response.items.length === 0 ? 'empty' : 'ready');
       await loadTreatments(response.items, controller.signal);
+      setStale(false);
     } catch (cause) {
-      if (!(cause instanceof DOMException && cause.name === 'AbortError')) setState('unavailable');
+      if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
+        if (background) setStale(true); else setState('unavailable');
+      }
     }
   }, [loadTreatments, year]);
 
@@ -632,16 +641,16 @@ export function RelationalCurrentAuditPageV2() {
   );
 
   const loadHistory = useCallback(
-    async (cursor: ImportDiagnosticTreatmentHistoryCursorV1 | null = null) => {
+    async (cursor: ImportDiagnosticTreatmentHistoryCursorV1 | null = null, background = false) => {
       if (year === null) return;
       historyRequestRef.current?.abort();
       const controller = new AbortController();
       historyRequestRef.current = controller;
-      if (cursor === null) {
+      if (cursor === null && !background) {
         setHistory([]);
         setHistoryNextCursor(null);
       }
-      setHistoryState('loading');
+      if (!background) setHistoryState('loading');
       try {
         const response = await requestImportDiagnosticTreatmentV1(
           {
@@ -655,17 +664,21 @@ export function RelationalCurrentAuditPageV2() {
         );
         if (controller.signal.aborted) return;
         if (response.state !== 'ready' || response.operation !== 'history') {
-          setHistoryState(response.state === 'not-authorized' ? 'not-authorized' : 'unavailable');
+          if (response.state === 'not-authorized') { setHistory([]); setHistoryState('not-authorized'); }
+          else if (background) setStale(true); else setHistoryState('unavailable');
           return;
         }
+        if (background && draftFindingsRef.current.size > 0) return;
         setHistory((current) =>
           cursor === null ? response.items : [...current, ...response.items],
         );
         setHistoryNextCursor(response.nextCursor);
         setHistoryState(response.items.length === 0 && cursor === null ? 'empty' : 'ready');
+        setStale(false);
       } catch (cause) {
-        if (!(cause instanceof DOMException && cause.name === 'AbortError'))
-          setHistoryState('unavailable');
+        if (!(cause instanceof DOMException && cause.name === 'AbortError')) {
+          if (background) setStale(true); else setHistoryState('unavailable');
+        }
       }
     },
     [year],
@@ -678,6 +691,15 @@ export function RelationalCurrentAuditPageV2() {
       historyRequestRef.current?.abort();
     };
   }, [load]);
+
+  useLiveRefreshV1(async () => {
+    await load(true);
+    if ((historyState === 'ready' || historyState === 'empty') && draftFindings.size === 0)
+      await loadHistory(null, true);
+  }, {
+    domains: ['gradebook'], enabled: year !== null,
+    canRefresh: () => state !== 'loading' && !loadingMore && busyTreatments.size === 0 && draftFindings.size === 0,
+  });
 
   const treatmentsByFinding = useMemo(() => {
     const grouped = new Map<string, ImportDiagnosticTreatmentRecordV1[]>();
@@ -739,6 +761,7 @@ export function RelationalCurrentAuditPageV2() {
       {(state === 'empty' || state === 'not-authorized' || state === 'unavailable') && (
         <StateAlert state={state} year={year} />
       )}
+      <LiveReadNoticeV1 failed={stale} />
 
       {state === 'ready' && (
         <>
@@ -830,10 +853,6 @@ export function RelationalCurrentAuditPageV2() {
                     {label}
                   </Button>
                 ))}
-                <Button size="sm" variant="secondary" onPress={() => void load()}>
-                  <RefreshCw className="size-4" />
-                  Atualizar
-                </Button>
               </div>
             </Card.Header>
             <Card.Content>
@@ -850,6 +869,7 @@ export function RelationalCurrentAuditPageV2() {
                       busy={busyTreatments.has(item.id)}
                       feedback={feedback[item.id] || null}
                       onRecord={recordTreatment}
+                      onDraftChange={(id, dirty) => setDraftFindings((current) => { const next = new Set(current); if (dirty) next.add(id); else next.delete(id); draftFindingsRef.current = next; return next; })}
                     />
                   ))}
                 </ol>

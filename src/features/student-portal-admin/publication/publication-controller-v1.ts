@@ -61,7 +61,6 @@ export function createPublicationControllerV1(
     Math.min(PUBLICATION_CHECKS_V1, options.maxChecks ?? PUBLICATION_CHECKS_V1),
   );
   let view = initialPublicationViewV1(),
-    quiet = false,
     mutationGeneration = 0,
     observationGeneration = 0;
   let commandAbort: AbortController | undefined, timer: ReturnType<typeof setTimeout> | undefined;
@@ -69,16 +68,12 @@ export function createPublicationControllerV1(
   let intended: PublicationCommandV1 | undefined;
   const emit = () => publish({ ...view });
   const reader = createLatestPortalRequestV1<PublicationSnapshotV1>((next) => {
-    if (next.state === 'loading' && quiet && view.load.state === 'ready')
-      view = { ...view, refreshing: true };
-    else view = { ...view, load: next, refreshing: false };
-    if (next.state === 'error')
-      view = { ...view, readRetryAt: now() + (next.error.retryAfterSeconds ?? 0) * 1000 };
-    else if (next.state === 'ready') view = { ...view, readRetryAt: 0 };
+    const error = next.state === 'error' ? next.error : next.state === 'ready' ? next.refreshError : undefined;
+    view = { ...view, load: next, refreshing: next.state === 'ready' && Boolean(next.refreshing),
+      readRetryAt: error ? now() + (error.retryAfterSeconds ?? 0) * 1000 : 0 };
     emit();
   });
   const read = async (keepVisible = false) => {
-    quiet = keepVisible;
     await reader.run(async (signal) => {
       const [publication, policy] = await Promise.all([
         client.query(
@@ -91,7 +86,7 @@ export function createPublicationControllerV1(
         ),
       ]);
       return publicationSnapshotV1(ownScope, publication, policy);
-    });
+    }, { background: keepVisible });
   };
   function stopObservation() {
     observationGeneration++;
@@ -104,11 +99,11 @@ export function createPublicationControllerV1(
     await read(true);
     if (generation !== observationGeneration || view.mutation.state !== 'accepted') return;
     const checks = accepted.checks + 1;
-    if (view.load.state !== 'ready') {
-      // A transient read failure is not evidence that the accepted publication failed.
-      // Keep the same bounded observation budget; denial/rate-limit/invalid data stop here.
-      const retryable = view.load.state === 'error'
-        && ['network-error', 'unavailable'].includes(view.load.error.state);
+    if (view.load.state !== 'ready' || view.load.refreshError) {
+      // Retained content cannot confirm a new decision after an unsuccessful read.
+      const error = view.load.state === 'error' ? view.load.error
+        : view.load.state === 'ready' ? view.load.refreshError : undefined;
+      const retryable = error && ['network-error', 'unavailable'].includes(error.state);
       const observation = retryable && checks < maxChecks ? 'observing' : 'unconfirmed';
       view = { ...view, mutation: { ...accepted, checks, observation } };
       emit();
@@ -156,7 +151,7 @@ export function createPublicationControllerV1(
       command = intended,
       operation = prepared;
     stopObservation();
-    reader.clear();
+    reader.cancel();
     const controller = new AbortController();
     commandAbort = controller;
     view = { ...view, mutation: { state: 'sending', command } };
@@ -221,6 +216,13 @@ export function createPublicationControllerV1(
     emit();
   }
   return {
+    async refresh() {
+      if (now() < view.readRetryAt || view.refreshing || view.mutation.state === 'sending'
+        || (view.mutation.state === 'accepted' && view.mutation.observation === 'observing')
+        || view.mutation.state === 'error') return;
+      if (view.load.state === 'error' && !['network-error', 'unavailable', 'rate-limited'].includes(view.load.error.state)) return;
+      await read(true);
+    },
     async load() {
       if (
         now() < view.readRetryAt ||
