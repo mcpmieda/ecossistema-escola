@@ -46,9 +46,9 @@ export class SessionServiceV1 {
     return { accounts, version: versionV1.parse(Number(revision[0]!.version)) };
   }
 
-  /** Read-only CAS metadata does not need a writer's year barrier. */
+  /** This administrative read may be nested in the V1 facade's already-started transaction. */
   async readRevocationScope(scope: ScopeV1) {
-    return readPortalSnapshotV2(this.sql, async (tx) => {
+    return authTransactionV1(this.sql, async (tx) => {
       const snapshot = await this.revocationScope(tx, scope);
       return { version: snapshot.version, count: snapshot.accounts.length };
     });
