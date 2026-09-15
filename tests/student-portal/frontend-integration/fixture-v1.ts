@@ -1,8 +1,16 @@
+import { readFileSync } from 'node:fs';
 import type postgres from 'postgres';
 import { ACADEMIC_FIXTURE_SQL_V1 } from '../academic/academic-fixture-v1';
 
 /** New synthetic namespace on each run; lives only in the disposable cluster. */
 export async function installIntegrationFixtureV1(sql: ReturnType<typeof postgres>) {
+  // The runtime now declares V2 capability, but legacy composition tests deliberately
+  // retain enabled=false. The separate atomic suite proves the activated HTTP path.
+  const migration = await sql.unsafe("SELECT to_regclass('student_portal.publication_control_v2') IS NOT NULL AS installed");
+  if (migration[0]!.installed !== true) {
+    for (const file of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql'])
+      await sql.unsafe(readFileSync('migrations/student-portal/' + file, 'utf8'), [], { prepare: false });
+  }
   // A deterministic free range avoids colliding with runtime fixtures or a prior local QA run.
   const rows = await sql.unsafe(`SELECT GREATEST(
     (SELECT COALESCE(max(id),0) FROM gradebook.turma),
