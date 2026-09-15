@@ -21,10 +21,13 @@ export async function recordResetWriteV1(
   const studentIds = [...new Set(academic.studentIds ?? [])].sort((a, b) => a - b);
   if (studentIds.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw new Error('student-portal-revision-student-invalid');
   if (academic.changed && !['relation', 'marks', 'council'].includes(cause)) throw new Error('student-portal-revision-cause-invalid');
+  // This D1-compatible facade binds numeric flags. Postgres.js serializes a boolean
+  // parameter as true only for JS true, so binding 1 directly to ::boolean sends false.
+  // Bind an integer first and let PostgreSQL perform the explicit boolean conversion.
   const result = await transaction
     .prepare(
       `SELECT reset_version FROM student_portal.record_gradebook_change_v1(
-      ?::uuid,?::smallint,?::text,?::boolean,
+      ?::uuid,?::smallint,?::text,?::integer::boolean,
       ARRAY(SELECT value::integer FROM jsonb_array_elements_text(?::jsonb)),statement_timestamp())`,
     )
     .bind(crypto.randomUUID(), year, cause, academic.changed ? 1 : 0, JSON.stringify(studentIds))
