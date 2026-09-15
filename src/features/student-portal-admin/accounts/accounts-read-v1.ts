@@ -43,7 +43,7 @@ export function useAccountsReadV1<T>(load: (signal: AbortSignal) => Promise<T>) 
     refreshError: state.state === 'ready' ? state.refreshError : undefined,
     canReload: state.state !== 'loading' && (!error || clock >= deadline.current),
     reload: () => {
-      if (Date.now() >= deadline.current) return reader.run(load, { background: state.state === 'ready' });
+      if (Date.now() >= deadline.current) void reader.run(load, { background: state.state === 'ready' });
     },
     clear: reader.clear,
   };

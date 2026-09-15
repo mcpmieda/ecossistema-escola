@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { notifyLiveChangeV1 } from '../../../shared/live-data/live-refresh-v1';
 import {
   adminCommandV1,
   adminQueryV1,
@@ -34,15 +35,18 @@ export function createPortalAdminClientV1(options: PortalTransportOptionsV1 = {}
     const schema = responseFor(commandState(command));
     return {
       execute: async (signal?: AbortSignal) => {
+        let result: AdminResponseV1;
         try {
-          return await send('/api/student-portal/admin/command', schema, signal, body);
+          result = await send('/api/student-portal/admin/command', schema, signal, body);
         } catch (error) {
           signal?.throwIfAborted();
           if (!isAmbiguousPortalResponseV1(error)) throw error;
           // One bounded confirmation replay preserves the exact idempotency key, CAS and bytes.
-          // Domain controllers retain the same prepared command for explicit recovery if this also fails.
-          return send('/api/student-portal/admin/command', schema, signal, body);
+          result = await send('/api/student-portal/admin/command', schema, signal, body);
         }
+        // Hints do not contain the response and never run another command.
+        notifyLiveChangeV1('portal');
+        return result;
       },
     };
   };

@@ -13,7 +13,7 @@ const failures: Record<PerformanceFailureV2, string> = {
   'not-authorized': 'Sua sessão não possui autorização. Entre novamente com uma conta autorizada.',
   'not-found': 'A turma ou o aluno não foi encontrado neste ano e nesta posição atual. Atualize a consulta.',
   'invalid-request': 'Não foi possível interpretar os filtros. Selecione novamente a turma e o período.',
-  unavailable: 'Não foi possível concluir a consulta. Tente novamente; nenhuma nota foi alterada.',
+  unavailable: 'Não foi possível concluir a consulta. A atualização será tentada novamente; nenhuma nota foi alterada.',
   'scope-too-large': 'Esta turma ultrapassa o limite de uma consulta completa. A matriz não foi truncada; o recorte precisa ser ampliado no sistema.',
   'ambiguous-offers': 'Há mais de uma oferta para o mesmo componente nesta turma. Confira as atribuições antes de consultar o resultado.',
 };
@@ -87,7 +87,7 @@ export function RelationalPerformancePageV2() {
       <PerformanceSelect id="comparison" label="Comparar com" value={state.filters.referencePeriod === null ? 'none' : String(state.filters.referencePeriod)} items={comparisonItems} disabled={comparisonDisabled}
         isOpen={openSelect === 'comparison'} onOpenChange={changeOpenSelect}
         onChange={(value) => void state.select({ referencePeriod: value === 'none' ? null : Number(value) as 1 | 2 })}/>
-      <Button variant="primary" className="min-h-10" isDisabled={state.busy.matrix || state.filters.classId === null} onPress={() => void state.select({})}><RefreshCw size={16}/>Atualizar</Button>
+      {state.failure && <Button variant="primary" className="min-h-10" isDisabled={state.busy.matrix || state.filters.classId === null} onPress={() => void state.refresh()}><RefreshCw size={16}/>Tentar atualizar</Button>}
     </div>
     {state.filters.classId !== null ? <Tabs selectedKey={state.filters.lens} className="performance-lens-tabs min-w-0" onSelectionChange={(key) => { if (PERFORMANCE_LENSES_V3.includes(key as PerformanceLensV3)) void state.select({ lens: key as PerformanceLensV3 }); }}>
       <Tabs.ListContainer className="h-10 max-w-full self-start"><Tabs.List aria-label="Lentes de Desempenho">{PERFORMANCE_LENSES_V3.map((lens) => <Tabs.Tab key={lens} id={lens} className="min-w-28">{lensLabel[lens]}<Tabs.Indicator/></Tabs.Tab>)}</Tabs.List></Tabs.ListContainer>
@@ -98,8 +98,8 @@ export function RelationalPerformancePageV2() {
             isOpen={openSelect === 'assessment-component'} onOpenChange={changeOpenSelect}
             items={[{ id: 'none', label: 'Selecione o componente' }, ...state.offers.map((offer) => ({ id: String(offer.id), label: `${offer.subject.label} · ${offer.teacher.label}` }))]}
             onChange={(value) => void state.select({ offerId: value === 'none' ? null : Number(value) })}/></div> : null}
-          {state.comparison ? <PerformanceTermComparisonPanelV4 key={`comparison:${state.comparison.analysis.matrix.readAt}:${JSON.stringify(state.filters)}`} value={state.comparison} open={open}/> : null}
-          {state.analysis && state.dashboard ? <PerformanceAnalysisPanelV3 key={`${state.analysis.matrix.readAt}:${JSON.stringify(state.filters)}`} value={state.analysis} dashboard={state.dashboard} open={open} focusOffer={(offerId) => void state.select({ lens: 'assessments', offerId })} renderResult={(ids) => <PerformanceResultMatrixV2 value={state.analysis!.matrix} open={open} allowedIds={ids} focusOffer={(offerId) => void state.select({ lens: 'assessments', offerId })} statusOptions={state.classes?.statusOptions ?? []} statuses={state.filters.statuses} onStatusesChange={(statuses: PerformanceStatusV2[]) => void state.select({ statuses })}/>}/> : null}
+          {state.comparison ? <PerformanceTermComparisonPanelV4 key={`comparison:${JSON.stringify(state.filters)}`} value={state.comparison} open={open}/> : null}
+          {state.analysis && state.dashboard ? <PerformanceAnalysisPanelV3 key={JSON.stringify(state.filters)} value={state.analysis} dashboard={state.dashboard} open={open} focusOffer={(offerId) => void state.select({ lens: 'assessments', offerId })} renderResult={(ids) => <PerformanceResultMatrixV2 value={state.analysis!.matrix} open={open} allowedIds={ids} focusOffer={(offerId) => void state.select({ lens: 'assessments', offerId })} statusOptions={state.classes?.statusOptions ?? []} statuses={state.filters.statuses} onStatusesChange={(statuses: PerformanceStatusV2[]) => void state.select({ statuses })}/>}/> : null}
         </> : null}
       </Tabs.Panel>)}
     </Tabs> : <div className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-separator bg-surface-secondary/40 p-8 text-center"><div><strong className="text-sm">Escolha uma turma para começar</strong><p className="mt-1 text-xs text-muted">Os indicadores e a matriz serão carregados no mesmo recorte.</p></div></div>}
@@ -108,6 +108,7 @@ export function RelationalPerformancePageV2() {
     <Drawer.Backdrop isOpen={state.detailOpen} onOpenChange={(isOpen) => { if (!isOpen) close(); }}>
       <Drawer.Content placement="right"><Drawer.Dialog className="w-full max-w-full sm:w-[min(52rem,90vw)]"><Drawer.CloseTrigger aria-label="Fechar detalhe"/>
         {detail ? <PerformanceStudentDetailV2 detail={detail} focusPeriod={state.filters.period} openComponent={(id, offerId) => void state.open(id, offerId)} openCenter={(id) => { close(); state.openStudent?.(id); }}/> : <><Drawer.Header><Drawer.Heading>Detalhe do aluno</Drawer.Heading></Drawer.Header><Drawer.Body>{state.busy.detail ? <p role="status">Carregando detalhe…</p> : null}{state.detailFailure ? <p role="alert">{failures[state.detailFailure]}</p> : null}</Drawer.Body></>}
+        {detail && state.detailFailure ? <p role="status">{failures[state.detailFailure]}</p> : null}
         <Drawer.Footer><Button variant="secondary" onPress={close}>Fechar</Button></Drawer.Footer>
       </Drawer.Dialog></Drawer.Content>
     </Drawer.Backdrop>
