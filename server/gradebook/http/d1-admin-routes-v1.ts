@@ -41,7 +41,7 @@ export async function handleGradebookD1AdminRequestV1(request: Request, env: Run
   const production = (env.RUNTIME_ENVIRONMENT ?? 'production') === 'production';
   if (production) {
     if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || env.GRADEBOOK_PRODUCTION_ENABLED !== 'true')
-      return noStoreJson({ state: 'unavailable', provider: 'unconfigured' }, 503);
+      return noStoreJson({ state: 'unavailable', provider: 'unconfigured', error: 'Academic persistence unavailable' }, 503);
     if (pathname === GRADEBOOK_D1_MIGRATIONS_ROUTE)
       return noStoreJson({ state: 'retired', provider: 'postgres', message: 'Production migrations use the reviewed deployment process.' }, 410);
     try {
@@ -56,7 +56,7 @@ export async function handleGradebookD1AdminRequestV1(request: Request, env: Run
           environment: 'production', schema: { status: ready ? 'ready' : 'unavailable' },
           observedAt: new Date().toISOString(), elapsedMs: Math.round(performance.now() - started) }, ready ? 200 : 503);
       });
-    } catch { return noStoreJson({ state: 'unavailable', provider: 'postgres' }, 503); }
+    } catch { return noStoreJson({ state: 'unavailable', provider: 'postgres', error: 'Academic persistence unavailable' }, 503); }
   }
   // Explicit local/preview legacy diagnostics remain available for disposable historical fixtures.
   try {
