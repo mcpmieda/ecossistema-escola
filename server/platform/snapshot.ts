@@ -95,6 +95,30 @@ function retrySeconds(error: unknown): number {
   const value = error instanceof GraphError ? error.retryAfterSeconds : undefined;
   return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? Math.max(30, value) : 30;
 }
+type PlatformSourceFailureStageV2 = 'token' | 'list-catalogue' | 'section';
+function platformSourceFailureKindV2(error: unknown): 'graph-response' | 'timeout' | 'aborted' | 'contract' | 'runtime' {
+  if (error instanceof GraphError) return 'graph-response';
+  if (error instanceof DOMException && error.name === 'TimeoutError') return 'timeout';
+  if (error instanceof DOMException && error.name === 'AbortError') return 'aborted';
+  if (error instanceof z.ZodError) return 'contract';
+  return 'runtime';
+}
+/** Provider bodies and exception messages can contain tenant details. Log only a fixed
+ * classification, numeric status and opaque correlations needed for operations.
+ */
+function logPlatformSourceFailureV2(input: {
+  error: unknown; stage: PlatformSourceFailureStageV2; correlationId: string; section?: PlatformSourceSectionV2;
+}) {
+  const graph = input.error instanceof GraphError ? input.error : undefined;
+  console.warn(JSON.stringify({
+    message: 'platform_microsoft_source_unavailable',
+    stage: input.stage,
+    failureKind: platformSourceFailureKindV2(input.error),
+    correlationId: input.correlationId,
+    ...(input.section ? { section: input.section } : {}),
+    ...(graph ? { providerStatus: graph.status, providerCorrelationId: graph.correlationId } : {}),
+  }));
+}
 /** V2 explicitly identifies unavailable sources. A failure of audit cannot hide healthy
  * configuration data or prevent a native, separately authenticated application from opening.
  */
@@ -112,9 +136,16 @@ export async function getPlatformSnapshotV2(env: RuntimeEnv, capabilities: reado
     signal.throwIfAborted();
     token = await dependencies.token(env);
     signal.throwIfAborted();
+  } catch (error) {
+    requestSignal?.throwIfAborted();
+    logPlatformSourceFailureV2({ error, stage: 'token', correlationId });
+    return { ...buildPlatformSnapshot(source, capabilities), unavailableSections: [...PLATFORM_SOURCE_SECTIONS_V2], retryAfterSeconds: retrySeconds(error) };
+  }
+  try {
     source.lists = await readLists(env, token, dependencies, signal);
   } catch (error) {
     requestSignal?.throwIfAborted();
+    logPlatformSourceFailureV2({ error, stage: 'list-catalogue', correlationId });
     return { ...buildPlatformSnapshot(source, capabilities), unavailableSections: [...PLATFORM_SOURCE_SECTIONS_V2], retryAfterSeconds: retrySeconds(error) };
   }
   const byName = new Map(source.lists.map((list) => [list.displayName, list.id]));
@@ -133,6 +164,7 @@ export async function getPlatformSnapshotV2(env: RuntimeEnv, capabilities: reado
     catch (error) {
       unavailableSections.push(job.section);
       retryAfterSeconds = Math.max(retryAfterSeconds, retrySeconds(error));
+      logPlatformSourceFailureV2({ error, stage: 'section', section: job.section, correlationId });
     }
   }));
   requestSignal?.throwIfAborted();

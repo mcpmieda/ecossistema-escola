@@ -27,7 +27,9 @@ export async function getGraphToken(env: RuntimeEnv, dependencies: GraphDependen
     if (response.status === 429 || response.status >= 500)
       throw new GraphError(response.status, crypto.randomUUID(), wait === undefined ? undefined : Math.ceil(wait / 1000));
   }
-  throw new Error(`Graph token request failed (${lastStatus})`);
+  // Keep the identity provider response body private, but retain the status and an
+  // opaque correlation id so callers can classify an outage without parsing text.
+  throw new GraphError(lastStatus || 503, crypto.randomUUID());
 }
 
 export async function graphRequest<T>(input: {
