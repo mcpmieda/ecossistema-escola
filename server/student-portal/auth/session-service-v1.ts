@@ -7,6 +7,7 @@ import { sessionResponseV1 } from '../../../shared/student-portal-contracts/auth
 import type { CryptoPortV1, PortalTransactionV1 } from '../../../shared/student-portal-contracts/ports-v1';
 import type { StudentPortalPostgresQueryV1, StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { sessionExpiryV1 } from '../policies/calendar-v1';
+import { readPortalSnapshotV2 } from './read-snapshot-v2';
 import { accessContextV1, accountScopeV1, authAuditV1, authInstantV1, authNowV1, authTransactionV1, accountTransactionV1, type AccessContextV1 } from './transaction-v1';
 
 /** Only internal callers see the token. HTTP emits it exclusively as Set-Cookie after commit. */
@@ -22,8 +23,11 @@ export async function createSessionV1(store: PortalTransactionV1, context: Acces
 }
 
 export class SessionServiceV1 {
-  constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly cryptoPort: CryptoPortV1, clientIp?: string | null) {
-    if (clientIp !== undefined) this.sql = withAuditSqlV1(sql, clientIp);
+  constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly cryptoPort: CryptoPortV1,
+    clientIp?: string | null, private readonly snapshotReads = false) {
+    // Read-only snapshots cannot append audit events. In particular, their SET TRANSACTION
+    // must precede the audit wrapper's set_config SELECT, which would start a snapshot too early.
+    if (clientIp !== undefined && !snapshotReads) this.sql = withAuditSqlV1(sql, clientIp);
   }
 
   private async revocationScope(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
@@ -37,8 +41,6 @@ export class SessionServiceV1 {
     scope.kind === 'account' ? [scope.accountId] : scope.kind === 'class' ? [scope.classId] : []);
     const accounts = rows.map((row) => ({ id: z.uuid().parse(row.id), version: versionV1.parse(Number(row.version)) }));
     if (scope.kind === 'account') return { accounts, version: accounts[0]?.version ?? 0 };
-    // Sum the whole year's account versions, not the changing class membership.
-    // Removing an account from a class must never cancel a revision increment (ABA).
     const revision = await tx.unsafe(`SELECT (r.academic_counter+r.portal_link_counter+
       COALESCE((SELECT sum(version) FROM student_portal.account WHERE academic_year=2026),0))::text AS version
       FROM student_portal.academic_revision r WHERE r.academic_year=2026`);
@@ -46,7 +48,7 @@ export class SessionServiceV1 {
     return { accounts, version: versionV1.parse(Number(revision[0]!.version)) };
   }
 
-  /** Private CAS metadata: account aggregate or conservative school-wide revision for broader scopes. */
+  /** This administrative read may be nested in the V1 facade's already-started transaction. */
   async readRevocationScope(scope: ScopeV1) {
     return authTransactionV1(this.sql, async (tx) => {
       const snapshot = await this.revocationScope(tx, scope);
@@ -89,20 +91,21 @@ export class SessionServiceV1 {
     });
   }
 
-  /** The consumer runs before lock release: no stale authorization gap before reading self data. */
+  /** In snapshot mode the consumer must be read-only; its authorization and data cannot tear. */
   async withAuthorized<T>(token: string, operation: (context: AccessContextV1, tx: StudentPortalPostgresQueryV1,
     session: { id: string; expiresAt: string; persistent: boolean }) => Promise<T>): Promise<T | null> {
     if (!opaqueV1.safeParse(token).success) return null;
     const hash = await this.cryptoPort.hashOpaqueToken(token);
-    return accountTransactionV1(this.sql, async (tx, store) => {
+    const transact = this.snapshotReads ? readPortalSnapshotV2 : accountTransactionV1;
+    return transact(this.sql, async (tx, store) => {
       const located = await tx.unsafe('SELECT account_id FROM student_portal.session WHERE token_hash=$1', [hash]);
       if (located.length !== 1) return null;
       const accountId = z.uuid().parse(located[0]!.account_id);
-      await store.lockAccounts([accountId]);
+      if (!this.snapshotReads) await store.lockAccounts([accountId]);
       const context = await accessContextV1(this.sql, tx, store, accountId);
       if (!context || context.account.state !== 'active') return null;
       const rows = await tx.unsafe(`SELECT id,security_version::text,expires_at,revoked_at,persistent,created_at
-        FROM student_portal.session WHERE token_hash=$1 AND account_id=$2::uuid FOR UPDATE`, [hash, accountId]);
+        FROM student_portal.session WHERE token_hash=$1 AND account_id=$2::uuid${this.snapshotReads ? '' : ' FOR UPDATE'}`, [hash, accountId]);
       const row = rows[0];
       if (!row || row.revoked_at !== null || Number(row.security_version) !== context.account.securityVersion) return null;
       const persistent = z.boolean().parse(row.persistent);

@@ -4,16 +4,19 @@ import type { PublishedProjectionPortV1, PortalTransactionV1 } from '../../../sh
 import { revisionsV1, type RevisionsV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { StudentPortalPostgresPersistenceV1, type StudentPortalPostgresQueryV1, type StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
 import { accountScopeV1, authNowV1, accountTransactionV1 } from '../auth/transaction-v1';
+import { readPortalSnapshotV2 } from '../auth/read-snapshot-v2';
 import { applyPublishedVisibilityV1, sessionExpiryV1 } from '../policies/calendar-v1';
 import { PolicyServiceV1 } from '../policies/policy-service-v1';
 import { AcademicEligibilityReaderPostgresV1 } from '../integration/lifecycle/academic-eligibility-v1';
 import { dataVectorV1, parseDataVectorV1, PERIODS_V1, publicationDigestV1, publicationRowsV1 } from './state-v1';
 import { scopedSelfV2 } from './scoped-self-v2';
 
-/** Fresh names/status come from the BN; the lifecycle snapshot only proves the stored projection's scope. */
+/** Fresh names/status come from the BN; the lifecycle snapshot proves the projection scope.
+ * lockAccount=false is reserved for a caller-owned REPEATABLE READ READ ONLY transaction.
+ */
 export async function publicationContextV1(sql: StudentPortalPostgresSqlV1, tx: StudentPortalPostgresQueryV1,
-  store: PortalTransactionV1, accountId: string, requireAccess = true) {
-  await store.lockAccounts([accountId]);
+  store: PortalTransactionV1, accountId: string, requireAccess = true, lockAccount = true) {
+  if (lockAccount) await store.lockAccounts([accountId]);
   const account = await store.findAccount(accountId);
   if (!account?.link || account.closedAt !== null || account.blocked || account.eligibility !== 'eligible') return null;
   const eligibility = await new AcademicEligibilityReaderPostgresV1(tx).readInTransaction(tx, account.link);
@@ -49,19 +52,23 @@ export class SelfProjectionReaderV1 implements PublishedProjectionPortV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly scopedPublication = false) {}
   async read(accountId: string, requestId: string): Promise<SelfResponseV1 | null> {
     z.uuid().parse(accountId);
-    return accountTransactionV1(this.sql, (tx, store) => this.authorized(tx, store, accountId, requestId));
+    const transact = this.scopedPublication ? readPortalSnapshotV2 : accountTransactionV1;
+    return transact(this.sql, (tx, store) => this.authorized(tx, store, accountId, requestId, this.scopedPublication));
   }
-  async readInTransaction(tx: StudentPortalPostgresQueryV1, accountId: string, requestId: string) {
+  async readInTransaction(tx: StudentPortalPostgresQueryV1, accountId: string, requestId: string, snapshot = false) {
     return new StudentPortalPostgresPersistenceV1({ unsafe: (query, parameters) => tx.unsafe(query, parameters), begin: (operation) => operation(tx) })
-      .transaction(async (store) => { await store.lockAcademicYear(2026, 'shared'); return this.authorized(tx, store, accountId, requestId); });
+      .transaction(async (store) => {
+        if (!snapshot) await store.lockAcademicYear(2026, 'shared');
+        return this.authorized(tx, store, accountId, requestId, snapshot);
+      });
   }
   async readAuthorized(accountId: string, expected: RevisionsV1): Promise<SelfResponseV1 | null> {
     revisionsV1.parse(expected);
     const result = await this.read(accountId, crypto.randomUUID());
     return result && (['dataVersion', 'policyVersion', 'publicationVersion'] as const).every((key) => result.revisions[key] === expected[key]) ? result : null;
   }
-  private async authorized(tx: StudentPortalPostgresQueryV1, store: PortalTransactionV1, accountId: string, requestId: string): Promise<SelfResponseV1 | null> {
-    const context = await publicationContextV1(this.sql, tx, store, accountId);
+  private async authorized(tx: StudentPortalPostgresQueryV1, store: PortalTransactionV1, accountId: string, requestId: string, snapshot = false): Promise<SelfResponseV1 | null> {
+    const context = await publicationContextV1(this.sql, tx, store, accountId, true, !snapshot);
     if (!context || context.account.state !== 'active') return null;
     const previous = await storedProjectionV1(tx, accountId);
     if (previous && (previous.profile.link.studentId !== context.account.link!.studentId || previous.profile.link.academicYear !== 2026)) return null;
@@ -77,7 +84,6 @@ export class SelfProjectionReaderV1 implements PublishedProjectionPortV1 {
       profile: { ...context.profile, result: sameState ? previous!.profile.result : context.profile.result }, subjects,
       generatedAt: previous?.generatedAt ?? context.now.toISOString(), revisions: { dataVersion: dataVectorV1(accepted),
         policyVersion: context.policy.policyVersion, publicationVersion: `pub:${publicationDigestV1(rows.map((row) => [row.period, row.publishedRevision]))}` } });
-    // Only a previously materialized result can survive auto-update OFF; no current academic computation here.
     return applyPublishedVisibilityV1(projection, context.policy.settings.value, context.now, sameState && accepted.some((revision) => revision !== null));
   }
 }

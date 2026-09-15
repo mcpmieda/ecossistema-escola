@@ -60,31 +60,15 @@ jobs:
 
       - name: Configure private production bindings
         shell: bash
-        env:
-          GRADEBOOK_D1_BINDING_CONFIG: ${{ secrets.GRADEBOOK_D1_BINDING_CONFIG }}
         run: |
           node --input-type=module <<'NODE'
           import { readFile, writeFile } from 'node:fs/promises';
 
           const configPath = 'wrangler.jsonc';
           const config = JSON.parse(await readFile(configPath, 'utf8'));
-          const rawBinding = process.env.GRADEBOOK_D1_BINDING_CONFIG;
-
-          if (!rawBinding) {
-            throw new Error('GRADEBOOK_D1_BINDING_CONFIG is not configured.');
+          if (config.vars?.GRADEBOOK_STORAGE_PROVIDER !== 'postgres') {
+            throw new Error('Production requires the explicit PostgreSQL provider.');
           }
-
-          const binding = JSON.parse(rawBinding);
-          if (
-            binding?.binding !== 'GRADEBOOK_D1' ||
-            typeof binding.database_name !== 'string' ||
-            binding.database_name.length === 0 ||
-            typeof binding.database_id !== 'string' ||
-            binding.database_id.length === 0
-          ) {
-            throw new Error('GRADEBOOK_D1_BINDING_CONFIG is invalid.');
-          }
-
           const hyperdrive = config.hyperdrive;
           if (
             !Array.isArray(hyperdrive) ||
@@ -95,7 +79,6 @@ jobs:
           ) {
             throw new Error('PROD_DB Hyperdrive binding is invalid.');
           }
-
           const services = config.services;
           if (
             !Array.isArray(services) || services.length !== 1 ||
@@ -108,16 +91,27 @@ jobs:
           config.env.production = {
             ...(config.env.production ?? {}),
             vars: config.vars ?? {},
-            d1_databases: [binding],
+            d1_databases: [],
             hyperdrive,
             services,
           };
-
+          // Detach only the obsolete binding. The historical D1 database is not deleted.
+          delete config.d1_databases;
           await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
           NODE
 
       - name: Recheck production head before publishing
         run: test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+
+      - name: Verify dedicated Hyperdrive cache and pool budgets
+        shell: bash
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          node --experimental-strip-types scripts/hyperdrive-production-v1.ts --apply
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy compatible Portal backend before consumers
         run: npx wrangler deploy --config wrangler.student-portal.jsonc --env production

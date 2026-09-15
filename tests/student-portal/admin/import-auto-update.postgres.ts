@@ -50,6 +50,7 @@ function notes(first = 2000, final = 8000, professor = 'SYNTHETIC IMPORT TEACHER
 const importer = () => createGradebookRelationalImportServiceV11(gradebook);
 const self = (account = own) => new SelfProjectionReaderV1(portal, true).read(account, crypto.randomUUID());
 const ownTerm = async () => (await self())?.subjects[0]?.periods.find((item) => item.period === 'T1');
+const preparation = async () => (await owner.unsafe('SELECT mode,scanned_students,written_sources FROM student_portal.publication_preparation_metrics_v3'))[0]!;
 async function policy(autoUpdate: boolean) {
   const service = new PolicyServiceV1(portal);
   const current = await service.read(READ_SCHOOL_V2);
@@ -81,13 +82,14 @@ beforeAll(async () => {
   owner = postgres(url.toString(), { max: 1, fetch_types: false, prepare: true, onnotice: () => undefined });
   const sql = owner as unknown as StudentPortalPostgresSqlV1;
   await installAdminReadFixtureV2({ exec: (text) => owner.unsafe(text, [], { prepare: false }) }, sql);
-  // The shared fixture activates only account 1. Both invented readers must be active
-  // to compare their distinct grades; production authentication is not changed.
+  // Two synthetic classes prove scope reduction through the actual importer, not a mocked writer.
+  await owner.unsafe('UPDATE gradebook.vinculo SET turma_id=746002 WHERE aluno_id>746050');
+  // The shared fixture activates only account 1. Both invented readers must be active.
   await owner.unsafe("UPDATE student_portal.account SET auth_state='active' WHERE id=$1::uuid", [readAccountIdV2(2)]);
   gradebook = createGradebookPostgresDatabaseFromSqlV1(owner as unknown as GradebookPostgresSqlV1);
   expect(await importer().execute(notes())).toMatchObject({ state: 'applied' });
   await owner.unsafe('SELECT * FROM student_portal.synchronize_profiles_v1(false)');
-  for (const migration of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql'])
+  for (const migration of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql', '0010_incremental_publication_v3.sql'])
     await owner.unsafe(readFileSync('migrations/student-portal/' + migration, 'utf8'), [], { prepare: false });
   url.username = 'student_portal_app';
   portalClient = postgres(url.toString(), { max: 1, fetch_types: false, prepare: true, onnotice: () => undefined });
@@ -134,6 +136,7 @@ it('serves imported zero and changed closing immediately with auto-update ON, wi
   expect(await importer().execute(notes(0, 6000))).toMatchObject({ state: 'applied' });
   expect((await state()).academic).toBe(Number(before.academic) + 1);
   expect(await currentRevisionV1(portal)).not.toBe(previousRevision);
+  expect(await preparation()).toMatchObject({ mode: 'incremental', scanned_students: 50, written_sources: 1 });
   expect((await ownTerm())?.final).toMatchObject({ value: 6 });
   expect((await ownTerm())?.partials?.[0]?.mark).toMatchObject({ kind: 'score', value: 0 });
   expect((await self(readAccountIdV2(2)))?.subjects[0]?.periods[0]?.final).toMatchObject({ value: 8.002 });
@@ -188,4 +191,10 @@ it('rolls grades, history, revision and prepared source back when the finalizer 
   const after = await state();
   expect(await importer().execute(notes(3000, 9000))).toMatchObject({ state: 'no-changes' });
   expect(await state()).toEqual(after);
+});
+it('uses the full safe scope when an import changes a shared subject label', async () => {
+  const request = notes();
+  const renamed = { ...request, ofertas: request.ofertas.map((offer) => ({ ...offer, disciplina: 'Matematica' })) };
+  expect(await importer().execute(renamed)).toMatchObject({ state: 'applied' });
+  expect(await preparation()).toMatchObject({ mode: 'full', scanned_students: 106 });
 });

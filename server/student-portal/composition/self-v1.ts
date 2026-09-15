@@ -24,6 +24,7 @@ export async function servePortalSelfV1(request: Request, env: PortalComposition
   if (!paths.has(path)) return portalJsonV1(portalFailureV1('unavailable'), 404);
   try {
     const clientIp = cloudflareClientIpV1(request);
+    const snapshotReads = env.PORTAL_PUBLICATION_MODE === 'scoped-v2';
     // Lazy adapters enforce method, bytes, JSON and schema BEFORE connection/KDF.
     const invoke = async <T>(subject: string, requestId: string, run: (auth: AuthServiceV1) => Promise<T>): Promise<T | FailureV1> => {
       if (portalServingGateV1(env.PORTAL_SERVING_ENABLED)) return { contractVersion: 1, requestId, state: 'unavailable' } satisfies FailureV1;
@@ -38,7 +39,7 @@ export async function servePortalSelfV1(request: Request, env: PortalComposition
     const read: SessionServiceV1['read'] = async (token, requestId) => {
       if (portalServingGateV1(env.PORTAL_SERVING_ENABLED)) throw new Error('student-portal-maintenance');
       const keys = portalKeysV1(env);
-      return portalDatabaseV1(env, 'self', (sql) => new SessionServiceV1(sql, keys.cryptoPort, clientIp).read(token, requestId));
+      return portalDatabaseV1(env, 'self', (sql) => new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads).read(token, requestId));
     };
     const logout: SessionServiceV1['logout'] = async (token, requestId) => {
       if (portalServingGateV1(env.PORTAL_SERVING_ENABLED)) throw new Error('student-portal-maintenance');
@@ -50,10 +51,10 @@ export async function servePortalSelfV1(request: Request, env: PortalComposition
       const closed = portalServingGateV1(env.PORTAL_SERVING_ENABLED);
       if (closed) return closed;
       const keys = portalKeysV1(env);
-      const result = await portalDatabaseV1(env, 'self', (sql) => new SessionServiceV1(sql, keys.cryptoPort, clientIp)
+      const result = await portalDatabaseV1(env, 'self', (sql) => new SessionServiceV1(sql, keys.cryptoPort, clientIp, snapshotReads)
         .withAuthorized(sessionCookieTokenV1(request), async (context, tx) => {
           const scoped = env.PORTAL_PUBLICATION_MODE === 'scoped-v2' && await scopedPublicationEnabledV2(tx);
-          return new SelfProjectionReaderV1(sql, scoped).readInTransaction(tx, context.account.id, crypto.randomUUID());
+          return new SelfProjectionReaderV1(sql, scoped).readInTransaction(tx, context.account.id, crypto.randomUUID(), snapshotReads);
         }));
       return result ? portalJsonV1(result, 200) : portalJsonV1(portalFailureV1('unauthenticated'), 401);
     }

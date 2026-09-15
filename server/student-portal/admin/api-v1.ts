@@ -68,12 +68,10 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
     if (!this.queryFieldsAllowed(query)) return this.failure(context.requestId, 'invalid-request');
     try {
       const base = { contractVersion: 1, requestId: context.requestId, state: query.operation };
-      // These read models are single-statement snapshots; neither needs an academic writer barrier.
       if (this.options.scopedPublication && query.operation === 'publication')
         return adminResponseV1.parse({ ...base, items: (await new ScopedPublicationServiceV2(this.sql).read(query.scope)).items });
       if (this.options.scopedPublication && query.operation === 'settings')
         return adminResponseV1.parse({ ...base, settings: await new PolicyServiceV1(this.sql).read(query.scope) });
-      // Diagnostics must remain observable while a business transaction owns the year lock.
       if (query.operation === 'health') return await this.sql.begin(async (tx) => adminResponseV1.parse({
         ...base, ...await readAdminHealthV1(tx, query),
       }));
@@ -129,7 +127,8 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
         case 'qr-batch': return adminResponseV1.parse({ ...base, state: 'qr', ...await qrBatchV1(sql, this.options.cryptoPort, this.options.qrKeyVersion, context.actorId, command) });
         case 'sessions-revoke': return committed(await new SessionServiceV1(sql, this.options.cryptoPort).revoke(context.actorId, command));
         case 'birth-write': return committed(await new BirthYearServiceV1(sql, this.options.cryptoPort, this.options.pepperVersion).write(context.actorId, command));
-        case 'birth-batch': return adminResponseV1.parse({ ...base, state: 'batch', ...await new BirthYearServiceV1(sql, this.options.cryptoPort, this.options.pepperVersion).batch(context.actorId, command) });
+        case 'birth-batch': return adminResponseV1.parse({ ...base, state: 'batch', ...await new BirthYearServiceV1(
+          sql, this.options.cryptoPort, this.options.pepperVersion, this.options.scopedPublication ? 4 : 1).batch(context.actorId, command) });
         case 'settings-set': case 'settings-inherit': return committed(await new PolicyServiceV1(sql).mutate(context.actorId, command));
         case 'publish': case 'publish-update': case 'unpublish': return committed(await (this.options.scopedPublication
           ? new ScopedPublicationServiceV2(sql) : new PublicationServiceV1(sql, this.options.scopedPublicationCapable)).command(context.actorId, command));

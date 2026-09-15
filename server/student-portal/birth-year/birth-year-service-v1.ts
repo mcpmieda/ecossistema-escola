@@ -50,8 +50,12 @@ async function currentClass(tx: StudentPortalPostgresQueryV1, accountId: string)
 
 /** Private administrative primitive. The caller supplies the authenticated/authorized actor. */
 export class BirthYearServiceV1 {
-  constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly cryptoPort: CryptoPortV1, private readonly pepperVersion: number) {
+  constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly cryptoPort: CryptoPortV1,
+    private readonly pepperVersion: number, private readonly batchDerivations = 1) {
     z.number().int().positive().safe().parse(pepperVersion);
+    // Sequential derivations preserve the existing KDF strength and peak memory footprint.
+    // Production opts into four with its larger CPU allowance; legacy callers keep one.
+    z.number().int().min(1).max(4).parse(batchDerivations);
   }
 
   /** Internal keyset page; the admin facade owns its opaque, scoped, expiring HTTP cursor. */
@@ -105,7 +109,6 @@ export class BirthYearServiceV1 {
       const result = await this.apply(tx, store, actor, command.idempotencyKey, item, clock);
       if (result.state !== 'committed') throw new Error(`student-portal-birth-${result.state}`);
       const operationId = crypto.randomUUID();
-      // Single-command response version is the aggregate account CAS, not the field CAS.
       const version = (await store.findAccount(item.accountId))!.version;
       await store.saveIdempotency({ key: command.idempotencyKey, actorId: receiptActor, requestDigest, operationId,
         version, expiresAt: new Date(clock.getTime() + 86400_000).toISOString() });
@@ -137,7 +140,6 @@ export class BirthYearServiceV1 {
       await store.saveIdempotency(created);
       return created;
     }));
-    // Preload immutable committed outcomes once; retries must not spend a transaction per old item.
     const completed = await this.sql.begin(async (tx) => {
       const rows = await tx.unsafe(`SELECT actor_id,version::text,request_digest FROM student_portal.operation_receipt
         WHERE idempotency_key=$1 AND starts_with(actor_id,$2) AND expires_at>statement_timestamp()
@@ -157,14 +159,14 @@ export class BirthYearServiceV1 {
     let derivations = 0;
     let attemptedItems = 0;
     const takeKdf = () => {
-      if (derivations >= 1) throw new Error('student-portal-birth-budget-unavailable');
-      derivations += 1; // Failed crypto calls also consume CPU budget.
+      if (derivations >= this.batchDerivations) throw new Error('student-portal-birth-budget-unavailable');
+      derivations += 1;
     };
     const items: ItemResult[] = [];
     for (const item of command.items) {
       const previous = completed.get(item.accountId);
       if (previous) { items.push(previous); continue; }
-      if (attemptedItems >= 2 || derivations >= 1) {
+      if (attemptedItems >= this.batchDerivations * 2 || derivations >= this.batchDerivations) {
         items.push({ accountId: item.accountId, state: 'unavailable', version: item.expectedVersion });
         continue;
       }
@@ -175,7 +177,6 @@ export class BirthYearServiceV1 {
           await store.lockAccounts([item.accountId]);
           const clock = await now(tx);
           if (Date.parse(parent.expiresAt) <= clock.getTime()) throw new Error('student-portal-birth-receipt-expired');
-          // Outcome is part of the receipt namespace, never encoded into a version or sensitive payload.
           const prefix = `${receiptActor}:${item.accountId}:`;
           const previous = await tx.unsafe(`SELECT actor_id,version::text,request_digest FROM student_portal.operation_receipt
             WHERE idempotency_key=$1 AND starts_with(actor_id,$2) AND expires_at>statement_timestamp()`, [command.idempotencyKey, prefix]);
@@ -194,7 +195,6 @@ export class BirthYearServiceV1 {
           return result;
         })));
       } catch {
-        // Database/crypto failures roll back this item. Retry can safely resume uncommitted items.
         items.push({ accountId: item.accountId, state: 'unavailable', version: item.expectedVersion });
       }
     }
@@ -215,7 +215,6 @@ export class BirthYearServiceV1 {
     const nextVersion = versionV1.parse(version + 1);
     const nextPinVersion = versionV1.parse(account.pinVersion + 1);
     if (!await store.compareAndSetBirth({ accountId: item.accountId, year, confirmation, version: nextVersion }, version)) throw new Error('student-portal-birth-version-conflict');
-    // PIN can be registered before the first QR exists; never manufacture or rewrite a QR.
     await tx.unsafe(`INSERT INTO student_portal.password_credential(account_id,pin_verifier,pin_version)
       VALUES ($1::uuid,$2::text::jsonb,$3) ON CONFLICT (account_id) DO UPDATE
       SET pin_verifier=EXCLUDED.pin_verifier,pin_version=EXCLUDED.pin_version,updated_at=statement_timestamp()`,
