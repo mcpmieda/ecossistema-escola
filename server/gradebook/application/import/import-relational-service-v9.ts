@@ -23,6 +23,8 @@ type ImportStateV9 = {
   importId: number | null;
   writes: number;
   academicWrites: number;
+  sourceStudentIds: Set<number>;
+  globalAcademicChange: boolean;
 };
 
 class RelationalImportErrorV9 extends Error {
@@ -521,6 +523,8 @@ async function resolveDiscipline(
   }
   const id = asNumber(current.id, 'disciplina-id');
   if (String(current.nome) !== name.trim()) {
+    // A shared subject label may affect classes outside this file's offers.
+    state.globalAcademicChange = true;
     await changedRun(database, state, request, 2, `UPDATE gradebook.disciplina SET nome = ? WHERE id = ?`, [name.trim(), id]);
   }
   return id;
@@ -864,10 +868,15 @@ async function persistNotes(
     [request.ano],
   );
   const bindings = new Map<string, number>();
+  const classStudents = new Map<number, Set<number>>();
   for (const row of bindingRows) {
     const turmaId = asNumber(row.turma_id, 'turma-id');
     const numero = asNumber(row.numero, 'numero');
-    bindings.set(`${turmaId}:${numero}`, asNumber(row.aluno_id, 'aluno-id'));
+    const alunoId = asNumber(row.aluno_id, 'aluno-id');
+    bindings.set(`${turmaId}:${numero}`, alunoId);
+    const students = classStudents.get(turmaId) ?? new Set<number>();
+    students.add(alunoId);
+    classStudents.set(turmaId, students);
   }
   const professorId = await resolveProfessor(database, state, request);
   const seen = new Set<string>();
@@ -879,7 +888,13 @@ async function persistNotes(
     const key = `${turmaId}:${dbNameKey(offer.disciplina)}`;
     if (seen.has(key)) throw new RelationalImportErrorV9('blocked', `Oferta duplicada: ${offer.turmaCodigo} / ${offer.disciplina}.`);
     seen.add(key);
+    const before = state.academicWrites;
     await processOffer(database, state, request, offer, turmaId, professorId, bindings);
+    // The verified in-transaction binding map includes classmates affected by definitions,
+    // including those with no mark in this file. No extra database round trip is needed.
+    if (state.academicWrites > before) {
+      for (const studentId of classStudents.get(turmaId) ?? []) state.sourceStudentIds.add(studentId);
+    }
   }
 }
 
@@ -896,10 +911,15 @@ export function createGradebookRelationalImportServiceV9(database: D1WriteDataba
       try {
         const result = await transactionDatabase(database).transaction(async (transaction) => {
           await lockAcademicYear(transaction, request.ano);
-          const state: ImportStateV9 = { importId: null, writes: 0, academicWrites: 0 };
+          const state: ImportStateV9 = { importId: null, writes: 0, academicWrites: 0,
+            sourceStudentIds: new Set(), globalAcademicChange: false };
           if (request.operation === 'persist-relacao') await persistRelation(transaction, request, state);
           else await persistNotes(transaction, request, state);
-          if (state.writes > 0) await recordImportResetWriteV1(transaction, request.ano, request.operation === 'persist-relacao' ? 'relation' : 'marks', { changed: state.academicWrites > 0 });
+          if (state.writes > 0) await recordImportResetWriteV1(transaction, request.ano,
+            request.operation === 'persist-relacao' ? 'relation' : 'marks', {
+              changed: state.academicWrites > 0,
+              studentIds: state.globalAcademicChange ? [] : [...state.sourceStudentIds],
+            });
           return state;
         });
         return {
