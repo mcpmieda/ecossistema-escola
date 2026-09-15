@@ -47,13 +47,19 @@ export function createPortalAdminClientV1(options: PortalTransportOptionsV1 = {}
     };
   };
   return {
-    query: (input: PortalAdminQueryInputV1, signal?: AbortSignal) =>
-      send(
-        '/api/student-portal/admin/query',
-        responseFor(input.operation),
-        signal,
-        portalRequestBodyV1(adminQueryV1, input),
-      ),
+    query: async (input: PortalAdminQueryInputV1, signal?: AbortSignal) => {
+      const body = portalRequestBodyV1(adminQueryV1, input);
+      const schema = responseFor(input.operation);
+      const recoverableRead = input.operation === 'publication' || input.operation === 'settings';
+      try {
+        return await send('/api/student-portal/admin/query', schema, signal, body);
+      } catch (error) {
+        signal?.throwIfAborted();
+        // Pure reads only; never retry preview creation, denial, conflict or Retry-After here.
+        if (!recoverableRead || !isAmbiguousPortalResponseV1(error)) throw error;
+        return send('/api/student-portal/admin/query', schema, signal, body);
+      }
+    },
     command: (input: PortalAdminCommandInputV1, signal?: AbortSignal) =>
       prepareCommand(input).execute(signal),
     prepareCommand,
