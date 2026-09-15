@@ -18,10 +18,12 @@ import { createSessionV1 } from '../../../server/student-portal/auth/session-ser
 import { servePortalSelfV1 } from '../../../server/student-portal/composition/self-v1';
 import { portalAdminRpcV1 } from '../../../server/student-portal/composition/admin-v1';
 import { SESSION_COOKIE_V1 } from '../../../shared/student-portal-contracts/auth-v1';
+import { selfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
 import type { StudentPortalPostgresSqlV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import type { ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import { installAdminReadFixtureV2, readAccountIdV2, readContextV2, READ_ACTOR_V2, READ_TENANT_V2, READ_CLASS_V2, READ_SCHOOL_V2 } from './read-fixture-v2';
 
+// Destructive synthetic fixture: validate the disposable database before opening any connection.
 const target = new URL(process.env.PORTAL_TEST_DATABASE_URL ?? 'http://invalid');
 if (target.protocol !== 'postgres:' || target.hostname !== '127.0.0.1' || target.pathname !== '/portal705_test' || target.search || target.hash)
   throw new Error('Atomic publication requires the disposable local portal705_test cluster.');
@@ -117,7 +119,8 @@ beforeAll(async () => {
     INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte) SELECT 803001,746000+n,8000+n FROM generate_series(1,106) n;
     UPDATE student_portal.account SET auth_state='active' WHERE closed_at IS NULL;
     SELECT * FROM student_portal.synchronize_profiles_v1(false);`, [], { prepare: false });
-  await owner.unsafe(readFileSync('migrations/student-portal/0008_atomic_publication_v2.sql', 'utf8'), [], { prepare: false });
+  for (const migration of ['0008_atomic_publication_v2.sql', '0009_publication_cutover_guard_v2.sql'])
+    await owner.unsafe(readFileSync('migrations/student-portal/' + migration, 'utf8'), [], { prepare: false });
   portal = measured(client('student_portal_app') as unknown as StudentPortalPostgresSqlV1);
   peer = client('student_portal_app') as unknown as StudentPortalPostgresSqlV1;
   disabledAtInstall = !await scopedPublicationEnabledV2(portal);
@@ -322,7 +325,6 @@ it('preserves an exact historical legacy projection when that source predates th
   expect(job).not.toBeNull();
   expect(await jobs.perform(job!)).toBe('done');
   const next = await preparedChange(9000);
-  // Simulate an initial migration that only had the new current source, not the already published historical edition.
   await owner.unsafe('DELETE FROM student_portal.publication_source_v2 WHERE student_id=746001 AND revision<$1::numeric', [next.split(':')[1]!]);
   await owner.unsafe('SELECT student_portal.activate_scoped_publication_v2()');
   expect(await score()).toMatchObject({ value: 8.001 });
@@ -344,18 +346,71 @@ it('serves an actual opaque session through the new HTTP and private administrat
   const read = () => servePortalSelfV1(new Request(env.PORTAL_ORIGIN + '/api/student/me', {
     headers: { cookie: `${SESSION_COOKIE_V1.name}=${session.token}`, origin: env.PORTAL_ORIGIN },
   }), env);
-  expect((await (await read()).json()).state).toBe('no-publication');
+  expect(await (await read()).json()).toMatchObject({ state: 'no-publication' });
   const result = await portalAdminRpcV1(env, 'command', { ...readContextV2(), capability: 'platform.settings.write' }, await command());
   expect(result.state).toBe('committed');
   const response = await read();
   expect(response.status).toBe(200);
   expect(response.headers.get('Cache-Control')).toContain('no-store');
-  const data = await response.json();
+  const data = selfResponseV1.parse(await response.json());
   expect(data.state).toBe('ready');
   expect(data.profile.accountId).toBe(own);
-  expect(data.subjects[0].periods[0].final).toMatchObject({ value: 8.001 });
+  expect(data.subjects[0]?.periods[0]?.final).toMatchObject({ value: 8.001 });
   await release(READ_SCHOOL_V2, 'unpublish');
-  expect((await (await read()).json()).state).toBe('no-publication');
+  expect(await (await read()).json()).toMatchObject({ state: 'no-publication' });
   await owner.unsafe('UPDATE student_portal.session SET revoked_at=statement_timestamp() WHERE account_id=$1::uuid', [own]);
   expect((await read()).status).toBe(401);
 });
+it('fences obsolete writers in SQL while preserving lifecycle deletion and modern releases', async () => {
+  await expect(portal.unsafe('UPDATE student_portal.publication SET version=version WHERE false')).rejects.toThrow('scoped-cutover-conflict');
+  await expect(portal.unsafe('UPDATE student_portal.published_projection SET updated_at=updated_at WHERE false')).rejects.toThrow('scoped-cutover-conflict');
+  await expect(portal.unsafe('INSERT INTO student_portal.publication_job SELECT * FROM student_portal.publication_job WHERE false')).rejects.toThrow('scoped-cutover-conflict');
+  await expect(portal.unsafe('DELETE FROM student_portal.published_projection WHERE false')).resolves.toBeDefined();
+  await release();
+  expect(await score()).toMatchObject({ value: 8.001 });
+});
+
+// This last scenario uses a separate synthetic cohort; no real database or student is involved.
+it('releases 400 students with 10 subjects and 156000 marks without per-account publication work', async () => {
+  await owner.unsafe(`INSERT INTO gradebook.aluno(id,ano,nome)
+      SELECT 804000+n,2026,'SYNTHETIC LOAD STUDENT '||n FROM generate_series(1,400) n;
+    INSERT INTO gradebook.vinculo(ano,turma_id,numero,aluno_id)
+      SELECT 2026,746010,n,804000+n FROM generate_series(1,400) n;
+    INSERT INTO student_portal.account(id,gradebook_student_id,auth_state,eligibility)
+      SELECT ('80300000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,804000+n,'active','eligible' FROM generate_series(1,400) n;
+    INSERT INTO gradebook.disciplina(id,ano,nome) SELECT 804000+n,2026,'SYNTHETIC SUBJECT '||n FROM generate_series(1,10) n;
+    INSERT INTO gradebook.oferta(id,ano,turma_id,professor_id,disciplina_id)
+      SELECT 804000+n,2026,746010,803001,804000+n FROM generate_series(1,10) n;
+    INSERT INTO gradebook.instrumento(id,oferta_id,trimestre,slot,maximo,descricao)
+      SELECT 804000+o*100+t*20+s,804000+o,t,s,
+        CASE WHEN s>=11 THEN CASE WHEN t=3 THEN 2200 ELSE 1650 END ELSE CASE WHEN t=3 THEN 9000 ELSE 6750 END END,
+        'SYNTHETIC LOAD ASSESSMENT '||s FROM generate_series(1,10) o CROSS JOIN generate_series(1,3) t
+        CROSS JOIN (VALUES(1),(2),(3),(11),(12),(13),(14),(15),(16),(17),(18),(19),(20)) slots(s);
+    INSERT INTO gradebook.nota(instrumento_id,aluno_id,valor)
+      SELECT i.id,804000+n,1000 FROM gradebook.instrumento i CROSS JOIN generate_series(1,400) n WHERE i.oferta_id BETWEEN 804001 AND 804010;
+    INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte)
+      SELECT 804000+o,804000+n,8000 FROM generate_series(1,10) o CROSS JOIN generate_series(1,400) n;
+    SELECT * FROM student_portal.synchronize_profiles_v1(false);`, [], { prepare: false });
+  const preparing = performance.now();
+  await owner.unsafe('UPDATE student_portal.academic_revision SET academic_counter=academic_counter+1 WHERE academic_year=2026');
+  const preparationMs = performance.now() - preparing;
+  const scope = { kind: 'class', academicYear: 2026, classId: 746010 } as const;
+  const service = new ScopedPublicationServiceV2(portal);
+  expect((await service.read(scope)).count).toBe(400);
+  const input = await command(scope);
+  queries.length = 0;
+  const start = performance.now();
+  await service.command(READ_ACTOR_V2, input);
+  const releaseMs = performance.now() - start;
+  const calls = queries.length;
+  expect(calls).toBeLessThanOrEqual(10);
+  expect(await count('publication_release_v2')).toBe(1);
+  expect(await count('publication_job')).toBe(0);
+  const startedRead = performance.now();
+  const data = await self('80300000-0000-4000-8000-000000000001');
+  const readMs = performance.now() - startedRead;
+  expect(data?.subjects).toHaveLength(10);
+  expect(data?.subjects.every((subject) => subject.periods.length === 1 && subject.periods[0]?.period === 'T1')).toBe(true);
+  console.log('P803_SYNTHETIC_LOAD', JSON.stringify({ students: 400, subjects: 10, marks: 156000,
+    preparationMs, releaseMs, readMs, queries: calls, jobs: 0 }));
+}, 30_000);
