@@ -6,6 +6,7 @@ import {
 import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, ShieldCheck } from 'lucide-react';
 import { z } from 'zod';
 import { PLATFORM_CAPABILITIES, normalizePlatformRoute, type PlatformCapability, type PlatformRoute } from '../shared/platform-contract';
+import { platformRouteNeedsMicrosoftV2, platformRouteUnavailableV2 } from '../shared/platform-snapshot-v2';
 import { SidebarContent } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
 import { BrandMark, formatDate, initials } from './platform/presentation';
@@ -131,8 +132,11 @@ function AdminShell({ identity }: { identity: Identity }) {
     coreModules: withStudentPortalModule(loadState.snapshot.coreModules, identity.capabilities ?? []),
   } : null, [loadState, identity.capabilities]);
   const modules = snapshot?.coreModules ?? [];
-  const native = route === 'banco-de-notas' || route === 'painel-do-aluno';
-  const showPage = loadState.status === 'ready' && (native || loadState.auxiliary === 'ready');
+  const native = !platformRouteNeedsMicrosoftV2(route);
+  const showPage = loadState.status === 'ready' && (native || (
+    (loadState.auxiliary === 'ready' || loadState.auxiliary === 'partial')
+    && !platformRouteUnavailableV2(route, loadState.snapshot)
+  ));
   return (
     <div className="platform-shell min-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="sticky top-0 z-20 hidden h-svh border-r border-border/60 lg:block">
@@ -182,8 +186,8 @@ function AdminShell({ identity }: { identity: Identity }) {
             </div>
           </Surface>}
           {loadState.status === 'ready' && !native && loadState.auxiliary === 'loading' && <LoadingWorkspace />}
-          {loadState.status === 'ready' && !native && loadState.auxiliary === 'error' && <Alert status="warning">
-            <Alert.Indicator /><Alert.Content><Alert.Title>Informações Microsoft temporariamente indisponíveis</Alert.Title>
+          {loadState.status === 'ready' && !showPage && loadState.auxiliary !== 'loading' && <Alert status="warning">
+            <Alert.Indicator /><Alert.Content><Alert.Title>Informações desta área temporariamente indisponíveis</Alert.Title>
               <Alert.Description>{loadState.auxiliaryMessage} A consulta será refeita automaticamente.</Alert.Description>
             </Alert.Content>
           </Alert>}
@@ -205,7 +209,8 @@ export function App() {
   const authFailure = authFailureFromUrl();
   useEffect(() => {
     const controller = new AbortController();
-    fetch('/api/me', { credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal: controller.signal })
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
+    fetch('/api/me', { credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal })
       .then(async (response) => {
         if (response.status === 401) return { authenticated: false };
         if (!response.ok) throw new Error('identity-unavailable');
