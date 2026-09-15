@@ -27,6 +27,7 @@ afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('section-aware Microsoft snapshot', () => {
   it('does not let an audit failure discard healthy settings, modules or native application access', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const source = dependencies('PLATAFORMA_AUDITORIA');
     const snapshot = await getPlatformSnapshotV2(testEnv, PLATFORM_CAPABILITIES, source);
     expect(snapshot.unavailableSections).toEqual(['audit']);
@@ -40,8 +41,15 @@ describe('section-aware Microsoft snapshot', () => {
     expect(platformRouteUnavailableV2('painel-do-aluno', snapshot)).toBe(false);
     expect(source.token).toHaveBeenCalledOnce();
     expect(source.pages).toHaveBeenCalledTimes(5);
+    expect(warning).toHaveBeenCalledOnce();
+    expect(JSON.parse(String(warning.mock.calls[0]?.[0]))).toMatchObject({
+      message: 'platform_microsoft_source_unavailable', stage: 'section', section: 'audit',
+      failureKind: 'graph-response', providerStatus: 429, providerCorrelationId: 'synthetic',
+      correlationId: snapshot.correlationId,
+    });
   });
   it('identifies a root outage explicitly and does not include raw provider errors or credentials', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const source = dependencies();
     source.token.mockRejectedValue(new Error('synthetic-sensitive-provider-error'));
     const snapshot = await getPlatformSnapshotV2(testEnv, PLATFORM_CAPABILITIES, source);
@@ -51,6 +59,23 @@ describe('section-aware Microsoft snapshot', () => {
     expect(snapshot.coreModules.length).toBeGreaterThan(0);
     expect(JSON.stringify(snapshot)).not.toContain('synthetic-sensitive');
     expect(source.pages).not.toHaveBeenCalled();
+    const recorded = String(warning.mock.calls[0]?.[0]);
+    expect(JSON.parse(recorded)).toMatchObject({
+      message: 'platform_microsoft_source_unavailable', stage: 'token', failureKind: 'runtime', correlationId: snapshot.correlationId,
+    });
+    expect(recorded).not.toContain('synthetic-sensitive');
+    expect(recorded).not.toContain('synthetic-private-token');
+  });
+  it('distinguishes a list catalogue failure from token and section failures', async () => {
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const source = dependencies();
+    source.pages.mockRejectedValueOnce(new GraphError(403, 'provider-correlation'));
+    const snapshot = await getPlatformSnapshotV2(testEnv, PLATFORM_CAPABILITIES, source);
+    expect(snapshot.unavailableSections).toEqual([...PLATFORM_SOURCE_SECTIONS_V2]);
+    expect(JSON.parse(String(warning.mock.calls[0]?.[0]))).toMatchObject({
+      message: 'platform_microsoft_source_unavailable', stage: 'list-catalogue', failureKind: 'graph-response',
+      providerStatus: 403, providerCorrelationId: 'provider-correlation', correlationId: snapshot.correlationId,
+    });
   });
   it('does not request sources without the current capability and never calls Microsoft before authorization', async () => {
     const source = dependencies();
