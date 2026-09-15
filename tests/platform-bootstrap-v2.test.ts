@@ -38,7 +38,7 @@ describe('authenticated native bootstrap #806', () => {
   });
   it('rejects an untrusted host and an unexpected method before returning the catalog', async () => {
     const authenticated = await request('ADMINISTRADOR');
-    expect((await invoke(new Request('https://untrusted.invalid/api/platform/bootstrap', { headers: authenticated.headers }))).status).toBe(403);
+    expect((await invoke(new Request('https://untrusted.invalid/api/platform/bootstrap', { headers: authenticated.headers }))).status).toBe(421);
     expect((await invoke(new Request(authenticated.url, { method: 'POST', headers: authenticated.headers }))).status).toBe(405);
   });
 });
