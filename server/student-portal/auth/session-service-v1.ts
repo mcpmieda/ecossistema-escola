@@ -25,7 +25,9 @@ export async function createSessionV1(store: PortalTransactionV1, context: Acces
 export class SessionServiceV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1, private readonly cryptoPort: CryptoPortV1,
     clientIp?: string | null, private readonly snapshotReads = false) {
-    if (clientIp !== undefined) this.sql = withAuditSqlV1(sql, clientIp);
+    // Read-only snapshots cannot append audit events. In particular, their SET TRANSACTION
+    // must precede the audit wrapper's set_config SELECT, which would start a snapshot too early.
+    if (clientIp !== undefined && !snapshotReads) this.sql = withAuditSqlV1(sql, clientIp);
   }
 
   private async revocationScope(tx: StudentPortalPostgresQueryV1, input: ScopeV1) {
