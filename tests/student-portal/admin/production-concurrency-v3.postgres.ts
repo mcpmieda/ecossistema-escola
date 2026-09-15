@@ -63,7 +63,12 @@ beforeAll(async () => {
     INSERT INTO gradebook.professor(id,ano,nome) VALUES(806001,2026,'SYNTHETIC TEACHER');
     INSERT INTO gradebook.disciplina(id,ano,nome) VALUES(806001,2026,'MATEMATICA');
     INSERT INTO gradebook.oferta(id,ano,turma_id,professor_id,disciplina_id) VALUES(806001,2026,746001,806001,806001);
-    INSERT INTO gradebook.instrumento(id,oferta_id,trimestre,slot,maximo,descricao) VALUES(806001,806001,1,1,6750,'AV1');
+    INSERT INTO gradebook.instrumento(id,oferta_id,trimestre,slot,maximo,descricao)
+      SELECT 806000+(t-1)*20+s,806001,t,s,
+        CASE WHEN s=11 THEN CASE WHEN t=3 THEN 22000 ELSE 16500 END
+          ELSE CASE WHEN t=3 THEN 9000 ELSE 6750 END END,
+        CASE WHEN s=1 THEN 'AV1' WHEN s=2 THEN 'AV2' ELSE 'QUALITATIVA' END
+      FROM generate_series(1,3) t CROSS JOIN (VALUES(1),(2),(11)) slots(s);
     INSERT INTO gradebook.nota(instrumento_id,aluno_id,valor) VALUES(806001,746001,2000);
     INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte) SELECT 806001,746000+n,8000 FROM generate_series(1,50) n;
     SELECT * FROM student_portal.synchronize_profiles_v1(false);`, [], { prepare: false });
