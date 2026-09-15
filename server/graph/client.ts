@@ -7,26 +7,47 @@ export { GraphError } from './request-policy-v1';
 export type { GraphDependencies } from './request-policy-v1';
 
 const tokenSchema = z.object({ access_token: z.string(), expires_in: z.number() });
+export type GraphTokenFailureStage = 'assertion' | 'transport' | 'response-contract';
+export class GraphTokenError extends Error {
+  constructor(readonly stage: GraphTokenFailureStage, readonly slot: GraphCredentialSlot) {
+    super('Graph token preparation failed');
+  }
+}
 export async function getGraphToken(env: RuntimeEnv, dependencies: GraphDependencies = graphDefaultsV1,
   slot?: GraphCredentialSlot): Promise<string> {
   const endpoint = `https://login.microsoftonline.com/${env.TENANT_ID}/oauth2/v2.0/token`;
   let lastStatus = 0;
+  let lastAssertionSlot: GraphCredentialSlot | undefined;
   for (const credential of graphCredentials(env, slot)) {
-    const assertion = await createClientAssertion({ clientId: env.GRAPH_CLIENT_ID, tenantId: env.TENANT_ID,
-      privateKeyPkcs8: credential.privateKeyPkcs8, certificateThumbprint: credential.certificateThumbprint });
-    const response = await dependencies.fetch(endpoint, { method: 'POST', redirect: 'error',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ client_id: env.GRAPH_CLIENT_ID, scope: 'https://graph.microsoft.com/.default',
-        grant_type: 'client_credentials', client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: assertion }),
-      signal: AbortSignal.timeout(10_000) });
+    let assertion: string;
+    try {
+      assertion = await createClientAssertion({ clientId: env.GRAPH_CLIENT_ID, tenantId: env.TENANT_ID,
+        privateKeyPkcs8: credential.privateKeyPkcs8, certificateThumbprint: credential.certificateThumbprint });
+    } catch {
+      lastAssertionSlot = credential.slot;
+      if (slot) throw new GraphTokenError('assertion', credential.slot);
+      continue;
+    }
+    let response: Response;
+    try {
+      response = await dependencies.fetch(endpoint, { method: 'POST', redirect: 'error',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ client_id: env.GRAPH_CLIENT_ID, scope: 'https://graph.microsoft.com/.default',
+          grant_type: 'client_credentials', client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', client_assertion: assertion }),
+        signal: AbortSignal.timeout(10_000) });
+    } catch { throw new GraphTokenError('transport', credential.slot); }
     lastStatus = response.status;
-    if (response.ok) return tokenSchema.parse(await response.json()).access_token;
+    if (response.ok) {
+      try { return tokenSchema.parse(await response.json()).access_token; }
+      catch { throw new GraphTokenError('response-contract', credential.slot); }
+    }
     const wait = graphRetryAfterMsV1(response.headers.get('Retry-After'), (dependencies.now ?? Date.now)());
     await response.body?.cancel().catch(() => undefined);
     // A throttled identity endpoint is not an invitation to try another certificate immediately.
     if (response.status === 429 || response.status >= 500)
       throw new GraphError(response.status, crypto.randomUUID(), wait === undefined ? undefined : Math.ceil(wait / 1000));
   }
+  if (lastStatus === 0) throw new GraphTokenError('assertion', lastAssertionSlot ?? slot ?? 'LEGACY');
   // Keep the identity provider response body private, but retain the status and an
   // opaque correlation id so callers can classify an outage without parsing text.
   throw new GraphError(lastStatus || 503, crypto.randomUUID());

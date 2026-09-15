@@ -3,7 +3,8 @@ import type { PlatformCapability, PlatformConfiguration, PlatformSnapshotContrac
 import { PLATFORM_SOURCE_SECTIONS_V2, type PlatformSnapshotV2, type PlatformSourceSectionV2 } from '../../shared/platform-snapshot-v2';
 import { requireCapability } from '../auth/capabilities';
 import type { RuntimeEnv } from '../env';
-import { getGraphToken, graphAllPages, GraphError } from '../graph/client';
+import { TechnicalCredentialError } from '../auth/technical-identity';
+import { getGraphToken, graphAllPages, GraphError, GraphTokenError } from '../graph/client';
 import { resolveRegisteredModules } from '../modules/registry';
 import { coreModules } from './manifest';
 import { recoveryEvidence } from './recovery-evidence';
@@ -96,8 +97,12 @@ function retrySeconds(error: unknown): number {
   return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? Math.max(30, value) : 30;
 }
 type PlatformSourceFailureStageV2 = 'token' | 'list-catalogue' | 'section';
-function platformSourceFailureKindV2(error: unknown): 'graph-response' | 'timeout' | 'aborted' | 'contract' | 'runtime' {
+function platformSourceFailureKindV2(error: unknown): 'graph-response' | 'credential-configuration' | 'token-assertion'
+  | 'token-transport' | 'token-contract' | 'timeout' | 'aborted' | 'contract' | 'runtime' {
   if (error instanceof GraphError) return 'graph-response';
+  if (error instanceof TechnicalCredentialError) return 'credential-configuration';
+  if (error instanceof GraphTokenError) return error.stage === 'assertion' ? 'token-assertion'
+    : error.stage === 'transport' ? 'token-transport' : 'token-contract';
   if (error instanceof DOMException && error.name === 'TimeoutError') return 'timeout';
   if (error instanceof DOMException && error.name === 'AbortError') return 'aborted';
   if (error instanceof z.ZodError) return 'contract';
@@ -110,6 +115,8 @@ function logPlatformSourceFailureV2(input: {
   error: unknown; stage: PlatformSourceFailureStageV2; correlationId: string; section?: PlatformSourceSectionV2;
 }) {
   const graph = input.error instanceof GraphError ? input.error : undefined;
+  const credential = input.error instanceof TechnicalCredentialError ? input.error : undefined;
+  const token = input.error instanceof GraphTokenError ? input.error : undefined;
   console.warn(JSON.stringify({
     message: 'platform_microsoft_source_unavailable',
     stage: input.stage,
@@ -117,6 +124,8 @@ function logPlatformSourceFailureV2(input: {
     correlationId: input.correlationId,
     ...(input.section ? { section: input.section } : {}),
     ...(graph ? { providerStatus: graph.status, providerCorrelationId: graph.correlationId } : {}),
+    ...(credential ? { credentialStage: credential.stage, credentialSlots: credential.slots } : {}),
+    ...(token ? { tokenStage: token.stage, credentialSlot: token.slot } : {}),
   }));
 }
 /** V2 explicitly identifies unavailable sources. A failure of audit cannot hide healthy
