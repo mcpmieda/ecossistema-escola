@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import type { PlatformCapability, PlatformConfiguration } from '../../shared/platform-contract';
+import { PLATFORM_SOURCE_SECTIONS_V2, type PlatformSnapshotV2, type PlatformSourceSectionV2 } from '../../shared/platform-snapshot-v2';
 import { requireCapability } from '../auth/capabilities';
 import type { RuntimeEnv } from '../env';
-import { getGraphToken, graphAllPages } from '../graph/client';
+import { getGraphToken, graphAllPages, GraphError } from '../graph/client';
 import { resolveRegisteredModules } from '../modules/registry';
 import { coreModules } from './manifest';
 import { recoveryEvidence } from './recovery-evidence';
@@ -25,13 +26,22 @@ export function isFailureResult(value: string): boolean {
   return /^(erro|error|falha|falhou|failed|failure)(?:\b|[:_-])/u.test(normalized);
 }
 function hasCapability(capabilities: readonly PlatformCapability[], capability: PlatformCapability): boolean { return capabilities.includes(capability); }
-async function readListItems(env: RuntimeEnv, listId: string | undefined, selectedFields: string, token: string): Promise<PlatformItem[]> {
+export interface PlatformSnapshotDependenciesV2 {
+  token(env: RuntimeEnv): Promise<string>;
+  pages(env: RuntimeEnv, path: string, token: string, signal?: AbortSignal): Promise<unknown[]>;
+}
+const sourceDependencies: PlatformSnapshotDependenciesV2 = {
+  token: (env) => getGraphToken(env),
+  pages: (env, path, token, signal) => graphAllPages<unknown>(env, path, token, { signal }),
+};
+async function readListItems(env: RuntimeEnv, listId: string | undefined, selectedFields: string, token: string,
+  dependencies = sourceDependencies, signal?: AbortSignal): Promise<PlatformItem[]> {
   if (!listId) return [];
-  const items = await graphAllPages<unknown>(env,
-    `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items?$expand=fields($select=${selectedFields})&$top=100`, token);
-  return items.flatMap((item) => {
-    const parsed = graphItemSchema.safeParse(item);
-    return parsed.success ? [{ id: parsed.data.id, fields: parsed.data.fields ?? {} }] : [];
+  const items = await dependencies.pages(env,
+    `/sites/${env.SHAREPOINT_SITE_ID}/lists/${listId}/items?$expand=fields($select=${selectedFields})&$top=100`, token, signal);
+  return items.map((item) => {
+    const parsed = graphItemSchema.parse(item);
+    return { id: parsed.id, fields: parsed.fields ?? {} };
   });
 }
 function platformConfigurationsFromItems(items: readonly PlatformItem[]): PlatformConfiguration[] {
@@ -77,28 +87,66 @@ export function buildPlatformSnapshot(source: SnapshotSource, capabilities: read
     migrations: hasCapability(capabilities, 'platform.settings.read') ? allMigrations : [],
   };
 }
-async function readLists(env: RuntimeEnv, token: string): Promise<PlatformList[]> {
-  const items = await graphAllPages<unknown>(env, `/sites/${env.SHAREPOINT_SITE_ID}/lists?$select=id,displayName&$top=50`, token);
-  return items.flatMap((value) => { const parsed = listSchema.safeParse(value); return parsed.success ? [parsed.data] : []; });
+async function readLists(env: RuntimeEnv, token: string, dependencies = sourceDependencies, signal?: AbortSignal): Promise<PlatformList[]> {
+  const items = await dependencies.pages(env, `/sites/${env.SHAREPOINT_SITE_ID}/lists?$select=id,displayName&$top=50`, token, signal);
+  return items.map((value) => listSchema.parse(value));
 }
-export async function getPlatformSnapshot(env: RuntimeEnv, capabilities: readonly PlatformCapability[]): Promise<PlatformSnapshot> {
+function retrySeconds(error: unknown): number {
+  const value = error instanceof GraphError ? error.retryAfterSeconds : undefined;
+  return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? Math.max(30, value) : 30;
+}
+/** V2 explicitly identifies unavailable sources. A failure of audit cannot hide healthy
+ * configuration data or prevent a native, separately authenticated application from opening.
+ */
+export async function getPlatformSnapshotV2(env: RuntimeEnv, capabilities: readonly PlatformCapability[],
+  dependencies = sourceDependencies, requestSignal?: AbortSignal): Promise<PlatformSnapshotV2> {
   requireCapability(capabilities, 'platform.snapshot.read');
   const correlationId = crypto.randomUUID();
-  const token = await getGraphToken(env);
-  const lists = await readLists(env, token);
-  const byName = new Map(lists.map((list) => [list.displayName, list.id]));
-  const readsModules = hasCapability(capabilities, 'platform.modules.read') || hasCapability(capabilities, 'platform.health.read');
-  const readsAudit = hasCapability(capabilities, 'platform.audit.read') || hasCapability(capabilities, 'platform.health.read');
-  const readsSettings = hasCapability(capabilities, 'platform.settings.read');
-  const [moduleItems, configurationItems, auditItems, migrationItems] = await Promise.all([
-    readsModules ? readListItems(env, byName.get('PLATAFORMA_MODULOS'), 'Chave,Nome,RotaBase,Versao,Status,Ordem,HealthEndpoint,AtualizadoEmUTC', token) : Promise.resolve([]),
-    readsSettings ? readListItems(env, byName.get('PLATAFORMA_CONFIGURACOES'), 'Chave,Escopo,Versao,Ativo,VigenciaInicioUTC,VigenciaFimUTC,AtualizadoEmUTC', token) : Promise.resolve([]),
-    readsAudit ? readListItems(env, byName.get('PLATAFORMA_AUDITORIA'), 'EventoId,DataHoraUTC,Modulo,Acao,EntidadeTipo,CorrelationId,Resultado', token) : Promise.resolve([]),
-    readsSettings ? readListItems(env, byName.get('PLATAFORMA_MIGRACOES'), 'Versao,Modulo,AplicadaEmUTC,Resultado', token) : Promise.resolve([]),
-  ]);
-  return buildPlatformSnapshot({ lists, moduleItems, configurationItems, auditItems, migrationItems, correlationId }, capabilities);
+  const source: SnapshotSource = { lists: [], moduleItems: [], configurationItems: [], auditItems: [], migrationItems: [], correlationId };
+  const unavailableSections: PlatformSourceSectionV2[] = [];
+  let retryAfterSeconds = 0;
+  const timeout = AbortSignal.timeout(30_000);
+  const signal = requestSignal ? AbortSignal.any([requestSignal, timeout]) : timeout;
+  let token: string;
+  try {
+    signal.throwIfAborted();
+    token = await dependencies.token(env);
+    signal.throwIfAborted();
+    source.lists = await readLists(env, token, dependencies, signal);
+  } catch (error) {
+    requestSignal?.throwIfAborted();
+    return { ...buildPlatformSnapshot(source, capabilities), unavailableSections: [...PLATFORM_SOURCE_SECTIONS_V2], retryAfterSeconds: retrySeconds(error) };
+  }
+  const byName = new Map(source.lists.map((list) => [list.displayName, list.id]));
+  const modules = hasCapability(capabilities, 'platform.modules.read') || hasCapability(capabilities, 'platform.health.read');
+  const audit = hasCapability(capabilities, 'platform.audit.read') || hasCapability(capabilities, 'platform.health.read');
+  const settings = hasCapability(capabilities, 'platform.settings.read');
+  const jobs = [
+    { section: 'modules', key: 'moduleItems', enabled: modules, list: 'PLATAFORMA_MODULOS', fields: 'Chave,Nome,RotaBase,Versao,Status,Ordem,HealthEndpoint,AtualizadoEmUTC' },
+    { section: 'configurations', key: 'configurationItems', enabled: settings, list: 'PLATAFORMA_CONFIGURACOES', fields: 'Chave,Escopo,Versao,Ativo,VigenciaInicioUTC,VigenciaFimUTC,AtualizadoEmUTC' },
+    { section: 'audit', key: 'auditItems', enabled: audit, list: 'PLATAFORMA_AUDITORIA', fields: 'EventoId,DataHoraUTC,Modulo,Acao,EntidadeTipo,CorrelationId,Resultado' },
+    { section: 'migrations', key: 'migrationItems', enabled: settings, list: 'PLATAFORMA_MIGRACOES', fields: 'Versao,Modulo,AplicadaEmUTC,Resultado' },
+  ] as const;
+  await Promise.all(jobs.map(async (job) => {
+    if (!job.enabled) return;
+    try { source[job.key] = await readListItems(env, byName.get(job.list), job.fields, token, dependencies, signal); }
+    catch (error) {
+      unavailableSections.push(job.section);
+      retryAfterSeconds = Math.max(retryAfterSeconds, retrySeconds(error));
+    }
+  }));
+  requestSignal?.throwIfAborted();
+  const snapshot = buildPlatformSnapshot(source, capabilities);
+  if (unavailableSections.length && snapshot.operational) snapshot.operational.status = 'attention';
+  return { ...snapshot, unavailableSections: unavailableSections.sort(), ...(retryAfterSeconds ? { retryAfterSeconds } : {}) };
 }
-/** Minimal settings read; it does not depend on audit, migrations or the complete Center snapshot. */
+/** Old consumers must never interpret a partial V2 response as a complete snapshot. */
+export async function getPlatformSnapshot(env: RuntimeEnv, capabilities: readonly PlatformCapability[]): Promise<PlatformSnapshot> {
+  const snapshot = await getPlatformSnapshotV2(env, capabilities);
+  if (snapshot.unavailableSections?.length) throw new GraphError(503, snapshot.correlationId, snapshot.retryAfterSeconds);
+  return snapshot;
+}
+/** Minimal settings read does not depend on the audit or migration lists. */
 export async function getPlatformConfigurations(env: RuntimeEnv, capabilities: readonly PlatformCapability[]): Promise<PlatformConfiguration[]> {
   requireCapability(capabilities, 'platform.settings.read');
   const token = await getGraphToken(env);
