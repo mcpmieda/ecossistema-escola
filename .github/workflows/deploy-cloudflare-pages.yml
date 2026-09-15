@@ -103,6 +103,16 @@ jobs:
       - name: Recheck production head before publishing
         run: test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
 
+      - name: Verify dedicated Hyperdrive cache and pool budgets
+        shell: bash
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          node --experimental-strip-types scripts/hyperdrive-production-v1.ts --apply
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       - name: Deploy compatible Portal backend before consumers
         run: npx wrangler deploy --config wrangler.student-portal.jsonc --env production
         env:
