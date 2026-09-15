@@ -107,7 +107,9 @@ describe('administrative sessions interface', () => {
     );
     await screen.findByRole('grid');
     expect(screen.queryByRole('button', { name: 'Encerrar sessões da turma' })).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Encerrar esta sessão' })).toHaveLength(100);
+    await waitFor(() =>
+      expect(screen.getAllByRole('button', { name: 'Encerrar esta sessão' })).toHaveLength(100),
+    );
     expect(
       screen
         .getAllByRole('button', { name: 'Encerrar esta sessão' })
