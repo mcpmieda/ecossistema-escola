@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { adminCommandV1 } from '../../../shared/student-portal-contracts/admin-v1';
 import { type ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import type { StudentPortalPostgresSqlV1 } from '../persistence/postgres-persistence-v1';
-import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
+import { accountTransactionV1, authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { enqueueJobsV1, type JobInputV1 } from '../jobs/queue-v1';
 import { currentRevisionV1, jobMaskV1, jobPublicationVersionV1, normalizePublicationRowsV1, PERIODS_V1,
   publicationAccountsV1, publicationDigestV1, publicationMaskV1, publicationScopeVersionV1 } from './state-v1';
@@ -10,9 +10,9 @@ import { currentRevisionV1, jobMaskV1, jobPublicationVersionV1, normalizePublica
 export class PublicationServiceV1 {
   constructor(private readonly sql: StudentPortalPostgresSqlV1) {}
 
-  /** Internal scope/CAS metadata; the admin facade owns its frozen HTTP response. */
+  /** Read-only consumers share the academic barrier, including calls nested in the admin facade. */
   async read(scope: ScopeV1) {
-    return authTransactionV1(this.sql, async (tx) => {
+    return accountTransactionV1(this.sql, async (tx) => {
       const accounts = await publicationAccountsV1(tx, scope);
       const ids = JSON.stringify(accounts.map((account) => account.id));
       const rows = await tx.unsafe(`SELECT period,state,available_revision,published_revision,version::text FROM student_portal.publication
@@ -56,8 +56,11 @@ export class PublicationServiceV1 {
       if ('targetDataVersion' in command && command.targetDataVersion !== revision) throw new Error('student-portal-publication-source-conflict');
       const accounts = await publicationAccountsV1(tx, scope);
       if (accounts.length === 0) throw new Error('student-portal-publication-forbidden');
-      await store.lockAccounts(accounts.map((account) => account.id));
       const ids = JSON.stringify(accounts.map((account) => account.id));
+      // Preserve year -> ordered accounts -> jobs, without one network round trip per student.
+      await tx.unsafe(`SELECT id FROM student_portal.account
+        WHERE id IN (SELECT value::uuid FROM jsonb_array_elements_text($1::text::jsonb))
+        ORDER BY id FOR UPDATE`, [ids]);
       // Lifecycle deletes the projection on class change. Its old period approvals cannot seed a new class.
       await tx.unsafe(`UPDATE student_portal.publication p SET published_revision=NULL,
         state=CASE WHEN available_revision IS NULL THEN 'no-data' ELSE 'available' END

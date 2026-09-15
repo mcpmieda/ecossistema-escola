@@ -5,6 +5,7 @@ import { createLatestPortalRequestV1, type PortalLoadStateV1 } from '../shared/l
 import type { PortalSelfClientV1 } from '../shared/self-client-v1';
 import { PortalClientErrorV1 } from '../shared/transport-v1';
 
+export const STUDENT_REFRESH_INTERVAL_V1 = 30_000;
 export type LogoutStateV1 = 'idle' | 'pending' | 'failed' | 'done';
 export function createStudentSessionV1(
   client: PortalSelfClientV1,
@@ -107,17 +108,20 @@ export function createStudentSessionV1(
   };
 }
 
-/** Tab switches revalidate discreetly; real history restoration still clears protected data. */
+/** Visible tabs revalidate discreetly; real history restoration still clears protected data. */
 export function useStudentSessionV1(client: PortalSelfClientV1) {
   const [load, setLoad] = useState<PortalLoadStateV1<SelfResponseV1>>({ state: 'idle' });
   const [logoutState, setLogoutState] = useState<LogoutStateV1>('idle');
   const session = useRef<ReturnType<typeof createStudentSessionV1> | null>(null);
   useEffect(() => {
     let currentLoad: PortalLoadStateV1<SelfResponseV1> = { state: 'idle' };
+    let readRetryAt = 0;
     const current = createStudentSessionV1(
       client,
       (next) => {
         currentLoad = next;
+        readRetryAt = next.state === 'error'
+          ? Date.now() + (next.error.retryAfterSeconds ?? 0) * 1000 : 0;
         setLoad(next);
       },
       setLogoutState,
@@ -137,6 +141,13 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
     const visibility = () => {
       if (document.visibilityState !== 'hidden') focus();
     };
+    const refreshTimer = setInterval(() => {
+      const transient = currentLoad.state === 'error'
+        && ['network-error', 'unavailable'].includes(currentLoad.error.state);
+      // No polling on login/denial, while hidden, or before the server's retry deadline.
+      // refresh(true) deduplicates pending reads and preserves the mounted ready view.
+      if ((currentLoad.state === 'ready' || transient) && Date.now() >= readRetryAt) focus();
+    }, STUDENT_REFRESH_INTERVAL_V1);
     window.addEventListener('pagehide', hide);
     window.addEventListener('pageshow', resume);
     window.addEventListener('popstate', resume);
@@ -144,6 +155,7 @@ export function useStudentSessionV1(client: PortalSelfClientV1) {
     document.addEventListener('visibilitychange', visibility);
     resume();
     return () => {
+      clearInterval(refreshTimer);
       current.dispose();
       session.current = null;
       window.removeEventListener('pagehide', hide);
