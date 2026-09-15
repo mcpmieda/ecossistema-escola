@@ -385,12 +385,16 @@ it('releases 400 students with 10 subjects and 156000 marks without per-account 
       SELECT 804000+o*100+t*20+s,804000+o,t,s,
         CASE WHEN s>=11 THEN CASE WHEN t=3 THEN 2200 ELSE 1650 END ELSE CASE WHEN t=3 THEN 9000 ELSE 6750 END END,
         'SYNTHETIC LOAD ASSESSMENT '||s FROM generate_series(1,10) o CROSS JOIN generate_series(1,3) t
-        CROSS JOIN (VALUES(1),(2),(3),(11),(12),(13),(14),(15),(16),(17),(18),(19),(20)) slots(s);
-    INSERT INTO gradebook.nota(instrumento_id,aluno_id,valor)
-      SELECT i.id,804000+n,1000 FROM gradebook.instrumento i CROSS JOIN generate_series(1,400) n WHERE i.oferta_id BETWEEN 804001 AND 804010;
-    INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte)
-      SELECT 804000+o,804000+n,8000 FROM generate_series(1,10) o CROSS JOIN generate_series(1,400) n;
-    SELECT * FROM student_portal.synchronize_profiles_v1(false);`, [], { prepare: false });
+        CROSS JOIN (VALUES(1),(2),(3),(11),(12),(13),(14),(15),(16),(17),(18),(19),(20)) slots(s);`, [], { prepare: false });
+  // Seed construction is not the measured release. Keep each fixture insertion bounded,
+  // without disabling foreign keys, preparation triggers or the five-second runtime budget.
+  for (let offer = 804001; offer <= 804010; offer++) {
+    await owner.unsafe(`INSERT INTO gradebook.nota(instrumento_id,aluno_id,valor)
+      SELECT i.id,804000+n,1000 FROM gradebook.instrumento i CROSS JOIN generate_series(1,400) n WHERE i.oferta_id=$1`, [offer]);
+  }
+  await owner.unsafe(`INSERT INTO gradebook.fechamento(oferta_id,aluno_id,am1_fonte)
+    SELECT 804000+o,804000+n,8000 FROM generate_series(1,10) o CROSS JOIN generate_series(1,400) n`);
+  await owner.unsafe('SELECT * FROM student_portal.synchronize_profiles_v1(false)');
   const preparing = performance.now();
   await owner.unsafe('UPDATE student_portal.academic_revision SET academic_counter=academic_counter+1 WHERE academic_year=2026');
   const preparationMs = performance.now() - preparing;
