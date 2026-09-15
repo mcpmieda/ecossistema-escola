@@ -13,6 +13,10 @@ export const SECURITY_HEADERS: Readonly<Record<string, string>> = {
 };
 
 export function withSecurityHeaders(response: Response, protectedRoute = false): Response {
+  // A WebSocket upgrade carries a runtime-owned socket. Reconstructing it as a regular
+  // Response both drops that socket and is rejected by runtimes whose public constructor
+  // accepts only 200-599. The authenticated upgrade route already returns no document body.
+  if (response.status === 101) return response;
   const headers = new Headers(response.headers);
   for (const [name, value] of Object.entries(SECURITY_HEADERS)) headers.set(name, value);
   if (protectedRoute) {

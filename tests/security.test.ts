@@ -62,6 +62,11 @@ describe('HTTP security', () => {
     expect(withSecurityHeaders(new Response('ok'), true).headers.get('Cache-Control')).toContain(
       'no-store',
     ));
+  it('preserves a runtime-owned WebSocket upgrade instead of reconstructing status 101', () => {
+    const upgrade = new Response(null);
+    Object.defineProperty(upgrade, 'status', { value: 101 });
+    expect(withSecurityHeaders(upgrade, true)).toBe(upgrade);
+  });
   it('requires application/json', async () =>
     await expect(
       readBoundedJson(
