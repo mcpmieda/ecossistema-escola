@@ -93,9 +93,9 @@ describe('native bootstrap HTTP boundaries', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('Cache-Control')).toContain('no-store');
     const body = await response.json();
-    expect(body.auxiliaryState).toBe('not-loaded');
-    expect(body.coreModules.length).toBeGreaterThan(0);
-    expect(platformSnapshotSchemaV2.safeParse(body).success).toBe(true);
+    expect(body).toMatchObject({ auxiliaryState: 'not-loaded' });
+    const parsed = platformSnapshotSchemaV2.parse(body);
+    expect(parsed.coreModules.length).toBeGreaterThan(0);
     expect(network).not.toHaveBeenCalled();
   });
   it.each([bootstrap, auxiliary])('rejects anonymous, wrong-role and cross-origin requests before external reads', async (handler) => {
