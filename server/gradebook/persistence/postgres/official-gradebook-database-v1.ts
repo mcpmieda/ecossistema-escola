@@ -1,6 +1,7 @@
 import type { RuntimeEnv } from '../../../env';
 import { createGradebookPostgresDatabaseV1, type GradebookPostgresFailureDiagnosticV1,
   type GradebookPostgresDatabaseV1 } from './postgres-database-v1';
+import { lazyGradebookDatabaseV1 } from './lazy-gradebook-database-v1';
 
 export type GradebookStorageProviderV1 = 'd1' | 'postgres';
 type HyperdriveBindingV1 = { readonly connectionString: string };
@@ -14,7 +15,7 @@ function requireHyperdriveConnectionString(env: RuntimeEnv): string {
   return binding.connectionString;
 }
 export const GRADEBOOK_POSTGRES_FAILURE_HEADER_V1 = 'X-Gradebook-Postgres-Failure';
-function withProviderHeader(response: Response, provider: GradebookStorageProviderV1,
+function withProviderHeader(response: Response, provider: GradebookStorageProviderV1 | 'unconfigured',
   diagnostic: GradebookPostgresFailureDiagnosticV1 | null = null): Response {
   const headers = new Headers(response.headers);
   headers.set('X-Gradebook-Storage-Provider', provider);
@@ -23,26 +24,36 @@ function withProviderHeader(response: Response, provider: GradebookStorageProvid
 }
 
 /** Production has one physical authority. Local legacy fixtures may still explicitly use D1.
- * A missing variable or failed PostgreSQL connection must never select old academic data.
+ * Invalid configuration never exposes the historical binding, but also never bypasses
+ * the handler's authentication, input validation or operation-specific failure DTO.
  */
 export async function withOfficialGradebookDatabaseV1(env: RuntimeEnv,
   operation: (executionEnv: RuntimeEnv) => Promise<Response | null>,
   dependencies: OfficialGradebookDatabaseDependenciesV1 = {}): Promise<Response | null> {
   const production = (env.RUNTIME_ENVIRONMENT ?? 'production') === 'production';
   const provider = env.GRADEBOOK_STORAGE_PROVIDER ?? (production ? undefined : 'd1');
-  if ((production && provider !== 'postgres') || (provider !== 'd1' && provider !== 'postgres')) {
-    return Response.json({ state: 'unavailable', error: 'Academic PostgreSQL configuration required' },
-      { status: 503, headers: { 'Cache-Control': 'no-store', 'X-Gradebook-Storage-Provider': 'unconfigured' } });
-  }
-  if (provider === 'd1') {
+  if (!production && provider === 'd1') {
     const response = await operation(env);
     return response ? withProviderHeader(response, provider) : null;
   }
-  const createPostgresDatabase = dependencies.createPostgresDatabase ?? ((value) => createGradebookPostgresDatabaseV1(value));
-  const database = await createPostgresDatabase(requireHyperdriveConnectionString(env));
+  const configured = provider === 'postgres';
+  const database = lazyGradebookDatabaseV1(async () => {
+    if (!configured) throw new Error('gradebook-official-postgres-provider-required');
+    const create = dependencies.createPostgresDatabase ?? createGradebookPostgresDatabaseV1;
+    return create(requireHyperdriveConnectionString(env));
+  });
+  // Copy descriptors rather than evaluating a potentially live legacy-binding getter.
+  const execution = Object.create(Object.getPrototypeOf(env), {
+    ...Object.getOwnPropertyDescriptors(env),
+    GRADEBOOK_D1: { value: database, enumerable: true, configurable: true },
+  }) as RuntimeEnv;
   try {
-    const response = await operation({ ...env, GRADEBOOK_D1: database });
-    const diagnostic = response !== null && response.status >= 500 ? database.lastFailure() : null;
-    return response ? withProviderHeader(response, provider, diagnostic) : null;
+    const response = await operation(execution);
+    if (!response) return null;
+    if (!configured && response.ok) return Response.json({ state: 'unavailable',
+      error: 'Academic PostgreSQL configuration required' }, { status: 503,
+      headers: { 'Cache-Control': 'no-store', 'X-Gradebook-Storage-Provider': 'unconfigured' } });
+    return withProviderHeader(response, configured ? 'postgres' : 'unconfigured',
+      response.status >= 500 ? database.lastFailure() : null);
   } finally { await database.close(); }
 }
