@@ -16,6 +16,11 @@ function noStoreJson(value: unknown, status = 200): Response {
     'Cache-Control': 'no-store, no-cache, must-revalidate, private', Expires: '0', Pragma: 'no-cache',
   } });
 }
+function unavailable(provider: 'postgres' | 'unconfigured'): Response {
+  // Do not log driver errors, connection strings, SQL or student values.
+  console.error(JSON.stringify({ message: 'gradebook_persistence_unavailable', provider }));
+  return noStoreJson({ state: 'unavailable', provider, error: 'Academic persistence unavailable' }, 503);
+}
 function requireMethod(request: Request, expected: 'GET' | 'POST'): void {
   if (request.method !== expected) throw new HttpError(405, 'Method not allowed');
 }
@@ -41,7 +46,7 @@ export async function handleGradebookD1AdminRequestV1(request: Request, env: Run
   const production = (env.RUNTIME_ENVIRONMENT ?? 'production') === 'production';
   if (production) {
     if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || env.GRADEBOOK_PRODUCTION_ENABLED !== 'true')
-      return noStoreJson({ state: 'unavailable', provider: 'unconfigured', error: 'Academic persistence unavailable' }, 503);
+      return unavailable('unconfigured');
     if (pathname === GRADEBOOK_D1_MIGRATIONS_ROUTE)
       return noStoreJson({ state: 'retired', provider: 'postgres', message: 'Production migrations use the reviewed deployment process.' }, 410);
     try {
@@ -52,11 +57,12 @@ export async function handleGradebookD1AdminRequestV1(request: Request, env: Run
           to_regclass('gradebook.nota') IS NOT NULL AND to_regclass('gradebook.fechamento') IS NOT NULL
           AND to_regclass('gradebook.vinculo') IS NOT NULL AS ready`).first<{ role: string; ready: unknown }>();
         const ready = probe?.role === 'gradebook_app' && (probe.ready === true || probe.ready === 1);
+        if (!ready) return unavailable('postgres');
         return noStoreJson({ version: '2.0', provider: 'postgres', capability: GRADEBOOK_D1_ADMIN_CAPABILITY,
-          environment: 'production', schema: { status: ready ? 'ready' : 'unavailable' },
-          observedAt: new Date().toISOString(), elapsedMs: Math.round(performance.now() - started) }, ready ? 200 : 503);
+          environment: 'production', schema: { status: 'ready' },
+          observedAt: new Date().toISOString(), elapsedMs: Math.round(performance.now() - started) });
       });
-    } catch { return noStoreJson({ state: 'unavailable', provider: 'postgres', error: 'Academic persistence unavailable' }, 503); }
+    } catch { return unavailable('postgres'); }
   }
   // Explicit local/preview legacy diagnostics remain available for disposable historical fixtures.
   try {
