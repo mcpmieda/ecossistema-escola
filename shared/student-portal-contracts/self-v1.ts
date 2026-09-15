@@ -12,7 +12,8 @@ export const subjectV1 = z.object({
   subjectId: z.number().int().positive(), label: z.string().min(1).max(120), order: z.number().int().nonnegative(),
   periods: z.array(z.object({
     period: periodV1, final: markV1,
-    partials: z.array(z.object({ assessmentId: z.number().int().positive(), label: z.string().min(1).max(120), mark: markV1 }).strict()).max(12).optional(),
+    // AV1, AV2, parallel recovery and ten qualitative activities are all legitimate.
+    partials: z.array(z.object({ assessmentId: z.number().int().positive(), label: z.string().min(1).max(120), mark: markV1 }).strict()).max(13).optional(),
   }).strict()).max(6).refine((v) => new Set(v.map((p) => p.period)).size === v.length, 'Duplicate period'),
   officialOutcome: z.enum(['approved', 'failed', 'failed-attendance']).optional(),
 }).strict();
