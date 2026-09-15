@@ -30,6 +30,7 @@ import { StudentOverviewV1 } from './overview/student-overview-v1';
 import { OperationsScopeV1 } from './overview/operations-scope-v1';
 import { PortalClientErrorV1, type PortalFetchV1 } from '../student-portal/shared/transport-v1';
 import './shared/admin-page-v1.css';
+import { RemoteLiveNoticeV1, useRemoteLiveV1 } from '../../shared/live-data/use-remote-live-v1';
 
 const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
 type SectionScope = { section: StudentPortalSection; scope: ScopeV1; label: string };
@@ -110,6 +111,11 @@ function PortalWorkspace({
   fetcher?: PortalFetchV1;
 }) {
   const [section, setSection] = useState(() => portalSectionFromHash(window.location.hash));
+  const liveState = useRemoteLiveV1({
+    path: '/api/student-portal/admin/live',
+    enabled: true,
+    onAuthorizationLost: () => onLost(new PortalClientErrorV1('unauthenticated', 401)),
+  });
   const [target, setTarget] = useState<AccountSlotContextV1 | null>(null);
   const [sectionScope, setSectionScope] = useState<SectionScope | null>(null);
   const pendingScope = useRef<SectionScope | null>(null);
@@ -318,6 +324,7 @@ function PortalWorkspace({
       <header>
         <h1>Painel do Aluno</h1>
         <p>Portal de 2026 · Contas, acesso e notas publicadas</p>
+        <RemoteLiveNoticeV1 state={liveState} />
       </header>
       <nav aria-label="Áreas do Painel do Aluno">
         {studentPortalSections.map((item) => (

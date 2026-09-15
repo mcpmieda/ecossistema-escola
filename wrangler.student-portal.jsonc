@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "student-portal",
   "main": "workers/student-portal/index.ts",
-  "compatibility_date": "2026-09-11",
+  "compatibility_date": "2026-09-15",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": false,
   "preview_urls": false,
@@ -15,6 +15,10 @@
     "traces": { "enabled": false }
   },
   "triggers": { "crons": [] },
+  "durable_objects": {
+    "bindings": [{ "name": "PORTAL_LIVE", "class_name": "PortalLiveUpdatesV1" }]
+  },
+  "migrations": [{ "tag": "live-v1", "new_sqlite_classes": ["PortalLiveUpdatesV1"] }],
   "vars": {
     "PORTAL_ENVIRONMENT": "local",
     "PORTAL_ORIGIN": "http://localhost:8787",
@@ -29,6 +33,9 @@
       },
       "services": [],
       "hyperdrive": [],
+      "durable_objects": {
+        "bindings": [{ "name": "PORTAL_LIVE", "class_name": "PortalLiveUpdatesV1" }]
+      },
       "triggers": { "crons": [] }
     },
     "production": {
@@ -42,6 +49,9 @@
       },
       "services": [],
       "hyperdrive": [{ "binding": "PORTAL_DB", "id": "46ac2fcb25ad4ad5b5662d536ccd968a" }],
+      "durable_objects": {
+        "bindings": [{ "name": "PORTAL_LIVE", "class_name": "PortalLiveUpdatesV1" }]
+      },
       "ratelimits": [
         { "name": "PORTAL_AUTH_GLOBAL", "namespace_id": "100715", "simple": { "limit": 600, "period": 60 } },
         { "name": "PORTAL_AUTH_SUBJECT", "namespace_id": "200715", "simple": { "limit": 30, "period": 60 } }

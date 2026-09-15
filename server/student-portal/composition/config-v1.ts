@@ -1,8 +1,9 @@
 import { createHmac } from 'node:crypto';
 import { z } from 'zod';
 import { PortalCryptoV1 } from '../crypto/crypto-v1';
+import type { PortalLiveEnvV1 } from '../live/live-connect-v1';
 
-export interface PortalCompositionEnvV1 {
+export interface PortalCompositionEnvV1 extends PortalLiveEnvV1 {
   PORTAL_ENVIRONMENT: string;
   PORTAL_ORIGIN: string;
   PORTAL_ADMIN_TENANT_ID: string;

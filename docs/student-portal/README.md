@@ -14,12 +14,12 @@ A entrega de runtime passou por `npm run verify` com 2072 testes aprovados, 3 sk
 
 ## Leitura e manutenção
 
-AGENTS → [MASTER_SPEC](MASTER_SPEC.md) → [ARCHITECTURE](ARCHITECTURE.md) → [DECISIONS](DECISIONS.md) → [PROJECT_STATE](PROJECT_STATE.yaml) → [TEST_MATRIX](TEST_MATRIX.md) → [PRODUCTION_READINESS](PRODUCTION_READINESS.md). Ao consumir BN, ler seus contratos, decisões e CONSUMER_MAP.
+AGENTS → [MASTER_SPEC](MASTER_SPEC.md) → [ARCHITECTURE](ARCHITECTURE.md) → [DECISIONS](DECISIONS.md) → [LIVE_DATA_V1](LIVE_DATA_V1.md) → [PROJECT_STATE](PROJECT_STATE.yaml) → [TEST_MATRIX](TEST_MATRIX.md) → [PRODUCTION_READINESS](PRODUCTION_READINESS.md). Ao consumir BN, ler seus contratos, decisões e CONSUMER_MAP.
 
 Defeitos futuros recebem issue própria e reproduzível, sem reabrir silenciosamente a fila concluída. Não registrar PII, QR, PIN, senha, cookie, token ou notas em issue, log, captura ou fixture pública.
 
 ## Runtime preservado
 
-`aluno.escolaieda.com`: Pages HTTPS e Worker próprio, PORTAL_SELF para entrypoint self. ADM mantém Entra e PORTAL_SERVICE privado. PostgreSQL/Supabase via PORTAL_DB Hyperdrive sem cache e role restrita. Migrations Portal 0001–0007 já aplicadas; nenhuma DDL na composição #757. Composição em `server/student-portal/composition`, entrada em `workers/student-portal`, rota ADM em `functions/[[path]].ts`.
+`aluno.escolaieda.com`: Pages HTTPS e Worker próprio, PORTAL_SELF para entrypoint self. ADM mantém Entra e PORTAL_SERVICE privado. PostgreSQL/Supabase via PORTAL_DB Hyperdrive sem cache e role restrita. A baseline publicada deste texto permanece 0001–0007; migrations posteriores são aplicadas somente pelo gate/deploy que registra o SHA correspondente. Composição em `server/student-portal/composition`, entrada em `workers/student-portal`, rota ADM em `functions/[[path]].ts`.
 
 `npm run verify` cobre lint, tipos, testes, builds e provas workerd. `npm run test:student-portal-postgres` usa PostgreSQL descartável `portal705_test`, as suites nativas de runtime, smokes, fundação, consultas administrativas e composição. Fixture e selo sintético não provam Entra real, dispositivo ou piloto legítimo.
