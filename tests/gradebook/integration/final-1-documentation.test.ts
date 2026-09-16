@@ -169,7 +169,7 @@ describe('FINAL-1 documentation distinguishes facts, migration debt and historic
     expect(section('security')).toContain(
       'audited_lock_blob: ad6059ec46be02970b340f97e7cbb585abd79715',
     );
-    expect(existsSync(join(root, 'migrations/gradebook-simplified/0001_current_schema.sql')).toBe(
+    expect(existsSync(join(root, 'migrations/gradebook-simplified/0001_current_schema.sql'))).toBe(
       true,
     );
     const inspect = source('migrations/gradebook-simplified/inspect_current_schema.sql');
