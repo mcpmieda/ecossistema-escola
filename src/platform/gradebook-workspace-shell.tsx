@@ -328,6 +328,10 @@ function GradebookWorkspaceShellContent() {
                       surface.id === 'operational'
                         ? `${scope?.epoch}:${scope?.targetStudentId}:${scope?.studentNavigationEpoch}`
                         : scope?.epoch;
+                    if (surface.id === 'performance')
+                      return <PerformancePage key={scopeKey} isActive={active} />;
+                    if (surface.id === 'reports')
+                      return <InstitutionalReportsPage key={scopeKey} isActive={active} />;
                     return <SurfaceComponent key={scopeKey} />;
                   })()}
                 </Suspense>

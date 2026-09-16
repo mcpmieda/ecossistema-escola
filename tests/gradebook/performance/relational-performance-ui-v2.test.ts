@@ -1,3 +1,6 @@
+import { performanceAnalyticsFixtureV6 } from './performance-analytics-fixture-v6';
+import { requestPerformanceAnalyticsV6 } from '../../../src/features/gradebook/performance/performance-analytics-client-v6';
+import { notifyLiveChangeV1 } from '../../../src/shared/live-data/live-refresh-v1';
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { buildPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
@@ -171,6 +174,7 @@ beforeEach(() => {
       });
     if (body.operation === 'classes')
       return reply({ ...catalog, context: { ...context, year: body.year } });
+    if (body.operation === 'analytics') return reply(performanceAnalyticsFixtureV6({ year: Number(body.year), classId: Number(body.classId), period: body.period as 1 | 2 | 3 | 'annual' }));
     if (body.operation === 'term-comparison') return reply(comparisonFixture(body));
     if (body.operation === 'analysis') return reply(analysisFixture(body));
     if (body.operation === 'dashboard') return reply(dashboardFixture(body));
@@ -344,6 +348,7 @@ async function select(label: string, value: string) {
 }
 async function loaded() {
   await mount();
+  await click('Notas');
   await select('Turma', '10');
   await waitFor(
     () =>
@@ -824,5 +829,201 @@ describe('four lenses and analytical investigation V3', () => {
     expect(requests.filter((value) => value.operation === 'dashboard').at(-1)?.lens).toBe(
       'qualitative',
     );
+  });
+});
+
+async function loadedAnalytics() {
+  await mount();
+  await select('Turma', '10');
+  await waitFor(() => host.querySelector('[data-testid="performance-analytics-v6"]') !== null);
+}
+const analyticsCalls = () => requests.filter((item) => item.operation === 'analytics').length;
+describe('V6 HeroUI perspectives and shared live invalidation', () => {
+  it('opens number-first overview and reuses one snapshot across all five analytical perspectives', async () => {
+    await loadedAnalytics();
+    expect(host.textContent).toContain('Aproveitamento');
+    expect(host.textContent).toContain('Trajetória trimestral');
+    expect(analyticsCalls()).toBe(1);
+    expect(requests.some((item) => item.operation === 'dashboard')).toBe(false);
+    for (const tab of ['Turmas', 'Alunos', 'Componentes', 'Professores', 'Visão geral'])
+      await click(tab);
+    expect(analyticsCalls()).toBe(1);
+    expect(host.textContent).not.toContain('Erro inesperado');
+    expect(selectRoot('Modo')).toBeNull();
+    expect(selectRoot('Comparar com')).toBeNull();
+  });
+  it('preserves global term and local student selection across perspectives without extra fetches', async () => {
+    await loadedAnalytics();
+    await click('Alunos');
+    await select('Aluno', '2');
+    await click('Turmas');
+    await click('Alunos');
+    expect(selectedValue('Aluno')).toContain('Aluno exemplo 02');
+    expect(analyticsCalls()).toBe(1);
+    await select('Período', '2');
+    await waitFor(
+      () =>
+        analyticsCalls() === 2 &&
+        host.querySelector('[data-testid="performance-analytics-v6"]') !== null,
+    );
+    expect(selectedValue('Aluno')).toContain('Aluno exemplo 02');
+    expect(selectedValue('Período')).toBe('2º trimestre');
+  });
+  it('retains visible data and table state while an invalidation is in flight', async () => {
+    await loadedAnalytics();
+    await click('Turmas');
+    const original = mock.getMockImplementation()!;
+    let release: ((response: Response) => void) | undefined;
+    mock.mockImplementation(async (url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (body.operation === 'analytics') {
+        requests.push(body);
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      }
+      return original(url, init);
+    });
+    const table = host.querySelector('[aria-label="Mapa da turma por componente"]');
+    await act(async () => notifyLiveChangeV1('gradebook'));
+    await waitFor(() => release !== undefined);
+    expect(host.querySelector('[aria-label="Carregando indicadores"]')).toBeNull();
+    expect(host.querySelector('[aria-label="Mapa da turma por componente"]')).toBe(table);
+    await act(async () => release!(reply(performanceAnalyticsFixtureV6({ revision: 7 }))));
+    await settle();
+    expect(host.querySelector('[aria-label="Mapa da turma por componente"]')).toBe(table);
+    expect(analyticsCalls()).toBe(2);
+  });
+  it('drops a delayed previous-term response after a new global period selection', async () => {
+    await loadedAnalytics();
+    const original = mock.getMockImplementation()!;
+    let release: ((response: Response) => void) | undefined;
+    mock.mockImplementation(async (url, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (body.operation === 'analytics' && body.period === 2) {
+        requests.push(body);
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      }
+      return original(url, init);
+    });
+    await select('Período', '2');
+    await waitFor(() => release !== undefined);
+    await select('Período', '3');
+    await waitFor(() => host.querySelector('[data-testid="performance-analytics-v6"]') !== null);
+    const text = host.querySelector('[data-testid="performance-analytics-v6"]')!.textContent;
+    await act(async () =>
+      release!(reply(performanceAnalyticsFixtureV6({ period: 2, revision: 9 }))),
+    );
+    await settle();
+    expect(selectedValue('Período')).toBe('3º trimestre');
+    expect(host.querySelector('[data-testid="performance-analytics-v6"]')!.textContent).toBe(text);
+  });
+  it('suspends analytics in a hidden bank area and revalidates when returning', async () => {
+    await loadedAnalytics();
+    await click('Alunos');
+    await select('Aluno', '2');
+    await click('Importação');
+    const before = analyticsCalls();
+    await act(async () => {
+      notifyLiveChangeV1('gradebook');
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    });
+    expect(analyticsCalls()).toBe(before);
+    await click('Desempenho');
+    await waitFor(() => analyticsCalls() === before + 1);
+    expect(selectedValue('Aluno')).toContain('Aluno exemplo 02');
+  });
+  it('uses regular facts for analytics drilldown after using recovery mode in Notes', async () => {
+    await loadedAnalytics();
+    await click('Notas');
+    await select('Modo', 'recovery');
+    await click('Componentes');
+    await waitFor(() => host.textContent?.includes('Instrumentos') === true);
+    await click('Aluno exemplo 01');
+    await waitFor(() => requests.some((item) => item.operation === 'cell-detail'));
+    expect(requests.filter((item) => item.operation === 'cell-detail').at(-1)).toMatchObject({
+      mode: 'regular',
+      offerId: 10,
+      studentId: 1,
+    });
+  });
+  it('opens the existing assessment lens directly from a component', async () => {
+    await loadedAnalytics();
+    await click('Componentes');
+    await click('Notas por instrumento');
+    await waitFor(() =>
+      requests.some((item) => item.operation === 'dashboard' && item.lens === 'assessments'),
+    );
+    expect(requests.filter((item) => item.operation === 'dashboard').at(-1)).toMatchObject({
+      lens: 'assessments',
+      offerId: 10,
+    });
+    expect(selectRoot('Modo')).not.toBeNull();
+  });
+  it.each([401, 403])('removes visible analytics on authorization loss (%s)', async (status) => {
+    await loadedAnalytics();
+    mock.mockResolvedValueOnce(reply({ state: 'not-authorized' }, status));
+    await act(async () => notifyLiveChangeV1('gradebook'));
+    await waitFor(() => host.querySelector('[data-testid="performance-analytics-v6"]') === null);
+    expect(host.textContent).toContain('autorização');
+  });
+  it('preserves the last valid snapshot with a short stale indication on a transient failure', async () => {
+    await loadedAnalytics();
+    mock.mockResolvedValueOnce(reply({ transportVersion: 6, state: 'unavailable' }, 503));
+    await act(async () => notifyLiveChangeV1('gradebook'));
+    await waitFor(() => host.textContent?.includes('Exibindo a última leitura') === true);
+    expect(host.querySelector('[data-testid="performance-analytics-v6"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="Carregando indicadores"]')).toBeNull();
+  });
+  it('validates scope and transport rather than trusting a mismatched analytics response', async () => {
+    const query = {
+      transportVersion: 6,
+      operation: 'analytics',
+      year: 2026,
+      classId: 10,
+      period: 1,
+    } as const;
+    const controller = new AbortController();
+    expect(await requestPerformanceAnalyticsV6(query, controller.signal)).toMatchObject({
+      state: 'ready',
+    });
+    expect(mock).toHaveBeenCalledWith(
+      '/api/gradebook/performance',
+      expect.objectContaining({
+        cache: 'no-store',
+        credentials: 'same-origin',
+        signal: controller.signal,
+      }),
+    );
+    for (const invalid of [
+      performanceAnalyticsFixtureV6({ year: 2025 }),
+      performanceAnalyticsFixtureV6({ classId: 20 }),
+      performanceAnalyticsFixtureV6({ period: 3 }),
+      { ...performanceAnalyticsFixtureV6(), authority: 'official' },
+    ]) {
+      mock.mockResolvedValueOnce(reply(invalid));
+      expect(await requestPerformanceAnalyticsV6(query)).toMatchObject({ state: 'unavailable' });
+    }
+  });
+});
+
+describe('Teacher PDF access in the existing Reports area', () => {
+  it('opens the same analytical source only on demand and follows the report period', async () => {
+    const { GradebookYearProvider } = await import('../../../src/platform/gradebook-year-provider');
+    const { PerformanceTeacherReportsV6 } = await import('../../../src/features/gradebook/reports/performance-teacher-reports-v6');
+    root = createRoot(host);
+    const content = (period: 1 | 2 | 3) => createElement(GradebookYearProvider, null, createElement(PerformanceTeacherReportsV6, { classId: 10, period, isActive: true }));
+    await act(async () => root!.render(content(2))); await settle();
+    expect(analyticsCalls()).toBe(0);
+    await click('Abrir relatório docente');
+    await waitFor(() => selectRoot('Professor do relatório') !== null);
+    expect(requests.filter((item) => item.operation === 'analytics').at(-1)).toMatchObject({ year: 2026, classId: 10, period: 2 });
+    expect(host.textContent).toContain('PDF resumido'); expect(host.textContent).toContain('PDF detalhado');
+    await select('Professor do relatório','2');
+    await act(async () => root!.render(content(3)));
+    await waitFor(() => requests.filter((item) => item.operation === 'analytics').at(-1)?.period === 3);
+    expect(selectedValue('Professor do relatório')).toContain('Docente sintético 2');
   });
 });

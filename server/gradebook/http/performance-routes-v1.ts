@@ -1,3 +1,5 @@
+import { performanceAnalyticsRequestSchemaV6 } from '../../../shared/gradebook-contracts/performance/performance-analytics-v6';
+import { createPerformanceAnalyticsV6 } from '../application/read-models/performance/performance-analytics-v6';
 import { performanceAnalysisRequestSchemaV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { createPerformanceAnalysisV3 } from '../application/read-models/performance/performance-analysis-v3';
 import { performanceDashboardRequestSchemaV5 } from '../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
@@ -214,6 +216,21 @@ export function createPerformanceRequestHandlerV1(
       payload = await readBoundedJson(request, 32_768);
     } catch (cause) {
       return invalidRequest(cause instanceof HttpError ? 'invalid-request' : 'invalid-request');
+    }
+    if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload && payload.transportVersion === 6) {
+      const parsed = performanceAnalyticsRequestSchemaV6.safeParse(payload);
+      if (!parsed.success) return noStoreJson({ transportVersion: 6, state: 'invalid-request' }, 400);
+      const environment = env.RUNTIME_ENVIRONMENT ?? 'production';
+      if (env.GRADEBOOK_STORAGE_PROVIDER !== 'postgres' || !['production', 'local', 'preview'].includes(environment) ||
+        (environment === 'production' && env.GRADEBOOK_PRODUCTION_ENABLED !== 'true') || !env.GRADEBOOK_D1) {
+        return noStoreJson({ transportVersion: 6, state: 'unavailable' }, 503);
+      }
+      try {
+        const response = await createPerformanceAnalyticsV6(env.GRADEBOOK_D1 as D1WriteDatabaseV1).execute(parsed.data);
+        const status = response.state === 'ready' ? 200 : response.state === 'not-found' ? 404 : response.state === 'invalid-request' ? 400 :
+          response.state === 'ambiguous-offers' ? 409 : response.state === 'scope-too-large' ? 422 : 503;
+        return noStoreJson(response, status);
+      } catch { return noStoreJson({ transportVersion: 6, state: 'unavailable' }, 503); }
     }
     if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload && payload.transportVersion === 5) {
       const parsed = performanceDashboardRequestSchemaV5.safeParse(payload);

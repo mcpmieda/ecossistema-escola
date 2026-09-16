@@ -1,5 +1,9 @@
 # Contratos — vigência, compatibilidade e lacunas
 
+## Desempenho analítico #815
+
+Transporte V6 aditivo, cinco perspectivas descritivas sobre a mesma projeção relacional e PDF docente compartilhado com Relatórios. V1–V5, autoridade, núcleo acadêmico e schema preservados. Contrato, sincronização, semântica, escopo por turma e limitações de validação em [PERFORMANCE_ANALYTICS_V6.md](PERFORMANCE_ANALYTICS_V6.md).
+
 ## Portal P2 — classificação de apresentação #745
 
 `academic-presentation-v1.ts` contrata a entrada interna BN e reutiliza o valor

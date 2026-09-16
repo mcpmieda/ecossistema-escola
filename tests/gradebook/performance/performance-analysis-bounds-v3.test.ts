@@ -1,3 +1,4 @@
+import { createPerformanceAnalyticsV6 } from '../../../server/gradebook/application/read-models/performance/performance-analytics-v6';
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import { PGlite } from '@electric-sql/pglite';
@@ -62,3 +63,21 @@ it('rejects 1,010 pairs before reading facts, including for the assessment lens'
     expect(queries.some((sql) => sql.includes('LEFT JOIN gradebook.nota'))).toBe(false);
   } finally { await pg.exec('DELETE FROM gradebook.vinculo WHERE aluno_id=101; DELETE FROM gradebook.aluno WHERE id=101'); }
 });
+
+it('keeps all V6 perspectives within the existing 1,000-pair and 2MB transport bounds', async () => {
+  const value = await createPerformanceAnalyticsV6(db).execute({
+    transportVersion: 6,
+    operation: 'analytics',
+    year: 2026,
+    classId: 1,
+    period: 'annual',
+  });
+  expect(value.state).toBe('ready');
+  if (value.state !== 'ready') throw new Error('analytics-not-ready');
+  expect(value.students).toHaveLength(100);
+  expect(value.components).toHaveLength(10);
+  expect(value.components.every((item) => item.instruments.length === 39)).toBe(true);
+  expect(queries).toHaveLength(6);
+  expect(Buffer.byteLength(JSON.stringify(value))).toBeLessThan(2_000_000);
+  expect(gzipSync(JSON.stringify(value)).length).toBeLessThan(500_000);
+}, 15_000);
