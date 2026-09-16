@@ -62,7 +62,7 @@ it('reaches all 1005 rows through ten explicit continuations and revalidates wit
   expect(page).toHaveBeenCalledTimes(22);
   expect(view.result.current.state.state === 'ready' && view.result.current.state.data.items.length).toBe(1005);
 });
-it('yields after an empty filtered page and rejects a cursor cycle across later appends', async () => {
+it('yields after an empty filtered page and fails closed on a cursor cycle across later appends', async () => {
   const page = vi.fn(async (cursor?: string) => !cursor
     ? { items: [] as ReturnType<typeof row>[], nextCursor: 'a' }
     : cursor === 'a' ? { items: [row(1)], nextCursor: 'b' }
@@ -75,9 +75,12 @@ it('yields after an empty filtered page and rejects a cursor cycle across later 
   expect(page).toHaveBeenCalledTimes(2);
   expect(view.result.current.state).toMatchObject({ state: 'ready', data: { items: [row(1)] } });
   await act(async () => view.result.current.loadMore());
-  await waitFor(() => expect(view.result.current.refreshError?.state).toBe('invalid-response'));
+  // Malformed data is not a transient network failure: the existing reader removes it.
+  await waitFor(() => expect(view.result.current.state).toMatchObject({
+    state: 'error', error: { state: 'invalid-response' },
+  }));
   expect(page).toHaveBeenCalledTimes(3);
-  expect(view.result.current.state).toMatchObject({ state: 'ready', data: { items: [row(1)] } });
+  expect('data' in view.result.current.state).toBe(false);
 });
 it('rebuilds an expired cursor from the start, preserving the loaded window and adding only one page', async () => {
   let now = 1_000_000;

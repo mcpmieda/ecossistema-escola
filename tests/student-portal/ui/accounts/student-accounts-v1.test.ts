@@ -84,24 +84,26 @@ describe('account list and detail', () => {
     const mock = accountsMockV1({ count: 105 });
     render(createElement(StudentAccountsV1, { ...mock.props, scope: ACCOUNT_CLASS_V1 }));
     const user = userEvent.setup();
-    await screen.findByText('SYNTHETIC ACCOUNT 001');
+    const firstName = await screen.findByText('SYNTHETIC ACCOUNT 001');
     await waitFor(() => expect(observer.isObserving()).toBe(true));
     await act(async () => observer.intersect());
-    await screen.findByText('SYNTHETIC ACCOUNT 105');
-    const trigger = await ready();
+    const lastName = await screen.findByText('SYNTHETIC ACCOUNT 105');
+    // Resolve known rows locally instead of repeatedly computing accessible names across
+    // every button in a 105-row grid. The actual press/focus/drawer interactions are unchanged.
+    const trigger = firstName.closest('button')!;
+    expect(trigger.getAttribute('aria-label')).toBe('Abrir ficha de SYNTHETIC ACCOUNT 001');
     await user.click(trigger);
-    await detail();
-    const drawer = screen.getByRole('dialog', { name: 'Ficha do aluno' });
+    const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
+    await within(drawer).findByRole('button', { name: 'Bloquear acesso' });
     expect(drawer.closest('[data-placement="right"]')).toBeTruthy();
     expect(within(drawer).getByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
     expect(document.activeElement?.textContent).toBe('Ficha do aluno');
-    expect(screen.queryByRole('button', { name: 'Próxima página' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Fechar ficha' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(
-      screen.getByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 105' }),
-    ).toBeTruthy();
-    expect(await ready()).toBe(trigger);
+    expect(screen.queryByText('Próxima página')).toBeNull();
+    await user.click(within(drawer).getByRole('button', { name: 'Fechar ficha' }));
+    await waitFor(() => expect(drawer.isConnected).toBe(false));
+    expect(lastName.isConnected).toBe(true);
+    expect(lastName.closest('button')!.getAttribute('aria-label')).toBe('Abrir ficha de SYNTHETIC ACCOUNT 105');
+    expect(screen.getByText('SYNTHETIC ACCOUNT 001').closest('button')).toBe(trigger);
     expect(mock.queries.some((q) => q.page.cursor && q.scope.kind === 'class')).toBe(true);
     expect(mock.writes).toHaveLength(0);
   });
