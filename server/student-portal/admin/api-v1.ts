@@ -12,6 +12,7 @@ import { BirthYearServiceV1 } from '../birth-year/birth-year-service-v1';
 import { PolicyServiceV1 } from '../policies/policy-service-v1';
 import { PublicationServiceV1 } from '../publication/publication-service-v1';
 import { ScopedPublicationServiceV2 } from '../publication/scoped-publication-service-v2';
+import { inheritPublicationV1 } from '../publication/publication-inheritance-v1';
 import { LinkClosureServiceV1 } from '../integration/lifecycle/link-closure-v1';
 import { authNowV1, authTransactionV1 } from '../auth/transaction-v1';
 import { AdminCursorV1 } from './cursor-v1';
@@ -119,6 +120,9 @@ export class PortalAdminApiV1 implements PortalAdminEntrypointV1 {
     const sql = withAuditSqlV1(this.sql, context.clientIp ?? null);
     try {
       switch (command.operation) {
+        case 'publication-inherit':
+          if (!this.options.scopedPublication) throw new Error('student-portal-scoped-publication-unavailable');
+          return committed(await inheritPublicationV1(sql, context.actorId, command));
         case 'qr-issue': case 'qr-reprint': case 'qr-regenerate': case 'password-reset': case 'account-reset': case 'block': {
           const result = await new QrServiceV1(sql, this.options.cryptoPort, this.options.qrKeyVersion).command(context.actorId, command);
           return command.operation.startsWith('qr-') ? adminResponseV1.parse({ ...base, state: 'qr', version: result.version,

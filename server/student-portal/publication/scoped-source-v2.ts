@@ -3,6 +3,7 @@ import { scopeV1, versionV1, type ScopeV1 } from '../../../shared/student-portal
 import { academicVersionSchemaV1 } from '../../../shared/gradebook-contracts/student-portal/academic-revision-v1';
 import type { StudentPortalPostgresQueryV1 } from '../persistence/postgres-persistence-v1';
 import { PERIODS_V1, publicationDigestV1 } from './state-v1';
+import { LEGACY_ALLOWED_SQL_V1, releaseSelectionSqlV1 } from './release-selection-v1';
 
 export const scopedKeyV2 = (scope: ScopeV1) => scope.kind === 'school' ? 'school:2026'
   : scope.kind === 'class' ? `class:2026:${scope.classId}` : `account:2026:${scope.accountId.toLowerCase()}`;
@@ -23,18 +24,15 @@ const TARGETS_V2 = `SELECT s.student_id,b.class_id,a.id AS account_id
   WHERE s.academic_year=2026 AND ($1='school' OR ($1='class' AND b.class_id=$3::integer) OR ($1='account' AND a.id=$2::uuid))`;
 
 // Identical per-student resolution in admin summaries and Self. New decisions override the legacy floor,
-// including explicit withdrawals. Among overlapping scopes the last committed decision wins.
+// including explicit withdrawals. Among overlapping active scopes the last committed decision wins.
 export const SCOPED_SELECTION_V2 = `SELECT p.period,p.mask,r.version AS decision_version,
   CASE WHEN r.scope_key IS NOT NULL THEN r.target_revision ELSE legacy.published_revision END AS approved_revision,
   chosen.target_revision,edition.payload_json,edition.class_id AS edition_class_id,edition.revision::text AS edition_revision,
   COALESCE(latest.period_mask,0) AS available_mask,latest.revision::text AS latest_revision
   FROM (VALUES('T1',1),('T2',2),('T3',4),('REC1',8),('REC2',16),('REC3',32)) p(period,mask)
-  LEFT JOIN LATERAL (SELECT * FROM student_portal.publication_release_v2 release
-    WHERE release.academic_year=2026 AND release.period=p.period
-      AND release.scope_key IN('school:2026','class:2026:'||t.class_id::text,'account:2026:'||t.account_id::text)
-      AND (release.scope_kind<>'account' OR release.target_revision IS NULL OR release.bound_class_id=t.class_id)
-    ORDER BY release.version DESC LIMIT 1) r ON true
+  LEFT JOIN LATERAL (${releaseSelectionSqlV1()}) r ON true
   LEFT JOIN student_portal.publication legacy ON legacy.account_id=t.account_id AND legacy.period=p.period
+    AND ${LEGACY_ALLOWED_SQL_V1}
   LEFT JOIN student_portal.publication_auto_approval_v2 automatic ON automatic.academic_year=2026
     AND automatic.student_id=t.student_id AND automatic.class_id=t.class_id AND automatic.generation=h.generation
   LEFT JOIN student_portal.setting sa ON sa.scope_key='account:2026:'||t.account_id::text AND sa.field_key='autoUpdate'

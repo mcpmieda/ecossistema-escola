@@ -9,6 +9,7 @@ import {
 } from '../../student-portal/shared/latest-request-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { CustomizedSettingsV1 } from './customized-settings-v1';
+import type { OpenCustomizationV1 } from './customization-values-v1';
 import type { PortalAdminReadClientV2 } from '../accounts/accounts-client-v2';
 import { InfoV1 } from '../shared/info-v1';
 import { SettingsEditorV1, SettingsValueSummaryV1 } from './settings-editors-v1';
@@ -41,6 +42,7 @@ export interface StudentSettingsPropsV1 {
   scopeLabel?: string;
   describeScope?: (scope: ScopeV1) => string;
   onCommitted?: () => void;
+  onOpenCustomization?: OpenCustomizationV1;
 }
 const fieldHelp: Record<SettingsFieldV1, string> = {
   accessEnabled:
@@ -257,6 +259,7 @@ function SettingsScopeV1({
   scopeLabel,
   describeScope,
   onCommitted,
+  onOpenCustomization,
 }: StudentSettingsPropsV1) {
   const [fixedScope] = useState(() => ({ ...scope }));
   const [load, setLoad] = useState<PortalLoadStateV1<EffectiveSettingsV1>>({ state: 'idle' });
@@ -400,7 +403,6 @@ function SettingsScopeV1({
           </Button>
         ) : null}
       </header>
-
       {notice ? <p role="status">{notice}</p> : null}
       {load.state === 'idle' || load.state === 'loading' ? (
         <div role="status" className="pa-settings-loading">
@@ -433,71 +435,33 @@ function SettingsScopeV1({
                     : 'Não foi possível confirmar o resultado da operação. Tente a mesma operação novamente ou recarregue o estado antes de uma nova alteração.'}
               </p>
               {mutation.retryable && canWrite ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  isDisabled={clock < mutation.retryAt}
-                  onPress={() => void writer.retry()}
-                >
-                  Tentar novamente
-                </Button>
+                <Button size="sm" variant="secondary" isDisabled={clock < mutation.retryAt}
+                  onPress={() => void writer.retry()}>Tentar novamente</Button>
               ) : null}
-              <Button size="sm" variant="ghost" onPress={discardAndReload}>
-                Recarregar
-              </Button>
+              <Button size="sm" variant="ghost" onPress={discardAndReload}>Recarregar</Button>
             </div>
           ) : null}
           <div className="pa-settings-fields">
             {(Object.keys(SETTINGS_LABELS_V1) as SettingsFieldV1[]).map((field) => (
-              <FieldCardV1
-                key={`${discardVersion}:${field}`}
-                field={field}
-                settings={load.data}
-                canWrite={canWrite}
-                disabled={busy || mutation.state === 'error' || review !== null}
+              <FieldCardV1 key={`${discardVersion}:${field}`} field={field} settings={load.data}
+                canWrite={canWrite} disabled={busy || mutation.state === 'error' || review !== null}
                 sourceLabel={sourceLabel(load.data.sources[field])}
                 review={(intent) => setReview({ ...intent, expectedVersion: load.data.version })}
-                onDirtyChange={onDirtyChange}
-              />
+                onDirtyChange={onDirtyChange} />
             ))}
           </div>
-          {reader && fixedScope.kind !== 'account' ? (
-            <CustomizedSettingsV1
-              key={settingsScopeKeyV1(fixedScope)}
-              reader={reader}
-              scope={fixedScope}
-              renderEditor={(target, label, committed) => (
-                <StudentSettingsV1
-                  client={client}
-                  scope={target}
-                  scopeLabel={label}
-                  canWrite={canWrite}
-                  describeScope={describeScope}
-                  onCommitted={committed}
-                />
-              )}
-            />
+          {reader && onOpenCustomization && fixedScope.kind !== 'account' ? (
+            <CustomizedSettingsV1 key={settingsScopeKeyV1(fixedScope)} reader={reader} client={client}
+              scope={fixedScope} canWrite={canWrite} onOpen={onOpenCustomization} />
           ) : null}
           {fixedScope.kind === 'school' && canWrite ? (
-            <LinkClosureV1
-              key={load.data.version}
-              client={client}
-              disabled={
-                mutation.state === 'pending' || review !== null || mutation.state === 'error'
-              }
-              onClosed={linksClosed}
-              onBusyChange={setClosing}
-            />
+            <LinkClosureV1 key={load.data.version} client={client}
+              disabled={mutation.state === 'pending' || review !== null || mutation.state === 'error'}
+              onClosed={linksClosed} onBusyChange={setClosing} />
           ) : null}
           {review && canWrite ? (
-            <ReviewDialogV1
-              review={review}
-              settings={load.data}
-              scopeLabel={label}
-              disabled={busy}
-              close={() => setReview(null)}
-              confirm={() => void confirm()}
-            />
+            <ReviewDialogV1 review={review} settings={load.data} scopeLabel={label} disabled={busy}
+              close={() => setReview(null)} confirm={() => void confirm()} />
           ) : null}
         </>
       ) : null}
