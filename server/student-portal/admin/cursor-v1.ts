@@ -40,11 +40,11 @@ export class AdminCursorV1 {
       parsed.data.e > now.getTime() + 300_000
     )
       throw new Error('student-portal-cursor-invalid-request');
-    (query.operation === 'settings-overrides' ? settingsKeyV1 : z.uuid()).parse(parsed.data.k);
+    (['settings-overrides', 'customizations-read'].includes(query.operation) ? settingsKeyV1 : z.uuid()).parse(parsed.data.k);
     return { id: parsed.data.k, ...(parsed.data.t ? { at: parsed.data.t } : {}) };
   }
   async next(query: Query, actor: string, now: Date, id: string, at?: string): Promise<string> {
-    (query.operation === 'settings-overrides' ? settingsKeyV1 : z.uuid()).parse(id);
+    (['settings-overrides', 'customizations-read'].includes(query.operation) ? settingsKeyV1 : z.uuid()).parse(id);
     return opaqueV1.parse(
       await seal(
         cursorV1.parse({

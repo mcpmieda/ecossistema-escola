@@ -6,6 +6,7 @@ import {
   instantV1,
   opaqueV1,
   pageRequestV1,
+  periodV1,
   portalIdV1,
   scopeV1,
   versionV1,
@@ -40,7 +41,7 @@ export function adminClassCatalogRequestV2(
 export const adminReadQueryV2 = z
   .object({
     contractVersion: z.literal(2),
-    operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides']),
+    operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides', 'customizations-read']),
     scope: scopeV1,
     page: pageRequestV1,
     accountState: accountStateV1.optional(),
@@ -59,6 +60,11 @@ export const adminReadQueryV2 = z
       !['sessions-read', 'settings-overrides'].includes(value.operation) ||
       [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined),
     'Session scope must match the complete revocation scope',
+  )
+  .refine(
+    (value) => value.operation !== 'customizations-read' ||
+      (value.accountState === undefined && value.blocked === undefined && !value.nameSearch?.includes('\0')),
+    'Customization inventory accepts only scope and name search',
   );
 export const adminQueryRequestV2 = z.union([adminQueryV1, adminReadQueryV2]);
 export const adminAccessV2 = z
@@ -110,7 +116,46 @@ export const customizedSettingsRowV1 = z
     updatedAt: instantV1,
   })
   .strict();
+
+/** #827: explicit current decisions, not a reconstruction of click history or a visibility grant. */
+export const customizationPublicationV1 = z.object({
+  period: periodV1,
+  action: z.enum(['publish', 'unpublish']),
+  version: versionV1,
+  decidedAt: instantV1,
+  relevance: z.enum(['current', 'superseded', 'other-class', 'unlinked', 'other-generation', 'disabled', 'source-unavailable']),
+  broaderDecision: z.object({
+    scope: scopeV1.refine((scope) => scope.kind !== 'account'),
+    action: z.enum(['publish', 'unpublish']),
+    version: versionV1,
+    decidedAt: instantV1,
+  }).strict().nullable(),
+}).strict().refine((value) => value.relevance !== 'superseded' ||
+  (value.broaderDecision !== null && value.broaderDecision.version > value.version), 'Invalid decision precedence');
+export const customizationRowV1 = customizedSettingsRowV1.extend({
+  value: settingsOverrideV1.nullable(),
+  classId: z.number().int().positive().safe().nullable(),
+  blocked: z.boolean(),
+  publications: z.array(customizationPublicationV1).max(6)
+    .refine((items) => new Set(items.map((item) => item.period)).size === items.length, 'Duplicate period'),
+}).strict().refine((row) => {
+  if (row.scope.kind === 'school') return false;
+  const id = row.scope.kind === 'class' ? `class:2026:${row.scope.classId}` : `account:2026:${row.scope.accountId.toLowerCase()}`;
+  return row.id === id && (row.scope.kind !== 'class' || (row.classId === row.scope.classId && !row.blocked)) &&
+    (row.value !== null || row.blocked || row.publications.length > 0);
+}, 'Invalid customization owner or empty row');
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
+  z.object({
+    ...base,
+    state: z.literal('customizations-read'),
+    scope: scopeV1,
+    items: z.array(customizationRowV1).max(100),
+    nextCursor: opaqueV1.nullable(),
+  }).strict().refine((page) => new Set(page.items.map((row) => row.id)).size === page.items.length &&
+    page.items.every((row) => page.scope.kind === 'school' ||
+      (page.scope.kind === 'class' ? row.classId === page.scope.classId :
+        row.scope.kind === 'account' && row.scope.accountId.toLowerCase() === page.scope.accountId.toLowerCase())),
+  'Customization response does not match its scope'),
   z
     .object({
       ...base,

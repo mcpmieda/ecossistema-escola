@@ -1,3 +1,4 @@
+import { readCustomizationsV1 } from './customizations-read-v1';
 import { readSettingsOverridesV1 } from './settings-overrides-v1';
 import { z } from 'zod';
 import { ADMIN_ACCOUNT_FIELDS_V2, accountReadContextV2 } from './account-read-context-v2';
@@ -24,6 +25,8 @@ export async function readAdminV2(
   now: Date,
   cursor: AdminCursorV1,
 ) {
+  if (query.operation === 'customizations-read')
+    return readCustomizationsV1(tx, query, actor, requestId, now, cursor);
   if (query.operation === 'settings-overrides')
     return readSettingsOverridesV1(tx, query, actor, requestId, now, cursor);
   if (query.operation === 'sessions-read')
