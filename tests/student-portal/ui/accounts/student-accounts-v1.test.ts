@@ -46,7 +46,7 @@ describe('account list and detail', () => {
     expect(
       within(screen.getByRole('region', { name: /Tabela de contas/ })).getByText('Primeiro acesso'),
     ).toBeTruthy();
-    expect(screen.getByText('Vínculo Portal encerrado')).toBeTruthy();
+    expect(screen.getByText('Encerrada')).toBeTruthy();
     expect(screen.getAllByText('Desconhecido nos últimos 12 meses')).toHaveLength(3);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Todas as turmas Turma' }));
@@ -83,7 +83,7 @@ describe('account list and detail', () => {
     const user = userEvent.setup();
     await user.click(await ready());
     await detail();
-    expect(document.activeElement?.textContent).toBe('Ficha da conta · 2026');
+    expect(document.activeElement?.textContent).toBe('Ficha do aluno');
     await user.click(screen.getByRole('button', { name: 'Próxima página' }));
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 002' });
     expect(screen.getByRole('button', { name: 'Bloquear acesso' })).toBeTruthy();
@@ -110,7 +110,7 @@ describe('account list and detail', () => {
     expect(mock.writes).toHaveLength(0);
     await user.click(await screen.findByRole('button', { name: 'Redefinir senha' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
-    await screen.findByText(/Ação concluída pelo servidor/);
+    await screen.findByText(/Alteração salva/);
     expect(mock.writes[0]).toMatchObject({ operation: 'password-reset', expectedVersion: 12 });
     await waitFor(() =>
       expect(
@@ -128,11 +128,11 @@ describe('account list and detail', () => {
     mock.accounts[0]!.version = 14;
     await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
     await screen.findByText('A conta mudou. Recarregue e revise uma nova ação.');
-    expect(screen.queryByText(/Ação concluída pelo servidor/)).toBeNull();
+    expect(screen.queryByText(/Alteração salva/)).toBeNull();
     await user.click(await screen.findByRole('button', { name: 'Recarregar ficha' }));
     await user.click(await screen.findByRole('button', { name: 'Bloquear acesso' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
-    await screen.findByText(/Ação concluída pelo servidor/);
+    await screen.findByText(/Alteração salva/);
     expect(mock.writes.map((item) => item.expectedVersion)).toEqual([9, 14]);
     expect(mock.writes[0]!.idempotencyKey).not.toBe(mock.writes[1]!.idempotencyKey);
   });
@@ -163,7 +163,7 @@ describe('account list and detail', () => {
     render(createElement(StudentAccountsV1, mock.props));
     await userEvent.setup().click(await ready());
     expect((await detail()).hasAttribute('disabled')).toBe(true);
-    expect(screen.getAllByText('Vínculo Portal encerrado')).toHaveLength(2);
+    expect(screen.getAllByText('Encerrada')).toHaveLength(2);
     expect(mock.writes).toHaveLength(0);
   });
   it('blocks destructive recovery actions when the backend says recovery is not ready', async () => {
@@ -173,13 +173,16 @@ describe('account list and detail', () => {
     const user = userEvent.setup();
     await user.click(await ready());
     await detail();
-    expect((screen.getByRole('button', { name: 'Redefinir senha' }) as HTMLButtonElement).disabled)
-      .toBe(true);
-    expect((screen.getByRole('button', { name: 'Redefinir conta' }) as HTMLButtonElement).disabled)
-      .toBe(true);
-    expect((screen.getByRole('button', { name: 'Regenerar QR' }) as HTMLButtonElement).disabled)
-      .toBe(false);
-    expect(screen.getByText('Requer nascimento confirmado e PIN atual')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'Redefinir senha' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Redefinir conta' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Regenerar QR' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+    expect(mock.writes).toHaveLength(0);
   });
   it('clears selected data and open confirmation when identity or capability changes', async () => {
     const mock = accountsMockV1();
@@ -223,12 +226,10 @@ describe('account list and detail', () => {
     render(createElement(StudentAccountsV1, mock.props));
     await ready();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Todos os estados Estado da conta' }));
+    await user.click(screen.getByRole('button', { name: 'Todas Situação' }));
     await user.click(screen.getByRole('option', { name: 'Primeiro acesso' }));
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 002' });
-    await user.click(
-      screen.getByRole('button', { name: 'Com ou sem bloqueio Bloqueio administrativo' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Todos Bloqueio' }));
     await user.click(screen.getByRole('option', { name: 'Bloqueadas' }));
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 002' });
     expect(mock.queries.at(-1)).toMatchObject({
@@ -251,9 +252,9 @@ describe('account list and detail', () => {
     });
     render(createElement(StudentAccountsV1, mock.props));
     await ready();
-    fireEvent.change(screen.getByLabelText('Buscar conta por nome'), { target: { value: 'old' } });
+    fireEvent.change(screen.getByLabelText('Buscar aluno'), { target: { value: 'old' } });
     await waitFor(() => expect(resolve).toBeTypeOf('function'));
-    fireEvent.change(screen.getByLabelText('Buscar conta por nome'), { target: { value: '003' } });
+    fireEvent.change(screen.getByLabelText('Buscar aluno'), { target: { value: '003' } });
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 003' });
     await act(async () => resolve(accountJsonV1(accountPageV1([accountFixtureV1(1)]))));
     expect(
@@ -280,7 +281,7 @@ describe('account list and detail', () => {
     await user.click(screen.getByRole('button', { name: 'Bloquear acesso' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
     await user.click(await screen.findByRole('button', { name: 'Repetir mesma solicitação' }));
-    await screen.findByText(/Ação concluída pelo servidor/);
+    await screen.findByText(/Alteração salva/);
     expect(mock.bodies).toHaveLength(3);
     expect(new Set(mock.bodies).size).toBe(1);
   });

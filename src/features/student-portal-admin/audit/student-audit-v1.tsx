@@ -1,15 +1,15 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Card,
-  Input,
+  Chip,
+  Tooltip,
   Label,
   ListBox,
   Modal,
   ScrollShadow,
   Select,
   Table,
-  TextField,
 } from '@heroui/react';
 import {
   auditKindV1,
@@ -21,6 +21,7 @@ import {
   settingsScopeKeyV1,
   settingsScopeLabelV1,
 } from '../settings/settings-values-v1';
+import { DateInputV1 } from '../settings/settings-editors-v1';
 import { AccountsErrorV1 } from '../accounts/accounts-presentation-v1';
 import { OperationsScopeV1 } from '../overview/operations-scope-v1';
 import {
@@ -43,7 +44,7 @@ const eventLabels: Record<NonNullable<AdminQueryV1['event']>, string> = {
   'qr-regenerated': 'QR regenerado',
   blocked: 'Bloqueio',
   unblocked: 'Desbloqueio',
-  'session-revoked': 'Sessão revogada',
+  'session-revoked': 'Sessão encerrada',
   'birth-changed': 'Ano de nascimento alterado',
   'settings-changed': 'Configuração alterada',
   published: 'Publicação',
@@ -122,8 +123,6 @@ function AuditBodyV1(props: OperationsPropsV1) {
     const timer = setTimeout(() => setClock(Date.now()), Math.max(0, detail.retryAt - Date.now()));
     return () => clearTimeout(timer);
   }, [detail, props.onAuthorizationLost]);
-  const fromInput = useRef<HTMLInputElement>(null),
-    untilInput = useRef<HTMLInputElement>(null);
   const openDetail = useCallback(
     (eventId: string) => {
       setOpened(eventId);
@@ -135,26 +134,29 @@ function AuditBodyV1(props: OperationsPropsV1) {
     setOpened(null);
     detailReader.clear();
   }
-  function apply() {
-    try {
-      if (fromInput.current?.validity.badInput || untilInput.current?.validity.badInput)
-        throw new Error('Incomplete interval');
-      const start = calendarInstantV1(from),
-        end = calendarInstantV1(until);
-      if (start && end && Date.parse(start) > Date.parse(end)) throw new Error('interval');
-      close();
-      setCursors([undefined]);
-      setFilters({
-        ...(start ? { from: start } : {}),
-        ...(end ? { until: end } : {}),
-        ...(event ? { event } : {}),
-        ...(result ? { result } : {}),
-      });
-      setInvalid(false);
-    } catch {
-      setInvalid(true);
-    }
-  }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const start = calendarInstantV1(from),
+          end = calendarInstantV1(until);
+        if (start && end && Date.parse(start) > Date.parse(end)) throw new Error('interval');
+        const next: FiltersV1 = {
+          ...(start ? { from: start } : {}),
+          ...(end ? { until: end } : {}),
+          ...(event ? { event } : {}),
+          ...(result ? { result } : {}),
+        };
+        setFilters((before) => (JSON.stringify(before) === JSON.stringify(next) ? before : next));
+        setCursors([undefined]);
+        setOpened(null);
+        detailReader.clear();
+        setInvalid(false);
+      } catch {
+        setInvalid(true);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [from, until, event, result, detailReader]);
   const data = read.state.state === 'ready' ? read.state.data : null;
   return (
     <Card className="pa-operations-card">
@@ -162,26 +164,23 @@ function AuditBodyV1(props: OperationsPropsV1) {
         <div className="pa-operations-header">
           <div>
             <h2>Auditoria</h2>
-            <p>{props.scopeLabel} · 2026</p>
+            <p className="text-xs text-muted">{props.scopeLabel}</p>
           </div>
           <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
         </div>
       </Card.Header>
       <Card.Content>
-        <p>
-          Metadados dos últimos 12 meses. IP mascarado na lista; detalhe de IP disponível por até 90
-          dias e somente com permissão de escrita.
-        </p>
+        <Tooltip>
+          <Tooltip.Trigger className="w-fit text-xs text-muted">Últimos 12 meses</Tooltip.Trigger>
+          <Tooltip.Content>
+            Detalhes de IP por até 90 dias, apenas para operadores autorizados.
+          </Tooltip.Content>
+        </Tooltip>
         <div className="pa-operations-filters">
-          <TextField value={from} onChange={setFrom}>
-            <Label>Desde · São Paulo</Label>
-            <Input ref={fromInput} type="datetime-local" step={1} />
-          </TextField>
-          <TextField value={until} onChange={setUntil}>
-            <Label>Até · São Paulo</Label>
-            <Input ref={untilInput} type="datetime-local" step={1} />
-          </TextField>
+          <DateInputV1 label="Desde" value={from} onChange={setFrom} disabled={false} />
+          <DateInputV1 label="Até" value={until} onChange={setUntil} disabled={false} />
           <Select
+            className="max-w-64"
             selectedKey={event || 'all'}
             onSelectionChange={(key) =>
               setEvent(key === 'all' ? undefined : auditKindV1.parse(key))
@@ -208,6 +207,7 @@ function AuditBodyV1(props: OperationsPropsV1) {
             </Select.Popover>
           </Select>
           <Select
+            className="max-w-64"
             selectedKey={result || 'all'}
             onSelectionChange={(key) =>
               setResult(key === 'all' ? undefined : (key as AdminQueryV1['result']))
@@ -235,7 +235,6 @@ function AuditBodyV1(props: OperationsPropsV1) {
           </Select>
         </div>
         <div className="pa-operations-actions">
-          <Button onPress={apply}>Aplicar filtros</Button>
           <Button
             variant="secondary"
             onPress={() => {
@@ -252,7 +251,7 @@ function AuditBodyV1(props: OperationsPropsV1) {
             Limpar filtros
           </Button>
         </div>
-        {invalid && <p role="alert">Confira as datas e a ordem do intervalo antes de aplicar.</p>}
+        {invalid && <p role="alert">Confira a ordem das datas.</p>}
         {read.state.state === 'loading' && <p role="status">Consultando auditoria…</p>}
         {read.state.state === 'error' && (
           <AccountsErrorV1
@@ -392,11 +391,10 @@ const AuditEventsV1 = memo(function AuditEventsV1({
         <Table.Content aria-label="Eventos de auditoria">
           <Table.Header>
             <Table.Column isRowHeader id="date">
-              Data · São Paulo
+              Data e hora
             </Table.Column>
             <Table.Column id="event">Evento</Table.Column>
             <Table.Column id="result">Resultado</Table.Column>
-            <Table.Column id="ip">IP mascarado</Table.Column>
             <Table.Column id="detail">Detalhe</Table.Column>
           </Table.Header>
           <Table.Body>
@@ -404,11 +402,26 @@ const AuditEventsV1 = memo(function AuditEventsV1({
               <Table.Row key={item.eventId} id={item.eventId}>
                 <Table.Cell>{operationDateV1(item.at)}</Table.Cell>
                 <Table.Cell>
-                  {eventLabels[item.kind]}
-                  <p>{settingsScopeLabelV1(item.scope)}</p>
+                  <Tooltip>
+                    <Tooltip.Trigger>{eventLabels[item.kind]}</Tooltip.Trigger>
+                    <Tooltip.Content>{settingsScopeLabelV1(item.scope)}</Tooltip.Content>
+                  </Tooltip>
                 </Table.Cell>
-                <Table.Cell>{resultLabels[item.result]}</Table.Cell>
-                <Table.Cell>{item.maskedIp || 'Não disponível'}</Table.Cell>
+                <Table.Cell>
+                  <Chip
+                    size="sm"
+                    variant="soft"
+                    color={
+                      item.result === 'success'
+                        ? 'success'
+                        : item.result === 'denied'
+                          ? 'warning'
+                          : 'danger'
+                    }
+                  >
+                    <Chip.Label>{resultLabels[item.result]}</Chip.Label>
+                  </Chip>
+                </Table.Cell>
                 <Table.Cell>
                   <Button
                     size="sm"
@@ -416,7 +429,7 @@ const AuditEventsV1 = memo(function AuditEventsV1({
                     isDisabled={!canWrite}
                     onPress={() => onOpen(item.eventId)}
                   >
-                    Ver detalhe
+                    Detalhes
                   </Button>
                 </Table.Cell>
               </Table.Row>

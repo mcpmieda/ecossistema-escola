@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Button, Input, Label, ListBox, Select, TextField } from '@heroui/react';
+import { Button, Label, ListBox, Select } from '@heroui/react';
+import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 import { ClassFilterV1 } from '../accounts/class-filter-v1';
 import { AccountsErrorV1 } from '../accounts/accounts-presentation-v1';
 import { accountPageMatchesV1 } from '../accounts/accounts-values-v1';
@@ -75,8 +76,13 @@ function ScopeBodyV1({
       setClass(null);
       setPaused(true);
     };
+    const resume = () => setPaused(false);
     window.addEventListener('pagehide', clear);
-    return () => window.removeEventListener('pagehide', clear);
+    window.addEventListener('pageshow', resume);
+    return () => {
+      window.removeEventListener('pagehide', clear);
+      window.removeEventListener('pageshow', resume);
+    };
   }, []);
   const scope: ScopeV1 =
     props.scope.kind === 'school' && selectedClass
@@ -95,26 +101,29 @@ function ScopeBodyV1({
     );
   return (
     <section className="pa-operations">
-      {props.scope.kind === 'school' && props.catalog && (
-        <ClassFilterV1
-          catalog={safeCatalog}
-          selected={selectedClass}
-          onChange={(value) => {
-            setClass(value);
-            setAccount(null);
-          }}
-        />
-      )}
-      {scope.kind === 'class' && (
-        <AccountScopeV1
-          key={settingsScopeKeyV1(scope)}
-          {...props}
-          onAuthorizationLost={report}
-          scope={scope}
-          selected={selectedAccount}
-          onChange={setAccount}
-        />
-      )}
+      <div className="pa-context-controls">
+        {props.scope.kind === 'school' && props.catalog && (
+          <ClassFilterV1
+            catalog={safeCatalog}
+            selected={selectedClass}
+            onChange={(value) => {
+              if (!allowDraftNavigationV1()) return;
+              setClass(value);
+              setAccount(null);
+            }}
+          />
+        )}
+        {scope.kind === 'class' && (
+          <AccountScopeV1
+            key={settingsScopeKeyV1(scope)}
+            {...props}
+            onAuthorizationLost={report}
+            scope={scope}
+            selected={selectedAccount}
+            onChange={setAccount}
+          />
+        )}
+      </div>
       {children(effective, selectedAccount?.label || label, report)}
     </section>
   );
@@ -127,57 +136,55 @@ function AccountScopeV1({
   selected: { id: string; label: string } | null;
   onChange: (value: { id: string; label: string } | null) => void;
 }) {
-  const [search, setSearch] = useState('');
-  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
-  const cursor = cursors.at(-1),
-    scopeKey = settingsScopeKeyV1(props.scope);
+  const scopeKey = settingsScopeKeyV1(props.scope);
   const load = useCallback(
     async (signal: AbortSignal) => {
       const scope = props.scope;
-      const result = await props.reader.query(
-        {
-          contractVersion: 2,
-          operation: 'accounts-read',
-          scope,
-          page: { limit: 100, ...(cursor ? { cursor } : {}) },
-          ...(search.trim() ? { nameSearch: search.trim() } : {}),
-        },
-        signal,
-      );
-      if (result.state !== 'accounts-read' || !accountPageMatchesV1(result, scope))
-        throw new PortalClientErrorV1('invalid-response');
-      return result;
-      // Scope key captures the complete validated identity, avoiding equivalent-prop reloads.
+      const rows: { id: string; label: string }[] = [],
+        seen = new Set<string>(),
+        cursors = new Set<string>();
+      let cursor: string | undefined;
+      for (let page = 0; page < 100; page++) {
+        signal.throwIfAborted();
+        const result = await props.reader.query(
+          {
+            contractVersion: 2,
+            operation: 'accounts-read',
+            scope,
+            page: { limit: 100, ...(cursor ? { cursor } : {}) },
+          },
+          signal,
+        );
+        if (result.state !== 'accounts-read' || !accountPageMatchesV1(result, scope))
+          throw new PortalClientErrorV1('invalid-response');
+        for (const item of result.items) {
+          if (seen.has(item.accountId)) throw new PortalClientErrorV1('invalid-response');
+          seen.add(item.accountId);
+          rows.push({ id: item.accountId, label: item.name || 'Nome indisponível' });
+        }
+        if (!result.nextCursor) return rows;
+        if (cursors.has(result.nextCursor)) throw new PortalClientErrorV1('invalid-response');
+        cursors.add(result.nextCursor);
+        cursor = result.nextCursor;
+      }
+      throw new PortalClientErrorV1('unavailable');
+      // scopeKey captures the complete validated scope identity.
     },
-    [props.reader, scopeKey, cursor, search],
+    [props.reader, scopeKey],
   );
   const read = useOperationalReadV1(load, props.onAuthorizationLost);
-  const rows = read.state.state === 'ready' ? read.state.data.items : [];
+  const rows = read.state.state === 'ready' ? read.state.data : [];
   const options = [
-    ...new Map(
-      [
-        ...(selected ? [selected] : []),
-        ...rows.map((a) => ({ id: a.accountId, label: a.name || 'Nome indisponível' })),
-      ].map((a) => [a.id, a]),
-    ).values(),
+    ...new Map([...(selected ? [selected] : []), ...rows].map((a) => [a.id, a])).values(),
   ];
   return (
     <div className="pa-operations-filters">
-      <TextField
-        value={search}
-        onChange={(value) => {
-          setSearch(value);
-          setCursors([undefined]);
-        }}
-      >
-        <Label>Buscar aluno nesta turma</Label>
-        <Input maxLength={200} />
-      </TextField>
       <Select
         selectedKey={selected?.id || 'all'}
-        onSelectionChange={(key) =>
-          onChange(key === 'all' ? null : options.find((a) => a.id === key) || null)
-        }
+        onSelectionChange={(key) => {
+          if (allowDraftNavigationV1())
+            onChange(key === 'all' ? null : options.find((a) => a.id === key) || null);
+        }}
       >
         <Label>Aluno</Label>
         <Select.Trigger>
@@ -208,30 +215,6 @@ function AccountScopeV1({
       )}
       {read.state.state === 'loading' && <p role="status">Consultando alunos…</p>}
       {read.state.state === 'ready' && rows.length === 0 && <p>Nenhum aluno encontrado.</p>}
-      <div className="pa-operations-actions">
-        {cursors.length > 1 && (
-          <Button
-            variant="secondary"
-            isDisabled={!read.canReload}
-            onPress={() => setCursors((c) => c.slice(0, -1))}
-          >
-            Alunos anteriores
-          </Button>
-        )}
-        {read.state.state === 'ready' && read.state.data.nextCursor && (
-          <Button
-            variant="secondary"
-            onPress={() =>
-              setCursors((c) => [
-                ...c,
-                read.state.state === 'ready' ? read.state.data.nextCursor! : undefined,
-              ])
-            }
-          >
-            Mais alunos
-          </Button>
-        )}
-      </div>
     </div>
   );
 }

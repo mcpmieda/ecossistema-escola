@@ -1,3 +1,4 @@
+import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Label, ListBox, Select, Spinner } from '@heroui/react';
 import type { WorkspaceYearV2 } from '../../shared/gradebook-contracts/operational-workspace/operational-workspace-transport-v2';
@@ -18,22 +19,31 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     setFailure('A sessão não possui autorização. Entre novamente com uma conta autorizada.');
   }, []);
   const retryAuthorization = useCallback(() => {
-    setFailure(null); setEpoch((current) => current + 1); setTargetStudentId(null);
-  }, []);
-  const selectYear = useCallback((nextYear: number) => {
-    if (!years.some((item) => item.year === nextYear)) return;
-    if (yearRef.current === nextYear) return;
-    yearRef.current = nextYear;
-    setYear(nextYear);
-    setEpoch((value) => value + 1);
+    setFailure(null);
+    setEpoch((current) => current + 1);
     setTargetStudentId(null);
-  }, [years]);
+  }, []);
+  const selectYear = useCallback(
+    (nextYear: number) => {
+      if (!allowDraftNavigationV1()) return;
+      if (!years.some((item) => item.year === nextYear)) return;
+      if (yearRef.current === nextYear) return;
+      yearRef.current = nextYear;
+      setYear(nextYear);
+      setEpoch((value) => value + 1);
+      setTargetStudentId(null);
+    },
+    [years],
+  );
   const refreshYears = useCallback(async (preferredYear?: number) => {
     const ticket = ++requestSequence.current;
     setLoading(true);
     let response;
     try {
-      response = await requestOperationalWorkspaceV2({ contractVersion: 2, operation: 'bootstrap' });
+      response = await requestOperationalWorkspaceV2({
+        contractVersion: 2,
+        operation: 'bootstrap',
+      });
     } catch {
       if (ticket === requestSequence.current) {
         setFailure('Não foi possível carregar os anos letivos disponíveis.');
@@ -45,20 +55,25 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     if (response.state === 'not-authorized') {
       setFailure('A sessão não possui autorização. Entre novamente com uma conta autorizada.');
       yearRef.current = null;
-      setYears([]); setYear(null); setLoading(false); return;
+      setYears([]);
+      setYear(null);
+      setLoading(false);
+      return;
     }
     if (response.state !== 'ready' || response.operation !== 'bootstrap') {
       setFailure('Não foi possível carregar os anos letivos disponíveis.');
-      setLoading(false); return;
+      setLoading(false);
+      return;
     }
     setFailure(null);
     setYears(response.years);
     const current = yearRef.current;
-    const next = preferredYear !== undefined && response.years.some((item) => item.year === preferredYear)
-      ? preferredYear
-      : current !== null && response.years.some((item) => item.year === current)
-        ? current
-        : response.years[0]?.year ?? null;
+    const next =
+      preferredYear !== undefined && response.years.some((item) => item.year === preferredYear)
+        ? preferredYear
+        : current !== null && response.years.some((item) => item.year === current)
+          ? current
+          : (response.years[0]?.year ?? null);
     yearRef.current = next;
     setYear(next);
     if (next !== current) {
@@ -67,25 +82,99 @@ export function GradebookYearProvider({ children }: { readonly children: ReactNo
     }
     setLoading(false);
   }, []);
-  useEffect(() => { void refreshYears(); return () => { requestSequence.current += 1; }; }, [refreshYears]);
+  useEffect(() => {
+    void refreshYears();
+    return () => {
+      requestSequence.current += 1;
+    };
+  }, [refreshYears]);
   const openStudent = useCallback((id: number) => {
-    setTargetStudentId(id); setStudentNavigationEpoch((current) => current + 1);
+    setTargetStudentId(id);
+    setStudentNavigationEpoch((current) => current + 1);
     window.location.hash = '#/banco-de-notas?area=operational';
   }, []);
-  const value = useMemo(() => ({ year, years, loading, epoch, failure, targetStudentId, studentNavigationEpoch, clearAuthorization, retryAuthorization, selectYear, refreshYears, openStudent }),
-    [year, years, loading, epoch, failure, targetStudentId, studentNavigationEpoch, clearAuthorization, retryAuthorization, selectYear, refreshYears, openStudent]);
+  const value = useMemo(
+    () => ({
+      year,
+      years,
+      loading,
+      epoch,
+      failure,
+      targetStudentId,
+      studentNavigationEpoch,
+      clearAuthorization,
+      retryAuthorization,
+      selectYear,
+      refreshYears,
+      openStudent,
+    }),
+    [
+      year,
+      years,
+      loading,
+      epoch,
+      failure,
+      targetStudentId,
+      studentNavigationEpoch,
+      clearAuthorization,
+      retryAuthorization,
+      selectYear,
+      refreshYears,
+      openStudent,
+    ],
+  );
   return <GradebookYearContext.Provider value={value}>{children}</GradebookYearContext.Provider>;
 }
 
 export function GradebookYearContextBanner() {
   const scope = useGradebookYear();
   if (!scope) return null;
-  return <div aria-label="Contexto acadêmico atual" className="flex min-w-0 flex-wrap items-end justify-end gap-2">
-    <Select selectedKey={scope.year === null ? null : String(scope.year)} isDisabled={scope.loading || scope.years.length === 0} onSelectionChange={(key) => { if (key !== null) scope.selectYear(Number(key)); }}>
-      <Label className="mb-1 block text-xs font-medium text-muted">Ano letivo global</Label>
-      <Select.Trigger className="min-h-10 min-w-36"><Select.Value />{scope.loading ? <Spinner size="sm" /> : <Select.Indicator />}</Select.Trigger>
-      <Select.Popover><ListBox>{scope.years.map((item) => <ListBox.Item key={item.year} id={String(item.year)} textValue={String(item.year)}>{item.year}<ListBox.ItemIndicator /></ListBox.Item>)}</ListBox></Select.Popover>
-    </Select>
-    {scope.failure ? <Alert status="warning" className="basis-full"><Alert.Content><Alert.Title>Contexto indisponível</Alert.Title><Alert.Description>{scope.failure}</Alert.Description></Alert.Content><Button size="sm" variant="secondary" onPress={() => { scope.retryAuthorization(); void scope.refreshYears(); }}>Tentar novamente</Button></Alert> : null}
-  </div>;
+  return (
+    <div
+      aria-label="Contexto acadêmico atual"
+      className="flex min-w-0 flex-wrap items-end justify-end gap-2"
+    >
+      <Select
+        selectedKey={scope.year === null ? null : String(scope.year)}
+        isDisabled={scope.loading || scope.years.length === 0}
+        onSelectionChange={(key) => {
+          if (key !== null) scope.selectYear(Number(key));
+        }}
+      >
+        <Label className="mb-1 block text-xs font-medium text-muted">Ano letivo global</Label>
+        <Select.Trigger className="min-h-10 min-w-36">
+          <Select.Value />
+          {scope.loading ? <Spinner size="sm" /> : <Select.Indicator />}
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
+            {scope.years.map((item) => (
+              <ListBox.Item key={item.year} id={String(item.year)} textValue={String(item.year)}>
+                {item.year}
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
+      </Select>
+      {scope.failure ? (
+        <Alert status="warning" className="basis-full">
+          <Alert.Content>
+            <Alert.Title>Contexto indisponível</Alert.Title>
+            <Alert.Description>{scope.failure}</Alert.Description>
+          </Alert.Content>
+          <Button
+            size="sm"
+            variant="secondary"
+            onPress={() => {
+              scope.retryAuthorization();
+              void scope.refreshYears();
+            }}
+          >
+            Tentar novamente
+          </Button>
+        </Alert>
+      ) : null}
+    </div>
+  );
 }

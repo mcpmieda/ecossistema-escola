@@ -2,8 +2,10 @@
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import jsQR from 'jsqr';
+import sharp from 'sharp';
 import {
   qrMatrixV1,
+  qrSvgV1,
   renderQrPdfV1,
   wrapQrLabelV1,
 } from '../../../src/features/student-portal-admin/credentials/qr-artifacts-v1';
@@ -20,11 +22,12 @@ describe('private QR print artifacts', () => {
         new AbortController().signal,
         (count) => progress.push(count),
       );
-      expect(artifact).toMatchObject({ count: 100, pages: 17, format: 'pdf' });
+      const pages = mode === 'qr-only' ? 6 : mode === 'qr-name' ? 7 : 8;
+      expect(artifact).toMatchObject({ count: 100, pages, format: 'pdf' });
       expect(artifact.blob.type).toBe('application/pdf');
       const bytes = new Uint8Array(await artifact.blob.arrayBuffer());
       const pdf = await PDFDocument.load(bytes);
-      expect(pdf.getPageCount()).toBe(17);
+      expect(pdf.getPageCount()).toBe(pages);
       expect(
         pdf.getPages().every((page) => page.getWidth() === 595.28 && page.getHeight() === 841.89),
       ).toBe(true);
@@ -56,6 +59,21 @@ describe('private QR print artifacts', () => {
     expect(jsQR(pixels, width, height)?.data).toBe(qr);
     expect([...qrMatrixV1(qr).data]).toEqual([...matrix.data]);
   });
+  it.each([1, 37, 100])(
+    'decodes the actual rounded SVG raster at print scale, credential %i',
+    async (index) => {
+      const qr = qrPrintUrlV1(index);
+      const { data, info } = await sharp(Buffer.from(qrSvgV1(qr)))
+        .resize(450, 450)
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      expect(jsQR(new Uint8ClampedArray(data), info.width, info.height)?.data).toBe(qr);
+      const svg = qrSvgV1(qr);
+      expect(svg).not.toContain(qr);
+      expect(svg).toContain('Q');
+    },
+  );
   it('rejects zero, 101, duplicate, mixed-mode and forbidden extra card fields', () => {
     const repeatedQr = qrPrintCardsV1(2);
     repeatedQr[1]!.qr = repeatedQr[0]!.qr;

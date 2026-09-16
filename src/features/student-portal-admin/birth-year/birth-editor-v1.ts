@@ -66,6 +66,8 @@ export function createBirthEditorV1(options: {
   scope: BirthScopeV1;
   cursor?: BirthCursorsV1;
   canWrite: boolean;
+  /** Explicitly typed values are confirmed by the authorized operator (#817). */
+  confirmOnEdit?: boolean;
   publish: (state: BirthEditorStateV1) => void;
   onAuthorizationLost?: (error: PortalClientErrorV1) => void;
   onChanged?: () => void;
@@ -124,7 +126,8 @@ export function createBirthEditorV1(options: {
   function clear() {
     generation++;
     active?.abort();
-    background?.abort(); background = undefined;
+    background?.abort();
+    background = undefined;
     active = undefined;
     stopTimers();
     single = undefined;
@@ -213,10 +216,10 @@ export function createBirthEditorV1(options: {
   function edit(id: string, year: string) {
     const row = find(id);
     if (!editable() || !row || row.year === year) return;
-    // A correction does not inherit confirmation from a different value.
+    // Existing test/imported years are untouched until an operator edits or confirms.
     replace(id, {
       year,
-      confirmation: 'unconfirmed-test',
+      confirmation: options.confirmOnEdit ? 'confirmed' : 'unconfirmed-test',
       revision: row.revision + 1,
       status: 'draft',
       error: undefined,
@@ -231,18 +234,36 @@ export function createBirthEditorV1(options: {
     const existing = find(id);
     if (!existing) throw new PortalClientErrorV1('conflict');
     const saved = pending.savedBirth;
-    if (saved && (saved.accountId !== id || saved.accountVersion !== pending.receipt
-      || (scope.kind === 'class' && saved.classId !== scope.classId)))
+    if (
+      saved &&
+      (saved.accountId !== id ||
+        saved.accountVersion !== pending.receipt ||
+        (scope.kind === 'class' && saved.classId !== scope.classId))
+    )
       throw new PortalClientErrorV1('conflict');
     // New servers return the committed value directly. Responses without a current snapshot and superseded replays
     // keep the established bounded read-after-write path without a duplicate mutation.
-    const record = saved ? {
-      account: { ...existing.record.account, version: saved.accountVersion },
-      birth: { accountId: saved.accountId, accountVersion: saved.accountVersion,
-        year: saved.year, confirmation: saved.confirmation, version: saved.version },
-    } : (await readBirthPageV1(client, reader,
-      { kind: 'account', academicYear: 2026, accountId: id }, undefined, controller.signal,
-      scope.kind === 'class' ? scope.classId : undefined)).rows[0];
+    const record = saved
+      ? {
+          account: { ...existing.record.account, version: saved.accountVersion },
+          birth: {
+            accountId: saved.accountId,
+            accountVersion: saved.accountVersion,
+            year: saved.year,
+            confirmation: saved.confirmation,
+            version: saved.version,
+          },
+        }
+      : (
+          await readBirthPageV1(
+            client,
+            reader,
+            { kind: 'account', academicYear: 2026, accountId: id },
+            undefined,
+            controller.signal,
+            scope.kind === 'class' ? scope.classId : undefined,
+          )
+        ).rows[0];
     if (current !== generation || controller.signal.aborted || single !== pending) return;
     const item = pending.command.item;
     if (
@@ -412,35 +433,67 @@ export function createBirthEditorV1(options: {
     } else await batch.start(value.command);
   }
   function canRefresh() {
-    return state.state === 'ready' && !active && !background && !single
-      && !navigationPaused && !state.review && !state.singleFailure
-      && state.batch.state === 'idle' && !state.rows.some(birthDirtyV1)
-      && now() >= state.retryAt;
+    return (
+      state.state === 'ready' &&
+      !active &&
+      !background &&
+      !single &&
+      !navigationPaused &&
+      !state.review &&
+      !state.singleFailure &&
+      state.batch.state === 'idle' &&
+      !state.rows.some(birthDirtyV1) &&
+      now() >= state.retryAt
+    );
   }
   async function refresh() {
     if (!canRefresh()) return;
-    const current = generation, controller = new AbortController();
+    const current = generation,
+      controller = new AbortController();
     background = controller;
     emit({ refreshing: true });
     try {
       const page = await readBirthPageV1(client, reader, scope, options.cursor, controller.signal);
       if (current !== generation || controller.signal.aborted) return;
       // A user may start typing or a command may begin while this read is in flight.
-      if (active || single || state.review || navigationPaused || state.batch.state !== 'idle'
-        || state.rows.some(birthDirtyV1)) return;
+      if (
+        active ||
+        single ||
+        state.review ||
+        navigationPaused ||
+        state.batch.state !== 'idle' ||
+        state.rows.some(birthDirtyV1)
+      )
+        return;
       const previous = new Map(state.rows.map((row) => [row.record.account.accountId, row]));
-      emit({ rows: page.rows.map((record) => {
-        const old = previous.get(record.account.accountId);
-        return { ...birthDraftRowV1(record), selected: old?.selected ?? false,
-          status: old?.status === 'saved' ? 'saved' as const : 'idle' as const };
-      }), scopeVersion: page.scopeVersion, next: page.next, refreshError: undefined, retryAt: 0 });
+      emit({
+        rows: page.rows.map((record) => {
+          const old = previous.get(record.account.accountId);
+          return {
+            ...birthDraftRowV1(record),
+            selected: old?.selected ?? false,
+            status: old?.status === 'saved' ? ('saved' as const) : ('idle' as const),
+          };
+        }),
+        scopeVersion: page.scopeVersion,
+        next: page.next,
+        refreshError: undefined,
+        retryAt: 0,
+      });
     } catch (error) {
       if (current !== generation || controller.signal.aborted) return;
       const failure = birthErrorV1(error);
       if (birthProtectedFailureV1(failure)) protectedFailure(failure);
-      else emit({ refreshError: failure, retryAt: now() + Math.max(5, failure.retryAfterSeconds ?? 0) * 1000 });
+      else
+        emit({
+          refreshError: failure,
+          retryAt: now() + Math.max(5, failure.retryAfterSeconds ?? 0) * 1000,
+        });
     } finally {
-      if (background === controller) { background = undefined; emit({ refreshing: false }); }
+      if (background === controller) {
+        background = undefined;
+        emit({ refreshing: false });
+      }
     }
   }
   return {
@@ -462,6 +515,16 @@ export function createBirthEditorV1(options: {
     },
     async flush(id: string) {
       if (!editable() || state.mode !== 'single') return;
+      const row = find(id);
+      if (
+        options.confirmOnEdit &&
+        row &&
+        validBirthYearV1(row.year) &&
+        row.confirmation !== 'confirmed'
+      ) {
+        replace(id, { confirmation: 'confirmed', revision: row.revision + 1, status: 'draft' });
+        emit();
+      }
       const timer = timers.get(id);
       if (timer !== undefined) clearTimeout(timer);
       timers.delete(id);

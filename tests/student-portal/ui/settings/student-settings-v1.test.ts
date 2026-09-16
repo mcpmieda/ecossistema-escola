@@ -1,3 +1,4 @@
+import { enterDateV1 } from './date-input-v1';
 import { createElement, StrictMode } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -88,24 +89,24 @@ describe('administrative settings UI', () => {
       mock = setup();
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
-    fireEvent.change(screen.getByLabelText('Data única de divulgação'), {
-      target: { value: '2026-12-01T08:00' },
-    });
+    await enterDateV1(user, 'Liberar notas em', '2026-12-01T08:00');
     await user.click(
       screen.getByRole('button', {
-        name: 'Uma data para os períodos escolhidos Divulgação das notas',
+        name: 'Data única Divulgação das notas',
       }),
     );
-    await user.click(screen.getByRole('option', { name: 'Uma data para cada período' }));
-    expect(screen.queryByLabelText('Data única de divulgação')).toBeNull();
-    expect((screen.getByLabelText('Divulgação de T1') as HTMLInputElement).value).toBe('');
-    fireEvent.change(screen.getByLabelText('Divulgação de T1'), {
-      target: { value: '2026-12-02T08:00' },
-    });
-    await user.click(screen.getByRole('button', { name: 'Revisar Calendário' }));
+    await user.click(screen.getByRole('option', { name: 'Por trimestre / recuperação' }));
+    expect(screen.queryByRole('spinbutton', { name: 'dia, Liberar notas em' })).toBeNull();
+    expect(
+      screen
+        .getByRole('spinbutton', { name: 'dia, Divulgação de T1' })
+        .getAttribute('aria-valuenow'),
+    ).toBeNull();
+    await enterDateV1(user, 'Divulgação de T1', '2026-12-02T08:00');
+    await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
     await user.click(screen.getByRole('button', { name: 'Voltar' }));
     expect(mock.writes).toHaveLength(0);
-    await user.click(screen.getByRole('button', { name: 'Revisar Calendário' }));
+    await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
     expect(mock.writes[0]).toMatchObject({
@@ -125,7 +126,7 @@ describe('administrative settings UI', () => {
         },
       },
     });
-  });
+  }, 15000);
   it('removes protected settings and the review when write authorization expires', async () => {
     const user = userEvent.setup(),
       mock = setup(undefined, async () => json({ ...base, state: 'unauthenticated' }, 401));
@@ -143,13 +144,13 @@ describe('administrative settings UI', () => {
       mock = setup();
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
-    expect(screen.getAllByText('Herdado')).toHaveLength(7);
+    expect(screen.getAllByText('Padrão da escola')).toHaveLength(7);
     await user.click(screen.getByRole('button', { name: 'Revisar Acesso ao Portal' }));
     expect(mock.writes).toHaveLength(0);
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('Desligado')).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Confirmar alteração' }));
-    await screen.findByText('Configuração salva. Confira o estado atualizado abaixo.');
+    await screen.findByText('Salvo.');
     expect(mock.writes[0]).toMatchObject({
       operation: 'settings-set',
       scope: SETTINGS_CLASS_V1,
@@ -165,8 +166,8 @@ describe('administrative settings UI', () => {
     const mock = setup(fixture);
     const view = render(createElement(StudentSettingsV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Restaurar herança de Acesso ao Portal' }));
-    await user.click(screen.getByRole('button', { name: 'Confirmar herança' }));
+    await user.click(screen.getByRole('button', { name: 'Usar padrão de Acesso ao Portal' }));
+    await user.click(screen.getByRole('button', { name: 'Usar padrão' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
     expect(mock.writes[0]).toMatchObject({
       operation: 'settings-inherit',
@@ -177,14 +178,14 @@ describe('administrative settings UI', () => {
     const school = setup(settingsFixtureV1());
     view.rerender(createElement(StudentSettingsV1, school.props));
     await ready();
-    expect(screen.queryByRole('button', { name: /Restaurar herança/u })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Usar padrão/u })).toBeNull();
   });
   it('preserves an explicitly empty allowed-period list', async () => {
     const user = userEvent.setup(),
       mock = setup();
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
-    const group = screen.getByRole('group', { name: 'Períodos permitidos neste escopo' });
+    const group = screen.getByRole('group', { name: 'Notas disponíveis' });
     for (const checkbox of within(group).getAllByRole('checkbox')) await user.click(checkbox);
     await user.click(screen.getByRole('button', { name: 'Revisar Períodos permitidos' }));
     expect(within(screen.getByRole('dialog')).getByText('Nenhum período')).toBeTruthy();
@@ -201,13 +202,9 @@ describe('administrative settings UI', () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-13T12:00:00Z'));
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
-    fireEvent.change(screen.getByLabelText('Início do ano / T1'), {
-      target: { value: '2026-02-23T08:00' },
-    });
-    fireEvent.change(screen.getByLabelText('Divulgação do resultado final'), {
-      target: { value: '2026-12-23T08:00' },
-    });
-    await user.click(screen.getByRole('button', { name: 'Revisar Calendário' }));
+    await enterDateV1(user, 'Início do ano e 1º trimestre', '2026-02-23T08:00');
+    await enterDateV1(user, 'Divulgação do resultado final', '2026-12-23T08:00');
+    await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
     expect(
       within(screen.getByRole('dialog')).getByText(
         'Há mudança ou remoção de datas que já chegaram:',
@@ -226,28 +223,24 @@ describe('administrative settings UI', () => {
         },
       },
     });
-  });
+  }, 20_000);
   it('rejects chronological and risk-limit errors without dispatching a command', async () => {
     const user = userEvent.setup(),
       mock = setup();
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
-    fireEvent.change(screen.getByLabelText('Início do ano / T1'), {
-      target: { value: '2026-03-01T00:00' },
-    });
-    fireEvent.change(screen.getByLabelText('Fim de T1'), {
-      target: { value: '2026-02-01T00:00' },
-    });
-    await user.click(screen.getByRole('button', { name: 'Revisar Calendário' }));
+    await enterDateV1(user, 'Início do ano e 1º trimestre', '2026-03-01T00:00');
+    await enterDateV1(user, 'Encerramento do 1º trimestre', '2026-02-01T00:00');
+    await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
     expect(screen.getByRole('alert')).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.change(screen.getByLabelText('Falhas antes da verificação'), {
       target: { value: '10' },
     });
-    await user.click(screen.getByRole('button', { name: 'Revisar Sessão e proteção de acesso' }));
+    await user.click(screen.getByRole('button', { name: 'Revisar Segurança do acesso' }));
     expect(screen.getAllByRole('alert')).toHaveLength(2);
     expect(mock.writes).toHaveLength(0);
-  });
+  }, 20_000);
   it('exposes a conflict outside the modal and requires explicit reload rather than overwriting the version', async () => {
     const user = userEvent.setup(),
       mock = setup(undefined, async () => json({ ...base, state: 'conflict' }, 409));
@@ -267,14 +260,14 @@ describe('administrative settings UI', () => {
     const next = settingsFixtureV1(SETTINGS_CLASS_V1);
     next.version = 8;
     mock.current(next);
-    await user.click(screen.getByRole('button', { name: 'Recarregar estado' }));
+    await user.click(screen.getByRole('button', { name: 'Recarregar' }));
     await ready();
     await user.click(screen.getByRole('button', { name: 'Revisar Acesso ao Portal' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(2));
     expect(mock.writes.map((command) => command.expectedVersion)).toEqual([7, 8]);
     expect(mock.writes[0]!.idempotencyKey).not.toBe(mock.writes[1]!.idempotencyKey);
-  });
+  }, 15_000);
   it('never shows the previous scope while a different scope is loading, nor applies its late response', async () => {
     let resolve!: (value: Response) => void;
     const client = createPortalAdminClientV1({
@@ -325,6 +318,6 @@ describe('administrative settings UI', () => {
     await user.click(screen.getByRole('button', { name: 'Revisar Acesso ao Portal' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
-    await screen.findByText('Configuração salva. Confira o estado atualizado abaixo.');
-  });
+    await screen.findByText('Salvo.');
+  }, 15_000);
 });

@@ -1,4 +1,9 @@
 import {
+  assessmentLabelV1,
+  assessmentNamesSchemaV1,
+  type AssessmentNamesV1,
+} from '../../../../shared/gradebook-contracts/settings/assessment-names-v1';
+import {
   RELATIONAL_BULLETIN_CONTRACT_VERSION_V2,
   RELATIONAL_BULLETIN_LIMITS_V2,
   RELATIONAL_BULLETIN_MODEL_VERSION_V2,
@@ -114,8 +119,7 @@ async function rows(
 
 function offerOrder(left: OfferV2, right: OfferV2): number {
   return (
-    compareSourceSubjectPresentationV1(left.subjectLabel, right.subjectLabel) ||
-    left.id - right.id
+    compareSourceSubjectPresentationV1(left.subjectLabel, right.subjectLabel) || left.id - right.id
   );
 }
 
@@ -152,6 +156,7 @@ interface InstrumentV2 {
   readonly label: string;
   readonly maximumMilli: number | null;
   readonly valueMilli: number | null;
+  notDone?: true;
 }
 
 function classFromRow(row: Row): ClassV2 {
@@ -185,15 +190,7 @@ function offerFromRow(row: Row): OfferV2 {
   };
 }
 
-function instrumentLabel(slot: number, description: unknown): string {
-  if (typeof description === 'string' && description.trim().length > 0) return description.trim();
-  if (slot === 1) return 'Avaliação 1';
-  if (slot === 2) return 'Avaliação 2';
-  if (slot === 3) return 'Recuperação paralela';
-  return `Atividade qualitativa ${Math.max(1, slot - 10)}`;
-}
-
-function instrumentFromRow(row: Row): InstrumentV2 {
+function instrumentFromRow(row: Row, names: AssessmentNamesV1): InstrumentV2 {
   const term = integer(row.trimestre) as SimplifiedAcademicTermV1;
   if (![1, 2, 3].includes(term)) throw new RelationalBulletinErrorV2('unavailable');
   const slot = integer(row.slot, true);
@@ -203,9 +200,17 @@ function instrumentFromRow(row: Row): InstrumentV2 {
     studentId: integer(row.aluno_id, true),
     term,
     slot,
-    label: instrumentLabel(slot, row.descricao),
+    label: assessmentLabelV1(
+      slot,
+      term,
+      names,
+      typeof row.descricao === 'string' ? row.descricao : null,
+    ),
     maximumMilli: nullableInteger(row.maximo),
     valueMilli: nullableInteger(row.valor),
+    ...(row.valor === null && (row.observed === true || row.observed === 1)
+      ? { notDone: true as const }
+      : {}),
   };
 }
 
@@ -266,7 +271,8 @@ async function readMaterializations(
   }
   const classRows = await rows(
     database,
-    `SELECT t.id, t.codigo, t.nome, y.minimo_aprovacao, y.max_componentes_conselho
+    `SELECT t.id, t.codigo, t.nome, y.minimo_aprovacao, y.max_componentes_conselho,
+            COALESCE(to_jsonb(y)->'nomes_avaliacoes','{}'::jsonb) AS assessment_names
        FROM gradebook.turma t
        JOIN gradebook.ano_letivo y ON y.ano = t.ano
       WHERE t.ano = ? AND t.id = ?`,
@@ -274,6 +280,7 @@ async function readMaterializations(
   );
   if (classRows.length === 0) throw new RelationalBulletinErrorV2('not-found');
   const classGroup = classFromRow(classRows[0]!);
+  const assessmentNames = assessmentNamesSchemaV1.parse(classRows[0]!.assessment_names ?? {});
 
   const studentIds = [...new Set(selections.map((selection) => selection.studentId))];
   if (studentIds.length !== selections.length)
@@ -329,7 +336,7 @@ async function readMaterializations(
     const detailRows = await rows(
       database,
       `SELECT i.id, i.oferta_id, v.aluno_id, i.trimestre, i.slot,
-              i.maximo, i.descricao, n.valor
+              i.maximo, i.descricao, n.valor, n.instrumento_id IS NOT NULL AS observed
          FROM gradebook.vinculo v
          JOIN gradebook.oferta o ON o.turma_id = v.turma_id AND o.ano = v.ano
          JOIN gradebook.instrumento i ON i.oferta_id = o.id AND ${ACTIVE_INSTRUMENT_PREDICATE_V1}
@@ -340,7 +347,7 @@ async function readMaterializations(
       [first.year, first.classId, ...studentIds],
     );
     for (const row of detailRows) {
-      const value = instrumentFromRow(row);
+      const value = instrumentFromRow(row, assessmentNames);
       const key = instrumentsKey(value.studentId, value.offerId, value.term);
       const bucket = instrumentsMap.get(key) ?? [];
       bucket.push(value);
@@ -413,6 +420,7 @@ async function readMaterializations(
                       label: instrument.label,
                       maximumMilli: instrument.maximumMilli,
                       valueMilli: instrument.valueMilli,
+                      ...(instrument.notDone ? { notDone: true as const } : {}),
                     }),
                   )
                 : [],

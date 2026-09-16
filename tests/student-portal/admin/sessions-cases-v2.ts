@@ -80,6 +80,44 @@ export function sessionsCasesV2(
       const empty = await read({ ...READ_CLASS_V2, classId: 746106 });
       expect(empty).toMatchObject({ items: [], revocableCount: 0, nextCursor: null });
     });
+    it('keeps active sessions ahead of history across bounded filtered pages and binds the cursor to the view', async () => {
+      await enable();
+      await seed(620);
+      await get().admin.unsafe(
+        `UPDATE student_portal.session SET created_at=now()-interval '13 hours' WHERE right(id::text,12)::bigint<=600`,
+      );
+      const api = readApiV2(get().sql),
+        input = { ...query(account), sessionView: 'active' };
+      const first = await api.query(readContextV2(), input);
+      expect(first.state).toBe('sessions-read');
+      if (first.state !== 'sessions-read') throw new Error('read failed');
+      expect(first.items).toEqual([]);
+      expect(first.nextCursor).not.toBeNull();
+      const second = await api.query(readContextV2(), {
+        ...input,
+        page: { limit: 100, cursor: first.nextCursor },
+      });
+      expect(second.state).toBe('sessions-read');
+      if (second.state !== 'sessions-read') throw new Error('read failed');
+      expect(second.items).toHaveLength(20);
+      expect(second.items.every((s) => s.validity === 'valid')).toBe(true);
+      expect(second.nextCursor).toBeNull();
+      expect(
+        (
+          await api.query(readContextV2(), {
+            ...input,
+            sessionView: 'history',
+            page: { limit: 100, cursor: first.nextCursor },
+          })
+        ).state,
+      ).toBe('invalid-request');
+      const history = await api.query(readContextV2(), { ...input, sessionView: 'history' });
+      expect(history.state).toBe('sessions-read');
+      if (history.state !== 'sessions-read') throw new Error('read failed');
+      expect(history.items).toHaveLength(100);
+      expect(history.items.every((s) => s.validity === 'expired')).toBe(true);
+      expect(new Set(second.items.map((s) => s.sessionId)).size).toBe(20);
+    });
     it('uses the server clock, current duration/year cap, revocation, security and block policy', async () => {
       await enable();
       await seed(5);

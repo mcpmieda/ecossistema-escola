@@ -28,12 +28,20 @@ const identity = (write = true, key = 'synthetic-757-session') => ({
   expiresAt: new Date(Date.now() + 3600_000).toISOString(),
   capabilities: ['platform.settings.read', ...(write ? ['platform.settings.write'] : [])],
 });
+const originalAnimations = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations');
 beforeEach(() => {
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    configurable: true,
+    value: () => [],
+  });
   setupOperationsDomV1();
   window.history.replaceState(null, '', '/#/painel-do-aluno');
 });
 afterEach(() => {
   cleanup();
+  if (originalAnimations)
+    Object.defineProperty(Element.prototype, 'getAnimations', originalAnimations);
+  else Reflect.deleteProperty(Element.prototype, 'getAnimations');
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.useRealTimers();
@@ -114,11 +122,11 @@ it.each([401, 403, 503, 'network', 'expired'] as const)(
     if (result === 401 || result === 'expired') {
       await waitFor(() => expect(onLogin).toHaveBeenCalledTimes(1));
       expect(screen.getByRole('status').textContent).toContain('Abrindo entrada institucional');
-      expect(screen.queryByRole('button', { name: 'Consultar sessão novamente' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
     } else {
       expect(await screen.findByText('Acesso administrativo indisponível')).toBeTruthy();
       expect(onLogin).not.toHaveBeenCalled();
-      expect(screen.getByRole('button', { name: 'Consultar sessão novamente' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Tentar novamente' })).toBeTruthy();
     }
   },
 );
@@ -195,14 +203,14 @@ it('mounts actual operational modules, keeps 2026 independent of the BN hash and
       <StudentPortalAdminPage fetcher={fetcher} />
     </StrictMode>,
   );
-  expect(await screen.findByText('Sua sessão permite somente consulta.')).toBeTruthy();
+  expect(await screen.findByText('Somente leitura')).toBeTruthy();
   expect(await screen.findByText('Operando normalmente')).toBeTruthy();
-  await userEvent.setup().click(screen.getByRole('link', { name: 'Contas' }));
+  await userEvent.setup().click(screen.getByRole('tab', { name: 'Alunos' }));
   expect(await screen.findByText('SYNTHETIC OP STUDENT 1')).toBeTruthy();
   expect(mock.queries.every((query) => query.scope.academicYear === 2026)).toBe(true);
   expect(mock.writes).toHaveLength(0);
   denied = true;
-  await userEvent.setup().click(screen.getByRole('link', { name: 'Sessões' }));
+  await userEvent.setup().click(screen.getByRole('tab', { name: 'Sessões' }));
   expect(await screen.findByText('Acesso administrativo indisponível')).toBeTruthy();
   expect(screen.queryByText('SYNTHETIC OP STUDENT 1')).toBeNull();
   expect(screen.queryByRole('navigation', { name: 'Áreas do Painel do Aluno' })).toBeNull();

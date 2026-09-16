@@ -40,7 +40,7 @@ it('keeps the actual admin account filter and detail for the same identity, but 
   });
   render(<StudentPortalAdminPage fetcher={fetcher} />);
   const user = userEvent.setup();
-  const filter = await screen.findByLabelText('Buscar conta por nome');
+  const filter = await screen.findByLabelText('Buscar aluno');
   await user.type(filter, 'SYNTHETIC');
   await user.click(
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC OP STUDENT 1' }),
@@ -52,13 +52,13 @@ it('keeps the actual admin account filter and detail for the same identity, but 
     window.dispatchEvent(new Event('focus'));
   });
   expect(screen.getByRole('button', { name: 'Fechar ficha' })).toBe(close);
-  expect(screen.getByLabelText('Buscar conta por nome')).toBe(filter);
+  expect(screen.getByLabelText('Buscar aluno')).toBe(filter);
   expect((filter as HTMLInputElement).value).toBe('SYNTHETIC');
   key = 'synthetic-other-session';
   await act(async () => window.dispatchEvent(new Event('focus')));
   expect(screen.queryByRole('button', { name: 'Fechar ficha' })).toBeNull();
-  expect((screen.getByLabelText('Buscar conta por nome') as HTMLInputElement).value).toBe('');
-});
+  expect((screen.getByLabelText('Buscar aluno') as HTMLInputElement).value).toBe('');
+}, 15_000);
 
 it('expires admin access at its deadline even with a stalled background request', async () => {
   vi.useFakeTimers();

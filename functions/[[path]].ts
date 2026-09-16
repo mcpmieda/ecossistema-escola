@@ -44,6 +44,7 @@ import { handleGradebookD1AdminRequestV1 } from '../server/gradebook/http/d1-adm
 import { handleInstitutionalReportsRequestV1 } from '../server/gradebook/http/institutional-reports-routes-v1';
 import { handleOperationalWorkspaceRequestV1 } from '../server/gradebook/http/operational-workspace-routes-v1';
 import { handlePerformanceRequestV1 } from '../server/gradebook/http/performance-routes-v1';
+import { handleAssessmentNamesRequestV1 } from '../server/gradebook/http/assessment-names-routes-v1';
 import { handleYearResetRequestV1 } from '../server/gradebook/http/year-reset-routes-v1';
 import { authorizeGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-authorization-v1';
 import { createGradebookD1RuntimeV1 } from '../server/gradebook/persistence/d1/runtime/d1-runtime-v1';
@@ -204,6 +205,9 @@ async function routeOfficialGradebookRequestV1(
   request: Request,
   env: RuntimeEnv,
 ): Promise<Response | null> {
+  const assessmentNamesResponse = await handleAssessmentNamesRequestV1(request, env);
+  if (assessmentNamesResponse) return assessmentNamesResponse;
+
   const yearResetResponse = await handleYearResetRequestV1(request, env);
   if (yearResetResponse) return yearResetResponse;
 

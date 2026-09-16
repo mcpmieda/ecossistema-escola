@@ -168,7 +168,7 @@ export function buildRelationalBulletinPdfLinesV2(
           text(
             lines,
             'meta',
-            `${instrument.label} · nota ${grade(instrument.valueMilli)} / ${grade(instrument.maximumMilli)}`,
+            `${instrument.label} · ${instrument.notDone ? 'Não fez' : instrument.valueMilli === 0 ? 'Tirou zero' : 'nota ' + grade(instrument.valueMilli)} / ${grade(instrument.maximumMilli)}`,
             36,
           );
         }

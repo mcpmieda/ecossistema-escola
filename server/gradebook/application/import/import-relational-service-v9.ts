@@ -1,4 +1,7 @@
-import { lockResetWriterV1, recordImportResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
+import {
+  lockResetWriterV1,
+  recordImportResetWriteV1,
+} from '../../../student-portal/integration/year-reset/writer-v1';
 import type {
   GradebookImportCellV9,
   GradebookImportOfferV9,
@@ -64,7 +67,10 @@ async function first<T extends Row>(
   query: string,
   values: readonly D1WriteValueV1[] = [],
 ): Promise<T | null> {
-  return database.prepare(query).bind(...values).first<T>();
+  return database
+    .prepare(query)
+    .bind(...values)
+    .first<T>();
 }
 
 async function all<T extends Row>(
@@ -72,7 +78,12 @@ async function all<T extends Row>(
   query: string,
   values: readonly D1WriteValueV1[] = [],
 ): Promise<readonly T[]> {
-  return (await database.prepare(query).bind(...values).all<T>()).results;
+  return (
+    await database
+      .prepare(query)
+      .bind(...values)
+      .all<T>()
+  ).results;
 }
 
 async function run(
@@ -80,7 +91,10 @@ async function run(
   query: string,
   values: readonly D1WriteValueV1[] = [],
 ): Promise<number> {
-  const result = await database.prepare(query).bind(...values).run();
+  const result = await database
+    .prepare(query)
+    .bind(...values)
+    .run();
   return result.meta?.changes ?? result.changes ?? 0;
 }
 
@@ -202,7 +216,13 @@ async function resolveRelationClasses(
         `INSERT INTO gradebook.turma (ano, codigo, nome, etapa, turno)
          VALUES (?, ?, ?, ?, ?)
          RETURNING id, codigo, nome, etapa, turno`,
-        [request.ano, source.codigo.trim().toUpperCase(), source.nome.trim(), source.etapa, source.turno.trim()],
+        [
+          request.ano,
+          source.codigo.trim().toUpperCase(),
+          source.nome.trim(),
+          source.etapa,
+          source.turno.trim(),
+        ],
       );
       result.set(classKey(source.codigo), {
         id: asNumber(created.id, 'turma-id'),
@@ -298,7 +318,9 @@ async function persistRelation(
   request: GradebookRelationImportRequestV9,
   state: ImportStateV9,
 ): Promise<void> {
-  const year = await first<Row>(database, `SELECT ano FROM gradebook.ano_letivo WHERE ano = ?`, [request.ano]);
+  const year = await first<Row>(database, `SELECT ano FROM gradebook.ano_letivo WHERE ano = ?`, [
+    request.ano,
+  ]);
   if (!year) {
     await changedRun(
       database,
@@ -329,7 +351,9 @@ async function persistRelation(
       alunoId: asNumber(row.aluno_id, 'aluno-id'),
       situacao: row.situacao === null ? null : asNumber(row.situacao, 'situacao'),
       turmaRelacionadaId:
-        row.turma_relacionada_id === null ? null : asNumber(row.turma_relacionada_id, 'turma-relacionada-id'),
+        row.turma_relacionada_id === null
+          ? null
+          : asNumber(row.turma_relacionada_id, 'turma-relacionada-id'),
       nome: String(row.nome),
     };
     existingByBinding.set(bindingKey(item.turmaId, item.numero), item);
@@ -345,7 +369,10 @@ async function persistRelation(
       const rawStatus = aluno[2];
       const related = aluno[3] === undefined ? null : classes.get(classKey(aluno[3]));
       if (aluno[3] !== undefined && !related) {
-        throw new RelationalImportErrorV9('blocked', `Turma relacionada não encontrada: ${aluno[3]}.`);
+        throw new RelationalImportErrorV9(
+          'blocked',
+          `Turma relacionada não encontrada: ${aluno[3]}.`,
+        );
       }
       source.push({
         index: source.length,
@@ -406,7 +433,10 @@ async function persistRelation(
       if (external !== undefined) seeds.add(external);
     }
     if (seeds.size > 1) {
-      throw new RelationalImportErrorV9('conflict', `Vínculos existentes apontam para alunos diferentes em ${items[0]!.nome}.`);
+      throw new RelationalImportErrorV9(
+        'conflict',
+        `Vínculos existentes apontam para alunos diferentes em ${items[0]!.nome}.`,
+      );
     }
     const preferred = items.find((item) => item.situacao !== 6) ?? items[0]!;
     let alunoId = [...seeds][0];
@@ -421,17 +451,34 @@ async function persistRelation(
       );
       alunoId = asNumber(created.id, 'aluno-id');
     } else {
-      const current = await first<Row>(database, `SELECT nome FROM gradebook.aluno WHERE id = ? AND ano = ?`, [alunoId, request.ano]);
-      if (!current) throw new RelationalImportErrorV9('conflict', `Aluno existente fora do ano ${request.ano}.`);
+      const current = await first<Row>(
+        database,
+        `SELECT nome FROM gradebook.aluno WHERE id = ? AND ano = ?`,
+        [alunoId, request.ano],
+      );
+      if (!current)
+        throw new RelationalImportErrorV9(
+          'conflict',
+          `Aluno existente fora do ano ${request.ano}.`,
+        );
       if (String(current.nome) !== preferred.nome) {
-        await changedRun(database, state, request, 1, `UPDATE gradebook.aluno SET nome = ? WHERE id = ?`, [preferred.nome, alunoId]);
+        await changedRun(
+          database,
+          state,
+          request,
+          1,
+          `UPDATE gradebook.aluno SET nome = ? WHERE id = ?`,
+          [preferred.nome, alunoId],
+        );
       }
     }
     for (const item of items) alunoForSource.set(item.index, alunoId);
     void root;
   }
 
-  const ordered = [...source].sort((left, right) => (left.situacao === 6 ? -1 : right.situacao === 6 ? 1 : left.index - right.index));
+  const ordered = [...source].sort((left, right) =>
+    left.situacao === 6 ? -1 : right.situacao === 6 ? 1 : left.index - right.index,
+  );
   for (const item of ordered) {
     const alunoId = alunoForSource.get(item.index);
     if (alunoId === undefined) throw new Error('component-aluno-missing');
@@ -449,20 +496,33 @@ async function persistRelation(
       continue;
     }
     if (current.alunoId !== alunoId) {
-      throw new RelationalImportErrorV9('conflict', `Vínculo ${item.turmaCode}/${item.numero} pertence a outro aluno.`);
+      throw new RelationalImportErrorV9(
+        'conflict',
+        `Vínculo ${item.turmaCode}/${item.numero} pertence a outro aluno.`,
+      );
     }
-    if (current.situacao === item.situacao && current.turmaRelacionadaId === item.relatedTurmaId) continue;
+    if (current.situacao === item.situacao && current.turmaRelacionadaId === item.relatedTurmaId)
+      continue;
     const importId = await ensureImport(database, state, request, 1);
     await run(
       database,
       `INSERT INTO gradebook.vinculo_historico
        (importacao_id, turma_id, numero, situacao_anterior, situacao_nova, turma_rel_anterior, turma_rel_nova)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [importId, item.turmaId, item.numero, current.situacao, item.situacao, current.turmaRelacionadaId, item.relatedTurmaId],
+      [
+        importId,
+        item.turmaId,
+        item.numero,
+        current.situacao,
+        item.situacao,
+        current.turmaRelacionadaId,
+        item.relatedTurmaId,
+      ],
     );
     state.writes++;
     state.writes += await academicRun(
-      database, state,
+      database,
+      state,
       `UPDATE gradebook.vinculo SET situacao = ?, turma_relacionada_id = ?
        WHERE turma_id = ? AND numero = ?`,
       [item.situacao, item.relatedTurmaId, item.turmaId, item.numero],
@@ -494,7 +554,15 @@ async function resolveProfessor(
   }
   const id = asNumber(current.id, 'professor-id');
   if (String(current.nome) !== request.professor.trim()) {
-    await changedRun(database, state, request, 2, `UPDATE gradebook.professor SET nome = ? WHERE id = ?`, [request.professor.trim(), id], false);
+    await changedRun(
+      database,
+      state,
+      request,
+      2,
+      `UPDATE gradebook.professor SET nome = ? WHERE id = ?`,
+      [request.professor.trim(), id],
+      false,
+    );
   }
   return id;
 }
@@ -525,7 +593,14 @@ async function resolveDiscipline(
   if (String(current.nome) !== name.trim()) {
     // A shared subject label may affect classes outside this file's offers.
     state.globalAcademicChange = true;
-    await changedRun(database, state, request, 2, `UPDATE gradebook.disciplina SET nome = ? WHERE id = ?`, [name.trim(), id]);
+    await changedRun(
+      database,
+      state,
+      request,
+      2,
+      `UPDATE gradebook.disciplina SET nome = ? WHERE id = ?`,
+      [name.trim(), id],
+    );
   }
   return id;
 }
@@ -583,8 +658,30 @@ async function historyNote(
   alunoId: number,
   previous: number | null,
   next: number | null,
+  previousNotDone = false,
+  nextNotDone = false,
 ): Promise<void> {
   const importId = await ensureImport(database, state, request, 2);
+  // Older transports keep their numeric delta shape. A presence-only transition
+  // is a real source change even when both numeric values are null.
+  if (previousNotDone || nextNotDone) {
+    state.writes += await run(
+      database,
+      `INSERT INTO gradebook.nota_historico
+       (importacao_id, instrumento_id, aluno_id, valor_anterior, valor_novo, nao_feito_anterior, nao_feito_novo)
+       VALUES (?, ?, ?, ?, ?, ?::integer::boolean, ?::integer::boolean)`,
+      [
+        importId,
+        instrumentoId,
+        alunoId,
+        previous,
+        next,
+        previousNotDone ? 1 : 0,
+        nextNotDone ? 1 : 0,
+      ],
+    );
+    return;
+  }
   state.writes += await run(
     database,
     `INSERT INTO gradebook.nota_historico
@@ -612,11 +709,14 @@ async function processOffer(
   );
   const existingInstruments = new Map<string, InstrumentStateV9>();
   for (const row of instrumentRows) {
-    existingInstruments.set(`${asNumber(row.trimestre, 'trimestre')}:${asNumber(row.slot, 'slot')}`, {
-      id: asNumber(row.id, 'instrumento-id'),
-      maximo: row.maximo === null ? null : asNumber(row.maximo, 'maximo'),
-      descricao: row.descricao === null ? null : String(row.descricao),
-    });
+    existingInstruments.set(
+      `${asNumber(row.trimestre, 'trimestre')}:${asNumber(row.slot, 'slot')}`,
+      {
+        id: asNumber(row.id, 'instrumento-id'),
+        maximo: row.maximo === null ? null : asNumber(row.maximo, 'maximo'),
+        descricao: row.descricao === null ? null : String(row.descricao),
+      },
+    );
   }
   const noteRows = await all<Row>(
     database,
@@ -626,9 +726,15 @@ async function processOffer(
      WHERE i.oferta_id = ?`,
     [ofertaId],
   );
-  const notes = new Map<string, number>();
+  const notes = new Map<string, number | null>();
+  const observedInstruments = new Set<number>();
   for (const row of noteRows) {
-    notes.set(`${asNumber(row.instrumento_id, 'instrumento-id')}:${asNumber(row.aluno_id, 'aluno-id')}`, asNumber(row.valor, 'nota'));
+    const instrumentId = asNumber(row.instrumento_id, 'instrumento-id');
+    observedInstruments.add(instrumentId);
+    notes.set(
+      `${instrumentId}:${asNumber(row.aluno_id, 'aluno-id')}`,
+      row.valor === null ? null : asNumber(row.valor, 'nota'),
+    );
   }
 
   for (const term of offer.trimestres) {
@@ -640,7 +746,12 @@ async function processOffer(
         const cell = values[column]!;
         return typeof cell === 'number';
       });
-      const meaningful = sourceMaximum !== null || sourceDescription !== undefined || hasValue || instrument !== undefined;
+      const meaningful =
+        sourceMaximum !== null ||
+        sourceDescription !== undefined ||
+        hasValue ||
+        instrument !== undefined ||
+        (request.granularObservationVersion === 1 && slot === 3);
       if (!meaningful) continue;
       if (!instrument) {
         const created = await changedFirst<Row>(
@@ -652,11 +763,16 @@ async function processOffer(
            VALUES (?, ?, ?, ?, ?) RETURNING id`,
           [ofertaId, term.trimestre, slot, sourceMaximum, sourceDescription ?? null],
         );
-        instrument = { id: asNumber(created.id, 'instrumento-id'), maximo: sourceMaximum, descricao: sourceDescription ?? null };
+        instrument = {
+          id: asNumber(created.id, 'instrumento-id'),
+          maximo: sourceMaximum,
+          descricao: sourceDescription ?? null,
+        };
         existingInstruments.set(key, instrument);
       } else {
         const nextMaximum = sourceMaximum === null ? instrument.maximo : sourceMaximum;
-        const nextDescription = sourceDescription === undefined ? instrument.descricao : sourceDescription;
+        const nextDescription =
+          sourceDescription === undefined ? instrument.descricao : sourceDescription;
         if (nextMaximum !== instrument.maximo || nextDescription !== instrument.descricao) {
           const importId = await ensureImport(database, state, request, 2);
           state.writes += await run(
@@ -664,10 +780,18 @@ async function processOffer(
             `INSERT INTO gradebook.instrumento_historico
              (importacao_id, instrumento_id, maximo_anterior, maximo_novo, descricao_anterior, descricao_nova)
              VALUES (?, ?, ?, ?, ?, ?)`,
-            [importId, instrument.id, instrument.maximo, nextMaximum, instrument.descricao, nextDescription],
+            [
+              importId,
+              instrument.id,
+              instrument.maximo,
+              nextMaximum,
+              instrument.descricao,
+              nextDescription,
+            ],
           );
           state.writes += await academicRun(
-            database, state,
+            database,
+            state,
             `UPDATE gradebook.instrumento SET maximo = ?, descricao = ? WHERE id = ?`,
             [nextMaximum, nextDescription, instrument.id],
           );
@@ -676,27 +800,68 @@ async function processOffer(
         }
       }
 
+      // Numeric activity headings in the template are not evidence that an
+      // activity exists. Never turn all ten unused placeholders into 'Não fez'.
+      const placeholder =
+        slot >= 11 &&
+        new RegExp(`^${slot - 10}([.,]0+)?$`, 'u').test(instrument.descricao?.trim() ?? '');
+      const activeInstrument =
+        slot < 11 ||
+        instrument.maximo !== null ||
+        hasValue ||
+        (Boolean(instrument.descricao?.trim()) && !placeholder) ||
+        observedInstruments.has(instrument.id);
       for (const [numero, values] of term.alunos) {
         const alunoId = bindings.get(`${turmaId}:${numero}`);
         if (alunoId === undefined) {
-          throw new RelationalImportErrorV9('blocked', `Aluno número ${numero} não existe na turma ${offer.turmaCodigo}. Importe a Relação primeiro.`);
+          throw new RelationalImportErrorV9(
+            'blocked',
+            `Aluno número ${numero} não existe na turma ${offer.turmaCodigo}. Importe a Relação primeiro.`,
+          );
         }
         const target = values[column]!;
         if (isUnavailable(target)) continue;
         // Acima do máximo é um erro de lançamento corrigível: persiste o fato-fonte e o navegador avisa.
         const noteKey = `${instrument.id}:${alunoId}`;
+        const observed = notes.has(noteKey);
         const previous = notes.get(noteKey) ?? null;
         const next = target === null ? null : (target as number);
-        if (previous === next) continue;
-        await historyNote(database, state, request, instrument.id, alunoId, previous, next);
-        if (next === null) {
-          state.writes += await academicRun(database, state, `DELETE FROM gradebook.nota WHERE instrumento_id = ? AND aluno_id = ?`, [instrument.id, alunoId]);
+        const retainBlank = request.granularObservationVersion === 1 && activeInstrument;
+        if (previous === next && (next !== null || (retainBlank ? observed : !observed))) continue;
+        await historyNote(
+          database,
+          state,
+          request,
+          instrument.id,
+          alunoId,
+          previous,
+          next,
+          observed && previous === null,
+          retainBlank && next === null,
+        );
+        if (next === null && !retainBlank) {
+          state.writes += await academicRun(
+            database,
+            state,
+            `DELETE FROM gradebook.nota WHERE instrumento_id = ? AND aluno_id = ?`,
+            [instrument.id, alunoId],
+          );
           notes.delete(noteKey);
-        } else if (previous === null) {
-          state.writes += await academicRun(database, state, `INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor) VALUES (?, ?, ?)`, [instrument.id, alunoId, next]);
+        } else if (!observed) {
+          state.writes += await academicRun(
+            database,
+            state,
+            `INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor) VALUES (?, ?, ?)`,
+            [instrument.id, alunoId, next],
+          );
           notes.set(noteKey, next);
         } else {
-          state.writes += await academicRun(database, state, `UPDATE gradebook.nota SET valor = ? WHERE instrumento_id = ? AND aluno_id = ?`, [next, instrument.id, alunoId]);
+          state.writes += await academicRun(
+            database,
+            state,
+            `UPDATE gradebook.nota SET valor = ? WHERE instrumento_id = ? AND aluno_id = ?`,
+            [next, instrument.id, alunoId],
+          );
           notes.set(noteKey, next);
         }
       }
@@ -721,20 +886,40 @@ async function processOffer(
   for (const row of fechamentoRows) {
     closing.set(asNumber(row.aluno_id, 'aluno-id'), {
       exists: true,
-      am: [row.am1_fonte === null ? null : asNumber(row.am1_fonte, 'am1'), row.am2_fonte === null ? null : asNumber(row.am2_fonte, 'am2'), row.am3_fonte === null ? null : asNumber(row.am3_fonte, 'am3')],
-      rec: [row.rec1 === null ? null : asNumber(row.rec1, 'rec1'), row.rec2 === null ? null : asNumber(row.rec2, 'rec2'), row.rec3 === null ? null : asNumber(row.rec3, 'rec3')],
+      am: [
+        row.am1_fonte === null ? null : asNumber(row.am1_fonte, 'am1'),
+        row.am2_fonte === null ? null : asNumber(row.am2_fonte, 'am2'),
+        row.am3_fonte === null ? null : asNumber(row.am3_fonte, 'am3'),
+      ],
+      rec: [
+        row.rec1 === null ? null : asNumber(row.rec1, 'rec1'),
+        row.rec2 === null ? null : asNumber(row.rec2, 'rec2'),
+        row.rec3 === null ? null : asNumber(row.rec3, 'rec3'),
+      ],
       ncMask: asNumber(row.rec_nc_mask, 'rec-nc-mask'),
       rrMask: asNumber(row.rec_rr_mask ?? 0, 'rec-rr-mask'),
       u: row.u_fonte === null ? null : asNumber(row.u_fonte, 'u'),
     });
   }
 
-  type Patch = { am?: [GradebookImportCellV9?, GradebookImportCellV9?, GradebookImportCellV9?]; rec?: [GradebookImportRecoveryCellV9, GradebookImportRecoveryCellV9, GradebookImportRecoveryCellV9]; u?: GradebookImportCellV9 };
+  type Patch = {
+    am?: [GradebookImportCellV9?, GradebookImportCellV9?, GradebookImportCellV9?];
+    rec?: [
+      GradebookImportRecoveryCellV9,
+      GradebookImportRecoveryCellV9,
+      GradebookImportRecoveryCellV9,
+    ];
+    u?: GradebookImportCellV9;
+  };
   const patches = new Map<number, Patch>();
   for (const term of offer.trimestres) {
     for (const [numero, , am] of term.alunos) {
       const alunoId = bindings.get(`${turmaId}:${numero}`);
-      if (alunoId === undefined) throw new RelationalImportErrorV9('blocked', `Aluno número ${numero} não existe na turma ${offer.turmaCodigo}.`);
+      if (alunoId === undefined)
+        throw new RelationalImportErrorV9(
+          'blocked',
+          `Aluno número ${numero} não existe na turma ${offer.turmaCodigo}.`,
+        );
       const patch = patches.get(alunoId) ?? {};
       const ams = patch.am ?? [];
       ams[term.trimestre - 1] = am;
@@ -744,7 +929,11 @@ async function processOffer(
   }
   for (const [numero, rec1, rec2, rec3, u] of offer.recuperacao ?? []) {
     const alunoId = bindings.get(`${turmaId}:${numero}`);
-    if (alunoId === undefined) throw new RelationalImportErrorV9('blocked', `Aluno REC número ${numero} não existe na turma ${offer.turmaCodigo}.`);
+    if (alunoId === undefined)
+      throw new RelationalImportErrorV9(
+        'blocked',
+        `Aluno REC número ${numero} não existe na turma ${offer.turmaCodigo}.`,
+      );
     const patch = patches.get(alunoId) ?? {};
     patch.rec = [rec1, rec2, rec3];
     patch.u = u;
@@ -752,16 +941,42 @@ async function processOffer(
   }
 
   for (const [alunoId, patch] of patches) {
-    const current = closing.get(alunoId) ?? { exists: false, am: [null, null, null], rec: [null, null, null], ncMask: 0, rrMask: 0, u: null };
-    const next: Close = { exists: current.exists, am: [...current.am], rec: [...current.rec], ncMask: current.ncMask, rrMask: current.rrMask, u: current.u };
-    const changes: Array<{ campo: number; oldValue: number | null; newValue: number | null; oldState: number; newState: number }> = [];
+    const current = closing.get(alunoId) ?? {
+      exists: false,
+      am: [null, null, null],
+      rec: [null, null, null],
+      ncMask: 0,
+      rrMask: 0,
+      u: null,
+    };
+    const next: Close = {
+      exists: current.exists,
+      am: [...current.am],
+      rec: [...current.rec],
+      ncMask: current.ncMask,
+      rrMask: current.rrMask,
+      u: current.u,
+    };
+    const changes: Array<{
+      campo: number;
+      oldValue: number | null;
+      newValue: number | null;
+      oldState: number;
+      newState: number;
+    }> = [];
     for (let index = 0; index < 3; index++) {
       const target = patch.am?.[index];
       if (target === undefined || isUnavailable(target)) continue;
       const oldValue = next.am[index]!;
       const newValue = target === null ? null : (target as number);
       if (oldValue === newValue) continue;
-      changes.push({ campo: index + 1, oldValue, newValue, oldState: oldValue === null ? 0 : 1, newState: newValue === null ? 0 : 1 });
+      changes.push({
+        campo: index + 1,
+        oldValue,
+        newValue,
+        oldState: oldValue === null ? 0 : 1,
+        newState: newValue === null ? 0 : 1,
+      });
       next.am[index] = newValue;
     }
     if (patch.rec) {
@@ -805,7 +1020,13 @@ async function processOffer(
       const oldValue = next.u;
       const newValue = patch.u === null ? null : (patch.u as number);
       if (oldValue !== newValue) {
-        changes.push({ campo: 7, oldValue, newValue, oldState: oldValue === null ? 0 : 1, newState: newValue === null ? 0 : 1 });
+        changes.push({
+          campo: 7,
+          oldValue,
+          newValue,
+          oldState: oldValue === null ? 0 : 1,
+          newState: newValue === null ? 0 : 1,
+        });
         next.u = newValue;
       }
     }
@@ -817,30 +1038,75 @@ async function processOffer(
         `INSERT INTO gradebook.fechamento_historico
          (importacao_id, oferta_id, aluno_id, campo, valor_anterior, valor_novo, estado_anterior, estado_novo)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [importId, ofertaId, alunoId, change.campo, change.oldValue, change.newValue, change.oldState, change.newState],
+        [
+          importId,
+          ofertaId,
+          alunoId,
+          change.campo,
+          change.oldValue,
+          change.newValue,
+          change.oldState,
+          change.newState,
+        ],
       );
     }
-    const empty = next.am.every((value) => value === null) && next.rec.every((value) => value === null) && next.ncMask === 0 && next.rrMask === 0 && next.u === null;
+    const empty =
+      next.am.every((value) => value === null) &&
+      next.rec.every((value) => value === null) &&
+      next.ncMask === 0 &&
+      next.rrMask === 0 &&
+      next.u === null;
     if (empty && current.exists) {
-      state.writes += await academicRun(database, state, `DELETE FROM gradebook.fechamento WHERE oferta_id = ? AND aluno_id = ?`, [ofertaId, alunoId]);
+      state.writes += await academicRun(
+        database,
+        state,
+        `DELETE FROM gradebook.fechamento WHERE oferta_id = ? AND aluno_id = ?`,
+        [ofertaId, alunoId],
+      );
       continue;
     }
     if (empty) continue;
     if (!current.exists) {
       state.writes += await academicRun(
-        database, state,
+        database,
+        state,
         `INSERT INTO gradebook.fechamento
          (oferta_id, aluno_id, am1_fonte, am2_fonte, am3_fonte, rec1, rec2, rec3, rec_nc_mask, rec_rr_mask, u_fonte)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [ofertaId, alunoId, next.am[0], next.am[1], next.am[2], next.rec[0], next.rec[1], next.rec[2], next.ncMask, next.rrMask, next.u],
+        [
+          ofertaId,
+          alunoId,
+          next.am[0],
+          next.am[1],
+          next.am[2],
+          next.rec[0],
+          next.rec[1],
+          next.rec[2],
+          next.ncMask,
+          next.rrMask,
+          next.u,
+        ],
       );
     } else {
       state.writes += await academicRun(
-        database, state,
+        database,
+        state,
         `UPDATE gradebook.fechamento
          SET am1_fonte = ?, am2_fonte = ?, am3_fonte = ?, rec1 = ?, rec2 = ?, rec3 = ?, rec_nc_mask = ?, rec_rr_mask = ?, u_fonte = ?
          WHERE oferta_id = ? AND aluno_id = ?`,
-        [next.am[0], next.am[1], next.am[2], next.rec[0], next.rec[1], next.rec[2], next.ncMask, next.rrMask, next.u, ofertaId, alunoId],
+        [
+          next.am[0],
+          next.am[1],
+          next.am[2],
+          next.rec[0],
+          next.rec[1],
+          next.rec[2],
+          next.ncMask,
+          next.rrMask,
+          next.u,
+          ofertaId,
+          alunoId,
+        ],
       );
     }
   }
@@ -851,7 +1117,9 @@ async function persistNotes(
   request: GradebookNotesImportRequestV9,
   state: ImportStateV9,
 ): Promise<void> {
-  const year = await first<Row>(database, `SELECT ano FROM gradebook.ano_letivo WHERE ano = ?`, [request.ano]);
+  const year = await first<Row>(database, `SELECT ano FROM gradebook.ano_letivo WHERE ano = ?`, [
+    request.ano,
+  ]);
   if (!year) {
     throw new RelationalImportErrorV9('blocked', `Relação ${request.ano} ainda não foi importada.`);
   }
@@ -861,7 +1129,8 @@ async function persistNotes(
     [request.ano],
   );
   const classes = new Map<string, number>();
-  for (const row of classRows) classes.set(classKey(String(row.codigo)), asNumber(row.id, 'turma-id'));
+  for (const row of classRows)
+    classes.set(classKey(String(row.codigo)), asNumber(row.id, 'turma-id'));
   const bindingRows = await all<Row>(
     database,
     `SELECT turma_id, numero, aluno_id FROM gradebook.vinculo WHERE ano = ?`,
@@ -883,23 +1152,34 @@ async function persistNotes(
   for (const offer of request.ofertas) {
     const turmaId = classes.get(classKey(offer.turmaCodigo));
     if (turmaId === undefined) {
-      throw new RelationalImportErrorV9('blocked', `Turma ${offer.turmaCodigo} não existe na Relação ${request.ano}.`);
+      throw new RelationalImportErrorV9(
+        'blocked',
+        `Turma ${offer.turmaCodigo} não existe na Relação ${request.ano}.`,
+      );
     }
     const key = `${turmaId}:${dbNameKey(offer.disciplina)}`;
-    if (seen.has(key)) throw new RelationalImportErrorV9('blocked', `Oferta duplicada: ${offer.turmaCodigo} / ${offer.disciplina}.`);
+    if (seen.has(key))
+      throw new RelationalImportErrorV9(
+        'blocked',
+        `Oferta duplicada: ${offer.turmaCodigo} / ${offer.disciplina}.`,
+      );
     seen.add(key);
     const before = state.academicWrites;
     await processOffer(database, state, request, offer, turmaId, professorId, bindings);
     // The verified in-transaction binding map includes classmates affected by definitions,
     // including those with no mark in this file. No extra database round trip is needed.
     if (state.academicWrites > before) {
-      for (const studentId of classStudents.get(turmaId) ?? []) state.sourceStudentIds.add(studentId);
+      for (const studentId of classStudents.get(turmaId) ?? [])
+        state.sourceStudentIds.add(studentId);
     }
   }
 }
 
 function transactionDatabase(database: D1WriteDatabaseV1): TransactionDatabaseV9 {
-  if (!('transaction' in database) || typeof (database as { transaction?: unknown }).transaction !== 'function') {
+  if (
+    !('transaction' in database) ||
+    typeof (database as { transaction?: unknown }).transaction !== 'function'
+  ) {
     throw new Error('gradebook-relational-import-requires-postgres');
   }
   return database as TransactionDatabaseV9;
@@ -907,19 +1187,32 @@ function transactionDatabase(database: D1WriteDatabaseV1): TransactionDatabaseV9
 
 export function createGradebookRelationalImportServiceV9(database: D1WriteDatabaseV1) {
   return {
-    async execute(request: GradebookImportPersistenceRequestV9): Promise<GradebookImportPersistenceResponseV9> {
+    async execute(
+      request: GradebookImportPersistenceRequestV9,
+    ): Promise<GradebookImportPersistenceResponseV9> {
       try {
         const result = await transactionDatabase(database).transaction(async (transaction) => {
           await lockAcademicYear(transaction, request.ano);
-          const state: ImportStateV9 = { importId: null, writes: 0, academicWrites: 0,
-            sourceStudentIds: new Set(), globalAcademicChange: false };
-          if (request.operation === 'persist-relacao') await persistRelation(transaction, request, state);
+          const state: ImportStateV9 = {
+            importId: null,
+            writes: 0,
+            academicWrites: 0,
+            sourceStudentIds: new Set(),
+            globalAcademicChange: false,
+          };
+          if (request.operation === 'persist-relacao')
+            await persistRelation(transaction, request, state);
           else await persistNotes(transaction, request, state);
-          if (state.writes > 0) await recordImportResetWriteV1(transaction, request.ano,
-            request.operation === 'persist-relacao' ? 'relation' : 'marks', {
-              changed: state.academicWrites > 0,
-              studentIds: state.globalAcademicChange ? [] : [...state.sourceStudentIds],
-            });
+          if (state.writes > 0)
+            await recordImportResetWriteV1(
+              transaction,
+              request.ano,
+              request.operation === 'persist-relacao' ? 'relation' : 'marks',
+              {
+                changed: state.academicWrites > 0,
+                studentIds: state.globalAcademicChange ? [] : [...state.sourceStudentIds],
+              },
+            );
           return state;
         });
         return {
@@ -931,9 +1224,15 @@ export function createGradebookRelationalImportServiceV9(database: D1WriteDataba
         if (cause instanceof RelationalImportErrorV9) {
           return { transportVersion: 9, state: cause.state, reason: cause.reason };
         }
-        const code = cause !== null && typeof cause === 'object' && 'code' in cause ? String(cause.code) : '';
+        const code =
+          cause !== null && typeof cause === 'object' && 'code' in cause ? String(cause.code) : '';
         if (code === '23505' || code === '23503' || code === '23514') {
-          return { transportVersion: 9, state: 'conflict', reason: 'O estado acadêmico mudou ou violou uma regra de integridade durante a importação.' };
+          return {
+            transportVersion: 9,
+            state: 'conflict',
+            reason:
+              'O estado acadêmico mudou ou violou uma regra de integridade durante a importação.',
+          };
         }
         throw cause;
       }

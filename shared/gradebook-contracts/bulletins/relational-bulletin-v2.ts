@@ -1,5 +1,8 @@
 import { z } from 'zod';
-import { GRADEBOOK_ACADEMIC_YEAR_MAX_V2, GRADEBOOK_ACADEMIC_YEAR_MIN_V2 } from '../academic-year-v2';
+import {
+  GRADEBOOK_ACADEMIC_YEAR_MAX_V2,
+  GRADEBOOK_ACADEMIC_YEAR_MIN_V2,
+} from '../academic-year-v2';
 
 export const RELATIONAL_BULLETIN_CONTRACT_VERSION_V2 = 2 as const;
 export const RELATIONAL_BULLETIN_MODEL_VERSION_V2 = 2 as const;
@@ -12,7 +15,11 @@ export const RELATIONAL_BULLETIN_LIMITS_V2 = Object.freeze({
 });
 
 const positiveInteger = z.number().int().positive();
-const academicYear = z.number().int().min(GRADEBOOK_ACADEMIC_YEAR_MIN_V2).max(GRADEBOOK_ACADEMIC_YEAR_MAX_V2);
+const academicYear = z
+  .number()
+  .int()
+  .min(GRADEBOOK_ACADEMIC_YEAR_MIN_V2)
+  .max(GRADEBOOK_ACADEMIC_YEAR_MAX_V2);
 const nonNegativeInteger = z.number().int().nonnegative();
 const nullableMilli = nonNegativeInteger.nullable();
 const uniqueStudentIds = z
@@ -132,8 +139,13 @@ const instrument = z
     label: z.string().min(1),
     maximumMilli: nullableMilli,
     valueMilli: nullableMilli,
+    notDone: z.literal(true).optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) => !value.notDone || value.valueMilli === null,
+    'Observed blank cannot contain a numeric mark',
+  );
 
 const termResult = z
   .object({

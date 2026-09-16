@@ -7,6 +7,7 @@ import { ScrollShadow } from '@heroui/react/scroll-shadow';
 import { Table } from '@heroui/react/table';
 import type { SelfResponseV1 } from '../../../../shared/student-portal-contracts/self-v1';
 import './student-grades-v1.css';
+import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 
 type SubjectV1 = SelfResponseV1['subjects'][number];
 type PeriodV1 = SubjectV1['periods'][number];
@@ -97,7 +98,14 @@ function PeriodCellV1({ period, recovery }: { period?: PeriodV1; recovery: boole
           <div className="pa-partial" key={partial.assessmentId}>
             <dt>{partial.label}</dt>
             <dd>
-              <StudentMarkV1 mark={partial.mark} showMaximum />
+              {partial.notDone || (partial.mark.kind === 'score' && partial.mark.value === 0) ? (
+                <GranularStatusV1
+                  notDone={partial.notDone}
+                  zero={partial.mark.kind === 'score' && partial.mark.value === 0}
+                />
+              ) : (
+                <StudentMarkV1 mark={partial.mark} showMaximum />
+              )}
             </dd>
           </div>
         ))}

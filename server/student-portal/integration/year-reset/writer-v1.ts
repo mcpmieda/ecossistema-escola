@@ -15,12 +15,21 @@ export async function lockResetWriterV1(
 export async function recordResetWriteV1(
   transaction: D1WriteDatabaseV1,
   year: number,
-  cause: 'diagnostics' | 'audit-treatment' | 'bulletin-snapshot' | 'relation' | 'marks' | 'council',
+  cause:
+    | 'diagnostics'
+    | 'audit-treatment'
+    | 'bulletin-snapshot'
+    | 'relation'
+    | 'marks'
+    | 'council'
+    | 'academic-policy',
   academic: { changed: boolean; studentIds?: readonly number[] } = { changed: false },
 ): Promise<void> {
   const studentIds = [...new Set(academic.studentIds ?? [])].sort((a, b) => a - b);
-  if (studentIds.some((id) => !Number.isSafeInteger(id) || id <= 0)) throw new Error('student-portal-revision-student-invalid');
-  if (academic.changed && !['relation', 'marks', 'council'].includes(cause)) throw new Error('student-portal-revision-cause-invalid');
+  if (studentIds.some((id) => !Number.isSafeInteger(id) || id <= 0))
+    throw new Error('student-portal-revision-student-invalid');
+  if (academic.changed && !['relation', 'marks', 'council', 'academic-policy'].includes(cause))
+    throw new Error('student-portal-revision-cause-invalid');
   // This D1-compatible facade binds numeric flags. Postgres.js serializes a boolean
   // parameter as true only for JS true, so binding 1 directly to ::boolean sends false.
   // Bind an integer first and let PostgreSQL perform the explicit boolean conversion.
@@ -36,7 +45,9 @@ export async function recordResetWriteV1(
     throw new Error('year-reset-writer-revision-unavailable');
   }
   if (year === 2026 && cause === 'relation' && academic.changed) {
-    const synchronized = await transaction.prepare('SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()').first();
+    const synchronized = await transaction
+      .prepare('SELECT * FROM student_portal.synchronize_gradebook_profiles_v1()')
+      .first();
     if (!synchronized) throw new Error('student-portal-lifecycle-unavailable');
   }
 }

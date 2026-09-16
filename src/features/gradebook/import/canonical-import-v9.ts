@@ -69,7 +69,8 @@ function manifest(result: BatchSuccess) {
 
 /** Converts a decimal spreadsheet number to exact academic thousandths. The tolerance only absorbs IEEE-754 representation noise. */
 export function canonicalMilliV9(value: number): number {
-  if (!Number.isFinite(value) || value < 0) throw new Error(`Valor numérico inválido: ${String(value)}.`);
+  if (!Number.isFinite(value) || value < 0)
+    throw new Error(`Valor numérico inválido: ${String(value)}.`);
   const scaled = value * 1000;
   const rounded = Math.round(scaled);
   if (!Number.isSafeInteger(rounded) || Math.abs(scaled - rounded) > 1e-7) {
@@ -89,8 +90,10 @@ function cellFromNote(
 ): GradebookImportCellV9 {
   const raw = snapshot(sheet, address);
   if (Array.isArray(raw)) return ['u'];
-  if (raw === undefined || raw === null || raw === '') return null;
-  if (typeof raw === 'boolean') throw new Error(`Texto/valor inválido em ${sheet.name}!${address}.`);
+  if (raw === undefined) return ['u'];
+  if (raw === null || (typeof raw === 'string' && raw.trim() === '')) return null;
+  if (typeof raw === 'boolean')
+    throw new Error(`Texto/valor inválido em ${sheet.name}!${address}.`);
   const numeric =
     typeof raw === 'number'
       ? raw
@@ -100,9 +103,10 @@ function cellFromNote(
   if (numeric === null || !Number.isFinite(numeric)) {
     throw new Error(`Texto inválido em ${sheet.name}!${address}.`);
   }
-  if (numeric < 0 || note?.kind === 'negative') throw new Error(`Nota negativa em ${sheet.name}!${address}.`);
+  if (numeric < 0 || note?.kind === 'negative')
+    throw new Error(`Nota negativa em ${sheet.name}!${address}.`);
   if (numeric === 0.1 || note?.kind === 'official-zero') return 0;
-  if (numeric === 0 || note?.kind === 'legacy-zero') return null;
+  if (numeric === 0 || note?.kind === 'legacy-zero') return 0;
   return canonicalMilliV9(note?.value ?? numeric);
 }
 
@@ -138,7 +142,8 @@ function cellFromObservation(
       throw new Error(`Texto inválido em ${sheet.name}!${address}.`);
     case 'manual-positive-number': {
       if (observation.rawValue === 0.1) return 0;
-      if (typeof observation.rawValue !== 'number') throw new Error(`Valor inválido em ${sheet.name}!${address}.`);
+      if (typeof observation.rawValue !== 'number')
+        throw new Error(`Valor inválido em ${sheet.name}!${address}.`);
       return canonicalMilliV9(observation.rawValue);
     }
     case 'formula-nonzero': {
@@ -168,7 +173,9 @@ function description(definition: SourceAssessmentDefinitionV2 | undefined): stri
 const FIXED_SLOTS = [1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
 
 function instruments(sheet: GradeSheetRecognition): readonly GradebookImportInstrumentV9[] {
-  const bySource = new Map(sheet.assessmentDefinitions.map((definition) => [definition.sourceSlot, definition]));
+  const bySource = new Map(
+    sheet.assessmentDefinitions.map((definition) => [definition.sourceSlot, definition]),
+  );
   const av1 = maximum(bySource.get('R'));
   const av2 = maximum(bySource.get('S'));
   if (av1 === null || av2 === null) {
@@ -187,7 +194,10 @@ function instruments(sheet: GradeSheetRecognition): readonly GradebookImportInst
   });
 }
 
-function noteForSlot(student: StudentRecognition, slot: GradebookImportInstrumentV9[0]): NoteValue | null {
+function noteForSlot(
+  student: StudentRecognition,
+  slot: GradebookImportInstrumentV9[0],
+): NoteValue | null {
   if (slot === 1) return student.quantitativeAssessments[0] ?? null;
   if (slot === 2) return student.quantitativeAssessments[1] ?? null;
   if (slot === 3) return student.parallel;
@@ -220,7 +230,8 @@ function term(
     .filter((student) => student.row >= 5 && student.row <= 50)
     .map((student) => {
       const numero = studentNumber(student, sheet);
-      if (seen.has(numero)) throw new Error(`Número de aluno duplicado em ${sheet.name}: ${numero}.`);
+      if (seen.has(numero))
+        throw new Error(`Número de aluno duplicado em ${sheet.name}: ${numero}.`);
       seen.add(numero);
       const valores = definitions.map(([slot, max]) => {
         const address = addressForSlot(slot, student.row);
@@ -237,20 +248,31 @@ function term(
         return value;
       });
       const observations = student.termResultObservations;
-      if (!observations) throw new Error(`Resultado trimestral ausente em ${sheet.name}, aluno ${numero}.`);
-      const am = cellFromObservation(sheet, `AM${student.row}`, observations.officialTermGrade, false) as GradebookImportCellV9;
+      if (!observations)
+        throw new Error(`Resultado trimestral ausente em ${sheet.name}, aluno ${numero}.`);
+      const am = cellFromObservation(
+        sheet,
+        `AM${student.row}`,
+        observations.officialTermGrade,
+        false,
+      ) as GradebookImportCellV9;
       return [numero, valores, am] as const;
     });
   return { trimestre: trimester, instrumentos: definitions, alunos };
 }
 
 function sameNumbers(terms: readonly GradebookImportTermV9[]): boolean {
-  const signature = (value: GradebookImportTermV9) => [...value.alunos.map((row) => row[0])].sort((a, b) => a - b).join(',');
+  const signature = (value: GradebookImportTermV9) =>
+    [...value.alunos.map((row) => row[0])].sort((a, b) => a - b).join(',');
   return terms.every((value) => signature(value) === signature(terms[0]!));
 }
 
 function groupKey(sheet: GradeSheetRecognition): string {
-  return JSON.stringify([normalize(sheet.className), normalize(sheet.discipline), sheet.disciplineIndex.trim().toUpperCase()]);
+  return JSON.stringify([
+    normalize(sheet.className),
+    normalize(sheet.discipline),
+    sheet.disciplineIndex.trim().toUpperCase(),
+  ]);
 }
 
 function courseGroups(summary: WorkbookSummary): readonly GradeSheetRecognition[][] {
@@ -268,7 +290,9 @@ function offer(
   runtime: CanonicalImportRuntimeV9,
 ): GradebookImportOfferV9 {
   const termSheets = new Map(
-    sheets.filter((sheet) => sheet.stage.startsWith('trimester-')).map((sheet) => [Number(sheet.stage.at(-1)), sheet]),
+    sheets
+      .filter((sheet) => sheet.stage.startsWith('trimester-'))
+      .map((sheet) => [Number(sheet.stage.at(-1)), sheet]),
   );
   if (termSheets.size !== 3) throw new Error('Conjunto de disciplina sem os três trimestres.');
   const first = termSheets.get(1);
@@ -279,7 +303,9 @@ function offer(
     term(termSheets.get(3)!, 3, runtime),
   ] as const;
   if (!sameNumbers(trimestres)) {
-    throw new Error(`Os números dos alunos divergem entre trimestres em ${first.className} / ${first.discipline}.`);
+    throw new Error(
+      `Os números dos alunos divergem entre trimestres em ${first.className} / ${first.discipline}.`,
+    );
   }
 
   const recovery = sheets.find((sheet) => sheet.stage === 'recovery') ?? null;
@@ -291,10 +317,30 @@ function offer(
           const observations = student.recovery!.resultObservations;
           return [
             numero,
-            cellFromObservation(recovery, `R${student.row}`, observations.trimester1, true) as GradebookImportRecoveryCellV9,
-            cellFromObservation(recovery, `S${student.row}`, observations.trimester2, true) as GradebookImportRecoveryCellV9,
-            cellFromObservation(recovery, `T${student.row}`, observations.trimester3, true) as GradebookImportRecoveryCellV9,
-            cellFromObservation(recovery, `U${student.row}`, observations.totalAfterRecovery, false) as GradebookImportCellV9,
+            cellFromObservation(
+              recovery,
+              `R${student.row}`,
+              observations.trimester1,
+              true,
+            ) as GradebookImportRecoveryCellV9,
+            cellFromObservation(
+              recovery,
+              `S${student.row}`,
+              observations.trimester2,
+              true,
+            ) as GradebookImportRecoveryCellV9,
+            cellFromObservation(
+              recovery,
+              `T${student.row}`,
+              observations.trimester3,
+              true,
+            ) as GradebookImportRecoveryCellV9,
+            cellFromObservation(
+              recovery,
+              `U${student.row}`,
+              observations.totalAfterRecovery,
+              false,
+            ) as GradebookImportCellV9,
           ] as const;
         })
     : null;
@@ -312,8 +358,13 @@ export function createGradebookCanonicalImportRequestV9(
 ): GradebookImportPersistenceRequestV9 {
   const summary = result.summary as SummaryWithRelationV9;
   if (summary.masterRelationV9) {
-    if (!isGradebookAcademicYearV2(summary.masterRelationV9.ano)) throw new Error('Ano letivo inválido na Relação.');
-    runtime.onProgress?.({ stage: 'roster', current: 0, total: summary.masterRelationV9.turmas.length });
+    if (!isGradebookAcademicYearV2(summary.masterRelationV9.ano))
+      throw new Error('Ano letivo inválido na Relação.');
+    runtime.onProgress?.({
+      stage: 'roster',
+      current: 0,
+      total: summary.masterRelationV9.turmas.length,
+    });
     const request = {
       transportVersion: 9,
       operation: 'persist-relacao',
@@ -321,13 +372,19 @@ export function createGradebookCanonicalImportRequestV9(
       ano: summary.masterRelationV9.ano,
       turmas: summary.masterRelationV9.turmas,
     } as const;
-    runtime.onProgress?.({ stage: 'roster', current: summary.masterRelationV9.turmas.length, total: summary.masterRelationV9.turmas.length });
+    runtime.onProgress?.({
+      stage: 'roster',
+      current: summary.masterRelationV9.turmas.length,
+      total: summary.masterRelationV9.turmas.length,
+    });
     runtime.onProgress?.({ stage: 'compacting', current: 1, total: 1 });
-    if (!isGradebookImportPersistenceRequestV9(request)) throw new Error('Relação canônica não passou na validação local.');
+    if (!isGradebookImportPersistenceRequestV9(request))
+      throw new Error('Relação canônica não passou na validação local.');
     return request;
   }
 
-  if (!isGradebookAcademicYearV2(summary.academicYear)) throw new Error('Ano letivo ausente ou inválido em CONFIGURAÇÃO!C2.');
+  if (!isGradebookAcademicYearV2(summary.academicYear))
+    throw new Error('Ano letivo ausente ou inválido em CONFIGURAÇÃO!C2.');
   const professor = summary.teacherName?.trim();
   if (!professor) throw new Error('Professor não reconhecido em CONFIGURAÇÃO!A2.');
   const groups = courseGroups(summary);
@@ -340,9 +397,14 @@ export function createGradebookCanonicalImportRequestV9(
   });
   const logical = new Set<string>();
   for (const item of ofertas) {
-    const key = JSON.stringify([item.turmaCodigo.trim().toUpperCase(), item.disciplina.trim().toLocaleLowerCase('pt-BR')]);
+    const key = JSON.stringify([
+      item.turmaCodigo.trim().toUpperCase(),
+      item.disciplina.trim().toLocaleLowerCase('pt-BR'),
+    ]);
     if (logical.has(key)) {
-      throw new Error(`Oferta lógica duplicada no arquivo: ${item.turmaCodigo} / ${item.disciplina}.`);
+      throw new Error(
+        `Oferta lógica duplicada no arquivo: ${item.turmaCodigo} / ${item.disciplina}.`,
+      );
     }
     logical.add(key);
   }
@@ -351,12 +413,14 @@ export function createGradebookCanonicalImportRequestV9(
   const request = {
     transportVersion: 9,
     operation: 'persist-notas',
+    granularObservationVersion: 1,
     manifest: manifest(result),
     ano: summary.academicYear as number,
     professor,
     ofertas,
   } as const;
-  if (!isGradebookImportPersistenceRequestV9(request)) throw new Error('Pacote acadêmico canônico não passou na validação local.');
+  if (!isGradebookImportPersistenceRequestV9(request))
+    throw new Error('Pacote acadêmico canônico não passou na validação local.');
   return request;
 }
 

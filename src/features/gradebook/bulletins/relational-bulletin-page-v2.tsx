@@ -1,3 +1,4 @@
+import { GranularStatusV1 } from '../../../shared/grades/granular-status-v1';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -200,7 +201,9 @@ function TermCell({
       {recovery?.applicable ? (
         <span
           className={
-            recovery.source === 'NC' || recovery.source === 'RR' ? 'text-xs font-semibold text-danger' : 'text-xs text-accent'
+            recovery.source === 'NC' || recovery.source === 'RR'
+              ? 'text-xs font-semibold text-danger'
+              : 'text-xs text-accent'
           }
         >
           REC {recoveryGrade(recovery.source)}
@@ -243,7 +246,11 @@ function SubjectDetails({ model }: { readonly model: RelationalBulletinModelV2 }
             </div>
             <strong className="mt-2 block text-sm">{instrument.label}</strong>
             <p className="mt-1 text-sm tabular-nums">
-              Nota {grade(instrument.valueMilli)}{' '}
+              {instrument.notDone || instrument.valueMilli === 0 ? (
+                <GranularStatusV1 notDone={instrument.notDone} zero={instrument.valueMilli === 0} />
+              ) : (
+                <>Nota {grade(instrument.valueMilli)}</>
+              )}{' '}
               <span className="text-muted">/ {grade(instrument.maximumMilli)}</span>
             </p>
           </div>
@@ -467,7 +474,10 @@ export function RelationalBulletinPageV2() {
   const sequence = useRef(0);
   const artifactHeading = useRef<HTMLHeadingElement | null>(null);
   const safely = async <T,>(operation: () => Promise<T>, background = false): Promise<T | null> => {
-    if (!background) { setFailure(null); setFailureReasons([]); }
+    if (!background) {
+      setFailure(null);
+      setFailureReasons([]);
+    }
     try {
       return await operation();
     } catch (cause) {
@@ -480,8 +490,16 @@ export function RelationalBulletinPageV2() {
     }
   };
   useEffect(() => {
-    sequence.current += 1; setCatalog(null); setStudents(null); setClassId(null); setSelectedIds([]);
-    setPreviewStudentId(null); setArtifact(null); setHistory([]); setHistoryRead(false); setStale(false);
+    sequence.current += 1;
+    setCatalog(null);
+    setStudents(null);
+    setClassId(null);
+    setSelectedIds([]);
+    setPreviewStudentId(null);
+    setArtifact(null);
+    setHistory([]);
+    setHistoryRead(false);
+    setStale(false);
     if (year === null) return;
     const controller = new AbortController();
     const ticket = ++sequence.current;
@@ -609,21 +627,28 @@ export function RelationalBulletinPageV2() {
     }
     setBusy(null);
   };
-  const loadHistory = async (targetClassId = classId, background = false, filterIds = selectedIds) => {
+  const loadHistory = async (
+    targetClassId = classId,
+    background = false,
+    filterIds = selectedIds,
+  ) => {
     if (targetClassId === null) return;
     if (!background) setBusy('history');
-    const response = await safely(() =>
-      requestRelationalBulletinV2({
-        contractVersion: 2,
-        operation: 'history',
-        year: year!,
-        classId: targetClassId,
-        ...(filterIds.length ? { studentIds: filterIds } : {}),
-      }),
+    const response = await safely(
+      () =>
+        requestRelationalBulletinV2({
+          contractVersion: 2,
+          operation: 'history',
+          year: year!,
+          classId: targetClassId,
+          ...(filterIds.length ? { studentIds: filterIds } : {}),
+        }),
       background,
     );
     if (response?.state === 'ready' && response.operation === 'history') {
-      setHistory(response.items); setHistoryRead(true); setStale(false);
+      setHistory(response.items);
+      setHistoryRead(true);
+      setStale(false);
     } else if (background) setStale(true);
     if (!background) setBusy(null);
   };
@@ -632,44 +657,84 @@ export function RelationalBulletinPageV2() {
     if (year === null || busy !== null) return;
     const ticket = ++sequence.current;
     try {
-      const latestCatalog = await requestRelationalBulletinV2({ contractVersion: 2, operation: 'catalog', year });
+      const latestCatalog = await requestRelationalBulletinV2({
+        contractVersion: 2,
+        operation: 'catalog',
+        year,
+      });
       if (ticket !== sequence.current) return;
       if (latestCatalog.state !== 'ready' || latestCatalog.operation !== 'catalog') {
         if (latestCatalog.state === 'not-authorized') {
-          setCatalog(null); setStudents(null); setClassId(null); setSelectedIds([]); setPreviewStudentId(null); setArtifact(null); setHistory([]);
+          setCatalog(null);
+          setStudents(null);
+          setClassId(null);
+          setSelectedIds([]);
+          setPreviewStudentId(null);
+          setArtifact(null);
+          setHistory([]);
           setFailure('not-authorized');
         } else setStale(true);
         return;
       }
       setCatalog(latestCatalog);
-      if (classId === null) { setStale(false); return; }
-      if (!latestCatalog.classes.some((item) => item.id === classId)) {
-        setClassId(null); setStudents(null); setSelectedIds([]); setPreviewStudentId(null); setArtifact(null); setHistory([]); setHistoryRead(false);
+      if (classId === null) {
+        setStale(false);
         return;
       }
-      const latestStudents = await requestRelationalBulletinV2({ contractVersion: 2, operation: 'students', year, classId });
-      if (ticket !== sequence.current || latestStudents.state !== 'ready' || latestStudents.operation !== 'students') return;
+      if (!latestCatalog.classes.some((item) => item.id === classId)) {
+        setClassId(null);
+        setStudents(null);
+        setSelectedIds([]);
+        setPreviewStudentId(null);
+        setArtifact(null);
+        setHistory([]);
+        setHistoryRead(false);
+        return;
+      }
+      const latestStudents = await requestRelationalBulletinV2({
+        contractVersion: 2,
+        operation: 'students',
+        year,
+        classId,
+      });
+      if (
+        ticket !== sequence.current ||
+        latestStudents.state !== 'ready' ||
+        latestStudents.operation !== 'students'
+      )
+        return;
       const valid = new Set(latestStudents.students.map((student) => student.id));
       setStudents(latestStudents);
       setSelectedIds((current) => current.filter((id) => valid.has(id)));
       if (previewStudentId !== null && !valid.has(previewStudentId)) {
-        setPreviewStudentId(null); if (artifact?.mode === 'preview') setArtifact(null);
+        setPreviewStudentId(null);
+        if (artifact?.mode === 'preview') setArtifact(null);
       } else if (artifact?.mode === 'preview' && previewStudentId !== null) {
-        const latestPreview = await requestRelationalBulletinV2({ contractVersion: 2, operation: 'preview', selection: selection(previewStudentId) });
+        const latestPreview = await requestRelationalBulletinV2({
+          contractVersion: 2,
+          operation: 'preview',
+          selection: selection(previewStudentId),
+        });
         if (ticket !== sequence.current) return;
-        if (latestPreview.state === 'ready' && latestPreview.operation === 'preview') setArtifact({ mode: 'preview', model: latestPreview.model });
+        if (latestPreview.state === 'ready' && latestPreview.operation === 'preview')
+          setArtifact({ mode: 'preview', model: latestPreview.model });
       }
       if (historyRead) await loadHistory(classId, true);
       if (ticket === sequence.current) setStale(false);
     } catch (cause) {
       if (ticket !== sequence.current) return;
       if (cause instanceof RelationalBulletinClientErrorV2 && cause.code === 'not-authorized') {
-        setCatalog(null); setStudents(null); setArtifact(null); setHistory([]); setFailure(cause.code);
+        setCatalog(null);
+        setStudents(null);
+        setArtifact(null);
+        setHistory([]);
+        setFailure(cause.code);
       } else setStale(true);
     }
   };
   useLiveRefreshV1(refresh, {
-    domains: ['gradebook'], enabled: year !== null,
+    domains: ['gradebook'],
+    enabled: year !== null,
     canRefresh: () => busy === null && pdfState === null,
   });
   const reprint = async (item: RelationalBulletinHistoryItemV2) => {
@@ -908,7 +973,16 @@ export function RelationalBulletinPageV2() {
               <Users size={17} />
               Emitir lote ({selectedIds.length})
             </Button>
-            {failure && historyRead ? <Button variant="tertiary" isDisabled={busy !== null} onPress={() => void loadHistory()}><History size={17} />Tentar histórico novamente</Button> : null}
+            {failure && historyRead ? (
+              <Button
+                variant="tertiary"
+                isDisabled={busy !== null}
+                onPress={() => void loadHistory()}
+              >
+                <History size={17} />
+                Tentar histórico novamente
+              </Button>
+            ) : null}
           </Card.Footer>
         </Card>
       ) : classId === null && busy !== 'catalog' ? (

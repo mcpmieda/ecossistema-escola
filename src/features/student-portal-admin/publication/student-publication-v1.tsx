@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Chip, Modal, Spinner } from '@heroui/react';
+import { Button, Card, Chip, Modal, Spinner, Tooltip } from '@heroui/react';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { settingsScopeKeyV1, settingsScopeLabelV1 } from '../settings/settings-values-v1';
@@ -32,16 +32,14 @@ export interface StudentPublicationPropsV1 {
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
   dateStyle: 'short',
-  timeStyle: 'medium',
+  timeStyle: 'short',
 });
 const dateLabel = (date: string | null) =>
   date === null ? 'Não definida' : dateFormatter.format(new Date(date));
 const revisionLabel = (revision: string | null) =>
-  revision === null
-    ? 'Nenhuma'
-    : revision.startsWith('mixed:')
-      ? 'Múltiplas revisões neste escopo'
-      : revision;
+  revision === null ? 'Nenhuma' : revision.startsWith('mixed:') ? 'Mais de uma versão' : revision;
+const termLabel = (period: string) =>
+  period.startsWith('REC') ? `Recuperação ${period.slice(3)}` : `${period.slice(1)}º trimestre`;
 const operationLabel = (command: PublicationCommandV1) =>
   command.operation === 'unpublish'
     ? 'Retirar publicação'
@@ -69,7 +67,7 @@ function PublicationPeriodV1({
     <Card className="pa-publication-card">
       <Card.Header>
         <div className="pa-publication-heading">
-          <h3>{item.period}</h3>
+          <h3>{termLabel(item.period)}</h3>
           <Chip
             size="sm"
             variant="soft"
@@ -88,28 +86,26 @@ function PublicationPeriodV1({
       <Card.Content>
         <dl className="pa-publication-details">
           <div>
-            <dt>Revisão disponível</dt>
-            <dd>{revisionLabel(item.availableRevision)}</dd>
+            <dt>Liberar a partir de</dt>
+            <dd>
+              {disclosureAtV1(data.settings, item.period)
+                ? dateLabel(disclosureAtV1(data.settings, item.period))
+                : 'Publicação manual'}
+            </dd>
           </div>
           <div>
-            <dt>Revisão publicada</dt>
-            <dd>{revisionLabel(item.publishedRevision)}</dd>
-          </div>
-          <div>
-            <dt>Divulgação configurada (São Paulo)</dt>
-            <dd>{dateLabel(disclosureAtV1(data.settings, item.period))}</dd>
-          </div>
-          <div>
-            <dt>Permitido na configuração deste escopo</dt>
+            <dt>Período habilitado</dt>
             <dd>{data.settings.value.allowedPeriods.includes(item.period) ? 'Sim' : 'Não'}</dd>
           </div>
         </dl>
-        {item.state === 'no-data' ? (
-          <p>A consulta não informa dados disponíveis para publicar neste período.</p>
-        ) : null}
-        {item.state === 'update-pending' ? (
-          <p>Há uma edição mais recente disponível para revisão e publicação.</p>
-        ) : null}
+        <Tooltip>
+          <Tooltip.Trigger className="w-fit text-xs text-muted">Versões das notas</Tooltip.Trigger>
+          <Tooltip.Content>
+            Disponível: {revisionLabel(item.availableRevision)}
+            <br />
+            Publicada: {revisionLabel(item.publishedRevision)}
+          </Tooltip.Content>
+        </Tooltip>
       </Card.Content>
       {canWrite ? (
         <Card.Footer className="pa-publication-actions">
@@ -121,7 +117,7 @@ function PublicationPeriodV1({
               aria-label={`Publicar ${item.period}`}
               onPress={() => review(item, 'publish')}
             >
-              {published ? 'Publicar no escopo' : 'Publicar'}
+              {published ? 'Publicar para todos' : 'Publicar'}
             </Button>
           ) : null}
           {hasData && published && item.state === 'update-pending' ? (
@@ -142,7 +138,7 @@ function PublicationPeriodV1({
               aria-label={`Retirar publicação de ${item.period}`}
               onPress={() => review(item, 'unpublish')}
             >
-              Retirar publicação
+              Retirar
             </Button>
           ) : null}
         </Card.Footer>
@@ -171,11 +167,7 @@ function PublicationFeedbackV1({
 }) {
   if (mutation.state === 'idle') return null;
   if (mutation.state === 'sending')
-    return (
-      <p role="status">
-        Enviando decisão de {mutation.command.period}. Aguarde a confirmação do servidor.
-      </p>
-    );
+    return <p role="status">Salvando publicação de {termLabel(mutation.command.period)}…</p>;
   if (mutation.state === 'error')
     return (
       <div role="alert" className="pa-publication-error">
@@ -198,11 +190,11 @@ function PublicationFeedbackV1({
               isDisabled={clock < mutation.retryAt}
               onPress={onRetry}
             >
-              Repetir a mesma decisão
+              Tentar novamente
             </Button>
           ) : null}
           <Button size="sm" variant="ghost" isDisabled={reloadDisabled} onPress={reload}>
-            Recarregar estado
+            Recarregar
           </Button>
         </div>
       </div>
@@ -211,7 +203,7 @@ function PublicationFeedbackV1({
   return (
     <div role="status" className="pa-publication-feedback">
       <p>
-        <strong>Decisão de {mutation.command.period} aceita pelo servidor.</strong>
+        <strong>{termLabel(mutation.command.period)}: solicitação aceita.</strong>
       </p>
       {mutation.observation === 'observing' ? (
         <>
@@ -228,22 +220,18 @@ function PublicationFeedbackV1({
           </Button>
         </>
       ) : mutation.observation === 'confirmed' ? (
-        <p>
-          {removed
-            ? 'A consulta atual confirma que este aluno não tem revisão publicada nesse período.'
-            : 'A consulta atual deste aluno confirma a revisão aprovada como publicada.'}
-        </p>
+        <p>{removed ? 'Publicação retirada.' : 'Publicação confirmada.'}</p>
       ) : mutation.observation === 'reported' ? (
         <>
           <p>
             {removed
-              ? 'A consulta agregada não apresenta revisão publicada nesse período.'
-              : 'A revisão aprovada já aparece na consulta agregada.'}
+              ? 'Publicação retirada para este grupo.'
+              : 'Publicação confirmada para este grupo.'}
           </p>
           {!removed ? (
             <p>
-              Publicação de {scope.kind === 'school' ? 'escola' : 'turma'} verificada.
-              O acesso de cada aluno continua sujeito ao vínculo, ao calendário e às permissões vigentes.
+              Publicação de {scope.kind === 'school' ? 'escola' : 'turma'} verificada. O acesso de
+              cada aluno continua sujeito ao vínculo, ao calendário e às permissões vigentes.
             </p>
           ) : null}
         </>
@@ -307,24 +295,21 @@ function PublicationReviewV1({
             ) : null}
             {command.operation === 'unpublish' ? (
               <p>
-                A retirada bloqueia a consulta deste período e pode ocultar também o resultado final.
-                O histórico acadêmico e os demais períodos são preservados.
+                A retirada bloqueia a consulta deste período e pode ocultar também o resultado
+                final. O histórico acadêmico e os demais períodos são preservados.
               </p>
             ) : (
               <>
-                <p>
-                  A decisão autoriza somente a revisão exibida. Se a fonte mudar, será necessário
-                  recarregar e revisar novamente.
-                </p>
+                <p>Será publicada a versão atual das notas.</p>
                 {command.operation === 'publish' && command.scope.kind !== 'account' ? (
                   <p>
-                    Publicar neste escopo abrange seus vínculos elegíveis, incluindo os ainda não
-                    publicados. Uma nova decisão neste escopo substitui as decisões anteriores abrangidas.
+                    Esta publicação vale para os alunos elegíveis deste grupo e substitui as
+                    publicações anteriores abrangidas.
                   </p>
                 ) : null}
                 <p>
-                  A consulta das notas respeita o calendário e as configurações vigentes em cada aluno.
-                  Uma data futura adia a exibição; sem data de divulgação específica, vale a publicação manual.
+                  Datas futuras adiam a exibição. Sem data definida, a publicação manual libera as
+                  notas conforme as permissões de acesso.
                 </p>
               </>
             )}
@@ -417,21 +402,11 @@ function PublicationScopeV1({
     <section className="pa-publication" aria-label="Publicação de períodos do Portal do Aluno">
       <header className="pa-publication-heading">
         <div>
-          <h2>Publicação de períodos</h2>
+          <h2>Notas publicadas</h2>
           <p>{label}</p>
         </div>
         <LiveReadNoticeV1 failed={view.load.state === 'ready' && Boolean(view.load.refreshError)} />
       </header>
-      <p>
-        Importar notas e publicar são operações separadas. Cada período mantém sua própria decisão;
-        as revisões abaixo vêm da consulta do servidor.
-      </p>
-      {fixedScope.kind !== 'account' ? (
-        <p className="pa-publication-hint">
-          Os estados deste escopo são agregados. As permissões individuais e o calendário continuam
-          sendo verificados em cada acesso.
-        </p>
-      ) : null}
       {notice ? (
         <p role="alert" className="pa-publication-error">
           {notice}
@@ -450,7 +425,7 @@ function PublicationScopeV1({
       {view.load.state === 'loading' ? (
         <p role="status" className="pa-publication-loading">
           <Spinner size="sm" />
-          Carregando publicação e configurações
+          Carregando publicações…
         </p>
       ) : null}
       {view.load.state === 'error' ? (
@@ -460,7 +435,7 @@ function PublicationScopeV1({
               ? 'Sessão expirada. Entre novamente no ADM.'
               : view.load.error.state === 'forbidden'
                 ? 'Sem permissão para consultar este escopo.'
-                : 'Consulta indisponível. Nenhum estado de publicação será inferido.'}
+                : 'Consulta indisponível. Tente novamente.'}
           </p>
           <Button
             size="sm"
@@ -468,7 +443,7 @@ function PublicationScopeV1({
             isDisabled={busy || clock < retryAt}
             onPress={reload}
           >
-            Tentar carregar novamente
+            Tentar novamente
           </Button>
         </div>
       ) : null}
@@ -476,17 +451,13 @@ function PublicationScopeV1({
         <>
           <Card className="pa-publication-policy">
             <Card.Header>
-              <h3>Configuração efetiva do escopo</h3>
+              <h3>Exibição no Portal</h3>
             </Card.Header>
             <Card.Content>
               <dl className="pa-publication-details">
                 <div>
                   <dt>Atualização automática</dt>
-                  <dd>
-                    {data.settings.value.autoUpdate
-                      ? 'Ligada: afeta somente períodos já publicados.'
-                      : 'Desligada: mantém a revisão anterior até uma nova decisão.'}
-                  </dd>
+                  <dd>{data.settings.value.autoUpdate ? 'Ligada' : 'Desligada'}</dd>
                 </div>
                 <div>
                   <dt>Notas exibidas</dt>
@@ -496,21 +467,22 @@ function PublicationScopeV1({
                 </div>
                 <div>
                   <dt>Divulgação de resultado final</dt>
-                  <dd>
-                    {data.settings.value.showFinalResult
-                      ? 'Ligada, sujeita à data e à fonte oficial.'
-                      : 'Desligada'}
-                  </dd>
+                  <dd>{data.settings.value.showFinalResult ? 'Ligada' : 'Desligada'}</dd>
                 </div>
                 <div>
-                  <dt>Data do resultado final (São Paulo)</dt>
+                  <dt>Resultado final a partir de</dt>
                   <dd>{dateLabel(data.settings.value.calendar.finalDisclosureAt)}</dd>
                 </div>
               </dl>
-              <p>
-                Configurações próprias dos alunos podem prevalecer. Datas e permissão de período não
-                comprovam publicação nem substituem a autorização de acesso.
-              </p>
+              <Tooltip>
+                <Tooltip.Trigger className="w-fit text-xs text-muted">
+                  Regras de acesso
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  Publicação, datas e permissão de acesso são verificadas por aluno. Uma
+                  configuração individual pode substituir o padrão.
+                </Tooltip.Content>
+              </Tooltip>
             </Card.Content>
             {onOpenSettings ? (
               <Card.Footer>
@@ -520,7 +492,7 @@ function PublicationScopeV1({
                   isDisabled={busy || review !== null}
                   onPress={onOpenSettings}
                 >
-                  Ver configurações
+                  Acesso e datas
                 </Button>
               </Card.Footer>
             ) : null}

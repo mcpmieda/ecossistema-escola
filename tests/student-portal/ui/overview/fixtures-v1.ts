@@ -159,7 +159,12 @@ export function operationsMockV1(
         lastAuthenticationWindowMonths: 12,
       });
     if (query.operation === 'sessions-read') {
-      const rows = sessions.filter((s) => filtered.some((a) => a.accountId === s.accountId));
+      const all = sessions.filter((s) => filtered.some((a) => a.accountId === s.accountId));
+      const rows = all.filter(
+        (s) =>
+          !query.sessionView ||
+          (query.sessionView === 'active' ? s.validity === 'valid' : s.validity !== 'valid'),
+      );
       return opJsonV1({
         ...OP_META_V1,
         contractVersion: 2,
@@ -167,7 +172,8 @@ export function operationsMockV1(
         scope: query.scope,
         observedAt: at(),
         version: query.scope.kind === 'account' ? (filtered[0]?.version ?? 0) : version,
-        revocableCount: rows.filter((s) => s.revokedAt === null).length,
+        revocableCount: all.filter((s) => s.revokedAt === null).length,
+        ...(query.sessionView ? { sessionView: query.sessionView } : {}),
         items: rows.slice(offset, offset + query.page.limit),
         nextCursor: next(rows.length),
       });

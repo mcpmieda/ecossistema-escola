@@ -1,3 +1,7 @@
+import {
+  assessmentLabelV1,
+  assessmentNamesSchemaV1,
+} from '../../../../../shared/gradebook-contracts/settings/assessment-names-v1';
 import { ACTIVE_INSTRUMENT_PREDICATE_V1 } from '../../../persistence/postgres/active-instrument-predicate-v1';
 import {
   compareSourceSubjectPresentationV1,
@@ -182,11 +186,13 @@ export async function readRelationalPerformanceV2(
   const [year] = await all(
     db,
     `SELECT ano, minimo_aprovacao, max_componentes_conselho,
+    COALESCE(to_jsonb(y)->'nomes_avaliacoes','{}'::jsonb) AS assessment_names,
     to_char(transaction_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS read_at
-    FROM gradebook.ano_letivo WHERE ano = ?`,
+    FROM gradebook.ano_letivo y WHERE ano = ?`,
     [request.year],
   );
   if (!year) return fail('not-found');
+  const assessmentNames = assessmentNamesSchemaV1.parse(year.assessment_names ?? {});
   const common = {
     transportVersion: 2,
     state: 'ready',
@@ -290,7 +296,7 @@ export async function readRelationalPerformanceV2(
     // One query for the entire bounded scope. A detail restricts SQL, not just its response.
     const facts = await all(
       db,
-      `SELECT v.aluno_id,o.id AS oferta_id,i.trimestre,i.slot,i.maximo,n.valor,
+      `SELECT v.aluno_id,o.id AS oferta_id,i.trimestre,i.slot,i.maximo,n.valor,n.instrumento_id IS NOT NULL AS observed,
       ${specificOffer ? 'i.descricao' : options.descriptionOfferId === undefined ? 'NULL::text' : 'CASE WHEN o.id=? THEN i.descricao ELSE NULL::text END'} AS descricao,
       f.am1_fonte,f.am2_fonte,f.am3_fonte,f.rec1,f.rec2,f.rec3,f.rec_nc_mask,
       COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint,0) AS rec_rr_mask,f.u_fonte
@@ -321,16 +327,13 @@ export async function readRelationalPerformanceV2(
           slot,
           maximumMilli: nullable(row.maximo),
           valueMilli: nullable(row.valor),
-          label:
-            typeof row.descricao === 'string' && row.descricao.trim()
-              ? row.descricao
-              : slot === 1
-                ? 'I Avaliação'
-                : slot === 2
-                  ? 'II Avaliação'
-                  : slot === 3
-                    ? 'Prova paralela'
-                    : `Atividade ${slot - 10}`,
+          observed: row.observed === true || row.observed === 1,
+          label: assessmentLabelV1(
+            slot,
+            integer(row.trimestre),
+            assessmentNames,
+            typeof row.descricao === 'string' ? row.descricao : null,
+          ),
         });
       }
       grouped.set(key, group);
@@ -361,7 +364,9 @@ export async function readRelationalPerformanceV2(
           projection.recovery?.recoveryTerms[term].applicable ?? null,
         );
         const hasGrades =
-          projection.facts.some((fact) => fact.term === term && fact.valueMilli !== null) ||
+          projection.facts.some(
+            (fact) => fact.term === term && (fact.valueMilli !== null || fact.observed === true),
+          ) ||
           projection.closing.am[term - 1] !== null ||
           projection.closing.rec[term - 1] !== null;
         return {
@@ -377,11 +382,12 @@ export async function readRelationalPerformanceV2(
           parallelApplicable: outcome?.parallelApplicable ?? null,
           instruments: projection.facts
             .filter((value) => value.term === term)
-            .map(({ slot, label, maximumMilli, valueMilli }) => ({
+            .map(({ slot, label, maximumMilli, valueMilli, observed }) => ({
               slot,
               label,
-              maximumMilli: slot === 3 ? outcome?.quantitativeMaximumMilli ?? null : maximumMilli,
+              maximumMilli: slot === 3 ? (outcome?.quantitativeMaximumMilli ?? null) : maximumMilli,
               valueMilli,
+              ...(observed === true && valueMilli === null ? { notDone: true as const } : {}),
             })),
         };
       }) as Extract<PerformanceResponseV2, { operation: 'cell-detail' }>['terms'],

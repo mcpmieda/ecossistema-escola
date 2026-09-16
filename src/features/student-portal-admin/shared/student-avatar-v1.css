@@ -1,0 +1,33 @@
+.pa-student-avatar {
+  flex-shrink: 0;
+}
+.pa-student-avatar [data-slot='avatar-fallback'] {
+  background:
+    radial-gradient(circle at 65% 80%, #266ddb, transparent 54%),
+    radial-gradient(circle at 20% 15%, #b6eaff, #82bedc);
+}
+.pa-student-avatar [data-tone='1'] {
+  background:
+    radial-gradient(circle at 65% 80%, #13a188, transparent 54%),
+    radial-gradient(circle at 20% 15%, #c6f4cc, #7ccad9);
+}
+.pa-student-avatar [data-tone='2'] {
+  background:
+    radial-gradient(circle at 65% 80%, #e26434, transparent 54%),
+    radial-gradient(circle at 20% 15%, #ffe6ae, #e6cbad);
+}
+.pa-student-avatar [data-tone='3'] {
+  background:
+    radial-gradient(circle at 65% 80%, #9851cd, transparent 54%),
+    radial-gradient(circle at 20% 15%, #ebcbff, #cca6e7);
+}
+.pa-student-avatar [data-tone='4'] {
+  background:
+    radial-gradient(circle at 65% 80%, #e43a66, transparent 54%),
+    radial-gradient(circle at 20% 15%, #f6d1be, #e8a6b5);
+}
+.pa-student-avatar [data-tone='5'] {
+  background:
+    radial-gradient(circle at 65% 80%, #3957c6, transparent 54%),
+    radial-gradient(circle at 20% 15%, #c4e4ff, #afa7ec);
+}
