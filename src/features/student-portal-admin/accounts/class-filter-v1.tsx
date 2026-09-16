@@ -1,6 +1,7 @@
+import { usePanelScopeV1 } from '../shared/panel-scope-v1';
+import { ClassTabsV1 } from '../../../shared/ui/class-tabs-v1';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 import { useCallback } from 'react';
-import { Label, ListBox, Select } from '@heroui/react';
 import type { PortalClassCatalogV2, ClassCatalogPageV2 } from './accounts-client-v2';
 import { useAccountsReadV1 } from './accounts-read-v1';
 import { AccountsErrorV1 } from './accounts-presentation-v1';
@@ -27,7 +28,7 @@ export async function readClassOptionsV1(catalog: PortalClassCatalogV2, signal: 
   throw new PortalClientErrorV1('unavailable');
 }
 
-export function ClassFilterV1({
+function LocalClassTabsV1({
   catalog,
   selected,
   onChange,
@@ -47,39 +48,15 @@ export function ClassFilterV1({
     selected && !data.some((item) => item.id === selected.id) ? [selected, ...data] : data;
   return (
     <div className="pa-account-class-filter">
-      <Select
-        isDisabled={disabled}
-        className="w-full max-w-64"
-        selectedKey={selected ? String(selected.id) : 'all'}
-        onSelectionChange={(key) => {
-          if (!allowDraftNavigationV1()) return;
-          if (key === 'all') onChange(null);
-          else {
-            const item = items.find((item) => String(item.id) === key);
-            if (item) onChange(item);
-          }
+      <ClassTabsV1
+        items={items}
+        selectedId={selected?.id ?? null}
+        allLabel={allLabel}
+        disabled={disabled}
+        onChange={(id) => {
+          if (allowDraftNavigationV1()) onChange(items.find((item) => item.id === id) ?? null);
         }}
-      >
-        <Label>Turma</Label>
-        <Select.Trigger>
-          <Select.Value />
-          <Select.Indicator />
-        </Select.Trigger>
-        <Select.Popover>
-          <ListBox aria-label="Turmas">
-            <ListBox.Item id="all" textValue={allLabel}>
-              {allLabel}
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-            {items.map((item) => (
-              <ListBox.Item key={item.id} id={String(item.id)} textValue={item.label}>
-                {item.label}
-                <ListBox.ItemIndicator />
-              </ListBox.Item>
-            ))}
-          </ListBox>
-        </Select.Popover>
-      </Select>
+      />
       {read.state.state === 'error' ? (
         <AccountsErrorV1
           error={read.state.error}
@@ -94,4 +71,9 @@ export function ClassFilterV1({
       ) : null}
     </div>
   );
+}
+
+export function ClassFilterV1(props: Parameters<typeof LocalClassTabsV1>[0]) {
+  const managed = usePanelScopeV1();
+  return managed ? null : <LocalClassTabsV1 {...props} />;
 }

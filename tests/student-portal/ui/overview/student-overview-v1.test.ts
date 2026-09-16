@@ -60,8 +60,10 @@ describe('actual operational summary and health', () => {
     });
     render(createElement(StrictMode, null, createElement(StudentOverviewV1, mock.props)));
     await screen.findByText(label);
-    expect(screen.getByText('Sessões válidas')).toBeTruthy();
-    expect(screen.getByText(/As categorias se sobrepõem/)).toBeTruthy();
+    expect(screen.getByText('Sessões ativas')).toBeTruthy();
+    expect(screen.queryByText(/As categorias se sobrepõem/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sobre Sessões ativas' })).toBeTruthy();
+    expect(document.querySelectorAll('.pa-stat')).toHaveLength(6);
     expect(document.querySelector('svg[role="img"],canvas')).toBeNull();
   });
   it('keeps actual health observable when counts fail and never substitutes zero totals', async () => {
@@ -86,14 +88,14 @@ describe('actual operational summary and health', () => {
         scopeLabel: 'Escola',
       }),
     );
-    await screen.findByText('População desativada');
-    expect(screen.getByText(/353 alunos elegíveis/)).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Revisar ativação da população' }));
+    await screen.findByText('Cadastro automático desativado');
+    expect(screen.getByText(/353 alunos com vínculo/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Ativar cadastro automático' }));
     const review = await screen.findByRole('alertdialog');
     expect(review.textContent).toContain('381 perfis');
     expect(review.textContent).toContain('Nenhum QR será emitido');
     await user.click(screen.getByRole('button', { name: 'Ativar e sincronizar' }));
-    await screen.findByText('População ativa');
+    await screen.findByText('Cadastro automático ativo');
     expect(mock.writes).toHaveLength(1);
     expect(mock.writes[0]).toMatchObject({
       operation: 'population-start',

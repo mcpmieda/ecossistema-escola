@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card, Chip, Modal, Spinner, Tooltip } from '@heroui/react';
+import { Button, Card, Chip, Modal, Spinner } from '@heroui/react';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -8,6 +8,9 @@ import {
   type PortalLoadStateV1,
 } from '../../student-portal/shared/latest-request-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
+import { CustomizedSettingsV1 } from './customized-settings-v1';
+import type { PortalAdminReadClientV2 } from '../accounts/accounts-client-v2';
+import { InfoV1 } from '../shared/info-v1';
 import { SettingsEditorV1, SettingsValueSummaryV1 } from './settings-editors-v1';
 import { parseSettingsDraftV1, settingsDraftV1 } from './settings-draft-v1';
 import { createSettingsMutationV1, type SettingsMutationStateV1 } from './settings-mutation-v1';
@@ -32,6 +35,7 @@ type ReviewIntentV1 =
 type ReviewV1 = ReviewIntentV1 & { expectedVersion: number };
 export interface StudentSettingsPropsV1 {
   client: PortalAdminClientV1;
+  reader?: PortalAdminReadClientV2;
   scope: ScopeV1;
   canWrite: boolean;
   scopeLabel?: string;
@@ -40,16 +44,17 @@ export interface StudentSettingsPropsV1 {
 }
 const fieldHelp: Record<SettingsFieldV1, string> = {
   accessEnabled:
-    'Permite acesso apenas a contas elegíveis, com credencial e calendário válidos. População de perfis, vínculos e manutenção têm controles próprios.',
+    'Liga ou desliga o acesso ao Portal. O aluno também precisa de cadastro, senha ou QR e de estar no período de acesso.',
   showPartials: 'Exibe as avaliações e atividades já publicadas, além da nota final do trimestre.',
-  autoUpdate: 'Permite atualizar projeções de períodos já publicados quando a fonte oficial muda.',
+  autoUpdate:
+    'Atualiza as notas já liberadas quando o Banco recebe uma alteração. Não libera novos períodos por conta própria.',
   showFinalResult:
-    'O padrão é desligado. A divulgação também depende da data própria e de resultado autorizado pela fonte oficial.',
+    'Mostra o resultado final autorizado pela escola, a partir da data de divulgação configurada.',
   allowedPeriods:
-    'Uma lista vazia impede todos os períodos neste escopo; ela não significa herdar.',
+    'Escolha os períodos que podem aparecer. Desmarcar todos oculta as notas; Usar padrão recupera a escolha da escola ou turma.',
   risk: 'Os limites de sessão e proteção são uma configuração única. A sessão curta não pode exceder a persistente; a verificação deve começar antes do bloqueio.',
   calendar:
-    'O calendário é herdado ou definido como um objeto completo. Datas vazias limitam somente a operação que depende delas.',
+    'Organiza os períodos de acesso e divulgação. Uma personalização substitui o calendário inteiro neste aluno ou turma. Campo vazio não define uma data.',
 };
 function FieldCardV1({
   field,
@@ -84,6 +89,7 @@ function FieldCardV1({
     return () => onDirtyChange(field, false);
   }, [dirty, field, onDirtyChange]);
   const owns = ownsSettingV1(settings, field);
+  const boolean = typeof sourceDraft === 'boolean';
   function prepare() {
     try {
       const value = parseSettingsDraftV1(field, draft);
@@ -108,23 +114,19 @@ function FieldCardV1({
                 : 'Padrão de ' + sourceLabel}
           </Chip>
         </div>
-        <Tooltip>
-          <Tooltip.Trigger
-            className="w-fit text-xs text-muted"
-            aria-label={`Sobre ${SETTINGS_LABELS_V1[field]}`}
-          >
-            Sobre esta opção
-          </Tooltip.Trigger>
-          <Tooltip.Content>{fieldHelp[field]}</Tooltip.Content>
-        </Tooltip>
+        <InfoV1 label={`Sobre ${SETTINGS_LABELS_V1[field]}`}>{fieldHelp[field]}</InfoV1>
       </Card.Header>
       <Card.Content>
         {canWrite ? (
           <SettingsEditorV1
             field={field}
-            value={draft}
+            value={boolean ? sourceDraft : draft}
             disabled={disabled}
             onChange={(value) => {
+              if (boolean) {
+                review({ field, inherit: false, value: parseSettingsDraftV1(field, value) });
+                return;
+              }
               setDraft(value);
               setError(null);
             }}
@@ -140,15 +142,17 @@ function FieldCardV1({
       </Card.Content>
       {canWrite ? (
         <Card.Footer className="pa-settings-actions">
-          <Button
-            size="sm"
-            variant="secondary"
-            isDisabled={disabled}
-            onPress={prepare}
-            aria-label={`Revisar ${SETTINGS_LABELS_V1[field]}`}
-          >
-            {owns ? 'Salvar' : 'Personalizar'}
-          </Button>
+          {!boolean ? (
+            <Button
+              size="sm"
+              variant="secondary"
+              isDisabled={disabled}
+              onPress={prepare}
+              aria-label={`Revisar ${SETTINGS_LABELS_V1[field]}`}
+            >
+              {owns ? 'Salvar' : 'Personalizar'}
+            </Button>
+          ) : null}
           {settings.scope.kind !== 'school' && owns ? (
             <Button
               size="sm"
@@ -247,6 +251,7 @@ function ReviewDialogV1({
 }
 function SettingsScopeV1({
   client,
+  reader,
   scope,
   canWrite,
   scopeLabel,
@@ -456,6 +461,23 @@ function SettingsScopeV1({
               />
             ))}
           </div>
+          {reader && fixedScope.kind !== 'account' ? (
+            <CustomizedSettingsV1
+              key={settingsScopeKeyV1(fixedScope)}
+              reader={reader}
+              scope={fixedScope}
+              renderEditor={(target, label, committed) => (
+                <StudentSettingsV1
+                  client={client}
+                  scope={target}
+                  scopeLabel={label}
+                  canWrite={canWrite}
+                  describeScope={describeScope}
+                  onCommitted={committed}
+                />
+              )}
+            />
+          ) : null}
           {fixedScope.kind === 'school' && canWrite ? (
             <LinkClosureV1
               key={load.data.version}

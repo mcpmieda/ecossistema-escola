@@ -56,7 +56,7 @@ function normalize(value: string): string {
 }
 
 function parserVersion(value: string): string {
-  return `${value.slice(0, 108)}:canonical-v9`;
+  return `${value.slice(0, 90)}:canonical-v9:observed-blanks-v1`;
 }
 
 function manifest(result: BatchSuccess) {

@@ -155,26 +155,23 @@ describe('birth access data UI', () => {
     );
     expect(mock.writes).toHaveLength(1);
   });
-  it('blocks pagination with an incomplete draft and preserves distinct birth/account cursors', async () => {
+  it('collects all birth rows automatically with distinct cursors and preserves an incomplete draft', async () => {
     const mock = birthMockV1({
       query: async (q) => mock.defaultQuery({ ...q, page: { ...q.page, limit: 2 } }),
     });
     render(createElement(StudentBirthYearsV1, mock.props));
     const field = await input();
-    enter(field, '20');
-    const next = screen.getByRole('button', { name: 'Próxima' }) as HTMLButtonElement;
-    await waitFor(() => expect(next.disabled).toBe(true));
-    fireEvent.click(next);
-    expect(screen.queryByText('Página 2')).toBeNull();
-    fireEvent.keyDown(field, { key: 'Escape' });
-    await waitFor(() => expect(next.disabled).toBe(false));
-    fireEvent.click(next);
     await input(3);
-    expect(screen.queryByText('SYNTHETIC BIRTH 001')).toBeNull();
-    expect(screen.getByText('Página 2')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Próxima' })).toBeNull();
+    const cursorQueries = mock.queries.filter((q) => q.page.cursor);
+    expect(cursorQueries.length).toBeGreaterThanOrEqual(2);
+    expect(cursorQueries[0]!.page.cursor).not.toBe(cursorQueries[1]!.page.cursor);
+    enter(field, '20');
+    expect((field as HTMLInputElement).value).toBe('20');
+    expect(screen.getByText('SYNTHETIC BIRTH 003')).toBeTruthy();
+    fireEvent.keyDown(field, { key: 'Escape' });
+    await waitFor(() => expect((field as HTMLInputElement).value).toBe('2000'));
     expect(mock.writes).toHaveLength(0);
-    const cursors = mock.queries.slice(-2).map((q) => q.page.cursor);
-    expect(cursors[0]).not.toBe(cursors[1]);
   });
   it('supports StrictMode cleanup and a later save without duplicating writes', async () => {
     const mock = birthMockV1();

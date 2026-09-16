@@ -5,7 +5,6 @@ import {
   Chip,
   Input,
   Label,
-  ScrollShadow,
   Skeleton,
   Table,
   TextField,
@@ -20,7 +19,8 @@ import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import type { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { createBirthEditorV1, emptyBirthEditorV1 } from './birth-editor-v1';
 import { birthDirtyV1, validBirthYearV1, type BirthDraftRowV1 } from './birth-values-v1';
-import type { BirthCursorsV1, BirthScopeV1 } from './birth-read-v1';
+import { ContinuousEndV1 } from '../shared/continuous-read-v1';
+import type { BirthScopeV1 } from './birth-read-v1';
 import { BirthDiscardDialogV1 } from './birth-review-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
@@ -106,49 +106,27 @@ type PageProps = StudentBirthYearsPropsV1 & {
   onBlock: (value: boolean) => void;
 };
 function BirthPagesV1(props: PageProps) {
-  const [history, setHistory] = useState<(BirthCursorsV1 | undefined)[]>([undefined]),
-    [page, setPage] = useState(0);
-  return (
-    <BirthPageBodyV1
-      key={page}
-      {...props}
-      cursor={history[page]}
-      page={page}
-      onPrevious={() => setPage((value) => Math.max(0, value - 1))}
-      onNext={(cursor) => {
-        setHistory((value) => [...value.slice(0, page + 1), cursor]);
-        setPage((value) => value + 1);
-      }}
-    />
-  );
+  return <BirthPageBodyV1 {...props} />;
 }
-function BirthPageBodyV1(
-  props: PageProps & {
-    cursor?: BirthCursorsV1;
-    page: number;
-    onPrevious: () => void;
-    onNext: (cursor: BirthCursorsV1) => void;
-  },
-) {
+function BirthPageBodyV1(props: PageProps) {
   const [state, setState] = useState(emptyBirthEditorV1),
     [clock, setClock] = useState(Date.now),
     [discard, setDiscard] = useState(false);
-  const { client, reader, scope, cursor, canWrite, onChanged, onAuthorizationLost, onBlock } =
-    props;
+  const { client, reader, scope, canWrite, onChanged, onAuthorizationLost, onBlock } = props;
   const editor = useMemo(
     () =>
       createBirthEditorV1({
         client,
         reader,
         scope,
-        cursor,
+        continuous: true,
         canWrite,
         confirmOnEdit: true,
         publish: setState,
         onChanged,
         onAuthorizationLost,
       }),
-    [client, reader, scope, cursor, canWrite, onChanged, onAuthorizationLost],
+    [client, reader, scope, canWrite, onChanged, onAuthorizationLost],
   );
   useEffect(() => {
     void editor.load();
@@ -228,14 +206,13 @@ function BirthPageBodyV1(
           <Skeleton className="h-48 rounded-lg" />
         ) : null}
         {state.state === 'ready' ? (
-          !state.rows.length ? (
+          !state.rows.length && !state.next ? (
             <p className="text-sm text-muted">Nenhum aluno nesta turma.</p>
           ) : (
             <>
               <Table variant="secondary">
-                <ScrollShadow
+                <Table.ScrollContainer
                   className="pa-birth-scroll"
-                  orientation="horizontal"
                   role="region"
                   tabIndex={0}
                   aria-label="Anos de nascimento por aluno"
@@ -299,31 +276,15 @@ function BirthPageBodyV1(
                       })}
                     </Table.Body>
                   </Table.Content>
-                </ScrollShadow>
+                  <ContinuousEndV1
+                    more={Boolean(state.next)}
+                    busy={blocked || Boolean(state.refreshing)}
+                    failed={Boolean(state.refreshError)}
+                    loadMore={() => void editor.loadMore()}
+                    retry={() => void editor.refresh()}
+                  />
+                </Table.ScrollContainer>
               </Table>
-              {props.page > 0 || state.next ? (
-                <div className="pa-birth-toolbar">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    isDisabled={blocked || props.page === 0}
-                    onPress={props.onPrevious}
-                  >
-                    Anterior
-                  </Button>
-                  <span className="text-xs text-muted">Página {props.page + 1}</span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    isDisabled={blocked || !state.next}
-                    onPress={() => {
-                      if (state.next) props.onNext(state.next);
-                    }}
-                  >
-                    Próxima
-                  </Button>
-                </div>
-              ) : null}
             </>
           )
         ) : null}

@@ -108,23 +108,17 @@ describe('administrative sessions interface', () => {
     await screen.findByRole('grid', { name: 'Sessões ativas' });
     expect(screen.queryByRole('button', { name: 'Encerrar sessões da turma' })).toBeNull();
     await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: /Encerrar sessão de/ })).toHaveLength(100),
+      expect(screen.getAllByRole('button', { name: /Encerrar sessão de/ })).toHaveLength(105),
     );
     expect(
       screen
         .getAllByRole('button', { name: /Encerrar sessão de/ })
         .every((b) => (b as HTMLButtonElement).disabled),
     ).toBe(true);
-    fireEvent.click(
-      within(screen.getByRole('region', { name: 'Sessões ativas' })).getByRole('button', {
-        name: 'Próxima',
-      }),
-    );
-    await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: /Encerrar sessão de/ })).toHaveLength(5),
-    );
+    expect(screen.queryByRole('button', { name: 'Próxima' })).toBeNull();
+    expect(mock.queries.some((q) => q.operation === 'sessions-read' && q.page.cursor)).toBe(true);
     expect(mock.writes).toHaveLength(0);
-  }, 60_000);
+  }, 20_000);
   it('clears on pagehide and requires a fresh read to resume', async () => {
     const mock = operationsMockV1();
     render(createElement(StudentSessionsV1, mock.props));

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { settingsOverrideV1 } from './policy-v1';
 import { accountSummaryV1, adminQueryV1 } from './admin-v1';
 import {
   accountStateV1,
@@ -39,7 +40,7 @@ export function adminClassCatalogRequestV2(
 export const adminReadQueryV2 = z
   .object({
     contractVersion: z.literal(2),
-    operation: z.enum(['accounts-read', 'overview', 'sessions-read']),
+    operation: z.enum(['accounts-read', 'overview', 'sessions-read', 'settings-overrides']),
     scope: scopeV1,
     page: pageRequestV1,
     accountState: accountStateV1.optional(),
@@ -55,7 +56,7 @@ export const adminReadQueryV2 = z
   .refine((value) => value.operation !== 'overview' || !value.page.cursor, 'Overview has no cursor')
   .refine(
     (value) =>
-      value.operation !== 'sessions-read' ||
+      !['sessions-read', 'settings-overrides'].includes(value.operation) ||
       [value.accountState, value.blocked, value.nameSearch].every((field) => field === undefined),
     'Session scope must match the complete revocation scope',
   );
@@ -99,7 +100,26 @@ export const adminAccountReadV2 = accountSummaryV1
 const base = { contractVersion: z.literal(2), requestId: portalIdV1, observedAt: instantV1 };
 const count = z.number().int().nonnegative().safe();
 export const ADMIN_OVERVIEW_ACCOUNT_LIMIT_V2 = 5_000;
+export const customizedSettingsRowV1 = z
+  .object({
+    id: z.string().regex(/^(?:class:2026:[1-9]\d*|account:2026:[0-9a-f-]{36})$/u),
+    scope: scopeV1.refine((s) => s.kind !== 'school'),
+    label: z.string().max(200),
+    classLabel: z.string().max(80),
+    value: settingsOverrideV1,
+    updatedAt: instantV1,
+  })
+  .strict();
 export const adminReadResponseV2 = z.discriminatedUnion('state', [
+  z
+    .object({
+      ...base,
+      state: z.literal('settings-overrides'),
+      scope: scopeV1,
+      items: z.array(customizedSettingsRowV1).max(100),
+      nextCursor: opaqueV1.nullable(),
+    })
+    .strict(),
   z
     .object({
       ...base,

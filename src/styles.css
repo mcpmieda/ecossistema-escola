@@ -1561,3 +1561,83 @@ button.performance-kpi__button:hover {
   .scroll-shadow--fade.scroll-shadow--horizontal:has(table)[data-left-right-scroll='true'] {
   --scroll-linear-gradient: 90deg, #000 calc(100% - var(--scroll-shadow-size)), transparent;
 }
+
+/* Shared class navigation (#819): horizontal, compact, and independent of Card's column flow. */
+.school-class-tabs {
+  min-width: 0;
+  width: 100%;
+  gap: 0.75rem;
+}
+.school-class-tabs > .tabs__list-container {
+  align-self: flex-start;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.school-class-tabs > .tabs__list-container > .tabs__list {
+  width: max-content;
+  min-width: 0;
+  justify-content: flex-start;
+}
+.school-class-tabs .tabs__tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  min-width: 3.5rem;
+}
+.school-class-content {
+  min-width: 0;
+}
+/* Fast feedback without suppressing keyboard focus or reduced-motion preferences. */
+.pa-admin-page,
+.performance-workspace {
+  --default-transition-duration: 120ms;
+}
+.pa-admin-page .tabs__indicator,
+.school-class-tabs .tabs__indicator {
+  transition-duration: 120ms;
+}
+.drawer__backdrop,
+.drawer__content,
+.drawer__dialog,
+.select__popover,
+.date-picker__popover,
+.tooltip {
+  animation-duration: 120ms;
+  transition-duration: 120ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .school-class-tabs *,
+  .pa-admin-page *,
+  .drawer__content,
+  .drawer__dialog,
+  .date-picker__popover {
+    animation-duration: 0ms;
+    transition-duration: 0ms;
+    scroll-behavior: auto;
+  }
+}
+
+/* Keep native component choreography, shorten its actual tokens. */
+.drawer__dialog {
+  --drawer-enter-duration: 120ms;
+  --drawer-exit-duration: 100ms;
+}
+.route-stage:has(.pa-admin-page),
+.route-stage:has(.performance-workspace),
+.pa-admin-page .stagger-item,
+.gradebook-workspace .stagger-item {
+  animation-duration: 120ms;
+  animation-delay: 0ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer__dialog {
+    --drawer-enter-duration: 0ms;
+    --drawer-exit-duration: 0ms;
+  }
+  .route-stage:has(.pa-admin-page),
+  .route-stage:has(.performance-workspace),
+  .pa-admin-page .stagger-item,
+  .gradebook-workspace .stagger-item {
+    animation: none;
+  }
+}

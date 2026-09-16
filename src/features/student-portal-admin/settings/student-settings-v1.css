@@ -193,3 +193,132 @@
     max-width: 100%;
   }
 }
+
+/* Compact shared settings for school, class and the student drawer. */
+.pa-settings-card > .card__header {
+  display: flex;
+  flex-direction: row;
+  align-items: start;
+  justify-content: space-between;
+}
+.pa-settings-card-heading {
+  flex: 1;
+  min-width: 0;
+  gap: 0.4rem;
+}
+.pa-settings-card-heading .chip {
+  font-size: 0.7rem;
+}
+.pa-settings-card--accessEnabled {
+  border-top: 3px solid var(--accent);
+}
+.pa-settings-card--showPartials {
+  border-top: 3px solid var(--success);
+}
+.pa-settings-card--autoUpdate {
+  border-top: 3px solid var(--accent);
+}
+.pa-settings-card--showFinalResult {
+  border-top: 3px solid var(--warning);
+}
+.pa-settings-card .card__footer:empty {
+  display: none;
+}
+.pa-calendar-zone {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+.pa-calendar-sections {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.pa-calendar-group {
+  margin: 0;
+  padding: 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-secondary);
+  min-width: 0;
+}
+.pa-calendar-group:first-child,
+.pa-calendar-group:last-child {
+  grid-column: 1/-1;
+}
+.pa-calendar-group legend {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0 0.35rem;
+  font-weight: 650;
+  color: var(--accent);
+}
+.pa-calendar-group .pa-settings-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+}
+.pa-calendar-sections > .pa-calendar-group:not(:first-child):not(:last-child) .pa-settings-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.pa-calendar-disclosure {
+  display: grid;
+  gap: 0.7rem;
+  background: var(--surface);
+}
+.pa-security-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.8rem;
+}
+.pa-security-field {
+  display: grid;
+  align-content: start;
+  gap: 0.4rem;
+}
+.pa-security-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.8125rem;
+}
+.pa-security-field .textfield {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+.pa-security-field input {
+  max-width: 6rem;
+}
+.pa-calendar-group .pa-date-picker {
+  max-width: 100%;
+}
+@media (max-width: 700px) {
+  .pa-calendar-sections {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.pa-custom-settings {
+  border-top: 3px solid var(--accent);
+}
+.pa-custom-owner {
+  display: grid;
+  text-align: left;
+  white-space: normal;
+}
+.pa-custom-owner small {
+  color: var(--muted);
+}
+.pa-custom-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  max-width: 44rem;
+}
+.pa-custom-settings .table__cell {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}

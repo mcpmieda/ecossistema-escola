@@ -162,3 +162,63 @@
   border: 0;
   padding-top: 0.5rem;
 }
+
+/* Card.Content is column-oriented by default: do not let a flex-basis become row height. */
+.pa-account-filters.card__content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  align-items: end;
+  align-content: start;
+  height: auto;
+  min-height: 0;
+  flex: 0 0 auto;
+}
+.pa-account-filters.card__content > * {
+  flex: none;
+  min-width: 0;
+  max-width: 100%;
+}
+.pa-account-filters .pa-account-class-filter {
+  grid-column: 1/-1;
+}
+.pa-student-name {
+  height: auto;
+  padding: 0.15rem 0;
+  text-align: left;
+  justify-content: flex-start;
+  white-space: normal;
+}
+.pa-student-name:hover strong {
+  color: var(--accent);
+}
+.pa-student-drawer {
+  width: min(58rem, 94vw);
+  max-width: 100vw;
+}
+.pa-student-drawer .pa-account-detail {
+  box-shadow: none;
+  border: 0;
+}
+.pa-student-drawer .pa-account-detail .card__header {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+.pa-student-drawer .pa-settings-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.pa-account-table .table__cell {
+  padding-block: 0.45rem;
+}
+@media (max-width: 640px) {
+  .pa-student-drawer {
+    width: 100vw;
+  }
+  .pa-student-drawer .pa-settings-fields,
+  .pa-account-filters.card__content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pa-account-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -174,7 +174,14 @@ beforeEach(() => {
       });
     if (body.operation === 'classes')
       return reply({ ...catalog, context: { ...context, year: body.year } });
-    if (body.operation === 'analytics') return reply(performanceAnalyticsFixtureV6({ year: Number(body.year), classId: Number(body.classId), period: body.period as 1 | 2 | 3 | 'annual' }));
+    if (body.operation === 'analytics')
+      return reply(
+        performanceAnalyticsFixtureV6({
+          year: Number(body.year),
+          classId: Number(body.classId),
+          period: body.period as 1 | 2 | 3 | 'annual',
+        }),
+      );
     if (body.operation === 'term-comparison') return reply(comparisonFixture(body));
     if (body.operation === 'analysis') return reply(analysisFixture(body));
     if (body.operation === 'dashboard') return reply(dashboardFixture(body));
@@ -326,6 +333,21 @@ function selectedValue(label: string) {
   );
 }
 async function select(label: string, value: string) {
+  if (label === 'Turma') {
+    await waitFor(() =>
+      Boolean(
+        document.querySelector(
+          `[role="tablist"][aria-label="Turmas de Desempenho"] [data-key="${value}"]`,
+        ),
+      ),
+    );
+    const tab = document.querySelector<HTMLElement>(
+      `[role="tablist"][aria-label="Turmas de Desempenho"] [data-key="${value}"]`,
+    )!;
+    await act(async () => tab.click());
+    await settle();
+    return;
+  }
   for (let attempt = 0; attempt < 100; attempt++) {
     const element = selectRoot(label)?.querySelector(
       'select',
@@ -425,23 +447,27 @@ describe('real shell, shared year and rendered performance journey', () => {
     );
     expect(requests.filter((value) => value.operation === 'bootstrap')).toHaveLength(1);
   });
-  it('hands an open filter directly to the next select and closes it outside', async () => {
-    await mount();
-    await waitFor(() => requests.some((value) => value.operation === 'classes'));
-    await act(async () => {
-      selectTrigger('Turma')!.click();
-    });
+  it('places the period first, uses class tabs, and hands open local filters off without an extra click', async () => {
+    await loaded();
+    expect(selectRoot('Turma')).toBeNull();
+    const classTabs = document.querySelector(
+      '[role="tablist"][aria-label="Turmas de Desempenho"]',
+    )!;
+    expect(
+      selectRoot('Período')!.compareDocumentPosition(classTabs) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    await act(async () => selectTrigger('Modo')!.click());
     await settle();
-    expect(selectRoot('Turma')?.hasAttribute('data-open')).toBe(true);
-    await act(async () => {
-      selectTrigger('Período')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
-    });
+    expect(selectRoot('Modo')?.hasAttribute('data-open')).toBe(true);
+    await act(async () =>
+      selectTrigger('Período')!.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })),
+    );
     await settle();
-    expect(selectRoot('Turma')?.hasAttribute('data-open')).toBe(false);
+    expect(selectRoot('Modo')?.hasAttribute('data-open')).toBe(false);
     expect(selectRoot('Período')?.hasAttribute('data-open')).toBe(true);
-    await act(async () => {
-      document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
-    });
+    await act(async () =>
+      document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true })),
+    );
     await settle();
     expect(selectRoot('Período')?.hasAttribute('data-open')).toBe(false);
   });
@@ -471,28 +497,31 @@ describe('real shell, shared year and rendered performance journey', () => {
       ),
     ).toBe(true);
   });
-  it.each([2, 3] as const)('opens a component detail at trimester %i selected in the matrix', async (period) => {
-    await loaded();
-    await select('Período', String(period));
-    await waitFor(() =>
-      requests.some((value) => value.operation === 'dashboard' && value.period === period),
-    );
-    const grade = host.querySelector<HTMLButtonElement>(
-      `button[aria-label="${student.name}, ${offering.subject.label}"]`,
-    );
-    expect(grade).not.toBeNull();
-    await act(async () => {
-      grade!.click();
-    });
-    await waitFor(() =>
-      requests.some((value) => value.operation === 'cell-detail' && value.period === period),
-    );
-    await waitFor(() => scrollIntoView.mock.calls.length === 1);
-    expect(scrollIntoView).toHaveBeenCalledTimes(1);
-    expect((scrollIntoView.mock.contexts[0] as Element).getAttribute('aria-label')).toBe(
-      `${period}º trimestre`,
-    );
-  });
+  it.each([2, 3] as const)(
+    'opens a component detail at trimester %i selected in the matrix',
+    async (period) => {
+      await loaded();
+      await select('Período', String(period));
+      await waitFor(() =>
+        requests.some((value) => value.operation === 'dashboard' && value.period === period),
+      );
+      const grade = host.querySelector<HTMLButtonElement>(
+        `button[aria-label="${student.name}, ${offering.subject.label}"]`,
+      );
+      expect(grade).not.toBeNull();
+      await act(async () => {
+        grade!.click();
+      });
+      await waitFor(() =>
+        requests.some((value) => value.operation === 'cell-detail' && value.period === period),
+      );
+      await waitFor(() => scrollIntoView.mock.calls.length === 1);
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect((scrollIntoView.mock.contexts[0] as Element).getAttribute('aria-label')).toBe(
+        `${period}º trimestre`,
+      );
+    },
+  );
   it('updates the matrix immediately from the multiple status tags', async () => {
     await loaded();
     const group = host.querySelector('[data-slot="tag-group"]');
@@ -619,10 +648,15 @@ function analysisFixture(extra: Record<string, unknown> = {}) {
   const belowFacts = facts.map((fact) => ({ ...fact, valueMilli: fact.slot === 11 ? 4000 : 2000 }));
   return buildPerformanceAnalysisV3(
     base,
-    new Map([
-      [1, [projectPerformanceFactsV2(10, facts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]] as const,
-      [2, [projectPerformanceFactsV2(10, belowFacts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]] as const,
-    ].filter(([studentId]) => scopedRows.some((row) => row.student.id === studentId))),
+    new Map(
+      [
+        [1, [projectPerformanceFactsV2(10, facts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)]] as const,
+        [
+          2,
+          [projectPerformanceFactsV2(10, belowFacts, EMPTY_PERFORMANCE_CLOSING_V2, 60000)],
+        ] as const,
+      ].filter(([studentId]) => scopedRows.some((row) => row.student.id === studentId)),
+    ),
     request,
   );
 }
@@ -1012,18 +1046,98 @@ describe('V6 HeroUI perspectives and shared live invalidation', () => {
 describe('Teacher PDF access in the existing Reports area', () => {
   it('opens the same analytical source only on demand and follows the report period', async () => {
     const { GradebookYearProvider } = await import('../../../src/platform/gradebook-year-provider');
-    const { PerformanceTeacherReportsV6 } = await import('../../../src/features/gradebook/reports/performance-teacher-reports-v6');
+    const { PerformanceTeacherReportsV6 } =
+      await import('../../../src/features/gradebook/reports/performance-teacher-reports-v6');
     root = createRoot(host);
-    const content = (period: 1 | 2 | 3) => createElement(GradebookYearProvider, null, createElement(PerformanceTeacherReportsV6, { classId: 10, period, isActive: true }));
-    await act(async () => root!.render(content(2))); await settle();
+    const content = (period: 1 | 2 | 3) =>
+      createElement(
+        GradebookYearProvider,
+        null,
+        createElement(PerformanceTeacherReportsV6, { classId: 10, period, isActive: true }),
+      );
+    await act(async () => root!.render(content(2)));
+    await settle();
     expect(analyticsCalls()).toBe(0);
     await click('Abrir relatório docente');
     await waitFor(() => selectRoot('Professor do relatório') !== null);
-    expect(requests.filter((item) => item.operation === 'analytics').at(-1)).toMatchObject({ year: 2026, classId: 10, period: 2 });
-    expect(host.textContent).toContain('PDF resumido'); expect(host.textContent).toContain('PDF detalhado');
-    await select('Professor do relatório','2');
+    expect(requests.filter((item) => item.operation === 'analytics').at(-1)).toMatchObject({
+      year: 2026,
+      classId: 10,
+      period: 2,
+    });
+    expect(host.textContent).toContain('PDF resumido');
+    expect(host.textContent).toContain('PDF detalhado');
+    await select('Professor do relatório', '2');
     await act(async () => root!.render(content(3)));
-    await waitFor(() => requests.filter((item) => item.operation === 'analytics').at(-1)?.period === 3);
+    await waitFor(
+      () => requests.filter((item) => item.operation === 'analytics').at(-1)?.period === 3,
+    );
     expect(selectedValue('Professor do relatório')).toContain('Docente sintético 2');
   });
+});
+
+it('keeps the granular drawer, focus and scroll stable during automatic revalidation', async () => {
+  await loaded();
+  await select('Período', '2');
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>(
+        `button[aria-label="${student.name}, ${offering.subject.label}"]`,
+      )!
+      .click(),
+  );
+  await waitFor(() => scrollIntoView.mock.calls.length === 1);
+  const body = document.querySelector<HTMLElement>('[data-slot="drawer-body"]')!;
+  const heading = document.querySelector('[data-slot="drawer-heading"]');
+  const openCenter = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+    (b) => b.textContent === 'Ver cadastro nas Centrais',
+  )!;
+  body.scrollTop = 137;
+  openCenter.focus();
+  const baseline = requests.filter((r) => r.operation === 'cell-detail').length;
+  await act(async () => notifyLiveChangeV1('gradebook'));
+  await waitFor(() => requests.filter((r) => r.operation === 'cell-detail').length > baseline);
+  await settle();
+  await settle();
+  expect(document.querySelector('[data-slot="drawer-body"]')).toBe(body);
+  expect(document.querySelector('[data-slot="drawer-heading"]')).toBe(heading);
+  expect(body.scrollTop).toBe(137);
+  expect(document.activeElement).toBe(openCenter);
+  expect(scrollIntoView).toHaveBeenCalledTimes(1);
+});
+
+it('renders both granular statuses in the real detail and keeps the official trimester grade numerical', async () => {
+  const original = mock.getMockImplementation()!;
+  mock.mockImplementation(async (input, init) => {
+    const response = await original(input, init);
+    const request = JSON.parse(String(init?.body));
+    if (request.operation !== 'cell-detail') return response;
+    const data = performanceResponseSchemaV2.parse(await response.json());
+    if (data.state !== 'ready' || data.operation !== 'cell-detail')
+      throw new Error('Expected a ready synthetic cell detail');
+    data.terms[1].instruments = [
+      { slot: 1, label: 'AV1 SYNTHETIC', maximumMilli: 5000, valueMilli: null, notDone: true },
+      { slot: 2, label: 'AV2 SYNTHETIC', maximumMilli: 5000, valueMilli: 0 },
+      { slot: 11, label: 'Q1 SYNTHETIC', maximumMilli: 2000, valueMilli: null },
+    ];
+    return reply(data);
+  });
+  await loaded();
+  await select('Período', '2');
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>(
+        `button[aria-label="${student.name}, ${offering.subject.label}"]`,
+      )!
+      .click(),
+  );
+  await waitFor(() => Boolean(document.querySelector('[aria-label="Avaliações do 2º trimestre"]')));
+  const table = document.querySelector('[aria-label="Avaliações do 2º trimestre"]')!;
+  expect(table.textContent).toContain('Não fez');
+  expect(table.textContent).toContain('Tirou zero');
+  const rows = table.querySelectorAll('[data-slot="table-row"]');
+  expect(rows[2]?.textContent).toContain('—');
+  expect(document.querySelector('section[aria-label="2º trimestre"]')?.textContent).toContain(
+    'Nota do trimestre24',
+  );
 });

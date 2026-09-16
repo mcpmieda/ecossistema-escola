@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AlertDialog, Button, Card, Tabs, Tooltip } from '@heroui/react';
+import { AlertDialog, Button, Card, Drawer, Tabs, Tooltip } from '@heroui/react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -64,10 +64,25 @@ const slotLabels = {
 } as const;
 export function AccountDetailV1(props: AccountDetailPropsV1) {
   return (
-    <AccountDetailBodyV1
-      key={props.accountId + ':' + settingsScopeKeyV1(props.parentScope) + ':' + props.canWrite}
-      {...props}
-    />
+    <Drawer.Backdrop
+      isOpen
+      onOpenChange={(open) => {
+        if (!open && allowDraftNavigationV1()) props.onClose();
+      }}
+    >
+      <Drawer.Content placement="right">
+        <Drawer.Dialog aria-label="Ficha do aluno" className="pa-student-drawer">
+          <Drawer.Body>
+            <AccountDetailBodyV1
+              key={
+                props.accountId + ':' + settingsScopeKeyV1(props.parentScope) + ':' + props.canWrite
+              }
+              {...props}
+            />
+          </Drawer.Body>
+        </Drawer.Dialog>
+      </Drawer.Content>
+    </Drawer.Backdrop>
   );
 }
 function AccountDetailBodyV1({
@@ -124,7 +139,6 @@ function AccountDetailBodyV1({
   useEffect(() => {
     if (focused.current || (read.state.state !== 'ready' && read.state.state !== 'error')) return;
     focused.current = true;
-    heading.current?.scrollIntoView?.({ block: 'start' });
     heading.current?.focus({ preventScroll: true });
   }, [read.state.state]);
   useEffect(() => () => writer.clear(), [writer, parentKey]);

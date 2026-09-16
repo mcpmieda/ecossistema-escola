@@ -225,3 +225,22 @@ describe('BN presentation classification is consumed, never recalculated', () =>
     ).toBe('met');
   });
 });
+
+it('shows observed blank and real zero in published partials without changing the trimester total', () => {
+  const data = gradesFixtureV1();
+  const first = data.subjects.find((subject) => subject.order === 1)!;
+  const term = first.periods.find((p) => p.period === 'T1')!;
+  term.partials![1] = {
+    assessmentId: 900002,
+    label: 'AV2 SYNTHETIC',
+    notDone: true,
+    mark: { kind: 'absent' },
+  };
+  const original = JSON.stringify(data);
+  render(table(data));
+  const detail = within(screen.getAllByRole('row')[1]!).getAllByRole('gridcell')[0]!;
+  expect(within(detail).getByText('Não fez')).toBeTruthy();
+  expect(within(detail).getByText('Tirou zero')).toBeTruthy();
+  expect(detail.querySelector('.pa-period-total')?.textContent).toBe('Nota do trimestre22,499');
+  expect(JSON.stringify(data)).toBe(original);
+});

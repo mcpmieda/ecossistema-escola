@@ -238,3 +238,59 @@ it('registers one permission-filtered module and searches its sections without c
   expect(portalSectionFromHash('#/painel-do-aluno?area=audit&year=2025')).toBe('audit');
   expect(portalSectionFromHash('#/painel-do-aluno?area=invalid')).toBe('overview');
 });
+
+it('shares the last class tab across panel areas and resets it for another identity', async () => {
+  const mock = operationsMockV1();
+  let key = 'synthetic-class-819';
+  const fetcher: PortalFetchV1 = async (path, init) => {
+    if (path === '/api/me') return opJsonV1(identity(false, key));
+    const input = JSON.parse(String(init.body));
+    return opJsonV1(
+      input.contractVersion === 2 ? await mock.reader.query(input) : await mock.client.query(input),
+    );
+  };
+  const catalogResponse = {
+    contractVersion: 2,
+    state: 'ready',
+    operation: 'search',
+    context: { year: 2026, minimumApprovalMilli: 60000, maxCouncilComponents: 2 },
+    items: [
+      {
+        entity: { kind: 'class-group', id: 756001, label: 'SYNTHETIC OP CLASS' },
+        description: null,
+      },
+    ],
+    nextOffset: null,
+  };
+  // The class catalog is the existing Gradebook HTTP boundary, separate from the Portal client.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => opJsonV1(catalogResponse)),
+  );
+  window.history.replaceState(null, '', '/#/painel-do-aluno?area=accounts');
+  render(<StudentPortalAdminPage fetcher={fetcher} />);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole('tab', { name: 'SYNTHETIC OP CLASS' }));
+  await screen.findByText('SYNTHETIC OP STUDENT 1');
+  expect(
+    screen.getByRole('tab', { name: 'SYNTHETIC OP CLASS' }).getAttribute('aria-selected'),
+  ).toBe('true');
+  await user.click(screen.getByRole('tab', { name: 'Sessões' }));
+  await screen.findByRole('grid', { name: 'Sessões ativas' });
+  expect(mock.queries.filter((q) => q.operation === 'sessions-read').at(-1)?.scope).toEqual({
+    kind: 'class',
+    academicYear: 2026,
+    classId: 756001,
+  });
+  await user.click(screen.getByRole('tab', { name: 'Alunos' }));
+  expect(
+    screen.getByRole('tab', { name: 'SYNTHETIC OP CLASS' }).getAttribute('aria-selected'),
+  ).toBe('true');
+  key = 'synthetic-other-819';
+  await act(async () => window.dispatchEvent(new Event('focus')));
+  await waitFor(() =>
+    expect(screen.getByRole('tab', { name: 'Todas as turmas' }).getAttribute('aria-selected')).toBe(
+      'true',
+    ),
+  );
+});

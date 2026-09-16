@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { CalendarDateTime, parseDateTime, today } from '@internationalized/date';
 import { I18nProvider } from 'react-aria-components';
 import {
@@ -12,7 +12,7 @@ import {
   ListBox,
   Select,
   TextField,
-  Tooltip,
+  Switch,
 } from '@heroui/react';
 import {
   riskPolicyV1,
@@ -30,6 +30,8 @@ import {
   type CalendarDateKeyV1,
   type CalendarPeriodV1,
 } from './calendar-draft-v1';
+import { InfoV1 } from '../shared/info-v1';
+import { DurationEditorV1, durationLabelV1, RISK_HELP_V1 } from './security-duration-v1';
 import { RISK_LABELS_V1, type RiskDraftV1, type SettingsDraftV1 } from './settings-draft-v1';
 
 export function SettingsCheckboxV1({
@@ -99,6 +101,7 @@ export function DateInputV1({
   onChange: (value: string) => void;
   disabled: boolean;
 }) {
+  const [isOpen, setOpen] = useState(false);
   const placeholder = useMemo(() => {
     const date = today('America/Sao_Paulo');
     return new CalendarDateTime(date.year, date.month, date.day, 0, 0, 0);
@@ -113,6 +116,8 @@ export function DateInputV1({
     <I18nProvider locale="pt-BR">
       <DatePicker
         className="pa-date-picker"
+        isOpen={isOpen}
+        onOpenChange={setOpen}
         value={parsed}
         onChange={(date) => onChange(date?.toString() ?? '')}
         placeholderValue={placeholder}
@@ -125,7 +130,17 @@ export function DateInputV1({
       >
         <Label>{label}</Label>
         <DateField.Group>
-          <DateField.Input>{(segment) => <DateField.Segment segment={segment} />}</DateField.Input>
+          <DateField.Input
+            onClick={(event) => {
+              const type = (event.target as HTMLElement)
+                .closest('[data-type]')
+                ?.getAttribute('data-type');
+              if (!disabled && (!type || ['day', 'month', 'year', 'literal'].includes(type)))
+                setOpen(true);
+            }}
+          >
+            {(segment) => <DateField.Segment segment={segment} />}
+          </DateField.Input>
           <DateField.Suffix>
             {value && !disabled ? (
               <CloseButton
@@ -167,8 +182,10 @@ export function DateInputV1({
   );
 }
 const DATE_GROUPS: { label: string; keys: CalendarDateKeyV1[] }[] = [
-  { label: 'Ano letivo', keys: ['enrollmentStartsAt', 'yearStartsAt', 'yearEndsAt'] },
-  { label: 'Trimestres', keys: ['t1EndsAt', 't2StartsAt', 't2EndsAt', 't3StartsAt', 't3EndsAt'] },
+  { label: 'Ano letivo', keys: ['enrollmentStartsAt', 'yearEndsAt'] },
+  { label: '1º trimestre', keys: ['yearStartsAt', 't1EndsAt'] },
+  { label: '2º trimestre', keys: ['t2StartsAt', 't2EndsAt'] },
+  { label: '3º trimestre', keys: ['t3StartsAt', 't3EndsAt'] },
   { label: 'Recuperação e resultado', keys: ['recoveriesStartAt', 'finalDisclosureAt'] },
 ];
 export function CalendarEditorV1({
@@ -182,91 +199,97 @@ export function CalendarEditorV1({
 }) {
   return (
     <div className="pa-settings-calendar">
-      <Tooltip>
-        <Tooltip.Trigger className="w-fit text-xs text-muted">Horário de Brasília</Tooltip.Trigger>
-        <Tooltip.Content>
+      <div className="pa-calendar-zone">
+        <span>Horário de Brasília</span>
+        <InfoV1 label="Sobre os horários">
           Início incluído. No horário de encerramento, o acesso ao período termina. Campo vazio não
           define uma data.
-        </Tooltip.Content>
-      </Tooltip>
-      {DATE_GROUPS.map((group) => (
-        <fieldset key={group.label} className="pa-calendar-group">
-          <legend>{group.label}</legend>
+        </InfoV1>
+      </div>
+      <div className="pa-calendar-sections">
+        {DATE_GROUPS.map((group) => (
+          <fieldset key={group.label} className="pa-calendar-group">
+            <legend>{group.label}</legend>
+            <div className="pa-settings-grid">
+              {group.keys.map((key) => (
+                <DateInputV1
+                  key={key}
+                  label={CALENDAR_LABELS_V1[key]}
+                  value={value.dates[key]}
+                  disabled={disabled}
+                  onChange={(date) =>
+                    onChange({ ...value, dates: { ...value.dates, [key]: date } })
+                  }
+                />
+              ))}
+            </div>
+          </fieldset>
+        ))}
+      </div>
+      <fieldset className="pa-calendar-group pa-calendar-disclosure">
+        <legend>
+          Divulgação das notas{' '}
+          <InfoV1 label="Sobre a liberação">
+            Trocar o modo limpa as datas de divulgação. O resultado final usa a data própria acima.
+          </InfoV1>
+        </legend>
+        <Select
+          className="max-w-72"
+          selectedKey={value.mode}
+          isDisabled={disabled}
+          onSelectionChange={(key) => {
+            if (key === 'single' || key === 'per-period') onChange(calendarDraftModeV1(value, key));
+          }}
+        >
+          <Label>Divulgação das notas</Label>
+          <Select.Trigger>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              <ListBox.Item id="single" textValue="Data única">
+                Data única
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+              <ListBox.Item id="per-period" textValue="Por trimestre / recuperação">
+                Por trimestre / recuperação
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            </ListBox>
+          </Select.Popover>
+        </Select>
+        {value.mode === 'single' ? (
+          <>
+            <DateInputV1
+              label="Liberar notas em"
+              value={value.singleAt}
+              disabled={disabled}
+              onChange={(singleAt) => onChange({ ...value, singleAt })}
+            />
+            <PeriodsEditorV1
+              label="Notas incluídas"
+              value={value.singlePeriods}
+              disabled={disabled}
+              onChange={(singlePeriods) => onChange({ ...value, singlePeriods })}
+            />
+          </>
+        ) : (
           <div className="pa-settings-grid">
-            {group.keys.map((key) => (
+            {PERIODS_V1.map((period) => (
               <DateInputV1
-                key={key}
-                label={CALENDAR_LABELS_V1[key]}
-                value={value.dates[key]}
+                key={period}
+                label={`Divulgação de ${period}`}
+                value={value.periodAt[period]}
                 disabled={disabled}
-                onChange={(date) => onChange({ ...value, dates: { ...value.dates, [key]: date } })}
+                onChange={(date) =>
+                  onChange({ ...value, periodAt: { ...value.periodAt, [period]: date } })
+                }
               />
             ))}
           </div>
-        </fieldset>
-      ))}
-      <Select
-        className="max-w-72"
-        selectedKey={value.mode}
-        isDisabled={disabled}
-        onSelectionChange={(key) => {
-          if (key === 'single' || key === 'per-period') onChange(calendarDraftModeV1(value, key));
-        }}
-      >
-        <Label>Divulgação das notas</Label>
-        <Select.Trigger>
-          <Select.Value />
-          <Select.Indicator />
-        </Select.Trigger>
-        <Select.Popover>
-          <ListBox>
-            <ListBox.Item id="single" textValue="Data única">
-              Data única
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-            <ListBox.Item id="per-period" textValue="Por trimestre / recuperação">
-              Por trimestre / recuperação
-              <ListBox.ItemIndicator />
-            </ListBox.Item>
-          </ListBox>
-        </Select.Popover>
-      </Select>
-      <Tooltip>
-        <Tooltip.Trigger className="w-fit text-xs text-muted">Sobre a liberação</Tooltip.Trigger>
-        <Tooltip.Content>
-          Trocar o modo limpa as datas de divulgação. O resultado final usa a data própria acima.
-        </Tooltip.Content>
-      </Tooltip>
-      {value.mode === 'single' ? (
-        <>
-          <DateInputV1
-            label="Liberar notas em"
-            value={value.singleAt}
-            disabled={disabled}
-            onChange={(singleAt) => onChange({ ...value, singleAt })}
-          />
-          <PeriodsEditorV1
-            label="Notas incluídas"
-            value={value.singlePeriods}
-            disabled={disabled}
-            onChange={(singlePeriods) => onChange({ ...value, singlePeriods })}
-          />
-        </>
-      ) : (
-        <div className="pa-settings-grid">
-          {PERIODS_V1.map((period) => (
-            <DateInputV1
-              key={period}
-              label={`Divulgação de ${period}`}
-              value={value.periodAt[period]}
-              disabled={disabled}
-              onChange={(date) =>
-                onChange({ ...value, periodAt: { ...value.periodAt, [period]: date } })
-              }
-            />
-          ))}
-        </div>
-      )}
+        )}
+      </fieldset>
     </div>
   );
 }
@@ -297,38 +320,60 @@ export function SettingsEditorV1({
   if (field === 'risk') {
     const risk = value as RiskDraftV1;
     return (
-      <div className="pa-settings-grid">
+      <div className="pa-security-grid">
         {Object.entries(RISK_LABELS_V1).map(([key, label]) => {
           const name = key as keyof RiskDraftV1,
             schema = riskPolicyV1.shape[name];
           return (
-            <TextField key={key} isDisabled={disabled}>
-              <Label>{label}</Label>
-              <Input
-                type="number"
-                inputMode="numeric"
-                step={1}
-                min={schema.minValue ?? undefined}
-                max={schema.maxValue ?? undefined}
-                value={risk[name]}
-                onChange={(event) => onChange({ ...risk, [name]: event.currentTarget.value })}
-              />
-              <p className="pa-settings-hint">
-                De {schema.minValue} a {schema.maxValue}.
-              </p>
-            </TextField>
+            <div className="pa-security-field" key={key}>
+              <div className="pa-security-label">
+                <span>{label}</span>
+                <InfoV1 label={`Sobre ${label}`}>{RISK_HELP_V1[name]}</InfoV1>
+              </div>
+              {name.endsWith('Seconds') ? (
+                <DurationEditorV1
+                  label={label}
+                  value={risk[name]}
+                  disabled={disabled}
+                  min={schema.minValue ?? 1}
+                  max={schema.maxValue ?? 31_536_000}
+                  onChange={(next) => onChange({ ...risk, [name]: next })}
+                />
+              ) : (
+                <TextField isDisabled={disabled} aria-label={label}>
+                  <Input
+                    aria-label={label}
+                    type="number"
+                    inputMode="numeric"
+                    step={1}
+                    min={schema.minValue ?? undefined}
+                    max={schema.maxValue ?? undefined}
+                    value={risk[name]}
+                    onChange={(e) => onChange({ ...risk, [name]: e.currentTarget.value })}
+                  />
+                  <span className="pa-settings-hint">tentativas</span>
+                </TextField>
+              )}
+            </div>
           );
         })}
       </div>
     );
   }
   return (
-    <SettingsCheckboxV1
-      label={SETTINGS_LABELS_V1[field]}
-      selected={value as boolean}
-      disabled={disabled}
+    <Switch
+      aria-label={SETTINGS_LABELS_V1[field]}
+      isSelected={value as boolean}
+      isDisabled={disabled}
       onChange={onChange}
-    />
+    >
+      <Switch.Content>
+        <Switch.Control>
+          <Switch.Thumb />
+        </Switch.Control>
+        <Label>{value ? 'Ativado' : 'Desativado'}</Label>
+      </Switch.Content>
+    </Switch>
   );
 }
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
@@ -354,7 +399,11 @@ export function SettingsValueSummaryV1({
         {Object.entries(RISK_LABELS_V1).map(([key, label]) => (
           <div key={key}>
             <dt>{label}</dt>
-            <dd>{risk[key as keyof typeof risk]}</dd>
+            <dd>
+              {key.endsWith('Seconds')
+                ? durationLabelV1(risk[key as keyof typeof risk])
+                : `${risk[key as keyof typeof risk]} tentativas`}
+            </dd>
           </div>
         ))}
       </dl>
@@ -401,5 +450,5 @@ export function SettingsValueSummaryV1({
       </div>
     );
   }
-  return <p>{value ? 'Ligado' : 'Desligado'}</p>;
+  return <p>{value ? 'Ativado' : 'Desativado'}</p>;
 }

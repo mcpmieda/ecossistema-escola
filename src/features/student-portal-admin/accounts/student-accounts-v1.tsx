@@ -6,7 +6,6 @@ import {
   Input,
   Label,
   ListBox,
-  ScrollShadow,
   Select,
   Table,
   TextField,
@@ -19,7 +18,7 @@ import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import type { PortalAdminReadClientV2, PortalClassCatalogV2 } from './accounts-client-v2';
 import { AccountDetailV1, type AccountDetailPropsV1 } from './account-detail-v1';
 import { ClassFilterV1 } from './class-filter-v1';
-import { useAccountsReadV1 } from './accounts-read-v1';
+import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import {
@@ -158,16 +157,13 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
   );
 }
 function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQueryV2 }) {
-  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
-  const [page, setPage] = useState(0);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedTrigger = useRef<HTMLElement | null>(null);
-  const listControl = useRef<HTMLButtonElement>(null);
+  const listControl = useRef<HTMLDivElement>(null);
   const [authorizationError, setAuthorizationError] = useState<PortalClientErrorV1 | null>(null);
-  const cursor = cursors[page];
   const load = useCallback(
-    async (signal: AbortSignal) => {
+    async (cursor: string | undefined, signal: AbortSignal) => {
       const result = await props.reader.query(
         { ...props.query, page: { limit: 100, ...(cursor ? { cursor } : {}) } },
         signal,
@@ -175,9 +171,9 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
       if (result.state !== 'accounts-read') throw new PortalClientErrorV1('invalid-response');
       return accountPageMatchesV1(result, props.query.scope);
     },
-    [props.reader, props.query, cursor, refreshVersion],
+    [props.reader, props.query, refreshVersion],
   );
-  const read = useAccountsReadV1(load);
+  const read = useContinuousReadV1(load, 'accountId');
   const current = !authorizationError && read.state.state === 'ready' ? read.state.data : null;
   const protectedFailure =
     read.state.state === 'error' &&
@@ -193,45 +189,13 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
     read.clear();
     read.reload();
   };
-  const resetPages = () => {
-    setCursors([undefined]);
-    setPage(0);
-    setRefreshVersion((value) => value + 1);
-  };
   return (
     <>
       <Card>
         <Card.Content>
-          <div className="pa-account-page-controls">
-            <p role="status">
-              Página {page + 1}
-              {current ? ' · ' + current.items.length + ' alunos' : ''}
-            </p>
+          <div className="pa-account-page-controls" tabIndex={-1} ref={listControl}>
+            <p role="status">{current ? `${current.items.length} alunos` : 'Alunos'}</p>
             <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
-            <Button
-              ref={listControl}
-              variant="secondary"
-              isDisabled={page === 0}
-              onPress={() => setPage((value) => value - 1)}
-            >
-              Página anterior
-            </Button>
-            <Button
-              variant="secondary"
-              isDisabled={!current?.nextCursor}
-              onPress={() => {
-                if (!current?.nextCursor) return;
-                setCursors((previous) => [...previous.slice(0, page + 1), current.nextCursor!]);
-                setPage((value) => value + 1);
-              }}
-            >
-              Próxima página
-            </Button>
-            {page > 0 && (
-              <Button variant="secondary" onPress={resetPages}>
-                Voltar à primeira página
-              </Button>
-            )}
           </div>
 
           {(read.state.state === 'idle' || read.state.state === 'loading') && (
@@ -249,14 +213,13 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
               onReload={reload}
             />
           )}
-          {current && current.items.length === 0 && (
+          {current && current.items.length === 0 && !current.nextCursor && (
             <p role="status">Nenhuma conta encontrada neste filtro.</p>
           )}
           {current && current.items.length > 0 && (
-            <Table className="pa-account-table" variant="secondary">
-              <ScrollShadow
+            <Table className="pa-account-table">
+              <Table.ScrollContainer
                 className="pa-account-scroll"
-                orientation="horizontal"
                 tabIndex={0}
                 role="region"
                 aria-label="Tabela de contas, role horizontalmente para todas as colunas"
@@ -276,7 +239,6 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
                       </Tooltip>
                     </Table.Column>
                     <Table.Column>Sessões ativas</Table.Column>
-                    <Table.Column>Ficha</Table.Column>
                   </Table.Header>
                   <Table.Body items={current.items}>
                     {(account) => (
@@ -288,7 +250,18 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
                         }
                       >
                         <Table.Cell>
-                          <AccountIdentityV1 account={account} />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="pa-student-name"
+                            aria-label={'Abrir ficha de ' + (account.name || 'conta sem nome')}
+                            onPress={(event) => {
+                              selectedTrigger.current = event.target as HTMLElement;
+                              setSelectedId(account.accountId);
+                            }}
+                          >
+                            <AccountIdentityV1 account={account} />
+                          </Button>
                         </Table.Cell>
                         <Table.Cell>
                           <AccountStatusV1 account={account} />
@@ -309,26 +282,29 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
                           {lastAuthenticationLabelV1(account.lastAuthenticationAt)}
                         </Table.Cell>
                         <Table.Cell>{account.validSessionCount}</Table.Cell>
-                        <Table.Cell>
-                          <Button
-                            variant="secondary"
-                            aria-label={'Abrir ficha de ' + (account.name || 'conta sem nome')}
-                            onPress={(event) => {
-                              selectedTrigger.current =
-                                event.target instanceof HTMLElement ? event.target : null;
-                              setSelectedId(account.accountId);
-                            }}
-                          >
-                            Abrir
-                          </Button>
-                        </Table.Cell>
                       </Table.Row>
                     )}
                   </Table.Body>
                 </Table.Content>
-              </ScrollShadow>
+                <ContinuousEndV1
+                  more={read.more}
+                  busy={read.refreshing}
+                  failed={Boolean(read.refreshError)}
+                  loadMore={read.loadMore}
+                  retry={read.reload}
+                />
+              </Table.ScrollContainer>
             </Table>
           )}
+          {current && !current.items.length ? (
+            <ContinuousEndV1
+              more={read.more}
+              busy={read.refreshing}
+              failed={Boolean(read.refreshError)}
+              loadMore={read.loadMore}
+              retry={read.reload}
+            />
+          ) : null}
         </Card.Content>
       </Card>
       {selectedId && !protectedFailure && !authorizationError && (
