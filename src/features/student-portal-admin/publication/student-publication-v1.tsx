@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Chip, Modal, Spinner, Tooltip } from '@heroui/react';
+import { StableReadStatusV1 } from '../../../shared/live-data/stable-read-status-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { settingsScopeKeyV1, settingsScopeLabelV1 } from '../settings/settings-values-v1';
@@ -314,7 +315,7 @@ function PublicationReviewV1({
               </>
             )}
           </Modal.Body>
-          <Modal.Footer className="pa-publication-actions">
+          <Modal.Footer>
             <Button variant="ghost" isDisabled={busy} onPress={onClose}>
               Voltar
             </Button>
@@ -497,7 +498,7 @@ function PublicationScopeV1({
               </Card.Footer>
             ) : null}
           </Card>
-          {view.refreshing ? <p role="status">Atualizando consulta do servidor</p> : null}
+          <StableReadStatusV1 busy={view.refreshing}>Atualizando consulta do servidor</StableReadStatusV1>
           <div className="pa-publication-periods">
             {data.items.map((item) => (
               <PublicationPeriodV1
