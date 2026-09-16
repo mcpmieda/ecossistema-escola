@@ -35,3 +35,28 @@ jobs:
 
       - name: Verify
         run: npm run verify
+
+      - name: Stage exact validated production inputs
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          rm -rf production-inputs
+          mkdir -p production-inputs/node_modules/.cache
+          cp -a dist production-inputs/dist
+          cp -a node_modules/.cache/student-portal-edge production-inputs/node_modules/.cache/student-portal-edge
+          node --experimental-strip-types scripts/ci/provenance-v1.ts write validate-pull-request production-inputs/validate-provenance.json
+          test -f production-inputs/dist/index.html
+          test -f production-inputs/node_modules/.cache/student-portal-edge/_worker.js
+
+      - name: Upload exact validated production inputs
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validated-production-inputs-v1
+          path: production-inputs/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 90
