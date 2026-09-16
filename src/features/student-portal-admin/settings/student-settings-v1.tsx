@@ -465,8 +465,6 @@ function SettingsScopeV1({
             <CustomizedSettingsV1
               key={settingsScopeKeyV1(fixedScope)}
               reader={reader}
-              client={client}
-              canWrite={canWrite}
               scope={fixedScope}
               renderEditor={(target, label, committed) => (
                 <StudentSettingsV1

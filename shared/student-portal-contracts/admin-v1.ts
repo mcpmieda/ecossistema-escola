@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { accountStateV1, academicLinkV1, commandMetaV1, eligibilityStateV1, instantV1, opaqueV1, pageRequestV1, periodV1, portalIdV1, publicationStateV1, revisionV1, scopeV1, versionV1 } from './core-v1';
 import { qrUrlV1 } from './auth-v1';
 import { effectiveSettingsV1, settingsOverrideV1 } from './policy-v1';
+import { publicationInheritCommandV1 } from './customizations-v1';
 
 // Private binding metadata only. Valid shape does not authenticate the caller.
 export const trustedAdminContextV1 = z.object({
@@ -18,6 +19,7 @@ export const birthWriteV1 = z.discriminatedUnion('action', [
 const account = { ...commandMetaV1, accountId: portalIdV1 };
 export const printModeV1 = z.enum(['qr-only', 'qr-name', 'qr-name-class']);
 export const adminCommandV1 = z.discriminatedUnion('operation', [
+  publicationInheritCommandV1,
   z.object({ ...account, operation: z.literal('qr-issue') }).strict(),
   z.object({ ...account, operation: z.literal('qr-reprint') }).strict(),
   z.object({ ...account, operation: z.literal('qr-regenerate'), confirmed: z.literal(true) }).strict(),
