@@ -1,3 +1,8 @@
+import { PanelScopeContextV1 } from './shared/panel-scope-v1';
+import { ClassTabsV1 } from '../../shared/ui/class-tabs-v1';
+import { readClassOptionsV1 } from './accounts/class-filter-v1';
+import { useAccountsReadV1 } from './accounts/accounts-read-v1';
+import { AccountsErrorV1 } from './accounts/accounts-presentation-v1';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Alert, Button, Tabs } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../../shared/forms/draft-navigation-v1';
@@ -103,6 +108,7 @@ function PortalWorkspace({
     enabled: true,
     onAuthorizationLost: () => onLost(new PortalClientErrorV1('unauthenticated', 401)),
   });
+  const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
   const [target, setTarget] = useState<AccountSlotContextV1 | null>(null);
   const [sectionScope, setSectionScope] = useState<SectionScope | null>(null);
   const pendingScope = useRef<SectionScope | null>(null);
@@ -140,16 +146,31 @@ function PortalWorkspace({
       }) as typeof catalog,
     };
   }, [fetcher, onLost]);
+  const loadClasses = useCallback(
+    (signal: AbortSignal) => readClassOptionsV1(clients.catalog, signal),
+    [clients.catalog],
+  );
+  const classRead = useAccountsReadV1(loadClasses);
+  const classItems = classRead.state.state === 'ready' ? classRead.state.data : [];
+  const panelScope = useMemo(
+    () => ({
+      scope: selectedClass
+        ? { kind: 'class' as const, academicYear: 2026 as const, classId: selectedClass.id }
+        : SCHOOL,
+      label: selectedClass?.label ?? 'Escola',
+    }),
+    [selectedClass],
+  );
   const common = useMemo(
     () => ({
       ...clients,
-      scope: SCHOOL,
-      scopeLabel: 'Escola',
+      scope: panelScope.scope,
+      scopeLabel: panelScope.label,
       identityKey: identity.identityKey,
       canWrite: identity.capabilities.includes('platform.settings.write'),
       onAuthorizationLost: onLost,
     }),
-    [clients, identity, onLost],
+    [clients, identity, onLost, panelScope],
   );
   const openSection = (next: StudentPortalSection, scope: ScopeV1, label: string) => {
     pendingScope.current = { section: next, scope, label };
@@ -248,13 +269,14 @@ function PortalWorkspace({
         content = (
           <OperationsScopeV1
             {...common}
-            scope={sectionScope?.scope ?? SCHOOL}
+            scope={sectionScope?.scope ?? common.scope}
             scopeLabel={sectionScope?.label ?? common.scopeLabel}
           >
             {(scope, label) =>
               section === 'settings' ? (
                 <StudentSettingsV1
                   client={common.client}
+                  reader={common.reader}
                   scope={scope}
                   scopeLabel={label}
                   canWrite={common.canWrite}
@@ -277,61 +299,83 @@ function PortalWorkspace({
         content = (
           <StudentOverviewV1
             {...common}
-            scope={sectionScope?.scope ?? SCHOOL}
+            scope={sectionScope?.scope ?? common.scope}
             scopeLabel={sectionScope?.label ?? common.scopeLabel}
           />
         );
     }
   return (
-    <section className="pa-admin-page">
-      <header>
-        <h1>Painel do Aluno</h1>
-        <RemoteLiveNoticeV1 state={liveState} />
-      </header>
-      <Tabs
-        selectedKey={section}
-        onSelectionChange={(key) => {
-          const next = studentPortalSections.find((item) => item.id === key);
-          if (!next || !allowDraftNavigationV1()) return;
-          pendingScope.current = null;
-          if (section === next.id) {
-            setTarget(null);
-            setSectionScope(null);
-            qr.clear();
-          } else window.location.hash = studentPortalHref(next.id);
-        }}
-      >
-        <Tabs.ListContainer className="max-w-full overflow-x-auto">
-          <Tabs.List aria-label="Áreas do Painel do Aluno">
-            {studentPortalSections.map((item) => (
-              <Tabs.Tab key={item.id} id={item.id}>
-                {item.label}
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-        </Tabs.ListContainer>
-        <Tabs.Panel id={section} className="pa-admin-content">
-          {!common.canWrite && (
-            <p role="status" className="text-xs text-muted">
-              Somente leitura
-            </p>
-          )}
-          {sectionScope && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onPress={() => {
-                if (allowDraftNavigationV1()) setSectionScope(null);
+    <PanelScopeContextV1.Provider value={panelScope}>
+      <section className="pa-admin-page">
+        <header>
+          <h1>Painel do Aluno</h1>
+          <RemoteLiveNoticeV1 state={liveState} />
+        </header>
+        <Tabs
+          selectedKey={section}
+          onSelectionChange={(key) => {
+            const next = studentPortalSections.find((item) => item.id === key);
+            if (!next || !allowDraftNavigationV1()) return;
+            pendingScope.current = null;
+            if (section === next.id) {
+              setTarget(null);
+              setSectionScope(null);
+              qr.clear();
+            } else window.location.hash = studentPortalHref(next.id);
+          }}
+        >
+          <Tabs.ListContainer className="max-w-full overflow-x-auto">
+            <Tabs.List aria-label="Áreas do Painel do Aluno">
+              {studentPortalSections.map((item) => (
+                <Tabs.Tab key={item.id} id={item.id}>
+                  {item.label}
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              ))}
+            </Tabs.List>
+          </Tabs.ListContainer>
+          <Tabs.Panel id={section} className="pa-admin-content">
+            <ClassTabsV1
+              items={classItems}
+              selectedId={selectedClass?.id ?? null}
+              allLabel="Todas as turmas"
+              onChange={(id) => {
+                if (!allowDraftNavigationV1()) return;
+                setSelectedClass(classItems.find((item) => item.id === id) ?? null);
+                setSectionScope(null);
+                setTarget(null);
+                qr.clear();
               }}
             >
-              Toda a escola
-            </Button>
-          )}
-          <div key={section}>{content}</div>
-        </Tabs.Panel>
-      </Tabs>
-      {qr.dialog}
-    </section>
+              {classRead.state.state === 'error' ? (
+                <AccountsErrorV1
+                  error={classRead.state.error}
+                  canReload={classRead.canReload}
+                  onReload={classRead.reload}
+                />
+              ) : null}
+              {!common.canWrite && (
+                <p role="status" className="text-xs text-muted">
+                  Somente leitura
+                </p>
+              )}
+              {sectionScope && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onPress={() => {
+                    if (allowDraftNavigationV1()) setSectionScope(null);
+                  }}
+                >
+                  Toda a escola
+                </Button>
+              )}
+              <div key={section}>{content}</div>
+            </ClassTabsV1>
+          </Tabs.Panel>
+        </Tabs>
+        {qr.dialog}
+      </section>
+    </PanelScopeContextV1.Provider>
   );
 }

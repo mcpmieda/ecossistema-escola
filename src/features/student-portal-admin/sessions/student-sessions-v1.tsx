@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertDialog, Button, Card, Chip, ScrollShadow, Table, Tooltip } from '@heroui/react';
+import { AlertDialog, Button, Card, Chip, Table, Tooltip } from '@heroui/react';
 import type { AdminReadResponseV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
@@ -8,9 +8,9 @@ import { OperationsScopeV1 } from '../overview/operations-scope-v1';
 import {
   operationDateV1,
   authorizationLostV1,
-  useOperationalReadV1,
   type OperationsPropsV1,
 } from '../overview/operations-values-v1';
+import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { StudentAvatarV1 } from '../shared/student-avatar-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
@@ -45,8 +45,6 @@ export function StudentSessionsV1(props: OperationsPropsV1) {
 }
 function SessionsBodyV1(props: OperationsPropsV1) {
   const parentScope = props.scope;
-  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
-  const [historyCursors, setHistoryCursors] = useState<(string | undefined)[]>([undefined]);
   const [revision, setRevision] = useState(0);
   const [mutation, setMutation] = useState<SessionMutationStateV1>({ state: 'idle' });
   const [preparing, setPreparing] = useState(false);
@@ -61,10 +59,9 @@ function SessionsBodyV1(props: OperationsPropsV1) {
   const [clock, setClock] = useState(Date.now);
   const pendingReview = useRef<AbortController | null>(null);
   const returnFocus = useRef<Element | null>(null);
-  const cursor = cursors.at(-1),
-    scopeKey = settingsScopeKeyV1(props.scope);
+  const scopeKey = settingsScopeKeyV1(props.scope);
   const load = useCallback(
-    async (signal: AbortSignal) => {
+    async (cursor: string | undefined, signal: AbortSignal) => {
       const data = await props.reader.query(
         {
           contractVersion: 2,
@@ -87,19 +84,18 @@ function SessionsBodyV1(props: OperationsPropsV1) {
         throw new PortalClientErrorV1('invalid-response');
       return data;
     },
-    [props.reader, scopeKey, cursor, revision],
+    [props.reader, scopeKey, revision],
   );
-  const read = useOperationalReadV1(load, props.onAuthorizationLost);
-  const historyCursor = historyCursors.at(-1);
+  const read = useContinuousReadV1(load, 'sessionId', props.onAuthorizationLost);
   const loadHistory = useCallback(
-    async (signal: AbortSignal) => {
+    async (cursor: string | undefined, signal: AbortSignal) => {
       const result = await props.reader.query(
         {
           contractVersion: 2,
           operation: 'sessions-read',
           sessionView: 'history',
           scope: props.scope,
-          page: { limit: 100, ...(historyCursor ? { cursor: historyCursor } : {}) },
+          page: { limit: 100, ...(cursor ? { cursor } : {}) },
         },
         signal,
       );
@@ -115,9 +111,9 @@ function SessionsBodyV1(props: OperationsPropsV1) {
       }
       return result;
     },
-    [props.reader, scopeKey, historyCursor, revision],
+    [props.reader, scopeKey, revision],
   );
-  const historyRead = useOperationalReadV1(loadHistory, props.onAuthorizationLost);
+  const historyRead = useContinuousReadV1(loadHistory, 'sessionId', props.onAuthorizationLost);
   const historyData = historyRead.state.state === 'ready' ? historyRead.state.data : null;
 
   const operation = useMemo(
@@ -135,8 +131,6 @@ function SessionsBodyV1(props: OperationsPropsV1) {
     if (mutation.state === 'committed') {
       read.clear();
       historyRead.clear();
-      setCursors([undefined]);
-      setHistoryCursors([undefined]);
       setRevision((v) => v + 1);
     }
     if (mutation.state === 'error' && authorizationLostV1(mutation.error))
@@ -330,15 +324,19 @@ function SessionsBodyV1(props: OperationsPropsV1) {
             <SessionFeedV1
               title="Sessões ativas"
               data={data}
-              page={cursors.length}
               busy={busy}
               canWrite={props.canWrite}
               scope={props.scope}
               onAction={accountAction}
-              onPrevious={() => setCursors((c) => c.slice(0, -1))}
-              onNext={() => {
-                if (data.nextCursor) setCursors((c) => [...c, data.nextCursor!]);
-              }}
+              end={
+                <ContinuousEndV1
+                  more={read.more}
+                  busy={busy || read.refreshing}
+                  failed={Boolean(read.refreshError)}
+                  loadMore={read.loadMore}
+                  retry={read.reload}
+                />
+              }
             />
           </>
         )}
@@ -354,15 +352,19 @@ function SessionsBodyV1(props: OperationsPropsV1) {
           <SessionFeedV1
             title="Histórico de sessões"
             data={historyData}
-            page={historyCursors.length}
             busy={busy}
             canWrite={props.canWrite}
             scope={props.scope}
             onAction={accountAction}
-            onPrevious={() => setHistoryCursors((c) => c.slice(0, -1))}
-            onNext={() => {
-              if (historyData.nextCursor) setHistoryCursors((c) => [...c, historyData.nextCursor!]);
-            }}
+            end={
+              <ContinuousEndV1
+                more={historyRead.more}
+                busy={busy || historyRead.refreshing}
+                failed={Boolean(historyRead.refreshError)}
+                loadMore={historyRead.loadMore}
+                retry={historyRead.reload}
+              />
+            }
           />
         ) : null}
         {review && (
@@ -421,23 +423,19 @@ function SessionsBodyV1(props: OperationsPropsV1) {
 function SessionFeedV1({
   title,
   data,
-  page,
   busy,
   canWrite,
   scope,
   onAction,
-  onPrevious,
-  onNext,
+  end,
 }: {
   title: string;
   data: SessionsPageV2;
-  page: number;
   busy: boolean;
   canWrite: boolean;
   scope: ScopeV1;
   onAction: (row: SessionRowV2, individual: boolean) => void;
-  onPrevious: () => void;
-  onNext: () => void;
+  end: React.ReactNode;
 }) {
   const active = data.sessionView === 'active';
   return (
@@ -445,22 +443,21 @@ function SessionFeedV1({
       <div className="pa-operations-header">
         <h3>{title}</h3>
         <Chip size="sm" color={active ? 'success' : 'default'} variant="soft">
-          <Chip.Label>{data.items.length} nesta página</Chip.Label>
+          <Chip.Label>{data.items.length} sessões</Chip.Label>
         </Chip>
       </div>
       {!data.items.length ? (
         <p className="text-sm text-muted">
           {data.nextCursor
-            ? 'Nenhuma nesta página. Há mais registros para consultar.'
+            ? 'Carregando registros…'
             : active
               ? 'Nenhuma sessão ativa.'
               : 'Nenhuma sessão no histórico.'}
         </p>
       ) : (
         <Table variant="secondary">
-          <ScrollShadow
+          <Table.ScrollContainer
             className="pa-operations-scroll"
-            orientation="horizontal"
             tabIndex={0}
             role="region"
             aria-label={`Rolagem: ${title}`}
@@ -547,30 +544,11 @@ function SessionFeedV1({
                 ))}
               </Table.Body>
             </Table.Content>
-          </ScrollShadow>
+            {end}
+          </Table.ScrollContainer>
         </Table>
       )}
-      {page > 1 || data.nextCursor ? (
-        <div className="pa-operations-actions">
-          <Button
-            size="sm"
-            variant="secondary"
-            isDisabled={busy || page === 1}
-            onPress={onPrevious}
-          >
-            Anterior
-          </Button>
-          <span className="text-xs text-muted">Página {page}</span>
-          <Button
-            size="sm"
-            variant="secondary"
-            isDisabled={busy || !data.nextCursor}
-            onPress={onNext}
-          >
-            Próxima
-          </Button>
-        </div>
-      ) : null}
+      {!data.items.length ? end : null}
     </section>
   );
 }

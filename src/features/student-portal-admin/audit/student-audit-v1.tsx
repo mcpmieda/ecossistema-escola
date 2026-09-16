@@ -1,16 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  Button,
-  Card,
-  Chip,
-  Tooltip,
-  Label,
-  ListBox,
-  Modal,
-  ScrollShadow,
-  Select,
-  Table,
-} from '@heroui/react';
+import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Button, Card, Chip, Tooltip, Label, ListBox, Modal, Select, Table } from '@heroui/react';
 import {
   auditKindV1,
   type AdminQueryV1,
@@ -27,9 +16,9 @@ import { OperationsScopeV1 } from '../overview/operations-scope-v1';
 import {
   operationDateV1,
   authorizationLostV1,
-  useOperationalReadV1,
   type OperationsPropsV1,
 } from '../overview/operations-values-v1';
+import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { createAuditDetailV1, type AuditDetailStateV1 } from './audit-detail-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
@@ -77,14 +66,12 @@ function AuditBodyV1(props: OperationsPropsV1) {
     [result, setResult] = useState<AdminQueryV1['result']>();
   const [filters, setFilters] = useState<FiltersV1>({});
   const [invalid, setInvalid] = useState(false);
-  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
   const [opened, setOpened] = useState<string | null>(null);
   const [detail, setDetail] = useState<AuditDetailStateV1>({ state: 'idle' });
   const [clock, setClock] = useState(Date.now);
-  const scopeKey = settingsScopeKeyV1(props.scope),
-    cursor = cursors.at(-1);
+  const scopeKey = settingsScopeKeyV1(props.scope);
   const load = useCallback(
-    async (signal: AbortSignal) => {
+    async (cursor: string | undefined, signal: AbortSignal) => {
       const response = await props.client.query(
         {
           contractVersion: 1,
@@ -107,9 +94,9 @@ function AuditBodyV1(props: OperationsPropsV1) {
         throw new PortalClientErrorV1('invalid-response');
       return response;
     },
-    [props.client, scopeKey, cursor, filters],
+    [props.client, scopeKey, filters],
   );
-  const read = useOperationalReadV1(load, props.onAuthorizationLost);
+  const read = useContinuousReadV1(load, 'eventId', props.onAuthorizationLost);
   const detailReader = useMemo(
     () => createAuditDetailV1(props, setDetail),
     [props.client, props.reader, props.canWrite],
@@ -147,7 +134,6 @@ function AuditBodyV1(props: OperationsPropsV1) {
           ...(result ? { result } : {}),
         };
         setFilters((before) => (JSON.stringify(before) === JSON.stringify(next) ? before : next));
-        setCursors([undefined]);
         setOpened(null);
         detailReader.clear();
         setInvalid(false);
@@ -243,7 +229,6 @@ function AuditBodyV1(props: OperationsPropsV1) {
               setEvent(undefined);
               setResult(undefined);
               setFilters({});
-              setCursors([undefined]);
               setInvalid(false);
               close();
             }}
@@ -262,34 +247,24 @@ function AuditBodyV1(props: OperationsPropsV1) {
         )}
         {data && (
           <>
-            {data.items.length === 0 ? (
+            {data.items.length === 0 && !data.nextCursor ? (
               <p>Nenhum evento encontrado para os filtros aplicados.</p>
             ) : (
-              <AuditEventsV1 items={data.items} canWrite={props.canWrite} onOpen={openDetail} />
+              <AuditEventsV1
+                items={data.items}
+                canWrite={props.canWrite}
+                onOpen={openDetail}
+                end={
+                  <ContinuousEndV1
+                    more={read.more}
+                    busy={read.refreshing}
+                    failed={Boolean(read.refreshError)}
+                    loadMore={read.loadMore}
+                    retry={read.reload}
+                  />
+                }
+              />
             )}
-            <div className="pa-operations-actions">
-              <Button
-                variant="secondary"
-                isDisabled={cursors.length === 1}
-                onPress={() => {
-                  close();
-                  setCursors((c) => c.slice(0, -1));
-                }}
-              >
-                Página anterior
-              </Button>
-              <span>Página {cursors.length}</span>
-              <Button
-                variant="secondary"
-                isDisabled={!data.nextCursor}
-                onPress={() => {
-                  close();
-                  setCursors((c) => [...c, data.nextCursor!]);
-                }}
-              >
-                Próxima página
-              </Button>
-            </div>
           </>
         )}
         {opened && (
@@ -374,16 +349,17 @@ const AuditEventsV1 = memo(function AuditEventsV1({
   items,
   canWrite,
   onOpen,
+  end,
 }: {
   items: Extract<AdminResponseV1, { state: 'audit' }>['items'];
   canWrite: boolean;
   onOpen: (id: string) => void;
+  end: ReactNode;
 }) {
   return (
     <Table>
-      <ScrollShadow
+      <Table.ScrollContainer
         className="pa-operations-scroll"
-        orientation="horizontal"
         role="region"
         aria-label="Rolagem da auditoria"
         tabIndex={0}
@@ -436,7 +412,8 @@ const AuditEventsV1 = memo(function AuditEventsV1({
             ))}
           </Table.Body>
         </Table.Content>
-      </ScrollShadow>
+        {end}
+      </Table.ScrollContainer>
     </Table>
   );
 });

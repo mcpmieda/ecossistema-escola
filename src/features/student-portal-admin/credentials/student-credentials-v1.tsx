@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
   type Dispatch,
   type SetStateAction,
 } from 'react';
@@ -18,7 +19,6 @@ import {
   ProgressBar,
   Radio,
   RadioGroup,
-  ScrollShadow,
   Table,
   Tooltip,
 } from '@heroui/react';
@@ -30,7 +30,7 @@ import type {
   PortalClassCatalogV2,
 } from '../accounts/accounts-client-v2';
 import { ClassFilterV1 } from '../accounts/class-filter-v1';
-import { useAccountsReadV1 } from '../accounts/accounts-read-v1';
+import { useContinuousReadV1, ContinuousEndV1 } from '../shared/continuous-read-v1';
 import { AccountsErrorV1 } from '../accounts/accounts-presentation-v1';
 import {
   accountCredentialPreparableV1,
@@ -109,27 +109,7 @@ function CredentialsAreaV1(props: StudentCredentialsPropsV1) {
 }
 type ScopedPropsV1 = StudentCredentialsPropsV1 & { scope: Exclude<ScopeV1, { kind: 'school' }> };
 function CredentialsPagesV1(props: ScopedPropsV1) {
-  const [history, setHistory] = useState<Array<string | undefined>>([undefined]);
-  const [page, setPage] = useState(0),
-    [revision, setRevision] = useState(0);
-  return (
-    <CredentialsPageV1
-      key={page + ':' + revision}
-      {...props}
-      cursor={history[page]}
-      page={page}
-      onFirst={() => {
-        setHistory([undefined]);
-        setPage(0);
-        setRevision((v) => v + 1);
-      }}
-      onPrevious={() => setPage((v) => v - 1)}
-      onNext={(cursor) => {
-        setHistory((v) => [...v.slice(0, page + 1), cursor]);
-        setPage((v) => v + 1);
-      }}
-    />
-  );
+  return <CredentialsPageV1 {...props} />;
 }
 type ReviewV1 = { command: QrCommandV1; format: 'pdf' | 'png'; names: string[]; label: string };
 function CredentialsPageV1({
@@ -138,23 +118,12 @@ function CredentialsPageV1({
   scope,
   scopeLabel,
   canWrite,
-  cursor,
-  page,
-  onFirst,
-  onPrevious,
-  onNext,
   renderArtifact,
   onAuthorizationLost,
-}: ScopedPropsV1 & {
-  cursor?: string;
-  page: number;
-  onFirst: () => void;
-  onPrevious: () => void;
-  onNext: (cursor: string) => void;
-}) {
+}: ScopedPropsV1) {
   const scopeKey = settingsScopeKeyV1(scope);
   const load = useCallback(
-    async (signal: AbortSignal): Promise<AccountsReadPageV2> => {
+    async (cursor: string | undefined, signal: AbortSignal): Promise<AccountsReadPageV2> => {
       const result = await reader.query(
         {
           contractVersion: 2,
@@ -168,9 +137,9 @@ function CredentialsPageV1({
       return accountPageMatchesV1(result, scope);
       // Primitive identity preserves reads when an equivalent scope object changes.
     },
-    [reader, scopeKey, cursor],
+    [reader, scopeKey],
   );
-  const read = useAccountsReadV1(load);
+  const read = useContinuousReadV1(load, 'accountId', onAuthorizationLost);
   const [authorizationLost, setAuthorizationLost] = useState<PortalClientErrorV1 | null>(null);
   const data = !authorizationLost && read.state.state === 'ready' ? read.state.data : null;
   const [selected, setSelected] = useState<Set<string>>(
@@ -237,6 +206,7 @@ function CredentialsPageV1({
       started ||
       read.refreshError ||
       !chosen.length ||
+      chosen.length > 100 ||
       (kind !== 'pdf' && chosen.length !== 1)
     )
       return;
@@ -311,9 +281,22 @@ function CredentialsPageV1({
                   selected={selected}
                   enabled={canWrite && !started && !review}
                   onChange={setSelected}
+                  end={
+                    <ContinuousEndV1
+                      more={read.more}
+                      busy={busy || review !== null || read.refreshing}
+                      failed={Boolean(read.refreshError)}
+                      loadMore={read.loadMore}
+                      retry={read.reload}
+                    />
+                  }
                 />
+                {chosen.length > 100 ? (
+                  <p role="status">
+                    Selecione até 100 alunos por PDF. A lista mantém todos os alunos.
+                  </p>
+                ) : null}
                 <RadioGroup
-                  orientation="horizontal"
                   value={mode}
                   onChange={(value) => {
                     if (!review) setMode(value as PrintModeV1);
@@ -337,7 +320,11 @@ function CredentialsPageV1({
                 <div className="pa-credentials-actions">
                   <Button
                     isDisabled={
-                      !canWrite || started || Boolean(read.refreshError) || chosen.length === 0
+                      !canWrite ||
+                      started ||
+                      Boolean(read.refreshError) ||
+                      chosen.length === 0 ||
+                      chosen.length > 100
                     }
                     onPress={(event) => openReview('pdf', event.target)}
                   >
@@ -402,25 +389,15 @@ function CredentialsPageV1({
               Revisar disponibilidade
             </Button>
           )}
-          {page > 0 && read.state.state === 'error' && (
-            <Button variant="secondary" onPress={onFirst}>
-              Voltar à primeira página
-            </Button>
-          )}
-          {page > 0 && (
-            <Button variant="secondary" isDisabled={busy || review !== null} onPress={onPrevious}>
-              Página anterior
-            </Button>
-          )}
-          {data?.nextCursor && (
-            <Button
-              variant="secondary"
-              isDisabled={busy || review !== null}
-              onPress={() => onNext(data.nextCursor!)}
-            >
-              Próxima página
-            </Button>
-          )}
+          {data && !data.items.length ? (
+            <ContinuousEndV1
+              more={read.more}
+              busy={busy || review !== null || read.refreshing}
+              failed={Boolean(read.refreshError)}
+              loadMore={read.loadMore}
+              retry={read.reload}
+            />
+          ) : null}
         </div>
 
         {review && (
@@ -483,19 +460,20 @@ const CredentialSelectionV1 = memo(function CredentialSelectionV1({
   selected,
   enabled,
   onChange,
+  end,
 }: {
   rows: AccountsReadPageV2['items'];
   selected: Set<string>;
   enabled: boolean;
   onChange: Dispatch<SetStateAction<Set<string>>>;
+  end: ReactNode;
 }) {
   const eligible = new Set(
     rows.filter(accountCredentialPreparableV1).map((item) => item.accountId),
   );
   return (
     <Table className="pa-credentials-table">
-      <ScrollShadow
-        orientation="horizontal"
+      <Table.ScrollContainer
         className="pa-credentials-scroll"
         role="region"
         aria-label="Rolagem dos alunos para cartões"
@@ -519,7 +497,7 @@ const CredentialSelectionV1 = memo(function CredentialSelectionV1({
         >
           <Table.Header>
             <Table.Column id="selection" aria-label="Selecionar alunos">
-              <Checkbox slot="selection" aria-label="Selecionar alunos disponíveis desta página">
+              <Checkbox slot="selection" aria-label="Selecionar alunos disponíveis">
                 <Checkbox.Content>
                   <Checkbox.Control>
                     <Checkbox.Indicator />
@@ -565,7 +543,8 @@ const CredentialSelectionV1 = memo(function CredentialSelectionV1({
             ))}
           </Table.Body>
         </Table.Content>
-      </ScrollShadow>
+        {end}
+      </Table.ScrollContainer>
     </Table>
   );
 });

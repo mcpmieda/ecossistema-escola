@@ -2,13 +2,13 @@ import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-cont
 import { calendarDraftV1, parseCalendarDraftV1, type CalendarDraftV1 } from './calendar-draft-v1';
 import { singleSettingV1, type SettingsFieldV1 } from './settings-values-v1';
 export const RISK_LABELS_V1 = {
-  persistentSeconds: 'Sessão persistente (segundos)',
-  shortSeconds: 'Sessão curta (segundos)',
-  challengeAfter: 'Falhas antes da verificação',
-  blockAfter: 'Falhas antes do bloqueio',
-  blockSeconds: 'Duração do bloqueio (segundos)',
-  failureWindowSeconds: 'Janela de falhas (segundos)',
-  challengeTtlSeconds: 'Validade do desafio (segundos)',
+  persistentSeconds: 'Permanecer conectado',
+  shortSeconds: 'Acesso sem permanecer conectado',
+  challengeAfter: 'Pedir verificação após',
+  blockAfter: 'Bloquear após',
+  blockSeconds: 'Tempo de bloqueio',
+  failureWindowSeconds: 'Contar tentativas feitas nos últimos',
+  challengeTtlSeconds: 'Tempo para concluir a verificação',
 } as const;
 export type RiskDraftV1 = Record<keyof typeof RISK_LABELS_V1, string>;
 export type SettingsDraftV1 =

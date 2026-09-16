@@ -94,3 +94,38 @@ export async function readBirthPageV1(
         : null,
   };
 }
+
+/** Automatic collection for the UI; each pair of requests keeps its original page/CAS checks. */
+export async function readBirthCollectionV1(
+  client: PortalAdminClientV1,
+  reader: PortalAdminReadClientV2,
+  scope: BirthScopeV1,
+  signal: AbortSignal,
+  desired = 1000,
+  seed?: BirthPageV1,
+): Promise<BirthPageV1> {
+  const rows = new Map((seed?.rows ?? []).map((row) => [row.account.accountId, row]));
+  const seen = new Set<string>();
+  let cursor = seed?.next ?? undefined;
+  let result = seed;
+  let added = 0;
+  for (let i = 0; i < Math.max(20, Math.ceil(desired / 100) + 10); i++) {
+    signal.throwIfAborted();
+    if (cursor) {
+      const key = JSON.stringify(cursor);
+      if (seen.has(key)) throw new PortalClientErrorV1('invalid-response');
+      seen.add(key);
+    }
+    const page = await readBirthPageV1(client, reader, scope, cursor, signal);
+    signal.throwIfAborted();
+    for (const row of page.rows) {
+      if (!rows.has(row.account.accountId)) added++;
+      rows.set(row.account.accountId, row);
+    }
+    result = { ...page, rows: [...rows.values()] };
+    if (!page.next || added >= desired) return result;
+    cursor = page.next;
+  }
+  if (!result) throw new PortalClientErrorV1('invalid-response');
+  return result;
+}

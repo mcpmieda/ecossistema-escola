@@ -30,6 +30,7 @@ export function snapshotRawCellV8(
   cell: Cell | undefined,
 ):
   | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+  | null
   | undefined {
   if (!cell) return undefined;
   if (cell.t === 'e' || (cell.f && (cell.v === undefined || cell.v === null))) return ['u'];
@@ -126,7 +127,8 @@ export type GradeSheetRecognition = {
   snapshotCellsV8?: Readonly<
     Record<
       string,
-      import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+      | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+      | null
     >
   >;
   name: string;
@@ -742,7 +744,8 @@ export function recognizeWorkbook(
     if (recognized && source.captureValues) {
       const cells: Record<
         string,
-        import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+        | import('../../../../shared/gradebook-contracts/imports/import-persistence-transport-v8').GradebookSnapshotCellV8
+        | null
       > = {};
       const columns =
         recognized.stage === 'recovery'
@@ -766,13 +769,22 @@ export function recognizeWorkbook(
               'AM',
               'AN',
             ];
+      const granularColumns = new Set([
+        'R',
+        'S',
+        'Z',
+        ...SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.map((slot) => slot.sourceSlot),
+      ]);
       for (const student of recognized.students)
         for (const col of columns) {
           const addr = `${col}${student.row}`;
           const cell = cellAt(sheet, addr);
-          if (!cell) continue;
           const value = snapshotRawCellV8(cell);
-          if (value !== undefined) cells[addr] = value;
+          // Excel may omit an empty cell entirely. The sheet and student row were read,
+          // so this is an observed blank, not an unavailable source/cache.
+          if (recognized.stage.startsWith('trimester-') && granularColumns.has(col))
+            cells[addr] = value ?? null;
+          else if (value !== undefined) cells[addr] = value;
         }
       recognized.snapshotCellsV8 = cells;
     }

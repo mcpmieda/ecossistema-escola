@@ -1,3 +1,4 @@
+import { usePanelScopeV1 } from '../shared/panel-scope-v1';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Button, Label, ListBox, Select } from '@heroui/react';
 import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
@@ -25,6 +26,17 @@ export function OperationsScopeV1({
     onAuthorizationLost: NonNullable<OperationsPropsV1['onAuthorizationLost']>,
   ) => ReactNode;
 }) {
+  const managed = usePanelScopeV1();
+  if (managed)
+    return (
+      <>
+        {children(
+          props.scope,
+          props.scopeLabel ?? managed.label,
+          props.onAuthorizationLost ?? (() => {}),
+        )}
+      </>
+    );
   return (
     <ScopeBodyV1
       key={props.identityKey + settingsScopeKeyV1(props.scope) + props.canWrite}

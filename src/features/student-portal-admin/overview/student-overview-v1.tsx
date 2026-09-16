@@ -1,3 +1,5 @@
+import { OverviewDashboardV1 } from './overview-dashboard-v1';
+import { InfoV1 } from '../shared/info-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertDialog, Button, Card, Chip } from '@heroui/react';
@@ -15,18 +17,6 @@ const healthLabels = {
   normal: 'Operando normalmente',
   attention: 'Atenção',
   intervention: 'Intervenção necessária',
-} as const;
-const countsLabels = {
-  accounts: 'Contas',
-  active: 'Ativas',
-  pendingActivation: 'Aguardando ativação',
-  resetRequired: 'Senha a redefinir',
-  blocked: 'Bloqueadas',
-  unresolved: 'Vínculo não resolvido',
-  unlinked: 'Sem vínculo',
-  accessEnabled: 'Acesso habilitado',
-  accessPermitted: 'Acesso permitido agora',
-  validSessions: 'Sessões válidas',
 } as const;
 export function StudentOverviewV1(props: OperationsPropsV1) {
   return (
@@ -164,7 +154,13 @@ function OverviewBodyV1(props: OperationsPropsV1) {
         )}
         {data && (
           <>
-            <h3>Saúde operacional</h3>
+            <div className="pa-operations-header">
+              <h3>Funcionamento</h3>
+              <InfoV1 label="Sobre o funcionamento">
+                Situação do serviço e das tarefas automáticas, independente das permissões de cada
+                aluno.
+              </InfoV1>
+            </div>
             {data.health ? (
               <Chip
                 variant="soft"
@@ -198,35 +194,24 @@ function OverviewBodyV1(props: OperationsPropsV1) {
                 <p className="pa-operations-muted">
                   Resumo consultado em {operationDateV1(data.overview.observedAt)}.
                 </p>
-                <dl className="pa-operations-counts">
-                  {Object.entries(countsLabels).map(([key, label]) => (
-                    <div key={key}>
-                      <dt>{label}</dt>
-                      <dd>{data.overview!.counts[key as keyof typeof countsLabels]}</dd>
-                    </div>
-                  ))}
-                </dl>
-                {data.overview.counts.accounts === 0 && (
-                  <p>Nenhuma conta encontrada neste escopo.</p>
-                )}
-                <p>
-                  As categorias se sobrepõem. Acesso habilitado não garante login; elegibilidade,
-                  credencial e calendário continuam sendo verificados.
-                </p>
+                <OverviewDashboardV1 counts={data.overview.counts} />
+                {data.overview.counts.accounts === 0 ? <p>Nenhuma conta neste recorte.</p> : null}
                 {data.population && (
                   <section aria-labelledby="pa-population-title">
-                    <h3 id="pa-population-title">População de 2026</h3>
+                    <h3 id="pa-population-title">Cadastro do Portal</h3>
                     <p>
                       {data.population.classes} turmas · {data.population.eligibleSourceProfiles}{' '}
-                      alunos elegíveis · {data.population.exitSourceProfiles} vínculos de saída.
+                      alunos com vínculo · {data.population.exitSourceProfiles} vínculos de saída.
                     </p>
                     <p>
                       {data.population.accounts} contas existentes ·{' '}
-                      {data.population.missingProfiles} perfis ainda não criados ·{' '}
-                      {data.population.overrideRows} configurações fora da política da escola.
+                      {data.population.missingProfiles} cadastros pendentes ·{' '}
+                      {data.population.overrideRows} opções personalizadas.
                     </p>
                     <Chip variant="soft" color={data.population.enabled ? 'success' : 'warning'}>
-                      {data.population.enabled ? 'População ativa' : 'População desativada'}
+                      {data.population.enabled
+                        ? 'Cadastro automático ativo'
+                        : 'Cadastro automático desativado'}
                     </Chip>
                     {populationError && (
                       <p role="alert">
@@ -239,14 +224,12 @@ function OverviewBodyV1(props: OperationsPropsV1) {
                         isDisabled={!props.canWrite || populationBusy}
                         isPending={populationBusy}
                         onPress={() =>
-                          populationError
-                            ? void synchronizePopulation()
-                            : setPopulationReview(true)
+                          populationError ? void synchronizePopulation() : setPopulationReview(true)
                         }
                       >
                         {populationError
                           ? 'Tentar sincronização novamente'
-                          : 'Revisar ativação da população'}
+                          : 'Ativar cadastro automático'}
                       </Button>
                     )}
                   </section>
@@ -273,7 +256,7 @@ function OverviewBodyV1(props: OperationsPropsV1) {
           <AlertDialog.Container>
             <AlertDialog.Dialog className="pa-operations-dialog">
               <AlertDialog.Header>
-                <AlertDialog.Heading>Ativar e sincronizar a população</AlertDialog.Heading>
+                <AlertDialog.Heading>Ativar cadastro automático</AlertDialog.Heading>
               </AlertDialog.Header>
               <AlertDialog.Body>
                 <p>

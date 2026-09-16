@@ -30,8 +30,10 @@ export function PerformanceStudentDetailV2({
           detail.trajectory.some((offering) => offering.terms[index].valueMilli !== null),
         )
       : [];
+  const operation = detail.operation;
+  const offerId = detail.operation === 'cell-detail' ? detail.offer.id : null;
   useEffect(() => {
-    if (detail.operation !== 'cell-detail' || focusPeriod === 'annual') return;
+    if (operation !== 'cell-detail' || focusPeriod === 'annual') return;
     let settledFrame = 0;
     const mountedFrame = window.requestAnimationFrame(() => {
       settledFrame = window.requestAnimationFrame(() => {
@@ -56,7 +58,7 @@ export function PerformanceStudentDetailV2({
       window.cancelAnimationFrame(settledFrame);
       if (focusSpacer.current !== null) focusSpacer.current.style.height = '0px';
     };
-  }, [detail, focusPeriod]);
+  }, [operation, student.id, offerId, focusPeriod]);
   return (
     <>
       <Drawer.Header className="border-b border-separator pb-5 pr-10">
