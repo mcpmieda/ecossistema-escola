@@ -45,101 +45,62 @@ describe('birth access data UI', () => {
     expect(screen.getByText('SYNTHETIC BIRTH 001')).toBeTruthy();
     fireEvent.change(field, { target: { value: '20' } });
     fireEvent.keyDown(field, { key: 'Enter' });
-    expect(screen.getByText('Edição incompleta — não salva')).toBeTruthy();
+    expect(screen.getByText('Incompleto')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
     enter(field, '2001');
     await screen.findByText('Salvo');
     expect(mock.writes[0]).toMatchObject({
-      item: { year: '2001', confirmation: 'unconfirmed-test' },
+      item: { year: '2001', confirmation: 'confirmed' },
     });
     expect(((await input()) as HTMLInputElement).value).toBe('2001');
   });
-  it('requires a dedicated legitimate-provenance acknowledgment and does not infer it from a test value', async () => {
+  it('does not confirm an imported test value on load; Enter is an explicit operator confirmation', async () => {
     const mock = birthMockV1();
     render(createElement(StudentBirthYearsV1, mock.props));
-    await input();
-    const user = userEvent.setup();
-    await user.click(
-      screen.getByRole('button', { name: 'Conferir procedência de SYNTHETIC BIRTH 001' }),
-    );
-    const dialog = await screen.findByRole('alertdialog');
-    const confirm = within(dialog).getByRole('button', { name: 'Confirmar procedência' });
-    expect((confirm as HTMLButtonElement).disabled).toBe(true);
+    const field = await input();
+    expect(screen.getByText('Confira o ano')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
-    await user.click(
-      within(dialog).getByRole('checkbox', {
-        name: 'Conferi este ano em uma fonte institucional legítima.',
-      }),
-    );
-    await user.click(confirm);
+    fireEvent.keyDown(field, { key: 'Enter' });
     await screen.findByText('Salvo');
-    expect(mock.writes[0]).toMatchObject({ item: { year: '2000', confirmation: 'confirmed' } });
-    expect(screen.getByText('Na última consulta: confirmado')).toBeTruthy();
+    expect(mock.writes[0]).toMatchObject({
+      item: { year: '2000', confirmation: 'confirmed' },
+      expectedVersion: 19,
+    });
   });
-  it('keeps empty input transient and requires explicit confirmation before clearing', async () => {
+  it('keeps empty input transient and Escape restores without clearing persisted birth data', async () => {
     const mock = birthMockV1();
     render(createElement(StudentBirthYearsV1, mock.props));
     const field = await input();
     enter(field, '');
+    fireEvent.blur(field);
     expect(mock.writes).toHaveLength(0);
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Limpar ano de SYNTHETIC BIRTH 001' }));
-    await screen.findByRole('alertdialog');
-    await user.keyboard('{Escape}');
-    await waitFor(() =>
-      expect(document.activeElement?.getAttribute('aria-label')).toBe(
-        'Limpar ano de SYNTHETIC BIRTH 001',
-      ),
-    );
-    await user.click(
-      await screen.findByRole('button', { name: 'Limpar ano de SYNTHETIC BIRTH 001' }),
-    );
-    const dialog = await screen.findByRole('alertdialog');
-    await user.click(
-      within(dialog).getByRole('checkbox', {
-        name: 'Conferi as contas, os valores e o efeito desta ação.',
-      }),
-    );
-    await user.click(within(dialog).getByRole('button', { name: 'Limpar 1 ano(s)' }));
-    await screen.findByText('Salvo');
-    expect(mock.writes).toHaveLength(1);
-    expect(mock.writes[0]).toMatchObject({ item: { action: 'clear' } });
-    expect(mock.births.get(birthIdV1(1))?.year).toBeNull();
+    expect(screen.queryByRole('button', { name: /Limpar ano/ })).toBeNull();
+    fireEvent.keyDown(field, { key: 'Escape' });
+    expect((field as HTMLInputElement).value).toBe('2000');
+    expect(mock.births.get(birthIdV1(1))?.year).toBe('2000');
+    expect(mock.writes).toHaveLength(0);
   });
-  it('prepares per-row values without autosave, confirms the selection and resumes one immutable batch', async () => {
+  it('autosaves independently edited rows without a batch-review or actions tab', async () => {
     const mock = birthMockV1({ count: 2 });
     render(createElement(StudentBirthYearsV1, mock.props));
-    await input();
-    fireEvent.click(screen.getByRole('button', { name: 'Preparar lote' }));
     fireEvent.change(await input(), { target: { value: '2001' } });
     fireEvent.change(await input(2), { target: { value: '2002' } });
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('checkbox', { name: 'Selecionar esta página' }));
-    expect(screen.getByText('2 de 2 selecionadas nesta página')).toBeTruthy();
-    expect(mock.writes).toHaveLength(0);
-    await user.click(screen.getByRole('button', { name: 'Revisar lote de anos' }));
-    const dialog = await screen.findByRole('alertdialog');
-    expect(within(dialog).getByText(/2001/)).toBeTruthy();
-    expect(within(dialog).getByText(/2002/)).toBeTruthy();
-    await user.click(
-      within(dialog).getByRole('checkbox', {
-        name: 'Conferi as contas, os valores e o efeito desta ação.',
-      }),
-    );
-    await user.click(within(dialog).getByRole('button', { name: 'Salvar 2 ano(s)' }));
-    await waitFor(() => expect(mock.queries.length).toBeGreaterThan(2));
+    await waitFor(() => expect(mock.births.get(birthIdV1(2))?.year).toBe('2002'), {
+      timeout: 3000,
+    });
+    expect(mock.births.get(birthIdV1(1))?.year).toBe('2001');
     expect(mock.writes).toHaveLength(2);
-    expect(mock.bodies[0]).toBe(mock.bodies[1]);
-    expect(screen.queryByRole('button', { name: /Recarregar/u })).toBeNull();
-    await waitFor(() =>
-      expect(
-        (
-          screen.getByRole('textbox', {
-            name: 'Ano de nascimento de SYNTHETIC BIRTH 001',
-          }) as HTMLInputElement
-        ).disabled,
-      ).toBe(false),
-    );
+    expect(
+      mock.writes.every(
+        (c) =>
+          c.operation === 'birth-write' &&
+          c.item.action === 'set' &&
+          c.item.confirmation === 'confirmed',
+      ),
+    ).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Preparar lote' })).toBeNull();
+    expect(screen.queryByRole('tab', { name: 'Ações' })).toBeNull();
+    expect(screen.queryByRole('alertdialog')).toBeNull();
   });
   it('clears names and drafts on identity/capability change and cancels pending debounce', async () => {
     const mock = birthMockV1();
@@ -156,9 +117,7 @@ describe('birth access data UI', () => {
     expect((field as HTMLInputElement).value).toBe('2000');
     expect((field as HTMLInputElement).disabled).toBe(true);
     expect(mock.writes).toHaveLength(0);
-    expect(
-      screen.getByText('Somente consulta: esta identidade não pode alterar dados.'),
-    ).toBeTruthy();
+    expect(screen.getByText('Somente leitura')).toBeTruthy();
   });
   it('removes protected rows on401 during a write', async () => {
     const mock = birthMockV1({
@@ -167,7 +126,7 @@ describe('birth access data UI', () => {
     const lost = vi.fn();
     render(createElement(StudentBirthYearsV1, { ...mock.props, onAuthorizationLost: lost }));
     enter(await input(), '2001');
-    await screen.findByText('A sessão expirou. Entre novamente para consultar os dados.');
+    await screen.findByText('Sessão expirada. Entre novamente.');
     expect(screen.queryByText('SYNTHETIC BIRTH 001')).toBeNull();
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(lost).toHaveBeenCalledOnce();
@@ -178,11 +137,11 @@ describe('birth access data UI', () => {
     });
     render(createElement(StudentBirthYearsV1, mock.props));
     enter(await input(), '2001');
-    await screen.findByText('Conflito — recarregue e revise');
+    await screen.findByText('Este cadastro mudou em outra sessão. Recarregue antes de editar.');
     expect(mock.writes).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Repetir mesma gravação' })).toBeNull();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Recarregar e revisar' }));
+    await user.click(screen.getByRole('button', { name: 'Recarregar' }));
     const dialog = await screen.findByRole('alertdialog');
     await user.click(within(dialog).getByRole('button', { name: 'Descartar e continuar' }));
     await waitFor(() =>
@@ -196,21 +155,25 @@ describe('birth access data UI', () => {
     );
     expect(mock.writes).toHaveLength(1);
   });
-  it('pages with separate cursors and asks before discarding an incomplete draft', async () => {
+  it('blocks pagination with an incomplete draft and preserves distinct birth/account cursors', async () => {
     const mock = birthMockV1({
-      query: async (query) => mock.defaultQuery({ ...query, page: { ...query.page, limit: 2 } }),
+      query: async (q) => mock.defaultQuery({ ...q, page: { ...q.page, limit: 2 } }),
     });
     render(createElement(StudentBirthYearsV1, mock.props));
-    enter(await input(), '20');
-    const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
-    const dialog = await screen.findByRole('alertdialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Descartar e continuar' }));
+    const field = await input();
+    enter(field, '20');
+    const next = screen.getByRole('button', { name: 'Próxima' }) as HTMLButtonElement;
+    await waitFor(() => expect(next.disabled).toBe(true));
+    fireEvent.click(next);
+    expect(screen.queryByText('Página 2')).toBeNull();
+    fireEvent.keyDown(field, { key: 'Escape' });
+    await waitFor(() => expect(next.disabled).toBe(false));
+    fireEvent.click(next);
     await input(3);
     expect(screen.queryByText('SYNTHETIC BIRTH 001')).toBeNull();
-    expect(screen.getByText('Página 2 · até 100 contas')).toBeTruthy();
+    expect(screen.getByText('Página 2')).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
-    const cursors = mock.queries.slice(-2).map((query) => query.page.cursor);
+    const cursors = mock.queries.slice(-2).map((q) => q.page.cursor);
     expect(cursors[0]).not.toBe(cursors[1]);
   });
   it('supports StrictMode cleanup and a later save without duplicating writes', async () => {

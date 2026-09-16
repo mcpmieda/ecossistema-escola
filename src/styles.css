@@ -1542,3 +1542,22 @@ button.performance-kpi__button:hover {
     outline: 2px solid Highlight;
   }
 }
+
+/* #817: compact desktop data, preserving the native HeroUI table anatomy. */
+:where(.pa-admin-page, .gradebook-workspace) .table__cell,
+:where(.pa-admin-page, .gradebook-workspace) .table__column {
+  padding-block: 0.375rem;
+  line-height: 1.3;
+}
+:where(.pa-admin-page, .gradebook-workspace) .table__cell {
+  font-size: 0.875rem;
+}
+/* Physical left edge only: keep the right hint and the scrollbar's separate mask layer. */
+:where(.pa-admin-page, .gradebook-workspace)
+  .scroll-shadow--fade.scroll-shadow--horizontal:has(table)[data-left-scroll='true'] {
+  --scroll-linear-gradient: to right, #000, #000;
+}
+:where(.pa-admin-page, .gradebook-workspace)
+  .scroll-shadow--fade.scroll-shadow--horizontal:has(table)[data-left-right-scroll='true'] {
+  --scroll-linear-gradient: 90deg, #000 calc(100% - var(--scroll-shadow-size)), transparent;
+}

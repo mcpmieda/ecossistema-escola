@@ -45,8 +45,13 @@ export const adminReadQueryV2 = z
     accountState: accountStateV1.optional(),
     blocked: z.boolean().optional(),
     nameSearch: z.string().min(1).max(200).optional(),
+    sessionView: z.enum(['active', 'history']).optional(),
   })
   .strict()
+  .refine(
+    (value) => value.sessionView === undefined || value.operation === 'sessions-read',
+    'Session view is only valid for sessions',
+  )
   .refine((value) => value.operation !== 'overview' || !value.page.cursor, 'Overview has no cursor')
   .refine(
     (value) =>
@@ -99,6 +104,7 @@ export const adminReadResponseV2 = z.discriminatedUnion('state', [
     .object({
       ...base,
       state: z.literal('sessions-read'),
+      sessionView: z.enum(['active', 'history']).optional(),
       scope: scopeV1,
       // Same CAS as sessions-revoke; count includes expired but not yet revoked sessions.
       version: versionV1,

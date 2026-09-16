@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { AlertDialog, Button, Card } from '@heroui/react';
+import { AlertDialog, Button, Card, Tabs, Tooltip } from '@heroui/react';
 import type { AdminAccountReadV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
+import { allowDraftNavigationV1 } from '../../../shared/forms/draft-navigation-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
 import type { PortalAdminReadClientV2 } from './accounts-client-v2';
 import {
@@ -55,11 +56,11 @@ export interface AccountDetailPropsV1 {
 }
 const slotLabels = {
   birth: 'Ano de nascimento',
-  credentials: 'Credenciais',
+  credentials: 'QR e cartão',
   sessions: 'Sessões',
-  publication: 'Períodos',
+  publication: 'Notas publicadas',
   audit: 'Auditoria',
-  settings: 'Configurações de acesso',
+  settings: 'Acesso e datas',
 } as const;
 export function AccountDetailV1(props: AccountDetailPropsV1) {
   return (
@@ -111,6 +112,7 @@ function AccountDetailBodyV1({
     command: AccountCommandV1;
     name: string;
   } | null>(null);
+  const [activeSlot, setActiveSlot] = useState<keyof AccountSlotsV1>('birth');
   const [clock, setClock] = useState(0);
   const writer = useMemo(
     () => createAccountMutationV1(client, accountId, setMutation, onQr),
@@ -173,16 +175,21 @@ function AccountDetailBodyV1({
     <Card className="pa-account-detail" aria-label="Ficha da conta">
       <Card.Header>
         <h3 ref={heading} tabIndex={-1}>
-          Ficha da conta · 2026
+          Ficha do aluno
         </h3>
-        <Button variant="secondary" onPress={onClose}>
+        <Button
+          variant="secondary"
+          onPress={() => {
+            if (allowDraftNavigationV1()) onClose();
+          }}
+        >
           Fechar ficha
         </Button>
       </Card.Header>
       <Card.Content>
         {mutation.state === 'committed' && (
           <div role="status" className="pa-account-notice">
-            <p>Ação concluída pelo servidor. Os dados abaixo dependem da consulta atualizada.</p>
+            <p>Alteração salva.</p>
             {mutation.operation === 'account-reset' && (
               <p>
                 Conta redefinida: o QR anterior, a senha e as sessões foram invalidados. Reimprima o
@@ -231,9 +238,9 @@ function AccountDetailBodyV1({
             </Button>
           </div>
         )}
-        {pending && <p role="status">Enviando ação. Aguarde a confirmação do servidor.</p>}
+        {pending && <p role="status">Salvando…</p>}
         {!protectedFailure && (read.state.state === 'idle' || read.state.state === 'loading') && (
-          <p role="status">Consultando ficha…</p>
+          <p role="status">Carregando aluno…</p>
         )}
         {!protectedFailure && read.state.state === 'error' && (
           <AccountsErrorV1
@@ -253,54 +260,31 @@ function AccountDetailBodyV1({
             <AccountStatusV1 account={account} />
             <dl className="pa-account-facts">
               <div>
-                <dt>Vínculo</dt>
-                <dd>{accountLinkLabelV1(account)}</dd>
+                <dt>Acesso agora</dt>
+                <dd>{account.access.accessPermitted ? 'Permitido' : 'Não'}</dd>
               </div>
               <div>
-                <dt>Acesso configurado</dt>
-                <dd>
-                  {account.access.state !== 'resolved'
-                    ? 'Não resolvido'
-                    : account.access.enabled
-                      ? 'Habilitado'
-                      : 'Desabilitado'}
-                </dd>
-              </div>
-              <div>
-                <dt>Origem do acesso</dt>
-                <dd>{accountAccessOriginV1(account.access.source, describeScope)}</dd>
-              </div>
-              <div>
-                <dt>Acesso permitido agora</dt>
-                <dd>
-                  {account.access.accessPermitted ? 'Sim, conforme as regras de acesso' : 'Não'}
-                </dd>
-              </div>
-              <div>
-                <dt>Prontidão do primeiro acesso</dt>
+                <dt>Primeiro acesso</dt>
                 <dd>{firstAccessLabelV1(account)}</dd>
               </div>
               <div>
-                <dt>Recuperação de acesso</dt>
-                <dd>
-                  {account.firstAccess.recoveryReady
-                    ? 'Pronta'
-                    : 'Requer nascimento confirmado e PIN atual'}
-                </dd>
-              </div>
-              <div>
-                <dt>Última autenticação bem-sucedida</dt>
+                <dt>Último acesso</dt>
                 <dd>{lastAuthenticationLabelV1(account.lastAuthenticationAt)}</dd>
               </div>
               <div>
-                <dt>Sessões válidas nesta consulta</dt>
+                <dt>Sessões ativas</dt>
                 <dd>{account.validSessionCount}</dd>
               </div>
             </dl>
-            <p>
-              A permissão de acesso não comprova credenciais válidas nem um login realizado. O
-              bloqueio por tentativas é independente do bloqueio administrativo.
-            </p>
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <span>{accountLinkLabelV1(account)}</span>
+              <Tooltip>
+                <Tooltip.Trigger>Origem do acesso</Tooltip.Trigger>
+                <Tooltip.Content>
+                  {accountAccessOriginV1(account.access.source, describeScope)}
+                </Tooltip.Content>
+              </Tooltip>
+            </div>
             {!canWrite && <p>Modo somente leitura.</p>}
             {!accountManageableV1(account) && (
               <p>
@@ -351,14 +335,31 @@ function AccountDetailBodyV1({
                 </Button>
               )}
             </div>
-            {Object.entries(slotLabels).map(([key, label]) => {
-              const render = slots?.[key as keyof AccountSlotsV1];
-              return render ? (
-                <section className="pa-account-slot" key={key} aria-label={label}>
-                  {render(context)}
-                </section>
-              ) : null;
-            })}
+            {Object.keys(slots ?? {}).length ? (
+              <Tabs
+                selectedKey={activeSlot}
+                onSelectionChange={(key) => {
+                  if (key && key in slotLabels && allowDraftNavigationV1())
+                    setActiveSlot(key as keyof AccountSlotsV1);
+                }}
+              >
+                <Tabs.ListContainer className="max-w-full overflow-x-auto">
+                  <Tabs.List aria-label="Dados do aluno">
+                    {Object.entries(slotLabels)
+                      .filter(([key]) => slots?.[key as keyof AccountSlotsV1])
+                      .map(([key, label]) => (
+                        <Tabs.Tab key={key} id={key}>
+                          {label}
+                          <Tabs.Indicator />
+                        </Tabs.Tab>
+                      ))}
+                  </Tabs.List>
+                </Tabs.ListContainer>
+                <Tabs.Panel id={activeSlot} className="pa-account-slot">
+                  {slots?.[activeSlot]?.(context)}
+                </Tabs.Panel>
+              </Tabs>
+            ) : null}
           </>
         )}
         <AlertDialog.Backdrop
@@ -377,12 +378,9 @@ function AccountDetailBodyV1({
                 </AlertDialog.Heading>
               </AlertDialog.Header>
               <AlertDialog.Body>
-                <p>{review?.name} · conta individual de 2026</p>
+                <p>{review?.name}</p>
                 <p>{review && ACCOUNT_ACTIONS_V1[review.action].description}</p>
-                <p>
-                  A confirmação usa o estado consultado. Se outra operação mudar a conta, será
-                  necessário recarregar e revisar novamente.
-                </p>
+                <p>Mudanças em outra sessão exigem uma nova confirmação.</p>
               </AlertDialog.Body>
               <AlertDialog.Footer>
                 <Button

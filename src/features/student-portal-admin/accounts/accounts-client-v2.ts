@@ -28,7 +28,13 @@ export function createPortalAdminReadClientV2(options: PortalTransportOptionsV1 
     query: (input: z.input<typeof adminReadQueryV2>, signal?: AbortSignal) =>
       send(
         '/api/student-portal/admin/query',
-        adminReadResponseV2.refine((value) => value.state === input.operation),
+        adminReadResponseV2.refine(
+          (value) =>
+            value.state === input.operation &&
+            (input.operation !== 'sessions-read' ||
+              !input.sessionView ||
+              (value.state === 'sessions-read' && value.sessionView === input.sessionView)),
+        ),
         signal,
         portalRequestBodyV1(adminReadQueryV2, input),
       ),

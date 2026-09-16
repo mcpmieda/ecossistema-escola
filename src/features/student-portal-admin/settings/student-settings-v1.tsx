@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card, Chip, Modal, Spinner } from '@heroui/react';
+import { Button, Card, Chip, Modal, Spinner, Tooltip } from '@heroui/react';
 import type { EffectiveSettingsV1 } from '../../../../shared/student-portal-contracts/policy-v1';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import type { PortalAdminClientV1 } from '../shared/admin-client-v1';
@@ -20,6 +20,7 @@ import {
   settingsScopeLabelV1,
   type SettingsFieldV1,
 } from './settings-values-v1';
+import { useDraftNavigationGuardV1 } from '../../../shared/forms/draft-navigation-v1';
 import { LinkClosureV1 } from './link-closure-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
@@ -93,7 +94,7 @@ function FieldCardV1({
     }
   }
   return (
-    <Card className="pa-settings-card">
+    <Card className={`pa-settings-card pa-settings-card--${field}`}>
       <Card.Header>
         <div className="pa-settings-card-heading">
           <h3>{SETTINGS_LABELS_V1[field]}</h3>
@@ -102,11 +103,20 @@ function FieldCardV1({
               ? settings.scope.kind === 'school'
                 ? 'Padrão da escola'
                 : 'Definido aqui'
-              : 'Herdado'}
+              : settings.sources[field].kind === 'school'
+                ? 'Padrão da escola'
+                : 'Padrão de ' + sourceLabel}
           </Chip>
         </div>
-        <p className="pa-settings-origin">Origem: {sourceLabel}</p>
-        <p>{fieldHelp[field]}</p>
+        <Tooltip>
+          <Tooltip.Trigger
+            className="w-fit text-xs text-muted"
+            aria-label={`Sobre ${SETTINGS_LABELS_V1[field]}`}
+          >
+            Sobre esta opção
+          </Tooltip.Trigger>
+          <Tooltip.Content>{fieldHelp[field]}</Tooltip.Content>
+        </Tooltip>
       </Card.Header>
       <Card.Content>
         {canWrite ? (
@@ -137,7 +147,7 @@ function FieldCardV1({
             onPress={prepare}
             aria-label={`Revisar ${SETTINGS_LABELS_V1[field]}`}
           >
-            {owns ? 'Revisar alteração' : 'Definir neste escopo'}
+            {owns ? 'Salvar' : 'Personalizar'}
           </Button>
           {settings.scope.kind !== 'school' && owns ? (
             <Button
@@ -145,9 +155,9 @@ function FieldCardV1({
               variant="ghost"
               isDisabled={disabled}
               onPress={() => review({ field, inherit: true })}
-              aria-label={`Restaurar herança de ${SETTINGS_LABELS_V1[field]}`}
+              aria-label={`Usar padrão de ${SETTINGS_LABELS_V1[field]}`}
             >
-              Restaurar herança
+              Usar padrão
             </Button>
           ) : null}
         </Card.Footer>
@@ -187,29 +197,21 @@ function ReviewDialogV1({
       <Modal.Container size="lg" scroll="inside">
         <Modal.Dialog>
           <Modal.Header>
-            <Modal.Heading>
-              {review.inherit ? 'Restaurar herança' : 'Confirmar alteração'}
-            </Modal.Heading>
+            <Modal.Heading>{review.inherit ? 'Usar padrão' : 'Confirmar alteração'}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="pa-settings-review">
             <p>
               <strong>{SETTINGS_LABELS_V1[review.field]}</strong> em {scopeLabel}.
             </p>
             {review.inherit ? (
-              <p>
-                O valor próprio será removido. Este campo passará a usar a configuração vigente do
-                escopo superior, inclusive futuros ajustes dele.
-              </p>
+              <p>Esta opção voltará a seguir o padrão da escola ou da turma.</p>
             ) : (
               <>
-                <p>Será salvo um valor próprio neste escopo:</p>
+                <p>Novo valor:</p>
                 <SettingsValueSummaryV1 field={review.field} value={next!} />
               </>
             )}
-            <p>
-              A mudança pode ter efeito imediato no acesso ou na visibilidade das notas. As
-              permissões e datas vigentes continuam sendo verificadas pelo servidor.
-            </p>
+            <p>Esta alteração pode mudar imediatamente o acesso e as notas visíveis.</p>
             {past.length ? (
               <div className="pa-settings-warning">
                 <p>Há mudança ou remoção de datas que já chegaram:</p>
@@ -227,10 +229,7 @@ function ReviewDialogV1({
               </div>
             ) : null}
             {review.field === 'calendar' || review.field === 'autoUpdate' ? (
-              <p>
-                Agendamentos obsoletos serão invalidados. Publicações confirmadas e revogações não
-                são desfeitas por esta alteração.
-              </p>
+              <p>As notas já publicadas ou retiradas não serão restauradas por esta alteração.</p>
             ) : null}
           </Modal.Body>
           <Modal.Footer>
@@ -238,7 +237,7 @@ function ReviewDialogV1({
               Voltar
             </Button>
             <Button isDisabled={disabled} isPending={disabled} onPress={confirm}>
-              {review.inherit ? 'Confirmar herança' : 'Confirmar alteração'}
+              {review.inherit ? 'Usar padrão' : 'Confirmar alteração'}
             </Button>
           </Modal.Footer>
         </Modal.Dialog>
@@ -268,18 +267,21 @@ function SettingsScopeV1({
   const label = scopeLabel ?? settingsScopeLabelV1(fixedScope);
   const reload = useCallback(
     (background = false) =>
-      request.run(async (signal) => {
-        const result = await client.query(
-          { contractVersion: 1, operation: 'settings', scope: fixedScope, page: { limit: 50 } },
-          signal,
-        );
-        if (
-          result.state !== 'settings' ||
-          settingsScopeKeyV1(result.settings.scope) !== settingsScopeKeyV1(fixedScope)
-        )
-          throw new PortalClientErrorV1('invalid-response');
-        return result.settings;
-      }, { background }),
+      request.run(
+        async (signal) => {
+          const result = await client.query(
+            { contractVersion: 1, operation: 'settings', scope: fixedScope, page: { limit: 50 } },
+            signal,
+          );
+          if (
+            result.state !== 'settings' ||
+            settingsScopeKeyV1(result.settings.scope) !== settingsScopeKeyV1(fixedScope)
+          )
+            throw new PortalClientErrorV1('invalid-response');
+          return result.settings;
+        },
+        { background },
+      ),
     [client, fixedScope, request],
   );
   useEffect(() => {
@@ -301,7 +303,7 @@ function SettingsScopeV1({
   useEffect(() => {
     if (mutation.state !== 'committed') return;
     setReview(null);
-    setNotice('Configuração salva. Confira o estado atualizado abaixo.');
+    setNotice('Salvo.');
     writer.clear();
     void reload(true);
     onCommitted?.();
@@ -318,12 +320,14 @@ function SettingsScopeV1({
       setReview(null);
     }
   }, [canWrite, writer]);
+  useDraftNavigationGuardV1(dirtyFields.size > 0 || mutation.state === 'pending');
   const busy = mutation.state === 'pending' || closing;
   const onDirtyChange = useCallback((field: SettingsFieldV1, dirty: boolean) => {
     setDirtyFields((previous) => {
       if (previous.has(field) === dirty) return previous;
       const next = new Set(previous);
-      if (dirty) next.add(field); else next.delete(field);
+      if (dirty) next.add(field);
+      else next.delete(field);
       return next;
     });
   }, []);
@@ -342,8 +346,13 @@ function SettingsScopeV1({
   }, [onCommitted, reload]);
   useLiveRefreshV1(() => reload(true), {
     domains: ['portal', 'gradebook'],
-    canRefresh: () => load.state === 'ready' && !load.refreshing && dirtyFields.size === 0
-      && review === null && mutation.state === 'idle' && !closing,
+    canRefresh: () =>
+      load.state === 'ready' &&
+      !load.refreshing &&
+      dirtyFields.size === 0 &&
+      review === null &&
+      mutation.state === 'idle' &&
+      !closing,
   });
   async function confirm() {
     if (!canWrite || busy || !review || load.state !== 'ready') return;
@@ -373,23 +382,20 @@ function SettingsScopeV1({
       ? label
       : (describeScope?.(source) ?? settingsScopeLabelV1(source));
   return (
-    <section className="pa-settings" aria-label="Configurações do Portal do Aluno">
+    <section className="pa-settings" aria-label="Configurações do Aluno">
       <header className="pa-settings-heading">
         <div>
-          <h2>Configurações do Portal</h2>
+          <h2>Configurações</h2>
           <p>{label}</p>
         </div>
         <LiveReadNoticeV1 failed={load.state === 'ready' && Boolean(load.refreshError)} />
         {dirtyFields.size > 0 ? (
           <Button size="sm" variant="outline" isDisabled={busy} onPress={discardAndReload}>
-            Descartar edições e recarregar
+            Desfazer edições
           </Button>
         ) : null}
       </header>
-      <p>
-        As configurações seguem escola → turma → aluno. Cada campo mostra sua origem; salvar no
-        escopo atual cria ou altera um valor próprio.
-      </p>
+
       {notice ? <p role="status">{notice}</p> : null}
       {load.state === 'idle' || load.state === 'loading' ? (
         <div role="status" className="pa-settings-loading">
@@ -402,11 +408,11 @@ function SettingsScopeV1({
             {load.error.state === 'unauthenticated'
               ? 'Sessão expirada. Entre novamente no ADM.'
               : load.error.state === 'forbidden'
-                ? 'Sem permissão para consultar este escopo.'
-                : 'Configuração indisponível. Não é possível editar sem uma política válida do servidor.'}
+                ? 'Sem permissão para esta consulta.'
+                : 'Configurações indisponíveis. Tente novamente.'}
           </p>
           <Button size="sm" variant="secondary" onPress={() => void reload(false)}>
-            Tentar carregar novamente
+            Tentar novamente
           </Button>
         </div>
       ) : load.state === 'ready' ? (
@@ -428,11 +434,11 @@ function SettingsScopeV1({
                   isDisabled={clock < mutation.retryAt}
                   onPress={() => void writer.retry()}
                 >
-                  Repetir a mesma operação
+                  Tentar novamente
                 </Button>
               ) : null}
               <Button size="sm" variant="ghost" onPress={discardAndReload}>
-                Recarregar estado
+                Recarregar
               </Button>
             </div>
           ) : null}

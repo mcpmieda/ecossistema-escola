@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Card,
+  Tooltip,
   Input,
   Label,
   ListBox,
@@ -22,9 +23,7 @@ import { useAccountsReadV1 } from './accounts-read-v1';
 import { AccountIdentityV1, AccountStatusV1, AccountsErrorV1 } from './accounts-presentation-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import {
-  accountAccessOriginV1,
   firstAccessLabelV1,
-  accountLinkLabelV1,
   accountPageMatchesV1,
   lastAuthenticationLabelV1,
 } from './accounts-values-v1';
@@ -65,6 +64,7 @@ function FilterV1({
 }) {
   return (
     <Select
+      className="min-w-36 max-w-52"
       selectedKey={value}
       onSelectionChange={(key) => {
         if (key !== null && String(key) in options) onChange(String(key));
@@ -115,36 +115,10 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
   return (
     <section className="pa-accounts" aria-label="Contas do Portal de 2026">
       <header>
-        <h2>Contas do Portal do Aluno</h2>
-        <p>{props.scopeLabel || 'Consulta de contas'} · 2026</p>
+        <h2>Alunos</h2>
       </header>
       <Card>
         <Card.Content className="pa-account-filters">
-          <TextField value={name} onChange={setName}>
-            <Label>Buscar conta por nome</Label>
-            <Input maxLength={200} />
-          </TextField>
-          <FilterV1
-            label="Estado da conta"
-            value={state}
-            onChange={(value) => setState(value as StateFilterV1)}
-            options={{
-              all: 'Todos os estados',
-              'pending-activation': 'Primeiro acesso',
-              active: 'Ativa',
-              'reset-required': 'Redefinição pendente',
-            }}
-          />
-          <FilterV1
-            label="Bloqueio administrativo"
-            value={blocked}
-            onChange={(value) => setBlocked(value as BlockFilterV1)}
-            options={{
-              all: 'Com ou sem bloqueio',
-              blocked: 'Bloqueadas',
-              unblocked: 'Sem bloqueio administrativo',
-            }}
-          />
           {props.scope.kind === 'school' && (
             <ClassFilterV1
               catalog={props.catalog}
@@ -152,6 +126,31 @@ function AccountsBodyV1(props: StudentAccountsPropsV1) {
               onChange={setSelectedClass}
             />
           )}
+          <TextField className="min-w-48 max-w-72" value={name} onChange={setName}>
+            <Label>Buscar aluno</Label>
+            <Input maxLength={200} />
+          </TextField>
+          <FilterV1
+            label="Situação"
+            value={state}
+            onChange={(value) => setState(value as StateFilterV1)}
+            options={{
+              all: 'Todas',
+              'pending-activation': 'Primeiro acesso',
+              active: 'Ativa',
+              'reset-required': 'Redefinição pendente',
+            }}
+          />
+          <FilterV1
+            label="Bloqueio"
+            value={blocked}
+            onChange={(value) => setBlocked(value as BlockFilterV1)}
+            options={{
+              all: 'Todos',
+              blocked: 'Bloqueadas',
+              unblocked: 'Sem bloqueio',
+            }}
+          />
         </Card.Content>
       </Card>
       <AccountsResultsV1 key={JSON.stringify(query)} {...props} query={query} />
@@ -206,7 +205,7 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
           <div className="pa-account-page-controls">
             <p role="status">
               Página {page + 1}
-              {current ? ' · ' + current.items.length + ' contas nesta consulta' : ''}
+              {current ? ' · ' + current.items.length + ' alunos' : ''}
             </p>
             <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
             <Button
@@ -234,10 +233,7 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
               </Button>
             )}
           </div>
-          <p>
-            A lista mostra contas existentes. Turma sem conta não gera cadastro. Última autenticação
-            considera somente sucessos retidos nos últimos 12 meses, em horário de São Paulo.
-          </p>
+
           {(read.state.state === 'idle' || read.state.state === 'loading') && (
             <p role="status">Consultando contas…</p>
           )}
@@ -268,10 +264,18 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
                 <Table.Content aria-label="Contas do Portal">
                   <Table.Header>
                     <Table.Column isRowHeader>Aluno e turma</Table.Column>
-                    <Table.Column>Estado e vínculo</Table.Column>
+                    <Table.Column>Situação</Table.Column>
                     <Table.Column>Acesso</Table.Column>
-                    <Table.Column>Última autenticação</Table.Column>
-                    <Table.Column>Sessões válidas</Table.Column>
+                    <Table.Column>
+                      <Tooltip>
+                        <Tooltip.Trigger>Último acesso</Tooltip.Trigger>
+                        <Tooltip.Content>
+                          Último acesso bem-sucedido nos registros dos últimos 12 meses. Horário de
+                          Brasília.
+                        </Tooltip.Content>
+                      </Tooltip>
+                    </Table.Column>
+                    <Table.Column>Sessões ativas</Table.Column>
                     <Table.Column>Ficha</Table.Column>
                   </Table.Header>
                   <Table.Body items={current.items}>
@@ -288,25 +292,18 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
                         </Table.Cell>
                         <Table.Cell>
                           <AccountStatusV1 account={account} />
-                          <span>{accountLinkLabelV1(account)}</span>
-                          <span>{firstAccessLabelV1(account)}</span>
+                          {account.state !== 'active' && (
+                            <span className="text-xs text-muted">
+                              {firstAccessLabelV1(account)}
+                            </span>
+                          )}
                         </Table.Cell>
                         <Table.Cell>
-                          <strong>
-                            {account.access.state !== 'resolved'
-                              ? 'Não resolvido'
-                              : account.access.enabled
-                                ? 'Habilitado'
-                                : 'Desabilitado'}
-                          </strong>
-                          <span>
-                            {accountAccessOriginV1(account.access.source, props.describeScope)}
-                          </span>
-                          <span>
-                            {account.access.accessPermitted
-                              ? 'Permitido pelas regras agora'
-                              : 'Não permitido agora'}
-                          </span>
+                          {account.access.state !== 'resolved'
+                            ? 'Indisponível'
+                            : account.access.accessPermitted
+                              ? 'Permitido'
+                              : 'Fechado'}
                         </Table.Cell>
                         <Table.Cell>
                           {lastAuthenticationLabelV1(account.lastAuthenticationAt)}
@@ -322,7 +319,7 @@ function AccountsResultsV1(props: StudentAccountsPropsV1 & { query: AdminReadQue
                               setSelectedId(account.accountId);
                             }}
                           >
-                            Abrir ficha
+                            Abrir
                           </Button>
                         </Table.Cell>
                       </Table.Row>

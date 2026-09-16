@@ -67,13 +67,19 @@ export type GradebookImportRecoveryStudentV9 = readonly [
 export interface GradebookImportOfferV9 {
   readonly turmaCodigo: string;
   readonly disciplina: string;
-  readonly trimestres: readonly [GradebookImportTermV9, GradebookImportTermV9, GradebookImportTermV9];
+  readonly trimestres: readonly [
+    GradebookImportTermV9,
+    GradebookImportTermV9,
+    GradebookImportTermV9,
+  ];
   readonly recuperacao: readonly GradebookImportRecoveryStudentV9[] | null;
 }
 
 export interface GradebookNotesImportRequestV9 {
   readonly transportVersion: 9;
   readonly operation: 'persist-notas';
+  /** V1 distinguishes an observed empty cell from a cell never read. */
+  readonly granularObservationVersion?: 1;
   readonly manifest: GradebookImportManifestV9;
   readonly ano: number;
   readonly professor: string;
@@ -81,8 +87,7 @@ export interface GradebookNotesImportRequestV9 {
 }
 
 export type GradebookImportPersistenceRequestV9 =
-  | GradebookRelationImportRequestV9
-  | GradebookNotesImportRequestV9;
+  GradebookRelationImportRequestV9 | GradebookNotesImportRequestV9;
 
 export type GradebookImportPersistenceResponseV9 =
   | {
@@ -107,7 +112,12 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function nonEmptyText(value: unknown, max = 256): value is string {
-  return typeof value === 'string' && value.trim().length > 0 && value.length <= max && !value.includes('\u0000');
+  return (
+    typeof value === 'string' &&
+    value.trim().length > 0 &&
+    value.length <= max &&
+    !value.includes('\u0000')
+  );
 }
 
 function validManifest(value: unknown): value is GradebookImportManifestV9 {
@@ -133,17 +143,26 @@ function validCell(value: unknown): value is GradebookImportCellV9 {
 }
 
 function validRecoveryCell(value: unknown): value is GradebookImportRecoveryCellV9 {
-  return validCell(value) ||
-    (Array.isArray(value) && value.length === 1 && (value[0] === 'n' || value[0] === 'r'));
+  return (
+    validCell(value) ||
+    (Array.isArray(value) && value.length === 1 && (value[0] === 'n' || value[0] === 'r'))
+  );
 }
 
 function validRelation(value: Record<string, unknown>): boolean {
   if (!isGradebookAcademicYearV2(value.ano)) return false;
-  if (!Array.isArray(value.turmas) || value.turmas.length === 0 || value.turmas.length > 64) return false;
+  if (!Array.isArray(value.turmas) || value.turmas.length === 0 || value.turmas.length > 64)
+    return false;
   const classCodes = new Set<string>();
   for (const turma of value.turmas) {
-    if (!record(turma) || !nonEmptyText(turma.codigo, 32) || !nonEmptyText(turma.nome, 128)) return false;
-    if (!Number.isSafeInteger(turma.etapa) || Number(turma.etapa) <= 0 || !nonEmptyText(turma.turno, 64)) return false;
+    if (!record(turma) || !nonEmptyText(turma.codigo, 32) || !nonEmptyText(turma.nome, 128))
+      return false;
+    if (
+      !Number.isSafeInteger(turma.etapa) ||
+      Number(turma.etapa) <= 0 ||
+      !nonEmptyText(turma.turno, 64)
+    )
+      return false;
     const classKey = turma.codigo.trim().toUpperCase();
     if (classCodes.has(classKey)) return false;
     classCodes.add(classKey);
@@ -153,7 +172,13 @@ function validRelation(value: Record<string, unknown>): boolean {
       if (!Array.isArray(aluno) || (aluno.length !== 3 && aluno.length !== 4)) return false;
       if (!Number.isSafeInteger(aluno[0]) || aluno[0] <= 0 || numbers.has(aluno[0])) return false;
       numbers.add(aluno[0]);
-      if (!nonEmptyText(aluno[1], 256) || !Number.isSafeInteger(aluno[2]) || aluno[2] < 0 || aluno[2] > 7) return false;
+      if (
+        !nonEmptyText(aluno[1], 256) ||
+        !Number.isSafeInteger(aluno[2]) ||
+        aluno[2] < 0 ||
+        aluno[2] > 7
+      )
+        return false;
       const related = aluno[3];
       if (aluno[2] === 6 || aluno[2] === 7) {
         if (!nonEmptyText(related, 32)) return false;
@@ -162,7 +187,8 @@ function validRelation(value: Record<string, unknown>): boolean {
   }
   for (const turma of value.turmas as GradebookRelationClassV9[]) {
     for (const aluno of turma.alunos) {
-      if ((aluno[2] === 6 || aluno[2] === 7) && !classCodes.has(aluno[3]!.trim().toUpperCase())) return false;
+      if ((aluno[2] === 6 || aluno[2] === 7) && !classCodes.has(aluno[3]!.trim().toUpperCase()))
+        return false;
     }
   }
   return true;
@@ -171,51 +197,122 @@ function validRelation(value: Record<string, unknown>): boolean {
 const SLOTS = new Set([1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
 
 function validNotes(value: Record<string, unknown>): boolean {
+  if (value.granularObservationVersion !== undefined && value.granularObservationVersion !== 1)
+    return false;
   if (!isGradebookAcademicYearV2(value.ano)) return false;
-  if (!nonEmptyText(value.professor, 256) || !Array.isArray(value.ofertas) || value.ofertas.length === 0 || value.ofertas.length > 128) return false;
+  if (
+    !nonEmptyText(value.professor, 256) ||
+    !Array.isArray(value.ofertas) ||
+    value.ofertas.length === 0 ||
+    value.ofertas.length > 128
+  )
+    return false;
   const offers = new Set<string>();
   for (const oferta of value.ofertas) {
-    if (!record(oferta) || !nonEmptyText(oferta.turmaCodigo, 32) || !nonEmptyText(oferta.disciplina, 256)) return false;
-    const offerKey = JSON.stringify([oferta.turmaCodigo.trim().toUpperCase(), oferta.disciplina.trim().toLocaleLowerCase('pt-BR')]);
+    if (
+      !record(oferta) ||
+      !nonEmptyText(oferta.turmaCodigo, 32) ||
+      !nonEmptyText(oferta.disciplina, 256)
+    )
+      return false;
+    const offerKey = JSON.stringify([
+      oferta.turmaCodigo.trim().toUpperCase(),
+      oferta.disciplina.trim().toLocaleLowerCase('pt-BR'),
+    ]);
     if (offers.has(offerKey)) return false;
     offers.add(offerKey);
     if (!Array.isArray(oferta.trimestres) || oferta.trimestres.length !== 3) return false;
     for (const [termIndex, termo] of oferta.trimestres.entries()) {
-      if (!record(termo) || termo.trimestre !== termIndex + 1 || !Array.isArray(termo.instrumentos) || !Array.isArray(termo.alunos)) return false;
-      if (termo.instrumentos.length === 0 || termo.instrumentos.length > 13 || termo.alunos.length > 64) return false;
+      if (
+        !record(termo) ||
+        termo.trimestre !== termIndex + 1 ||
+        !Array.isArray(termo.instrumentos) ||
+        !Array.isArray(termo.alunos)
+      )
+        return false;
+      if (
+        termo.instrumentos.length === 0 ||
+        termo.instrumentos.length > 13 ||
+        termo.alunos.length > 64
+      )
+        return false;
       const slots = new Set<number>();
       for (const instrumento of termo.instrumentos) {
-        if (!Array.isArray(instrumento) || (instrumento.length !== 2 && instrumento.length !== 3)) return false;
-        if (!Number.isSafeInteger(instrumento[0]) || !SLOTS.has(instrumento[0]) || slots.has(instrumento[0])) return false;
+        if (!Array.isArray(instrumento) || (instrumento.length !== 2 && instrumento.length !== 3))
+          return false;
+        if (
+          !Number.isSafeInteger(instrumento[0]) ||
+          !SLOTS.has(instrumento[0]) ||
+          slots.has(instrumento[0])
+        )
+          return false;
         slots.add(instrumento[0]);
-        if (instrumento[1] !== null && (!validCanonicalInteger(instrumento[1]) || instrumento[1] <= 0)) return false;
+        if (
+          instrumento[1] !== null &&
+          (!validCanonicalInteger(instrumento[1]) || instrumento[1] <= 0)
+        )
+          return false;
         if (instrumento[2] !== undefined && !nonEmptyText(instrumento[2], 512)) return false;
       }
       const numbers = new Set<number>();
       for (const aluno of termo.alunos) {
-        if (!Array.isArray(aluno) || aluno.length !== 3 || !Number.isSafeInteger(aluno[0]) || aluno[0] <= 0 || numbers.has(aluno[0])) return false;
+        if (
+          !Array.isArray(aluno) ||
+          aluno.length !== 3 ||
+          !Number.isSafeInteger(aluno[0]) ||
+          aluno[0] <= 0 ||
+          numbers.has(aluno[0])
+        )
+          return false;
         numbers.add(aluno[0]);
-        if (!Array.isArray(aluno[1]) || aluno[1].length !== termo.instrumentos.length || !aluno[1].every(validCell) || !validCell(aluno[2])) return false;
+        if (
+          !Array.isArray(aluno[1]) ||
+          aluno[1].length !== termo.instrumentos.length ||
+          !aluno[1].every(validCell) ||
+          !validCell(aluno[2])
+        )
+          return false;
       }
     }
     if (oferta.recuperacao !== null) {
       if (!Array.isArray(oferta.recuperacao) || oferta.recuperacao.length > 64) return false;
       const numbers = new Set<number>();
       for (const aluno of oferta.recuperacao) {
-        if (!Array.isArray(aluno) || aluno.length !== 5 || !Number.isSafeInteger(aluno[0]) || aluno[0] <= 0 || numbers.has(aluno[0])) return false;
+        if (
+          !Array.isArray(aluno) ||
+          aluno.length !== 5 ||
+          !Number.isSafeInteger(aluno[0]) ||
+          aluno[0] <= 0 ||
+          numbers.has(aluno[0])
+        )
+          return false;
         numbers.add(aluno[0]);
-        if (!validRecoveryCell(aluno[1]) || !validRecoveryCell(aluno[2]) || !validRecoveryCell(aluno[3]) || !validCell(aluno[4])) return false;
+        if (
+          !validRecoveryCell(aluno[1]) ||
+          !validRecoveryCell(aluno[2]) ||
+          !validRecoveryCell(aluno[3]) ||
+          !validCell(aluno[4])
+        )
+          return false;
       }
     }
   }
   return true;
 }
 
-export function inspectGradebookImportPersistenceRequestV9(value: unknown): 'ready' | 'invalid-request' | 'payload-too-large' {
+export function inspectGradebookImportPersistenceRequestV9(
+  value: unknown,
+): 'ready' | 'invalid-request' | 'payload-too-large' {
   try {
-    if (!record(value) || value.transportVersion !== 9 || !validManifest(value.manifest)) return 'invalid-request';
-    if (new TextEncoder().encode(JSON.stringify(value)).byteLength > GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9) return 'payload-too-large';
-    if (value.operation === 'persist-relacao') return validRelation(value) ? 'ready' : 'invalid-request';
+    if (!record(value) || value.transportVersion !== 9 || !validManifest(value.manifest))
+      return 'invalid-request';
+    if (
+      new TextEncoder().encode(JSON.stringify(value)).byteLength >
+      GRADEBOOK_IMPORT_PERSISTENCE_BODY_BYTES_V9
+    )
+      return 'payload-too-large';
+    if (value.operation === 'persist-relacao')
+      return validRelation(value) ? 'ready' : 'invalid-request';
     if (value.operation === 'persist-notas') return validNotes(value) ? 'ready' : 'invalid-request';
     return 'invalid-request';
   } catch {
@@ -223,13 +320,24 @@ export function inspectGradebookImportPersistenceRequestV9(value: unknown): 'rea
   }
 }
 
-export function isGradebookImportPersistenceRequestV9(value: unknown): value is GradebookImportPersistenceRequestV9 {
+export function isGradebookImportPersistenceRequestV9(
+  value: unknown,
+): value is GradebookImportPersistenceRequestV9 {
   return inspectGradebookImportPersistenceRequestV9(value) === 'ready';
 }
 
-export function isGradebookImportPersistenceResponseV9(value: unknown): value is GradebookImportPersistenceResponseV9 {
-  if (!record(value) || value.transportVersion !== 9 || typeof value.state !== 'string') return false;
+export function isGradebookImportPersistenceResponseV9(
+  value: unknown,
+): value is GradebookImportPersistenceResponseV9 {
+  if (!record(value) || value.transportVersion !== 9 || typeof value.state !== 'string')
+    return false;
   if (value.state === 'applied' || value.state === 'no-changes') return record(value.summary);
-  if (value.state === 'blocked' || value.state === 'conflict' || value.state === 'review-required' || value.state === 'invalid-request') return nonEmptyText(value.reason, 512);
+  if (
+    value.state === 'blocked' ||
+    value.state === 'conflict' ||
+    value.state === 'review-required' ||
+    value.state === 'invalid-request'
+  )
+    return nonEmptyText(value.reason, 512);
   return value.state === 'not-authorized' || value.state === 'unavailable';
 }

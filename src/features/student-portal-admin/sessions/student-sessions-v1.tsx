@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertDialog, Button, Card, Chip, ScrollShadow, Table } from '@heroui/react';
+import { AlertDialog, Button, Card, Chip, ScrollShadow, Table, Tooltip } from '@heroui/react';
 import type { AdminReadResponseV2 } from '../../../../shared/student-portal-contracts/admin-read-v2';
 import type { ScopeV1 } from '../../../../shared/student-portal-contracts/core-v1';
 import { settingsScopeKeyV1 } from '../settings/settings-values-v1';
@@ -12,6 +12,7 @@ import {
   type OperationsPropsV1,
 } from '../overview/operations-values-v1';
 import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
+import { StudentAvatarV1 } from '../shared/student-avatar-v1';
 import { LiveReadNoticeV1 } from '../../../shared/live-data/live-read-notice-v1';
 import {
   createSessionMutationV1,
@@ -22,10 +23,10 @@ import {
 type SessionsPageV2 = Extract<AdminReadResponseV2, { state: 'sessions-read' }>;
 type SessionRowV2 = SessionsPageV2['items'][number];
 const labels = {
-  valid: 'Válida',
-  expired: 'Expirada',
-  revoked: 'Revogada',
-  unavailable: 'Acesso indisponível',
+  valid: 'Ativa',
+  expired: 'Expirou',
+  revoked: 'Encerrada',
+  unavailable: 'Sem acesso',
 } as const;
 export function StudentSessionsV1(props: OperationsPropsV1) {
   return (
@@ -45,6 +46,7 @@ export function StudentSessionsV1(props: OperationsPropsV1) {
 function SessionsBodyV1(props: OperationsPropsV1) {
   const parentScope = props.scope;
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
+  const [historyCursors, setHistoryCursors] = useState<(string | undefined)[]>([undefined]);
   const [revision, setRevision] = useState(0);
   const [mutation, setMutation] = useState<SessionMutationStateV1>({ state: 'idle' });
   const [preparing, setPreparing] = useState(false);
@@ -67,6 +69,7 @@ function SessionsBodyV1(props: OperationsPropsV1) {
         {
           contractVersion: 2,
           operation: 'sessions-read',
+          sessionView: 'active',
           scope: props.scope,
           page: { limit: 100, ...(cursor ? { cursor } : {}) },
         },
@@ -74,6 +77,8 @@ function SessionsBodyV1(props: OperationsPropsV1) {
       );
       if (
         data.state !== 'sessions-read' ||
+        data.sessionView !== 'active' ||
+        data.items.some((item) => item.validity !== 'valid') ||
         settingsScopeKeyV1(data.scope) !== scopeKey ||
         new Set(data.items.map((s) => s.sessionId)).size !== data.items.length ||
         (parentScope.kind === 'account' &&
@@ -85,6 +90,36 @@ function SessionsBodyV1(props: OperationsPropsV1) {
     [props.reader, scopeKey, cursor, revision],
   );
   const read = useOperationalReadV1(load, props.onAuthorizationLost);
+  const historyCursor = historyCursors.at(-1);
+  const loadHistory = useCallback(
+    async (signal: AbortSignal) => {
+      const result = await props.reader.query(
+        {
+          contractVersion: 2,
+          operation: 'sessions-read',
+          sessionView: 'history',
+          scope: props.scope,
+          page: { limit: 100, ...(historyCursor ? { cursor: historyCursor } : {}) },
+        },
+        signal,
+      );
+      if (
+        result.state !== 'sessions-read' ||
+        result.sessionView !== 'history' ||
+        settingsScopeKeyV1(result.scope) !== scopeKey ||
+        result.items.some((item) => item.validity === 'valid') ||
+        (parentScope.kind === 'account' &&
+          result.items.some((item) => item.accountId !== parentScope.accountId.toLowerCase()))
+      ) {
+        throw new PortalClientErrorV1('invalid-response');
+      }
+      return result;
+    },
+    [props.reader, scopeKey, historyCursor, revision],
+  );
+  const historyRead = useOperationalReadV1(loadHistory, props.onAuthorizationLost);
+  const historyData = historyRead.state.state === 'ready' ? historyRead.state.data : null;
+
   const operation = useMemo(
     () => createSessionMutationV1(props.client, props.canWrite, setMutation),
     [props.client, props.canWrite],
@@ -99,7 +134,9 @@ function SessionsBodyV1(props: OperationsPropsV1) {
   useEffect(() => {
     if (mutation.state === 'committed') {
       read.clear();
+      historyRead.clear();
       setCursors([undefined]);
+      setHistoryCursors([undefined]);
       setRevision((v) => v + 1);
     }
     if (mutation.state === 'error' && authorizationLostV1(mutation.error))
@@ -199,16 +236,12 @@ function SessionsBodyV1(props: OperationsPropsV1) {
         <div className="pa-operations-header">
           <div>
             <h2>Sessões</h2>
-            <p>{props.scopeLabel} · 2026</p>
+            <p className="text-xs text-muted">{props.scopeLabel}</p>
           </div>
           <LiveReadNoticeV1 failed={Boolean(read.refreshError)} />
         </div>
       </Card.Header>
       <Card.Content>
-        <p>
-          O estado abaixo corresponde à última consulta do servidor. Sessão curta não garante saída
-          ao fechar o navegador.
-        </p>
         {read.state.state === 'loading' && <p role="status">Consultando sessões…</p>}
         {read.state.state === 'error' && (
           <AccountsErrorV1
@@ -229,23 +262,14 @@ function SessionsBodyV1(props: OperationsPropsV1) {
         )}
         {preparing && (
           <div role="status">
-            Conferindo o escopo…{' '}
+            Conferindo acessos…{' '}
             <Button variant="secondary" onPress={cancelReview}>
-              Cancelar conferência
+              Cancelar
             </Button>
           </div>
         )}
-        {mutation.state === 'pending' && (
-          <p role="status">
-            Solicitando encerramento… Se mudar de escopo, uma solicitação já aceita pode continuar
-            no servidor.
-          </p>
-        )}
-        {mutation.state === 'committed' && (
-          <p role="status">
-            Encerramento confirmado pelo servidor. A lista é consultada novamente.
-          </p>
-        )}
+        {mutation.state === 'pending' && <p role="status">Encerrando sessões…</p>}
+        {mutation.state === 'committed' && <p role="status">Sessões encerradas.</p>}
         {mutation.state === 'expired' && (
           <p role="alert">
             O prazo de retomada terminou. Consulte o estado antes de uma nova decisão.
@@ -284,10 +308,6 @@ function SessionsBodyV1(props: OperationsPropsV1) {
         )}
         {data && (
           <>
-            <p className="pa-operations-muted">
-              Na consulta de {operationDateV1(data.observedAt)}: {data.revocableCount} sessão(ões)
-              sem revogação, incluindo expiradas.
-            </p>
             {props.scope.kind !== 'school' && (
               <Button
                 variant="danger"
@@ -303,111 +323,48 @@ function SessionsBodyV1(props: OperationsPropsV1) {
               >
                 {props.scope.kind === 'class'
                   ? 'Encerrar sessões da turma'
-                  : 'Encerrar sessões da conta'}
+                  : 'Encerrar todas do aluno'}
               </Button>
             )}
-            {!props.canWrite && <p>Permissão somente de leitura.</p>}
-            {data.items.length === 0 ? (
-              <p>Nenhuma sessão encontrada neste escopo.</p>
-            ) : (
-              <Table>
-                <ScrollShadow
-                  className="pa-operations-scroll"
-                  orientation="horizontal"
-                  role="region"
-                  aria-label="Rolagem das sessões"
-                  tabIndex={0}
-                >
-                  <Table.Content aria-label="Sessões do Portal">
-                    <Table.Header>
-                      <Table.Column isRowHeader id="student">
-                        Aluno e turma
-                      </Table.Column>
-                      <Table.Column id="state">Estado na consulta</Table.Column>
-                      <Table.Column id="expiry">Vencimento efetivo</Table.Column>
-                      <Table.Column id="actions">Ações</Table.Column>
-                    </Table.Header>
-                    <Table.Body>
-                      {data.items.map((row) => (
-                        <Table.Row key={row.sessionId} id={row.sessionId}>
-                          <Table.Cell>
-                            <strong>{row.name || 'Nome indisponível'}</strong>
-                            <p>{row.classLabel || 'Turma não resolvida'}</p>
-                          </Table.Cell>
-                          <Table.Cell>
-                            <Chip size="sm" variant="soft">
-                              {labels[row.validity]}
-                            </Chip>
-                            <p>{row.persistent ? 'Persistente' : 'Curta'}</p>
-                            <p>Iniciada em {operationDateV1(row.createdAt)}</p>
-                            {row.revokedAt && <p>Revogada em {operationDateV1(row.revokedAt)}</p>}
-                          </Table.Cell>
-                          <Table.Cell>
-                            {operationDateV1(row.effectiveExpiresAt)}
-                            <details>
-                              <summary>Data armazenada</summary>
-                              {operationDateV1(row.expiresAt)}
-                            </details>
-                          </Table.Cell>
-                          <Table.Cell>
-                            <div className="pa-operations-actions">
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                isDisabled={
-                                  !props.canWrite ||
-                                  busy ||
-                                  row.revokedAt !== null ||
-                                  (props.scope.kind === 'class' &&
-                                    row.classId !== props.scope.classId)
-                                }
-                                onPress={() => accountAction(row, true)}
-                              >
-                                Encerrar esta sessão
-                              </Button>
-                              {props.scope.kind !== 'account' && (
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  isDisabled={
-                                    !props.canWrite ||
-                                    busy ||
-                                    (props.scope.kind === 'class' &&
-                                      row.classId !== props.scope.classId)
-                                  }
-                                  onPress={() => accountAction(row, false)}
-                                >
-                                  Encerrar sessões desta conta
-                                </Button>
-                              )}
-                            </div>
-                          </Table.Cell>
-                        </Table.Row>
-                      ))}
-                    </Table.Body>
-                  </Table.Content>
-                </ScrollShadow>
-              </Table>
-            )}
-            <div className="pa-operations-actions">
-              <Button
-                variant="secondary"
-                isDisabled={busy || cursors.length === 1}
-                onPress={() => setCursors((c) => c.slice(0, -1))}
-              >
-                Página anterior
-              </Button>
-              <span>Página {cursors.length}</span>
-              <Button
-                variant="secondary"
-                isDisabled={busy || !data.nextCursor}
-                onPress={() => setCursors((c) => [...c, data.nextCursor!])}
-              >
-                Próxima página
-              </Button>
-            </div>
+            {!props.canWrite && <p className="text-xs text-muted">Somente leitura</p>}
+            <SessionFeedV1
+              title="Sessões ativas"
+              data={data}
+              page={cursors.length}
+              busy={busy}
+              canWrite={props.canWrite}
+              scope={props.scope}
+              onAction={accountAction}
+              onPrevious={() => setCursors((c) => c.slice(0, -1))}
+              onNext={() => {
+                if (data.nextCursor) setCursors((c) => [...c, data.nextCursor!]);
+              }}
+            />
           </>
         )}
+        {historyRead.state.state === 'loading' ? <p role="status">Carregando histórico…</p> : null}
+        {historyRead.state.state === 'error' ? (
+          <AccountsErrorV1
+            error={historyRead.state.error}
+            canReload={!busy && historyRead.canReload}
+            onReload={historyRead.reload}
+          />
+        ) : null}
+        {historyData ? (
+          <SessionFeedV1
+            title="Histórico de sessões"
+            data={historyData}
+            page={historyCursors.length}
+            busy={busy}
+            canWrite={props.canWrite}
+            scope={props.scope}
+            onAction={accountAction}
+            onPrevious={() => setHistoryCursors((c) => c.slice(0, -1))}
+            onNext={() => {
+              if (historyData.nextCursor) setHistoryCursors((c) => [...c, historyData.nextCursor!]);
+            }}
+          />
+        ) : null}
         {review && (
           <AlertDialog.Backdrop
             isOpen
@@ -423,7 +380,7 @@ function SessionsBodyV1(props: OperationsPropsV1) {
                   <AlertDialog.Heading>Confirmar encerramento de sessões</AlertDialog.Heading>
                 </AlertDialog.Header>
                 <AlertDialog.Body>
-                  <p>{review.label} · 2026</p>
+                  <p>{review.label}</p>
                   <p>
                     {review.count} sessão(ões) na consulta de {operationDateV1(review.at)}.
                   </p>
@@ -458,5 +415,162 @@ function SessionsBodyV1(props: OperationsPropsV1) {
         )}
       </Card.Content>
     </Card>
+  );
+}
+
+function SessionFeedV1({
+  title,
+  data,
+  page,
+  busy,
+  canWrite,
+  scope,
+  onAction,
+  onPrevious,
+  onNext,
+}: {
+  title: string;
+  data: SessionsPageV2;
+  page: number;
+  busy: boolean;
+  canWrite: boolean;
+  scope: ScopeV1;
+  onAction: (row: SessionRowV2, individual: boolean) => void;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  const active = data.sessionView === 'active';
+  return (
+    <section className="pa-session-feed" aria-label={title}>
+      <div className="pa-operations-header">
+        <h3>{title}</h3>
+        <Chip size="sm" color={active ? 'success' : 'default'} variant="soft">
+          <Chip.Label>{data.items.length} nesta página</Chip.Label>
+        </Chip>
+      </div>
+      {!data.items.length ? (
+        <p className="text-sm text-muted">
+          {data.nextCursor
+            ? 'Nenhuma nesta página. Há mais registros para consultar.'
+            : active
+              ? 'Nenhuma sessão ativa.'
+              : 'Nenhuma sessão no histórico.'}
+        </p>
+      ) : (
+        <Table variant="secondary">
+          <ScrollShadow
+            className="pa-operations-scroll"
+            orientation="horizontal"
+            tabIndex={0}
+            role="region"
+            aria-label={`Rolagem: ${title}`}
+          >
+            <Table.Content aria-label={title}>
+              <Table.Header>
+                <Table.Column id="student" isRowHeader>
+                  Aluno
+                </Table.Column>
+                <Table.Column id="state">Situação</Table.Column>
+                <Table.Column id="created">Início</Table.Column>
+                <Table.Column id="end">
+                  {active ? 'Válida até' : 'Encerramento / validade'}
+                </Table.Column>
+                <Table.Column id="action">
+                  <span className="sr-only">Encerrar</span>
+                </Table.Column>
+              </Table.Header>
+              <Table.Body>
+                {data.items.map((row) => (
+                  <Table.Row key={row.sessionId} id={row.sessionId}>
+                    <Table.Cell>
+                      <div className="pa-account-identity">
+                        <StudentAvatarV1 id={row.accountId} />
+                        <div>
+                          <strong>{row.name || 'Nome indisponível'}</strong>
+                          {scope.kind === 'school' ? (
+                            <span>{row.classLabel || 'Turma indisponível'}</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Tooltip>
+                        <Tooltip.Trigger>
+                          <Chip
+                            size="sm"
+                            color={
+                              row.validity === 'valid'
+                                ? 'success'
+                                : row.validity === 'unavailable'
+                                  ? 'warning'
+                                  : 'default'
+                            }
+                            variant="soft"
+                          >
+                            <Chip.Label>{labels[row.validity]}</Chip.Label>
+                          </Chip>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          {row.persistent ? 'Manter conectado' : 'Acesso temporário'}
+                        </Tooltip.Content>
+                      </Tooltip>
+                    </Table.Cell>
+                    <Table.Cell>{operationDateV1(row.createdAt)}</Table.Cell>
+                    <Table.Cell>
+                      <Tooltip>
+                        <Tooltip.Trigger>
+                          {operationDateV1(row.revokedAt ?? row.effectiveExpiresAt)}
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          Validade original: {operationDateV1(row.expiresAt)}
+                        </Tooltip.Content>
+                      </Tooltip>
+                    </Table.Cell>
+                    <Table.Cell>
+                      {row.validity === 'valid' ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          isDisabled={
+                            !canWrite ||
+                            busy ||
+                            (scope.kind === 'class' && row.classId !== scope.classId)
+                          }
+                          aria-label={`Encerrar sessão de ${row.name || 'aluno'}`}
+                          onPress={() => onAction(row, true)}
+                        >
+                          Encerrar
+                        </Button>
+                      ) : null}
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Content>
+          </ScrollShadow>
+        </Table>
+      )}
+      {page > 1 || data.nextCursor ? (
+        <div className="pa-operations-actions">
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={busy || page === 1}
+            onPress={onPrevious}
+          >
+            Anterior
+          </Button>
+          <span className="text-xs text-muted">Página {page}</span>
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={busy || !data.nextCursor}
+            onPress={onNext}
+          >
+            Próxima
+          </Button>
+        </div>
+      ) : null}
+    </section>
   );
 }

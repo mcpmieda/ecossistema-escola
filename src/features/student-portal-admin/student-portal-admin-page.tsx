@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Button } from '@heroui/react';
+import { Alert, Button, Tabs } from '@heroui/react';
+import { allowDraftNavigationV1 } from '../../shared/forms/draft-navigation-v1';
 import type { ScopeV1 } from '../../../shared/student-portal-contracts/core-v1';
 import {
   portalSectionFromHash,
@@ -34,20 +35,6 @@ import { RemoteLiveNoticeV1, useRemoteLiveV1 } from '../../shared/live-data/use-
 
 const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
 type SectionScope = { section: StudentPortalSection; scope: ScopeV1; label: string };
-function AccountSlot({ title, children }: { title: string; children: () => ReactNode }) {
-  const [opened, setOpened] = useState(false);
-  return (
-    <details
-      onToggle={(event) => {
-        if (event.currentTarget.open) setOpened(true);
-      }}
-      className="pa-integrated-slot"
-    >
-      <summary>{title}</summary>
-      {opened && children()}
-    </details>
-  );
-}
 const enterInstitutionalLogin = () => window.location.replace('/auth/login');
 export function StudentPortalAdminPage({
   fetcher,
@@ -85,7 +72,7 @@ export function StudentPortalAdminPage({
                   void auth.refresh();
                 }}
               >
-                Consultar sessão novamente
+                Tentar novamente
               </Button>
             </Alert.Content>
           </Alert>
@@ -171,76 +158,52 @@ function PortalWorkspace({
   const slots = useMemo<AccountSlotsV1>(
     () => ({
       birth: (context) => (
-        <AccountSlot title="Ano de nascimento">
-          {() => (
-            <StudentBirthYearsV1
-              {...common}
-              scope={context.scope}
-              scopeLabel={context.account.name}
-              canWrite={context.canWrite}
-            />
-          )}
-        </AccountSlot>
+        <StudentBirthYearsV1
+          {...common}
+          scope={context.scope}
+          scopeLabel={context.account.name}
+          canWrite={context.canWrite}
+        />
       ),
       credentials: (context) => (
-        <AccountSlot title="QR e cartões">
-          {() => (
-            <StudentCredentialsV1
-              {...common}
-              scope={context.scope}
-              scopeLabel={context.account.name}
-              canWrite={context.canWrite}
-            />
-          )}
-        </AccountSlot>
+        <StudentCredentialsV1
+          {...common}
+          scope={context.scope}
+          scopeLabel={context.account.name}
+          canWrite={context.canWrite}
+        />
       ),
       sessions: (context) => (
-        <AccountSlot title="Sessões da conta">
-          {() => (
-            <StudentSessionsV1
-              {...common}
-              scope={context.scope}
-              scopeLabel={context.account.name}
-              canWrite={context.canWrite}
-            />
-          )}
-        </AccountSlot>
+        <StudentSessionsV1
+          {...common}
+          scope={context.scope}
+          scopeLabel={context.account.name}
+          canWrite={context.canWrite}
+        />
       ),
       publication: (context) => (
-        <AccountSlot title="Períodos da conta">
-          {() => (
-            <StudentPublicationV1
-              client={common.client}
-              scope={context.scope}
-              scopeLabel={context.account.name}
-              canWrite={context.canWrite}
-            />
-          )}
-        </AccountSlot>
+        <StudentPublicationV1
+          client={common.client}
+          scope={context.scope}
+          scopeLabel={context.account.name}
+          canWrite={context.canWrite}
+        />
       ),
       audit: (context) => (
-        <AccountSlot title="Eventos da conta">
-          {() => (
-            <StudentAuditV1
-              {...common}
-              scope={context.scope}
-              scopeLabel={context.account.name}
-              canWrite={context.canWrite}
-            />
-          )}
-        </AccountSlot>
+        <StudentAuditV1
+          {...common}
+          scope={context.scope}
+          scopeLabel={context.account.name}
+          canWrite={context.canWrite}
+        />
       ),
       settings: (context) => (
-        <AccountSlot title="Configurações da conta">
-          {() => (
-            <StudentSettingsV1
-              client={common.client}
-              scope={context.scope}
-              scopeLabel={context.account.name}
-              canWrite={context.canWrite}
-            />
-          )}
-        </AccountSlot>
+        <StudentSettingsV1
+          client={common.client}
+          scope={context.scope}
+          scopeLabel={context.account.name}
+          canWrite={context.canWrite}
+        />
       ),
     }),
     [common],
@@ -323,37 +286,51 @@ function PortalWorkspace({
     <section className="pa-admin-page">
       <header>
         <h1>Painel do Aluno</h1>
-        <p>Portal de 2026 · Contas, acesso e notas publicadas</p>
         <RemoteLiveNoticeV1 state={liveState} />
       </header>
-      <nav aria-label="Áreas do Painel do Aluno">
-        {studentPortalSections.map((item) => (
-          <a
-            key={item.id}
-            href={studentPortalHref(item.id)}
-            onClick={() => {
-              pendingScope.current = null;
-              if (section === item.id) {
-                setTarget(null);
-                setSectionScope(null);
-                qr.clear();
-              }
-            }}
-            aria-current={section === item.id ? 'page' : undefined}
-          >
-            {item.label}
-          </a>
-        ))}
-      </nav>
-      {!common.canWrite && <p role="status">Sua sessão permite somente consulta.</p>}
-      <div key={section} className="pa-admin-content">
-        {sectionScope && (
-          <Button variant="secondary" onPress={() => setSectionScope(null)}>
-            Usar toda a escola
-          </Button>
-        )}
-        {content}
-      </div>
+      <Tabs
+        selectedKey={section}
+        onSelectionChange={(key) => {
+          const next = studentPortalSections.find((item) => item.id === key);
+          if (!next || !allowDraftNavigationV1()) return;
+          pendingScope.current = null;
+          if (section === next.id) {
+            setTarget(null);
+            setSectionScope(null);
+            qr.clear();
+          } else window.location.hash = studentPortalHref(next.id);
+        }}
+      >
+        <Tabs.ListContainer className="max-w-full overflow-x-auto">
+          <Tabs.List aria-label="Áreas do Painel do Aluno">
+            {studentPortalSections.map((item) => (
+              <Tabs.Tab key={item.id} id={item.id}>
+                {item.label}
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs.ListContainer>
+        <Tabs.Panel id={section} className="pa-admin-content">
+          {!common.canWrite && (
+            <p role="status" className="text-xs text-muted">
+              Somente leitura
+            </p>
+          )}
+          {sectionScope && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onPress={() => {
+                if (allowDraftNavigationV1()) setSectionScope(null);
+              }}
+            >
+              Toda a escola
+            </Button>
+          )}
+          <div key={section}>{content}</div>
+        </Tabs.Panel>
+      </Tabs>
       {qr.dialog}
     </section>
   );

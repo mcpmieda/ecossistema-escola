@@ -14,20 +14,20 @@ export const SETTINGS_LABELS_V1: Record<SettingsFieldV1, string> = {
   autoUpdate: 'Atualização automática',
   showFinalResult: 'Resultado final',
   allowedPeriods: 'Períodos permitidos',
-  risk: 'Sessão e proteção de acesso',
-  calendar: 'Calendário',
+  risk: 'Segurança do acesso',
+  calendar: 'Datas',
 };
 export const PERIODS_V1 = ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'] as const;
 export const CALENDAR_LABELS_V1 = {
   enrollmentStartsAt: 'Início das matrículas',
-  yearStartsAt: 'Início do ano / T1',
-  t1EndsAt: 'Fim de T1',
-  t2StartsAt: 'Início de T2',
-  t2EndsAt: 'Fim de T2',
-  t3StartsAt: 'Início de T3',
-  t3EndsAt: 'Fim de T3',
+  yearStartsAt: 'Início do ano e 1º trimestre',
+  t1EndsAt: 'Encerramento do 1º trimestre',
+  t2StartsAt: 'Início do 2º trimestre',
+  t2EndsAt: 'Encerramento do 2º trimestre',
+  t3StartsAt: 'Início do 3º trimestre',
+  t3EndsAt: 'Encerramento do 3º trimestre',
   recoveriesStartAt: 'Início das recuperações',
-  yearEndsAt: 'Fim do ano e limite das sessões',
+  yearEndsAt: 'Encerramento do ano e dos acessos',
   finalDisclosureAt: 'Divulgação do resultado final',
 } as const;
 export function settingsScopeKeyV1(input: ScopeV1): string {

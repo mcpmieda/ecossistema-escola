@@ -88,7 +88,7 @@ function setup(
     },
   };
 }
-const ready = () => screen.findByRole('heading', { name: 'T1' });
+const ready = () => screen.findByRole('heading', { name: '1º trimestre' });
 describe('publication interface', () => {
   it('renders six independent server states and read-only policy without actions for no-data', async () => {
     const mock = setup();
@@ -97,12 +97,18 @@ describe('publication interface', () => {
     render(createElement(StudentPublicationV1, mock.props));
     await ready();
     for (const period of ['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3'])
-      expect(screen.getByRole('heading', { name: period })).toBeTruthy();
-    expect(screen.getByText('Ligada: afeta somente períodos já publicados.')).toBeTruthy();
+      expect(
+        screen.getByRole('heading', {
+          name: period.startsWith('REC')
+            ? `Recuperação ${period.slice(3)}`
+            : `${period.slice(1)}º trimestre`,
+        }),
+      ).toBeTruthy();
+    expect(screen.getByText('Ligada')).toBeTruthy();
     expect(screen.getByText('Finais e parciais')).toBeTruthy();
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Publicar T3' })).toBeNull();
-    expect(screen.getAllByText('Não definida')).toHaveLength(7);
+    expect(screen.getAllByText('Não definida')).toHaveLength(1); // Dates without values are omitted from repeated cards.
     expect(mock.writes).toHaveLength(0);
   });
   it('reviews only the chosen period and does not equate command acceptance with materialization', async () => {
@@ -114,7 +120,7 @@ describe('publication interface', () => {
     expect(mock.writes).toHaveLength(0);
     expect(within(screen.getByRole('dialog')).getByText('synthetic:2026:revision:2')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
-    await screen.findByText('Decisão de T1 aceita pelo servidor.');
+    await screen.findByText('1º trimestre: solicitação aceita.');
     await screen.findByRole('button', { name: 'Parar acompanhamento' });
     expect(mock.writes).toHaveLength(1);
     expect(mock.writes[0]).toMatchObject({
@@ -125,7 +131,9 @@ describe('publication interface', () => {
       targetDataVersion: 'synthetic:2026:revision:2',
     });
     await ready();
-    const card = screen.getByRole('heading', { name: 'T1' }).closest('.pa-publication-card')!;
+    const card = screen
+      .getByRole('heading', { name: '1º trimestre' })
+      .closest('.pa-publication-card')!;
     expect(within(card as HTMLElement).getByText('Dados disponíveis')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Parar acompanhamento' }));
     await screen.findByText(
@@ -164,8 +172,8 @@ describe('publication interface', () => {
       expectedVersion: 9,
       targetDataVersion: 'synthetic:2026:revision:2',
     });
-    expect(screen.queryByRole('button', { name: 'Repetir a mesma decisão' })).toBeNull();
-    await user.click(await screen.findByRole('button', { name: 'Recarregar estado' }));
+    expect(screen.queryByRole('button', { name: 'Tentar novamente' })).toBeNull();
+    await user.click(await screen.findByRole('button', { name: 'Recarregar' }));
     await ready();
     await user.click(screen.getByRole('button', { name: 'Publicar atualização de T2' }));
     expect(within(screen.getByRole('dialog')).getByText('synthetic:2026:revision:3')).toBeTruthy();
@@ -190,7 +198,7 @@ describe('publication interface', () => {
     ).toBeTruthy();
     expect(mock.writes).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Confirmar retirada' }));
-    await screen.findByText('A consulta agregada não apresenta revisão publicada nesse período.');
+    await screen.findByText('Publicação retirada para este grupo.');
     expect(mock.writes[0]).toMatchObject({
       operation: 'unpublish',
       period: 'T2',
@@ -198,7 +206,7 @@ describe('publication interface', () => {
       confirmed: true,
     });
     expect(mock.writes[0]).not.toHaveProperty('targetDataVersion');
-    const remaining = (await screen.findByRole('heading', { name: 'REC1' })).closest(
+    const remaining = (await screen.findByRole('heading', { name: 'Recuperação 1' })).closest(
       '.pa-publication-card',
     )!;
     expect(within(remaining as HTMLElement).getByText('Publicado')).toBeTruthy();
@@ -237,7 +245,7 @@ describe('publication interface', () => {
     const view = render(
       createElement(StudentPublicationV1, { client, scope: SETTINGS_CLASS_V1, canWrite: true }),
     );
-    expect(screen.queryByRole('heading', { name: 'T1' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: '1º trimestre' })).toBeNull();
     view.rerender(
       createElement(StudentPublicationV1, { client, scope: SETTINGS_SCHOOL_V1, canWrite: true }),
     );
@@ -264,10 +272,10 @@ describe('publication interface', () => {
     await ready();
     await user.click(screen.getByRole('button', { name: 'Publicar T1' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar publicação' }));
-    await screen.findByRole('button', { name: 'Repetir a mesma decisão' });
+    await screen.findByRole('button', { name: 'Tentar novamente' });
     expect(screen.queryByRole('dialog')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Repetir a mesma decisão' }));
-    await screen.findByText('Decisão de T1 aceita pelo servidor.');
+    await user.click(screen.getByRole('button', { name: 'Tentar novamente' }));
+    await screen.findByText('1º trimestre: solicitação aceita.');
     expect(mock.bodies).toHaveLength(3);
     expect(new Set(mock.bodies).size).toBe(1);
   });
@@ -278,8 +286,8 @@ describe('publication interface', () => {
     render(
       createElement(StudentPublicationV1, { client, scope: SETTINGS_CLASS_V1, canWrite: true }),
     );
-    await screen.findByText('Consulta indisponível. Nenhum estado de publicação será inferido.');
-    expect(screen.queryByRole('heading', { name: 'T1' })).toBeNull();
+    await screen.findByText('Consulta indisponível. Tente novamente.');
+    expect(screen.queryByRole('heading', { name: '1º trimestre' })).toBeNull();
     expect(screen.queryByText('Sem dados')).toBeNull();
   });
 });

@@ -9,13 +9,13 @@ export const studentPortalSections = [
   { id: 'overview', label: 'Visão geral', description: 'Contas, acesso e saúde operacional.' },
   {
     id: 'accounts',
-    label: 'Contas',
+    label: 'Alunos',
     description: 'Pesquisar alunos, abrir fichas e gerenciar acesso.',
   },
   {
     id: 'birth',
-    label: 'Dados de acesso',
-    description: 'Ano de nascimento e procedência por turma.',
+    label: 'Nascimento',
+    description: 'Cadastrar o ano de nascimento por turma.',
   },
   {
     id: 'credentials',
@@ -24,19 +24,19 @@ export const studentPortalSections = [
   },
   {
     id: 'publication',
-    label: 'Publicação',
+    label: 'Notas publicadas',
     description: 'Publicar, atualizar ou retirar períodos.',
   },
   {
     id: 'sessions',
     label: 'Sessões',
-    description: 'Consultar e revogar sessões por aluno ou turma.',
+    description: 'Ver acessos ativos e histórico.',
   },
   { id: 'audit', label: 'Auditoria', description: 'Consultar eventos e detalhes autorizados.' },
   {
     id: 'settings',
     label: 'Configurações',
-    description: 'Acesso, herança, calendário e vínculos.',
+    description: 'Acesso, datas e turmas.',
   },
 ] as const;
 export type StudentPortalSection = (typeof studentPortalSections)[number]['id'];

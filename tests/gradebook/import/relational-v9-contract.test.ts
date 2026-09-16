@@ -13,7 +13,10 @@ import {
   recognizeMasterRelationV9,
 } from '../../../src/features/gradebook/import/master-relation-v9';
 import type { BatchSuccess } from '../../../src/features/gradebook/import/import-batch';
-import type { Workbook, Worksheet } from '../../../src/features/gradebook/import/spreadsheet-recognizer';
+import type {
+  Workbook,
+  Worksheet,
+} from '../../../src/features/gradebook/import/spreadsheet-recognizer';
 
 function sheet(cells: Record<string, unknown>): Worksheet {
   return Object.fromEntries(
@@ -216,8 +219,10 @@ describe('gradebook relational import v9', () => {
       ],
     };
     expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
-    expect(inspectGradebookImportPersistenceRequestV9({...request, ano: 2025})).toBe('ready');
-    expect(inspectGradebookImportPersistenceRequestV9({...request, ano: 1999})).toBe('invalid-request');
+    expect(inspectGradebookImportPersistenceRequestV9({ ...request, ano: 2025 })).toBe('ready');
+    expect(inspectGradebookImportPersistenceRequestV9({ ...request, ano: 1999 })).toBe(
+      'invalid-request',
+    );
   });
 
   it('validates explicit empty, unavailable and N/C without student names in teacher rows', () => {
@@ -233,7 +238,11 @@ describe('gradebook relational import v9', () => {
           disciplina: 'MATEMÁTICA',
           trimestres: [1, 2, 3].map((trimestre) => ({
             trimestre: trimestre as 1 | 2 | 3,
-            instrumentos: [[1, 10000], [2, 10000], [3, null]],
+            instrumentos: [
+              [1, 10000],
+              [2, 10000],
+              [3, null],
+            ],
             alunos: [[1, [7250, null, ['u'] as const], null]],
           })) as unknown as GradebookNotesImportRequestV9['ofertas'][number]['trimestres'],
           recuperacao: [[1, ['n'], ['r'], ['u'], 60000]],
@@ -241,7 +250,35 @@ describe('gradebook relational import v9', () => {
       ],
     };
     expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
-    expect(inspectGradebookImportPersistenceRequestV9({...request, ano: 2025})).toBe('ready');
+    expect(inspectGradebookImportPersistenceRequestV9({ ...request, ano: 2025 })).toBe('ready');
     expect(JSON.stringify(request)).not.toContain('ALUNO TESTE');
+  });
+});
+
+describe('granular source observations #817', () => {
+  it('preserves numeric and formula zero, blank and unavailable from the actual observed source cells', () => {
+    for (const [raw, expected] of [
+      [0, 0],
+      ['', null],
+      [0.1, 0],
+      [undefined, ['u']],
+    ] as const) {
+      const original = teacherResultWithAboveMaximum();
+      const sheet = original.summary.gradeSheets[0]!;
+      const snapshotCellsV8 = { ...sheet.snapshotCellsV8 };
+      if (raw === undefined) delete snapshotCellsV8.R5;
+      else snapshotCellsV8.R5 = raw;
+      const input = {
+        ...original,
+        summary: {
+          ...original.summary,
+          gradeSheets: [{ ...sheet, snapshotCellsV8 }, ...original.summary.gradeSheets.slice(1)],
+        },
+      };
+      const result = createGradebookCanonicalImportRequestV9(input);
+      expect(result).toMatchObject({ granularObservationVersion: 1, operation: 'persist-notas' });
+      if (result.operation !== 'persist-notas') throw new Error('notes expected');
+      expect(result.ofertas[0]?.trimestres[0].alunos[0]?.[1][0]).toEqual(expected);
+    }
   });
 });

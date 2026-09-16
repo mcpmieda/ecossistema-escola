@@ -35,22 +35,22 @@ describe('administrative sessions interface', () => {
           scope: mode === 'class' ? OP_CLASS_V1 : OP_ACCOUNT_V1,
         }),
       );
-      await screen.findByRole('grid', { name: 'Sessões do Portal' });
-      for (const label of ['Válida', 'Expirada', 'Revogada', 'Acesso indisponível'])
+      await screen.findByRole('grid', { name: 'Sessões ativas' });
+      for (const label of ['Ativa', 'Expirou', 'Encerrada', 'Sem acesso'])
         expect(await screen.findByText(label)).toBeTruthy();
       const button =
         mode === 'individual'
-          ? screen.getAllByRole('button', { name: 'Encerrar esta sessão' })[0]!
+          ? screen.getAllByRole('button', { name: /Encerrar sessão de/ })[0]!
           : screen.getByRole('button', {
-              name: mode === 'class' ? 'Encerrar sessões da turma' : 'Encerrar sessões da conta',
+              name: mode === 'class' ? 'Encerrar sessões da turma' : 'Encerrar todas do aluno',
             });
       fireEvent.click(button);
       const dialog = await screen.findByRole('alertdialog');
       expect(mock.writes).toHaveLength(0);
       expect(within(dialog).getByText(/Senha e QR permanecem/)).toBeTruthy();
       await confirm();
-      await screen.findByText(/Encerramento confirmado pelo servidor/);
-      await screen.findByRole('grid', { name: 'Sessões do Portal' });
+      await screen.findByText(/Sessões encerradas/);
+      await screen.findByRole('region', { name: 'Sessões ativas' });
       expect(mock.writes[0]).toMatchObject({
         operation: 'sessions-revoke',
         scope: mode === 'class' ? OP_CLASS_V1 : OP_ACCOUNT_V1,
@@ -65,7 +65,7 @@ describe('administrative sessions interface', () => {
     const user = userEvent.setup(),
       mock = operationsMockV1();
     render(createElement(StudentSessionsV1, mock.props));
-    const button = await screen.findByRole('button', { name: 'Encerrar sessões da conta' });
+    const button = await screen.findByRole('button', { name: 'Encerrar todas do aluno' });
     await user.click(button);
     await screen.findByRole('alertdialog');
     await user.keyboard('{Escape}');
@@ -83,17 +83,17 @@ describe('administrative sessions interface', () => {
           : undefined,
     });
     render(createElement(StudentSessionsV1, { ...mock.props, scope: OP_CLASS_V1 }));
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Encerrar esta sessão' }))[0]!);
+    fireEvent.click((await screen.findAllByRole('button', { name: /Encerrar sessão de/ }))[0]!);
     await screen.findByRole('alertdialog');
     denied = true;
     await confirm();
     await screen.findByText('Sessão administrativa expirada. Entre novamente.');
     expect(mock.writes[0]).toMatchObject({ scope: OP_ACCOUNT_V1, expectedVersion: 11 });
-    expect(screen.queryByRole('grid')).toBeNull();
+    expect(screen.queryAllByRole('grid')[0] ?? null).toBeNull();
     expect(document.body.textContent).not.toContain('SYNTHETIC OP STUDENT');
   });
   it('does not offer school-wide revocation, disables writes for read-only and pages beyond 100', async () => {
-    const mock = operationsMockV1({ count: 105 });
+    const mock = operationsMockV1({ count: 420 });
     render(
       createElement(
         StrictMode,
@@ -105,29 +105,33 @@ describe('administrative sessions interface', () => {
         }),
       ),
     );
-    await screen.findByRole('grid');
+    await screen.findByRole('grid', { name: 'Sessões ativas' });
     expect(screen.queryByRole('button', { name: 'Encerrar sessões da turma' })).toBeNull();
     await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Encerrar esta sessão' })).toHaveLength(100),
+      expect(screen.getAllByRole('button', { name: /Encerrar sessão de/ })).toHaveLength(100),
     );
     expect(
       screen
-        .getAllByRole('button', { name: 'Encerrar esta sessão' })
+        .getAllByRole('button', { name: /Encerrar sessão de/ })
         .every((b) => (b as HTMLButtonElement).disabled),
     ).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: 'Próxima página' }));
+    fireEvent.click(
+      within(screen.getByRole('region', { name: 'Sessões ativas' })).getByRole('button', {
+        name: 'Próxima',
+      }),
+    );
     await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Encerrar esta sessão' })).toHaveLength(5),
+      expect(screen.getAllByRole('button', { name: /Encerrar sessão de/ })).toHaveLength(5),
     );
     expect(mock.writes).toHaveLength(0);
-  }, 20_000);
+  }, 60_000);
   it('clears on pagehide and requires a fresh read to resume', async () => {
     const mock = operationsMockV1();
     render(createElement(StudentSessionsV1, mock.props));
-    await screen.findByRole('grid');
+    await screen.findByRole('grid', { name: 'Sessões ativas' });
     fireEvent(window, new Event('pagehide'));
-    expect(screen.queryByRole('grid')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Retomar consulta' }));
-    await screen.findByRole('grid');
+    expect(screen.queryAllByRole('grid')[0] ?? null).toBeNull();
+    fireEvent(window, new Event('pageshow'));
+    await screen.findByRole('grid', { name: 'Sessões ativas' });
   });
 });

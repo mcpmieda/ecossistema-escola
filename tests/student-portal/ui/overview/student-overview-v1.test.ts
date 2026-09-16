@@ -43,7 +43,7 @@ describe('actual operational summary and health', () => {
     render(createElement(StudentOverviewV1, mock.props));
     await screen.findByText('Limite temporário. Aguarde para consultar novamente.');
     expect(
-      (screen.getByRole('button', { name: 'Recarregar consulta' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Tentar novamente' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     expect(document.querySelector('dl')).toBeNull();
   });

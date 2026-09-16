@@ -36,7 +36,20 @@ export const academicSubjectSchemaV1 = z
             period: z.enum(['T1', 'T2', 'T3', 'REC1', 'REC2', 'REC3']),
             final: academicMarkSchemaV1,
             partials: z
-              .array(z.object({ assessmentId: id, label, mark: academicMarkSchemaV1 }).strict())
+              .array(
+                z
+                  .object({
+                    assessmentId: id,
+                    label,
+                    mark: academicMarkSchemaV1,
+                    notDone: z.literal(true).optional(),
+                  })
+                  .strict()
+                  .refine(
+                    (value) => !value.notDone || value.mark.kind === 'absent',
+                    'Observation/value mismatch',
+                  ),
+              )
               // AV1, AV2, parallel recovery and ten qualitative activities.
               .max(13)
               .optional(),

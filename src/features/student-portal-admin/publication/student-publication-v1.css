@@ -1,6 +1,6 @@
 .pa-publication {
   display: grid;
-  gap: 1rem;
+  gap: 0.65rem;
   min-width: 0;
   color: var(--foreground);
 }
@@ -40,8 +40,8 @@
 }
 .pa-publication-periods {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
 }
 .pa-publication-card,
 .pa-publication-policy {
@@ -51,7 +51,7 @@
 .pa-publication-card .card__content,
 .pa-publication-policy .card__content {
   display: grid;
-  gap: 1rem;
+  gap: 0.65rem;
 }
 .pa-publication-details {
   display: grid;
@@ -96,7 +96,7 @@
 }
 .pa-publication-review {
   display: grid;
-  gap: 1rem;
+  gap: 0.65rem;
   font-size: 0.875rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -110,6 +110,20 @@
   text-align: center;
 }
 @media (max-width: 640px) {
+  .pa-publication-periods {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pa-publication-policy .pa-publication-details {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+@media (max-width: 950px) {
+  .pa-publication-periods {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
   .pa-publication-periods {
     grid-template-columns: minmax(0, 1fr);
   }

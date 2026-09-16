@@ -2,7 +2,7 @@
   min-width: 0;
   max-width: 100%;
   display: grid;
-  gap: 1rem;
+  gap: 0.65rem;
 }
 .pa-operations-card {
   min-width: 0;
@@ -26,13 +26,13 @@
 }
 .pa-operations-filters > * {
   min-width: 0;
-  max-width: 100%;
-  flex: 1 1 12rem;
+  max-width: 18rem;
+  flex: 0 1 16rem;
 }
 .pa-operations-actions button {
   white-space: normal;
   height: auto;
-  min-height: 2.5rem;
+  min-height: 2rem;
   padding-block: 0.5rem;
 }
 .pa-operations-scroll {
@@ -41,7 +41,7 @@
   overflow: auto;
 }
 .pa-operations-scroll table {
-  min-width: 780px;
+  min-width: 650px;
 }
 .pa-operations-scroll td {
   overflow-wrap: anywhere;
@@ -79,7 +79,7 @@
 .pa-operations-dialog [data-slot='modal-footer'] button {
   flex: 1 1 8rem;
   white-space: normal;
-  min-height: 2.5rem;
+  min-height: 2rem;
   height: auto;
 }
 .pa-operations-detail {
@@ -104,4 +104,20 @@
   .pa-operations-scroll {
     max-height: 27rem;
   }
+}
+
+.pa-context-controls {
+  display: flex;
+  align-items: end;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+.pa-session-feed {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+.pa-session-feed h3 {
+  font-size: 1rem;
+  font-weight: 650;
 }

@@ -118,7 +118,7 @@ describe('annual published grades', () => {
       'II AVALIAÇÃO',
     ]);
     expect(within(detail).getByText(/Atividade com descrição oficial extensa/u)).toBeTruthy();
-    expect(within(detail).getByLabelText('0 de 10. Abaixo do mínimo institucional')).toBeTruthy();
+    expect(within(detail).getByText('Tirou zero')).toBeTruthy();
     expect(within(detail).getByLabelText('1,5. Classificação indisponível').textContent).toBe(
       '1,5',
     );
@@ -136,7 +136,7 @@ describe('annual published grades', () => {
     expect(within(first).getByText('N/C')).toBeTruthy();
     expect(within(first).getByText('R/R')).toBeTruthy();
     expect(within(first).getAllByLabelText('Ainda não lançado')).toHaveLength(2);
-    expect(within(first).getByText('0')).toBeTruthy();
+    expect(within(first).getByText('Tirou zero')).toBeTruthy();
   });
   it('shows only official per-subject outcomes; regular stays Em curso and assisted has no inferred outcome', () => {
     const data = gradesFixtureV1(false);

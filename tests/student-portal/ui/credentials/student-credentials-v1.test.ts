@@ -49,7 +49,9 @@ describe('credential preparation UI', () => {
     });
     expect((checkbox as HTMLInputElement).disabled).toBe(true);
     expect(screen.getByText('Confirme o ano de nascimento')).toBeTruthy();
-    expect(screen.getByText('Corrija a pendência antes de preparar o cartão')).toBeTruthy();
+    expect(
+      (screen.getByRole('button', { name: 'Preparar PDF' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
   it('allows issuing a missing QR but does not offer an impossible reprint', async () => {
     const mock = qrMockV1();
@@ -63,12 +65,10 @@ describe('credential preparation UI', () => {
       await screen.findByRole('checkbox', { name: 'Selecionar SYNTHETIC PRINT 001' }),
     );
     expect(
-      (screen.getByRole('button', { name: 'Emitir ou recuperar QR' }) as HTMLButtonElement)
-        .disabled,
+      (screen.getByRole('button', { name: 'Gerar QR individual' }) as HTMLButtonElement).disabled,
     ).toBe(false);
     expect(
-      (screen.getByRole('button', { name: 'Reimprimir QR existente' }) as HTMLButtonElement)
-        .disabled,
+      (screen.getByRole('button', { name: 'Reimprimir QR' }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
   it('allows restoring a missing QR for an active account without offering reprint', async () => {
@@ -84,12 +84,10 @@ describe('credential preparation UI', () => {
       await screen.findByRole('checkbox', { name: 'Selecionar SYNTHETIC PRINT 001' }),
     );
     expect(
-      (screen.getByRole('button', { name: 'Emitir ou recuperar QR' }) as HTMLButtonElement)
-        .disabled,
+      (screen.getByRole('button', { name: 'Gerar QR individual' }) as HTMLButtonElement).disabled,
     ).toBe(false);
     expect(
-      (screen.getByRole('button', { name: 'Reimprimir QR existente' }) as HTMLButtonElement)
-        .disabled,
+      (screen.getByRole('button', { name: 'Reimprimir QR' }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
   it('defaults to QR/name/class, captures scope CAS and selected IDs only after review', async () => {
@@ -117,7 +115,7 @@ describe('credential preparation UI', () => {
       classId: 755001,
       confirmed: true,
     });
-    expect(screen.queryByRole('button', { name: 'Copiar somente imagem QR' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Copiar imagem' })).toBeNull();
     expect(document.body.textContent).not.toContain('/access#');
   });
   it('cancels review with Escape, restores focus and does not issue a credential', async () => {
@@ -157,9 +155,9 @@ describe('credential preparation UI', () => {
       }),
     );
     await screen.findByRole('checkbox', { name: 'Selecionar SYNTHETIC PRINT 001' });
-    fireEvent.click(screen.getByRole('button', { name: 'Reimprimir QR existente' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reimprimir QR' }));
     await confirm();
-    fireEvent.click(await screen.findByRole('button', { name: 'Copiar somente imagem QR' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Copiar imagem' }));
     await screen.findByText(/A cópia de imagem não está disponível/);
     expect(screen.getByRole('button', { name: 'Baixar imagem QR' })).toBeTruthy();
     expect(mock.writes[0]).toMatchObject({
@@ -173,16 +171,17 @@ describe('credential preparation UI', () => {
     const mock = qrMockV1({ count: 105 });
     render(createElement(StudentCredentialsV1, mock.props));
     fireEvent.click(
-      await screen.findByRole('checkbox', { name: 'Selecionar contas disponíveis desta página' }),
+      await screen.findByRole('checkbox', { name: 'Selecionar alunos disponíveis desta página' }),
     );
-    expect(screen.getByText(/100 selecionada/)).toBeTruthy();
+    expect(screen.getByText(/100 selecionados/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Preparar PDF' }));
     await confirm();
     await screen.findByRole('button', { name: 'Baixar PDF' });
     expect(mock.writes[0]?.operation === 'qr-batch' && mock.writes[0].accountIds.length).toBe(100);
     fireEvent.click(screen.getByRole('button', { name: 'Próxima página' }));
     await screen.findByText('SYNTHETIC PRINT 101');
-    expect(screen.getByText(/5 conta\(s\) nesta página · 0 selecionada/)).toBeTruthy();
+    expect(screen.getByText('5 alunos')).toBeTruthy();
+    expect(screen.getByText('0 selecionados')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Baixar PDF' })).toBeNull();
   }, 20_000);
   it('drops artifacts and selection when identity or capability changes', async () => {
@@ -199,7 +198,7 @@ describe('credential preparation UI', () => {
         canWrite: false,
       }),
     );
-    await screen.findByText(/Sua permissão não permite/);
+    await screen.findByText('Somente leitura');
     expect(screen.queryByRole('button', { name: 'Baixar PDF' })).toBeNull();
     expect(
       (screen.getByRole('button', { name: 'Preparar PDF' }) as HTMLButtonElement).disabled,

@@ -1,3 +1,4 @@
+import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
 import {
   Component,
   lazy,
@@ -220,6 +221,7 @@ function GradebookWorkspaceShellContent() {
   const tabRefs = useRef(new Map<GradebookWorkspaceSurfaceId, HTMLButtonElement>());
 
   const activateSurface = (surfaceId: GradebookWorkspaceSurfaceId) => {
+    if (!allowDraftNavigationV1()) return;
     setVisitedSurfaces((current) => {
       if (current.has(surfaceId)) return current;
       const next = new Set(current);
@@ -259,7 +261,7 @@ function GradebookWorkspaceShellContent() {
   return (
     <section
       aria-labelledby="gradebook-workspace-heading"
-      className="grid min-w-0 grid-cols-1 gap-4"
+      className="gradebook-workspace grid min-w-0 grid-cols-1 gap-4"
     >
       <h2 id="gradebook-workspace-heading" className="sr-only">
         Banco de notas
@@ -330,6 +332,8 @@ function GradebookWorkspaceShellContent() {
                         : scope?.epoch;
                     if (surface.id === 'performance')
                       return <PerformancePage key={scopeKey} isActive={active} />;
+                    if (surface.id === 'settings')
+                      return <SettingsPage key={scopeKey} isActive={active} />;
                     if (surface.id === 'reports')
                       return <InstitutionalReportsPage key={scopeKey} isActive={active} />;
                     return <SurfaceComponent key={scopeKey} />;

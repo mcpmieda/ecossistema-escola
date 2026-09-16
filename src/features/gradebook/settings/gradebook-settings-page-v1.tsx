@@ -13,6 +13,7 @@ import {
 import { CheckCircle2, Database, RefreshCcw, ShieldAlert } from 'lucide-react';
 import type { YearResetResponseV1 } from '../../../../shared/gradebook-contracts/settings/year-reset-contract-v1';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
+import { AssessmentNamesV1 } from './assessment-names-v1';
 import { requestYearResetV1 } from './year-reset-client-v1';
 
 type Preview = Extract<YearResetResponseV1, { state: 'ready'; operation: 'preview' }>;
@@ -48,7 +49,7 @@ function failureMessage(state: Exclude<YearResetResponseV1['state'], 'ready'>): 
   return 'Não foi possível concluir a operação com segurança. Nenhum reset foi confirmado.';
 }
 
-export function GradebookSettingsPageV1() {
+export function GradebookSettingsPageV1({ isActive = true }: { isActive?: boolean } = {}) {
   const scope = useGradebookYear();
   const year = scope?.year ?? null;
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -135,6 +136,7 @@ export function GradebookSettingsPageV1() {
 
   return (
     <div className="grid gap-4">
+      <AssessmentNamesV1 isActive={isActive} />
       <Surface className="overflow-hidden rounded-2xl border border-danger/25 bg-surface">
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-danger/20 bg-danger/5 p-5">
           <div className="flex min-w-0 gap-3">

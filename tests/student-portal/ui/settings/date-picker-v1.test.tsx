@@ -1,0 +1,45 @@
+import { it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { DateInputV1 } from '../../../../src/features/student-portal-admin/settings/settings-editors-v1';
+import { useState } from 'react';
+import { setupOperationsDomV1 } from '../overview/dom-v1';
+beforeEach(setupOperationsDomV1);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+function Demo({ initial = '' }: { initial?: string }) {
+  const [value, set] = useState(initial);
+  return (
+    <>
+      <DateInputV1 label="Teste" value={value} onChange={set} disabled={false} />
+      <output>{value}</output>
+    </>
+  );
+}
+it('accepts a pt-BR segmented date and time with the native HeroUI composition', async () => {
+  render(<Demo />);
+  const user = userEvent.setup();
+  for (const [part, value] of [
+    ['dia', '02'],
+    ['mês', '12'],
+    ['ano', '2026'],
+    ['hora', '08'],
+    ['minuto', '00'],
+  ]) {
+    const el = screen.getByRole('spinbutton', { name: new RegExp(`^${part},`, 'i') });
+    await user.click(el);
+    await user.keyboard(value! + '{Tab}');
+  }
+  expect(document.querySelector('output')?.textContent).toBe('2026-12-02T08:00:00');
+});
+
+it('opens the real calendar, chooses a day and preserves the entered time', async () => {
+  render(<Demo initial="2026-12-02T08:30:00" />);
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: /Abrir calendário/ }));
+  const cell = await screen.findByRole('button', { name: /10 de dezembro de 2026/i });
+  await user.click(cell);
+  expect(document.querySelector('output')?.textContent).toBe('2026-12-10T08:30:00');
+});
