@@ -4,9 +4,9 @@ import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { useOperationalReadV1 } from '../overview/operations-values-v1';
 
 type CursorPage = { items: unknown[]; nextCursor: string | null };
-const INITIAL_ROWS = 1_000;
-/** Per-response transport limits remain unchanged. Normal lists are drained automatically;
- * large lists continue from their signed cursor only when their end enters the viewport. */
+const INITIAL_ROWS = 100;
+/** Keep the first interaction to one bounded response. Additional rows are appended only when
+ * the end sentinel approaches the viewport; already loaded rows are preserved on revalidation. */
 export async function collectCursorPagesV1<P extends CursorPage>(
   loadPage: (cursor: string | undefined, signal: AbortSignal) => Promise<P>,
   signal: AbortSignal,
