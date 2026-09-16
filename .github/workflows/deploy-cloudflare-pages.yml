@@ -18,7 +18,7 @@ jobs:
   deploy:
     name: Deploy production
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     environment: production
     steps:
       - name: Checkout
@@ -158,7 +158,6 @@ jobs:
             hyperdrive,
             services,
           };
-          // Detach only the obsolete binding. The historical D1 database is not deleted.
           delete config.d1_databases;
           await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
           NODE
