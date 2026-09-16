@@ -20,7 +20,7 @@ beforeEach(() => {
   // This is a native DOM/selector regression, not a browser geometry measurement.
   stylesheet.textContent = '.tabs__tab { width: 100%; }\n' +
     readFileSync('src/shared/ui/workspace-tabs-v1.css', 'utf8');
-  document.head.append(stylesheet);
+  document.head.appendChild(stylesheet);
 });
 afterEach(() => {
   cleanup();
