@@ -97,6 +97,7 @@ it('serializes simultaneous resets, rejects stale CAS, and replays the same rece
 it('does not resurrect a legacy individual approval and follows later school changes dynamically', async () => {
   await release(app, account, 'T2');
   const approvedRevision = await approved();
+  if (typeof approvedRevision !== 'string') throw new Error('Missing synthetic approved revision');
   await owner.unsafe(`INSERT INTO student_portal.publication(scope_key,scope_kind,academic_year,account_id,period,state,available_revision,published_revision,version)
     VALUES($1,'account',2026,$2::uuid,'T2','published',$3,$3,1)`, ['account:2026:' + account.accountId, account.accountId, approvedRevision]);
   await inheritPublicationV1(app, READ_ACTOR_V2, await resetInput());
