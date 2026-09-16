@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: deploy-cloudflare-pages
@@ -17,22 +18,14 @@ jobs:
   deploy:
     name: Deploy production
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 12
     environment: production
-    services:
-      postgres:
-        image: postgres:17.6
-        env:
-          POSTGRES_USER: portal_test_admin
-          POSTGRES_DB: portal705_test
-          POSTGRES_HOST_AUTH_METHOD: trust
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U portal_test_admin -d portal705_test"
-          --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -40,23 +33,93 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Verify expected production head
+      - name: Verify production head and locate exact PR gates
+        id: gates
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           test "$GITHUB_REF" = refs/heads/main
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
 
-      - name: Verify all applications and runtime
-        run: npm run verify
+          read -r -a parents <<< "$(git show -s --format='%P' HEAD)"
+          if [ "${#parents[@]}" -ne 2 ]; then
+            echo '::error::Production deploy requires a two-parent merge commit with PR provenance.'
+            exit 1
+          fi
+          pr_head_sha="${parents[1]}"
+          final_tree_sha="$(git rev-parse 'HEAD^{tree}')"
 
-      - name: Verify real PostgreSQL isolation
+          find_gate_run() {
+            local workflow="$1"
+            local response run_id
+            response="$(curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H 'Accept: application/vnd.github+json' \
+              -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?event=pull_request&head_sha=${pr_head_sha}&per_page=20")"
+            run_id="$(jq -r --arg head "$pr_head_sha" \
+              '[.workflow_runs[] | select(.head_sha == $head and .conclusion == "success")] | sort_by(.run_number) | last | .id // empty' \
+              <<< "$response")"
+            if ! [[ "$run_id" =~ ^[1-9][0-9]*$ ]]; then
+              echo "::error::No successful ${workflow} run exists for PR head ${pr_head_sha}." >&2
+              exit 1
+            fi
+            printf '%s' "$run_id"
+          }
+
+          validate_run_id="$(find_gate_run validate-pull-request.yml)"
+          runtime_run_id="$(find_gate_run deploy-student-portal.yml)"
+          echo "pr_head_sha=${pr_head_sha}" >> "$GITHUB_OUTPUT"
+          echo "final_tree_sha=${final_tree_sha}" >> "$GITHUB_OUTPUT"
+          echo "validate_run_id=${validate_run_id}" >> "$GITHUB_OUTPUT"
+          echo "runtime_run_id=${runtime_run_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact validated production inputs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: validated-production-inputs-v1
+          path: validated-production-inputs
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.gates.outputs.validate_run_id }}
+
+      - name: Download exact PostgreSQL gate provenance
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: validated-postgres-provenance-v1
+          path: validated-postgres-provenance
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.gates.outputs.runtime_run_id }}
+
+      - name: Prove both PR gates tested the production tree
         env:
-          PORTAL_TEST_DATABASE_URL: postgres://portal_test_admin@127.0.0.1:5432/portal705_test
-        run: npm run test:student-portal-postgres
+          PR_HEAD_SHA: ${{ steps.gates.outputs.pr_head_sha }}
+          FINAL_TREE_SHA: ${{ steps.gates.outputs.final_tree_sha }}
+          VALIDATE_RUN_ID: ${{ steps.gates.outputs.validate_run_id }}
+          RUNTIME_RUN_ID: ${{ steps.gates.outputs.runtime_run_id }}
+        run: >-
+          node --experimental-strip-types scripts/ci/provenance-v1.ts verify
+          validated-production-inputs/validate-provenance.json
+          validated-postgres-provenance/runtime-provenance.json
+
+      - name: Install production deployment dependencies
+        run: npm ci
+
+      - name: Restore exact validated Pages outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist node_modules/.cache/student-portal-edge
+          cp -a validated-production-inputs/dist dist
+          mkdir -p node_modules/.cache
+          cp -a validated-production-inputs/node_modules/.cache/student-portal-edge node_modules/.cache/student-portal-edge
+          test -f dist/index.html
+          test -f node_modules/.cache/student-portal-edge/_worker.js
+          test -f node_modules/.cache/student-portal-edge/wrangler.jsonc
 
       - name: Configure private production bindings
         shell: bash
