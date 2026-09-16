@@ -7,14 +7,12 @@ import { publicationDigestV1 } from './state-v1';
 import { scopedKeyV2 } from './scoped-source-v2';
 
 /** Same brief publication mutex, CAS and receipt discipline as explicit releases.
- * The existing application role only UPDATEs its existing row. No privileged routine,
- * DELETE grant, academic-year rewrite or unpublish surrogate is involved. */
+ * The strict command schema excludes the school. No DELETE or privileged routine. */
 export async function inheritPublicationV1(sql: StudentPortalPostgresSqlV1, actorId: string, input: unknown) {
   const actor = z.uuid().parse(actorId).toLowerCase();
   const command = publicationInheritCommandV1.parse(input);
   const scope = command.scope.kind === 'account'
     ? { ...command.scope, accountId: command.scope.accountId.toLowerCase() } : command.scope;
-  if (scope.kind === 'school') throw new Error('student-portal-school-cannot-inherit');
   const digest = publicationDigestV1({ ...command, scope });
   const receiptActor = `publication-inherit:${actor}`;
   return sql.begin(async (tx) => {

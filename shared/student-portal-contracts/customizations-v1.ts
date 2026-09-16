@@ -4,36 +4,22 @@ import { accountStateV1, commandMetaV1, instantV1, opaqueV1, periodV1, portalIdV
 
 /** Current differences only. A publication decision is not a grant of student access. */
 export const publicationChoiceV1 = z.object({
-  source: scopeV1.nullable(),
-  revision: revisionV1.nullable(),
-  version: versionV1.nullable(),
+  source: scopeV1.nullable(), revision: revisionV1.nullable(), version: versionV1.nullable(),
 }).strict();
 export const publicationContextItemV1 = z.object({
-  period: periodV1,
-  current: publicationChoiceV1,
-  inherited: publicationChoiceV1,
-  school: publicationChoiceV1,
-  customized: z.boolean(),
-  ownVersion: versionV1.nullable(),
+  period: periodV1, current: publicationChoiceV1, inherited: publicationChoiceV1, school: publicationChoiceV1,
+  customized: z.boolean(), ownVersion: versionV1.nullable(),
 }).strict();
 export const customizationRowV1 = z.object({
   id: z.string().regex(/^(?:class:2026:[1-9]\d*|account:2026:[0-9a-f-]{36})$/u),
   scope: scopeV1.refine((scope) => scope.kind !== 'school'),
-  label: z.string().max(200),
-  classLabel: z.string().max(80),
+  label: z.string().max(200), classLabel: z.string().max(80),
   classId: z.number().int().positive().safe().nullable(),
-  accountState: accountStateV1.nullable(),
-  accountVersion: versionV1.nullable(),
-  settingsVersion: versionV1,
-  publicationVersion: versionV1,
-  value: settingsOverrideV1.nullable(),
-  inheritedValue: settingsOverrideV1.nullable(),
-  schoolValue: settingsOverrideV1.nullable(),
-  blocked: z.boolean(),
-  publications: z.array(publicationContextItemV1).max(6),
-  updatedAt: instantV1,
+  accountState: accountStateV1.nullable(), accountVersion: versionV1.nullable(),
+  settingsVersion: versionV1, publicationVersion: versionV1,
+  value: settingsOverrideV1.nullable(), inheritedValue: settingsOverrideV1.nullable(), schoolValue: settingsOverrideV1.nullable(),
+  blocked: z.boolean(), publications: z.array(publicationContextItemV1).max(6), updatedAt: instantV1,
 }).strict().superRefine((row, ctx) => {
-  if (row.scope.kind === 'school') return;
   const id = row.scope.kind === 'class' ? `class:2026:${row.scope.classId}` : `account:2026:${row.scope.accountId.toLowerCase()}`;
   if (row.id !== id || (row.scope.kind === 'class' && (row.classId !== row.scope.classId || row.blocked)))
     ctx.addIssue({ code: 'custom', message: 'Invalid customization owner' });
@@ -47,25 +33,19 @@ export const customizationRowV1 = z.object({
     ctx.addIssue({ code: 'custom', message: 'Missing option comparison' });
 });
 export const customizationsResponseV1 = z.object({
-  contractVersion: z.literal(2),
-  state: z.literal('customizations-read'),
-  requestId: portalIdV1,
-  observedAt: instantV1,
-  scope: scopeV1,
-  publicationVersion: versionV1,
-  items: z.array(customizationRowV1).max(100),
-  nextCursor: opaqueV1.nullable(),
+  contractVersion: z.literal(2), state: z.literal('customizations-read'), requestId: portalIdV1,
+  observedAt: instantV1, scope: scopeV1, publicationVersion: versionV1,
+  items: z.array(customizationRowV1).max(100), nextCursor: opaqueV1.nullable(),
   context: z.object({
-    scope: scopeV1.refine((scope) => scope.kind !== 'school'),
-    resolved: z.boolean(),
+    scope: scopeV1.refine((scope) => scope.kind !== 'school'), resolved: z.boolean(),
     publications: z.array(publicationContextItemV1).max(6),
   }).strict().nullable(),
 }).strict().superRefine((page, ctx) => {
   if (new Set(page.items.map((item) => item.id)).size !== page.items.length)
     ctx.addIssue({ code: 'custom', message: 'Duplicate customization owner' });
   for (const row of page.items) {
-    if (page.scope.kind === 'class' && row.classId !== page.scope.classId ||
-        page.scope.kind === 'account' && (row.scope.kind !== 'account' || row.scope.accountId.toLowerCase() !== page.scope.accountId.toLowerCase()))
+    if ((page.scope.kind === 'class' && row.classId !== page.scope.classId) ||
+        (page.scope.kind === 'account' && (row.scope.kind !== 'account' || row.scope.accountId.toLowerCase() !== page.scope.accountId.toLowerCase())))
       ctx.addIssue({ code: 'custom', message: 'Customization scope mismatch' });
   }
   if (page.context && JSON.stringify(page.context.scope) !== JSON.stringify(page.scope))
@@ -73,12 +53,9 @@ export const customizationsResponseV1 = z.object({
 });
 /** Deactivates exactly one own release decision; never unpublishes or copies a parent. */
 export const publicationInheritCommandV1 = z.object({
-  ...commandMetaV1,
-  operation: z.literal('publication-inherit'),
-  scope: scopeV1.refine((scope) => scope.kind !== 'school'),
-  period: periodV1,
-  expectedDecisionVersion: versionV1,
-  confirmed: z.literal(true),
+  ...commandMetaV1, operation: z.literal('publication-inherit'),
+  scope: scopeV1.refine((scope) => scope.kind !== 'school'), period: periodV1,
+  expectedDecisionVersion: versionV1, confirmed: z.literal(true),
 }).strict();
 export type CustomizationRowV1 = z.infer<typeof customizationRowV1>;
 export type PublicationContextItemV1 = z.infer<typeof publicationContextItemV1>;
