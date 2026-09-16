@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentAccountsV1 } from '../../../../src/features/student-portal-admin/accounts/student-accounts-v1';
 import { SYNTHETIC_QR_V1 } from '../../../../shared/student-portal-contracts/fixtures-v1';
+import { controlledContinuousObserverV1 } from '../continuous-observer-v1';
 import {
   accountsMockV1,
   accountJsonV1,
@@ -58,35 +59,51 @@ describe('account list and detail', () => {
     expect(mock.queries.at(-1)?.scope).toEqual({ ...ACCOUNT_CLASS_V1, classId: 753002 });
     expect(mock.writes).toHaveLength(0);
   });
-  it('collects105 accounts automatically without truncation or pagination controls', async () => {
+  it('renders the first 100 accounts, then appends the last five only when the end approaches', async () => {
+    const observer = controlledContinuousObserverV1();
     const mock = accountsMockV1({ count: 105 });
     render(createElement(StudentAccountsV1, { ...mock.props, scope: ACCOUNT_CLASS_V1 }));
-    await screen.findByText('SYNTHETIC ACCOUNT 001');
+    const first = await screen.findByText('SYNTHETIC ACCOUNT 001');
+    await waitFor(() => expect(observer.isObserving()).toBe(true));
+    expect(screen.queryByText('SYNTHETIC ACCOUNT 105')).toBeNull();
+    expect(mock.queries.some((query) => query.page.cursor)).toBe(false);
     expect(screen.queryByText('Próxima página')).toBeNull();
-    await screen.findByText('SYNTHETIC ACCOUNT 101');
-    expect(screen.getByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
-    expect(screen.getByText('SYNTHETIC ACCOUNT 105')).toBeTruthy();
+    const scroll = screen.getByRole('region', { name: /Tabela de contas/ });
+    scroll.scrollTop = 137;
+    act(() => observer.intersect(false));
+    expect(mock.queries.some((query) => query.page.cursor)).toBe(false);
+    await act(async () => observer.intersect());
+    await screen.findByText('SYNTHETIC ACCOUNT 105');
+    expect(screen.getByText('SYNTHETIC ACCOUNT 001')).toBe(first);
+    expect(scroll.scrollTop).toBe(137);
     expect(mock.queries.some((query) => query.page.cursor)).toBe(true);
+    expect(mock.writes).toHaveLength(0);
   });
   it('opens a right-side student drawer by name and preserves the accumulated list when closing', async () => {
+    const observer = controlledContinuousObserverV1();
     const mock = accountsMockV1({ count: 105 });
     render(createElement(StudentAccountsV1, { ...mock.props, scope: ACCOUNT_CLASS_V1 }));
     const user = userEvent.setup();
-    await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 105' });
-    const trigger = await ready();
+    const firstName = await screen.findByText('SYNTHETIC ACCOUNT 001');
+    await waitFor(() => expect(observer.isObserving()).toBe(true));
+    await act(async () => observer.intersect());
+    const lastName = await screen.findByText('SYNTHETIC ACCOUNT 105');
+    // Resolve known rows locally instead of repeatedly computing accessible names across
+    // every button in a 105-row grid. The actual press/focus/drawer interactions are unchanged.
+    const trigger = firstName.closest('button')!;
+    expect(trigger.getAttribute('aria-label')).toBe('Abrir ficha de SYNTHETIC ACCOUNT 001');
     await user.click(trigger);
-    await detail();
-    const drawer = screen.getByRole('dialog', { name: 'Ficha do aluno' });
+    const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
+    await within(drawer).findByRole('button', { name: 'Bloquear acesso' });
     expect(drawer.closest('[data-placement="right"]')).toBeTruthy();
     expect(within(drawer).getByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
     expect(document.activeElement?.textContent).toBe('Ficha do aluno');
-    expect(screen.queryByRole('button', { name: 'Próxima página' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Fechar ficha' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(
-      screen.getByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 105' }),
-    ).toBeTruthy();
-    expect(await ready()).toBe(trigger);
+    expect(screen.queryByText('Próxima página')).toBeNull();
+    await user.click(within(drawer).getByRole('button', { name: 'Fechar ficha' }));
+    await waitFor(() => expect(drawer.isConnected).toBe(false));
+    expect(lastName.isConnected).toBe(true);
+    expect(lastName.closest('button')!.getAttribute('aria-label')).toBe('Abrir ficha de SYNTHETIC ACCOUNT 105');
+    expect(screen.getByText('SYNTHETIC ACCOUNT 001').closest('button')).toBe(trigger);
     expect(mock.queries.some((q) => q.page.cursor && q.scope.kind === 'class')).toBe(true);
     expect(mock.writes).toHaveLength(0);
   });

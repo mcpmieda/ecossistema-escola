@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Tabs } from '@heroui/react/tabs';
+import './workspace-tabs-v1.css';
 
 /** Native HeroUI tabs. The selected panel owns its content; no extra class selector. */
 export function ClassTabsV1({

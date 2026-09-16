@@ -465,7 +465,7 @@ export function createBirthEditorV1(options: {
             reader,
             scope,
             controller.signal,
-            canAppend ? 1000 : Math.max(1000, state.rows.length + (append ? 1000 : 0)),
+            canAppend ? 100 : Math.max(100, state.rows.length + (append ? 100 : 0)),
             canAppend
               ? {
                   rows: state.rows.map((row) => row.record),

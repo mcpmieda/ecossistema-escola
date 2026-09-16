@@ -1,10 +1,11 @@
 import { createElement, StrictMode } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentCredentialsV1 } from '../../../../src/features/student-portal-admin/credentials/student-credentials-v1';
 import { QR_META_V1, qrJsonV1, qrMockV1 } from './fixtures-v1';
 import { qrPrintIdV1 } from '../../qr-print/fixtures-v1';
+import { controlledContinuousObserverV1 } from '../continuous-observer-v1';
 
 beforeEach(() => {
   vi.stubGlobal('matchMedia', () => ({
@@ -167,9 +168,14 @@ describe('credential preparation UI', () => {
     });
     expect(mock.writes).toHaveLength(1);
   });
-  it('shows all105 students and keeps the100-student PDF limit independent of table loading', async () => {
+  it('appends the last five students on demand and keeps the PDF limit independent of table loading', async () => {
+    const observer = controlledContinuousObserverV1();
     const mock = qrMockV1({ count: 105 });
     render(createElement(StudentCredentialsV1, mock.props));
+    await screen.findByText('SYNTHETIC PRINT 001');
+    await waitFor(() => expect(observer.isObserving()).toBe(true));
+    expect(screen.queryByText('SYNTHETIC PRINT 105')).toBeNull();
+    await act(async () => observer.intersect());
     await screen.findByText('SYNTHETIC PRINT 105');
     fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar alunos disponíveis' }));
     expect(screen.getByText(/105 selecionados/)).toBeTruthy();

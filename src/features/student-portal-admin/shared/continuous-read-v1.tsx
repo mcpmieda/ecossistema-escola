@@ -4,29 +4,38 @@ import { PortalClientErrorV1 } from '../../student-portal/shared/transport-v1';
 import { useOperationalReadV1 } from '../overview/operations-values-v1';
 
 type CursorPage = { items: unknown[]; nextCursor: string | null };
-const INITIAL_ROWS = 1_000;
-/** Per-response transport limits remain unchanged. Normal lists are drained automatically;
- * large lists continue from their signed cursor only when their end enters the viewport. */
+type CollectionOptions = { maxPages?: number; cursors?: Set<string | undefined> };
+const INITIAL_ROWS = 100;
+/** Collection/revalidation helper. The owning hook gives initial/append reads a one-page
+ * budget, even for empty filtered pages, and keeps cursor history across incremental reads. */
 export async function collectCursorPagesV1<P extends CursorPage>(
   loadPage: (cursor: string | undefined, signal: AbortSignal) => Promise<P>,
   signal: AbortSignal,
   key: string,
   seed: P | null = null,
   desired = INITIAL_ROWS,
+  options: CollectionOptions = {},
 ): Promise<P> {
+  signal.throwIfAborted();
+  if (seed && !seed.nextCursor) return seed;
   let cursor = seed?.nextCursor ?? undefined;
   let result: P | null = seed;
   const items = new Map<string, P['items'][number]>();
   for (const item of seed?.items ?? [])
     items.set(String((item as Record<string, unknown>)[key]), item);
-  const seen = new Set<string>();
+  const seen = options.cursors ?? new Set<string | undefined>();
+  const maxPages = options.maxPages ?? Math.max(20, Math.ceil(desired / 100) + 10);
+  if (!Number.isSafeInteger(maxPages) || maxPages < 1)
+    throw new PortalClientErrorV1('invalid-request');
   let added = 0;
-  for (let page = 0; page < Math.max(20, Math.ceil(desired / 100) + 10); page++) {
+  for (let page = 0; page < maxPages; page++) {
     signal.throwIfAborted();
-    if (cursor && seen.has(cursor)) throw new PortalClientErrorV1('invalid-response');
-    if (cursor) seen.add(cursor);
+    if (seen.has(cursor)) throw new PortalClientErrorV1('invalid-response');
+    seen.add(cursor);
     const value = await loadPage(cursor, signal);
     signal.throwIfAborted();
+    if (value.nextCursor && seen.has(value.nextCursor))
+      throw new PortalClientErrorV1('invalid-response');
     for (const item of value.items) {
       const id = (item as Record<string, unknown>)[key];
       if (typeof id !== 'string' && typeof id !== 'number')
@@ -38,7 +47,7 @@ export async function collectCursorPagesV1<P extends CursorPage>(
     if (!value.nextCursor || added >= desired) return result;
     cursor = value.nextCursor;
   }
-  // Empty filtered pages may still have a continuation. Never call that a complete empty list.
+  // A page budget is not a complete-result claim: always retain its continuation.
   if (!result) throw new PortalClientErrorV1('invalid-response');
   return result;
 }
@@ -49,31 +58,40 @@ export function useContinuousReadV1<P extends CursorPage>(
   onAuthorizationLost?: (error: PortalClientErrorV1) => void,
 ) {
   const cache = useMemo(
-    () => ({ data: null as P | null, append: false, fetchedAt: 0 }),
-    [loadPage],
+    () => ({
+      data: null as P | null,
+      append: false,
+      fetchedAt: 0,
+      cursors: new Set<string | undefined>(),
+    }),
+    [loadPage, key],
   );
   const load = useCallback(
     async (signal: AbortSignal) => {
-      const seed = cache.append && Date.now() - cache.fetchedAt < 240_000 ? cache.data : null;
-      const desired =
-        cache.append && !seed
-          ? (cache.data?.items.length ?? 0) + INITIAL_ROWS
-          : seed
-            ? INITIAL_ROWS
-            : Math.max(INITIAL_ROWS, cache.data?.items.length ?? 0);
+      const append = cache.append;
+      const seed = append && Date.now() - cache.fetchedAt < 240_000 ? cache.data : null;
+      const desired = append && !seed
+        ? (cache.data?.items.length ?? 0) + INITIAL_ROWS
+        : seed ? INITIAL_ROWS : Math.max(INITIAL_ROWS, cache.data?.items.length ?? 0);
+      // Rebuild only the previously visited window; a fresh append adds one bounded page.
+      const maxPages = seed || !cache.data ? 1 : Math.max(1, cache.cursors.size) + (append ? 1 : 0);
+      const cursors = seed ? new Set(cache.cursors) : new Set<string | undefined>();
       cache.append = false;
       try {
-        const data = await collectCursorPagesV1(loadPage, signal, key, seed, desired);
+        const data = await collectCursorPagesV1(loadPage, signal, key, seed, desired, { maxPages, cursors });
         signal.throwIfAborted();
         cache.data = data;
+        cache.cursors = cursors;
         cache.fetchedAt = Date.now();
         return data;
       } catch (error) {
         if (
           error instanceof PortalClientErrorV1 &&
           ['unauthenticated', 'forbidden'].includes(error.state)
-        )
+        ) {
           cache.data = null;
+          cache.cursors.clear();
+        }
         throw error;
       }
     },
@@ -84,6 +102,7 @@ export function useContinuousReadV1<P extends CursorPage>(
     const clear = () => {
       cache.data = null;
       cache.append = false;
+      cache.cursors.clear();
     };
     window.addEventListener('pagehide', clear);
     return () => {
@@ -145,12 +164,12 @@ export function ContinuousEndV1({
         <Button size="sm" variant="ghost" onPress={retry}>
           Tentar carregar novamente
         </Button>
-      ) : more ? (
+      ) : more && busy ? (
         <>
           <Spinner size="sm" />
           <span>Carregando mais registros…</span>
         </>
-      ) : null}
+      ) : more ? <span>Role para carregar mais registros.</span> : null}
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { enterDateV1 } from '../settings/date-input-v1';
 import { createElement } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentAuditV1 } from '../../../../src/features/student-portal-admin/audit/student-audit-v1';
 import { operationsMockV1, opJsonV1, OP_META_V1, OP_CLASS_V1 } from '../overview/fixtures-v1';
 import { setupOperationsDomV1 } from '../overview/dom-v1';
+import { controlledContinuousObserverV1 } from '../continuous-observer-v1';
 beforeEach(setupOperationsDomV1);
 afterEach(() => {
   cleanup();
@@ -32,8 +33,16 @@ describe('audit filters and restricted detail interface', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
   it('applies São Paulo interval only after validation and preserves event/result filters in cursor pages', async () => {
-    const user = userEvent.setup(),
-      mock = operationsMockV1({ count: 105 });
+    const observer = controlledContinuousObserverV1();
+    const user = userEvent.setup();
+    // Keep keyboard/date validation independent of table volume. Small responses are valid
+    // under the unchanged 100-row request limit; the full 105-row boundary is tested below.
+    const source = operationsMockV1({ count: 3 });
+    const mock = operationsMockV1({
+      query: (query) => query.contractVersion === 1 && query.operation === 'audit'
+        ? source.client.query({ ...query, page: { ...query.page, limit: 2 } }).then(opJsonV1)
+        : undefined,
+    });
     render(createElement(StudentAuditV1, { ...mock.props, scope: OP_CLASS_V1 }));
     await screen.findByRole('grid');
     await enterDateV1(user, 'Desde', '2026-09-14T10:00:00');
@@ -59,9 +68,12 @@ describe('audit filters and restricted detail interface', () => {
       }),
     );
     await screen.findByRole('grid');
+    await waitFor(() => expect(observer.isObserving()).toBe(true));
+    expect(screen.getAllByRole('button', { name: 'Detalhes' })).toHaveLength(2);
     expect(screen.queryByRole('button', { name: 'Próxima página' })).toBeNull();
+    await act(async () => observer.intersect());
     await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Detalhes' })).toHaveLength(105),
+      expect(screen.getAllByRole('button', { name: 'Detalhes' })).toHaveLength(3),
     );
     expect(mock.queries.at(-1)).toMatchObject({
       from: '2026-01-01T03:00:00Z',
@@ -70,7 +82,27 @@ describe('audit filters and restricted detail interface', () => {
       page: { limit: 100 },
     });
     expect(mock.queries.at(-1)!.page.cursor).toBeTruthy();
+    expect(mock.writes).toHaveLength(0);
   }, 20_000);
+  it('renders 100 audit events first and appends the final five only on demand', async () => {
+    const observer = controlledContinuousObserverV1();
+    const mock = operationsMockV1({ count: 105 });
+    render(createElement(StudentAuditV1, { ...mock.props, scope: OP_CLASS_V1 }));
+    await screen.findByRole('grid');
+    await waitFor(() => expect(observer.isObserving()).toBe(true));
+    const first = screen.getAllByText('Detalhes')[0]!;
+    expect(screen.getAllByText('Detalhes')).toHaveLength(100);
+    expect(mock.queries.filter((query) => query.operation === 'audit')).toHaveLength(1);
+    await act(async () => observer.intersect());
+    await waitFor(() => expect(screen.getAllByText('Detalhes')).toHaveLength(105));
+    expect(screen.getAllByText('Detalhes')[0]).toBe(first);
+    const queries = mock.queries.filter((query) => query.operation === 'audit');
+    expect(queries).toHaveLength(2);
+    expect(queries[1]).toMatchObject({ scope: OP_CLASS_V1, page: { limit: 100 } });
+    expect(queries[1]!.page.cursor).toBeTruthy();
+    expect(screen.queryByText('Próxima página')).toBeNull();
+    expect(mock.writes).toHaveLength(0);
+  });
   it('shows empty results without fake events and clears all detail on authorization loss', async () => {
     let denied = false;
     const mock = operationsMockV1({

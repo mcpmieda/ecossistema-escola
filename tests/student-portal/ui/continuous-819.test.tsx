@@ -16,19 +16,19 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
-it('drains a105-item collection via bounded100-item requests, preserving order and all IDs', async () => {
+it('returns the first100 rows after one bounded request and keeps the continuation', async () => {
   const page = vi.fn(async (cursor?: string) =>
     cursor
       ? { items: Array.from({ length: 5 }, (_, i) => row(101 + i)), nextCursor: null }
       : { items: Array.from({ length: 100 }, (_, i) => row(1 + i)), nextCursor: 'page2' },
   );
   const result = await collectCursorPagesV1(page, signal(), 'id');
-  expect(result.items).toHaveLength(105);
-  expect(result.items[104]).toEqual(row(105));
-  expect(result.nextCursor).toBeNull();
-  expect(page).toHaveBeenCalledTimes(2);
+  expect(result.items).toHaveLength(100);
+  expect(result.items[99]).toEqual(row(100));
+  expect(result.nextCursor).toBe('page2');
+  expect(page).toHaveBeenCalledTimes(1);
 });
-it('stops the initial list at1000 and resumes on demand without dropping the first1000', async () => {
+it('appends one100-row chunk on demand without dropping rows already rendered', async () => {
   const page = vi.fn(async (cursor?: string) => {
     const offset = Number(cursor ?? 0);
     return {
@@ -37,13 +37,14 @@ it('stops the initial list at1000 and resumes on demand without dropping the fir
     };
   });
   const first = await collectCursorPagesV1(page, signal(), 'id');
-  expect(first.items).toHaveLength(1000);
-  expect(page).toHaveBeenCalledTimes(10);
-  const complete = await collectCursorPagesV1(page, signal(), 'id', first);
-  expect(complete.items).toHaveLength(1005);
-  expect(complete.items[0]).toEqual(row(1));
-  expect(complete.nextCursor).toBeNull();
-  expect(page).toHaveBeenCalledTimes(11);
+  expect(first.items).toHaveLength(100);
+  expect(page).toHaveBeenCalledTimes(1);
+  const next = await collectCursorPagesV1(page, signal(), 'id', first);
+  expect(next.items).toHaveLength(200);
+  expect(next.items[0]).toEqual(row(1));
+  expect(next.items[199]).toEqual(row(200));
+  expect(next.nextCursor).toBe('200');
+  expect(page).toHaveBeenCalledTimes(2);
 });
 it('deduplicates overlapping rows by ID while rejecting repeated cursor loops and invalid records', async () => {
   const overlap = await collectCursorPagesV1(

@@ -95,13 +95,14 @@ export async function readBirthPageV1(
   };
 }
 
-/** Automatic collection for the UI; each pair of requests keeps its original page/CAS checks. */
+/** Automatic collection for the UI. The first interaction stays to one100-row page; later
+ * continuation keeps the paired account/birth cursors and all existing CAS checks. */
 export async function readBirthCollectionV1(
   client: PortalAdminClientV1,
   reader: PortalAdminReadClientV2,
   scope: BirthScopeV1,
   signal: AbortSignal,
-  desired = 1000,
+  desired = 100,
   seed?: BirthPageV1,
 ): Promise<BirthPageV1> {
   const rows = new Map((seed?.rows ?? []).map((row) => [row.account.accountId, row]));
