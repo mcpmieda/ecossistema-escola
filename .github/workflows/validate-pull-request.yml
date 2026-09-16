@@ -33,17 +33,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Temporary offline validation workspace for #815; removed before final head.
-      - name: Package public source and test dependencies
-        run: tar --exclude=.git --exclude=.env --exclude='.env.*' --exclude='*.log' -czf "$RUNNER_TEMP/gradebook-workspace.tgz" .
-
-      - name: Export temporary validation workspace
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: gradebook-workspace-815
-          path: ${{ runner.temp }}/gradebook-workspace.tgz
-          retention-days: 1
-          compression-level: 0
-
       - name: Verify
         run: npm run verify

@@ -1,3 +1,4 @@
+import { PerformanceTeacherReportsV6 } from './performance-teacher-reports-v6';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
@@ -268,7 +269,7 @@ function toLoadState(cause: unknown): LoadState {
   return 'unavailable';
 }
 
-export function RelationalInstitutionalReportsPageV2() {
+export function RelationalInstitutionalReportsPageV2({ isActive = true }: { readonly isActive?: boolean } = {}) {
   const year = useGradebookYear()?.year ?? null;
   const [catalogState, setCatalogState] = useState<LoadState>('loading');
   const [classes, setClasses] = useState<readonly ClassItem[]>([]);
@@ -493,6 +494,7 @@ export function RelationalInstitutionalReportsPageV2() {
           {readyAudit && <AuditReport items={readyAudit.items} />}
         </section>
 
+        <PerformanceTeacherReportsV6 classId={classId} period={period} isActive={isActive}/>
         <Card><Card.Header><div className="flex items-center gap-2 text-primary"><ArchiveRestore className="size-5" /><Card.Title>Reimpressão de boletins emitidos</Card.Title></div><Card.Description>Somente snapshots imutáveis V2. Selecione até 3 documentos por vez.</Card.Description></Card.Header><Card.Content className="grid gap-3"><div className="flex flex-wrap gap-2">{(historyState === 'idle' || historyState === 'unavailable') && <Button variant="secondary" isDisabled={classId === null} onPress={() => void loadHistory()}><History className="size-4" />{historyState === 'idle' ? 'Carregar histórico' : 'Tentar histórico novamente'}</Button>}<Button variant="primary" isDisabled={selectedSnapshots.length === 0 || downloadState === 'loading'} onPress={() => void downloadSelected()}>{downloadState === 'loading' ? <Spinner size="sm" /> : <FileDown className="size-4" />}Baixar selecionados ({selectedSnapshots.length})</Button></div>{historyState === 'empty' && <p className="text-sm text-muted">Nenhum boletim emitido para esta turma.</p>}{historyState === 'ready' && <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{history.map((item) => { const key = `${item.snapshotId}:${item.snapshotVersion}`; const selected = selectedSnapshots.includes(key); const disabled = !selected && selectedSnapshots.length >= 3; return <Button key={key} variant={selected ? 'primary' : 'outline'} isDisabled={disabled} aria-pressed={selected} className="h-auto min-h-20 justify-start p-3 text-left" onPress={() => setSelectedSnapshots(selected ? selectedSnapshots.filter((value) => value !== key) : [...selectedSnapshots, key])}><span className="min-w-0"><span className="block truncate font-semibold">{item.studentName}</span><span className="mt-1 block text-xs opacity-80">{item.className} · {item.period.kind === 'annual' ? 'Anual + REC' : `${item.period.term}º trimestre`} · v{item.snapshotVersion}</span><span className="mt-1 block text-xs opacity-70">Emitido em {formatDate(item.emittedAt)}</span></span></Button>; })}</div>}{downloadMessage && <p className={`text-sm ${downloadState === 'unavailable' ? 'text-danger' : 'text-success'}`}>{downloadMessage}</p>}</Card.Content></Card>
       </>}
     </div>

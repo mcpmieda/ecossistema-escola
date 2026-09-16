@@ -1,3 +1,15 @@
+import { analyticsGradeV6, analyticsDeltaV6 } from '../../../src/features/gradebook/performance/analytics-format-v6';
+import {
+  analyticsStatsV6,
+  createPerformanceAnalyticsV6,
+} from '../../../server/gradebook/application/read-models/performance/performance-analytics-v6';
+import {
+  performanceAnalyticsRequestSchemaV6,
+  performanceAnalyticsResponseSchemaV6,
+  performanceAnalyticsMatchesV6,
+} from '../../../shared/gradebook-contracts/performance/performance-analytics-v6';
+import { buildPerformanceTeacherPdfV6 } from '../../../src/features/gradebook/performance/performance-analytics-pdf-v6';
+import { PDFDocument } from 'pdf-lib';
 import { createPerformanceAnalysisV3 } from '../../../server/gradebook/application/read-models/performance/performance-analysis-v3';
 import { buildPerformanceDashboardOverviewV5, createPerformanceDashboardV5 } from '../../../server/gradebook/application/read-models/performance/performance-dashboard-v5';
 import { dashboardAnalysisV5, performanceDashboardMatchesV5, performanceDashboardRequestSchemaV5, performanceDashboardResponseSchemaV5 } from '../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
@@ -475,4 +487,257 @@ describe('performance dashboard V5', () => {
     expect(response.status).toBe(200); expect(response.headers.get('cache-control')).toContain('no-store');
     expect(await response.json()).toMatchObject({ transportVersion: 5, operation: 'dashboard', state: 'ready' });
   });
+});
+
+const analyticsRequest = (extra: Record<string, unknown> = {}) => ({
+  transportVersion: 6,
+  operation: 'analytics',
+  year: 2026,
+  classId: 10,
+  period: 1,
+  ...extra,
+});
+async function analytics(extra: Record<string, unknown> = {}) {
+  const result = await createPerformanceAnalyticsV6(database).execute(analyticsRequest(extra));
+  if (result.state !== 'ready') throw new Error(JSON.stringify(result));
+  return result;
+}
+describe('analytics V6: descriptive statistics over the shared academic snapshot', () => {
+  it('uses one six-query read-only snapshot for every perspective', async () => {
+    const result = await analytics();
+    expect(queries).toHaveLength(6);
+    expect(queries.join(' ')).not.toMatch(
+      /\b(INSERT|UPDATE|DELETE)\b|academic_record|academic_entity/u,
+    );
+    expect(result.students.map((item) => item.student.id)).toEqual([1, 2, 3, 4, 5, 8]);
+    expect(result).toMatchObject({
+      authority: 'calculated-preview',
+      classStudents: 8,
+      summary: { students: 6, readings: 12, complete: 8, partial: 2, missing: 2, unavailable: 0 },
+    });
+    expect(performanceAnalyticsResponseSchemaV6.safeParse(result).success).toBe(true);
+    expect(result.components).toHaveLength(2);
+    expect(result.teachers).toHaveLength(1);
+  });
+  it('counts genuine zero without replacing missing notes or diluting complete statistics with partials', async () => {
+    const result = await analytics();
+    expect(result.summary.coverage).toMatchObject({
+      expected: 36,
+      recorded: 28,
+      missing: 8,
+      zeros: 6,
+    });
+    const zero = result.students.find((item) => item.student.id === 2)!;
+    const partial = result.students.find((item) => item.student.id === 3)!;
+    const absent = result.students.find((item) => item.student.id === 5)!;
+    expect(zero.summary.result).toMatchObject({ n: 2, mean: 0, median: 0 });
+    expect(partial.summary.result).toMatchObject({ n: 0, mean: null });
+    expect(absent.cells[0]).toMatchObject({
+      percent: null,
+      gapMilli: null,
+      result: { state: 'not-recorded', valueMilli: null },
+    });
+    expect(result.summary.result.n).toBe(8);
+    expect(result.summary.distribution[5]!.count).toBe(2);
+    expect(result.summary.result.max).toBe(200);
+    expect(zero.cells[0]!.gapMilli).toBe(18000);
+  });
+  it('keeps dimensions proportional to their own maxima and pairs the dimension gap', async () => {
+    const result = await analytics();
+    const complete = result.students.find((item) => item.student.id === 1)!.cells[0]!;
+    expect(complete.quantitative.percent).toBeCloseTo((12000 / 13500) * 100);
+    expect(complete.qualitative.percent).toBeCloseTo((12000 / 16500) * 100);
+    expect(result.summary.dimensionGap.n).toBe(8);
+    expect(result.summary.composition.n).toBe(8);
+    expect(
+      result.summary.composition.quantitativeShare! + result.summary.composition.qualitativeShare!,
+    ).toBeCloseTo(100);
+  });
+  it('compares only complete adjacent-term pairs and retains the denominator', async () => {
+    const t1 = await analytics(),
+      t2 = await analytics({ period: 2 }),
+      t3 = await analytics({ period: 3 });
+    expect(t1.summary.movement).toMatchObject({ reference: null, n: 0, meanDeltaPP: null });
+    expect(t2.summary.movement).toMatchObject({ reference: 1, n: 8, unchanged: 8, meanDeltaPP: 0 });
+    expect(t3.summary.movement).toMatchObject({ reference: 2, n: 8, decreased: 6, unchanged: 2 });
+    expect(
+      t3.students
+        .find((item) => item.student.id === 3)!
+        .cells.every((cell) => cell.deltaPP === null),
+    ).toBe(true);
+    expect(t3.summary.timeline.map((item) => item.term)).toEqual([1, 2, 3]);
+  });
+  it('does not confuse recovery pending, N/C, unknown eligibility or terminal R/R', async () => {
+    const result = await analytics();
+    expect(result.summary.recovery).toMatchObject({
+      applicable: 4,
+      recorded: 2,
+      noShow: 1,
+      pending: 1,
+      unknown: 4,
+    });
+    expect(
+      result.students
+        .find((item) => item.student.id === 4)!
+        .cells.map((cell) => cell.recoveryState),
+    ).toEqual(['no-show', 'pending']);
+    await pg.exec(
+      'UPDATE gradebook.fechamento SET rec_rr_mask=1 WHERE oferta_id=10 AND aluno_id=1',
+    );
+    try {
+      const rr = await analytics();
+      expect(rr.summary.recovery.repeatFailure).toBe(1);
+      expect(rr.students.find((item) => item.student.id === 1)!.cells[0]!.recoveryState).toBe(
+        'repeat-failure',
+      );
+    } finally {
+      await pg.exec(
+        'UPDATE gradebook.fechamento SET rec_rr_mask=0 WHERE oferta_id=10 AND aluno_id=1',
+      );
+    }
+  });
+  it('keeps independent imported references and descriptive calculations distinct', async () => {
+    const result = await analytics();
+    expect(result.summary.source).toEqual({ recorded: 2, comparable: 2, different: 0 });
+    expect(
+      result.students.find((item) => item.student.id === 1)!.cells[0]!.result.sourceReferenceMilli,
+    ).toBe(24000);
+  });
+  it('honors year and class isolation, configured minimum, empty and undefined data', async () => {
+    expect(
+      await createPerformanceAnalyticsV6(database).execute(analyticsRequest({ year: 2025 })),
+    ).toMatchObject({ state: 'not-found' });
+    const other = await analytics({ year: 2025, classId: 30 });
+    expect(other.minimumPercent).toBe(65);
+    expect(other.students.map((item) => item.student.id)).toEqual([99]);
+    const undefinedScope = await analytics({ classId: 40 });
+    expect(undefinedScope.summary.result).toMatchObject({ n: 0, mean: null });
+    expect(undefinedScope.summary.coverage).toMatchObject({ expected: 0, percent: null });
+    expect(
+      await createPerformanceAnalyticsV6(database).execute(analyticsRequest({ classId: 50 })),
+    ).toMatchObject({ state: 'ambiguous-offers' });
+    expect(
+      await createPerformanceAnalyticsV6(database).execute(analyticsRequest({ classId: 60 })),
+    ).toMatchObject({ state: 'scope-too-large' });
+  });
+  it('scopes teacher summaries and printable student metrics to the teacher offers only', async () => {
+    await pg.exec('UPDATE gradebook.oferta SET professor_id=2 WHERE id=11');
+    try {
+      const result = await analytics();
+      expect(result.teachers).toHaveLength(2);
+      expect(result.teachers.map((teacher) => teacher.offerIds)).toEqual([[10], [11]]);
+      for (const teacher of result.teachers) {
+        expect(teacher.summary.readings).toBe(6);
+        expect(teacher.students.find((item) => item.studentId === 2)).toMatchObject({
+          complete: 1,
+          below: 1,
+          meanPercent: 0,
+        });
+      }
+    } finally {
+      await pg.exec('UPDATE gradebook.oferta SET professor_id=1 WHERE id=11');
+    }
+  });
+  it.each([false, true])(
+    'creates a real A4 PDF from the authorized teacher snapshot (detailed=%s)',
+    async (detailed) => {
+      const value = await analytics();
+      const pdf = await PDFDocument.load(
+        await buildPerformanceTeacherPdfV6(value, value.teachers[0]!.id, detailed),
+      );
+      expect(pdf.getPageCount()).toBeGreaterThan(0);
+      expect(
+        pdf
+          .getPages()
+          .every(
+            (page) =>
+              Math.abs(page.getWidth() - 595.28) < 0.01 &&
+              Math.abs(page.getHeight() - 841.89) < 0.01,
+          ),
+      ).toBe(true);
+      await expect(buildPerformanceTeacherPdfV6(value, 999, detailed)).rejects.toThrow(
+        'teacher-outside-current-scope',
+      );
+    },
+  );
+  it('rejects added controls, falsely official or mismatched responses', async () => {
+    const value = await analytics();
+    expect(
+      performanceAnalyticsRequestSchemaV6.safeParse({ ...analyticsRequest(), mode: 'recovery' })
+        .success,
+    ).toBe(false);
+    expect(
+      performanceAnalyticsResponseSchemaV6.safeParse({ ...value, authority: 'official' }).success,
+    ).toBe(false);
+    expect(
+      performanceAnalyticsResponseSchemaV6.safeParse({
+        ...value,
+        students: [...value.students, value.students[0]],
+      }).success,
+    ).toBe(false);
+    expect(
+      performanceAnalyticsMatchesV6(
+        performanceAnalyticsRequestSchemaV6.parse(analyticsRequest({ period: 3 })),
+        value,
+      ),
+    ).toBe(false);
+    expect(
+      performanceAnalyticsResponseSchemaV6.safeParse({
+        ...value,
+        summary: { ...value.summary, complete: 999 },
+      }).success,
+    ).toBe(false);
+  });
+  it.each([null, 'PROFESSOR'] as const)(
+    'denies unauthorized analytics before reading data (%s)',
+    async (role) => {
+      const response = await http(analyticsRequest(), role);
+      expect([401, 403]).toContain(response.status);
+      expect(queries).toHaveLength(0);
+    },
+  );
+  it('dispatches V6 through existing no-store authorization and opaque errors', async () => {
+    const response = await http(analyticsRequest());
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toContain('no-store');
+    expect(await response.json()).toMatchObject({ transportVersion: 6, state: 'ready' });
+    readsFail = true;
+    const failed = await http(analyticsRequest());
+    expect(failed.status).toBe(503);
+    expect(await failed.text()).not.toContain('synthetic-private-failure');
+  });
+  it('computes null-aware population statistics without arbitrary thresholds', () => {
+    expect(analyticsStatsV6([])).toEqual({
+      n: 0,
+      mean: null,
+      median: null,
+      deviation: null,
+      min: null,
+      max: null,
+    });
+    expect(analyticsStatsV6([0])).toEqual({
+      n: 1,
+      mean: 0,
+      median: 0,
+      deviation: 0,
+      min: 0,
+      max: 0,
+    });
+    expect(analyticsStatsV6([100, 0, 50, 50])).toMatchObject({
+      n: 4,
+      mean: 50,
+      median: 50,
+      min: 0,
+      max: 100,
+    });
+    expect(analyticsStatsV6([100, 0]).deviation).toBe(50);
+  });
+});
+
+it('preserves granular milli precision and does not print a tiny change as zero', () => {
+  expect(analyticsGradeV6(6750)).toBe('6,75');
+  expect(analyticsGradeV6(1)).toBe('0,001');
+  expect(analyticsGradeV6(0)).toBe('0');
+  expect(analyticsGradeV6(null)).toBe('—');
+  expect(analyticsDeltaV6(0.01)).toBe('+<0,1 p.p.');
 });

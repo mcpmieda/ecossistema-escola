@@ -1,26 +1,64 @@
-import type { PerformanceAnalysisV3, PerformanceLensV3 } from '../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
-import { dashboardAnalysisV5, dashboardComparisonV5, type PerformanceDashboardV5 } from '../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
+import type {
+  PerformanceAnalysisV3,
+  PerformanceLensV3,
+} from '../../../../shared/gradebook-contracts/performance/performance-analysis-v3';
+import {
+  dashboardAnalysisV5,
+  dashboardComparisonV5,
+  type PerformanceDashboardV5,
+} from '../../../../shared/gradebook-contracts/performance/performance-dashboard-v5';
 import { requestPerformanceDashboardV5 } from './performance-dashboard-client-v5';
-import type { PerformanceReferencePeriodV4, PerformanceTermComparisonV4 } from '../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
+import type {
+  PerformanceReferencePeriodV4,
+  PerformanceTermComparisonV4,
+} from '../../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import { useEffect, useRef, useState } from 'react';
 import type {
-  PerformanceRequestV2, PerformanceReadyV2, PerformanceMatrixV2, PerformanceFailureV2,
-  PerformancePeriodV2, PerformanceModeV2, PerformanceStatusV2,
+  PerformanceRequestV2,
+  PerformanceReadyV2,
+  PerformanceMatrixV2,
+  PerformanceFailureV2,
+  PerformancePeriodV2,
+  PerformanceModeV2,
+  PerformanceStatusV2,
 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
 import { createOperationalWorkspaceRequestGate } from '../operational-workspace/operational-workspace-request-gate';
 import { requestRelationalPerformanceV2 } from './relational-performance-client-v2';
 
-type Filters = { classId: number | null; period: PerformancePeriodV2; mode: PerformanceModeV2; statuses: PerformanceStatusV2[]; lens: PerformanceLensV3; offerId: number | null; referencePeriod: PerformanceReferencePeriodV4 | null };
+type Filters = {
+  classId: number | null;
+  period: PerformancePeriodV2;
+  mode: PerformanceModeV2;
+  statuses: PerformanceStatusV2[];
+  lens: PerformanceLensV3;
+  offerId: number | null;
+  referencePeriod: PerformanceReferencePeriodV4 | null;
+};
 type Detail = Extract<PerformanceReadyV2, { operation: 'student-detail' | 'cell-detail' }>;
-export function useRelationalPerformanceV2() {
+export function useRelationalPerformanceV2(dashboardEnabled = true, isActive = true) {
   const shared = useGradebookYear();
   const year = shared?.year ?? null;
   const clearAuthorization = shared?.clearAuthorization;
-  const [gates] = useState(() => ({ classes: createOperationalWorkspaceRequestGate(), matrix: createOperationalWorkspaceRequestGate(), detail: createOperationalWorkspaceRequestGate() }));
-  const [classes, setClasses] = useState<Extract<PerformanceReadyV2, { operation: 'classes' }> | null>(null);
-  const [filters, setFilters] = useState<Filters>({ classId: null, period: 1, mode: 'regular', statuses: [null, 7], lens: 'result', offerId: null, referencePeriod: null });
+  const [gates] = useState(() => ({
+    classes: createOperationalWorkspaceRequestGate(),
+    matrix: createOperationalWorkspaceRequestGate(),
+    detail: createOperationalWorkspaceRequestGate(),
+  }));
+  const [classes, setClasses] = useState<Extract<
+    PerformanceReadyV2,
+    { operation: 'classes' }
+  > | null>(null);
+  const [filters, setFilters] = useState<Filters>({
+    classId: null,
+    period: 1,
+    mode: 'regular',
+    statuses: [null, 7],
+    lens: 'result',
+    offerId: null,
+    referencePeriod: null,
+  });
   const [matrix, setMatrix] = useState<PerformanceMatrixV2 | null>(null);
   const [analysis, setAnalysis] = useState<PerformanceAnalysisV3 | null>(null);
   const [comparison, setComparison] = useState<PerformanceTermComparisonV4 | null>(null);
@@ -28,104 +66,267 @@ export function useRelationalPerformanceV2() {
   const [offers, setOffers] = useState<PerformanceMatrixV2['offers']>([]);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const detailTarget = useRef<{ studentId: number; offerId?: number } | null>(null);
+  const detailTarget = useRef<{
+    studentId: number;
+    offerId?: number;
+    mode: PerformanceModeV2;
+  } | null>(null);
   const [failure, setFailure] = useState<PerformanceFailureV2 | null>(null);
   const [detailFailure, setDetailFailure] = useState<PerformanceFailureV2 | null>(null);
   const [busy, setBusy] = useState({ classes: year !== null, matrix: false, detail: false });
   useEffect(() => () => Object.values(gates).forEach((gate) => gate.invalidate()), [gates]);
   useEffect(() => {
     if (year === null) return;
-    const request = { transportVersion: 2, operation: 'classes', year, offset: 0, limit: 100 } as const;
+    const request = {
+      transportVersion: 2,
+      operation: 'classes',
+      year,
+      offset: 0,
+      limit: 100,
+    } as const;
     const ticket = gates.classes.begin(JSON.stringify(request));
     if (!ticket) return;
-    void requestRelationalPerformanceV2(request, ticket.signal).then((response) => {
-      if (!ticket.isCurrent()) return;
-      if (response.state === 'not-authorized') { clearAuthorization?.(); setFailure(response.state); }
-      else if (response.state === 'ready' && response.operation === 'classes') setClasses(response);
-      else if (response.state !== 'ready') setFailure(response.state);
-    }).catch(() => { if (ticket.isCurrent()) setFailure('unavailable'); }).finally(() => {
-      if (ticket.isCurrent()) setBusy((value) => ({ ...value, classes: false })); ticket.complete();
-    });
+    void requestRelationalPerformanceV2(request, ticket.signal)
+      .then((response) => {
+        if (!ticket.isCurrent()) return;
+        if (response.state === 'not-authorized') {
+          clearAuthorization?.();
+          setFailure(response.state);
+        } else if (response.state === 'ready' && response.operation === 'classes')
+          setClasses(response);
+        else if (response.state !== 'ready') setFailure(response.state);
+      })
+      .catch(() => {
+        if (ticket.isCurrent()) setFailure('unavailable');
+      })
+      .finally(() => {
+        if (ticket.isCurrent()) setBusy((value) => ({ ...value, classes: false }));
+        ticket.complete();
+      });
     return () => gates.classes.invalidate();
   }, [year, gates, clearAuthorization]);
-  function closeDetail() { detailTarget.current = null; gates.detail.invalidate(); setDetail(null); setDetailOpen(false); setDetailFailure(null); setBusy((value) => ({ ...value, detail: false })); }
+  function closeDetail() {
+    detailTarget.current = null;
+    gates.detail.invalidate();
+    setDetail(null);
+    setDetailOpen(false);
+    setDetailFailure(null);
+    setBusy((value) => ({ ...value, detail: false }));
+  }
   function loseAccess() {
-    clearAuthorization?.(); Object.values(gates).forEach((gate) => gate.invalidate());
-    setClasses(null); setMatrix(null); setAnalysis(null); setComparison(null); setDashboard(null); setOffers([]); closeDetail();
+    clearAuthorization?.();
+    Object.values(gates).forEach((gate) => gate.invalidate());
+    setClasses(null);
+    setMatrix(null);
+    setAnalysis(null);
+    setComparison(null);
+    setDashboard(null);
+    setOffers([]);
+    closeDetail();
     setBusy({ classes: false, matrix: false, detail: false });
   }
-  async function run(request: PerformanceRequestV2, concern: keyof typeof gates, apply: (value: PerformanceReadyV2) => void) {
+  async function run(
+    request: PerformanceRequestV2,
+    concern: keyof typeof gates,
+    apply: (value: PerformanceReadyV2) => void,
+  ) {
     const ticket = gates[concern].begin(JSON.stringify(request));
     if (!ticket) return;
     const error = concern === 'detail' ? setDetailFailure : setFailure;
-    error(null); setBusy((value) => ({ ...value, [concern]: true }));
+    error(null);
+    setBusy((value) => ({ ...value, [concern]: true }));
     try {
       const response = await requestRelationalPerformanceV2(request, ticket.signal);
       if (!ticket.isCurrent()) return;
       if (response.state === 'not-authorized') loseAccess();
-      if (response.state !== 'ready') { error(response.state); return; }
+      if (response.state !== 'ready') {
+        error(response.state);
+        return;
+      }
       apply(response);
-    } catch { if (ticket.isCurrent()) error('unavailable'); }
-    finally { if (ticket.isCurrent()) setBusy((value) => ({ ...value, [concern]: false })); ticket.complete(); }
+    } catch {
+      if (ticket.isCurrent()) error('unavailable');
+    } finally {
+      if (ticket.isCurrent()) setBusy((value) => ({ ...value, [concern]: false }));
+      ticket.complete();
+    }
   }
   async function loadClasses(offset = 0) {
     if (year === null) return;
-    await run({ transportVersion: 2, operation: 'classes', year, offset, limit: 100 }, 'classes', (value) => {
-      if (value.operation !== 'classes') return;
-      setClasses((old) => offset === 0 || !old ? value : { ...value, classes: [...new Map([...old.classes, ...value.classes].map((item) => [item.id, item])).values()] });
-    });
+    await run(
+      { transportVersion: 2, operation: 'classes', year, offset, limit: 100 },
+      'classes',
+      (value) => {
+        if (value.operation !== 'classes') return;
+        setClasses((old) =>
+          offset === 0 || !old
+            ? value
+            : {
+                ...value,
+                classes: [
+                  ...new Map(
+                    [...old.classes, ...value.classes].map((item) => [item.id, item]),
+                  ).values(),
+                ],
+              },
+        );
+      },
+    );
   }
   async function loadDashboard(selected: Filters): Promise<boolean> {
-    if (year === null || selected.classId === null || (selected.lens === 'assessments' && selected.offerId === null)) return false;
-    const request = { transportVersion: 5, operation: 'dashboard', year, classId: selected.classId,
-      period: selected.period, mode: selected.mode, statuses: selected.statuses, lens: selected.lens,
-      offerId: selected.offerId, referencePeriod: selected.referencePeriod } as const;
+    if (
+      year === null ||
+      selected.classId === null ||
+      (selected.lens === 'assessments' && selected.offerId === null)
+    )
+      return false;
+    const request = {
+      transportVersion: 5,
+      operation: 'dashboard',
+      year,
+      classId: selected.classId,
+      period: selected.period,
+      mode: selected.mode,
+      statuses: selected.statuses,
+      lens: selected.lens,
+      offerId: selected.offerId,
+      referencePeriod: selected.referencePeriod,
+    } as const;
     const ticket = gates.matrix.begin(JSON.stringify(request));
     if (!ticket) return false;
-    setBusy((value) => ({ ...value, matrix: true })); setFailure(null);
+    setBusy((value) => ({ ...value, matrix: true }));
+    setFailure(null);
     try {
       const response = await requestPerformanceDashboardV5(request, ticket.signal);
       if (!ticket.isCurrent()) return false;
       if (response.state === 'not-authorized') loseAccess();
-      if (response.state !== 'ready') { setFailure(response.state); return false; }
+      if (response.state !== 'ready') {
+        setFailure(response.state);
+        return false;
+      }
       const current = dashboardAnalysisV5(response);
-      setDashboard(response); setMatrix(current.matrix); setAnalysis(current);
-      setComparison(dashboardComparisonV5(response)); setOffers(current.matrix.offers);
+      setDashboard(response);
+      setMatrix(current.matrix);
+      setAnalysis(current);
+      setComparison(dashboardComparisonV5(response));
+      setOffers(current.matrix.offers);
       return true;
-    } catch { if (ticket.isCurrent()) setFailure('unavailable'); return false; }
-    finally { if (ticket.isCurrent()) setBusy((value) => ({ ...value, matrix: false })); ticket.complete(); }
+    } catch {
+      if (ticket.isCurrent()) setFailure('unavailable');
+      return false;
+    } finally {
+      if (ticket.isCurrent()) setBusy((value) => ({ ...value, matrix: false }));
+      ticket.complete();
+    }
   }
-  async function readDetail(target: { studentId: number; offerId?: number }) {
+  async function readDetail(target: {
+    studentId: number;
+    offerId?: number;
+    mode: PerformanceModeV2;
+  }) {
     if (year === null || filters.classId === null) return;
-    const scope = { transportVersion: 2, year, classId: filters.classId, period: filters.period, mode: filters.mode, studentId: target.studentId } as const;
-    await run(target.offerId === undefined ? { ...scope, operation: 'student-detail' } : { ...scope, operation: 'cell-detail', offerId: target.offerId }, 'detail', (value) => {
-      if (detailTarget.current === target && (value.operation === 'student-detail' || value.operation === 'cell-detail')) setDetail(value);
-    });
+    const scope = {
+      transportVersion: 2,
+      year,
+      classId: filters.classId,
+      period: filters.period,
+      mode: target.mode,
+      studentId: target.studentId,
+    } as const;
+    await run(
+      target.offerId === undefined
+        ? { ...scope, operation: 'student-detail' }
+        : { ...scope, operation: 'cell-detail', offerId: target.offerId },
+      'detail',
+      (value) => {
+        if (
+          detailTarget.current === target &&
+          (value.operation === 'student-detail' || value.operation === 'cell-detail')
+        )
+          setDetail(value);
+      },
+    );
   }
-  async function refresh() {
+  async function refresh(forceDashboard = false) {
     if (busy.matrix || failure === 'not-authorized') return;
     const target = detailTarget.current;
-    if (await loadDashboard(filters) && target && detailTarget.current === target) await readDetail(target);
+    if (!dashboardEnabled && !forceDashboard) {
+      if (target) await readDetail(target);
+      return;
+    }
+    if ((await loadDashboard(filters)) && target && detailTarget.current === target)
+      await readDetail(target);
   }
   useLiveRefreshV1(refresh, {
-    domains: ['gradebook'], enabled: year !== null,
-    canRefresh: () => filters.classId !== null && !busy.matrix && !busy.detail && failure !== 'not-authorized',
+    domains: ['gradebook'],
+    enabled: isActive && year !== null && (dashboardEnabled || detailOpen),
+    canRefresh: () =>
+      filters.classId !== null && !busy.matrix && !busy.detail && failure !== 'not-authorized',
   });
-  async function select(next: Partial<Filters>) {
+  async function select(next: Partial<Filters>, forceDashboard = false) {
     const selected = { ...filters, ...next };
-    if ('classId' in next && next.classId !== filters.classId) { selected.lens = 'result'; selected.offerId = null; selected.referencePeriod = null; setOffers([]); }
-    if (selected.lens !== 'assessments') selected.offerId = null; else selected.referencePeriod = null;
-    if (selected.period === 'annual' || selected.period === 1 || (selected.referencePeriod !== null && selected.referencePeriod >= selected.period)) selected.referencePeriod = null;
+    if ('classId' in next && next.classId !== filters.classId) {
+      selected.lens = 'result';
+      selected.offerId = null;
+      selected.referencePeriod = null;
+      setOffers([]);
+    }
+    if (selected.lens !== 'assessments') selected.offerId = null;
+    else selected.referencePeriod = null;
+    if (
+      selected.period === 'annual' ||
+      selected.period === 1 ||
+      (selected.referencePeriod !== null && selected.referencePeriod >= selected.period)
+    )
+      selected.referencePeriod = null;
     if (selected.statuses.length === 0) return;
-    if (JSON.stringify(selected) === JSON.stringify(filters)) { await refresh(); return; }
+    if (JSON.stringify(selected) === JSON.stringify(filters)) {
+      await refresh(forceDashboard);
+      return;
+    }
     // Only a real context/filter change clears the old data and closes its detail.
-    setFilters(selected); closeDetail(); gates.matrix.invalidate(); setMatrix(null); setAnalysis(null); setComparison(null); setDashboard(null); setFailure(null); setBusy((value) => ({ ...value, matrix: false }));
-    await loadDashboard(selected);
+    setFilters(selected);
+    closeDetail();
+    gates.matrix.invalidate();
+    setMatrix(null);
+    setAnalysis(null);
+    setComparison(null);
+    setDashboard(null);
+    setFailure(null);
+    setBusy((value) => ({ ...value, matrix: false }));
+    if (dashboardEnabled || forceDashboard) await loadDashboard(selected);
   }
   async function open(studentId: number, offerId?: number) {
-    if (year === null || filters.classId === null || !matrix) return;
-    const target = { studentId, offerId }; detailTarget.current = target;
-    setDetail(null); setDetailOpen(true); await readDetail(target);
+    if (year === null || filters.classId === null) return;
+    const target = {
+      studentId,
+      offerId,
+      mode: dashboardEnabled ? filters.mode : ('regular' as const),
+    };
+    detailTarget.current = target;
+    setDetail(null);
+    setDetailOpen(true);
+    await readDetail(target);
   }
-  return { year, classes, filters, matrix, analysis, comparison, dashboard, offers, detail, detailOpen, busy, failure, detailFailure, select, refresh, open, closeDetail, loadClasses, openStudent: shared?.openStudent };
+  return {
+    year,
+    classes,
+    filters,
+    matrix,
+    analysis,
+    comparison,
+    dashboard,
+    offers,
+    detail,
+    detailOpen,
+    busy,
+    failure,
+    detailFailure,
+    select,
+    refresh,
+    open,
+    closeDetail,
+    loadClasses,
+    openStudent: shared?.openStudent,
+  };
 }
