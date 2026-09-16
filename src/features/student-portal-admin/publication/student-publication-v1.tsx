@@ -315,7 +315,7 @@ function PublicationReviewV1({
               </>
             )}
           </Modal.Body>
-          <Modal.Footer>
+          <Modal.Footer className="pa-publication-actions">
             <Button variant="ghost" isDisabled={busy} onPress={onClose}>
               Voltar
             </Button>
