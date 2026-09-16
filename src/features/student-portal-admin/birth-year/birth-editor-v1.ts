@@ -84,7 +84,8 @@ export function createBirthEditorV1(options: {
   let state = emptyBirthEditorV1(),
     generation = 0,
     clearing = false,
-    navigationPaused = false;
+    navigationPaused = false,
+    fetchedAt = 0;
   let active: AbortController | undefined, background: AbortController | undefined;
   const timers = new Map<string, ReturnType<typeof setTimeout>>(),
     queued = new Set<string>();
@@ -142,6 +143,7 @@ export function createBirthEditorV1(options: {
     batch.clear();
     clearing = false;
     state = emptyBirthEditorV1();
+    fetchedAt = 0;
     emit();
   }
   function protectedFailure(error: PortalClientErrorV1) {
@@ -162,6 +164,7 @@ export function createBirthEditorV1(options: {
         ? await readBirthCollectionV1(client, reader, scope, controller.signal)
         : await readBirthPageV1(client, reader, scope, options.cursor, controller.signal);
       if (current !== generation || controller.signal.aborted) return;
+      fetchedAt = now();
       emit({
         state: 'ready',
         rows: result.rows.map(birthDraftRowV1),
@@ -454,6 +457,7 @@ export function createBirthEditorV1(options: {
       controller = new AbortController();
     background = controller;
     emit({ refreshing: true });
+    const canAppend = append && state.next !== null && now() - fetchedAt < 240_000;
     try {
       const page = options.continuous
         ? await readBirthCollectionV1(
@@ -461,8 +465,8 @@ export function createBirthEditorV1(options: {
             reader,
             scope,
             controller.signal,
-            append ? 1000 : Math.max(1000, state.rows.length),
-            append && state.next
+            canAppend ? 1000 : Math.max(1000, state.rows.length + (append ? 1000 : 0)),
+            canAppend
               ? {
                   rows: state.rows.map((row) => row.record),
                   next: state.next,
@@ -482,6 +486,7 @@ export function createBirthEditorV1(options: {
         state.rows.some(birthDirtyV1)
       )
         return;
+      fetchedAt = now();
       const previous = new Map(state.rows.map((row) => [row.record.account.accountId, row]));
       emit({
         rows: page.rows.map((record) => {

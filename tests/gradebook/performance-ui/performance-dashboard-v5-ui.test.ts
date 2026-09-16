@@ -13,14 +13,16 @@ describe('Performance dashboard V5 HeroUI', () => {
   const display = source('src/features/gradebook/performance/performance-display-v2.tsx');
   const styles = source('src/styles.css');
   const shell = source('src/platform/gradebook-workspace-shell.tsx');
-  const service = source('server/gradebook/application/read-models/performance/performance-dashboard-v5.ts');
+  const service = source(
+    'server/gradebook/application/read-models/performance/performance-dashboard-v5.ts',
+  );
 
   it('uses HeroUI selects and keeps the lens geometry stable while loading', () => {
-    expect(page).toContain("Label, ListBox, Select");
-    expect(page).toContain('<Select ref={root} data-performance-select={id} selectedKey=');
+    expect(page).toMatch(/\bLabel,\s+ListBox,\s+Select/u);
+    expect(page).toMatch(/<Select\s+ref=\{root\}\s+data-performance-select=\{id\}\s+selectedKey=/u);
     expect(page).toContain('isOpen={isOpen}');
     expect(page).toContain('onOpenChange={(open) => onOpenChange(id, open)}');
-    expect(page).toContain('document.addEventListener(\'pointerdown\', closeOutside, true)');
+    expect(page).toContain("document.addEventListener('pointerdown', closeOutside, true)");
     expect(page).toContain("target.closest<HTMLElement>('[data-performance-select]')");
     expect(page).toContain('<Select.Popover isNonModal data-performance-select-popover={id}>');
     expect(page).not.toContain('<select');
@@ -30,7 +32,7 @@ describe('Performance dashboard V5 HeroUI', () => {
     expect(page).toContain('<div className="performance-lens-status"');
     expect(styles).toContain('.performance-lens-tabs > .tabs__list-container');
     expect(styles).toContain('.performance-lens-panel.tabs__panel {');
-    expect(styles).toContain("margin-top: 0.25rem");
+    expect(styles).toContain('margin-top: 0.25rem');
   });
 
   it('removes the redundant workspace hero while preserving accessible stable navigation', () => {
@@ -41,7 +43,13 @@ describe('Performance dashboard V5 HeroUI', () => {
   });
 
   it('renders the requested blue/red bars and class donut from server aggregates', () => {
-    for (const label of ['Situação por componente', 'Panorama da turma', 'No mínimo ou acima', 'Abaixo do mínimo', 'Ainda sem classificação']) {
+    for (const label of [
+      'Situação por componente',
+      'Panorama da turma',
+      'No mínimo ou acima',
+      'Abaixo do mínimo',
+      'Ainda sem classificação',
+    ]) {
       expect(widgets).toContain(label);
     }
     expect(widgets).toContain('value.overview.columns.map');

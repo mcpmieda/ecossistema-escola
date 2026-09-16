@@ -132,7 +132,7 @@ describe('administrative settings UI', () => {
       mock = setup(undefined, async () => json({ ...base, state: 'unauthenticated' }, 401));
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Revisar Acesso ao Portal' }));
+    await user.click(screen.getByRole('switch', { name: 'Acesso ao Portal' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
     await screen.findByText('Sessão expirada. Entre novamente no ADM.');
     expect(screen.queryByRole('heading', { name: 'Acesso ao Portal' })).toBeNull();
@@ -140,15 +140,17 @@ describe('administrative settings UI', () => {
     expect(screen.queryByRole('button', { name: 'Repetir a mesma operação' })).toBeNull();
   });
   it('shows inherited origin and creates an explicit false override only after review and confirmation', async () => {
+    const inherited = settingsFixtureV1(SETTINGS_CLASS_V1);
+    inherited.value.accessEnabled = true;
     const user = userEvent.setup(),
-      mock = setup();
+      mock = setup(inherited);
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
     expect(screen.getAllByText('Padrão da escola')).toHaveLength(7);
-    await user.click(screen.getByRole('button', { name: 'Revisar Acesso ao Portal' }));
+    await user.click(screen.getByRole('switch', { name: 'Acesso ao Portal' }));
     expect(mock.writes).toHaveLength(0);
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText('Desligado')).toBeTruthy();
+    expect(within(dialog).getByText('Desativado')).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Confirmar alteração' }));
     await screen.findByText('Salvo.');
     expect(mock.writes[0]).toMatchObject({
@@ -234,7 +236,7 @@ describe('administrative settings UI', () => {
     await user.click(screen.getByRole('button', { name: 'Revisar Datas' }));
     expect(screen.getByRole('alert')).toBeTruthy();
     expect(screen.queryByRole('dialog')).toBeNull();
-    fireEvent.change(screen.getByLabelText('Falhas antes da verificação'), {
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Pedir verificação após' }), {
       target: { value: '10' },
     });
     await user.click(screen.getByRole('button', { name: 'Revisar Segurança do acesso' }));
@@ -246,7 +248,7 @@ describe('administrative settings UI', () => {
       mock = setup(undefined, async () => json({ ...base, state: 'conflict' }, 409));
     render(createElement(StudentSettingsV1, mock.props));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Revisar Acesso ao Portal' }));
+    await user.click(screen.getByRole('switch', { name: 'Acesso ao Portal' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
     await screen.findByText(
       'A configuração mudou em outra operação. Recarregue e revise antes de salvar novamente.',
@@ -254,20 +256,19 @@ describe('administrative settings UI', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(mock.writes).toHaveLength(1);
     expect(
-      (screen.getByRole('button', { name: 'Revisar Acesso ao Portal' }) as HTMLButtonElement)
-        .disabled,
+      (screen.getByRole('switch', { name: 'Acesso ao Portal' }) as HTMLButtonElement).disabled,
     ).toBe(true);
     const next = settingsFixtureV1(SETTINGS_CLASS_V1);
     next.version = 8;
     mock.current(next);
     await user.click(screen.getByRole('button', { name: 'Recarregar' }));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Revisar Acesso ao Portal' }));
+    await user.click(screen.getByRole('switch', { name: 'Acesso ao Portal' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(2));
     expect(mock.writes.map((command) => command.expectedVersion)).toEqual([7, 8]);
     expect(mock.writes[0]!.idempotencyKey).not.toBe(mock.writes[1]!.idempotencyKey);
-  }, 15_000);
+  });
   it('never shows the previous scope while a different scope is loading, nor applies its late response', async () => {
     let resolve!: (value: Response) => void;
     const client = createPortalAdminClientV1({
@@ -315,9 +316,9 @@ describe('administrative settings UI', () => {
       mock = setup();
     render(createElement(StrictMode, null, createElement(StudentSettingsV1, mock.props)));
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Revisar Acesso ao Portal' }));
+    await user.click(screen.getByRole('switch', { name: 'Acesso ao Portal' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar alteração' }));
     await vi.waitFor(() => expect(mock.writes).toHaveLength(1));
     await screen.findByText('Salvo.');
-  }, 15_000);
+  });
 });

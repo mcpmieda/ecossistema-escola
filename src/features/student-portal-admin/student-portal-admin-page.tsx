@@ -367,7 +367,7 @@ function PortalWorkspace({
                     if (allowDraftNavigationV1()) setSectionScope(null);
                   }}
                 >
-                  Toda a escola
+                  {selectedClass ? `Voltar à turma ${selectedClass.label}` : 'Toda a escola'}
                 </Button>
               )}
               <div key={section}>{content}</div>

@@ -59,9 +59,9 @@ describe('audit filters and restricted detail interface', () => {
       }),
     );
     await screen.findByRole('grid');
-    fireEvent.click(screen.getByRole('button', { name: 'Próxima página' }));
+    expect(screen.queryByRole('button', { name: 'Próxima página' })).toBeNull();
     await waitFor(() =>
-      expect(screen.getAllByRole('button', { name: 'Detalhes' })).toHaveLength(5),
+      expect(screen.getAllByRole('button', { name: 'Detalhes' })).toHaveLength(105),
     );
     expect(mock.queries.at(-1)).toMatchObject({
       from: '2026-01-01T03:00:00Z',
@@ -70,7 +70,7 @@ describe('audit filters and restricted detail interface', () => {
       page: { limit: 100 },
     });
     expect(mock.queries.at(-1)!.page.cursor).toBeTruthy();
-  }, 60_000);
+  }, 20_000);
   it('shows empty results without fake events and clears all detail on authorization loss', async () => {
     let denied = false;
     const mock = operationsMockV1({

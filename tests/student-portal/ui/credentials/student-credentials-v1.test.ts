@@ -167,23 +167,27 @@ describe('credential preparation UI', () => {
     });
     expect(mock.writes).toHaveLength(1);
   });
-  it('restricts each PDF to its current page and resets selection on pagination', async () => {
+  it('shows all105 students and keeps the100-student PDF limit independent of table loading', async () => {
     const mock = qrMockV1({ count: 105 });
     render(createElement(StudentCredentialsV1, mock.props));
-    fireEvent.click(
-      await screen.findByRole('checkbox', { name: 'Selecionar alunos disponíveis desta página' }),
+    await screen.findByText('SYNTHETIC PRINT 105');
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Selecionar alunos disponíveis' }));
+    expect(screen.getByText(/105 selecionados/)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Preparar PDF' }).hasAttribute('disabled')).toBe(
+      true,
     );
+    expect(screen.queryByRole('button', { name: 'Próxima página' })).toBeNull();
+    expect(mock.writes).toHaveLength(0);
+    for (let i = 101; i <= 105; i++)
+      fireEvent.click(screen.getByRole('checkbox', { name: `Selecionar SYNTHETIC PRINT ${i}` }));
     expect(screen.getByText(/100 selecionados/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Preparar PDF' }));
     await confirm();
     await screen.findByRole('button', { name: 'Baixar PDF' });
     expect(mock.writes[0]?.operation === 'qr-batch' && mock.writes[0].accountIds.length).toBe(100);
-    fireEvent.click(screen.getByRole('button', { name: 'Próxima página' }));
-    await screen.findByText('SYNTHETIC PRINT 101');
-    expect(screen.getByText('5 alunos')).toBeTruthy();
-    expect(screen.getByText('0 selecionados')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Baixar PDF' })).toBeNull();
-  }, 20_000);
+    expect(screen.getByText('SYNTHETIC PRINT 105')).toBeTruthy();
+    expect(screen.getByText(/100 selecionados/)).toBeTruthy();
+  }, 30_000);
   it('drops artifacts and selection when identity or capability changes', async () => {
     const mock = qrMockV1(),
       view = render(createElement(StudentCredentialsV1, mock.props));

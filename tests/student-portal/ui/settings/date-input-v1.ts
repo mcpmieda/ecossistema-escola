@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { act, screen } from '@testing-library/react';
 import type userEvent from '@testing-library/user-event';
 export async function enterDateV1(
   user: ReturnType<typeof userEvent.setup>,
@@ -16,7 +16,7 @@ export async function enterDateV1(
     ['minuto', minute],
   ]) {
     const segment = screen.getByRole('spinbutton', { name: `${part}, ${label}` });
-    await user.click(segment);
+    act(() => segment.focus());
     await user.keyboard(text! + '{Tab}');
   }
 }

@@ -13,6 +13,10 @@ import {
   ACCOUNT_CLASS_V1,
 } from './fixtures-v1';
 beforeEach(() => {
+  Object.defineProperty(Element.prototype, 'getAnimations', {
+    configurable: true,
+    value: () => [],
+  });
   vi.stubGlobal('matchMedia', () => ({
     matches: false,
     addEventListener: vi.fn(),
@@ -49,51 +53,42 @@ describe('account list and detail', () => {
     expect(screen.getByText('Encerrada')).toBeTruthy();
     expect(screen.getAllByText('Desconhecido nos últimos 12 meses')).toHaveLength(3);
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Todas as turmas Turma' }));
-    await user.click(screen.getByRole('option', { name: 'SYNTHETIC EMPTY CLASS' }));
+    await user.click(await screen.findByRole('tab', { name: 'SYNTHETIC EMPTY CLASS' }));
     expect(await screen.findByText('Nenhuma conta encontrada neste filtro.')).toBeTruthy();
     expect(mock.queries.at(-1)?.scope).toEqual({ ...ACCOUNT_CLASS_V1, classId: 753002 });
     expect(mock.writes).toHaveLength(0);
   });
-  it('paginates105 accounts by cursor without truncating the final five', async () => {
+  it('collects105 accounts automatically without truncation or pagination controls', async () => {
     const mock = accountsMockV1({ count: 105 });
     render(createElement(StudentAccountsV1, { ...mock.props, scope: ACCOUNT_CLASS_V1 }));
     await screen.findByText('SYNTHETIC ACCOUNT 001');
-    fireEvent.click(screen.getByText('Próxima página'));
+    expect(screen.queryByText('Próxima página')).toBeNull();
     await screen.findByText('SYNTHETIC ACCOUNT 101');
-    expect(screen.queryByText('SYNTHETIC ACCOUNT 001')).toBeNull();
+    expect(screen.getByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
     expect(screen.getByText('SYNTHETIC ACCOUNT 105')).toBeTruthy();
     expect(mock.queries.some((query) => query.page.cursor)).toBe(true);
   });
-  it('retains selection by account ID across pages and returns with the same filters', async () => {
-    const mock = accountsMockV1({
-      query: (input) =>
-        input.scope.kind !== 'account'
-          ? Promise.resolve(
-              accountJsonV1(
-                accountPageV1(
-                  [accountFixtureV1(input.page.cursor ? 2 : 1)],
-                  input.page.cursor ? null : 'c'.repeat(80),
-                ),
-              ),
-            )
-          : undefined,
-    });
+  it('opens a right-side student drawer by name and preserves the accumulated list when closing', async () => {
+    const mock = accountsMockV1({ count: 105 });
     render(createElement(StudentAccountsV1, { ...mock.props, scope: ACCOUNT_CLASS_V1 }));
     const user = userEvent.setup();
-    await user.click(await ready());
+    await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 105' });
+    const trigger = await ready();
+    await user.click(trigger);
     await detail();
+    const drawer = screen.getByRole('dialog', { name: 'Ficha do aluno' });
+    expect(drawer.closest('[data-placement="right"]')).toBeTruthy();
+    expect(within(drawer).getByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
     expect(document.activeElement?.textContent).toBe('Ficha do aluno');
-    await user.click(screen.getByRole('button', { name: 'Próxima página' }));
-    await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 002' });
-    expect(screen.getByRole('button', { name: 'Bloquear acesso' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Próxima página' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Fechar ficha' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     expect(
-      within(screen.getByLabelText('Ficha da conta')).getByText('SYNTHETIC ACCOUNT 001'),
+      screen.getByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 105' }),
     ).toBeTruthy();
-    await user.click(screen.getByRole('button', { name: 'Página anterior' }));
-    await ready();
-    expect(mock.queries.at(-1)?.scope).toEqual(ACCOUNT_CLASS_V1);
-    expect(mock.queries.at(-1)?.page.cursor).toBeUndefined();
+    expect(await ready()).toBe(trigger);
+    expect(mock.queries.some((q) => q.page.cursor && q.scope.kind === 'class')).toBe(true);
+    expect(mock.writes).toHaveLength(0);
   });
   it('cancels a review and uses fresh detail CAS rather than the stale list row', async () => {
     const mock = accountsMockV1();
