@@ -11,13 +11,15 @@ it('prevents Card.Content defaults from turning horizontal filter widths into hu
   const operations = css('src/features/student-portal-admin/overview/student-operations-v1.css');
   expect(operations).toMatch(/\.pa-operations-filters\s*\{[^}]*flex-direction:\s*row/s);
 });
-it('sizes desktop navigation and dashboard from the real content area rather than the full viewport', () => {
+it('sizes the dashboard from content width and targets the native tab scroller in both workspaces', () => {
   const admin = css('src/features/student-portal-admin/shared/admin-page-v1.css');
   const operations = css('src/features/student-portal-admin/overview/student-operations-v1.css');
+  const tabs = css('src/shared/ui/workspace-tabs-v1.css');
   expect(admin).toContain('container-type: inline-size');
-  expect(admin).toMatch(/\.pa-admin-page\s*>\s*\.tabs\s*>\s*\.tabs__list-container[^{]*\{[^}]*width:\s*fit-content/s);
-  expect(admin).toMatch(/\.school-class-tabs\s*>\s*\.tabs__list-container[^{]*\{[^}]*width:\s*fit-content/s);
-  expect(admin).toMatch(/\.tabs__tab[^{]*\{[^}]*flex:\s*0\s+0\s+auto/s);
+  expect(tabs).toContain('.pa-admin-page .tabs');
+  expect(tabs).toContain('.performance-workspace .tabs');
+  expect(tabs).toContain('.tabs__list-container__scroller > .tabs__list');
+  expect(tabs).toMatch(/>\s*\.tabs__tab\s*\{[^}]*width:\s*auto/s);
   expect(operations).toContain('@container (min-width: 1280px)');
   expect(operations).not.toContain('@media (min-width: 1500px)');
 });

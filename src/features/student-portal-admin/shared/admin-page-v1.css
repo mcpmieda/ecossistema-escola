@@ -29,34 +29,13 @@
 .pa-qr-handoff [data-slot='modal-footer'] {
   flex-wrap: wrap;
 }
-
 .pa-section-heading {
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
-.pa-admin-page .tabs__list-container {
-  max-width: 100%;
-  overflow-x: auto;
-}
-/* The two navigation strips must size to their tabs, not stretch one tab across the desktop. */
-.pa-admin-page > .tabs > .tabs__list-container,
-.pa-admin-page .school-class-tabs > .tabs__list-container {
-  align-self: flex-start;
-  width: fit-content;
-  max-width: 100%;
-}
-.pa-admin-page > .tabs > .tabs__list-container > .tabs__list,
-.pa-admin-page .school-class-tabs > .tabs__list-container > .tabs__list {
-  width: max-content;
-  min-width: 0;
-  justify-content: flex-start;
-}
-.pa-admin-page > .tabs > .tabs__list-container > .tabs__list .tabs__tab,
-.pa-admin-page .school-class-tabs .tabs__tab {
-  flex: 0 0 auto;
-  min-width: max-content;
-}
+/* Horizontal navigation is shared with Desempenho in workspace-tabs-v1.css.
+ * Do not impose a second scroll container or override vertical widgets here. */
 .pa-admin-page h2 {
   font-size: 1.15rem;
   font-weight: 650;
@@ -83,10 +62,6 @@
 .pa-info:focus-visible {
   color: var(--accent);
   background: var(--accent-soft);
-}
-.pa-admin-page .tabs__tab {
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 .pa-continuous-end {
   display: flex;
