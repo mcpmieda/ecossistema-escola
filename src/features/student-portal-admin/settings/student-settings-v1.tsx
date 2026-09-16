@@ -327,7 +327,7 @@ function SettingsScopeV1({
       writer.clear();
       setReview(null);
     }
-  }, [canWrite]);
+  }, [canWrite, writer]);
   useDraftNavigationGuardV1(dirtyFields.size > 0 || mutation.state === 'pending');
   const busy = mutation.state === 'pending' || closing;
   const onDirtyChange = useCallback((field: SettingsFieldV1, dirty: boolean) => {
