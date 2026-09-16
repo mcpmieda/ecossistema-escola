@@ -191,7 +191,7 @@ export function RelationalPerformancePageV2({
   ];
   if (state.filters.period === 3) comparisonItems.push({ id: '2', label: '2º trimestre' });
   return (
-    <section aria-label="Desempenho relacional" className="grid min-w-0 grid-cols-1 gap-4">
+    <section aria-label="Desempenho relacional" className="performance-workspace grid min-w-0 grid-cols-1 gap-4">
       <header className="flex min-h-12 flex-wrap items-center gap-2">
         <div>
           <h2 className="text-xl font-semibold tracking-[-0.03em]">Desempenho</h2>
@@ -234,7 +234,7 @@ export function RelationalPerformancePageV2({
           }}
           className="min-w-0"
         >
-          <Tabs.ListContainer className="max-w-full overflow-x-auto">
+          <Tabs.ListContainer>
             <Tabs.List aria-label="Perspectivas de Desempenho">
               {PERFORMANCE_PERSPECTIVES_V6.map((item) => (
                 <Tabs.Tab id={item.id} key={item.id}>
