@@ -1,8 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { subscribeLiveRefreshV1, type LiveDomainV1 } from './live-refresh-v1';
+import {
+  subscribeLiveRefreshV1,
+  type LiveDomainV1,
+  type LiveRefreshSubscriptionV1,
+} from './live-refresh-v1';
+import { useLiveRefreshScopeV1 } from './live-refresh-scope-v1';
 
-/** Changing data does not restart the schedule. Readers retain responsibility for scope,
- * authorization, cancellation, retry deadlines and preserving dirty fields.
+/** Readers own scope, authorization, cancellation and dirty fields. Pausing a workspace
+ * retains its subscription/cooldown and does not interrupt any write or destroy its state.
  */
 export function useLiveRefreshV1(refresh: () => void | Promise<unknown>, options: {
   domains: readonly LiveDomainV1[];
@@ -10,16 +15,27 @@ export function useLiveRefreshV1(refresh: () => void | Promise<unknown>, options
   canRefresh?: () => boolean;
   intervalMs?: number;
 }) {
-  const current = useRef({ refresh, canRefresh: options.canRefresh });
-  useEffect(() => { current.current = { refresh, canRefresh: options.canRefresh }; });
+  const active = useLiveRefreshScopeV1();
+  const current = useRef({ refresh, canRefresh: options.canRefresh, active });
+  const subscription = useRef<LiveRefreshSubscriptionV1 | null>(null);
+  useEffect(() => { current.current = { refresh, canRefresh: options.canRefresh, active }; });
+  // Runs before installing a new subscription: readers that already re-fetch on enable
+  // do not receive another initial request. Retained hidden readers resume through the clock.
+  useEffect(() => { subscription.current?.resume(); }, [active]);
   const domainsKey = options.domains.join(','), enabled = options.enabled !== false, interval = options.intervalMs;
   useEffect(() => {
     if (!enabled) return;
-    return subscribeLiveRefreshV1({
+    const control = subscribeLiveRefreshV1({
       domains: domainsKey.split(',').filter((domain): domain is LiveDomainV1 => domain === 'gradebook' || domain === 'portal'),
       intervalMs: interval,
       refresh: () => current.current.refresh(),
       canRefresh: () => current.current.canRefresh?.() ?? true,
+      isActive: () => current.current.active,
     });
+    subscription.current = control;
+    return () => {
+      if (subscription.current === control) subscription.current = null;
+      control();
+    };
   }, [domainsKey, enabled, interval]);
 }

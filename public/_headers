@@ -6,5 +6,11 @@
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
 
+/
+  Cache-Control: no-cache
+
+/index.html
+  Cache-Control: no-cache
+
 /manifest.webmanifest
   Cache-Control: public, max-age=3600

@@ -1,17 +1,25 @@
 export type LiveDomainV1 = 'gradebook' | 'portal';
 export const LIVE_REFRESH_INTERVAL_V1 = 30_000;
+/** Heavy, read-only analytics opt in; interactive Portal/Council readers keep their cadence. */
+export const LIVE_HEAVY_READ_INTERVAL_V1 = 120_000;
 const MIN_GAP = 2_000;
+const FOCUS_GAP = 10_000;
+const MAX_RETRY_DELAY = 300_000;
 const CHANNEL = 'ecossistema-invalidation-v1';
 interface Subscription {
   domains: readonly LiveDomainV1[];
   refresh: () => void | Promise<unknown>;
   canRefresh: () => boolean;
+  isActive: () => boolean;
   interval: number;
   nextAt: number;
   lastAt: number;
+  retryAt: number;
+  failures: number;
   pending: boolean;
   dirty: boolean;
 }
+export type LiveRefreshSubscriptionV1 = (() => void) & { resume(): void };
 const subscriptions = new Set<Subscription>();
 let timer: ReturnType<typeof setTimeout> | undefined;
 let channel: BroadcastChannel | undefined;
@@ -22,20 +30,29 @@ function wake() {
   clearTimeout(timer);
   timer = undefined;
   if (!subscriptions.size || !visible()) return;
-  const next = Math.min(...Array.from(subscriptions).filter((entry) => !entry.pending).map((entry) => entry.nextAt));
+  const next = Math.min(...Array.from(subscriptions).filter((entry) => !entry.pending && entry.isActive()).map((entry) => entry.nextAt));
   if (!Number.isFinite(next)) return;
   timer = setTimeout(tick, Math.max(0, next - Date.now()));
 }
-function request(entry: Subscription) {
-  if (entry.pending) { entry.dirty = true; return; }
-  entry.nextAt = Math.min(entry.nextAt, Math.max(Date.now() + 250, entry.lastAt + MIN_GAP));
+function request(entry: Subscription, changed = true) {
+  // Focus/pageshow are not evidence of a new commit. A pending read already covers them.
+  if (entry.pending) {
+    if (changed) entry.dirty = true;
+    return;
+  }
+  const requestedAt = Math.max(
+    Date.now() + 250 + jitter(),
+    entry.lastAt + (changed ? MIN_GAP : FOCUS_GAP),
+    entry.retryAt,
+  );
+  entry.nextAt = Math.max(entry.retryAt, Math.min(entry.nextAt, requestedAt));
 }
 function invalidate(domain: LiveDomainV1) {
   for (const entry of subscriptions) if (entry.domains.includes(domain)) request(entry);
   wake();
 }
 function resume() {
-  if (visible()) for (const entry of subscriptions) request(entry);
+  if (visible()) for (const entry of subscriptions) if (entry.isActive()) request(entry, false);
   wake();
 }
 function tick() {
@@ -43,17 +60,25 @@ function tick() {
   if (!visible()) return;
   const now = Date.now();
   for (const entry of subscriptions) {
-    if (entry.pending || entry.nextAt > now) continue;
+    if (entry.pending || !entry.isActive() || entry.nextAt > now) continue;
     if (!entry.canRefresh()) { entry.nextAt = now + 1_000; continue; }
     entry.pending = true;
     entry.dirty = false;
     entry.lastAt = now;
-    void Promise.resolve().then(entry.refresh).catch(() => {
-      // The owning reader reports its typed failure; the scheduler never retries a write.
+    void Promise.resolve().then(entry.refresh).then((result) => {
+      // A typed reader may resolve false after displaying its failure. Undefined stays compatible.
+      entry.failures = result === false ? Math.min(entry.failures + 1, 10) : 0;
+    }, () => {
+      // Only a read is retried; the reader owns its error presentation, scope and cancellation.
+      entry.failures = Math.min(entry.failures + 1, 10);
     }).finally(() => {
       entry.pending = false;
       if (!subscriptions.has(entry)) return;
-      entry.nextAt = Date.now() + entry.interval + jitter();
+      const delay = entry.failures === 0
+        ? entry.interval
+        : Math.min(MAX_RETRY_DELAY, entry.interval * 2 ** (entry.failures - 1));
+      entry.nextAt = Date.now() + delay + jitter();
+      entry.retryAt = entry.failures === 0 ? 0 : entry.nextAt;
       if (entry.dirty) request(entry);
       wake();
     });
@@ -106,20 +131,33 @@ export function notifyLiveChangeV1(domain: LiveDomainV1) {
   } catch { /* An optional notification never changes a committed operation's result. */ }
 }
 /** One listener set and one clock per document; at most one read in flight per subscriber.
- * An invalidation received during a read is coalesced into one later revalidation.
+ * A committed change received during a read is coalesced into one later revalidation.
+ * Rejected reads, or readers resolving false, back off without event-driven retry storms.
  */
 export function subscribeLiveRefreshV1(options: {
   domains: readonly LiveDomainV1[];
   refresh: () => void | Promise<unknown>;
   canRefresh?: () => boolean;
+  isActive?: () => boolean;
   intervalMs?: number;
-}): () => void {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return () => undefined;
+}): LiveRefreshSubscriptionV1 {
+  if (typeof window === 'undefined' || typeof document === 'undefined')
+    return Object.assign(() => undefined, { resume: () => undefined });
   const interval = Math.max(10_000, options.intervalMs ?? LIVE_REFRESH_INTERVAL_V1);
   const entry: Subscription = {
     domains: options.domains, refresh: options.refresh, canRefresh: options.canRefresh ?? (() => true),
-    interval, nextAt: Date.now() + interval + jitter(), lastAt: 0, pending: false, dirty: false,
+    isActive: options.isActive ?? (() => true),
+    interval, nextAt: Date.now() + interval + jitter(), lastAt: 0, retryAt: 0, failures: 0,
+    pending: false, dirty: false,
   };
   subscriptions.add(entry); start(); wake();
-  return () => { subscriptions.delete(entry); stop(); if (subscriptions.size) wake(); };
+  return Object.assign(() => {
+    subscriptions.delete(entry); stop(); if (subscriptions.size) wake();
+  }, {
+    resume() {
+      if (!subscriptions.has(entry)) return;
+      if (entry.isActive()) request(entry, false);
+      wake();
+    },
+  });
 }

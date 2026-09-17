@@ -1,4 +1,5 @@
 import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
+import { LiveRefreshScopeV1 } from '../shared/live-data/live-refresh-scope-v1';
 import {
   Component,
   lazy,
@@ -315,32 +316,34 @@ function GradebookWorkspaceShellContent() {
             hidden={!active}
             className="min-w-0"
           >
-            <p className="sr-only">{surface.description}</p>
-            {surface.id === 'importacao' ? (
-              <NotesImportPanel />
-            ) : (
-              <GradebookSurfaceBoundary
-                label={surface.label}
-                onLeave={() => activateSurface(DEFAULT_SURFACE)}
-              >
-                <Suspense fallback={<SurfaceLoading label={surface.label} />}>
-                  {(() => {
-                    const SurfaceComponent = SURFACE_COMPONENTS[surface.id];
-                    const scopeKey =
-                      surface.id === 'operational'
-                        ? `${scope?.epoch}:${scope?.targetStudentId}:${scope?.studentNavigationEpoch}`
-                        : scope?.epoch;
-                    if (surface.id === 'performance')
-                      return <PerformancePage key={scopeKey} isActive={active} />;
-                    if (surface.id === 'settings')
-                      return <SettingsPage key={scopeKey} isActive={active} />;
-                    if (surface.id === 'reports')
-                      return <InstitutionalReportsPage key={scopeKey} isActive={active} />;
-                    return <SurfaceComponent key={scopeKey} />;
-                  })()}
-                </Suspense>
-              </GradebookSurfaceBoundary>
-            )}
+            <LiveRefreshScopeV1 active={active}>
+              <p className="sr-only">{surface.description}</p>
+              {surface.id === 'importacao' ? (
+                <NotesImportPanel />
+              ) : (
+                <GradebookSurfaceBoundary
+                  label={surface.label}
+                  onLeave={() => activateSurface(DEFAULT_SURFACE)}
+                >
+                  <Suspense fallback={<SurfaceLoading label={surface.label} />}>
+                    {(() => {
+                      const SurfaceComponent = SURFACE_COMPONENTS[surface.id];
+                      const scopeKey =
+                        surface.id === 'operational'
+                          ? `${scope?.epoch}:${scope?.targetStudentId}:${scope?.studentNavigationEpoch}`
+                          : scope?.epoch;
+                      if (surface.id === 'performance')
+                        return <PerformancePage key={scopeKey} isActive={active} />;
+                      if (surface.id === 'settings')
+                        return <SettingsPage key={scopeKey} isActive={active} />;
+                      if (surface.id === 'reports')
+                        return <InstitutionalReportsPage key={scopeKey} isActive={active} />;
+                      return <SurfaceComponent key={scopeKey} />;
+                    })()}
+                  </Suspense>
+                </GradebookSurfaceBoundary>
+              )}
+            </LiveRefreshScopeV1>
           </div>
         );
       })}
