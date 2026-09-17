@@ -78,7 +78,12 @@ it('opens and closes quality on demand and exposes a focused information explana
   await waitFor(() => expect(screen.queryByRole('meter', qualityMeter)).toBeNull());
   const hint = screen.getByLabelText('Sobre Participação avaliada');
   act(() => hint.focus());
-  await waitFor(() => expect(screen.getByRole('tooltip').textContent).toContain('Não mede presença'));
+  // After mouse clicks, programmatic focus alone is not keyboard modality. Exercise the
+  // native tab stop instead of forcing the tooltip open or changing application behavior.
+  await user.tab({ shift: true });
+  await user.tab();
+  expect(document.activeElement).toBe(hint);
+  expect((await screen.findByRole('tooltip')).textContent).toContain('Não mede presença');
 });
 it('preserves DOM, search, focus and filter when the same scope revalidates', async () => {
   const model = props(); const view = render(<PerformanceAnalyticsWorkspaceV6 {...model} />);
