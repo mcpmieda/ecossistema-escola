@@ -14,12 +14,15 @@ import { routeLabels } from './platform/routes';
 import { PlatformSearch } from './platform/search';
 import { withStudentPortalModule } from './platform/student-portal-module';
 import { usePlatformDataV2 } from './platform/platform-data-v2';
+import { AdministrativeLiveProviderV1 } from './shared/live-data/administrative-live-v1';
+import { DraftUpdatesNoticeV1 } from './shared/forms/draft-navigation-v1';
 
-type Identity = { authenticated: boolean; name?: string; roles?: string[]; capabilities?: PlatformCapability[] };
+type Identity = { authenticated: boolean; name?: string; roles?: string[]; capabilities?: PlatformCapability[]; identityKey?: string; expiresAt?: string };
 const identityResponse = z.discriminatedUnion('authenticated', [
   z.object({ authenticated: z.literal(false) }),
   z.object({ authenticated: z.literal(true), name: z.string().optional(), roles: z.array(z.string()).optional(),
-    capabilities: z.array(z.enum(PLATFORM_CAPABILITIES)) }),
+    capabilities: z.array(z.enum(PLATFORM_CAPABILITIES)),
+    identityKey: z.string().min(1).max(256).optional(), expiresAt: z.iso.datetime({ offset: true }).optional() }),
 ]);
 type AuthFailure = { correlationId?: string };
 function authFailureFromUrl(): AuthFailure | null {
@@ -178,6 +181,7 @@ function AdminShell({ identity }: { identity: Identity }) {
           </div>
         </Surface>
         <main className={route === 'banco-de-notas' ? 'w-full px-4 py-4 sm:px-5 lg:px-5' : 'mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8'}>
+          <DraftUpdatesNoticeV1 />
           {loadState.status === 'loading' && <LoadingWorkspace />}
           {loadState.status === 'error' && <Surface variant="default" className="platform-card-surface max-w-3xl rounded-[2rem] p-5 sm:p-7">
             <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Title>Não foi possível carregar o Centro</Alert.Title><Alert.Description>{loadState.message}</Alert.Description></Alert.Content></Alert>
@@ -206,6 +210,7 @@ export function App() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [accessError, setAccessError] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const hasIdentity = useRef(false);
   const authFailure = authFailureFromUrl();
   useEffect(() => {
     const controller = new AbortController();
@@ -215,8 +220,16 @@ export function App() {
         if (response.status === 401) return { authenticated: false };
         if (!response.ok) throw new Error('identity-unavailable');
         return identityResponse.parse(await response.json());
-      }).then((result) => { if (!controller.signal.aborted) setIdentity(result); })
-      .catch(() => { if (!controller.signal.aborted) setAccessError(true); });
+      }).then((result) => {
+        if (!controller.signal.aborted) {
+          hasIdentity.current = result.authenticated;
+          setIdentity(result);
+        }
+      })
+      .catch(() => {
+        // A transient recheck failure is not proof of logout and must not destroy drafts.
+        if (!controller.signal.aborted && !hasIdentity.current) setAccessError(true);
+      });
     return () => controller.abort();
   }, [attempt]);
   if (accessError) return <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
@@ -228,5 +241,10 @@ export function App() {
   if (authFailure && !identity.authenticated) return <AuthErrorExperience correlationId={authFailure.correlationId} />;
   if (!identity.authenticated) return <LoginExperience loading={false} />;
   if (!identity.capabilities?.includes('platform.snapshot.read')) return <RestrictedExperience name={identity.name} />;
-  return <AdminShell identity={identity} />;
+  return <AdministrativeLiveProviderV1
+    identityKey={identity.identityKey ? `${identity.identityKey}:${identity.expiresAt ?? ''}` : undefined}
+    enabled={identity.capabilities.includes('platform.settings.read')}
+    onAuthorizationLost={() => setAttempt((current) => current + 1)}>
+    <AdminShell key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`} identity={identity} />
+  </AdministrativeLiveProviderV1>;
 }

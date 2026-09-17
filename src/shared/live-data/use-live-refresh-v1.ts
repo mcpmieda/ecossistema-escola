@@ -4,7 +4,7 @@ import {
   type LiveDomainV1,
   type LiveRefreshSubscriptionV1,
 } from './live-refresh-v1';
-import { useLiveRefreshScopeV1 } from './live-refresh-scope-v1';
+import { useLiveRefreshIntervalV1, useLiveRefreshScopeV1 } from './live-refresh-scope-v1';
 
 /** Readers own scope, authorization, cancellation and dirty fields. Pausing a workspace
  * retains its subscription/cooldown and does not interrupt any write or destroy its state.
@@ -16,13 +16,15 @@ export function useLiveRefreshV1(refresh: () => void | Promise<unknown>, options
   intervalMs?: number;
 }) {
   const active = useLiveRefreshScopeV1();
+  const scopeInterval = useLiveRefreshIntervalV1();
   const current = useRef({ refresh, canRefresh: options.canRefresh, active });
   const subscription = useRef<LiveRefreshSubscriptionV1 | null>(null);
   useEffect(() => { current.current = { refresh, canRefresh: options.canRefresh, active }; });
   // Runs before installing a new subscription: readers that already re-fetch on enable
   // do not receive another initial request. Retained hidden readers resume through the clock.
   useEffect(() => { subscription.current?.resume(); }, [active]);
-  const domainsKey = options.domains.join(','), enabled = options.enabled !== false, interval = options.intervalMs;
+  const domainsKey = options.domains.join(','), enabled = options.enabled !== false;
+  const interval = options.intervalMs ?? scopeInterval;
   useEffect(() => {
     if (!enabled) return;
     const control = subscribeLiveRefreshV1({
