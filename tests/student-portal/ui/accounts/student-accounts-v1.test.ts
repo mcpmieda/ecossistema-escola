@@ -93,7 +93,9 @@ describe('account list and detail', () => {
     const trigger = firstName.closest('button')!;
     expect(trigger.getAttribute('aria-label')).toBe('Abrir ficha de SYNTHETIC ACCOUNT 001');
     await user.click(trigger);
-    const drawer = await screen.findByRole('dialog', { name: 'Ficha do aluno' });
+    // Resolve the explicit accessible label without scanning role visibility across the grid.
+    const drawer = await screen.findByLabelText('Ficha do aluno');
+    expect(drawer.getAttribute('role')).toBe('dialog');
     await within(drawer).findByRole('button', { name: 'Bloquear acesso' });
     expect(drawer.closest('[data-placement="right"]')).toBeTruthy();
     expect(within(drawer).getByText('SYNTHETIC ACCOUNT 001')).toBeTruthy();
@@ -118,7 +120,7 @@ describe('account list and detail', () => {
     await user.click(screen.getByRole('button', { name: 'Redefinir senha' }));
     const dialog = screen.getByRole('alertdialog');
     expect(within(dialog).getByText(/mesmo QR e o ano de nascimento/)).toBeTruthy();
-    await user.click(within(dialog).getByRole('button', { name: 'Cancelar' }));
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }));
     expect(mock.writes).toHaveLength(0);
     await user.click(await screen.findByRole('button', { name: 'Redefinir senha' }));
     await user.click(screen.getByRole('button', { name: 'Confirmar ação' }));
@@ -244,23 +246,13 @@ describe('account list and detail', () => {
     await user.click(screen.getByRole('button', { name: 'Todos Bloqueio' }));
     await user.click(screen.getByRole('option', { name: 'Bloqueadas' }));
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 002' });
-    expect(mock.queries.at(-1)).toMatchObject({
-      accountState: 'pending-activation',
-      blocked: true,
-    });
-    expect(
-      screen.queryByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' }),
-    ).toBeNull();
+    expect(mock.queries.at(-1)).toMatchObject({ accountState: 'pending-activation', blocked: true });
+    expect(screen.queryByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' })).toBeNull();
   });
   it('discards a late name-search result after filter changes', async () => {
     let resolve!: (response: Response) => void;
     const mock = accountsMockV1({
-      query: (input) =>
-        input.nameSearch === 'old'
-          ? new Promise((done) => {
-              resolve = done;
-            })
-          : undefined,
+      query: (input) => input.nameSearch === 'old' ? new Promise((done) => { resolve = done; }) : undefined,
     });
     render(createElement(StudentAccountsV1, mock.props));
     await ready();
@@ -269,21 +261,14 @@ describe('account list and detail', () => {
     fireEvent.change(screen.getByLabelText('Buscar aluno'), { target: { value: '003' } });
     await screen.findByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 003' });
     await act(async () => resolve(accountJsonV1(accountPageV1([accountFixtureV1(1)]))));
-    expect(
-      screen.queryByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' }),
-    ).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Abrir ficha de SYNTHETIC ACCOUNT 001' })).toBeNull();
   });
   it('recovers an uncertain response under StrictMode with identical bytes', async () => {
     let attempt = 0;
     const mock = accountsMockV1({
       write: async () => {
         if (attempt++ < 2) throw new Error('Synthetic lost response');
-        return accountJsonV1({
-          ...ACCOUNT_META_V1,
-          state: 'committed',
-          operationId: ACCOUNT_META_V1.requestId,
-          version: 10,
-        });
+        return accountJsonV1({ ...ACCOUNT_META_V1, state: 'committed', operationId: ACCOUNT_META_V1.requestId, version: 10 });
       },
     });
     render(createElement(StrictMode, null, createElement(StudentAccountsV1, mock.props)));
@@ -298,7 +283,6 @@ describe('account list and detail', () => {
     expect(new Set(mock.bodies).size).toBe(1);
   });
 });
-
 it('confirms a complete reset and tells the operator to reprint the current QR', async () => {
   const mock = accountsMockV1();
   render(createElement(StudentAccountsV1, mock.props));
