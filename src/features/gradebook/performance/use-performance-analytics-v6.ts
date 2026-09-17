@@ -26,7 +26,7 @@ export function usePerformanceAnalyticsV6(
     () =>
       year === null || classId === null
         ? null
-        : { transportVersion: 6, operation: 'analytics', year, classId, period, includeLearning: true },
+        : { transportVersion: 6, operation: 'analytics', year, classId, period, includeLearning: true, includeStudentDimensions: true },
     [year, classId, period],
   );
   const key = JSON.stringify([epoch, request]);

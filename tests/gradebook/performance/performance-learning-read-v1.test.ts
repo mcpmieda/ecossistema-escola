@@ -58,8 +58,11 @@ beforeAll(async () => {
 }, 30_000);
 afterAll(async () => { await database?.close(); });
 beforeEach(() => { queries.length = 0; });
-async function read(includeLearning = true) {
-  const value = await createPerformanceAnalyticsV6(database).execute({ ...request, ...(includeLearning ? { includeLearning: true } : {}) });
+async function read(includeLearning = true, includeStudentDimensions = false) {
+  const value = await createPerformanceAnalyticsV6(database).execute({ ...request,
+    ...(includeLearning ? { includeLearning: true } : {}),
+    ...(includeStudentDimensions ? { includeStudentDimensions: true } : {}),
+  });
   if (value.state !== 'ready') throw new Error(JSON.stringify(value));
   expect(performanceAnalyticsResponseSchemaV6.safeParse(value).success).toBe(true);
   return value;
@@ -125,5 +128,30 @@ it('preserves the existing single-offer description query and its bound paramete
 });
 it('does not expose the internal description option as an uncontrolled public request field', async () => {
   expect(await createPerformanceAnalyticsV6(database).execute({ ...request, includeInstrumentDescriptions: true })).toEqual({ transportVersion: 6, state: 'invalid-request' });
+  expect(queries).toHaveLength(0);
+});
+it('negotiates student dimensions through the real service without changing the legacy payload or the six read-only queries', async () => {
+  const legacy = await read(true);
+  expect(queries).toHaveLength(6);
+  expect(legacy.learning!.students.every((student) => !Object.hasOwn(student, 'dimensions'))).toBe(true);
+  queries.length = 0;
+  const current = await read(true, true);
+  expect(queries).toHaveLength(6);
+  expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
+  expect(current.learning!.students.map((student) => student.studentId)).toEqual([1, 2]);
+  const first = current.learning!.students[0]!.dimensions!;
+  expect(first.components).toBe(2);
+  expect(first.quantitativePercent).toBeCloseTo(4000 / 13500 * 100);
+  expect(first.qualitativePercent).toBeCloseTo(9000 / 16500 * 100);
+  expect(first.gapPP).toBe(first.qualitativePercent! - first.quantitativePercent!);
+  const withoutExtension = structuredClone(current.learning!);
+  for (const student of withoutExtension.students) delete student.dimensions;
+  expect(withoutExtension).toEqual(legacy.learning);
+  expect(current.students).toEqual(legacy.students);
+  expect(current.summary).toEqual(legacy.summary);
+});
+it('rejects a dimensions request without learning before reading the database', async () => {
+  expect(await createPerformanceAnalyticsV6(database).execute({ ...request, includeStudentDimensions: true }))
+    .toEqual({ transportVersion: 6, state: 'invalid-request' });
   expect(queries).toHaveLength(0);
 });

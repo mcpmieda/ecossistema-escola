@@ -39,6 +39,20 @@ Participação pertence ao qualitativo e não é somada novamente à nota oficia
 
 **Recuperação paralela:** contar aumentos efetivos já resolvidos pelo núcleo, isto é, quantitativo considerado maior que o original. Ganho relativo ao máximo quantitativo, preservando ganho em pontos e critérios existentes no detalhe. Não somar REC à nota nem tratar aceite de publicação como aprendizagem.
 
+## Coerência da comparação na perspectiva Alunos — #835
+
+A extensão Alunos foi integrada pela #833/PR #834. A correção #835 substitui, somente no bloco **Quantitativo × qualitativo** dessa perspectiva, as médias legadas independentes pelos mesmos valores intermediários que já alimentam a Visão geral. O construtor `buildPerformanceLearningV1` não recalcula regras acadêmicas: expõe o quantitativo original, qualitativo, diferença e número de componentes comuns de cada aluno. A nota final e o efeito da recuperação permanecem no núcleo e nos resumos anteriores, sem mudanças.
+
+Transporte: `includeStudentDimensions: true` requer `includeLearning: true`. O serviço retira os dois flags antes de chamar V2. Somente quem solicita a nova extensão recebe `learning.students[].dimensions`; clientes já abertos usando apenas `includeLearning` continuam recebendo exatamente os campos anteriores. O cliente novo exige a presença da extensão solicitada. Os construtores puros usados nas fixtures produzem a evidência completa por padrão; a fronteira HTTP sempre passa explicitamente os flags negociados.
+
+O contrato valida valores finitos, zero, percentuais acima de 100%, relação `gapPP = qualitativo - quantitativo`, identidade do aluno e contagem coerente dos componentes. Na ausência de base comum, os três valores são `null` e a contagem é zero. A UI mostra ausência, não faz fallback para os summaries incompatíveis e informa a base comum e o uso das duas avaliações antes da paralela. O delta usa valores não arredondados; o arredondamento de exibição é o já existente.
+
+Exemplo estritamente sintético de regressão: um componente tem 40% nas avaliações originais, 80% após paralela e 80% no qualitativo; outro só tem quantitativo completo e outro só qualitativo completo. O bloco comparativo deve mostrar **40% / 80% / +40 p.p.**, baseado somente no primeiro componente, sem remover a melhora da nota final. O cenário sem nenhum componente comum deve mostrar ausência nos dois lados, mesmo quando cada grupo isolado tem notas.
+
+Cobertura adicional: cálculo e UI HeroUI reais, recuperação paralela, bases diferentes/incompletas, zero, acima de 100%, anual 30/30/40, compatibilidade opt-in, rejeição de evidências inconsistentes e serviço SQL com seis consultas read-only/repeatable-read. Os testes existentes do snapshot de 1.000 pares/2 MB continuam cobrindo a evidência ampliada. Resultados do SHA final, revisão, merge e deploy ficam na issue/PR. Não há alteração de schema, SQL produtivo, ACL, dependência, workflow ou outras perspectivas.
+
+A validação manual no navegador permanece com o usuário por orientação expressa; não bloqueia a conclusão interna e não será alegada como realizada pelo agente.
+
 ## Validação e evidências
 
 Testes sintéticos cobrem aliases e rejeições, partes com máximos distintos, peso entre alunos, zero/ausências/máximo desconhecido, comparação de componentes, recorrência, separação da paralela, compatibilidade opt-in, isolamento de identidades e limite de 1.000 pares/2 MB. A interface real é montada com HeroUI nos testes de interação: filtro por card, busca, aluno/componente/atividade, qualidade recolhida, tooltip e preservação de foco/DOM na revalidação.

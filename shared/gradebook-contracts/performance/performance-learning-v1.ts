@@ -13,6 +13,20 @@ const participation = z.object({
   expected: count,
   unscaled: count,
 }).strict();
+/** Original quantitative and qualitative percentages over exactly the same components.
+ * Optional on the wire for already-open clients; only returned on explicit request. */
+const studentDimensions = z.object({
+  quantitativePercent: z.number().finite().nonnegative().nullable(),
+  qualitativePercent: z.number().finite().nonnegative().nullable(),
+  gapPP: metric,
+  components: z.number().int().nonnegative().max(40),
+}).strict().superRefine((value, ctx) => {
+  const { quantitativePercent: q, qualitativePercent: a, gapPP, components } = value;
+  if (components === 0
+    ? q !== null || a !== null || gapPP !== null
+    : q === null || a === null || gapPP === null || gapPP !== a - q)
+    ctx.addIssue({ code: 'custom', message: 'inconsistent student dimension comparison' });
+});
 export const performanceLearningSchemaV1 = z.object({
   version: z.literal(1),
   students: z.array(z.object({
@@ -25,6 +39,7 @@ export const performanceLearningSchemaV1 = z.object({
     }).strict()).max(40),
     participation,
     parallelImprovements: count,
+    dimensions: studentDimensions.optional(),
   }).strict()).max(150),
   participation: z.object({
     percent: metric,
@@ -61,7 +76,13 @@ export const performanceLearningSchemaV1 = z.object({
         item.consecutiveTerms.includes(1));
   });
   const p = value.participation;
-  if (invalid || new Set(value.students.map((item) => item.studentId)).size !== value.students.length ||
+  const extended = value.students.some((student) => student.dimensions !== undefined);
+  const dimensionsInvalid = extended && (
+    value.students.some((student) => student.dimensions === undefined) ||
+    value.dimensions.components !== value.students.reduce((sum, student) => sum + (student.dimensions?.components ?? 0), 0) ||
+    value.dimensions.students !== value.students.filter((student) => (student.dimensions?.components ?? 0) > 0).length
+  );
+  if (invalid || dimensionsInvalid || new Set(value.students.map((item) => item.studentId)).size !== value.students.length ||
     new Set(value.activitiesToReview).size !== value.activitiesToReview.length ||
     p.students !== value.students.filter((item) => item.participation.percent !== null).length ||
     p.comparedStudents !== value.students.filter((item) => item.participation.deltaPP !== null).length ||

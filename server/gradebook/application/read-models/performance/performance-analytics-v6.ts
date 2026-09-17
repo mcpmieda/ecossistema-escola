@@ -308,6 +308,7 @@ export function buildPerformanceAnalyticsV6(
   matrix: PerformanceMatrixV2,
   projections: ReadonlyMap<number, readonly PerformanceProjectionV2[]>,
   includeLearning = true,
+  includeStudentDimensions = true,
 ): PerformanceAnalyticsV6 {
   const period = matrix.period;
   const dimensionRequest = {
@@ -445,7 +446,7 @@ export function buildPerformanceAnalyticsV6(
       };
     }),
   };
-  return includeLearning ? { ...result, learning: buildPerformanceLearningV1(result, projections) } : result;
+  return includeLearning ? { ...result, learning: buildPerformanceLearningV1(result, projections, includeStudentDimensions) } : result;
 }
 
 export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
@@ -456,7 +457,7 @@ export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
       if (!('transaction' in database) || typeof database.transaction !== 'function')
         return { transportVersion: 6, state: 'unavailable' };
       const request: PerformanceAnalyticsRequestV6 = parsed.data;
-      const { includeLearning, ...matrixRequest } = request;
+      const { includeLearning, includeStudentDimensions, ...matrixRequest } = request;
       const db = database as D1WriteDatabaseV1 & {
         transaction<T>(operation: (tx: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
       };
@@ -482,7 +483,7 @@ export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
         if (matrix.state !== 'ready') return { transportVersion: 6, state: matrix.state } as const;
         if (matrix.operation !== 'matrix') throw new Error('unexpected-analytics-operation');
         return performanceAnalyticsResponseSchemaV6.parse(
-          buildPerformanceAnalyticsV6(matrix, projections, includeLearning === true),
+          buildPerformanceAnalyticsV6(matrix, projections, includeLearning === true, includeStudentDimensions === true),
         );
       });
     },
