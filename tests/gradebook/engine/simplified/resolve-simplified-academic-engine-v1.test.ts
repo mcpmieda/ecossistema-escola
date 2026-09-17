@@ -38,7 +38,7 @@ describe('simplified academic engine v1', () => {
     expect(roundSimplifiedGradeMilliV1(19_255)).toBe(19_000);
   });
 
-  it('reproduces an observed parallel-recovery AM case with exact integers', () => {
+  it('adds an eligible superior parallel grade under BN-DEC-033 with exact integers', () => {
     const outcome = term1([
       { slot: 1, maximumMilli: 6_750, valueMilli: 1_500 },
       { slot: 2, maximumMilli: 6_750, valueMilli: 1_250 },
@@ -48,9 +48,9 @@ describe('simplified academic engine v1', () => {
 
     expect(outcome.quantitativeOriginalMilli).toBe(2_750);
     expect(outcome.parallelApplicable).toBe(true);
-    expect(outcome.quantitativeConsideredMilli).toBe(8_250);
-    expect(outcome.rawMilli).toBe(12_250);
-    expect(outcome.roundedMilli).toBe(12_000);
+    expect(outcome.quantitativeConsideredMilli).toBe(11_000);
+    expect(outcome.rawMilli).toBe(15_000);
+    expect(outcome.roundedMilli).toBe(15_000);
     expect(outcome.coverage.complete).toBe(true);
   });
 
@@ -91,8 +91,10 @@ describe('simplified academic engine v1', () => {
       { slot: 2, maximumMilli: 6_750, valueMilli: null },
       { slot: 11, maximumMilli: 16_500, valueMilli: 10_000 },
     ]);
-    expect(incomplete.parallelApplicable).toBeNull();
-    expect(incomplete.coverage.reasons).toContain('parallel-applicability-unresolved');
+    expect(incomplete.parallelApplicable).toBe(true);
+    expect(incomplete.coverage.reasons).not.toContain('parallel-applicability-unresolved');
+    expect(incomplete.coverage.missingSlots).toContain(2);
+    expect(incomplete.coverage.complete).toBe(false);
 
     const applicableWithoutZ = term1([
       { slot: 1, maximumMilli: 6_750, valueMilli: 2_000 },

@@ -87,6 +87,7 @@ export function performanceCellV2(
   projection: PerformanceProjectionV2,
   period: PerformancePeriodV2,
   mode: PerformanceModeV2,
+  includeRawSum = false,
 ): PerformanceCellV2 {
   const term = period === 'annual' ? null : (projection.terms[period - 1] ?? null);
   const recovery = projection.recovery;
@@ -123,7 +124,11 @@ export function performanceCellV2(
   if (mode === 'regular') {
     const outcomes = period === 'annual' ? projection.terms : [term];
     if (outcomes.every((value) => value !== null)) {
-      const anyRecorded = outcomes.some((value) => value!.coverage.resolvedSlots.length > 0);
+      const anyRecorded = outcomes.some(
+        (value) =>
+          value!.coverage.resolvedSlots.length > 0 ||
+          value!.quantitativeConsideredMilli > value!.quantitativeOriginalMilli,
+      );
       state = outcomes.every((value) => value!.coverage.complete)
         ? 'complete'
         : anyRecorded
@@ -169,6 +174,9 @@ export function performanceCellV2(
     ...base,
     state,
     valueMilli,
+    ...(includeRawSum && mode === 'regular' && term !== null && valueMilli !== null
+      ? { rawMilli: term.rawMilli }
+      : {}),
     // This is a read-only proportional classification using the configured annual threshold.
     // It is not the separate central rule that determines REC eligibility.
     level:

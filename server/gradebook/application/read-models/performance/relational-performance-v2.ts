@@ -384,7 +384,7 @@ export async function readRelationalPerformanceV2(
           term,
           hasGrades,
           ...visibility,
-          regular: performanceCellV2(projection, term, 'regular'),
+          regular: performanceCellV2(projection, term, 'regular', request.includeRawSum === true),
           recovery: performanceCellV2(projection, term, 'recovery'),
           quantitativeOriginalMilli: outcome?.quantitativeOriginalMilli ?? null,
           quantitativeConsideredMilli: outcome?.quantitativeConsideredMilli ?? null,

@@ -24,6 +24,11 @@ export function GradeValue({ cell, prominent = false, partialAsMarker = false }:
       </span>
       {partialMarker ? <span className="absolute -right-2 -top-1 text-[10px] font-bold leading-none" title="Resultado parcial"><span aria-hidden="true">*</span><span className="sr-only">Resultado parcial</span></span> : null}
     </span>
+    {prominent && cell.rawMilli !== undefined && cell.rawMilli !== cell.valueMilli ? (
+      <span className="max-w-44 text-center text-xs text-muted">
+        Soma antes do arredondamento: {gradeText(cell.rawMilli)}
+      </span>
+    ) : null}
     {cell.state === 'complete' ? <span className="sr-only">{cell.level === 'below' ? 'Abaixo do limite' : 'No limite ou acima'}</span> : cell.state !== 'no-show' && cell.state !== 'repeat-failure' ?
       partialMarker ? null :
         prominent ? <Chip size="sm" color={cell.state === 'partial' ? 'warning' : 'default'} variant="soft"><Chip.Label>{stateText[cell.state]}</Chip.Label></Chip> :

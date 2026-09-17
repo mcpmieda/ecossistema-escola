@@ -63,7 +63,15 @@ export const performanceRequestSchemaV2 = z.discriminatedUnion('operation', [
     })
     .strict(),
   z.object({ ...scope, operation: z.literal('student-detail'), studentId: id }).strict(),
-  z.object({ ...scope, operation: z.literal('cell-detail'), studentId: id, offerId: id }).strict(),
+  z
+    .object({
+      ...scope,
+      operation: z.literal('cell-detail'),
+      studentId: id,
+      offerId: id,
+      includeRawSum: z.literal(true).optional(),
+    })
+    .strict(),
 ]);
 export type PerformanceRequestV2 = z.infer<typeof performanceRequestSchemaV2>;
 export type PerformancePeriodV2 = z.infer<typeof period>;
@@ -92,6 +100,7 @@ const cell = z
   .object({
     offerId: id,
     valueMilli: milli.nullable(),
+    rawMilli: milli.optional(),
     maximumMilli: milli.positive(),
     state: z.enum([
       'complete',
@@ -115,6 +124,8 @@ const cell = z
     const classified = numeric || value.state === 'repeat-failure';
     if (numeric !== (value.valueMilli !== null))
       ctx.addIssue({ code: 'custom', message: 'cell value/state mismatch' });
+    if (value.rawMilli !== undefined && !numeric)
+      ctx.addIssue({ code: 'custom', message: 'raw sum requires a numeric result' });
     if (classified === (value.level === 'not-classified'))
       ctx.addIssue({ code: 'custom', message: 'cell classification mismatch' });
     if (value.state === 'repeat-failure' && value.level !== 'below')
