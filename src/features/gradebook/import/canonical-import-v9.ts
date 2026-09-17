@@ -16,7 +16,6 @@ import type { GradebookImportResultCellObservationV4 } from '../../../../shared/
 import type { BatchSuccess } from './import-batch';
 import type {
   GradeSheetRecognition,
-  NoteValue,
   StudentRecognition,
   WorkbookSummary,
 } from './spreadsheet-recognizer';
@@ -56,7 +55,7 @@ function normalize(value: string): string {
 }
 
 function parserVersion(value: string): string {
-  return `${value.slice(0, 90)}:canonical-v9:observed-blanks-v1`;
+  return `${value.slice(0, 70)}:canonical-v9:observed-blanks-v1:decimal-grades-v1`;
 }
 
 function manifest(result: BatchSuccess) {
@@ -83,10 +82,9 @@ function snapshot(sheet: GradeSheetRecognition, address: string): unknown {
   return sheet.snapshotCellsV8?.[address];
 }
 
-function cellFromNote(
+function cellFromSnapshot(
   sheet: GradeSheetRecognition,
   address: string,
-  note: NoteValue | null,
 ): GradebookImportCellV9 {
   const raw = snapshot(sheet, address);
   if (Array.isArray(raw)) return ['u'];
@@ -103,11 +101,11 @@ function cellFromNote(
   if (numeric === null || !Number.isFinite(numeric)) {
     throw new Error(`Texto inválido em ${sheet.name}!${address}.`);
   }
-  if (numeric < 0 || note?.kind === 'negative')
+  if (numeric < 0)
     throw new Error(`Nota negativa em ${sheet.name}!${address}.`);
-  if (numeric === 0.1 || note?.kind === 'official-zero') return 0;
-  if (numeric === 0 || note?.kind === 'legacy-zero') return 0;
-  return canonicalMilliV9(note?.value ?? numeric);
+  // The observed scalar is authoritative: 0.1 is 100 thousandths, not a marker.
+  // Never prefer a legacy NoteValue.value that may already have collapsed it to zero.
+  return canonicalMilliV9(numeric);
 }
 
 function ncText(value: unknown): boolean {
@@ -131,23 +129,28 @@ function cellFromObservation(
     case 'empty':
     case 'manual-legacy-zero':
     case 'formula-zero':
+      // AM/REC/U retain their separate existing zero/blank convention (BN-DEC-031).
       return null;
     case 'manual-official-zero-marker':
-      return 0;
+      // Compatibility with a previously recognized in-memory observation, not stored history.
+      return canonicalMilliV9(observation.rawValue);
     case 'manual-negative-number':
       throw new Error(`Nota negativa em ${sheet.name}!${address}.`);
-    case 'invalid-text':
+    case 'invalid-text': {
       if (allowNc && ncText(observation.rawValue)) return ['n'];
       if (allowNc && rrText(observation.rawValue)) return ['r'];
+      if (/^[+-]?\d+(?:[.,]\d+)?$/u.test(observation.rawValue.trim())) {
+        const numeric = Number(observation.rawValue.trim().replace(',', '.'));
+        return numeric === 0 ? null : canonicalMilliV9(numeric);
+      }
       throw new Error(`Texto inválido em ${sheet.name}!${address}.`);
+    }
     case 'manual-positive-number': {
-      if (observation.rawValue === 0.1) return 0;
       if (typeof observation.rawValue !== 'number')
         throw new Error(`Valor inválido em ${sheet.name}!${address}.`);
       return canonicalMilliV9(observation.rawValue);
     }
     case 'formula-nonzero': {
-      if (observation.cachedValue === 0.1) return 0;
       return canonicalMilliV9(observation.cachedValue);
     }
     case 'formula-error-or-missing-cache':
@@ -194,16 +197,6 @@ function instruments(sheet: GradeSheetRecognition): readonly GradebookImportInst
   });
 }
 
-function noteForSlot(
-  student: StudentRecognition,
-  slot: GradebookImportInstrumentV9[0],
-): NoteValue | null {
-  if (slot === 1) return student.quantitativeAssessments[0] ?? null;
-  if (slot === 2) return student.quantitativeAssessments[1] ?? null;
-  if (slot === 3) return student.parallel;
-  return student.qualitative[slot - 11] ?? null;
-}
-
 function addressForSlot(slot: GradebookImportInstrumentV9[0], row: number): string {
   if (slot === 1) return `R${row}`;
   if (slot === 2) return `S${row}`;
@@ -235,7 +228,7 @@ function term(
       seen.add(numero);
       const valores = definitions.map(([slot, max]) => {
         const address = addressForSlot(slot, student.row);
-        const value = cellFromNote(sheet, address, noteForSlot(student, slot));
+        const value = cellFromSnapshot(sheet, address);
         if (typeof value === 'number' && max !== null && value > max) {
           runtime.onWarning?.({
             code: 'above-maximum',

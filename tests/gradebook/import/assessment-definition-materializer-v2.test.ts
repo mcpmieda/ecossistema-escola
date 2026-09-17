@@ -91,7 +91,7 @@ describe('materialização de definições de avaliações V2', () => {
     ).toBe(true);
   });
 
-  it('associa R, S e AA somente aos seus próprios componentes e preserva zero/negativo', async () => {
+  it('associa R, S e AA aos seus componentes e preserva decimal, zero e negativo do leitor atual', async () => {
     const result = await materializeAssessmentDefinitionsV2(sheet(), context());
     const bySlot = new Map(
       result.components.map((component) => [
@@ -103,10 +103,10 @@ describe('materialização de definições de avaliações V2', () => {
       result.gradeEntries.map((entry) => [entry.assessmentComponentId, entry]),
     );
 
+    // This fixture calls the current recognizer, not a historical persisted observation.
     expect(entries.get(bySlot.get('R')!.id)?.value.imported.value).toEqual({
-      state: 'official-zero',
-      value: 0,
-      sourceMarker: 0.1,
+      state: 'numeric',
+      value: 0.1,
     });
     expect(entries.get(bySlot.get('S')!.id)?.value.imported.value).toEqual({
       state: 'legacy-zero',
@@ -128,6 +128,25 @@ describe('materialização de definições de avaliações V2', () => {
     expect(
       result.gradeEntries.some((entry) => entry.assessmentComponentId === bySlot.get('AB')!.id),
     ).toBe(false);
+  });
+
+  it('mantém interpretável um marcador explicitamente legado sem aplicá-lo à nova leitura decimal', async () => {
+    const current = sheet();
+    const historical: GradeSheetRecognition = {
+      ...current,
+      students: current.students.map((student) => student.row === 5 ? {
+        ...student,
+        quantitativeAssessments: [
+          { source: 0.1, value: 0, kind: 'official-zero' },
+          student.quantitativeAssessments[1],
+        ],
+      } : student),
+    };
+    const result = await materializeAssessmentDefinitionsV2(historical, context());
+    const component = result.components.find((item) => item.sourceDefinition.sourceSlot === 'R')!;
+    const entry = result.gradeEntries.find((item) => item.assessmentComponentId === component.value.id)!;
+    expect(entry.value.imported.value).toEqual({ state: 'official-zero', value: 0, sourceMarker: 0.1 });
+    expect(current.students[0]!.quantitativeAssessments[0]).toEqual({ source: 0.1, value: 0.1, kind: 'manual' });
   });
 
   it('não cria componente ou GradeEntry órfão para nome/configuração insuficiente', async () => {
