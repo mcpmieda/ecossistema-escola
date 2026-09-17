@@ -51,6 +51,7 @@ function EntitySelect({ id, label, value, items, onChange }: {
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const root = useRef<HTMLDivElement | null>(null);
+  const trigger = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     if (!isOpen) return;
     const closeOutside = (event: PointerEvent) => {
@@ -63,8 +64,19 @@ function EntitySelect({ id, label, value, items, onChange }: {
         return;
       setIsOpen(false);
     };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setIsOpen(false);
+      queueMicrotask(() => trigger.current?.focus());
+    };
     document.addEventListener('pointerdown', closeOutside, true);
-    return () => document.removeEventListener('pointerdown', closeOutside, true);
+    document.addEventListener('keydown', closeOnEscape, true);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside, true);
+      document.removeEventListener('keydown', closeOnEscape, true);
+    };
   }, [id, isOpen]);
   return (
     <Select
@@ -82,7 +94,7 @@ function EntitySelect({ id, label, value, items, onChange }: {
       }}
     >
       <Label>{label}</Label>
-      <Select.Trigger>
+      <Select.Trigger ref={trigger}>
         <Select.Value />
         <Select.Indicator />
       </Select.Trigger>
