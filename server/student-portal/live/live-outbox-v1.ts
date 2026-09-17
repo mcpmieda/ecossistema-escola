@@ -41,7 +41,8 @@ function eventFromRowV1(input: unknown): LivePublishEventV1 {
 
 /** Claims are short transactions. Use JSON at array boundaries because the production
  * postgres.js client deliberately disables dynamic type discovery (fetch_types:false).
- * DO calls happen after releasing PostgreSQL; only the holder of a lease may acknowledge it.
+ * JSON text is bound as text BEFORE casting, avoiding a second JSON serialization.
+ * DO calls happen after releasing PostgreSQL; only the lease holder may acknowledge it.
  */
 export async function dispatchPortalLiveEventsV1(env: PortalCompositionEnvV1, limit = 50): Promise<number> {
   if (!env.PORTAL_LIVE) return 0;
@@ -70,7 +71,7 @@ export async function dispatchPortalLiveEventsV1(env: PortalCompositionEnvV1, li
         const rows = await sql.unsafe(`UPDATE student_portal.live_event_outbox_v1
           SET delivered_at=statement_timestamp(),lease_token=NULL,lease_until=NULL
           WHERE lease_token=$1::uuid
-            AND id IN (SELECT value::bigint FROM jsonb_array_elements_text($2::jsonb))
+            AND id IN (SELECT value::bigint FROM jsonb_array_elements_text($2::text::jsonb))
           RETURNING id::text`, [token, JSON.stringify(delivered)]);
         acknowledged = rows.length;
       }
@@ -78,7 +79,7 @@ export async function dispatchPortalLiveEventsV1(env: PortalCompositionEnvV1, li
         SET lease_token=NULL,lease_until=NULL,next_attempt_at=statement_timestamp()+
           make_interval(secs=>LEAST(300,power(2,LEAST(attempts,8))::integer))
         WHERE lease_token=$1::uuid
-          AND id IN (SELECT value::bigint FROM jsonb_array_elements_text($2::jsonb))`,
+          AND id IN (SELECT value::bigint FROM jsonb_array_elements_text($2::text::jsonb))`,
       [token, JSON.stringify(failed)]);
       await sql.unsafe(`WITH expired AS (SELECT id FROM student_portal.live_event_outbox_v1
         WHERE delivered_at<statement_timestamp()-interval '7 days' ORDER BY delivered_at,id LIMIT 100)
