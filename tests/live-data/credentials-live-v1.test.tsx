@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createElement } from 'react';
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { StudentCredentialsV1 } from '../../src/features/student-portal-admin/credentials/student-credentials-v1';
 import { notifyLiveChangeV1 } from '../../src/shared/live-data/live-refresh-v1';
@@ -12,7 +12,7 @@ beforeEach(() => {
   Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 async function generate() {
   fireEvent.click(screen.getByRole('button', { name: 'Preparar PDF' }));
   const dialog = await screen.findByRole('alertdialog');
@@ -39,15 +39,25 @@ it('expires only the artifact and permits another PDF without querying manually 
   expect(mock.writes).toHaveLength(1);
   await generate(); expect(mock.writes).toHaveLength(2);
 });
-it('updates readiness after an invalidation without generating a QR or selecting another account', async () => {
+it.each([0, 0.999])('updates readiness at jitter %s without generating a QR or selecting another account', async (random) => {
   const mock = qrMockV1();
   mock.accounts[0]!.firstAccess = { state: 'birth-unconfirmed', qrIssued: true, recoveryReady: false };
   render(createElement(StudentCredentialsV1, mock.props));
   const checkbox = await screen.findByRole('checkbox', { name: 'Selecionar SYNTHETIC PRINT 001' });
   expect((checkbox as HTMLInputElement).disabled).toBe(true);
+  // The production delay can exceed Testing Library's 1s waitFor default.
+  // Control time instead of extending that timeout or removing the real scheduler.
+  vi.useFakeTimers();
+  vi.spyOn(Math, 'random').mockReturnValue(random);
+  const delay = 250 + Math.floor(random * 1_000);
   mock.accounts[0]!.firstAccess = { state: 'ready', qrIssued: true, recoveryReady: true };
   act(() => notifyLiveChangeV1('portal'));
-  await waitFor(() => expect((checkbox as HTMLInputElement).disabled).toBe(false));
+  await act(async () => { await vi.advanceTimersByTimeAsync(delay - 1); });
+  expect((checkbox as HTMLInputElement).disabled).toBe(true);
+  expect(mock.writes).toHaveLength(0);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+  expect(screen.getByRole('checkbox', { name: 'Selecionar SYNTHETIC PRINT 001' })).toBe(checkbox);
+  expect((checkbox as HTMLInputElement).disabled).toBe(false);
   expect((checkbox as HTMLInputElement).checked).toBe(false);
   expect(mock.writes).toHaveLength(0);
 });
