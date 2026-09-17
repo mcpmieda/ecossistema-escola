@@ -64,18 +64,19 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
   async publish(input: unknown): Promise<'delivered' | 'duplicate'> {
     const event = livePublishEventV1.parse(input);
     const previous = this.head();
-    if (previous !== null && previous >= event.cursor) return 'duplicate';
-    this.ctx.storage.sql.exec(
+    const outOfOrder = previous !== null && previous >= event.cursor;
+    if (!outOfOrder) this.ctx.storage.sql.exec(
       `INSERT INTO live_head_v1(singleton,cursor,domain,version,occurred_at) VALUES(1,?,?,?,?)
        ON CONFLICT(singleton) DO UPDATE SET cursor=excluded.cursor,domain=excluded.domain,
          version=excluded.version,occurred_at=excluded.occurred_at WHERE excluded.cursor>live_head_v1.cursor`,
-      event.cursor,
-      event.domain,
-      event.version,
-      event.occurredAt,
+      event.cursor, event.domain, event.version, event.occurredAt,
     );
-    const message = JSON.stringify({ contractVersion: 1, type: 'change', cursor: event.cursor,
-      domain: event.domain, version: event.version, occurredAt: event.occurredAt });
+    // Sequence allocation is not commit/delivery order. A late event or an ambiguous retry
+    // must not disappear just because another domain advanced the high-water cursor.
+    const message = JSON.stringify(outOfOrder
+      ? { contractVersion: 1, type: 'resync', cursor: previous, domains: [event.domain] }
+      : { contractVersion: 1, type: 'change', cursor: event.cursor,
+          domain: event.domain, version: event.version, occurredAt: event.occurredAt });
     for (const socket of this.ctx.getWebSockets(event.audience)) {
       const identity = socketAttachmentV1.safeParse(socket.deserializeAttachment());
       if (!identity.success || Date.parse(identity.data.expiresAt) <= Date.now()) {
@@ -85,7 +86,7 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
       if (event.audience === 'student' && !this.matches(identity.data, event)) continue;
       try { socket.send(message); } catch { socket.close(1011, 'delivery-failed'); }
     }
-    return 'delivered';
+    return outOfOrder ? 'duplicate' : 'delivered';
   }
 
   private matches(identity: z.infer<typeof socketIdentityV1>, event: LivePublishEventV1): boolean {
@@ -104,13 +105,16 @@ export class PortalLiveUpdatesV1 extends DurableObject<PortalCompositionEnvV1> {
     try { input = JSON.parse(message); } catch { socket.close(1003, 'invalid-message'); return; }
     const resume = liveResumeV1.safeParse(input);
     const identity = socketAttachmentV1.safeParse(socket.deserializeAttachment());
-    if (!resume.success || !identity.success || Date.parse(identity.data.expiresAt) <= Date.now()) {
-      socket.close(identity.success ? 1003 : 4401, identity.success ? 'invalid-message' : 'authorization-expired');
+    if (!identity.success || Date.parse(identity.data.expiresAt) <= Date.now()) {
+      socket.close(4401, 'authorization-expired');
       return;
     }
+    if (!resume.success) { socket.close(1003, 'invalid-message'); return; }
     const cursor = this.head();
-    const behind = cursor !== null && (resume.data.cursor === null || resume.data.cursor < cursor);
-    socket.send(JSON.stringify(behind
+    // A high-water cursor cannot prove that all smaller transactions committed before
+    // disconnection. Always revalidate once on reconnect if either side has history.
+    const needsResync = cursor !== null || resume.data.cursor !== null;
+    socket.send(JSON.stringify(needsResync
       ? { contractVersion: 1, type: 'resync', cursor, domains: ['gradebook', 'portal'] }
       : { contractVersion: 1, type: 'connected', cursor }));
     socket.serializeAttachment({ ...identity.data, resumed: true } satisfies SocketIdentityV1);
