@@ -40,7 +40,8 @@ import { StudentOverviewV1 } from './overview/student-overview-v1';
 import { OperationsScopeV1 } from './overview/operations-scope-v1';
 import { PortalClientErrorV1, type PortalFetchV1 } from '../student-portal/shared/transport-v1';
 import './shared/admin-page-v1.css';
-import { RemoteLiveNoticeV1, useRemoteLiveV1 } from '../../shared/live-data/use-remote-live-v1';
+import { RemoteLiveNoticeV1 } from '../../shared/live-data/use-remote-live-v1';
+import { useAdministrativeLiveV1 } from '../../shared/live-data/administrative-live-v1';
 
 const SCHOOL: ScopeV1 = { kind: 'school', academicYear: 2026 };
 type SectionScope = { section: StudentPortalSection; scope: ScopeV1; label: string };
@@ -78,7 +79,7 @@ function PortalWorkspace({ identity, onLost, fetcher }: {
   fetcher?: PortalFetchV1;
 }) {
   const [section, setSection] = useState(() => portalSectionFromHash(window.location.hash));
-  const liveState = useRemoteLiveV1({ path: '/api/student-portal/admin/live', enabled: true,
+  const liveState = useAdministrativeLiveV1({ identityKey: identity.identityKey,
     onAuthorizationLost: () => onLost(new PortalClientErrorV1('unauthenticated', 401)) });
   const [selectedClass, setSelectedClass] = useState<{ id: number; label: string } | null>(null);
   const [target, setTarget] = useState<AccountSlotContextV1 | null>(null);

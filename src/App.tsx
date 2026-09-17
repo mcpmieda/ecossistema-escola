@@ -4,8 +4,7 @@ import {
   Label, Separator, Spinner, Surface, useOverlayState,
 } from '@heroui/react';
 import { Activity, Boxes, ChevronDown, LockKeyhole, LogOut, Menu, ShieldCheck } from 'lucide-react';
-import { z } from 'zod';
-import { PLATFORM_CAPABILITIES, normalizePlatformRoute, type PlatformCapability, type PlatformRoute } from '../shared/platform-contract';
+import { normalizePlatformRoute, type PlatformRoute } from '../shared/platform-contract';
 import { platformRouteNeedsMicrosoftV2, platformRouteUnavailableV2 } from '../shared/platform-snapshot-v2';
 import { SidebarContent } from './platform/navigation';
 import { LoadingWorkspace, PageContent } from './platform/pages';
@@ -14,13 +13,10 @@ import { routeLabels } from './platform/routes';
 import { PlatformSearch } from './platform/search';
 import { withStudentPortalModule } from './platform/student-portal-module';
 import { usePlatformDataV2 } from './platform/platform-data-v2';
+import { usePlatformIdentityV1, type PlatformIdentityV1 as Identity } from './platform/platform-identity-v1';
+import { AdministrativeLiveProviderV1 } from './shared/live-data/administrative-live-v1';
+import { DraftUpdatesNoticeV1 } from './shared/forms/draft-navigation-v1';
 
-type Identity = { authenticated: boolean; name?: string; roles?: string[]; capabilities?: PlatformCapability[] };
-const identityResponse = z.discriminatedUnion('authenticated', [
-  z.object({ authenticated: z.literal(false) }),
-  z.object({ authenticated: z.literal(true), name: z.string().optional(), roles: z.array(z.string()).optional(),
-    capabilities: z.array(z.enum(PLATFORM_CAPABILITIES)) }),
-]);
 type AuthFailure = { correlationId?: string };
 function authFailureFromUrl(): AuthFailure | null {
   const params = new URLSearchParams(window.location.search);
@@ -178,6 +174,7 @@ function AdminShell({ identity }: { identity: Identity }) {
           </div>
         </Surface>
         <main className={route === 'banco-de-notas' ? 'w-full px-4 py-4 sm:px-5 lg:px-5' : 'mx-auto w-full max-w-[1480px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8'}>
+          <DraftUpdatesNoticeV1 />
           {loadState.status === 'loading' && <LoadingWorkspace />}
           {loadState.status === 'error' && <Surface variant="default" className="platform-card-surface max-w-3xl rounded-[2rem] p-5 sm:p-7">
             <Alert status="danger"><Alert.Indicator /><Alert.Content><Alert.Title>Não foi possível carregar o Centro</Alert.Title><Alert.Description>{loadState.message}</Alert.Description></Alert.Content></Alert>
@@ -203,30 +200,21 @@ function AdminShell({ identity }: { identity: Identity }) {
   );
 }
 export function App() {
-  const [identity, setIdentity] = useState<Identity | null>(null);
-  const [accessError, setAccessError] = useState(false);
-  const [attempt, setAttempt] = useState(0);
+  const { identity, accessError, retry, recheck } = usePlatformIdentityV1();
   const authFailure = authFailureFromUrl();
-  useEffect(() => {
-    const controller = new AbortController();
-    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
-    fetch('/api/me', { credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal })
-      .then(async (response) => {
-        if (response.status === 401) return { authenticated: false };
-        if (!response.ok) throw new Error('identity-unavailable');
-        return identityResponse.parse(await response.json());
-      }).then((result) => { if (!controller.signal.aborted) setIdentity(result); })
-      .catch(() => { if (!controller.signal.aborted) setAccessError(true); });
-    return () => controller.abort();
-  }, [attempt]);
   if (accessError) return <main className="platform-shell grid min-h-svh place-items-center p-4 sm:p-6">
     <Surface className="platform-card-surface w-full max-w-xl rounded-[2rem] p-6 sm:p-8"><Alert status="warning"><Alert.Indicator /><Alert.Content>
       <Alert.Title>Não foi possível verificar seu acesso.</Alert.Title><Alert.Description>Confira sua conexão e tente novamente em instantes.</Alert.Description>
-    </Alert.Content></Alert><Button variant="outline" className="mt-5" onPress={() => { setAccessError(false); setAttempt((current) => current + 1); }}>Tentar novamente</Button></Surface>
+    </Alert.Content></Alert><Button variant="outline" className="mt-5" onPress={retry}>Tentar novamente</Button></Surface>
   </main>;
   if (identity === null) return <SessionCheckExperience />;
   if (authFailure && !identity.authenticated) return <AuthErrorExperience correlationId={authFailure.correlationId} />;
   if (!identity.authenticated) return <LoginExperience loading={false} />;
   if (!identity.capabilities?.includes('platform.snapshot.read')) return <RestrictedExperience name={identity.name} />;
-  return <AdminShell identity={identity} />;
+  return <AdministrativeLiveProviderV1
+    identityKey={identity.identityKey ? `${identity.identityKey}:${identity.expiresAt ?? ''}:${identity.capabilities.join(',')}` : undefined}
+    enabled={identity.capabilities.includes('platform.settings.read')}
+    onAuthorizationLost={recheck}>
+    <AdminShell key={`${identity.identityKey ?? 'current-session'}:${identity.capabilities.join(',')}`} identity={identity} />
+  </AdministrativeLiveProviderV1>;
 }
