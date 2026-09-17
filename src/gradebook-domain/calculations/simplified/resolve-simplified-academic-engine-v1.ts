@@ -195,16 +195,19 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
   ).filter((slot) => facts.has(slot));
   const quantitativeOriginal = sumValues(quantitativeSlots, facts);
   const quantitativeMaximum = av1.maximumMilli + av2.maximumMilli;
-  const parallel = facts.get(3)?.valueMilli ?? null;
-  const quantitativeComplete = av1.valueMilli !== null && av2.valueMilli !== null;
-  const parallelApplicable = quantitativeComplete
-    ? quantitativeOriginal * 5 < quantitativeMaximum * 3
-    : null;
-  const quantitativeConsidered =
-    parallelApplicable === true && parallel !== null && parallel > quantitativeOriginal
-      ? parallel
-      : quantitativeOriginal;
   const qualitativeOperational = sumValues(qualitativeSlots, facts);
+  const totalBeforeParallel = quantitativeOriginal + qualitativeOperational;
+  const parallel = facts.get(3)?.valueMilli ?? null;
+  // BN-DEC-033: eligibility uses institutional maxima and the unrounded total
+  // BEFORE PARA. Missing marks contribute no points but do not block eligibility.
+  // Coverage and the original null/zero facts remain independent below.
+  const parallelApplicable =
+    quantitativeOriginal * 5 < expectedQuantitative * 3 &&
+    totalBeforeParallel * 5 < maximum * 3;
+  const quantitativeConsidered =
+    parallelApplicable && parallel !== null && parallel > quantitativeOriginal
+      ? quantitativeOriginal + parallel
+      : quantitativeOriginal;
   const raw = quantitativeConsidered + qualitativeOperational;
 
   const warnings: SimplifiedEngineWarningV1[] = [];
@@ -254,7 +257,6 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
   const resolvedSlots = requiredSlots.filter((slot) => facts.get(slot)?.valueMilli !== null && facts.get(slot)?.valueMilli !== undefined);
   const missingSlots = requiredSlots.filter((slot) => !resolvedSlots.includes(slot));
   const reasons: string[] = [];
-  if (parallelApplicable === null) reasons.push('parallel-applicability-unresolved');
   for (const slot of missingSlots) reasons.push(`missing-slot:${slot}`);
 
   return {
@@ -271,7 +273,7 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
     rawMilli: raw,
     roundedMilli: roundSimplifiedGradeMilliV1(raw),
     coverage: {
-      complete: missingSlots.length === 0 && parallelApplicable !== null,
+      complete: missingSlots.length === 0,
       requiredSlots,
       resolvedSlots,
       missingSlots,
