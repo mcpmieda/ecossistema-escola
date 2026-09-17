@@ -13,6 +13,9 @@ export async function requestRelationalPerformanceV2(
 ): Promise<PerformanceResponseV2> {
   if (!performanceRequestSchemaV2.safeParse(request).success)
     return { transportVersion: 2, state: 'invalid-request' };
+  const wireRequest = request.operation === 'cell-detail'
+    ? { ...request, includeRawSum: true as const }
+    : request;
   return withPerformanceReadDeadlineV1<PerformanceResponseV2>(async (readSignal) => {
     const response = await fetch('/api/gradebook/performance', {
       method: 'POST',
@@ -20,7 +23,7 @@ export async function requestRelationalPerformanceV2(
       cache: 'no-store',
       signal: readSignal,
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify(request),
+      body: JSON.stringify(wireRequest),
     });
     if (response.status === 401 || response.status === 403)
       return { transportVersion: 2, state: 'not-authorized' };
@@ -35,7 +38,7 @@ export async function requestRelationalPerformanceV2(
       return unavailable;
     }
     const parsed = performanceResponseSchemaV2.safeParse(input);
-    if (!parsed.success || !performanceResponseMatchesV2(request, parsed.data)) return unavailable;
+    if (!parsed.success || !performanceResponseMatchesV2(wireRequest, parsed.data)) return unavailable;
     if (!response.ok && parsed.data.state === 'ready') return unavailable;
     return parsed.data;
   }, signal);
