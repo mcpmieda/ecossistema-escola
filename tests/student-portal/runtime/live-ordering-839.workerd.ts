@@ -10,7 +10,11 @@ type Socket = {
   addEventListener(type: 'message', listener: (event: { data: unknown }) => void, options?: { once?: boolean }): void;
 };
 type SocketResponse = { status: number; webSocket?: Socket | null };
-const sockets: Socket[] = [];
+const sockets = new Set<Socket>();
+function close(socket: Socket) {
+  // Each test releases its sockets; teardown releases only those left by a failed test.
+  if (sockets.delete(socket)) socket.close();
+}
 beforeAll(async () => {
   runtime = new Miniflare(convertV4MiniflareOptions({ workers: [
     {
@@ -42,7 +46,10 @@ beforeAll(async () => {
   ] }));
   await runtime.ready;
 });
-afterAll(async () => { sockets.forEach((socket) => socket.close()); await runtime?.dispose(); });
+afterAll(async () => {
+  try { sockets.forEach(close); }
+  finally { await runtime?.dispose(); }
+});
 
 function next(socket: Socket, timeout = 2_000): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -58,7 +65,7 @@ async function open(path: string, cursor: string | null = null) {
   const response = await caller.fetch(`http://caller839${path}`, { headers: { Upgrade: 'websocket' } }) as unknown as SocketResponse;
   expect(response.status).toBe(101);
   const socket = response.webSocket!;
-  sockets.push(socket);
+  sockets.add(socket);
   socket.accept();
   const received = next(socket);
   socket.send(JSON.stringify({ contractVersion: 1, type: 'resume', cursor }));
@@ -87,7 +94,7 @@ it('does not lose a late committed domain across two independent administrative 
   expect(await pair).toEqual(Array(2).fill({
     contractVersion: 1, type: 'resync', cursor: '00000000000000000100', domains: ['gradebook'],
   }));
-  a.socket.close(); b.socket.close();
+  close(a.socket); close(b.socket);
 });
 
 it('revalidates on reconnect even with an equal high-water cursor or a cursor ahead of the server', async () => {
@@ -96,7 +103,7 @@ it('revalidates on reconnect even with an equal high-water cursor or a cursor ah
   expect(equal.initial).toEqual({ contractVersion: 1, type: 'resync', cursor: '00000000000000000200', domains: ['gradebook', 'portal'] });
   const ahead = await open('/admin?actor=44444444-4444-4444-8444-444444444444', '00000000000000000999');
   expect(ahead.initial).toEqual(equal.initial);
-  equal.socket.close(); ahead.socket.close();
+  close(equal.socket); close(ahead.socket);
 });
 
 it('filters late events before a resync and keeps student routing out of the browser message', async () => {
@@ -113,5 +120,5 @@ it('filters late events before a resync and keeps student routing out of the bro
   expect(await absent).toBeInstanceOf(Error);
   expect(JSON.stringify(message)).not.toContain('account');
   expect(JSON.stringify(message)).not.toContain('student');
-  a.socket.close(); b.socket.close();
+  close(a.socket); close(b.socket);
 });
