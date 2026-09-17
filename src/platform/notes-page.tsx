@@ -1,35 +1,56 @@
 import { Component, lazy, Suspense, type ReactNode } from 'react';
 import { Alert, Button, Spinner, Surface } from '@heroui/react';
+import { allowDraftNavigationV1 } from '../shared/forms/draft-navigation-v1';
+import { routeLoadFailureV1, type RouteLoadFailureV1 } from '../shared/live-data/route-load-failure-v1';
 
 const GradebookWorkspacePage = lazy(async () => {
   const module = await import('./gradebook-workspace-page');
   return { default: module.GradebookWorkspacePage };
 });
 
-type GradebookRouteBoundaryState = { readonly failed: boolean };
+type GradebookRouteBoundaryState = { readonly failure: RouteLoadFailureV1 | null };
 
 class GradebookRouteBoundary extends Component<{ readonly children: ReactNode }, GradebookRouteBoundaryState> {
-  override state: GradebookRouteBoundaryState = { failed: false };
+  override state: GradebookRouteBoundaryState = { failure: null };
 
-  static getDerivedStateFromError(): GradebookRouteBoundaryState {
-    return { failed: true };
+  static getDerivedStateFromError(error: unknown): GradebookRouteBoundaryState {
+    return { failure: routeLoadFailureV1(error) };
+  }
+
+  override componentDidCatch(error: Error): void {
+    // Browser-only, sanitized evidence. This is not durable monitoring or a database outage diagnosis.
+    console.error(JSON.stringify({
+      message: 'gradebook_route_failed',
+      category: routeLoadFailureV1(error),
+      occurredAt: new Date().toISOString(),
+    }));
   }
 
   override render(): ReactNode {
-    if (!this.state.failed) return this.props.children;
+    if (this.state.failure === null) return this.props.children;
+    const moduleFailure = this.state.failure === 'module-load';
     return (
       <Alert status="danger" role="alert">
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Title>Banco de notas indisponível</Alert.Title>
           <Alert.Description>
-            O carregamento desta área falhou isoladamente. O restante do Centro continua disponível.
+            {moduleFailure
+              ? 'Não foi possível carregar os arquivos desta área. Recarregue a página para tentar obter a versão atual do aplicativo.'
+              : 'Ocorreu um erro ao exibir esta área. Isso, por si só, não confirma uma falha no banco de dados.'}
           </Alert.Description>
+          <p className="mt-2 text-xs text-muted">
+            Código: {moduleFailure ? 'BN-CARGA' : 'BN-TELA'}. A página não será recarregada automaticamente.
+          </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onPress={() => window.location.assign('#/visao-geral')}>
+            <Button size="sm" variant="outline" onPress={() => {
+              if (allowDraftNavigationV1()) window.location.assign('#/visao-geral');
+            }}>
               Voltar à visão geral
             </Button>
-            <Button size="sm" variant="secondary" onPress={() => window.location.reload()}>
+            <Button size="sm" variant="secondary" onPress={() => {
+              if (allowDraftNavigationV1()) window.location.reload();
+            }}>
               Recarregar
             </Button>
           </div>

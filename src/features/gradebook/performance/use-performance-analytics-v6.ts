@@ -9,6 +9,7 @@ import type {
 } from '../../../../shared/gradebook-contracts/performance/relational-performance-v2';
 import { useGradebookYear } from '../../../platform/gradebook-year-context';
 import { useLiveRefreshV1 } from '../../../shared/live-data/use-live-refresh-v1';
+import { LIVE_HEAVY_READ_INTERVAL_V1 } from '../../../shared/live-data/live-refresh-v1';
 import { createOperationalWorkspaceRequestGate } from '../operational-workspace/operational-workspace-request-gate';
 import { requestPerformanceAnalyticsV6 } from './performance-analytics-client-v6';
 
@@ -46,16 +47,21 @@ export function usePerformanceAnalyticsV6(
     try {
       const result = await requestPerformanceAnalyticsV6(request, ticket.signal);
       if (!ticket.isCurrent()) return;
-      if (result.state === 'ready') setSnapshot({ key, data: result });
-      else {
-        if (result.state === 'not-authorized') {
-          setSnapshot(null);
-          clearAuthorization?.();
-        }
-        setStatus({ key, busy: false, failure: result.state });
+      if (result.state === 'ready') {
+        setSnapshot({ key, data: result });
+        return true;
       }
+      if (result.state === 'not-authorized') {
+        setSnapshot(null);
+        clearAuthorization?.();
+      }
+      setStatus({ key, busy: false, failure: result.state });
+      return false;
     } catch {
-      if (ticket.isCurrent()) setStatus({ key, busy: false, failure: 'unavailable' });
+      if (ticket.isCurrent()) {
+        setStatus({ key, busy: false, failure: 'unavailable' });
+        return false;
+      }
     } finally {
       if (ticket.isCurrent()) setStatus((previous) => ({ ...previous, busy: false }));
       ticket.complete();
@@ -67,6 +73,7 @@ export function usePerformanceAnalyticsV6(
   }, [refresh, gate]);
   useLiveRefreshV1(refresh, {
     domains: ['gradebook'],
+    intervalMs: LIVE_HEAVY_READ_INTERVAL_V1,
     enabled: enabled && request !== null,
     canRefresh: () => !status.busy && status.failure !== 'not-authorized',
   });
