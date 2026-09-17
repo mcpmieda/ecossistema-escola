@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { gzipSync } from 'node:zlib';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { learningFixtureV1 } from './learning-fixture-v1';
@@ -65,7 +66,7 @@ it('renders the canonical numbers instead of the adjusted summary without reques
   expect(Number(block.getByRole('meter', { name: 'Qualitativo' }).getAttribute('aria-valuenow'))).toBeCloseTo(80);
   expect(block.getByText(delta(40))).toBeTruthy();
   expect(block.getByText('Duas avaliações · antes da paralela')).toBeTruthy();
-  expect(block.getByText('Base comum: 1 componentes com notas nos dois grupos.')).toBeTruthy();
+  expect(block.getByText('Componentes comparados: 1.')).toBeTruthy();
   expect(fetch).not.toHaveBeenCalled();
 });
 it('does not compare disjoint complete groups or manufacture a zero when there is no common component', () => {
@@ -145,4 +146,13 @@ it.each(['gap', 'count', 'missing-value', 'identity', 'mixed-extension'] as cons
   else if (kind === 'identity') student.studentId = 999;
   else delete student.dimensions;
   expect(performanceAnalyticsResponseSchemaV6.safeParse(value).success).toBe(false);
+});
+it('keeps all student comparisons within the existing 1000-pair and 2 MB snapshot budget', () => {
+  const { value } = learningFixtureV1({ studentCount: 100, componentCount: 10 });
+  expect(value.summary.readings).toBe(1000);
+  expect(value.learning!.students.every((student) => student.dimensions !== undefined)).toBe(true);
+  expect(performanceAnalyticsResponseSchemaV6.safeParse(value).success).toBe(true);
+  const json = JSON.stringify(value);
+  expect(Buffer.byteLength(json)).toBeLessThan(2_000_000);
+  expect(gzipSync(json).length).toBeLessThan(500_000);
 });

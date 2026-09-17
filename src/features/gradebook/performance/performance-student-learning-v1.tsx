@@ -158,7 +158,7 @@ export function PerformanceStudentLearningV1({
         <AnalyticsPanelV6
           title="Quantitativo × qualitativo"
           action={<AnalyticsHintV6 label="Sobre Quantitativo e qualitativo do aluno">Compara os mesmos componentes deste aluno. Quantitativo: as duas avaliações, antes da recuperação paralela. Qualitativo: atividades e participação. A diferença não explica, sozinha, sua causa.</AnalyticsHintV6>}
-          footer={<span>Base comum: {dimensions?.components ?? 0} componentes com notas nos dois grupos.</span>}
+          footer={<span>Componentes comparados: {dimensions?.components ?? 0}.</span>}
         >
           <div className="grid gap-5 py-1">
             <Dimension label="Quantitativo" caption="Duas avaliações · antes da paralela" value={dimensions?.quantitativePercent ?? null} />
