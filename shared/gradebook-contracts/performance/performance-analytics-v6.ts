@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { performanceLearningSchemaV1 } from './performance-learning-v1';
 import {
   performanceRequestSchemaV2,
   performanceResponseSchemaV2,
@@ -88,7 +89,12 @@ export type PerformanceAnalyticsStatsV6 = z.infer<typeof stats>;
 
 export const performanceAnalyticsRequestSchemaV6 = performanceRequestSchemaV2.options[1]
   .pick({ year: true, classId: true, period: true })
-  .extend({ transportVersion: z.literal(6), operation: z.literal('analytics') })
+  .extend({
+    transportVersion: z.literal(6),
+    operation: z.literal('analytics'),
+    // Opt-in preserves the strict response accepted by already-open older browser clients.
+    includeLearning: z.literal(true).optional(),
+  })
   .strict();
 export type PerformanceAnalyticsRequestV6 = z.infer<typeof performanceAnalyticsRequestSchemaV6>;
 
@@ -181,6 +187,7 @@ const ready = z
     students: z.array(student).max(150),
     components: z.array(component).max(40),
     teachers: z.array(teacher).max(40),
+    learning: performanceLearningSchemaV1.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -248,6 +255,15 @@ const ready = z
       )
     )
       fail();
+    if (value.learning) {
+      const learning = value.learning;
+      const instrumentKeys = new Set(value.components.flatMap((item) => item.instruments.map((entry) => entry.key)));
+      if (learning.students.length !== studentIds.length || learning.students.some((item, index) =>
+        item.studentId !== studentIds[index] || item.recurring.some((entry) =>
+          !offerIds.includes(entry.offerId) || [...entry.instrumentTerms, ...entry.consecutiveTerms]
+            .some((term) => value.period !== 'annual' && term !== value.period))) ||
+        learning.activitiesToReview.some((key) => !instrumentKeys.has(key))) fail();
+    }
   });
 const failure = performanceResponseSchemaV2.options[0]
   .extend({ transportVersion: z.literal(6) })
@@ -263,6 +279,7 @@ export function performanceAnalyticsMatchesV6(
     response.state !== 'ready' ||
     (response.context.year === request.year &&
       response.classGroup.id === request.classId &&
-      response.period === request.period)
+      response.period === request.period &&
+      (!request.includeLearning || response.learning?.version === 1))
   );
 }
