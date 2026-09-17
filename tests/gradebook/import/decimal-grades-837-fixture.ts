@@ -31,12 +31,14 @@ export function decimalGradeBatch837(
     },
   };
   const file = createSyntheticFile(SYNTHETIC_FILES.xlsx);
+  const sha256 = 'b'.repeat(64);
   const summary = recognizeWorkbook(file, workbook, createSyntheticSheetJs(), {
-    fileSha256: 'b'.repeat(64), captureValues: true,
+    fileSha256: sha256, captureValues: true,
   });
   return {
-    id: 'synthetic-decimal-837', summary,
-    manifest: { fileName: 'SYNTHETIC837.xlsx', sha256: 'b'.repeat(64), parserVersion: 'synthetic',
+    id: 'import-file:synthetic-decimal-837' as BatchSuccess['id'], summary,
+    manifest: { id: `source-file-manifest:${sha256}` as BatchSuccess['manifest']['id'],
+      fileName: 'SYNTHETIC837.xlsx', sha256, parserVersion: 'synthetic',
       sizeBytes: 1, extension: 'xlsx', reportedMimeType: null, lastModifiedAt: null,
       sourceContractVersion: 2, readAt: '2026-09-17T13:35:00.000Z' },
   };

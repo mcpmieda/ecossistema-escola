@@ -8,6 +8,7 @@ import { createGradebookRelationalImportServiceV11 } from '../../../server/grade
 import { createRelationalPerformanceV2 } from '../../../server/gradebook/application/read-models/performance/relational-performance-v2';
 import { AcademicStudentReaderPostgresV1, academicToSelfV1 } from '../../../server/student-portal/academic/academic-reader-v1';
 import { createGradebookCanonicalImportRequestV9 } from '../../../src/features/gradebook/import/canonical-import-v9';
+import type { GradebookImportTermV9 } from '../../../shared/gradebook-contracts/imports/import-persistence-transport-v9';
 import { decimalGradeBatch837 } from '../import/decimal-grades-837-fixture';
 
 let pg: PGlite, database: GradebookPostgresDatabaseV1;
@@ -48,11 +49,17 @@ it('reimports actual decimal evidence, preserves history/idempotence and exposes
   const service = createGradebookRelationalImportServiceV11(database);
   // Reproduce a prior import that irreversibly collapsed the decimal. Do not infer which
   // stored zeros were decimals; only the newly supplied source permits this correction.
-  const previous = structuredClone(value);
-  previous.manifest = { ...previous.manifest, parserVersion: 'synthetic:canonical-v9:observed-blanks-v1' };
-  previous.ofertas = previous.ofertas.map((offer) => ({ ...offer, trimestres: offer.trimestres.map((term) => ({
-    ...term, alunos: term.alunos.map(([number, notes, am]) => [number, notes.map((n) => n === 100 ? 0 : n), am] as const),
-  })) as typeof offer.trimestres }));
+  const oldTerm = (term: GradebookImportTermV9): GradebookImportTermV9 => ({
+    ...term,
+    alunos: term.alunos.map(([number, notes, am]) => [number, notes.map((n) => n === 100 ? 0 : n), am] as const),
+  });
+  const previous = {
+    ...value,
+    manifest: { ...value.manifest, parserVersion: 'synthetic:canonical-v9:observed-blanks-v1' },
+    ofertas: value.ofertas.map((offer) => ({ ...offer,
+      trimestres: [oldTerm(offer.trimestres[0]), oldTerm(offer.trimestres[1]), oldTerm(offer.trimestres[2])] as const,
+    })),
+  };
   expect((await service.execute(previous)).state).toBe('applied');
   expect((await service.execute(value)).state).toBe('applied');
   const rows = (await pg.query('SELECT i.slot,n.valor FROM gradebook.instrumento i JOIN gradebook.nota n ON n.instrumento_id=i.id WHERE i.trimestre=1 AND i.slot IN (1,2,11,12) ORDER BY i.slot')).rows;
