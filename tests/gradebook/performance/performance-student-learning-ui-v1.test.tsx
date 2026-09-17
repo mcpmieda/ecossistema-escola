@@ -85,7 +85,9 @@ it('closes the student select on an outside touch, on Escape, and after choosing
   fireEvent.pointerDown(document.body, { pointerType: 'touch' });
   await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
 
-  await user.click(trigger);
+  trigger.focus();
+  expect(document.activeElement).toBe(trigger);
+  await user.keyboard('{Enter}');
   expect(screen.getByRole('listbox')).toBeTruthy();
   await user.keyboard('{Escape}');
   await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
@@ -111,7 +113,9 @@ it.each([
   else fireEvent.pointerDown(document.body, { pointerType: 'touch' });
   await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
 
-  await user.click(trigger);
+  trigger.focus();
+  expect(document.activeElement).toBe(trigger);
+  await user.keyboard('{Enter}');
   await user.keyboard('{Escape}');
   await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
   expect(document.activeElement).toBe(trigger);
