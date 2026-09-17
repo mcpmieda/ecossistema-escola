@@ -89,7 +89,12 @@ export type PerformanceAnalyticsStatsV6 = z.infer<typeof stats>;
 
 export const performanceAnalyticsRequestSchemaV6 = performanceRequestSchemaV2.options[1]
   .pick({ year: true, classId: true, period: true })
-  .extend({ transportVersion: z.literal(6), operation: z.literal('analytics') })
+  .extend({
+    transportVersion: z.literal(6),
+    operation: z.literal('analytics'),
+    // Opt-in preserves the strict response accepted by already-open older browser clients.
+    includeLearning: z.literal(true).optional(),
+  })
   .strict();
 export type PerformanceAnalyticsRequestV6 = z.infer<typeof performanceAnalyticsRequestSchemaV6>;
 
@@ -182,7 +187,6 @@ const ready = z
     students: z.array(student).max(150),
     components: z.array(component).max(40),
     teachers: z.array(teacher).max(40),
-    // #831: additive evidence, optional during rollout; not a new academic authority.
     learning: performanceLearningSchemaV1.optional(),
   })
   .strict()
@@ -275,6 +279,7 @@ export function performanceAnalyticsMatchesV6(
     response.state !== 'ready' ||
     (response.context.year === request.year &&
       response.classGroup.id === request.classId &&
-      response.period === request.period)
+      response.period === request.period &&
+      (!request.includeLearning || response.learning?.version === 1))
   );
 }

@@ -62,10 +62,12 @@ export function PerformanceAnalyticsWorkspaceV6({ value, tab, selection, onSelec
   const teacher = value.teachers.find((item) => item.id === selection.teacherId) ?? value.teachers[0];
   const openStudent = (id: number) => { onSelection({ studentId: id }); onNavigate('students'); };
   const openComponent = (id: number) => { onSelection({ offerId: id }); onNavigate('components'); };
-  if (tab === 'overview') return <PerformanceLearningOverviewV1
-    key={`${value.context.year}:${value.classGroup.id}:${value.period}`}
-    value={value} onStudent={onCell} onComponent={openComponent} onPeriod={onPeriod} onNotes={onNotes}
-  />;
+  if (tab === 'overview') return <div data-testid="performance-analytics-v6" className="min-w-0">
+    <PerformanceLearningOverviewV1
+      key={`${value.context.year}:${value.classGroup.id}:${value.period}`}
+      value={value} onStudent={onCell} onComponent={openComponent} onPeriod={onPeriod} onNotes={onNotes}
+    />
+  </div>;
   const selectedSummary = tab === 'students' && student ? student.summary : tab === 'components' && component ? component.summary : tab === 'teachers' && teacher ? teacher.summary : value.summary;
   const components = tab === 'teachers' && teacher ? value.components.filter((item) => teacher.offerIds.includes(item.offer.id)) : value.components;
   const allStudents = analyticsStudentItemsV6(value);

@@ -307,6 +307,7 @@ function instrumentSummaries(
 export function buildPerformanceAnalyticsV6(
   matrix: PerformanceMatrixV2,
   projections: ReadonlyMap<number, readonly PerformanceProjectionV2[]>,
+  includeLearning = true,
 ): PerformanceAnalyticsV6 {
   const period = matrix.period;
   const dimensionRequest = {
@@ -319,6 +320,7 @@ export function buildPerformanceAnalyticsV6(
     statuses: [null, 7] as (null | 7)[],
     offerId: null,
   };
+  // Reuse the existing composition lenses; never reimplement academic rules in analytics.
   const quantitative = buildPerformanceAnalysisV3(matrix, projections, {
     ...dimensionRequest,
     lens: 'quantitative',
@@ -364,7 +366,7 @@ export function buildPerformanceAnalyticsV6(
               : (() => {
                   const numerator =
                     BigInt(result.maximumMilli) * BigInt(matrix.context.minimumApprovalMilli) -
-                    BigInt(result.valueMilli!) * BigInt(ANNUAL_MAXIMUM);
+                    BigInt(result.valueMilli) * BigInt(ANNUAL_MAXIMUM);
                   const difference =
                     numerator <= 0n
                       ? 0n
@@ -443,7 +445,7 @@ export function buildPerformanceAnalyticsV6(
       };
     }),
   };
-  return { ...result, learning: buildPerformanceLearningV1(result, projections) };
+  return includeLearning ? { ...result, learning: buildPerformanceLearningV1(result, projections) } : result;
 }
 
 export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
@@ -454,6 +456,7 @@ export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
       if (!('transaction' in database) || typeof database.transaction !== 'function')
         return { transportVersion: 6, state: 'unavailable' };
       const request: PerformanceAnalyticsRequestV6 = parsed.data;
+      const { includeLearning, ...matrixRequest } = request;
       const db = database as D1WriteDatabaseV1 & {
         transaction<T>(operation: (tx: D1WriteDatabaseV1) => Promise<T>): Promise<T>;
       };
@@ -463,7 +466,7 @@ export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
         const matrix = await readRelationalPerformanceV2(
           tx,
           {
-            ...request,
+            ...matrixRequest,
             transportVersion: 2,
             operation: 'matrix',
             mode: 'regular',
@@ -478,7 +481,7 @@ export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
         if (matrix.state !== 'ready') return { transportVersion: 6, state: matrix.state } as const;
         if (matrix.operation !== 'matrix') throw new Error('unexpected-analytics-operation');
         return performanceAnalyticsResponseSchemaV6.parse(
-          buildPerformanceAnalyticsV6(matrix, projections),
+          buildPerformanceAnalyticsV6(matrix, projections, includeLearning === true),
         );
       });
     },

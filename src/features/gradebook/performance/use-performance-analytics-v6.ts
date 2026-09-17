@@ -26,7 +26,7 @@ export function usePerformanceAnalyticsV6(
     () =>
       year === null || classId === null
         ? null
-        : { transportVersion: 6, operation: 'analytics', year, classId, period },
+        : { transportVersion: 6, operation: 'analytics', year, classId, period, includeLearning: true },
     [year, classId, period],
   );
   const key = JSON.stringify([epoch, request]);
@@ -70,7 +70,6 @@ export function usePerformanceAnalyticsV6(
     enabled: enabled && request !== null,
     canRefresh: () => !status.busy && status.failure !== 'not-authorized',
   });
-  // Never display a response from another year, authorization, class or period.
   const data = request && snapshot?.key === key ? snapshot.data : null;
   return {
     data,

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
-import { cleanup, render, screen, within, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PerformanceAnalyticsWorkspaceV6 } from '../../../src/features/gradebook/performance/performance-analytics-workspace-v6';
@@ -17,6 +17,7 @@ function props() {
 it('mounts the actual overview with pedagogical KPIs, participation and collapsed technical information', () => {
   render(<PerformanceAnalyticsWorkspaceV6 {...props()} />);
   expect(screen.getByTestId('performance-learning-overview-v1')).toBeTruthy();
+  expect(screen.getByTestId('performance-analytics-v6')).toBeTruthy();
   for (const name of ['Desempenho médio', 'Evolução trimestral', 'Alunos em evolução', 'Atenção recorrente'])
     expect(screen.getByRole('button', { name: `Ver alunos: ${name}` })).toBeTruthy();
   expect(screen.getByText('Participação avaliada')).toBeTruthy();
@@ -64,13 +65,13 @@ it('opens quality on demand and exposes a focused information explanation', asyn
   await user.click(screen.getByRole('button', { name: /Base dos indicadores/ }));
   expect(await screen.findByRole('meter', { name: 'Cobertura dos instrumentos' })).toBeTruthy();
   const hint = screen.getByLabelText('Sobre Participação avaliada');
-  hint.focus();
+  act(() => hint.focus());
   await waitFor(() => expect(screen.getByRole('tooltip').textContent).toContain('Não mede presença'));
 });
 it('preserves DOM, search, focus and filter when the same scope revalidates', async () => {
   const model = props(); const view = render(<PerformanceAnalyticsWorkspaceV6 {...model} />);
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Todos', exact: true }));
+  await user.click(screen.getByRole('button', { name: 'Todos' }));
   const input = screen.getByRole('searchbox');
   await user.type(input, '01');
   const overview = screen.getByTestId('performance-learning-overview-v1');

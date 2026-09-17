@@ -43,26 +43,39 @@ export const performanceLearningSchemaV1 = z.object({
     components: count,
   }).strict(),
   parallel: z.object({ students: count, improvements: count, meanGainPP: metric }).strict(),
-  activitiesToReview: z.array(z.string().regex(/^\d+:[123]:\d+$/u)).max(1000),
+  // At most 40 offers * 3 terms * 10 qualitative instruments, independent of pupil count.
+  activitiesToReview: z.array(z.string().regex(/^\d+:[123]:\d+$/u)).max(1200),
 }).strict().superRefine((value, ctx) => {
   const invalid = value.students.some((student) => {
     const p = student.participation;
     return p.recorded > p.expected || p.unscaled > p.expected ||
       p.comparedComponents > p.components ||
+      (p.percent === null) !== (p.components === 0) ||
+      (p.deltaPP === null) !== (p.comparedComponents === 0) ||
+      (!student.recurrenceAssessed && student.recurring.length > 0) ||
       new Set(student.recurring.map((item) => item.offerId)).size !== student.recurring.length ||
       student.recurring.some((item) =>
         item.instrumentTerms.length + item.consecutiveTerms.length === 0 ||
+        new Set(item.instrumentTerms).size !== item.instrumentTerms.length ||
+        new Set(item.consecutiveTerms).size !== item.consecutiveTerms.length ||
         item.consecutiveTerms.includes(1));
   });
+  const p = value.participation;
   if (invalid || new Set(value.students.map((item) => item.studentId)).size !== value.students.length ||
     new Set(value.activitiesToReview).size !== value.activitiesToReview.length ||
-    value.participation.students > value.students.length ||
-    value.participation.comparedStudents > value.participation.students ||
+    p.students !== value.students.filter((item) => item.participation.percent !== null).length ||
+    p.comparedStudents !== value.students.filter((item) => item.participation.deltaPP !== null).length ||
+    p.recorded !== value.students.reduce((sum, item) => sum + item.participation.recorded, 0) ||
+    p.expected !== value.students.reduce((sum, item) => sum + item.participation.expected, 0) ||
+    p.unscaled !== value.students.reduce((sum, item) => sum + item.participation.unscaled, 0) ||
     value.dimensions.students > value.students.length || value.parallel.students > value.students.length)
     ctx.addIssue({ code: 'custom', message: 'inconsistent learning evidence' });
 });
 export type PerformanceLearningV1 = z.infer<typeof performanceLearningSchemaV1>;
 
+const ordinal = '(?:0?[1-9]|1[0-9]|20|i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)';
+const participationName = '(?:participacao|participacoes|particip|participac|partic|partc|part)';
+const participationPattern = new RegExp(`^(?:${participationName}|${ordinal}\\s*${participationName}|${participationName}\\s*${ordinal})$`, 'u');
 /** Category recognition only. Identity remains offer/term/slot; never merge similarly named rows.
  * Keep the grammar anchored: "parte", "partido" and compound activity names are not participation.
  * Apply this only to qualitative slots. Unknown descriptions remain ordinary qualitative work. */
@@ -70,7 +83,5 @@ export function isParticipationLabelV1(label: string): boolean {
   const normalized = label.replace(/[ºª°]/gu, '').normalize('NFD')
     .replace(/\p{M}/gu, '').toLocaleLowerCase('pt-BR')
     .replace(/[._():-]/gu, ' ').replace(/\s+/gu, ' ').trim();
-  const ordinal = '(?:0?[1-9]|1[0-9]|20|i|ii|iii|iv|v|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)';
-  const name = '(?:participacao|participacoes|particip|participac|partic|partc|part)';
-  return new RegExp(`^(?:${name}|${ordinal}\\s*${name}|${name}\\s*${ordinal})$`, 'u').test(normalized);
+  return participationPattern.test(normalized);
 }
