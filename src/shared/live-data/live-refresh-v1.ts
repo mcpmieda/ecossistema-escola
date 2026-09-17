@@ -21,11 +21,18 @@ interface Subscription {
 }
 export type LiveRefreshSubscriptionV1 = (() => void) & { resume(): void };
 const subscriptions = new Set<Subscription>();
+const changeListeners = new Set<(domain: LiveDomainV1) => void>();
 let timer: ReturnType<typeof setTimeout> | undefined;
 let channel: BroadcastChannel | undefined;
 let listening = false;
 const visible = () => document.visibilityState !== 'hidden' && navigator.onLine !== false;
 const jitter = () => Math.floor(Math.random() * 1_000);
+
+/** In-memory invalidation metadata only; no independent clock, socket, payload or storage. */
+export function subscribeLiveChangesV1(listener: (domain: LiveDomainV1) => void): () => void {
+  changeListeners.add(listener);
+  return () => { changeListeners.delete(listener); };
+}
 function wake() {
   clearTimeout(timer);
   timer = undefined;
@@ -48,6 +55,9 @@ function request(entry: Subscription, changed = true) {
   entry.nextAt = Math.max(entry.retryAt, Math.min(entry.nextAt, requestedAt));
 }
 function invalidate(domain: LiveDomainV1) {
+  for (const listener of changeListeners) {
+    try { listener(domain); } catch { /* An observer must not prevent authorized revalidation. */ }
+  }
   for (const entry of subscriptions) if (entry.domains.includes(domain)) request(entry);
   wake();
 }
@@ -115,12 +125,13 @@ function stop() {
   document.removeEventListener('visibilitychange', resume);
   channel?.close(); channel = undefined; listening = false;
 }
-/** Read invalidation only. No identity, academic data, credential, payload or storage is shared.
- * Same-origin BroadcastChannel is not a server push connection or a cross-device transport.
+/** Local commits are relayed to same-origin tabs. Remote notices already arrive at each
+ * connected document and must not be echoed across all those documents a second time.
  */
-export function notifyLiveChangeV1(domain: LiveDomainV1) {
+export function notifyLiveChangeV1(domain: LiveDomainV1, options: { broadcast?: boolean } = {}) {
   if (typeof window === 'undefined') return;
   invalidate(domain);
+  if (options.broadcast === false) return;
   try {
     if (channel) channel.postMessage({ type: 'invalidate', domain });
     else if (typeof window.BroadcastChannel === 'function') {
