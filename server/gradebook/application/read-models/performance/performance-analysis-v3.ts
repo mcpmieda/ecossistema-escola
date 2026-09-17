@@ -55,9 +55,12 @@ function dimension(
   const resolved = factsByTerm.flatMap((facts, index) =>
     facts.map((fact) => outcomes[index]!.coverage.resolvedSlots.includes(fact.slot)),
   );
+  const hasParallelGain = quantitative && outcomes.some(
+    (value) => value!.quantitativeConsideredMilli > value!.quantitativeOriginalMilli,
+  );
   const state = resolved.every(Boolean)
     ? 'complete'
-    : resolved.some(Boolean)
+    : resolved.some(Boolean) || hasParallelGain
       ? 'partial'
       : 'not-recorded';
   const maxima = quantitative
