@@ -38,6 +38,16 @@ HeroUI React v3 original em Tabs, Select, Card, Table, Meter, Chip, Tooltip, Ava
 
 Números são protagonistas; descrições curtas ficam em dicas acessíveis. Tabelas têm pesquisa/ordenação e rolagem interna; mapa e valores não dependem somente de cor. Aluno/componente abrem o detalhe granular existente; Relatórios e Professores usam o mesmo exportador A4, resumido/detalhado, do snapshot autorizado, com espaço para ações e paginação. A geração é explícita, não uma nova emissão acadêmica.
 
+## Extensão da perspectiva Alunos — #833 / PR #834
+
+A perspectiva **Alunos** passa a reutilizar a leitura pedagógica `learning` do mesmo snapshot V6: desempenho atual, evolução trimestral, atenção recorrente, participação avaliada, trajetória, quantitativo × qualitativo, destaques acionáveis, evidência recorrente nomeada, tabela completa de componentes e contexto de recuperação paralela. REC e cobertura ficam recolhidas. Resultado anual e Conselho aparecem somente no recorte anual quando disponíveis. A ausência de nota, de recorrência avaliada ou de par comparável permanece `—`/mensagem de base insuficiente; participação não vira presença nem recebe peso adicional.
+
+Os seletores compartilhados de Aluno, Componente e Professor continuam sendo `Select` HeroUI v3 não modal, agora com abertura controlada. Fecham por clique ou toque externo, Escape e seleção; podem ser reabertos e restauram o foco esperado do gatilho. Selecionar uma entidade chama apenas o callback já existente e não cria nova consulta. A revalidação do mesmo ano/turma/período/aluno preserva DOM, foco e estado local; mudança real de ano, turma, período ou aluno remonta somente o painel de aluno e limpa seu estado local contratado.
+
+Turmas, Componentes e Professores não foram redesenhados nesta extensão. Continuam usando `AnalyticsKpisV6` e o vocabulário estatístico anterior, inclusive aproveitamento, mediana, dispersão e qualidade em destaque; sua uniformização exige decisão de produto própria. Nenhum contrato, consulta, regra acadêmica, schema, persistência ou ACL foi alterado.
+
+Os testes de componente mantêm HeroUI real e cobrem abertura, reabertura, foco, dismiss por ponteiro de mouse/toque, Escape, seleção e callbacks nas três entidades; também cobrem os acessos a período/detalhe, revalidação, mudança de escopo e dados ausentes/não comparáveis. A validação manual de apresentação e comportamento no navegador, em desktop e celular, permanece sob responsabilidade do usuário e não é alegada por esta evidência automatizada.
+
 ## Evidências e limites de aceite
 
 Testes sintéticos SQL/HTTP, limites, cliente, React com HeroUI real, filtros, abertura de detalhes, invalidade/atraso de respostas, atualização silenciosa, suspensão de área oculta e autorização. Regra estatística e PDF testados sobre o núcleo existente. Não há dados reais em fixtures, arquivos ou logs.

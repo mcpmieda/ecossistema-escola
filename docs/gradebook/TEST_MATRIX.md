@@ -301,6 +301,18 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `REL-005`: issue, fase e `PROJECT_STATE.yaml` atualizados pelo integrador.
 - `REL-006`: recurso incompleto não aparece como disponível.
 
+## F16-833 — Perspectiva Alunos e seletores de entidade
+
+- `F16-833-001`: Aluno, Componente e Professor mantêm o `Select` HeroUI v3 real e não modal; abrem, reabrem e fecham por clique/toque externo, Escape e seleção.
+- `F16-833-002`: Escape devolve foco ao gatilho; a seleção chama somente o callback da entidade e fecha o listbox.
+- `F16-833-003`: Alunos apresenta desempenho atual, evolução trimestral, atenção recorrente, participação avaliada, trajetória, quantitativo × qualitativo, destaques, recorrências e a tabela completa de componentes usando o mesmo snapshot V6/`learning`.
+- `F16-833-004`: período, destaques, recorrências e componentes reutilizam os callbacks de navegação/detalhe existentes, sem consulta adicional na navegação interna.
+- `F16-833-005`: revalidação do mesmo recorte preserva DOM, foco e estado local; mudança de período ou aluno remonta o painel e recolhe os detalhes técnicos.
+- `F16-833-006`: recortes vazios, parciais ou sem base comparável mostram `—`/mensagem de insuficiência; ausência não vira zero, participação não vira presença e nota baixa isolada não vira recorrência.
+- `F16-833-007`: REC e cobertura ficam recolhidas; resultado anual e Conselho só aparecem no recorte anual quando disponíveis.
+- `F16-833-008`: Turmas, Componentes e Professores preservam o vocabulário estatístico anterior; esta entrega não declara uniformização dessas perspectivas nem altera contrato, SQL, pesos, máximos, arredondamento, schema, persistência ou ACL.
+- `F16-833-009`: validação interna automatizada e validação manual do usuário são evidências distintas; nenhuma conferência visual é inferida de testes React ou deploy.
+
 ## RDY — Readiness F9 sem ativação
 
 - `RDY-001`: preparação completa mantém todos os hard stops produtivos explícitos.
