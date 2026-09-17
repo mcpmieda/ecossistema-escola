@@ -198,11 +198,6 @@ export function WorkbookInspector({ result }: { result: BatchSuccess }) {
                             Fórmulas: {sheet.formulas}
                           </Chip>
                         )}
-                        {sheet.officialZeros > 0 && (
-                          <Chip color="warning" variant="soft" size="sm">
-                            Zeros 0,1: {sheet.officialZeros}
-                          </Chip>
-                        )}
                       </div>
                       <div className="mt-3 max-h-64 overflow-auto rounded-xl border border-border/50">
                         {sheet.students.map((student) => (

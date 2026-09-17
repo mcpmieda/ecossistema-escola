@@ -253,7 +253,8 @@ export function NotesImportPanel() {
           <p className="mt-2 text-sm text-muted">
             Até {MAX_NOTES_IMPORT_FILES} arquivos XLSB, XLSX ou XLS por lote. O arquivo é lido
             localmente. Somente os valores atuais dos campos acadêmicos são enviados, sem fórmulas.
-            Nas notas, 0 significa vazio e 0,1 significa zero explícito.
+            Nas atividades e avaliações, vazio significa “Não fez” e 0 significa “Tirou zero”.
+            A nota 0,1 é um número comum e entra nos cálculos.
           </p>
         </div>
         <Button
@@ -384,7 +385,7 @@ export function NotesImportPanel() {
                   </div>
                   <FileHash sha256={result.manifest.sha256} />
                   <p className="mt-2 text-xs text-muted">
-                    Importação por valores · 0 = vazio · 0,1 = zero explícito
+                    Vazio = Não fez · 0 = Tirou zero · 0,1 = nota numérica
                   </p>
                   {blocking > 0 && (
                     <p className="mt-2 text-xs font-semibold text-danger">

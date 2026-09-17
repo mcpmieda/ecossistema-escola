@@ -64,6 +64,7 @@ export type SheetJs = {
 export type NoteValue = {
   source: number;
   value: number;
+  // official-zero remains readable for historical evidence, never emitted for new 0.1 grades.
   kind: 'manual' | 'formula' | 'official-zero' | 'legacy-zero' | 'negative';
   formula?: string;
   snapshotState?: 'value' | 'unavailable';
@@ -283,7 +284,6 @@ function readNote(sheet: Worksheet, address: string): NoteValue | null {
     return { source, value: source, kind: 'formula', formula: cell.f };
   }
 
-  if (source === 0.1) return { source, value: 0, kind: 'official-zero' };
   if (source === 0) return { source, value: 0, kind: 'legacy-zero' };
   if (source < 0) return { source, value: source, kind: 'negative' };
   return { source, value: source, kind: 'manual' };
@@ -331,7 +331,6 @@ function readResultCellObservationV4(
 
   if (cell.v === null || cell.v === '') return { classification: 'empty', rawValue: cell.v };
   if (typeof cell.v === 'number' && Number.isFinite(cell.v)) {
-    if (cell.v === 0.1) return { classification: 'manual-official-zero-marker', rawValue: 0.1 };
     if (cell.v === 0) return { classification: 'manual-legacy-zero', rawValue: 0 };
     if (cell.v < 0) return { classification: 'manual-negative-number', rawValue: cell.v };
     return { classification: 'manual-positive-number', rawValue: cell.v };

@@ -199,7 +199,7 @@ function inspectCell(input: {
     ];
   }
 
-  if (numeric !== 0 && numeric !== 0.1 && !hasExactThousandths(numeric)) {
+  if (!hasExactThousandths(numeric)) {
     return [
       diagnostic({
         ...base,
@@ -216,8 +216,6 @@ function inspectCell(input: {
   if (
     input.maximum !== undefined &&
     input.maximum !== null &&
-    numeric !== 0 &&
-    numeric !== 0.1 &&
     numeric * 1000 > input.maximum + 1e-7
   ) {
     return [

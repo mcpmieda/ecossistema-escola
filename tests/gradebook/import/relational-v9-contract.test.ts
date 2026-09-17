@@ -255,12 +255,14 @@ describe('gradebook relational import v9', () => {
   });
 });
 
-describe('granular source observations #817', () => {
-  it('preserves numeric and formula zero, blank and unavailable from the actual observed source cells', () => {
+describe('granular source observations #817 and ordinary decimal grades #837', () => {
+  it('preserves numeric and formula zero, blank, decimal and unavailable from the actual observed source cells', () => {
     for (const [raw, expected] of [
       [0, 0],
       ['', null],
-      [0.1, 0],
+      [0.1, 100],
+      ['0,1', 100],
+      ['0.1', 100],
       [undefined, ['u']],
     ] as const) {
       const original = teacherResultWithAboveMaximum();

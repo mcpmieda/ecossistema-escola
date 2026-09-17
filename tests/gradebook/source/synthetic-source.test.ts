@@ -128,9 +128,9 @@ describe('massa sintética — semântica observável das células', () => {
     expect(SOURCE_CONTRACT_V1.semantics.missingField).toBe('missing-field');
   });
 
-  it('CELL-002: preserva 0,1 na origem e expõe zero oficial', () => {
+  it('CELL-002/#837: preserva 0,1 como nota decimal comum no leitor atual', () => {
     expect(requiredStudent('6A1º', 5).quantitativeAssessments[0]).toEqual(
-      SYNTHETIC_EXPECTATIONS.cells.officialZero,
+      { source: 0.1, value: 0.1, kind: 'manual' },
     );
   });
 
