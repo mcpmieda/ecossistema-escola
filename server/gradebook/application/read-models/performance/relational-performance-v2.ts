@@ -180,6 +180,8 @@ export async function readRelationalPerformanceV2(
   request: PerformanceRequestV2,
   options: {
     readonly descriptionOfferId?: number;
+    /** Internal V6 opt-in; preserve source labels in this same bounded snapshot query. */
+    readonly includeInstrumentDescriptions?: boolean;
     readonly collect?: (values: ReadonlyMap<number, readonly PerformanceProjectionV2[]>) => void;
   } = {},
 ): Promise<PerformanceResponseV2> {
@@ -293,11 +295,20 @@ export async function readRelationalPerformanceV2(
 
   const grouped = new Map<string, { facts: PerformanceFactV2[]; closing: PerformanceClosingV2 }>();
   if (students.length && offers.length) {
+    // The V6 label budget is 500 characters. Do not truncate a compound description into a
+    // participation alias: oversized labels keep their original source and use a generic label.
+    const description = specificOffer
+      ? 'i.descricao'
+      : options.descriptionOfferId !== undefined
+        ? 'CASE WHEN o.id=? THEN i.descricao ELSE NULL::text END'
+        : options.includeInstrumentDescriptions === true
+          ? 'CASE WHEN char_length(i.descricao) <= 500 THEN i.descricao ELSE NULL::text END'
+          : 'NULL::text';
     // One query for the entire bounded scope. A detail restricts SQL, not just its response.
     const facts = await all(
       db,
       `SELECT v.aluno_id,o.id AS oferta_id,i.trimestre,i.slot,i.maximo,n.valor,n.instrumento_id IS NOT NULL AS observed,
-      ${specificOffer ? 'i.descricao' : options.descriptionOfferId === undefined ? 'NULL::text' : 'CASE WHEN o.id=? THEN i.descricao ELSE NULL::text END'} AS descricao,
+      ${description} AS descricao,
       f.am1_fonte,f.am2_fonte,f.am3_fonte,f.rec1,f.rec2,f.rec3,f.rec_nc_mask,
       COALESCE((to_jsonb(f)->>'rec_rr_mask')::smallint,0) AS rec_rr_mask,f.u_fonte
       FROM gradebook.vinculo v JOIN gradebook.oferta o ON o.ano=v.ano AND o.turma_id=v.turma_id

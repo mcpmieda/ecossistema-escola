@@ -473,6 +473,7 @@ export function createPerformanceAnalyticsV6(database: D1WriteDatabaseV1) {
             statuses: [null, 7],
           },
           {
+            includeInstrumentDescriptions: includeLearning === true,
             collect: (values) => {
               projections = values;
             },
