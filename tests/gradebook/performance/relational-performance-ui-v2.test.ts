@@ -875,7 +875,7 @@ const analyticsCalls = () => requests.filter((item) => item.operation === 'analy
 describe('V6 HeroUI perspectives and shared live invalidation', () => {
   it('opens number-first overview and reuses one snapshot across all five analytical perspectives', async () => {
     await loadedAnalytics();
-    expect(host.textContent).toContain('Aproveitamento');
+    expect(host.textContent).toContain('Desempenho médio');
     expect(host.textContent).toContain('Trajetória trimestral');
     expect(analyticsCalls()).toBe(1);
     expect(requests.some((item) => item.operation === 'dashboard')).toBe(false);
