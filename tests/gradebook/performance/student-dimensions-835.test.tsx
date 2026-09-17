@@ -17,13 +17,13 @@ import { setupOperationsDomV1 } from '../../student-portal/ui/overview/dom-v1';
 beforeEach(setupOperationsDomV1);
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-function comparisonFixture(noCommon = false) {
+function comparisonFixture(noCommon = false, qualitativeRate = 0.8) {
   return learningFixtureV1({ studentCount: 1, componentCount: 3, override(fact, _student, component) {
     if (fact.term !== 2) return {};
     if (fact.slot === 3) return { valueMilli: component === 0 ? 10800 : null };
     if ((component === 1 && fact.slot === 13) || (component === 2 && fact.slot === 2) ||
       (noCommon && component === 0 && fact.slot === 13)) return { valueMilli: null };
-    const rate = fact.slot <= 2 ? [0.4, 0.2, 0.3][component]! : component === 0 ? 0.8 : 1;
+    const rate = fact.slot <= 2 ? [0.4, 0.2, 0.3][component]! : component === 0 ? qualitativeRate : 1;
     return { valueMilli: Math.round(fact.maximumMilli! * rate) };
   } });
 }
@@ -45,8 +45,12 @@ it('uses original assessments and identical complete components for both bars an
   expect(dimensions.gapPP).toBe(dimensions.qualitativePercent! - dimensions.quantitativePercent!);
   expect(value.learning!.dimensions.quantitativePercent).toBe(dimensions.quantitativePercent);
   expect(value.learning!.dimensions.qualitativePercent).toBe(dimensions.qualitativePercent);
-  expect(value.learning!.students[0]!.parallelImprovements).toBe(1);
-  // The old summary still has independent groups and the adjusted quantitative result.
+  // BN-DEC-033: 5400 + 13200 already exceeds 18000 before the recorded PARA.
+  expect(value.learning!.students[0]!.parallelImprovements).toBe(0);
+  expect(projections.get(matrix.rows[0]!.student.id)![0]!.terms[1]).toMatchObject({
+    parallelApplicable: false, parallelMilli: 10800, quantitativeConsideredMilli: 5400, rawMilli: 18600,
+  });
+  // The old summary still has independent groups and the considered quantitative result.
   expect(value.students[0]!.summary.quantitative.n).toBe(2);
   expect(value.students[0]!.summary.qualitative.n).toBe(2);
   expect(value.students[0]!.summary.quantitative.mean).not.toBeCloseTo(dimensions.quantitativePercent!);
@@ -56,6 +60,23 @@ it('uses original assessments and identical complete components for both bars an
   expect(value.components).toEqual(oldClient.components);
   expect(value.teachers).toEqual(oldClient.teachers);
   expect(value.learning!.dimensions).toEqual(oldClient.learning!.dimensions);
+  expect(performanceAnalyticsResponseSchemaV6.safeParse(value).success).toBe(true);
+});
+it('keeps dimensional comparison on original marks when an eligible PARA improves the result', () => {
+  const { value, matrix, projections } = comparisonFixture(false, 0.7);
+  const dimensions = value.learning!.students[0]!.dimensions!;
+  expect(dimensions.components).toBe(1);
+  expect(dimensions.quantitativePercent).toBeCloseTo(40);
+  expect(dimensions.qualitativePercent).toBeCloseTo(70);
+  expect(dimensions.gapPP).toBeCloseTo(30);
+  expect(value.learning!.students[0]!.parallelImprovements).toBe(1);
+  // 5400 + 11550 is below 18000; the superior PARA contributes once to the result only.
+  expect(projections.get(matrix.rows[0]!.student.id)![0]!.terms[1]).toMatchObject({
+    parallelApplicable: true, quantitativeOriginalMilli: 5400,
+    quantitativeConsideredMilli: 16200, rawMilli: 27750, roundedMilli: 28000,
+  });
+  expect(value.students[0]!.summary.quantitative.mean).toBeCloseTo(70);
+  expect(value.students[0]!.summary.quantitative.mean).not.toBeCloseTo(dimensions.quantitativePercent!);
   expect(performanceAnalyticsResponseSchemaV6.safeParse(value).success).toBe(true);
 });
 it('renders the canonical numbers instead of the adjusted summary without requesting more data', () => {
