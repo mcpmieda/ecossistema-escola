@@ -9,7 +9,7 @@ A fonte funcional é `PAINEL DESEMPENHO`, sobretudo §§7–16 e 20–22. Do doc
 ## O que cada lente entrega
 
 - **Resultado:** matriz calculada já existente, com cobertura, notas regulares/REC/N-C, situação e resultado calculado separados das referências de origem e da decisão humana.
-- **Quantitativo:** soma considerada pelo núcleo, incluindo substituição pela paralela somente quando aplicável. A paralela não é somada uma segunda vez. Máximos vêm dos resultados do núcleo.
+- **Quantitativo:** soma considerada pelo núcleo. Desde a BN-DEC-033/#844, uma PARA elegível e maior que AV1+AV2 é acrescentada uma única vez ao quantitativo original. A lente não a soma novamente. A elegibilidade usa os dois limites institucionais de 60%, antes da PARA e do arredondamento, sem exigir notas nas duas avaliações. Máximos vêm dos resultados do núcleo; detalhes e precedência em [PARALLEL_RECOVERY_844.md](PARALLEL_RECOVERY_844.md).
 - **Qualitativo:** pontuação real das atividades qualitativas e seus máximos. O banco atual não fornece conceitos comportamentais; nenhum conceito, personalidade ou conversão artificial é criado. Máximo desconhecido impede percentual, não apaga o lançamento.
 - **Avaliações:** aluno × instrumentos do componente selecionado explicitamente. T1/T2/T3 mostram seus instrumentos; Visão geral mantém os três trimestres identificados e pode ter até 39 colunas. Descrições reais são preservadas; instrumentos não são reunidos por nome.
 
