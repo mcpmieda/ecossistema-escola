@@ -17,15 +17,6 @@ class GradebookRouteBoundary extends Component<{ readonly children: ReactNode },
     return { failure: routeLoadFailureV1(error) };
   }
 
-  override componentDidCatch(error: Error): void {
-    // Browser-only, sanitized evidence. This is not durable monitoring or a database outage diagnosis.
-    console.error(JSON.stringify({
-      message: 'gradebook_route_failed',
-      category: routeLoadFailureV1(error),
-      occurredAt: new Date().toISOString(),
-    }));
-  }
-
   override render(): ReactNode {
     if (this.state.failure === null) return this.props.children;
     const moduleFailure = this.state.failure === 'module-load';
@@ -35,10 +26,13 @@ class GradebookRouteBoundary extends Component<{ readonly children: ReactNode },
         <Alert.Content>
           <Alert.Title>Banco de notas indisponível</Alert.Title>
           <Alert.Description>
+            O carregamento desta área falhou isoladamente. O restante do Centro continua disponível.
+          </Alert.Description>
+          <p className="mt-2 text-sm text-muted">
             {moduleFailure
               ? 'Não foi possível carregar os arquivos desta área. Recarregue a página para tentar obter a versão atual do aplicativo.'
               : 'Ocorreu um erro ao exibir esta área. Isso, por si só, não confirma uma falha no banco de dados.'}
-          </Alert.Description>
+          </p>
           <p className="mt-2 text-xs text-muted">
             Código: {moduleFailure ? 'BN-CARGA' : 'BN-TELA'}. A página não será recarregada automaticamente.
           </p>

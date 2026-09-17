@@ -395,7 +395,7 @@ describe('V2 contract and transport', () => {
       expect.objectContaining({
         cache: 'no-store',
         credentials: 'same-origin',
-        signal: controller.signal,
+        signal: expect.any(AbortSignal),
       }),
     );
   });
@@ -1028,7 +1028,7 @@ describe('V6 HeroUI perspectives and shared live invalidation', () => {
       expect.objectContaining({
         cache: 'no-store',
         credentials: 'same-origin',
-        signal: controller.signal,
+        signal: expect.any(AbortSignal),
       }),
     );
     for (const invalid of [

@@ -22,20 +22,13 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-it('shows a module-load recovery message without reloading or copying the original URL', async () => {
+it('shows a module-load recovery message without reloading or rendering the original URL', async () => {
   fixture.error = new TypeError('Failed to fetch dynamically imported module: /assets/synthetic.js');
   render(<NotesPage />);
   expect(await screen.findByText(/BN-CARGA/)).toBeTruthy();
   expect(screen.getByText(/versão atual do aplicativo/)).toBeTruthy();
+  expect(screen.queryByText(/synthetic\.js/)).toBeNull();
   expect(fixture.allowNavigation).not.toHaveBeenCalled();
-  const entries = vi.mocked(console.error).mock.calls
-    .map((args) => args[0])
-    .filter((value): value is string => typeof value === 'string' && value.startsWith('{'))
-    .map((value) => JSON.parse(value));
-  expect(entries).toContainEqual(expect.objectContaining({
-    message: 'gradebook_route_failed', category: 'module-load',
-  }));
-  expect(JSON.stringify(entries)).not.toContain('synthetic.js');
 });
 
 it('does not diagnose a database outage from a render error', async () => {

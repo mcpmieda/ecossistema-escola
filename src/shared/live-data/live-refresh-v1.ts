@@ -10,6 +10,7 @@ interface Subscription {
   domains: readonly LiveDomainV1[];
   refresh: () => void | Promise<unknown>;
   canRefresh: () => boolean;
+  isActive: () => boolean;
   interval: number;
   nextAt: number;
   lastAt: number;
@@ -18,6 +19,7 @@ interface Subscription {
   pending: boolean;
   dirty: boolean;
 }
+export type LiveRefreshSubscriptionV1 = (() => void) & { resume(): void };
 const subscriptions = new Set<Subscription>();
 let timer: ReturnType<typeof setTimeout> | undefined;
 let channel: BroadcastChannel | undefined;
@@ -28,7 +30,7 @@ function wake() {
   clearTimeout(timer);
   timer = undefined;
   if (!subscriptions.size || !visible()) return;
-  const next = Math.min(...Array.from(subscriptions).filter((entry) => !entry.pending).map((entry) => entry.nextAt));
+  const next = Math.min(...Array.from(subscriptions).filter((entry) => !entry.pending && entry.isActive()).map((entry) => entry.nextAt));
   if (!Number.isFinite(next)) return;
   timer = setTimeout(tick, Math.max(0, next - Date.now()));
 }
@@ -50,7 +52,7 @@ function invalidate(domain: LiveDomainV1) {
   wake();
 }
 function resume() {
-  if (visible()) for (const entry of subscriptions) request(entry, false);
+  if (visible()) for (const entry of subscriptions) if (entry.isActive()) request(entry, false);
   wake();
 }
 function tick() {
@@ -58,7 +60,7 @@ function tick() {
   if (!visible()) return;
   const now = Date.now();
   for (const entry of subscriptions) {
-    if (entry.pending || entry.nextAt > now) continue;
+    if (entry.pending || !entry.isActive() || entry.nextAt > now) continue;
     if (!entry.canRefresh()) { entry.nextAt = now + 1_000; continue; }
     entry.pending = true;
     entry.dirty = false;
@@ -136,15 +138,26 @@ export function subscribeLiveRefreshV1(options: {
   domains: readonly LiveDomainV1[];
   refresh: () => void | Promise<unknown>;
   canRefresh?: () => boolean;
+  isActive?: () => boolean;
   intervalMs?: number;
-}): () => void {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return () => undefined;
+}): LiveRefreshSubscriptionV1 {
+  if (typeof window === 'undefined' || typeof document === 'undefined')
+    return Object.assign(() => undefined, { resume: () => undefined });
   const interval = Math.max(10_000, options.intervalMs ?? LIVE_REFRESH_INTERVAL_V1);
   const entry: Subscription = {
     domains: options.domains, refresh: options.refresh, canRefresh: options.canRefresh ?? (() => true),
+    isActive: options.isActive ?? (() => true),
     interval, nextAt: Date.now() + interval + jitter(), lastAt: 0, retryAt: 0, failures: 0,
     pending: false, dirty: false,
   };
   subscriptions.add(entry); start(); wake();
-  return () => { subscriptions.delete(entry); stop(); if (subscriptions.size) wake(); };
+  return Object.assign(() => {
+    subscriptions.delete(entry); stop(); if (subscriptions.size) wake();
+  }, {
+    resume() {
+      if (!subscriptions.has(entry)) return;
+      if (entry.isActive()) request(entry, false);
+      wake();
+    },
+  });
 }
