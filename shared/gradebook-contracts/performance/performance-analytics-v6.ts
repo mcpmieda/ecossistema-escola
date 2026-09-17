@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { performanceLearningSchemaV1 } from './performance-learning-v1';
 import {
   performanceRequestSchemaV2,
   performanceResponseSchemaV2,
@@ -181,6 +182,8 @@ const ready = z
     students: z.array(student).max(150),
     components: z.array(component).max(40),
     teachers: z.array(teacher).max(40),
+    // #831: additive evidence, optional during rollout; not a new academic authority.
+    learning: performanceLearningSchemaV1.optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -248,6 +251,15 @@ const ready = z
       )
     )
       fail();
+    if (value.learning) {
+      const learning = value.learning;
+      const instrumentKeys = new Set(value.components.flatMap((item) => item.instruments.map((entry) => entry.key)));
+      if (learning.students.length !== studentIds.length || learning.students.some((item, index) =>
+        item.studentId !== studentIds[index] || item.recurring.some((entry) =>
+          !offerIds.includes(entry.offerId) || [...entry.instrumentTerms, ...entry.consecutiveTerms]
+            .some((term) => value.period !== 'annual' && term !== value.period))) ||
+        learning.activitiesToReview.some((key) => !instrumentKeys.has(key))) fail();
+    }
   });
 const failure = performanceResponseSchemaV2.options[0]
   .extend({ transportVersion: z.literal(6) })
