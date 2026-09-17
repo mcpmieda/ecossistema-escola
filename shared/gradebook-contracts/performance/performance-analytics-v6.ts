@@ -94,8 +94,12 @@ export const performanceAnalyticsRequestSchemaV6 = performanceRequestSchemaV2.op
     operation: z.literal('analytics'),
     // Opt-in preserves the strict response accepted by already-open older browser clients.
     includeLearning: z.literal(true).optional(),
+    includeStudentDimensions: z.literal(true).optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => !value.includeStudentDimensions || value.includeLearning === true, {
+    message: 'student dimensions require learning evidence',
+  });
 export type PerformanceAnalyticsRequestV6 = z.infer<typeof performanceAnalyticsRequestSchemaV6>;
 
 const dimension = z
@@ -259,7 +263,9 @@ const ready = z
       const learning = value.learning;
       const instrumentKeys = new Set(value.components.flatMap((item) => item.instruments.map((entry) => entry.key)));
       if (learning.students.length !== studentIds.length || learning.students.some((item, index) =>
-        item.studentId !== studentIds[index] || item.recurring.some((entry) =>
+        item.studentId !== studentIds[index] ||
+        (item.dimensions !== undefined && item.dimensions.components !== value.students[index]?.summary.dimensionGap.n) ||
+        item.recurring.some((entry) =>
           !offerIds.includes(entry.offerId) || [...entry.instrumentTerms, ...entry.consecutiveTerms]
             .some((term) => value.period !== 'annual' && term !== value.period))) ||
         learning.activitiesToReview.some((key) => !instrumentKeys.has(key))) fail();
@@ -280,6 +286,7 @@ export function performanceAnalyticsMatchesV6(
     (response.context.year === request.year &&
       response.classGroup.id === request.classId &&
       response.period === request.period &&
-      (!request.includeLearning || response.learning?.version === 1))
+      (!request.includeLearning || response.learning?.version === 1) &&
+      (!request.includeStudentDimensions || response.learning?.students.every((student) => student.dimensions !== undefined) === true))
   );
 }

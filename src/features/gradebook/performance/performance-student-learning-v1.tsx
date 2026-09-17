@@ -99,6 +99,7 @@ export function PerformanceStudentLearningV1({
   const student = value.students.find((item) => item.student.id === studentId);
   if (!student) return null;
   const evidence = value.learning?.students.find((item) => item.studentId === studentId);
+  const dimensions = evidence?.dimensions;
   const offers = new Map(value.components.map((item) => [item.offer.id, item.offer.subject.label]));
   const complete = student.cells.filter(
     (cell) => cell.result.state === 'complete' && cell.percent !== null,
@@ -156,17 +157,17 @@ export function PerformanceStudentLearningV1({
         <AnalyticsTimelineV6 summary={student.summary} onPeriod={onPeriod} schoolLanguage />
         <AnalyticsPanelV6
           title="Quantitativo × qualitativo"
-          action={<AnalyticsHintV6 label="Sobre Quantitativo e qualitativo do aluno">Quantitativo representa as avaliações numéricas; qualitativo reúne atividades e participação. A diferença entre os dois não explica, sozinha, sua causa.</AnalyticsHintV6>}
-          footer={<span>Comparação descritiva das notas deste aluno.</span>}
+          action={<AnalyticsHintV6 label="Sobre Quantitativo e qualitativo do aluno">Compara os mesmos componentes deste aluno. Quantitativo: as duas avaliações, antes da recuperação paralela. Qualitativo: atividades e participação. A diferença não explica, sozinha, sua causa.</AnalyticsHintV6>}
+          footer={<span>Componentes comparados: {dimensions?.components ?? 0}.</span>}
         >
           <div className="grid gap-5 py-1">
-            <Dimension label="Quantitativo" caption="Avaliações" value={student.summary.quantitative.mean} />
-            <Dimension label="Qualitativo" caption="Atividades + participação" value={student.summary.qualitative.mean} />
+            <Dimension label="Quantitativo" caption="Duas avaliações · antes da paralela" value={dimensions?.quantitativePercent ?? null} />
+            <Dimension label="Qualitativo" caption="Atividades + participação" value={dimensions?.qualitativePercent ?? null} />
             <div className="rounded-xl bg-default p-3 text-xs">
-              {student.summary.dimensionGap.meanPP === null ? (
+              {dimensions?.gapPP == null ? (
                 <span className="text-muted">Ainda sem base comum suficiente para comparar.</span>
               ) : (
-                <><strong className="mr-2 tabular-nums">{delta(student.summary.dimensionGap.meanPP)}</strong><span className="text-muted">qualitativo menos quantitativo</span></>
+                <><strong className="mr-2 tabular-nums">{delta(dimensions.gapPP)}</strong><span className="text-muted">qualitativo menos quantitativo</span></>
               )}
             </div>
           </div>

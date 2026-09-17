@@ -28,6 +28,7 @@ function participationValue(facts: readonly PerformanceFactV2[]) {
 export function buildPerformanceLearningV1(
   value: PerformanceAnalyticsV6,
   projections: ReadonlyMap<number, readonly PerformanceProjectionV2[]>,
+  includeStudentDimensions = true,
 ): PerformanceLearningV1 {
   const selectedTerms = value.period === 'annual' ? TERMS : [value.period];
   const reference: Term | null = value.period === 2 ? 1 : value.period === 3 ? 2 : null;
@@ -105,6 +106,12 @@ export function buildPerformanceLearningV1(
         recorded, expected, unscaled,
       },
       parallelImprovements,
+      // Reuse the exact values already feeding the overview; never the legacy adjusted summaries.
+      ...(includeStudentDimensions ? { dimensions: {
+        quantitativePercent: q, qualitativePercent: a,
+        gapPP: q !== null && a !== null ? a - q : null,
+        components: quantitative.length,
+      } } : {}),
     };
   });
   const participation = students.map((student) => student.participation);
