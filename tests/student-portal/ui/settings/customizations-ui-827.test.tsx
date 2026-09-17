@@ -16,13 +16,14 @@ function mount(mock = customizationsUiFixture827(), area = 'settings') {
   return { mock, view, user: userEvent.setup() };
 }
 async function grid() {
-  // Auth, native Tabs and settings mount before the inventory starts its own request.
-  // Wait for that real section, then limit accessibility queries to its card instead
-  // of repeatedly traversing the whole calendar/settings DOM during a cold mount.
+  // The grid element can precede its asynchronous row collection. Wait for the
+  // actual accessible row actions as well, not merely the empty table shell.
   const heading = await screen.findByText('Configurações personalizadas', { selector: 'h3' });
   const card = heading.closest('.pa-custom-settings');
   if (!(card instanceof HTMLElement)) throw new Error('Missing customization card');
-  return within(card).findByRole('grid', { name: 'Configurações personalizadas' });
+  const table = await within(card).findByRole('grid', { name: 'Configurações personalizadas' });
+  await within(table).findAllByRole('button', { name: /^Editar personalizações de /u });
+  return table;
 }
 const student = 'SYNTHETIC ACCOUNT 001';
 const difference = '2º trimestre: publicado para este aluno. Padrão da escola: não publicado.';
