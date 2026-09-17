@@ -33,7 +33,8 @@ describe('source evidence, not per-student omission #646', () => {
   });
   it.each([
     [7000, 10000, true, true, true],
-    [7000, 11000, false, true, false],
+    // BN-DEC-033: 7000 + 11000 reaches the term limit before PARA; final REC remains independent.
+    [7000, 11000, false, false, false],
     [8100, 1000, true, false, true],
   ])('keeps parallel and final recovery eligibility independent (%i/%i)', (quantitative, qualitative, finalRecoveryApplicable, showParallel, showRecovery) => {
     const term = resolveSimplifiedTermV1({ term: 1, instruments: [
