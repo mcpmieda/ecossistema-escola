@@ -72,6 +72,9 @@ function fakeDatabase(options: { readonly groupedCountDelta?: number } = {}): {
 const NOTE_HISTORY = `INSERT INTO gradebook.nota_historico
   (importacao_id, instrumento_id, aluno_id, valor_anterior, valor_novo)
   VALUES (?, ?, ?, ?, ?)`;
+const INSTRUMENT_HISTORY = `INSERT INTO gradebook.instrumento_historico
+  (importacao_id, instrumento_id, maximo_anterior, maximo_novo, descricao_anterior, descricao_nova)
+  VALUES (?, ?, ?, ?, ?, ?)`;
 const NOTE_INSERT = `INSERT INTO gradebook.nota (instrumento_id, aluno_id, valor) VALUES (?, ?, ?)`;
 const NOTE_UPDATE = `UPDATE gradebook.nota SET valor = ? WHERE instrumento_id = ? AND aluno_id = ?`;
 const NOTE_DELETE = `DELETE FROM gradebook.nota WHERE instrumento_id = ? AND aluno_id = ?`;
@@ -99,18 +102,13 @@ function parsedRows(execution: Execution): readonly Record<string, unknown>[] {
 }
 
 describe('relational import write buffer v11', () => {
-  it('groups repetitive note history and note mutations before the next read', async () => {
+  it('groups only current note mutations before the next read', async () => {
     const { database, executions } = fakeDatabase();
     const buffered = createBufferedRelationalImportDatabaseV11(database);
 
     await buffered.transaction(async (transaction) => {
-      expect(
-        await transaction.prepare(NOTE_HISTORY).bind(1, 10, 20, null, 5_000).run(),
-      ).toMatchObject({ changes: 1 });
       await transaction.prepare(NOTE_INSERT).bind(10, 20, 5_000).run();
-      await transaction.prepare(NOTE_HISTORY).bind(1, 11, 20, 4_000, 4_500).run();
       await transaction.prepare(NOTE_UPDATE).bind(4_500, 11, 20).run();
-      await transaction.prepare(NOTE_HISTORY).bind(1, 12, 20, 3_000, null).run();
       await transaction.prepare(NOTE_DELETE).bind(12, 20).run();
 
       expect(executions).toHaveLength(0);
@@ -118,13 +116,11 @@ describe('relational import write buffer v11', () => {
     });
 
     const grouped = groupedExecutions(executions);
-    expect(grouped).toHaveLength(4);
-    const history = grouped.find((execution) => execution.query.includes('nota_historico'))!;
+    expect(grouped).toHaveLength(3);
     const inserted = grouped.find((execution) => execution.query.includes('INSERT INTO gradebook.nota ('))!;
     const updated = grouped.find((execution) => execution.query.includes('UPDATE gradebook.nota AS'))!;
     const deleted = grouped.find((execution) => execution.query.includes('DELETE FROM gradebook.nota AS'))!;
 
-    expect(parsedRows(history)).toHaveLength(3);
     expect(parsedRows(inserted)).toEqual([
       { instrumento_id: 10, aluno_id: 20, valor: 5_000 },
     ]);
@@ -133,6 +129,20 @@ describe('relational import write buffer v11', () => {
     ]);
     expect(parsedRows(deleted)).toEqual([{ instrumento_id: 12, aluno_id: 20 }]);
     expect(executions.at(-1)?.kind).toBe('first');
+  });
+
+  it.each([
+    [NOTE_HISTORY, [1, 10, 20, null, 5_000]],
+    [INSTRUMENT_HISTORY, [1, 10, 5_000, 6_000, 'ANTERIOR', 'ATUAL']],
+  ] as const)('rejects retired granular history writes before SQL: %s', async (query, values) => {
+    const { database, executions } = fakeDatabase();
+    const buffered = createBufferedRelationalImportDatabaseV11(database);
+    await expect(
+      buffered.transaction(async (transaction) => {
+        await transaction.prepare(query).bind(...values).run();
+      }),
+    ).rejects.toThrow('gradebook-import-granular-history-retired');
+    expect(executions).toHaveLength(0);
   });
 
   it('groups fechamento history and final mutations at transaction completion', async () => {
@@ -170,14 +180,14 @@ describe('relational import write buffer v11', () => {
     ).toHaveLength(1);
   });
 
-  it('fails the transaction when a grouped write affects a different row count', async () => {
+  it('fails the transaction when a grouped current-state write affects a different row count', async () => {
     const { database } = fakeDatabase({ groupedCountDelta: -1 });
     const buffered = createBufferedRelationalImportDatabaseV11(database);
 
     await expect(
       buffered.transaction(async (transaction) => {
-        await transaction.prepare(NOTE_HISTORY).bind(1, 10, 20, null, 5_000).run();
+        await transaction.prepare(NOTE_INSERT).bind(10, 20, 5_000).run();
       }),
-    ).rejects.toThrow(/write-count-mismatch:note-history/iu);
+    ).rejects.toThrow(/write-count-mismatch:note-insert/iu);
   });
 });

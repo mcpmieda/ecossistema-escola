@@ -224,3 +224,17 @@ Vazio observado e indisponibilidade técnica são estados diferentes. Campo real
 Importações novas deixam de criar nota_historico e instrumento_historico; essas relações passam a ser legado vazio após a limpeza #863. A importacao continua podendo registrar a operação atual e os históricos de fechamento/vínculo permanecem fora desta decisão.
 
 A Auditoria continua fotografia atual. Se a nova observação não contém mais uma chave diagnosticada, qualquer reconhecimento/anotação correspondente também é removido na mesma substituição; BN-DEC-027 deixa de autorizar tratamento humano órfão. O manifesto específico da #855 é retirado: a correção produtiva realizada naquela entrega permanece, mas futuras planilhas são governadas pela fotografia atual, não por exceções fixas de professor/turma. Detalhes e regressões em [AUTHORITATIVE_IMPORT_862.md](AUTHORITATIVE_IMPORT_862.md).
+
+## BN-DEC-039 — Sem histórico granular de nota/instrumento no estado corrente
+
+**Data:** 2026-09-18. **Origem:** determinação explícita do responsável; #863. Complementa BN-DEC-038 e substitui a retenção histórica granular de nota/instrumento das decisões anteriores. Não altera a autoridade de AM/U, REC, PARA, Conselho ou boletins.
+
+`nota_historico` e `instrumento_historico` deixam de ser parte operacional do Banco de Notas. Seus dados acumulados são apagados e novas importações não gravam valores anteriores de nota, máximo ou descrição. O estado atual autoritativo é a última fotografia válida da planilha.
+
+As duas relações físicas permanecem temporariamente vazias para compatibilidade de schema, reset e restore. `gradebook_app` mantém leitura/exclusão, mas perde INSERT/UPDATE; o buffer de importação rejeita tentativa de writer granular. Uma futura remoção física das tabelas exige migration separada.
+
+Linhas `nota(NULL)` não são lixo por si só: se pertencem a instrumento atual, representam observação vazia/“Não fez” e permanecem. Instrumento qualitativo sem máximo, sem descrição e sem qualquer observação é resíduo e pode ser removido. `fechamento_historico`, `vinculo_historico`, Conselho e snapshots de boletim permanecem fora desta limpeza.
+
+`importacao` deixa de ser criada para mudanças de estado atual sem histórico retido. Linhas antigas sem qualquer referência retida são removidas; linhas necessárias por histórico de fechamento/vínculo permanecem. Auditoria corrente não conserva tratamento órfão.
+
+Detalhes, preflight e pós-flight em [CURRENT_STATE_CLEANUP_863.md](CURRENT_STATE_CLEANUP_863.md).

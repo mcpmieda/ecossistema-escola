@@ -8,6 +8,12 @@ DO $$ BEGIN
 END $$;
 GRANT USAGE ON SCHEMA gradebook TO gradebook_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA gradebook TO gradebook_app;
+-- Granular note/instrument history was retired by BN-DEC-038/#863.
+-- Keep read/delete for year-reset/recovery compatibility, but never allow new rows or mutations.
+REVOKE INSERT, UPDATE ON TABLE
+  gradebook.nota_historico,
+  gradebook.instrumento_historico
+FROM gradebook_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA gradebook TO gradebook_app;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA gradebook TO gradebook_app;
 -- Defaults apply to the executing object owner only; use the intended migration owner.
