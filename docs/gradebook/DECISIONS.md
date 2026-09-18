@@ -187,3 +187,15 @@ Nota numérica P lançada pelo professor, inclusive zero, é a única exceção:
 Cobertura e exibição seguem o mesmo núcleo: PARA existente/elegível nula é pendência; zero/nota resolve somente PARA; ausência sem observação não vira Não fez. Sem E e sem P, ocultar e não criar pendência. Com P, mostrar a nota ou Tirou zero, inclusive nos recortes e resumos compartilhados. A exceção já está resolvida e não apaga outras pendências. Não emitir aviso de PARA proibida para a exceção agora permitida; preservar decodificação histórica.
 
 Cálculos de resultado usam o quantitativo considerado; diagnósticos das duas avaliações preservam Q original. Portal usa fatos da edição aprovada, sem consultar notas atuais para substituir a edição. AM/U importadas, snapshots e fatos/históricos não são sobrescritos; sem DML/DDL, reimportação, backfill ou republicação forçada. Não acrescentar comentários técnicos às telas. Detalhes e testes em [PARALLEL_QUANTITATIVE_850.md](PARALLEL_QUANTITATIVE_850.md). Revisão e publicação seguem BN-DEC-023; CodeRabbit pode auxiliar somente nesta correção, conforme escopo explícito da #850, sem autorização permanente.
+
+## BN-DEC-036 — Correções qualitativas fechadas de 2026 e T3 em andamento
+
+**Data:** 2026-09-18. **Origem:** auditoria de contagens #852 e autorização explícita do responsável para corrigir as pendências; #855. Complementa BN-DEC-022/031/032/035 sem alterar fórmula acadêmica.
+
+A divergência de máximo qualitativo é corrigida somente quando a causa é determinística em trimestre encerrado. T3 permanece em andamento até 16/12/2026 e não recebe máximos, atividades ou completude inventados. Educação Física 6B, Português 6C/6D e Redação 7D em T3 ficam fora da correção desta decisão.
+
+Nos 12 oferta-trimestres fechados de T1/T2 investigados, uma definição de Ética 6A/T2 é restaurada de 3,0 para 6,0 porque há histórico anterior em 6,0 e lançamentos válidos até esse valor. Os demais excessos são slots qualitativos extras sem nenhuma nota numérica; esses slots deixam de ser ativos, e suas observações vazias atuais são convertidas de observado-em-branco para não observado com histórico explícito. Nenhuma nota numérica é apagada ou alterada.
+
+A correção é durável no importador por manifesto estreito de ano/professor/turma/componente/trimestre/slot. Qualquer mudança futura na definição investigada ou qualquer evidência de lançamento em slot suprimido bloqueia a normalização e exige nova investigação; não mascarar fonte nova. A normalização é aplicada no produtor canônico e novamente no servidor antes da persistência.
+
+A migration 0010 registra importação de correção, instrumento_historico e nota_historico, remove somente diagnósticos correntes comprovadamente resolvidos e emite a revisão acadêmica existente do Portal quando essa integração está instalada. Boletins emitidos, AM/U, REC, PARA e decisões humanas permanecem intactos. Detalhes e testes em QUALITATIVE_CORRECTIONS_855.md.
