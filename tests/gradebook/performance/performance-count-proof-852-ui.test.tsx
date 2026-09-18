@@ -52,7 +52,7 @@ afterEach(() => {
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
 
 function valueAfter(label: string): string | null {
-  const term = screen.getByText(label);
+  const term = screen.getByText(label, { selector: 'dt' });
   return term.parentElement?.querySelector('dd')?.textContent ?? null;
 }
 
@@ -143,7 +143,7 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
 
   for (const component of value.components) {
     const button = screen.getByRole('button', { name: component.offer.subject.label });
-    expect(button.parentElement?.textContent).toContain(
+    expect(button.parentElement?.parentElement?.textContent).toContain(
       component.summary.below + ' abaixo da referência · ' +
       component.summary.complete + ' com resultado',
     );
@@ -401,7 +401,7 @@ it.each(['classes', 'components', 'teachers'] as const)(
         const button = screen.getByRole('button', {
           name: item.offer.subject.label,
         });
-        expect(button.parentElement?.textContent).toContain(
+        expect(button.parentElement?.parentElement?.textContent).toContain(
           item.summary.complete +
             '/' +
             item.summary.readings +
@@ -435,7 +435,7 @@ it.each(['classes', 'components', 'teachers'] as const)(
         const button = screen.getByRole('button', {
           name: item.offer.subject.label,
         });
-        expect(button.parentElement?.textContent).toContain(
+        expect(button.parentElement?.parentElement?.textContent).toContain(
           item.summary.complete +
             '/' +
             item.summary.readings +
