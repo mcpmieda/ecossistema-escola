@@ -80,8 +80,8 @@ it('uses one bounded snapshot for complete, partial, zero and empty results', as
   });
   if (response.state !== 'ready' || response.operation !== 'matrix') throw new Error('expected-matrix');
   expect(response.rows.map((row) => [row.cells[0]!.state, row.cells[0]!.valueMilli])).toEqual([
-    ['partial',14000], ['complete',14000], ['complete',18000], ['complete',18000],
-    ['not-recorded',null], ['complete',19000],
+    ['partial',14000], ['complete',14000], ['complete',18000], ['complete',19000],
+    ['not-recorded',null], ['complete',15000],
   ]);
   expect(queries).toHaveLength(6);
   expect(queries[0]).toContain('READ ONLY');
@@ -94,15 +94,16 @@ it.each([1,2,3,4,6])('supplies visibility and granular observation from the same
   });
   if (response.state !== 'ready' || response.operation !== 'cell-detail') throw new Error('expected-detail');
   const term = response.terms[1];
-  expect(term.showParallel).toBe(n!==3 && n!==4);
+  expect(term.showParallel).toBe(n!==3);
   expect(term.regular.state).toBe(n===1 ? 'partial' : 'complete');
   const parallel = term.instruments.find((item) => item.slot===3)!;
   expect(parallel.valueMilli).toBe(n===2 ? 0 : n===4 || n===6 ? 5000 : null);
   expect(parallel.notDone).toBe(n===1 || n===3 ? true : undefined);
+  if (n===4 || n===6) expect(term.quantitativeConsideredMilli).toBe(5000);
   expect(queries).toHaveLength(6);
 });
 
-it('keeps ineligible assessment cells neutral without erasing the stored mark', async () => {
+it('keeps unrecorded dispensed cells neutral and exposes a numeric exception without changing storage', async () => {
   const response = await createPerformanceAnalysisV3(database).execute({
     ...scope, transportVersion: 3, operation: 'analysis', lens: 'assessments', offerId: 848001, statuses: [null],
   });
@@ -111,10 +112,10 @@ it('keeps ineligible assessment cells neutral without erasing the stored mark', 
   expect(index).toBeGreaterThanOrEqual(0);
   expect(response.rows[0]!.values[index]).toMatchObject({ notDone: true, state: 'not-recorded' });
   expect(response.rows[1]!.values[index]).toMatchObject({ valueMilli: 0, state: 'complete' });
-  for (const row of [response.rows[2]!,response.rows[3]!]) {
-    expect(row.values[index]).toMatchObject({ valueMilli: null, recordedMilli: null, state: 'not-applicable' });
-    expect(row.values[index]).not.toHaveProperty('notDone');
-  }
+  expect(response.rows[2]!.values[index]).toMatchObject({ valueMilli: null, recordedMilli: null, state: 'not-applicable' });
+  expect(response.rows[2]!.values[index]).not.toHaveProperty('notDone');
+  expect(response.rows[3]!.values[index]).toMatchObject({ valueMilli: 5000, recordedMilli: 5000, state: 'complete' });
+  expect(response.rows[3]!.values[index]).not.toHaveProperty('notDone');
   expect(queries).toHaveLength(6);
   expect((await pg.query('SELECT valor FROM gradebook.nota WHERE instrumento_id=8480203 AND aluno_id=848004')).rows)
     .toEqual([{ valor: 5000 }]);
@@ -132,10 +133,11 @@ it.each([1,2,3,4])('filters only a new bulletin projection, retaining official A
   const term = response.model.subjects[0]!.terms[0]!;
   expect(term.sourceAmMilli).toBe(26000);
   expect(term.coverage.complete).toBe(n!==1);
-  expect(term.instruments.some((item) => item.slot===3)).toBe(n===1 || n===2);
+  expect(term.instruments.some((item) => item.slot===3)).toBe(n!==3);
   expect(term.coverage.missingSlots).toEqual(n===1 ? [3] : []);
   if (n===1) expect(term.instruments.find((item) => item.slot===3)).toMatchObject({ valueMilli: null, notDone: true });
   if (n===2) expect(term.instruments.find((item) => item.slot===3)).toMatchObject({ valueMilli: 0 });
+  if (n===4) expect(term.instruments.find((item) => item.slot===3)).toMatchObject({ valueMilli: 5000 });
   expect(queries.join('\n')).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/u);
   expect(queries.length).toBeLessThanOrEqual(8);
 });

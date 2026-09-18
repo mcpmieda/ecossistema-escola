@@ -6,7 +6,7 @@ import { performanceAnalyticsResponseSchemaV6 } from '../../../shared/gradebook-
 import { performanceAnalysisResponseSchemaV3 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import { parallelFixture848 } from './parallel-visibility-fixture-848';
 
-describe('BN-DEC-034 applicable parallel coverage', () => {
+describe('applicable parallel coverage with BN-DEC-035 numeric exception', () => {
   it.each([1, 2, 3] as const)('marks a missing eligible PARA partial in trimester %s', (term) => {
     for (const observed of [true, false]) {
       const fixture = parallelFixture848({ term, observed });
@@ -26,11 +26,11 @@ describe('BN-DEC-034 applicable parallel coverage', () => {
     const outcome = fixture.projection.terms[1]!;
     expect(outcome.parallelApplicable).toBe(true);
     expect(outcome.coverage).toMatchObject({ complete: true, missingSlots: [], resolvedSlots: [1, 2, 3, 11] });
-    expect(outcome.rawMilli).toBe(parallel > 4000 ? 14000 + parallel : 14000);
+    expect(outcome.rawMilli).toBe(Math.max(4000, parallel) + 10000);
     expect(fixture.cell.state).toBe('complete');
   });
 
-  it.each([1, 2, 3] as const)('does not require PARA after either exact exemption limit in trimester %s', (term) => {
+  it.each([1, 2, 3] as const)('uses a recorded exception after either exact exemption limit in trimester %s', (term) => {
     const quantitativeCutoff = term === 3 ? 10800 : 8100;
     const termCutoff = term === 3 ? 24000 : 18000;
     for (const parallel of [null, 0, 5000, 15000]) {
@@ -40,12 +40,13 @@ describe('BN-DEC-034 applicable parallel coverage', () => {
       ]) {
         const fixture = parallelFixture848({ term, parallel, ...options });
         const outcome = fixture.projection.terms[term - 1]!;
-        expect(outcome.parallelApplicable).toBe(false);
+        expect(outcome.parallelApplicable).toBe(parallel !== null);
         expect(outcome.parallelMilli).toBe(parallel);
-        expect(outcome.coverage).toMatchObject({ complete: true, requiredSlots: [1, 2, 11], missingSlots: [] });
-        expect(outcome.rawMilli).toBe(options.av1 + 2000 + options.qualitative);
+        expect(outcome.coverage).toMatchObject({ complete: true,
+          requiredSlots: parallel === null ? [1, 2, 11] : [1, 2, 3, 11], missingSlots: [] });
+        expect(outcome.rawMilli).toBe(Math.max(options.av1 + 2000, parallel ?? 0) + options.qualitative);
         expect(fixture.cell.state).toBe('complete');
-        expect(fixture.detail.terms[term - 1]!.showParallel).toBe(false);
+        expect(fixture.detail.terms[term - 1]!.showParallel).toBe(parallel !== null);
       }
     }
   });
@@ -95,17 +96,18 @@ describe('BN-DEC-034 applicable parallel coverage', () => {
       .toMatchObject({ expected: 1, recorded: complete ? 1 : 0, missing: complete ? 0 : 1 });
   });
 
-  it('excludes a dispensed PARA from coverage even when a stored zero or observation exists', () => {
+  it('omits only an unrecorded dispensed PARA and counts numeric exceptions as resolved', () => {
     for (const parallel of [null, 0, 5000]) {
       const { matrix, projections } = parallelFixture848({ parallel, qualitative: 14000 });
       const result = buildPerformanceAnalyticsV6(matrix, projections);
-      expect(result.summary.coverage).toMatchObject({ expected: 3, recorded: 3, missing: 0, zeros: 0 });
+      const expected = parallel === null ? 3 : 4;
+      expect(result.summary.coverage).toMatchObject({ expected, recorded: expected, missing: 0, zeros: parallel === 0 ? 1 : 0 });
       expect(result.summary.partial).toBe(0);
-      expect(result.components[0]!.instruments.some((item) => item.slot === 3)).toBe(false);
+      expect(result.components[0]!.instruments.some((item) => item.slot === 3)).toBe(parallel !== null);
     }
   });
 
-  it.each([null, 0, 5000])('never exposes an ineligible mark or not-done status in a shared assessment column (%s)', (parallel) => {
+  it.each([null, 0, 5000])('respects the numeric exception in a shared assessment column (%s)', (parallel) => {
     const eligible = parallelFixture848({ studentId: 848001, parallel: 0 });
     const exempt = parallelFixture848({ studentId: 848002, parallel, qualitative: 14000 });
     const matrix = { ...eligible.matrix, rows: [...eligible.matrix.rows, ...exempt.matrix.rows],
@@ -120,12 +122,12 @@ describe('BN-DEC-034 applicable parallel coverage', () => {
     const index = result.columns.findIndex((column) => column.slot === 3);
     expect(index).toBeGreaterThanOrEqual(0);
     expect(result.rows[0]!.values[index]).toMatchObject({ valueMilli: 0, recordedMilli: 0, state: 'complete' });
-    expect(result.rows[1]!.values[index]).toMatchObject({ valueMilli: null, recordedMilli: null,
-      state: 'not-applicable', bucket: 'excluded' });
+    expect(result.rows[1]!.values[index]).toMatchObject({ valueMilli: parallel, recordedMilli: parallel,
+      state: parallel === null ? 'not-applicable' : 'complete', bucket: parallel === null ? 'excluded' : 'below' });
     expect(result.rows[1]!.values[index]).not.toHaveProperty('notDone');
-    expect(result.columns[index]!.summary.considered).toBe(1);
-    // An eligible student outside the filtered rows must not keep the PARA column visible.
+    expect(result.columns[index]!.summary.considered).toBe(parallel === null ? 1 : 2);
+    // An out-of-scope eligible student does not keep a column, but an in-scope numeric exception does.
     const filtered = buildPerformanceAnalysisV3(exempt.matrix, projections, request);
-    expect(filtered.columns.some((column) => column.slot === 3)).toBe(false);
+    expect(filtered.columns.some((column) => column.slot === 3)).toBe(parallel !== null);
   });
 });

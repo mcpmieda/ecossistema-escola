@@ -376,7 +376,7 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
     expect(result.columns.every((col) => col.label.includes('AVALIACAO SINTETICA'))).toBe(true);
     expect(result.rows[1]!.values[0]!.valueMilli).toBe(0);
   });
-  it('never adds parallel recovery twice or converts an ignored observation into applied credit', async () => {
+  it('shows a recorded PARA without adding it twice or replacing a superior original quantitative score', async () => {
     await pg.exec(`INSERT INTO gradebook.instrumento (id,oferta_id,trimestre,slot,maximo,descricao) VALUES (9999,10,1,3,13500,'PARALELA SINTETICA');
       INSERT INTO gradebook.nota VALUES (9999,1,9000),(9999,2,9000);`);
     try {
@@ -384,7 +384,8 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
       expect(quantitative.rows[0]!.values[0]!.valueMilli).toBe(12000);
       expect(quantitative.rows[1]!.values[0]!.valueMilli).toBe(9000);
       const instruments = await analysis({ lens: 'assessments', offerId: 10 });
-      expect(instruments.rows[0]!.values.find((v) => v.key === '10:1:3')).toMatchObject({ valueMilli: null, recordedMilli: null, state: 'not-applicable', bucket: 'excluded' });
+      expect(instruments.rows[0]!.values.find((v) => v.key === '10:1:3')).toMatchObject({ valueMilli: 9000, recordedMilli: 9000, state: 'complete', bucket: 'above' });
+      expect((await pg.query('SELECT valor FROM gradebook.nota WHERE instrumento_id=9999 AND aluno_id=1')).rows).toEqual([{ valor: 9000 }]);
     } finally { await pg.exec('DELETE FROM gradebook.nota WHERE instrumento_id=9999; DELETE FROM gradebook.instrumento WHERE id=9999'); }
   });
   it('keeps N/C and recovery population, but never decomposes REC into activities', async () => {

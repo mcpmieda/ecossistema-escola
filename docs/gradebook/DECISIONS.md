@@ -152,6 +152,8 @@ Zeros anteriormente gravados não são convertidos por suposição: é necessár
 
 ## BN-DEC-033 — Elegibilidade e composição da recuperação paralela
 
+**Retificação vigente:** a composição aditiva desta entrada foi uma interpretação equivocada do executor, expressamente corrigida pela BN-DEC-035/#850. O texto abaixo é preservado como histórico de implementação, não como autorização para somar Q+PARA.
+
 **Data:** 2026-09-17, 23:12–23:14 UTC. **Origem:** regra e composição explicitadas nesta conversa, seguidas da ordem de execução imediata; contrato #844. Substitui no núcleo ativo a exigência de AV1/AV2 preenchidas e a composição anterior por substituição do quantitativo pela PARA. Não altera o histórico documental nem a REC final.
 
 Q = AV1 + AV2; L = qualitativo. Ausência contribui zero à aritmética, sem converter o fato NULL em nota zero. Elegível somente se Q < 60% de 13,5/13,5/18 E Q + L < 60% de 30/30/40. Usar limites institucionais e total exato anterior à PARA, sem arredondar, sem exigir qualquer das duas notas e sem circularidade. Igualdade com qualquer limite dispensa a paralela. Definições estruturais ausentes continuam indisponíveis; cobertura permanece separada da elegibilidade.
@@ -162,6 +164,8 @@ Esta mudança alcança o cálculo descritivo corrente, não sobrescreve AM/U imp
 
 ## BN-DEC-034 — PARA visível e exigível somente para elegíveis
 
+**Exceção vigente:** BN-DEC-035/#850 determina que PARA numérica, inclusive zero, seja respeitada mesmo sem elegibilidade normal. O caso sem elegibilidade e sem nota continua oculto; pendências de outros instrumentos permanecem independentes.
+
 **Data:** 2026-09-18, 00:45 UTC. **Origem:** determinação explícita do responsável; contrato #848. Complementa BN-DEC-031/033 e substitui a exclusão incondicional da PARA da cobertura de lançamentos. Não modifica os limites, a composição aditiva ou o arredondamento da BN-DEC-033.
 
 Nas listas individuais, a PARA só aparece quando `parallelApplicable === true` no núcleo. Existência de nota, zero ou vazio observado não contorna a elegibilidade. Para elegíveis, vazio observado é “Não fez” e zero numérico é “Tirou zero”; ausência de observação não autoriza inventar “Não fez”. O fato original continua armazenado mesmo quando a linha é ocultada.
@@ -171,3 +175,15 @@ A PARA integra `coverage.requiredSlots` somente quando o instrumento existe no t
 A matriz compartilhada de avaliações pode manter a coluna PARA quando há elegíveis no recorte visível, mas não revela valor ou “Não fez” nas células não elegíveis. Sem elegíveis, a coluna e o resumo de instrumento são omitidos. Resultado, dimensão quantitativa considerada, estatísticas, comparações e novas prévias de Boletim reutilizam a cobertura aplicável, sem fórmula paralela na UI.
 
 O Portal aplica o filtro aos fatos da edição aprovada, sem consultar notas novas para substituir uma publicação anterior. Notas oficiais AM/U, calendário, permissões, opção de parciais, autoUpdate, períodos publicados e snapshots já emitidos são preservados. Não há DML/DDL, reimportação ou republicação forçada nesta entrega. A orientação #846 permanece: não acrescentar comentários explicativos às telas. Mapa de consumidores e regressões em [PARALLEL_VISIBILITY_848.md](PARALLEL_VISIBILITY_848.md); revisão, CI e deploy seguem BN-DEC-023.
+
+## BN-DEC-035 — PARA melhora o quantitativo e respeita nota lançada
+
+**Data:** 2026-09-18, 09:39–09:57 UTC. **Origem:** esclarecimento e confirmação explícitos do responsável; contrato #850. Retifica a interpretação aditiva do executor na BN-DEC-033/#844 e acrescenta a única exceção à ocultação da BN-DEC-034/#848. A composição Q+PARA nunca foi a intenção confirmada pelo responsável.
+
+Quantitativo original Q é somente AV1 + AV2. PARA é uma chance de melhorar esse quantitativo; não é uma terceira avaliação adicional e não aumenta o máximo. Elegibilidade normal E mantém Q < 8,1 E Q+L < 18 em T1/T2; Q < 10,8 E Q+L < 24 em T3, com limites exatos antes de PARA/arredondamento e sem exigir notas em qualquer AV.
+
+Nota numérica P lançada pelo professor, inclusive zero, é a única exceção: aparece e participa da comparação mesmo sem E. Vazio não aciona exceção. `parallelApplicable` passa a representar a aplicabilidade efetiva E OU P numérica. Se P > Q, quantitativo considerado = P; caso contrário = Q. **Bruto = max(Q,P) + L**, ou Q+L sem P. Ganho = max(P-Q,0). Exemplo confirmado: Q=4, P=7, L=10 -> 17, não 21. Arredondamento permanece na função homologada.
+
+Cobertura e exibição seguem o mesmo núcleo: PARA existente/elegível nula é pendência; zero/nota resolve somente PARA; ausência sem observação não vira Não fez. Sem E e sem P, ocultar e não criar pendência. Com P, mostrar a nota ou Tirou zero, inclusive nos recortes e resumos compartilhados. A exceção já está resolvida e não apaga outras pendências. Não emitir aviso de PARA proibida para a exceção agora permitida; preservar decodificação histórica.
+
+Cálculos de resultado usam o quantitativo considerado; diagnósticos das duas avaliações preservam Q original. Portal usa fatos da edição aprovada, sem consultar notas atuais para substituir a edição. AM/U importadas, snapshots e fatos/históricos não são sobrescritos; sem DML/DDL, reimportação, backfill ou republicação forçada. Não acrescentar comentários técnicos às telas. Detalhes e testes em [PARALLEL_QUANTITATIVE_850.md](PARALLEL_QUANTITATIVE_850.md). Revisão e publicação seguem BN-DEC-023; CodeRabbit pode auxiliar somente nesta correção, conforme escopo explícito da #850, sem autorização permanente.

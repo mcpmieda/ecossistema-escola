@@ -78,10 +78,10 @@ it('returns the exact central sum on opt-in and retains rounded/source values se
     parallelApplicable: true,
     showParallel: true,
     quantitativeOriginalMilli: 200,
-    quantitativeConsideredMilli: 7200,
+    quantitativeConsideredMilli: 7000,
     qualitativeMilli: 12000,
     parallelMilli: 7000,
-    regular: { valueMilli: 19000, rawMilli: 19200, state: 'partial', sourceReferenceMilli: 29000 },
+    regular: { valueMilli: 19000, rawMilli: 19000, state: 'partial', sourceReferenceMilli: 29000 },
   });
   expect(response.terms[1].instruments.find((item) => item.slot === 2)).toMatchObject({ valueMilli: null, notDone: true });
   expect(response.terms[0].regular.valueMilli).toBeNull();
@@ -119,7 +119,7 @@ it('propagates the same quantitative gain through the existing composition lens'
     lens: 'quantitative', offerId: null,
   });
   if (response.state !== 'ready') throw new Error('expected analysis');
-  expect(response.rows[0]?.values[0]).toMatchObject({ valueMilli: 7200, state: 'partial' });
+  expect(response.rows[0]?.values[0]).toMatchObject({ valueMilli: 7000, state: 'partial' });
   expect(response.rows[1]?.values[0]).toMatchObject({ valueMilli: 7000, state: 'partial' });
   expect(response.rows[2]?.values[0]).toMatchObject({ valueMilli: null, state: 'not-recorded' });
   expect(queries).toHaveLength(6);

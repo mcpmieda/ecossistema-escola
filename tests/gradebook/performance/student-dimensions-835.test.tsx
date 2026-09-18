@@ -45,10 +45,10 @@ it('uses original assessments and identical complete components for both bars an
   expect(dimensions.gapPP).toBe(dimensions.qualitativePercent! - dimensions.quantitativePercent!);
   expect(value.learning!.dimensions.quantitativePercent).toBe(dimensions.quantitativePercent);
   expect(value.learning!.dimensions.qualitativePercent).toBe(dimensions.qualitativePercent);
-  // BN-DEC-033: 5400 + 13200 already exceeds 18000 before the recorded PARA.
-  expect(value.learning!.students[0]!.parallelImprovements).toBe(0);
+  // BN-DEC-035: Q+L already reaches the limit, but recorded P is the explicit exception.
+  expect(value.learning!.students[0]!.parallelImprovements).toBe(1);
   expect(projections.get(matrix.rows[0]!.student.id)![0]!.terms[1]).toMatchObject({
-    parallelApplicable: false, parallelMilli: 10800, quantitativeConsideredMilli: 5400, rawMilli: 18600,
+    parallelApplicable: true, parallelMilli: 10800, quantitativeConsideredMilli: 10800, rawMilli: 24000,
   });
   // The old summary still has independent groups and the considered quantitative result.
   expect(value.students[0]!.summary.quantitative.n).toBe(2);
@@ -70,12 +70,12 @@ it('keeps dimensional comparison on original marks when an eligible PARA improve
   expect(dimensions.qualitativePercent).toBeCloseTo(70);
   expect(dimensions.gapPP).toBeCloseTo(30);
   expect(value.learning!.students[0]!.parallelImprovements).toBe(1);
-  // 5400 + 11550 is below 18000; the superior PARA contributes once to the result only.
+  // P replaces Q in the result; the diagnostic bars retain only the original two AV.
   expect(projections.get(matrix.rows[0]!.student.id)![0]!.terms[1]).toMatchObject({
     parallelApplicable: true, quantitativeOriginalMilli: 5400,
-    quantitativeConsideredMilli: 16200, rawMilli: 27750, roundedMilli: 28000,
+    quantitativeConsideredMilli: 10800, rawMilli: 22350, roundedMilli: 22500,
   });
-  expect(value.students[0]!.summary.quantitative.mean).toBeCloseTo(70);
+  expect(value.students[0]!.summary.quantitative.mean).toBeCloseTo(50);
   expect(value.students[0]!.summary.quantitative.mean).not.toBeCloseTo(dimensions.quantitativePercent!);
   expect(performanceAnalyticsResponseSchemaV6.safeParse(value).success).toBe(true);
 });
