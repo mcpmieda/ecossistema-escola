@@ -279,6 +279,147 @@ it('renders the selected student indicators with the exact proven student summar
     );
 });
 
+
+it.each(['classes', 'components', 'teachers'] as const)(
+  'renders exact selected-summary counts in the %s perspective',
+  (tab) => {
+    const { value } = learningFixtureV1({ period: 2 });
+    const component = value.components[0]!;
+    const teacher = value.teachers[0]!;
+    const summary =
+      tab === 'components'
+        ? component.summary
+        : tab === 'teachers'
+          ? teacher.summary
+          : value.summary;
+    render(
+      <PerformanceAnalyticsWorkspaceV6
+        value={value}
+        tab={tab}
+        selection={{
+          studentId: null,
+          offerId: component.offer.id,
+          teacherId: teacher.id,
+        }}
+        onSelection={vi.fn()}
+        onNavigate={vi.fn()}
+        onPeriod={vi.fn()}
+        onCell={vi.fn()}
+        onNotes={vi.fn()}
+      />,
+    );
+
+    const kpi = (label: string) =>
+      screen.getByText(label).closest('[data-slot="card"]');
+    expect(kpi('Aproveitamento')?.textContent).toContain(
+      percent(summary.result.mean),
+    );
+    expect(kpi('Aproveitamento')?.textContent).toContain(
+      summary.result.n + '/' + summary.readings + ' leituras completas',
+    );
+    expect(kpi('Mediana')?.textContent).toContain(percent(summary.result.median));
+    expect(kpi('Alunos abaixo')?.textContent).toContain(
+      String(summary.studentsBelow),
+    );
+    expect(kpi('Alunos abaixo')?.textContent).toContain(
+      summary.students + ' alunos considerados',
+    );
+    expect(kpi('Notas lançadas')?.textContent).toContain(
+      percent(summary.coverage.percent),
+    );
+    expect(kpi('Notas lançadas')?.textContent).toContain(
+      summary.coverage.recorded +
+        '/' +
+        summary.coverage.expected +
+        ' instrumentos',
+    );
+    expect(valueAfter('REC aplicável')).toBe(String(summary.recovery.applicable));
+    expect(valueAfter('REC lançada')).toBe(String(summary.recovery.recorded));
+    expect(valueAfter('REC pendente')).toBe(String(summary.recovery.pending));
+    expect(valueAfter('Completos')).toBe(String(summary.complete));
+    expect(valueAfter('Parciais')).toBe(String(summary.partial));
+    expect(valueAfter('Sem nota')).toBe(String(summary.missing));
+    expect(valueAfter('Zeros registrados')).toBe(String(summary.coverage.zeros));
+
+    if (tab !== 'classes') {
+      for (const item of summary.timeline)
+        expect(
+          screen.getByRole('button', {
+            name:
+              'Consultar ' +
+              item.term +
+              'º trimestre: ' +
+              percent(item.mean) +
+              ', ' +
+              item.n +
+              ' leituras',
+          }),
+        ).toBeTruthy();
+      expect(
+        screen.getByText(summary.composition.n + ' pares completos'),
+      ).toBeTruthy();
+    }
+
+    if (tab === 'classes') {
+      const figure = screen.getByRole('figure', {
+        name: 'Distribuição por faixa de aproveitamento',
+      });
+      expect(figure.querySelector('figcaption')?.textContent).toBe(
+        summary.distribution
+          .map((bin) => bin.label + ': ' + bin.count)
+          .join('; '),
+      );
+      for (const item of value.components) {
+        const button = screen.getByRole('button', {
+          name: item.offer.subject.label,
+        });
+        expect(button.parentElement?.textContent).toContain(
+          item.summary.complete +
+            '/' +
+            item.summary.readings +
+            ' completos · ' +
+            item.summary.below +
+            ' abaixo',
+        );
+      }
+    }
+
+    if (tab === 'components') {
+      const grid = screen.getByRole('grid', {
+        name: 'Aproveitamento por instrumento',
+      });
+      expect(within(grid).getAllByRole('row')).toHaveLength(
+        component.instruments.length + 1,
+      );
+      for (const instrument of component.instruments)
+        expect(grid.textContent).toContain(
+          instrument.coverage.recorded +
+            '/' +
+            instrument.coverage.expected,
+        );
+    }
+
+    if (tab === 'teachers') {
+      const teacherComponents = value.components.filter((item) =>
+        teacher.offerIds.includes(item.offer.id),
+      );
+      for (const item of teacherComponents) {
+        const button = screen.getByRole('button', {
+          name: item.offer.subject.label,
+        });
+        expect(button.parentElement?.textContent).toContain(
+          item.summary.complete +
+            '/' +
+            item.summary.readings +
+            ' completos · ' +
+            item.summary.below +
+            ' abaixo',
+        );
+      }
+    }
+  },
+);
+
 it('renders timeline, histogram, composition, recovery and coverage with the exact payload denominators', () => {
   const { value } = learningFixtureV1({ period: 2 });
   const { container } = render(
