@@ -90,12 +90,23 @@ afterAll(async () => database?.close());
 
 it('uses the latest snapshot as current state without note/instrument delta history', async () => {
   const service = createGradebookRelationalImportServiceV11(database);
+  const importsBefore = (await pg.query<{ n: number }>(
+    'SELECT count(*)::integer AS n FROM gradebook.importacao',
+  )).rows[0]!.n;
   expect((await service.execute(notes('numeric'))).state).toBe('applied');
+  const importsAfterInitial = (await pg.query<{ n: number }>(
+    'SELECT count(*)::integer AS n FROM gradebook.importacao',
+  )).rows[0]!.n;
+  // First notes import may create an import row for new offer/subject topology.
+  expect(importsAfterInitial).toBeGreaterThanOrEqual(importsBefore);
   expect((await pg.query(`SELECT i.slot,i.maximo,n.valor FROM gradebook.instrumento i LEFT JOIN gradebook.nota n ON n.instrumento_id=i.id WHERE i.trimestre=1 AND i.slot=11`)).rows)
     .toEqual([{ slot: 11, maximo: 5000, valor: 4000 }]);
 
   // Direct numeric → deleted removes the old numeric fact instead of preserving it.
   expect((await service.execute(notes('deleted'))).state).toBe('applied');
+  expect(
+    (await pg.query<{ n: number }>('SELECT count(*)::integer AS n FROM gradebook.importacao')).rows[0]!.n,
+  ).toBe(importsAfterInitial);
   expect((await pg.query(`SELECT count(*)::integer AS n FROM gradebook.instrumento i WHERE i.trimestre=1 AND i.slot=11`)).rows)
     .toEqual([{ n: 0 }]);
 
@@ -103,6 +114,9 @@ it('uses the latest snapshot as current state without note/instrument delta hist
   // current fact while the instrument remains active.
   expect((await service.execute(notes('numeric'))).state).toBe('applied');
   expect((await service.execute(notes('blank'))).state).toBe('applied');
+  expect(
+    (await pg.query<{ n: number }>('SELECT count(*)::integer AS n FROM gradebook.importacao')).rows[0]!.n,
+  ).toBe(importsAfterInitial);
   expect((await pg.query(`SELECT i.slot,i.maximo,n.valor FROM gradebook.instrumento i LEFT JOIN gradebook.nota n ON n.instrumento_id=i.id WHERE i.trimestre=1 AND i.slot=11`)).rows)
     .toEqual([{ slot: 11, maximo: 5000, valor: null }]);
   expect((await pg.query('SELECT count(*)::integer AS n FROM gradebook.nota_historico')).rows).toEqual([{ n: 0 }]);
