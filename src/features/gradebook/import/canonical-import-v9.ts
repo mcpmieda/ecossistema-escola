@@ -55,7 +55,7 @@ function normalize(value: string): string {
 }
 
 function parserVersion(value: string): string {
-  return `${value.slice(0, 70)}:canonical-v9:observed-blanks-v1:decimal-grades-v1`;
+  return `${value.slice(0, 48)}:canonical-v9:observed-blanks-v1:decimal-grades-v1:definition-snapshot-v1`;
 }
 
 function manifest(result: BatchSuccess) {
