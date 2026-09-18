@@ -154,3 +154,8 @@ A leitura também encontrou **16 oferta-trimestres com irregularidade estrutural
 - A conferência produtiva é agregada e somente leitura.
 
 O resultado final de CI, PostgreSQL/isolamento, revisão, merge e deploy deve ser registrado na issue/PR; a simples presença deste documento não comprova que esses gates passaram.
+
+
+## Procedência do deploy
+
+O PR #853 foi validado com sucesso, mas sua primeira integração usou squash. A esteira de produção exige explicitamente um commit de merge com dois pais para associar o segundo pai ao HEAD do PR validado. Por isso, o deploy 375 foi recusado antes de qualquer publicação. O follow-up de procedência não altera código produtivo nem a prova: existe apenas para que a integração final preserve o formato de merge exigido pelo gate de deploy.
