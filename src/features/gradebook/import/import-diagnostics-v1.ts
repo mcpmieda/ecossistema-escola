@@ -327,6 +327,38 @@ function inspectQualitativeDefinitionMaximum(
       cellAddress: configuration?.provenance.cellAddress ?? slot.maximumCell,
     };
 
+    const nameState =
+      definition?.kind === 'qualitative-activity' ? definition.name : undefined;
+    const templateOrdinal =
+      nameState?.state === 'unrecognized' &&
+      typeof nameState.rawValue === 'number' &&
+      nameState.rawValue === index + 1;
+    if (
+      !templateOrdinal &&
+      (nameState?.state === 'missing-field' || nameState?.state === 'unrecognized')
+    ) {
+      result.push(
+        diagnostic({
+          ...base,
+          severity: 'warning',
+          code: 'source-unavailable',
+          fieldLabel: `Nome da atividade ${index + 1}`,
+          sheetName: nameState.provenance.sheetName,
+          cellAddress: nameState.provenance.cellAddress,
+          message: 'O nome de uma atividade não pôde ser lido na planilha.',
+          recommendedAction:
+            'Confira a célula indicada e salve a planilha novamente. O Banco preserva o nome atual enquanto a origem estiver indisponível.',
+          cause:
+            nameState.state === 'missing-field'
+              ? 'A célula de nome não foi encontrada na estrutura lida do arquivo.'
+              : 'A célula de nome contém um tipo de valor que não pode ser usado como rótulo.',
+          ...('rawValue' in nameState
+            ? { foundValue: displayValue(nameState.rawValue) }
+            : {}),
+        }),
+      );
+    }
+
     if (!configuration || configuration.state === 'missing-field') {
       result.push(
         diagnostic({
