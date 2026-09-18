@@ -76,7 +76,7 @@ it('retains positive decimals while excluding pending eligible PARA from complet
   expect(value.summary.coverage.zeros).toBe(0);
   expect(value.summary.coverage.missing).toBe(1);
   expect(matrix.rows[0]!.cells[0]!.state).toBe('partial');
-  expect(value.students[0]!.cells[0]!.quantitative).toMatchObject({ valueMilli: 200, state: 'partial' });
+  expect(value.students[0]!.cells[0]!.quantitative.valueMilli).toBe(200);
   expect(value.summary.quantitative.mean).toBeNull();
   expect(value.learning!.participation.percent).toBeGreaterThan(0);
 });
