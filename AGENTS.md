@@ -14,6 +14,43 @@ Este repositório deve permanecer simples, funcional e rastreável. A prioridade
 - Nunca inclua nomes, notas, arquivos ou outros dados reais de estudantes em código, fixtures, issues, commits, logs ou screenshots. O repositório é público.
 - Execute `npm run verify` antes de declarar a entrega pronta. Registre o SHA e o ambiente da execução; CI não é teste manual de produção.
 
+## Hierarquia de agentes e delegação
+
+Objetivo: permitir o uso de vários agentes sem criar arquiteturas concorrentes, regras duplicadas ou diferenças de qualidade entre módulos.
+
+- Toda tarefa com impacto relevante deve ter um **agente líder**. O agente líder é o agente de maior capacidade disponível e explicitamente designado para compreender o problema de ponta a ponta. Na configuração atual, quando a coordenação ocorre via ChatGPT, o papel de líder é exercido por GPT-5.6 Sol, salvo decisão diferente do responsável. Essa designação é operacional e pode mudar no futuro sem alterar a política.
+- Ficam reservadas ao agente líder a definição ou revisão de: arquitetura; regras de negócio e acadêmicas; contratos compartilhados; limites entre módulos; autenticação e autorização; modelo de dados, schema e migrations; segurança; comportamento transversal; CI/deploy; integrações externas; produção e qualquer decisão que possa criar um novo padrão para o Ecossistema.
+- Jules e outros agentes auxiliares são, por padrão, **agentes executores ou revisores**, não autoridades arquiteturais. Podem implementar código, testes, documentação, refatorações mecânicas e correções localizadas quando o trabalho estiver suficientemente especificado. Só assumem papel de líder quando o responsável os designar expressamente para isso.
+- Delegação a outro agente continua sujeita à regra de autorização explícita deste arquivo. Esta seção define **como** delegar com segurança; ela não autoriza, por si só, invocar agentes auxiliares em qualquer issue.
+- Antes de delegar implementação, o agente líder deve deixar um handoff durável na issue, comentário ou descrição da tarefa contendo, no mínimo:
+  1. objetivo e resultado esperado;
+  2. caminhos ou componentes permitidos;
+  3. regras e decisões canônicas que governam a mudança;
+  4. contratos, invariantes e comportamentos que devem ser preservados;
+  5. alterações proibidas e limites de escopo;
+  6. testes, comandos e critérios objetivos de aceite;
+  7. evidências que o executor deve devolver ao concluir.
+- Um executor não deve reinterpretar requisitos vagos, criar arquitetura alternativa, ampliar contratos, mover responsabilidade entre módulos, alterar regras acadêmicas, enfraquecer testes, contornar gates ou “resolver por fora” uma limitação do handoff. Se descobrir que isso é necessário, deve parar nesse ponto e devolver a decisão ao agente líder.
+- Trabalho delegado deve atingir o mesmo padrão de qualidade do restante do sistema: tipagem, testes, tratamento de erros, segurança, acessibilidade, nomenclatura, reutilização de contratos e consistência visual não podem ser reduzidos por o executor ser um agente secundário.
+- Em trabalho paralelo, prefira escopos de arquivos e responsabilidades não sobrepostos. Dois agentes não devem implementar versões concorrentes da mesma regra de negócio ou do mesmo contrato. Quando houver sobreposição inevitável, o agente líder define previamente a fonte de verdade e faz a integração final.
+- A saída de um executor é uma **entrega candidata**, não uma nova autoridade do projeto. Antes da integração, o agente líder deve revisar o diff e conferir coerência com os demais módulos, contratos, decisões canônicas e testes. CI verde não substitui essa revisão transversal.
+- Regras de negócio continuam com uma única fonte de verdade. Delegar interfaces, relatórios, Portal, Conselho, Desempenho ou outros consumidores nunca autoriza recriar cálculo, elegibilidade ou interpretação já pertencentes ao núcleo oficial.
+- Nenhum papel de agente concede, por si só, autoridade adicional para merge, deploy, produção, secrets, permissões ou infraestrutura. Essas ações continuam regidas pelas autorizações e gates próprios do repositório.
+
+### Modelo mínimo de handoff para outro agente
+
+Use uma especificação equivalente a esta antes de entregar trabalho de implementação:
+
+- **Líder:** agente responsável pela decisão técnica e integração.
+- **Executor:** Jules ou outro agente autorizado.
+- **Objetivo:** resultado concreto a produzir.
+- **Escopo permitido:** arquivos, módulos e operações autorizadas.
+- **Fonte de verdade:** issue, decisão, contrato ou implementação canônica aplicável.
+- **Preservar:** invariantes, APIs, regras, UX e compatibilidade obrigatórias.
+- **Não fazer:** alterações fora do escopo, decisões arquiteturais e atalhos proibidos.
+- **Validar:** testes e comandos que devem passar.
+- **Entregar:** resumo, diff, testes executados, limitações encontradas e qualquer decisão devolvida ao líder.
+
 ## Textos nas interfaces — todo o Ecossistema
 
 Orientação explícita do responsável em 18/09/2026, 00:10 UTC, registrada na #846; aplica-se ao Centro de Administração, Banco de Notas, Portal do Aluno e demais módulos, em correções e novas implantações.
