@@ -62,7 +62,7 @@ SELECT target.*,COALESCE((SELECT jsonb_agg(jsonb_build_object(
     LEFT JOIN student_portal.academic_mark_v1 n ON n.assessment_id=i.id AND n.student_id=$2
     WHERE i.oferta_id=o.offer_id AND ${activeInstrument}),'[]'::jsonb),
   'closure',(SELECT jsonb_build_object('am1',f.am1_fonte,'am2',f.am2_fonte,'am3',f.am3_fonte,
-    'rec1',f.rec1,'rec2',f.rec2,'rec3',f.rec3,'nc',f.rec_nc_mask,'rr',f.rec_rr_mask,'annual',f.u_fonte)
+    'rec1',f.rec1,'rec2',f.rec3,'nc',f.rec_nc_mask,'rr',f.rec_rr_mask,'annual',f.u_fonte)
     FROM student_portal.academic_closure_v1 f WHERE f.offer_id=o.offer_id AND f.student_id=$2)))
   FROM (SELECT * FROM student_portal.academic_offer_v1 WHERE academic_year=$1 AND class_id=target.class_id
     ORDER BY offer_id LIMIT 101) o),'[]'::jsonb) AS offers FROM target`;
@@ -302,7 +302,10 @@ export class AcademicStudentReaderPostgresV1
             minimum,
           ),
           partials: offer.instruments
-            .filter((item) => item.term === term)
+            .filter((item) =>
+              item.term === term &&
+              (item.slot !== 3 || terms[term - 1]!.parallelApplicable === true),
+            )
             .map((item) => ({
               assessmentId: item.id,
               label: assessmentLabelV1(item.slot, term, names, item.label),
