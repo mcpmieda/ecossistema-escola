@@ -701,6 +701,7 @@ async function processOffer(
     const authoritativeDefinitions = term.definitionSnapshotVersion === 1;
     const unavailableMaximum = new Set(term.unavailableMaximumSlots ?? []);
     const unavailableDescription = new Set(term.unavailableDescriptionSlots ?? []);
+    const unavailableValues = new Set(term.unavailableValueSlots ?? []);
 
     if (authoritativeDefinitions) {
       const incomingSlots = new Set(term.instrumentos.map(([slot]) => slot));
@@ -712,7 +713,8 @@ async function processOffer(
           currentSlot > 20 ||
           incomingSlots.has(currentSlot) ||
           unavailableMaximum.has(currentSlot as GradebookImportInstrumentV9[0]) ||
-          unavailableDescription.has(currentSlot as GradebookImportInstrumentV9[0])
+          unavailableDescription.has(currentSlot as GradebookImportInstrumentV9[0]) ||
+          unavailableValues.has(currentSlot as GradebookImportInstrumentV9[0])
         )
           continue;
 
