@@ -12,6 +12,10 @@ Esta pasta reconstrói o schema observado por inspeção **somente leitura** em 
 - `0006_import_diagnostic_treatment_v1.sql`: extensão aditiva #674 com reconhecimento/anotação append-only separados do snapshot corrente, ator server-side e ACL `SELECT, INSERT`; sem backfill, resolução manual ou DML acadêmico. Aplicada em produção após autorização explícita e postflight.
 - `0007_multiyear_rr_v1.sql`: extensão aditiva #676 que acrescenta a máscara terminal `R/R`, amplia os estados do histórico de fechamento e remove apenas os checks físicos que limitavam boletins/tratamentos a 2026. Sem backfill ou DML acadêmico; deve ser aplicada somente depois de `0003`–`0006` e do preflight autorizado.
 - `0008_year_reset_acl_v1.sql`: ACL mínima #688 que concede `DELETE` à role backend nas dez relações posteriores mantidas como append-only até aqui. Não contém DML, `TRUNCATE`, DDL estrutural, reset de sequência ou acesso público/cliente; a exclusão anual continua pertencendo exclusivamente ao serviço autenticado/transacional.
+- `0009_granular_observations_names_v1.sql`: separa observação vazia de ausência técnica e materializa nomes de avaliações usados pela experiência atual.
+- `0010_qualitative_corrections_2026_v1.sql`: correção pontual #855 dos máximos qualitativos consolidados de 2026; permanece como registro da migration já aplicada, mas sua exceção de importação foi substituída pela fotografia autoritativa #862.
+- `0011_gradebook_rls_v1.sql`: defesa em profundidade #856; ativa RLS nas 30 tabelas privadas preservando a ACL da role backend.
+- `0012_current_state_cleanup_v1.sql`: limpeza #863 após a BN-DEC-038; apaga histórico granular de nota/instrumento, resíduos qualitativos sem definição/observação, tratamentos órfãos e importações sem referência retida; revoga INSERT/UPDATE de `gradebook_app` nos dois históricos legados.
 - `inspect_current_schema.sql`: consulta read-only e fingerprints estruturais por categoria. O JSON de referência é `catalog_20260910.json`, coletado do catálogo, não de notas ou arquivos. MD5 é checksum de drift, não garantia criptográfica. O comparador cobre tabelas/RLS, colunas/tipos/defaults/identidade, constraints, índices, funções e triggers. Não cobre dados, sequence counters, grants, proprietários, extensions ou infraestrutura.
 - `application_role_grants.sql`: concessões para a role backend já provisionada, sem criar senha/login/superuser. Aplicar separadamente somente no ambiente autorizado e pelo proprietário de objetos previsto; default privileges valem para esse proprietário. Revisar grants/defaults herdados ao reconstruir em Supabase, em vez de presumir que a role anon/authenticated está bloqueada.
 
@@ -23,7 +27,7 @@ Para um ambiente PostgreSQL 17 **vazio e autorizado**, executar a baseline trans
 
 A baseline não cria extensões, contas Supabase, bindings Hyperdrive, secrets, políticas de backup nem snapshots institucionais ainda não contratados. As migrations antigas de streams/versions são memória e **não** devem ser reaplicadas sobre o modelo simplificado.
 
-As extensões correntes `0003` a `0008` são aplicadas em ordem, somente sobre
+As extensões correntes `0003` a `0012` são aplicadas em ordem, somente sobre
 um schema já conferido contra a baseline. `0002` não integra essa sequência porque sua
 relação já existe em `0001`. Para `0003`, o preflight deve confirmar
 as oito tabelas-alvo ausentes e preservar uma cópia lógica recuperável das 20
