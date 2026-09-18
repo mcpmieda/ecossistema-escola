@@ -238,3 +238,13 @@ Linhas `nota(NULL)` não são lixo por si só: se pertencem a instrumento atual,
 `importacao` deixa de ser criada para mudanças de estado atual sem histórico retido. Linhas antigas sem qualquer referência retida são removidas; linhas necessárias por histórico de fechamento/vínculo permanecem. Auditoria corrente não conserva tratamento órfão.
 
 Detalhes, preflight e pós-flight em [CURRENT_STATE_CLEANUP_863.md](CURRENT_STATE_CLEANUP_863.md).
+
+## BN-DEC-040 — Reset anual não conserva coordenação técnica do ano removido
+
+**Data:** 2026-09-18. **Origem:** auditoria produtiva e determinação explícita do responsável; #870. Substitui somente a cláusula anterior de #703/#706 que fazia `academic_revision` e provas técnicas sobreviverem ao reset.
+
+Quando `Resetar o sistema` conclui com sucesso, o ano deixa de existir também no estado técnico diretamente atribuível a ele: `student_portal.revision_event`, `student_portal.year_reset_preview_proof` e `student_portal.academic_revision` são removidos na mesma transação, depois de o token consumido e as pós-condições acadêmicas terem sido validados. Nenhuma dessas linhas é necessária para representar um ano inexistente.
+
+O guard de contas Portal permanece: qualquer conta com vínculo acadêmico vivo bloqueia preview/execute. Contas, credenciais, sessões, auditoria de identidade e tombstones de vínculo não são apagados por conveniência. Diagnósticos sem ano continuam preservados. Uma nova Relação é a autoridade para rematerializar o ano; seu escritor recria a coordenação anual sob os mesmos locks antes das novas escritas.
+
+O contrato V1 não ganha campos: suas contagens e `deletedRows` permanecem acadêmicos para compatibilidade, enquanto a ausência de resíduos técnicos passa a ser pós-condição interna obrigatória. Detalhes e regressões em [YEAR_RESET_SETTINGS.md](YEAR_RESET_SETTINGS.md).
