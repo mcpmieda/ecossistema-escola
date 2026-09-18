@@ -44,10 +44,13 @@ function dimension(
   const outcomes = terms.map((term) => projection.terms[term - 1]);
   if (outcomes.some((value) => value == null)) return empty();
   const quantitative = request.lens === 'quantitative';
-  const factsByTerm = terms.map((term) =>
+  const factsByTerm = terms.map((term, index) =>
     projection.facts.filter(
       (fact) =>
-        fact.term === term && (quantitative ? fact.slot === 1 || fact.slot === 2 : fact.slot >= 11),
+        fact.term === term &&
+        (quantitative
+          ? fact.slot <= 3 && outcomes[index]!.coverage.requiredSlots.includes(fact.slot)
+          : fact.slot >= 11),
     ),
   );
   if (factsByTerm.some((facts) => facts.length === 0)) return empty();
@@ -91,19 +94,15 @@ function assessment(projection: PerformanceProjectionV2, column: Column): RawRea
   const outcome = projection.terms[column.term! - 1];
   const maximumMilli =
     fact.slot === 3 ? (outcome?.quantitativeMaximumMilli ?? null) : fact.maximumMilli;
-  const base = {
+  if (fact.slot === 3 && outcome?.parallelApplicable !== true)
+    return {
+      ...empty(outcome?.parallelApplicable === false ? 'not-applicable' : 'unavailable'),
+      maximumMilli,
+    };
+  return {
     maximumMilli,
     recordedMilli: fact.valueMilli,
     ...(fact.observed === true && fact.valueMilli === null ? { notDone: true as const } : {}),
-  };
-  if (fact.slot === 3 && outcome?.parallelApplicable !== true)
-    return {
-      ...base,
-      valueMilli: null,
-      state: outcome?.parallelApplicable === false ? 'not-applicable' : 'unavailable',
-    };
-  return {
-    ...base,
     valueMilli: fact.valueMilli,
     state: fact.valueMilli === null ? 'not-recorded' : 'complete',
   };
@@ -157,11 +156,16 @@ export function buildPerformanceAnalysisV3(
 ): PerformanceAnalysisV3 {
   let columns: Column[];
   if (request.lens === 'assessments') {
-    const source = [...projections.values()]
-      .flat()
-      .find((value) => value.offerId === request.offerId);
+    const selectedProjections = matrix.rows.flatMap((row) =>
+      (projections.get(row.student.id) ?? []).filter((value) => value.offerId === request.offerId),
+    );
+    const source = selectedProjections[0];
+    const parallelTerms = new Set(selectedProjections.flatMap((projection) =>
+      projection.terms.flatMap((term) => term?.parallelApplicable === true ? [term.term] : []),
+    ));
     columns = (source?.facts ?? [])
       .filter((fact) => request.period === 'annual' || fact.term === request.period)
+      .filter((fact) => fact.slot !== 3 || parallelTerms.has(fact.term))
       .map((fact) => ({
         key: `${request.offerId}:${fact.term}:${fact.slot}`,
         offerId: request.offerId!,
