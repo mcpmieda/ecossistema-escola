@@ -212,3 +212,15 @@ Cada tabela recebe a policy `gradebook_app_backend_v1`, restrita à role dedicad
 A migration falha se o conjunto esperado de 30 tabelas mudar ou se `gradebook_app` estiver ausente/com BYPASSRLS, obrigando futuras tabelas a receber decisão explícita em vez de proteção presumida. Produção recebeu `gradebook_rls_v1` na versão Supabase `20260918114401`; postflight confirmou 30/30 tabelas com RLS ON, FORCE OFF, 30 policies, 112 grants backend preservados, zero grants anon/auth e contagens acadêmicas inalteradas. O Advisor de segurança terminou sem alertas.
 
 O schema `student_portal` não é incluído automaticamente. A auditoria verificou zero acesso direto de anon/auth às 27 tabelas atuais e abriu #859 para avaliar RLS com matriz própria de runtime, autenticação, publicação e jobs. Detalhes e regressões em [GRADEBOOK_RLS_856.md](GRADEBOOK_RLS_856.md).
+
+## BN-DEC-038 — Importação autoritativa do estado atual da planilha
+
+**Data:** 2026-09-18. **Origem:** determinação explícita do responsável; #862. Substitui a preservação conservadora de definição anterior quando uma célula de definição foi realmente observada vazia e retifica a durabilidade da trilha humana da BN-DEC-027. Não altera fórmula acadêmica, AM/U, REC, PARA, Conselho ou snapshots de boletim.
+
+Cada nova importação de notas é a fotografia atual da fonte. Máximo, nome e nota observados substituem o estado corrente do mesmo slot. Instrumento qualitativo com máximo/nome realmente apagados e sem qualquer lançamento deixa de integrar o payload já no navegador e deve ser removido do PostgreSQL; uma coluna retirada não deixa nota NULL nem definição vazia para trás. Branco de aluno em instrumento ativo continua sendo fato atual “Não fez” e permanece distinto de coluna excluída.
+
+Vazio observado e indisponibilidade técnica são estados diferentes. Campo realmente lido vazio é autoritativo. Campo/célula que não pôde ser lido preserva somente aquele dado anterior e gera diagnóstico com guia, célula, causa e correção sugerida. O Transport V9 permanece compatível e usa definitionSnapshotVersion 1, unavailableMaximumSlots e unavailableDescriptionSlots; requests antigos sem o marcador preservam a semântica anterior.
+
+Importações novas deixam de criar nota_historico e instrumento_historico; essas relações passam a ser legado vazio após a limpeza #863. A importacao continua podendo registrar a operação atual e os históricos de fechamento/vínculo permanecem fora desta decisão.
+
+A Auditoria continua fotografia atual. Se a nova observação não contém mais uma chave diagnosticada, qualquer reconhecimento/anotação correspondente também é removido na mesma substituição; BN-DEC-027 deixa de autorizar tratamento humano órfão. O manifesto específico da #855 é retirado: a correção produtiva realizada naquela entrega permanece, mas futuras planilhas são governadas pela fotografia atual, não por exceções fixas de professor/turma. Detalhes e regressões em [AUTHORITATIVE_IMPORT_862.md](AUTHORITATIVE_IMPORT_862.md).
