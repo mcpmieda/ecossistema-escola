@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createYearResetServiceV1 } from '../../../server/gradebook/application/settings/year-reset-v1';
+import { replaceGradebookImportDiagnosticsSnapshotV1 } from '../../../server/gradebook/application/import/import-diagnostics-snapshot-v1';
 import {
   createGradebookPostgresDatabaseFromSqlV1,
   type GradebookPostgresDatabaseV1,
@@ -335,6 +336,35 @@ describe('year reset V1 PostgreSQL service', () => {
       reset_proofs: 0,
     });
     await expect(preview(2025)).resolves.toEqual({ contractVersion: 1, state: 'not-found' });
+    await expect(
+      replaceGradebookImportDiagnosticsSnapshotV1(database, {
+        version: 1,
+        academicYear: 2025,
+        fileName: 'fonte-antiga-2025.xlsx',
+        sha256: 'f'.repeat(64),
+        diagnostics: [
+          {
+            key: 'stale-after-reset',
+            severity: 'warning',
+            code: 'source-unavailable',
+            message: 'Valor indisponível.',
+            recommendedAction: 'Confira a fonte.',
+            fieldKind: 'recovery',
+          },
+        ],
+      }),
+    ).resolves.toBe(0);
+    expect(
+      (
+        await pg.query(`SELECT count(*)::integer AS count
+          FROM gradebook.importacao_diagnostico WHERE ano=2025`)
+      ).rows,
+    ).toEqual([{ count: 0 }]);
+    expect(await technicalState(2025)).toEqual({
+      revision_events: 0,
+      academic_revision: 0,
+      reset_proofs: 0,
+    });
     if (untouchedBefore.state !== 'ready' || untouchedBefore.operation !== 'preview')
       throw new Error('preview');
     expect(await technicalState(2026)).toEqual(untouchedTechnicalBefore);
