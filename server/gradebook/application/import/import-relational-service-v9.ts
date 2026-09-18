@@ -706,15 +706,18 @@ async function processOffer(
     if (authoritativeDefinitions) {
       const incomingSlots = new Set(term.instrumentos.map(([slot]) => slot));
       for (const [key, current] of [...existingInstruments.entries()]) {
-        const [currentTerm, currentSlot] = key.split(':').map(Number);
+        const [currentTermText, currentSlotText] = key.split(':');
+        const currentTerm = Number(currentTermText);
+        const currentSlot = Number(currentSlotText);
+        if (!Number.isInteger(currentTerm) || !Number.isInteger(currentSlot))
+          throw new Error('invalid-existing-instrument-key');
+        if (currentTerm !== term.trimestre || currentSlot < 11 || currentSlot > 20) continue;
+        const qualitativeSlot = currentSlot as GradebookImportInstrumentV9[0];
         if (
-          currentTerm !== term.trimestre ||
-          currentSlot < 11 ||
-          currentSlot > 20 ||
-          incomingSlots.has(currentSlot) ||
-          unavailableMaximum.has(currentSlot as GradebookImportInstrumentV9[0]) ||
-          unavailableDescription.has(currentSlot as GradebookImportInstrumentV9[0]) ||
-          unavailableValues.has(currentSlot as GradebookImportInstrumentV9[0])
+          incomingSlots.has(qualitativeSlot) ||
+          unavailableMaximum.has(qualitativeSlot) ||
+          unavailableDescription.has(qualitativeSlot) ||
+          unavailableValues.has(qualitativeSlot)
         )
           continue;
 
