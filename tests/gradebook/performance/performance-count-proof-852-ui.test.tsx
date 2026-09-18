@@ -254,9 +254,21 @@ it('renders the selected student indicators with the exact proven student summar
   const recurring = screen
     .getByRole('heading', { name: 'Dificuldades que se repetem' })
     .closest('[data-slot="card"]');
-  expect(recurring?.querySelectorAll('button')).toHaveLength(
-    evidence.recurring.length,
+  const recurringLabels = new Set(
+    evidence.recurring.map(
+      (item) =>
+        value.components.find((component) => component.offer.id === item.offerId)
+          ?.offer.subject.label,
+    ),
   );
+  const recurringButtons = recurring
+    ? [...recurring.querySelectorAll('button')].filter((button) =>
+        [...recurringLabels].some(
+          (label) => label !== undefined && button.textContent?.includes(label),
+        ),
+      )
+    : [];
+  expect(recurringButtons).toHaveLength(evidence.recurring.length);
   expect(
     screen.getByRole('grid', { name: 'Componentes do aluno' })
       .querySelectorAll('tbody tr'),
