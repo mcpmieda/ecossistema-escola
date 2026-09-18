@@ -11,6 +11,7 @@ const migration = readFileSync(
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
+  await pg.exec(readFileSync('migrations/gradebook-simplified/0009_granular_observations_names_v1.sql', 'utf8'));
   await pg.exec(`
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.professor (id,ano,nome) VALUES
