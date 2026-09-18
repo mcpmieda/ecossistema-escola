@@ -25,17 +25,19 @@ A cobertura de lançamentos é independente da elegibilidade. Ausências continu
 
 Matriz, análise de composição, Conselho e projeções de Boletim reutilizam o mesmo motor. REC final, N/C, R/R, decisões humanas, importador, fatos oficiais AM/U, históricos e snapshots emitidos não são alterados. A referência importada não é sobrescrita pelo cálculo. Não há DML/DDL produtivo, backfill, reimportação ou republicação forçada do Portal.
 
-## Soma exata no detalhe
+## Soma exata no contrato e apresentação atual
 
 O detalhe V2 aceita `includeRawSum: true`. Somente a resposta solicitada inclui `regular.rawMilli`, quando já há resultado numérico completo/parcial. O campo vem diretamente do núcleo no mesmo snapshot e não acrescenta consulta. Clientes antigos, matriz, analytics e respostas sem opt-in mantêm o formato anterior.
 
-O cliente atual solicita o opt-in apenas para `cell-detail`. `GradeValue` mantém a nota arredondada e, no detalhe proeminente, informa a soma antes do arredondamento quando diferente. A UI não soma avaliações nem implementa elegibilidade ou arredondamento. Campos extras inválidos e soma associada a estado sem valor são recusados pelo contrato.
+O cliente atual solicita o opt-in apenas para `cell-detail`. Na #844, `GradeValue` também exibia a soma antes do arredondamento quando diferente. Por determinação posterior do responsável em 18/09/2026, 00:10 UTC, registrada na **#846**, essa explicação foi retirada: a apresentação mantém somente a nota, a cor e o estado, sem texto substituto ou tooltip. Esta determinação substitui exclusivamente a opção de exibição textual mencionada na BN-DEC-033; `rawMilli`, contratos, elegibilidade, composição e arredondamento permanecem intactos. A UI não soma avaliações nem implementa elegibilidade ou arredondamento. Campos extras inválidos e soma associada a estado sem valor continuam recusados pelo contrato.
+
+A orientação transversal de textos essenciais está em `AGENTS.md`: correções e novas implantações de todo o Ecossistema não acrescentam comentários explicativos às telas salvo necessidade operacional ou de segurança. Documentação técnica e mensagens essenciais de estado, erro, conflito e confirmação permanecem separadas.
 
 ## Regressões e verificação
 
 - `engine/simplified/parallel-recovery-844.test.ts`: ausência de AV1/AV2/ambas, zero, limites estritos dos três trimestres, total antes da PARA, superior/igual/inferior/vazia, máximos institucionais, aritmética decimal, arredondamento e fatos imutáveis.
 - `performance/parallel-recovery-844.test.ts`: leitura SQL em snapshot, matriz/detalhe/lente quantitativa, opt-in compatível, somente PARA, período vazio, preservação da fonte e do NULL observado, seis instruções e nenhuma escrita pelo leitor.
-- `performance-ui/parallel-recovery-844-ui.test.ts`: soma fornecida versus nota arredondada, resposta antiga, matriz compacta, opt-in do cliente e falha de autorização preservada.
+- `performance-ui/parallel-recovery-844-ui.test.ts`: desde a #846, nota sem explicação de arredondamento, estado Parcial, marcador acessível, zero real, estados essenciais, resposta antiga, matriz compacta, opt-in do cliente e falha de autorização preservada.
 - Regressões anteriores são atualizadas apenas onde afirmavam a regra substituída; gates de REC, arredondamento, isolamento, autorização, limites e persistência permanecem.
 
 `npm run verify`, testes PostgreSQL/isolamento, revisão, HEAD final, merge e deploy devem constar no checkpoint da issue/PR. Presença deste documento ou de um teste não comprova sua execução. Smoke visual/autenticado, quando indisponível, deve ser explicitamente separado da validação de CI e do deploy.
