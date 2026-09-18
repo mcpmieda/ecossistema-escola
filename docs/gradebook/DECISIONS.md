@@ -199,3 +199,16 @@ Nos 12 oferta-trimestres fechados de T1/T2 investigados, uma definição de Éti
 A correção é durável no importador por manifesto estreito de ano/professor/turma/componente/trimestre/slot. Qualquer mudança futura na definição investigada ou qualquer evidência de lançamento em slot suprimido bloqueia a normalização e exige nova investigação; não mascarar fonte nova. A normalização é aplicada no produtor canônico e novamente no servidor antes da persistência.
 
 A migration 0010 registra importação de correção, instrumento_historico e nota_historico, remove somente diagnósticos correntes comprovadamente resolvidos e emite a revisão acadêmica existente do Portal quando essa integração está instalada. Boletins emitidos, AM/U, REC, PARA e decisões humanas permanecem intactos. Detalhes e testes em QUALITATIVE_CORRECTIONS_855.md.
+
+
+## BN-DEC-037 — RLS de defesa em profundidade no schema gradebook
+
+**Data:** 2026-09-18. **Origem:** auditoria de segurança e autorização explícita do responsável para corrigir a pendência; #856 / PR #858. Complementa as ACLs privadas existentes sem mudar autoridade acadêmica, identidade ou fórmula.
+
+As 30 tabelas do schema `gradebook` passam a usar Row Level Security. Antes desta decisão, `PUBLIC`, `anon` e `authenticated` já não possuíam USAGE/CRUD efetivo no schema, portanto a auditoria não identificou exposição direta por esses papéis. RLS acrescenta uma segunda camada de defesa, sem substituir grants.
+
+Cada tabela recebe a policy `gradebook_app_backend_v1`, restrita à role dedicada `gradebook_app`, com `USING (true)` e `WITH CHECK (true)`. Essa policy não concede operações: SELECT/INSERT/UPDATE/DELETE continuam limitados pela ACL específica de cada relação. `gradebook_app` permanece NOSUPERUSER/NOBYPASSRLS. Não usar `FORCE ROW LEVEL SECURITY`; migrations/proprietário e papéis administrativos continuam com sua semântica PostgreSQL própria. `PUBLIC`, `anon` e `authenticated` permanecem explicitamente revogados no schema, tabelas e sequências.
+
+A migration falha se o conjunto esperado de 30 tabelas mudar ou se `gradebook_app` estiver ausente/com BYPASSRLS, obrigando futuras tabelas a receber decisão explícita em vez de proteção presumida. Produção recebeu `gradebook_rls_v1` na versão Supabase `20260918114401`; postflight confirmou 30/30 tabelas com RLS ON, FORCE OFF, 30 policies, 112 grants backend preservados, zero grants anon/auth e contagens acadêmicas inalteradas. O Advisor de segurança terminou sem alertas.
+
+O schema `student_portal` não é incluído automaticamente. A auditoria verificou zero acesso direto de anon/auth às 27 tabelas atuais e abriu #859 para avaliar RLS com matriz própria de runtime, autenticação, publicação e jobs. Detalhes e regressões em [GRADEBOOK_RLS_856.md](GRADEBOOK_RLS_856.md).
