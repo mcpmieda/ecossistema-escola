@@ -8,6 +8,7 @@ DO $$ BEGIN
 END $$;
 GRANT USAGE ON SCHEMA gradebook TO gradebook_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA gradebook TO gradebook_app;
+REVOKE INSERT, UPDATE, DELETE ON TABLE gradebook.nota_historico, gradebook.instrumento_historico FROM gradebook_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA gradebook TO gradebook_app;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA gradebook TO gradebook_app;
 -- Defaults apply to the executing object owner only; use the intended migration owner.
