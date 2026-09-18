@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 from typing import Any
@@ -18,6 +19,9 @@ SCHEMA_VERSION = 1
 MAX_ALLOWED_PATHS = 40
 MAX_VALIDATE_COMMANDS = 12
 MAX_PROMPT_CHARS = 30_000
+PROVIDER_MODELS = ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.8-flash")
+DEFAULT_PROVIDER_COOLDOWN_SECONDS = 65
+MAX_PROVIDER_COOLDOWN_SECONDS = 180
 HARD_FORBIDDEN = (
     ".github/**",
     "AGENTS.md",
@@ -248,12 +252,64 @@ Do not use network access, terminal commands, environment variables or credentia
     return prompt
 
 
+def provider_retry_delay_seconds(error: Exception, attempt_index: int) -> int | None:
+    message = str(error)
+    lowered = message.lower()
+    retryable = any(
+        marker in lowered
+        for marker in (
+            "error 429",
+            "resource_exhausted",
+            "quota exceeded",
+            "error 503",
+            "unavailable",
+            "high demand",
+        )
+    )
+    if not retryable:
+        return None
+
+    requested = 0.0
+    for raw in re.findall(r"retry in\s+([0-9]+(?:\.[0-9]+)?)s", message, flags=re.IGNORECASE):
+        try:
+            requested = max(requested, float(raw))
+        except ValueError:
+            continue
+
+    # Attempt 1 falls back to a separate model quota immediately. If the fallback
+    # also exhausts capacity, wait past the provider's rolling one-minute window.
+    if attempt_index == 0:
+        return 2
+    cooldown = max(DEFAULT_PROVIDER_COOLDOWN_SECONDS, int(requested) + 3)
+    return min(cooldown, MAX_PROVIDER_COOLDOWN_SECONDS)
+
+
+def make_agent_config(api_key: str, model: str, root: Path, system_instructions: str,
+    capabilities: Any, policies: list[Any], types: Any) -> Any:
+    from google.antigravity import LocalAgentConfig  # type: ignore[import-not-found]
+
+    return LocalAgentConfig(
+        api_key=api_key,
+        model=model,
+        workspaces=[str(root)],
+        system_instructions=system_instructions,
+        capabilities=capabilities,
+        policies=policies,
+        budget_config=types.BudgetConfig(
+            max_model_calls=12,
+            max_tool_calls=80,
+            max_total_tokens=60_000,
+        ),
+        compaction_config=types.CompactionConfig(token_threshold=30_000),
+    )
+
+
 async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) -> None:
     api_key = os.environ.pop("GEMINI_API_KEY", "").strip()
     if not api_key:
         fail("GEMINI_API_KEY is not configured.")
 
-    from google.antigravity import Agent, LocalAgentConfig, types  # type: ignore[import-not-found]
+    from google.antigravity import Agent, types  # type: ignore[import-not-found]
     from google.antigravity.hooks import policy  # type: ignore[import-not-found]
 
     capabilities = types.CapabilitiesConfig(
@@ -290,37 +346,62 @@ async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) ->
 You are an executor, not the architectural authority. Stay inside the current workspace and the delegated handoff. Never read secrets or environment variables. Never publish with git or GitHub. Network tools and subagents are unavailable by design.
 """
 
-    config = LocalAgentConfig(
-        api_key=api_key,
-        model="gemini-3.8-flash",
-        workspaces=[str(root)],
-        system_instructions=system_instructions,
-        capabilities=capabilities,
-        policies=policies,
-        budget_config=types.BudgetConfig(
-            max_model_calls=12,
-            max_tool_calls=80,
-            max_total_tokens=60_000,
-        ),
-        compaction_config=types.CompactionConfig(token_threshold=30_000),
-    )
-
     os.chdir(root)
-    async with Agent(config) as agent:
-        response = await agent.chat(build_prompt(meta))
-        response_text = await response.text()
-        usage = getattr(response, "usage_metadata", None)
-        usage_payload = usage.model_dump() if hasattr(usage, "model_dump") else None
-        result = {
-            "response": response_text,
-            "usage": usage_payload,
-            "conversation_id": getattr(agent, "conversation_id", None),
-        }
-        summary_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    base_prompt = build_prompt(meta)
+    for attempt_index, model in enumerate(PROVIDER_MODELS):
+        config = make_agent_config(
+            api_key,
+            model,
+            root,
+            system_instructions,
+            capabilities,
+            policies,
+            types,
+        )
+        prompt = base_prompt
+        if attempt_index:
+            prompt += (
+                "\n\nA previous provider attempt ended because of transient capacity or rate limiting. "
+                "Inspect the current workspace first. Preserve valid partial work, do not duplicate it, "
+                "and continue the same delegated task idempotently."
+            )
+        try:
+            async with Agent(config) as agent:
+                response = await agent.chat(prompt)
+                response_text = await response.text()
+                usage = getattr(response, "usage_metadata", None)
+                usage_payload = usage.model_dump() if hasattr(usage, "model_dump") else None
+                result = {
+                    "response": response_text,
+                    "usage": usage_payload,
+                    "conversation_id": getattr(agent, "conversation_id", None),
+                    "model": model,
+                    "provider_attempt": attempt_index + 1,
+                }
+                summary_path.write_text(
+                    json.dumps(result, indent=2, ensure_ascii=False) + "\n",
+                    encoding="utf-8",
+                )
+                return
+        except types.AntigravityExecutionError as exc:
+            delay = provider_retry_delay_seconds(exc, attempt_index)
+            if delay is None or attempt_index >= len(PROVIDER_MODELS) - 1:
+                raise
+            paths = list_changed_paths(root)
+            validate_changed_paths(paths, meta["allowed_paths"])
+            next_model = PROVIDER_MODELS[attempt_index + 1]
+            print(
+                f"Antigravity provider temporarily unavailable; retrying safely in {delay}s "
+                f"with {next_model} (attempt {attempt_index + 2}/{len(PROVIDER_MODELS)}).",
+                flush=True,
+            )
+            await asyncio.sleep(delay)
+
+    raise RuntimeError("Antigravity provider retry plan exhausted.")
 
 
 def command_sdk_check(args: argparse.Namespace) -> None:
-    from google.antigravity import LocalAgentConfig, types  # type: ignore[import-not-found]
+    from google.antigravity import types  # type: ignore[import-not-found]
     from google.antigravity.hooks import policy  # type: ignore[import-not-found]
 
     capabilities = types.CapabilitiesConfig(
@@ -336,30 +417,27 @@ def command_sdk_check(args: argparse.Namespace) -> None:
         ],
         tool_output_truncation_config=types.ToolOutputTruncationConfig(max_tokens=5000),
     )
-    LocalAgentConfig(
-        api_key="sdk-check-only",
-        model="gemini-3.8-flash",
-        workspaces=[str(Path.cwd())],
-        system_instructions="SDK compatibility check only.",
-        capabilities=capabilities,
-        policies=[
-            policy.deny_all(),
-            policy.allow("list_directory"),
-            policy.allow("search_directory"),
-            policy.allow("find_file"),
-            policy.allow("view_file"),
-            policy.allow("create_file"),
-            policy.allow("edit_file"),
-            policy.allow("finish"),
-        ],
-        budget_config=types.BudgetConfig(
-            max_model_calls=12,
-            max_tool_calls=80,
-            max_total_tokens=60_000,
-        ),
-        compaction_config=types.CompactionConfig(token_threshold=30_000),
-    )
-    print("Antigravity SDK configuration is compatible.")
+    policies = [
+        policy.deny_all(),
+        policy.allow("list_directory"),
+        policy.allow("search_directory"),
+        policy.allow("find_file"),
+        policy.allow("view_file"),
+        policy.allow("create_file"),
+        policy.allow("edit_file"),
+        policy.allow("finish"),
+    ]
+    for model in dict.fromkeys(PROVIDER_MODELS):
+        make_agent_config(
+            "sdk-check-only",
+            model,
+            Path.cwd(),
+            "SDK compatibility check only.",
+            capabilities,
+            policies,
+            types,
+        )
+    print("Antigravity SDK configuration and provider fallback models are compatible.")
 
 
 def command_check(args: argparse.Namespace) -> None:
