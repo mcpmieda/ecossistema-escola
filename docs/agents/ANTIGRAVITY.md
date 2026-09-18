@@ -56,7 +56,7 @@ O workflow rejeita a tarefa antes de chamar o Google se o handoff estiver ausent
 - Falhas transitórias `429/RESOURCE_EXHAUSTED` e `503/UNAVAILABLE` usam retry bounded: fallback para quota/modelo separado e, se necessário, cooldown acima da janela de um minuto indicada pelo provider. O workspace é conferido antes de cada retomada e o total de tentativas é limitado.
 - Subagentes, ferramentas Web e terminal ficam fora da allowlist de capacidades.
 - A allowlist `CapabilitiesConfig.enabled_tools` é a fronteira primária de ferramentas; o agente recebe somente leitura/listagem/pesquisa/edição de arquivos no workspace e `finish`.
-- Não há `deny_all()` redundante sobre as ferramentas de arquivo, porque o runtime dos hooks usa nomes de chamada diferentes dos identificadores do enum e isso pode bloquear escrita silenciosamente.
+- Como o SDK exige uma safety policy quando há ferramentas de escrita, usamos `policy.allow_all()` somente sobre essa allowlist já restrita. Isso não adiciona terminal, Web ou subagentes; apenas aprova automaticamente as ferramentas que já estão visíveis.
 - O agente não recebe ferramenta de terminal. Os comandos declarados em `validate` são executados pelo host depois que o turno do agente termina.
 - O agente não recebe `GITHUB_TOKEN`.
 - `GEMINI_API_KEY` é removida do ambiente do processo antes das validações do host.
