@@ -1410,7 +1410,7 @@ describe('performance count proof #852', () => {
           return { valueMilli: 13_000 };
         if (student === 2 && component === 1 && fact.term === 2 && fact.slot === 13)
           return { valueMilli: (fact.maximumMilli ?? 1) * 2 };
-        if (student === 2 && component === 2 && fact.term === 2 && fact.slot === 13)
+        if (component === 2 && fact.term === 2 && fact.slot === 13)
           return { maximumMilli: null };
         return {};
       },
@@ -1465,4 +1465,5 @@ describe('performance count proof #852', () => {
       });
       proveTermComparison(matrix, projections, lens);
     },
-  );});
+  );
+});
