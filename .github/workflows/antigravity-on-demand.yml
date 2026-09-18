@@ -176,3 +176,82 @@ jobs:
           set -euo pipefail
           python infra/agents/antigravity/run.py run             --root "$GITHUB_WORKSPACE"             --meta "$RUNNER_TEMP/antigravity-meta.json"             --summary "$RUNNER_TEMP/antigravity-summary.json"             --result "$RUNNER_TEMP/antigravity-result.json"
           echo "has_changes=$(jq -r '.has_changes' "$RUNNER_TEMP/antigravity-result.json")" >> "$GITHUB_OUTPUT"
+
+
+      - name: Render safe execution summary
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true' && success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"])
+          summary = json.loads((root / "antigravity-summary.json").read_text(encoding="utf-8"))
+          result = json.loads((root / "antigravity-result.json").read_text(encoding="utf-8"))
+          meta = json.loads((root / "antigravity-meta.json").read_text(encoding="utf-8"))
+          response = str(summary.get("response") or "").strip()
+          if len(response) > 6000:
+              response = response[:6000] + "\n\n[resumo truncado pelo workflow]"
+          changed = result.get("changed_paths") or []
+          lines = [
+              "### Antigravity — resultado",
+              "",
+              response or "_Sem texto de resposta._",
+              "",
+              "**Arquivos modificados:**",
+          ]
+          lines.extend(f"- `{path}`" for path in changed)
+          if not changed:
+              lines.append("- nenhum")
+          lines.extend(["", f"<!-- antigravity-handoff:{meta['handoff_hash']} -->"])
+          (root / "antigravity-comment.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+      - name: Report no-change execution
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true' && steps.agent.outputs.has_changes == 'false' && success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.request.outputs.number }}
+        run: |
+          set -euo pipefail
+          gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/antigravity-comment.md"
+
+      - name: Create isolated branch for validated changes
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true' && steps.agent.outputs.has_changes == 'true' && success()
+        id: branch
+        shell: bash
+        env:
+          ISSUE_NUMBER: ${{ steps.request.outputs.number }}
+        run: |
+          set -euo pipefail
+          branch_name="antigravity/issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git switch -c "$branch_name"
+          echo "name=$branch_name" >> "$GITHUB_OUTPUT"
+
+      - name: Commit validated changes
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true' && steps.agent.outputs.has_changes == 'true' && success()
+        shell: bash
+        env:
+          ISSUE_NUMBER: ${{ steps.request.outputs.number }}
+        run: |
+          set -euo pipefail
+          git config user.name "Antigravity Agent"
+          git config user.email "antigravity-agent@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "agent(antigravity): issue #${ISSUE_NUMBER}"
+
+      - name: Push isolated branch
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true' && steps.agent.outputs.has_changes == 'true' && success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH_NAME: ${{ steps.branch.outputs.name }}
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git push --set-upstream origin "HEAD:refs/heads/${BRANCH_NAME}"
