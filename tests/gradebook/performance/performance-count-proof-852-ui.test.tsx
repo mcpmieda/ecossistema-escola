@@ -114,14 +114,13 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
     ),
   ).toBeTruthy();
 
-  for (const component of value.components)
-    expect(
-      screen.getByText(
-        component.summary.below + ' abaixo da referência · ' +
-        component.summary.complete + ' com resultado',
-        { exact: false },
-      ),
-    ).toBeTruthy();
+  for (const component of value.components) {
+    const button = screen.getByRole('button', { name: component.offer.subject.label });
+    expect(button.parentElement?.textContent).toContain(
+      component.summary.below + ' abaixo da referência · ' +
+      component.summary.complete + ' com resultado',
+    );
+  }
 });
 
 it('renders timeline, histogram, composition, recovery and coverage with the exact payload denominators', () => {
