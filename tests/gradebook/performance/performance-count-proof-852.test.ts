@@ -558,7 +558,7 @@ function proveLearningStudentFromFacts(
     }
 
     const instrumentTerms: (1 | 2 | 3)[] = [];
-    const consecutiveTerms: (2 | 3)[] = [];
+    const consecutiveTerms: (1 | 2 | 3)[] = [];
     for (const term of selectedTerms) {
       const facts = projection.facts.filter(
         (fact) =>
