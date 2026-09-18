@@ -219,7 +219,7 @@ O schema `student_portal` não é incluído automaticamente. A auditoria verific
 
 Cada nova importação de notas é a fotografia atual da fonte. Máximo, nome e nota observados substituem o estado corrente do mesmo slot. Instrumento qualitativo com máximo/nome realmente apagados e sem qualquer lançamento deixa de integrar o payload já no navegador e deve ser removido do PostgreSQL; uma coluna retirada não deixa nota NULL nem definição vazia para trás. Branco de aluno em instrumento ativo continua sendo fato atual “Não fez” e permanece distinto de coluna excluída.
 
-Vazio observado e indisponibilidade técnica são estados diferentes. Campo realmente lido vazio é autoritativo. Campo/célula que não pôde ser lido preserva somente aquele dado anterior e gera diagnóstico com guia, célula, causa e correção sugerida. O Transport V9 permanece compatível e usa definitionSnapshotVersion 1, unavailableMaximumSlots e unavailableDescriptionSlots; requests antigos sem o marcador preservam a semântica anterior.
+Vazio observado e indisponibilidade técnica são estados diferentes. Campo realmente lido vazio é autoritativo. Campo/célula que não pôde ser lido preserva somente aquele dado anterior e gera diagnóstico com guia, célula, causa e correção sugerida. O Transport V9 permanece compatível e usa definitionSnapshotVersion 1, unavailableMaximumSlots, unavailableDescriptionSlots e unavailableValueSlots; requests antigos sem o marcador preservam a semântica anterior.
 
 Importações novas deixam de criar nota_historico e instrumento_historico; essas relações passam a ser legado vazio após a limpeza #863. A importacao continua podendo registrar a operação atual e os históricos de fechamento/vínculo permanecem fora desta decisão.
 
