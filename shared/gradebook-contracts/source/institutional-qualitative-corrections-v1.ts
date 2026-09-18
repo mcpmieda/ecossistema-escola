@@ -300,7 +300,7 @@ function applyToNotesRequestV1(
     }) as unknown as GradebookNotesImportRequestV9['ofertas'][number]['trimestres'];
     return { ...offer, trimestres };
   });
-  return { ...request, ofertas };
+  return { ...request, ofertas: offers };
 }
 
 /**
