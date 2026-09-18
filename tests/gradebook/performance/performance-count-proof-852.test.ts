@@ -817,8 +817,16 @@ function proofAllV6Scopes(
   const aStudents = numeric(
     rawLearning.map((item) => item.dimensions.qualitativePercent),
   );
-  expectMetric(learning.dimensions.quantitativePercent, mean(qStudents));
-  expectMetric(learning.dimensions.qualitativePercent, mean(aStudents));
+  const quantitativeMean = mean(qStudents);
+  const qualitativeMean = mean(aStudents);
+  expectMetric(learning.dimensions.quantitativePercent, quantitativeMean);
+  expectMetric(learning.dimensions.qualitativePercent, qualitativeMean);
+  expectMetric(
+    learning.dimensions.gapPP,
+    quantitativeMean !== null && qualitativeMean !== null
+      ? qualitativeMean - quantitativeMean
+      : null,
+  );
   const rawInstruments = value.components.flatMap((component) =>
     oracleInstruments(
       pairs.filter((pair) => pair.projection.offerId === component.offer.id),
