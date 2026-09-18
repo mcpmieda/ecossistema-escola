@@ -1,7 +1,4 @@
-import {
-  lockResetWriterV1,
-  recordResetWriteV1,
-} from '../../../student-portal/integration/year-reset/writer-v1';
+import { recordResetWriteV1 } from '../../../student-portal/integration/year-reset/writer-v1';
 import {
   isGradebookImportDiagnosticsAuditRequestV1,
   type GradebookImportDiagnosticsAuditRequestV1,
@@ -89,7 +86,28 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
             ...(academicYear === null ? [] : [academicYear]),
           ]),
         ].sort((a, b) => a - b);
-        for (const year of years) await lockResetWriterV1(transaction, year);
+        const materializedYears = new Set<number>();
+        for (const year of years) {
+          await transaction
+            .prepare('SELECT pg_advisory_xact_lock(613,?::integer)')
+            .bind(year)
+            .first();
+          const state = await transaction
+            .prepare(
+              'SELECT EXISTS(SELECT 1 FROM gradebook.ano_letivo WHERE ano=?::smallint) AS present',
+            )
+            .bind(year)
+            .first<{ present: boolean | number }>();
+          const present = state?.present === true || state?.present === 1;
+          if (present) {
+            await transaction
+              .prepare('SELECT student_portal.ensure_year_coordination_v1(?::smallint)')
+              .bind(year)
+              .first();
+            materializedYears.add(year);
+          }
+        }
+        if (academicYear !== null && !materializedYears.has(academicYear)) return 0;
         // Source lock serializes versions; content lock also protects same bytes renamed.
         // A hash collision only adds serialization. Values never enter the SQL text/logs.
         for (const key of [sourceKey, contentKey]) {
@@ -118,7 +136,9 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
             ...previousYears,
             ...(academicYear !== null && rows.length > 0 ? [academicYear] : []),
           ]),
-        ].sort((a, b) => a - b);
+        ]
+          .filter((year) => materializedYears.has(year))
+          .sort((a, b) => a - b);
         const recordChanges = async () => {
           for (const year of changedYears)
             await recordResetWriteV1(transaction, year, 'diagnostics');

@@ -154,7 +154,7 @@ A baseline `migrations/gradebook-simplified/` foi reconstruída do catálogo e r
 
 `year-reset-contract-v1` expõe somente `preview` e `execute`. A prévia retorna contagens fechadas, revisão SHA-256 do ano/contagens e a frase exata de confirmação. A execução aceita somente a mesma revisão, `understandsIrreversible: true` e `RESETAR <ano>`; uma revisão divergente retorna `preview-changed`.
 
-O serviço apaga exclusivamente registros atribuíveis ao ano em uma transação serializável. O conjunto inclui as 30 relações atuais, mas diagnósticos `ano IS NULL` não são inferidos. O registro anual também sai; sequências/schema ficam. HTTP exige origem oficial, autenticação, `gradebook.persistence.admin`, provider PostgreSQL, gate produtivo e `no-store`. Ver [YEAR_RESET_SETTINGS.md](YEAR_RESET_SETTINGS.md).
+O serviço apaga os registros acadêmicos atribuíveis ao ano nas 30 relações do Gradebook e, ao concluir a mesma transação, elimina `revision_event`, provas de reset e `academic_revision` desse ano. Diagnósticos `ano IS NULL` não são inferidos. Diagnóstico com ano explícito só persiste quando `ano_letivo` está materializado; uma Relação recém-criada repete a Auditoria depois da persistência confirmada. O registro anual também sai; sequências/schema ficam. HTTP exige origem oficial, autenticação, `gradebook.persistence.admin`, provider PostgreSQL, gate produtivo e `no-store`. Ver [YEAR_RESET_SETTINGS.md](YEAR_RESET_SETTINGS.md).
 
 ## Portal do Aluno P1 — contrato BN #703
 

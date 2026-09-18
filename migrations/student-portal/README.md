@@ -10,6 +10,7 @@ Owner: #704 (`[PA][P1]`, family P1-02). These migrations are additive and separa
 | `0002_policy_publication_revision_v1.sql` | settings, publication/projection/jobs, durable revision state/events and narrow 2026 academic read views |
 | `0003_audit_receipts_closure_integration_v1.sql` | audit, idempotency receipts, explicit link tombstones, reset preview proof and narrow Gradebook revision function |
 | `0004_gradebook_integration_usage_v1.sql` | namespace-only integration ACL plus read-only reset guard function for `gradebook_app`; no table privilege |
+| `0014_year_reset_full_cleanup_v1.sql` | mantém o contrato do reset anual e remove, ao concluir, eventos de revisão, provas técnicas e coordenação anual do ano apagado |
 
 The sequence assumes the current relational Gradebook catalog through `migrations/gradebook-simplified/0008_year_reset_acl_v1.sql`. In particular, `gradebook.aluno(id, ano)` must remain unique and `gradebook.fechamento.rec_rr_mask` must exist. #705 must compare the target catalog and migration ledger before applying anything remotely.
 

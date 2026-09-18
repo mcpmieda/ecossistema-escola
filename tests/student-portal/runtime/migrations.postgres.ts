@@ -157,6 +157,7 @@ beforeAll(async () => {
   await migrator.unsafe(readFileSync('migrations/student-portal/0005_year_reset_protocol_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0006_gradebook_revision_year_range_v1.sql', 'utf8'));
   await migrator.unsafe(readFileSync('migrations/student-portal/0007_lifecycle_integration_v1.sql', 'utf8'));
+  await migrator.unsafe(readFileSync('migrations/student-portal/0014_year_reset_full_cleanup_v1.sql', 'utf8'));
 });
 
 afterAll(async () => { await Promise.all(clients.map((sql) => sql.end({ timeout: 1 }))); });
@@ -388,9 +389,8 @@ describe('native private reset proof support #706', () => {
       .toMatchObject({ consumed_at: null, consumed_transaction: null });
   });
 
-  it('requires deletion and consumption in the same transaction before rotating durable generations', async () => {
+  it('requires deletion and consumption in the same transaction before removing durable coordination', async () => {
     expect(await lockedProof('prepare', 9, 2024)).toBe('clear');
-    const before = (await admin`SELECT academic_generation FROM student_portal.academic_revision WHERE academic_year=2024`)[0]?.academic_generation;
     await gradebook.begin(async (tx) => {
       await tx`SELECT pg_advisory_xact_lock(613,0)`;
       await tx`SELECT pg_advisory_xact_lock(613,2024)`;
@@ -398,9 +398,11 @@ describe('native private reset proof support #706', () => {
       await tx`DELETE FROM gradebook.ano_letivo WHERE ano=2024`;
       await tx`SELECT student_portal.complete_year_reset_v1(2024::smallint,${actorDigest},${proofDigest(9)})`;
     });
-    const after = (await admin`SELECT academic_generation,academic_counter FROM student_portal.academic_revision WHERE academic_year=2024`)[0];
-    expect(after?.academic_generation).not.toBe(before);
-    expect(String(after?.academic_counter)).toBe('1');
+    expect((await admin`SELECT
+      (SELECT count(*)::int FROM student_portal.academic_revision WHERE academic_year=2024) AS revision,
+      (SELECT count(*)::int FROM student_portal.revision_event WHERE academic_year=2024) AS events,
+      (SELECT count(*)::int FROM student_portal.year_reset_preview_proof WHERE academic_year=2024) AS proofs`)[0])
+      .toMatchObject({ revision: 0, events: 0, proofs: 0 });
     await expect(gradebook.begin(async (tx) => {
       await tx`SELECT pg_advisory_xact_lock(613,0)`;
       await tx`SELECT pg_advisory_xact_lock(613,2024)`;
@@ -481,6 +483,8 @@ describe('native application reset service', () => {
 
 describe('native auxiliary reset revisions', () => {
   it('moves current diagnostic evidence across years and keeps identical observations unchanged', async () => {
+    await admin`INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho)
+      VALUES (2021,60000,2),(2022,60000,2)`;
     const database = createGradebookPostgresDatabaseFromSqlV1(gradebook as unknown as GradebookPostgresSqlV1);
     const observation = (year:number) => ({ version: 1 as const, academicYear: year,
       fileName: 'synthetic-reset-diagnostics.xlsx', sha256: 'e'.repeat(64),
@@ -613,6 +617,8 @@ describe('native service contention with live Portal links', () => {
 
 describe('native diagnostic scope race', () => {
   it('restarts before deleting a newly discovered year instead of acquiring locks out of order', async () => {
+    await admin`INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho)
+      VALUES (2027,60000,2),(2028,60000,2)`;
     const connection=asRole('gradebook_app');
     const concurrent=asRole('gradebook_app');
     const other=createGradebookPostgresDatabaseFromSqlV1(concurrent as unknown as GradebookPostgresSqlV1);

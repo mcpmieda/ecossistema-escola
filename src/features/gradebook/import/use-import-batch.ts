@@ -345,6 +345,7 @@ export function useImportBatch() {
       request.operation === 'persist-relacao' &&
       (response.state === 'applied' || response.state === 'no-changes')
     ) {
+      await auditDiagnostics(result, collectGradebookImportDiagnosticsV1(result));
       await academicContext?.refreshYears(request.ano);
     }
     return response.state === 'blocked' || response.state === 'conflict' || response.state === 'invalid-request'

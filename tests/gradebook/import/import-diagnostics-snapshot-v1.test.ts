@@ -54,6 +54,8 @@ beforeAll(async () => {
   await pg.exec('CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;');
   await pg.exec(readFileSync('migrations/gradebook-simplified/0006_import_diagnostic_treatment_v1.sql','utf8'));
   await installResetSchemaFixtureV1(pg);
+  await pg.exec(`INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho)
+    VALUES (2090,60000,2),(2091,60000,2)`);
   const sql:GradebookPostgresSqlV1={
     unsafe:(query,values=[]) => execute(pg,query,values,false),
     async begin(operation) {
@@ -109,6 +111,16 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
     expect(await revision(2090)).toEqual({reset_counter:version!.reset_counter+1,academic_counter:version!.academic_counter});
     expect(await revision(2091)).toMatchObject({academic_counter:1});
     expect(await state()).toMatchObject([{ano:2091}]);
+  });
+
+  it('ignores annual diagnostics for an unmaterialized year without recreating coordination', async () => {
+    expect(await replace(database,observation(['stale'],{year:2092,hash:'f'}))).toBe(0);
+    expect(await state()).toEqual([]);
+    expect(
+      (await pg.query(`SELECT
+        (SELECT count(*)::integer FROM student_portal.academic_revision WHERE academic_year=2092) AS revision,
+        (SELECT count(*)::integer FROM student_portal.revision_event WHERE academic_year=2092) AS events`)).rows,
+    ).toEqual([{revision:0,events:0}]);
   });
 
   it('locks before replacing and writes the entire set in one transaction', async () => {
