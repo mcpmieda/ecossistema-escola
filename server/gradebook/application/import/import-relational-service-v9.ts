@@ -162,7 +162,10 @@ async function changedRun(
   values: readonly D1WriteValueV1[],
   affectsAcademic = true,
 ): Promise<number> {
-  await ensureImport(database, state, request, tipo);
+  // request/tipo stay in this compatibility helper signature; current-state writes
+  // no longer create import ledger rows unless a retained history explicitly needs one.
+  void request;
+  void tipo;
   const changes = await run(database, query, values);
   state.writes += changes;
   if (affectsAcademic) state.academicWrites += changes;
@@ -178,7 +181,8 @@ async function changedFirst<T extends Row>(
   values: readonly D1WriteValueV1[],
   affectsAcademic = true,
 ): Promise<T> {
-  await ensureImport(database, state, request, tipo);
+  void request;
+  void tipo;
   const row = await first<T>(database, query, values);
   if (!row) throw new Error('write-without-returning-row');
   state.writes++;
