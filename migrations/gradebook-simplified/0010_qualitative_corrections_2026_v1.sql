@@ -32,7 +32,7 @@ VALUES
   ('LURMÁRIA','8B','RELIGIÃO',1,16,1000,'EX',NULL,NULL,'suppress'),
   ('EDILMA','8C','CIÊNCIAS',1,13,3000,'II ATIV',NULL,NULL,'suppress');
 
-CREATE TEMP TABLE qualitative_correction_855_resolved AS
+CREATE TEMP TABLE qualitative_correction_855_resolved ON COMMIT DROP AS
 SELECT
   c.*,
   i.id AS instrumento_id,
