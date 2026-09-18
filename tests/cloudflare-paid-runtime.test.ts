@@ -44,4 +44,24 @@ describe('Cloudflare Workers Paid runtime configuration', () => {
     expect(config.hyperdrive).toEqual([{ binding: 'PROD_DB', id: '476b417597c84b4c994bd36f1a65cb70' }]);
     // Remote SQL cache is verified separately, not inferred from the binding ID.
   });
+  it('uses segmented tokens and vars with legacy fallbacks in Cloudflare workflows', () => {
+    const pagesWorkflow = source('.github/workflows/deploy-cloudflare-pages.yml');
+    const portalWorkflow = source('.github/workflows/deploy-student-portal.yml');
+
+    const accountIdExpression = '${{ vars.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}';
+    expect(pagesWorkflow).toContain(`CLOUDFLARE_ACCOUNT_ID: ${accountIdExpression}`);
+    expect(portalWorkflow).toContain(`CLOUDFLARE_ACCOUNT_ID: ${accountIdExpression}`);
+
+    const deployTokenExpression = '${{ secrets.CLOUDFLARE_DEPLOY_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}';
+    expect(pagesWorkflow).toContain(`CLOUDFLARE_API_TOKEN: ${deployTokenExpression}`);
+    expect(portalWorkflow).toContain(`CLOUDFLARE_API_TOKEN: ${deployTokenExpression}`);
+
+    const hyperdriveTokenExpression = '${{ secrets.CLOUDFLARE_HYPERDRIVE_TOKEN || secrets.CLOUDFLARE_API_TOKEN }}';
+    expect(pagesWorkflow).toContain(`CLOUDFLARE_API_TOKEN: ${hyperdriveTokenExpression}`);
+
+    expect(pagesWorkflow).not.toMatch(/CLOUDFLARE_ACCOUNT_ID:\s*\$\{\{\s*secrets\.CLOUDFLARE_ACCOUNT_ID\s*\}\}/u);
+    expect(pagesWorkflow).not.toMatch(/CLOUDFLARE_API_TOKEN:\s*\$\{\{\s*secrets\.CLOUDFLARE_API_TOKEN\s*\}\}/u);
+    expect(portalWorkflow).not.toMatch(/CLOUDFLARE_ACCOUNT_ID:\s*\$\{\{\s*secrets\.CLOUDFLARE_ACCOUNT_ID\s*\}\}/u);
+    expect(portalWorkflow).not.toMatch(/CLOUDFLARE_API_TOKEN:\s*\$\{\{\s*secrets\.CLOUDFLARE_API_TOKEN\s*\}\}/u);
+  });
 });
