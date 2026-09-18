@@ -384,7 +384,7 @@ describe('analytical lenses V3 preserve V2 facts and one read snapshot', () => {
       expect(quantitative.rows[0]!.values[0]!.valueMilli).toBe(12000);
       expect(quantitative.rows[1]!.values[0]!.valueMilli).toBe(9000);
       const instruments = await analysis({ lens: 'assessments', offerId: 10 });
-      expect(instruments.rows[0]!.values.find((v) => v.key === '10:1:3')).toMatchObject({ valueMilli: null, recordedMilli: 9000, state: 'not-applicable', bucket: 'excluded' });
+      expect(instruments.rows[0]!.values.find((v) => v.key === '10:1:3')).toMatchObject({ valueMilli: null, recordedMilli: null, state: 'not-applicable', bucket: 'excluded' });
     } finally { await pg.exec('DELETE FROM gradebook.nota WHERE instrumento_id=9999; DELETE FROM gradebook.instrumento WHERE id=9999'); }
   });
   it('keeps N/C and recovery population, but never decomposes REC into activities', async () => {

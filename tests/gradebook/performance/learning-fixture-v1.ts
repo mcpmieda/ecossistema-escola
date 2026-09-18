@@ -22,7 +22,9 @@ export function learningFixtureV1(options: {
       const fact: PerformanceFactV2 = {
         slot, term, maximumMilli,
         label: slot <= 2 ? `Avaliação ${slot}` : slot === 3 ? 'Paralela' : slot === 11 ? 'PART 1' : slot === 12 ? 'PARTICIPAÇÃO II' : 'Trabalho livre',
-        valueMilli: index === 3 || term === 3 || maximumMilli === null ? null : Math.round(maximumMilli * (slot === 11 || slot === 12 ? participationRate : rate)),
+        // Completed learning examples have an explicit PARA zero, not an unresolved blank.
+        // Empty students/terms remain empty; overrides can exercise missing eligible PARA.
+        valueMilli: index === 3 || term === 3 ? null : slot === 3 ? 0 : maximumMilli === null ? null : Math.round(maximumMilli * (slot === 11 || slot === 12 ? participationRate : rate)),
         observed: true,
       };
       return { ...fact, ...options.override?.(fact, index, component) };

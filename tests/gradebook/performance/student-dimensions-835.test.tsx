@@ -20,7 +20,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 function comparisonFixture(noCommon = false, qualitativeRate = 0.8) {
   return learningFixtureV1({ studentCount: 1, componentCount: 3, override(fact, _student, component) {
     if (fact.term !== 2) return {};
-    if (fact.slot === 3) return { valueMilli: component === 0 ? 10800 : null };
+    if (fact.slot === 3) return { valueMilli: component === 0 ? 10800 : 0 };
     if ((component === 1 && fact.slot === 13) || (component === 2 && fact.slot === 2) ||
       (noCommon && component === 0 && fact.slot === 13)) return { valueMilli: null };
     const rate = fact.slot <= 2 ? [0.4, 0.2, 0.3][component]! : component === 0 ? qualitativeRate : 1;
@@ -112,7 +112,7 @@ it('never falls back to incompatible legacy summaries when the extension is abse
 });
 it.each([0, 1.2])('preserves real zero and results above 100 percent (rate %s)', (rate) => {
   const { value } = learningFixtureV1({ studentCount: 1, componentCount: 1, override(fact) {
-    return fact.slot === 3 ? { valueMilli: null } : { valueMilli: Math.round(fact.maximumMilli! * rate) };
+    return fact.slot === 3 ? { valueMilli: 0 } : { valueMilli: Math.round(fact.maximumMilli! * rate) };
   } });
   const dimensions = value.learning!.students[0]!.dimensions!;
   expect(dimensions.components).toBe(1);
@@ -125,7 +125,7 @@ it.each([0, 1.2])('preserves real zero and results above 100 percent (rate %s)',
 });
 it('normalizes the annual comparison by 30/30/40 maxima rather than averaging trimester percentages', () => {
   const { value } = learningFixtureV1({ period: 'annual', studentCount: 1, componentCount: 1, override(fact) {
-    if (fact.slot === 3) return { valueMilli: null };
+    if (fact.slot === 3) return { valueMilli: 0 };
     const rates = fact.slot <= 2 ? [0.2, 0.4, 0.8] : [0.9, 0.7, 0.6];
     return { valueMilli: Math.round(fact.maximumMilli! * rates[fact.term - 1]!) };
   } });

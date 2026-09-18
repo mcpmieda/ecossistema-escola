@@ -98,6 +98,24 @@ const offerSchema = z.object({
 });
 type Mark = z.infer<typeof academicMarkSchemaV1>;
 
+/** Preserve the regular-instrument coverage used by official Portal editions before #848.
+ * Only recovery/authority consume this adapter; current descriptive coverage and all numbers remain unchanged.
+ */
+function officialEditionTermV1(term: ReturnType<typeof resolveSimplifiedTermV1>) {
+  const missingSlots = term.coverage.missingSlots.filter((slot) => slot !== 3);
+  return {
+    ...term,
+    coverage: {
+      ...term.coverage,
+      requiredSlots: term.coverage.requiredSlots.filter((slot) => slot !== 3),
+      resolvedSlots: term.coverage.resolvedSlots.filter((slot) => slot !== 3),
+      missingSlots,
+      complete: missingSlots.length === 0,
+      reasons: term.coverage.reasons.filter((reason) => reason !== 'missing-slot:3'),
+    },
+  };
+}
+
 function mark(
   value: number | null,
   maximumMilli: number | null,
@@ -278,6 +296,7 @@ export class AcademicStudentReaderPostgresV1
             })),
         }),
       ) as unknown as Parameters<typeof resolveSimplifiedComponentRecoveryV1>[0]['terms'];
+      const officialTerms = terms.map(officialEditionTermV1) as unknown as typeof terms;
       const recoveryValue = (term: SimplifiedAcademicTermV1) => {
         const closure = offer.closure;
         if (closure === null) return null;
@@ -289,7 +308,7 @@ export class AcademicStudentReaderPostgresV1
             : closure[`rec${term}`];
       };
       const recovery = resolveSimplifiedComponentRecoveryV1({
-        terms,
+        terms: officialTerms,
         minimumApprovalMilli: minimum,
         recovery: { 1: recoveryValue(1), 2: recoveryValue(2), 3: recoveryValue(3) },
       });
@@ -302,7 +321,10 @@ export class AcademicStudentReaderPostgresV1
             minimum,
           ),
           partials: offer.instruments
-            .filter((item) => item.term === term)
+            .filter((item) =>
+              item.term === term &&
+              (item.slot !== 3 || terms[term - 1]!.parallelApplicable === true),
+            )
             .map((item) => ({
               assessmentId: item.id,
               label: assessmentLabelV1(item.slot, term, names, item.label),
@@ -345,7 +367,7 @@ export class AcademicStudentReaderPostgresV1
         );
       const sourceAgrees =
         sourceComplete &&
-        terms.every(
+        officialTerms.every(
           (term) =>
             term.coverage.complete && offer.closure?.[`am${term.term}`] === term.roundedMilli,
         ) &&

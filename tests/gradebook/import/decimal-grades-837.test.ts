@@ -61,11 +61,23 @@ it('counts 0.1 plus 0.1 in the raw engine sum, retaining the separate existing f
   expect(result.coverage.complete).toBe(true);
 });
 it('includes positive decimal scores in analytics without counting them as recorded zeros', () => {
-  const { value } = learningFixtureV1({ studentCount: 1, componentCount: 1, override(fact) {
-    return { valueMilli: fact.slot === 3 ? null : 100 };
+  // A recorded PARA below Q resolves coverage without adding credit or inventing a zero.
+  const { value } = learningFixtureV1({ studentCount: 1, componentCount: 1, override() {
+    return { valueMilli: 100 };
   } });
   expect(value.summary.coverage.zeros).toBe(0);
   expect(value.summary.quantitative.mean).toBeCloseTo(200 / 13500 * 100);
+  expect(value.learning!.participation.percent).toBeGreaterThan(0);
+});
+it('retains positive decimals while excluding pending eligible PARA from complete statistics', () => {
+  const { value, matrix } = learningFixtureV1({ studentCount: 1, componentCount: 1, override(fact) {
+    return { valueMilli: fact.slot === 3 ? null : 100 };
+  } });
+  expect(value.summary.coverage.zeros).toBe(0);
+  expect(value.summary.coverage.missing).toBe(1);
+  expect(matrix.rows[0]!.cells[0]!.state).toBe('partial');
+  expect(value.students[0]!.cells[0]!.quantitative.valueMilli).toBe(200);
+  expect(value.summary.quantitative.mean).toBeNull();
   expect(value.learning!.participation.percent).toBeGreaterThan(0);
 });
 it('applies the ordinary precision and maximum diagnostics to 0.1 as to any grade', () => {

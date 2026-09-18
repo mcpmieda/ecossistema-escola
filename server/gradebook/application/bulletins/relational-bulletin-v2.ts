@@ -412,17 +412,17 @@ async function readMaterializations(
             warningCodes: outcome.warnings.map((warning) => warning.code),
             instruments:
               first.detail === 'detailed'
-                ? (instrumentsMap.get(instrumentsKey(student.id, offer.id, currentTerm)) ?? []).map(
-                    (instrument) => ({
-                      id: instrument.id,
-                      term: instrument.term,
-                      slot: instrument.slot,
-                      label: instrument.label,
-                      maximumMilli: instrument.maximumMilli,
-                      valueMilli: instrument.valueMilli,
-                      ...(instrument.notDone ? { notDone: true as const } : {}),
-                    }),
-                  )
+                ? (instrumentsMap.get(instrumentsKey(student.id, offer.id, currentTerm)) ?? [])
+                  .filter((instrument) => instrument.slot !== 3 || outcome.parallelApplicable === true)
+                  .map((instrument) => ({
+                    id: instrument.id,
+                    term: instrument.term,
+                    slot: instrument.slot,
+                    label: instrument.label,
+                    maximumMilli: instrument.maximumMilli,
+                    valueMilli: instrument.valueMilli,
+                    ...(instrument.notDone ? { notDone: true as const } : {}),
+                  }))
                 : [],
           };
         },
