@@ -11,7 +11,7 @@ Relação + planilhas dos professores, lidas no navegador
   → withOfficialGradebookDatabaseV1
   → Hyperdrive PROD_DB → PostgreSQL/Supabase
   → createGradebookRelationalImportServiceV11 (sobre V10/V9)
-  → fatos relacionais + histórico somente de deltas reais
+  → fatos relacionais de estado atual; nota/instrumento granular sem histórico de valor anterior
 ```
 
 A Relação é mestre para nome/situação/vínculo. Notas referenciam instrumento/aluno; oferta é ano/turma/disciplina/professor. Valores em milésimos e `N/C` não são confundidos com vazio. `AM/U` permanecem referência independente; totais derivados pertencem ao motor. Arquivo original não é alterado.
@@ -20,7 +20,7 @@ A unidade acadêmica de escrita e idempotência foi homologada na #613. Atualiza
 
 ## Auditoria de importação atual
 
-`GET/POST /api/gradebook/import-diagnostics` usa `gradebook.importacao_diagnostico` e resolve identificação do aluno por turma/vínculo/cadastro. A última observação de arquivo/ano substitui as ocorrências anteriores, conforme #629; resolvidos não formam histórico separado. A #658 monta somente a leitura desse estado corrente. A #664 retirou a página e o endpoint dedicados do Audit Workspace V1 após provar ausência de consumidor; o núcleo V1 ainda usado por Relatórios V1 permanece e não é fallback nem histórico humano durável.
+`GET/POST /api/gradebook/import-diagnostics` usa `gradebook.importacao_diagnostico` e resolve identificação do aluno por turma/vínculo/cadastro. A última observação de arquivo/ano substitui as ocorrências anteriores, conforme #629/#862; diagnósticos resolvidos e seus tratamentos humanos não permanecem como registros órfãos. A #658 monta somente a leitura desse estado corrente. A #664 retirou a página e o endpoint dedicados do Audit Workspace V1 após provar ausência de consumidor; o núcleo V1 ainda usado por Relatórios V1 permanece e não é fallback nem histórico humano durável.
 
 ## Provedor não é modelo de dados
 
