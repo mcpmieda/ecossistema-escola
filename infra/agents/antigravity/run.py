@@ -122,13 +122,12 @@ def validate_handoff(handoff: dict[str, Any]) -> dict[str, Any]:
     validate = clean_string_list(handoff.get("validate"), "validate", MAX_VALIDATE_COMMANDS)
 
     for command in validate:
-        lowered = f" {command.lower()} "
-        if any(fragment in lowered for fragment in FORBIDDEN_COMMAND_FRAGMENTS):
-            fail(f"Unsafe validation command: {command}")
         try:
             shlex.split(command)
         except ValueError as exc:
             fail(f"Invalid validation command {command!r}: {exc}")
+        if not validation_command_is_safe(command):
+            fail(f"Unsafe validation command: {command}")
 
     return {
         "schema_version": SCHEMA_VERSION,
@@ -162,12 +161,28 @@ def write_meta(issue: dict[str, Any], handoff: dict[str, Any], meta_path: Path) 
     meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
 
 
-def command_is_allowed(command: str, allowed_commands: list[str]) -> bool:
+def validation_command_is_safe(command: str) -> bool:
     normalized = command.strip()
-    if normalized not in allowed_commands:
-        return False
     lowered = f" {normalized.lower()} "
-    return not any(fragment in lowered for fragment in FORBIDDEN_COMMAND_FRAGMENTS)
+    if any(fragment in lowered for fragment in FORBIDDEN_COMMAND_FRAGMENTS):
+        return False
+    if normalized == "git diff --check":
+        return True
+    safe_prefixes = (
+        "npm run ",
+        "npm test",
+        "npx vitest ",
+        "node --test",
+    )
+    return normalized.startswith(safe_prefixes)
+
+
+def run_validations(root: Path, commands: list[str]) -> None:
+    for command in commands:
+        if not validation_command_is_safe(command):
+            fail(f"Unsafe validation command: {command}")
+        argv = shlex.split(command)
+        subprocess.run(argv, cwd=root, check=True, env=os.environ.copy())
 
 
 def list_changed_paths(root: Path) -> list[str]:
@@ -221,12 +236,12 @@ Preserve:
 Do not:
 {do_not}
 
-Validation commands you are allowed to run:
+Host-side validation commands (you must not run these yourself):
 {validate}
 
 Implement only the delegated scope. Do not make architectural decisions, expand contracts, change business or academic rules, or modify files outside Allowed paths. If the task cannot be completed without doing one of those things, do not improvise: stop and explain the blocker in your final response.
 
-Do not use network access, do not inspect environment variables or credentials, do not use git/gh to publish anything, and do not create commits or branches. The host workflow will review scope and publish a draft PR if the result is valid.
+Do not use network access, terminal commands, environment variables or credentials. Do not use git/gh, and do not create commits or branches. The host workflow will run validation commands after your execution, review scope, and publish a draft PR if the result is valid.
 """
     if len(prompt) > MAX_PROMPT_CHARS:
         fail("Generated Antigravity prompt is too large.")
@@ -238,24 +253,10 @@ async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) ->
     if not api_key:
         fail("GEMINI_API_KEY is not configured.")
 
-    from google.antigravity import (  # type: ignore[import-not-found]
-        Agent,
-        BudgetConfig,
-        CapabilitiesConfig,
-        CompactionConfig,
-        LocalAgentConfig,
-        ToolOutputTruncationConfig,
-        types,
-    )
+    from google.antigravity import Agent, LocalAgentConfig, types  # type: ignore[import-not-found]
     from google.antigravity.hooks import policy  # type: ignore[import-not-found]
 
-    allowed_commands = meta["validate"]
-
-    def deny_unlisted_command(args: dict[str, Any]) -> bool:
-        command = args.get("CommandLine", "")
-        return not isinstance(command, str) or not command_is_allowed(command, allowed_commands)
-
-    capabilities = CapabilitiesConfig(
+    capabilities = types.CapabilitiesConfig(
         enable_subagents=False,
         enabled_tools=[
             types.BuiltinTools.LIST_DIR,
@@ -264,15 +265,9 @@ async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) ->
             types.BuiltinTools.VIEW_FILE,
             types.BuiltinTools.CREATE_FILE,
             types.BuiltinTools.EDIT_FILE,
-            types.BuiltinTools.RUN_COMMAND,
             types.BuiltinTools.FINISH,
         ],
-        run_command_config=types.RunCommandConfig(
-            enable_daemons=False,
-            timeout_seconds=600,
-            enable_sandbox=True,
-        ),
-        tool_output_truncation_config=ToolOutputTruncationConfig(max_tokens=5000),
+        tool_output_truncation_config=types.ToolOutputTruncationConfig(max_tokens=5000),
     )
     policies = [
         policy.deny_all(),
@@ -283,12 +278,6 @@ async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) ->
         policy.allow("create_file"),
         policy.allow("edit_file"),
         policy.allow("finish"),
-        policy.deny(
-            "run_command",
-            when=deny_unlisted_command,
-            name="deny_unlisted_commands",
-        ),
-        policy.allow("run_command"),
     ]
 
     agents_rules = (root / "AGENTS.md").read_text(encoding="utf-8")
@@ -308,12 +297,12 @@ You are an executor, not the architectural authority. Stay inside the current wo
         system_instructions=system_instructions,
         capabilities=capabilities,
         policies=policies,
-        budget_config=BudgetConfig(
+        budget_config=types.BudgetConfig(
             max_model_calls=12,
             max_tool_calls=80,
             max_total_tokens=60_000,
         ),
-        compaction_config=CompactionConfig(token_threshold=30_000),
+        compaction_config=types.CompactionConfig(token_threshold=30_000),
     )
 
     os.chdir(root)
@@ -328,6 +317,49 @@ You are an executor, not the architectural authority. Stay inside the current wo
             "conversation_id": getattr(agent, "conversation_id", None),
         }
         summary_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def command_sdk_check(args: argparse.Namespace) -> None:
+    from google.antigravity import LocalAgentConfig, types  # type: ignore[import-not-found]
+    from google.antigravity.hooks import policy  # type: ignore[import-not-found]
+
+    capabilities = types.CapabilitiesConfig(
+        enable_subagents=False,
+        enabled_tools=[
+            types.BuiltinTools.LIST_DIR,
+            types.BuiltinTools.SEARCH_DIR,
+            types.BuiltinTools.FIND_FILE,
+            types.BuiltinTools.VIEW_FILE,
+            types.BuiltinTools.CREATE_FILE,
+            types.BuiltinTools.EDIT_FILE,
+            types.BuiltinTools.FINISH,
+        ],
+        tool_output_truncation_config=types.ToolOutputTruncationConfig(max_tokens=5000),
+    )
+    LocalAgentConfig(
+        api_key="sdk-check-only",
+        model="gemini-3.8-flash",
+        workspaces=[str(Path.cwd())],
+        system_instructions="SDK compatibility check only.",
+        capabilities=capabilities,
+        policies=[
+            policy.deny_all(),
+            policy.allow("list_directory"),
+            policy.allow("search_directory"),
+            policy.allow("find_file"),
+            policy.allow("view_file"),
+            policy.allow("create_file"),
+            policy.allow("edit_file"),
+            policy.allow("finish"),
+        ],
+        budget_config=types.BudgetConfig(
+            max_model_calls=12,
+            max_tool_calls=80,
+            max_total_tokens=60_000,
+        ),
+        compaction_config=types.CompactionConfig(token_threshold=30_000),
+    )
+    print("Antigravity SDK configuration is compatible.")
 
 
 def command_check(args: argparse.Namespace) -> None:
@@ -346,6 +378,9 @@ def command_run(args: argparse.Namespace) -> None:
     asyncio.run(execute_agent(root, meta, summary_path))
     paths = list_changed_paths(root)
     validate_changed_paths(paths, meta["allowed_paths"])
+    run_validations(root, meta["validate"])
+    paths = list_changed_paths(root)
+    validate_changed_paths(paths, meta["allowed_paths"])
     result = {
         "has_changes": bool(paths),
         "changed_paths": paths,
@@ -356,6 +391,9 @@ def command_run(args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    sdk_check = subparsers.add_parser("sdk-check")
+    sdk_check.set_defaults(func=command_sdk_check)
 
     check = subparsers.add_parser("check")
     check.add_argument("--issue-json", required=True)
