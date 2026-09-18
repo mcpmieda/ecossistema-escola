@@ -345,8 +345,6 @@ export function useImportBatch() {
       request.operation === 'persist-relacao' &&
       (response.state === 'applied' || response.state === 'no-changes')
     ) {
-      // Before first materialization, the server intentionally ignores annual diagnostics
-      // so an old workbook cannot recreate a reset year. Re-submit after Relação succeeds.
       await auditDiagnostics(result, collectGradebookImportDiagnosticsV1(result));
       await academicContext?.refreshYears(request.ano);
     }
