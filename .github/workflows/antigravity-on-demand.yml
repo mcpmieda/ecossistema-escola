@@ -85,7 +85,25 @@ jobs:
           set -euo pipefail
           python infra/agents/antigravity/run.py check             --issue-json "$RUNNER_TEMP/antigravity-issue.json"             --meta "$RUNNER_TEMP/antigravity-meta.json"
 
+      - name: Avoid duplicate provider use for the same handoff
+        id: dedupe
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
+        run: |
+          set -euo pipefail
+          handoff_hash="$(jq -r '.handoff_hash' "$RUNNER_TEMP/antigravity-meta.json")"
+          marker="<!-- antigravity-handoff:${handoff_hash} -->"
+          if gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/comments?per_page=100"             --jq '.[].body' | grep -Fq "$marker"; then
+            echo "duplicate=true" >> "$GITHUB_OUTPUT"
+            gh issue comment "$ISSUE_NUMBER" --body               "Este handoff já teve uma execução concluída do Antigravity. Nenhuma nova cota foi consumida."
+          else
+            echo "duplicate=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Confirm Antigravity credential
+        if: steps.dedupe.outputs.duplicate != 'true'
         shell: bash
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -100,12 +118,14 @@ jobs:
           fi
 
       - name: Set up Node.js
+        if: steps.dedupe.outputs.duplicate != 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 22
           cache: npm
 
       - name: Install project dependencies when validation needs Node
+        if: steps.dedupe.outputs.duplicate != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -117,12 +137,14 @@ jobs:
           fi
 
       - name: Install pinned Antigravity SDK
+        if: steps.dedupe.outputs.duplicate != 'true'
         shell: bash
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check --no-input "google-antigravity==0.1.17"
 
       - name: Create isolated local branch
+        if: steps.dedupe.outputs.duplicate != 'true'
         id: branch
         shell: bash
         env:
@@ -134,6 +156,7 @@ jobs:
           echo "name=$branch_name" >> "$GITHUB_OUTPUT"
 
       - name: Execute Antigravity without GitHub credentials
+        if: steps.dedupe.outputs.duplicate != 'true'
         id: agent
         shell: bash
         env:
@@ -144,7 +167,7 @@ jobs:
           echo "has_changes=$(jq -r '.has_changes' "$RUNNER_TEMP/antigravity-result.json")" >> "$GITHUB_OUTPUT"
 
       - name: Render safe execution summary
-        if: success()
+        if: success() && steps.dedupe.outputs.duplicate != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -156,6 +179,7 @@ jobs:
           root = Path(os.environ["RUNNER_TEMP"])
           summary = json.loads((root / "antigravity-summary.json").read_text(encoding="utf-8"))
           result = json.loads((root / "antigravity-result.json").read_text(encoding="utf-8"))
+          meta = json.loads((root / "antigravity-meta.json").read_text(encoding="utf-8"))
           response = str(summary.get("response") or "").strip()
           if len(response) > 6000:
               response = response[:6000] + "\n\n[resumo truncado pelo workflow]"
@@ -170,11 +194,12 @@ jobs:
           lines.extend(f"- `{path}`" for path in changed)
           if not changed:
               lines.append("- nenhum")
+          lines.extend(["", f"<!-- antigravity-handoff:{meta['handoff_hash']} -->"])
           (root / "antigravity-comment.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
 
       - name: Report no-change execution
-        if: success() && steps.agent.outputs.has_changes == 'false'
+        if: success() && steps.dedupe.outputs.duplicate != 'true' && steps.agent.outputs.has_changes == 'false'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -184,7 +209,7 @@ jobs:
           gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/antigravity-comment.md"
 
       - name: Commit validated changes
-        if: success() && steps.agent.outputs.has_changes == 'true'
+        if: success() && steps.dedupe.outputs.duplicate != 'true' && steps.agent.outputs.has_changes == 'true'
         shell: bash
         env:
           ISSUE_NUMBER: ${{ steps.issue.outputs.number }}
@@ -197,7 +222,7 @@ jobs:
           git commit -m "agent(antigravity): issue #${ISSUE_NUMBER}"
 
       - name: Push isolated branch
-        if: success() && steps.agent.outputs.has_changes == 'true'
+        if: success() && steps.dedupe.outputs.duplicate != 'true' && steps.agent.outputs.has_changes == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -208,7 +233,7 @@ jobs:
           git push --set-upstream origin "HEAD:refs/heads/${BRANCH_NAME}"
 
       - name: Open draft pull request when repository settings allow it
-        if: success() && steps.agent.outputs.has_changes == 'true'
+        if: success() && steps.dedupe.outputs.duplicate != 'true' && steps.agent.outputs.has_changes == 'true'
         id: pr
         shell: bash
         env:
@@ -218,6 +243,7 @@ jobs:
         run: |
           set -euo pipefail
           title="$(jq -r '.issue_title' "$RUNNER_TEMP/antigravity-meta.json")"
+          handoff_hash="$(jq -r '.handoff_hash' "$RUNNER_TEMP/antigravity-meta.json")"
           {
             echo "Antigravity executou o handoff da issue #${ISSUE_NUMBER}."
             echo
@@ -235,10 +261,14 @@ jobs:
 
           if [ "$status" -eq 0 ]; then
             echo "url=$pr_url" >> "$GITHUB_OUTPUT"
-            gh issue comment "$ISSUE_NUMBER" --body "Antigravity concluiu a tarefa e abriu um PR em draft: $pr_url"
+            gh issue comment "$ISSUE_NUMBER" --body "Antigravity concluiu a tarefa e abriu um PR em draft: $pr_url
+
+<!-- antigravity-handoff:$handoff_hash -->"
           else
             branch_url="https://github.com/${GITHUB_REPOSITORY}/tree/${BRANCH_NAME}"
-            gh issue comment "$ISSUE_NUMBER" --body               "Antigravity concluiu a tarefa e publicou a branch $branch_url, mas o GitHub Actions não pôde criar o PR automaticamente. A branch não foi mesclada."
+            gh issue comment "$ISSUE_NUMBER" --body               "Antigravity concluiu a tarefa e publicou a branch $branch_url, mas o GitHub Actions não pôde criar o PR automaticamente. A branch não foi mesclada.
+
+<!-- antigravity-handoff:$handoff_hash -->"
             echo "::warning::Draft PR creation was blocked by repository settings."
             cat "$RUNNER_TEMP/pr-create.err" >&2
           fi
