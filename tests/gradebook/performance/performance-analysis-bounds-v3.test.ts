@@ -87,16 +87,18 @@ it.each([false, true])('keeps all V6 perspectives within 1,000 pairs and 2MB wit
   expect(gzipSync(JSON.stringify(value)).length).toBeLessThan(500_000);
 }, 15_000);
 
-it('omits only PARA columns for a wholly ineligible cohort without weakening capacity limits', async () => {
+it.each([true, false])('keeps normally ineligible cohorts bounded with recorded PARA=%s', async (recorded) => {
   await pg.exec('UPDATE gradebook.nota SET valor=6000 WHERE aluno_id=100 AND instrumento_id IN(SELECT id FROM gradebook.instrumento WHERE slot IN(1,2))');
   try {
+    if (!recorded) await pg.exec('DELETE FROM gradebook.nota WHERE instrumento_id IN(SELECT id FROM gradebook.instrumento WHERE slot=3)');
+    const count = recorded ? 39 : 36;
     const result = await createPerformanceAnalysisV3(db).execute({ ...request, lens: 'assessments', offerId: 1 });
     if (result.state !== 'ready') throw new Error('analysis-not-ready');
     expect(result.matrix.rows).toHaveLength(100);
     expect(result.matrix.offers).toHaveLength(10);
-    expect(result.columns).toHaveLength(36);
-    expect(result.columns.some((column) => column.slot === 3)).toBe(false);
-    expect(result.rows.every((row) => row.values.length === 36)).toBe(true);
+    expect(result.columns).toHaveLength(count);
+    expect(result.columns.some((column) => column.slot === 3)).toBe(recorded);
+    expect(result.rows.every((row) => row.values.length === count)).toBe(true);
     expect(queries).toHaveLength(6);
     expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThan(2_000_000);
     expect(gzipSync(JSON.stringify(result)).length).toBeLessThan(500_000);
@@ -105,11 +107,12 @@ it('omits only PARA columns for a wholly ineligible cohort without weakening cap
     if (value.state !== 'ready') throw new Error('analytics-not-ready');
     expect(value.students).toHaveLength(100);
     expect(value.components).toHaveLength(10);
-    expect(value.components.every((item) => item.instruments.length === 36 && item.instruments.every((instrument) => instrument.slot !== 3))).toBe(true);
+    expect(value.components.every((item) => item.instruments.length === count && item.instruments.some((instrument) => instrument.slot === 3) === recorded)).toBe(true);
     expect(queries).toHaveLength(6);
     expect(Buffer.byteLength(JSON.stringify(value))).toBeLessThan(2_000_000);
     expect(gzipSync(JSON.stringify(value)).length).toBeLessThan(500_000);
   } finally {
     await pg.exec('UPDATE gradebook.nota SET valor=0 WHERE aluno_id=100 AND instrumento_id IN(SELECT id FROM gradebook.instrumento WHERE slot IN(1,2))');
+    if (!recorded) await pg.exec('INSERT INTO gradebook.nota (instrumento_id,aluno_id,valor) SELECT i.id,a.id,6000 FROM gradebook.instrumento i CROSS JOIN gradebook.aluno a WHERE i.slot=3');
   }
 }, 15_000);
