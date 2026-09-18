@@ -113,7 +113,7 @@ describe('BN-DEC-033 parallel recovery', () => {
     expect(result.parallelApplicable).toBe(true);
     expect(result.rawMilli).toBe(7000);
     expect(result.coverage.complete).toBe(false);
-    expect(result.coverage.resolvedSlots).toEqual([]);
+    expect(result.coverage.resolvedSlots).toEqual([3]);
     const empty = calculate(3, null, null, null, null);
     expect(empty.parallelApplicable).toBe(true);
     expect(empty.rawMilli).toBe(0);
