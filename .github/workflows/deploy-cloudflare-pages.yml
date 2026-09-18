@@ -15,8 +15,45 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  classify:
+    name: Classify production change
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      should_deploy: ${{ steps.classify.outputs.should_deploy }}
+    steps:
+      - name: Checkout merge metadata
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Detect no-op merge
+        id: classify
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          read -r -a parents <<< "$(git show -s --format='%P' HEAD)"
+          if [ "${#parents[@]}" -eq 2 ]; then
+            current_tree="$(git rev-parse 'HEAD^{tree}')"
+            first_parent_tree="$(git rev-parse 'HEAD^1^{tree}')"
+            if [ "$current_tree" = "$first_parent_tree" ]; then
+              echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+              echo "No effective production tree change; deployment is skipped."
+              exit 0
+            fi
+          fi
+          echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Deploy production
+    needs: classify
+    if: needs.classify.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
