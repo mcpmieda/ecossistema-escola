@@ -16,6 +16,9 @@ import {
 } from '../../../server/gradebook/application/read-models/performance/performance-term-comparison-v4';
 import {
   performanceAnalysisRequestSchemaV3,
+  type AnalysisReadingV3,
+  type PerformanceAnalysisRequestV3,
+  type PerformanceAnalysisV3,
 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import {
   performanceTermComparisonRequestSchemaV4,
@@ -83,6 +86,7 @@ type OracleDimension = {
   maximumMilli: number | null;
   percent: number | null;
   complete: boolean;
+  state: 'complete' | 'partial' | 'not-recorded' | 'unavailable';
 };
 
 function oracleDimension(
@@ -93,7 +97,13 @@ function oracleDimension(
   const terms = period === 'annual' ? TERMS : [period];
   const outcomes = terms.map((term) => projection.terms[term - 1]);
   if (outcomes.some((outcome) => outcome === null))
-    return { valueMilli: null, maximumMilli: null, percent: null, complete: false };
+    return {
+      valueMilli: null,
+      maximumMilli: null,
+      percent: null,
+      complete: false,
+      state: 'unavailable',
+    };
   const factsByTerm = terms.map((term, index) =>
     projection.facts.filter(
       (fact) =>
@@ -104,7 +114,13 @@ function oracleDimension(
     ),
   );
   if (factsByTerm.some((facts) => facts.length === 0))
-    return { valueMilli: null, maximumMilli: null, percent: null, complete: false };
+    return {
+      valueMilli: null,
+      maximumMilli: null,
+      percent: null,
+      complete: false,
+      state: 'unavailable',
+    };
   const resolved = factsByTerm.flatMap((facts, index) =>
     facts.map((fact) => outcomes[index]!.coverage.resolvedSlots.includes(fact.slot)),
   );
@@ -136,6 +152,7 @@ function oracleDimension(
     maximumMilli,
     percent: complete ? ratio(valueMilli, maximumMilli) : null,
     complete,
+    state: complete ? 'complete' : recorded ? 'partial' : 'not-recorded',
   };
 }
 
@@ -540,6 +557,7 @@ function proveLearningStudentFromFacts(
   let unscaled = 0;
   let recurrenceAssessed = false;
   let parallelImprovements = 0;
+  const parallelGainsPP: number[] = [];
 
   for (const projection of projections) {
     const current = rawParticipation(projection, selectedTerms);
@@ -602,8 +620,15 @@ function proveLearningStudentFromFacts(
       if (
         outcome &&
         outcome.quantitativeConsideredMilli > outcome.quantitativeOriginalMilli
-      )
+      ) {
         parallelImprovements++;
+        if (outcome.quantitativeMaximumMilli > 0)
+          parallelGainsPP.push(
+            ((outcome.quantitativeConsideredMilli - outcome.quantitativeOriginalMilli) /
+              outcome.quantitativeMaximumMilli) *
+              100,
+          );
+      }
     }
     if (instrumentTerms.length || consecutiveTerms.length)
       recurring.push({
@@ -655,6 +680,28 @@ function proveLearningStudentFromFacts(
       ? mean(qualitative)! - mean(quantitative)!
       : null;
   expectMetric(actual.dimensions?.gapPP ?? null, expectedGap);
+  return {
+    studentId,
+    recurrenceAssessed,
+    recurring,
+    participation: {
+      percent: mean(currentParticipation),
+      deltaPP: mean(participationChanges),
+      components: currentParticipation.length,
+      comparedComponents: participationChanges.length,
+      recorded,
+      expected,
+      unscaled,
+    },
+    parallelImprovements,
+    parallelGainsPP,
+    dimensions: {
+      quantitativePercent: mean(quantitative),
+      qualitativePercent: mean(qualitative),
+      gapPP: expectedGap,
+      components: quantitative.length,
+    },
+  };
 }
 
 function proofAllV6Scopes(
@@ -719,44 +766,65 @@ function proofAllV6Scopes(
 
   const learning = value.learning!;
   expect(learning.students.map((item) => item.studentId)).toEqual(studentIds);
-  for (const studentId of studentIds)
+  const rawLearning = studentIds.map((studentId) =>
     proveLearningStudentFromFacts(
       value,
       studentId,
       projections.get(studentId) ?? [],
-    );
-  expect(learning.participation.students).toBe(
-    learning.students.filter((item) => item.participation.percent !== null).length,
-  );
-  expect(learning.participation.comparedStudents).toBe(
-    learning.students.filter((item) => item.participation.deltaPP !== null).length,
-  );
-  expect(learning.participation.recorded).toBe(
-    learning.students.reduce((sum, item) => sum + item.participation.recorded, 0),
-  );
-  expect(learning.participation.expected).toBe(
-    learning.students.reduce((sum, item) => sum + item.participation.expected, 0),
-  );
-  expect(learning.participation.unscaled).toBe(
-    learning.students.reduce((sum, item) => sum + item.participation.unscaled, 0),
-  );
-  expect(learning.parallel.students).toBe(
-    learning.students.filter((item) => item.parallelImprovements > 0).length,
-  );
-  expect(learning.parallel.improvements).toBe(
-    learning.students.reduce((sum, item) => sum + item.parallelImprovements, 0),
-  );
-  expect(learning.dimensions.students).toBe(
-    learning.students.filter((item) => (item.dimensions?.components ?? 0) > 0).length,
-  );
-  expect(learning.dimensions.components).toBe(
-    learning.students.reduce(
-      (sum, item) => sum + (item.dimensions?.components ?? 0),
-      0,
     ),
   );
-  const expectedActivities = value.components
-    .flatMap((component) => component.instruments)
+  const participationPercents = numeric(
+    rawLearning.map((item) => item.participation.percent),
+  );
+  const participationChanges = numeric(
+    rawLearning.map((item) => item.participation.deltaPP),
+  );
+  expect(learning.participation.students).toBe(participationPercents.length);
+  expect(learning.participation.comparedStudents).toBe(
+    participationChanges.length,
+  );
+  expect(learning.participation.recorded).toBe(
+    rawLearning.reduce((sum, item) => sum + item.participation.recorded, 0),
+  );
+  expect(learning.participation.expected).toBe(
+    rawLearning.reduce((sum, item) => sum + item.participation.expected, 0),
+  );
+  expect(learning.participation.unscaled).toBe(
+    rawLearning.reduce((sum, item) => sum + item.participation.unscaled, 0),
+  );
+  expectMetric(learning.participation.percent, mean(participationPercents));
+  expectMetric(learning.participation.deltaPP, mean(participationChanges));
+  expect(learning.parallel.students).toBe(
+    rawLearning.filter((item) => item.parallelImprovements > 0).length,
+  );
+  expect(learning.parallel.improvements).toBe(
+    rawLearning.reduce((sum, item) => sum + item.parallelImprovements, 0),
+  );
+  expectMetric(
+    learning.parallel.meanGainPP,
+    mean(rawLearning.flatMap((item) => item.parallelGainsPP)),
+  );
+  expect(learning.dimensions.students).toBe(
+    rawLearning.filter((item) => item.dimensions.components > 0).length,
+  );
+  expect(learning.dimensions.components).toBe(
+    rawLearning.reduce((sum, item) => sum + item.dimensions.components, 0),
+  );
+  const qStudents = numeric(
+    rawLearning.map((item) => item.dimensions.quantitativePercent),
+  );
+  const aStudents = numeric(
+    rawLearning.map((item) => item.dimensions.qualitativePercent),
+  );
+  expectMetric(learning.dimensions.quantitativePercent, mean(qStudents));
+  expectMetric(learning.dimensions.qualitativePercent, mean(aStudents));
+  const rawInstruments = value.components.flatMap((component) =>
+    oracleInstruments(
+      pairs.filter((pair) => pair.projection.offerId === component.offer.id),
+      matrix.period,
+    ),
+  );
+  const expectedActivities = rawInstruments
     .filter(
       (instrument) =>
         instrument.slot >= 11 &&
