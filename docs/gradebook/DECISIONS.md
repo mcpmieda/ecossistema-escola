@@ -235,6 +235,6 @@ As duas relações físicas permanecem temporariamente vazias para compatibilida
 
 Linhas `nota(NULL)` não são lixo por si só: se pertencem a instrumento atual, representam observação vazia/“Não fez” e permanecem. Instrumento qualitativo sem máximo, sem descrição e sem qualquer observação é resíduo e pode ser removido. `fechamento_historico`, `vinculo_historico`, Conselho e snapshots de boletim permanecem fora desta limpeza.
 
-`importacao` deixa de ser criada somente para alteração granular de nota/instrumento. Linhas antigas sem qualquer referência retida são removidas; linhas necessárias por histórico de fechamento/vínculo permanecem. Auditoria corrente não conserva tratamento órfão.
+`importacao` deixa de ser criada para mudanças de estado atual sem histórico retido. Linhas antigas sem qualquer referência retida são removidas; linhas necessárias por histórico de fechamento/vínculo permanecem. Auditoria corrente não conserva tratamento órfão.
 
 Detalhes, preflight e pós-flight em [CURRENT_STATE_CLEANUP_863.md](CURRENT_STATE_CLEANUP_863.md).
