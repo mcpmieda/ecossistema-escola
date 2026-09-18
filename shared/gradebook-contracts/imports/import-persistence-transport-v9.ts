@@ -58,6 +58,8 @@ export interface GradebookImportTermV9 {
   readonly unavailableMaximumSlots?: readonly GradebookImportInstrumentV9[0][];
   /** Definition label could not be read safely; preserve the previous label for this slot. */
   readonly unavailableDescriptionSlots?: readonly GradebookImportInstrumentV9[0][];
+  /** At least one student cell in an otherwise absent slot could not be read; do not delete the slot. */
+  readonly unavailableValueSlots?: readonly GradebookImportInstrumentV9[0][];
   readonly instrumentos: readonly GradebookImportInstrumentV9[];
   readonly alunos: readonly GradebookImportTermStudentV9[];
 }
@@ -247,7 +249,8 @@ function validNotes(value: Record<string, unknown>): boolean {
       if (
         snapshotVersion === undefined &&
         (termo.unavailableMaximumSlots !== undefined ||
-          termo.unavailableDescriptionSlots !== undefined)
+          termo.unavailableDescriptionSlots !== undefined ||
+          termo.unavailableValueSlots !== undefined)
       )
         return false;
       const validateUnavailable = (input: unknown) => {
@@ -263,7 +266,8 @@ function validNotes(value: Record<string, unknown>): boolean {
       };
       if (
         !validateUnavailable(termo.unavailableMaximumSlots) ||
-        !validateUnavailable(termo.unavailableDescriptionSlots)
+        !validateUnavailable(termo.unavailableDescriptionSlots) ||
+        !validateUnavailable(termo.unavailableValueSlots)
       )
         return false;
       const slots = new Set<number>();
