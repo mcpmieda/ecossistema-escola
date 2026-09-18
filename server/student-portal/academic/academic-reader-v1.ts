@@ -280,7 +280,8 @@ export class AcademicStudentReaderPostgresV1
       .sort(
         (a, b) =>
           compareSourceSubjectPresentationV1(a.label, b.label) ||
-          a.subjectId - b.subjectId,
+          a.subjectId - b.subjectId ||
+          a.offerId - b.offerId,
       );
     const projections = offers.map((offer, order) => {
       const terms = ([1, 2, 3] as const).map((term) =>
