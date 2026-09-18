@@ -82,3 +82,9 @@ O workflow espera um Repository Secret:
 A chave deve ser criada no Google AI Studio/Gemini API e armazenada somente em GitHub Actions Secrets. Nunca coloque a chave em issue, comentário, arquivo, commit ou variável pública.
 
 O Antigravity Agent está disponível no free tier da Gemini API com cota gratuita e rate limit próprios. A cota pode mudar; a integração também impõe o orçamento local acima para reduzir consumo inesperado.
+
+### Qual cota esta integração usa
+
+Este fluxo de GitHub usa a **Gemini API por API key**. Portanto, ele consome a cota do projeto/chave da Gemini API e não a cota semanal da conta pessoal usada no aplicativo/CLI Antigravity.
+
+O CLI oficial `agy` usa login Google/OAuth e, em modo headless, exige credenciais previamente armazenadas. Como runners do GitHub são efêmeros e o CLI não oferece atualmente autenticação headless por `GEMINI_API_KEY`, a integração automatizada usa o SDK oficial com API key em vez de copiar tokens OAuth pessoais para o GitHub.
