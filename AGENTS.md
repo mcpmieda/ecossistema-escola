@@ -14,6 +14,14 @@ Este repositório deve permanecer simples, funcional e rastreável. A prioridade
 - Nunca inclua nomes, notas, arquivos ou outros dados reais de estudantes em código, fixtures, issues, commits, logs ou screenshots. O repositório é público.
 - Execute `npm run verify` antes de declarar a entrega pronta. Registre o SHA e o ambiente da execução; CI não é teste manual de produção.
 
+## Textos nas interfaces — todo o Ecossistema
+
+Orientação explícita do responsável em 18/09/2026, 00:10 UTC, registrada na #846; aplica-se ao Centro de Administração, Banco de Notas, Portal do Aluno e demais módulos, em correções e novas implantações.
+
+- Não acrescente comentários explicativos, justificativas técnicas, notas sobre correções/implantações ou detalhes internos de cálculo às telas, salvo quando absolutamente necessários para compreender ou executar a tarefa com segurança. Não troque um comentário removido por outro texto, tooltip ou aviso não solicitado.
+- Mantenha apenas textos úteis à operação: rótulos, resultados, estados e mensagens indispensáveis. Preserve acessibilidade, avisos essenciais de erro, conflito, indisponibilidade, segurança, perda de dados e confirmações de ações críticas; não faça remoção indiscriminada dessas mensagens.
+- Registre razões técnicas, alterações de fórmula, evidências e histórico em issues, PRs e documentação, não como comentários permanentes na interface. Na revisão do diff, confira se cada novo texto visível é realmente necessário.
+
 ## Banco de Notas
 
 A construção modular está autorizada e é coordenada por `docs/gradebook/` e pelas issues `[BN]`.
