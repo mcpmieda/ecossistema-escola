@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyInstitutionalQualitativeCorrectionsV1,
   correctInstitutionalQualitativeDefinitionV1,
-} from '../../../shared/gradebook-contracts/source/institutional-qualitative-corrections-v1';
+} from '../../../src/gradebook-domain/source/institutional-qualitative-corrections-v1';
 import type {
   GradebookImportInstrumentV9,
   GradebookNotesImportRequestV9,
