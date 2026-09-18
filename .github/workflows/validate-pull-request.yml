@@ -14,7 +14,41 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  scope:
+    name: Detect effective pull request changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      has_changes: ${{ steps.scope.outputs.has_changes }}
+    steps:
+      - name: Checkout for diff classification
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Detect effective pull request diff
+        id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --quiet "${PR_BASE_SHA}...${PR_HEAD_SHA}" --; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No effective file changes; heavy validation is skipped."
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
   verify:
+    needs: scope
+    if: needs.scope.outputs.has_changes == 'true'
     name: Lint, types, tests and build
     runs-on: ubuntu-latest
     timeout-minutes: 15
