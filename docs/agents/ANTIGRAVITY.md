@@ -49,10 +49,11 @@ O workflow rejeita a tarefa antes de chamar o Google se o handoff estiver ausent
 
 ## Limites técnicos da integração
 
-- Modelo inicial fixado em `gemini-3.8-flash`.
+- Modelo preferencial `gemini-3.8-flash`; em 429/503 transitório, o executor pode alternar automaticamente para `gemini-3.7-flash` e depois voltar ao 3.8.
 - SDK fixado em `google-antigravity==0.1.17`.
 - Máximo por execução: 12 chamadas de modelo, 80 chamadas de ferramenta e 60.000 tokens totais.
 - Apenas uma execução Antigravity pode consumir o provider por vez; chamadas adicionais ficam enfileiradas.
+- Falhas transitórias `429/RESOURCE_EXHAUSTED` e `503/UNAVAILABLE` usam retry bounded: fallback para quota/modelo separado e, se necessário, cooldown acima da janela de um minuto indicada pelo provider. O workspace é conferido antes de cada retomada e o total de tentativas é limitado.
 - Subagentes e ferramentas Web ficam desativados.
 - O agente pode ler/criar/editar somente no workspace.
 - O agente não recebe ferramenta de terminal. Os comandos declarados em `validate` são executados pelo host depois que o turno do agente termina.
