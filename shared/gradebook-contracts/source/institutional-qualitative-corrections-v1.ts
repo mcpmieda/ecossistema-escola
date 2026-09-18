@@ -58,7 +58,7 @@ const CORRECTIONS_V1: readonly CorrectionV1[] = [
     slot: 12,
     sourceMaximums: [3000, 6000],
     maximum: 6000,
-    sourceDescriptions: ['2AATIVIDADE', 'LLATV'],
+    sourceDescriptions: ['2ATIVIDADE', 'LLATV'],
   },
   {
     kind: 'suppress',
