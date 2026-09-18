@@ -721,19 +721,6 @@ async function processOffer(
         )
           continue;
 
-        await ensureImport(database, state, request, 2);
-        // Current-state semantics: removing a definition also removes its obsolete
-        // value history so no FK can keep a deleted instrument alive.
-        state.writes += await run(
-          database,
-          'DELETE FROM gradebook.nota_historico WHERE instrumento_id = ?',
-          [current.id],
-        );
-        state.writes += await run(
-          database,
-          'DELETE FROM gradebook.instrumento_historico WHERE instrumento_id = ?',
-          [current.id],
-        );
         state.writes += await academicRun(
           database,
           state,
@@ -774,15 +761,15 @@ async function processOffer(
       if (!instrument) {
         const initialMaximum = maximumUnavailable ? null : sourceMaximum;
         const initialDescription = descriptionUnavailable ? null : (sourceDescription ?? null);
-        const created = await changedFirst<Row>(
+        const created = await first<Row>(
           database,
-          state,
-          request,
-          2,
           `INSERT INTO gradebook.instrumento (oferta_id, trimestre, slot, maximo, descricao)
            VALUES (?, ?, ?, ?, ?) RETURNING id`,
           [ofertaId, term.trimestre, slot, initialMaximum, initialDescription],
         );
+        if (!created) throw new Error('instrument-insert-without-id');
+        state.writes++;
+        state.academicWrites++;
         instrument = {
           id: asNumber(created.id, 'instrumento-id'),
           maximo: initialMaximum,
@@ -805,7 +792,6 @@ async function processOffer(
             ? instrument.descricao
             : sourceDescription;
         if (nextMaximum !== instrument.maximo || nextDescription !== instrument.descricao) {
-          await ensureImport(database, state, request, 2);
           state.writes += await academicRun(
             database,
             state,
@@ -845,7 +831,6 @@ async function processOffer(
         const next = target === null ? null : (target as number);
         const retainBlank = request.granularObservationVersion === 1 && activeInstrument;
         if (previous === next && (next !== null || (retainBlank ? observed : !observed))) continue;
-        await ensureImport(database, state, request, 2);
         if (next === null && !retainBlank) {
           state.writes += await academicRun(
             database,
@@ -1224,7 +1209,7 @@ export function createGradebookRelationalImportServiceV9(database: D1WriteDataba
         });
         return {
           transportVersion: 9,
-          state: result.importId === null ? 'no-changes' : 'applied',
+          state: result.writes === 0 ? 'no-changes' : 'applied',
           summary: summary(result.writes, result.importId !== null),
         };
       } catch (cause) {
