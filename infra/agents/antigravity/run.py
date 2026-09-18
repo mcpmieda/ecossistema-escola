@@ -310,7 +310,6 @@ async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) ->
         fail("GEMINI_API_KEY is not configured.")
 
     from google.antigravity import Agent, types  # type: ignore[import-not-found]
-    from google.antigravity.hooks import policy  # type: ignore[import-not-found]
 
     capabilities = types.CapabilitiesConfig(
         enable_subagents=False,
@@ -325,16 +324,7 @@ async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) ->
         ],
         tool_output_truncation_config=types.ToolOutputTruncationConfig(max_tokens=5000),
     )
-    policies = [
-        policy.deny_all(),
-        policy.allow("list_directory"),
-        policy.allow("search_directory"),
-        policy.allow("find_file"),
-        policy.allow("view_file"),
-        policy.allow("create_file"),
-        policy.allow("edit_file"),
-        policy.allow("finish"),
-    ]
+    policies: list[Any] = []
 
     agents_rules = (root / "AGENTS.md").read_text(encoding="utf-8")
     system_instructions = f"""Follow the repository governance below as binding instructions.
@@ -402,7 +392,6 @@ You are an executor, not the architectural authority. Stay inside the current wo
 
 def command_sdk_check(args: argparse.Namespace) -> None:
     from google.antigravity import types  # type: ignore[import-not-found]
-    from google.antigravity.hooks import policy  # type: ignore[import-not-found]
 
     capabilities = types.CapabilitiesConfig(
         enable_subagents=False,
@@ -417,16 +406,7 @@ def command_sdk_check(args: argparse.Namespace) -> None:
         ],
         tool_output_truncation_config=types.ToolOutputTruncationConfig(max_tokens=5000),
     )
-    policies = [
-        policy.deny_all(),
-        policy.allow("list_directory"),
-        policy.allow("search_directory"),
-        policy.allow("find_file"),
-        policy.allow("view_file"),
-        policy.allow("create_file"),
-        policy.allow("edit_file"),
-        policy.allow("finish"),
-    ]
+    policies: list[Any] = []
     for model in dict.fromkeys(PROVIDER_MODELS):
         make_agent_config(
             "sdk-check-only",
