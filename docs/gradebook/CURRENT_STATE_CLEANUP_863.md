@@ -27,7 +27,7 @@ Depois da BN-DEC-038/#862, a planilha mais recente é o estado atual autoritativ
 
 O importador já não grava `nota_historico` nem `instrumento_historico`. A #863 reforça isso em três camadas:
 
-1. o serviço de importação não cria `importacao` apenas para alteração granular de nota/instrumento;
+1. o serviço de importação não cria `importacao` para mudanças de estado atual por si só; a linha só nasce quando um histórico retido, como fechamento ou vínculo, precisa referenciá-la;
 2. o buffer PostgreSQL rejeita tentativa de INSERT nesses históricos;
 3. `gradebook_app` perde `INSERT` e `UPDATE` nas duas relações. `SELECT` e `DELETE` permanecem somente para compatibilidade de reset/restore enquanto as tabelas físicas continuam no schema.
 
