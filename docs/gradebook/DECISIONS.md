@@ -187,3 +187,28 @@ Nota numérica P lançada pelo professor, inclusive zero, é a única exceção:
 Cobertura e exibição seguem o mesmo núcleo: PARA existente/elegível nula é pendência; zero/nota resolve somente PARA; ausência sem observação não vira Não fez. Sem E e sem P, ocultar e não criar pendência. Com P, mostrar a nota ou Tirou zero, inclusive nos recortes e resumos compartilhados. A exceção já está resolvida e não apaga outras pendências. Não emitir aviso de PARA proibida para a exceção agora permitida; preservar decodificação histórica.
 
 Cálculos de resultado usam o quantitativo considerado; diagnósticos das duas avaliações preservam Q original. Portal usa fatos da edição aprovada, sem consultar notas atuais para substituir a edição. AM/U importadas, snapshots e fatos/históricos não são sobrescritos; sem DML/DDL, reimportação, backfill ou republicação forçada. Não acrescentar comentários técnicos às telas. Detalhes e testes em [PARALLEL_QUANTITATIVE_850.md](PARALLEL_QUANTITATIVE_850.md). Revisão e publicação seguem BN-DEC-023; CodeRabbit pode auxiliar somente nesta correção, conforme escopo explícito da #850, sem autorização permanente.
+
+## BN-DEC-036 — Correções qualitativas fechadas de 2026 e T3 em andamento
+
+**Data:** 2026-09-18. **Origem:** auditoria de contagens #852 e autorização explícita do responsável para corrigir as pendências; #855. Complementa BN-DEC-022/031/032/035 sem alterar fórmula acadêmica.
+
+A divergência de máximo qualitativo é corrigida somente quando a causa é determinística em trimestre encerrado. T3 permanece em andamento até 16/12/2026 e não recebe máximos, atividades ou completude inventados. Educação Física 6B, Português 6C/6D e Redação 7D em T3 ficam fora da correção desta decisão.
+
+Nos 12 oferta-trimestres fechados de T1/T2 investigados, uma definição de Ética 6A/T2 é restaurada de 3,0 para 6,0 porque há histórico anterior em 6,0 e lançamentos válidos até esse valor. Os demais excessos são slots qualitativos extras sem nenhuma nota numérica; esses slots deixam de ser ativos, e suas observações vazias atuais são convertidas de observado-em-branco para não observado com histórico explícito. Nenhuma nota numérica é apagada ou alterada.
+
+A correção é durável no importador por manifesto estreito de ano/professor/turma/componente/trimestre/slot. Qualquer mudança futura na definição investigada ou qualquer evidência de lançamento em slot suprimido bloqueia a normalização e exige nova investigação; não mascarar fonte nova. A normalização é aplicada no produtor canônico e novamente no servidor antes da persistência.
+
+A migration 0010 registra importação de correção, instrumento_historico e nota_historico, remove somente diagnósticos correntes comprovadamente resolvidos e emite a revisão acadêmica existente do Portal quando essa integração está instalada. Boletins emitidos, AM/U, REC, PARA e decisões humanas permanecem intactos. Detalhes e testes em QUALITATIVE_CORRECTIONS_855.md.
+
+
+## BN-DEC-037 — RLS de defesa em profundidade no schema gradebook
+
+**Data:** 2026-09-18. **Origem:** auditoria de segurança e autorização explícita do responsável para corrigir a pendência; #856 / PR #858. Complementa as ACLs privadas existentes sem mudar autoridade acadêmica, identidade ou fórmula.
+
+As 30 tabelas do schema `gradebook` passam a usar Row Level Security. Antes desta decisão, `PUBLIC`, `anon` e `authenticated` já não possuíam USAGE/CRUD efetivo no schema, portanto a auditoria não identificou exposição direta por esses papéis. RLS acrescenta uma segunda camada de defesa, sem substituir grants.
+
+Cada tabela recebe a policy `gradebook_app_backend_v1`, restrita à role dedicada `gradebook_app`, com `USING (true)` e `WITH CHECK (true)`. Essa policy não concede operações: SELECT/INSERT/UPDATE/DELETE continuam limitados pela ACL específica de cada relação. `gradebook_app` permanece NOSUPERUSER/NOBYPASSRLS. Não usar `FORCE ROW LEVEL SECURITY`; migrations/proprietário e papéis administrativos continuam com sua semântica PostgreSQL própria. `PUBLIC`, `anon` e `authenticated` permanecem explicitamente revogados no schema, tabelas e sequências.
+
+A migration falha se o conjunto esperado de 30 tabelas mudar ou se `gradebook_app` estiver ausente/com BYPASSRLS, obrigando futuras tabelas a receber decisão explícita em vez de proteção presumida. Produção recebeu `gradebook_rls_v1` na versão Supabase `20260918114401`; postflight confirmou 30/30 tabelas com RLS ON, FORCE OFF, 30 policies, 112 grants backend preservados, zero grants anon/auth e contagens acadêmicas inalteradas. O Advisor de segurança terminou sem alertas.
+
+O schema `student_portal` não é incluído automaticamente. A auditoria verificou zero acesso direto de anon/auth às 27 tabelas atuais e abriu #859 para avaliar RLS com matriz própria de runtime, autenticação, publicação e jobs. Detalhes e regressões em [GRADEBOOK_RLS_856.md](GRADEBOOK_RLS_856.md).
