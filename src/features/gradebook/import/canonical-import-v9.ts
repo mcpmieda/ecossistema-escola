@@ -173,8 +173,6 @@ function description(definition: SourceAssessmentDefinitionV2 | undefined): stri
     : undefined;
 }
 
-const FIXED_SLOTS = [1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
-
 type DefinitionSnapshotV1 = {
   readonly instrumentos: readonly GradebookImportInstrumentV9[];
   readonly unavailableMaximumSlots: readonly GradebookImportInstrumentV9[0][];
