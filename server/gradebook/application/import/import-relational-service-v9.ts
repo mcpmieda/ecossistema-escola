@@ -4,6 +4,7 @@ import {
 } from '../../../student-portal/integration/year-reset/writer-v1';
 import type {
   GradebookImportCellV9,
+  GradebookImportInstrumentV9,
   GradebookImportOfferV9,
   GradebookImportPersistenceRequestV9,
   GradebookImportPersistenceResponseV9,
