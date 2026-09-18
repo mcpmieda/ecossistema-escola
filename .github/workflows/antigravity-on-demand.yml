@@ -33,11 +33,146 @@ jobs:
 
   execute:
     name: Execute bounded Antigravity task
-    if: github.event_name != 'pull_request' && github.actor == github.repository_owner
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.actor == github.repository_owner
     runs-on: ubuntu-24.04
-    timeout-minutes: 2
+    timeout-minutes: 90
     permissions:
-      contents: read
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
-      - name: Provider execution placeholder
-        run: echo "Operational steps are restored only after definition validation passes."
+      - name: Resolve and authorize request
+        id: request
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_ISSUE: ${{ github.event.issue.number }}
+          INPUT_ISSUE: ${{ inputs.issue_number }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            if [ "$COMMENT_BODY" != "/antigravity" ]; then
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            issue_number="$COMMENT_ISSUE"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            issue_number="$INPUT_ISSUE"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! [[ "$issue_number" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Invalid issue number."
+            exit 1
+          fi
+
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "number=$issue_number" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout trusted main
+        if: steps.request.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch trusted issue
+        if: steps.request.outputs.run == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.request.outputs.number }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}" > "$RUNNER_TEMP/antigravity-issue.json"
+          jq -e --arg owner "$REPOSITORY_OWNER"             '.pull_request == null and .user.login == $owner'             "$RUNNER_TEMP/antigravity-issue.json" >/dev/null
+
+      - name: Set up Python
+        if: steps.request.outputs.run == 'true'
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+
+      - name: Validate handoff before provider use
+        if: steps.request.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python infra/agents/antigravity/run.py check             --issue-json "$RUNNER_TEMP/antigravity-issue.json"             --meta "$RUNNER_TEMP/antigravity-meta.json"
+
+      - name: Detect duplicate handoff
+        if: steps.request.outputs.run == 'true'
+        id: dedupe
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.request.outputs.number }}
+        run: |
+          set -euo pipefail
+          handoff_hash="$(jq -r '.handoff_hash' "$RUNNER_TEMP/antigravity-meta.json")"
+          marker="<!-- antigravity-handoff:${handoff_hash} -->"
+          if gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${ISSUE_NUMBER}/comments?per_page=100"             --jq '.[].body' | grep -Fq "$marker"; then
+            echo "duplicate=true" >> "$GITHUB_OUTPUT"
+            gh issue comment "$ISSUE_NUMBER" --body               "Este handoff já teve uma execução concluída do Antigravity. Nenhuma nova cota foi consumida."
+          else
+            echo "duplicate=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Confirm Antigravity credential
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true'
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.request.outputs.number }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GEMINI_API_KEY:-}" ]; then
+            gh issue comment "$ISSUE_NUMBER" --body               "Antigravity não foi executado: o Repository Secret GEMINI_API_KEY ainda não está configurado."
+            echo "::error::GEMINI_API_KEY is not configured."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies when requested
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          needs_node="$(jq -r '.needs_node' "$RUNNER_TEMP/antigravity-meta.json")"
+          if [ "$needs_node" = "true" ]; then
+            npm ci
+          else
+            echo "Node validation not requested; npm ci skipped."
+          fi
+
+      - name: Install pinned Antigravity SDK
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --no-input "google-antigravity==0.1.17"
+
+      - name: Execute Antigravity without GitHub credentials
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true'
+        id: agent
+        shell: bash
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -euo pipefail
+          python infra/agents/antigravity/run.py run             --root "$GITHUB_WORKSPACE"             --meta "$RUNNER_TEMP/antigravity-meta.json"             --summary "$RUNNER_TEMP/antigravity-summary.json"             --result "$RUNNER_TEMP/antigravity-result.json"
+          echo "has_changes=$(jq -r '.has_changes' "$RUNNER_TEMP/antigravity-result.json")" >> "$GITHUB_OUTPUT"
