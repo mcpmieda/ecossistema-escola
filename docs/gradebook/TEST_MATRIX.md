@@ -81,9 +81,13 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 - `IMP-005`: arquivo sem guia de nota gera falha individual explicável.
 - `IMP-006`: manifesto registra nome, tamanho, modificação e SHA-256.
 - `IMP-007`: reimportação do mesmo hash não duplica lançamentos.
-- `IMP-008`: versão alterada preserva histórico do valor anterior.
+- `IMP-008`: versão alterada substitui o estado atual do mesmo slot; nota/instrumento anterior não gera histórico granular.
 - `IMP-009`: progresso e resultado por arquivo permanecem coerentes.
 - `IMP-010`: nenhum arquivo é enviado/persistido sem ação prevista no fluxo aprovado.
+- `IMP-011`: snapshot V1 omite instrumento qualitativo realmente apagado já no navegador e o PostgreSQL remove a definição atual e suas notas.
+- `IMP-012`: definição indisponível preserva somente os campos não lidos e gera diagnóstico com guia/célula/causa; não é confundida com exclusão.
+- `IMP-013`: vazio de aluno em instrumento ativo continua “Não fez”; vazio de coluna removida não produz `nota(NULL)`.
+- `IMP-014`: importações novas não escrevem `nota_historico` nem `instrumento_historico`.
 
 ## ID — Identidade, matrícula e transferências
 
@@ -216,7 +220,7 @@ Todo teste versionado usa dados sintéticos ou anonimizados. Arquivos reais são
 
 - `F1-658-001`: a superfície ativa monta somente `RelationalCurrentAuditPageV2`; Audit Workspace e painel V1 não são montados nem usados como fallback.
 - `F1-658-002`: a leitura usa apenas `GET /api/gradebook/import-diagnostics`, fixa 2026 e não consulta entidades/records do modelo anterior.
-- `F1-658-003`: achados correntes vêm de `gradebook.importacao_diagnostico`; uma nova observação transacional da fonte substitui o snapshot anterior, inclusive por vazio.
+- `F1-658-003`: achados correntes vêm de `gradebook.importacao_diagnostico`; uma nova observação transacional da fonte substitui o snapshot anterior, inclusive por vazio, e remove tratamentos de chaves que deixaram de existir.
 - `F1-658-004`: a interface explica que achado atual não é histórico de tratamento e não oferece reconhecer, resolver, descartar ou corrigir.
 - `F1-658-005`: a trilha humana durável futura permanece pendente de contrato explícito; nenhum histórico, linha ou schema é fabricado nesta entrega.
 - `F1-658-006`: HeroUI cobre cabeçalho compacto, KPIs identificados como itens carregados, filtros por gravidade, paginação, timeline, detalhes recolhidos e estados loading/vazio/erro/autorização.

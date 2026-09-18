@@ -123,6 +123,25 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
           for (const year of changedYears)
             await recordResetWriteV1(transaction, year, 'diagnostics');
         };
+        // Human treatment is current-context metadata too: once the next complete
+        // source observation no longer contains a diagnostic key, its treatment must
+        // not survive as an orphan record.
+        await transaction
+          .prepare(
+            `DELETE FROM gradebook.importacao_diagnostico_tratamento a
+       WHERE ((a.ano IS NOT DISTINCT FROM ? AND a.arquivo = ?)
+          OR a.hash = decode(?, 'hex'))
+         AND NOT EXISTS (
+           SELECT 1
+           FROM jsonb_to_recordset(?::jsonb) AS x(ano smallint,arquivo text,chave text)
+           WHERE x.ano IS NOT DISTINCT FROM a.ano
+             AND x.arquivo = a.arquivo
+             AND x.chave = a.chave
+         )`,
+          )
+          .bind(academicYear, fileName, sha256, serialized)
+          .run();
+
         const cleared = await transaction
           .prepare(
             `DELETE FROM gradebook.importacao_diagnostico

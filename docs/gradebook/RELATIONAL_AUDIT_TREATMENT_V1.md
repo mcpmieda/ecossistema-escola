@@ -4,14 +4,14 @@
 
 `gradebook.importacao_diagnostico` continua sendo apenas a fotografia das pendências atuais. A reimportação substitui esse conjunto de forma atômica; corrigir a fonte faz o achado desaparecer da lista.
 
-`gradebook.importacao_diagnostico_tratamento` é a trilha humana append-only. Ela não possui FK para a linha corrente e, por isso, reconhecimento e anotação sobrevivem à remoção do achado. O vínculo funcional usa `ano + arquivo + chave`; o hash preserva a revisão de origem em que a ação foi registrada.
+`gradebook.importacao_diagnostico_tratamento` guarda contexto humano somente enquanto o achado continua atual. A BN-DEC-038/#862 substitui a retenção órfã: quando a próxima fotografia da mesma fonte não contém mais a chave diagnosticada, reconhecimento/anotação são removidos na mesma transação. O vínculo funcional continua usando `ano + arquivo + chave` enquanto a pendência existe.
 
 ## Ações contratadas
 
 - `1 — RECONHECIDO`: o usuário autorizado confirma que examinou o achado. Não exige nem aceita texto.
 - `2 — ANOTAÇÃO`: acrescenta uma nota de tratamento entre 3 e 2.000 caracteres.
 
-Não há estado manual `RESOLVIDO`, `IGNORADO` ou `DESCARTADO`. Também não há correção automática. Um achado só deixa de estar pendente quando a origem é corrigida e novamente observada pelo fluxo de importação. Registrar uma ação não altera nota, resultado, vínculo, Conselho, boletim, relatório ou autoridade.
+Não há estado manual `RESOLVIDO`, `IGNORADO` ou `DESCARTADO`. Também não há correção automática. Um achado só deixa de estar pendente quando a origem é corrigida e novamente observada pelo fluxo de importação; nesse momento, a linha corrente e seu tratamento deixam de ocupar o PostgreSQL. Registrar uma ação não altera nota, resultado, vínculo, Conselho, boletim, relatório ou autoridade.
 
 ## Persistência e privacidade
 

@@ -147,7 +147,7 @@ describe('observed granular facts and ecosystem names #817', () => {
         'SELECT * FROM gradebook.nota_historico ORDER BY importacao_id,instrumento_id,aluno_id',
       )
     ).rows;
-    expect(before.some((x) => x.nao_feito_novo === true)).toBe(true);
+    expect(before).toEqual([]);
     expect(
       (
         await createGradebookRelationalImportServiceV11(database).execute(
@@ -163,7 +163,7 @@ describe('observed granular facts and ecosystem names #817', () => {
       ).rows,
     ).toEqual(before);
   });
-  it('preserves a prior observation when unavailable, and records blank-to-zero and zero-to-blank deltas', async () => {
+  it('preserves a prior observation when unavailable and replaces blank/zero current state without history', async () => {
     const service = createGradebookRelationalImportServiceV11(database);
     expect((await service.execute(notes([null, 0, ['u'], ['u'], null]))).state).toBe('applied');
     expect(await rows()).toEqual([
@@ -171,23 +171,13 @@ describe('observed granular facts and ecosystem names #817', () => {
       { slot: 2, valor: 0 },
       { slot: 11, valor: null },
     ]);
-    const history = (
-      await pg.query(
-        'SELECT valor_anterior,valor_novo,nao_feito_anterior,nao_feito_novo FROM gradebook.nota_historico ORDER BY importacao_id,instrumento_id,aluno_id',
-      )
-    ).rows;
-    expect(history).toContainEqual({
-      valor_anterior: 0,
-      valor_novo: null,
-      nao_feito_anterior: false,
-      nao_feito_novo: true,
-    });
-    expect(history).toContainEqual({
-      valor_anterior: null,
-      valor_novo: 0,
-      nao_feito_anterior: true,
-      nao_feito_novo: false,
-    });
+    expect(
+      (
+        await pg.query(
+          'SELECT valor_anterior,valor_novo,nao_feito_anterior,nao_feito_novo FROM gradebook.nota_historico ORDER BY importacao_id,instrumento_id,aluno_id',
+        )
+      ).rows,
+    ).toEqual([]);
   });
   it('keeps legacy untagged blank-as-clear compatibility without guessing a historical observation', async () => {
     const original = notes([null, 0, ['u'], null, null]);

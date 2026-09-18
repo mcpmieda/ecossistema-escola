@@ -378,7 +378,7 @@ describe('massa sintética — definições trimestrais V2', () => {
     });
     expect(resolveSourceAssessmentDefinitionV2(requiredDefinition('6A3º', 'R'))).toMatchObject({
       state: 'insufficient-data',
-      reason: 'maximum-missing-field',
+      reason: 'maximum-ambiguous-empty',
     });
   });
 

@@ -64,10 +64,13 @@ it('reimports actual decimal evidence, preserves history/idempotence and exposes
   expect((await service.execute(value)).state).toBe('applied');
   const rows = (await pg.query('SELECT i.slot,n.valor FROM gradebook.instrumento i JOIN gradebook.nota n ON n.instrumento_id=i.id WHERE i.trimestre=1 AND i.slot IN (1,2,11,12) ORDER BY i.slot')).rows;
   expect(rows).toEqual([{ slot: 1, valor: 100 }, { slot: 2, valor: 100 }, { slot: 11, valor: 0 }, { slot: 12, valor: null }]);
-  const history = (await pg.query('SELECT * FROM gradebook.nota_historico ORDER BY importacao_id,instrumento_id,aluno_id')).rows;
-  expect(history).toEqual(expect.arrayContaining([expect.objectContaining({ valor_anterior: 0, valor_novo: 100 })]));
+  expect(
+    (await pg.query('SELECT * FROM gradebook.nota_historico ORDER BY importacao_id,instrumento_id,aluno_id')).rows,
+  ).toEqual([]);
   expect((await service.execute(value)).state).toBe('no-changes');
-  expect((await pg.query('SELECT * FROM gradebook.nota_historico ORDER BY importacao_id,instrumento_id,aluno_id')).rows).toEqual(history);
+  expect(
+    (await pg.query('SELECT * FROM gradebook.nota_historico ORDER BY importacao_id,instrumento_id,aluno_id')).rows,
+  ).toEqual([]);
   const pair = (await pg.query<{ classId: number; studentId: number; offerId: number }>(
     'SELECT v.turma_id AS "classId",v.aluno_id AS "studentId",o.id AS "offerId" FROM gradebook.vinculo v JOIN gradebook.oferta o ON o.turma_id=v.turma_id WHERE v.ano=2026',
   )).rows[0]!;

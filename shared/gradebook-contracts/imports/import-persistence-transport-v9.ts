@@ -52,6 +52,14 @@ export type GradebookImportTermStudentV9 = readonly [
 
 export interface GradebookImportTermV9 {
   readonly trimestre: 1 | 2 | 3;
+  /** V1 means this term is a complete current snapshot of qualitative definitions. */
+  readonly definitionSnapshotVersion?: 1;
+  /** Definition maximum could not be read safely; preserve the previous maximum for this slot. */
+  readonly unavailableMaximumSlots?: readonly GradebookImportInstrumentV9[0][];
+  /** Definition label could not be read safely; preserve the previous label for this slot. */
+  readonly unavailableDescriptionSlots?: readonly GradebookImportInstrumentV9[0][];
+  /** At least one student cell in an otherwise absent slot could not be read; do not delete the slot. */
+  readonly unavailableValueSlots?: readonly GradebookImportInstrumentV9[0][];
   readonly instrumentos: readonly GradebookImportInstrumentV9[];
   readonly alunos: readonly GradebookImportTermStudentV9[];
 }
@@ -236,6 +244,32 @@ function validNotes(value: Record<string, unknown>): boolean {
         termo.alunos.length > 64
       )
         return false;
+      const snapshotVersion = termo.definitionSnapshotVersion;
+      if (snapshotVersion !== undefined && snapshotVersion !== 1) return false;
+      if (
+        snapshotVersion === undefined &&
+        (termo.unavailableMaximumSlots !== undefined ||
+          termo.unavailableDescriptionSlots !== undefined ||
+          termo.unavailableValueSlots !== undefined)
+      )
+        return false;
+      const validateUnavailable = (input: unknown) => {
+        if (input === undefined) return true;
+        if (!Array.isArray(input) || input.length > 10) return false;
+        const seen = new Set<number>();
+        for (const slot of input) {
+          if (!Number.isSafeInteger(slot) || slot < 11 || slot > 20 || seen.has(slot))
+            return false;
+          seen.add(slot);
+        }
+        return true;
+      };
+      if (
+        !validateUnavailable(termo.unavailableMaximumSlots) ||
+        !validateUnavailable(termo.unavailableDescriptionSlots) ||
+        !validateUnavailable(termo.unavailableValueSlots)
+      )
+        return false;
       const slots = new Set<number>();
       for (const instrumento of termo.instrumentos) {
         if (!Array.isArray(instrumento) || (instrumento.length !== 2 && instrumento.length !== 3))
@@ -254,6 +288,11 @@ function validNotes(value: Record<string, unknown>): boolean {
           return false;
         if (instrumento[2] !== undefined && !nonEmptyText(instrumento[2], 512)) return false;
       }
+      if (
+        snapshotVersion === 1 &&
+        (!slots.has(1) || !slots.has(2) || !slots.has(3))
+      )
+        return false;
       const numbers = new Set<number>();
       for (const aluno of termo.alunos) {
         if (

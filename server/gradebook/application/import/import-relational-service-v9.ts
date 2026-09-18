@@ -4,6 +4,7 @@ import {
 } from '../../../student-portal/integration/year-reset/writer-v1';
 import type {
   GradebookImportCellV9,
+  GradebookImportInstrumentV9,
   GradebookImportOfferV9,
   GradebookImportPersistenceRequestV9,
   GradebookImportPersistenceResponseV9,
@@ -650,47 +651,6 @@ interface InstrumentStateV9 {
   descricao: string | null;
 }
 
-async function historyNote(
-  database: D1WriteDatabaseV1,
-  state: ImportStateV9,
-  request: GradebookNotesImportRequestV9,
-  instrumentoId: number,
-  alunoId: number,
-  previous: number | null,
-  next: number | null,
-  previousNotDone = false,
-  nextNotDone = false,
-): Promise<void> {
-  const importId = await ensureImport(database, state, request, 2);
-  // Older transports keep their numeric delta shape. A presence-only transition
-  // is a real source change even when both numeric values are null.
-  if (previousNotDone || nextNotDone) {
-    state.writes += await run(
-      database,
-      `INSERT INTO gradebook.nota_historico
-       (importacao_id, instrumento_id, aluno_id, valor_anterior, valor_novo, nao_feito_anterior, nao_feito_novo)
-       VALUES (?, ?, ?, ?, ?, ?::integer::boolean, ?::integer::boolean)`,
-      [
-        importId,
-        instrumentoId,
-        alunoId,
-        previous,
-        next,
-        previousNotDone ? 1 : 0,
-        nextNotDone ? 1 : 0,
-      ],
-    );
-    return;
-  }
-  state.writes += await run(
-    database,
-    `INSERT INTO gradebook.nota_historico
-     (importacao_id, instrumento_id, aluno_id, valor_anterior, valor_novo)
-     VALUES (?, ?, ?, ?, ?)`,
-    [importId, instrumentoId, alunoId, previous, next],
-  );
-}
-
 async function processOffer(
   database: D1WriteDatabaseV1,
   state: ImportStateV9,
@@ -738,9 +698,67 @@ async function processOffer(
   }
 
   for (const term of offer.trimestres) {
+    const authoritativeDefinitions = term.definitionSnapshotVersion === 1;
+    const unavailableMaximum = new Set(term.unavailableMaximumSlots ?? []);
+    const unavailableDescription = new Set(term.unavailableDescriptionSlots ?? []);
+    const unavailableValues = new Set(term.unavailableValueSlots ?? []);
+
+    if (authoritativeDefinitions) {
+      const incomingSlots = new Set(term.instrumentos.map(([slot]) => slot));
+      for (const [key, current] of [...existingInstruments.entries()]) {
+        const [currentTermText, currentSlotText] = key.split(':');
+        const currentTerm = Number(currentTermText);
+        const currentSlot = Number(currentSlotText);
+        if (!Number.isInteger(currentTerm) || !Number.isInteger(currentSlot))
+          throw new Error('invalid-existing-instrument-key');
+        if (currentTerm !== term.trimestre || currentSlot < 11 || currentSlot > 20) continue;
+        const qualitativeSlot = currentSlot as GradebookImportInstrumentV9[0];
+        if (
+          incomingSlots.has(qualitativeSlot) ||
+          unavailableMaximum.has(qualitativeSlot) ||
+          unavailableDescription.has(qualitativeSlot) ||
+          unavailableValues.has(qualitativeSlot)
+        )
+          continue;
+
+        await ensureImport(database, state, request, 2);
+        // Current-state semantics: removing a definition also removes its obsolete
+        // value history so no FK can keep a deleted instrument alive.
+        state.writes += await run(
+          database,
+          'DELETE FROM gradebook.nota_historico WHERE instrumento_id = ?',
+          [current.id],
+        );
+        state.writes += await run(
+          database,
+          'DELETE FROM gradebook.instrumento_historico WHERE instrumento_id = ?',
+          [current.id],
+        );
+        state.writes += await academicRun(
+          database,
+          state,
+          'DELETE FROM gradebook.nota WHERE instrumento_id = ?',
+          [current.id],
+        );
+        state.writes += await academicRun(
+          database,
+          state,
+          'DELETE FROM gradebook.instrumento WHERE id = ?',
+          [current.id],
+        );
+        existingInstruments.delete(key);
+        observedInstruments.delete(current.id);
+        for (const noteKey of [...notes.keys()])
+          if (noteKey.startsWith(`${current.id}:`)) notes.delete(noteKey);
+      }
+    }
+
     for (const [column, definition] of term.instrumentos.entries()) {
       const [slot, sourceMaximum, sourceDescription] = definition;
       const key = `${term.trimestre}:${slot}`;
+      const maximumUnavailable = authoritativeDefinitions && unavailableMaximum.has(slot);
+      const descriptionUnavailable =
+        authoritativeDefinitions && unavailableDescription.has(slot);
       let instrument = existingInstruments.get(key);
       const hasValue = term.alunos.some(([, values]) => {
         const cell = values[column]!;
@@ -754,6 +772,8 @@ async function processOffer(
         (request.granularObservationVersion === 1 && slot === 3);
       if (!meaningful) continue;
       if (!instrument) {
+        const initialMaximum = maximumUnavailable ? null : sourceMaximum;
+        const initialDescription = descriptionUnavailable ? null : (sourceDescription ?? null);
         const created = await changedFirst<Row>(
           database,
           state,
@@ -761,34 +781,31 @@ async function processOffer(
           2,
           `INSERT INTO gradebook.instrumento (oferta_id, trimestre, slot, maximo, descricao)
            VALUES (?, ?, ?, ?, ?) RETURNING id`,
-          [ofertaId, term.trimestre, slot, sourceMaximum, sourceDescription ?? null],
+          [ofertaId, term.trimestre, slot, initialMaximum, initialDescription],
         );
         instrument = {
           id: asNumber(created.id, 'instrumento-id'),
-          maximo: sourceMaximum,
-          descricao: sourceDescription ?? null,
+          maximo: initialMaximum,
+          descricao: initialDescription,
         };
         existingInstruments.set(key, instrument);
       } else {
-        const nextMaximum = sourceMaximum === null ? instrument.maximo : sourceMaximum;
-        const nextDescription =
-          sourceDescription === undefined ? instrument.descricao : sourceDescription;
+        const nextMaximum = authoritativeDefinitions
+          ? maximumUnavailable
+            ? instrument.maximo
+            : sourceMaximum
+          : sourceMaximum === null
+            ? instrument.maximo
+            : sourceMaximum;
+        const nextDescription = authoritativeDefinitions
+          ? descriptionUnavailable
+            ? instrument.descricao
+            : (sourceDescription ?? null)
+          : sourceDescription === undefined
+            ? instrument.descricao
+            : sourceDescription;
         if (nextMaximum !== instrument.maximo || nextDescription !== instrument.descricao) {
-          const importId = await ensureImport(database, state, request, 2);
-          state.writes += await run(
-            database,
-            `INSERT INTO gradebook.instrumento_historico
-             (importacao_id, instrumento_id, maximo_anterior, maximo_novo, descricao_anterior, descricao_nova)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              importId,
-              instrument.id,
-              instrument.maximo,
-              nextMaximum,
-              instrument.descricao,
-              nextDescription,
-            ],
-          );
+          await ensureImport(database, state, request, 2);
           state.writes += await academicRun(
             database,
             state,
@@ -828,17 +845,7 @@ async function processOffer(
         const next = target === null ? null : (target as number);
         const retainBlank = request.granularObservationVersion === 1 && activeInstrument;
         if (previous === next && (next !== null || (retainBlank ? observed : !observed))) continue;
-        await historyNote(
-          database,
-          state,
-          request,
-          instrument.id,
-          alunoId,
-          previous,
-          next,
-          observed && previous === null,
-          retainBlank && next === null,
-        );
+        await ensureImport(database, state, request, 2);
         if (next === null && !retainBlank) {
           state.writes += await academicRun(
             database,
