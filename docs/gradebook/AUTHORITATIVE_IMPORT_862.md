@@ -33,6 +33,7 @@ Termos produzidos pelo navegador passam a incluir `definitionSnapshotVersion: 1`
 - `instrumentos` contém somente os slots presentes/ativos na fotografia atual;
 - `unavailableMaximumSlots` informa máximos que não puderam ser lidos;
 - `unavailableDescriptionSlots` informa nomes que não puderam ser lidos;
+- `unavailableValueSlots` impede exclusão quando alguma célula de aluno do slot não pôde ser lida;
 - ausência de um slot qualitativo da lista, sem marca de indisponibilidade, é exclusão autoritativa;
 - requests antigos sem `definitionSnapshotVersion` continuam com a política conservadora anterior.
 
