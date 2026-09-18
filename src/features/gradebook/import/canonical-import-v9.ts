@@ -177,6 +177,7 @@ type DefinitionSnapshotV1 = {
   readonly instrumentos: readonly GradebookImportInstrumentV9[];
   readonly unavailableMaximumSlots: readonly GradebookImportInstrumentV9[0][];
   readonly unavailableDescriptionSlots: readonly GradebookImportInstrumentV9[0][];
+  readonly unavailableValueSlots: readonly GradebookImportInstrumentV9[0][];
 };
 
 function observedBlank(value: unknown): boolean {
@@ -233,6 +234,7 @@ function definitionSnapshotV1(sheet: GradeSheetRecognition): DefinitionSnapshotV
   const instrumentos: GradebookImportInstrumentV9[] = [[1, av1], [2, av2], [3, null]];
   const unavailableMaximumSlots: GradebookImportInstrumentV9[0][] = [];
   const unavailableDescriptionSlots: GradebookImportInstrumentV9[0][] = [];
+  const unavailableValueSlots: GradebookImportInstrumentV9[0][] = [];
 
   for (const [index, source] of SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.entries()) {
     const slot = (11 + index) as GradebookImportInstrumentV9[0];
@@ -249,6 +251,7 @@ function definitionSnapshotV1(sheet: GradeSheetRecognition): DefinitionSnapshotV
 
     if (maximumUnavailable) unavailableMaximumSlots.push(slot);
     if (nameState.unavailable) unavailableDescriptionSlots.push(slot);
+    if (values.unavailable) unavailableValueSlots.push(slot);
 
     const deleted =
       maximumState === 'ambiguous-empty' &&
@@ -277,7 +280,12 @@ function definitionSnapshotV1(sheet: GradeSheetRecognition): DefinitionSnapshotV
     );
   }
 
-  return { instrumentos, unavailableMaximumSlots, unavailableDescriptionSlots };
+  return {
+    instrumentos,
+    unavailableMaximumSlots,
+    unavailableDescriptionSlots,
+    unavailableValueSlots,
+  };
 }
 
 function addressForSlot(slot: GradebookImportInstrumentV9[0], row: number): string {
@@ -346,6 +354,9 @@ function term(
     ...(definitionSnapshot.unavailableDescriptionSlots.length === 0
       ? {}
       : { unavailableDescriptionSlots: definitionSnapshot.unavailableDescriptionSlots }),
+    ...(definitionSnapshot.unavailableValueSlots.length === 0
+      ? {}
+      : { unavailableValueSlots: definitionSnapshot.unavailableValueSlots }),
     instrumentos: definitions,
     alunos,
   };
