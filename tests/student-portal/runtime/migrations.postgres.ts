@@ -483,6 +483,8 @@ describe('native application reset service', () => {
 
 describe('native auxiliary reset revisions', () => {
   it('moves current diagnostic evidence across years and keeps identical observations unchanged', async () => {
+    await admin`INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho)
+      VALUES (2021,60000,2),(2022,60000,2)`;
     const database = createGradebookPostgresDatabaseFromSqlV1(gradebook as unknown as GradebookPostgresSqlV1);
     const observation = (year:number) => ({ version: 1 as const, academicYear: year,
       fileName: 'synthetic-reset-diagnostics.xlsx', sha256: 'e'.repeat(64),
@@ -615,6 +617,8 @@ describe('native service contention with live Portal links', () => {
 
 describe('native diagnostic scope race', () => {
   it('restarts before deleting a newly discovered year instead of acquiring locks out of order', async () => {
+    await admin`INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho)
+      VALUES (2027,60000,2),(2028,60000,2)`;
     const connection=asRole('gradebook_app');
     const concurrent=asRole('gradebook_app');
     const other=createGradebookPostgresDatabaseFromSqlV1(concurrent as unknown as GradebookPostgresSqlV1);
