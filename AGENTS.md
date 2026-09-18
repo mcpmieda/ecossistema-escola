@@ -8,11 +8,11 @@ Este repositório deve permanecer simples, funcional e rastreável. A prioridade
 - Trabalhe em uma branch curta, com uma issue e um pull request por entrega. Uma fase grande pode ter entregas sequenciais; PR parcial não fecha a fase automaticamente.
 - Reutilize contratos, componentes e serviços existentes antes de criar novos.
 - Não altere branch protection, rulesets, permissões, secrets, ambientes, aplicações Entra, recursos Cloudflare ou Microsoft 365 sem autorização explícita.
-- Não crie, invoque, utilize, aplique nem delegue trabalho ao App Factory, Factory Runs, merge trains, orquestradores ou agentes auxiliares, salvo autorização explícita na própria issue.
-- Cada issue `[BN]` deve ser executada diretamente pelo agente designado; a issue e a documentação canônica já constituem o fluxo de trabalho.
+- App Factory, Factory Runs, merge trains e orquestradores permanentes continuam proibidos sem autorização explícita. O agente líder, porém, possui autorização contínua de 18/09/2026 para invocar, distribuir, reatribuir, interromper e combinar trabalho entre agentes auxiliares já conectados/homologados quando isso reduzir o tempo total sem reduzir a qualidade.
+- Cada issue `[BN]` mantém um agente responsável e a documentação canônica como autoridade. O responsável ou o agente líder pode delegar subtarefas bem delimitadas a outros agentes; a delegação não cria nova fonte de verdade nem transfere a autoridade arquitetural.
 - Integre e publique entregas concluídas do escopo aprovado sem pedir nova confirmação por PR: autorização contínua de 10/09/2026, #182 comentário `5618750384`, BN-DEC-023. Antes do merge, revise o diff e confirme `npm run verify`/CI no head final; use SHA esperado e o workflow oficial de deploy. Não contorne checks, conflitos ou bloqueadores e não habilite merge incondicional.
 - Nunca inclua nomes, notas, arquivos ou outros dados reais de estudantes em código, fixtures, issues, commits, logs ou screenshots. O repositório é público.
-- Execute `npm run verify` antes de declarar a entrega pronta. Registre o SHA e o ambiente da execução; CI não é teste manual de produção.
+- O head final integrado deve passar `npm run verify`/CI antes de a entrega ser declarada pronta. Agentes executores não precisam repetir a suíte completa em cada subtarefa quando testes direcionados cobrem seu escopo; a verificação completa é concentrada no head final para evitar trabalho redundante. Registre o SHA e o ambiente da execução; CI não é teste manual de produção.
 
 ## Hierarquia de agentes e delegação
 
@@ -21,21 +21,30 @@ Objetivo: permitir o uso de vários agentes sem criar arquiteturas concorrentes,
 - Toda tarefa com impacto relevante deve ter um **agente líder**. O agente líder é o agente de maior capacidade disponível e explicitamente designado para compreender o problema de ponta a ponta. Na configuração atual, quando a coordenação ocorre via ChatGPT, o papel de líder é exercido por GPT-5.6 Sol, salvo decisão diferente do responsável. Essa designação é operacional e pode mudar no futuro sem alterar a política.
 - Ficam reservadas ao agente líder a definição ou revisão de: arquitetura; regras de negócio e acadêmicas; contratos compartilhados; limites entre módulos; autenticação e autorização; modelo de dados, schema e migrations; segurança; comportamento transversal; CI/deploy; integrações externas; produção e qualquer decisão que possa criar um novo padrão para o Ecossistema.
 - Jules e outros agentes auxiliares são, por padrão, **agentes executores ou revisores**, não autoridades arquiteturais. Podem implementar código, testes, documentação, refatorações mecânicas e correções localizadas quando o trabalho estiver suficientemente especificado. Só assumem papel de líder quando o responsável os designar expressamente para isso.
-- Delegação a outro agente continua sujeita à regra de autorização explícita deste arquivo. Esta seção define **como** delegar com segurança; ela não autoriza, por si só, invocar agentes auxiliares em qualquer issue.
-- Antes de delegar implementação, o agente líder deve deixar um handoff durável na issue, comentário ou descrição da tarefa contendo, no mínimo:
-  1. objetivo e resultado esperado;
-  2. caminhos ou componentes permitidos;
-  3. regras e decisões canônicas que governam a mudança;
-  4. contratos, invariantes e comportamentos que devem ser preservados;
-  5. alterações proibidas e limites de escopo;
-  6. testes, comandos e critérios objetivos de aceite;
-  7. evidências que o executor deve devolver ao concluir.
+- A autorização contínua registrada em 18/09/2026 permite ao agente líder decidir autonomamente **se**, **quando**, **para quem** e **em paralelo com o quê** delegar trabalho a agentes já homologados, sem pedir nova confirmação por chamada. Nova instalação, nova credencial, ampliação de permissões de terceiros ou acesso a recursos sensíveis continua exigindo a autorização aplicável.
+- Antes de delegar implementação, o agente líder deixa um handoff proporcional ao risco na issue, comentário ou descrição da tarefa. Correções locais podem receber um handoff curto; mudanças transversais, acadêmicas, de contrato, dados, segurança ou infraestrutura exigem handoff completo contendo: objetivo; paths/componentes; fonte de verdade; invariantes; proibições; testes/critérios de aceite; e evidências de conclusão.
 - Um executor não deve reinterpretar requisitos vagos, criar arquitetura alternativa, ampliar contratos, mover responsabilidade entre módulos, alterar regras acadêmicas, enfraquecer testes, contornar gates ou “resolver por fora” uma limitação do handoff. Se descobrir que isso é necessário, deve parar nesse ponto e devolver a decisão ao agente líder.
 - Trabalho delegado deve atingir o mesmo padrão de qualidade do restante do sistema: tipagem, testes, tratamento de erros, segurança, acessibilidade, nomenclatura, reutilização de contratos e consistência visual não podem ser reduzidos por o executor ser um agente secundário.
 - Em trabalho paralelo, prefira escopos de arquivos e responsabilidades não sobrepostos. Dois agentes não devem implementar versões concorrentes da mesma regra de negócio ou do mesmo contrato. Quando houver sobreposição inevitável, o agente líder define previamente a fonte de verdade e faz a integração final.
-- A saída de um executor é uma **entrega candidata**, não uma nova autoridade do projeto. Antes da integração, o agente líder deve revisar o diff e conferir coerência com os demais módulos, contratos, decisões canônicas e testes. CI verde não substitui essa revisão transversal.
+- A saída de um executor é uma **entrega candidata**, não uma nova autoridade do projeto. A revisão é baseada em risco: mudanças críticas/transversais exigem revisão direta do agente líder sobre os trechos e invariantes relevantes; mudanças locais podem ser aceitas com escopo conferido, testes, CI e/ou revisão independente suficiente. O agente líder não precisa repetir linha a linha nem reexecutar evidências já confiáveis somente por redundância.
 - Regras de negócio continuam com uma única fonte de verdade. Delegar interfaces, relatórios, Portal, Conselho, Desempenho ou outros consumidores nunca autoriza recriar cálculo, elegibilidade ou interpretação já pertencentes ao núcleo oficial.
 - Nenhum papel de agente concede, por si só, autoridade adicional para merge, deploy, produção, secrets, permissões ou infraestrutura. Essas ações continuam regidas pelas autorizações e gates próprios do repositório.
+
+### Estratégia operacional de velocidade
+
+A meta é minimizar o **tempo até uma entrega correta**, não maximizar a quantidade de agentes usados.
+
+- **Fast lane — correção simples/local:** use um único executor, de preferência o agente líder quando a alteração for imediata ou o agente já mais bem posicionado. Não convoque múltiplos agentes para produzir a mesma correção. Rode testes direcionados e deixe a suíte completa para o head final.
+- **Delegação única — tarefa delimitada:** quando outro agente puder implementar enquanto o líder continua análise, integração ou outra tarefa, delegue a ele um pacote autocontido. O líder não fica esperando ocioso se houver trabalho independente disponível.
+- **Paralelo — módulos independentes:** divida por responsabilidades e paths não sobrepostos. Cada frente tem um único escritor principal. Integrações entre as frentes são definidas antes pelo líder por contrato/interface/fonte de verdade.
+- **Crítico/transversal:** o líder define arquitetura, regra acadêmica/negócio, contratos e limites. Implementação mecânica, consumidores, testes, documentação, migrações já especificadas e verificações podem ser distribuídos em paralelo. Use pelo menos uma verificação independente proporcional ao risco, não uma cadeia de revisores redundantes.
+- **Long-running:** enquanto agente remoto, build, testes ou CI estiverem executando, avance outra frente independente. Só bloqueie o fluxo quando o resultado pendente estiver no caminho crítico da próxima decisão.
+- **Falha/bloqueio:** se um executor sair do escopo, ficar preso ou exigir decisão arquitetural, interrompa ou redirecione cedo. Não gaste cota esperando iterações de baixo valor.
+- **Implementação duplicada:** dois agentes só implementam a mesma solução quando o líder deseja comparação deliberada, quando a primeira abordagem falhou/bloqueou, ou quando a incerteza técnica justifica o custo. Não é o padrão.
+- **Revisão distribuída:** quem escreve não precisa ser o único a conferir. Code review, testes, CI e ferramentas especializadas podem validar o trabalho em paralelo. O líder concentra atenção manual no que pode alterar contratos, regras, segurança, dados ou comportamento transversal.
+- **Cotas e custo:** prefira o agente que resolve o trabalho com menor latência/custo e preserve agentes/cotas escassos para tarefas em que tragam vantagem real.
+- **Fan-out:** por padrão, use no máximo dois executores de código simultâneos dentro da mesma entrega. Amplie somente quando houver três ou mais pacotes realmente independentes; paralelismo que aumenta conflito ou integração é contraproducente.
+- **Merge/deploy:** rapidez não remove os gates oficiais. Um executor pode produzir branch/PR e corrigir sua própria entrega, mas integração em `main`, produção, secrets, permissões e governança continuam sob as autoridades definidas neste repositório.
 
 ### Modelo mínimo de handoff para outro agente
 
