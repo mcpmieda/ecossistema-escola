@@ -18,9 +18,15 @@ const forbiddenSnapshot = async () => { throw new Error('unexpected-snapshot-ope
 beforeAll(async () => {
   pg = new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
+  // Disposable roles and the canonical migration chain, never a production connection.
+  await pg.exec('CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;');
+  for (const file of [
+    '0003_council_session_v3.sql', '0004_council_v3_least_privilege.sql',
+    '0005_relational_bulletin_snapshot_v2.sql', '0006_import_diagnostic_treatment_v1.sql',
+    '0007_multiyear_rr_v1.sql', '0008_year_reset_acl_v1.sql',
+    '0009_granular_observations_names_v1.sql',
+  ]) await pg.exec(readFileSync(`migrations/gradebook-simplified/${file}`, 'utf8'));
   await pg.exec(`
-    ALTER TABLE gradebook.nota ALTER COLUMN valor DROP NOT NULL;
-    ALTER TABLE gradebook.fechamento ADD COLUMN rec_rr_mask SMALLINT NOT NULL DEFAULT 0;
     INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
     INSERT INTO gradebook.turma (id,ano,codigo,nome,etapa,turno)
       VALUES (848001,2026,'A848','TURMA SINTETICA',6,'M');
