@@ -16,16 +16,6 @@ export interface BufferedRelationalImportDatabaseV11 extends D1WriteDatabaseV1 {
   flush(): Promise<void>;
 }
 
-interface NoteHistoryRowV11 {
-  readonly importacao_id: number;
-  readonly instrumento_id: number;
-  readonly aluno_id: number;
-  readonly valor_anterior: number | null;
-  readonly valor_novo: number | null;
-  readonly nao_feito_anterior?: boolean;
-  readonly nao_feito_novo?: boolean;
-}
-
 interface NoteValueRowV11 {
   readonly instrumento_id: number;
   readonly aluno_id: number;
@@ -68,7 +58,6 @@ interface ClosingKeyRowV11 {
 }
 
 interface BufferedWritesV11 {
-  readonly noteHistory: NoteHistoryRowV11[];
   readonly noteInsert: NoteValueRowV11[];
   readonly noteUpdate: NoteValueRowV11[];
   readonly noteDelete: NoteKeyRowV11[];
@@ -80,7 +69,6 @@ interface BufferedWritesV11 {
 
 function emptyBuffer(): BufferedWritesV11 {
   return {
-    noteHistory: [],
     noteInsert: [],
     noteUpdate: [],
     noteDelete: [],
@@ -115,11 +103,6 @@ function integer(value: D1WriteValueV1, label: string): number {
 function nullableInteger(value: D1WriteValueV1, label: string): number | null {
   if (value === null) return null;
   return integer(value, label);
-}
-
-function booleanFlag(value: D1WriteValueV1): boolean {
-  if (value !== 1 && value !== 0) throw new Error('gradebook-import-buffer-invalid-observation');
-  return value === 1;
 }
 
 function assertLength(values: readonly D1WriteValueV1[], expected: number, label: string): void {
@@ -221,25 +204,11 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
   bufferRun(query: string, values: readonly D1WriteValueV1[]): boolean {
     const sql = compactSql(query);
 
-    if (sql.startsWith('insert into gradebook.nota_historico ')) {
-      if (values.length !== 5 && values.length !== 7)
-        throw new Error('gradebook-import-buffer-invalid-note-history');
-      const flags =
-        values.length === 7
-          ? {
-              nao_feito_anterior: booleanFlag(values[5]!),
-              nao_feito_novo: booleanFlag(values[6]!),
-            }
-          : {};
-      this.pending.noteHistory.push({
-        importacao_id: integer(values[0]!, 'import-id'),
-        instrumento_id: integer(values[1]!, 'instrument-id'),
-        aluno_id: integer(values[2]!, 'student-id'),
-        valor_anterior: nullableInteger(values[3]!, 'previous-note'),
-        valor_novo: nullableInteger(values[4]!, 'next-note'),
-        ...flags,
-      });
-      return true;
+    if (
+      sql.startsWith('insert into gradebook.nota_historico ') ||
+      sql.startsWith('insert into gradebook.instrumento_historico ')
+    ) {
+      throw new Error('gradebook-import-granular-history-retired');
     }
 
     if (sql.startsWith('insert into gradebook.nota (instrumento_id, aluno_id, valor)')) {
@@ -332,7 +301,6 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
   async flush(): Promise<void> {
     const current = this.pending;
     if (
-      current.noteHistory.length === 0 &&
       current.noteInsert.length === 0 &&
       current.noteUpdate.length === 0 &&
       current.noteDelete.length === 0 &&
@@ -344,31 +312,6 @@ class BufferedDatabaseV11 implements BufferedRelationalImportDatabaseV11 {
       return;
     }
 
-    await this.groupedRun(
-      `INSERT INTO gradebook.nota_historico
-       (importacao_id, instrumento_id, aluno_id, valor_anterior, valor_novo)
-       SELECT importacao_id, instrumento_id, aluno_id, valor_anterior, valor_novo
-       FROM jsonb_to_recordset(?::jsonb) AS incoming(
-         importacao_id integer,
-         instrumento_id integer,
-         aluno_id integer,
-         valor_anterior integer,
-         valor_novo integer
-       )`,
-      current.noteHistory.filter((row) => row.nao_feito_anterior === undefined),
-      'note-history',
-    );
-    await this.groupedRun(
-      `INSERT INTO gradebook.nota_historico
-       (importacao_id, instrumento_id, aluno_id, valor_anterior, valor_novo, nao_feito_anterior, nao_feito_novo)
-       SELECT importacao_id, instrumento_id, aluno_id, valor_anterior, valor_novo, nao_feito_anterior, nao_feito_novo
-       FROM jsonb_to_recordset(?::jsonb) AS incoming(
-         importacao_id integer, instrumento_id integer, aluno_id integer,
-         valor_anterior integer, valor_novo integer, nao_feito_anterior boolean, nao_feito_novo boolean
-       )`,
-      current.noteHistory.filter((row) => row.nao_feito_anterior !== undefined),
-      'note-observation-history',
-    );
     await this.groupedRun(
       `DELETE FROM gradebook.nota AS current
        USING jsonb_to_recordset(?::jsonb) AS incoming(
