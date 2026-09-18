@@ -197,6 +197,33 @@ describe('Bounded per-file canonical queue (V9)', () => {
     expect(flow.pendingPersistenceCount).toBe(0);
   });
 
+  it('re-audits a Relação only after its first materialization is confirmed', async () => {
+    const base = result(0);
+    const relation = {
+      ...base,
+      summary: { ...base.summary, masterRelationV9: { turmas: [] } },
+    } as BatchSuccess;
+    mocks.read.mockResolvedValue({ successes: [relation], failureDetails: [] });
+    mocks.compact.mockImplementationOnce((input: BatchSuccess) => ({
+      transportVersion: 9,
+      operation: 'persist-relacao',
+      manifest: {
+        fileName: input.manifest.fileName,
+        sha256: input.manifest.sha256,
+        parserVersion: 'synthetic:canonical-v9',
+      },
+      ano: input.summary.academicYear ?? 2026,
+      turmas: [],
+    }));
+    await act(async () => flow.handleFiles(files(1)));
+    expect(mocks.persist).toHaveBeenCalledTimes(1);
+    expect(mocks.audit).toHaveBeenCalledTimes(2);
+    expect(mocks.audit.mock.invocationCallOrder[1]).toBeGreaterThan(
+      mocks.persist.mock.invocationCallOrder[0]!,
+    );
+    expect(flow.persistence['file:0']?.state).toBe('completed');
+  });
+
   it.each([1, 18, 50])(
     'imports %i same-year selected files sequentially with per-file canonicalization',
     async (count) => {
