@@ -51,6 +51,8 @@ async function execute(client:Pick<PGlite,'query'>,query:string,values:readonly 
 beforeAll(async () => {
   pg=new PGlite();
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql','utf8'));
+  await pg.exec('CREATE ROLE gradebook_app NOLOGIN NOSUPERUSER NOBYPASSRLS;');
+  await pg.exec(readFileSync('migrations/gradebook-simplified/0006_import_diagnostic_treatment_v1.sql','utf8'));
   await installResetSchemaFixtureV1(pg);
   const sql:GradebookPostgresSqlV1={
     unsafe:(query,values=[]) => execute(pg,query,values,false),
@@ -68,7 +70,7 @@ beforeAll(async () => {
 afterAll(async () => { await database?.close(); });
 beforeEach(async () => {
   failInsert=false; wrongInsertCount=false; transactions=0; queries.length=0;
-  await pg.exec('TRUNCATE gradebook.importacao_diagnostico;');
+  await pg.exec('TRUNCATE gradebook.importacao_diagnostico_tratamento, gradebook.importacao_diagnostico;');
   mocks.auth.mockReset().mockResolvedValue({oid:'00000000-0000-4000-8000-000000000001'});
   mocks.authorize.mockReset().mockReturnValue({});
 });
@@ -128,6 +130,28 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
     expect(await state()).toMatchObject([{chave:'current',hash:'b'.repeat(64),ocorrencias:1}]);
   });
 
+  it('deletes Audit treatment when the next source snapshot resolves its diagnostic', async () => {
+    await pg.exec("INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho) VALUES (2026,60000,2) ON CONFLICT DO NOTHING");
+    await replace(database,observation(['keep','resolved'],{year:2026}));
+    const diagnostics=await pg.query<{id:number;chave:string}>(
+      "SELECT id,chave FROM gradebook.importacao_diagnostico WHERE ano=2026 ORDER BY chave",
+    );
+    const resolved=diagnostics.rows.find((row)=>row.chave==='resolved')!;
+    const keep=diagnostics.rows.find((row)=>row.chave==='keep')!;
+    for (const [row,key] of [[resolved,'idem-resolved'],[keep,'idem-keep']] as const) {
+      await pg.query(
+        `INSERT INTO gradebook.importacao_diagnostico_tratamento
+        (diagnostico_origem_id,ano,arquivo,hash,chave,nivel,codigo,campo,acao,nota,chave_idempotencia,registrado_por)
+        VALUES ($1,2026,'synthetic.xlsx',decode(repeat('a',64),'hex'),$2,'warning','source-unavailable','recovery',1,NULL,$3,'00000000-0000-4000-8000-000000000001')`,
+        [row.id,row.chave,key],
+      );
+    }
+    await replace(database,observation(['keep'],{year:2026,hash:'b'}));
+    expect(
+      (await pg.query("SELECT chave FROM gradebook.importacao_diagnostico_tratamento ORDER BY chave")).rows,
+    ).toEqual([{chave:'keep'}]);
+  });
+
   it('preserves the exact previous rows if insertion fails after deletion', async () => {
     await replace(database,observation(['old']));
     const previous=await state();
@@ -185,7 +209,7 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
     const value=observation(Array.from({length:5000},(_,index)=>`key-${index}`));
     expect(await replace(database,value)).toBe(5000);
     expect(queries.length).toBeLessThanOrEqual(12);
-    expect(queries.filter((query)=>/^(DELETE|INSERT) /u.test(query))).toHaveLength(2);
+    expect(queries.filter((query)=>/^(DELETE|INSERT) /u.test(query))).toHaveLength(3);
     expect(await state()).toHaveLength(5000);
     const counts=(await pg.query('SELECT (SELECT count(*)::integer FROM gradebook.nota) AS notas,(SELECT count(*)::integer FROM gradebook.importacao) AS imports')).rows;
     expect(counts).toEqual([{notas:0,imports:0}]);
