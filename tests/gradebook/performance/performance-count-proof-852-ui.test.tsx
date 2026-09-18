@@ -14,6 +14,7 @@ import {
   AnalyticsTimelineV6,
 } from '../../../src/features/gradebook/performance/performance-analytics-charts-v6';
 import {
+  analyticsDeltaV6 as delta,
   analyticsPercentV6 as percent,
 } from '../../../src/features/gradebook/performance/analytics-format-v6';
 import {
@@ -57,7 +58,7 @@ function valueAfter(label: string): string | null {
 
 it('renders the overview KPI counts and the three exclusive situation groups from the proven payload', () => {
   const { value } = learningFixtureV1({ period: 2 });
-  render(
+  const { container } = render(
     <PerformanceAnalyticsWorkspaceV6
       value={value}
       tab="overview"
@@ -121,6 +122,149 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
       component.summary.complete + ' com resultado',
     );
   }
+
+  expect(
+    screen.getByText(
+      'Base comum: ' + (value.learning?.dimensions.students ?? 0) + ' alunos.',
+    ),
+  ).toBeTruthy();
+  const change = (student: (typeof value.students)[number]) =>
+    student.summary.movement.meanDeltaPP;
+  const belowUp = value.students.filter(
+    (student) => student.summary.below > 0 && change(student) !== null && change(student)! > 0,
+  ).length;
+  const belowDown = value.students.filter(
+    (student) => student.summary.below > 0 && change(student) !== null && change(student)! < 0,
+  ).length;
+  const aboveDown = value.students.filter(
+    (student) =>
+      student.summary.studentsAtOrAbove === 1 &&
+      change(student) !== null &&
+      change(student)! < 0,
+  ).length;
+  const priority = container.querySelector('.learning-priority');
+  expect(priority).toBeTruthy();
+  for (const [label, count] of [
+    ['Abaixo, mas melhorando', belowUp],
+    ['Abaixo e com queda', belowDown],
+    ['Na referência, mas com queda', aboveDown],
+  ] as const) {
+    const button = [...priority!.querySelectorAll('button')].find((item) =>
+      item.textContent?.includes(label),
+    );
+    expect(button?.textContent).toContain(String(count));
+  }
+  expect(container.querySelector('.learning-list-heading')?.textContent)
+    .toContain(String(attention));
+
+  const instrumentByKey = new Map(
+    value.components.flatMap((component) =>
+      component.instruments.map((instrument) => [
+        instrument.key,
+        { ...instrument, offerId: component.offer.id },
+      ] as const),
+    ),
+  );
+  const reviewed = value.learning!.activitiesToReview
+    .map((key) => instrumentByKey.get(key))
+    .filter((item): item is NonNullable<typeof item> => item !== undefined)
+    .slice(0, 5);
+  const activityButtons = container.querySelectorAll('.learning-activity');
+  expect(activityButtons).toHaveLength(reviewed.length);
+  reviewed.forEach((item, index) =>
+    expect(activityButtons[index]?.textContent).toContain(
+      item.below + ' de ' + item.stats.n + ' alunos abaixo',
+    ),
+  );
+  expect(container.querySelector('.learning-footer')?.textContent).toContain(
+    value.summary.students + '/' + value.classStudents + ' alunos',
+  );
+});
+
+
+it('renders the selected student indicators with the exact proven student summary and evidence', () => {
+  const { value } = learningFixtureV1({ period: 2 });
+  const student = value.students[0]!;
+  const evidence = value.learning!.students.find(
+    (item) => item.studentId === student.student.id,
+  )!;
+  const { container } = render(
+    <PerformanceAnalyticsWorkspaceV6
+      value={value}
+      tab="students"
+      selection={{ studentId: student.student.id, offerId: null, teacherId: null }}
+      onSelection={vi.fn()}
+      onNavigate={vi.fn()}
+      onPeriod={vi.fn()}
+      onCell={vi.fn()}
+      onNotes={vi.fn()}
+    />,
+  );
+  const card = (label: string) =>
+    screen.getByText(label).closest('[data-slot="card"]');
+
+  expect(card('Desempenho atual')?.textContent).toContain(
+    percent(student.summary.result.mean),
+  );
+  expect(card('Desempenho atual')?.textContent).toContain(
+    student.summary.complete + ' componentes com resultado',
+  );
+  expect(card('Evolução trimestral')?.textContent).toContain(
+    delta(student.summary.movement.meanDeltaPP),
+  );
+  expect(card('Atenção recorrente')?.textContent).toContain(
+    evidence.recurrenceAssessed ? String(evidence.recurring.length) : '—',
+  );
+  expect(card('Atenção recorrente')?.textContent).toContain(
+    student.summary.below + ' componentes abaixo da referência agora',
+  );
+  expect(card('Participação avaliada')?.textContent).toContain(
+    percent(evidence.participation.percent),
+  );
+
+  for (const item of student.summary.timeline)
+    expect(
+      screen.getByRole('button', {
+        name:
+          'Consultar ' + item.term + 'º trimestre: ' +
+          percent(item.mean) + ', ' + item.n + ' resultados',
+      }),
+    ).toBeTruthy();
+
+  const quantitative = screen.queryByRole('meter', { name: 'Quantitativo' });
+  const qualitative = screen.queryByRole('meter', { name: 'Qualitativo' });
+  if (evidence.dimensions?.quantitativePercent === null)
+    expect(quantitative).toBeNull();
+  else
+    expect(Number(quantitative?.getAttribute('aria-valuenow'))).toBeCloseTo(
+      evidence.dimensions?.quantitativePercent ?? 0,
+    );
+  if (evidence.dimensions?.qualitativePercent === null)
+    expect(qualitative).toBeNull();
+  else
+    expect(Number(qualitative?.getAttribute('aria-valuenow'))).toBeCloseTo(
+      evidence.dimensions?.qualitativePercent ?? 0,
+    );
+  expect(
+    screen.getByText(
+      'Componentes comparados: ' + (evidence.dimensions?.components ?? 0) + '.',
+    ),
+  ).toBeTruthy();
+
+  const recurring = screen
+    .getByRole('heading', { name: 'Dificuldades que se repetem' })
+    .closest('[data-slot="card"]');
+  expect(recurring?.querySelectorAll('button')).toHaveLength(
+    evidence.recurring.length,
+  );
+  expect(
+    screen.getByRole('grid', { name: 'Componentes do aluno' })
+      .querySelectorAll('tbody tr'),
+  ).toHaveLength(student.cells.length);
+  if (evidence.parallelImprovements > 0)
+    expect(container.textContent).toContain(
+      evidence.parallelImprovements + ' resultado(s) melhoraram com recuperação paralela.',
+    );
 });
 
 it('renders timeline, histogram, composition, recovery and coverage with the exact payload denominators', () => {
