@@ -423,6 +423,240 @@ function expectSummary(
   expect(actual.source).toEqual(expected.source);
 }
 
+
+type OracleInstrument = PerformanceAnalyticsV6['components'][number]['instruments'][number];
+
+function oracleInstruments(
+  pairs: readonly OraclePair[],
+  period: PerformancePeriodV2,
+): OracleInstrument[] {
+  const groups = new Map<
+    string,
+    { pair: OraclePair; fact: PerformanceProjectionV2['facts'][number] }[]
+  >();
+  for (const pair of pairs)
+    for (const fact of pair.projection.facts) {
+      if (period !== 'annual' && fact.term !== period) continue;
+      const key =
+        String(pair.projection.offerId) + ':' + String(fact.term) + ':' + String(fact.slot);
+      const group = groups.get(key) ?? [];
+      group.push({ pair, fact });
+      groups.set(key, group);
+    }
+  return [...groups]
+    .map(([key, entries]) => {
+      const first = entries[0]!.fact;
+      const effectiveMaximum =
+        first.slot === 3
+          ? (entries[0]!.pair.projection.terms[first.term - 1]
+              ?.quantitativeMaximumMilli ?? null)
+          : first.maximumMilli;
+      const applicable = entries.filter(
+        ({ pair, fact }) =>
+          fact.slot !== 3 ||
+          pair.projection.terms[fact.term - 1]?.parallelApplicable === true,
+      );
+      const recorded = applicable.filter(({ fact }) => fact.valueMilli !== null);
+      const percentages = numeric(
+        recorded.map(({ fact }) => ratio(fact.valueMilli, effectiveMaximum)),
+      );
+      const minimum = entries[0]!.pair.projection.minimumApprovalMilli;
+      const expected = applicable.length;
+      return {
+        key,
+        term: first.term,
+        slot: first.slot,
+        label: first.label,
+        maximumMilli: effectiveMaximum,
+        stats: stats(percentages),
+        coverage: {
+          expected,
+          recorded: recorded.length,
+          missing: expected - recorded.length,
+          zeros: recorded.filter(({ fact }) => fact.valueMilli === 0).length,
+          percent: expected ? (recorded.length / expected) * 100 : null,
+        },
+        below:
+          effectiveMaximum === null
+            ? 0
+            : recorded.filter(
+                ({ fact }) =>
+                  BigInt(fact.valueMilli!) * BigInt(ANNUAL_MAXIMUM) <
+                  BigInt(effectiveMaximum) * BigInt(minimum),
+              ).length,
+        notApplicable: entries.length - applicable.length,
+      };
+    })
+    .filter(
+      (instrument) => instrument.slot !== 3 || instrument.coverage.expected > 0,
+    )
+    .sort((left, right) => left.term - right.term || left.slot - right.slot);
+}
+
+function rawParticipation(
+  projection: PerformanceProjectionV2,
+  terms: readonly (1 | 2 | 3)[],
+) {
+  const facts = projection.facts.filter(
+    (fact) =>
+      terms.includes(fact.term) &&
+      fact.slot >= 11 &&
+      isParticipationLabelV1(fact.label),
+  );
+  const valid = facts.filter(
+    (fact) =>
+      fact.valueMilli !== null &&
+      fact.maximumMilli !== null &&
+      fact.maximumMilli > 0,
+  );
+  const maximum = valid.reduce((sum, fact) => sum + fact.maximumMilli!, 0);
+  const points = valid.reduce((sum, fact) => sum + fact.valueMilli!, 0);
+  return {
+    percent: maximum > 0 ? (points / maximum) * 100 : null,
+    complete: facts.length > 0 && facts.length === valid.length,
+    recorded: valid.length,
+    expected: facts.length,
+    unscaled: facts.filter(
+      (fact) => fact.maximumMilli === null || fact.maximumMilli <= 0,
+    ).length,
+  };
+}
+
+function proveLearningStudentFromFacts(
+  value: PerformanceAnalyticsV6,
+  studentId: number,
+  projections: readonly PerformanceProjectionV2[],
+) {
+  const actual = value.learning!.students.find((item) => item.studentId === studentId)!;
+  const selectedTerms = value.period === 'annual' ? TERMS : [value.period];
+  const reference = value.period === 2 ? 1 : value.period === 3 ? 2 : null;
+  const recurring: typeof actual.recurring = [];
+  const currentParticipation: number[] = [];
+  const participationChanges: number[] = [];
+  const quantitative: number[] = [];
+  const qualitative: number[] = [];
+  let recorded = 0;
+  let expected = 0;
+  let unscaled = 0;
+  let recurrenceAssessed = false;
+  let parallelImprovements = 0;
+
+  for (const projection of projections) {
+    const current = rawParticipation(projection, selectedTerms);
+    recorded += current.recorded;
+    expected += current.expected;
+    unscaled += current.unscaled;
+    if (current.percent !== null) currentParticipation.push(current.percent);
+    if (reference !== null && current.complete) {
+      const previous = rawParticipation(projection, [reference]);
+      if (
+        previous.complete &&
+        previous.percent !== null &&
+        current.percent !== null
+      )
+        participationChanges.push(current.percent - previous.percent);
+    }
+
+    const instrumentTerms: (1 | 2 | 3)[] = [];
+    const consecutiveTerms: (2 | 3)[] = [];
+    for (const term of selectedTerms) {
+      const facts = projection.facts.filter(
+        (fact) =>
+          fact.term === term &&
+          fact.slot !== 3 &&
+          !(fact.slot >= 11 && isParticipationLabelV1(fact.label)) &&
+          fact.valueMilli !== null &&
+          fact.maximumMilli !== null &&
+          fact.maximumMilli > 0,
+      );
+      if (facts.length >= 3) {
+        recurrenceAssessed = true;
+        if (
+          facts.filter(
+            (fact) =>
+              (fact.valueMilli! / fact.maximumMilli!) * 100 < value.minimumPercent,
+          ).length >= 2
+        )
+          instrumentTerms.push(term);
+      }
+      if (term > 1) {
+        const currentResult = performanceCellV2(projection, term, 'regular');
+        const previousResult = performanceCellV2(
+          projection,
+          (term - 1) as 1 | 2,
+          'regular',
+        );
+        if (
+          currentResult.state === 'complete' &&
+          previousResult.state === 'complete'
+        ) {
+          recurrenceAssessed = true;
+          if (
+            currentResult.level === 'below' &&
+            previousResult.level === 'below'
+          )
+            consecutiveTerms.push(term);
+        }
+      }
+      const outcome = projection.terms[term - 1];
+      if (
+        outcome &&
+        outcome.quantitativeConsideredMilli > outcome.quantitativeOriginalMilli
+      )
+        parallelImprovements++;
+    }
+    if (instrumentTerms.length || consecutiveTerms.length)
+      recurring.push({
+        offerId: projection.offerId,
+        instrumentTerms,
+        consecutiveTerms,
+      });
+
+    const qDimension = oracleDimension(projection, value.period, true);
+    const aDimension = oracleDimension(projection, value.period, false);
+    if (
+      qDimension.complete &&
+      aDimension.complete &&
+      aDimension.percent !== null
+    ) {
+      const outcomes = selectedTerms.map((term) => projection.terms[term - 1]);
+      if (outcomes.every((outcome) => outcome !== null)) {
+        const maximum = outcomes.reduce(
+          (sum, outcome) => sum + outcome!.quantitativeMaximumMilli,
+          0,
+        );
+        const points = outcomes.reduce(
+          (sum, outcome) => sum + outcome!.quantitativeOriginalMilli,
+          0,
+        );
+        if (maximum > 0) {
+          quantitative.push((points / maximum) * 100);
+          qualitative.push(aDimension.percent);
+        }
+      }
+    }
+  }
+
+  expect(actual.recurrenceAssessed).toBe(recurrenceAssessed);
+  expect(actual.recurring).toEqual(recurring);
+  expect(actual.parallelImprovements).toBe(parallelImprovements);
+  expect(actual.participation.recorded).toBe(recorded);
+  expect(actual.participation.expected).toBe(expected);
+  expect(actual.participation.unscaled).toBe(unscaled);
+  expect(actual.participation.components).toBe(currentParticipation.length);
+  expect(actual.participation.comparedComponents).toBe(participationChanges.length);
+  expectMetric(actual.participation.percent, mean(currentParticipation));
+  expectMetric(actual.participation.deltaPP, mean(participationChanges));
+  expect(actual.dimensions?.components).toBe(quantitative.length);
+  expectMetric(actual.dimensions?.quantitativePercent ?? null, mean(quantitative));
+  expectMetric(actual.dimensions?.qualitativePercent ?? null, mean(qualitative));
+  const expectedGap =
+    quantitative.length && qualitative.length
+      ? mean(qualitative)! - mean(quantitative)!
+      : null;
+  expectMetric(actual.dimensions?.gapPP ?? null, expectedGap);
+}
+
 function proofAllV6Scopes(
   value: PerformanceAnalyticsV6,
   matrix: PerformanceMatrixV2,
@@ -441,6 +675,30 @@ function proofAllV6Scopes(
       (pair) => pair.projection.offerId === component.offer.id,
     );
     expectSummary(component.summary, oracleSummary(matrix, own, studentIds));
+    const instruments = oracleInstruments(own, matrix.period);
+    expect(component.instruments.map((item) => item.key)).toEqual(
+      instruments.map((item) => item.key),
+    );
+    component.instruments.forEach((actual, index) => {
+      const expected = instruments[index]!;
+      expect(actual).toMatchObject({
+        key: expected.key,
+        term: expected.term,
+        slot: expected.slot,
+        label: expected.label,
+        maximumMilli: expected.maximumMilli,
+        below: expected.below,
+        notApplicable: expected.notApplicable,
+        coverage: {
+          expected: expected.coverage.expected,
+          recorded: expected.coverage.recorded,
+          missing: expected.coverage.missing,
+          zeros: expected.coverage.zeros,
+        },
+      });
+      expectMetric(actual.coverage.percent, expected.coverage.percent);
+      expectStats(actual.stats, expected.stats);
+    });
   }
   for (const teacher of value.teachers) {
     const own = pairs.filter((pair) => teacher.offerIds.includes(pair.projection.offerId));
@@ -461,6 +719,12 @@ function proofAllV6Scopes(
 
   const learning = value.learning!;
   expect(learning.students.map((item) => item.studentId)).toEqual(studentIds);
+  for (const studentId of studentIds)
+    proveLearningStudentFromFacts(
+      value,
+      studentId,
+      projections.get(studentId) ?? [],
+    );
   expect(learning.participation.students).toBe(
     learning.students.filter((item) => item.participation.percent !== null).length,
   );
