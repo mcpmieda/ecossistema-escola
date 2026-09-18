@@ -134,7 +134,9 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
          AND NOT EXISTS (
            SELECT 1
            FROM jsonb_to_recordset(?::jsonb) AS x(ano smallint,arquivo text,chave text)
-           WHERE x.ano IS NOT DISTINCT FROM a.ano AND x.chave = a.chave
+           WHERE x.ano IS NOT DISTINCT FROM a.ano
+             AND x.arquivo = a.arquivo
+             AND x.chave = a.chave
          )`,
           )
           .bind(academicYear, fileName, sha256, serialized)
