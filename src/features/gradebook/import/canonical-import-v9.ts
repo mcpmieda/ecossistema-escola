@@ -12,10 +12,6 @@ import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   type SourceAssessmentDefinitionV2,
 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
-import {
-  applyInstitutionalQualitativeCorrectionsV1,
-  correctInstitutionalQualitativeDefinitionV1,
-} from '../../../gradebook-domain/source/institutional-qualitative-corrections-v1';
 import type { GradebookImportResultCellObservationV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import type { BatchSuccess } from './import-batch';
 import type {
@@ -179,10 +175,54 @@ function description(definition: SourceAssessmentDefinitionV2 | undefined): stri
 
 const FIXED_SLOTS = [1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
 
-function instruments(
+type DefinitionSnapshotV1 = {
+  readonly instrumentos: readonly GradebookImportInstrumentV9[];
+  readonly unavailableMaximumSlots: readonly GradebookImportInstrumentV9[0][];
+  readonly unavailableDescriptionSlots: readonly GradebookImportInstrumentV9[0][];
+};
+
+function observedBlank(value: unknown): boolean {
+  return value === null || (typeof value === 'string' && value.trim() === '');
+}
+
+function unavailableSource(value: unknown): boolean {
+  return value === undefined || Array.isArray(value);
+}
+
+function qualitativeNameState(
+  definition: Extract<SourceAssessmentDefinitionV2, { readonly kind: 'qualitative-activity' }> | undefined,
+): { readonly present: boolean; readonly unavailable: boolean } {
+  if (!definition) return { present: false, unavailable: true };
+  const name = definition.name;
+  if (name.state === 'text')
+    return { present: name.rawValue.trim().length > 0, unavailable: false };
+  if (name.state === 'empty') return { present: false, unavailable: false };
+  if (name.state === 'missing-field') return { present: false, unavailable: true };
+  if (
+    name.state === 'unrecognized' &&
+    typeof name.rawValue === 'number' &&
+    name.rawValue === definition.order
+  )
+    return { present: false, unavailable: false };
+  return { present: false, unavailable: true };
+}
+
+function qualitativeValueEvidence(
   sheet: GradeSheetRecognition,
-  context: { readonly ano: number; readonly professor: string; readonly trimestre: 1 | 2 | 3 },
-): readonly GradebookImportInstrumentV9[] {
+  sourceColumn: string,
+): { readonly observed: boolean; readonly unavailable: boolean } {
+  let observed = false;
+  let unavailable = false;
+  for (const student of sheet.students) {
+    if (student.row < 5 || student.row > 50) continue;
+    const raw = snapshot(sheet, `${sourceColumn}${student.row}`);
+    if (unavailableSource(raw)) unavailable = true;
+    else if (!observedBlank(raw)) observed = true;
+  }
+  return { observed, unavailable };
+}
+
+function definitionSnapshotV1(sheet: GradeSheetRecognition): DefinitionSnapshotV1 {
   const bySource = new Map(
     sheet.assessmentDefinitions.map((definition) => [definition.sourceSlot, definition]),
   );
@@ -191,27 +231,55 @@ function instruments(
   if (av1 === null || av2 === null) {
     throw new Error(`Máximo de AV1/AV2 ausente ou inválido em ${sheet.name}.`);
   }
-  const raw = FIXED_SLOTS.map((slot) => {
-    if (slot === 1) return [1, av1] as const;
-    if (slot === 2) return [2, av2] as const;
-    if (slot === 3) return [3, null] as const;
-    const index = slot - 11;
-    const source = SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2[index]?.sourceSlot;
-    const definition = source ? bySource.get(source) : undefined;
-    const max = maximum(definition);
-    const name = description(definition);
-    return name === undefined ? ([slot, max] as const) : ([slot, max, name] as const);
-  });
-  return raw.map((definition) =>
-    correctInstitutionalQualitativeDefinitionV1({
-      ano: context.ano,
-      professor: context.professor,
-      turmaCodigo: sheet.className,
-      disciplina: sheet.discipline,
-      trimestre: context.trimestre,
-      definition,
-    }),
-  );
+
+  const instrumentos: GradebookImportInstrumentV9[] = [[1, av1], [2, av2], [3, null]];
+  const unavailableMaximumSlots: GradebookImportInstrumentV9[0][] = [];
+  const unavailableDescriptionSlots: GradebookImportInstrumentV9[0][] = [];
+
+  for (const [index, source] of SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2.entries()) {
+    const slot = (11 + index) as GradebookImportInstrumentV9[0];
+    const definition = bySource.get(source.sourceSlot);
+    const qualitative =
+      definition?.kind === 'qualitative-activity' ? definition : undefined;
+    const maximumState = qualitative?.maximumConfiguration.state ?? 'missing-field';
+    const maximumUnavailable =
+      maximumState === 'missing-field' ||
+      maximumState === 'ambiguous-marker' ||
+      maximumState === 'unrecognized';
+    const nameState = qualitativeNameState(qualitative);
+    const values = qualitativeValueEvidence(sheet, source.studentValueColumn);
+
+    if (maximumUnavailable) unavailableMaximumSlots.push(slot);
+    if (nameState.unavailable) unavailableDescriptionSlots.push(slot);
+
+    const deleted =
+      maximumState === 'ambiguous-empty' &&
+      !nameState.present &&
+      !nameState.unavailable &&
+      !values.observed &&
+      !values.unavailable;
+
+    // A truly erased qualitative column never enters the canonical payload.
+    if (deleted) continue;
+
+    const maximumValue = maximum(qualitative);
+    const label = description(qualitative);
+    const activeEvidence =
+      maximumState === 'numeric' || nameState.present || values.observed;
+
+    // Technical/unreadable absence is not deletion: omit the slot and mark
+    // the unread definition so the server preserves its last known metadata.
+    if (!activeEvidence && (maximumUnavailable || nameState.unavailable || values.unavailable))
+      continue;
+
+    instrumentos.push(
+      label === undefined
+        ? ([slot, maximumValue] as const)
+        : ([slot, maximumValue, label] as const),
+    );
+  }
+
+  return { instrumentos, unavailableMaximumSlots, unavailableDescriptionSlots };
 }
 
 function addressForSlot(slot: GradebookImportInstrumentV9[0], row: number): string {
@@ -235,7 +303,9 @@ function term(
   runtime: CanonicalImportRuntimeV9,
   context: { readonly ano: number; readonly professor: string },
 ): GradebookImportTermV9 {
-  const definitions = instruments(sheet, { ...context, trimestre: trimester });
+  void context;
+  const definitionSnapshot = definitionSnapshotV1(sheet);
+  const definitions = definitionSnapshot.instrumentos;
   const seen = new Set<number>();
   const alunos = sheet.students
     .filter((student) => student.row >= 5 && student.row <= 50)
@@ -269,7 +339,18 @@ function term(
       ) as GradebookImportCellV9;
       return [numero, valores, am] as const;
     });
-  return { trimestre: trimester, instrumentos: definitions, alunos };
+  return {
+    trimestre: trimester,
+    definitionSnapshotVersion: 1,
+    ...(definitionSnapshot.unavailableMaximumSlots.length === 0
+      ? {}
+      : { unavailableMaximumSlots: definitionSnapshot.unavailableMaximumSlots }),
+    ...(definitionSnapshot.unavailableDescriptionSlots.length === 0
+      ? {}
+      : { unavailableDescriptionSlots: definitionSnapshot.unavailableDescriptionSlots }),
+    instrumentos: definitions,
+    alunos,
+  };
 }
 
 function sameNumbers(terms: readonly GradebookImportTermV9[]): boolean {
@@ -425,7 +506,7 @@ export function createGradebookCanonicalImportRequestV9(
   }
   runtime.onProgress?.({ stage: 'recovery', current: groups.length, total: groups.length });
   runtime.onProgress?.({ stage: 'compacting', current: 1, total: 1 });
-  const request = applyInstitutionalQualitativeCorrectionsV1({
+  const request = {
     transportVersion: 9,
     operation: 'persist-notas',
     granularObservationVersion: 1,
@@ -433,7 +514,7 @@ export function createGradebookCanonicalImportRequestV9(
     ano: summary.academicYear as number,
     professor,
     ofertas,
-  } as const);
+  } as const;
   if (!isGradebookImportPersistenceRequestV9(request))
     throw new Error('Pacote acadêmico canônico não passou na validação local.');
   return request;
