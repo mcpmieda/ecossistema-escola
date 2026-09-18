@@ -52,6 +52,43 @@ describe('actual workbook observation #819', () => {
     expect(term.snapshotCellsV8).not.toHaveProperty('R51');
     expect(term.snapshotCellsV8).not.toHaveProperty('AA4');
   });
+  it('treats omitted known maximum/name cells inside the sheet as observed blanks', () => {
+    const workbook = structuredClone(SYNTHETIC_TEACHER_WORKBOOK);
+    const sheet = workbook.Sheets['6A1º']!;
+    delete sheet.AA3;
+    delete sheet.AA4;
+    const summary = recognizeWorkbook(
+      createSyntheticFile(SYNTHETIC_FILES.xlsx),
+      workbook,
+      createSyntheticSheetJs(),
+      { fileSha256: 'a'.repeat(64), captureValues: true },
+    );
+    const term = summary.gradeSheets.find((item) => item.name === '6A1º')!;
+    const definition = term.assessmentDefinitions.find((item) => item.sourceSlot === 'AA');
+    expect(definition).toMatchObject({
+      kind: 'qualitative-activity',
+      maximumConfiguration: { state: 'ambiguous-empty', rawValue: null },
+      name: { state: 'empty', rawValue: null },
+    });
+  });
+
+  it('keeps an unread definition formula unavailable instead of treating it as deletion', () => {
+    const workbook = structuredClone(SYNTHETIC_TEACHER_WORKBOOK);
+    const sheet = workbook.Sheets['6A1º']!;
+    sheet.AA3 = { f: 'SUM(A1:A2)' };
+    const summary = recognizeWorkbook(
+      createSyntheticFile(SYNTHETIC_FILES.xlsx),
+      workbook,
+      createSyntheticSheetJs(),
+      { fileSha256: 'a'.repeat(64), captureValues: true },
+    );
+    const term = summary.gradeSheets.find((item) => item.name === '6A1º')!;
+    const definition = term.assessmentDefinitions.find((item) => item.sourceSlot === 'AA');
+    expect(definition).toMatchObject({
+      maximumConfiguration: { state: 'missing-field' },
+    });
+  });
+
   it('preserves typed zero and saved formula zero, independently of displayed text', () => {
     const { term } = observed({ R5: { v: 0 }, S5: { v: 0, f: 'SUM(A1:A2)', w: '' }, Z5: { v: 0 } });
     expect(term.snapshotCellsV8).toMatchObject({ R5: 0, S5: 0, Z5: 0, AA5: null });
