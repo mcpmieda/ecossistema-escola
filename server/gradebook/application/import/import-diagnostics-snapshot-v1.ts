@@ -107,9 +107,6 @@ export async function replaceGradebookImportDiagnosticsSnapshotV1(
             materializedYears.add(year);
           }
         }
-        // An annual diagnostic is current state only for a materialized academic year.
-        // This prevents a stale workbook from recreating reset coordination after that
-        // year was removed. Unknown-year (NULL) evidence keeps its existing semantics.
         if (academicYear !== null && !materializedYears.has(academicYear)) return 0;
         // Source lock serializes versions; content lock also protects same bytes renamed.
         // A hash collision only adds serialization. Values never enter the SQL text/logs.
