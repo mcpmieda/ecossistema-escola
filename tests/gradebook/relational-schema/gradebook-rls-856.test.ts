@@ -94,7 +94,7 @@ it('allows the backend role through RLS only for commands its ACL already grants
     await pg.exec('DELETE FROM gradebook.disciplina WHERE id=990001');
 
     await expect(
-      pg.exec('DELETE FROM gradebook.conselho_sessao_historico'),
+      pg.exec('TRUNCATE gradebook.conselho_sessao_historico'),
     ).rejects.toThrow(/permission denied/iu);
   } finally {
     await pg.exec('RESET ROLE');
