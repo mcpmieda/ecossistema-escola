@@ -251,9 +251,11 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
     });
   }
 
-  // Z is optional: when it is applicable but empty, there was no parallel gain and
-  // the quantitative original remains authoritative for the term calculation.
-  const requiredSlots: SimplifiedInstrumentSlotV1[] = [1, 2, ...qualitativeSlots];
+  // BN-DEC-034: only an existing, eligible PARA participates in coverage.
+  // A numeric zero resolves it; null remains missing. No other absence is cleared.
+  const requiredSlots: SimplifiedInstrumentSlotV1[] = [
+    1, 2, ...(parallelApplicable && facts.has(3) ? [3 as const] : []), ...qualitativeSlots,
+  ];
   const resolvedSlots = requiredSlots.filter((slot) => facts.get(slot)?.valueMilli !== null && facts.get(slot)?.valueMilli !== undefined);
   const missingSlots = requiredSlots.filter((slot) => !resolvedSlots.includes(slot));
   const reasons: string[] = [];
