@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AcademicStudentReaderPostgresV1, academicToSelfV1 } from '../../../server/student-portal/academic/academic-reader-v1';
-import type { StudentPortalPostgresQueryV1 } from '../../../server/student-portal/persistence/postgres-persistence-v1';
 import { applyPublishedVisibilityV1 } from '../../../server/student-portal/policies/calendar-v1';
 import { initialPolicyDefaultsV1 } from '../../../server/student-portal/policies/defaults-v1';
 import { selfResponseV1 } from '../../../shared/student-portal-contracts/self-v1';
@@ -9,7 +8,7 @@ import { PARALLEL_ACCOUNT_848, PARALLEL_VERSION_848, parallelFixture848 } from '
 
 function project(options: Parameters<typeof parallelFixture848>[0] = {}) {
   const fixture = parallelFixture848(options);
-  const unsafe = vi.fn<StudentPortalPostgresQueryV1['unsafe']>(async () => { throw new Error('unexpected-query'); });
+  const unsafe = vi.fn(async () => { throw new Error('unexpected-query'); });
   const reader = new AcademicStudentReaderPostgresV1({ unsafe });
   const before = structuredClone(fixture.portalSource);
   const projected = reader.projectPreparedSourceV2(fixture.link, PARALLEL_VERSION_848, fixture.portalSource);
