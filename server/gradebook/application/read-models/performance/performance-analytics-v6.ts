@@ -115,7 +115,8 @@ function summarize(
       ),
   ).length;
   const facts = pairs.flatMap((pair) =>
-    pair.projection.facts.filter((fact) => fact.slot !== 3 && selectedTerms.includes(fact.term)),
+    pair.projection.facts.filter((fact) => selectedTerms.includes(fact.term) &&
+      (fact.slot !== 3 || pair.projection.terms[fact.term - 1]?.coverage.requiredSlots.includes(3))),
   );
   const pairedDimensions = pairs.filter(
     ({ cell }) => cell.quantitative.percent !== null && cell.qualitative.percent !== null,
@@ -301,6 +302,7 @@ function instrumentSummaries(
         notApplicable: entries.length - applicable.length,
       };
     })
+    .filter((instrument) => instrument.slot !== 3 || instrument.coverage.expected > 0)
     .sort((a, b) => a.term - b.term || a.slot - b.slot);
 }
 
