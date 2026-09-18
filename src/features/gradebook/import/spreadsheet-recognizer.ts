@@ -216,6 +216,21 @@ function rawValueAt(sheet: Worksheet, address: string): SourceCellRawValueV1 | u
     : undefined;
 }
 
+/**
+ * Known definition cells inside the worksheet range are observations even when
+ * SheetJS omits an empty XML/XLSB cell. A real formula/error without a saved
+ * scalar remains unavailable and must never be reinterpreted as deletion.
+ */
+function definitionRawValueAt(
+  sheet: Worksheet,
+  address: string,
+): SourceCellRawValueV1 | undefined {
+  const cell = cellAt(sheet, address);
+  if (!cell) return addressWithinWorksheetRange(sheet, address) ? null : undefined;
+  if (cell.t === 'e' || (cell.f && (cell.v === undefined || cell.v === null))) return undefined;
+  return rawValueAt(sheet, address);
+}
+
 function a1Coordinates(address: string): { readonly row: number; readonly column: number } | null {
   const match = address.trim().match(/^\$?([A-Z]+)\$?(\d+)$/iu);
   if (!match?.[1] || !match[2]) return null;
@@ -504,7 +519,7 @@ function recognizeAssessmentDefinitions(
     order: slot.order,
     structuralLabel: slot.structuralLabel,
     maximumConfiguration: classifySourceAssessmentMaximumConfigurationV2(
-      rawValueAt(sheet, slot.maximumCell),
+      definitionRawValueAt(sheet, slot.maximumCell),
       provenance(fileName, fileSha256, sheetName, slot.maximumCell),
     ),
   }));
@@ -515,11 +530,11 @@ function recognizeAssessmentDefinitions(
     sourceSlot: slot.sourceSlot,
     order: slot.order,
     maximumConfiguration: classifySourceAssessmentMaximumConfigurationV2(
-      rawValueAt(sheet, slot.maximumCell),
+      definitionRawValueAt(sheet, slot.maximumCell),
       provenance(fileName, fileSha256, sheetName, slot.maximumCell),
     ),
     name: classifySourceAssessmentNameV2(
-      rawValueAt(sheet, slot.nameCell),
+      definitionRawValueAt(sheet, slot.nameCell),
       provenance(fileName, fileSha256, sheetName, slot.nameCell),
     ),
   }));
