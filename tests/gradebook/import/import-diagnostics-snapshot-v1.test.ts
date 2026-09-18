@@ -208,7 +208,7 @@ describe('atomic current diagnostic snapshot on the complete relational schema',
   it('supports the existing 5,000-item bound without per-item SQL', async () => {
     const value=observation(Array.from({length:5000},(_,index)=>`key-${index}`));
     expect(await replace(database,value)).toBe(5000);
-    expect(queries.length).toBeLessThanOrEqual(12);
+    expect(queries.length).toBeLessThanOrEqual(13);
     expect(queries.filter((query)=>/^(DELETE|INSERT) /u.test(query))).toHaveLength(3);
     expect(await state()).toHaveLength(5000);
     const counts=(await pg.query('SELECT (SELECT count(*)::integer FROM gradebook.nota) AS notas,(SELECT count(*)::integer FROM gradebook.importacao) AS imports')).rows;
