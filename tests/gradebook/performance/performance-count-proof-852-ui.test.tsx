@@ -86,6 +86,20 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
   const assessed = value.learning!.students.filter(
     (student) => student.recurrenceAssessed,
   ).length;
+  const studentsWithResult = value.students.filter(
+    (student) => student.summary.complete > 0,
+  ).length;
+  expect(
+    screen.getByRole('button', { name: 'Ver alunos: Desempenho médio' }).textContent,
+  ).toContain(percent(value.summary.result.mean));
+  expect(
+    screen.getByText(
+      studentsWithResult + ' alunos com resultado · 2º trimestre',
+    ),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: 'Ver alunos: Evolução trimestral' }).textContent,
+  ).toContain(delta(value.summary.movement.meanDeltaPP));
   expect(screen.getByRole('button', { name: 'Ver alunos: Alunos em evolução' }).textContent)
     .toContain(String(rising));
   expect(screen.getByText('de ' + compared + ' alunos com comparação')).toBeTruthy();
@@ -103,6 +117,16 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
     expect(button?.textContent).toContain(String(count));
   }
   expect(groups.reduce((sum, item) => sum + item[1], 0)).toBe(value.summary.students);
+  const participationPanel = screen
+    .getByText('Participação avaliada')
+    .closest('[data-slot="card"]');
+  expect(participationPanel?.textContent).toContain(
+    percent(value.learning!.participation.percent),
+  );
+  if (value.learning!.participation.deltaPP !== null)
+    expect(participationPanel?.textContent).toContain(
+      delta(value.learning!.participation.deltaPP),
+    );
   expect(
     screen.getByText(
       value.learning!.participation.students + ' alunos · ' +
