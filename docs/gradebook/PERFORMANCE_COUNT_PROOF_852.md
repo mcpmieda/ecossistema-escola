@@ -29,6 +29,8 @@ Ele parte de:
 
 A partir disso, recalcula independentemente:
 
+> **Limite deliberado da independência:** o oráculo é independente dos agregadores V6, V5, V4 e dos summaries que estão sendo provados, mas não cria um segundo motor acadêmico. Ele reutiliza as projeções/células canônicas (`projectPerformanceFactsV2` / `performanceCellV2`) como fatos calculados de entrada. Isso evita que a prova implemente uma regra de nota concorrente. A partir desses fatos, todos os agrupamentos, buckets, denominadores, estatísticas e relações são refeitos separadamente.
+
 - população e leituras;
 - completo, parcial, sem nota e indisponível;
 - acima e abaixo da referência;
@@ -57,6 +59,10 @@ lançadas + ausentes = instrumentos esperados
 soma das 6 faixas do histograma = leituras completas
 aumentou + caiu + igual = pares comparáveis
 ```
+
+Para V3/V5, um segundo oráculo local deriva cada leitura analítica diretamente da matriz, das projeções e dos fatos — estado, percentual, bucket, exclusão, grupos, considerados, escalados, média e mediana — sem chamar `buildPerformanceAnalysisV3`. O panorama V5 é então refeito a partir desse resultado independente; o ranking continua sendo reconstruído diretamente das células.
+
+Para V4, a relação atual × referência é refeita sem usar `comparison.rows`: cada leitura atual e de referência vem do oráculo V3, a indisponibilidade é decidida localmente e valores comparáveis usam multiplicação cruzada inteira. As três lentes permitidas pelo contrato V4 — Resultado, Quantitativo e Qualitativo — são testadas; Avaliações é deliberadamente proibida no V4.
 
 No dashboard V5:
 
@@ -90,7 +96,11 @@ As regressões existentes continuam cobrindo N/C, R/R, REC pendente, fonte ofici
 `performance-count-proof-852-ui.test.tsx` monta os componentes reais da interface e prova que:
 
 - os quatro KPIs pedagógicos usam os denominadores do payload provado;
+- desempenho médio, evolução, recorrência, participação e base comum do painel pedagógico são conferidos;
 - os três grupos de situação são exibidos com as contagens exatas;
+- as três prioridades combinadas (abaixo-melhorando, abaixo-caindo e na-referência-caindo) são recontadas;
+- Atividades para revisar preserva ordem, numerador e denominador;
+- as perspectivas Turmas, Alunos, Componentes e Professores são montadas com os summaries selecionados e seus KPIs/denominadores são conferidos;
 - trajetória expõe o `n` exato de cada trimestre;
 - histograma reproduz cada uma das seis faixas;
 - composição mostra o número exato de pares;
@@ -137,6 +147,7 @@ A leitura também encontrou **16 oferta-trimestres com irregularidade estrutural
 ## Limites desta evidência
 
 - A prova é de contagem/agregação e ligação com a UI; não é avaliação pedagógica da validade de cada nota.
+- Ela deliberadamente começa nas células/projeções canônicas e prova a camada analítica acima delas; a correção matemática do motor acadêmico permanece coberta pelos testes específicos do domínio, inclusive a BN-DEC-035.
 - Não altera fonte, importador, notas, schema, ACL, snapshots ou publicação.
 - Não contém dados pessoais de estudantes.
 - A inspeção visual humana continua separada dos testes de DOM.
