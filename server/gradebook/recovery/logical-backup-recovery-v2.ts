@@ -29,6 +29,9 @@ interface BackupSequenceV2 {
   readonly increment_by: number;
 }
 
+// nota_historico/instrumento_historico remain in the legacy V2 backup envelope for
+// schema compatibility. Under BN-DEC-039, newly captured current-state backups
+// should normally contain empty arrays for both tables.
 export const LOGICAL_BACKUP_TABLE_ORDER_V2 = [
   'ano_letivo',
   'aluno',
