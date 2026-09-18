@@ -13,7 +13,7 @@ beforeAll(async () => {
   await pg.exec(readFileSync('migrations/gradebook-simplified/0001_current_schema.sql', 'utf8'));
   await pg.exec(readFileSync('migrations/gradebook-simplified/0009_granular_observations_names_v1.sql', 'utf8'));
   await pg.exec(`
-    INSERT INTO gradebook.ano_letivo VALUES (2026,60000,2);
+    INSERT INTO gradebook.ano_letivo (ano,minimo_aprovacao,max_componentes_conselho) VALUES (2026,60000,2);
     INSERT INTO gradebook.professor (id,ano,nome) VALUES
       (1,2026,'CLEBER'),(2,2026,'LURMÁRIA'),(3,2026,'EDILMA');
     INSERT INTO gradebook.disciplina (id,ano,nome) VALUES
