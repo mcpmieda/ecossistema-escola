@@ -19,18 +19,75 @@ const cell: PerformanceCellV2 = {
 };
 afterEach(() => { vi.unstubAllGlobals(); });
 
-it('displays the supplied exact sum alongside the rounded grade without calculating it', () => {
-  const html = renderToStaticMarkup(createElement(GradeValue, { cell, prominent: true }));
-  expect(html).toContain('Soma antes do arredondamento:');
-  expect(html).toContain('19,2');
+it.each([true, false])('preserves the supplied grade without rounding commentary (prominent=%s)', (prominent) => {
+  const before = structuredClone(cell);
+  const html = renderToStaticMarkup(createElement(GradeValue, { cell, prominent }));
+  expect(html).not.toContain('Soma antes');
+  expect(html).not.toContain('arredondamento');
+  expect(html).not.toContain('19,2');
   expect(html).toContain('>19</span>');
+  expect(html).toContain('text-accent');
+  expect(html).toContain('No limite ou acima');
+  expect(cell).toEqual(before);
 });
 
 it('does not add extra labels to the matrix or invent a sum for an older response', () => {
   expect(renderToStaticMarkup(createElement(GradeValue, { cell }))).not.toContain('Soma antes');
   const legacy = { ...cell };
   delete legacy.rawMilli;
-  expect(renderToStaticMarkup(createElement(GradeValue, { cell: legacy, prominent: true }))).not.toContain('Soma antes');
+  const html = renderToStaticMarkup(createElement(GradeValue, { cell: legacy, prominent: true }));
+  expect(html).not.toContain('Soma antes');
+  expect(html).toContain('>19</span>');
+});
+
+it('retains the partial status in the prominent grade without the technical explanation', () => {
+  const html = renderToStaticMarkup(createElement(GradeValue, {
+    cell: { ...cell, state: 'partial' }, prominent: true,
+  }));
+  expect(html).toContain('>19</span>');
+  expect(html).toContain('Parcial');
+  expect(html).toContain('text-accent');
+  expect(html).not.toContain('arredondamento');
+  expect(html).not.toContain('19,2');
+});
+
+it('preserves the accessible compact partial marker', () => {
+  const html = renderToStaticMarkup(createElement(GradeValue, {
+    cell: { ...cell, state: 'partial' }, partialAsMarker: true,
+  }));
+  expect(html).toContain('>19</span>');
+  expect(html).toContain('Resultado parcial');
+  expect(html).toContain('aria-hidden="true">*</span>');
+  expect(html).not.toContain('arredondamento');
+});
+
+it('preserves recorded zero and its below-minimum classification', () => {
+  const html = renderToStaticMarkup(createElement(GradeValue, {
+    cell: { ...cell, valueMilli: 0, rawMilli: 0, level: 'below' }, prominent: true,
+  }));
+  expect(html).toContain('>0</span>');
+  expect(html).toContain('text-danger');
+  expect(html).toContain('Abaixo do limite');
+  expect(html).not.toContain('arredondamento');
+});
+
+it.each([
+  ['not-recorded', '—', 'Sem nota'],
+  ['unavailable', '—', 'Indisponível'],
+  ['not-applicable', '—', 'Não se aplica'],
+  ['recovery-pending', 'REC', 'Pendente'],
+  ['no-show', 'N/C', 'N/C'],
+  ['repeat-failure', 'R/R', 'R/R'],
+] as const)('preserves the essential %s state', (state, value, label) => {
+  const stateCell: PerformanceCellV2 = {
+    ...cell, state, valueMilli: null,
+    level: state === 'repeat-failure' ? 'below' : 'not-classified',
+  };
+  delete stateCell.rawMilli;
+  const html = renderToStaticMarkup(createElement(GradeValue, { cell: stateCell, prominent: true }));
+  expect(html).toContain(`>${value}</span>`);
+  expect(html).toContain(label);
+  expect(html).not.toContain('arredondamento');
 });
 
 it('opts into the exact sum only for cell-detail and preserves the existing auth failure', async () => {
