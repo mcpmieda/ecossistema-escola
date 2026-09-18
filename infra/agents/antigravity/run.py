@@ -275,6 +275,14 @@ async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) ->
         tool_output_truncation_config=ToolOutputTruncationConfig(max_tokens=5000),
     )
     policies = [
+        policy.deny_all(),
+        policy.allow("list_directory"),
+        policy.allow("search_directory"),
+        policy.allow("find_file"),
+        policy.allow("view_file"),
+        policy.allow("create_file"),
+        policy.allow("edit_file"),
+        policy.allow("finish"),
         policy.deny(
             "run_command",
             when=deny_unlisted_command,
