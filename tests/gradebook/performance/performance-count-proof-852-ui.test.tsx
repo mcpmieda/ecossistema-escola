@@ -133,11 +133,13 @@ it('renders the overview KPI counts and the three exclusive situation groups fro
       value.learning!.participation.recorded + ' notas consideradas',
     ),
   ).toBeTruthy();
-  expect(
-    screen.getByText(
-      value.learning!.parallel.students + ' alunos melhoraram com a recuperação paralela',
-    ),
-  ).toBeTruthy();
+  const recoverySummary = container.querySelector('.learning-recovery-summary');
+  expect(recoverySummary?.textContent).toContain(
+    String(value.learning!.parallel.students),
+  );
+  expect(recoverySummary?.textContent).toContain(
+    'alunos melhoraram com a recuperação paralela',
+  );
 
   for (const component of value.components) {
     const button = screen.getByRole('button', { name: component.offer.subject.label });
@@ -334,7 +336,9 @@ it.each(['classes', 'components', 'teachers'] as const)(
     );
 
     const kpi = (label: string) =>
-      screen.getByText(label).closest('[data-slot="card"]');
+      screen
+        .getByRole('button', { name: 'Sobre ' + label })
+        .closest('[data-slot="card"]');
     expect(kpi('Aproveitamento')?.textContent).toContain(
       percent(summary.result.mean),
     );
