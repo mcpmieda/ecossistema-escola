@@ -133,8 +133,11 @@ describe('authoritative import snapshot #862', () => {
   });
 
   it('does not delete a blank-looking slot when a student cell was unreadable', () => {
-    const value = result() as any;
-    value.summary.gradeSheets[0].snapshotCellsV8.AA5 = ['synthetic-unavailable'];
+    const value = result();
+    const sheet = value.summary.gradeSheets[0] as unknown as {
+      snapshotCellsV8: Record<string, unknown>;
+    };
+    sheet.snapshotCellsV8.AA5 = ['synthetic-unavailable'];
     const request = createGradebookCanonicalImportRequestV9(value);
     if (request.operation !== 'persist-notas') throw new Error('notes expected');
     const t1 = request.ofertas[0]!.trimestres[0];
@@ -163,8 +166,10 @@ describe('authoritative import snapshot #862', () => {
   it('rejects unavailable-definition lists without snapshot version', () => {
     const request = createGradebookCanonicalImportRequestV9(result());
     if (request.operation !== 'persist-notas') throw new Error('notes expected');
-    const clone = structuredClone(request) as any;
-    delete clone.ofertas[0].trimestres[1].definitionSnapshotVersion;
+    const clone = structuredClone(request) as unknown as {
+      ofertas: Array<{ trimestres: Array<{ definitionSnapshotVersion?: 1 }> }>;
+    };
+    delete clone.ofertas[0]!.trimestres[1]!.definitionSnapshotVersion;
     expect(inspectGradebookImportPersistenceRequestV9(clone)).toBe('invalid-request');
   });
 });
