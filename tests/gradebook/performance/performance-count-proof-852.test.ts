@@ -22,6 +22,7 @@ import {
 } from '../../../shared/gradebook-contracts/performance/performance-analysis-v3';
 import {
   performanceTermComparisonRequestSchemaV4,
+  type PerformanceTermComparisonValueV4,
 } from '../../../shared/gradebook-contracts/performance/performance-term-comparison-v4';
 import type {
   PerformanceAnalyticsStatsV6,
@@ -856,17 +857,304 @@ function analysisRequest(
   matrix: PerformanceMatrixV2,
   lens: 'result' | 'quantitative' | 'qualitative' | 'assessments',
   offerId: number | null,
-) {
+  period: PerformancePeriodV2 = matrix.period,
+): PerformanceAnalysisRequestV3 {
   return performanceAnalysisRequestSchemaV3.parse({
     transportVersion: 3,
     operation: 'analysis',
     year: matrix.context.year,
     classId: matrix.classGroup.id,
-    period: matrix.period,
+    period,
     mode: matrix.mode,
     statuses: [null, 7],
     lens,
     offerId,
+  });
+}
+
+type OracleAnalysis = {
+  columns: PerformanceAnalysisV3['columns'];
+  rows: PerformanceAnalysisV3['rows'];
+};
+
+type OracleRawReading = {
+  valueMilli: number | null;
+  maximumMilli: number | null;
+  recordedMilli: number | null;
+  state: AnalysisReadingV3['state'];
+  notDone?: true;
+};
+
+function oracleAnalysis(
+  matrix: PerformanceMatrixV2,
+  projections: ReadonlyMap<number, readonly PerformanceProjectionV2[]>,
+  request: PerformanceAnalysisRequestV3,
+): OracleAnalysis {
+  const selectedProjections = matrix.rows.flatMap((row) =>
+    (projections.get(row.student.id) ?? []).filter(
+      (projection) =>
+        request.offerId !== null && projection.offerId === request.offerId,
+    ),
+  );
+  const source = selectedProjections[0];
+  const parallelTerms = new Set(
+    selectedProjections.flatMap((projection) =>
+      projection.terms.flatMap((term) =>
+        term?.parallelApplicable === true ? [term.term] : [],
+      ),
+    ),
+  );
+  const baseColumns =
+    request.lens === 'assessments'
+      ? (source?.facts ?? [])
+          .filter(
+            (fact) => request.period === 'annual' || fact.term === request.period,
+          )
+          .filter((fact) => fact.slot !== 3 || parallelTerms.has(fact.term))
+          .map((fact) => ({
+            key:
+              String(request.offerId) +
+              ':' +
+              String(fact.term) +
+              ':' +
+              String(fact.slot),
+            offerId: request.offerId!,
+            term: fact.term,
+            slot: fact.slot,
+            label:
+              request.period === 'annual'
+                ? 'T' + fact.term + ' · ' + fact.label
+                : fact.label,
+          }))
+      : matrix.offers.map((offer) => ({
+          key: String(offer.id),
+          offerId: offer.id,
+          term: null,
+          slot: null,
+          label: offer.subject.label,
+        }));
+  const offerIndexes = new Map(matrix.offers.map((offer, index) => [offer.id, index]));
+
+  const rows: PerformanceAnalysisV3['rows'] = matrix.rows.map((row) => {
+    const byOffer = new Map(
+      (projections.get(row.student.id) ?? []).map((projection) => [
+        projection.offerId,
+        projection,
+      ]),
+    );
+    return {
+      studentId: row.student.id,
+      values: baseColumns.map((column): AnalysisReadingV3 => {
+        const projection = byOffer.get(column.offerId);
+        if (!projection)
+          return {
+            key: column.key,
+            valueMilli: null,
+            maximumMilli: null,
+            recordedMilli: null,
+            state: 'unavailable',
+            percent: null,
+            bucket: 'excluded',
+          };
+        const matrixCell = row.cells[offerIndexes.get(column.offerId)!]!;
+        const scopeCell =
+          request.period === matrix.period
+            ? matrixCell
+            : request.period === 'annual'
+              ? matrixCell
+              : performanceCellV2(projection, request.period, request.mode);
+
+        let raw: OracleRawReading;
+        if (request.lens === 'result') {
+          raw = {
+            valueMilli: scopeCell.valueMilli,
+            maximumMilli: scopeCell.maximumMilli,
+            recordedMilli: null,
+            state: scopeCell.state,
+          };
+        } else if (request.lens === 'quantitative' || request.lens === 'qualitative') {
+          const dimension = oracleDimension(
+            projection,
+            request.period,
+            request.lens === 'quantitative',
+          );
+          raw = {
+            valueMilli: dimension.valueMilli,
+            maximumMilli: dimension.maximumMilli,
+            recordedMilli: null,
+            state: dimension.state,
+          };
+        } else {
+          const fact = projection.facts.find(
+            (item) => item.term === column.term && item.slot === column.slot,
+          );
+          if (!fact) {
+            raw = {
+              valueMilli: null,
+              maximumMilli: null,
+              recordedMilli: null,
+              state: 'unavailable',
+            };
+          } else {
+            const outcome = projection.terms[fact.term - 1];
+            const maximumMilli =
+              fact.slot === 3
+                ? (outcome?.quantitativeMaximumMilli ?? null)
+                : fact.maximumMilli;
+            if (fact.slot === 3 && outcome?.parallelApplicable !== true) {
+              raw = {
+                valueMilli: null,
+                maximumMilli,
+                recordedMilli: null,
+                state:
+                  outcome?.parallelApplicable === false
+                    ? 'not-applicable'
+                    : 'unavailable',
+              };
+            } else {
+              raw = {
+                valueMilli: fact.valueMilli,
+                maximumMilli,
+                recordedMilli: fact.valueMilli,
+                state: fact.valueMilli === null ? 'not-recorded' : 'complete',
+                ...(fact.observed === true && fact.valueMilli === null
+                  ? { notDone: true as const }
+                  : {}),
+              };
+            }
+          }
+        }
+
+        const classificationReady =
+          raw.state === 'complete' ||
+          (request.lens === 'result' && raw.state === 'partial');
+        const readingPercent =
+          classificationReady &&
+          raw.valueMilli !== null &&
+          raw.maximumMilli !== null
+            ? (raw.valueMilli / raw.maximumMilli) * 100
+            : null;
+        const recoveryRelevant =
+          scopeCell.recoveryApplicable === true ||
+          scopeCell.state === 'repeat-failure';
+        const eligible =
+          row.student.indicatorEligible &&
+          (request.mode === 'regular' || recoveryRelevant);
+        const bucket: AnalysisReadingV3['bucket'] =
+          !eligible || raw.state === 'not-applicable'
+            ? 'excluded'
+            : raw.state === 'repeat-failure'
+              ? 'below'
+              : raw.state === 'no-show'
+                ? 'no-show'
+                : !classificationReady
+                  ? 'incomplete'
+                  : readingPercent === null
+                    ? 'unscaled'
+                    : BigInt(raw.valueMilli!) * BigInt(ANNUAL_MAXIMUM) >=
+                        BigInt(raw.maximumMilli!) *
+                          BigInt(matrix.context.minimumApprovalMilli)
+                      ? 'above'
+                      : 'below';
+        return {
+          key: column.key,
+          valueMilli: raw.valueMilli,
+          maximumMilli: raw.maximumMilli,
+          recordedMilli: raw.recordedMilli,
+          ...(raw.notDone ? { notDone: true as const } : {}),
+          state: raw.state,
+          percent: readingPercent,
+          bucket,
+        };
+      }),
+    };
+  });
+
+  const columns: PerformanceAnalysisV3['columns'] = baseColumns.map(
+    (column, columnIndex) => {
+      const groups = {
+        above: [] as number[],
+        below: [] as number[],
+        incomplete: [] as number[],
+        'no-show': [] as number[],
+        unscaled: [] as number[],
+      };
+      const percentages: number[] = [];
+      for (const row of rows) {
+        const value = row.values[columnIndex]!;
+        if (value.bucket === 'excluded') continue;
+        groups[value.bucket].push(row.studentId);
+        if (value.percent !== null) percentages.push(value.percent);
+      }
+      const ordered = [...percentages].sort((left, right) => left - right);
+      const mid = Math.floor(ordered.length / 2);
+      return {
+        ...column,
+        summary: {
+          considered:
+            groups.above.length +
+            groups.below.length +
+            groups.incomplete.length +
+            groups['no-show'].length +
+            groups.unscaled.length,
+          scaled: percentages.length,
+          meanPercent: mean(percentages),
+          medianPercent: ordered.length
+            ? ordered.length % 2
+              ? ordered[mid]!
+              : (ordered[mid - 1]! + ordered[mid]!) / 2
+            : null,
+          groups,
+        },
+      };
+    },
+  );
+  return { columns, rows };
+}
+
+function expectAnalysis(actual: PerformanceAnalysisV3, expected: OracleAnalysis) {
+  expect(
+    actual.columns.map((column) => ({
+      key: column.key,
+      offerId: column.offerId,
+      term: column.term,
+      slot: column.slot,
+      label: column.label,
+    })),
+  ).toEqual(
+    expected.columns.map((column) => ({
+      key: column.key,
+      offerId: column.offerId,
+      term: column.term,
+      slot: column.slot,
+      label: column.label,
+    })),
+  );
+  expect(actual.rows.map((row) => row.studentId)).toEqual(
+    expected.rows.map((row) => row.studentId),
+  );
+  actual.rows.forEach((row, rowIndex) =>
+    row.values.forEach((reading, columnIndex) => {
+      const expectedReading = expected.rows[rowIndex]!.values[columnIndex]!;
+      expect(reading).toMatchObject({
+        key: expectedReading.key,
+        valueMilli: expectedReading.valueMilli,
+        maximumMilli: expectedReading.maximumMilli,
+        recordedMilli: expectedReading.recordedMilli,
+        state: expectedReading.state,
+        bucket: expectedReading.bucket,
+      });
+      expect(reading.notDone).toBe(expectedReading.notDone);
+      expectMetric(reading.percent, expectedReading.percent);
+    }),
+  );
+  actual.columns.forEach((column, index) => {
+    const expectedColumn = expected.columns[index]!;
+    expect(column.summary.considered).toBe(expectedColumn.summary.considered);
+    expect(column.summary.scaled).toBe(expectedColumn.summary.scaled);
+    expect(column.summary.groups).toEqual(expectedColumn.summary.groups);
+    expectMetric(column.summary.meanPercent, expectedColumn.summary.meanPercent);
+    expectMetric(column.summary.medianPercent, expectedColumn.summary.medianPercent);
   });
 }
 
@@ -876,29 +1164,16 @@ function proveAnalysisAndDashboard(
   lens: 'result' | 'quantitative' | 'qualitative' | 'assessments',
 ) {
   const offerId = lens === 'assessments' ? matrix.offers[0]!.id : null;
-  const analysis = buildPerformanceAnalysisV3(
-    matrix,
-    projections,
-    analysisRequest(matrix, lens, offerId),
-  );
-  for (const [columnIndex, column] of analysis.columns.entries()) {
-    const values = analysis.rows.map((row) => row.values[columnIndex]!);
-    const considered = values.filter((value) => value.bucket !== 'excluded');
-    expect(column.summary.considered).toBe(considered.length);
-    expect(column.summary.scaled).toBe(considered.filter((value) => value.percent !== null).length);
-    for (const bucket of ['above', 'below', 'incomplete', 'no-show', 'unscaled'] as const)
-      expect(column.summary.groups[bucket]).toEqual(
-        analysis.rows
-          .filter((row) => row.values[columnIndex]!.bucket === bucket)
-          .map((row) => row.studentId),
-      );
-  }
+  const request = analysisRequest(matrix, lens, offerId);
+  const analysis = buildPerformanceAnalysisV3(matrix, projections, request);
+  const oracle = oracleAnalysis(matrix, projections, request);
+  expectAnalysis(analysis, oracle);
 
   const overview = buildPerformanceDashboardOverviewV5(analysis);
   const eligibleIds = matrix.rows
     .filter((row) => row.student.indicatorEligible)
     .map((row) => row.student.id);
-  const rows = new Map(analysis.rows.map((row) => [row.studentId, row]));
+  const rows = new Map(oracle.rows.map((row) => [row.studentId, row]));
   const expected = {
     allAtOrAbove: [] as number[],
     withBelow: [] as number[],
@@ -924,7 +1199,7 @@ function proveAnalysisAndDashboard(
   );
 
   for (const [index, column] of overview.columns.entries()) {
-    const source = analysis.columns[index]!;
+    const source = oracle.columns[index]!;
     expect(column).toMatchObject({
       considered: source.summary.considered,
       atOrAbove: source.summary.groups.above.length,
@@ -967,7 +1242,143 @@ function proveAnalysisAndDashboard(
     .map(({ number: _number, ...entry }) => entry);
   expect(overview.ranking).toEqual(ranking);
 
-  return { analysis, overview };
+  return { analysis, overview, oracle };
+}
+
+function oracleComparison(
+  current: AnalysisReadingV3,
+  reference: AnalysisReadingV3,
+): PerformanceTermComparisonValueV4 {
+  const unavailableReason =
+    current.bucket === 'excluded'
+      ? 'current-excluded'
+      : reference.bucket === 'excluded'
+        ? 'reference-excluded'
+        : current.state !== 'complete'
+          ? 'current-incomplete'
+          : reference.state !== 'complete'
+            ? 'reference-incomplete'
+            : current.maximumMilli === null || current.maximumMilli <= 0
+              ? 'current-no-positive-maximum'
+              : 'reference-no-positive-maximum';
+  if (
+    current.bucket === 'excluded' ||
+    reference.bucket === 'excluded' ||
+    current.state !== 'complete' ||
+    reference.state !== 'complete' ||
+    current.valueMilli === null ||
+    reference.valueMilli === null ||
+    current.maximumMilli === null ||
+    reference.maximumMilli === null ||
+    current.maximumMilli <= 0 ||
+    reference.maximumMilli <= 0 ||
+    current.percent === null ||
+    reference.percent === null
+  )
+    return {
+      key: current.key,
+      state: 'unavailable',
+      currentPercent: current.percent,
+      referencePercent: reference.percent,
+      deltaPercentagePoints: null,
+      relation: null,
+      reason: unavailableReason,
+    };
+
+  const left = BigInt(current.valueMilli) * BigInt(reference.maximumMilli);
+  const right = BigInt(reference.valueMilli) * BigInt(current.maximumMilli);
+  const relation = left === right ? 'equal' : left > right ? 'higher' : 'lower';
+  return {
+    key: current.key,
+    state: 'comparable',
+    currentPercent: current.percent,
+    referencePercent: reference.percent,
+    deltaPercentagePoints:
+      relation === 'equal' ? 0 : current.percent - reference.percent,
+    relation,
+    reason: null,
+  };
+}
+
+function proveTermComparison(
+  matrix: PerformanceMatrixV2,
+  projections: ReadonlyMap<number, readonly PerformanceProjectionV2[]>,
+  lens: 'result' | 'quantitative' | 'qualitative',
+) {
+  if (matrix.period !== 2 && matrix.period !== 3)
+    throw new Error('proof-comparison-requires-current-term');
+  const referencePeriod = (matrix.period - 1) as 1 | 2;
+  const request = performanceTermComparisonRequestSchemaV4.parse({
+    transportVersion: 4,
+    operation: 'term-comparison',
+    year: matrix.context.year,
+    classId: matrix.classGroup.id,
+    period: matrix.period,
+    referencePeriod,
+    mode: matrix.mode,
+    statuses: [null, 7],
+    lens,
+    offerId: null,
+  });
+  const comparison = buildPerformanceTermComparisonV4(matrix, projections, request);
+  const currentRequest = analysisRequest(matrix, lens, null, matrix.period);
+  const referenceRequest = analysisRequest(matrix, lens, null, referencePeriod);
+  const currentOracle = oracleAnalysis(matrix, projections, currentRequest);
+  const referenceOracle = oracleAnalysis(matrix, projections, referenceRequest);
+  expectAnalysis(comparison.analysis, currentOracle);
+
+  const expectedRows = currentOracle.rows.map((row, rowIndex) => ({
+    studentId: row.studentId,
+    values: row.values.map((value, columnIndex) =>
+      oracleComparison(
+        value,
+        referenceOracle.rows[rowIndex]!.values[columnIndex]!,
+      ),
+    ),
+  }));
+  expect(comparison.rows.map((row) => row.studentId)).toEqual(
+    expectedRows.map((row) => row.studentId),
+  );
+  comparison.rows.forEach((row, rowIndex) =>
+    row.values.forEach((value, columnIndex) => {
+      const expectedValue = expectedRows[rowIndex]!.values[columnIndex]!;
+      expect(value).toMatchObject({
+        key: expectedValue.key,
+        state: expectedValue.state,
+        relation: expectedValue.relation,
+        reason: expectedValue.reason,
+      });
+      expectMetric(value.currentPercent, expectedValue.currentPercent);
+      expectMetric(value.referencePercent, expectedValue.referencePercent);
+      expectMetric(
+        value.deltaPercentagePoints,
+        expectedValue.deltaPercentagePoints,
+      );
+    }),
+  );
+
+  comparison.columns.forEach((column, columnIndex) => {
+    const groups = {
+      higher: expectedRows
+        .filter((row) => row.values[columnIndex]!.relation === 'higher')
+        .map((row) => row.studentId),
+      equal: expectedRows
+        .filter((row) => row.values[columnIndex]!.relation === 'equal')
+        .map((row) => row.studentId),
+      lower: expectedRows
+        .filter((row) => row.values[columnIndex]!.relation === 'lower')
+        .map((row) => row.studentId),
+      unavailable: expectedRows
+        .filter((row) => row.values[columnIndex]!.state === 'unavailable')
+        .map((row) => row.studentId),
+    };
+    expect(column.summary.groups).toEqual(groups);
+    expect(column.summary.comparable).toBe(
+      groups.higher.length + groups.equal.length + groups.lower.length,
+    );
+    expect(column.summary.unavailable).toBe(groups.unavailable.length);
+  });
+  return comparison;
 }
 
 describe('performance count proof #852', () => {
@@ -1006,6 +1417,8 @@ describe('performance count proof #852', () => {
     expect(value.components.some((component) =>
       component.instruments.some((instrument) => instrument.maximumMilli === null),
     )).toBe(true);
+    for (const lens of ['result', 'quantitative', 'qualitative', 'assessments'] as const)
+      proveAnalysisAndDashboard(matrix, projections, lens);
   });
 
   it.each(['result', 'quantitative', 'qualitative', 'assessments'] as const)(
@@ -1016,57 +1429,32 @@ describe('performance count proof #852', () => {
     },
   );
 
-  it('recounts the four trimester-comparison totals directly from every compared cell', () => {
-    const { matrix, projections } = learningFixtureV1({ period: 2 });
-    const request = performanceTermComparisonRequestSchemaV4.parse({
-      transportVersion: 4,
-      operation: 'term-comparison',
-      year: matrix.context.year,
-      classId: matrix.classGroup.id,
-      period: 2,
-      referencePeriod: 1,
-      mode: 'regular',
-      statuses: [null, 7],
-      lens: 'result',
-      offerId: null,
-    });
-    const comparison = buildPerformanceTermComparisonV4(matrix, projections, request);
-    const totals = comparison.rows
-      .flatMap((row) => row.values)
-      .reduce(
-        (result, value) => {
-          result[value.state === 'unavailable' ? 'unavailable' : value.relation]++;
-          return result;
+  it.each(['result', 'quantitative', 'qualitative'] as const)(
+    'recomputes every V4 relation independently for lens %s',
+    (lens) => {
+      const { matrix, projections } = learningFixtureV1({ period: 2 });
+      const comparison = proveTermComparison(matrix, projections, lens);
+      expect(
+        comparison.rows.reduce((sum, row) => sum + row.values.length, 0),
+      ).toBe(comparison.rows.length * comparison.columns.length);
+    },
+  );
+
+  it.each(['result', 'quantitative', 'qualitative'] as const)(
+    'recomputes V4 relation edge cases independently for lens %s',
+    (lens) => {
+      const { matrix, projections } = learningFixtureV1({
+        period: 2,
+        override: (fact, student, component) => {
+          if (student === 0 && component === 0 && fact.term === 2 && fact.slot === 3)
+            return { valueMilli: null };
+          if (student === 1 && component === 0 && fact.term === 2 && fact.slot === 3)
+            return { valueMilli: 13_000 };
+          if (student === 2 && component === 1 && fact.term === 2 && fact.slot === 13)
+            return { maximumMilli: null };
+          return {};
         },
-        { higher: 0, equal: 0, lower: 0, unavailable: 0 },
-      );
-    expect(
-      totals.higher + totals.equal + totals.lower + totals.unavailable,
-    ).toBe(comparison.rows.length * comparison.columns.length);
-    for (const [columnIndex, column] of comparison.columns.entries()) {
-      expect(column.summary.groups.higher).toEqual(
-        comparison.rows
-          .filter((row) => row.values[columnIndex]!.relation === 'higher')
-          .map((row) => row.studentId),
-      );
-      expect(column.summary.groups.equal).toEqual(
-        comparison.rows
-          .filter((row) => row.values[columnIndex]!.relation === 'equal')
-          .map((row) => row.studentId),
-      );
-      expect(column.summary.groups.lower).toEqual(
-        comparison.rows
-          .filter((row) => row.values[columnIndex]!.relation === 'lower')
-          .map((row) => row.studentId),
-      );
-      expect(column.summary.groups.unavailable).toEqual(
-        comparison.rows
-          .filter((row) => row.values[columnIndex]!.state === 'unavailable')
-          .map((row) => row.studentId),
-      );
-      expect(column.summary.comparable + column.summary.unavailable).toBe(
-        comparison.rows.length,
-      );
-    }
-  });
-});
+      });
+      proveTermComparison(matrix, projections, lens);
+    },
+  );});
