@@ -21,12 +21,17 @@ function project(options: Parameters<typeof parallelFixture848>[0] = {}) {
 }
 
 describe('Portal PARA from the approved edition', () => {
-  it.each([1, 2, 3] as const)('hides ineligible PARA regardless of recorded value in trimester %s', (term) => {
+  it.each([1, 2, 3] as const)('shows the numeric exception but hides unrecorded dispensed PARA in trimester %s', (term) => {
     for (const parallel of [null, 0, 5000]) {
       const { self } = project({ term, parallel, qualitative: (term === 3 ? 24000 : 18000) - 4000 });
       const period = self.subjects[0]!.periods.find((value) => value.period === `T${term}`)!;
-      expect(period.partials?.some((value) => value.assessmentId === 8480000 + term * 100 + 3)).toBe(false);
-      expect(period.partials).toHaveLength(3);
+      const item = period.partials?.find((value) => value.assessmentId === 8480000 + term * 100 + 3);
+      expect(Boolean(item)).toBe(parallel !== null);
+      expect(period.partials).toHaveLength(parallel === null ? 3 : 4);
+      if (parallel !== null) {
+        expect(item!.mark).toMatchObject({ kind: 'score', value: parallel / 1000 });
+        expect(item).not.toHaveProperty('notDone');
+      }
       expect(period.final).toMatchObject({ kind: 'score', value: [25, 26, 35][term - 1] });
     }
   });
@@ -52,9 +57,9 @@ describe('Portal PARA from the approved edition', () => {
       .some((item) => item.assessmentId === 8480203)).toBe(false);
   });
 
-  it('uses the supplied older edition, not a newer eligible state, and rejects the wrong revision', () => {
-    const older = project({ qualitative: 14000, parallel: 5000 });
-    const newer = parallelFixture848({ parallel: 5000 });
+  it('uses the supplied older edition, not a newer recorded PARA, and rejects the wrong revision', () => {
+    const older = project({ qualitative: 14000, parallel: null });
+    const newer = parallelFixture848({ qualitative: 14000, parallel: 5000 });
     const newRevision = `${'8'.repeat(32)}:2`;
     const newerSource = { ...newer.portalSource, data_version: newRevision };
     expect(older.reader.projectPreparedSourceV2(older.fixture.link, PARALLEL_VERSION_848, newerSource)).toBeNull();
