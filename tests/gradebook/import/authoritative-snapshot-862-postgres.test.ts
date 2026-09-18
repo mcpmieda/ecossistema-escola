@@ -97,8 +97,9 @@ it('uses the latest snapshot as current state without note/instrument delta hist
   const importsAfterInitial = (await pg.query<{ n: number }>(
     'SELECT count(*)::integer AS n FROM gradebook.importacao',
   )).rows[0]!.n;
-  // First notes import may create an import row for new offer/subject topology.
-  expect(importsAfterInitial).toBeGreaterThanOrEqual(importsBefore);
+  // Current-state topology/marks do not create an import ledger row by themselves.
+  expect(importsBefore).toBe(0);
+  expect(importsAfterInitial).toBe(importsBefore);
   expect((await pg.query(`SELECT i.slot,i.maximo,n.valor FROM gradebook.instrumento i LEFT JOIN gradebook.nota n ON n.instrumento_id=i.id WHERE i.trimestre=1 AND i.slot=11`)).rows)
     .toEqual([{ slot: 11, maximo: 5000, valor: 4000 }]);
 
