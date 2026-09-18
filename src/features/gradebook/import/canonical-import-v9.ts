@@ -12,6 +12,10 @@ import {
   SOURCE_QUALITATIVE_ACTIVITY_SLOTS_V2,
   type SourceAssessmentDefinitionV2,
 } from '../../../../shared/gradebook-contracts/source/source-contract-v2';
+import {
+  applyInstitutionalQualitativeCorrectionsV1,
+  correctInstitutionalQualitativeDefinitionV1,
+} from '../../../gradebook-domain/source/institutional-qualitative-corrections-v1';
 import type { GradebookImportResultCellObservationV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import type { BatchSuccess } from './import-batch';
 import type {
@@ -175,7 +179,10 @@ function description(definition: SourceAssessmentDefinitionV2 | undefined): stri
 
 const FIXED_SLOTS = [1, 2, 3, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
 
-function instruments(sheet: GradeSheetRecognition): readonly GradebookImportInstrumentV9[] {
+function instruments(
+  sheet: GradeSheetRecognition,
+  context: { readonly ano: number; readonly professor: string; readonly trimestre: 1 | 2 | 3 },
+): readonly GradebookImportInstrumentV9[] {
   const bySource = new Map(
     sheet.assessmentDefinitions.map((definition) => [definition.sourceSlot, definition]),
   );
@@ -184,7 +191,7 @@ function instruments(sheet: GradeSheetRecognition): readonly GradebookImportInst
   if (av1 === null || av2 === null) {
     throw new Error(`Máximo de AV1/AV2 ausente ou inválido em ${sheet.name}.`);
   }
-  return FIXED_SLOTS.map((slot) => {
+  const raw = FIXED_SLOTS.map((slot) => {
     if (slot === 1) return [1, av1] as const;
     if (slot === 2) return [2, av2] as const;
     if (slot === 3) return [3, null] as const;
@@ -195,6 +202,16 @@ function instruments(sheet: GradeSheetRecognition): readonly GradebookImportInst
     const name = description(definition);
     return name === undefined ? ([slot, max] as const) : ([slot, max, name] as const);
   });
+  return raw.map((definition) =>
+    correctInstitutionalQualitativeDefinitionV1({
+      ano: context.ano,
+      professor: context.professor,
+      turmaCodigo: sheet.className,
+      disciplina: sheet.discipline,
+      trimestre: context.trimestre,
+      definition,
+    }),
+  );
 }
 
 function addressForSlot(slot: GradebookImportInstrumentV9[0], row: number): string {
@@ -216,8 +233,9 @@ function term(
   sheet: GradeSheetRecognition,
   trimester: 1 | 2 | 3,
   runtime: CanonicalImportRuntimeV9,
+  context: { readonly ano: number; readonly professor: string },
 ): GradebookImportTermV9 {
-  const definitions = instruments(sheet);
+  const definitions = instruments(sheet, { ...context, trimestre: trimester });
   const seen = new Set<number>();
   const alunos = sheet.students
     .filter((student) => student.row >= 5 && student.row <= 50)
@@ -281,6 +299,7 @@ function courseGroups(summary: WorkbookSummary): readonly GradeSheetRecognition[
 function offer(
   sheets: readonly GradeSheetRecognition[],
   runtime: CanonicalImportRuntimeV9,
+  context: { readonly ano: number; readonly professor: string },
 ): GradebookImportOfferV9 {
   const termSheets = new Map(
     sheets
@@ -291,9 +310,9 @@ function offer(
   const first = termSheets.get(1);
   if (!first) throw new Error('1º trimestre ausente.');
   const trimestres = [
-    term(termSheets.get(1)!, 1, runtime),
-    term(termSheets.get(2)!, 2, runtime),
-    term(termSheets.get(3)!, 3, runtime),
+    term(termSheets.get(1)!, 1, runtime, context),
+    term(termSheets.get(2)!, 2, runtime, context),
+    term(termSheets.get(3)!, 3, runtime, context),
   ] as const;
   if (!sameNumbers(trimestres)) {
     throw new Error(
@@ -384,7 +403,10 @@ export function createGradebookCanonicalImportRequestV9(
   if (groups.length === 0) throw new Error('Nenhuma oferta acadêmica reconhecida.');
   runtime.onProgress?.({ stage: 'grades', current: 0, total: groups.length });
   const ofertas = groups.map((sheets, index) => {
-    const value = offer(sheets, runtime);
+    const value = offer(sheets, runtime, {
+      ano: summary.academicYear as number,
+      professor,
+    });
     runtime.onProgress?.({ stage: 'grades', current: index + 1, total: groups.length });
     return value;
   });
@@ -403,7 +425,7 @@ export function createGradebookCanonicalImportRequestV9(
   }
   runtime.onProgress?.({ stage: 'recovery', current: groups.length, total: groups.length });
   runtime.onProgress?.({ stage: 'compacting', current: 1, total: 1 });
-  const request = {
+  const request = applyInstitutionalQualitativeCorrectionsV1({
     transportVersion: 9,
     operation: 'persist-notas',
     granularObservationVersion: 1,
@@ -411,7 +433,7 @@ export function createGradebookCanonicalImportRequestV9(
     ano: summary.academicYear as number,
     professor,
     ofertas,
-  } as const;
+  } as const);
   if (!isGradebookImportPersistenceRequestV9(request))
     throw new Error('Pacote acadêmico canônico não passou na validação local.');
   return request;
