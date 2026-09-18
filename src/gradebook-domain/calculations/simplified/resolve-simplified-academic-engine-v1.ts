@@ -61,6 +61,7 @@ export interface SimplifiedTermOutcomeV1 {
   readonly quantitativeOriginalMilli: number;
   readonly quantitativeMaximumMilli: number;
   readonly parallelMilli: number | null;
+  /** Effective applicability: normal eligibility OR an explicitly recorded numeric PARA (#850). */
   readonly parallelApplicable: boolean | null;
   readonly quantitativeConsideredMilli: number;
   readonly qualitativeOperationalMilli: number;
@@ -198,15 +199,15 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
   const qualitativeOperational = sumValues(qualitativeSlots, facts);
   const totalBeforeParallel = quantitativeOriginal + qualitativeOperational;
   const parallel = facts.get(3)?.valueMilli ?? null;
-  // BN-DEC-033: eligibility uses institutional maxima and the unrounded total
-  // BEFORE PARA. Missing marks contribute no points but do not block eligibility.
-  // Coverage and the original null/zero facts remain independent below.
-  const parallelApplicable =
+  // BN-DEC-035: normal eligibility is evaluated BEFORE PARA and rounding.
+  // A recorded numeric PARA (including zero) is the sole exception to eligibility.
+  const parallelEligible =
     quantitativeOriginal * 5 < expectedQuantitative * 3 &&
     totalBeforeParallel * 5 < maximum * 3;
+  const parallelApplicable = parallelEligible || parallel !== null;
   const quantitativeConsidered =
     parallelApplicable && parallel !== null && parallel > quantitativeOriginal
-      ? quantitativeOriginal + parallel
+      ? parallel
       : quantitativeOriginal;
   const raw = quantitativeConsidered + qualitativeOperational;
 
@@ -216,15 +217,8 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
     const warning = valueWarning(input.term, fact, effectiveMaximum);
     if (warning) warnings.push(warning);
   }
-  if (parallelApplicable === false && parallel !== null) {
-    warnings.push({
-      code: 'parallel-present-when-not-applicable',
-      term: input.term,
-      slot: 3,
-      valueMilli: parallel,
-      maximumMilli: quantitativeMaximum,
-    });
-  }
+  // The historical parallel-present-when-not-applicable code remains decodable,
+  // but a recorded PARA is now an allowed exception and must not emit that warning.
   if (quantitativeMaximum !== expectedQuantitative) {
     warnings.push({
       code: 'quantitative-maximum-mismatch',
@@ -251,8 +245,9 @@ export function resolveSimplifiedTermV1(input: SimplifiedTermInputV1): Simplifie
     });
   }
 
-  // BN-DEC-034: only an existing, eligible PARA participates in coverage.
-  // A numeric zero resolves it; null remains missing. No other absence is cleared.
+  // An existing PARA participates when normally eligible or numerically recorded.
+  // The exception is already resolved, so it never creates a missing-slot pendency.
+  // Numeric zero resolves PARA; no other absence is cleared.
   const requiredSlots: SimplifiedInstrumentSlotV1[] = [
     1, 2, ...(parallelApplicable && facts.has(3) ? [3 as const] : []), ...qualitativeSlots,
   ];
