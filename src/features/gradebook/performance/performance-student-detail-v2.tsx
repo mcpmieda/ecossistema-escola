@@ -154,11 +154,7 @@ export function PerformanceStudentDetailV2({
               )
               .map((term) => {
                 const instruments = term.instruments.filter(
-                  (instrument) =>
-                    instrument.slot !== 3 ||
-                    term.showParallel === true ||
-                    instrument.notDone === true ||
-                    instrument.valueMilli !== null,
+                  (instrument) => instrument.slot !== 3 || term.showParallel === true,
                 );
                 return (
                   <section
