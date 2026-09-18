@@ -132,6 +132,16 @@ describe('authoritative import snapshot #862', () => {
     expect(inspectGradebookImportPersistenceRequestV9(request)).toBe('ready');
   });
 
+  it('does not delete a blank-looking slot when a student cell was unreadable', () => {
+    const value = result() as any;
+    value.summary.gradeSheets[0].snapshotCellsV8.AA5 = ['synthetic-unavailable'];
+    const request = createGradebookCanonicalImportRequestV9(value);
+    if (request.operation !== 'persist-notas') throw new Error('notes expected');
+    const t1 = request.ofertas[0]!.trimestres[0];
+    expect(t1.instrumentos.map(([slot]) => slot)).toEqual([1, 2, 3]);
+    expect(t1.unavailableValueSlots).toContain(11);
+  });
+
   it('explains an unread qualitative maximum with exact sheet and cell', () => {
     const diagnostics = collectGradebookImportDiagnosticsV1(result());
     expect(diagnostics).toEqual(
