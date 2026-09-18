@@ -224,3 +224,15 @@ Vazio observado e indisponibilidade técnica são estados diferentes. Campo real
 Importações novas deixam de criar nota_historico e instrumento_historico; essas relações passam a ser legado vazio após a limpeza #863. A importacao continua podendo registrar a operação atual e os históricos de fechamento/vínculo permanecem fora desta decisão.
 
 A Auditoria continua fotografia atual. Se a nova observação não contém mais uma chave diagnosticada, qualquer reconhecimento/anotação correspondente também é removido na mesma substituição; BN-DEC-027 deixa de autorizar tratamento humano órfão. O manifesto específico da #855 é retirado: a correção produtiva realizada naquela entrega permanece, mas futuras planilhas são governadas pela fotografia atual, não por exceções fixas de professor/turma. Detalhes e regressões em [AUTHORITATIVE_IMPORT_862.md](AUTHORITATIVE_IMPORT_862.md).
+
+## BN-DEC-039 — Retenção somente do estado granular atual
+
+**Data:** 2026-09-18. **Origem:** determinação explícita do responsável; #863. Complementa BN-DEC-038 e substitui somente a retenção histórica de valores granulares de nota/instrumento.
+
+`nota_historico` e `instrumento_historico` deixam de ser fontes operacionais e devem permanecer vazias. Alterações futuras de nota, máximo e descrição existem somente no estado corrente autoritativo trazido pela última planilha; o Banco não mantém a versão anterior desses fatos. Histórico de fechamento, vínculo, Conselho e snapshots de boletim permanecem fora desta substituição e continuam preservados segundo seus contratos próprios.
+
+A limpeza produtiva remove todas as linhas anteriores das duas tabelas, placeholders qualitativos sem definição nem nota, tratamentos de Auditoria sem diagnóstico atual e recibos de importação que ficarem sem referência por `fechamento_historico` ou `vinculo_historico`. Nota NULL em instrumento ativo não é lixo: continua representando “Não fez” e não pode ser apagada em massa.
+
+O runtime recebe bloqueio em três camadas: o importador não grava os históricos, o buffer V11 rejeita tentativa de INSERT em `nota_historico` e a role `gradebook_app` perde INSERT/UPDATE/DELETE em ambas as tabelas. As relações físicas são mantidas apenas para compatibilidade de schema/replay; backups novos devem normalmente carregá-las vazias.
+
+Uma restauração de backup antigo pode conter histórico legado, mas a aplicação das migrations correntes normaliza o banco novamente para esta política. Detalhes, limites e pós-condições em [CURRENT_STATE_RETENTION_863.md](CURRENT_STATE_RETENTION_863.md).
