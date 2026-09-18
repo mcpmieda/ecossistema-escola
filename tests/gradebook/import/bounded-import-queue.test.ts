@@ -218,7 +218,7 @@ describe('Bounded per-file canonical queue (V9)', () => {
     await act(async () => flow.handleFiles(files(1)));
     expect(mocks.persist).toHaveBeenCalledTimes(1);
     expect(mocks.audit).toHaveBeenCalledTimes(2);
-    expect(mocks.audit.mock.invocationCallOrder[1]).toBeGreaterThan(
+    expect(mocks.audit.mock.invocationCallOrder[1]!).toBeGreaterThan(
       mocks.persist.mock.invocationCallOrder[0]!,
     );
     expect(flow.persistence['file:0']?.state).toBe('completed');
