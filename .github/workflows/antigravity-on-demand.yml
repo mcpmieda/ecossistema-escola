@@ -255,3 +255,59 @@ jobs:
           set -euo pipefail
           gh auth setup-git
           git push --set-upstream origin "HEAD:refs/heads/${BRANCH_NAME}"
+
+
+      - name: Open draft pull request
+        if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true' && steps.agent.outputs.has_changes == 'true' && success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.request.outputs.number }}
+          BRANCH_NAME: ${{ steps.branch.outputs.name }}
+        run: |
+          set -euo pipefail
+          title="$(jq -r '.issue_title' "$RUNNER_TEMP/antigravity-meta.json")"
+          handoff_hash="$(jq -r '.handoff_hash' "$RUNNER_TEMP/antigravity-meta.json")"
+          {
+            echo "Antigravity executou o handoff da issue #${ISSUE_NUMBER}."
+            echo
+            cat "$RUNNER_TEMP/antigravity-comment.md"
+            echo
+            echo "Este PR é uma entrega candidata. Revisão do agente líder e CI continuam obrigatórios."
+            echo
+            echo "Closes #${ISSUE_NUMBER}"
+          } > "$RUNNER_TEMP/antigravity-pr.md"
+
+          set +e
+          pr_url="$(gh pr create --draft --base main --head "$BRANCH_NAME"             --title "[Antigravity] $title"             --body-file "$RUNNER_TEMP/antigravity-pr.md")"
+          status=$?
+          set -e
+
+          if [ "$status" -eq 0 ]; then
+            {
+              echo "Antigravity concluiu a tarefa e abriu um PR em draft:"
+              echo "$pr_url"
+              echo
+              echo "<!-- antigravity-handoff:$handoff_hash -->"
+            } > "$RUNNER_TEMP/antigravity-published.md"
+          else
+            branch_url="https://github.com/${GITHUB_REPOSITORY}/tree/${BRANCH_NAME}"
+            {
+              echo "Antigravity concluiu a tarefa e publicou a branch, mas o GitHub Actions não pôde abrir o PR automaticamente:"
+              echo "$branch_url"
+              echo
+              echo "<!-- antigravity-handoff:$handoff_hash -->"
+            } > "$RUNNER_TEMP/antigravity-published.md"
+          fi
+
+          gh issue comment "$ISSUE_NUMBER" --body-file "$RUNNER_TEMP/antigravity-published.md"
+
+      - name: Report failed execution
+        if: failure() && steps.request.outputs.run == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.request.outputs.number }}
+        run: |
+          set -euo pipefail
+          gh issue comment "$ISSUE_NUMBER" --body             "A execução do Antigravity falhou fechada e nenhuma alteração foi mesclada. Consulte o workflow run ${GITHUB_RUN_ID}."
