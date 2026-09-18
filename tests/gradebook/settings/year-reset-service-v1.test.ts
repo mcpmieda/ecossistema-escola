@@ -150,8 +150,21 @@ beforeAll(async () => {
     '0003_audit_receipts_closure_integration_v1.sql',
     '0004_gradebook_integration_usage_v1.sql',
     '0005_year_reset_protocol_v1.sql',
+    '0014_year_reset_full_cleanup_v1.sql',
   ])
     await pg.exec(readFileSync(`migrations/student-portal/${file}`, 'utf8'));
+  await pg.exec(`
+    INSERT INTO student_portal.revision_event
+      (event_id,academic_year,student_ids,cause,affects_academic,affects_reset,
+       data_version,reset_version,portal_link_version,occurred_at)
+    SELECT gen_random_uuid(),academic_year,'{}'::integer[],'diagnostics',false,true,
+           academic_generation||':'||academic_counter::text,
+           reset_generation||':'||reset_counter::text,
+           portal_link_generation||':'||portal_link_counter::text,
+           transaction_timestamp()
+    FROM student_portal.academic_revision
+    WHERE academic_year IN (2025,2026)
+  `);
   database = createGradebookPostgresDatabaseFromSqlV1({
     async unsafe() {
       throw new Error('outside-transaction');
@@ -187,6 +200,22 @@ async function preview(year: number) {
     operation: 'preview',
     year,
   });
+}
+
+async function technicalState(year: number) {
+  return (
+    await pg.query<{
+      revision_events: number;
+      academic_revision: number;
+      reset_proofs: number;
+    }>(
+      `SELECT
+        (SELECT count(*)::integer FROM student_portal.revision_event WHERE academic_year=$1) AS revision_events,
+        (SELECT count(*)::integer FROM student_portal.academic_revision WHERE academic_year=$1) AS academic_revision,
+        (SELECT count(*)::integer FROM student_portal.year_reset_preview_proof WHERE academic_year=$1) AS reset_proofs`,
+      [year],
+    )
+  ).rows[0]!;
 }
 
 describe('year reset V1 PostgreSQL service', () => {
@@ -241,6 +270,7 @@ describe('year reset V1 PostgreSQL service', () => {
     const before = await preview(2025);
     expect(before).toMatchObject({ state: 'ready', operation: 'preview' });
     if (before.state !== 'ready' || before.operation !== 'preview') throw new Error('preview');
+    const technicalBefore = await technicalState(2025);
     failOnNoteDelete = true;
     await expect(
       createYearResetServiceV1(database, ACTOR).execute({
@@ -253,6 +283,7 @@ describe('year reset V1 PostgreSQL service', () => {
       }),
     ).rejects.toThrow('synthetic-delete-failure');
     failOnNoteDelete = false;
+    expect(await technicalState(2025)).toEqual(technicalBefore);
     await expect(preview(2025)).resolves.toMatchObject({
       state: before.state,
       counts: before.counts,
@@ -282,6 +313,7 @@ describe('year reset V1 PostgreSQL service', () => {
     if (current.state !== 'ready' || current.operation !== 'preview') throw new Error('preview');
     expect(current.counts.totalRows).toBeGreaterThan(30);
     const untouchedBefore = await preview(2026);
+    const untouchedTechnicalBefore = await technicalState(2026);
     const result = await createYearResetServiceV1(database, ACTOR).execute({
       contractVersion: 1,
       operation: 'execute',
@@ -297,9 +329,15 @@ describe('year reset V1 PostgreSQL service', () => {
       year: 2025,
       deletedRows: current.counts.totalRows,
     });
+    expect(await technicalState(2025)).toEqual({
+      revision_events: 0,
+      academic_revision: 0,
+      reset_proofs: 0,
+    });
     await expect(preview(2025)).resolves.toEqual({ contractVersion: 1, state: 'not-found' });
     if (untouchedBefore.state !== 'ready' || untouchedBefore.operation !== 'preview')
       throw new Error('preview');
+    expect(await technicalState(2026)).toEqual(untouchedTechnicalBefore);
     await expect(preview(2026)).resolves.toMatchObject({ counts: untouchedBefore.counts });
     expect(
       (
@@ -308,13 +346,19 @@ describe('year reset V1 PostgreSQL service', () => {
       ).rows,
     ).toEqual([{ count: 1 }]);
 
-    await pg.exec(`INSERT INTO gradebook.ano_letivo VALUES (2025,60000,2);
-      INSERT INTO gradebook.aluno (ano,nome) VALUES (2025,'NOVO ALUNO SINTETICO');
-      INSERT INTO gradebook.turma (ano,codigo,nome,etapa,turno)
-        VALUES (2025,'N1','NOVA TURMA SINTETICA',6,'M');
-      INSERT INTO gradebook.vinculo (ano,turma_id,numero,aluno_id)
-        SELECT 2025,t.id,1,a.id FROM gradebook.turma t CROSS JOIN gradebook.aluno a
-        WHERE t.ano=2025 AND a.ano=2025`);
+    await pg.transaction(async (transaction) => {
+      await transaction.exec('SELECT pg_advisory_xact_lock_shared(613,0)');
+      await transaction.exec('SELECT pg_advisory_xact_lock(613,2025)');
+      await transaction.exec('SELECT student_portal.ensure_year_coordination_v1(2025::smallint)');
+      await transaction.exec(`INSERT INTO gradebook.ano_letivo VALUES (2025,60000,2);
+        INSERT INTO gradebook.aluno (ano,nome) VALUES (2025,'NOVO ALUNO SINTETICO');
+        INSERT INTO gradebook.turma (ano,codigo,nome,etapa,turno)
+          VALUES (2025,'N1','NOVA TURMA SINTETICA',6,'M');
+        INSERT INTO gradebook.vinculo (ano,turma_id,numero,aluno_id)
+          SELECT 2025,t.id,1,a.id FROM gradebook.turma t CROSS JOIN gradebook.aluno a
+          WHERE t.ano=2025 AND a.ano=2025`);
+    });
+    expect(await technicalState(2025)).toMatchObject({ academic_revision: 1 });
     await expect(preview(2025)).resolves.toMatchObject({
       state: 'ready',
       counts: { academicYear: 1, students: 1, classes: 1, bindings: 1 },
