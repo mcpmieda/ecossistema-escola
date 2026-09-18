@@ -51,14 +51,16 @@ O workflow rejeita a tarefa antes de chamar o Google se o handoff estiver ausent
 
 - Modelo inicial fixado em `gemini-3.8-flash`.
 - SDK fixado em `google-antigravity==0.1.17`.
-- Máximo por execução: 12 chamadas de modelo, 80 chamadas de ferramenta e 60.000 tokens totais.\n- Apenas uma execução Antigravity pode consumir o provider por vez; chamadas adicionais ficam enfileiradas.
+- Máximo por execução: 12 chamadas de modelo, 80 chamadas de ferramenta e 60.000 tokens totais.
+- Apenas uma execução Antigravity pode consumir o provider por vez; chamadas adicionais ficam enfileiradas.
 - Subagentes e ferramentas Web ficam desativados.
 - O agente pode ler/criar/editar somente no workspace.
-- Comandos de terminal são limitados aos comandos declarados em `validate` e executados com sandbox solicitado.
+- O agente não recebe ferramenta de terminal. Os comandos declarados em `validate` são executados pelo host depois que o turno do agente termina.
 - O agente não recebe `GITHUB_TOKEN`.
-- `GEMINI_API_KEY` é removida do ambiente antes da execução de comandos do agente.
+- `GEMINI_API_KEY` é removida do ambiente do processo antes das validações do host.
 - Mudanças em `.github/**`, `AGENTS.md`, `infra/agents/**`, `.env*` e `docs/gradebook/PROJECT_STATE.yaml` são bloqueadas para o executor.
-- Depois da execução, o workflow confere todos os arquivos modificados contra `allowed_paths`. Qualquer desvio falha fechado e não é publicado.
+- Depois da execução, o workflow confere todos os arquivos modificados contra `allowed_paths`, executa apenas comandos de validação aceitos pela allowlist e confere novamente o diff. Qualquer desvio falha fechado e não é publicado.
+- O PR que altera a integração instala a mesma versão fixada do SDK e executa `sdk-check`; incompatibilidades de API devem falhar antes do merge.
 
 ## Publicação
 
