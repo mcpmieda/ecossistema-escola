@@ -4,12 +4,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import fnmatch
+import hashlib
 import json
 import os
 from pathlib import Path
 import shlex
 import subprocess
-import sys
 from typing import Any
 
 HANDOFF_BEGIN = "<!-- AGENT_HANDOFF_BEGIN -->"
@@ -45,17 +45,6 @@ FORBIDDEN_COMMAND_FRAGMENTS = (
 
 def fail(message: str) -> "NoReturn":
     raise SystemExit(message)
-
-
-def run_git(*args: str) -> str:
-    completed = subprocess.run(
-        ["git", *args],
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return completed.stdout
 
 
 def load_issue(path: Path) -> dict[str, Any]:
@@ -158,8 +147,10 @@ def write_meta(issue: dict[str, Any], handoff: dict[str, Any], meta_path: Path) 
     html_url = issue.get("html_url")
     if not isinstance(number, int) or not isinstance(title, str):
         fail("Issue metadata is incomplete.")
+    canonical = json.dumps(handoff, sort_keys=True, separators=(",", ":")).encode("utf-8")
     meta = {
         **handoff,
+        "handoff_hash": hashlib.sha256(canonical).hexdigest(),
         "issue_number": number,
         "issue_title": title,
         "issue_url": html_url if isinstance(html_url, str) else "",
@@ -188,7 +179,7 @@ def list_changed_paths(root: Path) -> list[str]:
         stderr=subprocess.DEVNULL,
     )
     output = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=ACMRDTUXB"],
+        ["git", "diff", "--no-renames", "--name-only", "--diff-filter=ACMRDTUXB"],
         cwd=root,
         check=True,
         text=True,
