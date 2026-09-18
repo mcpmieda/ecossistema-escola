@@ -69,6 +69,12 @@ describe('logical backup recovery v2 safeguards', () => {
     expect(RECOVERY_SCHEMA_PLAN_V2).not.toContain('0002_import_diagnostics_audit_v1.sql');
   });
 
+  it('accepts retired granular-history tables as empty compatibility relations', () => {
+    const parsed = parseLogicalBackupCsvV2(csv(backup()));
+    expect(parsed.tables.nota_historico).toEqual([]);
+    expect(parsed.tables.instrumento_historico).toEqual([]);
+  });
+
   it('orders parent relations before dependents and handles the Council closure cycle separately', () => {
     const position = (table: (typeof LOGICAL_BACKUP_TABLE_ORDER_V2)[number]) => LOGICAL_BACKUP_TABLE_ORDER_V2.indexOf(table);
     expect(position('ano_letivo')).toBeLessThan(position('aluno'));
