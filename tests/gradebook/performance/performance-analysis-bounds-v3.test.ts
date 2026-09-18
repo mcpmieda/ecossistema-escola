@@ -25,8 +25,10 @@ beforeAll(async () => {
       SELECT o*100+t*25+s,o,t,s,CASE WHEN s>=11 THEN CASE WHEN t=3 THEN 2200 ELSE 1650 END ELSE CASE WHEN t=3 THEN 9000 ELSE 6750 END END,'AVALIACAO SINTETICA '||s
       FROM generate_series(1,10) a(o) CROSS JOIN generate_series(1,3) b(t) CROSS JOIN (SELECT n AS s FROM generate_series(1,20) n WHERE n<=3 OR n>=11) c;
     INSERT INTO gradebook.nota (instrumento_id,aluno_id,valor)
-      SELECT i.id,a.id,CASE WHEN i.slot>=11 THEN 1200 ELSE 6000 END FROM gradebook.instrumento i CROSS JOIN gradebook.aluno a;
+      SELECT i.id,a.id,CASE WHEN i.slot>=11 THEN 1200 WHEN a.id=100 AND i.slot IN(1,2) THEN 0 ELSE 6000 END
+      FROM gradebook.instrumento i CROSS JOIN gradebook.aluno a;
   `);
+  // Student 100 is eligible in all three terms so the worst-case payload retains 39 instruments.
   db = createGradebookPostgresDatabaseFromSqlV1({
     async unsafe() { throw new Error('read-outside-transaction'); },
     async begin(operation) {
@@ -83,4 +85,31 @@ it.each([false, true])('keeps all V6 perspectives within 1,000 pairs and 2MB wit
   expect(queries).toHaveLength(6);
   expect(Buffer.byteLength(JSON.stringify(value))).toBeLessThan(2_000_000);
   expect(gzipSync(JSON.stringify(value)).length).toBeLessThan(500_000);
+}, 15_000);
+
+it('omits only PARA columns for a wholly ineligible cohort without weakening capacity limits', async () => {
+  await pg.exec('UPDATE gradebook.nota SET valor=6000 WHERE aluno_id=100 AND instrumento_id IN(SELECT id FROM gradebook.instrumento WHERE slot IN(1,2))');
+  try {
+    const result = await createPerformanceAnalysisV3(db).execute({ ...request, lens: 'assessments', offerId: 1 });
+    if (result.state !== 'ready') throw new Error('analysis-not-ready');
+    expect(result.matrix.rows).toHaveLength(100);
+    expect(result.matrix.offers).toHaveLength(10);
+    expect(result.columns).toHaveLength(36);
+    expect(result.columns.some((column) => column.slot === 3)).toBe(false);
+    expect(result.rows.every((row) => row.values.length === 36)).toBe(true);
+    expect(queries).toHaveLength(6);
+    expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThan(2_000_000);
+    expect(gzipSync(JSON.stringify(result)).length).toBeLessThan(500_000);
+    queries.length = 0;
+    const value = await createPerformanceAnalyticsV6(db).execute({ transportVersion: 6, operation: 'analytics', year: 2026, classId: 1, period: 'annual' });
+    if (value.state !== 'ready') throw new Error('analytics-not-ready');
+    expect(value.students).toHaveLength(100);
+    expect(value.components).toHaveLength(10);
+    expect(value.components.every((item) => item.instruments.length === 36 && item.instruments.every((instrument) => instrument.slot !== 3))).toBe(true);
+    expect(queries).toHaveLength(6);
+    expect(Buffer.byteLength(JSON.stringify(value))).toBeLessThan(2_000_000);
+    expect(gzipSync(JSON.stringify(value)).length).toBeLessThan(500_000);
+  } finally {
+    await pg.exec('UPDATE gradebook.nota SET valor=0 WHERE aluno_id=100 AND instrumento_id IN(SELECT id FROM gradebook.instrumento WHERE slot IN(1,2))');
+  }
 }, 15_000);
