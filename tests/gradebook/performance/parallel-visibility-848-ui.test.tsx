@@ -33,13 +33,17 @@ function portal(options: ParallelOptions848) {
   return render(<StudentGradesV1 data={data} />);
 }
 
-it.each([null, 0, 5000])('hides the entire ineligible PARA row in the real Banco drawer (value=%s)', async (parallel) => {
+it.each([null, 0, 5000])('shows only the numeric exception for a normally ineligible Banco PARA (value=%s)', async (parallel) => {
   drawer({ qualitative: 14000, parallel });
   await screen.findByText('ATIVIDADE SINTETICA');
-  expect(screen.queryByText('PARA')).toBeNull();
+  expect(Boolean(screen.queryByText('PARA'))).toBe(parallel !== null);
   expect(screen.queryByText('Não fez')).toBeNull();
-  expect(screen.queryByText('Tirou zero')).toBeNull();
+  expect(Boolean(screen.queryByText('Tirou zero'))).toBe(parallel === 0);
   expect(screen.queryByText('Parcial')).toBeNull();
+  if (parallel !== null) {
+    const row = screen.getByRole('row', { name: /PARA/u });
+    expect(within(row).getByText(parallel === 0 ? 'Tirou zero' : '5')).toBeTruthy();
+  }
 });
 
 it.each([
@@ -76,6 +80,8 @@ it('renders the compact asterisk from the central state, including zero and othe
     { options: { parallel: 0 }, partial: false },
     { options: { qualitative: 14000 }, partial: false },
     { options: { av2: null, parallel: 0 }, partial: true },
+    { options: { qualitative: 14000, parallel: 0 }, partial: false },
+    { options: { av2: null, qualitative: 16000, parallel: 5000 }, partial: true },
   ];
   for (const { options, partial } of scenarios) {
     const { cell } = parallelFixture848(options);
@@ -86,12 +92,16 @@ it('renders the compact asterisk from the central state, including zero and othe
   }
 });
 
-it.each([null, 0, 5000])('hides ineligible PARA in the real Portal table (value=%s)', async (parallel) => {
+it.each([null, 0, 5000])('shows only a recorded exceptional PARA in the real Portal table (value=%s)', async (parallel) => {
   portal({ qualitative: 14000, parallel });
   await screen.findByText('COMPONENTE SINTETICO');
-  expect(screen.queryByText('PARA')).toBeNull();
+  expect(Boolean(screen.queryByText('PARA'))).toBe(parallel !== null);
   expect(screen.queryByText('Não fez')).toBeNull();
-  expect(screen.queryByText('Tirou zero')).toBeNull();
+  expect(Boolean(screen.queryByText('Tirou zero'))).toBe(parallel === 0);
+  if (parallel !== null) {
+    const row = screen.getByText('PARA').closest('.pa-partial');
+    expect(within(row as HTMLElement).getByText(parallel === 0 ? 'Tirou zero' : '5')).toBeTruthy();
+  }
 });
 
 it.each([
