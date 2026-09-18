@@ -15,7 +15,7 @@ import {
 import {
   applyInstitutionalQualitativeCorrectionsV1,
   correctInstitutionalQualitativeDefinitionV1,
-} from '../../../../shared/gradebook-contracts/source/institutional-qualitative-corrections-v1';
+} from '../../../gradebook-domain/source/institutional-qualitative-corrections-v1';
 import type { GradebookImportResultCellObservationV4 } from '../../../../shared/gradebook-contracts/imports/import-persistence-transport-v4';
 import type { BatchSuccess } from './import-batch';
 import type {
