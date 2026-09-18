@@ -51,7 +51,7 @@ O workflow rejeita a tarefa antes de chamar o Google se o handoff estiver ausent
 
 - Modelo inicial fixado em `gemini-3.8-flash`.
 - SDK fixado em `google-antigravity==0.1.17`.
-- Máximo por execução: 12 chamadas de modelo, 80 chamadas de ferramenta e 60.000 tokens totais.
+- Máximo por execução: 12 chamadas de modelo, 80 chamadas de ferramenta e 60.000 tokens totais.\n- Apenas uma execução Antigravity pode consumir o provider por vez; chamadas adicionais ficam enfileiradas.
 - Subagentes e ferramentas Web ficam desativados.
 - O agente pode ler/criar/editar somente no workspace.
 - Comandos de terminal são limitados aos comandos declarados em `validate` e executados com sandbox solicitado.
