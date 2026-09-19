@@ -7,6 +7,15 @@ on:
       - 'scripts/entra/**'
       - 'tests/entra/**'
       - 'docs/infra/ENTRA_OPERATIONS_OIDC.md'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/entra-operations-audit.yml'
+      - 'scripts/entra/**'
+      - 'tests/entra/**'
+      - 'docs/infra/ENTRA_OPERATIONS_OIDC.md'
+  schedule:
+    - cron: '15 10 * * *'
   workflow_dispatch:
 
 permissions: {}
@@ -41,7 +50,7 @@ jobs:
 
   audit:
     name: Audit Entra applications via OIDC
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
