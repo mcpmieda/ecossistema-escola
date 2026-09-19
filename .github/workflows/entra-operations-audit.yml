@@ -111,6 +111,7 @@ jobs:
           echo "::add-mask::$token"
 
           output="$RUNNER_TEMP/entra-operations-audit.json"
+          trap 'rm -f "$RUNNER_TEMP/graph-access-token" "$RUNNER_TEMP/entra-operations-audit.json"' EXIT
           GRAPH_ACCESS_TOKEN="$token"             WEB_APPLICATION_OBJECT_ID="$WEB_APPLICATION_OBJECT_ID"             GRAPH_APPLICATION_OBJECT_ID="$GRAPH_APPLICATION_OBJECT_ID"             node --experimental-strip-types scripts/entra/operations-audit.ts > "$output"
           rm -f "$RUNNER_TEMP/graph-access-token"
           unset token
@@ -134,11 +135,3 @@ jobs:
               ", password credentials: " + ((.applications.graph.passwordCredentials | length) | tostring)
             ' "$output"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload sanitized audit artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: entra-operations-audit
-          path: ${{ runner.temp }}/entra-operations-audit.json
-          if-no-files-found: error
-          retention-days: 14
