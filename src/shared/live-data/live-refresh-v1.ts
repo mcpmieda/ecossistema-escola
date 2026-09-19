@@ -26,7 +26,11 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 let channel: BroadcastChannel | undefined;
 let listening = false;
 const visible = () => document.visibilityState !== 'hidden' && navigator.onLine !== false;
-const jitter = () => Math.floor(Math.random() * 1_000);
+const jitter = () => {
+  const value = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(value);
+  return value[0]! % 1_000;
+};
 
 /** In-memory invalidation metadata only; no independent clock, socket, payload or storage. */
 export function subscribeLiveChangesV1(listener: (domain: LiveDomainV1) => void): () => void {
