@@ -6,9 +6,7 @@ on:
       - main
   workflow_dispatch:
 
-permissions:
-  contents: read
-  actions: read
+permissions: {}
 
 concurrency:
   group: deploy-cloudflare-pages
@@ -18,6 +16,8 @@ jobs:
   classify:
     name: Classify production change
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     timeout-minutes: 2
     outputs:
       should_deploy: ${{ steps.classify.outputs.should_deploy }}
@@ -53,6 +53,9 @@ jobs:
   deploy:
     name: Deploy production
     needs: classify
+    permissions:
+      contents: read
+      actions: read
     if: needs.classify.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -144,7 +147,7 @@ jobs:
           validated-postgres-provenance/runtime-provenance.json
 
       - name: Install production deployment dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Restore exact validated Pages outputs
         shell: bash
@@ -213,14 +216,14 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy compatible Portal backend before consumers
-        run: npx wrangler deploy --config wrangler.student-portal.jsonc --env production
+        run: ./node_modules/.bin/wrangler deploy --config wrangler.student-portal.jsonc --env production
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy Portal HTTPS self entrypoint
         run: >-
-          npx wrangler pages deploy
+          ./node_modules/.bin/wrangler pages deploy
           --cwd node_modules/.cache/student-portal-edge
           --project-name student-portal-edge
           --branch main
@@ -231,7 +234,7 @@ jobs:
 
       - name: Deploy Cloudflare Pages
         run: >-
-          npx wrangler pages deploy dist
+          ./node_modules/.bin/wrangler pages deploy dist
           --project-name ecossistema-escola
           --branch main
           --commit-hash "${GITHUB_SHA}"
