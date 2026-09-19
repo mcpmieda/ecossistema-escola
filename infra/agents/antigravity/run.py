@@ -310,6 +310,7 @@ async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) ->
         fail("GEMINI_API_KEY is not configured.")
 
     from google.antigravity import Agent, types  # type: ignore[import-not-found]
+    from google.antigravity.hooks import policy  # type: ignore[import-not-found]
 
     capabilities = types.CapabilitiesConfig(
         enable_subagents=False,
@@ -324,7 +325,7 @@ async def execute_agent(root: Path, meta: dict[str, Any], summary_path: Path) ->
         ],
         tool_output_truncation_config=types.ToolOutputTruncationConfig(max_tokens=5000),
     )
-    policies: list[Any] = []
+    policies: list[Any] = [policy.allow_all()]
 
     agents_rules = (root / "AGENTS.md").read_text(encoding="utf-8")
     system_instructions = f"""Follow the repository governance below as binding instructions.
@@ -392,6 +393,7 @@ You are an executor, not the architectural authority. Stay inside the current wo
 
 def command_sdk_check(args: argparse.Namespace) -> None:
     from google.antigravity import types  # type: ignore[import-not-found]
+    from google.antigravity.hooks import policy  # type: ignore[import-not-found]
 
     capabilities = types.CapabilitiesConfig(
         enable_subagents=False,
@@ -406,7 +408,7 @@ def command_sdk_check(args: argparse.Namespace) -> None:
         ],
         tool_output_truncation_config=types.ToolOutputTruncationConfig(max_tokens=5000),
     )
-    policies: list[Any] = []
+    policies: list[Any] = [policy.allow_all()]
     for model in dict.fromkeys(PROVIDER_MODELS):
         make_agent_config(
             "sdk-check-only",
