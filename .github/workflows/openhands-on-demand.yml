@@ -1,0 +1,152 @@
+name: OpenHands Cloud on demand
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Owner-authored issue containing an AGENT_HANDOFF block.
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: openhands-cloud-provider
+  cancel-in-progress: false
+
+jobs:
+  invoke:
+    name: Invoke bounded OpenHands Cloud task
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      run: ${{ steps.request.outputs.run }}
+      issue: ${{ steps.request.outputs.issue }}
+      status: ${{ steps.openhands.outputs.status }}
+      conversation_url: ${{ steps.openhands.outputs.conversation_url }}
+    steps:
+      - name: Resolve request
+        id: request
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_ISSUE: ${{ github.event.issue.number }}
+          INPUT_ISSUE: ${{ inputs.issue_number }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            [ "$COMMENT_BODY" = "/openhands" ] || { echo "run=false" >> "$GITHUB_OUTPUT"; exit 0; }
+            issue="$COMMENT_ISSUE"
+          else
+            issue="$INPUT_ISSUE"
+          fi
+          [[ "$issue" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid issue number"; exit 1; }
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "issue=$issue" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout immutable trusted revision
+        if: steps.request.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Fetch and validate trusted handoff
+        if: steps.request.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.request.outputs.issue }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}" > "$RUNNER_TEMP/openhands-issue.json"
+          jq -e --arg owner "$OWNER" '.pull_request == null and .user.login == $owner'             "$RUNNER_TEMP/openhands-issue.json" >/dev/null
+          python infra/agents/antigravity/run.py check             --issue-json "$RUNNER_TEMP/openhands-issue.json"             --meta "$RUNNER_TEMP/openhands-meta.json"
+
+      - name: Build bounded OpenHands prompt
+        if: steps.request.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          meta = json.loads((Path(os.environ["RUNNER_TEMP"]) / "openhands-meta.json").read_text(encoding="utf-8"))
+          allowed = "\n".join(f"- {item}" for item in meta["allowed_paths"])
+          preserve = "\n".join(f"- {item}" for item in meta["preserve"])
+          do_not = "\n".join(f"- {item}" for item in meta["do_not"])
+          validate = "\n".join(f"- {item}" for item in meta["validate"])
+          prompt = f"""You are OpenHands, an implementation executor working under ChatGPT leadership.
+
+Read AGENTS.md before doing anything else.
+
+Issue #{meta['issue_number']} — {meta['issue_title']}
+
+Goal:
+{meta['goal']}
+
+Allowed paths:
+{allowed}
+
+Preserve:
+{preserve}
+
+Do not:
+{do_not}
+
+Validation commands:
+{validate}
+
+Rules:
+- Work only on the delegated task and allowed paths.
+- Do not read, print, infer, copy, or expose secrets, credentials, environment variables, student data, or private production data.
+- Do not modify GitHub Actions, AGENTS.md, agent infrastructure, package manifests/lockfiles, rulesets, secrets, Entra, Cloudflare, or production unless they are explicitly allowed by the validated handoff; the host validator normally prevents delegating those paths.
+- You may use the repository workspace and local terminal only as needed for the delegated implementation and validation.
+- Do not merge to main and do not deploy. If code changes are required, create only a candidate branch/draft pull request through the connected GitHub integration.
+- If the task requires an architectural decision or any file outside Allowed paths, stop and explain the blocker instead of expanding scope.
+"""
+          if len(prompt) > 30000:
+              raise SystemExit("Generated OpenHands prompt is too large.")
+          (Path(os.environ["RUNNER_TEMP"]) / "openhands-prompt.txt").write_text(prompt, encoding="utf-8")
+          PY
+
+      - name: Start and poll OpenHands Cloud
+        if: steps.request.outputs.run == 'true'
+        id: openhands
+        env:
+          OPENHANDS_API_KEY: ${{ secrets.OPENHANDS_API_KEY }}
+        run: |
+          set -euo pipefail
+          python infra/agents/openhands_cloud.py             --prompt "$(cat "$RUNNER_TEMP/openhands-prompt.txt")"             --repository "$GITHUB_REPOSITORY"             --branch "main"             --timeout-seconds 1200             --poll-interval-seconds 30
+
+  report:
+    name: Report OpenHands result
+    needs: invoke
+    if: always() && needs.invoke.outputs.run == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      issues: write
+    steps:
+      - name: Report sanitized result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.invoke.outputs.issue }}
+          STATUS: ${{ needs.invoke.outputs.status }}
+          CONVERSATION_URL: ${{ needs.invoke.outputs.conversation_url }}
+          INVOKE_RESULT: ${{ needs.invoke.result }}
+        run: |
+          set -euo pipefail
+          if [ "$INVOKE_RESULT" = "success" ]; then
+            gh issue comment "$ISSUE" --body               "OpenHands Cloud concluiu a execução com status \`$STATUS\`. Conversa: $CONVERSATION_URL"
+          else
+            gh issue comment "$ISSUE" --body               "A execução do OpenHands Cloud falhou fechada. Nenhuma integração foi autorizada automaticamente. Consulte o workflow run ${GITHUB_RUN_ID}."
+          fi
