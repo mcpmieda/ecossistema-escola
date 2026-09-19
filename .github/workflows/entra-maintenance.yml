@@ -337,7 +337,7 @@ jobs:
           thumbprint="$(openssl dgst -sha1 -binary "$dir/cert.der" | base64 | tr '+/' '-_' | tr -d '=\n')"
           printf '%s' "$thumbprint" > "$dir/thumbprint"
           chmod 600 "$dir/thumbprint"
-          validity="$(node --experimental-strip-types scripts/entra/certificate-validity.ts "$dir/cert.pem")"
+          validity="$(node --experimental-strip-types scripts/entra/certificate-validity.ts)"
           created_at="$(jq -er '.startDateTime' <<<"$validity")"
           end_at="$(jq -er '.endDateTime' <<<"$validity")"
           display_name="automatic-${TARGET}-slot-${SLOT}-${created_at}"
