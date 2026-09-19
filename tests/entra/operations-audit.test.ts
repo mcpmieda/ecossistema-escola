@@ -359,7 +359,7 @@ describe('Entra operations read-only audit', () => {
         accessToken: TOKEN,
         webApplicationObjectId: WEB_OBJECT,
         graphApplicationObjectId: GRAPH_OBJECT,
-      operationsClientId: OPS_APP_ID,
+        operationsClientId: OPS_APP_ID,
         fetcher,
       }),
     ).rejects.toEqual(expect.objectContaining<Partial<EntraOperationsAuditError>>({
@@ -397,6 +397,7 @@ describe('Entra operations read-only audit', () => {
         accessToken: TOKEN,
         webApplicationObjectId: WEB_OBJECT,
         graphApplicationObjectId: WEB_OBJECT,
+        operationsClientId: OPS_APP_ID,
         fetcher,
       }),
     ).rejects.toBeInstanceOf(EntraOperationsAuditError);
