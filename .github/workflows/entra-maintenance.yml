@@ -260,6 +260,7 @@ jobs:
         shell: bash
         env:
           ACTION: ${{ inputs.action }}
+          TARGET: ${{ inputs.target }}
           ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
           WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
           GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
@@ -278,6 +279,12 @@ jobs:
             .targets.web.passwordCredentialCount == 0 and
             .targets.graph.passwordCredentialCount == 0
           ' "$output" >/dev/null
+          if [ "$ACTION" = "rotate" ]; then
+            jq -e --arg target "$TARGET" '(.targets[$target].keyCredentials | length) == 2' "$output" >/dev/null || {
+              echo "::error::Rotation target is not in the expected two-certificate steady state."
+              exit 1
+            }
+          fi
 
       - name: Resolve bounded target
         id: target
@@ -374,12 +381,27 @@ jobs:
           NODE
 
           validated=false
-          for _attempt in {1..12}; do
-            if ROTATION_TARGET="$TARGET" ROTATION_SLOT="$SLOT" ENTRA_TENANT_ID="$ENTRA_TENANT_ID"               TARGET_CLIENT_ID="$TARGET_CLIENT_ID" CREDENTIAL_FILE="$dir/credential.json"               node --experimental-strip-types scripts/entra/validate-runtime-credential.ts > "$RUNNER_TEMP/validation.json" 2>/dev/null; then
+          for _attempt in {1..60}; do
+            if ROTATION_TARGET="$TARGET" ROTATION_SLOT="$SLOT" ENTRA_TENANT_ID="$ENTRA_TENANT_ID"               TARGET_CLIENT_ID="$TARGET_CLIENT_ID" CREDENTIAL_FILE="$dir/credential.json"               node --experimental-strip-types scripts/entra/validate-runtime-credential.ts > "$RUNNER_TEMP/validation.json"; then
               validated=true
               break
             fi
-            sleep 5
+
+            http_status="$(jq -r '.httpStatus // empty' "$RUNNER_TEMP/validation.json" 2>/dev/null || true)"
+            aadsts_code="$(jq -r '.aadstsCode // empty' "$RUNNER_TEMP/validation.json" 2>/dev/null || true)"
+            retryable=false
+            if [ "$aadsts_code" = "700027" ]; then retryable=true; fi
+            if [ "$http_status" = "401" ] && [ -z "$aadsts_code" ]; then retryable=true; fi
+            if [ "$http_status" = "429" ] || [[ "$http_status" =~ ^5[0-9][0-9]$ ]]; then retryable=true; fi
+
+            if [ "$_attempt" -eq 1 ] || [ $((_attempt % 6)) -eq 0 ]; then
+              echo "Credential propagation pending: attempt=$_attempt http=${http_status:-unknown} aadsts=${aadsts_code:-none}"
+            fi
+            if [ "$retryable" != "true" ]; then
+              echo "::error::Exact credential validation returned a non-retryable Entra response (HTTP ${http_status:-unknown}, AADSTS ${aadsts_code:-none})."
+              break
+            fi
+            sleep 10
           done
           test "$validated" = "true"
           jq -e --arg target "$TARGET" --arg slot "$SLOT" --arg key "$graph_key_id"             '.status == "ok" and .target == $target and .slot == $slot and .credentialKeyId == $key'             "$RUNNER_TEMP/validation.json" >/dev/null
