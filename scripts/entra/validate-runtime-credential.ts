@@ -119,12 +119,11 @@ async function createClientAssertion(input: {
 
   try {
     const privateKeyBytes = pemToBytes(input.credential.privateKeyPkcs8);
+    const stablePrivateKeyBytes = new Uint8Array(privateKeyBytes.byteLength);
+    stablePrivateKeyBytes.set(privateKeyBytes);
     const key = await crypto.subtle.importKey(
       'pkcs8',
-      privateKeyBytes.buffer.slice(
-        privateKeyBytes.byteOffset,
-        privateKeyBytes.byteOffset + privateKeyBytes.byteLength,
-      ),
+      stablePrivateKeyBytes,
       { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
       false,
       ['sign'],
