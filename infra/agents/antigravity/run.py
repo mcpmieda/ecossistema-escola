@@ -19,9 +19,14 @@ SCHEMA_VERSION = 1
 MAX_ALLOWED_PATHS = 40
 MAX_VALIDATE_COMMANDS = 12
 MAX_PROMPT_CHARS = 30_000
-PROVIDER_MODELS = ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.8-flash")
-DEFAULT_PROVIDER_COOLDOWN_SECONDS = 65
-MAX_PROVIDER_COOLDOWN_SECONDS = 180
+PROVIDER_MODELS = (
+    "gemini-3.8-flash",
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+)
+MODEL_SWITCH_DELAY_SECONDS = 2
 HARD_FORBIDDEN = (
     ".github/**",
     "AGENTS.md",
@@ -269,19 +274,11 @@ def provider_retry_delay_seconds(error: Exception, attempt_index: int) -> int | 
     if not retryable:
         return None
 
-    requested = 0.0
-    for raw in re.findall(r"retry in\s+([0-9]+(?:\.[0-9]+)?)s", message, flags=re.IGNORECASE):
-        try:
-            requested = max(requested, float(raw))
-        except ValueError:
-            continue
-
-    # Attempt 1 falls back to a separate model quota immediately. If the fallback
-    # also exhausts capacity, wait past the provider's rolling one-minute window.
-    if attempt_index == 0:
-        return 2
-    cooldown = max(DEFAULT_PROVIDER_COOLDOWN_SECONDS, int(requested) + 3)
-    return min(cooldown, MAX_PROVIDER_COOLDOWN_SECONDS)
+    # Each outer attempt uses a different officially supported Antigravity model.
+    # Quotas are model-scoped, so waiting for an exhausted model's RPM/RPD window
+    # before switching only increases latency. The SDK has already performed its
+    # own bounded retries inside the current model.
+    return MODEL_SWITCH_DELAY_SECONDS
 
 
 def make_agent_config(api_key: str, model: str, root: Path, system_instructions: str,
