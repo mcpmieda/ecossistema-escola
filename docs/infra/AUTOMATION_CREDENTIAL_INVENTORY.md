@@ -10,7 +10,7 @@ This file records names, consumers and authority boundaries only. It must never 
 | --- | --- | --- |
 | `CLOUDFLARE_DEPLOY_TOKEN` | `.github/workflows/deploy-cloudflare-pages.yml`, `.github/workflows/deploy-student-portal.yml`, `.github/workflows/entra-maintenance.yml` | Pages/Workers deployment and the bounded Maintenance update of one inactive runtime credential slot. |
 | `CLOUDFLARE_HYPERDRIVE_TOKEN` | `.github/workflows/deploy-cloudflare-pages.yml` | Hyperdrive production verification/configuration only. |
-| `GEMINI_API_KEY` | `.github/workflows/antigravity-on-demand.yml` → `infra/agents/antigravity/run.py` | Antigravity executor only. The runner removes the key from the child environment before host validation. |
+| `GEMINI_API_KEY` | `.github/workflows/antigravity-on-demand.yml` and `.github/workflows/gemini-on-demand.yml` | Shared provider credential for the bounded Antigravity and Gemini CLI executors. Provider quota is shared; host-side validation runs outside the model step. |
 
 ## Repository variables to keep
 
