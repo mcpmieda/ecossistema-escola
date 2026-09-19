@@ -191,7 +191,8 @@ describe('Maintenance certificate rotation', () => {
       key(OLD_A, 'A', '2026-08-24T16:00:05.533Z', 'old-a'),
       key(OLD_B, 'B', '2026-08-24T16:02:00.054Z', 'old-b'),
       key(GRAPH_NEW_A, 'A', '2026-09-19T13:00:00.000Z', 'new-a'),
-    ]);
+    ], { staleReadsAfterPatch: 2 });
+    const pause = vi.fn(async () => undefined);
 
     const result = await finalizeRotation({
       accessToken: TOKEN,
@@ -199,6 +200,7 @@ describe('Maintenance certificate rotation', () => {
       slot: 'A',
       objectId: WEB_OBJECT_ID,
       fetcher: state.fetcher,
+      pause,
     });
 
     expect(result).toMatchObject({
@@ -212,6 +214,7 @@ describe('Maintenance certificate rotation', () => {
       'automatic-web-slot-B-2026-08-24T16:02:00.054Z',
       'automatic-web-slot-A-2026-09-19T13:00:00.000Z',
     ]);
+    expect(pause).toHaveBeenCalledTimes(2);
   });
 
   it('can remove the exact newly-added certificate during pre-secret rollback', async () => {
