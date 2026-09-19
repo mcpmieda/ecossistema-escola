@@ -38,7 +38,9 @@ export function useRemoteLiveV1(options: {
       if (disposed || denied) return;
       clearTimeout(retry);
       setState('reconnecting');
-      const delay = Math.min(30_000, 1_000 * 2 ** Math.min(attempt++, 5)) + Math.floor(Math.random() * 500);
+      const random = new Uint32Array(1);
+      globalThis.crypto.getRandomValues(random);
+      const delay = Math.min(30_000, 1_000 * 2 ** Math.min(attempt++, 5)) + (random[0]! % 500);
       retryAt = Date.now() + delay;
       if (available()) retry = setTimeout(connect, delay);
     };
