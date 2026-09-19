@@ -8,6 +8,9 @@ const WEB_OBJECT = '11111111-1111-4111-8111-111111111111';
 const GRAPH_OBJECT = '22222222-2222-4222-8222-222222222222';
 const WEB_APP_ID = '78185e20-c824-4acc-9ccd-41b9f7509a6f';
 const GRAPH_APP_ID = '7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c';
+const OPS_APP_ID = '8d0378b4-832c-4703-8449-5ff2072589a5';
+const APPLICATION_READ_ALL = '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30';
+const SITES_SELECTED = '883ea226-0bf2-4a8f-9f9d-92c9162a727d';
 const TOKEN = 'synthetic-token-that-must-never-appear-in-output';
 
 function json(value: unknown, status = 200) {
@@ -96,6 +99,17 @@ describe('Entra operations read-only audit', () => {
           }],
         });
       }
+      if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(OPS_APP_ID))) {
+        return json({
+          value: [{
+            id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+            appId: OPS_APP_ID,
+            displayName: 'Ecossistema Operations - GitHub OIDC',
+            accountEnabled: true,
+            servicePrincipalType: 'Application',
+          }],
+        });
+      }
       if (url.includes('/servicePrincipals/88888888-8888-4888-8888-888888888888/appRoleAssignments')) {
         return json({
           value: [{
@@ -109,6 +123,16 @@ describe('Entra operations read-only audit', () => {
       if (url.includes('/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments')) {
         return json({ value: [] });
       }
+      if (url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments')) {
+        return json({
+          value: [{
+            id: 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa',
+            appRoleId: APPLICATION_READ_ALL,
+            resourceId: '00000003-0000-0000-c000-000000000000',
+            createdDateTime: '2026-09-19T00:00:00Z',
+          }],
+        });
+      }
       throw new Error(`Unexpected URL: ${url}`);
     });
 
@@ -116,11 +140,12 @@ describe('Entra operations read-only audit', () => {
       accessToken: TOKEN,
       webApplicationObjectId: WEB_OBJECT,
       graphApplicationObjectId: GRAPH_OBJECT,
+      operationsClientId: OPS_APP_ID,
       fetcher,
       now: () => new Date('2026-09-19T00:00:00Z'),
     });
 
-    expect(fetcher).toHaveBeenCalledTimes(6);
+    expect(fetcher).toHaveBeenCalledTimes(8);
     expect(result.generatedAt).toBe('2026-09-19T00:00:00.000Z');
     expect(result.applications.web.servicePrincipal?.accountEnabled).toBe(true);
     expect(result.applications.web.redirectUris.web).toEqual([
@@ -128,6 +153,11 @@ describe('Entra operations read-only audit', () => {
     ]);
     expect(result.applications.web.requiredResourceAccess[0]?.resourceAccess[0]?.type).toBe('Role');
     expect(result.applications.web.servicePrincipal?.appRoleAssignments).toHaveLength(1);
+    expect(result.operationsIdentity).toMatchObject({
+      appId: OPS_APP_ID,
+      displayName: 'Ecossistema Operations - GitHub OIDC',
+      accountEnabled: true,
+    });
     expect(result.drift.status).toBe('warning');
     expect(result.drift.findings).toContainEqual({
       application: 'web',
@@ -206,10 +236,24 @@ describe('Entra operations read-only audit', () => {
           servicePrincipalType: 'Application',
         }] });
       }
+      if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(OPS_APP_ID))) {
+        return json({ value: [{
+          id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+          appId: OPS_APP_ID,
+          displayName: 'Ecossistema Operations - GitHub OIDC',
+          accountEnabled: true,
+          servicePrincipalType: 'Application',
+        }] });
+      }
       if (url.includes('/servicePrincipals/88888888-8888-4888-8888-888888888888/appRoleAssignments'))
         return json({ value: [] });
       if (url.includes('/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments'))
         return json({ value: [] });
+      if (url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments'))
+        return json({ value: [
+          { id: crypto.randomUUID(), appRoleId: APPLICATION_READ_ALL, resourceId: crypto.randomUUID() },
+          { id: crypto.randomUUID(), appRoleId: SITES_SELECTED, resourceId: crypto.randomUUID() },
+        ] });
       if (url.includes(encodeURIComponent(selectedSite)) && url.includes('/lists?'))
         return json({ value: [{ id: 'list-a' }, { id: 'list-b' }] });
       if (url.includes(encodeURIComponent(selectedSite)))
@@ -223,12 +267,13 @@ describe('Entra operations read-only audit', () => {
       accessToken: TOKEN,
       webApplicationObjectId: WEB_OBJECT,
       graphApplicationObjectId: GRAPH_OBJECT,
+      operationsClientId: OPS_APP_ID,
       sharePointAuditEnabled: true,
       fetcher,
       now: () => new Date('2026-09-19T00:00:00Z'),
     });
 
-    expect(fetcher).toHaveBeenCalledTimes(9);
+    expect(fetcher).toHaveBeenCalledTimes(11);
     expect(result.drift.status).toBe('ok');
     expect(result.sharePoint).toEqual({
       enabled: true,
@@ -271,6 +316,15 @@ describe('Entra operations read-only audit', () => {
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(GRAPH_APP_ID)))
         return json({ value: [{ id: '99999999-9999-4999-8999-999999999999', appId: GRAPH_APP_ID,
           displayName: 'Graph SP', accountEnabled: true, servicePrincipalType: 'Application' }] });
+      if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(OPS_APP_ID)))
+        return json({ value: [{ id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', appId: OPS_APP_ID,
+          displayName: 'Ecossistema Operations - GitHub OIDC', accountEnabled: true,
+          servicePrincipalType: 'Application' }] });
+      if (url.includes('/servicePrincipals/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee/appRoleAssignments'))
+        return json({ value: [
+          { id: crypto.randomUUID(), appRoleId: APPLICATION_READ_ALL, resourceId: crypto.randomUUID() },
+          { id: crypto.randomUUID(), appRoleId: SITES_SELECTED, resourceId: crypto.randomUUID() },
+        ] });
       if (url.includes('/appRoleAssignments')) return json({ value: [] });
       if (url.includes(encodeURIComponent(selectedSite)) && url.includes('/lists?'))
         return json({ value: [] });
@@ -285,6 +339,7 @@ describe('Entra operations read-only audit', () => {
       accessToken: TOKEN,
       webApplicationObjectId: WEB_OBJECT,
       graphApplicationObjectId: GRAPH_OBJECT,
+      operationsClientId: OPS_APP_ID,
       sharePointAuditEnabled: true,
       fetcher,
       now: () => new Date('2026-09-19T00:00:00Z'),
@@ -304,6 +359,7 @@ describe('Entra operations read-only audit', () => {
         accessToken: TOKEN,
         webApplicationObjectId: WEB_OBJECT,
         graphApplicationObjectId: GRAPH_OBJECT,
+      operationsClientId: OPS_APP_ID,
         fetcher,
       }),
     ).rejects.toEqual(expect.objectContaining<Partial<EntraOperationsAuditError>>({
@@ -316,6 +372,7 @@ describe('Entra operations read-only audit', () => {
         accessToken: TOKEN,
         webApplicationObjectId: WEB_OBJECT,
         graphApplicationObjectId: GRAPH_OBJECT,
+      operationsClientId: OPS_APP_ID,
         fetcher,
       });
     } catch (error) {
@@ -331,6 +388,7 @@ describe('Entra operations read-only audit', () => {
         accessToken: TOKEN,
         webApplicationObjectId: 'not-a-uuid',
         graphApplicationObjectId: GRAPH_OBJECT,
+      operationsClientId: OPS_APP_ID,
         fetcher,
       }),
     ).rejects.toBeInstanceOf(EntraOperationsAuditError);
