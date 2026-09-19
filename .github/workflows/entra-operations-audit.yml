@@ -113,6 +113,7 @@ jobs:
         env:
           WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
           GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+          ENTRA_OPERATIONS_CLIENT_ID: ${{ vars.ENTRA_OPERATIONS_CLIENT_ID }}
           ENTRA_SHAREPOINT_AUDIT_ENABLED: ${{ vars.ENTRA_SHAREPOINT_AUDIT_ENABLED }}
         run: |
           set -euo pipefail
@@ -133,6 +134,8 @@ jobs:
             (.applications.graph.passwordCredentials | type == "array") and
             (.drift.status | IN("ok", "warning", "critical")) and
             (.drift.findings | type == "array") and
+            (.operationsIdentity.appId != null) and
+            (.operationsIdentity.appRoleAssignments | type == "array") and
             (.sharePoint.status | IN("disabled", "ok"))
           ' "$output" >/dev/null
 
@@ -146,6 +149,8 @@ jobs:
               "- Graph: " + .applications.graph.displayName +
               " — certs: " + ((.applications.graph.keyCredentials | length) | tostring) +
               ", password credentials: " + ((.applications.graph.passwordCredentials | length) | tostring),
+              "- Operations identity: permissions: " +
+              ((.operationsIdentity.appRoleAssignments | length) | tostring),
               "- Drift: " + .drift.status +
               " — findings: " + ((.drift.findings | length) | tostring),
               "- SharePoint: " + .sharePoint.status +
