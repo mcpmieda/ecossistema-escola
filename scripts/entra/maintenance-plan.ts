@@ -220,8 +220,8 @@ async function proveExactOwnership(
   if (actual.some((id) => !UUID.test(id))) {
     throw new EntraMaintenancePlanError('maintenance-owned-objects-invalid');
   }
-  const sortedActual = [...actual].sort();
-  const sortedExpected = [...expectedObjectIds].sort();
+  const sortedActual = [...actual].sort((left, right) => left.localeCompare(right));
+  const sortedExpected = [...expectedObjectIds].sort((left, right) => left.localeCompare(right));
   if (JSON.stringify(sortedActual) !== JSON.stringify(sortedExpected)) {
     throw new EntraMaintenancePlanError('maintenance-ownership-mismatch');
   }
