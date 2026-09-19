@@ -73,7 +73,7 @@ describe('Entra Operations OIDC workflow', () => {
   it('fails closed on critical Entra drift while keeping the summary sanitized', () => {
     expect(workflow).toContain('.drift.status != "critical"');
     expect(workflow).toContain('Critical Entra configuration drift detected.');
-    expect(workflow).toContain('" - Drift: "'.trim());
+    expect(workflow).toContain('"- Drift: "');
     expect(workflow).not.toContain('appRoleAssignments | @json');
   });
 
