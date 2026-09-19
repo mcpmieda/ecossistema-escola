@@ -214,7 +214,7 @@ export function createPerformanceRequestHandlerV1(
     let payload: unknown;
     try {
       payload = await readBoundedJson(request, 32_768);
-    } catch (cause) {
+    } catch {
       return invalidRequest('invalid-request');
     }
     if (payload !== null && typeof payload === 'object' && 'transportVersion' in payload && payload.transportVersion === 6) {
