@@ -6,8 +6,8 @@ import {
 
 const WEB_OBJECT = '11111111-1111-4111-8111-111111111111';
 const GRAPH_OBJECT = '22222222-2222-4222-8222-222222222222';
-const WEB_APP_ID = '33333333-3333-4333-8333-333333333333';
-const GRAPH_APP_ID = '44444444-4444-4444-8444-444444444444';
+const WEB_APP_ID = '78185e20-c824-4acc-9ccd-41b9f7509a6f';
+const GRAPH_APP_ID = '7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c';
 const TOKEN = 'synthetic-token-that-must-never-appear-in-output';
 
 function json(value: unknown, status = 200) {
@@ -28,9 +28,9 @@ describe('Entra operations read-only audit', () => {
         return json({
           id: WEB_OBJECT,
           appId: WEB_APP_ID,
-          displayName: 'Synthetic Web',
+          displayName: 'Ecossistema Escolar - Web',
           signInAudience: 'AzureADMyOrg',
-          web: { redirectUris: ['https://example.invalid/auth/callback'] },
+          web: { redirectUris: ['https://admin.escolaieda.com/auth/callback'] },
           keyCredentials: [{
             keyId: '55555555-5555-4555-8555-555555555555',
             type: 'AsymmetricX509Cert',
@@ -59,10 +59,19 @@ describe('Entra operations read-only audit', () => {
         return json({
           id: GRAPH_OBJECT,
           appId: GRAPH_APP_ID,
-          displayName: 'Synthetic Graph',
+          displayName: 'Ecossistema Escolar - Graph Backend',
           signInAudience: 'AzureADMyOrg',
+          web: { redirectUris: [] },
           spa: { redirectUris: [] },
           publicClient: { redirectUris: [] },
+          keyCredentials: [{
+            keyId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            type: 'AsymmetricX509Cert',
+            usage: 'Verify',
+            displayName: 'rotation-a',
+            startDateTime: '2026-01-01T00:00:00Z',
+            endDateTime: '2027-12-31T00:00:00Z',
+          }],
         });
       }
       if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(WEB_APP_ID))) {
@@ -87,6 +96,19 @@ describe('Entra operations read-only audit', () => {
           }],
         });
       }
+      if (url.includes('/servicePrincipals/88888888-8888-4888-8888-888888888888/appRoleAssignments')) {
+        return json({
+          value: [{
+            id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+            appRoleId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+            resourceId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+            createdDateTime: '2026-01-01T00:00:00Z',
+          }],
+        });
+      }
+      if (url.includes('/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments')) {
+        return json({ value: [] });
+      }
       throw new Error(`Unexpected URL: ${url}`);
     });
 
@@ -98,13 +120,20 @@ describe('Entra operations read-only audit', () => {
       now: () => new Date('2026-09-19T00:00:00Z'),
     });
 
-    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(fetcher).toHaveBeenCalledTimes(6);
     expect(result.generatedAt).toBe('2026-09-19T00:00:00.000Z');
     expect(result.applications.web.servicePrincipal?.accountEnabled).toBe(true);
     expect(result.applications.web.redirectUris.web).toEqual([
-      'https://example.invalid/auth/callback',
+      'https://admin.escolaieda.com/auth/callback',
     ]);
     expect(result.applications.web.requiredResourceAccess[0]?.resourceAccess[0]?.type).toBe('Role');
+    expect(result.applications.web.servicePrincipal?.appRoleAssignments).toHaveLength(1);
+    expect(result.drift.status).toBe('warning');
+    expect(result.drift.findings).toContainEqual({
+      application: 'web',
+      severity: 'warning',
+      code: 'password-credential-present',
+    });
 
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain(TOKEN);
