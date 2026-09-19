@@ -93,3 +93,32 @@ O runtime existente será reutilizado:
 Antes do apply, o dry-run também informa apenas um booleano sanitizado por alvo indicando se o material público dos certificados atuais está disponível para preservação integral. Nenhum byte de certificado é publicado no GitHub.
 
 A implementação de apply deve gerar a nova chave somente no job protegido, adicionar o certificado público preservando certificados válidos existentes, gravar a credencial privada no slot inativo do runtime, provar o slot exato sem fallback e manter o certificado anterior durante a janela de rollback.
+
+## Fase B — apply protegido
+
+O workflow manual passou a oferecer três operações no environment `maintenance`:
+
+- `dry-run`: somente leitura;
+- `rotate`: adiciona um novo certificado no slot atualmente inativo, prova autenticação real usando exatamente esse slot, grava a mesma credencial no secret Pages correspondente e dispara o workflow oficial `Deploy Cloudflare Pages` sobre a mesma `main`;
+- `finalize`: somente depois de existir deploy `workflow_dispatch` verde posterior ao novo certificado; remove apenas o certificado antigo do mesmo slot e mantém o certificado novo mais o certificado do slot oposto para rollback.
+
+Invariantes do apply:
+
+1. somente os Application Objects Web e Graph oficiais podem ser alvo;
+2. `rotate` exige exatamente dois certificados atuais, um A e um B, sem client secret;
+3. o slot solicitado precisa ser o inativo segundo `startDateTime`; tentar girar o slot ativo falha fechado;
+4. todo certificado atual precisa ter material público legível antes do PATCH;
+5. o PATCH envia os certificados atuais junto com o novo para não substituir a coleção por engano;
+6. a private key nova existe apenas no runner e no secret Pages do slot selecionado;
+7. antes de gravar o secret, o workflow usa o parser/runtime de produção e prova o novo slot contra o Entra sem fallback;
+8. se a prova exata ou a gravação do secret falhar, o certificado recém-adicionado é removido automaticamente;
+9. depois que o secret foi gravado, falhas posteriores não removem o novo certificado automaticamente, preservando recovery;
+10. publicação usa somente o workflow oficial de produção, preservando os gates/proveniência da `main`;
+11. `finalize` exige prova de deploy oficial verde posterior ao certificado novo.
+
+Estado inicial comprovado em 2026-09-19:
+
+- Web: B é o slot mais novo; primeira rotação deve usar `target=web`, `slot=A`;
+- Graph: A é o slot mais novo; primeira rotação deve usar `target=graph`, `slot=B`.
+
+Executar uma rotação por alvo por vez: `rotate` → conferir run/deploy → `finalize` → próximo alvo.

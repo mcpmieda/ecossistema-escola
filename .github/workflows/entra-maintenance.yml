@@ -1,13 +1,43 @@
-name: Entra Maintenance dry-run
+name: Entra Maintenance
 
 on:
   pull_request:
     paths:
       - '.github/workflows/entra-maintenance.yml'
       - 'scripts/entra/maintenance-plan.ts'
+      - 'scripts/entra/maintenance-rotate.ts'
+      - 'scripts/entra/validate-runtime-credential.ts'
       - 'tests/entra/maintenance-plan.test.ts'
+      - 'tests/entra/maintenance-rotate.test.ts'
+      - 'tests/entra/validate-runtime-credential.test.ts'
       - 'docs/infra/ENTRA_MAINTENANCE_OIDC.md'
   workflow_dispatch:
+    inputs:
+      action:
+        description: Maintenance operation
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - rotate
+          - finalize
+      target:
+        description: Application target
+        required: true
+        default: web
+        type: choice
+        options:
+          - web
+          - graph
+      slot:
+        description: A/B slot (rotate must select the currently inactive slot)
+        required: true
+        default: A
+        type: choice
+        options:
+          - A
+          - B
 
 permissions: {}
 
@@ -28,21 +58,27 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Verify bounded dry-run
+      - name: Verify bounded Maintenance workflow
         shell: bash
         run: |
           set -euo pipefail
           test -f scripts/entra/maintenance-plan.ts
+          test -f scripts/entra/maintenance-rotate.ts
+          test -f scripts/entra/validate-runtime-credential.ts
           test -f tests/entra/maintenance-plan.test.ts
+          test -f tests/entra/maintenance-rotate.test.ts
+          test -f tests/entra/validate-runtime-credential.test.ts
           test -f docs/infra/ENTRA_MAINTENANCE_OIDC.md
           grep -Fq 'environment: maintenance' .github/workflows/entra-maintenance.yml
           grep -Fq 'id-token: write' .github/workflows/entra-maintenance.yml
           grep -Fq 'Application.ReadWrite.OwnedBy' docs/infra/ENTRA_MAINTENANCE_OIDC.md
+          grep -Fq 'pages secret put' .github/workflows/entra-maintenance.yml
+          grep -Fq 'deploy-cloudflare-pages.yml' .github/workflows/entra-maintenance.yml
           ! grep -Eq "method: ['\"](POST|PATCH|DELETE)['\"]" scripts/entra/maintenance-plan.ts
 
   dry-run:
     name: Plan Maintenance via OIDC
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'dry-run'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     environment: maintenance
@@ -88,7 +124,6 @@ jobs:
           oidc_token="$(jq -r '.value // empty' <<<"$oidc_response")"
           test -n "$oidc_token"
           echo "::add-mask::$oidc_token"
-
           entra_response="$(
             curl --silent --show-error --fail               -X POST               -H 'Content-Type: application/x-www-form-urlencoded'               --data-urlencode "client_id=${ENTRA_MAINTENANCE_CLIENT_ID}"               --data-urlencode 'scope=https://graph.microsoft.com/.default'               --data-urlencode 'grant_type=client_credentials'               --data-urlencode 'client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer'               --data-urlencode "client_assertion=${oidc_token}"               "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0/token"
           )"
@@ -112,11 +147,9 @@ jobs:
           echo "::add-mask::$token"
           output="$RUNNER_TEMP/entra-maintenance-plan.json"
           trap 'rm -f "$RUNNER_TEMP/graph-access-token" "$RUNNER_TEMP/entra-maintenance-plan.json"' EXIT
-
           GRAPH_ACCESS_TOKEN="$token"             ENTRA_MAINTENANCE_CLIENT_ID="$ENTRA_MAINTENANCE_CLIENT_ID"             WEB_APPLICATION_OBJECT_ID="$WEB_APPLICATION_OBJECT_ID"             GRAPH_APPLICATION_OBJECT_ID="$GRAPH_APPLICATION_OBJECT_ID"             node --experimental-strip-types scripts/entra/maintenance-plan.ts > "$output"
           rm -f "$RUNNER_TEMP/graph-access-token"
           unset token
-
           jq -e '
             .status == "ready" and
             .identity.applicationPermissions == ["Application.ReadWrite.OwnedBy"] and
@@ -124,7 +157,6 @@ jobs:
             (.targets.web.keyCredentials | length) > 0 and
             (.targets.graph.keyCredentials | length) > 0
           ' "$output" >/dev/null
-
           {
             echo "### Entra Maintenance dry-run"
             echo
@@ -142,3 +174,308 @@ jobs:
               "- Result: ready; no Entra mutation executed"
             ' "$output"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  write:
+    name: Apply bounded Maintenance rotation
+    if: github.event_name == 'workflow_dispatch' && inputs.action != 'dry-run'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    environment: maintenance
+    permissions:
+      contents: read
+      id-token: write
+      actions: write
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Enforce trusted main and required configuration
+        shell: bash
+        env:
+          ACTION: ${{ inputs.action }}
+          TARGET: ${{ inputs.target }}
+          SLOT: ${{ inputs.slot }}
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          [[ "$ACTION" == "rotate" || "$ACTION" == "finalize" ]]
+          [[ "$TARGET" == "web" || "$TARGET" == "graph" ]]
+          [[ "$SLOT" == "A" || "$SLOT" == "B" ]]
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          if [ "$ACTION" = "rotate" ]; then test -n "$CLOUDFLARE_API_TOKEN"; fi
+          uuid='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+          for value in "$ENTRA_TENANT_ID" "$ENTRA_MAINTENANCE_CLIENT_ID" "$WEB_APPLICATION_OBJECT_ID" "$GRAPH_APPLICATION_OBJECT_ID"; do
+            [[ "$value" =~ $uuid ]] || exit 1
+          done
+
+      - name: Install pinned dependencies
+        run: npm ci
+
+      - name: Exchange GitHub OIDC assertion for short-lived Graph token
+        shell: bash
+        env:
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          oidc_response="$(
+            curl --silent --show-error --fail               -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}"               "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=api%3A%2F%2FAzureADTokenExchange"
+          )"
+          oidc_token="$(jq -r '.value // empty' <<<"$oidc_response")"
+          test -n "$oidc_token"
+          echo "::add-mask::$oidc_token"
+          entra_response="$(
+            curl --silent --show-error --fail               -X POST               -H 'Content-Type: application/x-www-form-urlencoded'               --data-urlencode "client_id=${ENTRA_MAINTENANCE_CLIENT_ID}"               --data-urlencode 'scope=https://graph.microsoft.com/.default'               --data-urlencode 'grant_type=client_credentials'               --data-urlencode 'client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer'               --data-urlencode "client_assertion=${oidc_token}"               "https://login.microsoftonline.com/${ENTRA_TENANT_ID}/oauth2/v2.0/token"
+          )"
+          graph_token="$(jq -r '.access_token // empty' <<<"$entra_response")"
+          test -n "$graph_token"
+          echo "::add-mask::$graph_token"
+          printf '%s' "$graph_token" > "$RUNNER_TEMP/graph-access-token"
+          chmod 600 "$RUNNER_TEMP/graph-access-token"
+          unset oidc_token graph_token oidc_response entra_response
+
+      - name: Prove minimal permission, exact ownership and preservation readiness
+        shell: bash
+        env:
+          ACTION: ${{ inputs.action }}
+          ENTRA_MAINTENANCE_CLIENT_ID: ${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+        run: |
+          set -euo pipefail
+          token="$(cat "$RUNNER_TEMP/graph-access-token")"
+          echo "::add-mask::$token"
+          output="$RUNNER_TEMP/entra-maintenance-plan.json"
+          GRAPH_ACCESS_TOKEN="$token"             ENTRA_MAINTENANCE_CLIENT_ID="$ENTRA_MAINTENANCE_CLIENT_ID"             WEB_APPLICATION_OBJECT_ID="$WEB_APPLICATION_OBJECT_ID"             GRAPH_APPLICATION_OBJECT_ID="$GRAPH_APPLICATION_OBJECT_ID"             node --experimental-strip-types scripts/entra/maintenance-plan.ts > "$output"
+          jq -e '
+            .status == "ready" and
+            .identity.applicationPermissions == ["Application.ReadWrite.OwnedBy"] and
+            (.identity.ownedApplicationObjectIds | length) == 2 and
+            .targets.web.allCertificateMaterialReadable == true and
+            .targets.graph.allCertificateMaterialReadable == true and
+            .targets.web.passwordCredentialCount == 0 and
+            .targets.graph.passwordCredentialCount == 0
+          ' "$output" >/dev/null
+
+      - name: Resolve bounded target
+        id: target
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+          SLOT: ${{ inputs.slot }}
+          WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
+          GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+        run: |
+          set -euo pipefail
+          if [ "$TARGET" = "web" ]; then
+            echo "object_id=$WEB_APPLICATION_OBJECT_ID" >> "$GITHUB_OUTPUT"
+            echo "client_id=78185e20-c824-4acc-9ccd-41b9f7509a6f" >> "$GITHUB_OUTPUT"
+            echo "secret_name=WEB_CREDENTIAL_$SLOT" >> "$GITHUB_OUTPUT"
+          else
+            echo "object_id=$GRAPH_APPLICATION_OBJECT_ID" >> "$GITHUB_OUTPUT"
+            echo "client_id=7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c" >> "$GITHUB_OUTPUT"
+            echo "secret_name=GRAPH_CREDENTIAL_$SLOT" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate candidate certificate and runtime credential
+        if: inputs.action == 'rotate'
+        id: candidate
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+          SLOT: ${{ inputs.slot }}
+        run: |
+          set -euo pipefail
+          umask 077
+          dir="$RUNNER_TEMP/maintenance-rotation"
+          rm -rf "$dir"
+          mkdir -p "$dir"
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$dir/private.pem" >/dev/null 2>&1
+          openssl req -new -x509 -key "$dir/private.pem" -out "$dir/cert.pem" -days 180 -sha256             -subj "/CN=ecossistema-${TARGET}-${SLOT}-${GITHUB_RUN_ID}" >/dev/null 2>&1
+          openssl x509 -in "$dir/cert.pem" -outform DER -out "$dir/cert.der"
+          thumbprint="$(openssl dgst -sha1 -binary "$dir/cert.der" | base64 | tr '+/' '-_' | tr -d '=\n')"
+          printf '%s' "$thumbprint" > "$dir/thumbprint"
+          chmod 600 "$dir/thumbprint"
+          created_at="$(node -e 'console.log(new Date().toISOString())')"
+          end_at="$(node -e 'const d=new Date(); d.setUTCDate(d.getUTCDate()+180); console.log(d.toISOString())')"
+          display_name="automatic-${TARGET}-slot-${SLOT}-${created_at}"
+          echo "created_at=$created_at" >> "$GITHUB_OUTPUT"
+          echo "end_at=$end_at" >> "$GITHUB_OUTPUT"
+          echo "display_name=$display_name" >> "$GITHUB_OUTPUT"
+
+      - name: Add certificate, prove exact runtime slot and update inactive Pages secret
+        if: inputs.action == 'rotate'
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+          SLOT: ${{ inputs.slot }}
+          APPLICATION_OBJECT_ID: ${{ steps.target.outputs.object_id }}
+          TARGET_CLIENT_ID: ${{ steps.target.outputs.client_id }}
+          SECRET_NAME: ${{ steps.target.outputs.secret_name }}
+          NEW_START_DATE_TIME: ${{ steps.candidate.outputs.created_at }}
+          NEW_END_DATE_TIME: ${{ steps.candidate.outputs.end_at }}
+          NEW_DISPLAY_NAME: ${{ steps.candidate.outputs.display_name }}
+          ENTRA_TENANT_ID: ${{ vars.ENTRA_TENANT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DEPLOY_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/maintenance-rotation"
+          token="$(cat "$RUNNER_TEMP/graph-access-token")"
+          echo "::add-mask::$token"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+          secret_written=false
+          graph_key_id=""
+          rollback() {
+            status=$?
+            if [ "$status" -ne 0 ] && [ "$secret_written" != "true" ] && [ -n "$graph_key_id" ]; then
+              GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=remove-exact ROTATION_TARGET="$TARGET"                 APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID" KEY_ID_TO_REMOVE="$graph_key_id"                 node --experimental-strip-types scripts/entra/maintenance-rotate.ts >/dev/null 2>&1 || true
+            fi
+            rm -rf "$dir"
+            exit "$status"
+          }
+          trap rollback EXIT
+
+          GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=add ROTATION_TARGET="$TARGET" ROTATION_SLOT="$SLOT"             APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID"             CERT_DER_PATH="$dir/cert.der" NEW_DISPLAY_NAME="$NEW_DISPLAY_NAME"             NEW_START_DATE_TIME="$NEW_START_DATE_TIME" NEW_END_DATE_TIME="$NEW_END_DATE_TIME"             node --experimental-strip-types scripts/entra/maintenance-rotate.ts > "$RUNNER_TEMP/add-result.json"
+          graph_key_id="$(jq -r '.newGraphKeyId // empty' "$RUNNER_TEMP/add-result.json")"
+          [[ "$graph_key_id" =~ ^[0-9a-fA-F-]{36}$ ]]
+          KEY_PATH="$dir/private.pem" THUMBPRINT="$(cat "$dir/thumbprint")" KEY_ID="$graph_key_id" CREATED_AT="$NEW_START_DATE_TIME"             node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const value = {
+            privateKeyPkcs8: readFileSync(process.env.KEY_PATH, 'utf8'),
+            certificateThumbprint: process.env.THUMBPRINT,
+            keyId: process.env.KEY_ID,
+            createdAt: process.env.CREATED_AT,
+          };
+          writeFileSync(process.env.RUNNER_TEMP + '/maintenance-rotation/credential.json', JSON.stringify(value), { mode: 0o600 });
+          NODE
+
+          validated=false
+          for _attempt in {1..12}; do
+            if ROTATION_TARGET="$TARGET" ROTATION_SLOT="$SLOT" ENTRA_TENANT_ID="$ENTRA_TENANT_ID"               TARGET_CLIENT_ID="$TARGET_CLIENT_ID" CREDENTIAL_FILE="$dir/credential.json"               node --experimental-strip-types scripts/entra/validate-runtime-credential.ts > "$RUNNER_TEMP/validation.json" 2>/dev/null; then
+              validated=true
+              break
+            fi
+            sleep 5
+          done
+          test "$validated" = "true"
+          jq -e --arg target "$TARGET" --arg slot "$SLOT" --arg key "$graph_key_id"             '.status == "ok" and .target == $target and .slot == $slot and .credentialKeyId == $key'             "$RUNNER_TEMP/validation.json" >/dev/null
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+
+          cat "$dir/credential.json" | npx wrangler pages secret put "$SECRET_NAME"             --project-name ecossistema-escola >/dev/null
+          secret_written=true
+          rm -f "$RUNNER_TEMP/add-result.json" "$RUNNER_TEMP/validation.json"
+          rm -rf "$dir"
+          trap - EXIT
+
+      - name: Deploy the exact trusted main through the official production workflow
+        if: inputs.action == 'rotate'
+        id: deploy
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          before_id="$(gh api --method GET             "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-cloudflare-pages.yml/runs?event=workflow_dispatch&branch=main&per_page=20"             --jq '[.workflow_runs[].id] | max // 0')"
+          gh workflow run deploy-cloudflare-pages.yml --ref main
+          run_id=""
+          for _attempt in {1..30}; do
+            response="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-cloudflare-pages.yml/runs?event=workflow_dispatch&branch=main&per_page=20")"
+            run_id="$(jq -r --argjson before "$before_id" --arg sha "$GITHUB_SHA" '[.workflow_runs[] | select(.id > $before and .head_sha == $sha)] | sort_by(.id) | last | .id // empty' <<<"$response")"
+            [ -n "$run_id" ] && break
+            sleep 2
+          done
+          test -n "$run_id"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          gh run watch "$run_id" --exit-status
+
+      - name: Verify a successful post-rotation production deployment before finalize
+        if: inputs.action == 'finalize'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ inputs.target }}
+          SLOT: ${{ inputs.slot }}
+        run: |
+          set -euo pipefail
+          plan="$RUNNER_TEMP/entra-maintenance-plan.json"
+          prefix="automatic-${TARGET}-slot-${SLOT}-"
+          latest_start="$(jq -r --arg target "$TARGET" --arg prefix "$prefix" '
+            .targets[$target].keyCredentials
+            | map(select(.displayName | startswith($prefix)))
+            | sort_by(.startDateTime)
+            | last
+            | .startDateTime // empty
+          ' "$plan")"
+          test -n "$latest_start"
+          response="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-cloudflare-pages.yml/runs?event=workflow_dispatch&branch=main&per_page=50")"
+          run_id="$(jq -r --arg sha "$GITHUB_SHA" --arg started "$latest_start" '[.workflow_runs[] | select(.head_sha == $sha and .conclusion == "success" and .created_at > $started)] | sort_by(.id) | last | .id // empty' <<<"$response")"
+          test -n "$run_id"
+
+      - name: Finalize rotation by removing only the stale same-slot certificate
+        if: inputs.action == 'finalize'
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+          SLOT: ${{ inputs.slot }}
+          APPLICATION_OBJECT_ID: ${{ steps.target.outputs.object_id }}
+        run: |
+          set -euo pipefail
+          token="$(cat "$RUNNER_TEMP/graph-access-token")"
+          echo "::add-mask::$token"
+          GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=finalize ROTATION_TARGET="$TARGET" ROTATION_SLOT="$SLOT"             APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID"             node --experimental-strip-types scripts/entra/maintenance-rotate.ts > "$RUNNER_TEMP/finalize-result.json"
+          jq -e '.status == "finalized"' "$RUNNER_TEMP/finalize-result.json" >/dev/null
+
+      - name: Publish sanitized Maintenance result
+        if: success()
+        shell: bash
+        env:
+          ACTION: ${{ inputs.action }}
+          TARGET: ${{ inputs.target }}
+          SLOT: ${{ inputs.slot }}
+          DEPLOY_RUN_ID: ${{ steps.deploy.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Entra Maintenance"
+            echo
+            echo "- Action: $ACTION"
+            echo "- Target: $TARGET"
+            echo "- Slot: $SLOT"
+            if [ "$ACTION" = "rotate" ]; then
+              echo "- Exact slot authentication: passed"
+              echo "- Cloudflare secret update: passed"
+              echo "- Official production deploy: success (run $DEPLOY_RUN_ID)"
+              echo "- Rollback certificate: retained"
+              echo "- Stale same-slot certificate: retained until finalize"
+            else
+              echo "- Post-rotation deploy proof: passed"
+              echo "- Stale same-slot certificate: removed"
+              echo "- New certificate + opposite-slot rollback certificate: retained"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove temporary Maintenance material
+        if: always()
+        shell: bash
+        run: |
+          rm -rf "$RUNNER_TEMP/maintenance-rotation"
+          rm -f             "$RUNNER_TEMP/graph-access-token"             "$RUNNER_TEMP/entra-maintenance-plan.json"             "$RUNNER_TEMP/add-result.json"             "$RUNNER_TEMP/validation.json"             "$RUNNER_TEMP/finalize-result.json"
