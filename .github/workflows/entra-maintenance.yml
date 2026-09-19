@@ -390,16 +390,18 @@ jobs:
 
             http_status="$(jq -r '.httpStatus // empty' "$RUNNER_TEMP/validation.json" 2>/dev/null || true)"
             aadsts_code="$(jq -r '.aadstsCode // empty' "$RUNNER_TEMP/validation.json" 2>/dev/null || true)"
+            local_kind="$(jq -r '.kind // empty' "$RUNNER_TEMP/validation.json" 2>/dev/null || true)"
             retryable=false
             if [ "$aadsts_code" = "700027" ]; then retryable=true; fi
             if [ "$http_status" = "401" ] && [ -z "$aadsts_code" ]; then retryable=true; fi
             if [ "$http_status" = "429" ] || [[ "$http_status" =~ ^5[0-9][0-9]$ ]]; then retryable=true; fi
+            if [ "$local_kind" = "transport" ]; then retryable=true; fi
 
             if [ "$_attempt" -eq 1 ] || [ $((_attempt % 6)) -eq 0 ]; then
-              echo "Credential propagation pending: attempt=$_attempt http=${http_status:-unknown} aadsts=${aadsts_code:-none}"
+              echo "Credential propagation pending: attempt=$_attempt http=${http_status:-unknown} aadsts=${aadsts_code:-none} local=${local_kind:-none}"
             fi
             if [ "$retryable" != "true" ]; then
-              echo "::error::Exact credential validation returned a non-retryable Entra response (HTTP ${http_status:-unknown}, AADSTS ${aadsts_code:-none})."
+              echo "::error::Exact credential validation returned a non-retryable response (HTTP ${http_status:-unknown}, AADSTS ${aadsts_code:-none}, local ${local_kind:-none})."
               break
             fi
             sleep 10
