@@ -130,7 +130,7 @@ describe('Entra Maintenance dry-run', () => {
       webApplicationObjectId: WEB_OBJECT_ID,
       graphApplicationObjectId: GRAPH_OBJECT_ID,
       fetcher,
-    })).rejects.toMatchObject<Partial<EntraMaintenancePlanError>>({
+    })).rejects.toMatchObject({
       stage: 'maintenance-permission-drift',
     });
   });
@@ -146,7 +146,7 @@ describe('Entra Maintenance dry-run', () => {
       webApplicationObjectId: WEB_OBJECT_ID,
       graphApplicationObjectId: GRAPH_OBJECT_ID,
       fetcher,
-    })).rejects.toMatchObject<Partial<EntraMaintenancePlanError>>({
+    })).rejects.toMatchObject({
       stage: 'maintenance-ownership-mismatch',
     });
   });
@@ -160,7 +160,7 @@ describe('Entra Maintenance dry-run', () => {
       webApplicationObjectId: WEB_OBJECT_ID,
       graphApplicationObjectId: GRAPH_OBJECT_ID,
       fetcher,
-    })).rejects.toMatchObject<Partial<EntraMaintenancePlanError>>({
+    })).rejects.toMatchObject({
       stage: 'maintenance-ownership-mismatch',
     });
   });
