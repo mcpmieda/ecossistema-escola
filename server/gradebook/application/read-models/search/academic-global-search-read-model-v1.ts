@@ -246,7 +246,7 @@ function decodeCursor(cursor: GlobalSearchCursorV1): DecodedCursorV1 | null {
       !isResultKind(value.kind) ||
       typeof value.id !== 'string' ||
       value.id.trim().length === 0 ||
-      Object.keys(value).sort().join(',') !== 'id,kind,version'
+      Object.keys(value).sort((left, right) => left.localeCompare(right)).join(',') !== 'id,kind,version'
     ) {
       return null;
     }

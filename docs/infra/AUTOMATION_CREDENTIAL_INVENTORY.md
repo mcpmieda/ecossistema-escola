@@ -79,7 +79,9 @@ The matching public certificates are stored on the two Entra Application objects
 
 - Analysis method: Automatic Analysis via GitHub App.
 - No `SONAR_TOKEN`, scanner workflow or `sonar-project.properties`.
-- Proof PR: #923; check `SonarCloud Code Analysis` completed successfully with `Quality Gate passed`.
+- `.sonarcloud.properties` defines only non-secret analysis metadata: project version, operational source scope and the dedicated `tests/` scope.
+- The inherited New Code strategy is `previous_version`; `sonar.projectVersion=1.0.0` is kept stable between releases so the baseline is meaningful instead of treating almost the whole repository as new code.
+- Historical learning archives/documentation are outside the executable source scope; operational code, workflows, migrations and tests remain analyzed.
 - Sonar is intentionally informative/non-blocking unless branch protection is changed separately.
 
 ### Agents

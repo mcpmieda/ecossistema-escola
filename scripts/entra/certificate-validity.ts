@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
 
@@ -44,10 +45,11 @@ export function parseCertificateValidity(output: string): CertificateValidity {
 }
 
 export function readCertificateValidity(
-  certificatePath: string,
   runner: OpenSslRunner = execFileSync as OpenSslRunner,
 ): CertificateValidity {
-  if (!certificatePath) throw new Error('Missing certificate path');
+  const runnerTemp = process.env.RUNNER_TEMP?.trim();
+  if (!runnerTemp) throw new Error('Missing runner temp');
+  const certificatePath = join(runnerTemp, 'maintenance-rotation', 'cert.pem');
   const output = runner(
     'openssl',
     ['x509', '-in', certificatePath, '-noout', '-startdate', '-enddate'],
@@ -57,8 +59,7 @@ export function readCertificateValidity(
 }
 
 function main(): void {
-  const certificatePath = process.argv[2] ?? '';
-  process.stdout.write(`${JSON.stringify(readCertificateValidity(certificatePath))}\n`);
+  process.stdout.write(`${JSON.stringify(readCertificateValidity())}\n`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

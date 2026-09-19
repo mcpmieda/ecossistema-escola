@@ -40,7 +40,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install pinned Antigravity SDK
-        run: python -m pip install --disable-pip-version-check --no-input "google-antigravity==0.1.17"
+        run: python -m pip install --disable-pip-version-check --no-input --only-binary=:all: "google-antigravity==0.1.17"
 
       - name: Validate SDK compatibility
         run: python infra/agents/antigravity/run.py sdk-check
@@ -168,7 +168,7 @@ jobs:
           set -euo pipefail
           needs_node="$(jq -r '.needs_node' "$RUNNER_TEMP/antigravity-meta.json")"
           if [ "$needs_node" = "true" ]; then
-            npm ci
+            npm ci --ignore-scripts
           else
             echo "Node validation not requested; npm ci skipped."
           fi
@@ -178,7 +178,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check --no-input "google-antigravity==0.1.17"
+          python -m pip install --disable-pip-version-check --no-input --only-binary=:all: "google-antigravity==0.1.17"
 
       - name: Execute Antigravity without GitHub credentials
         if: steps.request.outputs.run == 'true' && steps.dedupe.outputs.duplicate != 'true'

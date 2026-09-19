@@ -66,6 +66,20 @@ def fail(message: str) -> "NoReturn":
     raise SystemExit(message)
 
 
+def trusted_runner_path(raw_path: str, *, must_exist: bool) -> Path:
+    """Resolve workflow runtime files and keep them inside GitHub RUNNER_TEMP."""
+    runner_temp_value = os.environ.get("RUNNER_TEMP", "").strip()
+    if not runner_temp_value:
+        fail("RUNNER_TEMP is required.")
+    runner_temp = Path(runner_temp_value).resolve(strict=True)
+    candidate = Path(raw_path).resolve(strict=must_exist)
+    if candidate == runner_temp or runner_temp not in candidate.parents:
+        fail("Refusing a runtime path outside RUNNER_TEMP.")
+    if must_exist and not candidate.is_file():
+        fail("Trusted runtime input must be a file.")
+    return candidate
+
+
 def load_issue(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -440,18 +454,22 @@ def command_sdk_check(args: argparse.Namespace) -> None:
 
 
 def command_check(args: argparse.Namespace) -> None:
-    issue = load_issue(Path(args.issue_json))
+    issue_path = trusted_runner_path(args.issue_json, must_exist=True)
+    meta_path = trusted_runner_path(args.meta, must_exist=False)
+    issue = load_issue(issue_path)
     body = issue.get("body")
     if not isinstance(body, str):
         fail("Issue body is missing.")
     handoff = validate_handoff(extract_handoff(body))
-    write_meta(issue, handoff, Path(args.meta))
+    write_meta(issue, handoff, meta_path)
 
 
 def command_run(args: argparse.Namespace) -> None:
     root = Path(args.root).resolve()
-    meta = json.loads(Path(args.meta).read_text(encoding="utf-8"))
-    summary_path = Path(args.summary)
+    meta_path = trusted_runner_path(args.meta, must_exist=True)
+    summary_path = trusted_runner_path(args.summary, must_exist=False)
+    result_path = trusted_runner_path(args.result, must_exist=False)
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
     asyncio.run(execute_agent(root, meta, summary_path))
     paths = list_changed_paths(root)
     validate_changed_paths(paths, meta["allowed_paths"])
@@ -462,7 +480,7 @@ def command_run(args: argparse.Namespace) -> None:
         "has_changes": bool(paths),
         "changed_paths": paths,
     }
-    Path(args.result).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    result_path.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
 
 
 def main() -> None:
