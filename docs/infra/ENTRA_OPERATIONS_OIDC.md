@@ -64,8 +64,10 @@ A identidade de Maintenance será tratada separadamente depois que Operations es
 O workflow `.github/workflows/entra-operations-audit.yml` usa OIDC e não armazena client secret.
 
 Execução real:
-- somente `workflow_dispatch`;
-- somente `main`;
+- `workflow_dispatch` na `main`;
+- automaticamente após pushes na `main` que alterem o auditor/workflow/documentação relacionada;
+- diariamente às 10:15 UTC para detectar drift externo mesmo sem mudança no repositório;
+- sempre somente sobre a `main`;
 - `id-token: write` existe apenas no job de auditoria;
 - não depende de `azure/login` ou Azure CLI: o workflow solicita diretamente uma assertion OIDC ao GitHub e a troca no endpoint OAuth 2.0 do Entra;
 - audience da assertion: `api://AzureADTokenExchange`;
