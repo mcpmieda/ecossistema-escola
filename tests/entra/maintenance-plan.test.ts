@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import {
-  buildMaintenancePlan,
-  EntraMaintenancePlanError,
-} from '../../scripts/entra/maintenance-plan';
+import { buildMaintenancePlan } from '../../scripts/entra/maintenance-plan';
 
 const MAINTENANCE_CLIENT_ID = '33333333-3333-4333-8333-333333333333';
 const MAINTENANCE_SP_ID = '44444444-4444-4444-8444-444444444444';
