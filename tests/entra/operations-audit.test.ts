@@ -1,0 +1,167 @@
+import { describe, expect, it, vi } from 'vitest';
+import {
+  auditEntraOperations,
+  EntraOperationsAuditError,
+} from '../../scripts/entra/operations-audit';
+
+const WEB_OBJECT = '11111111-1111-4111-8111-111111111111';
+const GRAPH_OBJECT = '22222222-2222-4222-8222-222222222222';
+const WEB_APP_ID = '33333333-3333-4333-8333-333333333333';
+const GRAPH_APP_ID = '44444444-4444-4444-8444-444444444444';
+const TOKEN = 'synthetic-token-that-must-never-appear-in-output';
+
+function json(value: unknown, status = 200) {
+  return new Response(JSON.stringify(value), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+describe('Entra operations read-only audit', () => {
+  it('reads only the two exact applications and sanitizes credential metadata', async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = String(input);
+      expect(init?.method).toBe('GET');
+      const headers = new Headers(init?.headers);
+      expect(headers.get('Authorization')).toBe(`Bearer ${TOKEN}`);
+      if (url.includes(`/applications/${WEB_OBJECT}`)) {
+        return json({
+          id: WEB_OBJECT,
+          appId: WEB_APP_ID,
+          displayName: 'Synthetic Web',
+          signInAudience: 'AzureADMyOrg',
+          web: { redirectUris: ['https://example.invalid/auth/callback'] },
+          keyCredentials: [{
+            keyId: '55555555-5555-4555-8555-555555555555',
+            type: 'AsymmetricX509Cert',
+            usage: 'Verify',
+            displayName: 'rotation-a',
+            startDateTime: '2026-01-01T00:00:00Z',
+            endDateTime: '2027-01-01T00:00:00Z',
+            customKeyIdentifier: 'synthetic-thumbprint',
+            key: 'MUST_NOT_LEAK',
+          }],
+          passwordCredentials: [{
+            keyId: '66666666-6666-4666-8666-666666666666',
+            displayName: 'legacy-secret',
+            startDateTime: '2026-01-01T00:00:00Z',
+            endDateTime: '2026-12-31T00:00:00Z',
+            secretText: 'MUST_NOT_LEAK',
+            hint: 'abc',
+          }],
+          requiredResourceAccess: [{
+            resourceAppId: '00000003-0000-0000-c000-000000000000',
+            resourceAccess: [{ id: '77777777-7777-4777-8777-777777777777', type: 'Role' }],
+          }],
+        });
+      }
+      if (url.includes(`/applications/${GRAPH_OBJECT}`)) {
+        return json({
+          id: GRAPH_OBJECT,
+          appId: GRAPH_APP_ID,
+          displayName: 'Synthetic Graph',
+          signInAudience: 'AzureADMyOrg',
+          spa: { redirectUris: [] },
+          publicClient: { redirectUris: [] },
+        });
+      }
+      if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(WEB_APP_ID))) {
+        return json({
+          value: [{
+            id: '88888888-8888-4888-8888-888888888888',
+            appId: WEB_APP_ID,
+            displayName: 'Synthetic Web SP',
+            accountEnabled: true,
+            servicePrincipalType: 'Application',
+          }],
+        });
+      }
+      if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(GRAPH_APP_ID))) {
+        return json({
+          value: [{
+            id: '99999999-9999-4999-8999-999999999999',
+            appId: GRAPH_APP_ID,
+            displayName: 'Synthetic Graph SP',
+            accountEnabled: true,
+            servicePrincipalType: 'Application',
+          }],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await auditEntraOperations({
+      accessToken: TOKEN,
+      webApplicationObjectId: WEB_OBJECT,
+      graphApplicationObjectId: GRAPH_OBJECT,
+      fetcher,
+      now: () => new Date('2026-09-19T00:00:00Z'),
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(4);
+    expect(result.generatedAt).toBe('2026-09-19T00:00:00.000Z');
+    expect(result.applications.web.servicePrincipal?.accountEnabled).toBe(true);
+    expect(result.applications.web.redirectUris.web).toEqual([
+      'https://example.invalid/auth/callback',
+    ]);
+    expect(result.applications.web.requiredResourceAccess[0]?.resourceAccess[0]?.type).toBe('Role');
+
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain(TOKEN);
+    expect(serialized).not.toContain('MUST_NOT_LEAK');
+    expect(serialized).not.toContain('"hint"');
+    expect(serialized).not.toContain('"key"');
+    expect(serialized).not.toContain('"secretText"');
+  });
+
+  it('fails closed with a sanitized error instead of provider response content', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      new Response('provider-secret-body-MUST_NOT_LEAK', { status: 403 }),
+    );
+
+    await expect(
+      auditEntraOperations({
+        accessToken: TOKEN,
+        webApplicationObjectId: WEB_OBJECT,
+        graphApplicationObjectId: GRAPH_OBJECT,
+        fetcher,
+      }),
+    ).rejects.toEqual(expect.objectContaining<Partial<EntraOperationsAuditError>>({
+      name: 'EntraOperationsAuditError',
+      status: 403,
+    }));
+
+    try {
+      await auditEntraOperations({
+        accessToken: TOKEN,
+        webApplicationObjectId: WEB_OBJECT,
+        graphApplicationObjectId: GRAPH_OBJECT,
+        fetcher,
+      });
+    } catch (error) {
+      expect(String(error)).not.toContain(TOKEN);
+      expect(String(error)).not.toContain('MUST_NOT_LEAK');
+    }
+  });
+
+  it('rejects invalid or duplicate object IDs before any network request', async () => {
+    const fetcher = vi.fn<typeof fetch>();
+    await expect(
+      auditEntraOperations({
+        accessToken: TOKEN,
+        webApplicationObjectId: 'not-a-uuid',
+        graphApplicationObjectId: GRAPH_OBJECT,
+        fetcher,
+      }),
+    ).rejects.toBeInstanceOf(EntraOperationsAuditError);
+    await expect(
+      auditEntraOperations({
+        accessToken: TOKEN,
+        webApplicationObjectId: WEB_OBJECT,
+        graphApplicationObjectId: WEB_OBJECT,
+        fetcher,
+      }),
+    ).rejects.toBeInstanceOf(EntraOperationsAuditError);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+});
