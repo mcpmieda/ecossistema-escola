@@ -234,7 +234,7 @@ jobs:
           done
 
       - name: Install pinned dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Exchange GitHub OIDC assertion for short-lived Graph token
         shell: bash
@@ -431,7 +431,7 @@ jobs:
           jq -e --arg target "$TARGET" --arg slot "$SLOT" --arg key "$graph_key_id"             '.status == "ok" and .target == $target and .slot == $slot and .credentialKeyId == $key'             "$RUNNER_TEMP/validation.json" >/dev/null
           test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
 
-          cat "$dir/credential.json" | npx wrangler pages secret put "$SECRET_NAME"             --project-name ecossistema-escola >/dev/null
+          cat "$dir/credential.json" | ./node_modules/.bin/wrangler pages secret put "$SECRET_NAME"             --project-name ecossistema-escola >/dev/null
           secret_written=true
           rm -f "$RUNNER_TEMP/add-result.json" "$RUNNER_TEMP/validation.json"
           rm -rf "$dir"
