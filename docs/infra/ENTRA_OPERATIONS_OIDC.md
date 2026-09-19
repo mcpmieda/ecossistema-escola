@@ -145,3 +145,7 @@ Quando habilitada, a auditoria:
 - falha fechado se o site selecionado não estiver acessível;
 - falha fechado se a identidade Operations conseguir ler o site de isolamento, indicando acesso mais amplo que o planejado;
 - não publica nomes de listas nem permissões detalhadas no GitHub.
+
+## Regra de merge para deploy produtivo
+
+O workflow de produção consome a proveniência exata dos gates do PR e exige um **merge commit de dois pais** na `main`. PRs que precisem disparar o deploy produtivo devem ser integrados com merge commit normal; `squash` e `rebase` não preservam essa forma de proveniência e são rejeitados pelo deploy.
