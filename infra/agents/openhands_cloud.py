@@ -15,11 +15,14 @@ DEFAULT_BASE_URL = "https://app.all-hands.dev"
 
 def api_request(
     method: str,
-    url: str,
+    path: str,
     api_key: str,
     payload: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    """Send one authenticated OpenHands Cloud API request without logging secrets."""
+    """Send one authenticated request to the fixed OpenHands Cloud API host."""
+    if not path.startswith("/api/"):
+        raise SystemExit("Refusing an unexpected OpenHands API path.")
+    url = f"{DEFAULT_BASE_URL}{path}"
     body = None if payload is None else json.dumps(payload).encode("utf-8")
     request = Request(
         url,
@@ -65,7 +68,6 @@ def run_conversation(args: argparse.Namespace) -> None:
     if not api_key:
         raise SystemExit("OPENHANDS_API_KEY is not configured.")
 
-    base_url = args.base_url.rstrip("/")
     payload: dict[str, object] = {
         "initial_user_msg": args.prompt,
         "repository": args.repository,
@@ -73,7 +75,7 @@ def run_conversation(args: argparse.Namespace) -> None:
     }
     created = api_request(
         "POST",
-        f"{base_url}/api/conversations",
+        "/api/conversations",
         api_key,
         payload,
     )
@@ -83,14 +85,14 @@ def run_conversation(args: argparse.Namespace) -> None:
         raise SystemExit("OpenHands API did not return a conversation id.")
 
     status = str(created.get("status") or "UNKNOWN").upper()
-    conversation_url = f"{base_url}/conversations/{conversation_id}"
+    conversation_url = f"{DEFAULT_BASE_URL}/conversations/{conversation_id}"
     deadline = time.monotonic() + args.timeout_seconds
 
     while status not in TERMINAL_STATUSES and time.monotonic() < deadline:
         time.sleep(args.poll_interval_seconds)
         current = api_request(
             "GET",
-            f"{base_url}/api/conversations/{conversation_id}",
+            f"/api/conversations/{conversation_id}",
             api_key,
         )
         status = str(current.get("status") or "UNKNOWN").upper()
@@ -115,7 +117,6 @@ def main() -> None:
     parser.add_argument("--prompt", required=True)
     parser.add_argument("--repository", required=True)
     parser.add_argument("--branch", required=True)
-    parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     parser.add_argument("--timeout-seconds", type=int, default=1200)
     parser.add_argument("--poll-interval-seconds", type=int, default=30)
     args = parser.parse_args()
