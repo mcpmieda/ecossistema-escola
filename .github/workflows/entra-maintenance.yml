@@ -364,6 +364,8 @@ jobs:
           trap rollback EXIT
 
           GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=add ROTATION_TARGET="$TARGET" ROTATION_SLOT="$SLOT"             APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID" NEW_KEY_ID="$NEW_KEY_ID"             CERT_DER_PATH="$dir/cert.der" NEW_DISPLAY_NAME="$NEW_DISPLAY_NAME"             NEW_START_DATE_TIME="$NEW_START_DATE_TIME" NEW_END_DATE_TIME="$NEW_END_DATE_TIME"             node --experimental-strip-types scripts/entra/maintenance-rotate.ts > "$RUNNER_TEMP/add-result.json"
+          graph_key_id="$(jq -r '.newGraphKeyId // empty' "$RUNNER_TEMP/add-result.json")"
+          [[ "$graph_key_id" =~ ^[0-9a-fA-F-]{36}$ ]]
 
           validated=false
           for _attempt in {1..12}; do
