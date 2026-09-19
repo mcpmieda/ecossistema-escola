@@ -104,13 +104,27 @@ export type EntraApplicationAudit = {
 
 export type EntraDriftFinding = {
   severity: 'warning' | 'critical';
-  application: 'web' | 'graph' | 'sharepoint';
+  application: 'web' | 'graph' | 'operations' | 'sharepoint';
   code: string;
 };
 
 export type EntraDriftAudit = {
   status: 'ok' | 'warning' | 'critical';
   findings: EntraDriftFinding[];
+};
+
+export type EntraOperationsIdentityAudit = {
+  id: string;
+  appId: string;
+  displayName: string;
+  accountEnabled: boolean | null;
+  servicePrincipalType: string | null;
+  appRoleAssignments: Array<{
+    id: string;
+    appRoleId: string;
+    resourceId: string;
+    createdDateTime: string | null;
+  }>;
 };
 
 export type EntraSharePointAudit = {
@@ -129,6 +143,7 @@ export type EntraOperationsAudit = {
     web: EntraApplicationAudit;
     graph: EntraApplicationAudit;
   };
+  operationsIdentity: EntraOperationsIdentityAudit;
   sharePoint: EntraSharePointAudit;
   drift: EntraDriftAudit;
 };
@@ -168,6 +183,10 @@ const EXPECTED_APPLICATIONS = {
   },
 } as const;
 
+const EXPECTED_OPERATIONS_DISPLAY_NAME = 'Ecossistema Operations - GitHub OIDC';
+const APPLICATION_READ_ALL_ROLE_ID = '9a5d68dd-52b0-4cc2-bd40-abcf44ac3a30';
+const SITES_SELECTED_ROLE_ID = '883ea226-0bf2-4a8f-9f9d-92c9162a727d';
+
 const EXPECTED_SHAREPOINT_SITE_ID =
   'eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56';
 const SHAREPOINT_ISOLATION_PROBE_SITE_ID =
@@ -193,11 +212,13 @@ function sameStrings(left: readonly string[], right: readonly string[]): boolean
 
 function auditDrift(
   applications: { web: EntraApplicationAudit; graph: EntraApplicationAudit },
+  operationsIdentity: EntraOperationsIdentityAudit,
+  sharePointAuditEnabled: boolean,
   now: Date,
 ): EntraDriftAudit {
   const findings: EntraDriftFinding[] = [];
   const add = (
-    application: 'web' | 'graph',
+    application: EntraDriftFinding['application'],
     severity: EntraDriftFinding['severity'],
     code: string,
   ) => findings.push({ application, severity, code });
@@ -241,6 +262,28 @@ function auditDrift(
       if (BROAD_APPLICATION_PERMISSIONS.has(assignment.appRoleId))
         add(label, 'warning', 'broad-application-permission-present');
     }
+  }
+
+  if (operationsIdentity.displayName !== EXPECTED_OPERATIONS_DISPLAY_NAME)
+    add('operations', 'warning', 'display-name-drift');
+  if (operationsIdentity.accountEnabled === false)
+    add('operations', 'critical', 'service-principal-disabled');
+
+  const operationsRoles = new Set(
+    operationsIdentity.appRoleAssignments.map((assignment) => assignment.appRoleId),
+  );
+  if (!operationsRoles.has(APPLICATION_READ_ALL_ROLE_ID))
+    add('operations', 'critical', 'application-read-all-missing');
+  if (sharePointAuditEnabled && !operationsRoles.has(SITES_SELECTED_ROLE_ID))
+    add('operations', 'critical', 'sites-selected-missing');
+
+  const allowedOperationsRoles = new Set([
+    APPLICATION_READ_ALL_ROLE_ID,
+    SITES_SELECTED_ROLE_ID,
+  ]);
+  for (const roleId of operationsRoles) {
+    if (!allowedOperationsRoles.has(roleId))
+      add('operations', 'critical', 'unexpected-application-permission');
   }
 
   const status = findings.some((finding) => finding.severity === 'critical')
@@ -302,6 +345,63 @@ async function graphStatus(
   }
   await response.body?.cancel().catch(() => undefined);
   return response.status;
+}
+
+function sanitizedAssignments(
+  assignments: AppRoleAssignmentResponse[],
+): EntraOperationsIdentityAudit['appRoleAssignments'] {
+  return assignments.flatMap((assignment) =>
+    assignment.id && assignment.appRoleId && assignment.resourceId
+      ? [{
+          id: assignment.id,
+          appRoleId: assignment.appRoleId,
+          resourceId: assignment.resourceId,
+          createdDateTime: assignment.createdDateTime ?? null,
+        }]
+      : [],
+  );
+}
+
+async function readOperationsIdentity(
+  fetcher: GraphFetcher,
+  token: string,
+  appId: string,
+): Promise<EntraOperationsIdentityAudit> {
+  const select = 'id,appId,displayName,accountEnabled,servicePrincipalType';
+  const filter = `appId eq '${appId.replaceAll("'", "''")}'`;
+  const principals = await graphJson<Collection<ServicePrincipalResponse>>(
+    fetcher,
+    token,
+    `/servicePrincipals?$filter=${encodeURIComponent(filter)}&$select=${encodeURIComponent(select)}&$top=2`,
+    'operations-service-principal',
+  );
+  const values = principals.value ?? [];
+  if (values.length !== 1)
+    throw new EntraOperationsAuditError(
+      values.length === 0
+        ? 'operations-service-principal-missing'
+        : 'operations-service-principal-ambiguous',
+    );
+  const principal = values[0]!;
+  if (!principal.id || !principal.appId || !principal.displayName)
+    throw new EntraOperationsAuditError('operations-service-principal-invalid');
+
+  const assignments = await graphJson<Collection<AppRoleAssignmentResponse>>(
+    fetcher,
+    token,
+    `/servicePrincipals/${encodeURIComponent(principal.id)}/appRoleAssignments?$select=id,appRoleId,resourceId,createdDateTime&$top=100`,
+    'operations-app-role-assignments',
+  );
+
+  return {
+    id: principal.id,
+    appId: principal.appId,
+    displayName: principal.displayName,
+    accountEnabled:
+      typeof principal.accountEnabled === 'boolean' ? principal.accountEnabled : null,
+    servicePrincipalType: principal.servicePrincipalType ?? null,
+    appRoleAssignments: sanitizedAssignments(assignments.value ?? []),
+  };
 }
 
 async function auditSharePoint(
@@ -404,16 +504,7 @@ function sanitizeApplication(
             accountEnabled:
               typeof servicePrincipal.accountEnabled === 'boolean' ? servicePrincipal.accountEnabled : null,
             servicePrincipalType: servicePrincipal.servicePrincipalType ?? null,
-            appRoleAssignments: appRoleAssignments.flatMap((assignment) =>
-              assignment.id && assignment.appRoleId && assignment.resourceId
-                ? [{
-                    id: assignment.id,
-                    appRoleId: assignment.appRoleId,
-                    resourceId: assignment.resourceId,
-                    createdDateTime: assignment.createdDateTime ?? null,
-                  }]
-                : [],
-            ),
+            appRoleAssignments: sanitizedAssignments(appRoleAssignments),
           }
         : null,
   };
@@ -471,6 +562,7 @@ export async function auditEntraOperations(input: {
   accessToken: string;
   webApplicationObjectId: string;
   graphApplicationObjectId: string;
+  operationsClientId: string;
   sharePointAuditEnabled?: boolean;
   fetcher?: GraphFetcher;
   now?: () => Date;
@@ -479,13 +571,16 @@ export async function auditEntraOperations(input: {
   if (!accessToken) throw new EntraOperationsAuditError('missing-access-token');
   const webObjectId = requiredUuid(input.webApplicationObjectId, 'web-object-id');
   const graphObjectId = requiredUuid(input.graphApplicationObjectId, 'graph-object-id');
+  const operationsClientId = requiredUuid(input.operationsClientId, 'operations-client-id');
   if (webObjectId === graphObjectId) throw new EntraOperationsAuditError('duplicate-object-id');
 
   const fetcher = input.fetcher ?? fetch;
-  const [web, graph, sharePoint] = await Promise.all([
+  const sharePointAuditEnabled = input.sharePointAuditEnabled === true;
+  const [web, graph, operationsIdentity, sharePoint] = await Promise.all([
     readExactApplication(fetcher, accessToken, webObjectId, 'web'),
     readExactApplication(fetcher, accessToken, graphObjectId, 'graph'),
-    auditSharePoint(fetcher, accessToken, input.sharePointAuditEnabled === true),
+    readOperationsIdentity(fetcher, accessToken, operationsClientId),
+    auditSharePoint(fetcher, accessToken, sharePointAuditEnabled),
   ]);
 
   const now = (input.now ?? (() => new Date()))();
@@ -493,8 +588,9 @@ export async function auditEntraOperations(input: {
   return {
     generatedAt: now.toISOString(),
     applications,
+    operationsIdentity,
     sharePoint,
-    drift: auditDrift(applications, now),
+    drift: auditDrift(applications, operationsIdentity, sharePointAuditEnabled, now),
   };
 }
 
@@ -502,11 +598,13 @@ async function main(): Promise<void> {
   const accessToken = process.env.GRAPH_ACCESS_TOKEN ?? '';
   const webApplicationObjectId = process.env.WEB_APPLICATION_OBJECT_ID ?? '';
   const graphApplicationObjectId = process.env.GRAPH_APPLICATION_OBJECT_ID ?? '';
+  const operationsClientId = process.env.ENTRA_OPERATIONS_CLIENT_ID ?? '';
   const sharePointAuditEnabled = process.env.ENTRA_SHAREPOINT_AUDIT_ENABLED === 'true';
   const result = await auditEntraOperations({
     accessToken,
     webApplicationObjectId,
     graphApplicationObjectId,
+    operationsClientId,
     sharePointAuditEnabled,
   });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
