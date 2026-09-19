@@ -49,11 +49,11 @@ O workflow rejeita a tarefa antes de chamar o Google se o handoff estiver ausent
 
 ## Limites técnicos da integração
 
-- Modelo preferencial `gemini-3.8-flash`; em 429/503 transitório, o executor pode alternar automaticamente para `gemini-3.7-flash` e depois voltar ao 3.8.
+- Modelo preferencial `gemini-3.8-flash`; em 429/503 transitório, o executor pode alternar entre os modelos oficialmente suportados `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash` e `gemini-3.5-flash-lite`, preservando o mesmo handoff e workspace.
 - SDK fixado em `google-antigravity==0.1.17`.
 - Máximo por execução: 12 chamadas de modelo, 80 chamadas de ferramenta e 60.000 tokens totais.
 - Apenas uma execução Antigravity pode consumir o provider por vez; chamadas adicionais ficam enfileiradas.
-- Falhas transitórias `429/RESOURCE_EXHAUSTED` e `503/UNAVAILABLE` usam retry bounded: fallback para quota/modelo separado e, se necessário, cooldown acima da janela de um minuto indicada pelo provider. O workspace é conferido antes de cada retomada e o total de tentativas é limitado.
+- Falhas transitórias `429/RESOURCE_EXHAUSTED` e `503/UNAVAILABLE` usam fallback bounded para outro modelo oficial, cuja quota é independente por modelo. O SDK já faz retries internos; o host troca de modelo rapidamente em vez de esperar a janela do modelo esgotado. O workspace é conferido antes de cada retomada e cada modelo entra no máximo uma vez por execução.
 - Subagentes, ferramentas Web e terminal ficam fora da allowlist de capacidades.
 - A allowlist `CapabilitiesConfig.enabled_tools` é a fronteira primária de ferramentas; o agente recebe somente leitura/listagem/pesquisa/edição de arquivos no workspace e `finish`.
 - Como o SDK exige uma safety policy quando há ferramentas de escrita, usamos `policy.allow_all()` somente sobre essa allowlist já restrita. Isso não adiciona terminal, Web ou subagentes; apenas aprova automaticamente as ferramentas que já estão visíveis.
