@@ -397,7 +397,8 @@ jobs:
           gh workflow run deploy-cloudflare-pages.yml --ref main
           run_id=""
           for _attempt in {1..30}; do
-            run_id="$(gh api --method GET               "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-cloudflare-pages.yml/runs?event=workflow_dispatch&branch=main&per_page=20"               --jq --argjson before "$before_id" --arg sha "$GITHUB_SHA"               '[.workflow_runs[] | select(.id > $before and .head_sha == $sha)] | sort_by(.id) | last | .id // empty')"
+            response="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-cloudflare-pages.yml/runs?event=workflow_dispatch&branch=main&per_page=20")"
+            run_id="$(jq -r --argjson before "$before_id" --arg sha "$GITHUB_SHA" '[.workflow_runs[] | select(.id > $before and .head_sha == $sha)] | sort_by(.id) | last | .id // empty' <<<"$response")"
             [ -n "$run_id" ] && break
             sleep 2
           done
@@ -424,11 +425,8 @@ jobs:
             | .startDateTime // empty
           ' "$plan")"
           test -n "$latest_start"
-          run_id="$(gh api --method GET             "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-cloudflare-pages.yml/runs?event=workflow_dispatch&branch=main&per_page=50"             --jq --arg sha "$GITHUB_SHA" --arg started "$latest_start" '
-              [.workflow_runs[]
-                | select(.head_sha == $sha and .conclusion == "success" and .created_at > $started)]
-              | sort_by(.id) | last | .id // empty
-            ')"
+          response="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-cloudflare-pages.yml/runs?event=workflow_dispatch&branch=main&per_page=50")"
+          run_id="$(jq -r --arg sha "$GITHUB_SHA" --arg started "$latest_start" '[.workflow_runs[] | select(.head_sha == $sha and .conclusion == "success" and .created_at > $started)] | sort_by(.id) | last | .id // empty' <<<"$response")"
           test -n "$run_id"
 
       - name: Finalize rotation by removing only the stale same-slot certificate
