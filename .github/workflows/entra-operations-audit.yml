@@ -120,7 +120,9 @@ jobs:
             .applications.web.id != null and
             .applications.graph.id != null and
             (.applications.web.passwordCredentials | type == "array") and
-            (.applications.graph.passwordCredentials | type == "array")
+            (.applications.graph.passwordCredentials | type == "array") and
+            (.drift.status | IN("ok", "warning", "critical")) and
+            (.drift.findings | type == "array")
           ' "$output" >/dev/null
 
           {
@@ -132,6 +134,13 @@ jobs:
               ", password credentials: " + ((.applications.web.passwordCredentials | length) | tostring),
               "- Graph: " + .applications.graph.displayName +
               " — certs: " + ((.applications.graph.keyCredentials | length) | tostring) +
-              ", password credentials: " + ((.applications.graph.passwordCredentials | length) | tostring)
+              ", password credentials: " + ((.applications.graph.passwordCredentials | length) | tostring),
+              "- Drift: " + .drift.status +
+              " — findings: " + ((.drift.findings | length) | tostring)
             ' "$output"
           } >> "$GITHUB_STEP_SUMMARY"
+
+          jq -e '.drift.status != "critical"' "$output" >/dev/null || {
+            echo "::error::Critical Entra configuration drift detected."
+            exit 1
+          }
