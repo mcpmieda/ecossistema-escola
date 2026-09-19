@@ -352,6 +352,7 @@ jobs:
           dir="$RUNNER_TEMP/maintenance-rotation"
           token="$(cat "$RUNNER_TEMP/graph-access-token")"
           echo "::add-mask::$token"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
           secret_written=false
           rollback() {
             status=$?
