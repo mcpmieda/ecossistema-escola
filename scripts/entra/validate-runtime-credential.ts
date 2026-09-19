@@ -12,12 +12,14 @@ import {
 type Target = 'web' | 'graph';
 
 export class ExactRuntimeCredentialError extends Error {
-  constructor(
-    readonly httpStatus: number,
-    readonly aadstsCode: number | null,
-  ) {
+  readonly httpStatus: number;
+  readonly aadstsCode: number | null;
+
+  constructor(httpStatus: number, aadstsCode: number | null) {
     super('Exact runtime credential validation failed');
     this.name = 'ExactRuntimeCredentialError';
+    this.httpStatus = httpStatus;
+    this.aadstsCode = aadstsCode;
   }
 }
 
