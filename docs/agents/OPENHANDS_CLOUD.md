@@ -17,12 +17,12 @@ A integração oficial usa tokens GitHub de curta duração e solicita acesso de
 O caminho homologado neste repositório é **label controlada**:
 
 1. o ChatGPT prepara ou revisa a issue com um bloco `AGENT_HANDOFF`;
-2. o responsável/agente líder aplica a label `openhands`;
+2. o responsável/agente líder aplica a label `fix-me`;
 3. OpenHands trabalha e entrega um PR candidato;
 4. CI, Sonar e revisão proporcional ao risco continuam obrigatórios;
 5. merge/deploy seguem as regras normais do repositório.
 
-A menção pública `@openhands` existe na integração, mas não é o mecanismo padrão da equipe, para evitar consumo acidental de cota em um repositório público.
+A menção pública padrão `@openhands-agent` existe na integração, mas não é o mecanismo padrão da equipe, para evitar consumo acidental de cota em um repositório público.
 
 ## Limites
 
