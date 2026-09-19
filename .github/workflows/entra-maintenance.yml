@@ -24,6 +24,7 @@ on:
           - dry-run
           - rotate
           - finalize
+          - repair-orphan
       target:
         description: Application target
         required: true
@@ -221,7 +222,7 @@ jobs:
           test "$GITHUB_REF" = "refs/heads/main"
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
-          [[ "$ACTION" == "rotate" || "$ACTION" == "finalize" ]]
+          [[ "$ACTION" == "rotate" || "$ACTION" == "finalize" || "$ACTION" == "repair-orphan" ]]
           [[ "$TARGET" == "web" || "$TARGET" == "graph" ]]
           [[ "$SLOT" == "A" || "$SLOT" == "B" ]]
           test -n "$CLOUDFLARE_ACCOUNT_ID"
@@ -283,6 +284,12 @@ jobs:
           if [ "$ACTION" = "rotate" ]; then
             jq -e --arg target "$TARGET" '(.targets[$target].keyCredentials | length) == 2' "$output" >/dev/null || {
               echo "::error::Rotation target is not in the expected two-certificate steady state."
+              exit 1
+            }
+          fi
+          if [ "$ACTION" = "repair-orphan" ]; then
+            jq -e --arg target "$TARGET" '(.targets[$target].keyCredentials | length) == 3' "$output" >/dev/null || {
+              echo "::error::Orphan repair requires exactly three certificates on the selected target."
               exit 1
             }
           fi
@@ -360,7 +367,17 @@ jobs:
           rollback() {
             status=$?
             if [ "$status" -ne 0 ] && [ "$secret_written" != "true" ] && [ -n "$graph_key_id" ]; then
-              GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=remove-exact ROTATION_TARGET="$TARGET"                 APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID" KEY_ID_TO_REMOVE="$graph_key_id"                 node --experimental-strip-types scripts/entra/maintenance-rotate.ts >/dev/null 2>&1 || true
+              rollback_ok=false
+              for _rollback_attempt in 1 2 3; do
+                if GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=remove-exact ROTATION_TARGET="$TARGET"                   APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID" KEY_ID_TO_REMOVE="$graph_key_id"                   node --experimental-strip-types scripts/entra/maintenance-rotate.ts > "$RUNNER_TEMP/rollback-result.json" 2>/dev/null; then
+                  rollback_ok=true
+                  break
+                fi
+                sleep 2
+              done
+              if [ "$rollback_ok" != "true" ]; then
+                echo "::warning::Automatic certificate rollback did not complete; use repair-orphan before another rotate."
+              fi
             fi
             rm -rf "$dir"
             exit "$status"
@@ -415,6 +432,69 @@ jobs:
           rm -f "$RUNNER_TEMP/add-result.json" "$RUNNER_TEMP/validation.json"
           rm -rf "$dir"
           trap - EXIT
+
+
+      - name: Repair orphan certificate from a failed pre-secret rotation
+        if: inputs.action == 'repair-orphan'
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+          SLOT: ${{ inputs.slot }}
+          APPLICATION_OBJECT_ID: ${{ steps.target.outputs.object_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          token="$(cat "$RUNNER_TEMP/graph-access-token")"
+          echo "::add-mask::$token"
+          plan="$RUNNER_TEMP/entra-maintenance-plan.json"
+          prefix="automatic-${TARGET}-slot-${SLOT}-"
+          opposite_slot="$([ "$SLOT" = "A" ] && printf 'B' || printf 'A')"
+          opposite_prefix="automatic-${TARGET}-slot-${opposite_slot}-"
+
+          jq -e --arg target "$TARGET" --arg prefix "$prefix" --arg opposite "$opposite_prefix" '
+            (.targets[$target].keyCredentials | length) == 3 and
+            ([.targets[$target].keyCredentials[] | select(.displayName | startswith($prefix))] | length) == 2 and
+            ([.targets[$target].keyCredentials[] | select(.displayName | startswith($opposite))] | length) == 1
+          ' "$plan" >/dev/null
+
+          candidate_key_id="$(jq -r --arg target "$TARGET" --arg prefix "$prefix" '
+            [.targets[$target].keyCredentials[] | select(.displayName | startswith($prefix))]
+            | sort_by(.startDateTime) | last | .keyId // empty
+          ' "$plan")"
+          candidate_start="$(jq -r --arg target "$TARGET" --arg prefix "$prefix" '
+            [.targets[$target].keyCredentials[] | select(.displayName | startswith($prefix))]
+            | sort_by(.startDateTime) | last | .startDateTime // empty
+          ' "$plan")"
+          test -n "$candidate_key_id"
+          test -n "$candidate_start"
+
+          CANDIDATE_START="$candidate_start" node --input-type=module <<'NODE'
+          const started = Date.parse(process.env.CANDIDATE_START ?? '');
+          if (!Number.isFinite(started)) process.exit(1);
+          const ageMs = Date.now() - started;
+          if (ageMs < 0 || ageMs > 24 * 60 * 60 * 1000) process.exit(1);
+          NODE
+
+          response="$(gh api --method GET "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy-cloudflare-pages.yml/runs?event=workflow_dispatch&branch=main&per_page=50")"
+          post_candidate_success="$(jq -r --arg started "$candidate_start" '
+            [.workflow_runs[] | select(.conclusion == "success" and .created_at > $started)] | length
+          ' <<<"$response")"
+          test "$post_candidate_success" = "0" || {
+            echo "::error::Refusing orphan repair because a successful manual production deploy exists after the candidate certificate."
+            exit 1
+          }
+
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "$GITHUB_SHA"
+
+          GRAPH_ACCESS_TOKEN="$token" ROTATION_ACTION=remove-exact ROTATION_TARGET="$TARGET"             APPLICATION_OBJECT_ID="$APPLICATION_OBJECT_ID" KEY_ID_TO_REMOVE="$candidate_key_id"             node --experimental-strip-types scripts/entra/maintenance-rotate.ts > "$RUNNER_TEMP/repair-result.json"
+          jq -e '.status == "removed" and .remainingCertificates == 2' "$RUNNER_TEMP/repair-result.json" >/dev/null
+
+          verify="$RUNNER_TEMP/entra-maintenance-after-repair.json"
+          GRAPH_ACCESS_TOKEN="$token"             ENTRA_MAINTENANCE_CLIENT_ID="${{ vars.ENTRA_MAINTENANCE_CLIENT_ID }}"             WEB_APPLICATION_OBJECT_ID="${{ vars.WEB_APPLICATION_OBJECT_ID }}"             GRAPH_APPLICATION_OBJECT_ID="${{ vars.GRAPH_APPLICATION_OBJECT_ID }}"             node --experimental-strip-types scripts/entra/maintenance-plan.ts > "$verify"
+          jq -e --arg target "$TARGET" '
+            (.targets[$target].keyCredentials | length) == 2 and
+            .targets[$target].passwordCredentialCount == 0
+          ' "$verify" >/dev/null
 
       - name: Deploy the exact trusted main through the official production workflow
         if: inputs.action == 'rotate'
@@ -496,6 +576,11 @@ jobs:
               echo "- Official production deploy: success (run $DEPLOY_RUN_ID)"
               echo "- Rollback certificate: retained"
               echo "- Stale same-slot certificate: retained until finalize"
+            elif [ "$ACTION" = "repair-orphan" ]; then
+              echo "- Failed pre-secret rotation orphan: removed"
+              echo "- Target certificate count: restored to 2"
+              echo "- Cloudflare secret update: not executed"
+              echo "- Production deploy: not executed"
             else
               echo "- Post-rotation deploy proof: passed"
               echo "- Stale same-slot certificate: removed"
@@ -508,4 +593,4 @@ jobs:
         shell: bash
         run: |
           rm -rf "$RUNNER_TEMP/maintenance-rotation"
-          rm -f             "$RUNNER_TEMP/graph-access-token"             "$RUNNER_TEMP/entra-maintenance-plan.json"             "$RUNNER_TEMP/add-result.json"             "$RUNNER_TEMP/validation.json"             "$RUNNER_TEMP/finalize-result.json"
+          rm -f             "$RUNNER_TEMP/graph-access-token"             "$RUNNER_TEMP/entra-maintenance-plan.json"             "$RUNNER_TEMP/add-result.json"             "$RUNNER_TEMP/validation.json"             "$RUNNER_TEMP/finalize-result.json"             "$RUNNER_TEMP/repair-result.json"             "$RUNNER_TEMP/rollback-result.json"             "$RUNNER_TEMP/entra-maintenance-after-repair.json"
