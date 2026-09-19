@@ -79,6 +79,7 @@ jobs:
           grep -Fq 'Application.ReadWrite.OwnedBy' docs/infra/ENTRA_MAINTENANCE_OIDC.md
           grep -Fq 'pages secret put' .github/workflows/entra-maintenance.yml
           grep -Fq 'deploy-cloudflare-pages.yml' .github/workflows/entra-maintenance.yml
+          grep -Fq 'repair-orphan' .github/workflows/entra-maintenance.yml
           node --experimental-strip-types -e "import('./scripts/entra/validate-runtime-credential.ts')"
           ! grep -Eq "method: ['\"](POST|PATCH|DELETE)['\"]" scripts/entra/maintenance-plan.ts
 
