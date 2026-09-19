@@ -113,6 +113,7 @@ jobs:
         env:
           WEB_APPLICATION_OBJECT_ID: ${{ vars.WEB_APPLICATION_OBJECT_ID }}
           GRAPH_APPLICATION_OBJECT_ID: ${{ vars.GRAPH_APPLICATION_OBJECT_ID }}
+          ENTRA_SHAREPOINT_AUDIT_ENABLED: ${{ vars.ENTRA_SHAREPOINT_AUDIT_ENABLED }}
         run: |
           set -euo pipefail
           token="$(cat "$RUNNER_TEMP/graph-access-token")"
@@ -131,7 +132,8 @@ jobs:
             (.applications.web.passwordCredentials | type == "array") and
             (.applications.graph.passwordCredentials | type == "array") and
             (.drift.status | IN("ok", "warning", "critical")) and
-            (.drift.findings | type == "array")
+            (.drift.findings | type == "array") and
+            (.sharePoint.status | IN("disabled", "ok"))
           ' "$output" >/dev/null
 
           {
@@ -145,7 +147,13 @@ jobs:
               " — certs: " + ((.applications.graph.keyCredentials | length) | tostring) +
               ", password credentials: " + ((.applications.graph.passwordCredentials | length) | tostring),
               "- Drift: " + .drift.status +
-              " — findings: " + ((.drift.findings | length) | tostring)
+              " — findings: " + ((.drift.findings | length) | tostring),
+              "- SharePoint: " + .sharePoint.status +
+              (if .sharePoint.status == "ok"
+                then " — lists visible: " + ((.sharePoint.visibleListCount // 0) | tostring) +
+                     ", isolation probe: " + .sharePoint.isolationProbe
+                else ""
+               end)
             ' "$output"
           } >> "$GITHUB_STEP_SUMMARY"
 
