@@ -40,7 +40,8 @@ describe('technical identity slots', () => {
     const env = {
       ...testEnv,
       GRAPH_CREDENTIAL_A: rotated('2026-01-01T00:00:00.000Z', crypto.randomUUID()),
-    };
+      GRAPH_CREDENTIAL_B: undefined,
+    } as unknown as typeof testEnv;
     expect(graphCredentials(env, 'A').map((credential) => credential.slot)).toEqual(['A']);
     expect(() => graphCredentials(env, 'B')).toThrow(TechnicalCredentialError);
   });
