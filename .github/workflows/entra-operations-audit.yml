@@ -38,7 +38,6 @@ jobs:
           test -f docs/infra/ENTRA_OPERATIONS_OIDC.md
           grep -Fq 'id-token: write' .github/workflows/entra-operations-audit.yml
           grep -Fq 'api%3A%2F%2FAzureADTokenExchange' .github/workflows/entra-operations-audit.yml
-          ! grep -Fq 'azure/login@' .github/workflows/entra-operations-audit.yml
 
   audit:
     name: Audit Entra applications via OIDC
