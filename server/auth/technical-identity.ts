@@ -1,7 +1,7 @@
 import type { RuntimeEnv } from '../env';
 import { z } from 'zod';
 
-export type GraphCredentialSlot = 'LEGACY' | 'A' | 'B';
+export type GraphCredentialSlot = 'A' | 'B';
 export type TechnicalCredentialFailureStage = 'missing' | 'invalid';
 
 export class TechnicalCredentialError extends Error {
@@ -42,39 +42,33 @@ function technicalCredentials(
   purpose: CredentialPurpose,
   requestedSlot?: GraphCredentialSlot,
 ): GraphCredential[] {
-  const privateKeyPkcs8 =
-    purpose === 'GRAPH' ? env.GRAPH_PRIVATE_KEY_PKCS8 : env.WEB_PRIVATE_KEY_PKCS8;
-  const certificateThumbprint =
-    purpose === 'GRAPH' ? env.GRAPH_CERT_THUMBPRINT : env.WEB_CERT_THUMBPRINT;
-  const legacy: GraphCredential | null =
-    privateKeyPkcs8 && certificateThumbprint
-      ? {
-          privateKeyPkcs8,
-          certificateThumbprint,
-          keyId: '00000000-0000-0000-0000-000000000000',
-          createdAt: '1970-01-01T00:00:00.000Z',
-          slot: 'LEGACY',
-        }
-      : null;
-  if (requestedSlot === 'LEGACY') {
-    if (!legacy) throw new TechnicalCredentialError(purpose, 'missing', ['LEGACY']);
-    return [legacy];
-  }
-  if (requestedSlot === 'A' || requestedSlot === 'B') {
+  if (requestedSlot) {
     try { return [rotatedCredential(env, purpose, requestedSlot)]; }
-    catch { throw new TechnicalCredentialError(purpose,
-      env[`${purpose}_CREDENTIAL_${requestedSlot}`] ? 'invalid' : 'missing', [requestedSlot]); }
+    catch {
+      throw new TechnicalCredentialError(
+        purpose,
+        env[`${purpose}_CREDENTIAL_${requestedSlot}`] ? 'invalid' : 'missing',
+        [requestedSlot],
+      );
+    }
   }
-  const rotated: GraphCredential[] = [], invalid: GraphCredentialSlot[] = [];
+
+  const rotated: GraphCredential[] = [];
+  const invalid: GraphCredentialSlot[] = [];
   for (const slot of ['A', 'B'] as const) {
     if (!env[`${purpose}_CREDENTIAL_${slot}`]) continue;
     try { rotated.push(rotatedCredential(env, purpose, slot)); }
     catch { invalid.push(slot); }
   }
   rotated.sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-  if (rotated.length === 0 && !legacy)
-    throw new TechnicalCredentialError(purpose, invalid.length ? 'invalid' : 'missing', invalid.length ? invalid : ['A', 'B']);
-  return legacy ? [...rotated, legacy] : rotated;
+  if (rotated.length === 0) {
+    throw new TechnicalCredentialError(
+      purpose,
+      invalid.length ? 'invalid' : 'missing',
+      invalid.length ? invalid : ['A', 'B'],
+    );
+  }
+  return rotated;
 }
 
 export function graphCredentials(
