@@ -29,7 +29,7 @@ export class PublicationServiceV1 {
         return { period, state: pending ? 'update-pending' as const : published ? 'published' as const
           : selected.some((row) => row.state === 'available') ? 'available' as const : 'no-data' as const,
         availableRevision: selected.some((row) => row.available_revision !== null) ? currentRevision : null,
-        publishedRevision: revisions.length === 1 ? String(revisions[0]) : revisions.length > 1 ? `mixed:${publicationDigestV1(revisions.sort())}` : null,
+        publishedRevision: revisions.length === 1 ? String(revisions[0]) : revisions.length > 1 ? `mixed:${publicationDigestV1(revisions.sort((left, right) => String(left).localeCompare(String(right))))}` : null,
         version };
       }) };
     });
