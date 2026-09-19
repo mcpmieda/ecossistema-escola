@@ -50,9 +50,10 @@ Execução real:
 - somente `workflow_dispatch`;
 - somente `main`;
 - `id-token: write` existe apenas no job de auditoria;
-- `azure/login` está fixado por SHA;
-- `allow-no-subscriptions: true`, pois a finalidade é Microsoft Graph/Entra e não recursos Azure;
-- o token Graph é temporário, mascarado e usado somente no processo que executa o auditor.
+- não depende de `azure/login` ou Azure CLI: o workflow solicita diretamente uma assertion OIDC ao GitHub e a troca no endpoint OAuth 2.0 do Entra;
+- audience da assertion: `api://AzureADTokenExchange`;
+- escopo do token final: `https://graph.microsoft.com/.default`;
+- as assertions e o token Graph são temporários, mascarados e removidos do workspace após o auditor.
 
 ### Credencial federada a criar no Entra
 
