@@ -10,7 +10,6 @@ const TOKEN = 'synthetic-token';
 const WEB_OBJECT_ID = '11111111-1111-4111-8111-111111111111';
 const OLD_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const OLD_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-const RUNTIME_NEW_A = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
 const GRAPH_NEW_A = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 
 function key(
@@ -74,7 +73,6 @@ describe('Maintenance certificate rotation', () => {
       target: 'web',
       slot: 'A',
       objectId: WEB_OBJECT_ID,
-      newKeyId: RUNTIME_NEW_A,
       certificateDerBase64: Buffer.from('NEW-CERT').toString('base64'),
       displayName: 'automatic-web-slot-A-2026-09-19T13:00:00.000Z',
       startDateTime: '2026-09-19T13:00:00.000Z',
@@ -89,7 +87,6 @@ describe('Maintenance certificate rotation', () => {
       previousActiveSlot: 'B',
       previousActiveKeyId: OLD_B,
       staleSameSlotKeyId: OLD_A,
-      runtimeCredentialKeyId: RUNTIME_NEW_A,
       newGraphKeyId: GRAPH_NEW_A,
     });
     expect(state.keys()).toHaveLength(3);
@@ -107,7 +104,6 @@ describe('Maintenance certificate rotation', () => {
       target: 'web',
       slot: 'B',
       objectId: WEB_OBJECT_ID,
-      newKeyId: RUNTIME_NEW_A,
       certificateDerBase64: Buffer.from('NEW-CERT').toString('base64'),
       displayName: 'automatic-web-slot-B-2026-09-19T13:00:00.000Z',
       startDateTime: '2026-09-19T13:00:00.000Z',
