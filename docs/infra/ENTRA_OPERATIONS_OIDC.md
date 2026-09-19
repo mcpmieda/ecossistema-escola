@@ -49,6 +49,12 @@ Drift de identidade, audience, redirect URI, service principal ausente/desabilit
 
 O Job Summary publica somente status e contagens; os app-role assignments detalhados permanecem apenas no arquivo temporário do runner e são apagados ao final.
 
+A identidade **Operations também audita a si própria**. O conjunto permitido de application permissions fica limitado a:
+- `Application.Read.All`;
+- `Sites.Selected`, quando/antes da habilitação da prova SharePoint.
+
+Qualquer application permission adicional no service principal Operations é tratada como drift crítico. Assim, adicionar por engano `Directory.Read.All`, `Sites.Read.All`, `Sites.ReadWrite.All` ou outra permissão não aprovada faz a auditoria falhar fechado.
+
 ## Próxima etapa manual
 
 Depois que o workflow OIDC for criado:
