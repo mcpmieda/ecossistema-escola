@@ -93,3 +93,49 @@ Conceder somente a permissão **Application**:
 Essa permissão permite ler applications e service principals e requer admin consent. Não conceder `Directory.Read.All` nem permissões de escrita para esta identidade Operations.
 
 Depois da federação e do consentimento, executar manualmente o workflow **Entra Operations audit**. Como o repositório é público, o JSON detalhado fica somente no runner e é apagado ao final; o GitHub recebe apenas um resumo mínimo no Job Summary.
+
+
+## SharePoint com Sites.Selected
+
+A auditoria de SharePoint fica **desativada por padrão** até a concessão explícita do site ser concluída. Não adicionar `Sites.Read.All` ou `Sites.FullControl.All` à identidade Operations.
+
+Identidade Operations atual:
+- Client ID: `8d0378b4-832c-4703-8449-5ff2072589a5`
+- permissão adicional prevista: `Sites.Selected` (Application), ID `883ea226-0bf2-4a8f-9f9d-92c9162a727d`.
+
+Site produtivo selecionado:
+- `eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56`
+
+Sequência de habilitação:
+1. adicionar `Sites.Selected` como **Application permission** no App Registration Operations e conceder admin consent;
+2. por um contexto administrativo separado, conceder **Read** somente ao site produtivo acima. A identidade Operations não deve receber a permissão ampla usada para administrar essa concessão;
+3. criar/alterar a Repository Variable `ENTRA_SHAREPOINT_AUDIT_ENABLED=true`;
+4. executar novamente o workflow.
+
+Exemplo do grant administrativo pelo Microsoft Graph:
+
+```http
+POST https://graph.microsoft.com/v1.0/sites/eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56/permissions
+Content-Type: application/json
+
+{
+  "roles": ["read"],
+  "grantedToIdentities": [
+    {
+      "application": {
+        "id": "8d0378b4-832c-4703-8449-5ff2072589a5",
+        "displayName": "Ecossistema Operations - GitHub OIDC"
+      }
+    }
+  ]
+}
+```
+
+A chamada acima deve ser feita por uma identidade administrativa separada com autoridade para administrar permissões do site. Não guardar essa autoridade no workflow Operations.
+
+Quando habilitada, a auditoria:
+- lê o site selecionado e uma amostra limitada das listas;
+- faz uma prova negativa contra o site raiz de comunicação do tenant;
+- falha fechado se o site selecionado não estiver acessível;
+- falha fechado se a identidade Operations conseguir ler o site de isolamento, indicando acesso mais amplo que o planejado;
+- não publica nomes de listas nem permissões detalhadas no GitHub.
