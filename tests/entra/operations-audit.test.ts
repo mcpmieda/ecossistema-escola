@@ -134,6 +134,11 @@ describe('Entra operations read-only audit', () => {
       severity: 'warning',
       code: 'password-credential-present',
     });
+    expect(result.sharePoint).toEqual({
+      enabled: false,
+      status: 'disabled',
+      isolationProbe: 'not-run',
+    });
 
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain(TOKEN);
@@ -141,6 +146,152 @@ describe('Entra operations read-only audit', () => {
     expect(serialized).not.toContain('"hint"');
     expect(serialized).not.toContain('"key"');
     expect(serialized).not.toContain('"secretText"');
+  });
+
+  it('proves Sites.Selected read access while denying an unselected site', async () => {
+    const selectedSite =
+      'eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56';
+    const isolationSite =
+      'eduieda.sharepoint.com,bc1489eb-2358-475f-a3b6-674e42eb7e53,f3e8239e-3ed7-4eb1-8774-e14743bc0d45';
+
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.includes(`/applications/${WEB_OBJECT}`)) {
+        return json({
+          id: WEB_OBJECT,
+          appId: WEB_APP_ID,
+          displayName: 'Ecossistema Escolar - Web',
+          signInAudience: 'AzureADMyOrg',
+          web: { redirectUris: ['https://admin.escolaieda.com/auth/callback'] },
+          keyCredentials: [{
+            keyId: '11111111-aaaa-4111-8111-111111111111',
+            type: 'AsymmetricX509Cert',
+            usage: 'Verify',
+            endDateTime: '2027-12-31T00:00:00Z',
+          }],
+        });
+      }
+      if (url.includes(`/applications/${GRAPH_OBJECT}`)) {
+        return json({
+          id: GRAPH_OBJECT,
+          appId: GRAPH_APP_ID,
+          displayName: 'Ecossistema Escolar - Graph Backend',
+          signInAudience: 'AzureADMyOrg',
+          web: { redirectUris: [] },
+          spa: { redirectUris: [] },
+          publicClient: { redirectUris: [] },
+          keyCredentials: [{
+            keyId: '22222222-aaaa-4222-8222-222222222222',
+            type: 'AsymmetricX509Cert',
+            usage: 'Verify',
+            endDateTime: '2027-12-31T00:00:00Z',
+          }],
+        });
+      }
+      if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(WEB_APP_ID))) {
+        return json({ value: [{
+          id: '88888888-8888-4888-8888-888888888888',
+          appId: WEB_APP_ID,
+          displayName: 'Web SP',
+          accountEnabled: true,
+          servicePrincipalType: 'Application',
+        }] });
+      }
+      if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(GRAPH_APP_ID))) {
+        return json({ value: [{
+          id: '99999999-9999-4999-8999-999999999999',
+          appId: GRAPH_APP_ID,
+          displayName: 'Graph SP',
+          accountEnabled: true,
+          servicePrincipalType: 'Application',
+        }] });
+      }
+      if (url.includes('/servicePrincipals/88888888-8888-4888-8888-888888888888/appRoleAssignments'))
+        return json({ value: [] });
+      if (url.includes('/servicePrincipals/99999999-9999-4999-8999-999999999999/appRoleAssignments'))
+        return json({ value: [] });
+      if (url.includes(encodeURIComponent(selectedSite)) && url.includes('/lists?'))
+        return json({ value: [{ id: 'list-a' }, { id: 'list-b' }] });
+      if (url.includes(encodeURIComponent(selectedSite)))
+        return json({ id: selectedSite, displayName: 'Selected Site', webUrl: 'https://example.invalid/sites/selected' });
+      if (url.includes(encodeURIComponent(isolationSite)))
+        return new Response(null, { status: 403 });
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await auditEntraOperations({
+      accessToken: TOKEN,
+      webApplicationObjectId: WEB_OBJECT,
+      graphApplicationObjectId: GRAPH_OBJECT,
+      sharePointAuditEnabled: true,
+      fetcher,
+      now: () => new Date('2026-09-19T00:00:00Z'),
+    });
+
+    expect(fetcher).toHaveBeenCalledTimes(9);
+    expect(result.drift.status).toBe('ok');
+    expect(result.sharePoint).toEqual({
+      enabled: true,
+      status: 'ok',
+      siteId: selectedSite,
+      displayName: 'Selected Site',
+      webUrl: 'https://example.invalid/sites/selected',
+      visibleListCount: 2,
+      isolationProbe: 'denied',
+    });
+  });
+
+  it('fails closed if the Operations identity can read an unselected SharePoint site', async () => {
+    const selectedSite =
+      'eduieda.sharepoint.com,d8cb46fa-e401-40a9-9f81-876d59e8cbb0,89a47a04-34fa-4877-8a3c-00d35d246c56';
+    const isolationSite =
+      'eduieda.sharepoint.com,bc1489eb-2358-475f-a3b6-674e42eb7e53,f3e8239e-3ed7-4eb1-8774-e14743bc0d45';
+
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.includes(`/applications/${WEB_OBJECT}`)) {
+        return json({
+          id: WEB_OBJECT, appId: WEB_APP_ID, displayName: 'Ecossistema Escolar - Web',
+          signInAudience: 'AzureADMyOrg',
+          web: { redirectUris: ['https://admin.escolaieda.com/auth/callback'] },
+          keyCredentials: [{ keyId: crypto.randomUUID(), endDateTime: '2027-12-31T00:00:00Z' }],
+        });
+      }
+      if (url.includes(`/applications/${GRAPH_OBJECT}`)) {
+        return json({
+          id: GRAPH_OBJECT, appId: GRAPH_APP_ID, displayName: 'Ecossistema Escolar - Graph Backend',
+          signInAudience: 'AzureADMyOrg',
+          web: { redirectUris: [] }, spa: { redirectUris: [] }, publicClient: { redirectUris: [] },
+          keyCredentials: [{ keyId: crypto.randomUUID(), endDateTime: '2027-12-31T00:00:00Z' }],
+        });
+      }
+      if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(WEB_APP_ID)))
+        return json({ value: [{ id: '88888888-8888-4888-8888-888888888888', appId: WEB_APP_ID,
+          displayName: 'Web SP', accountEnabled: true, servicePrincipalType: 'Application' }] });
+      if (url.includes('servicePrincipals') && url.includes(encodeURIComponent(GRAPH_APP_ID)))
+        return json({ value: [{ id: '99999999-9999-4999-8999-999999999999', appId: GRAPH_APP_ID,
+          displayName: 'Graph SP', accountEnabled: true, servicePrincipalType: 'Application' }] });
+      if (url.includes('/appRoleAssignments')) return json({ value: [] });
+      if (url.includes(encodeURIComponent(selectedSite)) && url.includes('/lists?'))
+        return json({ value: [] });
+      if (url.includes(encodeURIComponent(selectedSite)))
+        return json({ id: selectedSite, displayName: 'Selected Site', webUrl: 'https://example.invalid/sites/selected' });
+      if (url.includes(encodeURIComponent(isolationSite)))
+        return json({ id: isolationSite });
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    await expect(auditEntraOperations({
+      accessToken: TOKEN,
+      webApplicationObjectId: WEB_OBJECT,
+      graphApplicationObjectId: GRAPH_OBJECT,
+      sharePointAuditEnabled: true,
+      fetcher,
+      now: () => new Date('2026-09-19T00:00:00Z'),
+    })).rejects.toMatchObject({
+      name: 'EntraOperationsAuditError',
+      stage: 'sharepoint-broad-access-detected',
+    });
   });
 
   it('fails closed with a sanitized error instead of provider response content', async () => {
