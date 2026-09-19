@@ -195,11 +195,13 @@ async function readTarget(
   return { application, keys };
 }
 
+type PatchKey = Omit<NormalizedKey, 'keyId'> & { keyId?: string };
+
 async function patchKeys(
   fetcher: GraphFetcher,
   token: string,
   objectId: string,
-  keys: NormalizedKey[],
+  keys: PatchKey[],
   stage: string,
 ): Promise<void> {
   let response: Response;
@@ -256,12 +258,13 @@ export async function addRotationCertificate(input: {
   previousActiveSlot: MaintenanceRotationSlot;
   previousActiveKeyId: string;
   staleSameSlotKeyId: string;
-  newKeyId: string;
+  runtimeCredentialKeyId: string;
+  newGraphKeyId: string;
 }> {
   const token = input.accessToken.trim();
   if (!token) throw new MaintenanceRotationError('missing-access-token');
   const objectId = requiredUuid(input.objectId, 'invalid-object-id');
-  const newKeyId = requiredUuid(input.newKeyId, 'invalid-new-key-id');
+  const runtimeCredentialKeyId = requiredUuid(input.newKeyId, 'invalid-new-key-id');
   const startDateTime = new Date(timestamp(input.startDateTime, 'new-start-invalid')).toISOString();
   const endDateTime = new Date(timestamp(input.endDateTime, 'new-end-invalid')).toISOString();
   if (Date.parse(endDateTime) <= Date.parse(startDateTime)) {
@@ -282,15 +285,14 @@ export async function addRotationCertificate(input: {
   if (input.slot !== expectedInactiveSlot) {
     throw new MaintenanceRotationError('requested-slot-is-not-inactive');
   }
-  if (keys.some((key) => key.keyId === newKeyId)) {
+  if (keys.some((key) => key.keyId === runtimeCredentialKeyId)) {
     throw new MaintenanceRotationError('new-key-id-collision');
   }
 
   const previousActive = keys.find((key) => key.slot === previousActiveSlot)!;
   const staleSameSlot = keys.find((key) => key.slot === input.slot)!;
   const preserved = keys.map(({ slot: _slot, ...key }) => key);
-  const newKey: NormalizedKey = {
-    keyId: newKeyId,
+  const newKey: PatchKey = {
     type: 'AsymmetricX509Cert',
     usage: 'Verify',
     key: input.certificateDerBase64,
@@ -300,10 +302,20 @@ export async function addRotationCertificate(input: {
   };
   await patchKeys(fetcher, token, objectId, [...preserved, newKey], 'add-certificate');
 
-  const after = await readTarget(fetcher, token, input.target, objectId);
+  let after = await readTarget(fetcher, token, input.target, objectId);
+  let created = after.keys.find(
+    (key) => key.displayName === input.displayName && key.key === input.certificateDerBase64,
+  );
+  for (let attempt = 0; !created && attempt < 5; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    after = await readTarget(fetcher, token, input.target, objectId);
+    created = after.keys.find(
+      (key) => key.displayName === input.displayName && key.key === input.certificateDerBase64,
+    );
+  }
   if (
     after.keys.length !== 3 ||
-    !after.keys.some((key) => key.keyId === newKeyId) ||
+    !created ||
     !after.keys.some((key) => key.keyId === previousActive.keyId) ||
     !after.keys.some((key) => key.keyId === staleSameSlot.keyId)
   ) {
@@ -317,7 +329,8 @@ export async function addRotationCertificate(input: {
     previousActiveSlot,
     previousActiveKeyId: previousActive.keyId,
     staleSameSlotKeyId: staleSameSlot.keyId,
-    newKeyId,
+    runtimeCredentialKeyId,
+    newGraphKeyId: created.keyId,
   };
 }
 
