@@ -17,3 +17,6 @@ playwright-report/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+
+.gemini/
+gha-creds-*.json
