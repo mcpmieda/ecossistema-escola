@@ -20,13 +20,25 @@ A decisão deve otimizar **latência, qualidade, custo/cota e risco de integraç
 
 Os papéis são preferências operacionais, não exclusividades.
 
+### Gatilhos operacionais homologados
+
+- **Antigravity:** comentário exato `/antigravity` ou `workflow_dispatch`; exige issue do proprietário com `AGENT_HANDOFF`.
+- **OpenHands Cloud:** comentário exato `/openhands` ou `workflow_dispatch`; exige issue do proprietário com `AGENT_HANDOFF`.
+- **Gemini CLI:** comentário exato `/gemini` ou `workflow_dispatch`; exige issue do proprietário com `AGENT_HANDOFF`.
+- **CodeRabbit:** `@coderabbitai review` quando uma segunda leitura trouxer valor.
+- **SonarQube Cloud:** Automatic Analysis via GitHub App; não requer scanner/token no workflow normal.
+- **Jules:** acionamento pela integração Jules/GitHub conforme a tarefa delegada.
+- **ChatGPT:** coordena as frentes, integra evidências e decide qual executor usar dentro das autorizações existentes.
+
 | Papel | Ferramenta/agente preferencial | Uso |
 | --- | --- | --- |
-| Liderança técnica | agente líder atual | arquitetura, regra acadêmica/negócio, contratos, dados, segurança, integração final |
-| Implementação assíncrona ampla | Jules | correções e funcionalidades delimitadas com acesso ao repositório e ciclo próprio de implementação |
-| Implementação bounded/paralela | Antigravity | pacotes bem especificados, testes, refatorações e consumidores independentes |
-| Revisão independente | CodeRabbit | encontrar regressões, inconsistências e pontos de atenção em PRs quando a revisão acrescentar valor |
-| Qualidade/segurança especializada | Sonar/Snyk e equivalentes homologados | análise automatizada, não autoridade arquitetural |
+| Liderança técnica | **ChatGPT** | arquitetura, regra acadêmica/negócio, contratos, dados, segurança, delegação e integração final |
+| Implementação assíncrona ampla | **Jules** | correções e funcionalidades delimitadas com acesso ao repositório e ciclo próprio de implementação |
+| Implementação bounded/paralela | **Antigravity** | pacotes bem especificados, testes, refatorações e consumidores independentes via `/antigravity` |
+| Implementação cloud assíncrona | **OpenHands Cloud** | tarefas delimitadas que se beneficiem de workspace cloud e execução longa via `/openhands` |
+| Implementação bounded via CLI | **Gemini CLI** | alterações rápidas em `allowed_paths`, com patch validado host-side e PR candidato via `/gemini` |
+| Revisão independente | **CodeRabbit** | encontrar regressões, inconsistências e pontos de atenção em PRs quando a revisão acrescentar valor |
+| Qualidade/segurança especializada | **SonarQube Cloud** | análise estática e Quality Gate automáticos; não é autoridade arquitetural |
 | Futuros agentes | conforme homologação | recebem um papel pelo agente líder antes de entrar no fluxo |
 
 ## Escolha do caminho
@@ -96,7 +108,7 @@ Fora disso, duplicação é desperdício.
 
 ## Regra de não espera
 
-Depois de disparar Jules, Antigravity, CI ou outra operação demorada, o agente líder deve procurar a próxima frente independente que possa avançar.
+Depois de disparar Jules, Antigravity, OpenHands Cloud, Gemini CLI, CI ou outra operação demorada, o agente líder deve procurar a próxima frente independente que possa avançar.
 
 Esperar é aceitável somente quando o resultado pendente determina a próxima decisão e não existe trabalho seguro paralelo.
 
