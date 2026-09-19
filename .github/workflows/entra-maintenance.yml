@@ -132,9 +132,13 @@ jobs:
               "- Permission set: " + (.identity.applicationPermissions | join(", ")),
               "- Owned targets: " + ((.identity.ownedApplicationObjectIds | length) | tostring),
               "- Web certificates: " + ((.targets.web.keyCredentials | length) | tostring) +
-                ", password credentials: " + (.targets.web.passwordCredentialCount | tostring),
+                ", password credentials: " + (.targets.web.passwordCredentialCount | tostring) +
+                ", preservation material readable: " +
+                (if .targets.web.allCertificateMaterialReadable then "yes" else "no" end),
               "- Graph certificates: " + ((.targets.graph.keyCredentials | length) | tostring) +
-                ", password credentials: " + (.targets.graph.passwordCredentialCount | tostring),
+                ", password credentials: " + (.targets.graph.passwordCredentialCount | tostring) +
+                ", preservation material readable: " +
+                (if .targets.graph.allCertificateMaterialReadable then "yes" else "no" end),
               "- Result: ready; no Entra mutation executed"
             ' "$output"
           } >> "$GITHUB_STEP_SUMMARY"
