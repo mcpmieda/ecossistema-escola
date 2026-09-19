@@ -1,0 +1,179 @@
+name: Gemini CLI on demand
+
+on:
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Owner-authored issue containing an AGENT_HANDOFF block.
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: gemini-cli-provider
+  cancel-in-progress: false
+
+jobs:
+  execute:
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Resolve request
+        id: request
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_ISSUE: ${{ github.event.issue.number }}
+          INPUT_ISSUE: ${{ inputs.issue_number }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            [ "$COMMENT_BODY" = "/gemini" ] || { echo "run=false" >> "$GITHUB_OUTPUT"; exit 0; }
+            issue="$COMMENT_ISSUE"
+          else
+            issue="$INPUT_ISSUE"
+          fi
+          [[ "$issue" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Invalid issue number"; exit 1; }
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "issue=$issue" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout trusted main
+        if: steps.request.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch and validate handoff
+        if: steps.request.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.request.outputs.issue }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}" > "$RUNNER_TEMP/gemini-issue.json"
+          jq -e --arg owner "$OWNER" '.pull_request == null and .user.login == $owner' \
+            "$RUNNER_TEMP/gemini-issue.json" >/dev/null
+          python infra/agents/antigravity/run.py check \
+            --issue-json "$RUNNER_TEMP/gemini-issue.json" \
+            --meta "$RUNNER_TEMP/gemini-meta.json"
+
+      - name: Prepare bounded Gemini workspace
+        if: steps.request.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p .gemini
+          cat > .gemini/settings.json <<'JSON'
+          {
+            "model": {"maxSessionTurns": 20},
+            "telemetry": {"enabled": false},
+            "security": {"environmentVariableRedaction": {"enabled": true}},
+            "tools": {
+              "core": [
+                "list_directory",
+                "read_file",
+                "read_many_files",
+                "glob",
+                "grep_search",
+                "write_file",
+                "replace"
+              ]
+            }
+          }
+          JSON
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          meta = json.loads((Path(os.environ["RUNNER_TEMP"]) / "gemini-meta.json").read_text())
+          parts = [
+              "You are an implementation executor under ChatGPT leadership.",
+              f"Issue #{meta['issue_number']}: {meta['issue_title']}",
+              "",
+              "GOAL:", meta["goal"], "",
+              "ALLOWED PATHS:", *[f"- {x}" for x in meta["allowed_paths"]], "",
+              "PRESERVE:", *[f"- {x}" for x in meta["preserve"]], "",
+              "DO NOT:", *[f"- {x}" for x in meta["do_not"]], "",
+              "Read AGENTS.md and GEMINI.md. Modify only ALLOWED PATHS. "
+              "Do not use shell, network, GitHub APIs, credentials, git, commits, branches or deploys. "
+              "If the task requires anything outside scope, stop without improvising."
+          ]
+          Path(".gemini/task.md").write_text("\n".join(parts) + "\n", encoding="utf-8")
+          PY
+
+      - name: Install pinned Gemini CLI
+        if: steps.request.outputs.run == 'true'
+        run: npm install --global --ignore-scripts @google/gemini-cli@0.60.0
+
+      - name: Execute Gemini
+        if: steps.request.outputs.run == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_CLI_TRUST_WORKSPACE: 'true'
+        run: |
+          set -euo pipefail
+          [ -n "${GEMINI_API_KEY:-}" ] || { echo "::error::GEMINI_API_KEY missing"; exit 1; }
+          gemini --yolo --model gemini-3.8-flash \
+            --prompt "$(cat .gemini/task.md)" \
+            --output-format json > "$RUNNER_TEMP/gemini-output.json"
+
+      - name: Validate changes outside provider
+        if: steps.request.outputs.run == 'true' && success()
+        id: validate
+        run: |
+          set -euo pipefail
+          rm -rf .gemini
+          needs_node="$(jq -r '.needs_node' "$RUNNER_TEMP/gemini-meta.json")"
+          [ "$needs_node" != "true" ] || npm ci
+          python infra/agents/validate_worktree.py \
+            --root "$GITHUB_WORKSPACE" \
+            --meta "$RUNNER_TEMP/gemini-meta.json" \
+            --result "$RUNNER_TEMP/gemini-result.json"
+          echo "changes=$(jq -r '.has_changes' "$RUNNER_TEMP/gemini-result.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Publish candidate branch and draft PR
+        if: steps.request.outputs.run == 'true' && steps.validate.outputs.changes == 'true' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.request.outputs.issue }}
+        run: |
+          set -euo pipefail
+          branch="gemini/issue-${ISSUE}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          title="$(jq -r '.issue_title' "$RUNNER_TEMP/gemini-meta.json")"
+          git config user.name "Gemini CLI Agent"
+          git config user.email "gemini-cli-agent@users.noreply.github.com"
+          git switch -c "$branch"
+          git add -A
+          git diff --cached --check
+          git commit -m "agent(gemini): issue #${ISSUE}"
+          gh auth setup-git
+          git push --set-upstream origin "HEAD:refs/heads/${branch}"
+          pr_url="$(gh pr create --draft --base main --head "$branch" \
+            --title "[Gemini] $title" \
+            --body "Gemini CLI executou o handoff da issue #${ISSUE}. Esta é uma entrega candidata; revisão e CI continuam obrigatórios.")"
+          gh issue comment "$ISSUE" --body "Gemini CLI concluiu a tarefa e abriu um PR em draft: ${pr_url}"
+
+      - name: Report no changes
+        if: steps.request.outputs.run == 'true' && steps.validate.outputs.changes == 'false' && success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.request.outputs.issue }}
+        run: gh issue comment "$ISSUE" --body "Gemini CLI concluiu o handoff sem alterações de arquivos."
+
+      - name: Report failure
+        if: failure() && steps.request.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.request.outputs.issue }}
+        run: gh issue comment "$ISSUE" --body "A execução do Gemini CLI falhou fechada; nenhuma alteração foi mesclada. Workflow run ${GITHUB_RUN_ID}."
