@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
@@ -423,7 +424,7 @@ async function main(): Promise<void> {
     const slot = requiredSlot(process.env.ROTATION_SLOT ?? '');
     const certificatePath = process.env.CERT_DER_PATH ?? '';
     if (!certificatePath) throw new MaintenanceRotationError('missing-cert-der-path');
-    const certificateDerBase64 = readFileSync(certificatePath).toString('base64');
+    const certificateDerBase64 = Buffer.from(readFileSync(certificatePath)).toString('base64');
     const result = await addRotationCertificate({
       accessToken,
       target,
