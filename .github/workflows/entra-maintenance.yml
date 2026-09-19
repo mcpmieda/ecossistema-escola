@@ -289,8 +289,11 @@ jobs:
             }
           fi
           if [ "$ACTION" = "repair-orphan" ]; then
-            jq -e --arg target "$TARGET" '(.targets[$target].keyCredentials | length) == 3' "$output" >/dev/null || {
-              echo "::error::Orphan repair requires exactly three certificates on the selected target."
+            jq -e --arg target "$TARGET" '
+              ((.targets[$target].keyCredentials | length) == 2) or
+              ((.targets[$target].keyCredentials | length) == 3)
+            ' "$output" >/dev/null || {
+              echo "::error::Orphan repair requires exactly two or three certificates on the selected target."
               exit 1
             }
           fi
@@ -437,6 +440,7 @@ jobs:
 
       - name: Repair orphan certificate from a failed pre-secret rotation
         if: inputs.action == 'repair-orphan'
+        id: repair
         shell: bash
         env:
           TARGET: ${{ inputs.target }}
@@ -452,8 +456,18 @@ jobs:
           opposite_slot="$([ "$SLOT" = "A" ] && printf 'B' || printf 'A')"
           opposite_prefix="automatic-${TARGET}-slot-${opposite_slot}-"
 
+          certificate_count="$(jq -r --arg target "$TARGET" '.targets[$target].keyCredentials | length' "$plan")"
+          if [ "$certificate_count" = "2" ]; then
+            jq -e --arg target "$TARGET" --arg prefix "$prefix" --arg opposite "$opposite_prefix" '
+              ([.targets[$target].keyCredentials[] | select(.displayName | startswith($prefix))] | length) == 1 and
+              ([.targets[$target].keyCredentials[] | select(.displayName | startswith($opposite))] | length) == 1
+            ' "$plan" >/dev/null
+            echo "status=already-clean" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          test "$certificate_count" = "3"
           jq -e --arg target "$TARGET" --arg prefix "$prefix" --arg opposite "$opposite_prefix" '
-            (.targets[$target].keyCredentials | length) == 3 and
             ([.targets[$target].keyCredentials[] | select(.displayName | startswith($prefix))] | length) == 2 and
             ([.targets[$target].keyCredentials[] | select(.displayName | startswith($opposite))] | length) == 1
           ' "$plan" >/dev/null
@@ -496,6 +510,7 @@ jobs:
             (.targets[$target].keyCredentials | length) == 2 and
             .targets[$target].passwordCredentialCount == 0
           ' "$verify" >/dev/null
+          echo "status=removed" >> "$GITHUB_OUTPUT"
 
       - name: Deploy the exact trusted main through the official production workflow
         if: inputs.action == 'rotate'
@@ -563,6 +578,7 @@ jobs:
           TARGET: ${{ inputs.target }}
           SLOT: ${{ inputs.slot }}
           DEPLOY_RUN_ID: ${{ steps.deploy.outputs.run_id }}
+          REPAIR_STATUS: ${{ steps.repair.outputs.status }}
         run: |
           set -euo pipefail
           {
@@ -578,8 +594,12 @@ jobs:
               echo "- Rollback certificate: retained"
               echo "- Stale same-slot certificate: retained until finalize"
             elif [ "$ACTION" = "repair-orphan" ]; then
-              echo "- Failed pre-secret rotation orphan: removed"
-              echo "- Target certificate count: restored to 2"
+              if [ "$REPAIR_STATUS" = "already-clean" ]; then
+                echo "- Target certificate count: already 2; no Entra mutation needed"
+              else
+                echo "- Failed pre-secret rotation orphan: removed"
+                echo "- Target certificate count: restored to 2"
+              fi
               echo "- Cloudflare secret update: not executed"
               echo "- Production deploy: not executed"
             else
