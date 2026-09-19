@@ -245,7 +245,6 @@ export async function addRotationCertificate(input: {
   target: MaintenanceRotationTarget;
   slot: MaintenanceRotationSlot;
   objectId: string;
-  newKeyId: string;
   certificateDerBase64: string;
   displayName: string;
   startDateTime: string;
@@ -258,13 +257,11 @@ export async function addRotationCertificate(input: {
   previousActiveSlot: MaintenanceRotationSlot;
   previousActiveKeyId: string;
   staleSameSlotKeyId: string;
-  runtimeCredentialKeyId: string;
   newGraphKeyId: string;
 }> {
   const token = input.accessToken.trim();
   if (!token) throw new MaintenanceRotationError('missing-access-token');
   const objectId = requiredUuid(input.objectId, 'invalid-object-id');
-  const runtimeCredentialKeyId = requiredUuid(input.newKeyId, 'invalid-new-key-id');
   const startDateTime = new Date(timestamp(input.startDateTime, 'new-start-invalid')).toISOString();
   const endDateTime = new Date(timestamp(input.endDateTime, 'new-end-invalid')).toISOString();
   if (Date.parse(endDateTime) <= Date.parse(startDateTime)) {
@@ -285,10 +282,6 @@ export async function addRotationCertificate(input: {
   if (input.slot !== expectedInactiveSlot) {
     throw new MaintenanceRotationError('requested-slot-is-not-inactive');
   }
-  if (keys.some((key) => key.keyId === runtimeCredentialKeyId)) {
-    throw new MaintenanceRotationError('new-key-id-collision');
-  }
-
   const previousActive = keys.find((key) => key.slot === previousActiveSlot)!;
   const staleSameSlot = keys.find((key) => key.slot === input.slot)!;
   const preserved = keys.map(({ slot: _slot, ...key }) => key);
@@ -329,7 +322,6 @@ export async function addRotationCertificate(input: {
     previousActiveSlot,
     previousActiveKeyId: previousActive.keyId,
     staleSameSlotKeyId: staleSameSlot.keyId,
-    runtimeCredentialKeyId,
     newGraphKeyId: created.keyId,
   };
 }
@@ -437,7 +429,6 @@ async function main(): Promise<void> {
       target,
       slot,
       objectId,
-      newKeyId: process.env.NEW_KEY_ID ?? '',
       certificateDerBase64,
       displayName: process.env.NEW_DISPLAY_NAME ?? '',
       startDateTime: process.env.NEW_START_DATE_TIME ?? '',
