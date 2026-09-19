@@ -9,7 +9,10 @@ export type { GraphDependencies } from './request-policy-v1';
 const tokenSchema = z.object({ access_token: z.string(), expires_in: z.number() });
 export type GraphTokenFailureStage = 'assertion' | 'transport' | 'response-contract';
 export class GraphTokenError extends Error {
-  constructor(readonly stage: GraphTokenFailureStage, readonly slot: GraphCredentialSlot) {
+  constructor(
+    readonly stage: GraphTokenFailureStage,
+    readonly slot: GraphCredentialSlot | null,
+  ) {
     super('Graph token preparation failed');
   }
 }
@@ -50,7 +53,9 @@ export async function getGraphToken(env: RuntimeEnv, dependencies: GraphDependen
     if (response.status === 429 || response.status >= 500)
       throw new GraphError(response.status, crypto.randomUUID(), wait === undefined ? undefined : Math.ceil(wait / 1000));
   }
-  if (lastStatus === 0) throw new GraphTokenError('assertion', lastAssertionSlot ?? slot ?? 'LEGACY');
+  if (lastStatus === 0) {
+    throw new GraphTokenError('assertion', lastAssertionSlot ?? slot ?? null);
+  }
   // Keep the identity provider response body private, but retain the status and an
   // opaque correlation id so callers can classify an outage without parsing text.
   throw new GraphError(lastStatus || 503, crypto.randomUUID());

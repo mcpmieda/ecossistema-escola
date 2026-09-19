@@ -18,7 +18,7 @@ async function validRotatedCredential(createdAt: string) {
 describe('Graph client resilience', () => {
   it('falls back when the newest credential parses but cannot sign an assertion', async () => {
     const env = {
-      ...testEnv, GRAPH_PRIVATE_KEY_PKCS8: undefined, GRAPH_CERT_THUMBPRINT: undefined,
+      ...testEnv,
       GRAPH_CREDENTIAL_A: JSON.stringify({ privateKeyPkcs8: 'x'.repeat(256), certificateThumbprint: 'synthetic-thumbprint-value',
         keyId: crypto.randomUUID(), createdAt: '2026-02-01T00:00:00.000Z' }),
       GRAPH_CREDENTIAL_B: await validRotatedCredential('2026-01-01T00:00:00.000Z'),
