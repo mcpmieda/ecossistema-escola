@@ -359,6 +359,7 @@ export async function removeExactCertificate(input: {
   objectId: string;
   keyId: string;
   fetcher?: GraphFetcher;
+  pause?: (ms: number) => Promise<void>;
 }): Promise<{ status: 'removed'; remainingCertificates: number }> {
   const token = input.accessToken.trim();
   if (!token) throw new MaintenanceRotationError('missing-access-token');
@@ -373,17 +374,26 @@ export async function removeExactCertificate(input: {
   const remainingSource = keys.filter((key) => key.keyId !== keyId);
   const remaining = remainingSource.map((key) => preservedPatchKey(key));
   await patchKeys(fetcher, token, objectId, remaining, 'remove-certificate');
-  const after = await readTarget(fetcher, token, input.target, objectId);
-  if (
-    after.keys.some((key) => certificateIdentity(key) === removedIdentity) ||
-    after.keys.length !== remaining.length ||
-    remainingSource.some(
-      (expected) => !after.keys.some((actual) => certificateIdentity(actual) === certificateIdentity(expected)),
-    )
-  ) {
-    throw new MaintenanceRotationError('remove-certificate-postcondition-failed');
+  const pause = input.pause ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  let after = await readTarget(fetcher, token, input.target, objectId);
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const converged =
+      !after.keys.some((key) => certificateIdentity(key) === removedIdentity) &&
+      after.keys.length === remaining.length &&
+      remainingSource.every(
+        (expected) => after.keys.some(
+          (actual) => certificateIdentity(actual) === certificateIdentity(expected),
+        ),
+      );
+    if (converged) {
+      return { status: 'removed', remainingCertificates: after.keys.length };
+    }
+    if (attempt < 9) {
+      await pause(1000);
+      after = await readTarget(fetcher, token, input.target, objectId);
+    }
   }
-  return { status: 'removed', remainingCertificates: after.keys.length };
+  throw new MaintenanceRotationError('remove-certificate-postcondition-failed');
 }
 
 export async function finalizeRotation(input: {
@@ -392,6 +402,7 @@ export async function finalizeRotation(input: {
   slot: MaintenanceRotationSlot;
   objectId: string;
   fetcher?: GraphFetcher;
+  pause?: (ms: number) => Promise<void>;
 }): Promise<{
   status: 'finalized';
   target: MaintenanceRotationTarget;
@@ -431,27 +442,33 @@ export async function finalizeRotation(input: {
     .filter((key) => key.keyId !== stale.keyId)
     .map((key) => preservedPatchKey(key));
   await patchKeys(fetcher, token, objectId, remaining, 'finalize-certificate');
-  const after = await readTarget(fetcher, token, input.target, objectId);
-  const retainedNew = after.keys.find((key) => certificateIdentity(key) === newestIdentity);
-  const retainedRollback = after.keys.find((key) => certificateIdentity(key) === rollbackIdentity);
-  if (
-    after.keys.length !== 2 ||
-    !retainedNew ||
-    !retainedRollback ||
-    after.keys.some((key) => certificateIdentity(key) === staleIdentity)
-  ) {
-    throw new MaintenanceRotationError('finalize-postcondition-failed');
+  const pause = input.pause ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  let after = await readTarget(fetcher, token, input.target, objectId);
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const retainedNew = after.keys.find((key) => certificateIdentity(key) === newestIdentity);
+    const retainedRollback = after.keys.find((key) => certificateIdentity(key) === rollbackIdentity);
+    const converged =
+      after.keys.length === 2 &&
+      retainedNew !== undefined &&
+      retainedRollback !== undefined &&
+      !after.keys.some((key) => certificateIdentity(key) === staleIdentity);
+    if (converged) {
+      return {
+        status: 'finalized',
+        target: input.target,
+        slot: input.slot,
+        retainedNewKeyId: retainedNew.keyId,
+        retainedRollbackSlot: rollbackSlot,
+        retainedRollbackKeyId: retainedRollback.keyId,
+        removedStaleKeyId: stale.keyId,
+      };
+    }
+    if (attempt < 9) {
+      await pause(1000);
+      after = await readTarget(fetcher, token, input.target, objectId);
+    }
   }
-
-  return {
-    status: 'finalized',
-    target: input.target,
-    slot: input.slot,
-    retainedNewKeyId: retainedNew.keyId,
-    retainedRollbackSlot: rollbackSlot,
-    retainedRollbackKeyId: retainedRollback.keyId,
-    removedStaleKeyId: stale.keyId,
-  };
+  throw new MaintenanceRotationError('finalize-postcondition-failed');
 }
 
 async function main(): Promise<void> {
