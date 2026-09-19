@@ -15,7 +15,12 @@ function json(value: unknown, status = 200) {
   });
 }
 
-function target(id: string, appId: string, displayName: string) {
+function target(
+  id: string,
+  appId: string,
+  displayName: string,
+  includeCertificateMaterial = true,
+) {
   return {
     id,
     appId,
@@ -28,7 +33,7 @@ function target(id: string, appId: string, displayName: string) {
       startDateTime: '2026-01-01T00:00:00Z',
       endDateTime: '2027-01-01T00:00:00Z',
       customKeyIdentifier: 'synthetic-thumbprint',
-      key: 'PUBLIC-CERTIFICATE-MUST-NOT-BE-EMITTED',
+      key: includeCertificateMaterial ? 'PUBLIC-CERTIFICATE-MUST-NOT-BE-EMITTED' : null,
     }],
     passwordCredentials: [{ secretText: 'MUST-NOT-LEAK' }],
   };
@@ -104,6 +109,9 @@ describe('Entra Maintenance dry-run', () => {
     ].sort());
     expect(result.targets.web.passwordCredentialCount).toBe(1);
     expect(result.targets.graph.keyCredentials).toHaveLength(1);
+    expect(result.targets.web.certificateMaterialReadableCount).toBe(1);
+    expect(result.targets.web.allCertificateMaterialReadable).toBe(true);
+    expect(result.targets.graph.allCertificateMaterialReadable).toBe(true);
 
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain(TOKEN);
@@ -111,6 +119,66 @@ describe('Entra Maintenance dry-run', () => {
     expect(serialized).not.toContain('MUST-NOT-LEAK');
     expect(serialized).not.toContain('secretText');
     expect(serialized).not.toContain('"key"');
+  });
+
+
+  it('reports certificate material readiness without emitting certificate bytes', async () => {
+    const fetcher = fetcherFor();
+    fetcher.mockImplementation(async (input, init) => {
+      const url = String(input);
+      expect(init?.method).toBe('GET');
+      expect(new Headers(init?.headers).get('Authorization')).toBe(`Bearer ${TOKEN}`);
+
+      if (url.includes('/servicePrincipals?')) {
+        return json({ value: [{
+          id: MAINTENANCE_SP_ID,
+          appId: MAINTENANCE_CLIENT_ID,
+          displayName: 'Ecossistema Maintenance - GitHub OIDC',
+          accountEnabled: true,
+          servicePrincipalType: 'Application',
+        }] });
+      }
+      if (url.includes(`/servicePrincipals/${MAINTENANCE_SP_ID}/appRoleAssignments`)) {
+        return json({ value: [{
+          id: crypto.randomUUID(),
+          appRoleId: OWNED_BY,
+          resourceId: crypto.randomUUID(),
+        }] });
+      }
+      if (url.includes(`/servicePrincipals/${MAINTENANCE_SP_ID}/ownedObjects`)) {
+        return json({ value: [WEB_OBJECT_ID, GRAPH_OBJECT_ID].map((id) => ({ id })) });
+      }
+      if (url.includes(`/applications/${WEB_OBJECT_ID}`)) {
+        return json(target(
+          WEB_OBJECT_ID,
+          '78185e20-c824-4acc-9ccd-41b9f7509a6f',
+          'Ecossistema Escolar - Web',
+          false,
+        ));
+      }
+      if (url.includes(`/applications/${GRAPH_OBJECT_ID}`)) {
+        return json(target(
+          GRAPH_OBJECT_ID,
+          '7d565352-1f77-4a7c-a4a4-4ae1b55b5c0c',
+          'Ecossistema Escolar - Graph Backend',
+        ));
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await buildMaintenancePlan({
+      accessToken: TOKEN,
+      maintenanceClientId: MAINTENANCE_CLIENT_ID,
+      webApplicationObjectId: WEB_OBJECT_ID,
+      graphApplicationObjectId: GRAPH_OBJECT_ID,
+      fetcher,
+    });
+
+    expect(result.targets.web.certificateMaterialReadableCount).toBe(0);
+    expect(result.targets.web.allCertificateMaterialReadable).toBe(false);
+    expect(result.targets.graph.certificateMaterialReadableCount).toBe(1);
+    expect(result.targets.graph.allCertificateMaterialReadable).toBe(true);
+    expect(JSON.stringify(result)).not.toContain('PUBLIC-CERTIFICATE-MUST-NOT-BE-EMITTED');
   });
 
   it('fails closed if any application permission beyond OwnedBy is granted', async () => {

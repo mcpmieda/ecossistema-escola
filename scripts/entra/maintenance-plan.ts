@@ -71,6 +71,8 @@ export type MaintenanceTargetPlan = {
     customKeyIdentifier: string | null;
   }>;
   passwordCredentialCount: number;
+  certificateMaterialReadableCount: number;
+  allCertificateMaterialReadable: boolean;
 };
 
 export type EntraMaintenancePlan = {
@@ -247,7 +249,8 @@ async function readTarget(
   ) {
     throw new EntraMaintenancePlanError(`${label}-application-mismatch`);
   }
-  const keyCredentials = (app.keyCredentials ?? []).map((credential) => ({
+  const rawKeyCredentials = app.keyCredentials ?? [];
+  const keyCredentials = rawKeyCredentials.map((credential) => ({
     keyId: credential.keyId ?? null,
     type: credential.type ?? null,
     usage: credential.usage ?? null,
@@ -259,12 +262,18 @@ async function readTarget(
   if (keyCredentials.length === 0) {
     throw new EntraMaintenancePlanError(`${label}-certificate-missing`);
   }
+  const certificateMaterialReadableCount = rawKeyCredentials.filter(
+    (credential) => typeof credential.key === 'string' && credential.key.length > 0,
+  ).length;
   return {
     objectId,
     appId: app.appId,
     displayName: app.displayName,
     keyCredentials,
     passwordCredentialCount: (app.passwordCredentials ?? []).length,
+    certificateMaterialReadableCount,
+    allCertificateMaterialReadable:
+      certificateMaterialReadableCount === rawKeyCredentials.length,
   };
 }
 

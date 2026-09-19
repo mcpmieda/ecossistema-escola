@@ -90,4 +90,6 @@ O runtime existente será reutilizado:
 - validação de Web por slot exato;
 - validação de Graph por slot exato.
 
+Antes do apply, o dry-run também informa apenas um booleano sanitizado por alvo indicando se o material público dos certificados atuais está disponível para preservação integral. Nenhum byte de certificado é publicado no GitHub.
+
 A implementação de apply deve gerar a nova chave somente no job protegido, adicionar o certificado público preservando certificados válidos existentes, gravar a credencial privada no slot inativo do runtime, provar o slot exato sem fallback e manter o certificado anterior durante a janela de rollback.
