@@ -179,7 +179,7 @@ export async function getPlatformSnapshotV2(env: RuntimeEnv, capabilities: reado
   requestSignal?.throwIfAborted();
   const snapshot = buildPlatformSnapshot(source, capabilities);
   if (unavailableSections.length && snapshot.operational) snapshot.operational.status = 'attention';
-  return { ...snapshot, unavailableSections: unavailableSections.sort(), ...(retryAfterSeconds ? { retryAfterSeconds } : {}) };
+  return { ...snapshot, unavailableSections: unavailableSections.sort((left, right) => left.localeCompare(right)), ...(retryAfterSeconds ? { retryAfterSeconds } : {}) };
 }
 /** Old consumers must never interpret a partial V2 response as a complete snapshot. */
 export async function getPlatformSnapshot(env: RuntimeEnv, capabilities: readonly PlatformCapability[]): Promise<PlatformSnapshot> {
