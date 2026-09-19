@@ -25,8 +25,12 @@ describe('Entra Operations OIDC workflow', () => {
     expect(workflow).not.toMatch(/secrets\.(ENTRA|AZURE|GRAPH|WEB)/u);
   });
 
-  it('runs the real audit only on explicit workflow dispatch from main', () => {
-    expect(workflow).toContain("if: github.event_name == 'workflow_dispatch'");
+  it('runs the real audit only from trusted main on dispatch, audited pushes or schedule', () => {
+    expect(workflow).toContain("github.event_name == 'workflow_dispatch'");
+    expect(workflow).toContain("github.event_name == 'push'");
+    expect(workflow).toContain("github.event_name == 'schedule'");
+    expect(workflow).toContain("branches: [main]");
+    expect(workflow).toContain("cron: '15 10 * * *'");
     expect(workflow).toContain('test "$GITHUB_REF" = "refs/heads/main"');
     expect(workflow).toContain('ACTIONS_ID_TOKEN_REQUEST_URL');
     expect(workflow).toContain('client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer');
