@@ -89,10 +89,11 @@ describe('Maintenance certificate rotation', () => {
       previousActiveSlot: 'B',
       previousActiveKeyId: OLD_B,
       staleSameSlotKeyId: OLD_A,
-      newKeyId: RUNTIME_NEW_A,
+      runtimeCredentialKeyId: RUNTIME_NEW_A,
+      newGraphKeyId: GRAPH_NEW_A,
     });
     expect(state.keys()).toHaveLength(3);
-    expect(state.keys().map((value) => value.keyId).sort()).toEqual([OLD_A, OLD_B, NEW_A].sort());
+    expect(state.keys().map((value) => value.keyId).sort()).toEqual([OLD_A, OLD_B, GRAPH_NEW_A].sort());
   });
 
   it('fails closed if the requested slot is currently active', async () => {
