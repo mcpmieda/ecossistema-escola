@@ -14,15 +14,16 @@ A integração oficial usa tokens GitHub de curta duração e solicita acesso de
 
 ## Acionamento padrão
 
-O caminho homologado neste repositório é **label controlada**:
+O caminho homologado neste repositório é o workflow próprio **OpenHands Cloud on demand**:
 
 1. o ChatGPT prepara ou revisa a issue com um bloco `AGENT_HANDOFF`;
-2. o responsável/agente líder aplica a label `fix-me`;
-3. OpenHands trabalha e entrega um PR candidato;
-4. CI, Sonar e revisão proporcional ao risco continuam obrigatórios;
-5. merge/deploy seguem as regras normais do repositório.
+2. o responsável/agente líder comenta exatamente `/openhands` na issue;
+3. o GitHub Actions chama a API do OpenHands Cloud usando `OPENHANDS_API_KEY`, sem entregar um token GitHub gravável ao job do provedor;
+4. OpenHands trabalha no repositório conectado e, quando houver alterações, entrega somente branch/PR candidato;
+5. CI, Sonar e revisão proporcional ao risco continuam obrigatórios;
+6. merge/deploy seguem as regras normais do repositório.
 
-A menção pública padrão `@openhands-agent` existe na integração, mas não é o mecanismo padrão da equipe, para evitar consumo acidental de cota em um repositório público.
+Labels públicas e menções diretas do GitHub App não são o mecanismo padrão da equipe. O gatilho oficial interno é `/openhands`, aceito somente quando escrito pelo proprietário do repositório em issue também criada pelo proprietário.
 
 ## Limites
 
