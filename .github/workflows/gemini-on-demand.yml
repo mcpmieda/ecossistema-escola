@@ -210,9 +210,11 @@ jobs:
           fi
 
           git apply --index --whitespace=error "$patch"
+          git reset
           python infra/agents/validate_worktree.py             --root "$GITHUB_WORKSPACE"             --meta "$meta"             --result "$RUNNER_TEMP/publish-result.json"             --paths-only
 
           jq -e '.has_changes == true' "$RUNNER_TEMP/publish-result.json" >/dev/null
+          git add -A
           git diff --cached --check
 
       - name: Publish candidate branch and draft PR
